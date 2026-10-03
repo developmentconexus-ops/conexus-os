@@ -13,7 +13,7 @@ The Conexus brand: color and font tokens in `src/tokens.css`, the self-hosted fo
 
 ```bash
 node --test tests/implementation/brand-tokens.test.mjs
-node --test tests/implementation/brand-wordmark-csp-browser.test.mjs
+node --test tests/implementation/brand-wordmark-csp.browser.test.mjs
 npm run web:style:check
 npx --no-install biome check packages/brand/src
 ```

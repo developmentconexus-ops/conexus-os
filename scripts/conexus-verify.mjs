@@ -48,17 +48,17 @@ const hubBuildStep = Object.freeze({
 
 // A test file belongs to a group by where it lives and what it is called, never by a list:
 //   tests/live/            the live suite, one Hub and one Chromium for all of it
-//   *-browser.test.mjs     launches a browser
-//   *-postgres.test.mjs    needs a PostgreSQL
+//   *.browser.test.mjs     launches a browser
+//   *.postgres.test.mjs    needs a PostgreSQL
 //   everything else        runs with neither
 // tests/manual holds the suites run by hand (the Builder lab, paid live runs) and is in no group.
 // The browser-in-a-class-without-one guard is the name: a file that imports Playwright and is not
-// named *-browser fails tests/repository/conexus-verify.test.mjs, and the helper refuses at run time.
-export const TEST_GROUP_GLOBS = Object.freeze({
-  repository: Object.freeze(['tests/repository/!(*-browser|*-postgres).test.mjs']),
-  implementation: Object.freeze(['tests/implementation/!(*-browser|*-postgres).test.mjs']),
-  postgres: Object.freeze(['tests/implementation/*-postgres.test.mjs']),
-  browser: Object.freeze(['tests/implementation/*-browser.test.mjs']),
+// named *.browser fails tests/repository/conexus-verify.test.mjs, and the helper refuses at run time.
+const TEST_GROUP_GLOBS = Object.freeze({
+  repository: Object.freeze(['tests/repository/!(*.browser|*.postgres).test.mjs']),
+  implementation: Object.freeze(['tests/implementation/!(*.browser|*.postgres).test.mjs']),
+  postgres: Object.freeze(['tests/implementation/*.postgres.test.mjs']),
+  browser: Object.freeze(['tests/implementation/*.browser.test.mjs']),
   live: Object.freeze(['tests/live/*.test.mjs']),
 })
 

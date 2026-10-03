@@ -290,7 +290,7 @@ The sixteen-row allowlist that stood here counted owners that no longer exist, a
 them `bld.change`, `rel.release`, `rel.active_pointer` and `mar.serving_route`, and
 areas and per-project grants that the authority model no longer has. It is history.
 `apps/hub/migrations/0001_baseline.sql` and the forward migrations after it are what a
-reader measures against, and `tests/implementation/hub-call-site-privileges-postgres.test.mjs`
+reader measures against, and `tests/implementation/hub-call-site-privileges.postgres.test.mjs`
 is what holds the boundary.
 
 ---

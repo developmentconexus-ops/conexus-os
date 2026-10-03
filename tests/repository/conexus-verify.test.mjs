@@ -1,19 +1,19 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { existsSync, globSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, resolve } from 'node:path'
+import { dirname, matchesGlob, resolve } from 'node:path'
 import test from 'node:test'
 import {
   ALLOWED_ALIASES,
   CANDIDATE_GRAPH,
   DOCS_CHECK_SCOPES,
   DOCS_GRAPH,
-  TEST_GROUP_GLOBS,
   QUICK_GRAPH,
   VERIFY_GROUPS,
   graphForGroup,
   groupsOf,
+  loadPackageScripts,
   SCOPE_MANIFEST,
   assertExecutionEnvironment,
   executionEnvironment,
@@ -34,32 +34,80 @@ const committedTests = () => execFileSync('git', ['ls-files', 'tests'], { cwd: r
   .filter(path => path.endsWith('.test.mjs') && !path.startsWith('tests/manual/'))
   .sort()
 
-const groupOf = (path) => Object.entries(TEST_GROUP_GLOBS)
-  .filter(([, globs]) => globs.some(glob => globSync(glob, { cwd: repositoryRoot }).includes(path)))
-  .map(([group]) => group)
+const workflowGroups = () => readFileSync(resolve(repositoryRoot, '.github/workflows/verify.yml'), 'utf8')
+  .match(/group: \[([^\]]+)\]/)[1]
+  .split(',')
+  .map(name => name.trim())
 
-test('every committed test file belongs to exactly one test group, so none is left unrun', () => {
-  const tests = committedTests()
-  assert.ok(tests.length > 100)
-  const stray = tests.filter(path => groupOf(path).length !== 1).map(path => `${path} -> ${groupOf(path).join(',') || 'no group'}`)
-  assert.deepEqual(stray, [])
-})
+const testGlobsOf = (command, scripts) => {
+  const expanded = command.replace(/^npm run (\S+)$/, (_, name) => scripts[name] ?? '')
+  if (!expanded.startsWith('node --test')) return []
+  return [...expanded.matchAll(/'([^']+)'|(\S+)/g)]
+    .map(([, quoted, bare]) => quoted ?? bare)
+    .filter(word => word.endsWith('.test.mjs'))
+}
+
+const globsPerGroup = (groups) => {
+  const scripts = loadPackageScripts()
+  return Object.fromEntries(groups.map(group => [
+    group,
+    graphForGroup(CANDIDATE_GRAPH, group).flatMap(step => testGlobsOf(step.command ?? `npm run ${step.npmScript ?? ''}`, scripts)),
+  ]))
+}
+
+const groupsRunning = (path, globsByGroup) => Object.entries(globsByGroup)
+  .filter(([, globs]) => globs.some(glob => matchesGlob(path, glob)))
+  .map(([group]) => group)
 
 const PLAYWRIGHT_IMPORT = /^[^'"\n]*\b(?:from|import)\s*\(?\s*['"](?:@playwright\/test|playwright(?:-core)?)['"]/m
 
-test('a test that imports Playwright is in the browser or live group, which is the only place a browser can run', () => {
-  const importers = committedTests().filter(path => PLAYWRIGHT_IMPORT.test(readFileSync(resolve(repositoryRoot, path), 'utf8')))
-  assert.ok(importers.length >= 8, 'the guard sees the browser tests')
-  assert.deepEqual(importers.filter(path => !groupOf(path).every(group => group === 'browser' || group === 'live')), [])
+test('the workflow runs the four groups and each runs the tests its name places in it', () => {
+  assert.deepEqual(workflowGroups(), ['browser', 'postgres', 'rest', 'live'])
+  const globs = globsPerGroup(workflowGroups())
+  assert.deepEqual(groupsRunning('tests/implementation/a.postgres.test.mjs', globs), ['postgres'])
+  assert.deepEqual(groupsRunning('tests/implementation/a.browser.test.mjs', globs), ['browser'])
+  assert.deepEqual(groupsRunning('tests/implementation/a.test.mjs', globs), ['rest'])
+  assert.deepEqual(groupsRunning('tests/repository/a.test.mjs', globs), ['rest'])
+  assert.deepEqual(groupsRunning('tests/live/a.test.mjs', globs), ['live'])
+  assert.deepEqual(groupsRunning('tests/manual/a.test.mjs', globs), [])
 })
 
-test('the group globs match the file names the way node --test expands them', () => {
-  assert.deepEqual(groupOf('tests/implementation/hub-lifecycle-postgres.test.mjs'), ['postgres'])
-  assert.deepEqual(groupOf('tests/implementation/preview-form-policy-browser.test.mjs'), ['browser'])
-  assert.deepEqual(groupOf('tests/implementation/project-name.test.mjs'), ['implementation'])
-  assert.deepEqual(groupOf('tests/repository/import-law.test.mjs'), ['repository'])
-  assert.deepEqual(groupOf('tests/live/builder-send-and-reply.test.mjs'), ['live'])
-  assert.deepEqual(groupOf('tests/manual/builder-eval-run.test.mjs'), [])
+const unplaced = (paths, globs) => paths.filter(path => groupsRunning(path, globs).length !== 1)
+
+const browserTestsOutsideBrowser = (paths, sourceOf, globs) => paths
+  .filter(path => PLAYWRIGHT_IMPORT.test(sourceOf(path)))
+  .filter(path => !groupsRunning(path, globs).every(group => group === 'browser' || group === 'live'))
+
+const readSource = path => readFileSync(resolve(repositoryRoot, path), 'utf8')
+
+test('every committed test file runs in exactly one group of the workflow', () => {
+  const tests = committedTests()
+  assert.ok(tests.length > 100)
+  assert.deepEqual(unplaced(tests, globsPerGroup(workflowGroups())), [])
+})
+
+test('a test in a folder no group runs is unplaced', () => {
+  const globs = globsPerGroup(workflowGroups())
+  assert.deepEqual(
+    unplaced(['tests/newfolder/a.test.mjs', 'tests/implementation/nested/a.test.mjs', 'tests/implementation/a.test.mjs'], globs),
+    ['tests/newfolder/a.test.mjs', 'tests/implementation/nested/a.test.mjs'],
+  )
+})
+
+test('every committed test that imports Playwright runs in the browser or live group', () => {
+  const tests = committedTests()
+  assert.ok(tests.filter(path => PLAYWRIGHT_IMPORT.test(readSource(path))).length >= 8, 'the guard sees the browser tests')
+  assert.deepEqual(browserTestsOutsideBrowser(tests, readSource, globsPerGroup(workflowGroups())), [])
+})
+
+test('a Playwright test without the .browser suffix is caught', () => {
+  const globs = globsPerGroup(workflowGroups())
+  const source = () => "import { chromium } from 'playwright'"
+  assert.deepEqual(browserTestsOutsideBrowser(['tests/implementation/preview.test.mjs', 'tests/implementation/preview-browser.test.mjs'], source, globs), [
+    'tests/implementation/preview.test.mjs',
+    'tests/implementation/preview-browser.test.mjs',
+  ])
+  assert.deepEqual(browserTestsOutsideBrowser(['tests/implementation/preview.browser.test.mjs', 'tests/live/preview.test.mjs'], source, globs), [])
 })
 
 const packageScripts = Object.freeze({
@@ -236,10 +284,10 @@ test('candidate graph is the static checks, then one node --test per group by gl
   const scopes = CANDIDATE_GRAPH.map(entry => entry.scope)
   assert.deepEqual(scopes, EXPECTED_CANDIDATE_SCOPES)
   const command = (scope) => CANDIDATE_GRAPH.find(entry => entry.scope === scope).command
-  assert.equal(command('repository-tests'), "node --test 'tests/repository/!(*-browser|*-postgres).test.mjs'")
-  assert.equal(command('implementation-tests'), "node --test 'tests/implementation/!(*-browser|*-postgres).test.mjs'")
-  assert.equal(command('postgres-tests'), "node --test --test-concurrency=1 'tests/implementation/*-postgres.test.mjs'")
-  assert.equal(command('browser-tests'), "node --test --test-concurrency=1 'tests/implementation/*-browser.test.mjs'")
+  assert.equal(command('repository-tests'), "node --test 'tests/repository/!(*.browser|*.postgres).test.mjs'")
+  assert.equal(command('implementation-tests'), "node --test 'tests/implementation/!(*.browser|*.postgres).test.mjs'")
+  assert.equal(command('postgres-tests'), "node --test --test-concurrency=1 'tests/implementation/*.postgres.test.mjs'")
+  assert.equal(command('browser-tests'), "node --test --test-concurrency=1 'tests/implementation/*.browser.test.mjs'")
   assert.equal(command('biome'), 'npx --no-install biome ci . --error-on-warnings')
   const commands = CANDIDATE_GRAPH.map(entry => entry.command)
   assert.equal(commands.some(text => /\.test\.mjs(?!')/.test(text)), false, 'no step names a test file; the globs do')

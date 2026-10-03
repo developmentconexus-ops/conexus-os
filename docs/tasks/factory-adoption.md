@@ -120,7 +120,7 @@ touches. Three of its consequences land in these units:
   Conexus IAM, as amended C-024 says. The role does not exist yet, and unit 4 depends on it.
 - **Model credentials.** The Factory encrypts credentials with the Hub's key. The Factory registers
   its own per-person resolver, since its auth provider reads the Hub session, so a run uses its starter's own account,
-  else the installation's shared one, else none. `builder-model-accounts-postgres.test.mjs` qualifies
+  else the installation's shared one, else none. `builder-model-accounts.postgres.test.mjs` qualifies
   this with two accounts. The starter also pays for observational memory. C-025 keeps credential
   sharing with the Factory.
 - **Tool policy.** The browser answers a pending call with approve or decline only. An answer that

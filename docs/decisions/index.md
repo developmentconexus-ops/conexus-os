@@ -230,7 +230,7 @@ These are known technical follow-ups, not decisions:
 - Factory credentials must be encrypted, through the Factory's `secretEncryption`, before anyone
   connects a model account.
 - The per-person credential path runs through the Factory's own resolver, which the Factory registers
-  because the Hub-session auth provider is set. `builder-model-accounts-postgres.test.mjs` qualifies
+  because the Hub-session auth provider is set. `builder-model-accounts.postgres.test.mjs` qualifies
   it with two accounts.
 
 ## Decided on 2026-09-25, from the single session qualification

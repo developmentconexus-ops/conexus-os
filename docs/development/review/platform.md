@@ -15,8 +15,8 @@ root configuration.
 - [ ] Generated application code never runs in the Hub process.
 - [ ] Verification stays a flat graph of leaf checks in `scripts/conexus-verify.mjs`, and each leaf
       runs once. Owner: [Proof and verification](../delivery.md#proof-and-verification).
-- [ ] A test that drives a real browser is named `*-browser.test.mjs` and one that needs
-      PostgreSQL `*-postgres.test.mjs`, so the group globs in `scripts/conexus-verify.mjs` place it.
+- [ ] A test that drives a real browser is named `*.browser.test.mjs` and one that needs
+      PostgreSQL `*.postgres.test.mjs`, so the group globs in `scripts/conexus-verify.mjs` place it.
       A test that boots a whole Conexus of its own lives in `tests/live`. A test never has to be
       listed anywhere to run.
 - [ ] A change to workflow events or concurrency shows that the required `verify` check and trigger

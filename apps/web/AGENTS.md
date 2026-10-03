@@ -11,7 +11,7 @@ npm run typecheck:web         # TypeScript
 npm run web:style:check             # no raw hex, only the three brand fonts
 npx --no-install biome check apps/web/src
 npx --no-install playwright install chromium
-node --test --test-concurrency=1 tests/implementation/project-browser.test.mjs   # also builder-, settings-
+node --test --test-concurrency=1 tests/implementation/project.browser.test.mjs   # also builder-, settings-
 npm run hub:local                   # full Hub at https://hub.conexus.localhost:3443; needs CONEXUS_HUB_ENV (the Hub env file)
 ```
 
