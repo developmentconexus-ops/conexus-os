@@ -109,7 +109,7 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('db-baseline-file', 'npm run db:baseline:check', 'postgres'),
   candidateStep('hub-lifecycle', 'node --test --test-concurrency=1 tests/implementation/hub-lifecycle.test.mjs', 'postgres'),
   candidateStep('hub-postgres-pool', 'node --test tests/implementation/hub-postgres-pool.test.mjs', 'postgres'),
-  candidateStep('db-role-register', 'npm run db:roles:check && node --test tests/implementation/cutover-hub-role-names.test.mjs'),
+  candidateStep('db-role-register', 'npm run db:roles:check'),
   candidateStep('db-role-provision-postgres', 'npm run db:roles:postgres', 'postgres'),
   candidateStep('hub-build-shared', 'node --test tests/implementation/hub-build.test.mjs'),
   candidateStep('repository-check', 'npm run repository:check'),

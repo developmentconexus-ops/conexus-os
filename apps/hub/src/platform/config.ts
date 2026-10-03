@@ -53,7 +53,7 @@ export type HubConfig = Readonly<{
   // The Connector broker's pinned gateway destination and the directory of its per-invocation
   // handler sockets. Each absent leaves every connector call answering CONNECTOR_UNCONFIGURED.
   connectors: Readonly<{ gatewayOrigin: string | undefined; socketDirectory: string | undefined }>
-  oidc: Readonly<{ issuer: string; clientId: string; clientSecretFile: string; allowInsecureForTest: boolean }>
+  oidc: Readonly<{ issuer: string; clientId: string; clientSecretFile: string }>
 }>
 
 /** Where applications are served: `<slug>.<domain>` on one port. */
@@ -116,74 +116,7 @@ const workspaceDatabase = (environment: NodeJS.ProcessEnv): HubConfig['database'
   return undefined
 }
 
-// Project Inception, Baseline, Brain, Project Brain context, connection
-// bindings and the Sankhya gateway left the product. A deployment still
-// carrying their database credentials is configured for a capability the Hub
-// no longer serves, so it is refused rather than silently ignored.
-const RETIRED_PLANNING_VARIABLES = [
-  'CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE',
-  'CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE',
-  'CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE',
-] as const
-
-const RETIRED_BRAIN_CONNECTIONS_VARIABLES = [
-  'CONEXUS_DB_R2_BRAIN_READ_PASSWORD_FILE',
-  'CONEXUS_DB_R2_PROJECT_BINDING_PASSWORD_FILE',
-  'CONEXUS_DB_R2_BRAIN_ATTESTER_PASSWORD_FILE',
-  'CONEXUS_DB_R2_KEY_CONFORMANCE_SUBJECT_PASSWORD_FILE',
-  'CONEXUS_R2_KEY_CONFORMANCE_REGISTRATION_CATALOG_FILE',
-] as const
-
-// The deployment model admission catalog decided which models the Builder offered and which
-// providers a key could be filed under. Both are now the account's own connected credentials
-// against Mastra's provider registry, so an operator still carrying these files believes they are
-// choosing models for their deployment and are not. Refused rather than ignored.
-const RETIRED_MODEL_CATALOG_VARIABLES = [
-  'CONEXUS_PROJECT_MODEL_CATALOG_FILE',
-  'CONEXUS_BUILDER_MODEL_ADMISSION_ID',
-] as const
-
-// Model authentication, credentials and selection moved to Mastra (C-022), and the Hub's own
-// model-connection store and its database role went with them. A deployment still carrying these
-// is configured for a store the Hub no longer has, so it is refused rather than ignored.
-const RETIRED_MODEL_CONNECTION_VARIABLES = [
-  'CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE',
-  'CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE',
-  'CONEXUS_CONNECTION_CREDENTIAL_ROOT',
-  'CONEXUS_CONNECTION_CREDENTIAL_KEY_FILE',
-  'CONEXUS_CONNECTION_CREDENTIAL_KEY_GENERATION',
-] as const
-
-// The database roles are named for what they may do, not for the program phase that introduced
-// them. An operator whose environment still carries the old variable names would otherwise get a
-// 28P01 from the cluster, several layers away from the file that needs editing, so each retired
-// name is refused here and the error says which one replaced it.
-// The Mastra Factory and its GitHub App left the Hub with spec 0002: the Builder runs on its own
-// controller and the Conexus Git. A deployment still carrying these is configured for a runtime the
-// Hub no longer has, so it is refused rather than ignored.
-const RETIRED_FACTORY_VARIABLES = [
-  'CONEXUS_FACTORY_ORG_ID',
-  'CONEXUS_FACTORY_GITHUB_APP_ID',
-  'CONEXUS_FACTORY_GITHUB_CLIENT_ID',
-  'CONEXUS_FACTORY_GITHUB_APP_SLUG',
-  'CONEXUS_FACTORY_GITHUB_PRIVATE_KEY_FILE',
-  'CONEXUS_FACTORY_GITHUB_CLIENT_SECRET_FILE',
-  'CONEXUS_FACTORY_STATE_SECRET_FILE',
-] as const
-
-const RENAMED_ROLE_VARIABLES = {
-  CONEXUS_DB_WS01_COMMAND_PASSWORD_FILE: 'CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE',
-  CONEXUS_DB_S2_READ_PASSWORD_FILE: 'CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE',
-  CONEXUS_DB_S3_READ_PASSWORD_FILE: 'CONEXUS_DB_PROJECT_READ_PASSWORD_FILE',
-  CONEXUS_DB_PRJ03_COMMAND_PASSWORD_FILE: 'CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE',
-  CONEXUS_DB_RB_INGRESS_PASSWORD_FILE: 'CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE',
-  CONEXUS_DB_RB_EXECUTOR_PASSWORD_FILE: 'CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE',
-} as const
-
 const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] => {
-  for (const name of RETIRED_PLANNING_VARIABLES) {
-    if (environment[name]) throw new Error(`RETIRED_CONFIG_${name}`)
-  }
   const ordinaryValues = {
     commandPasswordFile: environment.CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE,
     readPasswordFile: environment.CONEXUS_DB_PROJECT_READ_PASSWORD_FILE,
@@ -313,17 +246,6 @@ const applicationRuntime = (environment: NodeJS.ProcessEnv, hubPort: number, pre
 }
 
 export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): HubConfig => {
-  for (const name of [
-    ...RETIRED_BRAIN_CONNECTIONS_VARIABLES,
-    ...RETIRED_MODEL_CATALOG_VARIABLES,
-    ...RETIRED_MODEL_CONNECTION_VARIABLES,
-    ...RETIRED_FACTORY_VARIABLES,
-  ]) {
-    if (environment[name]) throw new Error(`RETIRED_CONFIG_${name}`)
-  }
-  for (const [name, replacement] of Object.entries(RENAMED_ROLE_VARIABLES)) {
-    if (environment[name]) throw new Error(`RETIRED_CONFIG_${name}_USE_${replacement}`)
-  }
   const hubOrigin = required(environment, 'CONEXUS_ORIGIN')
   const hubPort = port(environment.CONEXUS_PORT ?? '3000', 'CONEXUS_PORT')
   const preview = previewRuntime(environment, hubOrigin, hubPort)
@@ -352,7 +274,6 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
       issuer: required(environment, 'CONEXUS_OIDC_ISSUER'),
       clientId: required(environment, 'CONEXUS_OIDC_CLIENT_ID'),
       clientSecretFile: required(environment, 'CONEXUS_OIDC_CLIENT_SECRET_FILE'),
-      allowInsecureForTest: environment.NODE_ENV === 'test' && environment.CONEXUS_TEST_ALLOW_INSECURE_OIDC === 'true',
     },
   }
   if (config.builder && !config.project) throw new Error('BUILDER_PROJECT_RUNTIME_REQUIRED')

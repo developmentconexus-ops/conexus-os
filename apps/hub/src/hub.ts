@@ -55,7 +55,6 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     // Every Hub and application session keeps its Keycloak refresh token sealed with the installation's credential key.
     envelope: createSecretEnvelope(readSecretFile(config.secretKey.file), config.secretKey.previousFiles.map(readSecretFile)),
     application: config.application ? { address: config.application } : undefined,
-    allowInsecureForTest: config.oidc.allowInsecureForTest,
   } satisfies Parameters<typeof createIdentityAccessModule>[0] & Readonly<{ workspaceReadPool: typeof s2ReadPool }>
   const identityAccess = await createIdentityAccessModule(identityAccessDependencies)
   // The Connector Connection's credential is sealed with the same installation key as an application

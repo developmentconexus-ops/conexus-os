@@ -7,17 +7,6 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 process.env.MASTRA_TELEMETRY_DISABLED = '1'
 
-const RETIRED_MODEL_CATALOG_VARIABLES = [
-  'CONEXUS_PROJECT_MODEL_CATALOG_FILE',
-  'CONEXUS_BUILDER_MODEL_ADMISSION_ID',
-]
-
-const RETIRED_PLANNING_VARIABLES = [
-  'CONEXUS_DB_S4_BASELINE_READ_PASSWORD_FILE',
-  'CONEXUS_DB_S4_BASELINE_COMMAND_PASSWORD_FILE',
-  'CONEXUS_DB_S6_INCEPTION_COMMAND_PASSWORD_FILE',
-]
-
 const hubEnvironment = (root) => ({
   NODE_ENV: 'test',
   CONEXUS_ORIGIN: 'https://hub.conexus.localhost:3000',
@@ -50,17 +39,6 @@ test('a Builder without its Mastra storage role is refused', async (t) => {
   assert.throws(() => readHubConfig(environment), { message: 'BUILDER_FACTORY_RUNTIME_REQUIRED' })
 })
 
-test('a deployment still carrying the Factory GitHub App variables is refused, not silently ignored', async (t) => {
-  const root = mkdtempSync(resolve(tmpdir(), 'conexus-f05-factory-retired-'))
-  t.after(() => rmSync(root, { recursive: true, force: true }))
-  const environment = hubEnvironment(root)
-  const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
-  assert.deepEqual(readHubConfig(environment).factory, { databasePasswordFile: resolve(root, 'factory-password') })
-  for (const name of ['CONEXUS_FACTORY_ORG_ID', 'CONEXUS_FACTORY_GITHUB_APP_ID', 'CONEXUS_FACTORY_GITHUB_PRIVATE_KEY_FILE', 'CONEXUS_FACTORY_STATE_SECRET_FILE']) {
-    assert.throws(() => readHubConfig({ ...environment, [name]: 'retired' }), new RegExp(`^Error: RETIRED_CONFIG_${name}$`))
-  }
-})
-
 test('Builder boot needs no deployment model catalog and no pinned admission id', async (t) => {
   const root = mkdtempSync(resolve(tmpdir(), 'conexus-f05-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
@@ -73,56 +51,4 @@ test('Builder boot needs no deployment model catalog and no pinned admission id'
   assert.equal(Object.hasOwn(config.builder, 'modelAdmissionId'), false)
   assert.equal(Object.hasOwn(config.project, 'modelCatalogFile'), false)
   assert.equal(Object.hasOwn(config.project, 'planning'), false)
-})
-
-test('a retired Inception or Baseline password variable is refused, not ignored', async (t) => {
-  const root = mkdtempSync(resolve(tmpdir(), 'conexus-f05-retired-'))
-  t.after(() => rmSync(root, { recursive: true, force: true }))
-  const environment = hubEnvironment(root)
-
-  const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
-
-  for (const name of RETIRED_PLANNING_VARIABLES) {
-    assert.throws(
-      () => readHubConfig({ ...environment, [name]: resolve(root, 'retired-password') }),
-      new RegExp(`RETIRED_CONFIG_${name}`),
-    )
-  }
-})
-
-test('a deployment still carrying the model catalog variables is refused, not silently ignored', async (t) => {
-  const root = mkdtempSync(resolve(tmpdir(), 'conexus-f05-catalog-'))
-  t.after(() => rmSync(root, { recursive: true, force: true }))
-  const environment = hubEnvironment(root)
-
-  const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
-
-  for (const name of RETIRED_MODEL_CATALOG_VARIABLES) {
-    assert.throws(
-      () => readHubConfig({ ...environment, [name]: resolve(root, 'model-admission-catalog.json') }),
-      new RegExp(`RETIRED_CONFIG_${name}`),
-    )
-  }
-})
-
-test('a deployment still carrying the model-connection variables is refused, not silently ignored', async (t) => {
-  const root = mkdtempSync(resolve(tmpdir(), 'conexus-f05-model-connection-'))
-  t.after(() => rmSync(root, { recursive: true, force: true }))
-  const environment = hubEnvironment(root)
-
-  const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
-
-  for (const name of [
-    'CONEXUS_DB_MODEL_CONNECTION_PASSWORD_FILE',
-    'CONEXUS_DB_R2_CONNECTIONS_PASSWORD_FILE',
-    'CONEXUS_CONNECTION_CREDENTIAL_ROOT',
-    'CONEXUS_CONNECTION_CREDENTIAL_KEY_FILE',
-    'CONEXUS_CONNECTION_CREDENTIAL_KEY_GENERATION',
-  ]) {
-    assert.throws(
-      () => readHubConfig({ ...environment, [name]: resolve(root, 'retired') }),
-      new RegExp(`^Error: RETIRED_CONFIG_${name}$`),
-    )
-  }
-  assert.equal(Object.hasOwn(readHubConfig(environment), 'connections'), false)
 })
