@@ -118,29 +118,57 @@ const countWeakTests = (source) => {
   return weak
 }
 
-// A test reads production source when the path argument of a file read, or the initializer of the
-// variable passed to it, names a file under production source, infra or .github. It follows one
-// variable, so it is a floor.
+// A test reads production source when the path it reads, or the path it hands to a function of its
+// own that reads, names a file under production source, infra or .github. A path is followed through
+// the variables that hold it. Only a test that runs the code (esbuild, an import) or writes a
+// fixture is not a reader. It does not follow a path across files, so it is a floor.
 const countSourceReads = (source) => {
   const initializers = new Map()
-  const collectInitializers = (node) => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) initializers.set(node.name.text, node.initializer)
-    ts.forEachChild(node, collectInitializers)
+  const readers = new Set()
+  const isRead = (node) => ts.isCallExpression(node) && READ_CALLS.has((ts.isPropertyAccessExpression(node.expression) ? node.expression.name : node.expression).getText(source))
+  // A function reads what its caller hands it when a parameter reaches the path of a read in its body.
+  const readsItsParameter = (fn) => {
+    const parameters = new Set(fn.parameters.flatMap((parameter) => (ts.isIdentifier(parameter.name) ? [parameter.name.text] : [])))
+    const reaches = (node) => {
+      let found = false
+      ts.forEachChild(node, (child) => {
+        found ||= ts.isIdentifier(child) ? parameters.has(child.text) : reaches(child)
+      })
+      return found || (ts.isIdentifier(node) && parameters.has(node.text))
+    }
+    const search = (node) => {
+      let found = isRead(node) && node.arguments[0] !== undefined && reaches(node.arguments[0])
+      ts.forEachChild(node, (child) => {
+        found ||= search(child)
+      })
+      return found
+    }
+    return search(fn.body ?? fn)
   }
-  collectInitializers(source)
-  const textsOf = (node, depth = 0) => {
+  const collect = (node) => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      initializers.set(node.name.text, node.initializer)
+      if ((ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer)) && readsItsParameter(node.initializer)) readers.add(node.name.text)
+    }
+    if (ts.isFunctionDeclaration(node) && node.name && readsItsParameter(node)) readers.add(node.name.text)
+    ts.forEachChild(node, collect)
+  }
+  collect(source)
+  const textsOf = (node, seen = new Set()) => {
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node)) return [node.text]
-    if (ts.isIdentifier(node) && depth === 0 && initializers.has(node.text)) return textsOf(initializers.get(node.text), depth + 1)
+    if (ts.isIdentifier(node) && initializers.has(node.text) && !seen.has(node.text) && !readers.has(node.text) && !ts.isFunctionLike(initializers.get(node.text))) return textsOf(initializers.get(node.text), new Set([...seen, node.text]))
     const texts = []
     ts.forEachChild(node, (child) => {
-      texts.push(...textsOf(child, depth))
+      texts.push(...textsOf(child, seen))
     })
     return texts
   }
+  const namesProduction = (node) => textsOf(node).some((text) => PRODUCTION_TEXT.test(text) && !LEGITIMATE_TEXT.test(text))
   let reads = 0
   const visit = (node) => {
-    if (ts.isCallExpression(node) && node.arguments[0] && READ_CALLS.has((ts.isPropertyAccessExpression(node.expression) ? node.expression.name : node.expression).getText(source))) {
-      if (textsOf(node.arguments[0]).some((text) => PRODUCTION_TEXT.test(text) && !LEGITIMATE_TEXT.test(text))) reads += 1
+    if (ts.isCallExpression(node) && node.arguments[0]) {
+      const callee = ts.isIdentifier(node.expression) ? node.expression.text : ''
+      if ((isRead(node) || readers.has(callee)) && namesProduction(node.arguments[0])) reads += 1
     }
     ts.forEachChild(node, visit)
   }
@@ -150,7 +178,7 @@ const countSourceReads = (source) => {
 
 export const measureTest = (file, text) => {
   const source = parse(file, text)
-  return { weakTests: file.endsWith('.test.mjs') ? countWeakTests(source) : 0, sourceReads: countSourceReads(source) }
+  return { weakTests: file.endsWith('.test.mjs') ? countWeakTests(source) : 0, sourceReads: file.endsWith('.test.mjs') ? countSourceReads(source) : 0 }
 }
 
 export const measureRepository = (root) => {

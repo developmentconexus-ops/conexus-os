@@ -86,3 +86,19 @@ test('a test that reads production source text is counted, but one that reads ge
   t.after(() => rmSync(root, { recursive: true }))
   assert.equal(run(root).stderr, 'ratchets rose; fix the code, never raise the file:\n  sourceReads tests/a.test.mjs: 0 -> 1\n')
 })
+
+test('a test that reads production source through a variable or a function of its own is counted, a test that writes a fixture there is not', (t) => {
+  const { root } = fixture({
+    'tests/walk.test.mjs': [
+      "const source = join(root, 'apps/hub/src')",
+      'const walk = (directory) => readdirSync(directory).flatMap((name) => walk(join(directory, name)))',
+      "test('t', () => { assert.deepEqual(walk(source), []) })",
+    ].join('\n'),
+    'tests/fixture.test.mjs': [
+      "const sourceDir = resolve(root, 'apps/hub/src')",
+      "test('t', () => { mkdirSync(sourceDir); writeFileSync(join(sourceDir, 'a.ts'), 'x'); assert.equal(readFileSync(join(root, 'out.log'), 'utf8'), 'x') })",
+    ].join('\n'),
+  })
+  t.after(() => rmSync(root, { recursive: true }))
+  assert.equal(run(root).stderr, 'ratchets rose; fix the code, never raise the file:\n  sourceReads tests/walk.test.mjs: 0 -> 1\n')
+})

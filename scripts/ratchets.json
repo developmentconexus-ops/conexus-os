@@ -182,6 +182,8 @@
     "tests/implementation/brand-wordmark-csp.test.mjs": 1,
     "tests/implementation/builder-failure-vocabulary.test.mjs": 1,
     "tests/implementation/connector-adapter-source.test.mjs": 1,
-    "tests/implementation/hub-launch-flags.test.mjs": 1
+    "tests/implementation/hub-call-site-privileges-postgres.test.mjs": 1,
+    "tests/implementation/hub-launch-flags.test.mjs": 1,
+    "tests/repository/hub-log-sinks.test.mjs": 2
   }
 }
