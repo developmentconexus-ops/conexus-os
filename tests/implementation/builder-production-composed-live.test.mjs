@@ -4,11 +4,11 @@ import test from 'node:test'
 import { chromium } from '@playwright/test'
 import { SpanType } from '@mastra/core/observability'
 
-const live = process.env.CONEXUS_RB_COMPOSED_LIVE === 'true'
+const live = process.env.CONEXUS_COMPOSED_LIVE === 'true'
 const required = [
-  'CONEXUS_RB_COMPOSED_WORKSPACE_ID',
-  'CONEXUS_RB_COMPOSED_OPERATOR_STORAGE_STATE',
-  'CONEXUS_RB_COMPOSED_DENIED_STORAGE_STATE',
+  'CONEXUS_COMPOSED_WORKSPACE_ID',
+  'CONEXUS_COMPOSED_OPERATOR_STORAGE_STATE',
+  'CONEXUS_COMPOSED_DENIED_STORAGE_STATE',
 ]
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
@@ -21,17 +21,17 @@ const readTrace = (page, projectId, builderRunId) => page.evaluate(async ({ id, 
   return response.ok ? response.json() : { status: response.status }
 }, { id: projectId, run: builderRunId })
 
-test('RB composed production journey uses server.ts, Preview, and native persisted traces', {
-  skip: live ? false : 'opt-in: CONEXUS_RB_COMPOSED_LIVE=true',
+test('the composed production journey uses server.ts, Preview, and native persisted traces', {
+  skip: live ? false : 'opt-in: CONEXUS_COMPOSED_LIVE=true',
   timeout: 20 * 60_000,
 }, async (t) => {
   const missing = required.filter((name) => !process.env[name])
-  const origin = process.env.CONEXUS_RB_COMPOSED_ORIGIN ?? process.env.CONEXUS_ORIGIN
-  const workspaceId = process.env.CONEXUS_RB_COMPOSED_WORKSPACE_ID
-  const operatorState = process.env.CONEXUS_RB_COMPOSED_OPERATOR_STORAGE_STATE
-  const deniedState = process.env.CONEXUS_RB_COMPOSED_DENIED_STORAGE_STATE
+  const origin = process.env.CONEXUS_COMPOSED_ORIGIN ?? process.env.CONEXUS_ORIGIN
+  const workspaceId = process.env.CONEXUS_COMPOSED_WORKSPACE_ID
+  const operatorState = process.env.CONEXUS_COMPOSED_OPERATOR_STORAGE_STATE
+  const deniedState = process.env.CONEXUS_COMPOSED_DENIED_STORAGE_STATE
   if (!origin || !workspaceId || !operatorState || !deniedState || missing.length > 0) {
-    throw new Error(`CONEXUS_RB_COMPOSED_LIVE_CONFIG_REFUSED: ${missing.join(',') || 'references'}`)
+    throw new Error(`CONEXUS_COMPOSED_LIVE_CONFIG_REFUSED: ${missing.join(',') || 'references'}`)
   }
   const parsedOrigin = new URL(origin)
   assert.equal(parsedOrigin.protocol, 'https:')

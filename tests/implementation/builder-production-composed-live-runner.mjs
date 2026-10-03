@@ -6,25 +6,25 @@ import { spawn, spawnSync } from 'node:child_process'
 import { buildHubLocal } from '../../scripts/build-hub-local.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
-const required = ['CONEXUS_RB_COMPOSED_WORKSPACE_ID', 'CONEXUS_RB_COMPOSED_OPERATOR_STORAGE_STATE', 'CONEXUS_RB_COMPOSED_DENIED_STORAGE_STATE']
+const required = ['CONEXUS_COMPOSED_WORKSPACE_ID', 'CONEXUS_COMPOSED_OPERATOR_STORAGE_STATE', 'CONEXUS_COMPOSED_DENIED_STORAGE_STATE']
 
 const readComposedProofConfig = async () => {
-  if (process.env.CONEXUS_RB_COMPOSED_LIVE !== 'true') return null
+  if (process.env.CONEXUS_COMPOSED_LIVE !== 'true') return null
   const missing = required.filter((name) => !process.env[name])
-  const originValue = process.env.CONEXUS_RB_COMPOSED_ORIGIN ?? process.env.CONEXUS_ORIGIN
+  const originValue = process.env.CONEXUS_COMPOSED_ORIGIN ?? process.env.CONEXUS_ORIGIN
   if (!originValue) missing.push('CONEXUS_ORIGIN')
   let origin
-  try { origin = new URL(originValue) } catch { throw new Error('CONEXUS_RB_COMPOSED_CONFIG_REFUSED') }
+  try { origin = new URL(originValue) } catch { throw new Error('CONEXUS_COMPOSED_CONFIG_REFUSED') }
   if (origin.protocol !== 'https:' || origin.hostname !== 'hub.conexus.localhost' || origin.pathname !== '/' || origin.search || origin.hash) {
-    throw new Error('CONEXUS_RB_COMPOSED_HTTPS_ORIGIN_REFUSED')
+    throw new Error('CONEXUS_COMPOSED_HTTPS_ORIGIN_REFUSED')
   }
   const configuredOrigin = process.env.CONEXUS_ORIGIN ? new URL(process.env.CONEXUS_ORIGIN) : undefined
-  if (!configuredOrigin || origin.href !== configuredOrigin.href) throw new Error('CONEXUS_RB_COMPOSED_ORIGIN_MISMATCH')
-  if (missing.length > 0) throw new Error(`CONEXUS_RB_COMPOSED_LIVE_CONFIG_REFUSED: ${missing.join(',')}`)
-  for (const path of [process.env.CONEXUS_RB_COMPOSED_OPERATOR_STORAGE_STATE, process.env.CONEXUS_RB_COMPOSED_DENIED_STORAGE_STATE]) {
-    try { await access(path, constants.R_OK) } catch { throw new Error('CONEXUS_RB_COMPOSED_REFERENCE_UNREADABLE') }
+  if (!configuredOrigin || origin.href !== configuredOrigin.href) throw new Error('CONEXUS_COMPOSED_ORIGIN_MISMATCH')
+  if (missing.length > 0) throw new Error(`CONEXUS_COMPOSED_LIVE_CONFIG_REFUSED: ${missing.join(',')}`)
+  for (const path of [process.env.CONEXUS_COMPOSED_OPERATOR_STORAGE_STATE, process.env.CONEXUS_COMPOSED_DENIED_STORAGE_STATE]) {
+    try { await access(path, constants.R_OK) } catch { throw new Error('CONEXUS_COMPOSED_REFERENCE_UNREADABLE') }
   }
-  return Object.freeze({ origin, workspaceId: process.env.CONEXUS_RB_COMPOSED_WORKSPACE_ID })
+  return Object.freeze({ origin, workspaceId: process.env.CONEXUS_COMPOSED_WORKSPACE_ID })
 }
 
 const READINESS_REQUEST_TIMEOUT_MS = 5_000
