@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { FileType } from 'e2b'
 import type { CommandResult, EntryInfo, Sandbox } from 'e2b'
-import { CHECK_AGENT_IDENTITY, CHECK_COMMAND_TIMEOUT_MS, CHECK_NODE_PATH, CHECK_SCRIPT_PATH, parseCheckReport, redactEvidence } from './application-check.js'
+import { CHECK_AGENT_IDENTITY, CHECK_COMMAND_TIMEOUT_MS, CHECK_NODE_PATH, CHECK_SCRIPT_PATH, readCheckReport, redactEvidence } from './application-check.js'
 import type { CheckReport } from './application-check.js'
 import { CURRENT_TEMPLATE_PIN } from '../platform/application-template-pins.js'
 import type { SANDBOX_AGENT_USER } from './sandbox.js'
@@ -214,7 +214,7 @@ export const checkApplicationInSandbox = async (
     result = { stdout: raised.stdout, stderr: raised.stderr ?? '', exitCode: raised.exitCode } as CommandResult
   }
   if (result.exitCode !== 0) throw new Error('APPLICATION_CHECK_UNREADABLE', { cause: { exitCode: result.exitCode, stderr: redactEvidence(result.stderr.slice(-2_000)) } })
-  const report = parseCheckReport(result.stdout)
+  const report = readCheckReport(result.stdout)
   const files = input.collect && report.ok ? await collectOutput(sandbox, place) : null
   const thumbnail = files && input.thumbnail ? await readThumbnail(sandbox, place, input.thumbnail) : null
   return Object.freeze({ report, files, thumbnail })

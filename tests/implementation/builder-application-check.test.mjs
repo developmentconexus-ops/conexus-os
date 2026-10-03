@@ -8,7 +8,7 @@ import { chromium } from '@playwright/test'
 import { ensureCompilerRoot } from './compiler-root.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { checkScriptSource, parseCheckReport, failedStepEvidence } = await import(hubModuleUrl('builder/application-check.js'))
+const { checkScriptSource, readCheckReport, failedStepEvidence } = await import(hubModuleUrl('builder/application-check.js'))
 const { serverBuildScriptSource } = await import(hubModuleUrl('builder/application-server-build.js'))
 const { fixedApplicationStarterFiles } = await import(hubModuleUrl('builder/application-starter.js'))
 
@@ -77,7 +77,7 @@ const check = (t, files, { limits = [], compilerFiles = {}, before, thumbnail, c
     ...(thumbnail ? ['--thumbnail', thumbnail(scratch)] : []),
   ], { encoding: 'utf8', timeout: 120_000 })
   assert.equal(ran.status, 0, ran.stderr)
-  return { report: parseCheckReport(ran.stdout), raw: JSON.parse(ran.stdout.trim().split('\n').pop()), root, out, scratch }
+  return { report: readCheckReport(ran.stdout), raw: JSON.parse(ran.stdout.trim().split('\n').pop()), root, out, scratch }
 }
 
 const stepsOf = (report) => report.steps.map((step) => [step.step, step.status])

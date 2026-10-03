@@ -56,9 +56,9 @@ const execute = (command, args, { cwd, env }) => new Promise((settle) => {
 /**
  * @param {string} root the host directory that holds one directory per conversation
  * @param {object} workspaceTools the `tools` option of the agent's workspace (BUILDER_WORKSPACE_TOOLS_CONFIG of the built Hub)
- * @param {(stdout: string) => object} parseCheckReport the built Hub's reader of check.mjs output
+ * @param {(stdout: string) => object} readCheckReport the built Hub's reader of check.mjs output
  */
-export const localConversationSandboxes = (root, workspaceTools, parseCheckReport) => {
+export const localConversationSandboxes = (root, workspaceTools, readCheckReport) => {
   const base = resolve(root)
   mkdirSync(base, { recursive: true })
   const directoryOf = (conversationId) => {
@@ -132,7 +132,7 @@ export const localConversationSandboxes = (root, workspaceTools, parseCheckRepor
           '--chromium', chromium.executablePath(), ...(thumbnail ? ['--thumbnail', inside(thumbnail)] : []),
         ], { cwd: vm, env: environment })
         if (ran.exitCode !== 0) throw new Error('APPLICATION_CHECK_UNREADABLE', { cause: { stderr: ran.stderr.slice(-2_000) } })
-        const report = parseCheckReport(ran.stdout)
+        const report = readCheckReport(ran.stdout)
         const dist = inside(out)
         const files = collect && report.ok ? filesUnder(dist).map((path) => {
           const bytes = new Uint8Array(readFileSync(join(dist, path)))
