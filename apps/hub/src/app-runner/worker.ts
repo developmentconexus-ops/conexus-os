@@ -90,8 +90,7 @@ const connectorClient = (bound: boolean) => Object.freeze({
 
 const detail = (error: unknown): string => {
   const message = error instanceof Error ? error.message : String(error)
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const code = typeof (error as { code?: unknown })?.code === 'string' ? `${(error as { code: string }).code} ` : ''
+  const code = typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string' ? `${error.code} ` : ''
   return `${code}${message}`.slice(0, 400)
 }
 

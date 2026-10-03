@@ -2,6 +2,7 @@ import type { AgentControllerEvent } from '@mastra/core/agent-controller'
 import { isMastraTimeoutError } from '@mastra/core/loop'
 import { isBadRequestError, PrefillErrorHandler, ProviderHistoryCompat, StreamErrorRetryProcessor } from '@mastra/core/processors'
 import type { RequestContext } from '@mastra/core/request-context'
+import { errorField } from '../../platform/error-field.js'
 
 /*
  * The retry policy below is Mastra Code's, from `createMastraCode` in `@mastra/code-sdk`
@@ -32,8 +33,8 @@ const isTransientConnectionError = (error: unknown): boolean => {
 /** Mastra Code's `isTransientServerError`. */
 const isTransientServerError = (error: unknown): boolean => {
   if (!error || typeof error !== 'object') return false
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const { status, statusCode } = error as { status?: unknown; statusCode?: unknown }
+  const status = errorField(error, 'status')
+  const statusCode = errorField(error, 'statusCode')
   if ((typeof status === 'number' && status >= 500 && status < 600) || (typeof statusCode === 'number' && statusCode >= 500 && statusCode < 600)) return true
   return error instanceof Error && TRANSIENT_SERVER_MESSAGE.test(error.message)
 }
@@ -45,9 +46,7 @@ const isTransientServerError = (error: unknown): boolean => {
  */
 const isNoResponseError = (error: unknown): boolean => {
   if (!(error instanceof Error)) return false
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const { isRetryable, statusCode } = error as { isRetryable?: unknown; statusCode?: unknown }
-  return isRetryable === true && statusCode === undefined
+  return errorField(error, 'isRetryable') === true && errorField(error, 'statusCode') === undefined
 }
 
 /** Mastra Code's `getTransientRetryDelay`. */
@@ -61,9 +60,8 @@ type RetryEvent = Extract<AgentControllerEvent, { type: 'error' }>
  * from the status or code alone, never the provider's error.
  */
 const retryNoticeError = (error: unknown): Error => {
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const { status, statusCode, code } = (typeof error === 'object' && error !== null ? error : {}) as { status?: unknown; statusCode?: unknown; code?: unknown }
-  const http = [statusCode, status].find((value): value is number => typeof value === 'number')
+  const code = errorField(error, 'code')
+  const http = [errorField(error, 'statusCode'), errorField(error, 'status')].find((value): value is number => typeof value === 'number')
   return new Error(http !== undefined ? `MODEL_CALL_RETRYING_HTTP_${http}` : typeof code === 'string' && /^[A-Z_]+$/.test(code) ? `MODEL_CALL_RETRYING_${code}` : 'MODEL_CALL_RETRYING')
 }
 

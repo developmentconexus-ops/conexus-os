@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import type { BuilderRunPhase, BuilderRunResultKind, BuilderRunState } from '../generated/builder-run-vocabulary.js'
-import type { PostgresPool } from '../platform/postgres.js'
+import { errorCode, type PostgresPool } from '../platform/postgres.js'
 
 export type BuilderRunSummary = Readonly<{
   builderRunId: string
@@ -145,8 +145,7 @@ export const createBuilderStore = ({
     const result = await executorPool.query<JsonRow<BuilderRunSummary>>(
       'SELECT builder.claim_builder_run($1,$2) AS value', [builderRunId, ownerId],
     ).catch((error: unknown) => {
-      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-      if (typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '42501') {
+      if (errorCode(error) === '42501') {
         throw new Error('BUILDER_RUN_NOT_ADMITTED')
       }
       throw error

@@ -3,6 +3,7 @@ import { parseError } from '@mastra/code-sdk/utils/errors'
 import { isMastraTimeoutError } from '@mastra/core/loop'
 import type { RequestContext } from '@mastra/core/request-context'
 import type { CompiledApplication, CompiledApplicationThumbnail } from './application-artifact-runtime.js'
+import { errorField } from '../platform/error-field.js'
 
 type CodingWorkerResultScope = Readonly<{
   runtimeId: 'conexus-builder-e2b-v1'
@@ -63,9 +64,7 @@ type AgentFailureCode = 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_MODEL_AUTH_FAILE
  * logs the cause of what the run throws.
  */
 const safeCause = (error: unknown): Readonly<{ statusCode: number }> | undefined => {
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const { statusCode, status } = (typeof error === 'object' && error !== null ? error : {}) as { statusCode?: unknown; status?: unknown }
-  const http = [statusCode, status].find((value): value is number => typeof value === 'number')
+  const http = [errorField(error, 'statusCode'), errorField(error, 'status')].find((value): value is number => typeof value === 'number')
   return http === undefined ? undefined : { statusCode: http }
 }
 

@@ -8,7 +8,7 @@ import type {
   Prj03Response,
 } from '../generated/project-routes.js'
 import type { BuilderRunResultKind, BuilderRunState } from '../generated/builder-run-vocabulary.js'
-import type { PostgresPool } from '../platform/postgres.js'
+import { errorCode, type PostgresPool } from '../platform/postgres.js'
 import { createProjectDeletionOrchestrator } from './deletion.js'
 import type { ProjectDeletionPorts } from './deletion.js'
 import { projectError, repositoryRefused } from './errors.js'
@@ -75,9 +75,7 @@ export type ProjectStore = Readonly<{
 
 const digestText = (value: string): string => sha256(Buffer.from(value, 'utf8'))
 const digestBody = (value: unknown): string => sha256(canonicalBytes(value))
-const isNotAdmitted = (error: unknown): boolean =>
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '42501'
+const isNotAdmitted = (error: unknown): boolean => errorCode(error) === '42501'
 const mapDatabaseError = (error: unknown): never => {
   if (isNotAdmitted(error)) throw projectError('AUTHORIZATION_DENIED')
   throw error
