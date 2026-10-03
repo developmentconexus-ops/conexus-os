@@ -52,35 +52,6 @@
   "overrides": [
     {
       "includes": [
-        "apps/hub/src/identity-access/routes.ts"
-      ],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noImplicitAnyLet": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": [
-        "apps/web/src/main.tsx"
-      ],
-      "linter": {
-        "rules": {
-          "a11y": {
-            "noAutofocus": "off",
-            "noStaticElementInteractions": "off",
-            "useButtonType": "off"
-          },
-          "correctness": {
-            "useExhaustiveDependencies": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": [
         "apps/web/src/**",
         "packages/*/src/**"
       ],
@@ -102,18 +73,6 @@
         "rules": {
           "correctness": {
             "noUndeclaredDependencies": "error"
-          }
-        }
-      }
-    },
-    {
-      "includes": [
-        "scripts/builder-eval/checks.mjs"
-      ],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noControlCharactersInRegex": "off"
           }
         }
       }
