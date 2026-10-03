@@ -97,8 +97,8 @@ The gates below are sequential. Only the gate named under **Exact next action** 
 | **Q1 Handler runtime + persistent Preview data** | Can the Builder create server-backed app behavior whose generated code runs outside the Hub with Project-scoped persistent data and no privileged platform authority? | **ACCEPT_WITH_BOUNDARY** on the amended task, accepted 2026-09-23 after three review rounds and merged as `b90c54f7` (#196). Its boundaries and reopen triggers are in the [evidence](evidence/stage2-q1/README.md#verdict) |
 | **Q2 Data programming model** | Is parameterized SQL sufficient for the Builder, or does measured evidence justify Kysely or a typed Data API? | **ACCEPT** on 2026-09-23. The Builder built the app and changed it three times with parameterized SQL in six runs; no failure repeated. The first sequence was voided by a pilot fault ([task §14](tasks/stage2-q2-data-programming-model-qualification.md#14-amendment-2026-09-23--pilot-fault-rerun), [evidence](evidence/stage2-q2/README.md#q21-attempt-2)) |
 | **Q3 Application identity** | Can an employee use an application without gaining Control Plane authority? | **ACCEPT_WITH_BOUNDARY** on 2026-09-24, merged as `7f3dc0b7` (#210). An app-only employee signed in on the application's own host and wrote a note under their own name; every Q3.6 negative case was refused. Until Q5 the application host serves the last good Preview ([task](tasks/stage2-q3-application-identity-qualification.md), [evidence](evidence/stage2-q3/README.md)) |
-| **Q4 First Connector** | Can a Project read a real enterprise system through a Connection bound to it, with Sankhya as the first integrator, by sending the vendor's own request format through one Hub executor, from the Builder while it investigates and from the application's handlers at runtime, while the credential and the vendor token stay in the Hub, no write reaches the vendor, a Project reads only through its own bindings, and the Builder builds and changes a useful application without a new platform operation? | **CURRENT GATE**. The task was amended on 2026-09-28 for C-030, which makes the question connector-generic. Part 1 is on `main` (#246); its custody and transport evidence is kept. The executor followed it to `main` (#369, #372, #378) ([task](tasks/stage2-q4-sankhya-connector-qualification.md#amendment-2026-09-28-the-question-is-connector-generic)) |
-| **Q5 Release + Publish** | Can the verified application become a stable URL through an explicit immutable Release/Publish transition without building a deployment platform? | WAITING FOR Q4 |
+| **Q4 First Connector** | Can a Project read a real enterprise system through a Connection bound to it, with Sankhya as the first integrator, by sending the vendor's own request format through one Hub executor, from the Builder while it investigates and from the application's handlers at runtime, while the credential and the vendor token stay in the Hub, no write reaches the vendor, a Project reads only through its own bindings, and the Builder builds and changes a useful application without a new platform operation? | **ACCEPT_WITH_BOUNDARY** on 2026-10-02, frozen for the operator's decision. On `main` at `f7967b81`, the Builder investigated the company's Sankhya with 20 native reads through the Project's binding, built a sales dashboard whose handler reads through it, and changed it in a second conversation. The Sankhya administrator has not confirmed that the integration user only reads, and the negative cases are proved in CI, not on the pilot ([task](tasks/stage2-q4-sankhya-connector-qualification.md), [evidence](evidence/stage2-q4/README.md#verdict)) |
+| **Q5 Release + Publish** | Can the verified application become a stable URL through an explicit immutable Release/Publish transition without building a deployment platform? | **NEXT**, after the Q5 preparation in the [order of work](#order-of-work-to-q5) |
 
 Do not create implementation tasks for Q2-Q5 before the preceding verdict. Their current question, candidates and evidence requirements live in the Stage 2 reference so they are not lost.
 
@@ -106,7 +106,7 @@ The sequence is a commitment order, not a dependency chain. Q5 depends on Q1's m
 
 Specs 0005 to 0008 build people, access, configuration and telemetry before the Q5 task exists.
 They prepare Q5, whose proof needs an employee who is not a developer and signs in with their own
-access. They are not the Q5 task, which still waits for the Q4 verdict.
+access. They are not the Q5 task, which starts once that preparation is done.
 
 ## Order of work to Q5
 
@@ -120,7 +120,7 @@ the [decision register](decisions/index.md#decided-on-2026-10-02-the-order-of-wo
 | --- | --- | --- |
 | 0. Finish open work | The open CI pull requests, a `verify` median of 5 minutes or less, the verdicts of the open Context7, telemetry and configuration qualifications, a rule that a pull request is up to date with `main` before it merges, and one pull request that corrects the authority documents that describe code `main` no longer has | No work started before 2026-10-02 is still open |
 | 1. Close Q4 | Inside the Q4 workstream: first the fixes where a person or data is at risk, then the guards, then the rest of the closure set | The Q4 verdict |
-| 2. Prepare Q5, then Q5 | In this order, which the specs set: spec 0008 slice 1 (one session lifetime from one source, which may start during phase 1); spec 0006 (people and sign-in); experiment E1 of spec 0005, then 0005 slices 3 to 6 as one release; spec 0007 slices 2 to 4 with spec 0008 slice 4; the sandbox allowlist of C-023. Then the Q5 task | The Q5 verdict: a published application used by an employee who is not a developer |
+| 2. Prepare Q5, then Q5 | First the screen check below. Then, in this order, which the specs set: spec 0008 slice 1 (one session lifetime from one source, which may start during phase 1); spec 0006 (people and sign-in); experiment E1 of spec 0005, then 0005 slices 3 to 6 as one release; spec 0007 slices 2 to 4 with spec 0008 slice 4; the sandbox allowlist of C-023. Then the Q5 task | The Q5 verdict: a published application used by an employee who is not a developer |
 | 3. Structural waves | Beside phases 1 and 2, once the phase 1 guards are in CI, one wave at a time | Each wave's own check |
 
 Phase 1 fixes, each with its own behavior test:
@@ -139,13 +139,16 @@ Phase 1 fixes, each with its own behavior test:
   2026-10-02 say what guards it instead.
 - A run cannot end as done while its app fails the check: the failure goes back to the agent in
   the same turn, up to three times, and a failure Conexus caused is retried without the agent.
-- The Builder checks the screens it built as a person would, in a browser inside its sandbox, with
-  sample data it writes in each operation's output shape. The sample data proves the screen shows
-  what it receives, never that a number matches the source.
 
 Phase 1 guards land before any structural wave: a browser test harness against a real Hub, with
 the Builder flows a person uses; a list of flows per review area that CI requires for every change
 to that area; and the run states from one source that the Hub, the web app and SQL import.
+
+Phase 2 starts with the screen check, before the specs:
+
+- The Builder checks the screens it built as a person would, in a browser inside its sandbox, with
+  sample data it writes in each operation's output shape. The sample data proves the screen shows
+  what it receives, never that a number matches the source.
 
 Phase 3 waves, in this order, which the code quality diagnosis of 2026-10-02 set (cheap removals
 and security first; S2 before S1 and S5, which depend on it):
@@ -292,33 +295,28 @@ enters when Stage 2 closes.
 
 ## Exact next action
 
-**Execute the amended Stage 2 Q4 task: a Project reads a real enterprise system through a Connection bound to it, with Sankhya as the first integrator.**
+**Prepare Q5 in the [order of work](#order-of-work-to-q5): first the screen check of phase 2, then
+the specs in their order, then the Q5 task.**
 
-[Stage 2 Q4 — Connector qualification, with Sankhya as the first integrator](tasks/stage2-q4-sankhya-connector-qualification.md#amendment-2026-09-28-the-question-is-connector-generic)
+The screen check comes first. The Builder checks the screens it built in a browser inside its
+sandbox, with sample data in each operation's output shape. The Q4 proof showed why. The Builder
+tested its operations with real reads but did not see the screen it built.
 
-Protected question:
+Protected question of Q5:
 
-> Can a Project read a real enterprise system through a Connection bound to it, with Sankhya as
-> the first integrator, by sending the vendor's own request format through one Hub executor, from
-> the Builder while it investigates and from the application's handlers at runtime, while the
-> credential and the vendor token stay in the Hub, no write reaches the vendor, a Project reads only
-> through its own bindings, and the Builder builds and changes a useful application without a new
-> platform operation?
-
-The amendment's closure set says what closes Q4. The Connection, the Project binding and the
-executor are on `main` (#369, #372, #378), and the per-operation path (`connectors.call`, `/v1/call`
-and `sankhya.purchase-order.read`) is deleted. What remains: run the pilot on `main`, record one
-autonomous investigation and one useful application with a later change, and freeze the verdict. The phase 1 fixes and guards of
-the [order of work](#order-of-work-to-q5) run inside this gate. Spike branches never merge.
+> Can the verified application become a stable URL through an explicit immutable Release/Publish
+> transition without building a deployment platform?
 
 Q1 closed with ACCEPT_WITH_BOUNDARY ([evidence and verdict](evidence/stage2-q1/README.md#verdict)).
 Q2 closed with ACCEPT: parameterized SQL through `pg` is the data programming model
 ([evidence and verdict](evidence/stage2-q2/README.md#q21-attempt-2)). Q3 closed with
 ACCEPT_WITH_BOUNDARY in #210 (`7f3dc0b7`): an application has its own host, an app-only Account reaches it through a
 one-use handoff from the Hub sign-in, and handlers receive the caller
-([evidence and verdict](evidence/stage2-q3/README.md)). The data reset of the Builder own harness
-qualification removes the notebook application Q3 left, so the useful application of the Q4 closure
-set takes its role (operator, 2026-10-01).
+([evidence and verdict](evidence/stage2-q3/README.md)). Q4 closed with ACCEPT_WITH_BOUNDARY on
+`main` at `f7967b81`: a Project reads the company's Sankhya through a Connection bound to it, the
+Builder investigates with native reads, and an application's handler reads through the binding
+([evidence and verdict](evidence/stage2-q4/README.md#verdict)). Its boundary is the read-only
+confirmation the operator still owes, and the negative cases proved in CI but not on the pilot.
 
 Q3 left one pending item by operator choice: the no-access page names the wrong reason when
 Keycloak reports an unverified email ([finding 1](evidence/stage2-q3/README.md#findings)).
