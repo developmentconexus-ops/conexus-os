@@ -19,7 +19,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const base = process.argv[process.argv.indexOf('--base') + 1]
   const git = (...args) => execFileSync('git', args, { encoding: 'utf8' })
   const areas = JSON.parse(git('show', `${base}:${AREAS}`))
-  const changedFiles = git('diff', '--name-only', `${base}...HEAD`).split('\n').filter(Boolean)
+  const changedFiles = git('diff', '--name-only', '--no-renames', '-z', `${base}...HEAD`).split('\0').filter(Boolean)
   const { pull_request: event } = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'))
   const blocked = ungatedPaths({ areas, changedFiles, labels: event.labels.map(({ name }) => name) })
   for (const file of blocked) process.stderr.write(`${file} is in the gated area ${gatedAreaOf(areas, file).area}\n`)
