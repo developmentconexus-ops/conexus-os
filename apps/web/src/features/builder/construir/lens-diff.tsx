@@ -51,11 +51,13 @@ function UnifiedTable({ rows, open, onToggle }: Readonly<{ rows: readonly DiffRo
   </table>
 }
 
+const SIDE_CLASS = { add: 'cx-dt-add', del: 'cx-dt-del' } as const
+
 const sideCell = (line: DiffLine | null, side: 'add' | 'del') => line
   ? <>
-    <td className={`cx-dt-n cx-dt-${side}`}>{side === 'add' ? line.newLine : line.oldLine}</td>
-    <td className={`cx-dt-g cx-dt-${side}`}>{side === 'add' ? '+' : '−'}</td>
-    <td className={`cx-dt-t cx-dt-${side}`}>{lineOrBlank(line.text)}</td>
+    <td className={`cx-dt-n ${SIDE_CLASS[side]}`}>{side === 'add' ? line.newLine : line.oldLine}</td>
+    <td className={`cx-dt-g ${SIDE_CLASS[side]}`}>{side === 'add' ? '+' : '−'}</td>
+    <td className={`cx-dt-t ${SIDE_CLASS[side]}`}>{lineOrBlank(line.text)}</td>
   </>
   : <td className="cx-dt-empty" colSpan={3} />
 

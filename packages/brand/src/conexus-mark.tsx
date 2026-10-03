@@ -2,6 +2,9 @@ const MARK_PIECES = ['M4 4H18V14H10V28H4Z', 'M28 28H14V18H22V4H28Z'] as const
 
 type MarkMotion = 'still' | 'working' | 'fit-once'
 
+const MOTION_CLASS = { still: 'cx-mark', working: 'cx-mark cx-mark--working', 'fit-once': 'cx-mark cx-mark--fit-once' } as const
+const WORDMARK_CLASS = { xs: 'cx-wordmark--xs', sm: 'cx-wordmark--sm', md: 'cx-wordmark--md', lg: 'cx-wordmark--lg' } as const
+
 // Decorative on purpose: the wordmark names the product and the run status names the work, so the
 // mark never carries meaning a screen reader would miss.
 export function ConexusMark({ size = 24, working = false, arrive = false }: Readonly<{
@@ -11,7 +14,7 @@ export function ConexusMark({ size = 24, working = false, arrive = false }: Read
 }>) {
   const motion: MarkMotion = working ? 'working' : arrive ? 'fit-once' : 'still'
   return <svg
-    className={motion === 'still' ? 'cx-mark' : `cx-mark cx-mark--${motion}`}
+    className={MOTION_CLASS[motion]}
     width={size}
     height={size}
     viewBox="0 0 32 32"
@@ -31,7 +34,7 @@ export function ConexusWordmark({ size = 'sm', markSize, working = false, arrive
   arrive?: boolean
 }>) {
   const sizeInPixels = { xs: 18, sm: 20, md: 26, lg: 32 }[size]
-  return <span className={`cx-wordmark cx-wordmark--${size}`} role="img" aria-label="Conexus">
+  return <span className={`cx-wordmark ${WORDMARK_CLASS[size]}`} role="img" aria-label="Conexus">
     <ConexusMark size={markSize ?? sizeInPixels} working={working} arrive={arrive} />
     <span aria-hidden="true">Co<em>nexus</em></span>
   </span>

@@ -37,21 +37,8 @@ const CLASS_DEFINITION = /\.((?:cx|cxs|builder)-[\w-]+)/g
 const TAILWIND_ENTRY = 'apps/web/src/styles.css'
 const VENDOR_CSS_ROOT = 'node_modules/@mastra/playground-ui/dist'
 const CLASSNAME_ATTR = /className\s*=\s*(["'{])/g
+const CLASS_MAP = /\bconst [A-Z][A-Z_]*_CLASS(?:ES)? = \{/g
 const STRING_LITERAL = /'([^'\\]*(?:\\.[^'\\]*)*)'|"([^"\\]*(?:\\.[^"\\]*)*)"|`([^`\\]*(?:\\.[^`\\]*)*)`/g
-
-// A class built from a template literal, such as `cx-dt-${side}`, has no literal name here to look
-// up. Each entry is verified by hand against the CSS and names the file that builds it, so a
-// reviewer can re-check it without re-deriving the resolved names.
-const DYNAMIC_CLASSES = [
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${...} text is the source token to match, not an interpolation
-  { file: 'apps/web/src/features/builder/construir/lens-diff.tsx', token: 'cx-dt-${side}', resolves: ['cx-dt-add', 'cx-dt-del'] },
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${...} text is the source token to match, not an interpolation
-  { file: 'packages/brand/src/conexus-mark.tsx', token: 'cx-mark--${motion}', resolves: ['cx-mark--working', 'cx-mark--fit-once'] },
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${...} text is the source token to match, not an interpolation
-  { file: 'packages/brand/src/conexus-mark.tsx', token: 'cx-wordmark--${size}', resolves: ['cx-wordmark--xs', 'cx-wordmark--sm', 'cx-wordmark--md', 'cx-wordmark--lg'] },
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${...} text is the source token to match, not an interpolation
-  { file: 'apps/web/src/features/settings/components/states.tsx', token: 'cxs-chip-${tone}', resolves: ['cxs-chip-positive', 'cxs-chip-warning', 'cxs-chip-neutral'] },
-]
 
 // A hover hint is the design system Tooltip, never the browser's native `title` bubble (HQ decision
 // 2026-09-29). A `title` is a hint on an intrinsic element or on a dotted component such as
@@ -184,6 +171,17 @@ const classNameTokens = text => {
       }
     }
   }
+  // A literal class map, `const SIDE_CLASS = { add: 'cx-dt-add' }`, names its classes outside a className.
+  // Its classes are checked and counted as used like a className's.
+  for (const map of text.matchAll(CLASS_MAP)) {
+    const body = braceExpression(text, map.index + map[0].length - 1)
+    for (const literal of body.matchAll(STRING_LITERAL)) {
+      const content = literal[1] ?? literal[2] ?? ''
+      for (const token of content.split(/\s+/)) {
+        if (CONEXUS_PREFIX.test(token)) staticTokens.push({ line: lineOf(text, map.index), token })
+      }
+    }
+  }
   return { staticTokens, dynamicTokens }
 }
 
@@ -280,15 +278,7 @@ const classCheck = (files, contentOf, vendor, generates) => {
       if (!defined.has(token)) violations.push({ path, line, message: `class "${token}" has no CSS rule under apps/web/src or packages/brand/src` })
     }
     for (const { line, token } of dynamicTokens) {
-      const allowed = DYNAMIC_CLASSES.find(entry => entry.file === path && entry.token === token)
-      if (!allowed) {
-        violations.push({ path, line, message: `class "${token}" is built dynamically; add it to DYNAMIC_CLASSES in scripts/check-web-style.mjs` })
-        continue
-      }
-      for (const resolved of allowed.resolves) {
-        used.add(resolved)
-        if (!defined.has(resolved)) violations.push({ path, line, message: `class "${resolved}", resolved from the dynamic "${token}", has no CSS rule under apps/web/src or packages/brand/src` })
-      }
+      violations.push({ path, line, message: `class "${token}" is built dynamically; map each value to a literal class name` })
     }
   }
   const unused = [...defined]
@@ -324,7 +314,7 @@ const main = async () => {
     for (const { path, line, message } of violations) console.error(`${path}:${line}: ${message}`)
     return 1
   }
-  // A dead rule is a defect: delete it, or list the template that builds the class in DYNAMIC_CLASSES.
+  // A dead rule is a defect: delete it.
   if (unused.length) {
     for (const { path, line, message } of unused) console.error(`${path}:${line}: ${message}`)
     return 1
