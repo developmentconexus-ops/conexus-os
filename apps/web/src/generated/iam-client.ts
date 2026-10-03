@@ -1,4 +1,4 @@
-// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-s1-contracts.mjs. Do not edit.
+// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-iam-contracts.mjs. Do not edit.
 export const S1_PRODUCT_OAS_DIGEST = "ee4a506205e3cd08549d3cdbebf5a25c1162c8a5cf10cd76abb6d99d044aa1e4"
 export const S1_ROUTE_PROJECTION_DIGEST = "514234bc2cad559510d788cd5427fa9560143abc9424efbc1e8eca435db37fc1"
 export type AccountSummary = { "accountId": string; "displayName": string; "email"?: string }

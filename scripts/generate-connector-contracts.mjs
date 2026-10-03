@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { canonicalBytes, sha256 } from '../packages/canonical-json/src/index.mjs'
 
-// Same shape as scripts/generate-r1-s1-contracts.mjs, over the Connector Path Items instead of the
+// Same shape as scripts/generate-iam-contracts.mjs, over the Connector Path Items instead of the
 // IAM and Workspace ones. A second per-module generator earns its place once the projection differs
 // enough to matter (it does: Connector has no Idempotency-Key carrier and two idempotent-create
 // response codes), rather than growing one generator's branching over every module.
@@ -64,7 +64,7 @@ try {
   const projectionDigest = sha256(canonicalBytes(definitions))
   const byId = new Map(definitions.map((definition) => [definition.ownerId, definition]))
   const output = [
-    '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-connector-contracts.mjs. Do not edit.',
+    '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-connector-contracts.mjs. Do not edit.',
     "import type { FastifySchema } from 'fastify'",
     '',
     `export const CONNECTOR_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
@@ -85,7 +85,7 @@ try {
     '',
   ].join('\n')
   const client = [
-    '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-connector-contracts.mjs. Do not edit.',
+    '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-connector-contracts.mjs. Do not edit.',
     `export const CONNECTOR_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
     `export const CONNECTOR_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
     `export type ConnectorConnection = ${toTypeScript(byId.get('CON-01').schema.response['200'].properties.entries.items)}`,

@@ -7,7 +7,7 @@ The Conexus web app: React, strict TypeScript, Vite, TanStack Router and Query, 
 Run from the repository root, in WSL, after `source "$HOME/.nvm/nvm.sh"; nvm use`:
 
 ```bash
-npm run r1:a0:web:typecheck         # TypeScript
+npm run typecheck:web         # TypeScript
 npm run web:style:check             # no raw hex, only the three brand fonts
 npx --no-install biome check apps/web/src
 npx --no-install playwright install chromium
