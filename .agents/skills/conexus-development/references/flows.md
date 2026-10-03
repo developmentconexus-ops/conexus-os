@@ -24,7 +24,7 @@ Poteto's pstack, `/jm-*` from the jm suite). Without the skill, do the step by h
 ## Build
 
 1. The issue or spec names the result, the non-goals and "done when". A missing decision goes back
-   to the operator; never invent product meaning in code. A spec is written with `/jm-architect`.
+   to the operator; never invent product meaning in code.
 2. Take the native census in [Mastra native](../../../../docs/development/review/mastra-native.md#proof-required)
    before adding any mechanism.
 3. Build it with `/jm-develop`, failing tests first, under `/pstack:typescript-best-practices`.
@@ -33,20 +33,16 @@ Poteto's pstack, `/jm-*` from the jm suite). Without the skill, do the step by h
 
 ## Redesign
 
-For a shape that keeps breaking, and for every roadmap wave.
+For a roadmap wave or a shape that keeps breaking. The census, the redesign, the blast radius and
+the spec are done before code by the session that plans the work, and the operator approves the
+spec. Here you build it.
 
-1. Plan the run with `/pstack:figure-it-out`.
-2. Census: what exists (`/pstack:how`, `/pstack:why`), what the installed `@mastra` packages offer
-   (the `mastra` skill), and how Mastra Code, Factory, Claude Code, Codex and Mitra solve it.
-3. Redesign from first principles, as if the requirement had been there from the start. Name what
-   each existing piece is for; a piece with no reason left is deleted, and whatever depended on it
-   is fixed the native way, not adapted. `/pstack:architect` when the design crosses modules.
-4. Blast radius with `/pstack:blast-radius`, proving the fact its safety depends on by running code.
-5. The spec with `/jm-scope`: the design, what it deletes, and what stays and why. A contested
-   design goes through `/pstack:interrogate`.
-6. The operator approves the spec before code.
-7. Build as in Build. The pull request shows the diff by kind, and a diagnosis-only review
-   (`/pstack:thermo-nuclear-code-quality-review`) checks that the code got smaller.
+1. Read the approved spec in `docs/tasks/specs/`: what it deletes, what stays and why. It is the
+   contract; do not redesign it.
+2. Build as in Build: the failing tests the spec names first, then the code.
+3. A gap or a contradiction in the spec stops the work and goes back as a report, with the evidence.
+4. The pull request shows the diff by kind (`node scripts/diff-shape.mjs`), and a diagnosis-only
+   review (`/pstack:thermo-nuclear-code-quality-review`) checks that the code got smaller.
 
 ## Review
 
