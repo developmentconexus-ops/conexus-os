@@ -53,10 +53,10 @@ function AskUserPtInput({ questions, isSubmitting = false, onSubmit, footer, ...
   const panel = useRef<HTMLDivElement>(null)
   const update = (index: number, change: (draft: Draft) => Draft) => setDrafts((current) => current.map((draft, at) => (at === index ? change(draft) : draft)))
   const answers = questions.map((entry, index) => answerOf(entry, drafts[index] ?? emptyDraft))
-  const complete = answers.every((answer) => answer !== null)
+  const settled = answers.filter((answer): answer is AskUserAnswer => answer !== null)
+  const complete = settled.length === answers.length
   const submit = () => {
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    if (complete && !isSubmitting) onSubmit(answers as AskUserAnswer[])
+    if (complete && !isSubmitting) onSubmit(settled)
   }
   const next = () => {
     if (!stepped) return submit()

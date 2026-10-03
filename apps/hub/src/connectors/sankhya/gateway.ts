@@ -33,6 +33,7 @@ const SERVICE_PATH = '/gateway/v1/mge/service.sbr'
 const RESPONSE_CAP_BYTES = 256 * 1024
 const BEARER = /^[A-Za-z0-9\-._~+/]+=*$/
 const RECORDED_ENVELOPE_STATUSES: ReadonlySet<string> = new Set(['0', '1', '2', '3', '4'])
+const isRecordedEnvelopeStatus = (status: string): status is EnvelopeStatus => RECORDED_ENVELOPE_STATUSES.has(status)
 
 /** Refuses anything but an exact published origin; the Hub reads CONEXUS_SANKHYA_GATEWAY_ORIGIN through this. */
 export const pinnedGatewayOrigin = (value: string): string => {
@@ -126,8 +127,7 @@ export const sankhyaNativeProtocol: NativeProtocol = Object.freeze({
     const parsed = envelope.safeParse(body)
     if (!parsed.success) return Object.freeze({ kind: 'unreadable' })
     const { status } = parsed.data
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    const envelopeStatus = RECORDED_ENVELOPE_STATUSES.has(status) ? status as EnvelopeStatus : 'other'
+    const envelopeStatus = isRecordedEnvelopeStatus(status) ? status : 'other'
     return status === '1' ? Object.freeze({ kind: 'success', envelopeStatus }) : Object.freeze({ kind: 'vendor-error', vendorStatus: status, envelopeStatus })
   },
   oneRequestPerToken: true,

@@ -38,6 +38,8 @@ const CALLBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1'])
 const CALLBACK_PATHS = new Set(['/oauth-callback', '/antigravity/callback'])
 const STATE = /^[\w-]{8,128}$/
 
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+
 const management = async (instance: LoginInstance, path: string, body?: unknown): Promise<Readonly<Record<string, unknown>>> => {
   const answer = await fetch(`${instance.url}/v0/management${path}`, {
     method: body === undefined ? 'GET' : 'POST',
@@ -46,8 +48,7 @@ const management = async (instance: LoginInstance, path: string, body?: unknown)
     signal: AbortSignal.timeout(10_000),
   })
   const parsed: unknown = await answer.json().catch(() => null)
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  return typeof parsed === 'object' && parsed !== null ? parsed as Record<string, unknown> : {}
+  return isRecord(parsed) ? parsed : {}
 }
 
 /**
@@ -108,8 +109,7 @@ export const createGoogleAiProLogin = <C extends Caller>({ pool, writeCredential
     starting = true
     try {
       const instance = await pool.startLogin().catch(() => { throw new GoogleAiProLoginError('model-login-unavailable') })
-      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-      const answer = await management(instance, '/antigravity-auth-url?is_webui=true').catch(() => ({} as Record<string, unknown>))
+      const answer = await management(instance, '/antigravity-auth-url?is_webui=true').catch((): Readonly<Record<string, unknown>> => ({}))
       const { url, state } = answer
       if (answer.status !== 'ok' || typeof url !== 'string' || !url.startsWith('https://accounts.google.com/') ||
         typeof state !== 'string' || !STATE.test(state)) {

@@ -137,8 +137,7 @@ const run = async (): Promise<never> => {
   }
   let handler: unknown
   try {
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    handler = (await import(job.module) as Record<string, unknown>)[job.export]
+    handler = Reflect.get(await import(job.module), job.export)
   } catch (error) {
     return finish({ ok: false, code: 'HANDLER_LOAD_FAILED', detail: detail(error) })
   }
@@ -154,8 +153,7 @@ const run = async (): Promise<never> => {
         unavailable = error
         throw error
       })
-      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-      const result = await (await session).query(text, values as unknown[] | undefined)
+      const result = await (await session).query(text, values && [...values])
       return { rows: result.rows }
     },
   })
@@ -163,8 +161,7 @@ const run = async (): Promise<never> => {
   const connectors = connectorClient(job.connector)
   let value: unknown
   try {
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    value = await (handler as (input: unknown, context: unknown) => unknown)(job.input, Object.freeze({ db, caller, connectors }))
+    value = await Reflect.apply(handler, undefined, [job.input, Object.freeze({ db, caller, connectors })])
   } catch (error) {
     return finish(unavailable === undefined
       ? { ok: false, code: 'HANDLER_FAILED', detail: detail(error) }

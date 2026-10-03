@@ -74,24 +74,26 @@ type RosterRow = QueryResultRow & {
   expires_at: Date | null
 }
 
-const rosterEntry = (row: RosterRow): RosterEntry => row.kind === 'member'
-  ? {
-    kind: 'member',
-    accountId: brandAccountId(row.account_id ?? ''),
-    displayName: row.display_name ?? '',
-    ...(row.email ? { email: row.email } : {}),
-    role: row.role,
-    since: row.since.toISOString(),
-  }
-  : {
-    kind: 'invitation',
-    invitationId: brandInvitationId(row.invitation_id ?? ''),
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    email: (row.email ?? '') as EmailAddress,
-    role: row.role,
-    invitedAt: row.since.toISOString(),
-    expiresAt: (row.expires_at ?? row.since).toISOString(),
-  }
+const memberEntry = (row: RosterRow): MemberEntry => ({
+  kind: 'member',
+  accountId: brandAccountId(row.account_id ?? ''),
+  displayName: row.display_name ?? '',
+  ...(row.email ? { email: row.email } : {}),
+  role: row.role,
+  since: row.since.toISOString(),
+})
+
+const invitationEntry = (row: RosterRow): InvitationEntry => ({
+  kind: 'invitation',
+  invitationId: brandInvitationId(row.invitation_id ?? ''),
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
+  email: (row.email ?? '') as EmailAddress,
+  role: row.role,
+  invitedAt: row.since.toISOString(),
+  expiresAt: (row.expires_at ?? row.since).toISOString(),
+})
+
+const rosterEntry = (row: RosterRow): RosterEntry => row.kind === 'member' ? memberEntry(row) : invitationEntry(row)
 
 export const createMembershipStore = ({ pool }: Readonly<{ pool: PostgresPool }>): MembershipStore => Object.freeze({
   async roster({ actor, workspaceId }) {
@@ -116,8 +118,7 @@ export const createMembershipStore = ({ pool }: Readonly<{ pool: PostgresPool }>
       [actor, workspaceId])
     const row = stored.rows.find((candidate) => candidate.invitation_id === invitationId)
     if (!row) throw new Error('INVITATION_NOT_READABLE')
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    return rosterEntry(row) as InvitationEntry
+    return invitationEntry(row)
   },
   async cancelInvitation({ actor, invitationId }) {
     await pool.query('SELECT iam.cancel_workspace_invitation($1, $2)', [actor, invitationId])

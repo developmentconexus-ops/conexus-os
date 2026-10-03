@@ -1,11 +1,17 @@
 import { Input } from '@mastra/playground-ui/components/Input'
 import { Check, Search } from 'lucide-react'
-import type { CSSProperties, KeyboardEvent, PointerEvent } from 'react'
+import type { KeyboardEvent, PointerEvent } from 'react'
 import { useMemo, useRef, useState } from 'react'
 import type { BuilderModel, ReasoningLevel } from '../mastra-session'
 import { groupModelsByProvider, providerIcon } from './model-order'
 import { humanizeModelName } from './model-display-name'
 import { reasoningLabels } from './reasoning-labels'
+
+declare module 'react' {
+  interface CSSProperties {
+    [property: `--cx-${string}`]: string | number | undefined
+  }
+}
 
 const matches = (model: BuilderModel, query: string): boolean => {
   const needle = query.trim().toLowerCase()
@@ -138,8 +144,7 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, levels, 
             aria-valuenow={levelIndex}
             aria-valuetext={reasoningLabels[reasoning]}
             aria-disabled={reasoningDisabled || undefined}
-            // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-            style={{ '--cx-effort-at': levelIndex / lastStop } as CSSProperties}
+            style={{ '--cx-effort-at': levelIndex / lastStop }}
             onKeyDown={onSliderKeyDown}
             onPointerDown={onSliderPointerDown}
             onPointerMove={onSliderPointerMove}
@@ -150,8 +155,7 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, levels, 
               className="cx-effort-dot"
               aria-hidden="true"
               data-filled={index < levelIndex || undefined}
-              // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-              style={{ '--cx-effort-stop': index / lastStop } as CSSProperties}
+              style={{ '--cx-effort-stop': index / lastStop }}
             />)}
             <span className="cx-effort-thumb" aria-hidden="true" />
           </div>

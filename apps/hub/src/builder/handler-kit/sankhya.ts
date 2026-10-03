@@ -27,9 +27,9 @@ const read = (connectors: SankhyaConnectors, connection: string, serviceName: st
     query: { serviceName, outputType: 'json' }, body: { serviceName, requestBody },
   })
 
-const record = (value: unknown): Record<string, unknown> | null =>
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const record = (value: unknown): Record<string, unknown> | null => isRecord(value) ? value : null
 
 // Sankhya sends a list with one element as the element itself.
 const list = (value: unknown): unknown[] => (value === undefined || value === null ? [] : Array.isArray(value) ? value : [value])

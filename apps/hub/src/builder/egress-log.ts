@@ -249,10 +249,9 @@ export type EgressCollectPorts = Readonly<EgressRoot & {
 const readOffsets = async (ports: EgressCollectPorts): Promise<Offsets | null> => {
   try {
     const parsed: unknown = JSON.parse(Buffer.from((await ports.readAgentFile(OFFSET_PATH)) ?? new Uint8Array()).toString('utf8'))
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    if (isObject(parsed) && Number.isInteger(parsed.dns) && Number.isInteger(parsed.tcp) && (parsed.dns as number) >= 0 && (parsed.tcp as number) >= 0) {
-      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-      return { dns: parsed.dns as number, tcp: parsed.tcp as number }
+    if (isObject(parsed)) {
+      const { dns, tcp } = parsed
+      if (typeof dns === 'number' && Number.isInteger(dns) && dns >= 0 && typeof tcp === 'number' && Number.isInteger(tcp) && tcp >= 0) return { dns, tcp }
     }
   } catch { /* a missing or damaged sidecar starts from the top of the logs */ }
   return null
