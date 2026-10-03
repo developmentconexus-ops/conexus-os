@@ -65,13 +65,13 @@
       "packages/canonical-json/**",
       "tests/implementation/*-postgres.test.mjs",
       "tests/implementation/hub-migration-*",
-      "tests/implementation/hub-baseline.test.mjs",
+      "tests/implementation/hub-baseline-postgres.test.mjs",
       "tests/implementation/hub-database.mjs",
       "tests/implementation/hub-role-*",
       "tests/implementation/provision-hub-*",
       "tests/implementation/connection-census.test.mjs",
       "tests/implementation/protected-cluster*",
-      "tests/implementation/workspace-reads.test.mjs",
+      "tests/implementation/workspace-reads-postgres.test.mjs",
       "docs/tasks/specs/0005-app-access-perfis/**",
       "docs/tasks/specs/0006-people-and-sign-in/**",
       "docs/tasks/specs/0008-configuration-model/**"
@@ -104,7 +104,7 @@
       "tests/implementation/builder-google-*",
       "tests/implementation/builder-openai-*",
       "tests/implementation/builder-model-*",
-      "tests/implementation/builder-e2b-*",
+      "tests/manual/builder-e2b-*",
       "tests/implementation/builder-anthropic*",
       "tests/implementation/model-account-*",
       "tests/implementation/builder-conexus-git*"
@@ -122,7 +122,7 @@
       "tests/implementation/brand-*",
       "tests/implementation/web-dev-server.mjs",
       "tests/implementation/*-screenshot*",
-      "tests/implementation/preview-form-policy.test.mjs",
+      "tests/implementation/preview-form-policy-browser.test.mjs",
       "tests/repository/web-style.test.mjs"
     ],
     "page": "docs/development/review/frontend.md",

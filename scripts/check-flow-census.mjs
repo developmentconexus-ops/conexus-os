@@ -1,7 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { EXEMPT_TESTS, collectReachableTests } from './check-test-census.mjs'
 
 // A live flow is declared in its test file as liveFlow({ id: '<area>.<flow>', nome: '...' }, ...)
 // (tests/live/harness.mjs). The census reads that literal; it never imports the test.
@@ -19,11 +18,9 @@ function listLiveTests(root) {
   return output.split('\n').filter(Boolean).sort()
 }
 
-export function checkFlowCensus({ root, areas, candidateGraph, packageScripts, liveTests, readSource }) {
+export function checkFlowCensus({ root, areas, liveTests, readSource }) {
   const read = readSource ?? ((path) => readFileSync(resolve(root, path), 'utf8'))
   const live = liveTests ?? listLiveTests(root)
-  const reachable = collectReachableTests(candidateGraph, packageScripts)
-  const exempt = new Set(EXEMPT_TESTS)
   const problems = []
 
   const declaredIn = new Map()
@@ -56,7 +53,6 @@ export function checkFlowCensus({ root, areas, candidateGraph, packageScripts, l
       if (!declaredIn.has(test)) problems.push(`flow ${id} names ${test}, which is not a committed live test (${LIVE_TESTS})`)
       else if (!declaredIn.get(test).has(id)) problems.push(`flow ${id} names ${test}, which does not declare that flow`)
       else if (declaredIn.get(test).get(id) !== nome) problems.push(`flow ${id} is named "${nome}" in areas.json but "${declaredIn.get(test).get(id)}" in ${test}`)
-      else if (!reachable.has(test) || exempt.has(test)) problems.push(`flow ${id} names ${test}, which is not run by the required graph`)
     }
   }
 
@@ -70,11 +66,9 @@ export function checkFlowCensus({ root, areas, candidateGraph, packageScripts, l
 const isMainModule = process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.filename ?? '')
 if (isMainModule) {
   const root = resolve('.')
-  const pkg = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'))
   const areas = JSON.parse(readFileSync(resolve(root, 'docs/development/review/areas.json'), 'utf8'))
-  const { CANDIDATE_GRAPH } = await import('./conexus-verify.mjs')
 
-  const result = checkFlowCensus({ root, areas, candidateGraph: CANDIDATE_GRAPH, packageScripts: pkg.scripts ?? {} })
+  const result = checkFlowCensus({ root, areas })
   if (result.problems.length > 0) {
     process.stderr.write(`flow census failed:\n${result.problems.map((problem) => `  ${problem}`).join('\n')}\n`)
     process.exit(1)

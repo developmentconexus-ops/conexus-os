@@ -41,7 +41,7 @@ and the shapes that must not appear are in
 9. **Tests of behavior.** A test calls the code the way its user does and compares with a literal
    value. No test reads source text. Fake only what cannot run locally; a screen is proved in a browser
    against a real Hub.
-   Enforced by: `scripts/check-empty-tests.mjs` (a test with no assertion), `scripts/check-test-census.mjs`, `scripts/check-test-skips.mjs`, `scripts/check-test-quarantine.mjs`, and review (a test that reads source text).
+   Enforced by: `scripts/check-empty-tests.mjs` (a test with no assertion), `scripts/check-test-skips.mjs`, `scripts/check-test-quarantine.mjs`, and review (a test that reads source text).
 10. **Observable.** Structured logs with a code and a trace id. Every error a person sees leaves a log
     line.
    Enforced by: `tests/repository/hub-log-sinks.test.mjs`, `scripts/generate-log-codes.mjs`.

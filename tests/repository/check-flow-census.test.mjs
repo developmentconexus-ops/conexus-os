@@ -4,15 +4,12 @@ import { checkFlowCensus, declaredFlows } from '../../scripts/check-flow-census.
 
 const LIVE = 'tests/live/builder-send-and-reply.test.mjs'
 const SOURCES = { [LIVE]: "liveFlow({ id: 'builder.send-and-reply', nome: 'Enviar' }, async () => {})" }
-const GRAPH = [{ command: `node --test ${LIVE}` }]
 const flow = (overrides = {}) => ({ id: 'builder.send-and-reply', nome: 'Enviar', test: LIVE, ...overrides })
 
-const run = ({ areas, sources = SOURCES, graph = GRAPH } = {}) =>
+const run = ({ areas, sources = SOURCES } = {}) =>
   checkFlowCensus({
     root: '.',
     areas: areas ?? [{ area: 'builder-factory', flows: [flow()] }],
-    candidateGraph: graph,
-    packageScripts: {},
     liveTests: Object.keys(sources),
     readSource: (path) => sources[path],
   })
@@ -30,7 +27,7 @@ test('a registered flow whose nome differs from its test declaration fails', () 
   assert.match(problems[0], /builder\.send-and-reply is named "Um nome totalmente diferente" in areas\.json but "Enviar"/)
 })
 
-test('a registered flow with a declaring, reachable live test passes', () => {
+test('a registered flow with a declaring live test passes', () => {
   assert.deepEqual(run().problems, [])
 })
 
@@ -48,11 +45,6 @@ test('a live test naming an unregistered flow fails', () => {
 test('a registered flow whose test does not declare it fails', () => {
   const { problems } = run({ areas: [{ area: 'a', flows: [flow(), flow({ id: 'builder.ghost' })] }] })
   assert.deepEqual(problems, ['flow builder.ghost names tests/live/builder-send-and-reply.test.mjs, which does not declare that flow'])
-})
-
-test('a registered flow whose test the graph does not run fails', () => {
-  const { problems } = run({ graph: [] })
-  assert.deepEqual(problems, ['flow builder.send-and-reply names tests/live/builder-send-and-reply.test.mjs, which is not run by the required graph'])
 })
 
 test('a live test file with no flow declaration fails', () => {

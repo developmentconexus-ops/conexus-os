@@ -7,7 +7,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import test from 'node:test'
 import { Sandbox } from 'e2b'
 import { readBuilderE2BApiKey } from '../../scripts/builder-e2b-template.mjs'
-import { hubModuleUrl } from './hub-build.mjs'
+import { hubModuleUrl } from '../implementation/hub-build.mjs'
 
 // Paid: each test creates short-lived sandboxes on the Builder's real E2B template and kills them
 // before it ends. Run with `npm run builder:sandbox:live`, which reads the Hub env file.

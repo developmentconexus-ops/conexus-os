@@ -103,7 +103,7 @@ hub_s4_baseline_read   hub_s6_inception_command hub_ws01_command
 Eight of them were the phase-named predecessors of the capability roles above, and the rest held
 surfaces that were dropped with the Brain, the bindings, Baseline, Inception and the Sankhya
 connections. `0001_baseline.sql` names none of them, so a cluster built from it never has them, and
-`tests/implementation/hub-baseline.test.mjs` fails if one reappears in the file.
+`tests/implementation/hub-baseline-postgres.test.mjs` fails if one reappears in the file.
 
 A cluster that ran the old history still carries them, because a role is cluster-global while its
 privileges are per database, so no migration could drop one: `DROP ROLE` answers `2BP01` whenever

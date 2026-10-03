@@ -8,7 +8,8 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import ts from 'typescript'
-import { TEST_FILE } from './check-test-census.mjs'
+
+const TEST_FILE = /\.(?:test|spec)\.mjs$/
 
 const root = resolve(process.argv[2] ?? '.')
 const walk = (directory) => readdirSync(join(root, directory), { withFileTypes: true }).flatMap((entry) => {
