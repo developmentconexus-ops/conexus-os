@@ -30,11 +30,14 @@ export const hubNodeArguments = ({ buildRoot, diagnosticDir, entry = 'server.js'
   ...args,
 ]
 
-export const buildHubLocal = async () => {
-  run(process.execPath, [
-    resolve(repositoryRoot, 'node_modules/vite/bin/vite.js'),
-    'build', '--config', resolve(repositoryRoot, 'apps/web/vite.config.mjs'), resolve(repositoryRoot, 'apps/web'),
-  ])
+// The application runner serves no screen, so `web: false` skips the web build.
+export const buildHubLocal = async ({ web = true } = {}) => {
+  if (web) {
+    run(process.execPath, [
+      resolve(repositoryRoot, 'node_modules/vite/bin/vite.js'),
+      'build', '--config', resolve(repositoryRoot, 'apps/web/vite.config.mjs'), resolve(repositoryRoot, 'apps/web'),
+    ])
+  }
   const buildRoot = await mkdtemp(join(repositoryRoot, 'apps/hub/.conexus-build-local-'))
   try {
     run(process.execPath, [
@@ -65,12 +68,14 @@ export const runForwarding = async (command, args, options = {}) => {
   }
 }
 
+// `--runner` builds and runs the application runner instead of the Hub.
 const main = async () => {
-  const buildRoot = await buildHubLocal()
+  const runner = process.argv.includes('--runner')
+  const buildRoot = await buildHubLocal({ web: !runner })
   const diagnosticDir = resolve(process.env.CONEXUS_DIAGNOSTIC_DIR ?? join(repositoryRoot, '.audit/diagnostics'))
   await mkdir(diagnosticDir, { recursive: true })
   try {
-    process.exitCode = await runForwarding(process.execPath, hubNodeArguments({ buildRoot, diagnosticDir }))
+    process.exitCode = await runForwarding(process.execPath, hubNodeArguments({ buildRoot, diagnosticDir, entry: runner ? 'app-runner/main.js' : 'server.js' }))
   } finally {
     await rm(buildRoot, { recursive: true, force: true })
   }

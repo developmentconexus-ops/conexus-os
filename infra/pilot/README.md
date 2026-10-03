@@ -8,7 +8,7 @@ from one fixed checkout of `main`. The Keycloak it signs in with is in [`../keyc
 | --- | --- |
 | Checkout | `~/conexus-pilot`, a detached worktree of `origin/main`. Nobody commits there. |
 | Hub | [`hub.sh`](hub.sh) runs `scripts/build-hub-local.mjs` with the Hub env. Ports 3443 (Hub), 3444 (Preview), 3445 (applications). |
-| Application runner | [`runner.sh`](runner.sh) builds the Hub's TypeScript into a fresh `apps/hub/.conexus-build-runner-*` directory, runs `app-runner/main.js`, and removes the build when the runner exits. |
+| Application runner | [`runner.sh`](runner.sh) runs `scripts/build-hub-local.mjs --runner`, which builds the Hub's TypeScript into a fresh `apps/hub/.conexus-build-local-*` directory, runs `app-runner/main.js`, and removes the build when the runner exits. |
 | Hub env | `CONEXUS_PILOT_HUB_ENV` (required). Mode 600, never in Git. |
 | Runner env | `~/q3/runner.env`, or `CONEXUS_PILOT_RUNNER_ENV`. |
 | Logs | `~/conexus-pilot-logs/hub.log` and `runner.log`, or `CONEXUS_PILOT_LOGS`. Each run appends. Its first line reads `hub starting <time> head <sha>` (or `runner starting …`). |
