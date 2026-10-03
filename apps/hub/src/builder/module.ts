@@ -6,6 +6,7 @@ import type { ObservabilityInstance } from '@mastra/core/observability'
 import { RequestContext } from '@mastra/core/request-context'
 import type { Workspace } from '@mastra/core/workspace'
 import { createPostgresPool } from '../platform/postgres.js'
+import { Failure } from '../platform/failure.js'
 import { logLine } from '../platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
@@ -259,7 +260,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })
-      if (!preview) throw new Error('NOT_AUTHORIZED')
+      if (!preview) throw new Failure('PROJECT_BUILD_DENIED')
       return Object.freeze({
         projectId,
         workingSourceRevision: await git.readMain(projectId).catch(() => null),
@@ -271,7 +272,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     },
     readTrace: async ({ accountId, projectId, builderRunId }): Promise<BuilderTraceSummary> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })
-      if (!preview) throw new Error('NOT_AUTHORIZED')
+      if (!preview) throw new Failure('PROJECT_BUILD_DENIED')
       const mastraStorage = mastra.getStorage()
       const observabilityStore = await mastraStorage?.getStore('observability')
       if (!observabilityStore) return UNAVAILABLE_TRACE_SUMMARY

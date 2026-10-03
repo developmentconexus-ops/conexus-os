@@ -24,7 +24,7 @@ const routeInstallation = (page, administrator) =>
     status: 200, contentType: 'application/json', body: JSON.stringify({ administrator }),
   }))
 
-const problem = (type) => ({ status: 409, contentType: 'application/json', body: JSON.stringify({ type }) })
+const problem = (code) => ({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${code}`, title: code, status: 409, code }) })
 
 test('/settings redirects to Minha conta, and a member sees no Instalação group and is refused an installation route', async (t) => {
   const { page, origin } = await withServer(t)
@@ -77,13 +77,13 @@ test('Administradores refuses to revoke the last administrator and to grant an u
   await routeAccessContext(page, { accountId: 'a6', displayName: 'Única Admin', email: 'unica@example.com' })
   await routeInstallation(page, true)
   await page.route('**/api/control/installation/administrators', (route) => {
-    if (route.request().method() === 'POST') return route.fulfill(problem('account-not-found'))
+    if (route.request().method() === 'POST') return route.fulfill(problem('ACCOUNT_NOT_FOUND'))
     return route.fulfill({
       status: 200, contentType: 'application/json',
       body: JSON.stringify({ administrators: [{ accountId: 'a6', displayName: 'Única Admin', email: 'unica@example.com', grantedVia: 'OPERATOR_BOOTSTRAP', grantedBy: null, grantedAt: '2026-09-01T00:00:00.000Z' }] }),
     })
   })
-  await page.route('**/api/control/installation/administrators/a6', (route) => route.fulfill({ ...problem('last-installation-administrator'), status: 409 }))
+  await page.route('**/api/control/installation/administrators/a6', (route) => route.fulfill({ ...problem('LAST_INSTALLATION_ADMINISTRATOR'), status: 409 }))
 
   await page.goto(`${origin}/settings/installation/admins`)
   await page.getByRole('heading', { name: 'Administradores' }).waitFor()
@@ -110,13 +110,13 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
     const request = route.request()
     const path = new URL(request.url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
     const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
-    if (!enabled) return json(404, { type: 'not-found' })
+    if (!enabled) return json(404, { type: 'NOT_FOUND' })
     writes.push([request.method(), path, 'x-conexus-csrf' in request.headers(), request.postDataJSON?.() ?? null])
     if (path === '/connection') return json(200, { mine: connected, shared: false, administrator: false })
     // Held open briefly so the test can observe the "Preparando…" label before the tab navigates.
     if (path === '/login/start') { await new Promise((resolve) => setTimeout(resolve, 200)); return json(200, { loginId, url: signIn }) }
     if (path === '/login/complete') {
-      if (!request.postDataJSON().callbackUrl.includes('state=issued-state')) return json(400, { type: 'model-login-callback-refused' })
+      if (!request.postDataJSON().callbackUrl.includes('state=issued-state')) return json(400, { type: 'MODEL_LOGIN_CALLBACK_REFUSED' })
       connected = true
       return json(200, { state: 'succeeded' })
     }

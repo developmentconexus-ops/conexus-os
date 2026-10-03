@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { QueryResultRow } from 'pg'
 import { IAM_GENERATED_ROUTES } from '../generated/iam-routes.js'
 import type { ApplicationAccessEntryParams, Iam12Body, ProjectParams, IamOwnerId } from '../generated/iam-routes.js'
-import { sendProblem } from '../http/problem.js'
+import { Failure } from '../platform/failure.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { isNotAdmitted, parseEmailAddress } from './current-session.js'
 import type { AccountId, EmailAddress, ResolveCurrentSession } from './current-session.js'
@@ -173,46 +173,41 @@ export const registerApplicationAccessRoutes = async (
   app: FastifyInstance,
   { store, resolveCurrentSession, config }: ApplicationAccessRouteDependencies,
 ): Promise<readonly IamOwnerId[]> => {
-  const authentic = (request: Parameters<ResolveCurrentSession>[0]): boolean => {
+  const authentic = (request: FastifyRequest): void => {
     const requestCsrf = header(request.headers['x-conexus-csrf'])
-    return isExactOrigin(request.headers.origin, config.origin) && !!requestCsrf && requestCsrf === request.cookies[CSRF_COOKIE]
+    if (!isExactOrigin(request.headers.origin, config.origin) || !requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) throw new Failure('REQUEST_AUTHENTICITY_DENIED')
   }
-  const refused = (reply: Parameters<typeof sendProblem>[0], error: unknown) => {
-    if (isApplicationNotFound(error)) return sendProblem(reply, 404, 'project-not-found', 'Project not found')
-    if (isNotAdmitted(error)) return sendProblem(reply, 403, 'application-access-manage-required', 'Application access administration denied')
+  const signedIn = async (request: FastifyRequest, write = false): Promise<AccountId> => {
+    const current = await resolveCurrentSession(request, write)
+    if (!current) throw new Failure('AUTHENTICATION_REQUIRED')
+    return current.account.accountId
+  }
+  const refused = (error: unknown): never => {
+    if (isApplicationNotFound(error)) throw new Failure('PROJECT_NOT_FOUND')
+    if (isNotAdmitted(error)) throw new Failure('APPLICATION_ACCESS_MANAGE_REQUIRED')
     throw error
   }
 
   app.route<{ Params: ProjectParams }>({
     ...IAM_GENERATED_ROUTES['IAM-11'],
     schema: { ...IAM_GENERATED_ROUTES['IAM-11'].schema, params: projectParamsSchema },
-    handler: async (request, reply) => {
-      const current = await resolveCurrentSession(request)
-      if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-      try {
-        const { slug, entries } = await store.list({ actor: current.account.accountId, projectId: request.params.projectId })
-        const address = slug ? config.applicationAddress(slug) : null
-        return { ...(address ? { address } : {}), entries }
-      } catch (error) {
-        return refused(reply, error)
-      }
+    handler: async (request) => {
+      const actor = await signedIn(request)
+      const { slug, entries } = await store.list({ actor, projectId: request.params.projectId }).catch(refused)
+      const address = slug ? config.applicationAddress(slug) : null
+      return { ...(address ? { address } : {}), entries }
     },
   })
 
   app.route<{ Params: ProjectParams; Body: Iam12Body }>({
     ...IAM_GENERATED_ROUTES['IAM-12'],
     schema: { ...IAM_GENERATED_ROUTES['IAM-12'].schema, params: projectParamsSchema },
-    handler: async (request, reply) => {
-      if (!authentic(request)) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
-      const current = await resolveCurrentSession(request, true)
-      if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+    handler: async (request) => {
+      authentic(request)
+      const actor = await signedIn(request, true)
       const email = parseEmailAddress(request.body.email)
-      if (!email) return sendProblem(reply, 422, 'invitation-not-acceptable', 'Invitation not acceptable')
-      try {
-        return await store.grant({ actor: current.account.accountId, projectId: request.params.projectId, email })
-      } catch (error) {
-        return refused(reply, error)
-      }
+      if (!email) throw new Failure('INVITATION_NOT_ACCEPTABLE')
+      return store.grant({ actor, projectId: request.params.projectId, email }).catch(refused)
     },
   })
 
@@ -220,23 +215,15 @@ export const registerApplicationAccessRoutes = async (
     ...IAM_GENERATED_ROUTES['IAM-13'],
     schema: { ...IAM_GENERATED_ROUTES['IAM-13'].schema, params: entryParamsSchema },
     handler: async (request, reply) => {
-      if (!authentic(request)) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
-      const current = await resolveCurrentSession(request, true)
-      if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      authentic(request)
+      const actor = await signedIn(request, true)
       const { projectId, entryKind, entryId } = request.params
-      if (entryKind !== 'grant' && entryKind !== 'invitation') {
-        return sendProblem(reply, 404, 'application-access-entry-not-found', 'Application access entry not found')
-      }
-      try {
-        const actor = current.account.accountId
-        const found = entryKind === 'grant'
-          ? await store.revokeGrant({ actor, projectId, grantId: entryId })
-          : await store.cancelInvitation({ actor, projectId, invitationId: entryId })
-        if (!found) return sendProblem(reply, 404, 'application-access-entry-not-found', 'Application access entry not found')
-        return reply.code(204).send()
-      } catch (error) {
-        return refused(reply, error)
-      }
+      if (entryKind !== 'grant' && entryKind !== 'invitation') throw new Failure('APPLICATION_ACCESS_ENTRY_NOT_FOUND')
+      const found = await (entryKind === 'grant'
+        ? store.revokeGrant({ actor, projectId, grantId: entryId })
+        : store.cancelInvitation({ actor, projectId, invitationId: entryId })).catch(refused)
+      if (!found) throw new Failure('APPLICATION_ACCESS_ENTRY_NOT_FOUND')
+      return reply.code(204).send()
     },
   })
 

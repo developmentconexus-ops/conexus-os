@@ -279,14 +279,14 @@ test('creating a Project makes its Conexus Git repository with the starter on ma
   assert.equal(await git.readMain(created.projectId), main)
 
   const refused = await create(storeWith(async () => { throw new Error('CONEXUS_GIT_FAILED') }), 'second').catch((error) => error)
-  assert.deepEqual({ code: refused.code, reason: refused.reason }, { code: 'REPOSITORY_REFUSED', reason: 'CONEXUS_GIT_FAILED' })
+  assert.deepEqual({ id: refused.id, reason: refused.details.reason }, { id: 'PROJECT_REPOSITORY_UNAVAILABLE', reason: 'CONEXUS_GIT_FAILED' })
   // The receipt stays reserved, so the same key later reaches the same Project id and its repository.
   const recovered = await create(storeWith(git.ensureRepository), 'second')
   assert.equal(recovered.projectId, prepared.at(-2))
   assert.equal((await query(connectionString, 'SELECT source_revision FROM project.project WHERE project_id = $1', [recovered.projectId])).rows[0].source_revision, await git.readMain(recovered.projectId))
 
   const before = prepared.length
-  await assert.rejects(create(storeWith(git.ensureRepository), 'import', { name: 'Imported', sourceBootstrap: { mode: 'EXISTING_GIT', repositoryLocator: 'https://example.test/app.git' } }), { code: 'SOURCE_INPUT_REFUSED' })
+  await assert.rejects(create(storeWith(git.ensureRepository), 'import', { name: 'Imported', sourceBootstrap: { mode: 'EXISTING_GIT', repositoryLocator: 'https://example.test/app.git' } }), { id: 'PROJECT_SOURCE_REFUSED' })
   assert.equal(prepared.length, before)
 })
 

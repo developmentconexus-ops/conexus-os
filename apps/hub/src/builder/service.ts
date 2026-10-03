@@ -10,6 +10,7 @@ import type { BuilderRunPhase } from '../generated/builder-run-vocabulary.js'
 import { prepareApplicationServer, prepareBuilderRunApplicationArtifact } from './application-build.js'
 import { builderFailureCategory } from './failure-vocabulary.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
+import { Failure } from '../platform/failure.js'
 import { logLine } from '../platform/logger.js'
 import { heapUsedRatio } from '../platform/heap.js'
 
@@ -386,9 +387,9 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       if (ratio > HEAP_REFUSE_RATIO) {
         logLine(`BUILDER_RUN_REFUSED_HEAP:${ratio.toFixed(3)}`, 'warn')
         void runs.runtime.evictParked().catch(() => undefined)
-        throw new Error('BUILDER_HEAP_PRESSURE')
+        throw new Failure('BUILDER_CAPACITY_FULL')
       }
-      if (await runs.conversations.ownerOf(input.projectId, input.conversationId) !== 'PROJECT') throw new Error('BUILDER_CONVERSATION_NOT_FOUND')
+      if (await runs.conversations.ownerOf(input.projectId, input.conversationId) !== 'PROJECT') throw new Failure('CONVERSATION_NOT_FOUND')
       // The base is `main`, read only once the database holds the Project's run lock.
       const run = await store.createBuilderRun({ ...input, readBase: () => runs.git.readMain(input.projectId) })
       if (run.state === 'QUEUED') {

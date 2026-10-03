@@ -64,23 +64,23 @@ const fakePorts = (pool, overrides = {}) => {
 test('#322 orchestrator refuses a non-administrator before touching any port', async () => {
   await refuseProtectedCluster()
   const { createProjectDeletionOrchestrator } = await import(hubModuleUrl('project/deletion.js'))
-  const { ProjectError } = await import(hubModuleUrl('project/errors.js'))
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
   const commandPool = fakePool({ beginThrows: Object.assign(new Error('NOT_ADMITTED'), { code: '42501' }) })
   const { ports, calls } = fakePorts(commandPool)
   const orchestrator = createProjectDeletionOrchestrator({ commandPool, ports })
 
-  await assert.rejects(orchestrator.deleteProject(input), (error) => error instanceof ProjectError && error.code === 'AUTHORIZATION_DENIED')
+  await assert.rejects(orchestrator.deleteProject(input), (error) => error instanceof Failure && error.id === 'PROJECT_DELETE_DENIED')
   assert.deepEqual(calls, [])
 })
 
 test('#322 orchestrator refuses the wrong confirmation name and a busy Project before touching any port', async () => {
   const { createProjectDeletionOrchestrator } = await import(hubModuleUrl('project/deletion.js'))
-  const { ProjectError } = await import(hubModuleUrl('project/errors.js'))
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
   for (const refusal of ['PROJECT_NAME_MISMATCH', 'PROJECT_BUSY', 'PROJECT_NOT_FOUND']) {
     const commandPool = fakePool({ beginThrows: new Error(refusal) })
     const { ports, calls } = fakePorts(commandPool)
     const orchestrator = createProjectDeletionOrchestrator({ commandPool, ports })
-    await assert.rejects(orchestrator.deleteProject(input), (error) => error instanceof ProjectError && error.code === refusal)
+    await assert.rejects(orchestrator.deleteProject(input), (error) => error instanceof Failure && error.id === refusal)
     assert.deepEqual(calls, [], refusal)
   }
 })
@@ -98,11 +98,11 @@ test('#322 deletion releases the application data, kills the VMs before the purg
 
 test('#413 a VM read that fails stops the deletion before the purge, so a rerun still finds the VMs to kill', async () => {
   const { createProjectDeletionOrchestrator } = await import(hubModuleUrl('project/deletion.js'))
-  const { ProjectError } = await import(hubModuleUrl('project/errors.js'))
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
   const firstAttempt = fakePool()
   const failing = fakePorts(firstAttempt, { killSandboxes: async () => { throw new Error('BUILDER_READ_FAILED') } })
   await assert.rejects(createProjectDeletionOrchestrator({ commandPool: firstAttempt, ports: failing.ports }).deleteProject(input),
-    (error) => error instanceof ProjectError && error.code === 'DELETION_INCOMPLETE')
+    (error) => error instanceof Failure && error.id === 'PROJECT_DELETION_INCOMPLETE')
   assert.equal(firstAttempt.statements.some((statement) => statement.includes('project.purge_project')), false)
 
   const rerunPool = fakePool()
@@ -113,12 +113,12 @@ test('#413 a VM read that fails stops the deletion before the purge, so a rerun 
 
 test('#322 a repository failure after the database purge leaves a tombstoned Project that a rerun completes', async () => {
   const { createProjectDeletionOrchestrator } = await import(hubModuleUrl('project/deletion.js'))
-  const { ProjectError } = await import(hubModuleUrl('project/errors.js'))
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
 
   const firstAttempt = fakePool()
   const failing = fakePorts(firstAttempt, { deleteRepository: async () => { throw new Error('CONEXUS_GIT_FAILED') } })
   await assert.rejects(createProjectDeletionOrchestrator({ commandPool: firstAttempt, ports: failing.ports }).deleteProject(input),
-    (error) => error instanceof ProjectError && error.code === 'DELETION_INCOMPLETE')
+    (error) => error instanceof Failure && error.id === 'PROJECT_DELETION_INCOMPLETE')
   assert.deepEqual(failing.calls.map(([name]) => name), ['releaseApplicationData', 'killSandboxes', 'deleteRepository'])
   assert.equal(firstAttempt.statements.some((statement) => statement.includes('project.purge_project')), true)
   assert.equal(firstAttempt.statements.some((statement) => statement.includes('complete_project_deletion')), false)
@@ -141,26 +141,15 @@ test('#322 orchestrator skips every port once the tombstone is already complete'
   assert.equal(commandPool.statements.some((statement) => statement.includes('project.purge_project')), false)
 })
 
-test('a failing step is logged with its real error before it becomes DELETION_INCOMPLETE', async (t) => {
+test('a failing step becomes PROJECT_DELETION_INCOMPLETE, with the real error as its cause for the exit to log', async () => {
   const { createProjectDeletionOrchestrator } = await import(hubModuleUrl('project/deletion.js'))
-  const { ProjectError } = await import(hubModuleUrl('project/errors.js'))
-  const { logger } = await import(hubModuleUrl('platform/logger.js'))
-  const logged = []
-  t.mock.method(logger, 'error', (...args) => { logged.push(args) })
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
   const commandPool = fakePool()
   const { ports } = fakePorts(commandPool, { releaseApplicationData: async () => { throw new Error('APPLICATION_RUNNER_RELEASE_REFUSED') } })
 
-  await assert.rejects(createProjectDeletionOrchestrator({ commandPool, ports }).deleteProject(input),
-    (error) => error instanceof ProjectError && error.code === 'DELETION_INCOMPLETE')
-  assert.equal(logged.length, 1)
-  const [fields, message] = logged[0]
-  assert.equal(message, 'PROJECT_DELETION_INCOMPLETE')
-  assert.match(fields['exception.stacktrace'], /^Error: APPLICATION_RUNNER_RELEASE_REFUSED\n\s+at /)
-  assert.deepEqual({ ...fields, 'exception.stacktrace': 'checked above' }, {
-    'conexus.project_id': projectId,
-    'error.type': 'Error',
-    'exception.type': 'Error',
-    'exception.message': 'APPLICATION_RUNNER_RELEASE_REFUSED',
-    'exception.stacktrace': 'checked above',
+  await assert.rejects(createProjectDeletionOrchestrator({ commandPool, ports }).deleteProject(input), (error) => {
+    assert.equal(error instanceof Failure, true)
+    assert.deepEqual([error.id, error.cause.message, error.details], ['PROJECT_DELETION_INCOMPLETE', 'APPLICATION_RUNNER_RELEASE_REFUSED', { projectId }])
+    return true
   })
 })

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { sendProblem } from '../http/problem.js'
+import { Failure } from '../platform/failure.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 
 const uuid = { type: 'string', format: 'uuid' } as const
@@ -30,24 +30,20 @@ export const registerProjectThumbnailRoutes = async (
     { schema: { params } },
     async (request, reply) => {
       const current = await dependencies.resolveCurrentSession(request)
-      if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-
-      try {
-        const thumbnail = await dependencies.reader.readThumbnail({
-          accountId: current.account.accountId,
-          projectId: request.params.projectId,
-        })
-        if (!thumbnail) return sendProblem(reply, 404, 'project-thumbnail-not-found', 'Project thumbnail not found')
-
-        return reply
-          .type(thumbnail.mediaType)
-          .header('Cache-Control', 'private, no-cache')
-          .header('ETag', `"${thumbnail.artifactRevisionId}"`)
-          .send(Buffer.from(thumbnail.bytes))
-      } catch (error) {
-        if (driverCode(error) === '22P02') return sendProblem(reply, 404, 'project-not-found', 'Project not found')
-        return sendProblem(reply, 503, 'project-thumbnail-unavailable', 'Project thumbnail unavailable')
-      }
+      if (!current) throw new Failure('AUTHENTICATION_REQUIRED')
+      const thumbnail = await dependencies.reader.readThumbnail({
+        accountId: current.account.accountId,
+        projectId: request.params.projectId,
+      }).catch((error: unknown) => {
+        if (driverCode(error) === '22P02') throw new Failure('PROJECT_NOT_FOUND')
+        throw new Failure('PROJECT_THUMBNAIL_UNAVAILABLE', { cause: error, details: { projectId: request.params.projectId } })
+      })
+      if (!thumbnail) throw new Failure('PROJECT_THUMBNAIL_NOT_FOUND')
+      return reply
+        .type(thumbnail.mediaType)
+        .header('Cache-Control', 'private, no-cache')
+        .header('ETag', `"${thumbnail.artifactRevisionId}"`)
+        .send(Buffer.from(thumbnail.bytes))
     },
   )
   return ['PRJ-THUMBNAIL']

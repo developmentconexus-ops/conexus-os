@@ -8,7 +8,7 @@ import type { PostgresPool } from '../platform/postgres.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { accountId as brandAccountId } from './current-session.js'
 import type { CurrentSession } from './current-session.js'
-import { identityAccessError } from './errors.js'
+import { Failure } from '../platform/failure.js'
 import type { CompletedSignIn, ProviderCheck, ProviderRefusal } from './oidc.js'
 
 /** A request on an application or Preview host: signed in, sent to sign in, or refused because Keycloak could not be asked. */
@@ -88,7 +88,7 @@ const ENDED_BY: Readonly<Record<ProviderRefusal, string>> = Object.freeze({
 type Refusal = Readonly<{ kind: 'SIGN_IN_REQUIRED' }> | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
 
 /** A due Keycloak check on a Hub request that Keycloak could not answer: the Hub answers 503 and keeps the session. */
-const providerUnavailable = (): Error => Object.assign(new Error('IDENTITY_PROVIDER_UNAVAILABLE'), { statusCode: 503, code: 'IDENTITY_PROVIDER_UNAVAILABLE' })
+const providerUnavailable = (): Failure => new Failure('IDENTITY_PROVIDER_UNAVAILABLE')
 
 type ApplicationRow = QueryResultRow & {
   account_id: string
@@ -193,7 +193,7 @@ export const createHostSessions = ({
       const opened = await pool.query<QueryResultRow & { outcome: string }>('SELECT iam.open_hub_session($1, $2, $3, $4, $5) AS outcome',
         [digest(sessionToken), digest(csrfToken), accountId, await envelope.seal(refreshToken), now])
       const outcome = opened.rows[0]?.outcome
-      if (outcome === 'ACCOUNT_INACTIVE' || outcome === 'IDENTITY_NOT_ELIGIBLE') throw identityAccessError(outcome)
+      if (outcome === 'ACCOUNT_INACTIVE' || outcome === 'IDENTITY_NOT_ELIGIBLE') throw new Failure(outcome)
       if (outcome !== 'OPENED') throw new Error('HUB_SESSION_NOT_OPENED')
       return { sessionToken, csrfToken }
     },

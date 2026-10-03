@@ -406,7 +406,7 @@ test('a pasted address with the wrong host, path or state is refused, and a refu
   ]) {
     const refused = await app.inject({ method: 'POST', url: `${base}/complete`, ...authentic, payload: { loginId, callbackUrl } })
     assert.equal(refused.statusCode, 400, callbackUrl)
-    assert.equal(refused.json().type.endsWith('model-login-callback-refused'), true)
+    assert.equal(refused.json().type.endsWith('MODEL_LOGIN_CALLBACK_REFUSED'), true)
   }
   await app.inject({ method: 'POST', url: `${base}/complete`, ...authentic, payload: { loginId, callbackUrl: callback(url, { code: 'bad' }) } })
   assert.equal(await pollUntilSettled(app, loginId), 'failed')
@@ -418,7 +418,7 @@ test('one sign-in at a time: another person is told to wait, and the same person
   as(bia)
   const busy = await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })
   assert.equal(busy.statusCode, 409)
-  assert.equal(busy.json().type.endsWith('model-login-busy'), true)
+  assert.equal(busy.json().type.endsWith('MODEL_LOGIN_BUSY'), true)
   assert.deepEqual((await app.inject({ method: 'GET', url: `${base}/${first.loginId}`, ...authentic })).json(), { state: 'expired' }, 'a sign-in is visible only to its person')
   as(ana)
   const second = (await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })).json()

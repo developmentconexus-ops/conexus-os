@@ -4,7 +4,7 @@ import { lookup } from 'node:dns'
 import { Agent, fetch as undiciFetch } from 'undici'
 import { parseEmailAddress } from './current-session.js'
 import type { EmailAddress } from './current-session.js'
-import { identityAccessError } from './errors.js'
+import { Failure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
 
 export type OidcIdentity = Readonly<{ issuer: string; subject: string }>
@@ -139,7 +139,7 @@ export const createOidcAdapter = async ({
         idTokenExpected: true,
       })
       const claims = tokens.claims()
-      if (!claims?.iss || !claims.sub) throw identityAccessError('OIDC_IDENTITY_MISSING')
+      if (!claims?.iss || !claims.sub) throw new Failure('OIDC_IDENTITY_MISSING')
       // An unverified address, or a realm that asserts no address at all, is not an error.
       // It only means this identity can claim no invitation.
       const emailVerified = isEmailVerifiedClaim(claims)

@@ -1,7 +1,6 @@
 import type { UsageStats } from '@mastra/core/observability'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
-import { sendProblem } from '../http/problem.js'
-import { recordFailure } from '../platform/logger.js'
+import { Failure, type FailureCode } from '../platform/failure.js'
 import type { BuilderService } from './service.js'
 import type { BuilderRunSummary, BuilderStore } from './store.js'
 import { projectBuilderRun } from './failure-vocabulary.js'
@@ -13,7 +12,18 @@ const CSRF_COOKIE = '__Host-conexus_csrf'
 const uuid = { type: 'string', format: 'uuid' } as const
 const params = { type: 'object', additionalProperties: false, required: ['projectId'], properties: { projectId: uuid } } as const
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
-const message = (error: unknown): string => error instanceof Error ? error.message : ''
+// A failure that is already a row passes; anything else is the named fault, with the original as its cause.
+const unavailableAs = (code: FailureCode, details: Readonly<Record<string, string>>) => (error: unknown): never => {
+  throw error instanceof Failure ? error : new Failure(code, { cause: error, details })
+}
+// The source reader's named refusals, until the reader throws rows itself.
+const sourceRefusal = (code: 'SOURCE_REVISION_NOT_FOUND' | 'SOURCE_FILE_NOT_FOUND', refused: ReadonlySet<string>, details: Readonly<Record<string, string>>) => (error: unknown): never => {
+  const named = error instanceof Error ? error.message : ''
+  if (refused.has(named)) throw new Failure(code)
+  return unavailableAs('BUILDER_SOURCE_UNAVAILABLE', details)(error)
+}
+const REVISION_REFUSALS: ReadonlySet<string> = new Set(['BUILDER_SOURCE_SUBJECT_NOT_FOUND', 'BUILDER_SOURCE_READ_REVISION_NOT_FOUND'])
+const FILE_REFUSALS: ReadonlySet<string> = new Set([...REVISION_REFUSALS, 'BUILDER_SOURCE_READ_FILE_NOT_FOUND', 'BUILDER_SOURCE_READ_FILE_NOT_DISCLOSABLE', 'BUILDER_SOURCE_READ_PATH_REFUSED'])
 const sourceQuery = { type: 'object', additionalProperties: false, required: ['sourceRevision'], properties: { sourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' } } } as const
 const sourceFileQuery = { type: 'object', additionalProperties: false, required: ['sourceRevision', 'path'], properties: { sourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' }, path: { type: 'string', minLength: 1, maxLength: 4096 } } } as const
 const sourceCompareQuery = { type: 'object', additionalProperties: false, required: ['baseSourceRevision', 'resultSourceRevision'], properties: { baseSourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' }, resultSourceRevision: { type: 'string', pattern: '^[0-9a-f]{40}$' } } } as const
@@ -78,15 +88,26 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
   origin: string
   launchPreview?: BuilderLaunchPreviewPort
 }>): Promise<readonly BuilderOperationId[]> => {
-  app.get<{ Params: { projectId: string } }>('/api/control/projects/:projectId/builder-session', { schema: { params } }, async (request, reply) => {
-    const session = await dependencies.resolveCurrentSession(request)
-    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-    if (!dependencies.session) return sendProblem(reply, 503, 'builder-session-unavailable', 'Builder Session unavailable')
-    try {
-      const snapshot = await dependencies.session.read({ accountId: session.account.accountId, projectId: request.params.projectId })
+  const authentic = (request: FastifyRequest): void => {
+    const csrf = header(request.headers['x-conexus-csrf'])
+    if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) throw new Failure('REQUEST_AUTHENTICITY_DENIED')
+  }
+  const signedIn = async (request: FastifyRequest, write = false): Promise<string> => {
+    const session = await dependencies.resolveCurrentSession(request, write)
+    if (!session) throw new Failure('AUTHENTICATION_REQUIRED')
+    return session.account.accountId
+  }
+
+  app.get<{ Params: { projectId: string } }>('/api/control/projects/:projectId/builder-session', { schema: { params } }, async (request) => {
+    const accountId = await signedIn(request)
+    const { projectId } = request.params
+    const port = dependencies.session
+    if (!port) throw new Failure('BUILDER_SESSION_UNAVAILABLE')
+    const read = async () => {
+      const snapshot = await port.read({ accountId, projectId })
       const [run, latestCodeChangingRun] = await Promise.all([
-        dependencies.store.readBuilderRun({ accountId: session.account.accountId, projectId: request.params.projectId }),
-        dependencies.store.readLatestCodeChangingBuilderRun({ accountId: session.account.accountId, projectId: request.params.projectId }),
+        dependencies.store.readBuilderRun({ accountId, projectId }),
+        dependencies.store.readLatestCodeChangingBuilderRun({ accountId, projectId }),
       ])
       return {
         projectId: snapshot.projectId,
@@ -99,11 +120,8 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
         preview: { workingSourceRevision: snapshot.workingSourceRevision, lastGoodSourceRevision: snapshot.lastPreviewSourceRevision, lastGoodArtifactRevisionId: snapshot.lastPreviewArtifactRevisionId, lastGoodArtifactDigest: snapshot.lastPreviewArtifactDigest },
         runHistory: snapshot.runHistory.map((historyRun) => projectBuilderRun(historyRun)),
       }
-    } catch (error) {
-      if (message(error).includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
-      recordFailure(request.log, 'BUILDER_SESSION_UNAVAILABLE', error, { 'conexus.project_id': request.params.projectId })
-      return sendProblem(reply, 503, 'builder-session-unavailable', 'Builder Session unavailable')
     }
+    return read().catch(unavailableAs('BUILDER_SESSION_UNAVAILABLE', { projectId }))
   })
 
   app.post<{ Params: { projectId: string }; Body: { content: string; conversationId: string } }>('/api/control/projects/:projectId/builder-session/messages', {
@@ -112,29 +130,16 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       body: { type: 'object', additionalProperties: false, required: ['content', 'conversationId'], properties: { content: { type: 'string', minLength: 1, maxLength: 20_000, pattern: '.*\\S.*' }, conversationId: { type: 'string', minLength: 1, maxLength: 200 } } },
     },
   }, async (request, reply) => {
-    const csrf = header(request.headers['x-conexus-csrf'])
-    if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
-    const session = await dependencies.resolveCurrentSession(request, true)
-    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+    authentic(request)
+    const accountId = await signedIn(request, true)
     const idempotencyKey = header(request.headers['idempotency-key'])
-    if (!idempotencyKey) return sendProblem(reply, 400, 'idempotency-key-required', 'Idempotency key required')
-    try {
-      const run = await dependencies.service.createBuilderRun({
-        accountId: session.account.accountId, projectId: request.params.projectId,
-        conversationId: request.body.conversationId,
-        idempotencyKey, content: request.body.content,
-      })
-      return reply.code(201).send({ builderRun: projectBuilderRun(run) })
-    } catch (error) {
-      const detail = message(error)
-      if (detail.includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
-      if (detail === 'BUILDER_CONVERSATION_NOT_FOUND') return sendProblem(reply, 404, 'conversation-not-found', 'Conversation not found')
-      if (detail === 'BUILDER_HEAP_PRESSURE') return sendProblem(reply, 503, 'builder-capacity-full', 'Builder at capacity')
-      if (detail.includes('SOURCE_STALE') || detail.includes('PROJECT_BUSY') || detail.includes('IDEMPOTENCY_CONFLICT')) return sendProblem(reply, 409, 'builder-conflict', 'Builder request conflict')
-      if (detail.includes('INPUT_REFUSED')) return sendProblem(reply, 422, 'builder-message-refused', 'Builder message refused')
-      recordFailure(request.log, 'BUILDER_RUN_START_FAILED', error, { 'conexus.project_id': request.params.projectId })
-      return sendProblem(reply, 503, 'builder-unavailable', 'Builder unavailable')
-    }
+    if (!idempotencyKey) throw new Failure('IDEMPOTENCY_KEY_REQUIRED')
+    const run = await dependencies.service.createBuilderRun({
+      accountId, projectId: request.params.projectId,
+      conversationId: request.body.conversationId,
+      idempotencyKey, content: request.body.content,
+    }).catch(unavailableAs('BUILDER_UNAVAILABLE', { projectId: request.params.projectId }))
+    return reply.code(201).send({ builderRun: projectBuilderRun(run) })
   })
 
   app.post<{ Params: { projectId: string; builderRunId: string }; Body: Record<string, never> }>('/api/control/projects/:projectId/builder-session/runs/:builderRunId/cancel', {
@@ -143,36 +148,26 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       body: { type: 'object', additionalProperties: false },
     },
   }, async (request, reply) => {
-    const csrf = header(request.headers['x-conexus-csrf'])
-    if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
-    const session = await dependencies.resolveCurrentSession(request, true)
-    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-    try {
-      const run = await dependencies.service.cancelBuilderRun({ accountId: session.account.accountId, projectId: request.params.projectId, builderRunId: request.params.builderRunId })
-      return reply.code(200).send({ builderRun: projectBuilderRun(run) })
-    } catch (error) {
-      const detail = message(error)
-      if (detail.includes('NOT_AUTHORIZED') || detail.includes('NOT_FOUND')) return sendProblem(reply, 404, 'builder-run-not-found', 'BuilderRun not found')
-      recordFailure(request.log, 'BUILDER_CANCEL_FAILED', error, { 'conexus.project_id': request.params.projectId, 'conexus.builder_run_id': request.params.builderRunId })
-      return sendProblem(reply, 503, 'builder-cancellation-unavailable', 'Builder cancellation unavailable')
-    }
+    authentic(request)
+    const accountId = await signedIn(request, true)
+    const run = await dependencies.service.cancelBuilderRun({ accountId, projectId: request.params.projectId, builderRunId: request.params.builderRunId })
+      .catch(unavailableAs('BUILDER_CANCELLATION_UNAVAILABLE', { projectId: request.params.projectId, builderRunId: request.params.builderRunId }))
+    return reply.code(200).send({ builderRun: projectBuilderRun(run) })
   })
 
   app.get<{ Params: { projectId: string; builderRunId: string } }>('/api/control/projects/:projectId/builder-session/runs/:builderRunId/trace', {
     schema: { params: { type: 'object', additionalProperties: false, required: ['projectId', 'builderRunId'], properties: { projectId: uuid, builderRunId: uuid } } },
-  }, async (request, reply) => {
-    const session = await dependencies.resolveCurrentSession(request)
-    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-    if (!dependencies.session?.readTrace) return sendProblem(reply, 503, 'builder-trace-unavailable', 'Builder trace unavailable')
-    try {
-      const run = await dependencies.store.readBuilderRun({ accountId: session.account.accountId, projectId: request.params.projectId })
-      if (!run || run.builderRunId !== request.params.builderRunId) return sendProblem(reply, 404, 'builder-run-not-found', 'BuilderRun not found')
-      return dependencies.session.readTrace({ accountId: session.account.accountId, projectId: request.params.projectId, builderRunId: request.params.builderRunId })
-    } catch (error) {
-      if (message(error).includes('NOT_AUTHORIZED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
-      recordFailure(request.log, 'BUILDER_TRACE_FAILED', error, { 'conexus.project_id': request.params.projectId, 'conexus.builder_run_id': request.params.builderRunId })
-      return sendProblem(reply, 503, 'builder-trace-unavailable', 'Builder trace unavailable')
+  }, async (request) => {
+    const accountId = await signedIn(request)
+    const readTrace = dependencies.session?.readTrace?.bind(dependencies.session)
+    if (!readTrace) throw new Failure('BUILDER_TRACE_UNAVAILABLE')
+    const { projectId, builderRunId } = request.params
+    const read = async () => {
+      const run = await dependencies.store.readBuilderRun({ accountId, projectId })
+      if (!run || run.builderRunId !== builderRunId) throw new Failure('BUILDER_RUN_NOT_FOUND')
+      return readTrace({ accountId, projectId, builderRunId })
     }
+    return read().catch(unavailableAs('BUILDER_TRACE_UNAVAILABLE', { projectId, builderRunId }))
   })
 
   app.post<{ Params: { projectId: string }; Body: Record<string, never> }>('/api/control/projects/:projectId/builder-session/preview', {
@@ -181,89 +176,48 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       body: { type: 'object', additionalProperties: false },
     },
   }, async (request, reply) => {
-    const csrf = header(request.headers['x-conexus-csrf'])
-    if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
-    const session = await dependencies.resolveCurrentSession(request, true)
-    if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-    if (!dependencies.launchPreview) return sendProblem(reply, 503, 'preview-unavailable', 'Preview unavailable')
-    try {
-      const subject = await dependencies.store.readPreviewSubject({ accountId: session.account.accountId, projectId: request.params.projectId })
-      if (!subject?.lastPreviewSourceRevision || !subject.lastPreviewArtifactRevisionId || !subject.lastPreviewArtifactDigest) {
-        return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
-      }
-      const artifact = await dependencies.service.getApplicationBySource({ accountId: session.account.accountId, projectId: request.params.projectId, sourceRevision: subject.lastPreviewSourceRevision })
-      if (!artifact || artifact.artifactRevisionId !== subject.lastPreviewArtifactRevisionId || artifact.artifactDigest !== subject.lastPreviewArtifactDigest) return sendProblem(reply, 404, 'preview-subject-not-found', 'Preview subject not found')
-      const launched = await dependencies.launchPreview(request, {
-        accountId: session.account.accountId, projectId: request.params.projectId, artifactRevisionId: artifact.artifactRevisionId,
-        artifactDigest: artifact.artifactDigest, artifact,
-      })
-      return reply.code(201).send(launched)
-    } catch (error) {
-      const detail = message(error)
-      if (detail.includes('NOT_AUTHORIZED') || detail.includes('SUBJECT_REFUSED')) return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
-      recordFailure(request.log, 'BUILDER_PREVIEW_FAILED', error, { 'conexus.project_id': request.params.projectId })
-      return sendProblem(reply, 503, 'preview-unavailable', 'Preview unavailable')
+    authentic(request)
+    const accountId = await signedIn(request, true)
+    const { launchPreview } = dependencies
+    if (!launchPreview) throw new Failure('PREVIEW_UNAVAILABLE')
+    const { projectId } = request.params
+    const launch = async () => {
+      const subject = await dependencies.store.readPreviewSubject({ accountId, projectId })
+      if (!subject?.lastPreviewSourceRevision || !subject.lastPreviewArtifactRevisionId || !subject.lastPreviewArtifactDigest) throw new Failure('PREVIEW_SUBJECT_NOT_FOUND')
+      const artifact = await dependencies.service.getApplicationBySource({ accountId, projectId, sourceRevision: subject.lastPreviewSourceRevision })
+      if (!artifact || artifact.artifactRevisionId !== subject.lastPreviewArtifactRevisionId || artifact.artifactDigest !== subject.lastPreviewArtifactDigest) throw new Failure('PREVIEW_SUBJECT_NOT_FOUND')
+      return launchPreview(request, { accountId, projectId, artifactRevisionId: artifact.artifactRevisionId, artifactDigest: artifact.artifactDigest, artifact })
     }
+    const launched = await launch().catch((error: unknown) => {
+      if (error instanceof Error && error.message === 'APPLICATION_SUBJECT_REFUSED') throw new Failure('PROJECT_BUILD_DENIED')
+      return unavailableAs('PREVIEW_UNAVAILABLE', { projectId })(error)
+    })
+    return reply.code(201).send(launched)
   })
 
   app.get<{ Params: { projectId: string }; Querystring: { sourceRevision: string } }>(
-    '/api/control/projects/:projectId/source/tree', { schema: { params, querystring: sourceQuery } }, async (request, reply) => {
-      const session = await dependencies.resolveCurrentSession(request)
-      if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-      try {
-        return await dependencies.service.listSourceTree({
-          accountId: session.account.accountId, projectId: request.params.projectId,
-          sourceRevision: request.query.sourceRevision,
-        })
-      } catch (error) {
-        const detail = message(error)
-        if (detail.includes('SUBJECT_NOT_FOUND') || detail.includes('REVISION_NOT_FOUND')) {
-          return sendProblem(reply, 404, 'source-revision-not-found', 'Source revision not found')
-        }
-        recordFailure(request.log, 'BUILDER_SOURCE_FAILED', error, { 'conexus.project_id': request.params.projectId })
-        return sendProblem(reply, 503, 'builder-source-unavailable', 'Builder source unavailable')
-      }
+    '/api/control/projects/:projectId/source/tree', { schema: { params, querystring: sourceQuery } }, async (request) => {
+      const accountId = await signedIn(request)
+      return dependencies.service.listSourceTree({ accountId, projectId: request.params.projectId, sourceRevision: request.query.sourceRevision })
+        .catch(sourceRefusal('SOURCE_REVISION_NOT_FOUND', REVISION_REFUSALS, { projectId: request.params.projectId }))
     },
   )
 
   app.get<{ Params: { projectId: string }; Querystring: { sourceRevision: string; path: string } }>(
-    '/api/control/projects/:projectId/source/file', { schema: { params, querystring: sourceFileQuery } }, async (request, reply) => {
-      const session = await dependencies.resolveCurrentSession(request)
-      if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-      try {
-        return await dependencies.service.getSourceFile({
-          accountId: session.account.accountId, projectId: request.params.projectId,
-          sourceRevision: request.query.sourceRevision, path: request.query.path,
-        })
-      } catch (error) {
-        const detail = message(error)
-        if (detail.includes('SUBJECT_NOT_FOUND') || detail.includes('NOT_FOUND') ||
-          detail.includes('NOT_DISCLOSABLE') || detail.includes('PATH_REFUSED')) {
-          return sendProblem(reply, 404, 'source-file-not-found', 'Source file not found')
-        }
-        recordFailure(request.log, 'BUILDER_SOURCE_FAILED', error, { 'conexus.project_id': request.params.projectId })
-        return sendProblem(reply, 503, 'builder-source-unavailable', 'Builder source unavailable')
-      }
+    '/api/control/projects/:projectId/source/file', { schema: { params, querystring: sourceFileQuery } }, async (request) => {
+      const accountId = await signedIn(request)
+      return dependencies.service.getSourceFile({ accountId, projectId: request.params.projectId, sourceRevision: request.query.sourceRevision, path: request.query.path })
+        .catch(sourceRefusal('SOURCE_FILE_NOT_FOUND', FILE_REFUSALS, { projectId: request.params.projectId }))
     },
   )
 
   app.get<{ Params: { projectId: string }; Querystring: { baseSourceRevision: string; resultSourceRevision: string } }>(
-    '/api/control/projects/:projectId/source/compare', { schema: { params, querystring: sourceCompareQuery } }, async (request, reply) => {
-      const session = await dependencies.resolveCurrentSession(request)
-      if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-      try {
-        return await dependencies.service.compareSourceRevisions({
-          accountId: session.account.accountId, projectId: request.params.projectId,
-          baseSourceRevision: request.query.baseSourceRevision, resultSourceRevision: request.query.resultSourceRevision,
-        })
-      } catch (error) {
-        const detail = message(error)
-        if (detail.includes('SUBJECT_NOT_FOUND') || detail.includes('REVISION_NOT_FOUND')) {
-          return sendProblem(reply, 404, 'source-revision-not-found', 'Source revision not found')
-        }
-        recordFailure(request.log, 'BUILDER_SOURCE_FAILED', error, { 'conexus.project_id': request.params.projectId })
-        return sendProblem(reply, 503, 'builder-source-unavailable', 'Builder source unavailable')
-      }
+    '/api/control/projects/:projectId/source/compare', { schema: { params, querystring: sourceCompareQuery } }, async (request) => {
+      const accountId = await signedIn(request)
+      return dependencies.service.compareSourceRevisions({
+        accountId, projectId: request.params.projectId,
+        baseSourceRevision: request.query.baseSourceRevision, resultSourceRevision: request.query.resultSourceRevision,
+      }).catch(sourceRefusal('SOURCE_REVISION_NOT_FOUND', REVISION_REFUSALS, { projectId: request.params.projectId }))
     },
   )
 

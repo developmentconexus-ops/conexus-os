@@ -268,6 +268,7 @@ export function checkImportLaw(rootDirectory) {
       if (source === 'apps/hub/src/identity-access/routes.ts' && isRelative) {
         const allowed = [
           'apps/hub/src/http/problem.',
+          'apps/hub/src/platform/failure.',
           'apps/hub/src/generated/iam-routes.',
           'apps/hub/src/identity-access/',
           'apps/hub/src/platform/application-slug.',
@@ -286,6 +287,7 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/identity-access/errors.',
           'apps/hub/src/identity-access/oidc.',
           'apps/hub/src/identity-access/current-session.',
+          'apps/hub/src/platform/failure.',
           'apps/hub/src/platform/opaque-token.',
         ]
         if (!allowed.some((prefix) => target.startsWith(prefix))) {
@@ -295,6 +297,7 @@ export function checkImportLaw(rootDirectory) {
       if (source === 'apps/hub/src/workspace/routes.ts' && isRelative) {
         const allowed = [
           'apps/hub/src/http/problem.',
+          'apps/hub/src/platform/failure.',
           'apps/hub/src/generated/workspace-routes.',
           'apps/hub/src/workspace/',
           'apps/hub/src/identity-access/current-session.',
@@ -308,7 +311,7 @@ export function checkImportLaw(rootDirectory) {
         const allowed = [
           'packages/canonical-json/src/index.',
           'apps/hub/src/platform/postgres.',
-          'apps/hub/src/workspace/errors.',
+          'apps/hub/src/platform/failure.',
         ]
         if (!allowed.some((prefix) => target.startsWith(prefix))) {
           violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'workspace store may use only owner errors/types, PostgreSQL types, and canonical JSON'))

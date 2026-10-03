@@ -478,7 +478,7 @@ test("a conversation that is not the Project's is refused before a run exists", 
   }
   const service = createBuilderService({ store, runs: makeRuns({ execute: async () => { throw new Error('not reached') } }), applicationArtifacts: {} })
   const attempt = (conversationId) => service.createBuilderRun({ accountId: '33333333-3333-4333-8333-333333333333', projectId, idempotencyKey: conversationId, content: 'altere', conversationId }).catch((error) => error.message)
-  assert.deepEqual([await attempt('conv-plan'), await attempt('conv-build'), await attempt('conv-missing')], ['STOP_AFTER_CREATE', 'STOP_AFTER_CREATE', 'BUILDER_CONVERSATION_NOT_FOUND'])
+  assert.deepEqual([await attempt('conv-plan'), await attempt('conv-build'), await attempt('conv-missing')], ['STOP_AFTER_CREATE', 'STOP_AFTER_CREATE', 'CONVERSATION_NOT_FOUND'])
   assert.deepEqual(created, ['conv-plan', 'conv-build'])
   await service.close()
 })
@@ -617,7 +617,7 @@ test('near the heap limit a new run is refused before any row exists and the war
     applicationArtifacts: {},
   })
   const ask = () => service.createBuilderRun({ accountId: '33333333-3333-4333-8333-333333333333', projectId, idempotencyKey: 'key', content: 'Faça um app', conversationId: 'conv-heap' })
-  await assert.rejects(ask(), { message: 'BUILDER_HEAP_PRESSURE' })
+  await assert.rejects(ask(), { message: 'BUILDER_CAPACITY_FULL' })
   assert.deepEqual({ rows, evictions, warnings }, { rows: [], evictions: ['evict'], warnings: ['BUILDER_RUN_REFUSED_HEAP:0.860'] })
   ratio = 0.85
   assert.equal((await ask()).state, 'QUEUED')

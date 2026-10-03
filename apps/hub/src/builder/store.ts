@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import type { BuilderRunPhase, BuilderRunResultKind, BuilderRunState } from '../generated/builder-run-vocabulary.js'
+import { Failure } from '../platform/failure.js'
 import { errorCode, type PostgresPool } from '../platform/postgres.js'
 
 export type BuilderRunSummary = Readonly<{
@@ -89,6 +90,15 @@ export type BuilderStore = Readonly<{
   close(): Promise<void>
 }>
 
+// The refusals `builder.create_builder_run` raises by name; anything else stays the database's own fault.
+const startRefusal = (error: unknown): unknown => {
+  const named = error instanceof Error ? error.message : ''
+  if (named === 'PROJECT_BUSY') return new Failure('PROJECT_BUSY')
+  if (named === 'IDEMPOTENCY_CONFLICT') return new Failure('IDEMPOTENCY_CONFLICT')
+  if (named === 'BUILDER_RUN_INPUT_REFUSED') return new Failure('BUILDER_MESSAGE_REFUSED')
+  return error
+}
+
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createBuilderStore = ({
   ingressPool,
@@ -116,7 +126,7 @@ export const createBuilderStore = ({
       return value
     } catch (error) {
       await client.query('ROLLBACK').catch(() => undefined)
-      throw error
+      throw startRefusal(error)
     } finally {
       client.release()
     }
@@ -218,7 +228,9 @@ export const createBuilderStore = ({
   requestBuilderRunCancellation: async ({ accountId, projectId, builderRunId }) => {
     const result = await ingressPool.query<JsonRow<BuilderRunSummary>>(
       'SELECT builder.request_builder_run_cancellation($1,$2,$3) AS value', [accountId, projectId, builderRunId],
-    )
+    ).catch((error: unknown) => {
+      throw (error instanceof Error && error.message.endsWith('_NOT_FOUND')) ? new Failure('BUILDER_RUN_NOT_FOUND') : error
+    })
     const value = result.rows[0]?.value
     if (!value) throw new Error('BUILDER_RUN_CANCELLATION_REFUSED')
     return value

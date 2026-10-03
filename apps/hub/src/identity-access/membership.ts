@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { QueryResultRow } from 'pg'
 import { IAM_GENERATED_ROUTES } from '../generated/iam-routes.js'
 import type { Iam05Body, Iam10Body, MemberParams, RosterEntryParams, IamOwnerId, WorkspaceParams } from '../generated/iam-routes.js'
-import { sendProblem } from '../http/problem.js'
+import { Failure } from '../platform/failure.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import {
   accountId as brandAccountId,
@@ -137,27 +137,33 @@ export type MembershipRouteDependencies = Readonly<{
   config: Readonly<{ origin: string }>
 }>
 
-// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const registerMembershipRoutes = async (
   app: FastifyInstance,
   { store, resolveCurrentSession, config }: MembershipRouteDependencies,
 ): Promise<readonly IamOwnerId[]> => {
-  const authentic = (request: Parameters<ResolveCurrentSession>[0]): boolean => {
+  const authentic = (request: FastifyRequest): void => {
     const requestCsrf = header(request.headers['x-conexus-csrf'])
-    return isExactOrigin(request.headers.origin, config.origin) && !!requestCsrf && requestCsrf === request.cookies[CSRF_COOKIE]
+    if (!isExactOrigin(request.headers.origin, config.origin) || !requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) throw new Failure('REQUEST_AUTHENTICITY_DENIED')
+  }
+  const signedIn = async (request: FastifyRequest, write = false): Promise<AccountId> => {
+    const current = await resolveCurrentSession(request, write)
+    if (!current) throw new Failure('AUTHENTICATION_REQUIRED')
+    return current.account.accountId
+  }
+  // The database's refusals of a member change, as rows.
+  const refused = (error: unknown): never => {
+    if (isLastOwner(error)) throw new Failure('LAST_OWNER')
+    if (isNotAdmitted(error)) throw new Failure('MEMBERS_MANAGE_REQUIRED')
+    throw error
   }
 
   app.route<{ Params: WorkspaceParams }>({
     ...IAM_GENERATED_ROUTES['IAM-04'],
     schema: { ...IAM_GENERATED_ROUTES['IAM-04'].schema, params: workspaceParamsSchema },
-    handler: async (request, reply) => {
-      const current = await resolveCurrentSession(request)
-      if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-      const roster = await store.roster({
-        actor: current.account.accountId,
-        workspaceId: brandWorkspaceId(request.params.workspaceId),
-      })
-      if (!roster) return sendProblem(reply, 404, 'workspace-not-found', 'Workspace not found')
+    handler: async (request) => {
+      const actor = await signedIn(request)
+      const roster = await store.roster({ actor, workspaceId: brandWorkspaceId(request.params.workspaceId) })
+      if (!roster) throw new Failure('WORKSPACE_NOT_FOUND')
       return roster
     },
   })
@@ -165,24 +171,16 @@ export const registerMembershipRoutes = async (
   app.route<{ Params: WorkspaceParams; Body: Iam05Body }>({
     ...IAM_GENERATED_ROUTES['IAM-05'],
     schema: { ...IAM_GENERATED_ROUTES['IAM-05'].schema, params: workspaceParamsSchema },
-    handler: async (request, reply) => {
-      if (!authentic(request)) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
-      const current = await resolveCurrentSession(request, true)
-      if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+    handler: async (request) => {
+      authentic(request)
+      const actor = await signedIn(request, true)
       const email = parseEmailAddress(request.body.email)
       const role = parseWorkspaceRole(request.body.role)
-      if (!email || !role) return sendProblem(reply, 422, 'invitation-not-acceptable', 'Invitation not acceptable')
-      try {
-        return await store.invite({
-          actor: current.account.accountId,
-          workspaceId: brandWorkspaceId(request.params.workspaceId),
-          email,
-          role,
-        })
-      } catch (error) {
-        if (isNotAdmitted(error)) return sendProblem(reply, 403, 'members-manage-required', 'Member administration denied')
+      if (!email || !role) throw new Failure('INVITATION_NOT_ACCEPTABLE')
+      return store.invite({ actor, workspaceId: brandWorkspaceId(request.params.workspaceId), email, role }).catch((error: unknown) => {
+        if (isNotAdmitted(error)) throw new Failure('MEMBERS_MANAGE_REQUIRED')
         throw error
-      }
+      })
     },
   })
 
@@ -190,24 +188,17 @@ export const registerMembershipRoutes = async (
     ...IAM_GENERATED_ROUTES['IAM-10'],
     schema: { ...IAM_GENERATED_ROUTES['IAM-10'].schema, params: memberParamsSchema },
     handler: async (request, reply) => {
-      if (!authentic(request)) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
-      const current = await resolveCurrentSession(request, true)
-      if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      authentic(request)
+      const actor = await signedIn(request, true)
       const role = parseWorkspaceRole(request.body.role)
-      if (!role) return sendProblem(reply, 422, 'role-not-acceptable', 'Role not acceptable')
-      try {
-        await store.setRole({
-          actor: current.account.accountId,
-          workspaceId: brandWorkspaceId(request.params.workspaceId),
-          member: brandAccountId(request.params.accountId),
-          role,
-        })
-        return reply.code(204).send()
-      } catch (error) {
-        if (isLastOwner(error)) return sendProblem(reply, 409, 'last-owner', 'The Workspace would be left without an owner')
-        if (isNotAdmitted(error)) return sendProblem(reply, 403, 'members-manage-required', 'Member administration denied')
-        throw error
-      }
+      if (!role) throw new Failure('ROLE_NOT_ACCEPTABLE')
+      await store.setRole({
+        actor,
+        workspaceId: brandWorkspaceId(request.params.workspaceId),
+        member: brandAccountId(request.params.accountId),
+        role,
+      }).catch(refused)
+      return reply.code(204).send()
     },
   })
 
@@ -215,47 +206,29 @@ export const registerMembershipRoutes = async (
     ...IAM_GENERATED_ROUTES['IAM-06'],
     schema: { ...IAM_GENERATED_ROUTES['IAM-06'].schema, params: rosterEntryParamsSchema },
     handler: async (request, reply) => {
-      if (!authentic(request)) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
-      const current = await resolveCurrentSession(request, true)
-      if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      authentic(request)
+      const actor = await signedIn(request, true)
       const { entryKind, entryId } = request.params
-      if (entryKind !== 'member' && entryKind !== 'invitation') {
-        return sendProblem(reply, 404, 'roster-entry-not-found', 'Roster entry not found')
-      }
-      try {
-        if (entryKind === 'member') {
-          await store.remove({
-            actor: current.account.accountId,
-            workspaceId: brandWorkspaceId(request.params.workspaceId),
-            member: brandAccountId(entryId),
-          })
-        } else {
-          // `iam.cancel_workspace_invitation` resolves authority from the invitation's own
-          // Workspace, so it is never wrong about who may cancel it, but it never reads the
-          // `workspaceId` path segment either. Without this check an owner of one Workspace
-          // could cancel an invitation belonging to a different Workspace by naming its own
-          // Workspace in the URL, and a caller naming the invitation's real Workspace correctly
-          // would be refused. Requiring the invitation to actually be a roster entry of the
-          // path Workspace first makes the URL and the effect agree.
-          const pathRoster = await store.roster({
-            actor: current.account.accountId,
-            workspaceId: brandWorkspaceId(request.params.workspaceId),
-          })
-          const belongsToPathWorkspace = pathRoster?.entries.some(
-            (candidate) => candidate.kind === 'invitation' && candidate.invitationId === entryId,
-          ) ?? false
-          if (!belongsToPathWorkspace) return sendProblem(reply, 404, 'roster-entry-not-found', 'Roster entry not found')
-          await store.cancelInvitation({
-            actor: current.account.accountId,
-            invitationId: brandInvitationId(entryId),
-          })
-        }
+      if (entryKind !== 'member' && entryKind !== 'invitation') throw new Failure('ROSTER_ENTRY_NOT_FOUND')
+      const workspaceId = brandWorkspaceId(request.params.workspaceId)
+      if (entryKind === 'member') {
+        await store.remove({ actor, workspaceId, member: brandAccountId(entryId) }).catch(refused)
         return reply.code(204).send()
-      } catch (error) {
-        if (isLastOwner(error)) return sendProblem(reply, 409, 'last-owner', 'The Workspace would be left without an owner')
-        if (isNotAdmitted(error)) return sendProblem(reply, 403, 'members-manage-required', 'Member administration denied')
-        throw error
       }
+      // `iam.cancel_workspace_invitation` resolves authority from the invitation's own
+      // Workspace, so it is never wrong about who may cancel it, but it never reads the
+      // `workspaceId` path segment either. Without this check an owner of one Workspace
+      // could cancel an invitation belonging to a different Workspace by naming its own
+      // Workspace in the URL, and a caller naming the invitation's real Workspace correctly
+      // would be refused. Requiring the invitation to actually be a roster entry of the
+      // path Workspace first makes the URL and the effect agree.
+      const pathRoster = await store.roster({ actor, workspaceId }).catch(refused)
+      const belongsToPathWorkspace = pathRoster?.entries.some(
+        (candidate) => candidate.kind === 'invitation' && candidate.invitationId === entryId,
+      ) ?? false
+      if (!belongsToPathWorkspace) throw new Failure('ROSTER_ENTRY_NOT_FOUND')
+      await store.cancelInvitation({ actor, invitationId: brandInvitationId(entryId) }).catch(refused)
+      return reply.code(204).send()
     },
   })
 

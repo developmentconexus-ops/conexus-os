@@ -1,6 +1,6 @@
 export const PROBLEM_TYPES = {
-  projectNameMismatch: 'urn:conexus:problem:project-name-mismatch',
-  projectBusy: 'urn:conexus:problem:project-busy',
+  projectNameMismatch: 'urn:conexus:problem:PROJECT_NAME_MISMATCH',
+  projectBusy: 'urn:conexus:problem:PROJECT_BUSY',
 } as const
 
 export function deleteFailureMessage(status: number, type: string | null): string {

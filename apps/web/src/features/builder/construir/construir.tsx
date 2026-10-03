@@ -187,7 +187,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
       // The words go back to the composer, so sending again is one click.
       setDraft((current) => current === '' ? content : current)
       if (!unknown) retainedKey.current = null
-      if (error instanceof BuilderRequestError && error.problemType === 'urn:conexus:problem:builder-capacity-full') setSendError('O Conexus está com muitas execuções abertas agora. Tente em instantes.')
+      if (error instanceof BuilderRequestError && error.problemType === 'urn:conexus:problem:BUILDER_CAPACITY_FULL') setSendError('O Conexus está com muitas execuções abertas agora. Tente em instantes.')
       else if (error instanceof BuilderRequestError && error.status === 409) setSendError('O Project está ocupado ou recebeu outra alteração. Aguarde e envie de novo.')
       else if (error instanceof BuilderRequestError && error.status === 403) setSendError('Você não tem permissão para construir neste Project.')
       else if (unknown) setSendError('Não foi possível confirmar o envio. Enviar de novo é seguro: o pedido não se repete.')

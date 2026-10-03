@@ -9,7 +9,7 @@ const built = hubModuleUrl
 const { createHttpApp } = await import(built('http/app.js'))
 const { registerIdentityAccessRoutes } = await import(built('identity-access/routes.js'))
 const { createOidcAdapter } = await import(built('identity-access/oidc.js'))
-const { identityAccessError } = await import(built('identity-access/errors.js'))
+const { Failure } = await import(built('platform/failure.js'))
 
 const origin = 'https://conexus.test'
 const config = { origin, bootstrapIssuer: 'https://issuer.test/realms/r1', bootstrapSubject: 'bootstrap-subject' }
@@ -154,14 +154,14 @@ const makeStore = ({ eligible = true } = {}) => {
     async consumeOidcTransaction({ state: key }) { const value = state.oidc.get(key); state.oidc.delete(key); return value ?? null },
     async resolveIdentity(identity) { return state.accounts.get(`${identity.issuer}|${identity.subject}`) ?? null },
     async createProvisioningContext(identity) {
-      if (!eligible) throw identityAccessError('IDENTITY_NOT_ELIGIBLE')
+      if (!eligible) throw new Failure('IDENTITY_NOT_ELIGIBLE')
       const value = 'bootstrap-token'
       state.bootstrap.set(value, identity)
       return value
     },
     async claimInvitations(input) { state.claimed.push(input); return 1 },
     async provisionBootstrap({ bootstrapToken, displayName, email }) {
-      if (!state.bootstrap.has(bootstrapToken)) throw identityAccessError('BOOTSTRAP_SEALED')
+      if (!state.bootstrap.has(bootstrapToken)) throw new Failure('BOOTSTRAP_SEALED')
       state.bootstrap.delete(bootstrapToken)
       return { accountId: 'account-1', displayName, ...(email ? { email } : {}), replayed: false }
     },
@@ -509,7 +509,7 @@ test('TI-02 sends a person with an unverified email to the no-access page with t
 test('an app-only Account signing in at the Hub is refused with no session cookie', async (t) => {
   const store = makeStore()
   store.state.accounts.set(`${config.bootstrapIssuer}|app-only`, { accountId: 'account-app', displayName: 'Funcionária' })
-  store.openHub = async () => { throw identityAccessError('IDENTITY_NOT_ELIGIBLE') }
+  store.openHub = async () => { throw new Failure('IDENTITY_NOT_ELIGIBLE') }
   const app = await createHubApp({ store, oidc: makeOidc({ subject: 'app-only', verifiedEmail: 'funcionaria@example.test' }), config })
   t.after(() => app.close())
   await app.inject({ method: 'GET', url: '/protocol/oidc/login' })
@@ -535,7 +535,7 @@ test('a Hub request whose Keycloak check Keycloak cannot answer is refused with 
   t.after(() => app.close())
   const answer = await app.inject({ method: 'GET', url: '/api/control/access-context', cookies: { '__Host-conexus_session': 's'.repeat(43) } })
   assert.equal(answer.statusCode, 503)
-  assert.equal(answer.json().type.endsWith('identity-provider-unavailable'), true)
+  assert.equal(answer.json().type.endsWith('IDENTITY_PROVIDER_UNAVAILABLE'), true)
   assert.equal(answer.headers['set-cookie'], undefined, 'no cookie is cleared')
 })
 

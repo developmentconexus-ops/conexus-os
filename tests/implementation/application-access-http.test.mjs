@@ -72,7 +72,7 @@ test('a member who is not an Owner is refused and a non-member is not told the P
   t.after(() => Promise.all([member.close(), stranger.close()]))
   const read = await member.inject({ method: 'GET', url: accessUrl, cookies: session })
   assert.equal(read.statusCode, 403)
-  assert.equal(read.json().type, 'urn:conexus:problem:application-access-manage-required')
+  assert.equal(read.json().type, 'urn:conexus:problem:APPLICATION_ACCESS_MANAGE_REQUIRED')
   const grant = await member.inject({ method: 'POST', url: accessUrl, ...authentic, payload: { email: 'a@example.test' } })
   assert.equal(grant.statusCode, 403)
   assert.equal((await stranger.inject({ method: 'GET', url: accessUrl, cookies: session })).statusCode, 404)
@@ -104,7 +104,7 @@ test('a state change without the exact Origin or the CSRF token is refused befor
   for (const { headers } of cases) {
     const response = await app.inject({ method: 'POST', url: accessUrl, headers, cookies: session, payload: { email: 'a@example.test' } })
     assert.equal(response.statusCode, 403)
-    assert.equal(response.json().type, 'urn:conexus:problem:request-authenticity-denied')
+    assert.equal(response.json().type, 'urn:conexus:problem:REQUEST_AUTHENTICITY_DENIED')
   }
   const revoke = await app.inject({ method: 'DELETE', url: `${accessUrl}/grant/${grantId}`, headers: { 'x-conexus-csrf': 'csrf-1' }, cookies: session })
   assert.equal(revoke.statusCode, 403)

@@ -112,7 +112,7 @@ test('answering the card of a parked run shows the run going again without the s
 
 test('an answer the Hub refuses keeps the card and says why: already answered, no longer waited on, or not delivered', async (t) => {
   const said = []
-  for (const refusal of [{ status: 409, type: 'tool-answer-already-given' }, { status: 404, type: 'parked-call-not-found' }, { status: 503, type: 'builder-answer-unavailable' }]) {
+  for (const refusal of [{ status: 409, type: 'TOOL_ANSWER_ALREADY_GIVEN' }, { status: 404, type: 'PARKED_CALL_NOT_FOUND' }, { status: 503, type: 'BUILDER_ANSWER_UNAVAILABLE' }]) {
     const { page } = await openParkedRun(t, { phase: 'PARKED', messages: [userMessage('user-1', 'Mude o título'), parkedAsk(PARKED_QUESTION)], refusal })
     await card(page).getByRole('textbox').fill('144118')
     await card(page).getByRole('button', { name: 'Enviar resposta' }).click()

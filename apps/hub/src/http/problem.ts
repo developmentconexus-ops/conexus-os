@@ -2,26 +2,13 @@ import { trace } from '@opentelemetry/api'
 import type { FastifyReply } from 'fastify'
 import { type Failure, failureRow } from '../platform/failure.js'
 
-export type ProblemDetails = Readonly<{ type: string; title: string; status: number; detail?: string }> & Readonly<Record<string, unknown>>
-
-const problem = (status: number, type: string, title: string, detail?: string, extra?: Readonly<Record<string, unknown>>): ProblemDetails => ({
-  type: `urn:conexus:problem:${type}`,
-  title,
-  status,
-  ...(detail ? { detail } : {}),
-  ...extra,
-})
-
-export const sendProblem = (reply: FastifyReply, status: number, type: string, title: string, detail?: string, extra?: Readonly<Record<string, unknown>>) => reply
-  .type('application/problem+json')
-  .code(status)
-  .send(problem(status, type, title, detail, extra))
+type ProblemDetails = Readonly<{ type: string; title: string; status: number; code: string; traceId?: string }>
 
 /** The problem+json body of a failure: its row's status, the code as type, title and `code`, and the trace id for a Conexus fault. */
 export const failureProblem = (failure: Failure): ProblemDetails => {
   const { category, status } = failureRow(failure)
   const traceId = category === 'SYSTEM' ? trace.getActiveSpan()?.spanContext().traceId : undefined
-  return problem(status, failure.id, failure.id, undefined, { code: failure.id, ...(traceId ? { traceId } : {}) })
+  return { type: `urn:conexus:problem:${failure.id}`, title: failure.id, status, code: failure.id, ...(traceId ? { traceId } : {}) }
 }
 
 export const sendFailure = (reply: FastifyReply, failure: Failure) => {

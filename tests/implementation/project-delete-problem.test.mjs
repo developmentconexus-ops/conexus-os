@@ -9,7 +9,7 @@ import {
 test('deleteFailureMessage maps Hub problem URNs to specific Portuguese messages and falls back for unknown/bare types', async (t) => {
   const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
   const { registerProjectRoutes } = await import(hubModuleUrl('project/routes.js'))
-  const { ProjectError } = await import(hubModuleUrl('project/errors.js'))
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
 
   let thrownError = null
   const app = await createHttpApp({
@@ -37,24 +37,24 @@ test('deleteFailureMessage maps Hub problem URNs to specific Portuguese messages
   })
 
   // 1. Hub emits PROJECT_NAME_MISMATCH -> HTTP 409 with full URN
-  thrownError = new ProjectError('PROJECT_NAME_MISMATCH')
+  thrownError = new Failure('PROJECT_NAME_MISMATCH')
   const mismatchResponse = await deleteRequest('wrong')
   assert.equal(mismatchResponse.statusCode, 409)
   const mismatchJson = mismatchResponse.json()
   assert.equal(mismatchJson.type, PROBLEM_TYPES.projectNameMismatch)
-  assert.equal(mismatchJson.type, 'urn:conexus:problem:project-name-mismatch')
+  assert.equal(mismatchJson.type, 'urn:conexus:problem:PROJECT_NAME_MISMATCH')
   assert.equal(
     deleteFailureMessage(mismatchResponse.statusCode, mismatchJson.type),
     'O nome digitado não corresponde ao Projeto. Confira e digite exatamente como aparece.',
   )
 
   // 2. Hub emits PROJECT_BUSY -> HTTP 409 with full URN
-  thrownError = new ProjectError('PROJECT_BUSY')
+  thrownError = new Failure('PROJECT_BUSY')
   const busyResponse = await deleteRequest('My Project')
   assert.equal(busyResponse.statusCode, 409)
   const busyJson = busyResponse.json()
   assert.equal(busyJson.type, PROBLEM_TYPES.projectBusy)
-  assert.equal(busyJson.type, 'urn:conexus:problem:project-busy')
+  assert.equal(busyJson.type, 'urn:conexus:problem:PROJECT_BUSY')
   assert.equal(
     deleteFailureMessage(busyResponse.statusCode, busyJson.type),
     'O Projeto está processando uma tarefa agora. Espere terminar e tente de novo.',
@@ -62,8 +62,8 @@ test('deleteFailureMessage maps Hub problem URNs to specific Portuguese messages
 
   // 3. Negative tests: bare slug, prefix alteration, unknown URN fall back to generic
   const genericMessage = 'O servidor não respondeu desta vez. Nada foi excluído.'
-  assert.equal(deleteFailureMessage(409, 'project-name-mismatch'), genericMessage)
-  assert.equal(deleteFailureMessage(409, 'project-busy'), genericMessage)
+  assert.equal(deleteFailureMessage(409, 'PROJECT_NAME_MISMATCH'), genericMessage)
+  assert.equal(deleteFailureMessage(409, 'PROJECT_BUSY'), genericMessage)
   assert.equal(deleteFailureMessage(409, 'urn:conexus:problem:project-name-mismatch-extra'), genericMessage)
   assert.equal(deleteFailureMessage(409, 'urn:conexus:problem:unknown-type'), genericMessage)
   assert.equal(deleteFailureMessage(409, null), genericMessage)

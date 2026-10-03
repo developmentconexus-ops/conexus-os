@@ -1,17 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { Failure } from '../../platform/failure.js'
 import { encodeKey, type GoogleAiProKey, isAuthFileName } from './credential.js'
 import type { CliproxyPool, LoginInstance } from './pool.js'
 
 type LoginState = 'waiting' | 'succeeded' | 'failed' | 'expired'
-export type LoginProblem = 'model-login-busy' | 'model-login-unavailable' | 'model-login-callback-refused'
-
-export class GoogleAiProLoginError extends Error {
-  constructor(readonly problem: LoginProblem, readonly expiresAt?: number) {
-    super(problem)
-  }
-}
 
 type Caller = Readonly<{ accountId: string }>
 type Attempt<C extends Caller> = {
@@ -101,20 +95,20 @@ export const createGoogleAiProLogin = <C extends Caller>({ pool, writeCredential
   }
 
   const start = async (caller: C): Promise<Readonly<{ loginId: string; url: string }>> => {
-    if (starting) throw new GoogleAiProLoginError('model-login-busy')
+    if (starting) throw new Failure('MODEL_LOGIN_BUSY')
     if (current?.outcome === 'waiting') {
-      if (current.caller.accountId !== caller.accountId) throw new GoogleAiProLoginError('model-login-busy', current.expiresAt)
+      if (current.caller.accountId !== caller.accountId) throw new Failure('MODEL_LOGIN_BUSY')
       await finish(current, 'expired')
     }
     starting = true
     try {
-      const instance = await pool.startLogin().catch(() => { throw new GoogleAiProLoginError('model-login-unavailable') })
+      const instance = await pool.startLogin().catch(() => { throw new Failure('MODEL_LOGIN_UNAVAILABLE') })
       const answer = await management(instance, '/antigravity-auth-url?is_webui=true').catch((): Readonly<Record<string, unknown>> => ({}))
       const { url, state } = answer
       if (answer.status !== 'ok' || typeof url !== 'string' || !url.startsWith('https://accounts.google.com/') ||
         typeof state !== 'string' || !STATE.test(state)) {
         await instance.close().catch(() => undefined)
-        throw new GoogleAiProLoginError('model-login-unavailable')
+        throw new Failure('MODEL_LOGIN_UNAVAILABLE')
       }
       const attempt: Attempt<C> = {
         loginId: randomUUID(),
@@ -142,11 +136,11 @@ export const createGoogleAiProLogin = <C extends Caller>({ pool, writeCredential
     try {
       callback = new URL(callbackUrl.trim())
     } catch {
-      throw new GoogleAiProLoginError('model-login-callback-refused')
+      throw new Failure('MODEL_LOGIN_CALLBACK_REFUSED')
     }
     if (callback.protocol !== 'http:' || !CALLBACK_HOSTNAMES.has(callback.hostname) || !CALLBACK_PATHS.has(callback.pathname) ||
       callback.searchParams.get('state') !== attempt.state ||
-      !(callback.searchParams.get('code') || callback.searchParams.get('error'))) throw new GoogleAiProLoginError('model-login-callback-refused')
+      !(callback.searchParams.get('code') || callback.searchParams.get('error'))) throw new Failure('MODEL_LOGIN_CALLBACK_REFUSED')
     const answer = await management(attempt.instance, '/oauth-callback', { provider: 'antigravity', redirect_url: callback.href })
     if (answer.status !== 'ok') return finish(attempt, 'failed')
     return status(caller, loginId)

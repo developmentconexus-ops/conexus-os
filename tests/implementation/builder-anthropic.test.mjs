@@ -121,7 +121,7 @@ test('the key endpoint refuses a forged write, a key of the wrong shape and a pr
   const inherited = await putKey(app, fakeKey, { provider: 'constructor' })
   assert.deepEqual([forged, misshapen, unknown, inherited].map((reply) => reply.statusCode), [403, 400, 404, 404])
   assert.deepEqual([forged, misshapen, unknown, inherited].map((reply) => reply.json().type), [
-    'request-authenticity-denied', 'model-account-key-refused', 'model-account-provider-unknown', 'model-account-provider-unknown',
+    'REQUEST_AUTHENTICITY_DENIED', 'MODEL_ACCOUNT_KEY_REFUSED', 'MODEL_ACCOUNT_PROVIDER_UNKNOWN', 'MODEL_ACCOUNT_PROVIDER_UNKNOWN',
   ].map((type) => `urn:conexus:problem:${type}`))
   for (const reply of [forged, misshapen, unknown, inherited]) assert.doesNotMatch(reply.body, /sk-ant-|sk-proj-/)
   assert.equal(rows.size, 0)

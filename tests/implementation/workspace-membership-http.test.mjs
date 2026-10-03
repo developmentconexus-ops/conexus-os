@@ -116,7 +116,7 @@ test('a caller who is not a member is not told the Workspace exists', async (t) 
     cookies: { '__Host-conexus_session': 'session-1' },
   })
   assert.equal(response.statusCode, 404)
-  assert.equal(response.json().title, 'Workspace not found')
+  assert.equal(response.json().title, 'WORKSPACE_NOT_FOUND')
 })
 
 test('inviting the same email twice answers the same invitation', async (t) => {
@@ -184,7 +184,7 @@ test('a member cannot invite, and the refusal is a 403', async (t) => {
     payload: { email: 'ana@example.test', role: 'member' },
   })
   assert.equal(response.statusCode, 403)
-  assert.equal(response.json().title, 'Member administration denied')
+  assert.equal(response.json().title, 'MEMBERS_MANAGE_REQUIRED')
 })
 
 test('demoting the last owner is a 409 and removing them is too', async (t) => {
@@ -200,7 +200,7 @@ test('demoting the last owner is a 409 and removing them is too', async (t) => {
     payload: { role: 'member' },
   })
   assert.equal(demoted.statusCode, 409)
-  assert.equal(demoted.json().title, 'The Workspace would be left without an owner')
+  assert.equal(demoted.json().title, 'LAST_OWNER')
   const removed = await app.inject({
     method: 'DELETE',
     url: `/api/control/workspaces/${workspaceId}/roster/member/${ownerAccountId}`,
@@ -343,7 +343,7 @@ test('an invitation that belongs to a different Workspace is a 404, not a cross-
     ...authenticDelete,
   })
   assert.equal(response.statusCode, 404)
-  assert.equal(response.json().title, 'Roster entry not found')
+  assert.equal(response.json().title, 'ROSTER_ENTRY_NOT_FOUND')
   assert.deepEqual(store.calls.map((call) => call.name), ['roster'])
 
   // Naming the invitation's real Workspace succeeds.

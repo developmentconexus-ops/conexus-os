@@ -53,7 +53,7 @@ test('a non-Owner is told only Owners manage application access', async (t) => {
   await routeProject(page)
   await page.route(`**/api/control/projects/${PROJECT_ID}/application-access`, (route) => route.fulfill({
     status: 403, contentType: 'application/problem+json',
-    body: JSON.stringify({ type: 'urn:conexus:problem:application-access-manage-required', title: 'Application access administration denied' }),
+    body: JSON.stringify({ type: 'urn:conexus:problem:APPLICATION_ACCESS_MANAGE_REQUIRED', title: 'APPLICATION_ACCESS_MANAGE_REQUIRED' }),
   }))
 
   await page.goto(`${origin}/projects/${PROJECT_ID}/settings/access`)

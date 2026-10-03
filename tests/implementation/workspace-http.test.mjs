@@ -6,7 +6,7 @@ const built = hubModuleUrl
 const { createHttpApp } = await import(built('http/app.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
 const { registerWorkspaceRoutes } = await import(built('workspace/routes.js'))
-const { workspaceError } = await import(built('workspace/errors.js'))
+const { Failure } = await import(built('platform/failure.js'))
 const { createWorkspaceStore } = await import(built('workspace/store.js'))
 
 const ORIGIN = 'https://conexus.test'
@@ -161,7 +161,7 @@ test('WS-01 admits any authenticated Account, who becomes the Workspace owner', 
 
 test('WS-01 maps changed-request/outcome conflicts to 409 without leaking internals', async (t) => {
   for (const code of ['IDEMPOTENCY_CONFLICT', 'OUTCOME_UNKNOWN']) {
-    const { app } = await buildRoutes({ storeOverrides: { createWorkspace: async () => { throw workspaceError(code) } } })
+    const { app } = await buildRoutes({ storeOverrides: { createWorkspace: async () => { throw new Failure(code) } } })
     t.after(() => app.close())
     const response = await app.inject({ method: 'POST', url: '/api/control/workspaces', headers: authenticHeaders, payload: { name: 'Operations' } })
     assert.equal(response.statusCode, 409)
@@ -184,9 +184,10 @@ test('WS-01/02 hide malformed identifiers and unexpected store/driver failures',
   assert.equal(hidden.statusCode, 404)
   assert.equal(hidden.headers['content-type'].startsWith('application/problem+json'), true)
   assert.deepEqual(hidden.json(), {
-    type: 'urn:conexus:problem:workspace-not-found',
-    title: 'Workspace not found',
+    type: 'urn:conexus:problem:WORKSPACE_NOT_FOUND',
+    title: 'WORKSPACE_NOT_FOUND',
     status: 404,
+    code: 'WORKSPACE_NOT_FOUND',
   })
   assert.equal(hidden.body.includes('secret-driver-detail'), false)
 
@@ -198,9 +199,10 @@ test('WS-01/02 hide malformed identifiers and unexpected store/driver failures',
   assert.equal(readFailure.statusCode, 500)
   assert.equal(readFailure.headers['content-type'].startsWith('application/problem+json'), true)
   assert.deepEqual(readFailure.json(), {
-    type: 'urn:conexus:problem:internal-error',
-    title: 'Internal server error',
+    type: 'urn:conexus:problem:INTERNAL_UNEXPECTED',
+    title: 'INTERNAL_UNEXPECTED',
     status: 500,
+    code: 'INTERNAL_UNEXPECTED',
   })
   assert.equal(readFailure.body.includes('read-driver-secret'), false)
 
@@ -212,9 +214,10 @@ test('WS-01/02 hide malformed identifiers and unexpected store/driver failures',
   assert.equal(createFailure.statusCode, 500)
   assert.equal(createFailure.headers['content-type'].startsWith('application/problem+json'), true)
   assert.deepEqual(createFailure.json(), {
-    type: 'urn:conexus:problem:internal-error',
-    title: 'Internal server error',
+    type: 'urn:conexus:problem:INTERNAL_UNEXPECTED',
+    title: 'INTERNAL_UNEXPECTED',
     status: 500,
+    code: 'INTERNAL_UNEXPECTED',
   })
   assert.equal(createFailure.body.includes('create-driver-secret'), false)
 })

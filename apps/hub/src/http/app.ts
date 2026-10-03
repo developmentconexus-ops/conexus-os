@@ -8,7 +8,7 @@ import { join, sep } from 'node:path'
 import type { FastifyInstance } from 'fastify'
 import { Failure, type FailureCode, logFailure, toFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
-import { sendFailure, sendProblem } from './problem.js'
+import { sendFailure } from './problem.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -34,11 +34,6 @@ const namedFailure = (error: unknown): Failure | null => {
   return code ? new Failure(code, { cause: error }) : null
 }
 
-const errorStatus = (error: unknown): number => {
-  if (typeof error !== 'object' || error === null || !('statusCode' in error)) return 500
-  return typeof error.statusCode === 'number' ? error.statusCode : 500
-}
-
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createHttpApp = async ({
   registerRoutes,
@@ -62,27 +57,9 @@ export const createHttpApp = async ({
     return parseJson(request, text, done)
   })
   app.setErrorHandler((error, request, reply) => {
-    const named = namedFailure(error)
-    if (named) {
-      logFailure(request.log, named)
-      return sendFailure(reply, named)
-    }
-    const reportedStatus = errorStatus(error)
-    // Keycloak could not be asked about a session due for its check: the request waits, nobody is signed out.
-    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'IDENTITY_PROVIDER_UNAVAILABLE') {
-      logFailure(request.log, toFailure(error))
-      return sendProblem(reply, 503, 'identity-provider-unavailable', 'Identity provider unavailable')
-    }
-    if (reportedStatus >= 400 && reportedStatus < 500) {
-      if (reportedStatus === 400) return sendProblem(reply, reportedStatus, 'request-invalid', 'Request invalid')
-      if (reportedStatus === 401) return sendProblem(reply, reportedStatus, 'authentication-required', 'Authentication required')
-      if (reportedStatus === 403) return sendProblem(reply, reportedStatus, 'access-denied', 'Access denied')
-      if (reportedStatus === 404) return sendProblem(reply, reportedStatus, 'not-found', 'Not found')
-      return sendProblem(reply, reportedStatus, 'request-refused', 'Request refused')
-    }
-    const unexpected = toFailure(error)
-    logFailure(request.log, unexpected)
-    return sendFailure(reply, unexpected)
+    const failure = namedFailure(error) ?? toFailure(error)
+    logFailure(request.log, failure, { 'http.route': request.routeOptions.url ?? '' })
+    return sendFailure(reply, failure)
   })
   app.setNotFoundHandler((request, reply) => {
     const missing = new Failure('NOT_FOUND')

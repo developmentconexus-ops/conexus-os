@@ -249,8 +249,8 @@ export const useBuilderConversation = (projectId: string, conversationId: string
 /** What became of an answer, as the Hub's answer route says it: only `RESUMED` took the run back to work. */
 export type AnswerOutcome = 'RESUMED' | 'ALREADY_ANSWERED' | 'NOT_PARKED' | 'UNAVAILABLE'
 const ANSWER_REFUSAL_BY_PROBLEM: Readonly<Partial<Record<string, AnswerOutcome>>> = {
-  'urn:conexus:problem:tool-answer-already-given': 'ALREADY_ANSWERED',
-  'urn:conexus:problem:parked-call-not-found': 'NOT_PARKED',
+  'urn:conexus:problem:TOOL_ANSWER_ALREADY_GIVEN': 'ALREADY_ANSWERED',
+  'urn:conexus:problem:PARKED_CALL_NOT_FOUND': 'NOT_PARKED',
 }
 
 // submit_plan resumes with the tool's own decision: approved lets the run build, rejected sends the

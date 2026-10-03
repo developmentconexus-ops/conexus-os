@@ -6,7 +6,7 @@ import { MastraServer } from '@mastra/fastify'
 import { HTTPException, SERVER_ROUTES } from '@mastra/server/server-adapter'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { ServerResponse } from 'node:http'
-import { failureProblem, sendProblem } from '../http/problem.js'
+import { failureProblem } from '../http/problem.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { Failure, failureRow, logFailure, toFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
@@ -69,11 +69,11 @@ const IDLE_ONLY_ROUTES: ReadonlySet<string> = new Set([sessionRoute('POST', '/mo
 // (a custom interactive tool could echo the same literal), so both routes are checked alike.
 const TOOL_SUSPENSION_KEY = sessionRoute('POST', '/tool-suspension')
 const ABORT_KEY = sessionRoute('POST', '/abort')
-// The web card reads the problem type to say why its answer did not resume the run.
-const ANSWER_REFUSALS: Readonly<Record<Exclude<BuilderAnswerOutcome, 'RESUMED'> | 'UNAVAILABLE', readonly [number, string, string]>> = {
-  ALREADY_ANSWERED: [409, 'tool-answer-already-given', 'This call was already answered'],
-  NOT_PARKED: [404, 'parked-call-not-found', 'The run is not waiting on this call'],
-  UNAVAILABLE: [503, 'builder-answer-unavailable', 'The answer could not reach the run'],
+// The web card reads the problem code to say why its answer did not resume the run.
+const ANSWER_REFUSALS: Readonly<Record<Exclude<BuilderAnswerOutcome, 'RESUMED'> | 'UNAVAILABLE', 'TOOL_ANSWER_ALREADY_GIVEN' | 'PARKED_CALL_NOT_FOUND' | 'BUILDER_ANSWER_UNAVAILABLE'>> = {
+  ALREADY_ANSWERED: 'TOOL_ANSWER_ALREADY_GIVEN',
+  NOT_PARKED: 'PARKED_CALL_NOT_FOUND',
+  UNAVAILABLE: 'BUILDER_ANSWER_UNAVAILABLE',
 }
 const APPROVAL_ANSWER_ROUTES: readonly string[] = [sessionRoute('POST', '/tool-approval'), TOOL_SUSPENSION_KEY]
 const POLICY_CHANGING_DECISION = 'always_allow_category'
@@ -296,29 +296,29 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
     scope.addHook('onClose', async () => { unwatch() })
     scope.addHook('preHandler', async (request, reply) => {
       const session = await mount.resolveCurrentSession(request)
-      if (!session) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      if (!session) throw new Failure('AUTHENTICATION_REQUIRED')
       if (request.method !== 'GET') {
         const csrf = header(request.headers['x-conexus-csrf'])
         if (!isExactOrigin(request.headers.origin, mount.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
-          return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+          throw new Failure('REQUEST_AUTHENTICITY_DENIED')
         }
       }
       // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       const body = request.body as Readonly<Record<string, unknown>> | undefined
       // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       if ((request.query as Readonly<Record<string, unknown>>).requestContext !== undefined || (typeof body === 'object' && body !== null && 'requestContext' in body)) {
-        return sendProblem(reply, 400, 'request-context-refused', 'Request context is set by the server')
+        throw new Failure('REQUEST_CONTEXT_REFUSED')
       }
       const key = route(request)
       if (APPROVAL_ANSWER_ROUTES.includes(key) && carriesPolicyChangingAnswer(body)) {
-        return sendProblem(reply, 400, 'tool-answer-refused', 'Only approve or decline is accepted for a pending tool call')
+        throw new Failure('TOOL_ANSWER_REFUSED')
       }
       if (STATE_ROUTES.includes(key) && !isReasoningLevelOnlyState(body)) {
-        return sendProblem(reply, 400, 'session-state-refused', 'Only the reasoning level may be set')
+        throw new Failure('SESSION_STATE_REFUSED')
       }
       // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       const params = request.params as Readonly<{ controllerId?: string; resourceId?: string }>
-      if (params.controllerId !== mount.controllerId) return sendProblem(reply, 404, 'builder-session-not-found', 'Builder session not found')
+      if (params.controllerId !== mount.controllerId) throw new Failure('BUILDER_SESSION_NOT_FOUND')
       const accountId = session.account.accountId
       // Opening a session names its resource, scope and thread in the body; every other session
       // route names them in the path and the query.
@@ -332,7 +332,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       // Every conversation of a Project lives under the Project's own resource.
       const projectId = resourceId === undefined ? undefined : PROJECT_RESOURCE.exec(resourceId)?.[1]
       if (!projectId || !await mount.admitProject({ accountId, projectId })) {
-        return sendProblem(reply, 403, 'project-build-denied', 'Project build denied')
+        throw new Failure('PROJECT_BUILD_DENIED')
       }
       const resource = `project:${projectId}`
       const sessionScope = creating
@@ -347,8 +347,8 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       // a run opens a run's session.
       if (creating) {
         const conversationId = sessionScope === undefined ? undefined : CONVERSATION_SCOPE.exec(sessionScope)?.[1]
-        if (!conversationId || opened.threadId !== conversationId) return sendProblem(reply, 400, 'conversation-session-refused', 'A conversation session opens on its own thread')
-        if (await mount.conversationOwner({ projectId, conversationId }) === 'OTHER') return sendProblem(reply, 409, 'conversation-conflict', 'Conversation id already in use')
+        if (!conversationId || opened.threadId !== conversationId) throw new Failure('CONVERSATION_SESSION_REFUSED')
+        if (await mount.conversationOwner({ projectId, conversationId }) === 'OTHER') throw new Failure('CONVERSATION_CONFLICT')
         mount.sessions.touch(resource, conversationId)
         admitted.set(request, { accountId, scope: sessionScope })
         return undefined
@@ -363,27 +363,26 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
         if (key === TOOL_SUSPENSION_KEY) {
           const answer = typeof body === 'object' && body !== null ? body : {}
           if (typeof answer.toolCallId !== 'string' || answer.toolCallId.length === 0 || answer.toolCallId.length > 200 || !('resumeData' in answer)) {
-            return sendProblem(reply, 400, 'tool-answer-refused', 'An answer names its call and carries its data')
+            throw new Failure('TOOL_ANSWER_REFUSED')
           }
           const outcome = await mount.answerParked({ accountId, projectId, conversationId: runConversation, toolCallId: answer.toolCallId, resumeData: answer.resumeData })
             .catch(() => 'UNAVAILABLE' as const)
           if (outcome === 'RESUMED') return reply.send({ ok: true })
-          const [status, type, title] = ANSWER_REFUSALS[outcome]
-          return sendProblem(reply, status, type, title)
+          throw new Failure(ANSWER_REFUSALS[outcome])
         }
-        if (IDLE_ONLY_ROUTES.has(key)) return sendProblem(reply, 409, 'builder-busy', 'O modelo só muda quando o Builder está parado')
+        if (IDLE_ONLY_ROUTES.has(key)) throw new Failure('BUILDER_BUSY')
         // Mastra's abort would deny the question a parked run's live session waits on and leave the
         // run parked on nothing; a run stops through the Hub's cancel, which settles both.
-        if (key === ABORT_KEY) return sendProblem(reply, 409, 'builder-run-stop-refused', 'A run stops through its cancel route')
+        if (key === ABORT_KEY) throw new Failure('BUILDER_RUN_STOP_REFUSED')
         if (!await mount.controller.getSessionByResource(resource, sessionScope)) {
-          return sendProblem(reply, 409, 'builder-session-not-ready', 'Builder session not ready')
+          throw new Failure('BUILDER_SESSION_NOT_READY')
         }
       } else {
         const conversationId = sessionScope === undefined ? undefined : CONVERSATION_SCOPE.exec(sessionScope)?.[1]
-        if (!conversationId) return sendProblem(reply, 404, 'builder-session-not-found', 'Builder session not found')
-        if (await mount.conversationOwner({ projectId, conversationId }) !== 'PROJECT') return sendProblem(reply, 404, 'conversation-not-found', 'Conversation not found')
+        if (!conversationId) throw new Failure('BUILDER_SESSION_NOT_FOUND')
+        if (await mount.conversationOwner({ projectId, conversationId }) !== 'PROJECT') throw new Failure('CONVERSATION_NOT_FOUND')
         if (IDLE_ONLY_ROUTES.has(key) && await mount.projectBusy({ accountId, projectId })) {
-          return sendProblem(reply, 409, 'builder-busy', 'O modelo só muda quando o Builder está parado')
+          throw new Failure('BUILDER_BUSY')
         }
         await bindConversationSession(mount.controller, mount.sessions, resource, conversationId)
       }

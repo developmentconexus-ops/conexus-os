@@ -2,10 +2,10 @@ import { randomUUID } from 'node:crypto'
 import type { PoolClient, QueryResultRow } from 'pg'
 import { canonicalBytes } from '../../../../packages/canonical-json/src/index.mjs'
 import { digest, opaqueToken as token } from '../platform/opaque-token.js'
-import type { PostgresPool } from '../platform/postgres.js'
+import { errorCode, type PostgresPool } from '../platform/postgres.js'
 import { accountId as brandAccountId } from './current-session.js'
 import type { AccountId, AccountSummary, CurrentSession, EmailAddress } from './current-session.js'
-import { identityAccessError, translatePostgresError } from './errors.js'
+import { Failure } from '../platform/failure.js'
 import type { OidcIdentity, OidcTransaction, VerifiedIdentity } from './oidc.js'
 
 export type { CurrentSession }
@@ -56,6 +56,11 @@ type IdempotencyRow = QueryResultRow & {
 type WorkspaceSummaryRow = QueryResultRow & {
   workspace_id: string
   name: string
+}
+
+// A second account for the same identity is the database's unique violation.
+const translatePostgresError = (error: unknown): never => {
+  throw errorCode(error) === '23505' ? new Failure('ACCOUNT_CONFLICT') : error
 }
 
 const accountSummary = (row: AccountRow): AccountSummary => ({
@@ -141,15 +146,15 @@ export const createIdentityAccessStore = ({
     },
     createProvisioningContext({ issuer, subject, verifiedEmail, configuredIssuer, configuredSubject, now = new Date() }) {
       return transaction(async (client) => {
-        if (await loadAccountByIdentity(client, issuer, subject, true)) throw identityAccessError('BOOTSTRAP_SEALED')
+        if (await loadAccountByIdentity(client, issuer, subject, true)) throw new Failure('BOOTSTRAP_SEALED')
         const configured = issuer === configuredIssuer && subject === configuredSubject
         if (configured) {
           const existing = await client.query('SELECT 1 FROM iam.account LIMIT 1')
-          if (existing.rowCount !== 0) throw identityAccessError('BOOTSTRAP_SEALED')
+          if (existing.rowCount !== 0) throw new Failure('BOOTSTRAP_SEALED')
         } else {
           const invited = await client.query<QueryResultRow & { invited: boolean }>(
             'SELECT iam.email_has_open_invitation($1) AS invited', [verifiedEmail])
-          if (!invited.rows[0]?.invited) throw identityAccessError('IDENTITY_NOT_ELIGIBLE')
+          if (!invited.rows[0]?.invited) throw new Failure('IDENTITY_NOT_ELIGIBLE')
         }
         const raw = token()
         const inserted = await client.query(`
@@ -160,7 +165,7 @@ export const createIdentityAccessStore = ({
           WHERE iam.bootstrap_context.consumed_at IS NULL AND iam.bootstrap_context.expires_at <= $6
           RETURNING token_digest
         `, [digest(raw), issuer, subject, verifiedEmail, new Date(now.getTime() + BOOTSTRAP_MS), now])
-        if (inserted.rowCount !== 1) throw identityAccessError('BOOTSTRAP_SEALED')
+        if (inserted.rowCount !== 1) throw new Failure('BOOTSTRAP_SEALED')
         return raw
       })
     },
@@ -178,12 +183,12 @@ export const createIdentityAccessStore = ({
           FROM iam.bootstrap_context WHERE token_digest = $1 FOR UPDATE
         `, [digest(bootstrapToken)])
         const row = context.rows[0]
-        if (!row) throw identityAccessError('BOOTSTRAP_SEALED')
+        if (!row) throw new Failure('BOOTSTRAP_SEALED')
         const authorityScope = `bootstrap:${row.issuer}:${row.external_subject}`
         const request = { displayName, ...(email ? { email } : {}) }
         const replay = await reserve(client, authorityScope, idempotencyKey, request)
         if (replay) return { ...replay, replayed: true }
-        if (row.consumed_at || now >= row.expires_at) throw identityAccessError('BOOTSTRAP_SEALED')
+        if (row.consumed_at || now >= row.expires_at) throw new Failure('BOOTSTRAP_SEALED')
         // An invited Account's address is the claim the provider verified, never the form.
         const invited = !(row.issuer === configuredIssuer && row.external_subject === configuredSubject)
         const accountEmail = invited ? row.verified_email : (email ?? null)
@@ -200,7 +205,7 @@ export const createIdentityAccessStore = ({
           'SELECT iam.claim_invitations($1, $2) AS claimed', [account.accountId, row.verified_email])
         // The invitation could have been cancelled between the callback and this form.
         // Aborting here is what keeps an invited Account from existing with no membership.
-        if (invited && (claimed.rows[0]?.claimed ?? 0) === 0) throw identityAccessError('IDENTITY_NOT_ELIGIBLE')
+        if (invited && (claimed.rows[0]?.claimed ?? 0) === 0) throw new Failure('IDENTITY_NOT_ELIGIBLE')
         if (!invited) await client.query('SELECT iam.grant_first_installation_administrator($1)', [account.accountId])
         await client.query('UPDATE iam.bootstrap_context SET consumed_at = $2 WHERE token_digest = $1', [digest(bootstrapToken), now])
         await complete(client, authorityScope, idempotencyKey, account, now)
@@ -241,8 +246,8 @@ const reserve = async (client: PoolClient, authorityScope: string, idempotencyKe
   `, [authorityScope, keyDigest])
   const row = existing.rows[0]
   if (row) {
-    if (!row.request_digest.equals(requestDigest)) throw identityAccessError('IDEMPOTENCY_CONFLICT')
-    if (row.outcome !== 'SUCCEEDED') throw identityAccessError('OUTCOME_UNKNOWN')
+    if (!row.request_digest.equals(requestDigest)) throw new Failure('IDEMPOTENCY_CONFLICT')
+    if (row.outcome !== 'SUCCEEDED') throw new Failure('OUTCOME_UNKNOWN')
     return row.response_body
   }
   await client.query(`

@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { classifyAppPath, SERVER_ROOT } from '../platform/application-path.js'
 import type { Caller } from '../platform/caller.js'
+import { Failure } from '../platform/failure.js'
 import type { ApplicationInvoker } from './application-invoker.js'
 import { digest } from '../platform/opaque-token.js'
 import { previewContentSecurityPolicy } from '../platform/application-csp.js'
@@ -97,7 +98,7 @@ export const registerPreviewRoutes = async (
       try { return await pending } finally { dependencies.pendingRequests.delete(pending) }
     }
   app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_request, body, done) => {
-    const refused = (): Error => Object.assign(new Error('PREVIEW_FORM_REFUSED'), { statusCode: 400 })
+    const refused = (): Failure => new Failure('PREVIEW_FORM_REFUSED')
     if (typeof body !== 'string') return done(refused())
     const params = new URLSearchParams(body)
     const fields = [...params.keys()]

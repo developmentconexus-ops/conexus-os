@@ -5,9 +5,10 @@ import { jsonLines, runWithTelemetry, startCollector } from './telemetry-harness
 const APP = `
 const { createHttpApp } = await import(process.env.HUB_BUILD + '/http/app.js')
 const { logger } = await import(process.env.HUB_BUILD + '/platform/logger.js')
+const { Failure } = await import(process.env.HUB_BUILD + '/platform/failure.js')
 const app = await createHttpApp({ registerRoutes: async (server) => {
   server.get('/boom', async () => { throw new Error('cause: PLANTED_CAUSE_TEXT') })
-  server.get('/bad', async () => { throw Object.assign(new Error('bad input'), { statusCode: 400 }) })
+  server.get('/bad', async () => { throw new Failure('REQUEST_VALIDATION_FAILED') })
   server.get('/inside', async () => { logger.info('inside-a-request'); return {} })
   return ['boom', 'bad', 'inside']
 } })
@@ -20,7 +21,7 @@ console.log(JSON.stringify({ report: { boom: [boom.status, await boom.json()], b
 await app.close()
 `
 
-test('a 5xx logs its type, message and stack with the trace id and marks the span; a 4xx is not logged; the answer body is unchanged', async () => {
+test('a 5xx logs its type, message and stack with the trace id and marks the span; a user failure is logged at info and leaves the span unmarked', async () => {
   const collector = await startCollector()
   try {
     const result = await runWithTelemetry(APP, { endpoint: collector.endpoint })
@@ -28,7 +29,7 @@ test('a 5xx logs its type, message and stack with the trace id and marks the spa
     const records = jsonLines(result.stdout)
     const { report } = records.find((record) => record.report)
     assert.deepEqual(report.boom, [500, { type: 'urn:conexus:problem:INTERNAL_UNEXPECTED', title: 'INTERNAL_UNEXPECTED', status: 500, code: 'INTERNAL_UNEXPECTED', traceId: report.boom[1].traceId }])
-    assert.deepEqual(report.bad, [400, { type: 'urn:conexus:problem:request-invalid', title: 'Request invalid', status: 400 }])
+    assert.deepEqual(report.bad, [400, { type: 'urn:conexus:problem:REQUEST_VALIDATION_FAILED', title: 'REQUEST_VALIDATION_FAILED', status: 400, code: 'REQUEST_VALIDATION_FAILED' }])
     const failure = records.find((record) => record.msg === 'INTERNAL_UNEXPECTED')
     assert.ok(failure, 'the 5xx was logged')
     assert.equal(failure.level, 50)
@@ -37,7 +38,7 @@ test('a 5xx logs its type, message and stack with the trace id and marks the spa
     assert.match(failure['exception.stacktrace'], /PLANTED_CAUSE_TEXT[\s\S]+at /)
     assert.match(failure.trace_id, /^[0-9a-f]{32}$/)
     assert.match(failure.span_id, /^[0-9a-f]{16}$/)
-    assert.equal(records.filter((record) => record.msg === 'INTERNAL_UNEXPECTED').length, 1, 'the 400 was not logged')
+    assert.equal(records.filter((record) => record.msg === 'INTERNAL_UNEXPECTED').length, 1, 'the user failure logs under its own code')
     const inside = records.find((record) => record.msg === 'inside-a-request')
     assert.match(inside.trace_id, /^[0-9a-f]{32}$/, 'every record written inside a span carries trace_id')
     const logs = Buffer.concat(collector.bodies('/v1/logs'))

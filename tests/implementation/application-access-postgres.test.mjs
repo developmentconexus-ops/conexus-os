@@ -580,7 +580,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
 
     const unreachable = await openWithPreview('refresh-unreachable')
     providerAnswer = { kind: 'UNAVAILABLE' }
-    await assert.rejects(sessions.resolveHub({ sessionToken: unreachable.hub.sessionToken, now: due }), (error) => error.statusCode === 503)
+    await assert.rejects(sessions.resolveHub({ sessionToken: unreachable.hub.sessionToken, now: due }), (error) => error.id === 'IDENTITY_PROVIDER_UNAVAILABLE')
     assert.deepEqual(await sessions.previewAuthority({ sessionToken: unreachable.preview.sessionToken, exactHost: unreachable.exactHost, now: due }), { kind: 'PROVIDER_UNAVAILABLE' })
     providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-reachable' }
     assert.equal((await sessions.resolveHub({ sessionToken: unreachable.hub.sessionToken, now: due }))?.account.accountId, owner, 'the session was kept and Keycloak is asked again')

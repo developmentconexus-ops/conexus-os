@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { PoolClient, QueryResultRow } from 'pg'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import type { PostgresPool } from '../platform/postgres.js'
-import { workspaceError } from './errors.js'
+import { Failure } from '../platform/failure.js'
 
 type WorkspaceSummary = Readonly<{
   workspaceId: string
@@ -78,14 +78,14 @@ export const createWorkspaceStore = ({
         FROM workspace.reserve_or_replay_create_workspace($1, $2, $3, $4)
       `, [accountId, keyDigest(idempotencyKey), requestDigest, candidateWorkspaceId])
       const row = reservation.rows[0]
-      if (!row) throw workspaceError('OUTCOME_UNKNOWN')
-      if (row.state === 'CONFLICT') throw workspaceError('IDEMPOTENCY_CONFLICT')
+      if (!row) throw new Failure('OUTCOME_UNKNOWN')
+      if (row.state === 'CONFLICT') throw new Failure('IDEMPOTENCY_CONFLICT')
       if (row.state === 'REPLAY') {
-        if (!validReplay(row, accountId, name)) throw workspaceError('OUTCOME_UNKNOWN')
+        if (!validReplay(row, accountId, name)) throw new Failure('OUTCOME_UNKNOWN')
         await client.query('COMMIT')
         return { ...row.response_body, replayed: true }
       }
-      if (row.state !== 'RESERVED') throw workspaceError('OUTCOME_UNKNOWN')
+      if (row.state !== 'RESERVED') throw new Failure('OUTCOME_UNKNOWN')
 
       await client.query('SELECT workspace.create_workspace($1, $2, $3)', [row.workspace_id, name, accountId])
 
