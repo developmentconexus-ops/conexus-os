@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
-import { CURRENT_TEMPLATE_PIN, isReadableTemplatePin, type ApplicationProfile } from '../platform/application-template-pins.js'
+import { CURRENT_TEMPLATE_PIN, type ApplicationProfile } from '../platform/application-template-pins.js'
 import type { RegistryQueryClient } from './store.js'
 
 const MAX_FILES = 256
@@ -78,12 +78,12 @@ const metadataRowSchema = z.object({
   artifact_digest: sha256Schema,
   project_id: uuidSchema,
   source_revision: sourceRevisionSchema,
-  profile: z.enum(['REACT_VITE_V1', 'REACT_VITE_V2']),
-  template_ref: z.string(),
-  recipe_sha256: sha256Schema,
+  profile: z.literal(CURRENT_TEMPLATE_PIN.profile),
+  template_ref: z.literal(CURRENT_TEMPLATE_PIN.templateRef),
+  recipe_sha256: z.literal(CURRENT_TEMPLATE_PIN.recipeSha256),
   entry_path: z.literal('index.html'),
   files: z.array(metadataFileSchema).min(1).max(MAX_FILES),
-}).strict().refine((row) => isReadableTemplatePin({ profile: row.profile, templateRef: row.template_ref, recipeSha256: row.recipe_sha256 }))
+}).strict()
 const readRowSchema = z.object({
   artifact_revision_id: uuidSchema,
   project_id: uuidSchema,
