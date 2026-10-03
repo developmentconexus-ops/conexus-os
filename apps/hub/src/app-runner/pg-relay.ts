@@ -76,8 +76,10 @@ const readStartup = (buffer: Buffer): Startup => {
   if (fields.length < 2 || fields.at(-1) !== '' || fields.at(-2) !== '' || (fields.length - 2) % 2 !== 0) return { kind: 'REFUSED', reason: 'STARTUP_FORMAT' }
   const parameters = new Map<string, string>()
   for (let index = 0; index < fields.length - 2; index += 2) {
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     const name = fields[index] as string
     if (!ALLOWED_PARAMETERS.has(name) || parameters.has(name)) return { kind: 'REFUSED', reason: `PARAMETER:${name.slice(0, 40)}` }
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     parameters.set(name, fields[index + 1] as string)
   }
   return { kind: 'STARTUP', length, parameters }
@@ -94,7 +96,7 @@ const fatal = (message: string): Buffer => {
 const AUTH_OK = (() => { const packet = Buffer.alloc(9); packet.write('R', 0, 'latin1'); packet.writeInt32BE(8, 1); packet.writeInt32BE(0, 5); return packet })()
 
 const startupPacket = (parameters: ReadonlyMap<string, string>): Buffer => {
-  const fields = [...parameters].flatMap(([name, value]) => [name, value])
+  const fields = [...parameters].flat()
   const body = Buffer.concat([Buffer.from([0, 3, 0, 0]), Buffer.from(`${fields.join('\0')}\0\0`, 'utf8')])
   const length = Buffer.alloc(4)
   length.writeInt32BE(body.length + 4)
@@ -114,6 +116,7 @@ const takeMessage = (buffer: Buffer): Readonly<{ message: Message; rest: Buffer 
   if (buffer.length < 5) return null
   const length = buffer.readInt32BE(1)
   if (length < 4 || buffer.length < length + 1) return null
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return { message: { type: String.fromCharCode(buffer[0] as number), body: buffer.subarray(5, length + 1) }, rest: buffer.subarray(length + 1) }
 }
 
@@ -124,6 +127,7 @@ const sslRequest = (): Buffer => {
   return packet
 }
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const openPgRelay = async (config: PgRelayConfig): Promise<PgRelay> => {
   const refused: string[] = []
   const keys: Buffer[] = []

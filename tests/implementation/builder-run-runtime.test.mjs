@@ -559,7 +559,10 @@ test('a terminal keepalive lapse aborts the turn and fails the run for recovery 
 })
 
 test("a check that fails in Conexus fails the run with its code, keeps the files in the mirror and leaves main at the base", async (t) => {
-  const run = await harness(t, { build: async () => { throw new Error('APPLICATION_SMOKE_FAILED') } })
+  const run = await harness(t, { build: async () => {
+    await new Promise((settle) => { setTimeout(settle, 1100) })
+    throw new Error('APPLICATION_SMOKE_FAILED')
+  } })
   await run.start()
   await run.service.close()
   assert.equal(await run.main(), run.base)

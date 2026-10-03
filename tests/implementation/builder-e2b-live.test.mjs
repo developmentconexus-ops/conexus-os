@@ -4,7 +4,7 @@ import { Sandbox } from 'e2b'
 
 import { readBuilderE2BApiKey } from '../../scripts/builder-e2b-template.mjs'
 
-const live = process.env.CONEXUS_RB_E2B_LIVE === 'true'
+const live = process.env.CONEXUS_E2B_TEMPLATE_LIVE === 'true'
 const httpsProbe = `node -e "const https=require('node:https');let done=false;const finish=x=>{if(done)return;done=true;console.log(x);process.exit(0)};const r=https.get({host:'1.1.1.1',servername:'one.one.one.one',path:'/',timeout:8000},res=>{res.resume();finish('REACHED_HTTP:'+res.statusCode)});r.on('timeout',()=>{r.destroy();finish('BLOCKED_TIMEOUT')});r.on('error',e=>finish('BLOCKED_ERROR:'+e.code));setTimeout(()=>{r.destroy();finish('BLOCKED_DEADLINE')},10000)"`
 
 const createSandbox = (apiKey, templateRef, label, network) => Sandbox.create(templateRef, {
@@ -16,7 +16,7 @@ const createSandbox = (apiKey, templateRef, label, network) => Sandbox.create(te
   ...network,
 })
 
-test('RB exact E2B template enforces mechanics, empty guest credentials and real egress denial', { skip: live ? false : 'opt-in: CONEXUS_RB_E2B_LIVE=true authority and E2B configuration' }, async () => {
+test('the exact E2B template enforces mechanics, empty guest credentials and real egress denial', { skip: live ? false : 'opt-in: CONEXUS_E2B_TEMPLATE_LIVE=true authority and E2B configuration' }, async () => {
   const templateRef = process.env.CONEXUS_BUILDER_E2B_TEMPLATE_ID
   if (!templateRef || !/^[a-z0-9]+:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(templateRef)) {
     throw new Error('CONEXUS_BUILDER_E2B_TEMPLATE_ID_REFUSED')

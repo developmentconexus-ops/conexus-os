@@ -144,6 +144,7 @@ const declared = (code: string | null): boolean => code !== null && Object.hasOw
 
 export const builderFailureCategory = (code: string | null): BuilderFailureCategory | null => {
   if (code === null) return null
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   if (declared(code)) return CATEGORY_BY_CODE[code] as BuilderFailureCategory
   return CATEGORY_BY_PREFIX.find(([prefix]) => code.startsWith(prefix))?.[1] ?? 'INTERNAL_ERROR'
 }

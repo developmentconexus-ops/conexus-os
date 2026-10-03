@@ -41,6 +41,7 @@ async function send(call: () => Promise<Response>, expected: number): Promise<Re
 
 export async function getApplicationAccess(projectId: string): Promise<ApplicationAccess> {
   const response = await send(() => iamClient.listApplicationAccess(projectId), 200)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<ApplicationAccess>
 }
 
@@ -49,6 +50,7 @@ export async function grantApplicationAccess(
   input: GrantApplicationAccessInput,
 ): Promise<GrantedApplicationAccess> {
   const response = await send(() => iamClient.grantApplicationAccess(projectId, input), 200)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<GrantedApplicationAccess>
 }
 

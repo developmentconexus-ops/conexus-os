@@ -46,9 +46,11 @@ const call = async <T,>(method: 'GET' | 'POST', url: string, body?: unknown): Pr
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
   if (!response.ok) {
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     const body = await response.json().catch(() => null) as { expiresAt?: string } | null
     throw new ModelAccountsRequestError(response.status, body?.expiresAt ?? null)
   }
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return await response.json() as T
 }
 

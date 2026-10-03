@@ -68,6 +68,7 @@ class GitCommandError extends Error {
 // No system or user configuration, no hooks and no prompt: what the Hub's git does depends only on
 // the repository and the arguments it is given.
 const gitEnvironment = (extra: Readonly<Record<string, string>> = {}): NodeJS.ProcessEnv => ({
+  // biome-ignore lint/style/noProcessEnv: debt: owning wave
   PATH: process.env.PATH ?? '/usr/bin:/bin',
   LC_ALL: 'C',
   GIT_CONFIG_NOSYSTEM: '1',
@@ -134,6 +135,7 @@ const requireOid = (value: string, code: string): string => {
   return value
 }
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createConexusGit = ({ root, starter }: Readonly<{ root: string; starter: readonly StarterFile[] }>) => {
   const repository = (projectId: string): string => {
     if (!PROJECT_ID.test(projectId)) throw new Error('CONEXUS_GIT_PROJECT_REFUSED')
@@ -333,6 +335,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
       const fields = (await git(projectId, ['diff-tree', '-r', '-z', '-M', '--no-commit-id', '--name-status', base, result])).toString('utf8').split('\0')
       const changes: GitChange[] = []
       for (let at = 0; at < fields.length && fields[at];) {
+        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
         const status = fields[at] as string
         const renamed = status.startsWith('R') || status.startsWith('C')
         const previousPath = renamed ? fields[at + 1] ?? '' : null
@@ -380,7 +383,7 @@ export type RunSourceSandbox = Readonly<{
   readAgentFileStream(path: string): Promise<ReadableStream<Uint8Array>>
 }>
 
-const quoted = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
+export const quoted = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
 const evidence = (value: string): string => value.slice(-2_000)
 
 type SeedInput = Readonly<{

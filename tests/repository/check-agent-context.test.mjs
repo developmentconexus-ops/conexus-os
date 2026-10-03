@@ -129,3 +129,34 @@ test('the vendored Mastra skill is not checked against this package.json', conte
   assert.equal(result.status, 0, result.stderr)
   assert.equal(result.stdout, 'Agent context checks passed (files=2).\n')
 })
+
+const PRINCIPLES = 'docs/development/codebase-principles.md'
+const principles = enforced => `# Principles\n\n1. **One fact.** Words.\n   Enforced by: ${enforced}\n2. **Another.** Words.\n   Enforced by: \`scripts/real.mjs\`\n`
+
+test('a principle whose Enforced by names an existing file or a configured Biome rule passes', context => {
+  const candidate = fixture(context, {
+    [PRINCIPLES]: principles('`scripts/real.mjs`, `biome:noExplicitAny`.'),
+    'scripts/real.mjs': '',
+    'biome.json': '{"linter":{"rules":{"suspicious":{"noExplicitAny":"error"}}}}\n',
+  })
+  const result = run(candidate)
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('a principle that names a check that does not exist fails', context => {
+  const candidate = fixture(context, { [PRINCIPLES]: principles('`scripts/check-nothing.mjs`.'), 'scripts/real.mjs': '' })
+  const result = run(candidate)
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, 'error docs/development/codebase-principles.md:4: `Enforced by:` names `scripts/check-nothing.mjs`, which does not exist\n')
+})
+
+test('a principle with no Enforced by line, or one that names nothing, fails', context => {
+  const candidate = fixture(context, { [PRINCIPLES]: '# Principles\n\n1. **One.** Words.\n2. **Two.** Words.\n   Enforced by: review.\n' })
+  const result = run(candidate)
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, [
+    'error docs/development/codebase-principles.md:3: principle has no `Enforced by:` line',
+    'error docs/development/codebase-principles.md:5: `Enforced by:` names no check; name a file, `biome:<rule>`, or the review checklist',
+    '',
+  ].join('\n'))
+})

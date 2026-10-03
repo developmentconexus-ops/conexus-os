@@ -118,6 +118,7 @@ type SettleTerminal = 'USER_CANCELLED' | 'FAILED' | 'HUB_RESTART' | 'PARKED_EXPI
 const HUB_STOPPING = 'HUB_STOPPING'
 const NOT_ADMITTED = new Set(['BUILDER_SOURCE_BASE_MOVED', 'BUILDER_SOURCE_ADMISSION_FAILED', 'BUILDER_RUN_CANCELLED'])
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createBuilderService = ({ store, applicationArtifacts, applicationServer, runs }: Readonly<{
   store: BuilderStore
   applicationArtifacts: BuilderApplicationArtifacts
@@ -176,6 +177,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       }
     }
   }
+  // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
   const dispatchBuilderRun = (run: BuilderRunSummary, input: Readonly<{ accountId: string; content: string; resume?: Readonly<{ toolCallId: string; resumeData: unknown }> }>): void => {
     if (builderActive.has(run.builderRunId)) return
     const controller = new AbortController()
@@ -205,6 +207,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       closeHeldSession = undefined
       await close?.()
     }
+    // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
     const work = (async () => {
       // An answered run was taken out of PARKED by the answer, which is its claim.
       const claimed = input.resume ? run : await store.claimBuilderRun(run.builderRunId, ownerId)

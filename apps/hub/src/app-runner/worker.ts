@@ -54,6 +54,7 @@ const post = (payload: Buffer): Promise<ConnectorAnswer> => new Promise((resolve
     response.on('close', () => {
       if (tooLarge) return resolve(refusal('RESPONSE_TOO_LARGE'))
       try {
+        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
         const answer = JSON.parse(Buffer.concat(chunks).toString('utf8')) as ConnectorAnswer
         if (typeof answer.ok === 'boolean') return resolve(Object.freeze(answer))
       } catch {
@@ -89,6 +90,7 @@ const connectorClient = (bound: boolean) => Object.freeze({
 
 const detail = (error: unknown): string => {
   const message = error instanceof Error ? error.message : String(error)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const code = typeof (error as { code?: unknown })?.code === 'string' ? `${(error as { code: string }).code} ` : ''
   return `${code}${message}`.slice(0, 400)
 }
@@ -101,11 +103,13 @@ const finish = (result: WorkerResult): never => {
 const readJob = async (): Promise<WorkerJob> => {
   const chunks: Buffer[] = []
   let bytes = 0
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   for await (const chunk of process.stdin as AsyncIterable<Buffer>) {
     bytes += chunk.byteLength
     if (bytes > MAX_JOB_BYTES) finish({ ok: false, code: 'WORKER_JOB_REFUSED' })
     chunks.push(chunk)
   }
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return JSON.parse(Buffer.concat(chunks).toString('utf8')) as WorkerJob
 }
 
@@ -134,6 +138,7 @@ const run = async (): Promise<never> => {
   }
   let handler: unknown
   try {
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     handler = (await import(job.module) as Record<string, unknown>)[job.export]
   } catch (error) {
     return finish({ ok: false, code: 'HANDLER_LOAD_FAILED', detail: detail(error) })
@@ -150,6 +155,7 @@ const run = async (): Promise<never> => {
         unavailable = error
         throw error
       })
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       const result = await (await session).query(text, values as unknown[] | undefined)
       return { rows: result.rows }
     },
@@ -158,6 +164,7 @@ const run = async (): Promise<never> => {
   const connectors = connectorClient(job.connector)
   let value: unknown
   try {
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     value = await (handler as (input: unknown, context: unknown) => unknown)(job.input, Object.freeze({ db, caller, connectors }))
   } catch (error) {
     return finish(unavailable === undefined
@@ -172,7 +179,7 @@ const run = async (): Promise<never> => {
   }
   if (Buffer.byteLength(serialized) > job.responseLimit) return finish({ ok: false, code: 'RESPONSE_TOO_LARGE' })
   await session?.then((client) => client.end()).catch(() => undefined)
-  return finish({ ok: true, value: JSON.parse(serialized) as unknown })
+  return finish({ ok: true, value: JSON.parse(serialized) })
 }
 
 run().catch((error: unknown) => finish({ ok: false, code: 'WORKER_FAILED', detail: detail(error) }))

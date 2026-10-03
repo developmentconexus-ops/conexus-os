@@ -51,7 +51,7 @@ test('working documents and historical phase prose do not require admission', co
 })
 
 for (const state of ['unstaged', 'staged', 'untracked', 'untracked-crlf', 'committed']) {
-  test('agent-context rejects ' + state + ' conflict markers', context => {
+  test(`agent-context rejects ${state} conflict markers`, context => {
     const candidate = gitFixture(context, currentFiles())
     const path = state.startsWith('untracked') ? 'new-file.md' : 'README.md'
     const markers = '<<<<<<< ours\nfirst\n=======\nsecond\n>>>>>>> theirs\n'

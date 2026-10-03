@@ -110,33 +110,31 @@ export async function main(argv = process.argv.slice(2)) {
   const cases = casesOf(options.set)
   if (cases.some((entry) => entry.erp) && !options.erpConnection) throw new Error('plan-bench: the ERP Connection id is required (--erp-connection or CONEXUS_ERP_CONNECTION_ID)')
   const { page } = await hubPage(options)
-  {
-    for (const entry of cases) {
-      const casePath = resolve(HERE, entry.file)
-      const caseId = entry.file.replace(/^cases\//, '').replace(/\.json$/, '').replaceAll('/', '-')
-      const name = JSON.parse(readFileSync(casePath, 'utf8')).person.projectName
-      for (let repetition = 1; repetition <= options.n; repetition += 1) {
-        const dir = join(out, `${caseId}-${repetition}`)
-        const resultFile = join(dir, 'result.json')
-        const reusable = existsSync(join(dir, 'plan-score.json')) && existsSync(resultFile) && rejectionOf(JSON.parse(readFileSync(resultFile, 'utf8'))) === null
-        if (reusable) {
-          lines.push({ case: casePath, ...JSON.parse(readFileSync(join(dir, 'plan-score.json'), 'utf8')) })
-          continue
-        }
-        const project = await createProject(page, { workspace: options.workspace, name, erp: entry.erp ? { connectionId: options.erpConnection, name: ERP_NAME } : null })
-        if (project.error) throw new Error(`plan-bench: ${caseId} #${repetition}: ${project.error}`)
-        const started = Date.now()
-        const { line: scored, exit } = await scoreAttempt(dir, {
-          casePath,
-          projectId: project.projectId,
-          run: () => spawnSync(process.execPath, [join(HERE, 'run.mjs'), '--case', casePath, '--project', project.projectId, '--stop-at-plan', '--model', options.model,
-            '--base-url', options.baseUrl, '--repetition', String(repetition), '--mask-values', '--out', dir], { stdio: ['ignore', 'ignore', 'inherit'], env: process.env }).status,
-        })
-        const line = { ...scored, repetition, projectId: project.projectId, wallMs: Date.now() - started, runExit: exit }
-        lines.push(line)
-        appendFileSync(log, `${JSON.stringify(line)}\n`)
-        process.stdout.write(`${JSON.stringify({ case: caseId, repetition, primary: line.primary, primaryStrict: line.primaryStrict, discovered: line.discovered, discoveredStrict: line.discoveredStrict, total: line.total, questions: line.questions, cards: line.cards, rubricPassed: line.rubricPassed, assumedWithoutAsking: line.assumedWithoutAsking, contrary: line.contrary, appFilesBeforePlan: line.appFilesBeforePlan, planSubmitted: line.planSubmitted, rejected: line.rejected, wallMs: line.wallMs })}\n`)
+  for (const entry of cases) {
+    const casePath = resolve(HERE, entry.file)
+    const caseId = entry.file.replace(/^cases\//, '').replace(/\.json$/, '').replaceAll('/', '-')
+    const name = JSON.parse(readFileSync(casePath, 'utf8')).person.projectName
+    for (let repetition = 1; repetition <= options.n; repetition += 1) {
+      const dir = join(out, `${caseId}-${repetition}`)
+      const resultFile = join(dir, 'result.json')
+      const reusable = existsSync(join(dir, 'plan-score.json')) && existsSync(resultFile) && rejectionOf(JSON.parse(readFileSync(resultFile, 'utf8'))) === null
+      if (reusable) {
+        lines.push({ case: casePath, ...JSON.parse(readFileSync(join(dir, 'plan-score.json'), 'utf8')) })
+        continue
       }
+      const project = await createProject(page, { workspace: options.workspace, name, erp: entry.erp ? { connectionId: options.erpConnection, name: ERP_NAME } : null })
+      if (project.error) throw new Error(`plan-bench: ${caseId} #${repetition}: ${project.error}`)
+      const started = Date.now()
+      const { line: scored, exit } = await scoreAttempt(dir, {
+        casePath,
+        projectId: project.projectId,
+        run: () => spawnSync(process.execPath, [join(HERE, 'run.mjs'), '--case', casePath, '--project', project.projectId, '--stop-at-plan', '--model', options.model,
+          '--base-url', options.baseUrl, '--repetition', String(repetition), '--mask-values', '--out', dir], { stdio: ['ignore', 'ignore', 'inherit'], env: process.env }).status,
+      })
+      const line = { ...scored, repetition, projectId: project.projectId, wallMs: Date.now() - started, runExit: exit }
+      lines.push(line)
+      appendFileSync(log, `${JSON.stringify(line)}\n`)
+      process.stdout.write(`${JSON.stringify({ case: caseId, repetition, primary: line.primary, primaryStrict: line.primaryStrict, discovered: line.discovered, discoveredStrict: line.discoveredStrict, total: line.total, questions: line.questions, cards: line.cards, rubricPassed: line.rubricPassed, assumedWithoutAsking: line.assumedWithoutAsking, contrary: line.contrary, appFilesBeforePlan: line.appFilesBeforePlan, planSubmitted: line.planSubmitted, rejected: line.rejected, wallMs: line.wallMs })}\n`)
     }
   }
   const summary = summarize(lines)

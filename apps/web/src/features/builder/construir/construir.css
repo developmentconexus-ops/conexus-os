@@ -30,7 +30,6 @@
 .cx-frame-veil { position: absolute; inset: 0; display: grid; place-items: center; background: var(--cx-surface); color: var(--cx-mark); }
 .cx-preview-empty { flex: 1; display: grid; place-content: center; justify-items: center; gap: 1rem; padding: 2rem 1.5rem; text-align: center; color: var(--cx-text-2); }
 .cx-preview-empty p { max-width: 32ch; margin: 0; font-size: .9375rem; text-wrap: balance; }
-.cx-preview-empty .cx-note { max-width: 32rem; text-align: left; }
 .cx-preview-wait { gap: .5rem; }
 .cx-preview-wait-title { color: var(--cx-text); font: 600 1.0625rem/1.3 var(--cx-font-display); }
 .cx-preview-wait-tasks { display: grid; gap: .1rem; max-width: 32rem; margin: .25rem 0; padding: 0; list-style: none; text-align: left; }
@@ -40,8 +39,9 @@
 .cx-note { display: grid; gap: .5rem; justify-items: start; margin: 0; padding: .75rem .9rem; border: 1px solid var(--cx-line); border-radius: 10px; background: var(--cx-surface); font-size: .875rem; }
 .cx-note p { margin: 0; }
 .cx-note[data-tone="warning"] { border-color: color-mix(in srgb, var(--cx-warning) 35%, var(--cx-line)); background: color-mix(in srgb, var(--cx-warning) 7%, var(--cx-surface)); }
-.cx-note details summary, .cx-pending-detail summary, .cx-trace summary { cursor: pointer; color: var(--cx-text-2); font-size: .8125rem; }
+.cx-pending-detail summary, .cx-trace summary, .cx-note details summary { cursor: pointer; color: var(--cx-text-2); font-size: .8125rem; }
 .cx-note code { font-size: .75rem; }
+.cx-preview-empty .cx-note { max-width: 32rem; text-align: left; }
 .cx-note-line { margin: .25rem 0; color: var(--cx-text-2); font-size: .8125rem; }
 .cx-lens-empty { margin: 0; padding: 2rem 1.25rem; color: var(--cx-text-2); font-size: .9375rem; text-align: center; text-wrap: balance; }
 .cx-lens-panel > .cx-note { margin: 1rem; }

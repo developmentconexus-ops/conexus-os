@@ -13,6 +13,7 @@ import { createSupervisor } from './supervisor.js'
  * only in the per-invocation sandbox this process starts.
  */
 const required = (name: string): string => {
+  // biome-ignore lint/style/noProcessEnv: debt: owning wave
   const value = process.env[name]
   if (!value) throw new Error(`MISSING_CONFIG_${name}`)
   return value
@@ -22,6 +23,7 @@ const secret = (name: string): string => readFileSync(required(name), 'utf8').tr
 assertUserNamespaces()
 const stateDir = required('CONEXUS_APP_RUNNER_STATE_DIR')
 const socketPath = required('CONEXUS_APP_RUNNER_SOCKET')
+// biome-ignore lint/style/noProcessEnv: debt: owning wave
 const connectorSocketDir = process.env.CONEXUS_CONNECTOR_SOCKET_DIR
 if (connectorSocketDir !== undefined && !connectorSocketDir.startsWith('/')) throw new Error('INVALID_CONFIG_CONEXUS_CONNECTOR_SOCKET_DIR')
 mkdirSync(stateDir, { recursive: true, mode: 0o700 })

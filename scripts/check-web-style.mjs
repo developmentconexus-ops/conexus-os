@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { relative, resolve } from 'node:path'
+import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { transform } from 'lightningcss'
 import ts from 'typescript'
 
 // The trees whose CSS and TSX paint the product: the web app, the sign-in theme and the brand
@@ -30,22 +31,14 @@ const CLASS_TSX_ROOT = 'apps/web/src'
 const CLASS_TSX_ROOTS = ['apps/web/src', 'packages/brand/src']
 const CONEXUS_PREFIX = /^(?:cx|cxs|builder)-[\w-]+$/
 const CLASS_DEFINITION = /\.((?:cx|cxs|builder)-[\w-]+)/g
+// Any other class a screen writes is the design system's own: a slot or utility that
+// @mastra/playground-ui ships in its CSS, a class this app's CSS defines, or a utility the app's own
+// Tailwind build (apps/web/src/styles.css, with the Mastra theme) generates a rule for.
+const TAILWIND_ENTRY = 'apps/web/src/styles.css'
+const VENDOR_CSS_ROOT = 'node_modules/@mastra/playground-ui/dist'
 const CLASSNAME_ATTR = /className\s*=\s*(["'{])/g
+const CLASS_MAP = /\bconst [A-Z][A-Z_]*_CLASS(?:ES)? = \{/g
 const STRING_LITERAL = /'([^'\\]*(?:\\.[^'\\]*)*)'|"([^"\\]*(?:\\.[^"\\]*)*)"|`([^`\\]*(?:\\.[^`\\]*)*)`/g
-
-// A class built from a template literal, such as `cx-dt-${side}`, has no literal name here to look
-// up. Each entry is verified by hand against the CSS and names the file that builds it, so a
-// reviewer can re-check it without re-deriving the resolved names.
-const DYNAMIC_CLASSES = [
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${...} text is the source token to match, not an interpolation
-  { file: 'apps/web/src/features/builder/construir/lens-diff.tsx', token: 'cx-dt-${side}', resolves: ['cx-dt-add', 'cx-dt-del'] },
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${...} text is the source token to match, not an interpolation
-  { file: 'packages/brand/src/conexus-mark.tsx', token: 'cx-mark--${motion}', resolves: ['cx-mark--working', 'cx-mark--fit-once'] },
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${...} text is the source token to match, not an interpolation
-  { file: 'packages/brand/src/conexus-mark.tsx', token: 'cx-wordmark--${size}', resolves: ['cx-wordmark--xs', 'cx-wordmark--sm', 'cx-wordmark--md', 'cx-wordmark--lg'] },
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: the literal ${...} text is the source token to match, not an interpolation
-  { file: 'apps/web/src/features/settings/components/states.tsx', token: 'cxs-chip-${tone}', resolves: ['cxs-chip-positive', 'cxs-chip-warning', 'cxs-chip-neutral'] },
-]
 
 // A hover hint is the design system Tooltip, never the browser's native `title` bubble (HQ decision
 // 2026-09-29). A `title` is a hint on an intrinsic element or on a dotted component such as
@@ -178,10 +171,90 @@ const classNameTokens = text => {
       }
     }
   }
+  // A literal class map, `const SIDE_CLASS = { add: 'cx-dt-add' }`, names its classes outside a className.
+  // Its classes are checked and counted as used like a className's.
+  for (const map of text.matchAll(CLASS_MAP)) {
+    const body = braceExpression(text, map.index + map[0].length - 1)
+    for (const literal of body.matchAll(STRING_LITERAL)) {
+      const content = literal[1] ?? literal[2] ?? ''
+      for (const token of content.split(/\s+/)) {
+        if (CONEXUS_PREFIX.test(token)) staticTokens.push({ line: lineOf(text, map.index), token })
+      }
+    }
+  }
   return { staticTokens, dynamicTokens }
 }
 
-const classCheck = (files, contentOf) => {
+// Contract: the classes measured are the ones a className renders as literals: a string, a string in
+// braces, the static parts of a template literal, and the two result branches of a ternary when they
+// are literals. A condition, a comparison, a call, an array or the holes of a template are not read.
+const foreignClassTokens = (path, text) => {
+  const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const found = []
+  const add = (node, content, { open = false, close = false } = {}) => {
+    const tokens = content.split(/\s+/)
+    tokens.forEach((token, index) => {
+      const partial = (open && index === 0 && !/^\s/.test(content)) || (close && index === tokens.length - 1 && !/\s$/.test(content))
+      if (token && !partial && !/^(?:cx|cxs|builder)-/.test(token)) found.push({ line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1, token })
+    })
+  }
+  const collect = node => {
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) add(node, node.text)
+    else if (ts.isTemplateExpression(node)) {
+      add(node.head, node.head.text, { close: true })
+      for (const span of node.templateSpans) add(span.literal, span.literal.text, { open: true, close: !ts.isTemplateTail(span.literal) })
+    } else if (ts.isConditionalExpression(node)) {
+      collect(node.whenTrue)
+      collect(node.whenFalse)
+    } else if (ts.isJsxExpression(node) && node.expression) collect(node.expression)
+    else if (ts.isParenthesizedExpression(node)) collect(node.expression)
+  }
+  const visit = node => {
+    if (ts.isJsxAttribute(node) && node.name.getText(source) === 'className' && node.initializer) collect(node.initializer)
+    else ts.forEachChild(node, visit)
+  }
+  visit(source)
+  return found
+}
+
+// Every class name a stylesheet's selectors name, read by a CSS parser: names come back unescaped
+// (`.\32 xl\:flex` is `2xl:flex`), and nesting, @media, @layer and :is()/:not() are followed.
+const classNamesIn = css => {
+  const names = new Set()
+  const walk = components => {
+    for (const component of components) {
+      if (component.type === 'class') names.add(component.name)
+      // Any list a pseudo-class carries (:is, :not, :has, `of` in :nth-child) is a selector or a list of them.
+      for (const inner of Object.values(component)) {
+        if (Array.isArray(inner) && inner.length > 0 && (Array.isArray(inner[0]) || inner[0]?.type !== undefined)) (Array.isArray(inner[0]) ? inner : [inner]).forEach(walk)
+      }
+    }
+  }
+  transform({ filename: 'classes.css', code: Buffer.from(css), errorRecovery: true, visitor: { Selector: walk } })
+  return names
+}
+
+const vendorClasses = root => {
+  const names = new Set()
+  const directory = resolve(root, VENDOR_CSS_ROOT)
+  if (!existsSync(directory)) return names
+  for (const file of readdirSync(directory, { recursive: true }).filter(entry => entry.endsWith('.css'))) {
+    for (const name of classNamesIn(readFileSync(resolve(directory, file), 'utf8'))) names.add(name)
+  }
+  return names
+}
+
+// Whether the app's Tailwind build writes a rule for a utility, from its own entry stylesheet. Null
+// when the tree has no entry, so only the CSS the tree carries counts.
+const tailwindRule = async root => {
+  if (!existsSync(resolve(root, TAILWIND_ENTRY))) return null
+  const { compile } = await import('@tailwindcss/node')
+  const base = dirname(resolve(root, TAILWIND_ENTRY))
+  const compiler = await compile(readFileSync(resolve(root, TAILWIND_ENTRY), 'utf8'), { base, onDependency() {} })
+  return token => classNamesIn(compiler.build([token])).has(token)
+}
+
+const classCheck = (files, contentOf, vendor, generates) => {
   const defined = new Map()
   for (const path of files.filter(candidate => candidate.endsWith('.css') && CLASS_CSS_ROOTS.some(root => candidate.startsWith(`${root}/`)))) {
     const text = contentOf(path)
@@ -189,24 +262,23 @@ const classCheck = (files, contentOf) => {
       if (!defined.has(match[1])) defined.set(match[1], { path, line: lineOf(text, match.index) })
     }
   }
+  const own = new Set()
+  for (const path of files.filter(candidate => candidate.endsWith('.css') && CLASS_CSS_ROOTS.some(root => candidate.startsWith(`${root}/`)))) {
+    for (const name of classNamesIn(contentOf(path))) own.add(name)
+  }
   const used = new Set()
   const violations = []
   for (const path of files.filter(candidate => candidate.endsWith('.tsx') && CLASS_TSX_ROOTS.some(root => candidate.startsWith(`${root}/`)))) {
+    for (const { line, token } of foreignClassTokens(path, contentOf(path))) {
+      if (!own.has(token) && !vendor.has(token) && !generates?.(token)) violations.push({ path, line, message: `class "${token}" has no rule: not in this app's CSS, in ${VENDOR_CSS_ROOT} or from the Tailwind build; use a cx- class` })
+    }
     const { staticTokens, dynamicTokens } = classNameTokens(contentOf(path))
     for (const { line, token } of staticTokens) {
       used.add(token)
       if (!defined.has(token)) violations.push({ path, line, message: `class "${token}" has no CSS rule under apps/web/src or packages/brand/src` })
     }
     for (const { line, token } of dynamicTokens) {
-      const allowed = DYNAMIC_CLASSES.find(entry => entry.file === path && entry.token === token)
-      if (!allowed) {
-        violations.push({ path, line, message: `class "${token}" is built dynamically; add it to DYNAMIC_CLASSES in scripts/check-web-style.mjs` })
-        continue
-      }
-      for (const resolved of allowed.resolves) {
-        used.add(resolved)
-        if (!defined.has(resolved)) violations.push({ path, line, message: `class "${resolved}", resolved from the dynamic "${token}", has no CSS rule under apps/web/src or packages/brand/src` })
-      }
+      violations.push({ path, line, message: `class "${token}" is built dynamically; map each value to a literal class name` })
     }
   }
   const unused = [...defined]
@@ -215,7 +287,7 @@ const classCheck = (files, contentOf) => {
   return { violations, unused }
 }
 
-const scanTree = root => {
+const scanTree = (root, generates) => {
   const files = SCANNED_ROOTS
     .map(directory => resolve(root, directory))
     .filter(directory => existsSync(directory))
@@ -227,22 +299,22 @@ const scanTree = root => {
   const violations = files.flatMap(path => styleViolations(path, contentOf(path)))
   const hintViolations = files.flatMap(path => nativeHintViolations(path, contentOf(path)))
   const csrfReads = files.flatMap(path => csrfViolations(path, contentOf(path)))
-  const classResult = classCheck(files, contentOf)
+  const classResult = classCheck(files, contentOf, vendorClasses(root), generates)
   return { files, violations: [...violations, ...hintViolations, ...csrfReads, ...classResult.violations], unused: classResult.unused }
 }
 
-const main = () => {
+const main = async () => {
   const root = process.argv[2] ? resolve(process.argv[2]) : fileURLToPath(new URL('../', import.meta.url))
   if (!existsSync(resolve(root, REQUIRED_ROOT))) {
     console.error(`no files scanned: ${REQUIRED_ROOT} does not exist under ${root}`)
     return 1
   }
-  const { files, violations, unused } = scanTree(root)
+  const { files, violations, unused } = scanTree(root, await tailwindRule(root))
   if (violations.length) {
     for (const { path, line, message } of violations) console.error(`${path}:${line}: ${message}`)
     return 1
   }
-  // A dead rule is a defect: delete it, or list the template that builds the class in DYNAMIC_CLASSES.
+  // A dead rule is a defect: delete it.
   if (unused.length) {
     for (const { path, line, message } of unused) console.error(`${path}:${line}: ${message}`)
     return 1
@@ -251,4 +323,4 @@ const main = () => {
   return 0
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main()
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = await main()

@@ -97,6 +97,7 @@ const openaiCodexOffer = (): Promise<Offer> => Promise.all(chatModelsOf(OPENAI_M
 const anthropicSetting = async (model: string, level: ThinkingLevelSetting): Promise<unknown> => {
   const middleware = createAnthropicThinkingMiddleware(model, level)
   if (!middleware?.transformParams) return undefined
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const call = { type: 'stream', params: { prompt: [], providerOptions: {} }, model: {} } as unknown as Parameters<NonNullable<typeof middleware.transformParams>>[0]
   return (await middleware.transformParams(call)).providerOptions?.anthropic
 }
@@ -120,6 +121,7 @@ type Connection = Readonly<{ provider: string; providerName: string; mine: boole
  * and Anthropic by key or by Claude subscription. Sharing and the defaults screen are the rest of
  * slice 5.
  */
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const registerModelAccountRoutes = async (app: FastifyInstance, { origin, resolveCurrentSession, isInstallationAdministrator, modelAccounts, openaiCodexDevice, claudeAuthorization, googleAiPro, googleAiProAccounts }: Readonly<{
   origin: string
   resolveCurrentSession: ResolveCurrentSession

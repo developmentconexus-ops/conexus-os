@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import type { QueryResultRow } from 'pg'
-import { S1_GENERATED_ROUTES } from '../generated/s1-routes.js'
-import type { Iam05Body, Iam10Body, MemberParams, RosterEntryParams, S1OwnerId, WorkspaceParams } from '../generated/s1-routes.js'
+import { IAM_GENERATED_ROUTES } from '../generated/iam-routes.js'
+import type { Iam05Body, Iam10Body, MemberParams, RosterEntryParams, IamOwnerId, WorkspaceParams } from '../generated/iam-routes.js'
 import { sendProblem } from '../http/problem.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import {
@@ -86,6 +86,7 @@ const rosterEntry = (row: RosterRow): RosterEntry => row.kind === 'member'
   : {
     kind: 'invitation',
     invitationId: brandInvitationId(row.invitation_id ?? ''),
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     email: (row.email ?? '') as EmailAddress,
     role: row.role,
     invitedAt: row.since.toISOString(),
@@ -115,6 +116,7 @@ export const createMembershipStore = ({ pool }: Readonly<{ pool: PostgresPool }>
       [actor, workspaceId])
     const row = stored.rows.find((candidate) => candidate.invitation_id === invitationId)
     if (!row) throw new Error('INVITATION_NOT_READABLE')
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     return rosterEntry(row) as InvitationEntry
   },
   async cancelInvitation({ actor, invitationId }) {
@@ -134,18 +136,19 @@ export type MembershipRouteDependencies = Readonly<{
   config: Readonly<{ origin: string }>
 }>
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const registerMembershipRoutes = async (
   app: FastifyInstance,
   { store, resolveCurrentSession, config }: MembershipRouteDependencies,
-): Promise<readonly S1OwnerId[]> => {
+): Promise<readonly IamOwnerId[]> => {
   const authentic = (request: Parameters<ResolveCurrentSession>[0]): boolean => {
     const requestCsrf = header(request.headers['x-conexus-csrf'])
     return isExactOrigin(request.headers.origin, config.origin) && !!requestCsrf && requestCsrf === request.cookies[CSRF_COOKIE]
   }
 
   app.route<{ Params: WorkspaceParams }>({
-    ...S1_GENERATED_ROUTES['IAM-04'],
-    schema: { ...S1_GENERATED_ROUTES['IAM-04'].schema, params: workspaceParamsSchema },
+    ...IAM_GENERATED_ROUTES['IAM-04'],
+    schema: { ...IAM_GENERATED_ROUTES['IAM-04'].schema, params: workspaceParamsSchema },
     handler: async (request, reply) => {
       const current = await resolveCurrentSession(request)
       if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
@@ -159,8 +162,8 @@ export const registerMembershipRoutes = async (
   })
 
   app.route<{ Params: WorkspaceParams; Body: Iam05Body }>({
-    ...S1_GENERATED_ROUTES['IAM-05'],
-    schema: { ...S1_GENERATED_ROUTES['IAM-05'].schema, params: workspaceParamsSchema },
+    ...IAM_GENERATED_ROUTES['IAM-05'],
+    schema: { ...IAM_GENERATED_ROUTES['IAM-05'].schema, params: workspaceParamsSchema },
     handler: async (request, reply) => {
       if (!authentic(request)) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
       const current = await resolveCurrentSession(request, true)
@@ -183,8 +186,8 @@ export const registerMembershipRoutes = async (
   })
 
   app.route<{ Params: MemberParams; Body: Iam10Body }>({
-    ...S1_GENERATED_ROUTES['IAM-10'],
-    schema: { ...S1_GENERATED_ROUTES['IAM-10'].schema, params: memberParamsSchema },
+    ...IAM_GENERATED_ROUTES['IAM-10'],
+    schema: { ...IAM_GENERATED_ROUTES['IAM-10'].schema, params: memberParamsSchema },
     handler: async (request, reply) => {
       if (!authentic(request)) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
       const current = await resolveCurrentSession(request, true)
@@ -208,8 +211,8 @@ export const registerMembershipRoutes = async (
   })
 
   app.route<{ Params: RosterEntryParams }>({
-    ...S1_GENERATED_ROUTES['IAM-06'],
-    schema: { ...S1_GENERATED_ROUTES['IAM-06'].schema, params: rosterEntryParamsSchema },
+    ...IAM_GENERATED_ROUTES['IAM-06'],
+    schema: { ...IAM_GENERATED_ROUTES['IAM-06'].schema, params: rosterEntryParamsSchema },
     handler: async (request, reply) => {
       if (!authentic(request)) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
       const current = await resolveCurrentSession(request, true)

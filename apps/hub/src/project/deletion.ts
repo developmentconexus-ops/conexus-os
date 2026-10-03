@@ -23,6 +23,7 @@ type TombstoneRow = QueryResultRow & Readonly<{
 
 const errorText = (error: unknown): string => error instanceof Error ? error.message : ''
 const isNotAdmitted = (error: unknown): boolean =>
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '42501'
 
 export const createProjectDeletionOrchestrator = ({ commandPool, ports }: Readonly<{

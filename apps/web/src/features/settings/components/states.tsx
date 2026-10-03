@@ -28,6 +28,8 @@ export function StatusLine({ tone = 'positive', children }: Readonly<{ tone?: 'p
 
 export type ChipTone = 'positive' | 'warning' | 'neutral'
 
+const CHIP_CLASS = { positive: 'cxs-chip-positive', warning: 'cxs-chip-warning', neutral: 'cxs-chip-neutral' } as const
+
 export function Chip({ tone, children }: Readonly<{ tone: ChipTone; children: ReactNode }>) {
-  return <span className={`cxs-chip cxs-chip-${tone}`}><span className="cxs-chip-dot" aria-hidden="true" />{children}</span>
+  return <span className={`cxs-chip ${CHIP_CLASS[tone]}`}><span className="cxs-chip-dot" aria-hidden="true" />{children}</span>
 }

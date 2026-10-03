@@ -28,6 +28,7 @@ type LanguageModelV3 = Parameters<typeof wrapLanguageModel>[0]['model']
 /** Mastra's Codex provider is typed as a model config but builds an AI SDK model; a config would be a bug there. */
 const languageModelOf = (model: MastraModelConfig): LanguageModelV3 => {
   if (typeof model !== 'object' || !('doStream' in model)) throw new Error('OPENAI_CODEX_MODEL_REFUSED')
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return model as LanguageModelV3
 }
 

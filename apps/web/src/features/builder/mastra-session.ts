@@ -85,6 +85,7 @@ export const useBuilderModels = (scope?: 'installation') => useQuery({
     const url = scope ? `/api/control/model-accounts/models?scope=${encodeURIComponent(scope)}` : '/api/control/model-accounts/models'
     const response = await hubFetch(url)
     if (!response.ok) throw new Error(`BUILDER_MODELS_UNAVAILABLE:${response.status}`)
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     return await response.json() as Readonly<{ models: readonly BuilderModel[]; defaultThinkingLevel: ReasoningLevel }>
   },
 })
@@ -270,6 +271,7 @@ export const answerPendingCall = async (projectId: string, conversationId: strin
     if ('approved' in answer) await session.approveTool(pending.toolCallId, answer.approved)
     else if ('plan' in answer) await session.respondToToolSuspension(pending.toolCallId, answer.plan)
     // The route takes any JSON (resumeData is unknown there); only the client's type is narrower.
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     else await session.respondToToolSuspension(pending.toolCallId, answer.answers as unknown as string[])
     return 'RESUMED'
   } catch (error) {

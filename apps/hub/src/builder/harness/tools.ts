@@ -118,6 +118,7 @@ export const createAskUserTool = () => createTool({
   execute: async ({ questions }, context) => {
     const bad = questions.find((entry) => (entry.multiSelect && !entry.options?.length))
     if (bad) return { content: `Failed to ask user: multiSelect requires options (${bad.question}).`, isError: true }
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     const resumeData = context?.agent?.resumeData as AskUserAnswer[] | undefined
     if (resumeData !== undefined) {
       const lines = questions.map((entry, index) => `${entry.question}: ${formatQuestionAnswer(resumeData[index] ?? '')}`)

@@ -28,6 +28,7 @@ function GrantForm({ onGranted }: Readonly<{ onGranted: () => void }>) {
   const grant = useMutation({
     mutationFn: () => grantAdministrator(email.trim()),
     onSuccess: () => { setEmail(''); setMessage(null); onGranted() },
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     onError: (error) => setMessage(administratorErrorMessage((error as InstallationRequestError).type)),
   })
   return <form className="cxs-form" onSubmit={(event: FormEvent) => { event.preventDefault(); grant.mutate() }}>
@@ -55,6 +56,7 @@ export function AdminsScreen() {
       refresh()
       if (accountId === access.data?.account.accountId) void navigate({ to: '/settings/account' })
     },
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     onError: (error) => setRevokeMessage(administratorErrorMessage((error as InstallationRequestError).type)),
   })
 

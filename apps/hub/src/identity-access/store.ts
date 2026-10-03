@@ -75,6 +75,7 @@ export type IdentityAccessStore = Readonly<{
   close(): Promise<void>
 }>
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createIdentityAccessStore = ({
   pool,
   workspaceReadPool,

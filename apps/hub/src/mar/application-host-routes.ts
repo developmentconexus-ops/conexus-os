@@ -58,6 +58,7 @@ const NOT_READY = page('Aplicativo sem versão pronta', 'Este aplicativo ainda n
 const SIGN_IN_FAILED = page('Não foi possível entrar', 'O link de entrada expirou ou já foi usado. Abra o endereço do aplicativo de novo para entrar.')
 const UNAVAILABLE = page('Aplicativo indisponível', 'Não foi possível confirmar seu acesso agora. Tente de novo em alguns minutos.')
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const registerApplicationHostRoutes = async (
   app: FastifyInstance,
   dependencies: ApplicationHostDependencies,

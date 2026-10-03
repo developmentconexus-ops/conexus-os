@@ -23,14 +23,14 @@ test('the Preview reaches its own API and nothing else', async (t) => {
   await new Promise((done) => other.listen(0, '127.0.0.1', done))
   t.after(() => other.close())
   const probe = `const results = []
-for (const url of ['/__conexus/api/listNotes', 'http://127.0.0.1:${'${OTHER}'}/steal']) {
+for (const url of ['/__conexus/api/listNotes', 'http://127.0.0.1:${other.address().port}/steal']) {
   try { results.push((await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status) } catch { results.push('blocked') }
 }
 document.getElementById('out').textContent = results.join(',')`
   const server = createServer((request, response) => {
     const csp = previewContentSecurityPolicy('https://hub.example.test')
     if (request.method === 'POST') { own.push(request.url); response.writeHead(200, { 'content-type': 'application/json', 'content-security-policy': csp }); response.end('[]'); return }
-    if (request.url === '/probe.js') { response.writeHead(200, { 'content-type': 'text/javascript', 'content-security-policy': csp }); response.end(probe.replace('${OTHER}', String(other.address().port))); return }
+    if (request.url === '/probe.js') { response.writeHead(200, { 'content-type': 'text/javascript', 'content-security-policy': csp }); response.end(probe); return }
     response.writeHead(200, { 'content-type': 'text/html', 'content-security-policy': csp })
     response.end('<!doctype html><html><body><p id="out">nada</p><script type="module" src="/probe.js"></script></body></html>')
   })

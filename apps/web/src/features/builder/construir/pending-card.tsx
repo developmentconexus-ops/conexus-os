@@ -13,6 +13,7 @@ import { toolRequest } from './tool-sentences'
 const planField = (pending: PromptEntry, name: 'title' | 'plan'): string | null => {
   for (const source of [pending.prompt, pending.args]) {
     if (source && typeof source === 'object' && name in source) {
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       const value = (source as Record<string, unknown>)[name]
       if (typeof value === 'string' && value.trim()) return value
     }
@@ -21,10 +22,12 @@ const planField = (pending: PromptEntry, name: 'title' | 'plan'): string | null 
 }
 
 const isOption = (value: unknown): value is AskUserOption =>
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   Boolean(value) && typeof value === 'object' && typeof (value as Record<string, unknown>).label === 'string' && (value as AskUserOption).label !== ''
 
 const parseQuestion = (value: unknown): AskUserQuestionData | null => {
   if (!value || typeof value !== 'object') return null
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const entry = value as Record<string, unknown>
   if (typeof entry.question !== 'string' || !entry.question) return null
   const options = Array.isArray(entry.options) ? entry.options.filter(isOption) : []
@@ -43,6 +46,7 @@ const FALLBACK_QUESTION: AskUserQuestionData = { question: 'O agente precisa de 
 // a plain free-text question (still answerable) instead of passing bad shapes into the card.
 const askUserQuestions = (pending: PromptEntry): AskUserQuestionData[] => {
   for (const source of [pending.prompt, pending.args]) {
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     const list = source && typeof source === 'object' ? (source as Record<string, unknown>).questions : undefined
     const questions = Array.isArray(list) ? list.map(parseQuestion).filter((entry): entry is AskUserQuestionData => entry !== null) : []
     if (questions.length > 0) return questions

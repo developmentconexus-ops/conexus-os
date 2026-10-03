@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
-import type { S1OwnerId } from '../generated/s1-routes.js'
+import type { IamOwnerId } from '../generated/iam-routes.js'
 import { applicationOrigin } from '../platform/config.js'
 import type { ApplicationAddress } from '../platform/config.js'
 import type { PostgresPool } from '../platform/postgres.js'
@@ -19,7 +19,7 @@ import type { CurrentSession } from './store.js'
 import type { ResolveCurrentSession, SessionRequest } from './current-session.js'
 
 export type IdentityAccessModule = Readonly<{
-  registerIdentityAccessRoutes(app: FastifyInstance): Promise<readonly S1OwnerId[]>
+  registerIdentityAccessRoutes(app: FastifyInstance): Promise<readonly IamOwnerId[]>
   resolveCurrentSession: ResolveCurrentSession
   /** Opens a Preview for the developer behind the request's Hub session and mints its entry handoff. */
   openPreview(request: FastifyRequest, launch: PreviewLaunch): Promise<Readonly<{ entryGrant: string; expiresAt: number }>>

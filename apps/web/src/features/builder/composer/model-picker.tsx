@@ -17,6 +17,7 @@ const matches = (model: BuilderModel, query: string): boolean => {
  * One popover, one step: search the model, pick it, and set how hard it thinks, without opening a
  * second floating layer for either.
  */
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export function ModelPicker({ models, modelId, onModelChange, disabled, levels, reasoning, onReasoningChange, reasoningDisabled }: Readonly<{
   models: readonly BuilderModel[]
   modelId: string
@@ -137,6 +138,7 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, levels, 
             aria-valuenow={levelIndex}
             aria-valuetext={reasoningLabels[reasoning]}
             aria-disabled={reasoningDisabled || undefined}
+            // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
             style={{ '--cx-effort-at': levelIndex / lastStop } as CSSProperties}
             onKeyDown={onSliderKeyDown}
             onPointerDown={onSliderPointerDown}
@@ -148,6 +150,7 @@ export function ModelPicker({ models, modelId, onModelChange, disabled, levels, 
               className="cx-effort-dot"
               aria-hidden="true"
               data-filled={index < levelIndex || undefined}
+              // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
               style={{ '--cx-effort-stop': index / lastStop } as CSSProperties}
             />)}
             <span className="cx-effort-thumb" aria-hidden="true" />

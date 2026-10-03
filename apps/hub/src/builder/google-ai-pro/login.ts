@@ -46,6 +46,7 @@ const management = async (instance: LoginInstance, path: string, body?: unknown)
     signal: AbortSignal.timeout(10_000),
   })
   const parsed: unknown = await answer.json().catch(() => null)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return typeof parsed === 'object' && parsed !== null ? parsed as Record<string, unknown> : {}
 }
 
@@ -107,6 +108,7 @@ export const createGoogleAiProLogin = <C extends Caller>({ pool, writeCredential
     starting = true
     try {
       const instance = await pool.startLogin().catch(() => { throw new GoogleAiProLoginError('model-login-unavailable') })
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       const answer = await management(instance, '/antigravity-auth-url?is_webui=true').catch(() => ({} as Record<string, unknown>))
       const { url, state } = answer
       if (answer.status !== 'ok' || typeof url !== 'string' || !url.startsWith('https://accounts.google.com/') ||

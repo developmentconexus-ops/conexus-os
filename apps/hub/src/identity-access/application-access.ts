@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import type { QueryResultRow } from 'pg'
-import { S1_GENERATED_ROUTES } from '../generated/s1-routes.js'
-import type { ApplicationAccessEntryParams, Iam12Body, ProjectParams, S1OwnerId } from '../generated/s1-routes.js'
+import { IAM_GENERATED_ROUTES } from '../generated/iam-routes.js'
+import type { ApplicationAccessEntryParams, Iam12Body, ProjectParams, IamOwnerId } from '../generated/iam-routes.js'
 import { sendProblem } from '../http/problem.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { isNotAdmitted, parseEmailAddress } from './current-session.js'
@@ -172,7 +172,7 @@ export type ApplicationAccessRouteDependencies = Readonly<{
 export const registerApplicationAccessRoutes = async (
   app: FastifyInstance,
   { store, resolveCurrentSession, config }: ApplicationAccessRouteDependencies,
-): Promise<readonly S1OwnerId[]> => {
+): Promise<readonly IamOwnerId[]> => {
   const authentic = (request: Parameters<ResolveCurrentSession>[0]): boolean => {
     const requestCsrf = header(request.headers['x-conexus-csrf'])
     return isExactOrigin(request.headers.origin, config.origin) && !!requestCsrf && requestCsrf === request.cookies[CSRF_COOKIE]
@@ -184,8 +184,8 @@ export const registerApplicationAccessRoutes = async (
   }
 
   app.route<{ Params: ProjectParams }>({
-    ...S1_GENERATED_ROUTES['IAM-11'],
-    schema: { ...S1_GENERATED_ROUTES['IAM-11'].schema, params: projectParamsSchema },
+    ...IAM_GENERATED_ROUTES['IAM-11'],
+    schema: { ...IAM_GENERATED_ROUTES['IAM-11'].schema, params: projectParamsSchema },
     handler: async (request, reply) => {
       const current = await resolveCurrentSession(request)
       if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
@@ -200,8 +200,8 @@ export const registerApplicationAccessRoutes = async (
   })
 
   app.route<{ Params: ProjectParams; Body: Iam12Body }>({
-    ...S1_GENERATED_ROUTES['IAM-12'],
-    schema: { ...S1_GENERATED_ROUTES['IAM-12'].schema, params: projectParamsSchema },
+    ...IAM_GENERATED_ROUTES['IAM-12'],
+    schema: { ...IAM_GENERATED_ROUTES['IAM-12'].schema, params: projectParamsSchema },
     handler: async (request, reply) => {
       if (!authentic(request)) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
       const current = await resolveCurrentSession(request, true)
@@ -217,8 +217,8 @@ export const registerApplicationAccessRoutes = async (
   })
 
   app.route<{ Params: ApplicationAccessEntryParams }>({
-    ...S1_GENERATED_ROUTES['IAM-13'],
-    schema: { ...S1_GENERATED_ROUTES['IAM-13'].schema, params: entryParamsSchema },
+    ...IAM_GENERATED_ROUTES['IAM-13'],
+    schema: { ...IAM_GENERATED_ROUTES['IAM-13'].schema, params: entryParamsSchema },
     handler: async (request, reply) => {
       if (!authentic(request)) return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
       const current = await resolveCurrentSession(request, true)

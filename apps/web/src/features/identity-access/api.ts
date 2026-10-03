@@ -31,6 +31,7 @@ export async function getAccessContext(): Promise<AccessContext> {
     throw new IdentityAccessRequestError(null)
   }
   if (!response.ok) reject(response)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const context = await response.json() as AccessContext
   confirmAuthority()
   return context
@@ -47,6 +48,7 @@ export async function provisionCurrentAccount(
     throw new IdentityAccessRequestError(null)
   }
   if (response.status !== 201) reject(response)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<AccountSummary>
 }
 

@@ -27,6 +27,8 @@ const POSTGRES_ENV_DEFAULTS = Object.freeze({
 
 // A class names what a step needs: PostgreSQL, a browser, or both.
 const POSTGRES_CLASSES = new Set(['postgres', 'browser-postgres'])
+// The classes of a step that has a browser. A test that launches one in any other class fails in CI.
+export const BROWSER_CLASSES = new Set(['browser', 'browser-postgres', 'live'])
 
 const candidateStep = (scope, command, environmentClass = 'static') => Object.freeze({
   scope,
@@ -71,7 +73,7 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('connector-builder-brief', 'node --test tests/implementation/connector-builder-brief.test.mjs'),
   candidateStep('connector-builder-tool', 'node --test tests/implementation/connector-builder-tool.test.mjs'),
   candidateStep('builder-harness', 'node --test tests/implementation/builder-harness.test.mjs tests/implementation/builder-thinking-level.test.mjs tests/implementation/builder-ask-user.test.mjs tests/implementation/builder-submit-plan.test.mjs tests/implementation/builder-project-context.test.mjs tests/implementation/builder-memory.test.mjs tests/implementation/builder-run-operation.test.mjs tests/implementation/builder-sankhya-reader.test.mjs tests/implementation/builder-context7.test.mjs tests/implementation/builder-web-fetch.test.mjs'),
-  candidateStep('builder-run-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-invariants-postgres.test.mjs tests/implementation/builder-run-execution-postgres.test.mjs tests/implementation/builder-c020-source-inspection-postgres.test.mjs', 'postgres'),
+  candidateStep('builder-run-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-invariants-postgres.test.mjs tests/implementation/builder-run-execution-postgres.test.mjs tests/implementation/builder-source-inspection-postgres.test.mjs', 'postgres'),
   candidateStep('builder-request-text-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-run-request-text-postgres.test.mjs', 'postgres'),
   candidateStep('conexus-git-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-conexus-git-postgres.test.mjs', 'postgres'),
   candidateStep('factory-dependency-tree', 'node --test tests/implementation/builder-factory-dependency-tree.test.mjs'),
@@ -117,14 +119,14 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('import-law-check', 'node scripts/check-import-law.mjs'),
   candidateStep('hub-log-sinks', 'node --test tests/repository/hub-log-sinks.test.mjs'),
   candidateStep('telemetry', 'node --test tests/implementation/telemetry-register.test.mjs tests/implementation/telemetry-redaction.test.mjs tests/implementation/telemetry-logs.test.mjs tests/implementation/telemetry-metrics.test.mjs tests/implementation/telemetry-trace-trust.test.mjs tests/implementation/telemetry-log-codes.test.mjs tests/implementation/hub-launch-flags.test.mjs'),
-  candidateStep('repository-agent-context', 'node --test tests/repository/check-agent-context.test.mjs tests/repository/labels.test.mjs tests/repository/verify-gates.test.mjs tests/repository/worktree-reap.test.mjs tests/repository/worktree-new.test.mjs tests/repository/check-test-census.test.mjs tests/repository/check-flow-census.test.mjs tests/repository/check-weak-tests.test.mjs tests/repository/check-patch-churn.test.mjs tests/repository/check-test-quarantine.test.mjs tests/repository/test-quarantine-helper.test.mjs tests/repository/ci-change-scope.test.mjs tests/repository/ci-install.test.mjs tests/repository/diff-shape.test.mjs'),
+  candidateStep('repository-agent-context', 'node --test tests/repository/check-agent-context.test.mjs tests/repository/labels.test.mjs tests/repository/verify-gates.test.mjs tests/repository/worktree-reap.test.mjs tests/repository/worktree-new.test.mjs tests/repository/check-test-census.test.mjs tests/repository/check-empty-tests.test.mjs tests/repository/check-flow-census.test.mjs tests/repository/check-patch-churn.test.mjs tests/repository/check-test-quarantine.test.mjs tests/repository/test-quarantine-helper.test.mjs tests/repository/ci-change-scope.test.mjs tests/repository/ci-install.test.mjs tests/repository/diff-shape.test.mjs'),
   candidateStep('contract-projection-check-iam', 'node scripts/generate-iam-contracts.mjs --check'),
   candidateStep('contract-projection-check-workspace', 'node scripts/generate-workspace-contracts.mjs --check'),
   candidateStep('contract-projection-check-project', 'node scripts/generate-project-contracts.mjs --check'),
   candidateStep('contract-projection-check-connector', 'node scripts/generate-connector-contracts.mjs --check'),
   candidateStep('repository-contract-checks', 'node scripts/generate-builder-run-vocabulary.mjs --check && node --test tests/repository/repository-contract.test.mjs tests/repository/builder-run-vocabulary.test.mjs'),
   candidateStep('knip', 'npx --no-install knip && node --test tests/repository/knip-config.test.mjs'),
-  candidateStep('biome', 'npx --no-install biome ci .'),
+  candidateStep('biome', 'npx --no-install biome ci . --error-on-warnings'),
 
   candidateStep('brand-wordmark-csp', 'node --test tests/implementation/brand-wordmark-csp.test.mjs', 'browser'),
   candidateStep('builder-tool-sentences', 'node --test tests/implementation/builder-tool-sentences.test.mjs'),
@@ -153,10 +155,8 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('builder-credential-generation', 'node --test tests/implementation/builder-credential-generation.test.mjs'),
   candidateStep('builder-first-operational-delivery', 'node --test tests/implementation/builder-first-operational-delivery.test.mjs'),
   candidateStep('builder-planning-free-boot', 'node --test tests/implementation/builder-planning-free-boot.test.mjs'),
-  candidateStep('builder-eval', 'node --test --test-concurrency=1 tests/implementation/builder-eval-criteria.test.mjs tests/implementation/builder-eval-simulator.test.mjs tests/implementation/builder-eval-scorers.test.mjs tests/implementation/builder-eval-serve.test.mjs tests/implementation/builder-eval-experiment.test.mjs tests/implementation/builder-eval-run.test.mjs tests/implementation/builder-eval-oracle.test.mjs tests/implementation/builder-eval-person.test.mjs tests/implementation/builder-eval-timing.test.mjs tests/implementation/builder-eval-plan-score.test.mjs', 'browser'),
   // One Hub, one Chromium and a scripted model for the whole suite, so the flows share one boot. A flow file goes in the test:live script by name.
   candidateStep('live-builder', 'npm run test:live', 'live'),
-  candidateStep('builder-eval-postgres', 'node --test --test-concurrency=1 tests/implementation/builder-eval-experiment-postgres.test.mjs', 'postgres'),
   candidateStep('protected-cluster-coverage', 'node --test tests/implementation/protected-cluster-coverage.test.mjs'),
 
   candidateStep('wire-openapi-lint', 'npm run wire:lint'),
@@ -174,8 +174,8 @@ const GRAPH_STEPS = Object.freeze([
 
   candidateStep('log-codes-check', 'node scripts/generate-log-codes.mjs --check'),
   candidateStep('test-census', 'node scripts/check-test-census.mjs'),
+  candidateStep('empty-tests', 'node scripts/check-empty-tests.mjs'),
   candidateStep('flow-census', 'node scripts/check-flow-census.mjs'),
-  candidateStep('weak-tests-ratchet', 'node scripts/check-weak-tests.mjs'),
   candidateStep('test-quarantine', 'node scripts/check-test-quarantine.mjs'),
   candidateStep('patch-churn-report', 'node scripts/check-patch-churn.mjs --report'),
   candidateStep('only-opt-in-skips', 'node scripts/check-test-skips.mjs'),
@@ -215,8 +215,8 @@ export const FAST_CHECK_SCOPES = Object.freeze([
   'wire-technical-ingress',
   'log-codes-check',
   'test-census',
+  'empty-tests',
   'flow-census',
-  'weak-tests-ratchet',
   'test-quarantine',
   'patch-churn-report',
 ])
@@ -268,9 +268,10 @@ export const DOCS_CHECK_SCOPES = Object.freeze([
 
 export const DOCS_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => DOCS_CHECK_SCOPES.includes(step.scope)))
 
-// The fast check to run before every push: the static gates CI otherwise reports minutes later, with
-// no Docker, browser or network.
-export const QUICK_CHECK_SCOPES = Object.freeze(['log-codes-check', 'test-census', 'flow-census', 'knip', 'biome', 'weak-tests-ratchet', 'test-quarantine', 'patch-churn-report', 'import-law-check'])
+// The fast check to run before every push: the static gates CI fails on most, with no Docker, browser
+// or network. It runs both typechecks, the style and repository checks and the contract projections,
+// so a push does not wait for CI to report them.
+export const QUICK_CHECK_SCOPES = Object.freeze(['hub-typecheck', 'web-typecheck', 'repository-check', 'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector', 'web-style', 'log-codes-check', 'test-census', 'empty-tests', 'flow-census', 'knip', 'biome', 'test-quarantine', 'patch-churn-report', 'import-law-check'])
 
 export const QUICK_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => QUICK_CHECK_SCOPES.includes(step.scope)))
 
@@ -451,7 +452,13 @@ export const newTestLedger = (root = repositoryRoot) => Object.freeze({
   file: resolve(tmpdir(), `conexus-test-ledger-${randomUUID()}.jsonl`),
 })
 
-export function executionEnvironment(entry, processEnvironment = process.env, testLedger = null) {
+// The step's class travels with it, so a helper that launches a browser can refuse in a step that has none.
+export const executionEnvironment = (entry, processEnvironment = process.env, testLedger = null) => ({
+  ...stepEnvironment(entry, processEnvironment, testLedger),
+  CONEXUS_VERIFY_STEP_CLASS: entry.environmentClass,
+})
+
+function stepEnvironment(entry, processEnvironment, testLedger) {
   const nodeOptions = processEnvironment.NODE_OPTIONS ?? ''
   const instrumented = testLedger ? {
     ...processEnvironment,

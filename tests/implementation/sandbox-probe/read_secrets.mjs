@@ -7,7 +7,7 @@ export default async function (input) {
   const results = [];
   let anyRead = false;
   for (const p of PATHS) {
-    let entry = { path: p, exists: false, readable: false, bytes: null };
+    const entry = { path: p, exists: false, readable: false, bytes: null };
     try { const s = statSync(p); entry.exists = true;
       if (s.isFile()) {
         accessSync(p, constants.R_OK);

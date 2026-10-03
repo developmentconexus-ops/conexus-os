@@ -46,12 +46,16 @@ const isCleanText = (value: unknown, maxLength: number): boolean =>
  */
 const outboundArguments = (input: unknown): Readonly<{ query: string; libraryName?: string; libraryId?: string }> | undefined => {
   if (typeof input !== 'object' || input === null) return undefined
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const { query, libraryName, libraryId } = input as Record<string, unknown>
   if (!isCleanText(query, MAX_QUERY_LENGTH)) return undefined
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const outbound: { query: string; libraryName?: string; libraryId?: string } = { query: query as string }
   if (libraryName !== undefined) {
     if (!isCleanText(libraryName, MAX_LIBRARY_NAME_LENGTH)) return undefined
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     if ((libraryName as string).trim().split(/\s+/).length > MAX_LIBRARY_NAME_WORDS) return undefined
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     outbound.libraryName = libraryName as string
   }
   if (libraryId !== undefined) {

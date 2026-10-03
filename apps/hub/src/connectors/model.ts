@@ -5,8 +5,11 @@ export type BindingId = string & { readonly __brand: 'BindingId' }
 export type BindingName = string & { readonly __brand: 'BindingName' }
 export type Environment = 'preview'
 
+// biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
 export const connectionId = (value: string): ConnectionId => value as ConnectionId
+// biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
 export const bindingId = (value: string): BindingId => value as BindingId
+// biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
 export const bindingName = (value: string): BindingName => value as BindingName
 
 export type Connection = Readonly<{

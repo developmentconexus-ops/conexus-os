@@ -88,6 +88,7 @@ const STATUS_BY_CODE: Readonly<Record<string, number>> = Object.freeze({
   DATABASE_UNAVAILABLE: 503,
 })
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createSupervisor = (config: SupervisorConfig) => {
   const limits = config.limits ?? DEFAULT_LIMITS
   const provisioner = new pg.Pool({

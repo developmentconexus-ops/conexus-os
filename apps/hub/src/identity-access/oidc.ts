@@ -68,6 +68,7 @@ const isEmailVerifiedClaim = (claims: Record<string, unknown>): boolean => {
   return claims.email_verified === true
 }
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createOidcAdapter = async ({
   issuer,
   clientId,
@@ -103,6 +104,7 @@ export const createOidcAdapter = async ({
   const localIssuerFetch: CustomFetch | undefined = localIssuerTransport ? (url, init) => undiciFetch(url, {
       ...init,
       dispatcher: localIssuerTransport,
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     } as never) as unknown as Promise<Response> : undefined
   if (localIssuerFetch) options[oidc.customFetch] = localIssuerFetch
   let configuration: Awaited<ReturnType<OidcDiscovery>>

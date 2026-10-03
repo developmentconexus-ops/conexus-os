@@ -468,11 +468,13 @@ const withRenderableSignalText = (message: MastraDBMessage): MastraDBMessage => 
 // Signal contents may be text or an array from partsToSignalContents.
 const signalContentsToText = (data: unknown): string => {
   if (!data || typeof data !== 'object') return ''
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const contents = (data as { contents?: unknown }).contents
   if (typeof contents === 'string') return contents
   if (!Array.isArray(contents)) return ''
   return contents.map((entry: unknown) => {
     if (typeof entry === 'string') return entry
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     if (entry && typeof entry === 'object' && typeof (entry as { text?: unknown }).text === 'string') return (entry as { text: string }).text
     return ''
   }).filter(Boolean).join('\n')
@@ -480,6 +482,7 @@ const signalContentsToText = (data: unknown): string => {
 
 const signalType = (message: MastraDBMessage): unknown => {
   const signal = message.role === 'signal' ? message.content.metadata?.signal : undefined
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return signal && typeof signal === 'object' && !Array.isArray(signal) ? (signal as Record<string, unknown>).type : undefined
 }
 
@@ -495,6 +498,7 @@ const toMessageEntry = (message: MastraDBMessage, options: Readonly<{ streaming?
 }
 
 const lastIndexWhere = <T,>(items: readonly T[], matches: (item: T) => boolean): number => {
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   for (let index = items.length - 1; index >= 0; index -= 1) if (matches(items[index] as T)) return index
   return -1
 }
@@ -595,6 +599,7 @@ const toolCallFromPart = (part: MessagePart | undefined): RuntimeTool | undefine
 const toolPart = (tool: RuntimeTool): MessagePart => tool.status === 'running'
   ? { type: 'tool-invocation', toolInvocation: { state: 'call', toolCallId: tool.toolCallId, toolName: tool.toolName, args: tool.args } }
   // Mastra's part type omits isError, which an errored result carries.
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   : { type: 'tool-invocation', toolInvocation: { state: 'result', toolCallId: tool.toolCallId, toolName: tool.toolName, args: tool.args, result: tool.result, ...(tool.status === 'error' ? { isError: true } : {}) } as ToolInvocationPart['toolInvocation'] }
 
 const withTool = (state: TranscriptState, toolCallId: string, update: (tool: RuntimeTool) => RuntimeTool, seed?: Partial<RuntimeTool>): TranscriptState => {

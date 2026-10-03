@@ -1,5 +1,5 @@
 // Checks the documents agents read before working: every `npm run X` they cite exists, every
-// relative link resolves, the trunk they name is `main`, only the root AGENTS.md tells a reader to
+// relative link resolves, every codebase principle names a check that exists or the review that owns it, the trunk they name is `main`, only the root AGENTS.md tells a reader to
 // run `npm run verify`, and each file stays under its size cap. It also checks the tree: no merge-conflict
 // marker, no unsafe workflow trigger, and the package stays the private conexus-os.
 import { execFileSync } from 'node:child_process'
@@ -8,6 +8,7 @@ import { dirname, join, posix, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const TRUNK = 'main'
+const PRINCIPLES = 'docs/development/codebase-principles.md'
 
 const ROOT_FILES = new Set(['README.md', 'CONTRIBUTING.md', 'docs/index.md', 'docs/roadmap.md', '.github/pull_request_template.md'])
 // The Mastra skill is the upstream skill as published; its commands address a Mastra project, not this one.
@@ -73,6 +74,8 @@ export function checkFile(path, text, { root, scripts }) {
     report(0, `${size} ${cap.unit} exceeds the cap of ${cap.max}${cap.note ? ` (${cap.note})` : ''}`)
   }
 
+  if (path === PRINCIPLES) for (const finding of checkEnforcement(text, root)) report(finding.number, finding.message)
+
   for (const { line, number, fenced } of linesOf(text)) {
     for (const [, cited] of line.matchAll(/\bnpm run ([\w:.-]+)/g)) {
       const name = cited.replace(/[.:,-]+$/, '')
@@ -90,6 +93,31 @@ export function checkFile(path, text, { root, scripts }) {
       if (problem) report(number, problem)
     }
   }
+  return findings
+}
+
+// Each numbered principle carries an `Enforced by:` line. Each backticked name on it is a file that
+// exists, or `biome:<rule>` for a rule configured in biome.json. A principle with only review names
+// the review checklist.
+export function checkEnforcement(text, root) {
+  const findings = []
+  const biome = existsSync(join(root, 'biome.json')) ? readFileSync(join(root, 'biome.json'), 'utf8') : ''
+  const rows = linesOf(text)
+  const starts = rows.filter(({ line }) => /^\d+\.\s/.test(line))
+  starts.forEach((start, index) => {
+    const end = starts[index + 1]?.number ?? Infinity
+    const enforced = rows.find(({ number, line }) => number > start.number && number < end && /^\s+Enforced by:/.test(line))
+    if (!enforced) {
+      findings.push({ number: start.number, message: 'principle has no `Enforced by:` line' })
+      return
+    }
+    const names = [...enforced.line.matchAll(/`([^`]+)`/g)].map(([, name]) => name)
+    if (names.length === 0) findings.push({ number: enforced.number, message: '`Enforced by:` names no check; name a file, `biome:<rule>`, or the review checklist' })
+    for (const name of names) {
+      const exists = name.startsWith('biome:') ? biome.includes(`"${name.slice('biome:'.length)}"`) : existsSync(join(root, name))
+      if (!exists) findings.push({ number: enforced.number, message: `\`Enforced by:\` names \`${name}\`, which does not exist` })
+    }
+  })
   return findings
 }
 

@@ -80,6 +80,7 @@ export const conexusInstructions = (
     memory: readRawString(requestContext, CONEXUS_PROJECT_MEMORY_KEY),
   })
   // Mastra Code's guidance for this model (`modelSpecificPrompts` in `@mastra/code-sdk`, keyed by the same `<provider>/<model>` id), added after the prompt as `buildFullPromptSections` adds it after the base prompt.
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const modelPrompt = modelId !== undefined && Object.hasOwn(modelSpecificPrompts, modelId) ? modelSpecificPrompts[modelId as keyof typeof modelSpecificPrompts].trim() : ''
   const prompt = modelPrompt ? `${filled.trimEnd()}\n\n${modelPrompt}` : filled
   const conflicts = readTurnConflicts(requestContext)

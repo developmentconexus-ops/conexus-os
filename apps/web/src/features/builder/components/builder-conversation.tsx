@@ -177,7 +177,7 @@ function ToolGroup({ parts, calls }: Readonly<{ parts: readonly ToolInvocationPa
   return <ToolCall status={current ? 'running' : 'idle'}>
     <ToolCallTrigger>
       <ToolCallHeader>
-        <ToolCallIcon>{presentation ? <presentation.icon size={14} strokeWidth={1.75} className="text-icon2" aria-hidden="true" /> : <Check size={14} className="cx-tool-group-check" aria-hidden="true" />}</ToolCallIcon>
+        <ToolCallIcon>{presentation ? <presentation.icon size={14} strokeWidth={1.75} aria-hidden="true" /> : <Check size={14} className="cx-tool-group-check" aria-hidden="true" />}</ToolCallIcon>
         <ToolCallLabel className="max-w-full">{current ? toolSentence(current.toolInvocation.toolName, true) : groupSummary(parts.map((part) => part.toolInvocation.toolName), failed)}</ToolCallLabel>
         {presentation?.detail && <ToolCallDetail>{presentation.detail}</ToolCallDetail>}
         <ToolCallSpacer />

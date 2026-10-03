@@ -34,6 +34,7 @@ async function responseFrom(request: Promise<Response>): Promise<Response> {
 export async function listProjects(workspaceId: string): Promise<ProjectSummary[]> {
   const response = await responseFrom(projectClient.listProjects(workspaceId))
   if (!response.ok) reject(response)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<ProjectSummary[]>
 }
 
@@ -49,8 +50,10 @@ export type ProjectCardSummary = Readonly<{
 export const projectSummariesQueryKey = (workspaceId: string) => ['project-summaries', workspaceId] as const
 
 const getJson = async <T>(url: string): Promise<T> => {
+  // biome-ignore lint/style/noRestrictedGlobals: debt: owning wave
   const response = await responseFrom(fetch(url, { credentials: 'same-origin' }))
   if (!response.ok) reject(response)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<T>
 }
 
@@ -60,6 +63,7 @@ export const listProjectSummaries = async (workspaceId: string): Promise<readonl
 export async function getProject(projectId: string): Promise<ProjectRepresentation> {
   const response = await responseFrom(projectClient.getProject(projectId))
   if (!response.ok) reject(response)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<ProjectRepresentation>
 }
 
@@ -70,6 +74,7 @@ export async function createProject(
 ): Promise<CreateProjectResponse> {
   const response = await responseFrom(projectClient.createProject(workspaceId, input, idempotencyKey))
   if (response.status !== 201) reject(response)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<CreateProjectResponse>
 }
 
@@ -83,6 +88,7 @@ export async function deleteProject(projectId: string, confirmName: string): Pro
   const response = await responseFrom(projectClient.deleteProject(projectId, confirmName))
   if (response.status === 204) return
   if (response.status === 401) clearAuthorityCache()
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const problem = await response.json().catch(() => null) as { type?: string } | null
   throw new ProjectDeleteError(response.status, problem?.type ?? null)
 }

@@ -59,6 +59,7 @@ export const guardedWebFetchTool = createTool({
   inputSchema,
   outputSchema,
   execute: async (input, context) => {
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     const url = outboundUrl((input as { url?: unknown }).url)
     if (!url) return { content: WEB_FETCH_REFUSAL, isError: true }
     try {

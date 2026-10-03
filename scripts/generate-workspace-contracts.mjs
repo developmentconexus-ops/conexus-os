@@ -5,7 +5,7 @@ import { canonicalBytes, sha256 } from '../packages/canonical-json/src/index.mjs
 
 const repositoryRoot = resolve(import.meta.dirname, '..')
 const source = resolve(repositoryRoot, 'contracts/api/product/openapi.yaml')
-const target = resolve(repositoryRoot, 'apps/hub/src/generated/s2-routes.ts')
+const target = resolve(repositoryRoot, 'apps/hub/src/generated/workspace-routes.ts')
 const clientTarget = resolve(repositoryRoot, 'apps/web/src/generated/workspace-client.ts')
 const expectedOperations = [
   { ownerId: 'WS-01', operationId: 'CreateWorkspace', method: 'POST', path: '/api/control/workspaces' },
@@ -14,7 +14,7 @@ const expectedOperations = [
 
 const temporary = mkdtempSync(resolve(dirname(target), '.conexus-s2-wire-'))
 const bundlePath = resolve(temporary, 'openapi.json')
-const stagedTarget = resolve(temporary, 's2-routes.ts')
+const stagedTarget = resolve(temporary, 'workspace-routes.ts')
 const stagedClientTarget = resolve(temporary, 'workspace-client.ts')
 
 try {
@@ -48,7 +48,7 @@ try {
 
   definitions.sort((a, b) => a.ownerId.localeCompare(b.ownerId, 'en'))
   if (definitions.length !== expectedOperations.length || definitions.some((definition, index) => !sameProjection(definition, expectedOperations[index]))) {
-    throw new Error(`S2_ROUTE_CENSUS_OR_OAS_PROJECTION_${definitions.length}`)
+    throw new Error(`WORKSPACE_ROUTE_CENSUS_OR_OAS_PROJECTION_${definitions.length}`)
   }
 
   const sourceDigest = sha256(readFileSync(source))
@@ -60,22 +60,22 @@ try {
     '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-workspace-contracts.mjs. Do not edit.',
     "import type { FastifySchema } from 'fastify'",
     '',
-    `export const S2_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
-    `export const S2_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
-    "export type S2OwnerId = 'WS-01' | 'WS-02'",
+    `export const WORKSPACE_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
+    `export const WORKSPACE_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
+    "export type WorkspaceOwnerId = 'WS-01' | 'WS-02'",
     `export type Ws01Body = ${toTypeScript(byId.get('WS-01').schema.body)}`,
     `export type Ws01Response = ${toTypeScript(byId.get('WS-01').schema.response['201'])}`,
     `export type Ws02Params = ${toTypeScript(byId.get('WS-02').schema.params)}`,
     `export type Ws02Response = ${toTypeScript(byId.get('WS-02').schema.response['200'])}`,
-    "export type S2RouteDefinition = Readonly<{ ownerId: S2OwnerId; operationId: string; method: 'GET' | 'POST'; url: string; schema: FastifySchema }>",
-    `export const S2_GENERATED_ROUTES = Object.freeze(Object.fromEntries(${JSON.stringify(routeDefinitions)}.map((definition) => [definition.ownerId, Object.freeze(definition)])) as unknown as Record<S2OwnerId, S2RouteDefinition>)`,
+    "export type WorkspaceRouteDefinition = Readonly<{ ownerId: WorkspaceOwnerId; operationId: string; method: 'GET' | 'POST'; url: string; schema: FastifySchema }>",
+    `export const WORKSPACE_GENERATED_ROUTES = Object.freeze(Object.fromEntries(${JSON.stringify(routeDefinitions)}.map((definition) => [definition.ownerId, Object.freeze(definition)])) as unknown as Record<WorkspaceOwnerId, WorkspaceRouteDefinition>)`,
     '',
   ].join('\n')
 
   const client = [
     '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-workspace-contracts.mjs. Do not edit.',
-    `export const S2_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
-    `export const S2_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
+    `export const WORKSPACE_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
+    `export const WORKSPACE_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
     `export type WorkspaceSummary = ${toTypeScript(byId.get('WS-02').schema.response['200'])}`,
     `export type CreateWorkspaceInput = ${toTypeScript(byId.get('WS-01').schema.body)}`,
     `export type CreateWorkspaceResponse = ${toTypeScript(byId.get('WS-01').schema.response['201'])}`,
@@ -93,8 +93,8 @@ try {
   writeFileSync(stagedTarget, output, 'utf8')
   writeFileSync(stagedClientTarget, client, 'utf8')
   if (process.argv.includes('--check')) {
-    assertGeneratedTarget(target, output, 'S2_GENERATED_ROUTE_DRIFT')
-    assertGeneratedTarget(clientTarget, client, 'S2_GENERATED_CLIENT_DRIFT')
+    assertGeneratedTarget(target, output, 'WORKSPACE_GENERATED_ROUTE_DRIFT')
+    assertGeneratedTarget(clientTarget, client, 'WORKSPACE_GENERATED_CLIENT_DRIFT')
   } else {
     publishAtomically([
       { staged: stagedTarget, target },

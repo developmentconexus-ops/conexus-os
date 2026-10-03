@@ -6,7 +6,7 @@ import { canonicalBytes, sha256 } from '../packages/canonical-json/src/index.mjs
 
 const repositoryRoot = resolve(import.meta.dirname, '..')
 const source = resolve(repositoryRoot, 'contracts/api/product/openapi.yaml')
-const target = resolve(repositoryRoot, 'apps/hub/src/generated/s1-routes.ts')
+const target = resolve(repositoryRoot, 'apps/hub/src/generated/iam-routes.ts')
 const clientTarget = resolve(repositoryRoot, 'apps/web/src/generated/iam-client.ts')
 const temporary = mkdtempSync(resolve(tmpdir(), 'conexus-s1-wire-'))
 const bundlePath = resolve(temporary, 'openapi.json')
@@ -46,7 +46,7 @@ try {
     }
   }
   definitions.sort((a, b) => a.ownerId.localeCompare(b.ownerId, 'en'))
-  if (definitions.length !== ownerIds.size) throw new Error(`S1_ROUTE_CENSUS_${definitions.length}`)
+  if (definitions.length !== ownerIds.size) throw new Error(`IAM_ROUTE_CENSUS_${definitions.length}`)
   const sourceDigest = sha256(readFileSync(source))
   const projectionDigest = sha256(canonicalBytes(definitions))
   const byId = new Map(definitions.map((definition) => [definition.ownerId, definition]))
@@ -54,9 +54,9 @@ try {
     '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-iam-contracts.mjs. Do not edit.',
     "import type { FastifySchema } from 'fastify'",
     '',
-    `export const S1_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
-    `export const S1_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
-    `export type S1OwnerId = ${[...ownerIds].sort().map((id) => JSON.stringify(id).replaceAll('"', "'")).join(' | ')}`,
+    `export const IAM_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
+    `export const IAM_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
+    `export type IamOwnerId = ${[...ownerIds].sort().map((id) => JSON.stringify(id).replaceAll('"', "'")).join(' | ')}`,
     `export type Iam01Response = ${toTypeScript(byId.get('IAM-01').schema.response['200'])}`,
     `export type Iam03Body = ${toTypeScript(byId.get('IAM-03').schema.body)}`,
     `export type Iam03Response = ${toTypeScript(byId.get('IAM-03').schema.response['201'])}`,
@@ -72,14 +72,14 @@ try {
     `export type RosterEntryParams = ${JSON.stringify({ workspaceId: 'string', entryKind: 'string', entryId: 'string' }).replaceAll('"', '')}`,
     `export type ProjectParams = ${JSON.stringify({ projectId: 'string' }).replaceAll('"', '')}`,
     `export type ApplicationAccessEntryParams = ${JSON.stringify({ projectId: 'string', entryKind: 'string', entryId: 'string' }).replaceAll('"', '')}`,
-    "export type S1RouteDefinition = Readonly<{ ownerId: S1OwnerId; operationId: string; method: 'GET' | 'POST' | 'PUT' | 'DELETE'; path: string; url: string; schema: FastifySchema }>",
-    `export const S1_GENERATED_ROUTES = Object.freeze(Object.fromEntries(${JSON.stringify(definitions)}.map((definition) => [definition.ownerId, Object.freeze(definition)])) as Record<S1OwnerId, S1RouteDefinition>)`,
+    "export type IamRouteDefinition = Readonly<{ ownerId: IamOwnerId; operationId: string; method: 'GET' | 'POST' | 'PUT' | 'DELETE'; path: string; url: string; schema: FastifySchema }>",
+    `export const IAM_GENERATED_ROUTES = Object.freeze(Object.fromEntries(${JSON.stringify(definitions)}.map((definition) => [definition.ownerId, Object.freeze(definition)])) as Record<IamOwnerId, IamRouteDefinition>)`,
     '',
   ].join('\n')
   const client = [
     '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-iam-contracts.mjs. Do not edit.',
-    `export const S1_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
-    `export const S1_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
+    `export const IAM_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
+    `export const IAM_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
     `export type AccountSummary = ${toTypeScript(byId.get('IAM-03').schema.response['201'])}`,
     `export type AccessContext = ${toTypeScript(byId.get('IAM-01').schema.response['200'])}`,
     `export type ProvisionAccountInput = ${toTypeScript(byId.get('IAM-03').schema.body)}`,
@@ -111,8 +111,8 @@ try {
   writeFileSync(stagedTarget, output, 'utf8')
   writeFileSync(stagedClientTarget, client, 'utf8')
   if (process.argv.includes('--check')) {
-    if (!existsSync(target) || readFileSync(target, 'utf8') !== output) throw new Error('S1_GENERATED_ROUTE_DRIFT')
-    if (!existsSync(clientTarget) || readFileSync(clientTarget, 'utf8') !== client) throw new Error('S1_GENERATED_CLIENT_DRIFT')
+    if (!existsSync(target) || readFileSync(target, 'utf8') !== output) throw new Error('IAM_GENERATED_ROUTE_DRIFT')
+    if (!existsSync(clientTarget) || readFileSync(clientTarget, 'utf8') !== client) throw new Error('IAM_GENERATED_CLIENT_DRIFT')
   } else publishAtomically([{ staged: stagedTarget, target }, { staged: stagedClientTarget, target: clientTarget }])
   process.stdout.write(`${JSON.stringify({ sourceDigest, projectionDigest, routes: definitions.length })}\n`)
 } finally {

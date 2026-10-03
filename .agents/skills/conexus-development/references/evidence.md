@@ -38,7 +38,7 @@ always has a code.
   and drives the web UI. Its model and E2B are fake, so it cannot prove a Builder turn.
 - A Builder turn is proved on the local Conexus with a real model and a real E2B sandbox, on a cheap
   model such as Haiku. Every E2B use needs the operator's ok.
-- `npm run rb:builder:live` probes the real E2B sandbox only. It calls no model, so it never proves a
+- `npm run builder:sandbox:live` probes the real E2B sandbox only. It calls no model, so it never proves a
   Builder turn.
 
 ## Reference code and docs
@@ -54,5 +54,5 @@ always has a code.
 
 - `git diff --numstat origin/main...HEAD`: lines added and deleted per file. Read product code apart
   from tests, SQL and generated files. A fix that mostly adds is a smell.
-- `check-patch-churn` (fixes per file in 30 days), `check-weak-tests` (assertions that cannot
-  fail), `knip` (unused code), all in `npm run verify:quick` or CI.
+- `check-patch-churn` (fixes per file in 30 days), `biome ci` (casts, long functions and files; old debt is a
+  `biome-ignore` line naming its wave), `check-empty-tests`, `knip` (unused code), all in `npm run verify:quick` or CI.

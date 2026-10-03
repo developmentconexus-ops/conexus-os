@@ -43,6 +43,7 @@ async function send(call: () => Promise<Response>, expected: number | readonly n
 
 export async function listWorkspaceConnections(workspaceId: string): Promise<readonly ConnectorConnection[]> {
   const response = await send(() => connectorClient.listWorkspaceConnections(workspaceId), 200)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const body = (await response.json()) as { entries: ConnectorConnection[] }
   return body.entries
 }
@@ -52,6 +53,7 @@ export async function createWorkspaceConnection(
   input: CreateWorkspaceConnectionInput,
 ): Promise<ConnectorConnection> {
   const response = await send(() => connectorClient.createWorkspaceConnection(workspaceId, input), [200, 201])
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<ConnectorConnection>
 }
 
@@ -60,6 +62,7 @@ export async function checkWorkspaceConnection(
   connectionId: string,
 ): Promise<CheckWorkspaceConnectionOutcome['outcome']> {
   const response = await send(() => connectorClient.checkWorkspaceConnection(workspaceId, connectionId), 200)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const body = (await response.json()) as CheckWorkspaceConnectionOutcome
   return body.outcome
 }
@@ -70,12 +73,14 @@ export async function disableWorkspaceConnection(workspaceId: string, connection
 
 export async function listProjectConnectionBindings(projectId: string): Promise<readonly ConnectionBindingEntry[]> {
   const response = await send(() => connectorClient.listProjectConnectionBindings(projectId), 200)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const body = (await response.json()) as { entries: ConnectionBindingEntry[] }
   return body.entries
 }
 
 export async function bindProjectConnection(projectId: string, input: BindProjectConnectionInput): Promise<ConnectionBinding> {
   const response = await send(() => connectorClient.bindProjectConnection(projectId, input), 200)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<ConnectionBinding>
 }
 

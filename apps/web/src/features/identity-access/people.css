@@ -1,5 +1,4 @@
 .cx-people { display: grid; gap: .5rem; }
-.cx-people > section:first-of-type .cx-section-title, .cx-people > .cx-people-message + section .cx-section-title { margin-top: 0; }
 .cx-count { margin-left: .35rem; color: var(--cx-text-2); font: 500 .875rem/1 var(--cx-font-body); font-variant-numeric: tabular-nums; }
 .cx-people-message { margin: 0 0 1rem; padding: .75rem 1rem; border: 1px solid color-mix(in srgb, var(--cx-danger) 35%, var(--cx-line)); border-radius: 12px; background: color-mix(in srgb, var(--cx-danger) 7%, var(--cx-surface)); color: var(--cx-danger); }
 .cx-people-empty { margin: 0; padding: 1rem; border: 1px dashed var(--cx-line); border-radius: 12px; color: var(--cx-text-2); }
@@ -23,6 +22,7 @@
 
 .cx-invite { margin-top: 2rem; }
 .cx-invite .cx-section-title { margin-top: 0; margin-bottom: .35rem; }
+.cx-people > section:first-of-type .cx-section-title, .cx-people > .cx-people-message + section .cx-section-title { margin-top: 0; }
 .cx-invite-form { display: grid; grid-template-columns: minmax(0, 1fr) 9rem auto; align-items: end; gap: .75rem; margin: 1rem 0 .5rem; }
 .cx-invite-role { width: 100%; }
 @media (max-width: 36rem) { .cx-invite-form { grid-template-columns: 1fr; } }

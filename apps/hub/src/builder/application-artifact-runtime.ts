@@ -209,8 +209,10 @@ export const checkApplicationInSandbox = async (
     )
   } catch (error) {
     // A script that exits non-zero is raised by E2B as an error that still carries what it printed.
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     const raised = error as Partial<CommandResult>
     if (typeof raised?.stdout !== 'string' || typeof raised.exitCode !== 'number') throw new Error('APPLICATION_CHECK_UNREADABLE', { cause: error })
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     result = { stdout: raised.stdout, stderr: raised.stderr ?? '', exitCode: raised.exitCode } as CommandResult
   }
   if (result.exitCode !== 0) throw new Error('APPLICATION_CHECK_UNREADABLE', { cause: { exitCode: result.exitCode, stderr: redactEvidence(result.stderr.slice(-2_000)) } })

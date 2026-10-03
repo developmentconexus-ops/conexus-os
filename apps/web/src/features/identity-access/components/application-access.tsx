@@ -80,6 +80,7 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
         {access.data.address ? (
           <>
             <code>{access.data.address}</code>
+            {/* biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave */}
             <Button type="button" variant="outline" size="sm" onClick={() => void copyAddress(access.data.address as string)}>
               <Link2 size={16} aria-hidden /> Copiar
             </Button>

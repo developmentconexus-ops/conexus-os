@@ -93,6 +93,7 @@ const useNow = (active: boolean): number => {
   return now
 }
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export function Construir({ projectId, conversationId, accountId, lens, onLensChange, onConversationChange }: Readonly<{
   projectId: string
   conversationId: string

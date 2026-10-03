@@ -735,6 +735,7 @@ async function collectTimings(result, options, env = process.env) {
   return timings
 }
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export async function runCase(options) {
   const rawCase = JSON.parse(readFileSync(resolve(options.case), 'utf8'))
   const caseFile = parseCase(rawCase)

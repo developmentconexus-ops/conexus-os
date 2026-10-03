@@ -75,6 +75,7 @@ export const callerLeft = (reply: FastifyReply): AbortSignal => {
   return left.signal
 }
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const registerPreviewRoutes = async (
   app: FastifyInstance,
   dependencies: PreviewRouteDependencies,

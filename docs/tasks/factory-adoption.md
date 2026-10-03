@@ -109,8 +109,7 @@ company runs its own Conexus installation with its own GitHub App and connects i
   accepted, when generation and tools stopped, and when cleanup ended. It also checks that a late
   result is not admitted. It adds no new cancellation mechanism.
 - **Live coverage.** `tests/implementation/builder-mastra-e2b-live.test.mjs` is skipped and still
-  describes the removed composition. It is rebuilt on the new path, not revived. The failing
-  `rb:first:check` is traced to its exact cause.
+  describes the removed composition. It is rebuilt on the new path, not revived.
 
 ## Carried from the single-owner decisions of 2026-09-22
 

@@ -31,12 +31,14 @@ export const DEFAULT_THINKING_LEVEL: ThinkingLevelSetting = resolveDefaultThinki
  * and `AgentController` restores from the thread when a run's session loads it.
  */
 export const readSessionThinkingLevel = (requestContext: RequestContext | undefined): ThinkingLevelSetting => {
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const level = (requestContext?.get('controller') as ControllerContextValue | undefined)?.getState?.().thinkingLevel
   return isThinkingLevelSetting(level) ? level : DEFAULT_THINKING_LEVEL
 }
 
 /** The model the conversation's session runs on, from the `controller` context `AgentController` sets on every call. */
 export const readSessionModelId = (requestContext: RequestContext | undefined): string | undefined => {
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const modelId = (requestContext?.get('controller') as ControllerContextValue | undefined)?.session?.modelId
   return typeof modelId === 'string' && modelId ? modelId : undefined
 }

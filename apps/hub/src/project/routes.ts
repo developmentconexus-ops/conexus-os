@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { S3_GENERATED_ROUTES } from '../generated/s3-routes.js'
+import { PROJECT_GENERATED_ROUTES } from '../generated/project-routes.js'
 import type {
   Prj01Params,
   Prj02Params,
@@ -7,7 +7,7 @@ import type {
   Prj03Params,
   Prj04Params,
   Prj04Querystring,
-} from '../generated/s3-routes.js'
+} from '../generated/project-routes.js'
 import { sendProblem } from '../http/problem.js'
 import { recordFailure } from '../platform/logger.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
@@ -22,6 +22,7 @@ const driverCode = (error: unknown): string | undefined => {
   return typeof error.code === 'string' ? error.code : undefined
 }
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const registerProjectRoutes = async (
   app: FastifyInstance,
   dependencies: Readonly<{
@@ -31,7 +32,7 @@ export const registerProjectRoutes = async (
   }>,
 ): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03' | 'PRJ-04')[]> => {
   app.route<{ Params: Prj01Params }>({
-    ...S3_GENERATED_ROUTES['PRJ-01'],
+    ...PROJECT_GENERATED_ROUTES['PRJ-01'],
     handler: async (request, reply) => {
       const current = await dependencies.resolveCurrentSession(request)
       if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
@@ -49,7 +50,7 @@ export const registerProjectRoutes = async (
   })
 
   app.route<{ Params: Prj02Params }>({
-    ...S3_GENERATED_ROUTES['PRJ-02'],
+    ...PROJECT_GENERATED_ROUTES['PRJ-02'],
     handler: async (request, reply) => {
       const current = await dependencies.resolveCurrentSession(request)
       if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
@@ -69,7 +70,7 @@ export const registerProjectRoutes = async (
   })
 
   app.route<{ Params: Prj03Params; Body: Prj03Body }>({
-    ...S3_GENERATED_ROUTES['PRJ-03'],
+    ...PROJECT_GENERATED_ROUTES['PRJ-03'],
     handler: async (request, reply) => {
       const csrf = header(request.headers['x-conexus-csrf'])
       if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
@@ -93,6 +94,7 @@ export const registerProjectRoutes = async (
         if (code === 'SOURCE_INPUT_REFUSED') return sendProblem(reply, 422, 'project-source-refused', 'Project source refused')
         if (code === 'REPOSITORY_REFUSED') {
           recordFailure(request.log, 'PROJECT_REPOSITORY_REFUSED', error, { 'conexus.workspace_id': request.params.workspaceId })
+          // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
           return sendProblem(reply, 503, 'project-repository-unavailable', 'Project repository unavailable', (error as ProjectError).reason ?? undefined)
         }
         if (code === 'IDEMPOTENCY_CONFLICT' || code === 'OUTCOME_UNKNOWN') {
@@ -105,7 +107,7 @@ export const registerProjectRoutes = async (
     },
   })
   app.route<{ Params: Prj04Params; Querystring: Prj04Querystring }>({
-    ...S3_GENERATED_ROUTES['PRJ-04'],
+    ...PROJECT_GENERATED_ROUTES['PRJ-04'],
     handler: async (request, reply) => {
       const csrf = header(request.headers['x-conexus-csrf'])
       if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
@@ -128,6 +130,7 @@ export const registerProjectRoutes = async (
         if (code === 'PROJECT_BUSY') return sendProblem(reply, 409, 'project-busy', 'Project is busy building')
         if (code === 'REPOSITORY_REFUSED') {
           recordFailure(request.log, 'PROJECT_REPOSITORY_REFUSED', error, { 'conexus.project_id': request.params.projectId })
+          // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
           return sendProblem(reply, 503, 'project-repository-unavailable', 'Project repository unavailable', (error as ProjectError).reason ?? undefined)
         }
         if (code === 'DELETION_INCOMPLETE') {

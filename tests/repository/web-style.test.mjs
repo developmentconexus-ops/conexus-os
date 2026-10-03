@@ -80,7 +80,7 @@ test('a Conexus class defined in every checked root passes', context => {
   assert.equal(result.status, 0, result.stderr)
 })
 
-test('a class built from a template literal fails unless it is in the allowlist', context => {
+test('a class built from a template literal fails and says to use a literal class map', context => {
   const result = check(tree(context, {
     // biome-ignore lint/suspicious/noTemplateCurlyInString: this fixture's own source is a literal ${tone} for the script to parse, not a JS interpolation
     'apps/web/src/screen.tsx': "export const Screen = ({ tone }) => <div className={`cx-row cx-row-${tone}`} />\n",
@@ -88,18 +88,25 @@ test('a class built from a template literal fails unless it is in the allowlist'
   }))
   assert.equal(result.status, 1)
   // biome-ignore lint/suspicious/noTemplateCurlyInString: asserting the script's own literal ${tone} error text
-  assert.equal(result.stderr, 'apps/web/src/screen.tsx:1: class "cx-row-${tone}" is built dynamically; add it to DYNAMIC_CLASSES in scripts/check-web-style.mjs\n')
+  assert.equal(result.stderr, 'apps/web/src/screen.tsx:1: class "cx-row-${tone}" is built dynamically; map each value to a literal class name\n')
 })
 
-test('an allowlisted dynamic class fails when one of its resolved names has no CSS rule', context => {
+test('a class map counts its classes as used and fails when one has no CSS rule', context => {
   const result = check(tree(context, {
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: this fixture's own source is a literal ${side} for the script to parse, not a JS interpolation
-    'apps/web/src/features/builder/construir/lens-diff.tsx': "export const Cell = ({ side }) => <td className={`cx-dt-n cx-dt-${side}`} />\n",
-    'apps/web/src/features/builder/construir/lens-diff.css': '.cx-dt-n { padding: 0; }\n.cx-dt-add { color: green; }\n',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: this fixture's own source is a literal ${SIDE_CLASS[side]} for the script to parse, not a JS interpolation
+    'apps/web/src/screen.tsx': "const SIDE_CLASS = { add: 'cx-dt-add', del: 'cx-dt-del' } as const\nexport const Cell = ({ side }) => <td className={`cx-dt-n ${SIDE_CLASS[side]}`} />\n",
+    'apps/web/src/screen.css': '.cx-dt-n { padding: 0; }\n.cx-dt-add { color: green; }\n',
   }))
   assert.equal(result.status, 1)
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: asserting the script's own literal ${side} error text
-  assert.equal(result.stderr, 'apps/web/src/features/builder/construir/lens-diff.tsx:1: class "cx-dt-del", resolved from the dynamic "cx-dt-${side}", has no CSS rule under apps/web/src or packages/brand/src\n')
+  assert.equal(result.stderr, 'apps/web/src/screen.tsx:1: class "cx-dt-del" has no CSS rule under apps/web/src or packages/brand/src\n')
+})
+
+test('a class map keeps a defined rule from being reported as unused', context => {
+  const result = check(tree(context, {
+    'apps/web/src/screen.tsx': "const SIDE_CLASS = { add: 'cx-dt-add' } as const\nexport const Cell = ({ side }) => <td className={SIDE_CLASS[side]} />\n",
+    'apps/web/src/screen.css': '.cx-dt-add { color: green; }\n',
+  }))
+  assert.equal(result.status, 0, result.stderr)
 })
 
 test('a class defined in CSS with no .tsx use fails and names the rule', context => {
@@ -144,4 +151,67 @@ test('the CSRF cookie is read only by app/http.ts; a hand reader elsewhere fails
   }))
   assert.equal(result.status, 1)
   assert.equal(result.stderr, 'apps/web/src/features/builder/api.ts:2: reads the CSRF cookie by hand; call hubFetch from apps/web/src/app/http.ts\n')
+})
+
+const screen = (classes, extra = {}) => ({
+  'apps/web/src/styles.css': '@tailwind utilities;\n@theme { --color-brand: red; --breakpoint-2xl: 96rem; }\n',
+  'apps/web/src/local.css': '.local { margin: 0; }\n',
+  'node_modules/@mastra/playground-ui/dist/Slot.css': '.composer-slot { margin: 0; }\n.hover\\:vendor-util:hover { margin: 0; }\n',
+  'apps/web/src/screen.tsx': `export const Screen = () => <div className="${classes}" />\n`,
+  ...extra,
+})
+
+test('a class that is not a Conexus one passes when this app CSS, the Mastra package or the Tailwind build defines it', context => {
+  const result = check(tree(context, screen('local composer-slot hover:vendor-util text-brand flex')))
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('a class with no rule anywhere fails with its location, a typo included', context => {
+  const result = check(tree(context, screen('local text-nope')))
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, 'apps/web/src/screen.tsx:1: class "text-nope" has no rule: not in this app\'s CSS, in node_modules/@mastra/playground-ui/dist or from the Tailwind build; use a cx- class\n')
+})
+
+test('a string a className compares with is a value, not a class', context => {
+  const result = check(tree(context, screen('local', {
+    'apps/web/src/screen.tsx': "export const Screen = ({ tag }: { tag: string }) => <div className={tag === 'plus' ? 'local' : undefined} />\n",
+  })))
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('a class that is only the start of a defined class fails, whichever file defines the longer one', context => {
+  const result = check(tree(context, screen('shell-fram', {
+    'apps/web/src/styles.css': '@tailwind utilities;\n.shell-frame { margin: 0; }\n',
+    'apps/web/src/local.css': '.local { margin: 0; }\n',
+  })))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /^apps\/web\/src\/screen\.tsx:1: class "shell-fram" has no rule/)
+})
+
+test('a Tailwind utility whose escaped selector starts with a digit passes, and an unknown utility fails', context => {
+  assert.equal(check(tree(context, screen('2xl:flex flex'))).status, 0)
+  const result = check(tree(context, screen('2xl:flux')))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /class "2xl:flux" has no rule/)
+})
+
+const withClassName = (expression) => screen('local', { 'apps/web/src/screen.tsx': `export const Screen = ({ x, kind, state }: Props) => <div className={${expression}} />\n` })
+
+test('values inside a condition, a call or an array are not classes', context => {
+  assert.equal(check(tree(context, withClassName("isOpen('open-now') ? 'local' : undefined"))).status, 0)
+  assert.equal(check(tree(context, withClassName("['open', kind].includes(state) ? 'local' : ''"))).status, 0)
+})
+
+test('an unknown class in a branch of a ternary fails, and a known one passes', context => {
+  assert.equal(check(tree(context, withClassName("x ? 'local' : 'text-brand'"))).status, 0)
+  const result = check(tree(context, withClassName("x ? 'local' : 'text-nope'")))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /class "text-nope" has no rule/)
+})
+
+test('a class named only inside :nth-child(... of .class) counts as defined', context => {
+  const result = check(tree(context, screen('local picked', {
+    'apps/web/src/local.css': '.local { margin: 0; }\nli:nth-child(2n of .picked) { margin: 0; }\n',
+  })))
+  assert.equal(result.status, 0, result.stderr)
 })

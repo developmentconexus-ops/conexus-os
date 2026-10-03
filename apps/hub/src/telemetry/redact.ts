@@ -41,6 +41,7 @@ const redactAttributes = <V>(attributes: Readonly<Record<string, V | undefined>>
     if (!allowed(key)) continue
     if (key === 'exception.stacktrace' && typeof value === 'string') {
       const frames = framesOf(value)
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       if (frames !== undefined) kept[key] = frames as V
     } else kept[key] = value
   }

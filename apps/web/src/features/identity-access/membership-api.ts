@@ -32,6 +32,7 @@ async function send(call: () => Promise<Response>, expected: number): Promise<Re
 
 export async function getWorkspaceRoster(workspaceId: string): Promise<WorkspaceRoster> {
   const response = await send(() => iamClient.listWorkspaceMembers(workspaceId), 200)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<WorkspaceRoster>
 }
 
@@ -40,6 +41,7 @@ export async function inviteWorkspaceMember(
   input: InviteWorkspaceMemberInput,
 ): Promise<WorkspaceInvitation> {
   const response = await send(() => iamClient.inviteWorkspaceMember(workspaceId, input), 200)
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<WorkspaceInvitation>
 }
 

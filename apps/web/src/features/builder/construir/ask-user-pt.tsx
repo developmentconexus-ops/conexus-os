@@ -40,6 +40,7 @@ const answerOf = (entry: AskUserQuestionData, draft: Draft): AskUserAnswer | nul
 
 const answerText = (answer: AskUserAnswer | null): string => (Array.isArray(answer) ? answer.join(', ') : answer ?? '')
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 function AskUserPtInput({ questions, isSubmitting = false, onSubmit, footer, ...props }: AskUserPtProps) {
   const id = useId()
   const total = questions.length
@@ -54,6 +55,7 @@ function AskUserPtInput({ questions, isSubmitting = false, onSubmit, footer, ...
   const answers = questions.map((entry, index) => answerOf(entry, drafts[index] ?? emptyDraft))
   const complete = answers.every((answer) => answer !== null)
   const submit = () => {
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     if (complete && !isSubmitting) onSubmit(answers as AskUserAnswer[])
   }
   const next = () => {

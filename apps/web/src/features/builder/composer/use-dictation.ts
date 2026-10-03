@@ -17,6 +17,7 @@ type RecognitionConstructor = new () => Recognition
 
 const recognitionConstructor = (): RecognitionConstructor | null => {
   if (typeof window === 'undefined') return null
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const scope = window as unknown as Readonly<{ SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor }>
   return scope.SpeechRecognition ?? scope.webkitSpeechRecognition ?? null
 }

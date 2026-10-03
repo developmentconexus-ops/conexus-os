@@ -89,6 +89,7 @@ export type BuilderStore = Readonly<{
   close(): Promise<void>
 }>
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createBuilderStore = ({
   ingressPool,
   executorPool,
@@ -144,6 +145,7 @@ export const createBuilderStore = ({
     const result = await executorPool.query<JsonRow<BuilderRunSummary>>(
       'SELECT builder.claim_builder_run($1,$2) AS value', [builderRunId, ownerId],
     ).catch((error: unknown) => {
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       if (typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '42501') {
         throw new Error('BUILDER_RUN_NOT_ADMITTED')
       }

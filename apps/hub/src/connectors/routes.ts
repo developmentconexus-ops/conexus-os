@@ -43,6 +43,7 @@ export type ConnectorRouteDependencies = Readonly<{
   config: Readonly<{ origin: string }>
 }>
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const registerConnectorRoutes = async (
   app: FastifyInstance,
   { store, resolveCurrentSession, isInstallationAdministrator, checkConnection, credentialSchemas, config }: ConnectorRouteDependencies,

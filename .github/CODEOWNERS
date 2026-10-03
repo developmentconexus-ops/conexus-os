@@ -1,4 +1,9 @@
 * @developmentconexus-ops
 /docs/ @developmentconexus-ops
 /.agents/skills/mastra/ @developmentconexus-ops
-/.github/CODEOWNERS @developmentconexus-ops
+/.github/ @developmentconexus-ops
+/scripts/ @developmentconexus-ops
+/biome.json @developmentconexus-ops
+tsconfig*.json @developmentconexus-ops
+/package.json @developmentconexus-ops
+/package-lock.json @developmentconexus-ops

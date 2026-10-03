@@ -78,8 +78,8 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'wire-technical-ingress',
   'log-codes-check',
   'test-census',
+  'empty-tests',
   'flow-census',
-  'weak-tests-ratchet',
   'test-quarantine',
   'patch-churn-report',
   'hub-baseline',
@@ -161,9 +161,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'builder-credential-generation',
   'builder-first-operational-delivery',
   'builder-planning-free-boot',
-  'builder-eval',
   'live-builder',
-  'builder-eval-postgres',
   'protected-cluster-coverage',
   'conexus-backup',
   'only-opt-in-skips',
@@ -300,7 +298,7 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
     'historical Builder verifier suite is not a current MVP blocker')
   assert.equal(commands.filter(command => command.includes('node scripts/builder-e2b-template.mjs --check')).length, 1,
     'the existing E2B template check remains part of the current Builder proof')
-  assert.equal(commands.filter(command => command.startsWith('npx --no-install biome ci .')).length, 1)
+  assert.equal(commands.filter(command => command.startsWith('npx --no-install biome ci . --error-on-warnings')).length, 1)
   const leavesRunning = (file) => CANDIDATE_GRAPH.filter(entry => entry.command.split(' ').includes(file)).map(({ scope, environmentClass }) => [scope, environmentClass])
   assert.deepEqual(leavesRunning('tests/implementation/connector-fetch.test.mjs'), [['connector-broker', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/connector-handler-fetch.test.mjs'), [['connector-broker', 'static']])
@@ -317,16 +315,14 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
   assert.deepEqual(leavesRunning('tests/implementation/builder-parallel-tools.test.mjs'), [['run-runtime', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-run-timing.test.mjs'), [['run-runtime', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-turn-stall.test.mjs'), [['run-runtime', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-eval-oracle.test.mjs'), [['builder-eval', 'browser']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-eval-person.test.mjs'), [['builder-eval', 'browser']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-eval-timing.test.mjs'), [['builder-eval', 'browser']])
+  assert.deepEqual(leavesRunning('tests/implementation/builder-eval-oracle.test.mjs'), [], 'the Builder lab is opt-in, not a CI step')
   assert.deepEqual(leavesRunning('tests/implementation/builder-skill-manifest-vocabulary.test.mjs'), [['builder-skills-guard', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-plan-sections.test.mjs'), [['builder-browser', 'browser']])
   assert.deepEqual(leavesRunning('tests/implementation/builder-anthropic.test.mjs'), [['anthropic', 'static']])
   assert.deepEqual(leavesRunning('tests/implementation/connector-fetch-postgres.test.mjs'), [['connector-broker-postgres', 'postgres']],
     'a PostgreSQL suite outside a postgres leaf would skip')
   const biomeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'biome').command
-  assert.equal(biomeCommand, 'npx --no-install biome ci .')
+  assert.equal(biomeCommand, 'npx --no-install biome ci . --error-on-warnings')
   assert.equal(commands.filter(command => command.startsWith('node node_modules/vite/bin/vite.js build --config apps/web/vite.config.mjs apps/web')).length, 1)
   assert.equal(commands.filter(command => command === 'npm run repository:check').length, 1)
   assert.equal(commands.filter(command => command === 'npm run repository:check:extended').length, 0)
@@ -343,9 +339,6 @@ test('candidate graph flattens equivalent leaves while preserving distinct proof
 
   const builderBrowser = CANDIDATE_GRAPH.find(entry => entry.scope === 'builder-browser')
   assert.equal(builderBrowser.command.includes('tests/implementation/builder-transcript.test.mjs'), true)
-  const builderEval = CANDIDATE_GRAPH.find(entry => entry.scope === 'builder-eval')
-  assert.equal(builderEval.command.includes('tests/implementation/builder-eval-run.test.mjs'), true)
-  assert.equal(builderEval.environmentClass, 'browser')
   const appCheck = CANDIDATE_GRAPH.find(entry => entry.scope === 'application-compiler-runtime')
   assert.equal(appCheck.command.includes('tests/implementation/builder-application-check.test.mjs'), true)
   assert.equal(appCheck.environmentClass, 'browser')
@@ -430,7 +423,7 @@ test('candidate graph labels execution environments and passes shell argv correc
       stdio: ['ignore', 'inherit', 'inherit'],
       timeout: STEP_TIMEOUT_MS,
       killSignal: 'SIGKILL',
-      env: { PATH: '/fixture/bin' },
+      env: { PATH: '/fixture/bin', CONEXUS_VERIFY_STEP_CLASS: 'static' },
     },
   })
 
@@ -442,6 +435,7 @@ test('candidate graph labels execution environments and passes shell argv correc
     CONEXUS_TEST_DB_NAME: 'conexus_test',
     CONEXUS_TEST_DB_USER: 'postgres',
     CONEXUS_TEST_DB_PASSWORD: 's6-ci-test-only',
+    CONEXUS_VERIFY_STEP_CLASS: 'postgres',
   })
   const selectedPostgres = {
     CONEXUS_TEST_DB_HOST: 'db.internal',
@@ -450,10 +444,10 @@ test('candidate graph labels execution environments and passes shell argv correc
     CONEXUS_TEST_DB_USER: 'runner',
     CONEXUS_TEST_DB_PASSWORD: 'opaque',
   }
-  assert.deepEqual(executionEnvironment(postgresStep, selectedPostgres), selectedPostgres)
+  assert.deepEqual(executionEnvironment(postgresStep, selectedPostgres), { ...selectedPostgres, CONEXUS_VERIFY_STEP_CLASS: 'postgres' })
   const connectorBrowser = CANDIDATE_GRAPH.find(entry => entry.scope === 'connector-integrations-browser')
   assert.equal(connectorBrowser.environmentClass, 'browser-postgres')
-  assert.deepEqual(executionEnvironment(connectorBrowser, { PATH: '/fixture/bin' }), postgresDefaults)
+  assert.deepEqual(executionEnvironment(connectorBrowser, { PATH: '/fixture/bin' }), { ...postgresDefaults, CONEXUS_VERIFY_STEP_CLASS: 'browser-postgres' })
   assert.throws(
     () => executionEnvironment(postgresStep, { CONEXUS_TEST_DB_HOST: 'db.internal' }),
     /requires either all CONEXUS_TEST_DB_\* values or none/,
@@ -469,6 +463,7 @@ test('every step records its skips into one fresh ledger per run', () => {
   const instrumentation = {
     CONEXUS_TEST_LEDGER_ROOT: '/work/conexus-os',
     CONEXUS_TEST_LEDGER: '/tmp/conexus-test-ledger-fixture.jsonl',
+    CONEXUS_VERIFY_STEP_CLASS: 'static',
   }
 
   assert.deepEqual(executionEnvironment(staticStep, { PATH: '/fixture/bin' }, ledger), {
@@ -486,6 +481,7 @@ test('every step records its skips into one fresh ledger per run', () => {
   })
   assert.deepEqual(executionEnvironment(postgresStep, {}, ledger), {
     ...instrumentation,
+    CONEXUS_VERIFY_STEP_CLASS: 'postgres',
     NODE_OPTIONS: REPORTER_OPTIONS,
     CONEXUS_TEST_DB_HOST: '127.0.0.1',
     CONEXUS_TEST_DB_PORT: '5432',
@@ -568,12 +564,12 @@ test('the docs graph is the docs checks, in graph order, and still ends with the
   assert.deepEqual(result.records.map(record => record.scope), DOCS_GRAPH.map(entry => entry.scope))
 })
 
-test('the quick graph is the knip, biome, log code registry, test census, flow census and weak-test ratchet checks, all static and fast-checked', () => {
-  assert.deepEqual(QUICK_GRAPH.map(entry => entry.scope), ['import-law-check', 'knip', 'biome', 'log-codes-check', 'test-census', 'flow-census', 'weak-tests-ratchet', 'test-quarantine', 'patch-churn-report'])
+test('the quick graph is both typechecks, the repository, style and contract projection checks and the lint, census and ratchet checks, all static and fast-checked', () => {
+  assert.deepEqual(QUICK_GRAPH.map(entry => entry.scope), ['hub-typecheck', 'web-typecheck', 'repository-check', 'import-law-check', 'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector', 'knip', 'biome', 'web-style', 'log-codes-check', 'test-census', 'empty-tests', 'flow-census', 'test-quarantine', 'patch-churn-report'])
   assert.equal(QUICK_GRAPH.every(entry => entry.environmentClass === 'static'), true)
   assert.equal(QUICK_GRAPH.every(entry => FAST_CHECK_SCOPES.includes(entry.scope)), true)
   const result = runVerification({ processEnvironment: {}, scopes: ['candidate-quick'], packageScripts, dryRun: true })
-  assert.deepEqual(result.records.map(record => record.scope), ['import-law-check', 'knip', 'biome', 'log-codes-check', 'test-census', 'flow-census', 'weak-tests-ratchet', 'test-quarantine', 'patch-churn-report'])
+  assert.deepEqual(result.records.map(record => record.scope), ['hub-typecheck', 'web-typecheck', 'repository-check', 'import-law-check', 'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector', 'knip', 'biome', 'web-style', 'log-codes-check', 'test-census', 'empty-tests', 'flow-census', 'test-quarantine', 'patch-churn-report'])
 })
 
 test('step summary is a markdown table sorted slowest first with each share of the total', () => {

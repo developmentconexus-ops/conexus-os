@@ -37,7 +37,9 @@ const validateKey = ({ id, key }: FactorySecretEncryptionKey): Buffer => {
 
 const isEnvelopeShaped = (value: unknown): value is Envelope =>
   typeof value === 'object' && value !== null &&
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   typeof (value as Envelope).keyId === 'string' && typeof (value as Envelope).iv === 'string' &&
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   typeof (value as Envelope).ciphertext === 'string' && typeof (value as Envelope).tag === 'string'
 
 const parseEnvelope = (value: string): Envelope => {
@@ -77,6 +79,7 @@ export const createFactorySecretEncryption = (config: FactorySecretEncryptionCon
     },
     async decrypt<T>(value: unknown): Promise<DecryptedFactorySecret<T>> {
       if (typeof value !== 'string' || !value.startsWith(ENVELOPE_PREFIX)) {
+        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
         return { value: structuredClone(value) as T, needsReencryption: true }
       }
       const envelope = parseEnvelope(value)
@@ -86,6 +89,7 @@ export const createFactorySecretEncryption = (config: FactorySecretEncryptionCon
         const decipher = createDecipheriv(ALGORITHM, key, Buffer.from(envelope.iv, 'base64url'))
         decipher.setAuthTag(Buffer.from(envelope.tag, 'base64url'))
         const plaintext = Buffer.concat([decipher.update(Buffer.from(envelope.ciphertext, 'base64url')), decipher.final()]).toString('utf8')
+        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
         return { value: JSON.parse(plaintext) as T, needsReencryption: envelope.keyId !== config.primary.id }
       } catch {
         throw new Error('[FactorySecretEncryption] Unable to decrypt encrypted value.')

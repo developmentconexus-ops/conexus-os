@@ -16,6 +16,7 @@ import { createWorkspaceModule } from './workspace/module.js'
 
 // Mastra is loaded only after the production entrypoint has disabled its
 // optional telemetry. Keep this before the dynamic Project-module import.
+// biome-ignore lint/style/noProcessEnv: debt: owning wave
 process.env.MASTRA_TELEMETRY_DISABLED = '1'
 const { createConfiguredProjectModule } = await import('./project/module.js')
 const { createConfiguredBuilderModule } = await import('./builder/module.js')
@@ -23,6 +24,7 @@ const { createConfiguredBuilderModule } = await import('./builder/module.js')
 export type HubPorts = Pick<Parameters<typeof createConfiguredBuilderModule>[0], 'conversationSandboxes'>
 
 /** Composes and starts the Hub. The ports are what a test stands in for; the production entry passes none. */
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promise<Readonly<{ close(): Promise<void> }>> => {
   const config = readHubConfig()
   const mainConnection = {

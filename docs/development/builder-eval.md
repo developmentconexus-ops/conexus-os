@@ -14,6 +14,13 @@ scripts and their options.
   Project and a private GitHub repository.
 - Keep the disk above 20 GB free. Each run adds traces to the Hub database.
 
+## Test the lab itself
+
+CI does not run the lab's own tests. After you change `scripts/builder-eval/`, run
+`npm run builder:eval`; `npm run builder:eval:postgres` runs the one test that needs the
+`CONEXUS_TEST_DB_*` PostgreSQL. The test census reads both scripts, so a lab test left out of them
+fails `npm run verify:quick`.
+
 ## Start the three local services
 
 Run each command in its own terminal, from a checkout of this repository.

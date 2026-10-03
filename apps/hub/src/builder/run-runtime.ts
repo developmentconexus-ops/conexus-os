@@ -11,7 +11,7 @@ import { SERVER_BUILD_SCRIPT_PATH, serverBuildScriptSource } from './application
 import { buildCandidateServer, createOperationRunner } from './run-operation.js'
 import type { CandidateOperationPorts, RunOperation } from './run-operation.js'
 import { CONVERSATION_ID_KEY, RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } from './model-routing.js'
-import { candidateSnapshot, mirrorSnapshot, pullSnapshot, startCheckout } from './conexus-git.js'
+import { candidateSnapshot, mirrorSnapshot, pullSnapshot, quoted, startCheckout } from './conexus-git.js'
 import type { ConexusGit, RunSourceSandbox } from './conexus-git.js'
 import { projectResourceId } from './conversations.js'
 import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_PROJECT_NEW_KEY, CONEXUS_TURN_CONFLICTS_KEY, CONEXUS_TURN_DATE_KEY, type RunTools } from './harness/index.js'
@@ -182,8 +182,6 @@ const materializeRunStarter: NonNullable<BuilderRunPorts['materializeStarter']> 
 const SEED_ROOT = '/var/lib/conexus-seed'
 const BUILD_ROOT = '/var/lib/conexus-build'
 
-const quoted = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
-
 const MIRROR_DEBOUNCE_MS = 5_000
 // A turn-end mirror after a failure waits no longer than this before the sandbox pauses.
 const FAILED_TURN_MIRROR_MS = 30_000
@@ -194,8 +192,8 @@ const APPLICATION_TREE_LIMITS = 'tree failed:\napp/ precisa de app/index.html; a
 
 type TurnMirror = Readonly<{
   schedule(): void
-  /** The turn-end mirror: the candidate when the turn made one, else a snapshot of the checkout. Answers the mirror's head. */
-  end(candidate: string | null): Promise<string | null>
+  /** The turn-end mirror: the candidate when the turn made one, else a snapshot of the checkout (the `pulled` candidate itself when its tree is unchanged). Answers the mirror's head. */
+  end(candidate: string | null, pulled?: string | null): Promise<string | null>
   /** Ends the turn's mirror without a new write, for a sandbox that is gone. Settles once the write in flight has. */
   abandon(): Promise<void>
 }>
@@ -228,11 +226,12 @@ const createTurnMirror = ({ git, projectId, conversationId, turnStart, head, sou
     chain = chain.then(work).catch(fail)
     return chain
   }
-  const snapshot = async (): Promise<void> => {
+  const snapshot = async (pulled?: string | null): Promise<void> => {
     const next = await pullSnapshot({
       git, projectId, snapshot: mirrorSnapshot(conversationId, turnStart), expected, unchangedFrom: written ?? turnStart,
-      scratch: 'mirror', sandbox: source, checkout: SANDBOX_CHECKOUT, excluded,
+      ...(pulled ? { sameAs: pulled } : {}), scratch: 'mirror', sandbox: source, checkout: SANDBOX_CHECKOUT, excluded,
     })
+    if (next && next === pulled) await git.moveMirror(projectId, conversationId, { expected, next })
     if (next) expected = written = next
   }
   const stop = (): void => {
@@ -253,10 +252,10 @@ const createTurnMirror = ({ git, projectId, conversationId, turnStart, head, sou
         })
       }, debounceMs)
     },
-    end: (candidate) => {
+    end: (candidate, pulled) => {
       stop()
       ended ??= serial(async () => {
-        if (!candidate) return snapshot()
+        if (!candidate) return snapshot(pulled)
         await git.moveMirror(projectId, conversationId, { expected, next: candidate })
         expected = candidate
       }).then(() => expected)
@@ -307,6 +306,7 @@ const WARM_PARKED_MS = 30 * 60_000
 /** What a parked run keeps in memory for its answer. */
 type WarmParked = Readonly<{ builderRunId: string; session: RunSession; sandbox: RunSandbox; paused: Promise<void>; timer: ReturnType<typeof setTimeout> }>
 
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRuntime => {
   // By conversation: one run of a Project at a time, so one parked run per conversation.
   const warm = new Map<string, WarmParked>()
@@ -361,6 +361,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
     await Promise.all(conversations.map((conversationId) => evict(conversationId, 'HEAP')))
     return conversations.length
   }
+  // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
   const execute: BuilderRunRuntime['execute'] = async (input) => {
     if (!UUID.test(input.executionId) || !UUID.test(input.projectId) || !UUID.test(input.conversationId) ||
       !OID.test(input.baseSourceRevision) || !input.intent.trim()) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
@@ -397,9 +398,10 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       ports.log(`BUILDER_MIRROR_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
     }
     let mirrorEnded: Promise<void> | undefined
+    let pulled: string | null = null
     const endMirror = (candidate: string | null): Promise<void> => {
       mirrorEnded ??= (async () => {
-        const head = await mirror?.end(candidate)
+        const head = await mirror?.end(candidate, pulled)
         if (head) await input.recordMirror(head).catch(mirrorFailed)
       })()
       return mirrorEnded
@@ -568,7 +570,6 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         if (boot) ports.log(`BUILDER_CHECK_BOOT_PROBLEMS:${input.executionId}:${JSON.stringify(boot.problems).slice(0, 2_000)}`)
         return verdict
       }
-      let pulled: string | null = null
       const gate = createCandidateGate({
         // A checkout back at the turn's start is no change; one the agent left as it was reuses the
         // revision already pulled, so its verdict is not checked again.
@@ -735,6 +736,7 @@ type RecordedMessage = Readonly<{ id: string; role?: string; content?: unknown }
 
 /** Mastra's completion-check feedback: written as an assistant message, but it is the gate speaking, not the Builder. */
 const isCompletionCheck = (message: RecordedMessage): boolean => {
+  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const metadata = (message.content as { metadata?: { completionResult?: unknown } } | undefined)?.metadata
   return metadata?.completionResult !== undefined
 }
@@ -789,6 +791,7 @@ export const conversationRunScope = (conversationId: string): string => `builder
  * session until it is deleted, so the run deletes its own, and a parked run keeps it for the answer;
  * the thread, which holds the conversation, is in storage.
  */
+// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createControllerRunSessions = ({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel, turnSilenceMs = TURN_SILENCE_MS }: Readonly<{
   controller: AgentController
   /** How long a working turn may go without an event before it settles as `BUILDER_AGENT_STALLED`. */
@@ -804,6 +807,7 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
 }>): BuilderRunPorts['openSession'] => {
   /** The run that owns each scope now. Two runs on one conversation can share one session object, so only the owner may end it. */
   const owners = new Map<string, string>()
+  // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
   return async ({ projectId, conversationId, builderRunId, workspace, bindContext, runCheck, runOperation, gate }) => {
   const resourceId = projectResourceId(projectId)
   const scope = conversationRunScope(conversationId)
@@ -882,9 +886,11 @@ export const createControllerRunSessions = ({ controller, runContexts, conversat
     try {
       working()
       const reason: string = await within(sendBuilderSessionMessage(session, step, requestContext)) ?? 'unknown'
+      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       const messages = await within(session.thread.listActiveMessages()) as readonly RecordedMessage[]
       userMessageId ??= [...messages].reverse().find(isUserAuthoredMessage)?.id
       const summary = messages.slice(messages.findIndex((message) => message.id === userMessageId) + 1)
+        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
         .filter((message) => message.role === 'assistant' && !isCompletionCheck(message)).map((message) => messageText(message as Parameters<typeof messageText>[0])).filter(Boolean).join('\n')
       return { reason, userMessageId, summary }
     } catch (error) {

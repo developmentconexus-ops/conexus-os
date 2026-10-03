@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  browserTestsOutsideBrowserSteps,
   checkTestCensus,
   collectReachableTests,
   unreachedMessage,
@@ -85,4 +86,40 @@ test('a *.spec.mjs outside the graph and the exempt list is unreached', () => {
     committedTests: ['tests/implementation/stray.spec.mjs', 'tests/implementation/builder-e2b-live.test.mjs'],
   })
   assert.deepEqual(result.unreached, ['tests/implementation/stray.spec.mjs'])
+})
+
+const sources = {
+  'tests/implementation/direct.test.mjs': "import { chromium } from 'playwright'\n",
+  'tests/implementation/scoped.test.mjs': "import { expect } from '@playwright/test'\n",
+  'tests/implementation/plain.test.mjs': "import assert from 'node:assert/strict'\n",
+}
+const readText = (path) => {
+  if (!Object.hasOwn(sources, path)) throw new Error(`no such file ${path}`)
+  return sources[path]
+}
+
+test('browserTestsOutsideBrowserSteps names a test that imports Playwright, in a static step', () => {
+  const candidateGraph = [
+    { scope: 'rest-step', environmentClass: 'static', command: 'node --test tests/implementation/direct.test.mjs tests/implementation/scoped.test.mjs tests/implementation/plain.test.mjs' },
+  ]
+  assert.deepEqual(browserTestsOutsideBrowserSteps({ candidateGraph, packageScripts: {}, readText }), [
+    { test: 'tests/implementation/direct.test.mjs', step: 'rest-step', environmentClass: 'static' },
+    { test: 'tests/implementation/scoped.test.mjs', step: 'rest-step', environmentClass: 'static' },
+  ])
+})
+
+test('browserTestsOutsideBrowserSteps accepts a Playwright test in a browser, browser-postgres or live step', () => {
+  const candidateGraph = ['browser', 'browser-postgres', 'live'].map((environmentClass) => ({
+    scope: environmentClass,
+    environmentClass,
+    command: 'node --test tests/implementation/direct.test.mjs tests/implementation/scoped.test.mjs',
+  }))
+  assert.deepEqual(browserTestsOutsideBrowserSteps({ candidateGraph, packageScripts: {}, readText }), [])
+})
+
+test('a test run only by an optional package script is reached, and one left out of it is not', () => {
+  const committedTests = ['tests/implementation/lab-a.test.mjs', 'tests/implementation/lab-b.test.mjs']
+  const packageScripts = { 'lab:run': 'node --test tests/implementation/lab-a.test.mjs' }
+  const result = checkTestCensus({ root: '.', candidateGraph: [], packageScripts, committedTests, optionalScripts: ['lab:run'] })
+  assert.deepEqual(result.unreached, ['tests/implementation/lab-b.test.mjs'])
 })
