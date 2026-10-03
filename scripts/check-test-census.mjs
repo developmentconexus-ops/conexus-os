@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { BROWSER_CLASSES } from './conexus-verify.mjs'
 
-// What a test file is, for the census and for the ratchets alike.
+// What a test file is, for the census and for the empty-test check.
 export const TEST_FILE = /\.(?:test|spec)\.mjs$/
 
 export const EXEMPT_TESTS = Object.freeze([
