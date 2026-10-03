@@ -176,7 +176,7 @@ test that seals with the installed `@mastra/factory` and asserts the prefix the 
 
 On the pilot, with evidence of each request and answer:
 
-- rerun every Q3.6 negative case with `scripts/q3-negative-proof.mjs`;
+- rerun every Q3.6 negative case;
 - a handoff presented on another application's host answers 403, then redeems on its own host
   inside 60 s; from another browser without the binding it answers 403;
 - a Preview opened, the Hub restarted, the Preview still served without signing in again;

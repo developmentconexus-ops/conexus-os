@@ -53,7 +53,7 @@ The theme follows `prefers-color-scheme` unless the person picks one with the to
 CONEXUS_SCREENSHOT_DIR=/tmp/shots node --test --test-concurrency=1 tests/implementation/project-browser.test.mjs
 ```
 
-Copy its `shoot()` helper when another suite needs the same. Put the before and after screenshots in the pull request. Commit them under `docs/evidence/screens/<topic>/` only when a later reader needs them, as `tests/implementation/settings-screenshots.mjs` does for Settings.
+Copy its `shoot()` helper when another suite needs the same. Put the before and after screenshots in the pull request. Commit them under `docs/evidence/screens/<topic>/` only when a later reader needs them.
 
 ## Accessibility basics
 

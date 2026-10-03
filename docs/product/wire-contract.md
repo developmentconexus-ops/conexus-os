@@ -462,17 +462,7 @@ canonical Product OAS / exact Project declaration
 -X-> frontend/client error taxonomy that redefines the wire
 ```
 
-Current executable proof adds two build-only mechanisms:
 
-```text
-scripts/generate-wire-projection.mjs
-→ tool-neutral deterministic historical 111-operation projection manifest
-
-scripts/run-kubb-wire-probe.mjs
-→ isolated /tmp real-OAS codegen probe
-→ Kubb 5.0.0 + TypeScript 7.0.2
-→ TypeScript + Fetch only
-```
 
 The real-OAS probe requires:
 
