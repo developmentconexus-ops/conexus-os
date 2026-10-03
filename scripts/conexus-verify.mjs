@@ -270,7 +270,7 @@ export const DOCS_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => DOCS_CHEC
 
 // The fast check to run before every push: the static gates CI otherwise reports minutes later, with
 // no Docker, browser or network.
-export const QUICK_CHECK_SCOPES = Object.freeze(['log-codes-check', 'test-census', 'flow-census', 'knip', 'weak-tests-ratchet', 'test-quarantine', 'patch-churn-report', 'import-law-check'])
+export const QUICK_CHECK_SCOPES = Object.freeze(['log-codes-check', 'test-census', 'flow-census', 'knip', 'biome', 'weak-tests-ratchet', 'test-quarantine', 'patch-churn-report', 'import-law-check'])
 
 export const QUICK_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => QUICK_CHECK_SCOPES.includes(step.scope)))
 
