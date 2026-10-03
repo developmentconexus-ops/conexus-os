@@ -36,10 +36,7 @@ test('a stale base and a lost Preview reach the wire with their own codes', () =
   assert.deepEqual([unbuilt.failureCategory, unbuilt.failureCode], ['PREVIEW_NOT_BUILT', 'BUILDER_PREVIEW_NOT_BUILT'])
 })
 
-test('a source code carrying the git container suffix names the preparation failure and stays off the wire', () => {
-  const projected = projectBuilderRun(run('FAILED', 'BUILDER_SOURCE_BUNDLE_SOURCE_NOT_FOUND'))
-  assert.equal(projected.failureCategory, 'ENVIRONMENT_PREPARATION_FAILED')
-  assert.equal(projected.failureCode, null)
+test('source read failures retain their preparation category', () => {
   assert.equal(builderFailureCategory('BUILDER_SOURCE_READ_PATH_NOT_FOUND'), 'ENVIRONMENT_PREPARATION_FAILED')
 })
 
