@@ -70,7 +70,7 @@ operator. The [stop conditions](../../../docs/development/delivery.md#stop-then-
 
 ## Delegate
 
-Code subagents run on Sonnet; Opus only for design across modules, concurrency, a subtle algorithm
+Code subagents run on Sonnet 5.5; Opus 5.5 only for design across modules, concurrency, a subtle algorithm
 or security, with the reason in the prompt. The operator's `~/.claude/pstack-models.md` overrides
 this. The root session reads every delegate's diff and writes its own summary from it. A delegate
 prompt points at files, names its worktree and its disjoint file set, forbids merge, reset, clean,
