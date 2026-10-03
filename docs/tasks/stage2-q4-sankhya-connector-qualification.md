@@ -1,8 +1,9 @@
 # Stage 2 Q4 — Connector qualification, with Sankhya as the first integrator
 
 **Status:** CLOSED on 2026-10-02 with verdict ACCEPT_WITH_BOUNDARY, frozen for the operator's
-decision ([evidence and verdict](../evidence/stage2-q4/README.md#verdict)). Kept as a record.
-Prepared on 2026-09-24 and amended on 2026-09-28: the question is connector-generic (next section).\
+decision ([evidence and verdict](../evidence/stage2-q4/README.md#verdict)) and accepted under the
+operator's amendment of 2026-10-03 (next section). Kept as a record.
+Prepared on 2026-09-24 and amended on 2026-09-28: the question is connector-generic.\
 **Type:** enterprise-credential and trust-boundary qualification (Q-a: the roadmap names it as a
 gate; Q-b: it creates a new runtime authority over an enterprise credential; Q-c: the real read and
 the pilot proof outlive the pull request)\
@@ -10,6 +11,23 @@ the pilot proof outlive the pull request)\
 **Review:** one independent review of the frozen candidate before merge, per
 `docs/development/delivery.md`\
 **Aprovo:** required. The change adds custody of a company credential and a Project binding.
+
+## Amendment, 2026-10-03: the operator closes Q4 on the frozen evidence
+
+The operator accepted the frozen verdict on 2026-10-03 and amended the evidence bar below for this
+gate. Four required proofs did not run on the pilot. Each is scoped out of Q4 with its boundary and
+the work that owns it next.
+
+| Proof | Boundary accepted for Q4 | Owner next |
+| --- | --- | --- |
+| Refusal of another Project and of a removed binding, on the pilot | Proved in CI against a fake vendor and real PostgreSQL (#477), not on the pilot | The Q5 task, whose employee proof runs on the pilot |
+| The Q4.11 leak scan, including the sandbox's files and process arguments | The marker run and the business-value scan pass in CI; the scan did not run as a script on the pilot | The sandbox allowlist of C-023 in phase 2 of the [order of work](../roadmap.md#order-of-work-to-q5) |
+| The rendered page and a non-developer app user's view | The browser routes serve only the projection (CI); no person saw the built screen | The screen check that opens phase 2, then the Q5 employee proof |
+| The application named before the run | Waived. The application was named in the request that started the build | None |
+
+The read-only confirmation stays the boundary the amendment of 2026-09-28 names. The same day, the
+size rule below was corrected to what `main` does since #369: the executor refuses an oversized
+answer with `RESPONSE_TOO_LARGE` and returns no vendor byte.
 
 ## Amendment, 2026-09-28: the question is connector-generic
 
@@ -78,7 +96,7 @@ operations. These rows change:
 | --- | --- | --- |
 | P3 | A consumer names a bound Connection and a native request. It cannot name a host, a scheme, a header or a token. The executor resolves the path against the Connection's pinned origin, and sends the request only when the resolved URL's origin equals the pinned origin. A check of the raw path string is not enough, because URL resolution reads a leading backslash as a slash, and it drops leading spaces and tabs. So `\\host`, `/\host`, `\/host`, and `//host` after a leading space, all resolve to another host. | A native request names vendor services and entities on purpose. |
 | P4 | The executor sends only the integrator's qualified read services and refuses every other service and a mismatched Sankhya `serviceName` before the network. It never follows a redirect. It is a tripwire. The read-only guarantee is the vendor-side principal. | C-030 moves the read boundary to the vendor. A fixed field list no longer exists. |
-| P5 | The executor bounds the response size, the call time and the calls per Builder run, and marks a truncated body. | The vendor's body passes through. No output contract drops fields. |
+| P5 | The executor bounds the response size, the call time and the calls per Builder run, and refuses an oversized body with `RESPONSE_TOO_LARGE`. | The vendor's body passes through. No output contract drops fields. |
 | P6 | Authority is resolved per call from the consumer's context and the Project's bindings. Nothing in the request changes the Project, the environment or the Connection. | Bindings replace operation grants. |
 | P7 | A binding can only reference a Connection of its Project's own Workspace. | Bindings replace grants. |
 | P8 | Removing a binding refuses the next call. Disabling a Connection ends its bindings and refuses the next call of every Project. | Bindings replace grants. |
@@ -151,8 +169,8 @@ the Mastra Factory, on the app stack v2, which the operator accepted as C-032 an
   a write service, a mismatched `serviceName`, an absolute URL, a path that starts with `//host`,
   `\\host`, `/\host` or `\/host`, the same prefixes after a leading space or tab, a consumer header,
   another Project, a missing or removed binding, a disabled Connection, an expired run scope and an
-  exhausted budget. The executor does not follow a vendor redirect, and it cuts a response over the
-  size limit and marks it truncated. Each refusal has a successful control in the same run. The
+  exhausted budget. The executor does not follow a vendor redirect, and it refuses a response over
+  the size limit with `RESPONSE_TOO_LARGE` and returns no vendor byte. Each refusal has a successful control in the same run. The
   origin cases have their own control: a relative path that resolves inside the pinned origin is
   sent. The proof asserts the resolved origin of every sent request, not the raw path, and a fake
   host outside the pinned origin counts zero requests. On the pilot, another Project and a removed binding are refused.

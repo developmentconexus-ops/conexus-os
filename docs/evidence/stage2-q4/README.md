@@ -5,7 +5,10 @@
 ## Verdict
 
 **ACCEPT_WITH_BOUNDARY**, frozen on 2026-10-03 UTC (2026-10-02 in the operator's time, -03:00) for the operator's decision (task section 11,
-point 6). Every time below is UTC.
+point 6). The operator accepted it on 2026-10-03 and scoped the proofs that did not run on the pilot
+out of Q4, each with its next owner
+([amendment](../../tasks/stage2-q4-sankhya-connector-qualification.md#amendment-2026-10-03-the-operator-closes-q4-on-the-frozen-evidence)).
+Every time below is UTC.
 
 A Project on the pilot read the company's Sankhya through the Connection bound to it as `erp`. The
 Builder investigated with 20 native reads before it wrote any application file. It then built a
@@ -57,7 +60,7 @@ The verdict is not REJECT, because no falsifier of task section 8 fired:
 
 | Item | State | Evidence |
 | --- | --- | --- |
-| 1. One reconciled contract | Holds | C-030, the amendment, contract section 12.6, the "Project Connection bindings" row of the permission contract and the "Enterprise integrators" row of the single-owner map describe one shape. One sentence of the amendment is stale (open limit 9). |
+| 1. One reconciled contract | Holds | C-030, the amendment, contract section 12.6, the "Project Connection bindings" row of the permission contract and the "Enterprise integrators" row of the single-owner map describe one shape. The amendment's size sentence was corrected on 2026-10-03 (open limit 9). |
 | 2. The executor on `main` | Holds | #369, #372 and #378 landed the executor, `connector_fetch` and `connectors.fetch`. #477 deleted `connectors.call`, `/v1/call` and `sankhya.purchase-order.read`. No file under `apps/`, `packages/` or `builder-skills/` names them. |
 | 3. The pilot on `main` | Holds | [Pilot and exact heads](#pilot-and-exact-heads). |
 | 4. One autonomous investigation | Holds | [Item 4](#item-4-the-autonomous-investigation). |
@@ -228,9 +231,9 @@ verdict are on its own pull request.
    marker test covers the stream and the messages route, not the rendered page. The Q4.11 credential
    scan, the scan of the sandbox's files and process arguments, and a non-developer app user's view
    did not run on the pilot.
-9. **One sentence of the amendment is stale.** It says the executor cuts an oversized answer and
-   marks it truncated. `main` refuses it with `RESPONSE_TOO_LARGE` and returns no vendor byte (#369).
-   The refusal is the stricter form.
+9. **The size sentence of the amendment was stale.** It said the executor cuts an oversized answer
+   and marks it truncated. `main` refuses it with `RESPONSE_TOO_LARGE` and returns no vendor byte
+   (#369). The task now says so (amendment of 2026-10-03).
 10. **Smaller limits from the executor PRs.** A bearer split across two values is not redacted. A
     run scope revoked while a request is past admission does not stop that request. The call budget
     is spent before the send. A vendor that keys an object by a value would show that value as a
