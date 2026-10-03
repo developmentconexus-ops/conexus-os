@@ -1,6 +1,6 @@
 import { THINKING_LEVEL_VALUES, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import { MastraClient, MastraClientError } from '@mastra/client-js'
-import type { AgentControllerAvailableModel, MastraDBMessage } from '@mastra/client-js'
+import type { AgentControllerAvailableModel } from '@mastra/client-js'
 import type { SubmitPlanResumeData } from '@mastra/core/tools'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useReducer, useRef } from 'react'
