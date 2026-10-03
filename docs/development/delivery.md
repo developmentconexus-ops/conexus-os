@@ -39,8 +39,8 @@ An implementer spike answers one question, on its own branch and worktree, and n
 ## Ask for "Aprovo" on three kinds of change
 
 `needs:aprovo` is orthogonal to the lanes. Add it in any lane to:
-- a migration that touches real data;
-- a security or authentication change;
+- a migration;
+- a change under an area marked `"gate": "aprovo"` in [`areas.json`](review/areas.json);
 - a screen the operator asked to see.
 The label blocks auto-merge. Nothing else needs a per-pull-request "Aprovo" or a live pilot test by
 the operator. `needs:operator` marks an issue that waits on the operator for a fact or an action.
@@ -77,8 +77,6 @@ most 5 open pull requests.
 - **The Factory targets `main`.** Factory pull requests use `main` as their base.
 - **Codex never authors.**
 - **CodeRabbit is off** for this repository.
-- **Tests serve the product.** Never reshape a design to keep a test or fixture passing. Fix every
-  test that exercised real behavior. Delete every test whose subject is gone.
 
 ## Technology rule
 

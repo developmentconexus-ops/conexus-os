@@ -21,3 +21,14 @@ jobs:
         with:
           node-version-file: .nvmrc
       - run: node scripts/check-patch-churn.mjs --base "origin/${{ github.base_ref }}"
+  aprovo-gate:
+    name: aprovo-gate
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: node scripts/check-aprovo-gate.mjs --base "origin/${{ github.base_ref }}"

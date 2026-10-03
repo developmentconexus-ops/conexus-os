@@ -32,13 +32,12 @@ Chat and handoffs are orientation only. **Global coverage does not require globa
 
 - Trunk is `main`. Open pull requests against `main`.
 - One writer per worktree. Work in an Ubuntu WSL2 worktree on the Linux filesystem.
-- Stop on a material product requirement, an owner or trust-boundary contradiction, an unauthorized production effect, or missing authority needed for correctness.
+- Stop on the conditions in [`delivery.md`](docs/development/delivery.md#stop-then-escalate).
+- Before you write code, read the [never-list](.agents/skills/conexus-development/references/shapes.md#never).
 - Preserve state you do not own. Never reset, clean, stash, force-push or discard work you did not create.
 - Never merge unless [`delivery.md`](docs/development/delivery.md) names you as the one who merges. It owns the lanes and the merge gate.
 - An approved increment includes its routine reversible implementation and checks. Do not seek approval for each mechanical step.
-- Migrations are forward-only. After a migration change, run `npm run db:catalog:snapshot` and commit the snapshot.
 - A contract change and its [`docs/product/operation-ledger.md`](docs/product/operation-ledger.md) change go in one commit. `npm run wire:bijection` gates on an exact count.
-- Tests serve the product. Never reshape a design because a test or fixture would break. Fix every test that exercised real behaviour, and delete every test whose subject is gone.
 
 ## Verification
 
