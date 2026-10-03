@@ -213,7 +213,8 @@ verdict are on its own pull request.
 2. **Data correctness.** The platform does not prove that a number matches the source. On
    2026-10-02 the operator deferred that proof to the redesign of the Builder's planning flow.
 3. **Screen QA.** The Builder tested its operations with real reads and said it did not see the
-   screen. The roadmap now places the screen check first after this verdict.
+   screen. The roadmap places the screen check in phase 3, after the structural waves of phase 2
+   (operator, 2026-10-03).
 4. **The gate's repair budget lives in memory.** A Hub restart while a run waits on a question
    resets the count of three (#481).
 5. **The first conversation keeps the platform failure.** Its transcript holds the

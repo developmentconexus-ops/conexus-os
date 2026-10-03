@@ -28,6 +28,20 @@ evidence that invalidates an assumption.
 | C-036 | A Builder conversation is private to the person who started it. Each person has one Mastra resource in a Project, in place of one resource per Project, so a person lists and opens only their own conversations. The person who started a conversation pays for every turn in it, a resumed turn included. It is built with specs 0005 and 0006, in the Q5 preparation. Until then every conversation stays visible to every Project member, as C-032 says, and a run parked on a question that gets no answer for 7 days ends, so the Project can build again. Decided by the operator on 2026-10-02. Amends C-032, whose consequence was that every conversation is visible to every Project member until private conversations return ([details](#decided-on-2026-10-02-the-order-of-work-to-q5)). | [Builder conversations](../../apps/hub/src/builder/conversations.ts), [spec 0002](../tasks/specs/0002-builder-own-harness/index.md) | Two people need to work in one conversation, or a Project member needs to see or stop another person's conversation |
 | C-OS-001 | The public ecosystem domain is `conexus.fun`, with the route convention `/<product>`. This repository owns Conexus OS only. Ingress mechanics are deferred. | Operator mission, [Product contract](../product/contract.md) | Ecosystem naming changes, or deployment realization needs ingress selected |
 
+## Decided on 2026-10-03: a sound base before the screen check and Q5
+
+The operator moved the structural waves of the [order of work](../roadmap.md#order-of-work-to-q5)
+ahead of the screen check and Q5, after the Q4 proof showed the Builder's run lifecycle patched
+eight times around one premise: that an answer to a question is a new run.
+
+| Decision | Consequence |
+| --- | --- |
+| The phase 2 waves (Subtract, S2, S4, S3, S1, S5, CI) come before the screen check and the Q5 preparation. | Neither is built on shapes the waves replace. Q5 starts later and is not built twice. |
+| S2 moves ahead of S3 and S4. | S2 settles who owns the session, the sandbox and an open question; S4's reaper is designed on those lifetimes. |
+| A question whose Mastra session ended ends with it, as in Claude Code. | The person's next message carries the answer, and the agent asks again if it still needs to. S2 removes the resume of a question after its session is gone, and amends the 7-day parked limit of C-036 when it lands. |
+| Every wave follows one method: census against Mastra and similar tools, redesign from first principles, a proved blast radius, a spec the operator approves, one pull request from HQ. | Nothing stays in a wave only because it exists. |
+| The design of the Builder leaving the Hub process is part of phase 2, right after S2. | Building it may come after Q5. |
+
 ## Decided on 2026-10-02: the order of work to Q5
 
 The operator approved the [order of work to Q5](../roadmap.md#order-of-work-to-q5) on 2026-10-02,

@@ -21,8 +21,8 @@ the work that owns it next.
 | Proof | Boundary accepted for Q4 | Owner next |
 | --- | --- | --- |
 | Refusal of another Project and of a removed binding, on the pilot | Proved in CI against a fake vendor and real PostgreSQL (#477), not on the pilot | The Q5 task, whose employee proof runs on the pilot |
-| The Q4.11 leak scan, including the sandbox's files and process arguments | The marker run and the business-value scan pass in CI; the scan did not run as a script on the pilot | The sandbox allowlist of C-023 in phase 2 of the [order of work](../roadmap.md#order-of-work-to-q5) |
-| The rendered page and a non-developer app user's view | The browser routes serve only the projection (CI); no person saw the built screen | The screen check that opens phase 2, then the Q5 employee proof |
+| The Q4.11 leak scan, including the sandbox's files and process arguments | The marker run and the business-value scan pass in CI; the scan did not run as a script on the pilot | The sandbox allowlist of C-023 in phase 4 of the [order of work](../roadmap.md#order-of-work-to-q5) |
+| The rendered page and a non-developer app user's view | The browser routes serve only the projection (CI); no person saw the built screen | The screen check of phase 3, then the Q5 employee proof |
 | The application named before the run | Waived. The application was named in the request that started the build | None |
 
 The read-only confirmation stays the boundary the amendment of 2026-09-28 names. The same day, the

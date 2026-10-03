@@ -120,8 +120,9 @@ the [decision register](decisions/index.md#decided-on-2026-10-02-the-order-of-wo
 | --- | --- | --- |
 | 0. Finish open work | The open CI pull requests, a `verify` median of 5 minutes or less, the verdicts of the open Context7, telemetry and configuration qualifications, a rule that a pull request is up to date with `main` before it merges, and one pull request that corrects the authority documents that describe code `main` no longer has | No work started before 2026-10-02 is still open |
 | 1. Close Q4 | Inside the Q4 workstream: first the fixes where a person or data is at risk, then the guards, then the rest of the closure set | The Q4 verdict |
-| 2. Prepare Q5, then Q5 | First the screen check below. Then, in this order, which the specs set: spec 0008 slice 1 (one session lifetime from one source, which may start during phase 1); spec 0006 (people and sign-in); experiment E1 of spec 0005, then 0005 slices 3 to 6 as one release; spec 0007 slices 2 to 4 with spec 0008 slice 4; the sandbox allowlist of C-023. Then the Q5 task | The Q5 verdict: a published application used by an employee who is not a developer |
-| 3. Structural waves | Beside phases 1 and 2, once the phase 1 guards are in CI, one wave at a time | Each wave's own check |
+| 2. A sound base | The structural waves below, one at a time, before any feature is built on the current shapes. Amended by the operator on 2026-10-03 ([details](decisions/index.md#decided-on-2026-10-03-a-sound-base-before-the-screen-check-and-q5)) | Each wave's own check |
+| 3. The screen check | The Builder checks the screens it built, below | The screen check's own list |
+| 4. Prepare Q5, then Q5 | In this order, which the specs set: spec 0008 slice 1 (one session lifetime from one source, which may start during phase 1); spec 0006 (people and sign-in); experiment E1 of spec 0005, then 0005 slices 3 to 6 as one release; spec 0007 slices 2 to 4 with spec 0008 slice 4; the sandbox allowlist of C-023. Then the Q5 task | The Q5 verdict: a published application used by an employee who is not a developer |
 
 Phase 1 fixes, each with its own behavior test:
 
@@ -144,31 +145,50 @@ Phase 1 guards land before any structural wave: a browser test harness against a
 the Builder flows a person uses; a list of flows per review area that CI requires for every change
 to that area; and the run states from one source that the Hub, the web app and SQL import.
 
-Phase 2 starts with the screen check, before the specs:
+Phase 3, the screen check, comes before the specs of phase 4:
 
 - The Builder checks the screens it built as a person would, in a browser inside its sandbox, with
   sample data it writes in each operation's output shape. The sample data proves the screen shows
   what it receives, never that a number matches the source.
 
-Phase 3 waves, in this order, which the code quality diagnosis of 2026-10-02 set (cheap removals
-and security first; S2 before S1 and S5, which depend on it):
+Phase 2 waves, in this order. The code quality diagnosis of 2026-10-02 set the waves. On
+2026-10-03 the operator moved them ahead of the screen check and Q5, and S2 ahead of S3 and S4,
+because S2 decides who owns the session, the sandbox and an open question, and the reaper of S4
+only knows what expires once that is settled. CI under five minutes runs beside the others, since
+it changes no concept.
 
 1. **Subtract.** Delete what has no consumer: unused package scripts, proofs of closed gates,
    failure codes nothing produces, web routes with no screen, retired configuration.
-2. **S3.** One owner for each security and policy rule: the Origin, CSRF and session checks, and
+2. **S2.** The run as one state machine. One Mastra session and one sandbox per conversation; a
+   question is a wait inside the run, answered on the live session; the browser and the agent share
+   that session; one SQL builder for the run summary; a candidate checked once. A question whose
+   session ended (a Hub restart, a long idle) ends with it, and the person's next message carries
+   the answer, as in Claude Code.
+3. **S4.** One runner for every periodic job, and one reaper for everything that expires, on the
+   lifetimes S2 sets.
+4. **S3.** One owner for each security and policy rule: the Origin, CSRF and session checks, and
    the session lifetimes.
-3. **S4.** One runner for every periodic job, and one reaper for everything that expires: parked
-   runs, idle E2B machines, expired sessions.
-4. **CI under five minutes.** The Hub builds once, independent checks run together, and no test is
+5. **S1.** One generated contract between the web app and the Hub for every Builder route.
+6. **S5.** The Builder screen holds one record of the conversation.
+7. **CI under five minutes.** The Hub builds once, independent checks run together, and no test is
    removed.
-5. **S2.** The run as one state machine, with one SQL builder for the run summary and a candidate
-   checked once. It is designed before it is built.
-6. **S1.** One generated contract between the web app and the Hub for every Builder route.
-7. **S5.** The Builder screen holds one record of the conversation.
 
-After S2, the Builder moves out of the Hub process, as the runner already is. That move gets its
-own design first, because it depends on how the sandbox and the session belong to each
-conversation.
+Every wave is built the same way:
+
+1. A census of what exists and of what the installed `@mastra` packages already offer, compared
+   with Mastra Code, Claude Code, Codex and Mitra.
+2. A redesign from first principles, as if the requirement had been there from the start.
+3. Its blast radius, with the fact its safety depends on proved by running code.
+4. A spec with the design, what it deletes, and what stays and why. Nothing stays only because it
+   exists.
+5. The operator approves the spec.
+6. One pull request from HQ: the failing tests first, then the code.
+7. The Factory reviews it, the operator tests it on the local Conexus, and a diagnosis-only review
+   checks that the code got smaller.
+
+After S2, the Builder moves out of the Hub process, as the runner already is. Its design is part of
+phase 2, right after S2, because it depends on how the sandbox and the session belong to each
+conversation. Building it may come after Q5.
 
 ## Technology baseline
 
@@ -295,10 +315,11 @@ enters when Stage 2 closes.
 
 ## Exact next action
 
-**Prepare Q5 in the [order of work](#order-of-work-to-q5): first the screen check of phase 2, then
-the specs in their order, then the Q5 task.**
+**Build a sound base in the [order of work](#order-of-work-to-q5): the phase 2 waves, Subtract
+then S2 first. Then the screen check, then the Q5 specs in their order, then the Q5 task.**
 
-The screen check comes first. The Builder checks the screens it built in a browser inside its
+The waves come first, so the screen check and Q5 are not built on shapes the waves replace. The
+screen check comes next. The Builder checks the screens it built in a browser inside its
 sandbox, with sample data in each operation's output shape. The Q4 proof showed why. The Builder
 tested its operations with real reads but did not see the screen it built.
 
