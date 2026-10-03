@@ -13,7 +13,7 @@ Two functions: `canonicalBytes` serializes a value as RFC 8785 canonical JSON th
 ```bash
 npm run typecheck:hub
 npm run test:import-law
-npm run check:contracts
+npm run generate && git status --short   # nothing may change
 npx --no-install biome check packages/canonical-json/src
 ```
 

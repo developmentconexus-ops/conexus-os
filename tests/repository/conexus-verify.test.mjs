@@ -128,17 +128,10 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'knip',
   'repository-check',
   'import-law-check',
-  'db-role-register',
-  'contract-projection-check-iam',
-  'contract-projection-check-workspace',
-  'contract-projection-check-project',
-  'contract-projection-check-connector',
-  'builder-run-vocabulary-check',
-  'log-codes-check',
+  'generators',
   'e2b-template-check',
   'web-style',
   'wire-openapi-lint',
-  'wire-openapi-bundle',
   'wire-bijection',
   'wire-connector',
   'wire-technical-lint',
@@ -282,9 +275,16 @@ test('candidate graph is the static checks, then one node --test per group by gl
   assert.equal(command('biome'), 'npx --no-install biome ci . --error-on-warnings')
   const commands = CANDIDATE_GRAPH.map(entry => entry.command)
   assert.equal(commands.some(text => /\.test\.mjs(?!')/.test(text)), false, 'no step names a test file; the globs do')
-  assert.equal(commands.some(text => /node scripts\/generate-[^ ]+\.mjs/.test(text) && !text.includes('--check')), false)
+  assert.equal(commands.filter(text => /node scripts\/generate-[^ ]+\.mjs/.test(text)).length, 0, 'the generators run as the one generators step')
+  assert.equal(command('generators'), 'npm run generate')
   assert.equal(commands.some(text => text.includes('qualification/')), false)
   assert.equal(commands.filter(text => text.includes('-live.test.mjs')).length, 0, 'paid live runs are explicit commands')
+})
+
+test('the workflow ends every group on the dirty tree check that makes the generators a check', () => {
+  const workflow = readFileSync(resolve(repositoryRoot, '.github/workflows/verify.yml'), 'utf8')
+  assert.match(workflow, /git status --porcelain\)" \]/)
+  assert.ok(workflow.indexOf('--scope candidate --group') < workflow.indexOf('git status --porcelain'))
 })
 
 test('the static checks run before every test step, and the Hub build stays first', () => {
@@ -467,7 +467,7 @@ test('the opt-in skip check runs last', () => {
 
 
 test('the docs graph is the docs checks, in graph order, and still ends with the skip check', () => {
-  assert.deepEqual(DOCS_GRAPH.map(entry => entry.scope), ['repository-check', 'wire-openapi-bundle', 'wire-bijection', 'repository-tests', 'only-opt-in-skips'])
+  assert.deepEqual(DOCS_GRAPH.map(entry => entry.scope), ['repository-check', 'wire-bijection', 'repository-tests', 'only-opt-in-skips'])
   assert.equal(DOCS_GRAPH.length, DOCS_CHECK_SCOPES.length)
   assert.equal(DOCS_GRAPH.every(entry => entry.environmentClass === 'static'), true)
   const result = runVerification({ processEnvironment: {}, scopes: ['candidate-docs'], packageScripts, dryRun: true })

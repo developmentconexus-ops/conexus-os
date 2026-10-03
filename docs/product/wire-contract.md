@@ -469,8 +469,7 @@ are:
 
 ```text
 wire:lint             the Product OAS passes Redocly recommended
-wire:bundle           the description bundles deterministically
-wire:bijection        the census and the bundle agree, 18 to 18
+wire:bijection        the description bundles and agrees with the census, 18 to 18
 wire-bijection-gate   the bijection gate itself is proved against planted faults
 wire:connector        the connector rules hold
 wire:technical-lint   the technical ingress description passes Redocly recommended

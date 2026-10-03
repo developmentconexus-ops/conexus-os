@@ -105,7 +105,7 @@ operator dictating filenames or implementation.
   repository gate never implies it.
 - Verification is the static checks plus one `node --test` per group in `scripts/conexus-verify.mjs`, each run once. A test file joins a group by its folder and its suffix (`*.postgres.test.mjs`, `*.browser.test.mjs`, `tests/live`), never by a list, and `tests/manual` holds what runs by hand. Never regenerate expected
   output to hide drift; use the explicit generation command. Only an `opt-in:` reason may skip a test or leave it todo.
-  Before every push, after `git add` of new files, run `npm run verify:quick`: it runs the Hub and web typechecks, the repository check, the four contract projections with `--check`, the web style check, the `knip` unused-export check, `biome ci` (a warning fails it), the log code registry
+  Before every push, after `git add` of new files, run `npm run verify:quick`: it runs the Hub and web typechecks, the repository check, the generators (CI then fails on a changed or new file), the web style check, the `knip` unused-export check, `biome ci` (a warning fails it), the log code registry
   check and the import law, with no Docker, browser or network, in about half a minute.
   The cheap static checks run first so a run fails fast, and a pull request that changes only Markdown under `docs/`,
   `.agents/` or the repository root runs only the documentation checks (`npm run verify:docs`); `verify` still reports.

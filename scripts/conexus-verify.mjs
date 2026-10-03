@@ -69,17 +69,10 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('knip', 'npx --no-install knip'),
   candidateStep('repository-check', 'npm run repository:check'),
   candidateStep('import-law-check', 'node scripts/check-import-law.mjs'),
-  candidateStep('db-role-register', 'node scripts/generate-hub-role-register.mjs --check'),
-  candidateStep('contract-projection-check-iam', 'node scripts/generate-iam-contracts.mjs --check'),
-  candidateStep('contract-projection-check-workspace', 'node scripts/generate-workspace-contracts.mjs --check'),
-  candidateStep('contract-projection-check-project', 'node scripts/generate-project-contracts.mjs --check'),
-  candidateStep('contract-projection-check-connector', 'node scripts/generate-connector-contracts.mjs --check'),
-  candidateStep('builder-run-vocabulary-check', 'node scripts/generate-builder-run-vocabulary.mjs --check'),
-  candidateStep('log-codes-check', 'node scripts/generate-log-codes.mjs --check'),
+  candidateStep('generators', 'npm run generate'),
   candidateStep('e2b-template-check', 'node scripts/builder-e2b-template.mjs --check'),
   candidateStep('web-style', 'node scripts/check-web-style.mjs'),
   candidateStep('wire-openapi-lint', 'npm run wire:lint'),
-  candidateStep('wire-openapi-bundle', 'npm run wire:bundle'),
   candidateStep('wire-bijection', 'npm run wire:bijection'),
   candidateStep('wire-connector', 'npm run wire:connector'),
   candidateStep('wire-technical-lint', 'npm run wire:technical-lint'),
@@ -116,11 +109,10 @@ export const groupsOf = (step) => {
 export const graphForGroup = (graph, group) => graph.filter(step => groupsOf(step).includes(group))
 
 // A change that touches only documentation runs these steps: every step that reads a Markdown file,
-// the repository tests, the OpenAPI bundle the bijection check reads, and the skip check that
+// the repository tests, the bijection check, and the skip check that
 // closes every run. The path test lives in scripts/ci-change-scope.mjs.
 export const DOCS_CHECK_SCOPES = Object.freeze([
   'repository-check',
-  'wire-openapi-bundle',
   'wire-bijection',
   'repository-tests',
   'only-opt-in-skips',
@@ -129,9 +121,9 @@ export const DOCS_CHECK_SCOPES = Object.freeze([
 export const DOCS_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => DOCS_CHECK_SCOPES.includes(step.scope)))
 
 // The fast check to run before every push: the static gates CI fails on most, with no Docker, browser
-// or network. It runs both typechecks, the style and repository checks and the contract projections,
+// or network. It runs both typechecks, the style and repository checks and the generators,
 // so a push does not wait for CI to report them.
-export const QUICK_CHECK_SCOPES = Object.freeze(['web-typecheck', 'hub-typecheck', 'repository-check', 'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector', 'web-style', 'log-codes-check', 'knip', 'biome', 'import-law-check'])
+export const QUICK_CHECK_SCOPES = Object.freeze(['web-typecheck', 'hub-typecheck', 'repository-check', 'generators', 'web-style', 'knip', 'biome', 'import-law-check'])
 
 export const QUICK_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => QUICK_CHECK_SCOPES.includes(step.scope)))
 

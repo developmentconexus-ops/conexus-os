@@ -1,9 +1,7 @@
 import fs from 'node:fs';
+import { bundledProductOas } from './product-oas-bundle.mjs';
 
 const ledgerPath = 'docs/product/operation-ledger.md';
-// A fixed name under /tmp is shared with anything else running on the machine, and the gate's
-// own tests need to point it at a controlled fixture.
-const bundlePath = process.env.CONEXUS_PRODUCT_OAS_BUNDLE ?? '/tmp/conexus-product-openapi.bundle.json';
 const productDirectory = 'contracts/api/product';
 const allowedContractStates = new Set(['METHOD_PATH_MAPPED', 'SCHEMA_CLOSED']);
 const httpMethods = new Set(['get', 'put', 'post', 'delete', 'patch', 'head', 'options', 'trace']);
@@ -99,7 +97,7 @@ if (expectedById.size === 0) {
   throw new Error('fixed-platform census contains no 4A operations');
 }
 
-const oas = JSON.parse(fs.readFileSync(bundlePath, 'utf8'));
+const oas = bundledProductOas();
 const methods = httpMethods;
 
 const bundledMethodPaths = new Set();

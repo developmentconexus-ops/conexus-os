@@ -110,10 +110,7 @@ try {
   mkdirSync(dirname(clientTarget), { recursive: true })
   writeFileSync(stagedTarget, output, 'utf8')
   writeFileSync(stagedClientTarget, client, 'utf8')
-  if (process.argv.includes('--check')) {
-    if (!existsSync(target) || readFileSync(target, 'utf8') !== output) throw new Error('IAM_GENERATED_ROUTE_DRIFT')
-    if (!existsSync(clientTarget) || readFileSync(clientTarget, 'utf8') !== client) throw new Error('IAM_GENERATED_CLIENT_DRIFT')
-  } else publishAtomically([{ staged: stagedTarget, target }, { staged: stagedClientTarget, target: clientTarget }])
+  publishAtomically([{ staged: stagedTarget, target }, { staged: stagedClientTarget, target: clientTarget }])
   process.stdout.write(`${JSON.stringify({ sourceDigest, projectionDigest, routes: definitions.length })}\n`)
 } finally {
   rmSync(stagedTarget, { force: true })

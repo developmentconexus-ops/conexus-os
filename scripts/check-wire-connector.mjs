@@ -1,5 +1,5 @@
-import fs from 'node:fs'
-const oas = JSON.parse(fs.readFileSync('/tmp/conexus-product-openapi.bundle.json', 'utf8'))
+import { bundledProductOas } from './product-oas-bundle.mjs'
+const oas = bundledProductOas()
 const expectedIds = ['CON-01', 'CON-02', 'CON-03', 'CON-04', 'CON-08', 'CON-09', 'CON-10']
 const operations = new Map()
 for (const [path, item] of Object.entries(oas.paths ?? {})) for (const [method, operation] of Object.entries(item ?? {})) {
