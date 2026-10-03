@@ -15,10 +15,10 @@ import { flowOf, isApprovalOptions } from './flow.mjs'
 import { fillSheet, loadValues, parseSheet, personModel } from './person.mjs'
 import { SUBMIT_PLAN_TOOL, WRITE_FILE_TOOL } from './tool-names.mjs'
 
-export const QUESTION_CAP = 8
+const QUESTION_CAP = 8
 
 /** The binary plan rubric. `na` names the criterion that has nothing to judge when the app reads no existing data. */
-export const RUBRIC = Object.freeze([
+const RUBRIC = Object.freeze([
   { id: 'screensAsExperience', text: 'Each screen is described as what the person sees and does on it (what is on the screen, what they click, where it leads), not as components, routes, tables or code.' },
   { id: 'valuesHaveSource', text: 'Every value the app shows (each number, column or field on screen) names where it comes from: which system and record or field, or how it is computed from them. Fail if any shown value has no named source.' },
   { id: 'suggestionsMarked', text: 'Everything the person did not ask for is marked as a suggestion the person can decline. Pass when the plan adds nothing beyond the request.' },
@@ -30,10 +30,10 @@ export const RUBRIC = Object.freeze([
 const RULE_STATUS = ['open', 'assumed', 'decided', 'absent']
 
 const plain = (value) => String(value ?? '').normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ').trim().toLowerCase()
-export const maskDigits = (value) => String(value ?? '').replace(/\d/g, '#')
+const maskDigits = (value) => String(value ?? '').replace(/\d/g, '#')
 
 /** Pure. True when `cite` is a passage of the plan, ignoring spacing, case, accents and markdown marks. */
-export const citedIn = (planText, cite) => {
+const citedIn = (planText, cite) => {
   const strip = (value) => plain(value).replace(/[*_`#>|-]/g, '').replace(/\s+/g, ' ').trim()
   const needle = strip(cite)
   return needle.length >= 8 && strip(planText).includes(needle)
@@ -108,7 +108,7 @@ const sortedParts = (messages) => [...messages]
   .flatMap((message) => message?.content?.parts ?? [])
 
 /** Pure. The thread's tool calls in the shape `flowOf` reads. */
-export const threadCalls = (messages) => sortedParts(messages)
+const threadCalls = (messages) => sortedParts(messages)
   .filter((part) => part.type === 'tool-invocation')
   .map(({ toolInvocation: call }) => ({ entityName: call.toolName, input: call.args, error: call.state === 'error' || call.result?.isError === true ? true : undefined }))
 
@@ -126,7 +126,7 @@ export function interviewFromRun(result, messages) {
 }
 
 /** Pure. The interview of a Claude Code arm from its record (questionCalls) and its tool events. */
-export function interviewFromClaudeCode(record, events, planText, armDir) {
+function interviewFromClaudeCode(record, events, planText, armDir) {
   const calls = record.questionCalls.map((call) => call.questions.filter((question) => !isApprovalOptions(question.options.map((option) => option.label))))
   const questions = calls.flat().map((question) => ({ text: question.question, ruleIds: question.ruleId ? [question.ruleId] : [] }))
   // The events keep each tool input cut at a fixed length, so the n-th AskUserQuestion is read from the record's n-th call.
@@ -175,7 +175,7 @@ const rubricPrompt = (planText) => [
 ].join('\n')
 
 /** The judge reads the plan twice, once per rule and once per rubric criterion. The model is the person's (Opus through the Claude subscription). */
-export function createJudge({ model = personModel() } = {}) {
+function createJudge({ model = personModel() } = {}) {
   const agent = new Agent({ id: 'plan-reader', name: 'Leitor do plano', instructions: 'You read app plans written in Portuguese and answer in the requested structure only.', model })
   return async (sheet, planText) => {
     if (planText === null) return { rules: [], rubric: [] }
@@ -194,7 +194,7 @@ const sheetOf = (casePath) => {
 }
 
 /** Scores one interview, writes `plan-score.json` (judgments with citations, digits masked) in `out`, and returns the line to print. */
-export async function scoreAndRecord({ casePath, interview, out, source, judge = createJudge() }) {
+async function scoreAndRecord({ casePath, interview, out, source, judge = createJudge() }) {
   const sheet = sheetOf(casePath)
   const judged = await judge(sheet, interview.planText)
   const score = scoreInterview(sheet, interview, judged)
@@ -252,7 +252,7 @@ function parseArgs(argv) {
   return options
 }
 
-export async function main(argv = process.argv.slice(2)) {
+async function main(argv = process.argv.slice(2)) {
   const options = parseArgs(argv)
   let line
   if (options.run) line = await scoreRunDir(resolve(options.run), { casePath: options.case })
