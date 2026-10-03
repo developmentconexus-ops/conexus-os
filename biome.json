@@ -123,6 +123,41 @@
     },
     {
       "includes": [
+        "apps/*/src/**",
+        "packages/*/src/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/tests/**", "**/scripts/**"],
+                    "message": "Production code cannot import tests or scripts."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "apps/web/src/**"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noNodejsModules": "error"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
         "apps/web/src/**",
         "!apps/web/src/app/http.ts"
       ],

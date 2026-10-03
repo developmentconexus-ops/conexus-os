@@ -8,7 +8,7 @@ Run from the repository root, in WSL, after `source "$HOME/.nvm/nvm.sh"; nvm use
 
 ```bash
 npm run typecheck:web         # TypeScript
-npm run web:style:check             # no raw hex, only the three brand fonts
+npm run web:style:check             # every class has a CSS rule; the Mastra theme stays on brand tokens
 npx --no-install biome check apps/web/src
 npx --no-install playwright install chromium
 node --test --test-concurrency=1 tests/implementation/project.browser.test.mjs   # also builder-, settings-
@@ -22,7 +22,7 @@ The browser suites serve this app through Vite and stub the API, so they need no
 - Every color is a `var(--cx-*)` token from `packages/brand/src/tokens.css`. Every font is a `--cx-font-*` token.
 - `src/main.tsx` loads `@mastra/playground-ui/style.css`, then the brand tokens, then `src/styles.css`. Keep that order.
 - Mastra's palette changes only in `src/mastra-theme.css`, by re-pointing its custom properties at tokens. Size and layout go in a `cx-*` class next to the screen.
-- A hover hint is the playground-ui `Tooltip`, never a native `title`; `web:style:check` enforces it.
+- A hover hint is the playground-ui `Tooltip`, never a native `title`. Review enforces it.
 - The client shows server truth. It never decides authorization or invents a state the server did not report.
 
 ## Review

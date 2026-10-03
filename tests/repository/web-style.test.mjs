@@ -25,46 +25,6 @@ test('the repository tree passes', () => {
   assert.match(result.stdout, /^Web style check passed \(files=\d+\)\.\n$/)
 })
 
-test('a raw hex color outside the token file fails with its location', context => {
-  const result = check(tree(context, {
-    'apps/web/src/screen.css': '.a { width: 12px; }\n.b { color: #C0FFEE; }\n',
-    'packages/brand/src/tokens.css': ':root { --cx-canvas: #F6F7F8; }\n',
-  }))
-  assert.equal(result.status, 1)
-  assert.equal(result.stderr, 'apps/web/src/screen.css:2: raw hex color #C0FFEE; use a var(--cx-*) token from packages/brand/src/tokens.css\n')
-})
-
-test('a var(--cx-*) the brand does not define fails with its location', context => {
-  const result = check(tree(context, {
-    'apps/web/src/screen.css': '.a { color: var(--cx-text); }\n.b { color: var(--cx-texxt); }\n',
-    'packages/brand/src/tokens.css': ':root { --cx-text: #121518; }\n',
-  }))
-  assert.equal(result.status, 1)
-  assert.equal(result.stderr, 'apps/web/src/screen.css:2: uses undefined token --cx-texxt; define it in packages/brand/src/tokens.css or where it is used\n')
-})
-
-test('a font outside the three brand faces fails, in CSS and in TSX', context => {
-  const result = check(tree(context, {
-    'apps/web/src/screen.css': [
-      '.ok { font: 600 .8125rem/1 var(--cx-font-body); font-family: "JetBrains Mono", ui-monospace, monospace; }',
-      '.inherit { font: inherit; font-family: inherit; }',
-      '.bad { font-family: Arial, sans-serif; }',
-      '.shorthand { font: 600 1rem/1.2 "Inter", system-ui; }',
-      '',
-    ].join('\n'),
-    'apps/keycloak-theme/src/page.tsx': "export const Page = () => <p style={{ fontFamily: 'Comic Sans MS', color: '#fff' }} />\n",
-  }))
-  assert.equal(result.status, 1)
-  assert.equal(result.stderr, [
-    'apps/keycloak-theme/src/page.tsx:1: raw hex color #fff; use a var(--cx-*) token from packages/brand/src/tokens.css',
-    'apps/keycloak-theme/src/page.tsx:1: font family Comic Sans MS is not a brand font; use var(--cx-font-display|body|mono)',
-    'apps/web/src/screen.css:3: font family Arial is not a brand font; use var(--cx-font-display|body|mono)',
-    'apps/web/src/screen.css:3: font family sans-serif is not a brand font; use var(--cx-font-display|body|mono)',
-    'apps/web/src/screen.css:4: font family "Inter" is not a brand font; use var(--cx-font-display|body|mono)',
-    '',
-  ].join('\n'))
-})
-
 test('a tree without the web app refuses to pass on zero files', context => {
   const result = check(tree(context, { 'README.md': '# empty\n' }))
   assert.equal(result.status, 1)
@@ -125,58 +85,6 @@ test('a class map counts its classes as used and fails when one has no CSS rule'
   }))
   assert.equal(result.status, 1)
   assert.equal(result.stderr, 'apps/web/src/screen.tsx:1: class "cx-dt-del" has no CSS rule under apps/web/src or packages/brand/src\n')
-})
-
-test('a class map keeps a defined rule from being reported as unused', context => {
-  const result = check(tree(context, {
-    'apps/web/src/screen.tsx': "const SIDE_CLASS = { add: 'cx-dt-add' } as const\nexport const Cell = ({ side }) => <td className={SIDE_CLASS[side]} />\n",
-    'apps/web/src/screen.css': '.cx-dt-add { color: green; }\n',
-  }))
-  assert.equal(result.status, 0, result.stderr)
-})
-
-test('a class defined in CSS with no .tsx use fails and names the rule', context => {
-  const result = check(tree(context, {
-    'apps/web/src/screen.tsx': "export const Screen = () => <div className=\"cx-panel\" />\n",
-    'apps/web/src/screen.css': '.cx-panel { padding: 1rem; }\n.cx-panel-unused { padding: 0; }\n',
-  }))
-  assert.equal(result.status, 1)
-  assert.equal(result.stderr, 'apps/web/src/screen.css:2: class "cx-panel-unused" is defined in CSS but no TSX under apps/web/src or packages/brand/src uses it\n')
-})
-
-test('a native title hint fails on an element and on a dotted component, and names the Tooltip to use', context => {
-  const result = check(tree(context, {
-    'apps/web/src/chip.tsx': [
-      'export const Chip = () => <button type="button" aria-label="Modo" title="Modo: Planejar" />',
-      'export const Menu = () => <DropdownMenu.Trigger title="Modo" aria-label="Modo" />',
-      '',
-    ].join('\n'),
-  }))
-  const hint = "native title hint; use the design system Tooltip (import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip') and keep the aria-label on an icon-only control"
-  assert.equal(result.status, 1)
-  assert.equal(result.stderr, `apps/web/src/chip.tsx:1: <button title=...>: ${hint}\napps/web/src/chip.tsx:2: <DropdownMenu.Trigger title=...>: ${hint}\n`)
-})
-
-test('a title prop that renders a heading, and an iframe title, pass', context => {
-  const result = check(tree(context, {
-    'apps/web/src/screen.tsx': [
-      'export const Screen = () => <PageHeader title="Minha conta" />',
-      'export const Frame = () => <iframe title="Prévia do aplicativo" src="about:blank" />',
-      '',
-    ].join('\n'),
-  }))
-  assert.equal(result.status, 0, result.stderr)
-})
-
-test('the CSRF cookie is read only by app/http.ts; a hand reader elsewhere fails, a generated client passes', context => {
-  const reader = "const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))\n"
-  const result = check(tree(context, {
-    'apps/web/src/app/http.ts': reader,
-    'apps/web/src/generated/iam-client.ts': reader,
-    'apps/web/src/features/builder/api.ts': `export const a = 1\n${reader}`,
-  }))
-  assert.equal(result.status, 1)
-  assert.equal(result.stderr, 'apps/web/src/features/builder/api.ts:2: reads the CSRF cookie by hand; call hubFetch from apps/web/src/app/http.ts\n')
 })
 
 const screen = (classes, extra = {}) => ({

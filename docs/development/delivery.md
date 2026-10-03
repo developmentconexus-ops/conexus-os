@@ -143,4 +143,4 @@ A pull request is ready when these hold at its exact head SHA, plus the lane's g
 - One coherent increment per pull request. Link the issue. Use conventional commits.
 - Migrations are forward-only. After a migration change, run `npm run db:catalog:snapshot` and commit the snapshot. See the [baseline rules](../reference/data-and-persistence.md#baseline-and-forward-migrations).
 - A contract change and its [operation ledger](../product/operation-ledger.md) change go in one commit. `npm run wire:bijection` gates on an exact count.
-- `scripts/check-agent-context.mjs`, run by `npm run repository:check`, enforces what a script can check in these documents: cited scripts exist, links resolve, the trunk is `main`, size caps.
+- `scripts/check-agent-context.mjs`, run by `npm run repository:check`, enforces what a script can check in these documents: cited scripts exist, links resolve, size caps.

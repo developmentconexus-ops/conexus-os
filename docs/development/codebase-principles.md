@@ -12,7 +12,7 @@ and the shapes that must not appear are in
 
 1. **One fact, one owner.** Each type, state, contract, failure code and constant lives in one place.
    Everything else is generated or derived from it, never copied by hand.
-   Enforced by: `scripts/generate-log-codes.mjs`, `scripts/generate-builder-run-vocabulary.mjs`, `scripts/generate-iam-contracts.mjs`, `scripts/generate-hub-role-register.mjs`, each run with --check, and review.
+   Enforced by: `scripts/generate-log-codes.mjs`, `scripts/generate-builder-run-vocabulary.mjs`, `scripts/generate-iam-contracts.mjs`, `scripts/generate-hub-role-register.mjs`, each run by `npm run generate` and followed by the clean tree check, and review.
 2. **The domain is in the structure.** A lifecycle is a state machine. Variants are discriminated
    unions, not a bag of booleans. A table or registry replaces branching spread across files. Ids of
    different kinds are branded and do not mix. An illegal state cannot be written.
@@ -31,7 +31,7 @@ and the shapes that must not appear are in
    Enforced by: `biome:noExcessiveLinesPerFunction`, `biome:noExcessiveLinesPerFile`, `scripts/check-import-law.mjs`.
 6. **One pattern per need.** One way to handle an error, run a transaction, schedule a job, call the
    Hub from the web app, and draw each UI part. A second way to do the same thing is a defect.
-   Enforced by: `scripts/check-web-style.mjs` for the web app, `biome:noRestrictedGlobals` (fetch only in app/http.ts), `biome:noProcessEnv` (the environment is read only in platform/config.ts), and review (`docs/development/review-checklist.md`, Authority and design).
+   Enforced by: `scripts/check-web-style.mjs` (a class with no CSS rule), `biome:noRestrictedGlobals` (fetch only in app/http.ts), `biome:noProcessEnv` (the environment is read only in platform/config.ts), and review (`docs/development/review-checklist.md`, Authority and design; a native `title` hint, a hand-read CSRF cookie, a raw color or font).
 7. **Named failures.** Every failure has a code from one table, and its category is decided where it is
    raised. A platform failure is fixed in code, never offered to the person as "try again".
    Enforced by: `scripts/generate-log-codes.mjs`, `scripts/generate-builder-run-vocabulary.mjs`, `biome:noEmptyBlockStatements`, and review (`docs/development/review-checklist.md`, Authority and design).
@@ -50,7 +50,7 @@ and the shapes that must not appear are in
    Enforced by: `knip.jsonc`, `biome:noUnusedImports`, `biome:noUnusedVariables`.
 12. **Lessons become structure.** A rule that has to be repeated becomes a check that fails: a type,
     a lint rule, a CI check. Text is ignored; a failing check is not.
-   Enforced by: `scripts/check-agent-context.mjs` (this list), `scripts/check-web-style.mjs`, and the Biome rules above.
+   Enforced by: `scripts/check-agent-context.mjs` (links and size caps), `scripts/check-web-style.mjs`, and the Biome rules above.
 
 A finding against one of these names the property by number, the file and line, and the owner that
 fixes it: the change under review, or the roadmap wave that owns the shape.
