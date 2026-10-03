@@ -1,7 +1,7 @@
 import { Popover, PopoverContent, PopoverTrigger } from '@mastra/playground-ui/components/Popover'
 import { formatCompactTokens, TokenBudget, TokenBudgetDetail } from '@mastra/playground-ui/components/TokenBudget'
 import { Brain, MessageSquare } from 'lucide-react'
-import type { MemoryGauge, MemoryOperation } from '../mastra-session'
+import type { MemoryGauge, MemoryOperation } from '../runtime'
 
 type Work = 'idle' | 'background' | 'blocking' | 'failed'
 

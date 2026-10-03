@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { createRoute, Navigate, useNavigate } from '@tanstack/react-router'
+import { createRoute, useNavigate } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { lazy, Suspense, useEffect, useRef } from 'react'
 import { ConexusMark } from '../../../../packages/brand/src/index'
@@ -41,15 +41,6 @@ function ProjectScope({ context, projectId, children }: Readonly<{ context: Acce
 }
 
 export const projectRoute = createRoute({ getParentRoute: () => rootRoute, path: '/projects/$projectId', component: ProjectEntry })
-// Links from before Construir had its own address still land in the same place.
-export const projectBuildRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/projects/$projectId/build',
-  component: function LegacyBuild() {
-    const { projectId } = projectBuildRoute.useParams()
-    return <Navigate to="/projects/$projectId" params={{ projectId }} replace />
-  },
-})
 
 /** Opens the Project's most recent conversation, or a new one when it has none. */
 function ProjectEntry() {

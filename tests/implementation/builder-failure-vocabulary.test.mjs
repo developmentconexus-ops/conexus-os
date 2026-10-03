@@ -13,16 +13,15 @@ const run = (state, failureCode) => ({
 })
 
 test('each public category is reachable from a real internal code', () => {
-  assert.equal(builderFailureCategory('BUILDER_SOURCE_MATERIALIZATION_REFUSED'), 'ENVIRONMENT_PREPARATION_FAILED')
+  assert.equal(builderFailureCategory('BUILDER_STARTER_ROOT_REFUSED'), 'ENVIRONMENT_PREPARATION_FAILED')
   assert.equal(builderFailureCategory('BUILDER_MODEL_AUTH_FAILED'), 'MODEL_CREDENTIAL_REFUSED')
   // A Project whose operator never chose a model reads as a credential the run does not have.
   assert.equal(builderFailureCategory('BUILDER_MODEL_NOT_SELECTED'), 'MODEL_CREDENTIAL_REFUSED')
   assert.equal(builderFailureCategory('BUILDER_MODEL_RATE_LIMITED'), 'MODEL_RATE_LIMITED')
   assert.equal(builderFailureCategory('BUILDER_MODEL_STREAM_FAILED'), 'MODEL_REQUEST_REFUSED')
-  assert.equal(builderFailureCategory('BUILDER_RESULT_IDENTITY_REFUSED'), 'SOURCE_RESULT_REJECTED')
   assert.equal(builderFailureCategory('BUILDER_RESULT_BUNDLE_TOO_LARGE'), 'SOURCE_RESULT_REJECTED')
   assert.equal(builderFailureCategory('BUILDER_RESULT_CONTENT_TOO_LARGE'), 'SOURCE_RESULT_REJECTED')
-  assert.equal(builderFailureCategory('APPLICATION_COMPILATION_FAILED'), 'APPLICATION_BUILD_FAILED')
+  assert.equal(builderFailureCategory('APPLICATION_SMOKE_FAILED'), 'APPLICATION_BUILD_FAILED')
   assert.equal(builderFailureCategory('USER_CANCELLED'), 'RUN_CANCELLED')
   assert.equal(builderFailureCategory('BUILDER_PREPARATION_FAILED'), 'INTERNAL_ERROR')
   assert.equal(builderFailureCategory('BUILDER_SOURCE_BASE_MOVED'), 'SOURCE_BASE_MOVED')
@@ -36,11 +35,10 @@ test('a stale base and a lost Preview reach the wire with their own codes', () =
   assert.deepEqual([unbuilt.failureCategory, unbuilt.failureCode], ['PREVIEW_NOT_BUILT', 'BUILDER_PREVIEW_NOT_BUILT'])
 })
 
-test('a source code carrying the git container suffix names the preparation failure and stays off the wire', () => {
-  const projected = projectBuilderRun(run('FAILED', 'BUILDER_SOURCE_BUNDLE_SOURCE_NOT_FOUND'))
+test('a source read code carrying the git container suffix names the preparation failure and stays off the wire', () => {
+  const projected = projectBuilderRun(run('FAILED', 'BUILDER_SOURCE_READ_PATH_NOT_FOUND'))
   assert.equal(projected.failureCategory, 'ENVIRONMENT_PREPARATION_FAILED')
   assert.equal(projected.failureCode, null)
-  assert.equal(builderFailureCategory('BUILDER_SOURCE_READ_PATH_NOT_FOUND'), 'ENVIRONMENT_PREPARATION_FAILED')
 })
 
 test('an unreachable application runner is the platform failing, not a build the author can repair', () => {
@@ -87,7 +85,7 @@ test("a candidate the Hub's check refuses reads as a rejected result (AC-9)", ()
 test('no code outside the table reaches the wire', () => {
   assert.equal(projectBuilderRun(run('FAILED', 'SOMETHING_NOBODY_DECLARED')).failureCode, null)
   assert.equal(projectBuilderRun(run('FAILED', 'SOMETHING_NOBODY_DECLARED')).failureCategory, 'INTERNAL_ERROR')
-  assert.equal(projectBuilderRun(run('FAILED', 'APPLICATION_COMPILATION_FAILED')).failureCode, 'APPLICATION_COMPILATION_FAILED')
+  assert.equal(projectBuilderRun(run('FAILED', 'APPLICATION_SMOKE_FAILED')).failureCode, 'APPLICATION_SMOKE_FAILED')
   assert.equal(projectBuilderRun(run('SUCCEEDED', null)).failureCategory, null)
 })
 

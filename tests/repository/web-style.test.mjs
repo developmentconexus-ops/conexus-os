@@ -102,14 +102,13 @@ test('an allowlisted dynamic class fails when one of its resolved names has no C
   assert.equal(result.stderr, 'apps/web/src/features/builder/construir/lens-diff.tsx:1: class "cx-dt-del", resolved from the dynamic "cx-dt-${side}", has no CSS rule under apps/web/src or packages/brand/src\n')
 })
 
-test('a class defined in CSS with no .tsx use warns but does not fail', context => {
+test('a class defined in CSS with no .tsx use fails and names the rule', context => {
   const result = check(tree(context, {
     'apps/web/src/screen.tsx': "export const Screen = () => <div className=\"cx-panel\" />\n",
     'apps/web/src/screen.css': '.cx-panel { padding: 1rem; }\n.cx-panel-unused { padding: 0; }\n',
   }))
-  assert.equal(result.status, 0, result.stderr)
-  assert.match(result.stderr, /^1 Conexus class\(es\) defined in CSS with no apps\/web\/src\/\*\*\/\*\.tsx use:\napps\/web\/src\/screen\.css:2: class "cx-panel-unused" is defined in CSS but no apps\/web\/src\/\*\*\/\*\.tsx uses it\n$/)
-  assert.match(result.stdout, /^Web style check passed \(files=\d+\)\.\n$/)
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, 'apps/web/src/screen.css:2: class "cx-panel-unused" is defined in CSS but no TSX under apps/web/src or packages/brand/src uses it\n')
 })
 
 test('a native title hint fails on an element and on a dotted component, and names the Tooltip to use', context => {

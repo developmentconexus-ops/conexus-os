@@ -10,7 +10,7 @@ Run the ones your change touches:
 
 ```bash
 npm run web:style:check                                   # no raw hex, only the three brand fonts
-npm run r1:a0:web:typecheck                               # apps/web TypeScript
+npm run typecheck:web                               # apps/web TypeScript
 npx --no-install biome check apps/web/src packages/brand/src
 node --test tests/implementation/brand-tokens.test.mjs    # after any change to tokens.css
 npm run keycloak-theme:check                              # after any change to apps/keycloak-theme
@@ -35,7 +35,7 @@ node --test --test-concurrency=1 tests/implementation/project-browser.test.mjs
 
 Assert what a person sees: the text, the role, the state after an action. A test that only proves the page rendered is not enough.
 
-**Live Hub.** `npm run hub:local` builds the web app and the Hub and serves them at `https://hub.conexus.localhost:3443`. It needs the local `.audit/slice7/hub.env`, which is not in the repository. Use it when the change depends on real server behavior. Never type the operator's password. Sign in with the local test operator or a saved session.
+**Live Hub.** `npm run hub:local` builds the web app and the Hub and serves them at `https://hub.conexus.localhost:3443`. It needs `CONEXUS_HUB_ENV` set to the Hub env file, which is not in the repository. Use it when the change depends on real server behavior. Never type the operator's password. Sign in with the local test operator or a saved session.
 
 ## Both themes and reduced motion
 
@@ -53,7 +53,7 @@ The theme follows `prefers-color-scheme` unless the person picks one with the to
 CONEXUS_SCREENSHOT_DIR=/tmp/shots node --test --test-concurrency=1 tests/implementation/project-browser.test.mjs
 ```
 
-Copy its `shoot()` helper when another suite needs the same. Put the before and after screenshots in the pull request. Commit them under `docs/evidence/screens/<topic>/` only when a later reader needs them, as `tests/implementation/settings-screenshots.mjs` does for Settings.
+Copy its `shoot()` helper when another suite needs the same. Put the before and after screenshots in the pull request. Commit them under `docs/evidence/screens/<topic>/` only when a later reader needs them.
 
 ## Accessibility basics
 

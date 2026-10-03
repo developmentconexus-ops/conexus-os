@@ -4,7 +4,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { registerConnectorRoutes } = await import(hubModuleUrl('connectors/routes.js'))
-const { sankhyaCredentialSchema } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
+const { sankhyaCredentialSchema } = await import(hubModuleUrl('connectors/sankhya/credential.js'))
 
 const origin = 'https://conexus.test'
 const workspaceId = '11111111-1111-4111-8111-111111111111'

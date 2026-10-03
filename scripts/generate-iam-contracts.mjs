@@ -51,7 +51,7 @@ try {
   const projectionDigest = sha256(canonicalBytes(definitions))
   const byId = new Map(definitions.map((definition) => [definition.ownerId, definition]))
   const output = [
-    '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-s1-contracts.mjs. Do not edit.',
+    '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-iam-contracts.mjs. Do not edit.',
     "import type { FastifySchema } from 'fastify'",
     '',
     `export const S1_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
@@ -77,7 +77,7 @@ try {
     '',
   ].join('\n')
   const client = [
-    '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-s1-contracts.mjs. Do not edit.',
+    '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-iam-contracts.mjs. Do not edit.',
     `export const S1_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
     `export const S1_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
     `export type AccountSummary = ${toTypeScript(byId.get('IAM-03').schema.response['201'])}`,

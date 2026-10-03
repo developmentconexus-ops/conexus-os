@@ -57,7 +57,7 @@ try {
   const byId = new Map(routeDefinitions.map((definition) => [definition.ownerId, definition]))
 
   const output = [
-    '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-s2-contracts.mjs. Do not edit.',
+    '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-workspace-contracts.mjs. Do not edit.',
     "import type { FastifySchema } from 'fastify'",
     '',
     `export const S2_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
@@ -73,7 +73,7 @@ try {
   ].join('\n')
 
   const client = [
-    '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-r1-s2-contracts.mjs. Do not edit.',
+    '// GENERATED from contracts/api/product/openapi.yaml by scripts/generate-workspace-contracts.mjs. Do not edit.',
     `export const S2_PRODUCT_OAS_DIGEST = ${JSON.stringify(sourceDigest)}`,
     `export const S2_ROUTE_PROJECTION_DIGEST = ${JSON.stringify(projectionDigest)}`,
     `export type WorkspaceSummary = ${toTypeScript(byId.get('WS-02').schema.response['200'])}`,

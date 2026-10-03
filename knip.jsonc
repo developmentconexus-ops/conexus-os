@@ -5,19 +5,9 @@
     // package.json scripts are already roots, and a directory glob would hide orphaned scripts.
     "scripts/check-test-skips.mjs",
     "scripts/check-weak-tests.mjs",
-    "scripts/generate-r1-connector-contracts.mjs",
-    "scripts/generate-wire-projection.mjs",
-    "scripts/issue-230-no-access-proof.mjs",
     "scripts/keycloak-refresh-probe.mjs",
-    "scripts/q3-negative-proof.mjs",
-    "scripts/q3-sign-in.mjs",
-    "scripts/run-kubb-wire-probe.mjs",
-    "scripts/single-session-proof.mjs",
-    "scripts/builder-eval/run.mjs",
     "scripts/builder-eval/plan-bench.mjs",
-    "scripts/builder-eval/plan-score.mjs",
     "scripts/builder-eval/experiment.mjs",
-    "scripts/builder-eval/oracle.mjs",
     "scripts/builder-eval/sankhya-sim.mjs",
     "scripts/builder-eval/serve.mjs",
     "tests/**/*.test.mjs",
@@ -26,15 +16,6 @@
     "tests/live/harness.mjs",
     "tests/live/hub-entry.mjs",
     "tests/implementation/builder-google-ai-pro-fake-cliproxy.mjs",
-    "tests/implementation/builder-composer-screenshots.mjs",
-    "tests/implementation/connector-integrations-screenshot.mjs",
-    "tests/implementation/guard-mutations.mjs",
-    "tests/implementation/guard-web-mutations.mjs",
-    "tests/implementation/parity-shots.mjs",
-    "tests/implementation/project-settings-access-screenshot.mjs",
-    "tests/implementation/settings-screenshots.mjs",
-    "tests/implementation/sandbox-probe/pilot-probe.mjs",
-    "tests/implementation/sandbox-probe/pilot-data-probe.mjs",
     "tests/implementation/sandbox-probe/network_egress.mjs",
     "tests/implementation/sandbox-probe/read_proc.mjs",
     "tests/implementation/sandbox-probe/read_secrets.mjs",
@@ -45,14 +26,23 @@
     "apps/hub/src/app-runner/main.ts",
     "apps/hub/src/telemetry/register.ts",
     "apps/web/src/main.tsx",
-    "apps/hub/compiler-template/**"
+    "apps/hub/compiler-template/**",
+    // The Builder skills' reference screens are read as text and copied into each Project.
+    "builder-skills/**/*.tsx",
+    // The verify skill's drivers are run by the skill, never imported.
+    ".agents/skills/verify/scripts/control.mjs",
+    ".agents/skills/verify/scripts/fake-cliproxy.mjs"
   ],
-  "project": ["apps/hub/src/**", "apps/web/src/**", "packages/**/src/**", "!packages/**/src/**/*.d.mts", "scripts/**", "tests/**"],
+  "project": ["apps/hub/src/**", "apps/web/src/**", "packages/**/src/**", "!packages/**/src/**/*.d.mts", "scripts/**", "tests/**", "builder-skills/**/*.tsx", ".agents/**/*.mjs", "!.agents/skills/mastra/**"],
   "ignore": ["apps/hub/src/generated/**", "apps/web/src/generated/**", "apps/hub/src/platform/hub-roles.generated.ts"],
   // @mastra/playground-ui publishes .d.ts files importing class-variance-authority but lists it
   // only as its own devDependency; our pin supplies those types for the web typecheck.
+  // conexus-verify.mjs runs biome as a string command, which knip cannot see.
   "ignoreDependencies": [
-    "class-variance-authority"
+    "class-variance-authority",
+    "@biomejs/biome"
   ],
+  // The reference screens import the generated app's own components and libraries, which this package does not install.
+  "ignoreIssues": { "builder-skills/**": ["unlisted", "unresolved"] },
   "ignoreBinaries": ["setpriv", "pgrep"]
 }

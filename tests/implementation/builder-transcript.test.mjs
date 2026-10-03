@@ -52,12 +52,11 @@ test('persisted and live user signals are drawn as the person while other signal
   ])
 })
 
-test('a text delta appends to the streaming message, leaves notices alone and clears pending', () => {
+test('a text delta appends to the streaming message, leaves notices alone', () => {
   const noticed = event(emptyTranscript('c1'), { type: 'error', error: { message: 'x' }, retryable: false })
-  const started = start({ ...noticed, pending: true }, dbMessage('assistant-1', 'assistant', [text('')]))
+  const started = start(noticed, dbMessage('assistant-1', 'assistant', [text('')]))
   const state = event(started, { type: 'message_update', id: 'assistant-1', event: { type: 'text-delta', delta: 'Streaming text' } })
   assert.notEqual(state, started)
-  assert.equal(state.pending, false)
   assert.deepEqual(state.entries.map((entry) => [entry.kind, entry.id]), [['notice', noticed.entries[0].id], ['message', 'assistant-1']])
   assert.equal(state.entries[1].streaming, true)
   assert.deepEqual(partsOf(state.entries[1]), [text('Streaming text')])
@@ -101,27 +100,25 @@ test('a message_start delivered again keeps the text already streamed', () => {
   assert.deepEqual(partsOf(replayed.entries[0]), [text('Streaming text')])
 })
 
-test('message_end seals only the matching assistant message and clears pending', () => {
+test('message_end seals only the matching assistant message', () => {
   const message = dbMessage('assistant-1', 'assistant', [text('')])
-  const started = start({ ...emptyTranscript('c1'), pending: true }, message)
+  const started = start(emptyTranscript('c1'), message)
   const duplicate = start(started, message)
   const mismatched = end(duplicate, 'assistant-2')
   const ended = end(mismatched, 'assistant-1')
   assert.deepEqual(ids(duplicate), ['assistant-1'])
   assert.equal(mismatched, duplicate)
   assert.equal(ended.entries[0].streaming, false)
-  assert.equal(ended.pending, false)
 })
 
-test('signal messages between assistant segments are kept in order and never clear pending', () => {
-  let state = start({ ...emptyTranscript('c1'), pending: true }, dbMessage('assistant-1', 'assistant', [text('Before signals')]))
+test('signal messages between assistant segments are kept in order', () => {
+  let state = start(emptyTranscript('c1'), dbMessage('assistant-1', 'assistant', [text('Before signals')]))
   state = end(state, 'assistant-1')
   const reminder = signal('reminder-1', 'Follow the package instructions.', 'system-reminder')
   const summary = signal('summary-1', 'github: 2 pending notifications', 'notification')
   for (const message of [reminder, summary]) {
     state = start(state, message)
     assert.equal(state.entries.at(-1).streaming, true)
-    assert.equal(state.pending, false)
     state = end(state, message.id)
     assert.equal(state.entries.at(-1).streaming, false)
   }
@@ -132,10 +129,9 @@ test('signal messages between assistant segments are kept in order and never cle
   assert.deepEqual(partsOf(state.entries[3]), [text('After signals')])
 })
 
-test('a signal start and end leave pending set', () => {
+test('a signal start and end stream and seal the signal entry', () => {
   const reminder = signal('reminder-1', 'Wait for assistant output.', 'system-reminder')
-  const ended = end(start({ ...emptyTranscript('c1'), pending: true }, reminder), 'reminder-1')
-  assert.equal(ended.pending, true)
+  const ended = end(start(emptyTranscript('c1'), reminder), 'reminder-1')
   assert.deepEqual(ended.entries.map((entry) => [entry.id, entry.streaming]), [['reminder-1', false]])
 })
 
@@ -576,11 +572,11 @@ test('display_state_changed sets the task list', () => {
 
 test('a local message is pending, fails, resets to pending on a resend under the same id, and is dropped', () => {
   let state = transcriptReducer(emptyTranscript('c1'), { type: 'localUser', id: 'local-k1', text: 'oi' })
-  assert.deepEqual([state.pending, state.entries.map((entry) => [entry.id, entry.delivery, entry.message.role])], [true, [['local-k1', 'pending', 'user']]])
+  assert.deepEqual(state.entries.map((entry) => [entry.id, entry.delivery, entry.message.role]), [['local-k1', 'pending', 'user']])
   state = transcriptReducer(state, { type: 'failLocalUser', id: 'local-k1' })
-  assert.deepEqual([state.pending, state.entries.map((entry) => entry.delivery)], [false, ['failed']])
+  assert.deepEqual(state.entries.map((entry) => entry.delivery), ['failed'])
   state = transcriptReducer(state, { type: 'localUser', id: 'local-k1', text: 'oi' })
-  assert.deepEqual([state.pending, state.entries.map((entry) => [entry.id, entry.delivery])], [true, [['local-k1', 'pending']]])
+  assert.deepEqual(state.entries.map((entry) => [entry.id, entry.delivery]), [['local-k1', 'pending']])
   state = transcriptReducer(state, { type: 'dropLocalUser', id: 'local-k1' })
   assert.deepEqual(state.entries, [])
 })
@@ -594,7 +590,7 @@ test('dropLocalUser never removes a confirmed message', () => {
 
 test('reset empties the transcript under the new conversation', () => {
   const state = transcriptReducer(hydrate([dbMessage('m1', 'user', [text('a')])]), { type: 'reset', conversationId: 'c2' })
-  assert.deepEqual(state, { conversationId: 'c2', entries: [], pending: false, tasks: [] })
+  assert.deepEqual(state, { conversationId: 'c2', entries: [], tasks: [] })
 })
 
 test('the recorded ask, answer and finish events reduce to one user bubble, a closed prompt, a finished ask_user part and the final text', () => {
@@ -607,7 +603,6 @@ test('the recorded ask, answer and finish events reduce to one user bubble, a cl
   }
   assert.deepEqual(seenPrompts, ['tool_suspended', 'agent_end', 'agent_start', 'message_start'])
 
-  assert.equal(state.pending, false)
   assert.deepEqual(state.entries.map((entry) => [entry.kind, entry.id, entry.message.role, entry.streaming, partsOf(entry).length]), [
     ['message', '1575ce24-a216-4f7e-b465-d5e9e818b985', 'user', false, 1],
     ['message', 'afc81af1-6d6b-43b0-a33e-4a5888eb56ee', 'assistant', true, 2],
@@ -675,7 +670,7 @@ test('a part delta that skips parts the tab never saw leaves no hole, so the nex
 test('a send whose response was lost is unknown, not failed, and a refusal after it settles as failed', () => {
   let state = transcriptReducer(emptyTranscript('c1'), { type: 'localUser', id: 'local-k1', text: 'oi' })
   state = transcriptReducer(state, { type: 'unknownLocalUser', id: 'local-k1' })
-  assert.deepEqual([state.pending, state.entries.map((entry) => entry.delivery)], [false, ['unknown']])
+  assert.deepEqual(state.entries.map((entry) => entry.delivery), ['unknown'])
   state = transcriptReducer(state, { type: 'failLocalUser', id: 'local-k1' })
   assert.deepEqual(state.entries.map((entry) => entry.delivery), ['failed'])
   state = transcriptReducer(state, { type: 'localUser', id: 'local-k1', text: 'oi' })

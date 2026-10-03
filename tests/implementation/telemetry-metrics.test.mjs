@@ -3,51 +3,97 @@ import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { createHeapWatch } = await import(hubModuleUrl('telemetry/heap-watch.js'))
+const MiB = 1024 * 1024
 
-test('the heap watch fires once after two samples above 0.8, stays quiet while high, and fires again only after the ratio fell below 0.7', () => {
-  const fired = []
-  const sample = createHeapWatch((ratio) => fired.push(ratio))
-  for (const ratio of [0.5, 0.81]) sample(ratio)
-  assert.deepEqual(fired, [], 'one sample above is not enough')
-  sample(0.82)
-  assert.deepEqual(fired, [0.82])
-  for (const ratio of [0.9, 0.95, 0.75, 0.85, 0.86]) sample(ratio)
-  assert.deepEqual(fired, [0.82], 'a dip to 0.75 does not re-arm it')
-  sample(0.69)
-  for (const ratio of [0.81, 0.83]) sample(ratio)
-  assert.deepEqual(fired, [0.82, 0.83])
+const runChild = (script, { execArgv = [], nodeOptions } = {}) => {
+  const env = { ...process.env }
+  delete env.NODE_OPTIONS
+  if (nodeOptions) env.NODE_OPTIONS = nodeOptions
+  const result = spawnSync(process.execPath, [...execArgv, '--input-type=module', '-e', script], { env, encoding: 'utf8' })
+  assert.equal(result.status, 0, result.stderr)
+  return JSON.parse(result.stdout)
+}
+
+// heapUsedRatio divides used heap by the cap V8 applies, read once at start. Dividing the ratio back out
+// recovers the cap the Hub chose, bounded by the used heap read just before and just after the call.
+const capBehindRatio = (options) => {
+  const { ratio, usedBefore, usedAfter, limit } = runChild(`
+import { getHeapStatistics } from 'node:v8'
+const { heapUsedRatio } = await import(${JSON.stringify(hubModuleUrl('platform/heap.js'))})
+const usedBefore = getHeapStatistics().used_heap_size
+const ratio = heapUsedRatio()
+const usedAfter = getHeapStatistics().used_heap_size
+console.log(JSON.stringify({ ratio, usedBefore, usedAfter, limit: getHeapStatistics().heap_size_limit }))
+`, options)
+  return { lowest: (Math.min(usedBefore, usedAfter) * 0.95) / ratio, highest: (Math.max(usedBefore, usedAfter) * 1.05) / ratio, limit }
+}
+
+for (const [name, options, capMiB] of [
+  ['the command line flag alone', { execArgv: ['--max-old-space-size=512'] }, 512],
+  ['the command line flag over a NODE_OPTIONS flag', { execArgv: ['--max-old-space-size=512'], nodeOptions: '--max-old-space-size=256 --no-warnings' }, 512],
+  ['the command line flag over a larger NODE_OPTIONS flag', { execArgv: ['--max-old-space-size=512'], nodeOptions: '--max-old-space-size=1024' }, 512],
+  ['the last NODE_OPTIONS flag', { nodeOptions: '--max-old-space-size=300 --max-old-space-size=1024' }, 1024],
+  ['the last command line flag, either spelling', { execArgv: ['--max-old-space-size=100', '--max_old_space_size=200'] }, 200],
+]) {
+  test(`the heap ratio divides by the cap V8 applies: ${name}`, () => {
+    const { lowest, highest } = capBehindRatio(options)
+    assert.equal(lowest <= capMiB * MiB && capMiB * MiB <= highest, true, `the ratio divides by ${capMiB} MiB (implied between ${lowest / MiB} and ${highest / MiB} MiB)`)
+  })
+}
+
+test('with no cap set the heap ratio divides by heap_size_limit', () => {
+  const { lowest, highest, limit } = capBehindRatio({ nodeOptions: '--no-warnings' })
+  assert.equal(lowest <= limit && limit <= highest, true, `the ratio divides by ${limit / MiB} MiB (implied between ${lowest / MiB} and ${highest / MiB} MiB)`)
 })
 
-test('a single high sample between lows never fires', () => {
-  const fired = []
-  const sample = createHeapWatch((ratio) => fired.push(ratio))
-  for (const ratio of [0.9, 0.5, 0.9, 0.5, 0.9]) sample(ratio)
-  assert.deepEqual(fired, [])
-})
-
-const { oldSpaceCapBytes } = await import(hubModuleUrl('platform/heap.js'))
-
-test('the old-space cap is the command line flag over NODE_OPTIONS, the last within each, and null with none', () => {
-  assert.equal(oldSpaceCapBytes(['--max-old-space-size=512'], undefined), 512 * 1024 * 1024)
-  assert.equal(oldSpaceCapBytes(['--max-old-space-size=512'], '--max-old-space-size=256 --no-warnings'), 512 * 1024 * 1024)
-  assert.equal(oldSpaceCapBytes(['--max-old-space-size=512'], '--max-old-space-size=1024'), 512 * 1024 * 1024)
-  assert.equal(oldSpaceCapBytes(['--import', 'x.js'], '--max-old-space-size=300 --max-old-space-size=1024'), 1024 * 1024 * 1024)
-  assert.equal(oldSpaceCapBytes(['--max-old-space-size=100', '--max_old_space_size=200'], undefined), 200 * 1024 * 1024)
-  assert.equal(oldSpaceCapBytes(['--import', 'x.js'], '--no-warnings'), null)
-})
-
-test('a process launched with a NODE_OPTIONS cap and a command line cap divides by the cap V8 applies', () => {
-  const MiB = 1024 * 1024
+test('a process launched with a NODE_OPTIONS cap and a command line cap runs under the command line cap', () => {
   for (const nodeOptions of ['--max-old-space-size=1024', '--max-old-space-size=256']) {
-    const result = spawnSync(process.execPath, ['--max-old-space-size=512', '--input-type=module', '-e', `
-const { getHeapStatistics } = await import('node:v8')
-const { oldSpaceCapBytes } = await import(${JSON.stringify(hubModuleUrl('platform/heap.js'))})
-console.log(JSON.stringify({ cap: oldSpaceCapBytes(process.execArgv, process.env.NODE_OPTIONS), limit: getHeapStatistics().heap_size_limit }))
-`], { env: { ...process.env, NODE_OPTIONS: nodeOptions }, encoding: 'utf8' })
-    assert.equal(result.status, 0, result.stderr)
-    const { cap, limit } = JSON.parse(result.stdout)
-    assert.equal(cap, 512 * MiB, `with NODE_OPTIONS ${nodeOptions}`)
-    assert.ok(limit > 512 * MiB && limit < 1024 * MiB, `V8 applied the 512 MiB cap: heap_size_limit ${limit / MiB} MiB`)
+    const { limit } = capBehindRatio({ execArgv: ['--max-old-space-size=512'], nodeOptions })
+    assert.equal(limit > 512 * MiB && limit < 1024 * MiB, true, `V8 applied the 512 MiB cap: heap_size_limit ${limit / MiB} MiB (NODE_OPTIONS ${nodeOptions})`)
   }
+})
+
+// startHeapWatch samples heapUsedRatio on a timer. The child replaces the timer with a manual tick and holds
+// real heap to move the ratio, under a 64 MiB cap so a few MiB of objects cross 0.8.
+test('the heap watch warns once after two samples above 0.8, stays quiet while high, and warns again only after the ratio fell below 0.7', () => {
+  const run = runChild(`
+const { startHeapWatch } = await import(${JSON.stringify(hubModuleUrl('telemetry/heap-watch.js'))})
+const { heapUsedRatio } = await import(${JSON.stringify(hubModuleUrl('platform/heap.js'))})
+let tick
+globalThis.setInterval = (callback) => { tick = callback; return { unref() {} } }
+const warnings = []
+startHeapWatch((fields, message) => warnings.push({ event: fields.event, ratioAbove08: fields.ratio > 0.8, rssIsNumber: typeof fields.rss === 'number', message }))
+let hold = []
+const grow = (target) => { while (heapUsedRatio() < target) hold.push(Array.from({ length: 5000 }, (_, i) => ({ i }))) }
+const release = () => { hold = []; globalThis.gc() }
+const counts = []
+const sample = (label) => { tick(); counts.push([label, warnings.length, Number(heapUsedRatio().toFixed(1))]) }
+grow(0.85); sample('first high sample')
+release(); sample('low')
+grow(0.85); sample('single high between lows')
+sample('second high in a row')
+sample('third high'); sample('fourth high')
+release(); grow(0.72); sample('dip into 0.7 to 0.8')
+grow(0.85); sample('high after the dip'); sample('high again after the dip')
+release(); sample('below 0.7')
+grow(0.85); sample('first high after re-arming'); sample('second high after re-arming')
+console.log(JSON.stringify({ counts, warnings }))
+`, { execArgv: ['--max-old-space-size=64', '--expose-gc'] })
+  assert.deepEqual(run.counts.map(([label, warned]) => [label, warned]), [
+    ['first high sample', 0],
+    ['low', 0],
+    ['single high between lows', 0],
+    ['second high in a row', 1],
+    ['third high', 1],
+    ['fourth high', 1],
+    ['dip into 0.7 to 0.8', 1],
+    ['high after the dip', 1],
+    ['high again after the dip', 1],
+    ['below 0.7', 1],
+    ['first high after re-arming', 1],
+    ['second high after re-arming', 2],
+  ])
+  const dip = run.counts.find(([label]) => label === 'dip into 0.7 to 0.8')
+  assert.ok(dip[2] >= 0.7 && dip[2] <= 0.8, `the dip sample sat between 0.7 and 0.8, at ${dip[2]}`)
+  assert.deepEqual(run.warnings, Array(2).fill({ event: 'PROCESS_HEAP_HIGH', ratioAbove08: true, rssIsNumber: true, message: 'PROCESS_HEAP_HIGH' }))
 })

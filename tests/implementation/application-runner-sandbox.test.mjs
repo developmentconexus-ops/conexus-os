@@ -20,7 +20,8 @@ import { connectorRecord } from './connector-record.mjs'
 // through the rootless bubblewrap worker and the pinned database relay. Needs unprivileged user
 // namespaces and /usr/bin/bwrap on the host.
 const { createSupervisor } = await import(hubModuleUrl('app-runner/supervisor.js'))
-const { assertUserNamespaces, stageWorkerRuntime, DEFAULT_SANDBOX } = await import(hubModuleUrl('app-runner/sandbox.js'))
+const { assertUserNamespaces, stageWorkerRuntime } = await import(hubModuleUrl('app-runner/sandbox.js'))
+const SANDBOX = { bwrap: '/usr/bin/bwrap', prlimit: '/usr/bin/prlimit', node: process.execPath, heapMb: 128, addressSpaceMb: 1792, nodePermission: true }
 const { openPgRelay, readRelayTls } = await import(hubModuleUrl('app-runner/pg-relay.js'))
 const { previewAllocation } = await import(hubModuleUrl('app-runner/data-plane.js'))
 const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
@@ -330,7 +331,7 @@ test('the runner prepares and serves exactly what the Project check built, every
 // The arena's reviewed cases, run with Node's permission layer off, so what they report is what the
 // bubblewrap namespaces alone allow. The network targets are listeners the host provably reaches.
 test('with the Node permission layer off, the namespaces alone hide host files, processes and network', async (t) => {
-  const { admin, supervisor, projects: [project], stateDir } = await setup(t, { ...DEFAULT_SANDBOX, nodePermission: false })
+  const { admin, supervisor, projects: [project], stateDir } = await setup(t, { ...SANDBOX, nodePermission: false })
   const files = probeServerTree()
   assert.deepEqual(await supervisor.prepare({ projectId: project, files, onDivergence: RESET }), { state: 'READY', reset: false, applied: [] })
   const run = async (name, input) => {
@@ -375,7 +376,7 @@ test('with the Node permission layer off, the namespaces alone hide host files, 
 })
 
 test('the runner refuses to start where the sandbox cannot be built', () => {
-  assert.throws(() => assertUserNamespaces({ ...DEFAULT_SANDBOX, bwrap: '/nonexistent/bwrap' }), /RUNNER_USER_NAMESPACES_UNAVAILABLE/)
+  assert.throws(() => assertUserNamespaces({ ...SANDBOX, bwrap: '/nonexistent/bwrap' }), /RUNNER_USER_NAMESPACES_UNAVAILABLE/)
 })
 
 test('the runner socket admits a prepare only when the Hub says whether a divergent history may reset', async () => {
@@ -585,7 +586,7 @@ test('a handler fetches through the socket: another Project gets NOT_GRANTED wit
 // alone expose: the bound socket's owner, the uid bubblewrap runs the handler under, and a directory
 // holding only this invocation's socket.
 test('M3 and M4: the handler connects to the 0600 socket under its own uid and sees no other socket', async (t) => {
-  const { socketDir, open, invoke, project, otherProject, port } = await connectorSetup(t, { ...DEFAULT_SANDBOX, nodePermission: false })
+  const { socketDir, open, invoke, project, otherProject, port } = await connectorSetup(t, { ...SANDBOX, nodePermission: false })
   const portA = await open(project)
   const portB = await open(otherProject)
   const answer = await invoke('probe', { paths: [portA.socketPath, portB.socketPath, `${socketDir}/.s.connector`], port }, portA.socketPath)

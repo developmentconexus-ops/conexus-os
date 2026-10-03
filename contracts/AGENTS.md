@@ -6,7 +6,7 @@ The wire contracts. `api/product/` is the Product HTTP API in OpenAPI, `api/tech
 
 - `api/product/openapi.yaml` lists every path by an explicit `$ref`. An operation added to a `*-paths.yaml` file alone is invisible. `npm run wire:bijection` fails on it.
 - A contract change and its [`operation-ledger.md`](../docs/product/operation-ledger.md) row go in one commit.
-- The Hub routes in `apps/hub/src/generated/` and the web clients in `apps/web/src/generated/` come from `openapi.yaml`. Regenerate them in the same commit with `npm run r1:s1:generate`, `npm run r1:s2:generate` and `npm run r1:s3:p5:generate`.
+- The Hub routes in `apps/hub/src/generated/` and the web clients in `apps/web/src/generated/` come from `openapi.yaml`. Regenerate them in the same commit with `npm run generate:iam`, `generate:workspace`, `generate:project` and `generate:connector`.
 - `technical/builder-run-vocabulary.json` is the one list of Builder run states, phases and result kinds. The Hub and the web import the copies `node scripts/generate-builder-run-vocabulary.mjs` writes into their `src/generated/`; a change also needs a migration for the matching `builder_run` CHECK constraint, and `--check` names every list still behind.
 - `technical/hub-catalog-snapshot.json` is written only by `npm run db:catalog:snapshot`. `technical/hub-database-roles.json` is the one role register. After you change it, run `npm run db:roles:generate`.
 
@@ -14,7 +14,7 @@ The wire contracts. `api/product/` is the Product HTTP API in OpenAPI, `api/tech
 
 ```bash
 npm run wire:verify
-npm run r1:s2:check
+npm run check:contracts
 npm run db:roles:check
 npm run db:catalog:check     # needs PostgreSQL
 ```

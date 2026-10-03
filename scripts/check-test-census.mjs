@@ -7,8 +7,6 @@ export const EXEMPT_TESTS = Object.freeze([
   'tests/implementation/builder-sandbox-e2b-live.test.mjs',
   'tests/implementation/builder-production-composed-live.test.mjs',
   // Manual Playwright proofs against a real Keycloak and PostgreSQL; they need secrets CI does not hold.
-  'tests/implementation/r1-s1-live-browser.spec.mjs',
-  'tests/implementation/r1-s2-live-browser.spec.mjs',
 ])
 
 export function collectReachableTests(candidateGraph, packageScripts) {

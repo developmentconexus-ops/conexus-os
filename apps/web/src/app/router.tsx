@@ -2,7 +2,7 @@ import { createRouter } from '@tanstack/react-router'
 import { rememberReturnTo } from '../features/settings/return-to'
 import { rootRoute } from '../routes/__root'
 import { indexRoute } from '../routes/index'
-import { construirRoute, projectBuildRoute, projectRoute } from '../routes/construir'
+import { construirRoute, projectRoute } from '../routes/construir'
 import { settingsRoute } from '../routes/settings'
 import { settingsAccountRoute } from '../routes/settings-account'
 import { settingsIndexRoute } from '../routes/settings-index'
@@ -41,7 +41,6 @@ const routeTree = rootRoute.addChildren([
   workspaceProjectNewRoute,
   workspaceMembersRoute,
   projectRoute,
-  projectBuildRoute,
   construirRoute,
 ])
 

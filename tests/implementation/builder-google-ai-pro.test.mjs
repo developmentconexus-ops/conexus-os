@@ -10,7 +10,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const built = hubModuleUrl
 const { encodeKey, decodeKey, parseKey, instanceIdOf } = await import(built('builder/google-ai-pro/credential.js'))
-const { configYaml, createCliproxyPool, verifyCliproxyBinary } = await import(built('builder/google-ai-pro/pool.js'))
+const { createCliproxyPool, verifyCliproxyBinary } = await import(built('builder/google-ai-pro/pool.js'))
 const { startModelRouter } = await import(built('builder/google-ai-pro/router.js'))
 const { createRefreshWriteBack } = await import(built('builder/google-ai-pro/write-back.js'))
 const { createHttpApp } = await import(built('http/app.js'))
@@ -77,13 +77,19 @@ test('a credential carries the auth record whole, and only a well-formed Antigra
   assert.throws(() => encodeKey({ fileName: '.oauth-antigravity-state.oauth', bytes: new Uint8Array([1]) }), /^Error: GOOGLE_AI_PRO_RECORD_REFUSED$/)
 })
 
-test('the proxy config sets no payload rule: the request itself asks Gemini for its thinking', () => {
-  assert.equal(configYaml({ port: 8317, authDir: '/state/auth', proxyKey: 'key-1' }), [
+test('the proxy config a person\'s proxy starts with sets no payload rule: the request itself asks Gemini for its thinking', async (t) => {
+  const { binary, stateDir } = scratch(t)
+  const router = await openRouter(t, openPool(t, { binary, stateDir }))
+  const key = encodeKey(record('ana@example.com'))
+  assert.equal((await gemini(router, 'models', key)).status, 200)
+  const config = readFileSync(join(stateDir, instanceIdOf(key), 'config.yaml'), 'utf8')
+    .replace(/^port: \d+$/m, 'port: PORT').replace(/^ {2}- ".+"$/m, '  - "KEY"')
+  assert.equal(config, [
     'host: "127.0.0.1"',
-    'port: 8317',
-    'auth-dir: "/state/auth"',
+    'port: PORT',
+    `auth-dir: ${JSON.stringify(join(stateDir, instanceIdOf(key), 'auth'))}`,
     'api-keys:',
-    '  - "key-1"',
+    '  - "KEY"',
     'remote-management:',
     '  allow-remote: false',
     '  secret-key: ""',

@@ -3,7 +3,8 @@ import type { AskUserAnswer, AskUserOption } from '@mastra/playground-ui/compone
 import { AskUserPt, type AskUserQuestionData } from './ask-user-pt'
 import { presentTool, stringifyToolValue } from '@mastra/playground-ui/components/ai/tool-call'
 import { useState } from 'react'
-import type { AnswerOutcome, PendingReply, PromptEntry } from '../mastra-session'
+import type { AnswerOutcome, PendingReply } from '../mastra-session'
+import type { PromptEntry } from '../transcript'
 import { PlanPt } from './plan-pt'
 import { toolRequest } from './tool-sentences'
 

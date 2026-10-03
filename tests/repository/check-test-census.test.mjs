@@ -82,7 +82,7 @@ test('a *.spec.mjs outside the graph and the exempt list is unreached', () => {
     root: '.',
     candidateGraph: [],
     packageScripts: {},
-    committedTests: ['tests/implementation/stray.spec.mjs', 'tests/implementation/r1-s1-live-browser.spec.mjs'],
+    committedTests: ['tests/implementation/stray.spec.mjs', 'tests/implementation/builder-e2b-live.test.mjs'],
   })
   assert.deepEqual(result.unreached, ['tests/implementation/stray.spec.mjs'])
 })

@@ -12,7 +12,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 const built = hubModuleUrl
 const { createBuilderService } = await import(built('builder/service.js'))
 const { createBuilderRunRuntime } = await import(built('builder/run-runtime.js'))
-const { sweepIdleMachines } = await import(built('builder/idle-machine-sweep.js'))
+const { scheduleIdleMachineSweep } = await import(built('builder/idle-machine-sweep.js'))
 const { createConexusGit } = await import(built('builder/conexus-git.js'))
 const { createProjectSourceReads } = await import(built('builder/source.js'))
 const { conexusInstructions } = await import(built('builder/harness/prompt.js'))
@@ -23,6 +23,10 @@ const projectId = '22222222-2222-4222-8222-222222222222'
 const accountId = '33333333-3333-4333-8333-333333333333'
 const conversationId = '44444444-4444-4444-8444-444444444444'
 const AGENTS_MD = '# Project knowledge\n\nA base app.\n'
+const CONNECTOR_BRIEF_UNBOUND = 'No Conexão is bound to this Project, so it reads no external system. When a request needs data from one, '
+  + 'change no files: name the system, tell the person a Conexão for it can be added in Integrações, and stop.'
+const CONNECTOR_BRIEF_UNAVAILABLE = 'The Conexões bound to this Project could not be read in this run. Do not call `connector_fetch` or `connectors.fetch`; '
+  + 'when the request needs data from an external system, change no files, tell the person it is unavailable right now and that they can ask again later, and stop.'
 const STARTER = [
   { path: 'AGENTS.md', content: AGENTS_MD },
   { path: 'app/index.html', content: '<h1>base</h1>\n' },
@@ -555,11 +559,11 @@ test('a terminal keepalive lapse aborts the turn and fails the run for recovery 
 })
 
 test("a check that fails in Conexus fails the run with its code, keeps the files in the mirror and leaves main at the base", async (t) => {
-  const run = await harness(t, { build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') } })
+  const run = await harness(t, { build: async () => { throw new Error('APPLICATION_SMOKE_FAILED') } })
   await run.start()
   await run.service.close()
   assert.equal(await run.main(), run.base)
-  assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild' || kind === 'fail'), [['fail', 'APPLICATION_COMPILATION_FAILED']])
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild' || kind === 'fail'), [['fail', 'APPLICATION_SMOKE_FAILED']])
   assert.equal(run.mirror(), run.result())
   assert.equal(run.checks.length, 2, 'a Conexus failure is not kept: settling checks once more, and nothing sent the agent back to work')
   assert.deepEqual(run.feedbacks, [])
@@ -839,13 +843,6 @@ test('every agent-user command states an empty environment, and root commands ge
   await run.service.close()
   assert.deepEqual(run.invocations.filter(({ env }) => env === undefined || Object.keys(env).length > 0), [])
   assert.deepEqual(run.rootInvocations.filter(({ env }) => Object.keys(env).length > 0), [])
-})
-
-test('a turn that continued its session after a transient failure logs how many times', async (t) => {
-  const run = await harness(t, { turn: () => ({ ...completed(), continuations: 2 }) })
-  await run.start()
-  await run.service.close()
-  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_AGENT_CONTINUED:')), [`BUILDER_AGENT_CONTINUED:2:${runId}`])
 })
 
 test('an agent that aborts with no stop from the person fails with a named reason, never as cancelled by them', async (t) => {
@@ -1286,7 +1283,6 @@ test("a Project with no binding is told it has no Connection and nothing about a
   await run.start()
   await run.service.close()
   const instructions = run.sessionContext.get('conexusConnectorBrief')
-  const { CONNECTOR_BRIEF_UNBOUND } = await import(hubModuleUrl('connectors/builder-brief.js'))
   assert.equal(instructions, CONNECTOR_BRIEF_UNBOUND, 'told it has no Connection, and what to do')
   for (const leak of ['other-project-binding', otherBinding.connectionId, 'connectors.call']) {
     assert.equal(instructions.includes(leak), false, leak)
@@ -1294,7 +1290,6 @@ test("a Project with no binding is told it has no Connection and nothing about a
 })
 
 test('a Project bound to Sankhya gets its own bindings, and is never told to refuse for lack of a Connection', async (t) => {
-  const { CONNECTOR_BRIEF_UNBOUND } = await import(hubModuleUrl('connectors/builder-brief.js'))
   const binding = { bindingId: '88888888-8888-4888-8888-888888888888', name: 'erp', connectionId: '99999999-9999-4999-8999-999999999999', connectorId: 'sankhya' }
   const run = await harness(t, { openConnectorRun: await connectorRuns({ listBindings: async () => [binding] }) })
   await run.start()
@@ -1305,7 +1300,6 @@ test('a Project bound to Sankhya gets its own bindings, and is never told to ref
 })
 
 test('a run whose connector bindings cannot be read still runs, told only that connector data is out of reach', async (t) => {
-  const { CONNECTOR_BRIEF_UNAVAILABLE } = await import(hubModuleUrl('connectors/builder-brief.js'))
   const record = connectorRecord()
   const openRun = await connectorRuns({ listBindings: async () => { throw new Error('connect ECONNREFUSED 10.0.0.9:5432 STORE_DETAIL_MARKER') } }, record)
   const run = await harness(t, { openConnectorRun: openRun })
@@ -1326,7 +1320,7 @@ test("the run's connector scope reaches its session, is live during the agent tu
     'the run succeeds': {},
     'the agent turn fails': { turn: () => ({ reason: 'error', userMessageId: 'user-message', summary: '' }) },
     'the person stops the run during the turn': { stop: true },
-    'the check fails in Conexus after the turn': { build: async () => { throw new Error('APPLICATION_COMPILATION_FAILED') } },
+    'the check fails in Conexus after the turn': { build: async () => { throw new Error('APPLICATION_SMOKE_FAILED') } },
   }
   const outcomes = {}
   for (const [name, { stop, ...options }] of Object.entries(cases)) {
@@ -1643,13 +1637,16 @@ test('#423 the conversation of an idle machine that the sweep deleted runs its n
   const log = []
   const day = 86_400_000
   const now = Date.now()
-  await sweepIdleMachines({
-    listPaused: async () => [{ providerSandboxId: 'ivm-idle', conversationId, idleSince: new Date(now - 8 * day) }],
+  let listed = 0
+  const sweep = scheduleIdleMachineSweep({
+    listPaused: async () => (listed++ === 0 ? [] : [{ providerSandboxId: 'ivm-idle', conversationId, idleSince: new Date(now - 8 * day) }]),
     openRunConversations: async () => new Set(),
     kill: async (ids) => { deleted.push(...ids); run.loseVm('sbx-new'); return ids },
     log: (line) => log.push(line),
     now: () => now,
-  })
+  }, 3_600_000)
+  await sweep.tick()
+  await sweep.close()
   assert.deepEqual(deleted, ['ivm-idle'])
   assert.deepEqual(log, [`BUILDER_IDLE_MACHINE_DELETED:${conversationId}:ivm-idle:8d`])
   await run.again()

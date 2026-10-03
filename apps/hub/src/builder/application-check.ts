@@ -16,13 +16,14 @@ export const CHECK_NODE_PATH = '/usr/local/bin/node'
 /** The template's unprivileged user. Every step that runs application code runs as it. */
 export const CHECK_AGENT_IDENTITY = '1500:1500'
 
-const CHECK_STEP_IDS: readonly CheckStepId[] = ['generate', 'typecheck', 'build', 'server', 'boot']
-
 const problemSchema = z.object({
   file: z.string().exactOptional(), line: z.number().exactOptional(), column: z.number().exactOptional(), code: z.string().exactOptional(), message: z.string(),
 }).readonly()
 const stepIdSchema = z.enum(['generate', 'typecheck', 'build', 'server', 'boot'])
 type CheckStepId = z.infer<typeof stepIdSchema>
+
+/** `generate`, `typecheck`, `build` and `server` refuse the source; `boot` is recorded and never refuses it. */
+const BLOCKING_STEPS: ReadonlySet<CheckStepId> = new Set(['generate', 'typecheck', 'build', 'server'])
 
 /** The `conexus_check` tool's output: the report exactly as the check printed it. */
 export const checkReportSchema = z.object({
@@ -33,13 +34,12 @@ export const checkReportSchema = z.object({
     z.object({ step: stepIdSchema, status: z.literal('skipped'), reason: z.string() }).readonly(),
   ])).readonly(),
   facts: z.object({ operations: z.number(), migrations: z.number(), jsGzipBytes: z.number() }).readonly(),
-}).readonly()
+}).refine((report) => report.ok === report.steps.filter((step) => BLOCKING_STEPS.has(step.step)).every((step) => step.status === 'passed'))
+  .readonly()
 
 export type CheckReport = z.infer<typeof checkReportSchema>
-export type CheckStep = CheckReport['steps'][number]
+type CheckStep = CheckReport['steps'][number]
 export type Problem = z.infer<typeof problemSchema>
-/** `generate`, `typecheck`, `build` and `server` refuse the source; `boot` is recorded and never refuses it. */
-const BLOCKING_STEPS: ReadonlySet<CheckStepId> = new Set(['generate', 'typecheck', 'build', 'server'])
 
 const CHECK_LIMITS = Object.freeze({
   stepMs: Object.freeze({ generate: 10_000, typecheck: 60_000, build: 60_000, server: 60_000, boot: 45_000 }),
@@ -59,49 +59,13 @@ export const redactEvidence = (text: string): string => text
   .replace(/x-access-token:[^@\s]+/gi, 'x-access-token:[redacted]')
   .replace(/\bgh[pousr]_[A-Za-z0-9_]+/g, '[redacted]')
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
-const isCount = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
-
-const parseProblem = (value: unknown): Problem => {
-  if (!isRecord(value) || typeof value.message !== 'string') throw new Error('APPLICATION_CHECK_REPORT_UNREADABLE')
-  const { file, line, column, code, message } = value
-  if ((file !== undefined && typeof file !== 'string') || (code !== undefined && typeof code !== 'string') ||
-    (line !== undefined && !isCount(line)) || (column !== undefined && !isCount(column))) throw new Error('APPLICATION_CHECK_REPORT_UNREADABLE')
-  return Object.freeze({
-    ...(file !== undefined ? { file } : {}), ...(line !== undefined ? { line } : {}), ...(column !== undefined ? { column } : {}),
-    ...(code !== undefined ? { code } : {}), message,
-  })
-}
-
-const parseStep = (value: unknown): CheckStep => {
-  if (!isRecord(value) || !CHECK_STEP_IDS.includes(value.step as CheckStepId)) throw new Error('APPLICATION_CHECK_REPORT_UNREADABLE')
-  const step = value.step as CheckStepId
-  if (value.status === 'passed' && isCount(value.durationMs)) return Object.freeze({ step, status: 'passed', durationMs: value.durationMs })
-  if (value.status === 'skipped' && typeof value.reason === 'string') return Object.freeze({ step, status: 'skipped', reason: value.reason })
-  if (value.status === 'failed' && isCount(value.durationMs) && Array.isArray(value.problems) && (value.dropped === undefined || isCount(value.dropped))) {
-    return Object.freeze({
-      step, status: 'failed', durationMs: value.durationMs, problems: Object.freeze(value.problems.map(parseProblem)),
-      ...(value.dropped !== undefined ? { dropped: value.dropped } : {}),
-    })
-  }
-  throw new Error('APPLICATION_CHECK_REPORT_UNREADABLE')
-}
-
 /** The report is the last line the script printed; anything else it wrote before is not the report. */
-export const parseCheckReport = (stdout: string): CheckReport => {
-  let value: unknown
+export const readCheckReport = (stdout: string): CheckReport => {
   try {
-    value = JSON.parse(stdout.trim().split('\n').pop() ?? '')
-  } catch {
-    throw new Error('APPLICATION_CHECK_REPORT_UNREADABLE')
+    return checkReportSchema.parse(JSON.parse(stdout.trim().split('\n').pop() ?? ''))
+  } catch (cause) {
+    throw new Error('APPLICATION_CHECK_REPORT_UNREADABLE', { cause })
   }
-  if (!isRecord(value) || typeof value.ok !== 'boolean' || !Array.isArray(value.steps) || !isRecord(value.facts)) throw new Error('APPLICATION_CHECK_REPORT_UNREADABLE')
-  const { operations, migrations, jsGzipBytes } = value.facts
-  if (!isCount(operations) || !isCount(migrations) || !isCount(jsGzipBytes)) throw new Error('APPLICATION_CHECK_REPORT_UNREADABLE')
-  const steps = value.steps.map(parseStep)
-  const blockingPassed = steps.filter((step) => BLOCKING_STEPS.has(step.step)).every((step) => step.status === 'passed')
-  if (value.ok !== blockingPassed) throw new Error('APPLICATION_CHECK_REPORT_UNREADABLE')
-  return Object.freeze({ ok: value.ok, steps: Object.freeze(steps), facts: Object.freeze({ operations, migrations, jsGzipBytes }) })
 }
 
 const problemLine = ({ file, line, column, code, message }: Problem): string => {

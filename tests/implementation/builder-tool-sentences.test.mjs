@@ -109,8 +109,9 @@ const toolsOfARun = async () => {
         } }) }
       },
     }
-    const { BUILDER_WORKSPACE_TOOLS_CONFIG } = await import(hubModuleUrl('builder/sandbox.js'))
-    const workspace = new Workspace({ id: 'sentences-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }), tools: BUILDER_WORKSPACE_TOOLS_CONFIG })
+    const { createConversationSandbox, createRunWorkspace } = await import(hubModuleUrl('builder/sandbox.js'))
+    const tools = createRunWorkspace(createConversationSandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', conversationId: '00000000-0000-4000-8000-000000000001', providerSandboxId: null })).getToolsConfig()
+    const workspace = new Workspace({ id: 'sentences-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }), tools })
     const controller = createBuilderController({
       workspace, model, storage: new InMemoryStore(), skillsPath: resolve(import.meta.dirname, '../../builder-skills'),
       connectorFetch: () => ({ connector_fetch: createTool({ id: 'connector_fetch', description: 'probe', execute: async () => ({}) }) }),

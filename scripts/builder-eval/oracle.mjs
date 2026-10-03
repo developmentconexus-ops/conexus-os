@@ -22,7 +22,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-export const ORACLE_DIR_ENV = 'CONEXUS_EVAL_ORACLE_DIR'
+const ORACLE_DIR_ENV = 'CONEXUS_EVAL_ORACLE_DIR'
 const EMPTY_CELL = /^(n[ãa]o dispon[íi]vel|[-—–]|null|undefined|nan)?$/i
 const TOLERANCE = 0.005
 

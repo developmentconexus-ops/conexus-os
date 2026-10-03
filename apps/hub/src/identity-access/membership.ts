@@ -31,8 +31,7 @@ const rosterEntryParamsSchema = { type: 'object', additionalProperties: false, r
 
 type WorkspaceRole = 'owner' | 'member'
 
-/** @public Tests import this at runtime from the built module. */
-export const parseWorkspaceRole = (value: unknown): WorkspaceRole | null =>
+const parseWorkspaceRole = (value: unknown): WorkspaceRole | null =>
   value === 'owner' || value === 'member' ? value : null
 
 type MemberEntry = Readonly<{

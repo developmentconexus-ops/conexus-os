@@ -6,12 +6,10 @@ import type { ConsumerScope } from './scope.js'
 import type { BrokerStore } from './store.js'
 import type { BoundConnection } from './model.js'
 
-/** @public Tests import this at runtime from the built module. */
-export const CONNECTOR_BRIEF_UNAVAILABLE = 'The Conexões bound to this Project could not be read in this run. Do not call `connector_fetch` or `connectors.fetch`; '
+const CONNECTOR_BRIEF_UNAVAILABLE = 'The Conexões bound to this Project could not be read in this run. Do not call `connector_fetch` or `connectors.fetch`; '
   + 'when the request needs data from an external system, change no files, tell the person it is unavailable right now and that they can ask again later, and stop.'
 
-/** @public Tests import this at runtime from the built module. */
-export const CONNECTOR_BRIEF_UNBOUND = 'No Conexão is bound to this Project, so it reads no external system. When a request needs data from one, '
+const CONNECTOR_BRIEF_UNBOUND = 'No Conexão is bound to this Project, so it reads no external system. When a request needs data from one, '
   + 'change no files: name the system, tell the person a Conexão for it can be added in Integrações, and stop.'
 
 const RUNTIME_CASES = 'When a read is refused: RESPONSE_TOO_LARGE, narrow it (fewer fields, a tighter filter, one page at a time) and read again; '

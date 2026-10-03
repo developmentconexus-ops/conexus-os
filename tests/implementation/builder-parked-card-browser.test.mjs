@@ -51,7 +51,7 @@ const openParkedRun = async (t, { phase, messages, refusal = null }) => {
     run.phase = 'PREPARING'
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
-  await page.goto(`${origin}/projects/${projectId}/build`)
+  await page.goto(`${origin}/projects/${projectId}`)
   return { page, state, run, requests, conversationId }
 }
 

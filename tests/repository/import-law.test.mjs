@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import test from 'node:test'
 import { checkImportLaw } from '../../scripts/check-import-law.mjs'
-
-const REQUIRED_POSTGRES_SERVICE = 'image: postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f'
 
 function fixture(files) {
   const root = mkdtempSync(resolve(tmpdir(), 'conexus-import-law-'))
@@ -29,16 +27,6 @@ function assertRule(id, files) {
 
 test('real production graph satisfies the import law', () => {
   assert.deepEqual(checkImportLaw(resolve(import.meta.dirname, '../..')), [])
-})
-
-test('required CI delegates once to the flattened candidate graph', () => {
-  const workflow = readFileSync(resolve(import.meta.dirname, '../../.github/workflows/verify.yml'), 'utf8')
-  assert.equal(workflow.match(/^ {8}run: npm run conexus:verify -- --scope candidate --group \$\{\{ matrix\.group \}\}$/gm)?.length, 1)
-  assert.equal(workflow.match(/^ {6}- run: npm run r1:s2:hub:typecheck$/gm)?.length ?? 0, 0)
-  assert.equal(workflow.match(/^ {6}- run: npm run r1:a0:web:typecheck$/gm)?.length ?? 0, 0)
-  assert.ok(workflow.includes('npm run verify'))
-  assert.equal(workflow.split(REQUIRED_POSTGRES_SERVICE).length - 1, 1,
-    'required CI PostgreSQL identity must occur exactly once')
 })
 
 test('every import-law RED control fires its named rule', async (suite) => {

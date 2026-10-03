@@ -39,7 +39,7 @@ const selectByTitle = async (title) => {
 }
 
 try {
-  await page.goto(`${base}/projects/${projectId}/build`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${base}/projects/${projectId}`, { waitUntil: 'domcontentloaded' })
   await page.getByRole('heading', { name: 'Conversas' }).waitFor({ timeout: 120_000 })
   const before = await session()
   console.log(`${stamp()} pass=${pass} source=${before.preview?.workingSourceRevision} lastGood=${before.preview?.lastGoodSourceRevision}`)

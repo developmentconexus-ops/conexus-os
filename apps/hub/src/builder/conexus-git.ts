@@ -52,12 +52,12 @@ const NO_OBJECT = '0'.repeat(40)
 const STARTER_MESSAGE = 'Start the Conexus application'
 const BUILDER_IDENTITY = { name: 'Conexus Builder', email: 'builder@conexus.invalid' } as const
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024
-/** @public Tests import this at runtime from the built module. The largest result bundle the Hub takes from a sandbox, measured in the sandbox and again while it streams. */
-export const MAX_RESULT_BUNDLE_BYTES = 64 * 1024 * 1024
-/** @public Tests import this at runtime from the built module. The largest file a result may hold: 12 MiB, the same bound as the build-output total in `application-artifact-runtime.ts`. */
-export const MAX_RESULT_FILE_BYTES = 12 * 1024 * 1024
-/** @public Tests import this at runtime from the built module. The most files a result may hold: 256, the file count `application-artifact-runtime.ts` allows in a build output; the starter holds 41. */
-export const MAX_RESULT_FILES = 256
+/** The largest result bundle the Hub takes from a sandbox, measured in the sandbox and again while it streams. */
+const MAX_RESULT_BUNDLE_BYTES = 64 * 1024 * 1024
+/** The largest file a result may hold: 12 MiB, the same bound as the build-output total in `application-artifact-runtime.ts`. */
+const MAX_RESULT_FILE_BYTES = 12 * 1024 * 1024
+/** The most files a result may hold: 256, the file count `application-artifact-runtime.ts` allows in a build output; the starter holds 41. */
+const MAX_RESULT_FILES = 256
 
 class GitCommandError extends Error {
   constructor(readonly exitCode: number, readonly stderr: string) {

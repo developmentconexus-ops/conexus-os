@@ -1,13 +1,12 @@
-import { Button } from '@mastra/playground-ui/components/Button'
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip'
 import { useQuery } from '@tanstack/react-query'
-import { Check, Copy, RotateCw } from 'lucide-react'
+import { Check, Copy } from 'lucide-react'
 import { useState } from 'react'
 import { type BuilderRun, getBuilderRunTrace } from '../api'
 import { failureReason } from '../failure-reasons'
 import './lens-surfaces.css'
-import { clockLabel, isActive, statusLine, viewRun } from './run-state'
+import { clockLabel, statusLine, viewRun } from './run-state'
 
 const dateTime = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 
@@ -54,14 +53,12 @@ const timelinePillText = (run: BuilderRun): string => {
   return 'Concluído'
 }
 
-export function LensDetails({ projectId, runs, selected, onSelect, preview, onRetry }: Readonly<{
+export function LensDetails({ projectId, runs, selected, onSelect, preview }: Readonly<{
   projectId: string
   runs: readonly BuilderRun[]
   selected: BuilderRun | null
   onSelect: (builderRunId: string) => void
   preview: Readonly<{ workingSourceRevision: string | null; lastGoodSourceRevision: string | null }>
-  /** Re-sends a past request's text as a new one. Omitted where no re-send capability is wired in yet. */
-  onRetry?: (requestText: string) => void
 }>) {
   const trace = useQuery({
     queryKey: ['builder-run-trace', projectId, selected?.builderRunId],
@@ -93,7 +90,7 @@ export function LensDetails({ projectId, runs, selected, onSelect, preview, onRe
           </tbody>
         </table>
         {trace.isPending && <Skeleton className="cx-skeleton" />}
-        {trace.isError && <div className="cx-note" role="alert"><p>Não foi possível ler o rastro desta execução.</p><Button size="sm" onClick={() => void trace.refetch()}>Tentar novamente</Button></div>}
+        {trace.isError && <div className="cx-note" role="alert"><p>Não foi possível ler o rastro desta execução.</p></div>}
         {trace.data && !trace.data.available && <p className="cx-note-line">Esta execução não deixou rastro.</p>}
         {trace.data?.available && <div className="cx-trace">
           <p className="cx-note-line">{trace.data.spans.length} etapas registradas · <code>{trace.data.traceId}</code></p>
@@ -111,7 +108,6 @@ export function LensDetails({ projectId, runs, selected, onSelect, preview, onRe
         {runs.map((run) => {
           const failed = timelineTone(run) === 'fail'
           const reason = failed ? failureReason(run) : null
-          const requestText = run.requestText
           return <li key={run.builderRunId} data-selected={run.builderRunId === selected.builderRunId || undefined}>
             <button type="button" className="cx-run-entry" aria-pressed={run.builderRunId === selected.builderRunId} onClick={() => onSelect(run.builderRunId)}>
               <time className="cx-history-time">{clockLabel(run.createdAt)}</time>
@@ -121,11 +117,6 @@ export function LensDetails({ projectId, runs, selected, onSelect, preview, onRe
               </div>
               <span className="cx-chip" data-tone={timelineTone(run)}>{timelinePillText(run)}</span>
             </button>
-            {failed && onRetry && requestText && !isActive(run) && <Button
-              size="sm" variant="outline" className="cx-run-retry"
-              icon={<RotateCw size={13} aria-hidden="true" />}
-              onClick={() => onRetry(requestText)}
-            >Tentar de novo</Button>}
           </li>
         })}
       </ol>

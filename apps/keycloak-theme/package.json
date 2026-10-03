@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "storybook": "keycloakify storybook",
     "build": "vite build",
     "build-keycloak-theme": "rm -rf dist dist_keycloak && npm run build && keycloakify build",
     "typecheck": "tsc --noEmit"

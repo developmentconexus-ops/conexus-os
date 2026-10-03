@@ -50,7 +50,7 @@ test('RB composed production journey uses server.ts, Preview, and native persist
   await page.getByLabel('Nome do Project').fill(projectName)
   await page.getByRole('button', { name: 'Criar Project' }).click()
   await page.getByRole('heading', { name: 'Converse com o Conexus' }).waitFor()
-  const projectId = new URL(page.url()).pathname.match(/^\/projects\/([^/]+)\/build$/)?.[1]
+  const projectId = new URL(page.url()).pathname.match(/^\/projects\/([^/]+)(?:\/c\/[^/]+)?$/)?.[1]
   assert.ok(projectId, 'NEW Project must lead directly to the real Build workspace')
 
   const previewResponsePromise = page.waitForResponse((response) =>
@@ -106,7 +106,7 @@ test('RB composed production journey uses server.ts, Preview, and native persist
   const deniedPage = await denied.newPage()
   const deniedRead = deniedPage.waitForResponse((response) =>
     response.url().includes(`/api/control/projects/${projectId}/builder-session`) && [401, 403, 404].includes(response.status()))
-  await deniedPage.goto(`${origin}/projects/${projectId}/build`)
+  await deniedPage.goto(`${origin}/projects/${projectId}`)
   const deniedSessionResponse = await deniedRead
   assert.ok([401, 403, 404].includes(deniedSessionResponse.status()))
   const deniedPreviewStatus = await deniedPage.evaluate(async (id) => {

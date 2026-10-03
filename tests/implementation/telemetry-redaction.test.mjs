@@ -3,10 +3,18 @@ import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 import { runWithTelemetry, startCollector } from './telemetry-harness.mjs'
 
-const { logBodyCode, redactAttributes } = await import(hubModuleUrl('telemetry/redact.js'))
+const { redactingLogs, redactingSpans } = await import(hubModuleUrl('telemetry/redact.js'))
 
-test('redactAttributes keeps only allowlisted keys, drops exception.message and keeps only the frames of a stack', () => {
-  const kept = redactAttributes({
+const exportedBy = (wrap, records) => {
+  const exported = []
+  wrap({ export: (batch, done) => { exported.push(...batch); done({ code: 0 }) }, shutdown: async () => {}, forceFlush: async () => {} }).export(records, () => {})
+  return exported
+}
+
+const exportSpanAttributes = (attributes) => exportedBy(redactingSpans, [{ attributes, events: [], links: [], status: { code: 2, message: 'SECRET status message' } }])[0]
+
+test('an exported span keeps only allowlisted attributes, drops exception.message, keeps only the frames of a stack and the status code', () => {
+  const span = exportSpanAttributes({
     'http.request.method': 'GET',
     'http.route': '/x',
     'url.path': '/__conexus/api/PLANTED_PATH_SECRET',
@@ -24,7 +32,8 @@ test('redactAttributes keeps only allowlisted keys, drops exception.message and 
     'exception.stacktrace': 'Error: SECRET first line\nSECRET second line\n    at run (file:///hub/a.js:1:2)\n    at main (file:///hub/b.js:3:4)',
     'brand.new.library.attribute': 'SECRET',
   })
-  assert.deepEqual(kept, {
+  assert.deepEqual(span.status, { code: 2 })
+  assert.deepEqual(span.attributes, {
     'conexus.project_id': 'p1',
     'db.system.name': 'postgresql',
     'exception.stacktrace': '    at run (file:///hub/a.js:1:2)\n    at main (file:///hub/b.js:3:4)',
@@ -34,10 +43,22 @@ test('redactAttributes keeps only allowlisted keys, drops exception.message and 
     'mastra.metadata.connector': 'sankhya',
     'network.protocol.version': '1.1',
   })
-  assert.deepEqual(redactAttributes({ 'exception.stacktrace': 'SECRET without frames' }), {})
+  assert.deepEqual(exportSpanAttributes({ 'exception.stacktrace': 'SECRET without frames' }).attributes, {})
 })
 
-test('a log body leaves as its leading code, or UNCODED_LOG when it has none', () => {
+test('span events and links are redacted like the span', () => {
+  const [span] = exportedBy(redactingSpans, [{
+    attributes: {},
+    events: [{ name: 'prompt-sent', attributes: { 'gen_ai.input.messages': 'SECRET prompt', 'conexus.step': 'plan' } }],
+    links: [{ context: {}, attributes: { 'http.route': '/x', 'url.full': 'https://m.test/?key=SECRET' } }],
+    status: { code: 0 },
+  }])
+  assert.deepEqual(span.events, [{ name: 'prompt-sent', attributes: { 'conexus.step': 'plan' } }])
+  assert.deepEqual(span.links, [{ context: {}, attributes: { 'http.route': '/x' } }])
+})
+
+test('an exported log body leaves as its leading code, or UNCODED_LOG when it has none', () => {
+  const logBodyCode = (body) => exportedBy(redactingLogs, [{ attributes: {}, body }])[0].body
   assert.equal(logBodyCode('HTTP_SERVER_ERROR'), 'HTTP_SERVER_ERROR')
   assert.equal(logBodyCode('BUILDER_RETENTION_PRUNED:builder.runs:12'), 'BUILDER_RETENTION_PRUNED')
   assert.equal(logBodyCode('BUILDER_RUN_FAILED SECRET cause'), 'BUILDER_RUN_FAILED')

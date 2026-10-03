@@ -43,13 +43,15 @@ grant or realm setting was changed.
 
 ## Run
 
-[`scripts/issue-230-no-access-proof.mjs`](../../../scripts/issue-230-no-access-proof.mjs) opens the application
+[`scripts/issue-230-no-access-proof.mjs`](https://github.com/developmentconexus-ops/conexus-os/blob/73d066777ea6a43a8a42fda9d375ccfea34d0e09/scripts/issue-230-no-access-proof.mjs) opens the application
 in headless Chromium and signs in through the realm's login form. It then waits for
 `/__conexus/no-access`. It records every main-frame navigation request, redirects included, with query values
 blanked except `reason`. It also records the no-access response status, the page heading and text, and whether
 the user's email, username or Keycloak subject appears in any navigated URL, percent-decoded, or in the page
 HTML. A URL that leaks is recorded with its query values blanked. `--self-check` runs the leak check against
 fixed inputs, with no browser. It was added after the recorded runs, and the records hold no leak.
+
+The script no longer exists on `main`. These commands run in a checkout of revision `73d066777ea6a43a8a42fda9d375ccfea34d0e09`:
 
 ```bash
 PILOT230_PASSWORD=… node scripts/issue-230-no-access-proof.mjs --case email-not-verified \

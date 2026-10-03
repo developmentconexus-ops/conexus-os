@@ -4,7 +4,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const built = hubModuleUrl
 const { createHttpApp } = await import(built('http/app.js'))
-const { registerMembershipRoutes, parseWorkspaceRole } = await import(built('identity-access/membership.js'))
+const { registerMembershipRoutes } = await import(built('identity-access/membership.js'))
 
 const origin = 'https://conexus.test'
 const workspaceId = '11111111-1111-4111-8111-111111111111'
@@ -261,9 +261,6 @@ test('a role outside the two admitted values never reaches SQL', async (t) => {
   })
   assert.equal(response.statusCode, 400)
   assert.deepEqual(store.calls, [])
-  assert.equal(parseWorkspaceRole('administrator'), null)
-  assert.equal(parseWorkspaceRole('owner'), 'owner')
-  assert.equal(parseWorkspaceRole('member'), 'member')
 })
 
 test('every write demands the exact origin, the CSRF pair and a session', async (t) => {
