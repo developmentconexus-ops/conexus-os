@@ -65,7 +65,7 @@ most 5 open pull requests.
 
 ## Working rules
 
-- **Lean delivery.** The operator does not test pull requests on the pilot. CI runs once per ready head.
+- **Lean delivery.** The operator does not test pull requests on the pilot. For a [phase 2 wave](../roadmap.md#order-of-work-to-q5), the operator tests the pull request on the local Conexus. CI runs once per ready head.
 - **Mastra first.** Prefer a Mastra, Keycloak or PostgreSQL primitive over a Conexus-built
   mechanism. The reviewer redoes the [native census](review/mastra-native.md#proof-required). Every
   subagent prompt for Conexus work loads [the Mastra skill](../../.agents/skills/mastra/SKILL.md).

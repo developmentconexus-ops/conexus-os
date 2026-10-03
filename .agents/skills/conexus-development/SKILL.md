@@ -66,7 +66,7 @@ operator. The [stop conditions](../../../docs/development/delivery.md#stop-then-
 - Before every push, run `npm run verify:quick` and the checks the change touches. CI runs the full
   `verify` at the head SHA; do not run it locally.
 - Never reset, clean, stash or force-push. Remove worktrees only with `npm run worktree:reap`.
-- Conventional commits, a pull request against `main` that links its issue, and never a merge.
+- Conventional commits and a pull request against `main` that links its issue. Merge only when `delivery.md` names you as the one who merges.
 
 ## Delegate
 
