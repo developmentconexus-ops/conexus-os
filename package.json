@@ -45,9 +45,8 @@
     "builder:eval:postgres": "node --test --test-concurrency=1 'tests/manual/builder-eval-*.postgres.test.mjs'",
     "wire:lint": "npx --no-install redocly lint contracts/api/product/openapi.yaml --extends=recommended",
     "wire:bijection": "node scripts/check-wire-bijection.mjs",
-    "wire:connector": "node scripts/check-wire-connector.mjs",
     "wire:technical-lint": "npx --no-install redocly lint contracts/api/technical/openapi.yaml --extends=recommended",
-    "wire:verify": "npm run wire:lint && npm run wire:bijection && npm run wire:connector && npm run wire:technical-lint",
+    "wire:verify": "npm run wire:lint && npm run wire:bijection && npm run wire:technical-lint",
     "verify": "npm run conexus:verify -- --scope candidate",
     "verify:docs": "npm run conexus:verify -- --scope candidate-docs",
     "verify:quick": "npm run conexus:verify -- --scope candidate-quick"

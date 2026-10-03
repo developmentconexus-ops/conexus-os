@@ -469,9 +469,9 @@ are:
 
 ```text
 wire:lint             the Product OAS passes Redocly recommended
-wire:bijection        the description bundles and agrees with the census, 18 to 18
-wire-bijection-gate   the bijection gate itself is proved against planted faults
-wire:connector        the connector rules hold
+wire:bijection        the description bundles and agrees with the census, 18 to 18, and the
+                      connector credential rules hold
+wire-bijection-gate   the gate itself is proved against planted faults
 wire:technical-lint   the technical ingress description passes Redocly recommended
 ```
 

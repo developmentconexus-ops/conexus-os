@@ -22,8 +22,8 @@ checks that bind contracts to routes and to the operation ledger. [`areas.json`]
 
 ## Proof required
 
-- `wire-openapi-lint`, `wire-bijection`, `wire-bijection-gate` and the `wire-*` leaves for the
-  changed surface passed at the head SHA.
+- `wire-openapi-lint`, `wire-bijection` (with the Connector credential rules), `wire-bijection-gate` and
+  `wire-technical-lint` passed at the head SHA.
 - A behavior change on a route has an HTTP test that sends the request and asserts the literal
   status and body.
 

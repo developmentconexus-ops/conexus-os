@@ -74,7 +74,6 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('web-style', 'node scripts/check-web-style.mjs'),
   candidateStep('wire-openapi-lint', 'npm run wire:lint'),
   candidateStep('wire-bijection', 'npm run wire:bijection'),
-  candidateStep('wire-connector', 'npm run wire:connector'),
   candidateStep('wire-technical-lint', 'npm run wire:technical-lint'),
   candidateStep('web-build', 'node node_modules/vite/bin/vite.js build --config apps/web/vite.config.mjs apps/web --outDir ../../node_modules/.cache/conexus-candidate-web-build --emptyOutDir'),
   testStep('repository-tests', 'repository', 'static'),

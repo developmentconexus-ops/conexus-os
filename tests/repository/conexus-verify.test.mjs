@@ -133,7 +133,6 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'web-style',
   'wire-openapi-lint',
   'wire-bijection',
-  'wire-connector',
   'wire-technical-lint',
   'web-build',
   'repository-tests',
