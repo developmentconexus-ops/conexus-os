@@ -172,7 +172,7 @@ const run = async (): Promise<never> => {
   }
   if (Buffer.byteLength(serialized) > job.responseLimit) return finish({ ok: false, code: 'RESPONSE_TOO_LARGE' })
   await session?.then((client) => client.end()).catch(() => undefined)
-  return finish({ ok: true, value: JSON.parse(serialized) as unknown })
+  return finish({ ok: true, value: JSON.parse(serialized) })
 }
 
 run().catch((error: unknown) => finish({ ok: false, code: 'WORKER_FAILED', detail: detail(error) }))

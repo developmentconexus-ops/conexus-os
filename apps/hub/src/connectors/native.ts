@@ -73,7 +73,7 @@ export const parseNativeRequest = (value: unknown, limits: NativeLimits): Readon
   if (body !== undefined) {
     const sent = serialized(body)
     if (sent === undefined || Buffer.byteLength(sent) > limits.requestBytes) return { ok: false, issues: ['/body'] }
-    payload = Object.freeze({ sent, plain: JSON.parse(sent) as unknown })
+    payload = Object.freeze({ sent, plain: JSON.parse(sent) })
   }
   return { ok: true, request: Object.freeze({ connection, method, path, query: Object.freeze({ ...query }), body: payload }) }
 }
