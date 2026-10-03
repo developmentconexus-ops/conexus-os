@@ -22,6 +22,7 @@ export function inScope(path) {
 
 const LINES = { unit: 'lines', measure: text => text.replace(/\n$/, '').split('\n').length }
 const CHARACTERS = { unit: 'characters', measure: text => text.length }
+const NEVER_ITEMS = { unit: 'never-list items', measure: text => text.split('\n').filter(line => line.startsWith('- **Never ')).length }
 
 // Mastra caps a package AGENTS.md at 500 tokens (tokenx estimateTokenCount). tokenx 2.1.0 on Mastra's and
 // our AGENTS.md files measured 0.237 to 0.270 tokens per character, so 1800 characters stays under 500.
@@ -33,6 +34,7 @@ export const SIZE_CAPS = Object.freeze([
   { match: path => path.endsWith('/AGENTS.md'), ...CHARACTERS, max: NESTED_AGENTS_CHARACTERS, note: 'about 500 tokens' },
   { match: path => path.endsWith('/SKILL.md'), ...LINES, max: 90 },
   { match: path => path === 'docs/development/delivery.md', ...LINES, max: 150 },
+  { match: path => path === '.agents/skills/conexus-development/references/shapes.md', ...NEVER_ITEMS, max: 15 },
 ])
 
 // GitHub's heading anchor: lowercase, punctuation dropped, each whitespace character a hyphen.

@@ -77,8 +77,6 @@ most 5 open pull requests.
 - **The Factory targets `main`.** Factory pull requests use `main` as their base.
 - **Codex never authors.**
 - **CodeRabbit is off** for this repository.
-- **Tests serve the product.** Never reshape a design to keep a test or fixture passing. Fix every
-  test that exercised real behavior. Delete every test whose subject is gone.
 
 ## Technology rule
 

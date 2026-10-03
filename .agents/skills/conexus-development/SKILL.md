@@ -33,17 +33,13 @@ notes. Each step names what to do and the skill that does it when the session ha
 | A pull request to judge | Review |
 | Any web, Builder or Preview screen | Frontend, on top of the flow above |
 
-A Fix whose premise already had two fixes stops and reports: the premise needs a redesign, which
-the session that plans the work owns. `check-patch-churn` in CI flags a file with three or more fixes
-in 30 days.
-
 ## Before writing code
 
 1. Name the data shape and the one place that owns it.
 2. Read how Mastra's own products (Factory, Mastra Code) do the same thing, not only the API.
 3. Read the whole lifecycle you touch, not the lines around the symptom.
-4. Check the decided shapes in [`references/shapes.md`](references/shapes.md) and the
-   [decision register](../../../docs/decisions/index.md).
+4. Check the decided shapes and the never-list in [`references/shapes.md`](references/shapes.md),
+   and the [decision register](../../../docs/decisions/index.md).
 5. Say what the change deletes. Code stays because it is needed, never because it exists.
 6. Meet the [codebase principles](../../../docs/development/codebase-principles.md).
 
@@ -52,23 +48,18 @@ the logs, the verify harness and the reference code. Measure before you guess.
 
 ## Stop and report when
 
-- You need new state to remember something Mastra, E2B or the database already holds.
-- You cannot name the data shape or its owner.
-- A fix adds far more product lines than it deletes.
-- You are changing a test so an old shape keeps passing.
-- The change contradicts a decided shape or decision.
-- You are unsure what is native: read the reference first, then ask.
+A [never-list](references/shapes.md#never) item would break, or a
+[stop condition](../../../docs/development/delivery.md#stop-then-escalate) in `delivery.md` holds.
 
 Stop means: no more code, a comment on the issue with the evidence, and the question for the
-operator. The [stop conditions](../../../docs/development/delivery.md#stop-then-escalate) in
-`delivery.md` also apply.
+operator.
 
 ## Ship
 
 - Before every push, run `npm run verify:quick` and the checks the change touches. CI runs the full
   `verify` at the head SHA; do not run it locally.
-- Never reset, clean, stash or force-push. Remove worktrees only with `npm run worktree:reap`.
-- Conventional commits and a pull request against `main` that links its issue. Merge only when `delivery.md` names you as the one who merges.
+- Remove worktrees only with `npm run worktree:reap`.
+- Conventional commits and a pull request against `main` that links its issue.
 
 ## Delegate
 
