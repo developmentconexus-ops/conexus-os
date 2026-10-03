@@ -52,7 +52,8 @@
   // @mastra/playground-ui publishes .d.ts files importing class-variance-authority but lists it
   // only as its own devDependency; our pin supplies those types for the web typecheck.
   "ignoreDependencies": [
-    "class-variance-authority"
+    "class-variance-authority",
+    "@biomejs/biome"
   ],
   "ignoreBinaries": ["setpriv", "pgrep"]
 }

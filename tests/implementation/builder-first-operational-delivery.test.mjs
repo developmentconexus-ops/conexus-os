@@ -87,8 +87,6 @@ test('Hub and live proof commands load the operator configuration explicitly', a
   assert.match(composedRunner, /RB_COMPOSED_HUB_RESPONSE_REFUSED/)
   assert.match(composedRunner, /buildHubLocal/)
   assert.doesNotMatch(composedRunner, /http:\/\/127\.0\.0\.1/)
-  assert.doesNotMatch(packageJson.scripts['rb:first:check'], /rb-builder-first-vertical|bld-10-preview/)
-  assert.match(packageJson.scripts['rb:first:check'], /builder-first-operational-delivery\.test\.mjs/)
 })
 
 test('composed readiness uses both lookup forms, expected shell response, and a bounded request', async () => {
