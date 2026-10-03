@@ -40,13 +40,13 @@ After the employee's sign-in the database held one Account for that email with o
 
 Run 2, the last of the budget, asked in product language for the order list to show who wrote each order's latest note ([case](../../../scripts/builder-eval/cases/q3-trace-followup.json)). It passed on the first run with no repair in 411 s. It changed `app/src/main.tsx`, `conexus/handlers/orders.ts` and `conexus/manifest.json`, from `32df403d` to `1caed906`. `listPurchaseOrders` now returns `latestNoteAuthor: "Operador de Teste"`, which comes from the caller-written note. See [`q3.4-run2/`](q3.4-run2/).
 
-**Q3.5, employee.** [`scripts/q3-sign-in.mjs`](../../../scripts/q3-sign-in.mjs) opened an empty browser at the application host. It confirmed that Keycloak showed a username and a password field before handing over, and fails with `PASSWORD_FORM_NOT_SHOWN` otherwise. The operator typed the employee's credentials. The employee then wrote a note through the application's own form. After reload the note shows "Funcionário Teste", and `listNotes` returns that author ([`q3.5-employee-note.png`](q3.5-employee-note.png), case `employee-writes-note`).
+**Q3.5, employee.** [`scripts/q3-sign-in.mjs`](https://github.com/developmentconexus-ops/conexus-os/blob/73d066777ea6a43a8a42fda9d375ccfea34d0e09/scripts/q3-sign-in.mjs) opened an empty browser at the application host. It confirmed that Keycloak showed a username and a password field before handing over, and fails with `PASSWORD_FORM_NOT_SHOWN` otherwise. The operator typed the employee's credentials. The employee then wrote a note through the application's own form. After reload the note shows "Funcionário Teste", and `listNotes` returns that author ([`q3.5-employee-note.png`](q3.5-employee-note.png), case `employee-writes-note`).
 
 **Operator answer 8.** The member entered the application without a grant (case `member-enters-without-grant`). Two sessions of the Owner, created when the operator signed in with the wrong account, show the same rule for an Owner.
 
 ## Q3.6 negative proof
 
-[`scripts/q3-negative-proof.mjs`](../../../scripts/q3-negative-proof.mjs) sends each request as a real person from saved browser state and records the request, the answer and whether the refusal held. The full record is [`q3.6-proof.json`](q3.6-proof.json): 30 cases, all held. Where a refusal could hide a broken fixture, the same run records a live control that succeeds.
+[`scripts/q3-negative-proof.mjs`](https://github.com/developmentconexus-ops/conexus-os/blob/73d066777ea6a43a8a42fda9d375ccfea34d0e09/scripts/q3-negative-proof.mjs) sends each request as a real person from saved browser state and records the request, the answer and whether the refusal held. The full record is [`q3.6-proof.json`](q3.6-proof.json): 30 cases, all held. Where a refusal could hide a broken fixture, the same run records a live control that succeeds.
 
 | Q3.6 case | Request | Refusal |
 | --- | --- | --- |
@@ -209,6 +209,8 @@ are proved against real PostgreSQL only.
     verification) and goes at the person's next sign-in, but the Owner's list shows it until then.
 
 ## Rerun
+
+The scripts no longer exist on `main`. Run these commands in a checkout of revision `73d066777ea6a43a8a42fda9d375ccfea34d0e09`:
 
 ```bash
 export NODE_EXTRA_CA_CERTS=$HOME/.local/share/conexus-local-tls/ca/rootCA.pem

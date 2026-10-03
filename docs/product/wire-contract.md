@@ -462,26 +462,6 @@ canonical Product OAS / exact Project declaration
 -X-> frontend/client error taxonomy that redefines the wire
 ```
 
-
-
-The real-OAS probe requires:
-
-```text
-two generations are byte-identical
-exact 111 method+path pairs preserved
-missing/invented routes = 0
-If-Match and Idempotency-Key carriers preserved
-__Host-conexus_session carriage preserved
-401/403/404/409/412/422/503 response distinctions preserved
-explicit public any = 0
-strict TypeScript no-emit compile = green
-```
-
-All generated artifacts and probe dependencies live under `/tmp`; none become runtime dependencies or editable Product authority.
-
-Kubb 5.0.0 is therefore an **empirically viable 4D ADOPT candidate**, not a 4B Paved-Road selection. Orval remains a fallback probe only if a material Kubb falsifier fires. TanStack Query and generated Zod remain focused 4D consumer/validation evaluations; canonical OpenAPI + JSON Schema/AJV authority is never weakened to fit a generator.
-
-
 ## 17. Current executable proof
 
 `npm run verify` runs the candidate graph in `scripts/conexus-verify.mjs`. Its wire steps
