@@ -18,7 +18,7 @@ test('shape counts changed lines by kind and skips binary files', () => {
     '17\t9\tAGENTS.md',
     '19\t10\tapps/web/src/main.tsx',
     '-\t-\tassets/logo.png',
-  ].join('\n')
+  ].join('\0')
 
   assert.deepEqual(shape(numstat), {
     tests: { added: 5, deleted: 5 },
@@ -48,6 +48,27 @@ test('a file moved from docs to product counts as product added and docs deleted
     const cli = execFileSync('node', [fileURLToPath(new URL('../../scripts/diff-shape.mjs', import.meta.url)), repo, 'HEAD~1...HEAD'], { encoding: 'utf8' })
 
     assert.deepEqual(cli.trim().split('\n'), ['| Kind | Added | Deleted |', '| --- | --- | --- |', '| docs | +0 | -100 |', '| product | +101 | -0 |'])
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+})
+
+test('docs files with Unicode, tab and newline names count as docs, not product', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'diff-shape-'))
+  const git = (...args) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8' })
+  try {
+    git('init', '-q')
+    writeFileSync(join(repo, 'README'), 'base\n')
+    git('add', '.')
+    git('commit', '-q', '-m', 'base')
+    mkdirSync(join(repo, 'docs'))
+    for (const name of ['café.md', 'with\ttab.md', 'with\nnewline.md']) writeFileSync(join(repo, 'docs', name), 'one\n')
+    git('add', '.')
+    git('commit', '-q', '-m', 'docs')
+
+    const cli = execFileSync('node', [fileURLToPath(new URL('../../scripts/diff-shape.mjs', import.meta.url)), repo, 'HEAD~1...HEAD'], { encoding: 'utf8' })
+
+    assert.deepEqual(cli.trim().split('\n'), ['| Kind | Added | Deleted |', '| --- | --- | --- |', '| docs | +3 | -0 |'])
   } finally {
     rmSync(repo, { recursive: true, force: true })
   }
