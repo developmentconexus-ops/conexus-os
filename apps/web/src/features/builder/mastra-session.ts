@@ -246,11 +246,11 @@ export const useBuilderConversation = (projectId: string, conversationId: string
   }
 }
 
-/** What became of an answer, as the Hub's answer route says it: only `RESUMED` took the run back to work. */
-export type AnswerOutcome = 'RESUMED' | 'ALREADY_ANSWERED' | 'NOT_PARKED' | 'UNAVAILABLE'
+/** What became of an answer, as the Hub's answer route says it: only `ACCEPTED` reached the run. */
+export type AnswerOutcome = 'ACCEPTED' | 'ALREADY_ANSWERED' | 'ENDED' | 'UNAVAILABLE'
 const ANSWER_REFUSAL_BY_PROBLEM: Readonly<Partial<Record<string, AnswerOutcome>>> = {
   'urn:conexus:problem:TOOL_ANSWER_ALREADY_GIVEN': 'ALREADY_ANSWERED',
-  'urn:conexus:problem:PARKED_CALL_NOT_FOUND': 'NOT_PARKED',
+  'urn:conexus:problem:QUESTION_ENDED': 'ENDED',
 }
 
 // submit_plan resumes with the tool's own decision: approved lets the run build, rejected sends the
@@ -259,7 +259,7 @@ type PlanResume = Readonly<Pick<SubmitPlanResumeData, 'action' | 'feedback'>>
 export type PendingReply = Readonly<{ approved: boolean }> | Readonly<{ answers: (string | string[])[] }> | Readonly<{ plan: PlanResume }>
 
 /**
- * Answers a call the run parked on the person. The answer goes to the session the Hub runs the
+ * Answers a call the run waits on the person for. The answer goes to the session the Hub runs the
  * conversation in, and the Hub refuses anything but approve or decline there, so there is no
  * "always allow" to send.
  */
@@ -273,7 +273,7 @@ export const answerPendingCall = async (projectId: string, conversationId: strin
     // The route takes any JSON (resumeData is unknown there); only the client's type is narrower.
     // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     else await session.respondToToolSuspension(pending.toolCallId, answer.answers as unknown as string[])
-    return 'RESUMED'
+    return 'ACCEPTED'
   } catch (error) {
     const body = error instanceof MastraClientError && typeof error.body === 'object' && error.body !== null ? error.body : {}
     const type = 'type' in body && typeof body.type === 'string' ? body.type : ''

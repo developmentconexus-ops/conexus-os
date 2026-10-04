@@ -25,7 +25,7 @@ liveFlow({ id: 'builder.second-question', nome: 'Ver a segunda pergunta numa pá
   await card.getByRole('textbox').fill('Mensal')
   await card.getByRole('button', { name: 'Enviar resposta' }).click()
 
-  // No reload: the page opened before the second question parked the run.
+  // No reload: the page opened before the run waited on the second question.
   await expect(card.getByText(SECOND, { exact: true })).toBeVisible({ timeout: 60_000 })
   await expect(page.getByTestId('ask-user')).toHaveCount(1)
   await expect(page.getByText(FIRST, { exact: true })).toHaveCount(0)

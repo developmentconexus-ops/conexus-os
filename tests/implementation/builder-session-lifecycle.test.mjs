@@ -65,16 +65,14 @@ test('runs deleting their session leave none in the controller, however many tur
   for (let turn = 0; turn < TURNS; turn += 1) {
     const run = await open(conversation(1), runId(turn))
     assert.notEqual(await live(conversation(1)), undefined, `turn ${turn}: the session exists while the run is open`)
-    assert.equal((await run.sendTurn(`pedido ${turn}`)).reason, 'complete')
-    await run.end()
+    assert.equal((await run.takeStep({ kind: 'SEND', content: `pedido ${turn}` }, new AbortController().signal)).reason, 'complete')
     assert.notEqual(await live(conversation(1)), undefined, `turn ${turn}: ending the agent's turn keeps the session for the run's remaining phases`)
     await run.release()
     inRegistry.push(await live(conversation(1)))
   }
   for (let other = 2; other <= 4; other += 1) {
     const run = await open(conversation(other), runId(other))
-    await run.sendTurn('olá')
-    await run.end()
+    await run.takeStep({ kind: 'SEND', content: 'olá' }, new AbortController().signal)
     await run.release()
     inRegistry.push(await live(conversation(other)))
   }
@@ -118,37 +116,13 @@ test("a late release of a prior run never removes a subsequent run's session or 
   assert.equal(runContexts.has(`builder:${conversation(1)}`), true, "runContexts entry for run B is preserved")
 
   // Run B can still execute turns
-  assert.equal((await runB.sendTurn('olá')).reason, 'complete')
+  assert.equal((await runB.takeStep({ kind: 'SEND', content: 'olá' }, new AbortController().signal)).reason, 'complete')
 
   // Run B's own release cleans up properly
   await runB.release()
   assert.equal(await live(conversation(1)), undefined)
   assert.equal(conversationWorkspaces.has(conversation(1)), false)
   assert.equal(runContexts.has(`builder:${conversation(1)}`), false)
-})
-
-test("a late release of a prior run that shares the next run's session object leaves that run's session, workspace entry and context", async (t) => {
-  const { open, live, conversationWorkspaces, runContexts, runTools } = await runner(t)
-  const scope = `builder:${conversation(1)}`
-  const runA = await open(conversation(1), runId(1))
-  const runB = await open(conversation(1), runId(2))
-  const sessionB = await live(conversation(1))
-  assert.notEqual(sessionB, undefined)
-
-  await runA.release()
-
-  assert.equal(await live(conversation(1)), sessionB, "run B's session is still live after run A's late release")
-  assert.equal(conversationWorkspaces.has(conversation(1)), true)
-  assert.equal(runContexts.has(scope), true)
-  assert.equal(runTools.has(runId(2)), true)
-  assert.equal(runTools.has(runId(1)), false)
-  assert.equal((await runB.sendTurn('olá')).reason, 'complete')
-
-  await runB.release()
-  assert.equal(await live(conversation(1)), undefined)
-  assert.equal(conversationWorkspaces.has(conversation(1)), false)
-  assert.equal(runContexts.has(scope), false)
-  assert.equal(runTools.has(runId(2)), false)
 })
 
 test("a Project's deletion deletes both sessions of each of its conversations and no other Project's, and closing deletes the conversation sessions in use", async (t) => {
@@ -224,16 +198,6 @@ test("a conversation's sandbox instance is dropped once its VM is paused, and th
   const kept = open({ conversationId: conversation(3), providerSandboxId: null })
   assert.equal(open({ conversationId: conversation(3), providerSandboxId: null }), kept, 'until its pause, every run of the conversation gets the one instance')
   assert.equal(built.length, 53)
-})
-
-test("a parked run's paused VM keeps its instance, so the answer gets the workspace its live session holds", async () => {
-  const { open, built } = sandboxCache()
-  const parked = open({ conversationId: conversation(1), providerSandboxId: null })
-  await parked.pause(true)
-  const answering = open({ conversationId: conversation(1), providerSandboxId: 'sbx-1' })
-  assert.deepEqual({ same: answering === parked, workspace: answering.workspace === parked.workspace, built: built.length, paused: built[0].paused }, { same: true, workspace: true, built: 1, paused: 1 })
-  await answering.pause()
-  assert.equal(open({ conversationId: conversation(1), providerSandboxId: 'sbx-1' }) === parked, false, 'the answer\'s own turn end drops it')
 })
 
 test('a pause that finishes after the next run took the instance drops nothing, and a workspace is never destroyed on a pause', async () => {

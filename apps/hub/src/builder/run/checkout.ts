@@ -49,13 +49,14 @@ const materializeRunStarter: NonNullable<BuilderRunPorts['materializeStarter']> 
   await materializeApplicationShape(input)
 }
 
-export const startRunVm = async ({ sandbox, state, executionId, timing, bindPhysicalSandbox, onLapse }: Readonly<{
+export const startRunVm = async ({ sandbox, state, executionId, timing, bindPhysicalSandbox, hold }: Readonly<{
   sandbox: RunSandbox
   state: RunVmState
   executionId: string
   timing: RunTiming
   bindPhysicalSandbox(sandboxId: string): Promise<void>
-  onLapse(error: unknown): void
+  /** Holds the VM open while the run works. */
+  hold(): Promise<void>
 }>): Promise<RunVm> => {
   // The conversation's VM resumes when E2B still has it; a new one is created only when it has none.
   state.started = true
@@ -67,9 +68,7 @@ export const startRunVm = async ({ sandbox, state, executionId, timing, bindPhys
   const incarnation = state.incarnation
   if (!incarnation) throw new Failure('BUILDER_SANDBOX_ID_UNAVAILABLE')
   await bindPhysicalSandbox(incarnation)
-  state.release = await sandbox.holdOpen(onLapse).catch((error: unknown) => {
-    throw new Failure('BUILDER_SANDBOX_KEEPALIVE_FAILED', { cause: { message: error instanceof Error ? error.message : String(error) } })
-  })
+  await hold()
   timing.mark('sandbox')
   // Every command stays on the one E2B incarnation the run recorded. A replaced VM has lost the
   // pinned checkout, so the run fails rather than acting on whatever the new one holds.

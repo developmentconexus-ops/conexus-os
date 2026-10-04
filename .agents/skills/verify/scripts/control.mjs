@@ -164,7 +164,7 @@ const hubEnvironment = (state, secrets, fake) => {
     CONEXUS_DB_NAME: DATABASE,
     CONEXUS_DB_USER: 'hub_iam_runtime',
     CONEXUS_BUILDER_E2B_API_KEY_FILE: join(secrets, 'e2b-api-key'),
-    CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'verify-e2b-disabled',
+    CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'verify-e2b-disabled', CONEXUS_BUILDER_QUESTION_WAIT_MS: String(5 * 60_000),
     ...E2B_CLOSED,
     CONEXUS_FACTORY_SECRET_KEY_FILE: join(secrets, 'secret-key'),
     CONEXUS_OIDC_ISSUER: state.issuer,

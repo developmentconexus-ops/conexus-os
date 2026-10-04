@@ -48,26 +48,26 @@ const openParkedRun = async (t, { phase, messages, refusal = null }) => {
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
     requests.answers.push(route.request().postDataJSON())
     if (refusal) return route.fulfill({ status: refusal.status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${refusal.type}`, title: refusal.type, status: refusal.status, code: refusal.type }) })
-    run.phase = 'PREPARING'
+    run.phase = 'AGENT'
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
   await page.goto(`${origin}/projects/${projectId}`)
   return { page, state, run, requests, conversationId }
 }
 
-const PARKED_QUESTION = 'Qual número de orçamento podemos usar?'
+const WAITING_QUESTION = 'Qual número de orçamento podemos usar?'
 const card = (page) => page.getByLabel('Pergunta do agente')
 
 const openParkedCard = async (t) => {
-  const opened = await openParkedRun(t, { phase: 'PARKED', messages: [userMessage('user-1', 'Mude o título'), parkedAsk(PARKED_QUESTION)] })
-  await card(opened.page).getByText(PARKED_QUESTION, { exact: true }).waitFor()
+  const opened = await openParkedRun(t, { phase: 'WAITING', messages: [userMessage('user-1', 'Mude o título'), parkedAsk(WAITING_QUESTION)] })
+  await card(opened.page).getByText(WAITING_QUESTION, { exact: true }).waitFor()
   return opened
 }
 
 test('a run parked on a question shows the card once and no clock counting the wait', async (t) => {
   const { page } = await openParkedCard(t)
   assert.equal(await page.getByTestId('ask-user').count(), 1, 'one card')
-  assert.equal(await page.getByText(PARKED_QUESTION, { exact: true }).count(), 1, 'the question is drawn once')
+  assert.equal(await page.getByText(WAITING_QUESTION, { exact: true }).count(), 1, 'the question is drawn once')
   assert.equal(await page.locator('.cx-working').innerText(), 'Esperando a sua resposta · Aguardando você')
 })
 
@@ -95,32 +95,32 @@ test('a page that read the thread before the run parked draws the card once the 
   const { page, state, run, conversationId } = await openParkedRun(t, { phase: 'AGENT', messages: [userMessage('user-1', 'Mude o título')] })
   await page.getByText('Agente trabalhando', { exact: false }).first().waitFor()
   assert.equal(await page.getByTestId('ask-user').count(), 0)
-  state.messages[conversationId] = [userMessage('user-1', 'Mude o título'), parkedAsk(PARKED_QUESTION)]
-  run.phase = 'PARKED'
-  await card(page).getByText(PARKED_QUESTION, { exact: true }).waitFor({ timeout: 8_000 })
+  state.messages[conversationId] = [userMessage('user-1', 'Mude o título'), parkedAsk(WAITING_QUESTION)]
+  run.phase = 'WAITING'
+  await card(page).getByText(WAITING_QUESTION, { exact: true }).waitFor({ timeout: 8_000 })
   assert.equal(await page.getByTestId('ask-user').count(), 1)
   assert.equal(await page.getByText('Pensando…').count(), 0)
 })
 
 test('answering the card of a parked run shows the run going again without the slow poll', async (t) => {
-  const { page, requests } = await openParkedRun(t, { phase: 'PARKED', messages: [userMessage('user-1', 'Mude o título'), parkedAsk(PARKED_QUESTION)] })
+  const { page, requests } = await openParkedRun(t, { phase: 'WAITING', messages: [userMessage('user-1', 'Mude o título'), parkedAsk(WAITING_QUESTION)] })
   await card(page).getByRole('textbox').fill('144118')
   await card(page).getByRole('button', { name: 'Enviar resposta' }).click()
-  await page.getByText('Preparando o ambiente').first().waitFor({ timeout: 4_000 })
+  await page.getByText('Agente trabalhando').first().waitFor({ timeout: 4_000 })
   assert.deepEqual(requests.answers, [{ toolCallId: 'call_parked', resumeData: ['144118'] }])
 })
 
 test('an answer the Hub refuses keeps the card and says why: already answered, no longer waited on, or not delivered', async (t) => {
   const said = []
-  for (const refusal of [{ status: 409, type: 'TOOL_ANSWER_ALREADY_GIVEN' }, { status: 404, type: 'PARKED_CALL_NOT_FOUND' }, { status: 503, type: 'BUILDER_ANSWER_UNAVAILABLE' }]) {
-    const { page } = await openParkedRun(t, { phase: 'PARKED', messages: [userMessage('user-1', 'Mude o título'), parkedAsk(PARKED_QUESTION)], refusal })
+  for (const refusal of [{ status: 409, type: 'TOOL_ANSWER_ALREADY_GIVEN' }, { status: 409, type: 'QUESTION_ENDED' }, { status: 503, type: 'BUILDER_UNAVAILABLE' }]) {
+    const { page } = await openParkedRun(t, { phase: 'WAITING', messages: [userMessage('user-1', 'Mude o título'), parkedAsk(WAITING_QUESTION)], refusal })
     await card(page).getByRole('textbox').fill('144118')
     await card(page).getByRole('button', { name: 'Enviar resposta' }).click()
     said.push(await card(page).getByRole('alert').innerText())
   }
   assert.deepEqual(said, [
     'Esta pergunta já foi respondida.',
-    'A execução não está esperando essa resposta.',
-    'A sua resposta não chegou à execução. A falha foi registrada.',
+    'Esta pergunta já foi encerrada. A resposta pode ir na próxima mensagem.',
+    'O Builder não está disponível agora. A falha foi registrada.',
   ])
 })

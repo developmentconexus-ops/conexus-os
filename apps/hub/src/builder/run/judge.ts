@@ -62,7 +62,7 @@ const createJudge = ({ git, projectId, executionId, log, cancelled, gatePhase, v
   return verdict
 }
 
-export const createRunGate = ({ git, projectId, executionId, base, turnStart, excluded, log, cancelled, gatePhase, vm, sandbox, redFinishes, onRedFinish }: Readonly<{
+export const createRunGate = ({ git, projectId, executionId, base, turnStart, excluded, log, cancelled, gatePhase, vm, sandbox }: Readonly<{
   git: Pick<ConexusGit, 'listFilesLong' | 'archive' | 'acceptSnapshot'>
   projectId: string
   executionId: string
@@ -74,8 +74,6 @@ export const createRunGate = ({ git, projectId, executionId, base, turnStart, ex
   gatePhase(phase: BuilderRunPhase): void
   vm: RunVm
   sandbox: Pick<RunSandbox, 'runCheck'>
-  redFinishes: number
-  onRedFinish(count: number): void
 }>): Readonly<{ gate: CandidateGate; pulled(): string | null }> => {
   let pulled: string | null = null
   const gate = createCandidateGate({
@@ -89,9 +87,7 @@ export const createRunGate = ({ git, projectId, executionId, base, turnStart, ex
       return pulled ?? (turnStart === base ? null : turnStart)
     },
     judge: createJudge({ git, projectId, executionId, log, cancelled, gatePhase, vm, sandbox }),
-    redFinishes,
     onRedFinish: (count) => {
-      onRedFinish(count)
       if (count < GATE_RED_BUDGET) gatePhase('AGENT')
     },
   })

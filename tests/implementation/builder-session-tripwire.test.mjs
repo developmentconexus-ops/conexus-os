@@ -5,7 +5,11 @@ import { AgentController } from '@mastra/core/agent-controller'
 import { InMemoryStore } from '@mastra/core/storage'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { sendBuilderSessionMessage } = await import(hubModuleUrl('builder/runtime.js'))
+const { driveStep } = await import(hubModuleUrl('builder/run/send.js'))
+const { RequestContext } = await import('@mastra/core/request-context')
+// The Hub's one send: a message with no question open, so there is nothing to end first.
+const sendBuilderSessionMessage = (session, { content }, requestContext = new RequestContext()) => driveStep(session, { kind: 'SEND', content }, requestContext, async () => {})
+
 
 const OBSERVATION_FAILED = 'Encountered error during memory observation: timeout exceeded when trying to connect'
 

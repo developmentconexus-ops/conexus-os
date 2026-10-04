@@ -61,7 +61,7 @@ liveFlow({ id: 'builder.done-gate-repairs', nome: 'Um erro do app volta para o a
   await expect(page.getByRole('log')).toContainText('Pronto, terminei.')
 })
 
-liveFlow({ id: 'builder.done-gate-parked', nome: 'Uma pergunta do agente não dispara a verificação; ela roda uma vez depois da resposta' }, async ({ page, model, hub }) => {
+liveFlow({ id: 'builder.done-gate-waiting', nome: 'Uma pergunta do agente não dispara a verificação; ela roda uma vez depois da resposta' }, async ({ page, model, hub }) => {
   const REQUEST = 'Crie um total com moeda'
   const QUESTION = 'Em que moeda o total aparece?'
   model.script(
@@ -72,9 +72,9 @@ liveFlow({ id: 'builder.done-gate-parked', nome: 'Uma pergunta do agente não di
   await startProject(page, hub, REQUEST)
   const card = page.getByLabel('Pergunta do agente')
   await expect(card.getByText(QUESTION, { exact: true })).toBeVisible({ timeout: 60_000 })
-  await expect.poll(async () => (await hub.db(`select phase from builder.builder_run where request_text = '${REQUEST}'`))[0]?.phase, { timeout: 30_000 }).toBe('PARKED')
-  const parked = await runOf(hub, REQUEST)
-  assert.equal(checksOf(hub, parked.builder_run_id), 0, 'no check while the run waits for the answer')
+  await expect.poll(async () => (await hub.db(`select phase from builder.builder_run where request_text = '${REQUEST}'`))[0]?.phase, { timeout: 30_000 }).toBe('WAITING')
+  const waiting = await runOf(hub, REQUEST)
+  assert.equal(checksOf(hub, waiting.builder_run_id), 0, 'no check while the run waits for the answer')
 
   await card.getByLabel('Reais (recomendado)').check()
   await card.getByRole('button', { name: 'Enviar resposta' }).click()

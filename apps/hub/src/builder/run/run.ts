@@ -1,129 +1,155 @@
 import { APPLICATION_CHECK_EXCLUDED } from '../application-starter.js'
+import type { ApplicationServerPort, BuilderApplicationArtifacts } from '../application-build.js'
 import { SANDBOX_CHECKOUT } from '../sandbox.js'
 import { CONVERSATION_ID_KEY, RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } from '../model-routing.js'
 import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_PROJECT_NEW_KEY, CONEXUS_TURN_CONFLICTS_KEY, CONEXUS_TURN_DATE_KEY } from '../harness/index.js'
 import { turnDate } from '../harness/prompt.js'
 import { createRunTiming } from '../run-timing.js'
 import { PROJECT_FILE_READ_LIMIT, PROJECT_INSTRUCTIONS_PATH, PROJECT_MEMORY_PATH, readProjectInstructions, readProjectMemory } from '../project-context.js'
-import type { CodingWorkerResult, ParkedResult, SourceAdmittedResult } from '../runtime.js'
+import type { BuilderRunSummary, BuilderStore, InterruptionCode } from '../store.js'
 import type { BuilderRunPhase } from '../../generated/builder-run-vocabulary.js'
 import type { CandidateGate } from '../candidate-gate.js'
-import { Failure, logFailure, toFailure } from '../../platform/failure.js'
+import { Failure, type FailureCode, logFailure, toFailure } from '../../platform/failure.js'
 import { logger } from '../../platform/logger.js'
-import { admitCandidate } from './admit.js'
+import { admitCandidate, settleAdmittedSource } from './admit.js'
 import { installRunTools, settleRunVm, startCheckoutTurn, startRunVm } from './checkout.js'
 import type { RunVm, RunVmState } from './checkout.js'
 import { createRunGate } from './judge.js'
 import type { TurnMirror } from './mirror.js'
 import { createGatePhases } from './phase.js'
-import type { BuilderRunPorts, ConnectorRun, ParkedAnswer, RunContextBinder, RunSandbox, RunSession } from './ports.js'
-
-
+import type { AgentTurn, BuilderRunPorts, ConnectorRun, DiagnosticAppender, RunContextBinder, RunSandbox, RunSession, Step, StopReason } from './ports.js'
+import { type AnswerOutcome, createInbox } from './question.js'
 
 // Where the agent's own check writes its build; the agent's user owns it, and no run reads it back.
 const AGENT_CHECK_OUT = '/tmp/conexus-agent-check'
 
+const OID = /^[0-9a-f]{40}$/
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
-
-
-type BuilderRunInput = Readonly<{
-  projectId: string
-  accountId: string
-  conversationId: string
-  executionId: string
-  intent: string
-  /** The answer to the call this run parked on: the run goes on from it instead of sending `intent` again. */
-  resume?: ParkedAnswer
-  baseSourceRevision: string
-  /** The E2B sandbox the conversation's last turn ran on, which this turn resumes; null for none recorded. */
-  providerSandboxId: string | null
-  bindPhysicalSandbox(sandboxId: string): Promise<void>
-  bindMessage(messageId: string): Promise<void>
-  setPhase(phase: BuilderRunPhase): Promise<void>
-  recordCandidate(sourceRevision: string): Promise<void>
-  /** Records the conversation's mirror head as the turn ends; the Git ref stays the truth. */
-  recordMirror(head: string): Promise<void>
-  /**
-   * Hands over the closing of the run's session instead of doing it as `execute` ends, so the caller
-   * can publish the state the run ended in to the session's stream first, and then closes it.
-   */
-  holdSession?(close: () => Promise<void>): void
-  signal?: AbortSignal
-}>
-
-export type BuilderRunRuntime = Readonly<{
-  /** A stop on a parked run: its open call is settled as denied in the thread, and what it kept in memory is let go. */
-  discardParked: BuilderRunPorts['discardParked']
-  execute(input: BuilderRunInput): Promise<CodingWorkerResult | ParkedResult | SourceAdmittedResult>
-  /** Lets go of every parked run's session and sandbox instance held in memory; each answer then resumes from storage. Answers how many. */
-  evictParked(): Promise<number>
-}>
+// Only these end a run with a recorded candidate knowing its source is not on main.
+const NOT_ADMITTED: ReadonlySet<string> = new Set(['BUILDER_SOURCE_BASE_MOVED', 'BUILDER_SOURCE_ADMISSION_FAILED', 'BUILDER_RUN_CANCELLED'])
+// What a stop surfaces depends on where the run stood: a phase write the database now refuses is still a stop.
+const STOP_CODES: ReadonlySet<string> = new Set(['BUILDER_RUN_CANCELLED', 'BUILDER_LATE_RESULT_REFUSED', 'BUILDER_RUN_PHASE_UPDATE_REFUSED'])
 
 /** A candidate the Hub refuses before admission, with the reason the next turn reads. */
-export class CandidateRefused extends Failure {
+class CandidateRefused extends Failure {
   constructor(code: 'BUILDER_CHECK_FAILED' | 'BUILDER_APP_NOT_FIXED', readonly detail: string) {
     super(code)
   }
 }
 
-const OID = /^[0-9a-f]{40}$/
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+type RunStore = Pick<BuilderStore, 'claimBuilderRun' | 'setBuilderRunPhase' | 'recordBuilderRunCandidate' | 'bindBuilderRunMessage' | 'bindBuilderRunSandbox' |
+  'recordConversationSandbox' | 'recordConversationSession' | 'readConversationSandbox' | 'settleBuilderRun' | 'advanceBuilderRunSource' |
+  'settleBuilderRunBuild' | 'failBuilderRun' | 'interruptBuilderRun' | 'readBuilderRun'>
 
-/**
- * Mastra keeps a suspended run's own warm state, the bulk of what a parked run holds, for the same
- * half hour (MASTRA_SUSPENDED_RUN_TTL_MS) and has no way to drop it sooner short of aborting the run.
- * An answer within it resumes the live session, a later one resumes from storage.
- */
-const WARM_PARKED_MS = 30 * 60_000
-
-/** What a parked run keeps in memory for its answer. */
-type WarmParked = Readonly<{ builderRunId: string; session: RunSession; sandbox: RunSandbox; paused: Promise<void>; timer: ReturnType<typeof setTimeout> }>
-
-
-type RunTiming = ReturnType<typeof createRunTiming>
-
-type PreparedLeg = Readonly<{ gate: CandidateGate; gatePhases(): Promise<void>; session: RunSession; vm: RunVm }>
-
-const mirrorFailed = (executionId: string) => (error: unknown): void => {
-  logFailure(logger, new Failure('BUILDER_MIRROR_FAILED', { cause: error }), { 'builder.run_id': executionId })
-}
-
-type ParkedRuns = Readonly<{
-  takeOver(conversationId: string): Promise<void>
-  spentFinishes(conversationId: string, builderRunId: string): number
-  recordRedFinishes(conversationId: string, builderRunId: string, count: number): void
-  keep(conversationId: string, entry: Omit<WarmParked, 'timer'>): void
-  forgetFinishes(conversationId: string): void
+/** What a run needs of the Hub. */
+export type RunEnvironment = Readonly<{
+  ports: BuilderRunPorts
+  store: RunStore
+  applicationArtifacts: BuilderApplicationArtifacts
+  applicationServer: ApplicationServerPort | undefined
+  appendDiagnostic: DiagnosticAppender
+  /** Hands the run, as the builder-session read serves it, to a browser following its conversation; never throws. */
+  publishRun(run: BuilderRunSummary): Promise<void>
+  /** This Hub process as the owner of the runs it works. */
+  ownerId: string
+  /** How long a question waits for the person before the run ends. */
+  questionWaitMs: number
+  /** The wait before a failed ending write is tried again; it is tried three times. */
+  settleRetryMs: number
 }>
 
-type Leg = {
-  readonly input: BuilderRunInput
-  readonly sandbox: RunSandbox
+/** The one handle the service holds per conversation. Nothing else reaches the run's session, sandbox or row. */
+export type LiveRun = Readonly<{
+  builderRunId: string
+  projectId: string
+  answer(toolCallId: string, resumeData: unknown): AnswerOutcome
+  /** A message for the run: taken while it waits on the person, else the run is busy. A known key is taken once. */
+  message(content: string, idempotencyKey: string): 'ACCEPTED' | 'BUSY'
+  stop(reason: StopReason): void
+  /** Settles after the run's last write. */
+  done: Promise<void>
+}>
+
+type RunRequest = Readonly<{ accountId: string; content: string; idempotencyKey: string }>
+
+// How the run ended: settled by its own work, left for a sweep with a candidate that may be on
+// `main`, or ended with a code its exit writes.
+type RunEnding =
+  | Readonly<{ kind: 'SETTLED' }>
+  | Readonly<{ kind: 'LEFT' }>
+  | Readonly<{ kind: 'INTERRUPTED'; code: InterruptionCode }>
+  | Readonly<{ kind: 'FAILED'; code: FailureCode }>
+
+type Run = {
+  readonly env: RunEnvironment
+  readonly row: BuilderRunSummary
+  readonly request: RunRequest
+  /** The stop: the person's or the Hub's, by its reason. */
+  readonly stopSignal: AbortSignal
+  /** The stop, or a VM that stopped being held open. */
+  readonly signal: AbortSignal
+  readonly keepalive: AbortController
+  readonly timing: ReturnType<typeof createRunTiming>
+  readonly inbox: ReturnType<typeof createInbox>
   readonly vm: RunVmState
-  readonly connectorRun: ConnectorRun | null
+  sandbox: RunSandbox | undefined
+  connectorRun: ConnectorRun | null
   session: RunSession | undefined
   mirror: TurnMirror | undefined
   pulled(): string | null
   keepaliveFailure: Error | undefined
-  // The leg ended on a question for the person, so the session is parked, not released.
-  parked: boolean
-  endMirror(candidate: string | null): Promise<void>
+  // The agent ran and nothing of it is admitted yet, so a failure leaves the thread a note.
+  agentUnadmitted: boolean
+  candidateRecorded: boolean
+  mirrorEnded: Promise<void> | undefined
 }
 
-const readRunContext = async (ports: BuilderRunPorts, input: BuilderRunInput, connectorRun: ConnectorRun | null) => {
+type Prepared = Readonly<{ gate: CandidateGate; gatePhases(): Promise<void>; session: RunSession; sandbox: RunSandbox; vm: RunVm }>
+
+const cancelled = (run: Run): boolean => run.stopSignal.aborted
+
+const logged = (run: Run, code: FailureCode) => (error: unknown): void => {
+  logFailure(logger, new Failure(code, { cause: error }), { 'builder.run_id': run.row.builderRunId })
+}
+
+// A phase the database refuses means a stop was asked for; the browser following the run hears every one written.
+const setPhase = async (run: Run, phase: BuilderRunPhase): Promise<void> => {
+  const summary = await run.env.store.setBuilderRunPhase(run.row.builderRunId, phase)
+  if (!summary) throw new Failure('BUILDER_RUN_PHASE_UPDATE_REFUSED')
+  await run.env.publishRun(summary)
+}
+
+// Set once the checkout holds the turn's start; the run's end mirrors it however the run ends.
+const endMirror = (run: Run, candidate: string | null): Promise<void> => {
+  run.mirrorEnded ??= (async () => {
+    const head = await run.mirror?.end(candidate, run.pulled())
+    if (head) {
+      await run.env.store.recordConversationSession({
+        projectId: run.row.projectId, conversationId: run.row.conversationId, mirrorHead: head, syncedMain: run.row.baseSourceRevision, turnEnded: true,
+      }).catch(logged(run, 'BUILDER_MIRROR_FAILED'))
+    }
+  })()
+  return run.mirrorEnded
+}
+
+const readRunContext = async (run: Run): Promise<(conflicted: readonly string[]) => RunContextBinder> => {
+  const { ports } = run.env
+  const { projectId, conversationId, builderRunId, baseSourceRevision } = run.row
+  const { connectorRun } = run
   // The Project's instructions and memory are read by the Hub from the base in the Conexus Git, never from the sandbox (AC-9).
-  const readProjectFile = (path: string) => ports.git.readBlob(input.projectId, input.baseSourceRevision, path, PROJECT_FILE_READ_LIMIT).catch(() => undefined)
+  const readProjectFile = (path: string) => ports.git.readBlob(projectId, baseSourceRevision, path, PROJECT_FILE_READ_LIMIT).catch(() => undefined)
   const instructions = readProjectInstructions(await readProjectFile(PROJECT_INSTRUCTIONS_PATH))
   const memory = readProjectMemory(await readProjectFile(PROJECT_MEMORY_PATH))
-  const projectName = await ports.readProjectName({ accountId: input.accountId, projectId: input.projectId })
+  const projectName = await ports.readProjectName({ accountId: run.request.accountId, projectId })
   const date = turnDate()
-  const isNew = await ports.git.isStarter(input.projectId, input.baseSourceRevision)
+  const isNew = await ports.git.isStarter(projectId, baseSourceRevision)
   // The paths the turn's start left with conflict markers, which the agent resolves first (decision 3).
-  return (conflicted: readonly string[]): RunContextBinder => (requestContext) => {
-    requestContext.setRaw('conexusBuilderProjectId', input.projectId)
-    requestContext.setRaw(RUN_ID_KEY, input.executionId)
-    requestContext.setRaw(CONVERSATION_ID_KEY, input.conversationId)
-    requestContext.setRaw(RUN_ACCOUNT_ID_KEY, input.accountId)
+  return (conflicted) => (requestContext) => {
+    requestContext.setRaw('conexusBuilderProjectId', projectId)
+    requestContext.setRaw(RUN_ID_KEY, builderRunId)
+    requestContext.setRaw(CONVERSATION_ID_KEY, conversationId)
+    requestContext.setRaw(RUN_ACCOUNT_ID_KEY, run.request.accountId)
     requestContext.setRaw(CONEXUS_PROJECT_NAME_KEY, projectName)
     requestContext.setRaw(CONEXUS_TURN_DATE_KEY, date)
     requestContext.setRaw(CONEXUS_PROJECT_NEW_KEY, isNew ? 'true' : '')
@@ -135,246 +161,272 @@ const readRunContext = async (ports: BuilderRunPorts, input: BuilderRunInput, co
   }
 }
 
-const prepareLeg = async (ports: BuilderRunPorts, parked: ParkedRuns, leg: Leg, timing: RunTiming, keepalive: AbortController): Promise<PreparedLeg> => {
-  const { input, sandbox, connectorRun } = leg
-  const cancelled = (): boolean => input.signal?.aborted === true
-  const excluded = APPLICATION_CHECK_EXCLUDED
-  const bindContextFor = await readRunContext(ports, input, connectorRun)
+// E2B counts its timeout from the last extension, so the run holds the VM while it works.
+const holdVm = async (run: Run, sandbox: RunSandbox): Promise<void> => {
+  run.vm.release = await sandbox.holdOpen((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error)
+    run.keepaliveFailure ??= new Failure('BUILDER_SANDBOX_KEEPALIVE_FAILED', { cause: { message } })
+    run.keepalive.abort()
+  }).catch((error: unknown) => {
+    throw new Failure('BUILDER_SANDBOX_KEEPALIVE_FAILED', { cause: { message: error instanceof Error ? error.message : String(error) } })
+  })
+}
+
+const prepare = async (run: Run): Promise<Prepared> => {
+  const { ports, store } = run.env
+  const { projectId, conversationId, builderRunId, baseSourceRevision } = run.row
+  const conversation = { projectId, conversationId }
+  const bindContextFor = await readRunContext(run)
+  const sandbox = ports.openSandbox({ conversationId, providerSandboxId: await store.readConversationSandbox(conversation) })
+  run.sandbox = sandbox
   const vm = await startRunVm({
-    sandbox, state: leg.vm, executionId: input.executionId, timing, bindPhysicalSandbox: input.bindPhysicalSandbox,
-    onLapse: (error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error)
-      leg.keepaliveFailure ??= new Failure('BUILDER_SANDBOX_KEEPALIVE_FAILED', { cause: { message } })
-      keepalive.abort()
+    sandbox, state: run.vm, executionId: builderRunId, timing: run.timing, hold: () => holdVm(run, sandbox),
+    bindPhysicalSandbox: async (sandboxId) => {
+      await store.bindBuilderRunSandbox(builderRunId, sandboxId)
+      await store.recordConversationSandbox({ ...conversation, providerSandboxId: sandboxId })
     },
   })
-  if (cancelled()) throw new Failure('BUILDER_RUN_CANCELLED')
+  if (cancelled(run)) throw new Failure('BUILDER_RUN_CANCELLED')
   const turnStart = await startCheckoutTurn({
-    ports, projectId: input.projectId, conversationId: input.conversationId, executionId: input.executionId, base: input.baseSourceRevision,
-    vm, sandbox, state: leg.vm, excluded, timing, mirrorFailed: mirrorFailed(input.executionId),
+    ports, projectId, conversationId, executionId: builderRunId, base: baseSourceRevision,
+    vm, sandbox, state: run.vm, excluded: APPLICATION_CHECK_EXCLUDED, timing: run.timing, mirrorFailed: logged(run, 'BUILDER_MIRROR_FAILED'),
   })
-  leg.mirror = turnStart.mirror
-  const runOperation = await installRunTools({ ports, projectId: input.projectId, accountId: input.accountId, vm, sandbox, connectorRun, timing })
-  const gatePhases = createGatePhases(input.setPhase)
+  run.mirror = turnStart.mirror
+  const runOperation = await installRunTools({ ports, projectId, accountId: run.request.accountId, vm, sandbox, connectorRun: run.connectorRun, timing: run.timing })
+  const gatePhases = createGatePhases((phase) => setPhase(run, phase))
   const { gate, pulled } = createRunGate({
-    git: ports.git, projectId: input.projectId, executionId: input.executionId, base: input.baseSourceRevision, turnStart: turnStart.start, excluded,
-    log: ports.log, cancelled, gatePhase: gatePhases.enter, vm, sandbox,
-    redFinishes: parked.spentFinishes(input.conversationId, input.executionId),
-    onRedFinish: (count) => parked.recordRedFinishes(input.conversationId, input.executionId, count),
+    git: ports.git, projectId, executionId: builderRunId, base: baseSourceRevision, turnStart: turnStart.start, excluded: APPLICATION_CHECK_EXCLUDED,
+    log: ports.log, cancelled: () => cancelled(run), gatePhase: gatePhases.enter, vm, sandbox,
   })
-  leg.pulled = pulled
+  run.pulled = pulled
   const session = await ports.openSession({
-    projectId: input.projectId, conversationId: input.conversationId, builderRunId: input.executionId,
+    projectId, conversationId, builderRunId,
     workspace: sandbox.workspace, bindContext: bindContextFor(turnStart.conflicted),
     runCheck: async () => (await sandbox.runCheck({ root: SANDBOX_CHECKOUT, out: AGENT_CHECK_OUT, collect: false, user: 'agent' })).report,
     ...(runOperation ? { runOperation } : {}),
     gate,
   })
-  leg.session = session
-  timing.mark('session')
-  return { gate, gatePhases: gatePhases.settled, session, vm }
+  run.session = session
+  run.timing.mark('session')
+  return { gate, gatePhases: gatePhases.settled, session, sandbox, vm }
 }
 
-const closeSessionFailed = (executionId: string) => (error: unknown): void => {
-  logFailure(logger, new Failure('BUILDER_SESSION_CLOSE_FAILED', { cause: error }), { 'builder.run_id': executionId })
+/**
+ * The run waits on the person with the VM let go, so E2B pauses it after its idle window, until
+ * the first `WaitEnd`. An answer or a message checks the VM is the same one, which also resumes a
+ * paused VM, and holds it again.
+ */
+const awaitReply = async (run: Run, prepared: Prepared): Promise<Step> => {
+  await prepared.session.untilQuestionStored()
+  await setPhase(run, 'WAITING')
+  run.vm.release?.()
+  run.vm.release = undefined
+  const end = await run.inbox.wait({ waitMs: run.env.questionWaitMs, signal: run.stopSignal })
+  const resume = async (): Promise<void> => {
+    await prepared.vm.direct('true')
+    await holdVm(run, prepared.sandbox)
+  }
+  switch (end.kind) {
+    case 'ANSWER':
+      await resume()
+      return { kind: 'ANSWER', toolCallId: end.toolCallId, resumeData: end.resumeData }
+    case 'MESSAGE':
+      await resume()
+      return { kind: 'SEND', content: end.content }
+    case 'EXPIRED': throw new Failure('BUILDER_QUESTION_EXPIRED')
+    case 'STOPPED': throw new Failure('BUILDER_RUN_CANCELLED')
+    default: { const unhandled: never = end; return unhandled }
+  }
 }
 
-const finishLeg = async (ports: BuilderRunPorts, leg: Leg, prepared: PreparedLeg, timing: RunTiming, runSignal: AbortSignal): Promise<CodingWorkerResult | ParkedResult | SourceAdmittedResult> => {
-  const { input } = leg
-  const { gate, session, vm } = prepared
-  const cancelled = (): boolean => input.signal?.aborted === true
-  // The agent's turn is the only reader of the run's connector scope, so it ends with the turn.
-  const endTurn = async (): Promise<void> => {
-    leg.connectorRun?.end()
-    await session.end()
+/** The agent's steps, from the person's message to a step that does not end on a question. */
+const converse = async (run: Run, prepared: Prepared): Promise<AgentTurn> => {
+  let step: Step = { kind: 'SEND', content: run.request.content }
+  let bound = false
+  for (;;) {
+    await setPhase(run, 'AGENT')
+    run.agentUnadmitted = true
+    const turn = await prepared.session.takeStep(step, run.signal)
+    if (run.keepaliveFailure) throw run.keepaliveFailure
+    if (turn.reason === 'aborted') run.env.ports.log('BUILDER_AGENT_END', { run: run.row.builderRunId, reason: 'aborted' })
+    if (!bound) {
+      if (!turn.userMessageId) throw new Failure('BUILDER_MESSAGE_ID_UNAVAILABLE')
+      await run.env.store.bindBuilderRunMessage(run.row.builderRunId, turn.userMessageId)
+      bound = true
+    }
+    // An agent that ends aborted without a stop failed on its own, for example a model call it
+    // could not authenticate; reporting that as the person's cancellation would be false.
+    if (cancelled(run)) throw new Failure('BUILDER_RUN_CANCELLED')
+    if (turn.reason !== 'suspended') return turn
+    step = await awaitReply(run, prepared)
   }
-  await input.setPhase('AGENT')
-  const turn = await (input.resume ? session.resumeTurn(input.resume, runSignal) : session.sendTurn(input.intent, runSignal))
-  if (leg.keepaliveFailure) throw leg.keepaliveFailure
-  if (turn.reason === 'aborted') ports.log('BUILDER_AGENT_END', { run: input.executionId, reason: 'aborted' })
-  if (!turn.userMessageId) throw new Failure('BUILDER_MESSAGE_ID_UNAVAILABLE')
-  await input.bindMessage(turn.userMessageId)
-  // An agent that ends aborted without the person's stop failed on its own, for example a model
-  // call it could not authenticate; reporting that as their cancellation would be false.
-  if (cancelled()) throw new Failure('BUILDER_RUN_CANCELLED')
-  const scope = {
-    runtimeId: 'conexus-builder-e2b-v1' as const, projectId: input.projectId, executionId: input.executionId, sandboxId: vm.incarnation, baseSourceRevision: input.baseSourceRevision,
-  }
-  // The agent asked the person something: nothing here waits for the answer. The leg ends, its
-  // work is mirrored and the sandbox paused by the cleanup below, and the answer starts the next.
-  if (turn.reason === 'suspended') {
-    leg.parked = true
-    await endTurn().catch(closeSessionFailed(input.executionId))
-    timing.mark('agent')
-    return Object.freeze({ ...scope, summary: turn.summary.trim(), kind: 'PARKED' as const })
-  }
-  if (turn.reason !== 'complete') throw new Failure('BUILDER_MODEL_INCOMPLETE')
-  await endTurn().catch(closeSessionFailed(input.executionId))
-  timing.mark('agent')
+}
 
-  // The gate judged the candidate when the agent said it was done; settling reads that verdict,
-  // and checks only a revision the gate never saw: a turn the loop ended without its check, or a
-  // tree an agent process changed after it. Every agent process goes first, so the settled tree
-  // is the last one.
-  await vm.sh('kill -KILL -1 2>/dev/null; true')
-  const verdict = await gate.settle()
+/**
+ * The gate judged the candidate when the agent said it was done; settling reads that verdict, and
+ * checks only a revision the gate never saw: a turn the loop ended without its check, or a tree an
+ * agent process changed after it. Every agent process goes first, so the settled tree is the last one.
+ */
+const conclude = async (run: Run, prepared: Prepared): Promise<RunEnding> => {
+  const { env, row } = run
+  await prepared.vm.sh('kill -KILL -1 2>/dev/null; true')
+  const verdict = await prepared.gate.settle()
   if (verdict?.kind === 'RED_PLATFORM') throw verdict.error
-  const result = verdict?.revision ?? null
-  await leg.endMirror(result)
-  timing.mark('pull')
-  const summary = turn.summary.trim() || (result ? 'Coding worker produced a candidate result.' : 'Coding worker produced a response without source changes.')
+  await endMirror(run, verdict?.revision ?? null)
+  run.timing.mark('pull')
   if (!verdict) {
-    if (cancelled()) throw new Failure('BUILDER_LATE_RESULT_REFUSED')
-    return Object.freeze({ ...scope, summary, kind: 'RESPONSE_ONLY' as const })
+    if (cancelled(run)) throw new Failure('BUILDER_LATE_RESULT_REFUSED')
+    await setPhase(run, 'FINALIZING')
+    await env.store.settleBuilderRun({ builderRunId: row.builderRunId, resultSourceRevision: null, resultKind: 'RESPONSE_ONLY', failureCode: null })
+    return { kind: 'SETTLED' }
   }
-  if (cancelled()) throw new Failure('BUILDER_RUN_CANCELLED')
-  ports.log('BUILDER_GATE_SETTLED', { run: input.executionId, verdict: verdict.kind })
+  if (cancelled(run)) throw new Failure('BUILDER_RUN_CANCELLED')
+  env.ports.log('BUILDER_GATE_SETTLED', { run: row.builderRunId, verdict: verdict.kind })
   // Not admitted: the files stay in the conversation and `main` does not move.
-  if (verdict.kind === 'RED_APP') throw new CandidateRefused(gate.gaveUp() ? 'BUILDER_APP_NOT_FIXED' : 'BUILDER_CHECK_FAILED', verdict.detail)
+  if (verdict.kind === 'RED_APP') throw new CandidateRefused(prepared.gate.gaveUp() ? 'BUILDER_APP_NOT_FIXED' : 'BUILDER_CHECK_FAILED', verdict.detail)
   const { admitted, applicationBuild } = await admitCandidate({
-    git: ports.git, projectId: input.projectId, executionId: input.executionId, base: input.baseSourceRevision, verdict, cancelled,
-    gatePhases: prepared.gatePhases(), setPhase: input.setPhase, recordCandidate: input.recordCandidate, timing,
+    git: env.ports.git, projectId: row.projectId, executionId: row.builderRunId, base: row.baseSourceRevision, verdict, cancelled: () => cancelled(run),
+    gatePhases: prepared.gatePhases(), setPhase: (phase) => setPhase(run, phase), timing: run.timing,
+    recordCandidate: async (sourceRevision) => {
+      await env.store.recordBuilderRunCandidate(row.builderRunId, sourceRevision)
+      run.candidateRecorded = true
+    },
   })
-  return Object.freeze({ ...scope, summary, kind: 'SOURCE_ADMITTED' as const, resultSourceRevision: admitted, applicationBuild })
+  run.agentUnadmitted = false
+  await settleAdmittedSource({
+    store: env.store, applicationArtifacts: env.applicationArtifacts, applicationServer: env.applicationServer, appendDiagnostic: env.appendDiagnostic,
+    finalizing: () => setPhase(run, 'FINALIZING').catch(() => undefined),
+  }, { ...row, accountId: run.request.accountId }, admitted, applicationBuild)
+  return { kind: 'SETTLED' }
 }
 
-const endLeg = async (ports: BuilderRunPorts, parked: ParkedRuns, leg: Leg, timing: RunTiming): Promise<void> => {
-  const { input, sandbox } = leg
-  const live = await settleRunVm({
-    sandbox, state: leg.vm, lapsed: leg.keepaliveFailure !== undefined, ports, executionId: input.executionId, conversationId: input.conversationId,
-    endMirror: () => leg.endMirror(null), mirror: leg.mirror,
-  })
-  const failed = (code: 'BUILDER_SESSION_RELEASE_FAILED' | 'BUILDER_SANDBOX_PAUSE_FAILED' | 'BUILDER_SANDBOX_KILL_FAILED') => (error: unknown): void => {
-    logFailure(logger, new Failure(code, { cause: error }), { 'builder.run_id': input.executionId })
-  }
-  // The run owns the session it opened, whatever way it ended: Mastra frees none by itself. A
-  // parked run keeps it live for the answer.
-  leg.connectorRun?.end()
-  const closeSession = async (): Promise<void> => {
-    if (!leg.parked) await leg.session?.release().catch(failed('BUILDER_SESSION_RELEASE_FAILED'))
-  }
-  if (input.holdSession) input.holdSession(closeSession)
-  else await closeSession()
-  // The pause takes seconds and nothing waits for it: the conversation's next `start()` does.
-  let paused: Promise<void> = Promise.resolve()
-  if (live) paused = sandbox.pause(leg.parked).catch(failed('BUILDER_SANDBOX_PAUSE_FAILED'))
-  // A run that started and is not live kills its VM, a failed start included: no VM it made or
-  // resumed is left running or paused behind it.
-  else if (leg.vm.started) await sandbox.kill().catch(failed('BUILDER_SANDBOX_KILL_FAILED'))
-  if (leg.parked && leg.session) parked.keep(input.conversationId, { builderRunId: input.executionId, session: leg.session, sandbox, paused })
-  if (!leg.parked) parked.forgetFinishes(input.conversationId)
-  ports.log('BUILDER_RUN_TIMING', timing.fields(input.executionId))
-}
-
-const executeLeg = async (ports: BuilderRunPorts, parked: ParkedRuns, input: BuilderRunInput): Promise<CodingWorkerResult | ParkedResult | SourceAdmittedResult> => {
-  if (!UUID.test(input.executionId) || !UUID.test(input.projectId) || !UUID.test(input.conversationId) ||
-    !OID.test(input.baseSourceRevision) || !input.intent.trim()) throw new Failure('BUILDER_RUNTIME_INPUT_REFUSED')
-  const timing = createRunTiming()
-  const keepalive = new AbortController()
-  const runSignal = input.signal ? AbortSignal.any([input.signal, keepalive.signal]) : keepalive.signal
+const work = async (run: Run): Promise<RunEnding> => {
+  const { env, row } = run
+  await env.store.claimBuilderRun(row.builderRunId, env.ownerId)
+  await setPhase(run, 'PREPARING')
+  if (!UUID.test(row.builderRunId) || !UUID.test(row.projectId) || !UUID.test(row.conversationId) ||
+    !OID.test(row.baseSourceRevision) || !run.request.content.trim()) throw new Failure('BUILDER_RUNTIME_INPUT_REFUSED')
   // The start model's account is the person's own, else the installation's shared one; none
   // refuses the run before a sandbox exists, with the "connect a model" answer.
-  await ports.checkModel({
-    builderRunId: input.executionId, accountId: input.accountId, projectId: input.projectId, conversationId: input.conversationId,
-  })
-  const connectorRun = ports.openConnectorRun ? await ports.openConnectorRun({ projectId: input.projectId, builderRunId: input.executionId }) : null
-  await parked.takeOver(input.conversationId)
-  let mirrorEnded: Promise<void> | undefined
-  const leg: Leg = {
-    input, connectorRun,
-    sandbox: ports.openSandbox({ conversationId: input.conversationId, providerSandboxId: input.providerSandboxId }),
-    vm: { started: false, incarnation: undefined, release: undefined, unusable: false },
-    session: undefined, mirror: undefined, pulled: () => null, keepaliveFailure: undefined, parked: false,
-    // Set once the checkout holds the turn's start; the turn end mirrors it however the run ends.
-    endMirror: (candidate) => {
-      mirrorEnded ??= (async () => {
-        const head = await leg.mirror?.end(candidate, leg.pulled())
-        if (head) await input.recordMirror(head).catch(mirrorFailed(input.executionId))
-      })()
-      return mirrorEnded
-    },
+  await env.ports.checkModel({ builderRunId: row.builderRunId, accountId: run.request.accountId, projectId: row.projectId, conversationId: row.conversationId })
+  run.connectorRun = env.ports.openConnectorRun ? await env.ports.openConnectorRun({ projectId: row.projectId, builderRunId: row.builderRunId }) : null
+  const prepared = await prepare(run)
+  const turn = await converse(run, prepared)
+  if (turn.reason !== 'complete') throw new Failure('BUILDER_MODEL_INCOMPLETE')
+  // The agent's turn is the only reader of the run's connector scope, so it ends with the turn.
+  run.connectorRun?.end()
+  run.timing.mark('agent')
+  return conclude(run, prepared)
+}
+
+const endingOf = async (run: Run, error: unknown): Promise<RunEnding> => {
+  const { row } = run
+  const ended = toFailure(run.keepaliveFailure ?? error)
+  // The one log line of the run's end is the row's: its level follows the row's category, and
+  // command evidence rides along as a field.
+  const evidence = ended.cause !== undefined && !(ended.cause instanceof Error) ? { 'builder.run.evidence': JSON.stringify(ended.cause) } : {}
+  if (!cancelled(run) || 'builder.run.evidence' in evidence) logFailure(logger, ended, { 'builder.run_id': row.builderRunId, ...evidence })
+  const code = ended.id
+  // Its source may be on main: the run stays running with its candidate until a sweep, once its
+  // heartbeat has lapsed, reads `main` and settles it.
+  if (run.candidateRecorded && !NOT_ADMITTED.has(code)) return { kind: 'LEFT' }
+  // A run that spent its repair budget already told the person why, in the check's last notice.
+  if (run.agentUnadmitted && code !== 'BUILDER_APP_NOT_FIXED') {
+    // A refused candidate says why, so the next turn in this conversation can fix it.
+    const refused = error instanceof CandidateRefused ? error : null
+    await run.env.appendDiagnostic({
+      projectId: row.projectId, conversationId: row.conversationId, builderRunId: row.builderRunId, code,
+      outcome: refused ? 'CANDIDATE_REFUSED' : code === 'BUILDER_SOURCE_BASE_MOVED' ? 'SOURCE_BASE_MOVED' : 'RUN_NOT_FINISHED',
+      sourceRevision: row.baseSourceRevision, ...(refused ? { detail: refused.detail } : {}),
+    }).catch(() => undefined)
   }
-  try {
-    return await finishLeg(ports, leg, await prepareLeg(ports, parked, leg, timing, keepalive), timing, runSignal)
-  } catch (error) {
-    const failure = leg.keepaliveFailure ?? error
-    // The run records only its failure code, and the one log line of the run's end is the row's:
-    // its level follows the row's category, and command evidence rides along as a field.
-    const ended = toFailure(failure)
-    const evidence = ended.cause !== undefined && !(ended.cause instanceof Error) ? { 'builder.run.evidence': JSON.stringify(ended.cause) } : {}
-    if (!input.signal?.aborted || 'builder.run.evidence' in evidence) logFailure(logger, ended, { 'builder.run_id': input.executionId, ...evidence })
-    throw failure
-  } finally {
-    await endLeg(ports, parked, leg, timing)
+  if (run.stopSignal.reason === 'HUB_STOPPING') return { kind: 'INTERRUPTED', code: 'HUB_RESTART' }
+  if (code === 'BUILDER_QUESTION_EXPIRED') return { kind: 'INTERRUPTED', code }
+  if (cancelled(run) || STOP_CODES.has(code)) return { kind: 'INTERRUPTED', code: 'USER_CANCELLED' }
+  return { kind: 'FAILED', code }
+}
+
+// A database blip is common and the Project answers PROJECT_BUSY while the row stays running, so
+// the ending is written again after a short wait. When every try fails the run is gone and its
+// heartbeat with it, so a sweep takes the row over and settles it.
+const writeEnding = async (run: Run, ending: RunEnding): Promise<void> => {
+  const { store, settleRetryMs } = run.env
+  const id = run.row.builderRunId
+  const write = ending.kind === 'INTERRUPTED' ? () => store.interruptBuilderRun(id, ending.code)
+    : ending.kind === 'FAILED' ? () => store.failBuilderRun(id, ending.code) : null
+  if (!write) return
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try { await write(); return } catch (error) {
+      if (attempt === 3) { logged(run, 'BUILDER_RUN_SETTLE_FAILED')(error); return }
+      await new Promise((wake) => { setTimeout(wake, settleRetryMs) })
+    }
   }
 }
 
-export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRuntime => {
-  // By conversation: one run of a Project at a time, so one parked run per conversation.
-  const warm = new Map<string, WarmParked>()
-  // A run's red finishes across its legs, so a run that parks on a question keeps its count. By
-  // conversation, as a parked run is, and gone with the run's end. In memory: a run parked across a
-  // Hub restart starts its count again when it is answered.
-  const redFinishes = new Map<string, Readonly<{ builderRunId: string; count: number }>>()
-  // A letting go still in flight, which the conversation's next leg waits on before it opens anything.
-  const lettingGo = new Map<string, Promise<void>>()
-  const take = (conversationId: string): WarmParked | undefined => {
-    const entry = warm.get(conversationId)
-    if (!entry) return undefined
-    warm.delete(conversationId)
-    clearTimeout(entry.timer)
-    return entry
+// Every question that ends unanswered ends before the row frees the Project. A question Mastra
+// does not let go of fails a run that would otherwise end interrupted; the next send ends it again.
+const endOpenQuestions = async (run: Run, ending: RunEnding): Promise<RunEnding> => {
+  try {
+    await run.session?.endQuestions()
+    return ending
+  } catch (error) {
+    logged(run, 'BUILDER_QUESTION_NOT_RELEASED')(error)
+    return ending.kind === 'INTERRUPTED' ? { kind: 'FAILED', code: 'BUILDER_QUESTION_NOT_RELEASED' } : ending
   }
-  // The session is deleted leaving its call in storage, and the instance dropped with the VM paused.
-  const letGo = (conversationId: string, entry: WarmParked, reason: 'TTL' | 'HEAP' | 'ENDED'): Promise<void> => {
-    const done = (async () => {
-      await entry.paused
-      await entry.session.release().catch((error: unknown) => {
-        logFailure(logger, new Failure('BUILDER_SESSION_RELEASE_FAILED', { cause: error }), { 'builder.run_id': entry.builderRunId })
-      })
-      entry.sandbox.release()
-      ports.log('BUILDER_PARKED_SESSION_EVICTED', { run: entry.builderRunId, reason })
-    })()
-    lettingGo.set(conversationId, done)
-    const settled = (): void => { if (lettingGo.get(conversationId) === done) lettingGo.delete(conversationId) }
-    done.then(settled, settled)
-    return done
+}
+
+/**
+ * The run's exit, however it ended. A VM still the run's own pauses with its files, and nothing
+ * waits for the pause: the conversation's next `start()` does. A run that started a VM and does
+ * not leave it live kills it. The stream that follows the run hears how it ended before the
+ * session goes.
+ */
+const exit = async (run: Run, ending: RunEnding): Promise<void> => {
+  const final = await endOpenQuestions(run, ending)
+  const { sandbox } = run
+  const live = sandbox ? await settleRunVm({
+    sandbox, state: run.vm, lapsed: run.keepaliveFailure !== undefined, ports: run.env.ports, executionId: run.row.builderRunId,
+    conversationId: run.row.conversationId, endMirror: () => endMirror(run, null), mirror: run.mirror,
+  }) : false
+  run.connectorRun?.end()
+  if (sandbox && live) void sandbox.pause().catch(logged(run, 'BUILDER_SANDBOX_PAUSE_FAILED'))
+  else if (sandbox && run.vm.started) await sandbox.kill().catch(logged(run, 'BUILDER_SANDBOX_KILL_FAILED'))
+  run.env.ports.log('BUILDER_RUN_TIMING', run.timing.fields(run.row.builderRunId))
+  await writeEnding(run, final)
+  const latest = await run.env.store.readBuilderRun({ accountId: run.request.accountId, projectId: run.row.projectId }).catch(() => null)
+  if (latest?.builderRunId === run.row.builderRunId) await run.env.publishRun(latest)
+  await run.session?.release().catch(logged(run, 'BUILDER_SESSION_RELEASE_FAILED'))
+}
+
+/** Starts a run the database created, from its claim to its last write. */
+export const startRun = (env: RunEnvironment, row: BuilderRunSummary, request: RunRequest): LiveRun => {
+  const stop = new AbortController()
+  const keepalive = new AbortController()
+  const run: Run = {
+    env, row, request, stopSignal: stop.signal, keepalive, signal: AbortSignal.any([stop.signal, keepalive.signal]),
+    timing: createRunTiming(),
+    inbox: createInbox((toolCallId) => run.session?.pending(toolCallId) === true, (signal) => (signal.reason === 'HUB_STOPPING' ? 'HUB_STOPPING' : 'USER_CANCELLED')),
+    vm: { started: false, incarnation: undefined, release: undefined, unusable: false },
+    sandbox: undefined, connectorRun: null, session: undefined, mirror: undefined, pulled: () => null, keepaliveFailure: undefined,
+    agentUnadmitted: false, candidateRecorded: false, mirrorEnded: undefined,
   }
-  const evict = async (conversationId: string, reason: 'TTL' | 'HEAP'): Promise<void> => {
-    const entry = take(conversationId)
-    if (entry) await letGo(conversationId, entry, reason)
-  }
-  const parked: ParkedRuns = Object.freeze({
-    takeOver: async (conversationId) => {
-      take(conversationId)
-      await lettingGo.get(conversationId)
+  const taken = new Set([request.idempotencyKey])
+  const done = (async () => {
+    let ending: RunEnding
+    try { ending = await work(run) } catch (error) { ending = await endingOf(run, error) }
+    await exit(run, ending)
+  })()
+  return Object.freeze({
+    builderRunId: row.builderRunId,
+    projectId: row.projectId,
+    answer: (toolCallId, resumeData) => run.inbox.answer(toolCallId, resumeData),
+    message: (content, idempotencyKey) => {
+      if (taken.has(idempotencyKey)) return 'ACCEPTED'
+      const outcome = run.inbox.message(content, idempotencyKey)
+      if (outcome === 'ACCEPTED') taken.add(idempotencyKey)
+      return outcome
     },
-    spentFinishes: (conversationId, builderRunId) => {
-      const spent = redFinishes.get(conversationId)
-      return spent?.builderRunId === builderRunId ? spent.count : 0
-    },
-    recordRedFinishes: (conversationId, builderRunId, count) => { redFinishes.set(conversationId, { builderRunId, count }) },
-    keep: (conversationId, entry) => {
-      const timer = setTimeout(() => { void evict(conversationId, 'TTL') }, ports.warmParkedMs ?? WARM_PARKED_MS)
-      timer.unref?.()
-      warm.set(conversationId, { ...entry, timer })
-    },
-    forgetFinishes: (conversationId) => { redFinishes.delete(conversationId) },
+    stop: (reason) => { stop.abort(reason) },
+    done,
   })
-  const discardParked: BuilderRunRuntime['discardParked'] = async (input) => {
-    redFinishes.delete(input.conversationId)
-    const entry = take(input.conversationId)
-    await lettingGo.get(input.conversationId)
-    try {
-      await ports.discardParked(input)
-    } finally {
-      if (entry) await letGo(input.conversationId, entry, 'ENDED')
-    }
-  }
-  const evictParked: BuilderRunRuntime['evictParked'] = async () => {
-    const conversations = [...warm.keys()]
-    await Promise.all(conversations.map((conversationId) => evict(conversationId, 'HEAP')))
-    return conversations.length
-  }
-  return Object.freeze({ discardParked, evictParked, execute: (input) => executeLeg(ports, parked, input) })
 }

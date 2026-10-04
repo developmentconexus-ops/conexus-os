@@ -1,5 +1,5 @@
 import type { TaskSnapshot } from '../transcript.ts'
-import { type ActiveRunView, activeLine, isParked } from './run-state'
+import { type ActiveRunView, activeLine, isWaiting } from './run-state'
 
 /** What the Preview says while a first version does not exist yet: the phase, the agent's tasks and how long it has run. */
 export type PreviewWait = Readonly<{ title: string; tasks: readonly TaskSnapshot[]; elapsedMs: number | null }>
@@ -17,5 +17,5 @@ const title = (view: ActiveRunView, { waiting }: WaitContext): string => {
 export const previewWait = (view: ActiveRunView, context: WaitContext, now: number): PreviewWait => ({
   title: title(view, context),
   tasks: context.tasks,
-  elapsedMs: isParked(view.run) ? null : now - new Date(view.run.createdAt).getTime(),
+  elapsedMs: isWaiting(view.run) ? null : now - new Date(view.run.createdAt).getTime(),
 })

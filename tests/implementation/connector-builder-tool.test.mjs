@@ -24,7 +24,10 @@ const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'
 const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { registerBuilderSessionRoutes } = await import(hubModuleUrl('builder/mastra-session-routes.js'))
 const { createConversationSessions } = await import(hubModuleUrl('builder/conversation-sessions.js'))
-const { sendBuilderSessionMessage } = await import(hubModuleUrl('builder/runtime.js'))
+const { driveStep } = await import(hubModuleUrl('builder/run/send.js'))
+// The Hub's one send: a message with no question open, so there is nothing to end first.
+const sendBuilderSessionMessage = (session, { content }, requestContext = new RequestContext()) => driveStep(session, { kind: 'SEND', content }, requestContext, async () => {})
+
 
 const PROJECT = '22222222-2222-4222-8222-222222222222'
 const OTHER_PROJECT = '66666666-6666-4666-8666-666666666666'

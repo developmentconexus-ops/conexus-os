@@ -121,6 +121,11 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/SendBuilderMessageRequest' }
       responses:
+        '200':
+          description: The run waiting on the person's answer took the message, which ends its open question; the same run goes on.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BuilderMessageAccepted' }
         '201':
           description: One BuilderRun admitted against the server-resolved current Project source and Mastra Thread.
           content:

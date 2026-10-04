@@ -12,7 +12,7 @@ import { Failure, failureRow, logFailure, toFailure } from '../platform/failure.
 import { logger } from '../platform/logger.js'
 import { isExactOrigin } from '../platform/origin.js'
 import type { ConversationSessions } from './conversation-sessions.js'
-import type { BuilderAnswerOutcome } from './service.js'
+import type { AnswerOutcome } from './run/question.js'
 
 type ServerRoute = typeof SERVER_ROUTES[number]
 
@@ -69,11 +69,11 @@ const IDLE_ONLY_ROUTES: ReadonlySet<string> = new Set([sessionRoute('POST', '/mo
 // (a custom interactive tool could echo the same literal), so both routes are checked alike.
 const TOOL_SUSPENSION_KEY = sessionRoute('POST', '/tool-suspension')
 const ABORT_KEY = sessionRoute('POST', '/abort')
-// The web card reads the problem code to say why its answer did not resume the run.
-const ANSWER_REFUSALS: Readonly<Record<Exclude<BuilderAnswerOutcome, 'RESUMED'> | 'UNAVAILABLE', 'TOOL_ANSWER_ALREADY_GIVEN' | 'PARKED_CALL_NOT_FOUND' | 'BUILDER_ANSWER_UNAVAILABLE'>> = {
+// The web card reads the problem code to say why its answer did not reach the run.
+const ANSWER_REFUSALS: Readonly<Record<Exclude<AnswerOutcome, 'ACCEPTED'>, 'TOOL_ANSWER_ALREADY_GIVEN' | 'QUESTION_ENDED'>> = {
   ALREADY_ANSWERED: 'TOOL_ANSWER_ALREADY_GIVEN',
-  NOT_PARKED: 'PARKED_CALL_NOT_FOUND',
-  UNAVAILABLE: 'BUILDER_ANSWER_UNAVAILABLE',
+  UNKNOWN_CALL: 'QUESTION_ENDED',
+  ENDED: 'QUESTION_ENDED',
 }
 const APPROVAL_ANSWER_ROUTES: readonly string[] = [sessionRoute('POST', '/tool-approval'), TOOL_SUSPENSION_KEY]
 const POLICY_CHANGING_DECISION = 'always_allow_category'
@@ -271,8 +271,8 @@ type GuardedMount = Readonly<{
   projectBusy(input: Readonly<{ accountId: string; projectId: string }>): Promise<boolean>
   /** The live run's context, which every request the mount serves that run's session carries. */
   runContext(scope: string): ((requestContext: RequestContext) => void) | undefined
-  /** The person's answer to the call the conversation's parked run waits on; resumes the run. A second answer to the same call changes nothing. */
-  answerParked(input: Readonly<{ accountId: string; projectId: string; conversationId: string; toolCallId: string; resumeData: unknown }>): Promise<BuilderAnswerOutcome>
+  /** The person's answer to the call the conversation's run waits on, handed to the run. A second answer to the same call changes nothing. */
+  answerQuestion(input: Readonly<{ projectId: string; conversationId: string; toolCallId: string; resumeData: unknown }>): AnswerOutcome
   toolPayloads?: ToolPayloadProjection
 }>
 
@@ -356,21 +356,20 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       // only a run creates, or a conversation's, which the Hub binds to that conversation's thread.
       const runConversation = sessionScope === undefined ? undefined : RUN_SCOPE.exec(sessionScope)?.[1]
       if (runConversation !== undefined) {
-        // The answer is not Mastra's to take, even while the parked run's session is live: the Hub
-        // resumes the run from the answer, whenever it comes and whichever process asked.
+        // The answer is not Mastra's to take: it goes to the run waiting on it, which resumes the
+        // question on its own session.
         if (key === TOOL_SUSPENSION_KEY) {
           const answer = typeof body === 'object' && body !== null ? body : {}
           if (typeof answer.toolCallId !== 'string' || answer.toolCallId.length === 0 || answer.toolCallId.length > 200 || !('resumeData' in answer)) {
             throw new Failure('TOOL_ANSWER_REFUSED')
           }
-          const outcome = await mount.answerParked({ accountId, projectId, conversationId: runConversation, toolCallId: answer.toolCallId, resumeData: answer.resumeData })
-            .catch(() => 'UNAVAILABLE' as const)
-          if (outcome === 'RESUMED') return reply.send({ ok: true })
+          const outcome = mount.answerQuestion({ projectId, conversationId: runConversation, toolCallId: answer.toolCallId, resumeData: answer.resumeData })
+          if (outcome === 'ACCEPTED') return reply.send({ ok: true })
           throw new Failure(ANSWER_REFUSALS[outcome])
         }
         if (IDLE_ONLY_ROUTES.has(key)) throw new Failure('BUILDER_BUSY')
-        // Mastra's abort would deny the question a parked run's live session waits on and leave the
-        // run parked on nothing; a run stops through the Hub's cancel, which settles both.
+        // Mastra's abort would deny the question the run waits on behind the run's back; a run stops
+        // through the Hub's cancel.
         if (key === ABORT_KEY) throw new Failure('BUILDER_RUN_STOP_REFUSED')
         if (!await mount.controller.getSessionByResource(resource, sessionScope)) {
           throw new Failure('BUILDER_SESSION_NOT_READY')
@@ -423,7 +422,7 @@ const bindConversationSession = async (controller: AgentController, sessions: Co
  * browser needs to list and open a Project's conversations, follow a run, answer it, and set a
  * conversation's model, each behind the Hub session and the Project the resource names.
  */
-export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, sessions, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext, answerParked, toolPayloads, streamBacklog }: Readonly<{
+export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, sessions, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext, answerQuestion, toolPayloads, streamBacklog }: Readonly<{
   mastra: Mastra
   controllerId: string
   controller: AgentController
@@ -434,13 +433,13 @@ export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastr
   conversationOwner: GuardedMount['conversationOwner']
   projectBusy: GuardedMount['projectBusy']
   runContext: GuardedMount['runContext']
-  answerParked: GuardedMount['answerParked']
+  answerQuestion: GuardedMount['answerQuestion']
   /** The Connector owner's projection of `connector_fetch` payloads; absent without a Connector module. */
   toolPayloads?: ToolPayloadProjection
   /** The unsent bytes a stream may hold, and how often they are checked; tests set it small. */
   streamBacklog?: StreamBacklog
 }>): Promise<void> => registerGuardedMastraMount(app, {
-  mastra, controller, sessions, controllerId, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext, answerParked,
+  mastra, controller, sessions, controllerId, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, runContext, answerQuestion,
   ...(toolPayloads ? { toolPayloads } : {}),
   ...(streamBacklog ? { streamBacklog } : {}),
   prefix: BUILDER_PREFIX,

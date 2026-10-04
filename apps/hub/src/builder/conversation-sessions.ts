@@ -2,7 +2,35 @@ import type { AgentController } from '@mastra/core/agent-controller'
 import type { RequestContext } from '@mastra/core/request-context'
 import { Failure, logFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
-import { conversationRunScope, deleteSessionLeavingParked } from './run/turn.js'
+import { conversationRunScope } from './run/turn.js'
+
+type ControllerSession = Awaited<ReturnType<AgentController['createSession']>>
+
+/**
+ * Lets a session go of the calls it is parked on, so deleting it answers none of them. Mastra's
+ * `deleteSession` aborts the session, and the abort settles its parked calls as denied and marks the
+ * thread's run aborted, so no answer could resume it. Any session on the thread holds the call, not
+ * only the run's own: while the suspended run is warm in this process, a session opened on its
+ * thread is told of the call within moments. Here the session's list of parked calls is cleared, an
+ * abort is marked as already made, and the stream is detached without an abort; the call and its
+ * snapshot stay in storage, and an answer resumes them on a new session.
+ */
+const letGoOfParked = (session: ControllerSession): void => {
+  // The registry, not the display state, is what Mastra's abort settles: a session opened again for
+  // the answer may show no pending suspension while it still holds the call.
+  if (session.suspensions.clear().length === 0) return
+  session.displayState.clearPendingSuspensions()
+  session.run.requestAbort({ deferSignal: true })
+  session.stream.detach()
+}
+
+/** Deletes the session of a scope without settling a call it holds: only a discard settles one. */
+const deleteSessionLeavingParked = async (controller: Pick<AgentController, 'getSessionByResource' | 'deleteSession'>, resourceId: string, scope: string): Promise<void> => {
+  const session = await controller.getSessionByResource(resourceId, scope)
+  if (!session) return
+  letGoOfParked(session)
+  await controller.deleteSession({ resourceId, scope })
+}
 
 /**
  * How long a conversation's session may go unused before the Hub deletes it. Mastra keeps a live

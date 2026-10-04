@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import type { AgentController } from '@mastra/core/agent-controller'
 import { FAILURE_TEXT } from '../platform/failure-text.generated.js'
 import { projectResourceId } from './conversations.js'
-import type { RunNote } from './service.js'
+import type { RunNote } from './run/ports.js'
 
 // Deterministic on run+code so a retried call collapses onto the same message instead of
 // appending a duplicate diagnostic.

@@ -1,6 +1,6 @@
 import { type QueryClient, useQuery } from '@tanstack/react-query'
 import { type BuilderRun, type BuilderSession, getBuilderSession } from './api'
-import { isActive, isParked } from './construir/run-state'
+import { isActive, isWaiting } from './construir/run-state'
 
 // One cache entry holds the Project's run, written by two sources: the builder-session read, and the
 // run the Hub publishes into the stream of the conversation on screen. The stream is the live one;
@@ -34,13 +34,13 @@ const runSettled = (queryClient: QueryClient, projectId: string, rereadSession: 
   void queryClient.invalidateQueries({ queryKey: ['builder-session-model', projectId] })
 }
 
-// A run that parks on a question stored the open call in its thread message, so the thread is read
-// again once when it parks, whichever source saw that first. Without it a window read before the
-// park keeps showing the question as a failed row.
-const parkedNow = (before: BuilderRun | null | undefined, after: BuilderRun | null | undefined): boolean =>
-  isParked(after) && !(isParked(before) && before?.builderRunId === after?.builderRunId)
+// A run that waits on a question stored the open call in its thread message, so the thread is read
+// again once when the wait starts, whichever source saw that first. Without it a window read before
+// the wait keeps showing the question as a failed row.
+const waitingNow = (before: BuilderRun | null | undefined, after: BuilderRun | null | undefined): boolean =>
+  isWaiting(after) && !(isWaiting(before) && before?.builderRunId === after?.builderRunId)
 
-const runParked = (queryClient: QueryClient, projectId: string): void => {
+const questionAsked = (queryClient: QueryClient, projectId: string): void => {
   void queryClient.invalidateQueries({ queryKey: ['builder-thread-messages', projectId] })
 }
 
@@ -54,7 +54,7 @@ export const writeStreamedRun = (queryClient: QueryClient, projectId: string, ru
   const updatedAt = queryClient.getQueryState(key)?.dataUpdatedAt
   queryClient.setQueryData<BuilderSession>(key, (current) => current ? { ...current, latestBuilderRun: run } : current, updatedAt ? { updatedAt } : {})
   if (settled(before, run)) runSettled(queryClient, projectId, true)
-  if (parkedNow(before, run)) runParked(queryClient, projectId)
+  if (waitingNow(before, run)) questionAsked(queryClient, projectId)
 }
 
 /**
@@ -74,14 +74,14 @@ export const useBuilderSession = (queryClient: QueryClient, projectId: string, c
     const overtaken = generation !== live.generation && live.run !== null
     const session = overtaken ? { ...read, latestBuilderRun: live.run } : read
     if (settled(before, session.latestBuilderRun)) runSettled(queryClient, projectId, false)
-    if (parkedNow(before, session.latestBuilderRun)) runParked(queryClient, projectId)
+    if (waitingNow(before, session.latestBuilderRun)) questionAsked(queryClient, projectId)
     return session
   },
   refetchInterval: (query) => {
     const latest = query.state.data?.latestBuilderRun
     if (!isActive(latest)) return false
     if (latest.conversationId !== conversationId) return 2_000
-    if (streamOpen || isParked(latest)) return 15_000
+    if (streamOpen || isWaiting(latest)) return 15_000
     return Math.min(1_000 * 2 ** query.state.fetchFailureCount, 30_000)
   },
 })

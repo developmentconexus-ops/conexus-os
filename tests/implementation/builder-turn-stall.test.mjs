@@ -63,15 +63,14 @@ test('a storage read that never settles ends the turn as BUILDER_AGENT_STALLED, 
 
   const first = await open(firstRunId)
   const started = Date.now()
-  const outcome = await settle(first.sendTurn('Faça o app.'))
+  const outcome = await settle(first.takeStep({ kind: 'SEND', content: 'Faça o app.' }, new AbortController().signal))
   assert.deepEqual(outcome, { settled: 'rejected', code: 'BUILDER_AGENT_STALLED' })
   assert.ok(hungReads >= 1, 'the turn reached the storage read that never settles')
   assert.ok(Date.now() - started < 10_000, `the turn settled ${Date.now() - started} ms after it started`)
 
   hang = false
   const later = await open(laterRunId)
-  assert.deepEqual(await settle(later.sendTurn('Faça o app de novo.')), { settled: 'resolved', reason: 'complete' })
-  await later.end()
+  assert.deepEqual(await settle(later.takeStep({ kind: 'SEND', content: 'Faça o app de novo.' }, new AbortController().signal)), { settled: 'resolved', reason: 'complete' })
 })
 
 test('the web names a stalled turn as a Conexus fault, not the model', async () => {

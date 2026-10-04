@@ -83,7 +83,7 @@ test('a run this Hub took over and could not settle is taken again and settled a
       heartbeatBuilderRuns: async () => {},
       takeOverStaleBuilderRuns: async () => (settled ? [] : [{
         builderRunId: '0f000000-0000-4000-8000-0000000000bb', projectId: '0f000000-0000-4000-8000-0000000000cc', conversationId: 'conv-taken',
-        started: false, candidateRevision: null, resultSourceRevision: null,
+        candidateRevision: null, resultSourceRevision: null,
         previousOwnerId: takes++ === 0 ? '0f000000-0000-4000-8000-0000000000dd' : ownerId,
       }]),
       interruptBuilderRun: async (_id, reason) => {
@@ -92,16 +92,17 @@ test('a run this Hub took over and could not settle is taken again and settled a
         settled = true
       },
       failBuilderRun: async (_id, code) => { calls.push(['fail', code]); settled = true },
-      expireParkedBuilderRuns: async () => [],
       close: async () => {},
     },
     applicationArtifacts: {},
     runs: {
-      runtime: { execute: async () => { throw new Error('not reached') }, discardParked: async () => {} },
+      ports: {},
       git: { readMain: async () => 'a'.repeat(40), mainContains: async () => false },
       conversations: { ownerOf: async () => 'PROJECT' },
       source: {},
       appendDiagnostic: async () => {},
+      publishRun: async () => {},
+      questionWaitMs: 60_000,
       ownerId,
     },
   })

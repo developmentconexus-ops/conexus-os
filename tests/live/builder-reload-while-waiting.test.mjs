@@ -7,7 +7,7 @@ const QUESTION = 'Qual o limite de crédito de cada fornecedor?'
 const ANSWER = '5000'
 const REPLY = 'Fechado, o limite de cada fornecedor é 5000.'
 
-liveFlow({ id: 'builder.reload-while-parked', nome: 'Recarregar a página com uma pergunta esperando resposta' }, async ({ page, model, hub }) => {
+liveFlow({ id: 'builder.reload-while-waiting', nome: 'Recarregar a página com uma pergunta esperando resposta' }, async ({ page, model, hub }) => {
   model.script(
     { parts: [{ call: { name: 'ask_user', args: { questions: [{ question: QUESTION }] } } }] },
     { parts: [{ text: REPLY }] },
@@ -21,7 +21,7 @@ liveFlow({ id: 'builder.reload-while-parked', nome: 'Recarregar a página com um
   const card = page.getByLabel('Pergunta do agente')
   await expect(card.getByText(QUESTION, { exact: true })).toBeVisible({ timeout: 60_000 })
   await expect.poll(() => hub.db(`select phase from builder.builder_run where request_text = '${REQUEST}'`), { timeout: 30_000 })
-    .toEqual([{ phase: 'PARKED' }])
+    .toEqual([{ phase: 'WAITING' }])
 
   await page.reload()
 

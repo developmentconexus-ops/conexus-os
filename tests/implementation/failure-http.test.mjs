@@ -50,7 +50,7 @@ const app = await createHttpApp({ registerRoutes: async (server) => {
   await registerBuilderSessionRoutes(server, {
     mastra, controllerId: 'conexus-builder', controller, sessions, origin: 'https://conexus.test',
     resolveCurrentSession: async () => ({ account: { accountId: '22222222-2222-4222-8222-222222222222', displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 's' }),
-    admitProject: async () => true, conversationOwner: async () => 'PROJECT', projectBusy: async () => false, runContext: () => undefined, answerParked: async () => 'RESUMED',
+    admitProject: async () => true, conversationOwner: async () => 'PROJECT', projectBusy: async () => false, runContext: () => undefined, answerQuestion: () => 'ACCEPTED',
   })
   return []
 } })

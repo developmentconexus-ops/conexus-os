@@ -71,7 +71,7 @@ test('a tool call that never stops streaming ends the turn within the step budge
   const { model, seen } = streamingToolCallForever()
   const run = await openRun(t, model, 400)
   const started = Date.now()
-  const outcome = await run.sendTurn('Faça o app.').then((turn) => ({ settled: 'resolved', reason: turn.reason }), (error) => ({ settled: 'rejected', code: error.message }))
+  const outcome = await run.takeStep({ kind: 'SEND', content: 'Faça o app.' }, new AbortController().signal).then((turn) => ({ settled: 'resolved', reason: turn.reason }), (error) => ({ settled: 'rejected', code: error.message }))
   assert.deepEqual(outcome, { settled: 'rejected', code: 'BUILDER_MODEL_STEP_TIMEOUT' })
   assert.ok(Date.now() - started < 5_000, `the turn took ${Date.now() - started} ms`)
   assert.equal(seen.calls, 1)

@@ -62,16 +62,15 @@ const repairFeedback = (detail: string, redFinishes: number): string => [
  * revision, or null when the turn left nothing that is not already on `main`; `judge` checks one
  * revision. A revision is judged once, so admission and the Preview reuse the gate's check; a
  * Conexus failure is not kept, so the next finish checks again. `redFinishes` is counted per
- * "done", not per revision, and starts from the run's count, so a run that parked keeps it.
+ * "done", not per revision, for the whole run, the waits on the person included.
  */
-export const createCandidateGate = ({ candidate, judge, redFinishes: spent = 0, onRedFinish }: Readonly<{
+export const createCandidateGate = ({ candidate, judge, onRedFinish }: Readonly<{
   candidate(): Promise<string | null>
   judge(revision: string): Promise<CandidateVerdict>
-  redFinishes?: number
   onRedFinish?(redFinishes: number): void
 }>): CandidateGate => {
   const verdicts = new Map<string, CandidateVerdict>()
-  let redFinishes = spent
+  let redFinishes = 0
   let finishing: Promise<string | null> | null = null
   const current = async (): Promise<CandidateVerdict | null> => {
     let revision: string | null

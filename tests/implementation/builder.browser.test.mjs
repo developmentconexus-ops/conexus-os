@@ -1219,7 +1219,7 @@ test('a turn the stream delivered only in part is completed from the thread, and
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
 })
 
-test('a page opened while the run is parked shows the question card once from the thread alone, and answering takes the run out of PARKED', async (t) => {
+test('a page opened while the run is parked shows the question card once from the thread alone, and answering takes the run out of WAITING', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000301'
   const projectId = '70000000-0000-4000-8000-000000000302'
   const runId = '70000000-0000-4000-8000-000000000303'
@@ -1243,7 +1243,7 @@ test('a page opened while the run is parked shows the question card once from th
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
     latestBuilderRun: {
-      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: answered ? 'AGENT' : 'PARKED',
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: answered ? 'AGENT' : 'WAITING',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
       failureCode: null, requestText: 'Crie um controle de pedidos', createdAt: new Date().toISOString(),
     },

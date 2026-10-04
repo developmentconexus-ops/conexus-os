@@ -44,7 +44,7 @@ const settled = (state, failureCode, extra = {}) => viewRun({ builderRunId: 'r',
 test('a settled run reads as stopped, discarded, moved or failed by its code, not by a category', () => {
   assert.equal(settled('INTERRUPTED', 'USER_CANCELLED').outcome, 'STOPPED')
   assert.equal(settled('INTERRUPTED', 'HUB_RESTART').outcome, 'DISCARDED')
-  assert.equal(settled('INTERRUPTED', 'BUILDER_RUN_PARKED_EXPIRED').outcome, 'DISCARDED')
+  assert.equal(settled('INTERRUPTED', 'BUILDER_QUESTION_EXPIRED').outcome, 'DISCARDED')
   assert.equal(settled('FAILED', 'BUILDER_SOURCE_BASE_MOVED').outcome, 'BASE_MOVED')
   assert.equal(settled('FAILED', 'BUILDER_MODEL_AUTH_FAILED').outcome, 'FAILED')
   assert.equal(settled('FAILED', 'BUILDER_MODEL_AUTH_FAILED', { cancellationRequested: true }).outcome, 'STOPPED')

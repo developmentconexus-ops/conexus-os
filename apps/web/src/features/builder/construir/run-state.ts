@@ -19,7 +19,7 @@ type SettledOutcome =
 const phaseSteps: Readonly<Record<NonNullable<BuilderRun['phase']>, string>> = {
   PREPARING: 'Preparando o ambiente',
   AGENT: 'Agente trabalhando',
-  PARKED: 'Esperando a sua resposta',
+  WAITING: 'Esperando a sua resposta',
   SOURCE_ADMISSION: 'Aplicando a alteração',
   COMPILING: 'Verificando o app',
   FINALIZING: 'Gerando a prévia',
@@ -29,7 +29,7 @@ export const isActive = (run: BuilderRun | null | undefined): run is BuilderRun 
   run?.state === 'QUEUED' || run?.state === 'RUNNING'
 
 /** A run waiting on the person's answer: its stream stays open for the answer, and no clock runs. */
-export const isParked = (run: BuilderRun | null | undefined): boolean => isActive(run) && run.phase === 'PARKED'
+export const isWaiting = (run: BuilderRun | null | undefined): boolean => isActive(run) && run.phase === 'WAITING'
 
 const settledOutcome = (run: BuilderRun): SettledOutcome => {
   if (run.state === 'SUCCEEDED') {

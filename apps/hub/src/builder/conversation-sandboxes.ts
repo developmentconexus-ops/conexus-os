@@ -11,8 +11,7 @@ import { logger } from '../platform/logger.js'
  * While a conversation has a run, or a pause still pending, that run's instance is the one every
  * run of it gets, so the next `start()` waits for the pause. Once the VM is paused the Hub drops
  * the instance, with the workspace and the process handles it holds (Mastra's Factory does the
- * same when it retires a session), unless the run parked: its live session holds the workspace, so
- * the answer resumes the same instance. The paused VM stays at E2B, and the next run builds an instance
+ * same when it retires a session). The paused VM stays at E2B, and the next run builds an instance
  * that resumes it by the provider id the Hub recorded. A workspace is never destroyed on a pause,
  * since Mastra's destroy kills the VM it stands on. A killed VM is forgotten too, and the next run
  * gets a new one.
@@ -66,16 +65,13 @@ export const e2bConversationSandboxes = ({
         readAgentFileStream: (path: string) => sandbox.readAgentFileStream(path),
         runCheck: ({ root, out, collect, thumbnail, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, ...(thumbnail ? { thumbnail } : {}), user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
         holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
-        pause: async (parked = false) => {
+        pause: async () => {
           const opened = entry.opened
           try {
             await sandbox.pause()
           } finally {
-            if (!parked && kept.get(conversationId) === entry && entry.opened === opened) kept.delete(conversationId)
+            if (kept.get(conversationId) === entry && entry.opened === opened) kept.delete(conversationId)
           }
-        },
-        release: () => {
-          if (kept.get(conversationId) === entry) kept.delete(conversationId)
         },
         kill: async () => {
           if (kept.get(conversationId) === entry) kept.delete(conversationId)

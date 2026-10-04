@@ -74,7 +74,7 @@ const settle = (turn) => turn.then((value) => ({ settled: 'resolved', reason: va
 test('a storage connect failure in one loop step ends the turn as BUILDER_AGENT_PLATFORM_FAILED, never as a refused model request, and sends no second message', async (t) => {
   const { model, calls } = answering()
   const { run, storageCalls } = await openRun(t, { model, failsRead: (read) => read === 2 })
-  const outcome = await settle(run.sendTurn('Faça o app.'))
+  const outcome = await settle(run.takeStep({ kind: 'SEND', content: 'Faça o app.' }, new AbortController().signal))
   assert.deepEqual(outcome, { settled: 'rejected', code: 'BUILDER_AGENT_PLATFORM_FAILED' })
   assert.equal(storageCalls.thrown, 1)
   assert.equal(calls.length, 0)
@@ -84,7 +84,7 @@ test('an auth failure from the model is not retried', async (t) => {
   const refused = Object.assign(new Error('Unauthorized'), { statusCode: 401 })
   const { model, calls } = answering(refused)
   const { run } = await openRun(t, { model, failsRead: () => false })
-  assert.deepEqual(await settle(run.sendTurn('Faça o app.')), { settled: 'rejected', code: 'BUILDER_MODEL_AUTH_FAILED' })
+  assert.deepEqual(await settle(run.takeStep({ kind: 'SEND', content: 'Faça o app.' }, new AbortController().signal)), { settled: 'rejected', code: 'BUILDER_MODEL_AUTH_FAILED' })
   assert.equal(calls.length, 1)
 })
 
@@ -111,7 +111,7 @@ for (const [label, failure] of MODEL_FAILURES) {
     const retryEvents = []
     const session = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
     session.subscribe((event) => { if (event.type === 'error') retryEvents.push([event.retryable, event.retryAttempt, event.maxRetries]) })
-    assert.deepEqual(await settle(run.sendTurn('Faça o app.')), { settled: 'resolved', reason: 'complete' })
+    assert.deepEqual(await settle(run.takeStep({ kind: 'SEND', content: 'Faça o app.' }, new AbortController().signal)), { settled: 'resolved', reason: 'complete' })
     assert.equal(calls.length, 4, 'one call that failed three times, then the one that answered')
     assert.deepEqual(retryEvents, [[true, 1, 10], [true, 2, 10], [true, 3, 10]], 'each retry is announced as a retryable error event')
   })
@@ -120,7 +120,7 @@ for (const [label, failure] of MODEL_FAILURES) {
 test("a model 503 that never clears is retried ten times, Mastra Code's limit, then fails as a refused model request", async (t) => {
   const { model, calls } = answering(Object.assign(new Error('Service Unavailable'), { statusCode: 503 }))
   const { run } = await openRun(t, { model, failsRead: () => false })
-  const outcome = await settle(run.sendTurn('Faça o app.'))
+  const outcome = await settle(run.takeStep({ kind: 'SEND', content: 'Faça o app.' }, new AbortController().signal))
   assert.deepEqual(outcome, { settled: 'rejected', code: 'BUILDER_MODEL_STREAM_FAILED' })
   assert.equal(calls.length, 11)
 })
@@ -128,7 +128,7 @@ test("a model 503 that never clears is retried ten times, Mastra Code's limit, t
 test('a rate limit is retried by Mastra twice, then fails as rate limited', async (t) => {
   const { model, calls } = answering(Object.assign(new Error('Too many requests'), { statusCode: 429 }))
   const { run } = await openRun(t, { model, failsRead: () => false })
-  assert.deepEqual(await settle(run.sendTurn('Faça o app.')), { settled: 'rejected', code: 'BUILDER_MODEL_RATE_LIMITED' })
+  assert.deepEqual(await settle(run.takeStep({ kind: 'SEND', content: 'Faça o app.' }, new AbortController().signal)), { settled: 'rejected', code: 'BUILDER_MODEL_RATE_LIMITED' })
   assert.equal(calls.length, 3)
 })
 
@@ -179,7 +179,7 @@ const runOnUpstream = async (t, replies) => {
     if (event.type === 'error' && event.retryable) notices.push([event.retryable, event.retryAttempt, event.maxRetries])
   })
   let thrownCause
-  const outcome = await settle(run.sendTurn('Faça o app.').catch((error) => { thrownCause = error.cause; throw error }))
+  const outcome = await settle(run.takeStep({ kind: 'SEND', content: 'Faça o app.' }, new AbortController().signal).catch((error) => { thrownCause = error.cause; throw error }))
   const exposed = JSON.stringify({ outcome, everything }).includes(apiKey)
   const leakingEvents = everything.filter((event) => JSON.stringify(event).includes(apiKey)).map((event) => `${event.type}${event.retryable ? ':retry' : ''}`)
   return { calls: calls.length, notices, outcome, exposed, leakingEvents, outcomeExposed: JSON.stringify(outcome).includes(apiKey), causeLogged: JSON.stringify(thrownCause ?? null) }

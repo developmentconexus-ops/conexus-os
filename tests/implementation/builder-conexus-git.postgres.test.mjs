@@ -191,7 +191,7 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
     const takeOver = (staleAfterMs) => one(connectionString, 'hub_builder_executor', 'SELECT builder.take_over_stale_builder_runs($1,$2)', [sweeper, staleAfterMs])
     assert.deepEqual(await takeOver(60_000), [], 'a heartbeat younger than the limit keeps the run')
     assert.deepEqual(await takeOver(0), [{
-      builderRunId: withCandidate, projectId, conversationId: `conversation-${projectId}`, started: true, candidateRevision: OTHER, resultSourceRevision: null, previousOwnerId: gone,
+      builderRunId: withCandidate, projectId, conversationId: `conversation-${projectId}`, candidateRevision: OTHER, resultSourceRevision: null, previousOwnerId: gone,
     }])
     assert.deepEqual(await takeOver(60_000), [], 'the takeover is a fresh heartbeat of its own')
     assert.equal(await one(connectionString, 'hub_builder_executor', 'SELECT builder.heartbeat_builder_runs($1,$2)', [gone, [withCandidate]]), 0, 'the old owner no longer beats for it')

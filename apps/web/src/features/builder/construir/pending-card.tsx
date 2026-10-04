@@ -56,14 +56,14 @@ const askUserQuestions = (pending: PromptEntry): AskUserQuestionData[] => {
 }
 
 // Why an answer did not take the run back to work, in the person's words.
-const REFUSAL_TEXT: Readonly<Record<Exclude<AnswerOutcome, 'RESUMED'>, string>> = {
+const REFUSAL_TEXT: Readonly<Record<Exclude<AnswerOutcome, 'ACCEPTED'>, string>> = {
   ALREADY_ANSWERED: FAILURES.TOOL_ANSWER_ALREADY_GIVEN.message,
-  NOT_PARKED: FAILURES.PARKED_CALL_NOT_FOUND.message,
-  UNAVAILABLE: FAILURES.BUILDER_ANSWER_UNAVAILABLE.message,
+  ENDED: FAILURES.QUESTION_ENDED.message,
+  UNAVAILABLE: FAILURES.BUILDER_UNAVAILABLE.message,
 }
 
 /**
- * A call the run parked on the person. An approval offers Permitir and Recusar and nothing that
+ * A call the run waits on the person for. An approval offers Permitir and Recusar and nothing that
  * widens the policy; a question renders through AskUserPt, playground-ui's AskUser parts in pt-BR (free text, or the
  * agent's options as radio/checkbox controls, with one send for all of its 1 to 4 questions).
  */
@@ -76,7 +76,7 @@ export function PendingCard({ pending, onAnswer }: Readonly<{
     setState('SENDING')
     onAnswer(value).then(setState, () => setState('UNAVAILABLE'))
   }
-  const refusal = state === 'OPEN' || state === 'SENDING' || state === 'RESUMED' ? null : REFUSAL_TEXT[state]
+  const refusal = state === 'OPEN' || state === 'SENDING' || state === 'ACCEPTED' ? null : REFUSAL_TEXT[state]
   const detail = presentTool(pending.toolName, pending.args).detail
   const technical = stringifyToolValue(pending.args)
 

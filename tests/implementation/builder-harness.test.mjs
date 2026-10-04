@@ -364,7 +364,7 @@ test('connector_fetch reaches a turn whose request context carries a run the Con
   assert.deepEqual([await toolsFor(run.bind), await toolsFor()], [['connector_fetch'], []])
 })
 
-test("a turn lasts through the person's answer on the conversation's session and workspace, ending it keeps the session, and a new conversation starts on the installation default (AC-12, AC-16)", async (t) => {
+test("a run's question waits on its own session and workspace, the answer resumes it there, and a new conversation starts on the installation default (AC-12, AC-16)", async (t) => {
   const { createControllerRunSessions } = await import(hubModuleUrl('builder/run/turn.js'))
   const root = mkdtempSync(resolve(tmpdir(), 'builder-harness-run-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
@@ -402,36 +402,32 @@ test("a turn lasts through the person's answer on the conversation's session and
     payloads.push(event.suspendPayload)
     askedCallId = event.toolCallId
   })
-  const asked = await run.sendTurn('faça um app')
-  assert.equal(asked.reason, 'suspended', 'the turn ends at the question')
+  const signal = new AbortController().signal
+  const asked = await run.takeStep({ kind: 'SEND', content: 'faça um app' }, signal)
+  assert.equal(asked.reason, 'suspended', 'the step ends at the question')
   assert.equal(typeof asked.userMessageId, 'string')
-  await run.end()
-  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`) === live, true, 'a run parked on the question keeps its session live for the answer')
-  // The answer gets the parked run's live session again and resumes the call on it.
-  const answering = await openSession({ projectId, conversationId, builderRunId, workspace, runCheck: async () => PASSING, bindContext: bind(builderRunId) })
-  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`) === live, true, 'the answer resumes on the same session object')
-  const turn = await answering.resumeTurn({ toolCallId: askedCallId, resumeData: ['Azul (recomendado)', ['Lista', 'Detalhe'], 'Nada'] })
-  assert.deepEqual({ reason: turn.reason, summary: turn.summary, answered, calls: calls.length }, { reason: 'complete', summary: 'ok', answered: ['ask_user'], calls: 3 })
+  await run.untilQuestionStored()
+  assert.equal(run.pending(askedCallId), true, 'the question waits on the live session')
+  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`) === live, true, 'the run keeps its session through the wait')
+  const turn = await run.takeStep({ kind: 'ANSWER', toolCallId: askedCallId, resumeData: ['Azul (recomendado)', ['Lista', 'Detalhe'], 'Nada'] }, signal)
+  assert.deepEqual({ reason: turn.reason, answered, calls: calls.length, pending: run.pending(askedCallId) }, { reason: 'complete', answered: ['ask_user'], calls: 3, pending: false })
   assert.equal(typeof turn.userMessageId, 'string')
   assert.deepEqual(payloads, [{ questions: ASK_QUESTIONS }])
   assert.equal(calls[1].prompt.includes('User answered:\\nQual cor?: Azul (recomendado)\\nQuais telas?: Lista, Detalhe\\nAlgo mais?: Nada'), true, 'the model reads one line per answered question')
   // With no allowlist on the one mode, every tool the controller registers reaches the model, submit_plan included.
   for (const name of ['ask_user', 'task_write', 'task_update', 'task_complete', 'task_check', 'skill', 'submit_plan', 'mastra_workspace_execute_command']) assert.equal(calls[0].tools.includes(name), true, `${name} reaches the model`)
   assert.deepEqual([[...runContexts.keys()], [...conversationWorkspaces.keys()]], [[`builder:${conversationId}`], [conversationId]])
-  const answeringLive = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
-  await answering.end()
-  assert.deepEqual([runContexts.size, conversationWorkspaces.size, await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`) === answeringLive], [0, 0, true])
-  await answering.release()
+  await run.release()
+  assert.deepEqual([runContexts.size, conversationWorkspaces.size], [0, 0])
   assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`), undefined, 'the run deletes its session when it is over')
 
   // The person changes the model between messages, through the conversation's session; the next turn runs on it.
   await conversation.model.switch({ modelId: 'anthropic/chosen-model' })
   const nextRunId = '55555555-5555-4555-8555-555555555555'
-  const next = await openSession({ projectId, conversationId, builderRunId: nextRunId, workspace, runCheck: async () => PASSING, bindContext: bind(nextRunId) })
+  await openSession({ projectId, conversationId, builderRunId: nextRunId, workspace, runCheck: async () => PASSING, bindContext: bind(nextRunId) })
   const nextLive = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
-  assert.notEqual(nextLive, answeringLive, 'the next run makes its own session, since the last run deleted its own')
+  assert.notEqual(nextLive, live, 'the next run makes its own session, since the last run deleted its own')
   assert.equal(nextLive.model.get(), 'anthropic/chosen-model', 'the turn reads the conversation\'s model from its thread')
-  await next.end()
   const rebuilt = new Workspace({ id: 'run-ws-rebuilt', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
   const onNewVm = await openSession({ projectId, conversationId, builderRunId: nextRunId, workspace: rebuilt, runCheck: async () => PASSING, bindContext: bind(nextRunId) })
   const remade = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)

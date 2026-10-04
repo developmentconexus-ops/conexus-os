@@ -40,7 +40,7 @@ const turnsWithin = async (ms, started = modelTurns.length) => {
 
 // The Hub's own mount over the Builder's controller, with the Project admission, the conversation
 // owner and the busy check the Hub wires in production, and conversation A already opened.
-const createBuilderApp = async (t, { accountId = accountA, providerDown = false, busy = false, answered = [], answerOutcome = async () => 'RESUMED', model: modelOf = model } = {}) => {
+const createBuilderApp = async (t, { accountId = accountA, providerDown = false, busy = false, answered = [], answerOutcome = () => 'ACCEPTED', model: modelOf = model } = {}) => {
   const root = mkdtempSync(join(tmpdir(), 'conexus-builder-routes-'))
   const storage = new LibSQLStore({ id: `builder-boundary-${randomUUID()}`, url: `file:${join(root, 'session.db')}` })
   const memory = new Memory({ storage, options: { lastMessages: 20 } })
@@ -75,7 +75,7 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async () => busy,
         runContext: () => undefined,
-        answerParked: async (input) => { answered.push(input); return answerOutcome(input) },
+        answerQuestion: (input) => { answered.push(input); return answerOutcome(input) },
       })
       return []
     },
@@ -196,7 +196,7 @@ test('only the Builder controller id is served, the Factory mount is gone, and t
   assert.deepEqual(answers.map((response) => response.statusCode), [404, 404, 404, 404, 404, 404])
 })
 
-test("a run's own session takes no abort: a parked run's question is settled only by the Hub's stop", async (t) => {
+test("a run's own session takes no abort: the question a run waits on ends only through the Hub's stop", async (t) => {
   const { app, controller } = await createBuilderApp(t)
   const liveRun = `builder:${randomUUID()}`
   await controller.createSession({ resourceId: `project:${projectA}`, scope: liveRun, threadId: conversationA })
@@ -230,20 +230,20 @@ test('a conversation takes no message, steer or follow-up, not even inside a run
   assert.equal((await app.inject({ method: 'POST', url: `${sessionBase()}/abort?${inConversation()}`, ...authentic, payload: {} })).statusCode, 200, 'abort needs no run')
 })
 
-test("an answer to a run's call goes to the Hub, which resumes the parked run, and never to a session that no longer exists", async (t) => {
+test("an answer to a run's call goes to the run waiting on it through the Hub, never to Mastra's own route", async (t) => {
   const answered = []
   const { app } = await createBuilderApp(t, { answered })
   const runScope = `builder:${conversationA}`
   const answer = (payload) => app.inject({ method: 'POST', url: `${sessionBase()}/tool-suspension?sessionScope=${runScope}`, ...authentic, payload })
   const first = await answer({ toolCallId: 'call-1', resumeData: ['Azul'] })
   assert.deepEqual([first.statusCode, first.json()], [200, { ok: true }])
-  assert.deepEqual(answered, [{ accountId: accountA, projectId: projectA, conversationId: conversationA, toolCallId: 'call-1', resumeData: ['Azul'] }])
+  assert.deepEqual(answered, [{ projectId: projectA, conversationId: conversationA, toolCallId: 'call-1', resumeData: ['Azul'] }])
   assert.equal((await answer({ resumeData: ['Azul'] })).statusCode, 400, 'an answer names its call')
   assert.equal(answered.length, 1)
 })
 
 test('each outcome of an answer has its own HTTP status and problem type, which the web card reads', async (t) => {
-  const outcomes = { 'call-resumed': async () => 'RESUMED', 'call-again': async () => 'ALREADY_ANSWERED', 'call-forged': async () => 'NOT_PARKED', 'call-down': async () => { throw new Error('BUILDER_STORE_UNAVAILABLE') } }
+  const outcomes = { 'call-taken': () => 'ACCEPTED', 'call-again': () => 'ALREADY_ANSWERED', 'call-forged': () => 'UNKNOWN_CALL', 'call-ended': () => 'ENDED' }
   const { app } = await createBuilderApp(t, { answerOutcome: ({ toolCallId }) => outcomes[toolCallId]() })
   const answer = async (toolCallId) => {
     const response = await app.inject({ method: 'POST', url: `${sessionBase()}/tool-suspension?sessionScope=builder:${conversationA}`, ...authentic, payload: { toolCallId, resumeData: ['Azul'] } })
@@ -252,8 +252,8 @@ test('each outcome of an answer has its own HTTP status and problem type, which 
   assert.deepEqual(await Promise.all(Object.keys(outcomes).map(answer)), [
     [200, { ok: true }],
     [409, 'urn:conexus:problem:TOOL_ANSWER_ALREADY_GIVEN'],
-    [404, 'urn:conexus:problem:PARKED_CALL_NOT_FOUND'],
-    [503, 'urn:conexus:problem:BUILDER_ANSWER_UNAVAILABLE'],
+    [409, 'urn:conexus:problem:QUESTION_ENDED'],
+    [409, 'urn:conexus:problem:QUESTION_ENDED'],
   ])
 })
 
@@ -348,12 +348,12 @@ test("a conversation's session the browser stops using is deleted by the idle sw
   assert.notEqual(await live(conversation), undefined, 'a request renews the session\'s time')
 })
 
-const createBuilderRoutesApp = async (t, { compareSourceRevisions, createBuilderRun, store, session, service: customService, launchPreview } = {}) => {
+const createBuilderRoutesApp = async (t, { compareSourceRevisions, sendBuilderMessage, store, session, service: customService, launchPreview } = {}) => {
   const resolveCurrentSession = async (request) => request.cookies['__Host-conexus_session']
     ? { account: { accountId: accountA, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' }
     : null
   const unused = async () => { throw new Error('unused in this test') }
-  const service = customService ?? { compareSourceRevisions: compareSourceRevisions ?? unused, createBuilderRun: createBuilderRun ?? unused }
+  const service = customService ?? { compareSourceRevisions: compareSourceRevisions ?? unused, sendBuilderMessage: sendBuilderMessage ?? unused }
   const app = await createHttpApp({
     registerRoutes: (instance) => registerBuilderRoutes(instance, {
       store: store ?? {},
@@ -439,7 +439,7 @@ test('a message names its conversation only: mode and promptVariant are refused,
   const received = []
   let failRun = null
   const { app } = await createBuilderRoutesApp(t, {
-    createBuilderRun: async (input) => {
+    sendBuilderMessage: async (input) => {
       received.push(input)
       if (failRun) throw failRun
       throw new Failure('CONVERSATION_NOT_FOUND')
@@ -497,7 +497,7 @@ test('builder session, cancel, trace, and preview routes log failure codes on in
     service: {
       cancelBuilderRun: async () => { throw new Error('CANCEL_SERVICE_FAIL') },
       compareSourceRevisions: async () => { throw new Error('COMPARE_SERVICE_FAIL') },
-      createBuilderRun: async () => { throw new Error('unused') },
+      sendBuilderMessage: async () => { throw new Error('unused') },
       getApplicationBySource: async () => ({ artifactRevisionId: runId, artifactDigest: 'd'.repeat(64) }),
       listSourceTree: async () => { throw new Error('TREE_SERVICE_FAIL') },
       getSourceFile: async () => { throw new Error('FILE_SERVICE_FAIL') },
@@ -625,3 +625,15 @@ for (const [label, status, type] of [['401', 401, 'authentication_error'], ['503
     assert.equal(stored.body.includes(apiKey), false, 'the key is in no message the thread serves')
   })
 }
+
+test('a message that starts a run answers 201, and one a waiting run takes answers 200 with that run', async (t) => {
+  const run = { builderRunId: '88888888-8888-4888-8888-888888888888', projectId: projectA, conversationId: conversationA, state: 'RUNNING', phase: 'WAITING' }
+  let created = true
+  const { app } = await createBuilderRoutesApp(t, { sendBuilderMessage: async () => ({ builderRun: run, created }) })
+  const send = () => app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/builder-session/messages`, headers: { ...authentic.headers, 'idempotency-key': 'k-1' }, cookies: authentic.cookies, payload: { content: 'altere', conversationId: conversationA } })
+  const started = await send()
+  created = false
+  const taken = await send()
+  assert.deepEqual([started.statusCode, taken.statusCode], [201, 200])
+  assert.deepEqual(taken.json(), { builderRun: run })
+})

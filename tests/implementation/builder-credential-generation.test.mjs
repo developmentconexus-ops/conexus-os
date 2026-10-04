@@ -18,7 +18,11 @@ const bundle = (relativeSourcePath) => {
   return import(pathToFileURL(outfile).href)
 }
 
-const { sendBuilderSessionMessage } = await bundle('apps/hub/src/builder/runtime.ts')
+const { driveStep } = await bundle('apps/hub/src/builder/run/send.ts')
+const { RequestContext } = await import('@mastra/core/request-context')
+// The Hub's one send: a message with no question open, so there is nothing to end first.
+const sendBuilderSessionMessage = (session, { content }, requestContext = new RequestContext()) => driveStep(session, { kind: 'SEND', content }, requestContext, async () => {})
+
 const { ProviderAuthRequiredError } = await import('@mastra/code-sdk/auth/provider-auth-error')
 
 const fakeThreadFields = {
@@ -27,7 +31,7 @@ const fakeThreadFields = {
   machinery: { subscribeToThread: async () => ({ stream: (async function* () {})(), unsubscribe: () => undefined }) },
 }
 
-test('sendBuilderSessionMessage classifies a 401/403 agent error as an auth failure without leaking the provider message', async () => {
+test('the Hub send classifies a 401/403 agent error as an auth failure without leaking the provider message', async () => {
   let listener
   const providerError = new Error('invalid x-api-key header, secret-token-xyz')
   providerError.statusCode = 401
@@ -65,7 +69,7 @@ test('Mastra Code\'s provider-auth error is an auth failure, whether the run rep
   }
 })
 
-test('sendBuilderSessionMessage preserves a generic agent error as a safe named code, not the raw provider message', async () => {
+test('the Hub send preserves a generic agent error as a safe named code, not the raw provider message', async () => {
   let listener
   const session = {
     subscribe: (callback) => { listener = callback; return () => {} },
@@ -81,7 +85,7 @@ test('sendBuilderSessionMessage preserves a generic agent error as a safe named 
   })
 })
 
-test('sendBuilderSessionMessage still reports rate limiting distinctly', async () => {
+test('the Hub send still reports rate limiting distinctly', async () => {
   const session = {
     subscribe: () => () => {},
     ...fakeThreadFields,
@@ -93,7 +97,7 @@ test('sendBuilderSessionMessage still reports rate limiting distinctly', async (
   })
 })
 
-test('sendBuilderSessionMessage propagates a model-selection refusal unchanged, with no agent_end event required', async () => {
+test('the Hub send propagates a model-selection refusal unchanged, with no agent_end event required', async () => {
   const session = {
     subscribe: () => () => {},
     ...fakeThreadFields,
@@ -120,7 +124,7 @@ test('a model without an account reads as connect-a-model even when it surfaces 
   }
 })
 
-test('sendBuilderSessionMessage returns complete on success', async () => {
+test('the Hub send returns complete on success', async () => {
   let listener
   const session = {
     subscribe: (callback) => { listener = callback; return () => {} },

@@ -27,7 +27,7 @@ import { LensPreview } from './lens-preview'
 import { PendingCard } from './pending-card'
 import { previewWait } from './preview-wait'
 import { ResultCard, showsResultCard } from './result-card'
-import { clockLabel, isActive, isParked, statusLine, viewRun } from './run-state'
+import { clockLabel, isActive, isWaiting, statusLine, viewRun } from './run-state'
 import { usePreview } from './use-preview'
 import { WorkingState } from './working-state'
 import { FailureNotice } from '../../../app/failure-state'
@@ -209,7 +209,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
 
   const preview = usePreview(projectId, session.data?.preview)
   const working = view.kind === 'ACTIVE'
-  const parked = isParked(runHere)
+  const parked = isWaiting(runHere)
   const now = useNow(working && !parked)
   // The Hub starts a new conversation from the person's defaults, else the installation's, and a
   // model chosen in one conversation stays with that conversation.
@@ -332,7 +332,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
                         pending={entry}
                         onAnswer={async (answer) => {
                           const outcome = await answerPendingCall(projectId, runHere.conversationId, entry, answer)
-                          if (outcome !== 'RESUMED') return outcome
+                          if (outcome !== 'ACCEPTED') return outcome
                           void queryClient.invalidateQueries({ queryKey: builderSessionKey(projectId) })
                           dispatch({ type: 'resolvePrompt', toolCallId: entry.toolCallId })
                           return outcome

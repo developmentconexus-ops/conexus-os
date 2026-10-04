@@ -73,12 +73,6 @@ test('the budget counts each red finish, an unchanged revision included, and the
   assert.deepEqual(await gate.settle(), { kind: 'RED_APP', revision: REVISION, detail: RED.detail })
 })
 
-test('a run that parked on a question keeps the count its earlier leg spent', async () => {
-  const { gate } = gateOver([RED], { redFinishes: 2 })
-  assert.match(await gate.finish(), /\(3 de 3\)/)
-  assert.equal(gate.gaveUp(), true)
-})
-
 test('a green finish ends the turn, and the verdict it judged is the one the run settles on', async () => {
   const { gate, judged, moveTo } = gateOver([RED, { kind: 'GREEN', build: { files } }])
   assert.match(await gate.finish(), /\(1 de 3\)/)

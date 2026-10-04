@@ -24,16 +24,8 @@ export type RunSandbox = Readonly<{
   holdOpen(onLapse: (error: unknown) => void): Promise<() => void>
   /** The agent's workspace on this sandbox. */
   workspace: Workspace
-  /**
-   * The turn's end: the VM pauses with its files and its checkout, and the next `start()` resumes it.
-   * A parked run's instance stays for its answer, since its live session holds this workspace.
-   */
-  pause(parked?: boolean): Promise<void>
-  /**
-   * A parked run let go of its instance: it is dropped from memory, the VM stays paused, and the
-   * conversation's next `start()` resumes it by the provider id the Hub recorded.
-   */
-  release(): void
+  /** The run's end: the VM pauses with its files and its checkout, and the next `start()` resumes it. */
+  pause(): Promise<void>
   /** A broken VM: it is killed, and the conversation's next turn gets a new one. */
   kill(): Promise<void>
 }>
@@ -64,8 +56,6 @@ export type BuilderRunPorts = Readonly<{
     /** The operation run `conexus_run_operation` does; absent when the Hub has no Prévia runner. */
     runOperation?: RunOperation
   }>): Promise<RunSession>
-  /** A stop on a parked run: its open call is settled as denied in the thread, so no card is left asking. */
-  discardParked(input: Readonly<{ projectId: string; conversationId: string }>): Promise<void>
   /**
    * Refuses a run before a sandbox exists when the model it starts on has no usable account. It
    * checks that one model only: the account for each later call is looked up when the call is made.
@@ -81,28 +71,53 @@ export type BuilderRunPorts = Readonly<{
   readProjectName(input: Readonly<{ accountId: string; projectId: string }>): Promise<string>
   /** The Prévia's runner, which `conexus_run_operation` invokes the candidate's operations through. */
   invokeOperation?: CandidateOperationPorts['invoke']
-  /** How long a parked run keeps its session and its sandbox instance in memory for the answer. */
-  warmParkedMs?: number
   log: EventLog
 }>
 
-/** How the agent's turn ended. */
-export type AgentTurn = Readonly<{ reason: string; userMessageId: string | undefined; summary: string }>
+/** How the agent's step ended. */
+export type AgentTurn = Readonly<{ reason: string; userMessageId: string | undefined }>
 
-/** The conversation's session on the Builder controller for one turn, scoped to builder:<conversationId> on its thread. */
-export type RunSession = Readonly<{
-  /** Ends `suspended` when the agent asks the person something: the turn does not wait for the answer. */
-  sendTurn(content: string, signal?: AbortSignal): Promise<AgentTurn>
-  /** The same turn, going on from the answer to the call a parked run waited on. */
-  resumeTurn(resume: ParkedAnswer, signal?: AbortSignal): Promise<AgentTurn>
-  /**
-   * The agent's turn is over: its context and tools are forgotten, and the session stays for the
-   * run's remaining phases. A run parked on a call keeps it live for the answer, as Mastra's Factory does.
-   */
-  end(): Promise<void>
-  /** The run is over: ends the turn and deletes the session, which Mastra keeps in memory until it is deleted. */
-  release(): Promise<void>
+/** A note in the run's conversation thread, keyed by run and code so a retry writes it once. */
+export type RunNote = Readonly<{
+  projectId: string
+  conversationId: string
+  builderRunId: string
+  code: string
+  outcome: 'SOURCE_BASE_MOVED' | 'RUN_NOT_FINISHED' | 'CANDIDATE_REFUSED' | 'BUILD_FAILED' | 'PLATFORM_FAILED' | 'PREVIEW_DATA_RESET' | 'BOOT_PROBLEMS'
+  // `main` after the run: its base when nothing was admitted, its result when admitted.
+  sourceRevision: string
+  // The Project's own diagnostic, such as the database's error for its migration.
+  detail?: string
 }>
 
-/** The person's answer to the call a parked run waits on. */
-export type ParkedAnswer = Readonly<{ toolCallId: string; resumeData: unknown }>
+export type DiagnosticAppender = (note: RunNote) => Promise<void>
+
+/** What starts an agent step: the person's message, or the answer to the call the run waits on. */
+export type Step =
+  | Readonly<{ kind: 'SEND'; content: string }>
+  | Readonly<{ kind: 'ANSWER'; toolCallId: string; resumeData: unknown }>
+
+export type StopReason = 'USER_CANCELLED' | 'HUB_STOPPING'
+
+/** Every way a wait ends. A fifth kind is a compile error in the run's switch. */
+export type WaitEnd =
+  | Readonly<{ kind: 'ANSWER'; toolCallId: string; resumeData: unknown }>
+  | Readonly<{ kind: 'MESSAGE'; content: string; idempotencyKey: string }>
+  | Readonly<{ kind: 'EXPIRED' }>
+  | Readonly<{ kind: 'STOPPED'; reason: StopReason }>
+
+/** The run's session on the Builder controller, from its first step to its end. */
+export type RunSession = Readonly<{
+  /**
+   * One agent step. A message first ends every open question, so it never reaches a session that
+   * holds one. Ends `suspended` when the agent asks the person something.
+   */
+  takeStep(step: Step, signal: AbortSignal): Promise<AgentTurn>
+  /** Whether the call waits on the live session. */
+  pending(toolCallId: string): boolean
+  /** Resolves once every call the session holds is stored on the thread. */
+  untilQuestionStored(): Promise<void>
+  endQuestions(): Promise<void>
+  /** Deletes the session, which Mastra keeps in memory until it is deleted. */
+  release(): Promise<void>
+}>

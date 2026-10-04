@@ -8,7 +8,7 @@ const TYPED = 'abcdefghij'
 const MAX_SESSION_READS = 1
 const MAX_THREAD_LIST_READS = 1
 
-liveFlow({ id: 'builder.typing-while-parked', nome: 'Digitar no campo de mensagem enquanto o pedido espera' }, async ({ page, model, hub }) => {
+liveFlow({ id: 'builder.typing-while-waiting', nome: 'Digitar no campo de mensagem enquanto o pedido espera' }, async ({ page, model, hub }) => {
   model.script({ parts: [{ call: { name: 'ask_user', args: { questions: [{ question: QUESTION }] } } }] })
 
   await page.goto(`/workspaces/${hub.workspaceId}/projects`)
@@ -18,7 +18,7 @@ liveFlow({ id: 'builder.typing-while-parked', nome: 'Digitar no campo de mensage
   await page.waitForURL(/\/projects\/[^/]+\/c\/[^/]+$/)
   await expect(page.getByLabel('Pergunta do agente').getByText(QUESTION, { exact: true })).toBeVisible({ timeout: 60_000 })
   await expect.poll(() => hub.db(`select phase from builder.builder_run where request_text = '${REQUEST}'`), { timeout: 30_000 })
-    .toEqual([{ phase: 'PARKED' }])
+    .toEqual([{ phase: 'WAITING' }])
 
   const gets = []
   page.on('request', (request) => { if (request.method() === 'GET' && request.url().includes('/api/')) gets.push(new URL(request.url()).pathname) })
@@ -33,6 +33,6 @@ liveFlow({ id: 'builder.typing-while-parked', nome: 'Digitar no campo de mensage
   assert.ok(sessionReads <= MAX_SESSION_READS, `at most ${MAX_SESSION_READS} session read in about 6.5 s of typing and waiting, saw ${sessionReads}`)
   const threadListReads = gets.filter((path) => path.endsWith('/threads')).length
   assert.ok(threadListReads <= MAX_THREAD_LIST_READS, `at most ${MAX_THREAD_LIST_READS} thread list read in about 6.5 s of typing and waiting, saw ${threadListReads}`)
-  assert.deepEqual(gets.filter((path) => path.includes('/stream')), [], 'the parked run stream is not chased')
+  assert.deepEqual(gets.filter((path) => path.includes('/stream')), [], 'the waiting run stream is not chased')
   assert.equal(model.calls.length, 1)
 })

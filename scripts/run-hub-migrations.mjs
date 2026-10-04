@@ -61,6 +61,7 @@ const runLeaseDigest = '470019ea818885d1d729e16a2ac83020a30ce9ffb3599075b932293a
 const failureCodesAreRowsDigest = 'eceeb7a9154ee8b7da85ffd963f25d8fc4743a8a2abe33f478eead79ae33efbc'
 const compilerTemplateFailuresGenDigest = '1ec344e994dc735398fbe7b8c26dec95f97e72bb954ff3f7a2d718a556a86052'
 const getProjectTombstoneDigest = 'cbdec2f0226ea46c2a40b863b39057c0839c3a2ed846c8a035f0d8d1fe89d808'
+const questionWaitsInTheRunDigest = '864daf3a4de01c313562038902188cab18a4d19d7ad247aaeccdf076eb215b34'
 const parkedRunExpiryDigest = 'ad64d6e9283dd8cfef24929aa0406a662f1e4b0192a06e4239a65d13d5e9f52b'
 const recoveryListsInterruptedRunsDigest = 'a98079bbaf5cde34c00634f476c7384be552eae519102aede76c5793d4b4cd17'
 const applicationThumbnailDigest = 'bfb1537352b74f50692c47ecc738c75b158663715a2fe8471556f3824340a212'
@@ -122,6 +123,7 @@ const migrationDigests = new Map([
   ['0053_builder_run_failure_codes_are_rows.sql', failureCodesAreRowsDigest],
   ['0054_compiler_template_failures_gen.sql', compilerTemplateFailuresGenDigest],
   ['0055_get_project_names_its_tombstone_column.sql', getProjectTombstoneDigest],
+  ['0056_builder_question_waits_in_the_run.sql', questionWaitsInTheRunDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n
