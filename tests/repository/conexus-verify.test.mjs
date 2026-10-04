@@ -128,6 +128,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'knip',
   'repository-check',
   'import-law-check',
+  'census-builder-run',
   'generators',
   'e2b-template-check',
   'web-style',

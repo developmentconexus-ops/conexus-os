@@ -1,0 +1,12 @@
+{
+  "sqlRunWriters": 11,
+  "sqlRunWriterTriggers": 1,
+  "runSummaryLiterals": 8,
+  "parkedReferences": 68,
+  "abortUndoCalls": 7,
+  "hubSendMessageCalls": 1,
+  "sessionScopes": 2,
+  "collectionsAcrossModules": 3,
+  "runFunctionLengthSuppressions": 7,
+  "failureCodesWithoutRow": 2
+}

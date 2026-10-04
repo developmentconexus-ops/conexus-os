@@ -455,5 +455,5 @@ in the same commit.
 ## Follow-up
 
 - [ ] The per conversation lock as its own wave, with the per person conversations.
-- [ ] Report the leftovers defect to Mastra upstream (issue text drafted from spike S-8), and remove the release when a Mastra upgrade fixes it.
+- [ ] Mastra issue #25903 (https://github.com/mastra-ai/mastra/issues/25903): remove the leftovers release when a Mastra upgrade fixes it.
 - [ ] Slice 1 of spec 0008 moves the two Builder settings into the settings registry.
