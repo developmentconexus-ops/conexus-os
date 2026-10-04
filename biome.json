@@ -143,6 +143,31 @@
     },
     {
       "includes": [
+        "apps/web/src/**",
+        "!apps/web/src/app/failure.ts",
+        "!apps/web/src/features/builder/construir/run-failure.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/app/failure", "**/app/failure.ts"],
+                    "importNamePattern": "failureCodeText",
+                    "message": "A settled run's failure is said once, by RunFailure. Read the code there, nowhere else."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
         "apps/hub/src/**",
         "!apps/hub/src/platform/config.ts"
       ],
@@ -198,7 +223,7 @@
             "noExcessiveLinesPerFile": {
               "level": "error",
               "options": {
-                "maxLines": 619
+                "maxLines": 615
               }
             }
           }
@@ -360,7 +385,7 @@
             "noExcessiveLinesPerFile": {
               "level": "error",
               "options": {
-                "maxLines": 619
+                "maxLines": 615
               }
             }
           }

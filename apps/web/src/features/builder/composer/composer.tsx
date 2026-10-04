@@ -21,7 +21,7 @@ export type ComposerMode =
   | Readonly<{ kind: 'READY' }>
   | Readonly<{ kind: 'NO_MODEL' }>
   | Readonly<{ kind: 'LOADING_MODEL' }>
-  | Readonly<{ kind: 'MODEL_ERROR' }>
+  | Readonly<{ kind: 'MODEL_ERROR'; message: string }>
   | Readonly<{ kind: 'RUNNING'; stopping: boolean }>
   | Readonly<{ kind: 'BUSY_ELSEWHERE' }>
   | Readonly<{ kind: 'SENDING' }>
@@ -180,7 +180,7 @@ export function BuilderComposer({
     </ComposerRing>
     {mode.kind === 'MODEL_ERROR' && (
       <div className="cx-composer-note" role="alert">
-        <span>Não foi possível carregar os modelos.</span>
+        <span>Não foi possível carregar os modelos. {mode.message}</span>
         {onRetryModels && (
           <button type="button" className="cx-composer-retry" onClick={onRetryModels}>
             Tentar novamente

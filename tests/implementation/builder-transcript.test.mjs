@@ -52,15 +52,14 @@ test('persisted and live user signals are drawn as the person while other signal
   ])
 })
 
-test('a text delta appends to the streaming message, leaves notices alone', () => {
-  const noticed = event(emptyTranscript('c1'), { type: 'error', error: { message: 'x' }, retryable: false })
-  const started = start(noticed, dbMessage('assistant-1', 'assistant', [text('')]))
+test('a text delta appends to the streaming message', () => {
+  const started = start(emptyTranscript('c1'), dbMessage('assistant-1', 'assistant', [text('')]))
   const state = event(started, { type: 'message_update', id: 'assistant-1', event: { type: 'text-delta', delta: 'Streaming text' } })
   assert.notEqual(state, started)
-  assert.deepEqual(state.entries.map((entry) => [entry.kind, entry.id]), [['notice', noticed.entries[0].id], ['message', 'assistant-1']])
-  assert.equal(state.entries[1].streaming, true)
-  assert.deepEqual(partsOf(state.entries[1]), [text('Streaming text')])
-  assert.deepEqual(partsOf(started.entries[1]), [text('')])
+  assert.deepEqual(state.entries.map((entry) => [entry.kind, entry.id]), [['message', 'assistant-1']])
+  assert.equal(state.entries[0].streaming, true)
+  assert.deepEqual(partsOf(state.entries[0]), [text('Streaming text')])
+  assert.deepEqual(partsOf(started.entries[0]), [text('')])
 })
 
 test('an empty text delta changes nothing', () => {
@@ -442,13 +441,13 @@ test('non-user signals are left alone', () => {
   assert.deepEqual(partsOf(state.entries[0]), [text('stay on task')])
 })
 
-const noticeFor = (state) => state.entries.filter((entry) => entry.kind === 'notice').map((entry) => [entry.id, entry.level, entry.text])
+const noticeFor = (state) => state.entries.filter((entry) => entry.kind === 'notice').map((entry) => [entry.id, entry.text])
 
-test('a retryable error under its max is one info notice that the next retry replaces in place', () => {
+test('a retryable error is one notice that the next retry replaces in place', () => {
   const first = event(emptyTranscript('c1'), { type: 'error', error: { message: 'sandbox sbx-42 stack frame' }, retryable: true, retryAttempt: 2, maxRetries: 10 })
-  assert.deepEqual(noticeFor(first), [['model-retry', 'info', 'O modelo não respondeu. Tentando de novo (2 de 10).']])
+  assert.deepEqual(noticeFor(first), [['model-retry', 'O modelo não respondeu. Tentando de novo (2 de 10).']])
   const second = event(first, { type: 'error', error: { message: 'again' }, retryable: true, retryAttempt: 3, maxRetries: 10 })
-  assert.deepEqual(noticeFor(second), [['model-retry', 'info', 'O modelo não respondeu. Tentando de novo (3 de 10).']])
+  assert.deepEqual(noticeFor(second), [['model-retry', 'O modelo não respondeu. Tentando de novo (3 de 10).']])
 })
 
 for (const ending of [
@@ -470,10 +469,14 @@ test('a non-retryable error adds nothing to the thread and never shows the provi
   assert.deepEqual(state.entries, [])
 })
 
-test('a retryable error at its max removes the retry notice and adds nothing: the settled run says the rest once', () => {
-  let state = event(emptyTranscript('c1'), { type: 'error', error: {}, retryable: true, retryAttempt: 9, maxRetries: 10 })
-  state = event(state, { type: 'error', error: { message: 'raw' }, retryable: true, retryAttempt: 10, maxRetries: 10 })
-  assert.deepEqual(noticeFor(state), [])
+test('retries 1 to 10 of 10, then the final error, leave one notice while retrying and none once it ends', () => {
+  let state = emptyTranscript('c1')
+  for (let attempt = 1; attempt <= 10; attempt++) {
+    state = event(state, { type: 'error', error: { message: 'raw' }, retryable: true, retryAttempt: attempt, maxRetries: 10 })
+    assert.deepEqual(noticeFor(state), [['model-retry', `O modelo não respondeu. Tentando de novo (${attempt} de 10).`]])
+  }
+  state = event(state, { type: 'error', error: { message: 'raw' }, retryable: false })
+  assert.deepEqual(state.entries, [])
 })
 
 const askMessage = (tool = 'ask_user') => dbMessage('assistant-ask', 'assistant', [toolPart('q1', 'call', { toolName: tool, args: { question: 'Which database?' } })], {

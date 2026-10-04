@@ -7,7 +7,8 @@ import type {
   CreateWorkspaceConnectionInput,
 } from '../../generated/connector-client'
 import { connectorClient } from '../../generated/connector-client'
-import { hubCall, isFailure } from '../../app/http'
+import { failureText, hubCall, isFailure } from '../../app/http'
+import { HubFailure } from '../../app/failure'
 
 export const workspaceConnectionsQueryKey = (workspaceId: string) =>
   ['connector', 'workspace-connections', workspaceId] as const
@@ -73,15 +74,7 @@ export const isConnectorAdminRequired = (error: unknown): boolean => isFailure(e
 // (kept non-disclosing). The Bindings section explains either instead of retrying.
 export const isConnectorBindingsForbidden = (error: unknown): boolean => isFailure(error, 'CONNECTOR_BINDING_MANAGE_REQUIRED', 'PROJECT_NOT_FOUND')
 
-const CHECK_OUTCOME_MESSAGES: Record<CheckWorkspaceConnectionOutcome['outcome'], string> = {
-  OK: 'A conexão autenticou com sucesso.',
-  CREDENTIAL_REFUSED: 'As credenciais desta conexão foram recusadas.',
-  CONNECTOR_UNCONFIGURED: 'O conector ainda não está configurado no servidor.',
-  PROVIDER_UNAVAILABLE: 'O serviço não respondeu a este teste.',
-  PROVIDER_TIMEOUT: 'O teste demorou demais e foi interrompido.',
-  PROVIDER_ERROR: 'O serviço respondeu com um erro a este teste.',
-}
-
+// A refused check is a row of the failure table under the outcome's own name.
 export function checkOutcomeMessage(outcome: CheckWorkspaceConnectionOutcome['outcome']): string {
-  return CHECK_OUTCOME_MESSAGES[outcome]
+  return outcome === 'OK' ? 'A conexão autenticou com sucesso.' : failureText(new HubFailure(outcome, null))
 }

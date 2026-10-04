@@ -209,8 +209,8 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
     'the live message and its persisted twin share an id and render once')
   assert.equal(await page.locator('.cx-messages .builder-turn-user').count(), 1,
     'a run whose request is already a Mastra message renders one user bubble, not two')
-  assert.equal(await page.locator('.cx-messages .builder-turn-reason').count(), 0,
-    'a run that succeeded is given no failure reason')
+  assert.equal(await page.locator('.cx-messages .builder-turn-status').count(), 0,
+    'a run that succeeded says no failure')
   // The result card closes out the code-changing turn: the Project's own name, its first version,
   // that the build passed, and how many files it touched.
   await page.locator('.cx-result-card').getByText('Counter · versão 1 · Build passou', { exact: true }).waitFor()
@@ -701,15 +701,66 @@ test('a run that failed before the agent still shows the request and names why i
   }) }))
   await page.goto(`${origin}/projects/${projectId}`)
   await page.locator('.cx-messages').getByText('Crie um contador até 100 interativo', { exact: true }).waitFor()
-  await page.locator('.cx-messages .builder-turn-reason').getByText('O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.', { exact: true }).waitFor()
+  await page.locator('.cx-messages .builder-turn-status').getByText('O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.', { exact: true }).waitFor()
   assert.equal(await page.locator('.cx-messages .builder-turn-user').count(), 1,
     'the run appears once although it is both the latest run and a history entry')
-  assert.equal(await page.locator('.cx-messages .builder-turn-reason').count(), 1)
+  assert.equal(await page.locator('.cx-messages .builder-turn-status').count(), 1)
+  await page.locator('.cx-messages .builder-turn-reference').getByText('Referência: 70000000.', { exact: true }).waitFor()
   // The failure code may now live only inside a closed <details>, so it must not be visible rather
   // than simply absent.
   assert.equal(await page.getByText('BUILDER_STARTER_ROOT_REFUSED', { exact: true }).isVisible(), false,
     'the internal code is never the sentence the operator reads')
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
+})
+
+test('each failed run ends its own turn with its failure said once, and the stored error part and the Hub notices say nothing of it', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000051'
+  const projectId = '70000000-0000-4000-8000-000000000052'
+  const conversationId = 'conversation-two-runs'
+  const sourceRevision = '8'.repeat(40)
+  const failure = 'O provedor do modelo recusou ou interrompeu o pedido. Escolha outro modelo.'
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
+  const at = (minute) => `2026-09-20T12:0${minute}:00.000Z`
+  const stored = (id, minute, role, parts, metadata) => ({ id, role, createdAt: at(minute), content: { format: 2, parts, ...(metadata ? { metadata } : {}) } })
+  const notification = (id, minute, run, outcome, contents) => stored(id, minute, 'signal', [{ type: 'text', text: contents }], { signal: { type: 'notification', attributes: { source: 'conexus', outcome, run } } })
+  const failedRun = {
+    builderRunId: '70000000-0000-4000-8000-000000000053', projectId, conversationId, state: 'FAILED', phase: null, baseSourceRevision: sourceRevision,
+    resultSourceRevision: null, resultKind: null, failureCode: 'BUILDER_MODEL_STREAM_FAILED', requestText: 'Primeiro pedido', createdAt: at(0),
+  }
+  const answeredRun = {
+    builderRunId: '70000000-0000-4000-8000-000000000054', projectId, conversationId, state: 'SUCCEEDED', phase: null, baseSourceRevision: sourceRevision,
+    resultSourceRevision: null, resultKind: 'RESPONSE_ONLY', failureCode: null, requestText: 'Segundo pedido', createdAt: at(2),
+  }
+  const threadMessages = [
+    stored('user-1', 0, 'user', [{ type: 'text', text: 'Primeiro pedido' }]),
+    stored('assistant-1', 0, 'assistant', [{ type: 'error', error: 'sandbox sbx-42: upstream 500 at frame 7' }]),
+    notification('note-1', 1, failedRun.builderRunId, 'RUN_NOT_FINISHED', 'A execução não terminou e nada dela foi aplicado. Diagnóstico seguro: BUILDER_MODEL_STREAM_FAILED.'),
+    stored('user-2', 2, 'user', [{ type: 'text', text: 'Segundo pedido' }]),
+    stored('assistant-2', 2, 'assistant', [{ type: 'text', text: 'Respondido.' }]),
+    notification('note-2', 3, answeredRun.builderRunId, 'BOOT_PROBLEMS', 'A execução foi aplicada. Detalhe: BOOT_CONSOLE_ERROR Failed to load notes.'),
+    notification('note-3', 3, answeredRun.builderRunId, 'PREVIEW_DATA_RESET', 'A execução mudou migrações que já tinham sido aplicadas.'),
+  ]
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilder(page, builderState([conversation(conversationId, 'Duas execuções')], { [conversationId]: threadMessages }))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Duas execuções', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, latestBuilderRun: answeredRun, latestCodeChangingRun: null,
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    runHistory: [answeredRun, failedRun],
+  }) }))
+  await page.goto(`${origin}/projects/${projectId}`)
+  const messages = page.locator('.cx-messages')
+  await messages.getByText('Respondido.', { exact: true }).waitFor()
+  await messages.getByText('O app abriu, mas com problemas. Peça ao Builder para corrigir.', { exact: true }).waitFor()
+  await messages.getByText('Os dados da Prévia foram apagados porque migrações já aplicadas mudaram.', { exact: true }).waitFor()
+  const text = await messages.innerText()
+  assert.equal(text.split(failure).length - 1, 1, 'the failure is said once')
+  assert.ok(text.indexOf('Primeiro pedido') < text.indexOf(failure) && text.indexOf(failure) < text.indexOf('Segundo pedido'), 'the failure ends the turn of the run that failed')
+  assert.ok(text.includes('Referência: 70000000.'))
+  for (const unsaid of ['sbx-42', 'Diagnóstico seguro', 'BUILDER_MODEL_STREAM_FAILED', 'BOOT_CONSOLE_ERROR', 'não terminou']) {
+    assert.equal(text.includes(unsaid), false, `${unsaid} is never drawn`)
+  }
+  assert.equal(await page.getByRole('alert').count(), 1)
 })
 
 test('the slider and /raciocinio offer exactly the levels of the selected model, named in Portuguese', async (t) => {
@@ -782,7 +833,7 @@ test('a run notice the Hub signalled into the thread reads as a notice, apart fr
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const notice = {
     id: 'notice-1', role: 'signal', createdAt: new Date().toISOString(),
-    content: { format: 2, parts: [{ type: 'text', text: 'A execução r1 não foi aplicada: o Conexus recusou o resultado antes de aprová-lo.' }], metadata: { signal: { id: 'notice-1', type: 'notification', attributes: { source: 'conexus' } } } },
+    content: { format: 2, parts: [{ type: 'text', text: 'A execução r1 foi aplicada, mas ao abrir o app o Conexus viu problemas. Detalhe: BOOT_CONSOLE_ERROR.' }], metadata: { signal: { id: 'notice-1', type: 'notification', attributes: { source: 'conexus', outcome: 'BOOT_PROBLEMS', run: 'r1' } } } },
   }
   const state = builderState([conversation(conversationId, 'Conversa')], { [conversationId]: [userMessage('user-1', 'Crie uma agenda'), assistantMessage('assistant-1', 'Comecei pela lista.'), notice] })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
@@ -796,7 +847,7 @@ test('a run notice the Hub signalled into the thread reads as a notice, apart fr
   await page.goto(`${origin}/projects/${projectId}`)
   const shown = page.locator('.cx-messages .builder-turn-notice')
   await shown.waitFor()
-  assert.deepEqual(await shown.allTextContents(), ['A execução r1 não foi aplicada: o Conexus recusou o resultado antes de aprová-lo.'])
+  assert.deepEqual(await shown.allTextContents(), ['O app abriu, mas com problemas. Peça ao Builder para corrigir.'])
   assert.equal(await shown.getAttribute('role'), 'note')
   await page.locator('.cx-messages .builder-turn-assistant .builder-turn-body', { hasText: 'Comecei pela lista.' }).waitFor()
   assert.deepEqual(await page.locator('.cx-messages .builder-turn-assistant .builder-turn-body').allTextContents(), ['Comecei pela lista.'],
