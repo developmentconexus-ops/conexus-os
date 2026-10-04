@@ -20,11 +20,13 @@ import {
 import type { GrantEntry, InvitationEntry } from '../application-access-api'
 import type { GrantedApplicationAccess } from '../../../generated/iam-client'
 import '../people.css'
+import { INVITATION_STATE } from '../invitation-state'
 import { failureText } from '../../../app/http'
 import { FailureState } from '../../../app/failure-state'
 
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })
 const formatDate = (value: string) => date.format(new Date(value))
+const sentenceCase = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
 
 async function copyAddress(address: string) {
   try {
@@ -134,9 +136,9 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
               <Avatar name={invitation.email} size="md" />
               <div className="cx-person-who">
                 <strong>{invitation.email}</strong>
-                <span>{invitation.state === 'EXPIRED' ? 'Venceu em' : 'Vale até'} {formatDate(invitation.expiresAt)}</span>
+                <span>{sentenceCase(INVITATION_STATE[invitation.state].dateWord)} {formatDate(invitation.expiresAt)}</span>
               </div>
-              <span className="cx-chip" data-tone={invitation.state === 'EXPIRED' ? 'neutral' : 'pending'}>{invitation.state === 'EXPIRED' ? 'Vencido' : 'Pendente'}</span>
+              <span className="cx-chip" data-tone={INVITATION_STATE[invitation.state].tone}>{INVITATION_STATE[invitation.state].word}</span>
               {invitation.state === 'EXPIRED' && (
                 <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => { setOutcome(null); grant.mutate(invitation.email, { onError: fail }) }}>Convidar de novo</Button>
               )}

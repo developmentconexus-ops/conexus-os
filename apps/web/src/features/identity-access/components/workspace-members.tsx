@@ -24,12 +24,12 @@ import {
 import type { InvitationEntry, MemberEntry } from '../membership-api'
 import type { InviteWorkspaceMemberInput, WorkspaceInvitation } from '../../../generated/iam-client'
 import '../people.css'
+import { INVITATION_STATE } from '../invitation-state'
 import { failureText } from '../../../app/http'
 import { FailureState } from '../../../app/failure-state'
 
-type Role = 'member' | 'owner'
+type Role = InviteWorkspaceMemberInput['role']
 const ROLE_LABEL: Record<Role, string> = { owner: 'Owner', member: 'Membro' }
-const roleOf = (value: string): Role => (value === 'owner' ? 'owner' : 'member')
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })
 const formatDate = (value: string) => date.format(new Date(value))
 
@@ -119,7 +119,7 @@ export function WorkspaceMembers({
       <ul className="cx-person-list">
         {members.map((member) => {
           const self = member.accountId === currentAccountId
-          const role = roleOf(member.role)
+          const role = member.role
           return <li className="cx-person" key={member.accountId}>
             <Avatar name={member.displayName} size="md" />
             <div className="cx-person-who">
@@ -159,9 +159,9 @@ export function WorkspaceMembers({
               <Avatar name={invitation.email} size="md" />
               <div className="cx-person-who">
                 <strong>{invitation.email}</strong>
-                <span>{ROLE_LABEL[roleOf(invitation.role)]} · {invitation.state === 'EXPIRED' ? 'venceu em' : 'vale até'} {formatDate(invitation.expiresAt)}</span>
+                <span>{ROLE_LABEL[invitation.role]} · {INVITATION_STATE[invitation.state].dateWord} {formatDate(invitation.expiresAt)}</span>
               </div>
-              <span className="cx-chip" data-tone={invitation.state === 'EXPIRED' ? 'neutral' : 'pending'}>{invitation.state === 'EXPIRED' ? 'Vencido' : 'Pendente'}</span>
+              <span className="cx-chip" data-tone={INVITATION_STATE[invitation.state].tone}>{INVITATION_STATE[invitation.state].word}</span>
               {viewerIsOwner ? (
                 <DropdownMenu>
                   <DropdownMenu.Trigger className="cx-row-menu" aria-label={`Ações para o convite de ${invitation.email}`} disabled={busy}>
@@ -169,7 +169,7 @@ export function WorkspaceMembers({
                   </DropdownMenu.Trigger>
                   <DropdownMenu.Content align="end" className="cx-menu">
                     {invitation.state === 'EXPIRED' ? (
-                      <DropdownMenu.Item onClick={() => invite.mutate({ email: invitation.email, role: roleOf(invitation.role) }, { onSuccess: () => setMessage(''), onError: fail })}>Convidar de novo</DropdownMenu.Item>
+                      <DropdownMenu.Item onClick={() => invite.mutate({ email: invitation.email, role: invitation.role }, { onSuccess: () => setMessage(''), onError: fail })}>Convidar de novo</DropdownMenu.Item>
                     ) : (
                       <DropdownMenu.Item onClick={() => void copyEntryLink(invitation.email)}>Copiar link de entrada</DropdownMenu.Item>
                     )}
@@ -240,7 +240,7 @@ function InviteForm({ invite }: Readonly<{ invite: Invite }>) {
       </div>
       <div className="cx-field">
         <Label htmlFor={roleId}>Papel</Label>
-        <Select value={role} onValueChange={(value) => setRole(roleOf(String(value)))} items={[{ value: 'member', label: 'Membro' }, { value: 'owner', label: 'Owner' }]}>
+        <Select value={role} onValueChange={(value) => { if (value) setRole(value) }} items={[{ value: 'member', label: 'Membro' }, { value: 'owner', label: 'Owner' }]}>
           <SelectTrigger id={roleId} className="cx-invite-role"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="member">Membro</SelectItem>

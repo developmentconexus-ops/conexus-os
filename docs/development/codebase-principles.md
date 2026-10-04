@@ -5,6 +5,9 @@ twelve properties. Agents write most of this code and copy what surrounds them, 
 their prompt: a clean base is one where copying the neighbor gives the right result, and where the
 wrong way does not compile or fails CI.
 
+Copy a neighbor only when it follows these principles. A neighbor that breaks one is debt: write the new
+code the right way, leave the old one to the wave that owns it, and its census count must fall, never rise.
+
 [`delivery.md`](delivery.md) owns how a change ships and [`engineering-method.md`](engineering-method.md)
 owns how a decision is reached. This file owns what the code itself must look like. The decided shapes
 and the shapes that must not appear are in
@@ -21,7 +24,7 @@ and the shapes that must not appear are in
    once at the edge, with a schema, into a domain type. Inside, the type is trusted: no `as`, no
    `any`, no second validation. Business logic is pure functions; the framework shell (Fastify,
    React) is thin.
-   Enforced by: `biome:noUnsafeTypeAssertion`, `biome:noExplicitAny`, `biome:noNonNullAssertion`, `apps/hub/src/reset.d.ts` and `apps/web/src/reset.d.ts` (JSON arrives as unknown).
+   Enforced by: `biome:noUnsafeTypeAssertion`, `biome:noExplicitAny`, `biome:noNonNullAssertion`, `apps/hub/src/reset.d.ts` and `apps/web/src/reset.d.ts` (JSON arrives as unknown), and the census items `uncheckedQueryRows` (a database row read by a generic argument instead of a schema) and `unsafeAssertionDebt` (an `as` suppressed as owed to a wave) in `scripts/census-builder-run.mjs`, which may only fall.
 4. **Native first.** Mastra, PostgreSQL, Keycloak and E2B do what they already do. Conexus code exists
    only where the product differs. No state beside state Mastra already holds.
    Enforced by: review (`docs/development/review/mastra-native.md`, Proof required).

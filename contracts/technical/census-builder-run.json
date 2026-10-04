@@ -10,5 +10,7 @@
   "collectionsAcrossModules": 0,
   "runFunctionLengthSuppressions": 0,
   "failureCodesWithoutRow": 0,
-  "repeatedTimerSuppressions": 3
+  "repeatedTimerSuppressions": 3,
+  "uncheckedQueryRows": 76,
+  "unsafeAssertionDebt": 98
 }

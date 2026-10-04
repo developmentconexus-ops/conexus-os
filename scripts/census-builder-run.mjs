@@ -123,6 +123,12 @@ const runFunctionLengthSuppressions = hits(runFiles, /biome-ignore lint\/complex
 // `setInterval` ban, and the count may only fall.
 const repeatedTimerSuppressions = hits(hubSource, /biome-ignore lint\/style\/noRestrictedGlobals/, { comments: true })
 
+// A database row read by a generic argument is an assertion, not a parse; the Zod schema at the edge replaces it (principle 3).
+const uncheckedQueryRows = hits(hubSource, /\.query</)
+
+// A suppression that marks an unsafe type assertion as owed to the wave that owns the file.
+const unsafeAssertionDebt = hits(walk(join(repo, 'apps'), (path) => /\.tsx?$/.test(path)), /biome-ignore lint\/nursery\/noUnsafeTypeAssertion: debt/, { comments: true })
+
 const tableCodes = new Set(JSON.parse(readFileSync(join(repo, 'contracts/technical/failures.json'), 'utf8')).failures.map((row) => row.code))
 const failureCodesWithoutRow = hubSource.flatMap((path) => [...readFileSync(path, 'utf8')
   .matchAll(/\b(?:failBuilderRun|interruptBuilderRun)\([^,()]+,\s*'([A-Z][A-Z0-9_]+)'|\bfailureCode:\s*'([A-Z][A-Z0-9_]+)'/g)]
@@ -141,6 +147,8 @@ const census = {
   runFunctionLengthSuppressions,
   failureCodesWithoutRow,
   repeatedTimerSuppressions,
+  uncheckedQueryRows,
+  unsafeAssertionDebt,
 }
 const counts = Object.fromEntries(Object.entries(census).map(([item, found]) => [item, found.length]))
 

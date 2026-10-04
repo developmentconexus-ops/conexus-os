@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { QueryResultRow } from 'pg'
 import { IAM_GENERATED_ROUTES } from '../generated/iam-routes.js'
 import type { ApplicationAccessEntryParams, Iam12Body, ProjectParams, IamOwnerId } from '../generated/iam-routes.js'
+import { z } from 'zod'
 import { Failure } from '../platform/failure.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { isNotAdmitted, parseEmailAddress } from './current-session.js'
@@ -53,21 +54,17 @@ export type ApplicationAccessStore = Readonly<{
   withApplicationPresence<Result>(projectId: string, work: (hasApplication: boolean) => Promise<Result>): Promise<Result>
 }>
 
-type AccessRow = QueryResultRow & {
-  kind: 'application' | 'grant' | 'invitation'
-  entry_id: string | null
-  account_id: string | null
-  display_name: string | null
-  email: string | null
-  since: Date
-  expires_at: Date | null
-  slug: string | null
-  state: 'PENDING' | 'EXPIRED' | null
-}
+const accessRows = z.array(z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('application'), slug: z.string() }),
+  z.object({ kind: z.literal('grant'), entry_id: z.string(), account_id: z.string(), display_name: z.string(), email: z.string().nullable(), since: z.date() }),
+  z.object({ kind: z.literal('invitation'), entry_id: z.string(), email: z.string(), since: z.date(), expires_at: z.date(), state: z.enum(['PENDING', 'EXPIRED']) }),
+]))
+
+const settledRow = z.object({ kind: z.enum(['grant', 'invitation']), entry_id: z.string() })
 
 const LIST_SQL = 'SELECT kind, entry_id, account_id, display_name, email, since, expires_at, slug, state FROM iam.list_application_access($1, $2)'
 
-const accessOf = (rows: readonly AccessRow[]): ApplicationAccess => {
+const accessOf = (rows: z.infer<typeof accessRows>): ApplicationAccess => {
   const entries: ApplicationAccessEntry[] = []
   let slug: string | null = null
   for (const row of rows) {
@@ -75,25 +72,28 @@ const accessOf = (rows: readonly AccessRow[]): ApplicationAccess => {
     else if (row.kind === 'grant') {
       entries.push({
         kind: 'grant',
-        grantId: row.entry_id ?? '',
-        accountId: row.account_id ?? '',
-        displayName: row.display_name ?? '',
+        grantId: row.entry_id,
+        accountId: row.account_id,
+        displayName: row.display_name,
         ...(row.email ? { email: row.email } : {}),
         grantedAt: row.since.toISOString(),
       })
     } else {
       entries.push({
         kind: 'invitation',
-        invitationId: row.entry_id ?? '',
-        email: row.email ?? '',
+        invitationId: row.entry_id,
+        email: row.email,
         invitedAt: row.since.toISOString(),
-        expiresAt: (row.expires_at ?? row.since).toISOString(),
-        state: row.state ?? 'EXPIRED',
+        expiresAt: row.expires_at.toISOString(),
+        state: row.state,
       })
     }
   }
   return { slug, entries }
 }
+
+const readAccess = async (pool: PostgresPool, actor: AccountId, projectId: string): Promise<ApplicationAccess> =>
+  accessOf(accessRows.parse((await pool.query(LIST_SQL, [actor, projectId])).rows))
 
 // Creating an application takes this Project-keyed lock exclusively; a decision that relies on the
 // Project having none holds it shared for as long as it acts.
@@ -105,27 +105,27 @@ const isApplicationNotFound = (error: unknown): boolean =>
 
 export const createApplicationAccessStore = ({ pool }: Readonly<{ pool: PostgresPool }>): ApplicationAccessStore => Object.freeze({
   async list({ actor, projectId }) {
-    return accessOf((await pool.query<AccessRow>(LIST_SQL, [actor, projectId])).rows)
+    return readAccess(pool, actor, projectId)
   },
   async grant({ actor, projectId, email, now = new Date() }) {
     const client = await pool.connect()
-    let settledEntry: (QueryResultRow & { kind: 'grant' | 'invitation'; entry_id: string }) | undefined
+    let settledEntry: z.infer<typeof settledRow> | undefined
     try {
       await client.query('BEGIN')
       await client.query(`SELECT pg_advisory_xact_lock(${APPLICATION_LOCK_KEY})`, [projectId])
-      const settled = await client.query<QueryResultRow & { kind: 'grant' | 'invitation'; entry_id: string }>(
+      const settled = await client.query(
         'SELECT kind, entry_id FROM iam.grant_application_access($1, $2, $3, $4, $5)',
         [actor, projectId, randomUUID(), email, new Date(now.getTime() + APPLICATION_INVITATION_MS)])
       await client.query('COMMIT')
-      settledEntry = settled.rows[0]
+      settledEntry = settledRow.parse(settled.rows[0])
     } catch (error) {
       await client.query('ROLLBACK').catch(() => undefined)
       throw error
     } finally {
       client.release()
     }
-    const entry = accessOf((await pool.query<AccessRow>(LIST_SQL, [actor, projectId])).rows).entries
-      .find((candidate) => candidate.kind === settledEntry?.kind &&
+    const entry = (await readAccess(pool, actor, projectId)).entries
+      .find((candidate) => candidate.kind === settledEntry.kind &&
         (candidate.kind === 'grant' ? candidate.grantId : candidate.invitationId) === settledEntry.entry_id)
     if (!entry) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'APPLICATION_ACCESS_ENTRY_NOT_READABLE' } })
     return entry

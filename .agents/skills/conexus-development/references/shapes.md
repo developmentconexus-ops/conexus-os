@@ -58,7 +58,8 @@ is judged in review.
   lines than it deletes, stop and report. `review`, principle 11.
 - **Never ship a second way for one need.** A native `title` tooltip appeared beside the design
   system's `Tooltip`. Instead use the existing way, or replace the old way everywhere in the same
-  change. `review`, principle 6.
+  change. A second way is allowed only while a census that only falls counts the old way and a wave owns it.
+  `review`, principle 6.
 - **Never let one function run a whole lifecycle.** Functions over 80 lines still sit under a
   `debt: owning wave` suppression. Instead split by subject, and never grow a function under a
   size `biome-ignore`. `lint` (`noExcessiveLinesPerFunction`), principle 5.

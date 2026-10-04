@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
-import type { QueryResultRow } from 'pg'
+import { z } from 'zod'
 import { IAM_GENERATED_ROUTES } from '../generated/iam-routes.js'
 import type { Iam05Body, Iam10Body, MemberParams, RosterEntryParams, IamOwnerId, WorkspaceParams } from '../generated/iam-routes.js'
 import { Failure } from '../platform/failure.js'
@@ -65,62 +65,64 @@ export type MembershipStore = Readonly<{
   remove(input: Readonly<{ actor: AccountId; workspaceId: WorkspaceId; member: AccountId }>): Promise<void>
 }>
 
-type RosterRow = QueryResultRow & {
-  kind: string
-  account_id: string | null
-  invitation_id: string | null
-  display_name: string | null
-  email: string | null
-  role: WorkspaceRole
-  since: Date
-  expires_at: Date | null
-  state: InvitationState | null
-}
+const workspaceRole = z.enum(['owner', 'member'])
+const emailAddress = z.string().transform((value, context) => {
+  const email = parseEmailAddress(value)
+  if (email) return email
+  context.addIssue({ code: 'custom', message: 'not an email address' })
+  return z.NEVER
+})
+const rosterRows = z.array(z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('member'), account_id: z.string(), display_name: z.string(), email: z.string().nullable(), role: workspaceRole, since: z.date() }),
+  z.object({ kind: z.literal('invitation'), invitation_id: z.string(), email: emailAddress, role: workspaceRole, since: z.date(), expires_at: z.date(), state: z.enum(['PENDING', 'EXPIRED']) }),
+]))
+type RosterRow = z.infer<typeof rosterRows>[number]
 
-const memberEntry = (row: RosterRow): MemberEntry => ({
+const ROSTER_SQL = 'SELECT kind, account_id, invitation_id, display_name, email, role, since, expires_at, state FROM iam.list_workspace_roster($1, $2)'
+
+type MemberRow = Extract<RosterRow, { kind: 'member' }>
+type InvitationRow = Extract<RosterRow, { kind: 'invitation' }>
+
+const memberEntry = (row: MemberRow): MemberEntry => ({
   kind: 'member',
-  accountId: brandAccountId(row.account_id ?? ''),
-  displayName: row.display_name ?? '',
+  accountId: brandAccountId(row.account_id),
+  displayName: row.display_name,
   ...(row.email ? { email: row.email } : {}),
   role: row.role,
   since: row.since.toISOString(),
 })
 
-const invitationEntry = (row: RosterRow): InvitationEntry => ({
+const invitationEntry = (row: InvitationRow): InvitationEntry => ({
   kind: 'invitation',
-  invitationId: brandInvitationId(row.invitation_id ?? ''),
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  email: (row.email ?? '') as EmailAddress,
+  invitationId: brandInvitationId(row.invitation_id),
+  email: row.email,
   role: row.role,
   invitedAt: row.since.toISOString(),
-  expiresAt: (row.expires_at ?? row.since).toISOString(),
-  state: row.state ?? 'EXPIRED',
+  expiresAt: row.expires_at.toISOString(),
+  state: row.state,
 })
 
 const rosterEntry = (row: RosterRow): RosterEntry => row.kind === 'member' ? memberEntry(row) : invitationEntry(row)
 
+const readRoster = async (pool: PostgresPool, actor: AccountId, workspaceId: WorkspaceId) =>
+  rosterRows.parse((await pool.query(ROSTER_SQL, [actor, workspaceId])).rows)
+
 export const createMembershipStore = ({ pool }: Readonly<{ pool: PostgresPool }>): MembershipStore => Object.freeze({
   async roster({ actor, workspaceId }) {
-    const result = await pool.query<RosterRow>(
-      'SELECT kind, account_id, invitation_id, display_name, email, role, since, expires_at, state FROM iam.list_workspace_roster($1, $2)',
-      [actor, workspaceId])
+    const rows = await readRoster(pool, actor, workspaceId)
     // A Workspace always holds at least one owner, so no rows means this caller is not a
     // member of it. The route answers 404 rather than confirming that it exists.
-    const viewer = result.rows.find((row) => row.kind === 'member' && row.account_id === actor)
+    const viewer = rows.find((row) => row.kind === 'member' && row.account_id === actor)
     if (!viewer) return null
-    const entries = result.rows.map(rosterEntry)
-    return { viewerRole: viewer.role, entries }
+    return { viewerRole: viewer.role, entries: rows.map(rosterEntry) }
   },
   async invite({ actor, workspaceId, email, role, now = new Date() }) {
     const expiresAt = new Date(now.getTime() + INVITATION_MS)
-    const settled = await pool.query<QueryResultRow & { invitation_id: string }>(
+    const settled = await pool.query(
       'SELECT iam.invite_workspace_member($1, $2, $3, $4, $5, $6) AS invitation_id',
       [actor, workspaceId, randomUUID(), email, role, expiresAt])
-    const invitationId = settled.rows[0]?.invitation_id ?? ''
-    const stored = await pool.query<RosterRow>(
-      'SELECT kind, account_id, invitation_id, display_name, email, role, since, expires_at, state FROM iam.list_workspace_roster($1, $2)',
-      [actor, workspaceId])
-    const row = stored.rows.find((candidate) => candidate.invitation_id === invitationId)
+    const { invitation_id: invitationId } = z.object({ invitation_id: z.string() }).parse(settled.rows[0])
+    const row = (await readRoster(pool, actor, workspaceId)).find((candidate): candidate is InvitationRow => candidate.kind === 'invitation' && candidate.invitation_id === invitationId)
     if (!row) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'INVITATION_NOT_READABLE' } })
     return invitationEntry(row)
   },
