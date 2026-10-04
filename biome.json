@@ -51,6 +51,10 @@
   },
   "overrides": [
     {
+      "includes": ["apps/hub/src/**"],
+      "plugins": ["./biome/plugins/no-error-code.grit"]
+    },
+    {
       "includes": [
         "apps/web/src/**",
         "packages/*/src/**"

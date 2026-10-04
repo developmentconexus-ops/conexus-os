@@ -1,0 +1,312 @@
+{
+ "kept": {
+  "MANIFEST_REFUSED": "the admitter also runs in the build sandbox; the runner maps it to its row",
+  "SERVER_TREE_REFUSED": "same"
+ },
+ "codes": {
+  "APPLICATION_ACCESS_ENTRY_NOT_READABLE": {
+   "invariant": "APPLICATION_ACCESS_ENTRY_NOT_READABLE"
+  },
+  "APPLICATION_BUILDER_RUNTIME_REQUIRED": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "APPLICATION_BUILDER_RUNTIME_REQUIRED"
+  },
+  "APPLICATION_IDENTIFIER_REFUSED": {
+   "invariant": "APPLICATION_IDENTIFIER_REFUSED"
+  },
+  "APPLICATION_NOT_FOUND": {
+   "row": {
+    "code": "APPLICATION_NOT_FOUND",
+    "category": "USER",
+    "audience": "person+app",
+    "status": 404,
+    "message": "Não encontramos este app.",
+    "action": "NONE"
+   }
+  },
+  "APPLICATION_PREVIEW_RUNTIME_REQUIRED": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "APPLICATION_PREVIEW_RUNTIME_REQUIRED"
+  },
+  "APPLICATION_PROJECT_ID_REFUSED": {
+   "invariant": "APPLICATION_PROJECT_ID_REFUSED"
+  },
+  "APPLICATION_REFRESH_TOKEN_MISSING": {
+   "invariant": "APPLICATION_REFRESH_TOKEN_MISSING"
+  },
+  "APPLICATION_RUNNER_NOT_CONFIGURED": {
+   "invariant": "APPLICATION_RUNNER_NOT_CONFIGURED"
+  },
+  "APPLICATION_SERVER_FILE_MISSING": {
+   "invariant": "APPLICATION_SERVER_FILE_MISSING"
+  },
+  "BUILDER_FACTORY_RUNTIME_REQUIRED": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "BUILDER_FACTORY_RUNTIME_REQUIRED"
+  },
+  "BUILDER_MASTRA_ROUTE_MISSING": {
+   "invariant": "BUILDER_MASTRA_ROUTE_MISSING",
+   "details": "route: `${method} ${path}`",
+   "pattern": "new Error\\(`BUILDER_MASTRA_ROUTE_MISSING:\\$\\{method\\} \\$\\{path\\}`\\)"
+  },
+  "BUILDER_PROJECT_NOT_FOUND": {
+   "invariant": "BUILDER_PROJECT_NOT_FOUND"
+  },
+  "BUILDER_PROJECT_RUNTIME_REQUIRED": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "BUILDER_PROJECT_RUNTIME_REQUIRED"
+  },
+  "BUILDER_SKILLS_MISSING": {
+   "invariant": "BUILDER_SKILLS_MISSING",
+   "details": "missing: missing.join(',')",
+   "pattern": "new Error\\(`BUILDER_SKILLS_MISSING: [^`]*`\\)"
+  },
+  "BUILDER_THUMBNAIL_READER_UNAVAILABLE": {
+   "invariant": "BUILDER_THUMBNAIL_READER_UNAVAILABLE"
+  },
+  "CONEXUS_GIT_NOT_CONFIGURED": {
+   "invariant": "CONEXUS_GIT_NOT_CONFIGURED"
+  },
+  "CONNECTOR_BINDING_NOT_READABLE": {
+   "invariant": "CONNECTOR_BINDING_NOT_READABLE"
+  },
+  "CONNECTOR_CONNECTION_NOT_READABLE": {
+   "invariant": "CONNECTOR_CONNECTION_NOT_READABLE"
+  },
+  "CONNECTOR_GATEWAY_FACTORY_RUNTIME_REQUIRED": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "CONNECTOR_GATEWAY_FACTORY_RUNTIME_REQUIRED"
+  },
+  "CONNECTOR_SCOPE_REFUSED": {
+   "invariant": "CONNECTOR_SCOPE_REFUSED"
+  },
+  "CONNECTOR_SOCKET_DIR_REFUSED": {
+   "invariant": "CONNECTOR_SOCKET_DIR_REFUSED"
+  },
+  "EMPTY_SECRET_FILE": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "EMPTY_SECRET_FILE"
+  },
+  "FACTORY_BUILDER_RUNTIME_REQUIRED": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "FACTORY_BUILDER_RUNTIME_REQUIRED"
+  },
+  "FACTORY_SECRET_KEY_REFUSED": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "FACTORY_SECRET_KEY_REFUSED"
+  },
+  "GOOGLE_AI_PRO_FACTORY_RUNTIME_REQUIRED": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "GOOGLE_AI_PRO_FACTORY_RUNTIME_REQUIRED"
+  },
+  "HOST_CALLER_UNRESOLVABLE": {
+   "invariant": "HOST_CALLER_UNRESOLVABLE"
+  },
+  "HUB_ALREADY_RUNNING": {
+   "row": {
+    "code": "HUB_ALREADY_RUNNING",
+    "category": "SYSTEM",
+    "audience": "operator"
+   }
+  },
+  "HUB_SCHEMA_BEHIND": {
+   "row": {
+    "code": "HUB_SCHEMA_BEHIND",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "details": "versions: missing.join(',')",
+   "pattern": "new Error\\(`HUB_SCHEMA_BEHIND:\\$\\{missing\\.join\\(','\\)\\}`\\)"
+  },
+  "HUB_SESSION_NOT_OPENED": {
+   "invariant": "HUB_SESSION_NOT_OPENED"
+  },
+  "INSTALLATION_ADMINISTRATOR_MISSING_AFTER_GRANT": {
+   "invariant": "INSTALLATION_ADMINISTRATOR_MISSING_AFTER_GRANT"
+  },
+  "INVALID_CONFIG_CONEXUS_APPLICATION_DOMAIN": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "CONEXUS_APPLICATION_DOMAIN"
+  },
+  "INVALID_CONFIG_CONEXUS_APPLICATION_PORT": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "CONEXUS_APPLICATION_PORT"
+  },
+  "INVALID_CONFIG_CONEXUS_APP_RUNNER_SOCKET": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "CONEXUS_APP_RUNNER_SOCKET"
+  },
+  "INVALID_CONFIG_CONEXUS_CLIPROXY_BIN": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "CONEXUS_CLIPROXY_BIN"
+  },
+  "INVALID_CONFIG_CONEXUS_CLIPROXY_SHA256": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "CONEXUS_CLIPROXY_SHA256"
+  },
+  "INVALID_CONFIG_CONEXUS_CONNECTOR_SOCKET_DIR": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "CONEXUS_CONNECTOR_SOCKET_DIR"
+  },
+  "INVALID_CONFIG_CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES"
+  },
+  "INVALID_CONFIG_CONEXUS_GIT_ROOT": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "CONEXUS_GIT_ROOT"
+  },
+  "INVALID_CONFIG_CONEXUS_ORIGIN_FOR_PREVIEW": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "CONEXUS_ORIGIN_FOR_PREVIEW"
+  },
+  "INVALID_CONFIG_CONEXUS_PREVIEW_PORT": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "CONEXUS_PREVIEW_PORT"
+  },
+  "INVALID_CONFIG_CONEXUS_SANKHYA_GATEWAY_ORIGIN": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "CONEXUS_SANKHYA_GATEWAY_ORIGIN"
+  },
+  "INVITATION_NOT_READABLE": {
+   "invariant": "INVITATION_NOT_READABLE"
+  },
+  "MAR_CONFIG_REFUSED": {
+   "invariant": "MAR_CONFIG_REFUSED"
+  },
+  "MAR_REGISTRY_READER_UNAVAILABLE": {
+   "invariant": "MAR_REGISTRY_READER_UNAVAILABLE"
+  },
+  "PREVIEW_ACCESS_UNAVAILABLE": {
+   "invariant": "PREVIEW_ACCESS_UNAVAILABLE"
+  },
+  "PREVIEW_RESET_EXPIRED": {
+   "invariant": "PREVIEW_RESET_EXPIRED"
+  },
+  "PROJECT_READ_POOL_NOT_CONFIGURED": {
+   "invariant": "PROJECT_READ_POOL_NOT_CONFIGURED"
+  },
+  "RUNNER_DEPENDENCY_MISSING": {
+   "invariant": "RUNNER_DEPENDENCY_MISSING",
+   "details": "name",
+   "pattern": "new Error\\(`RUNNER_DEPENDENCY_MISSING:\\$\\{name\\}`\\)"
+  },
+  "RUNNER_PROVISIONER_REFUSED": {
+   "invariant": "RUNNER_PROVISIONER_REFUSED"
+  },
+  "RUNNER_RELAY_KEY_PERMISSIONS": {
+   "invariant": "RUNNER_RELAY_KEY_PERMISSIONS"
+  },
+  "RUNNER_RELAY_TLS_DIR_PERMISSIONS": {
+   "invariant": "RUNNER_RELAY_TLS_DIR_PERMISSIONS"
+  },
+  "RUNNER_RELAY_TLS_DIR_REFUSED": {
+   "invariant": "RUNNER_RELAY_TLS_DIR_REFUSED",
+   "details": "present: present.join(',')",
+   "pattern": "new Error\\(`RUNNER_RELAY_TLS_DIR_REFUSED: \\$\\{present\\.join\\(','\\)\\}`\\)"
+  },
+  "RUNNER_ROUTINE_LANGUAGE_USABLE": {
+   "invariant": "RUNNER_ROUTINE_LANGUAGE_USABLE",
+   "details": "languages: usable.map((row) => String(row.lanname)).join(',')",
+   "pattern": "new Error\\(`RUNNER_ROUTINE_LANGUAGE_USABLE: \\$\\{usable\\.map\\(\\(row\\) => String\\(row\\.lanname\\)\\)\\.join\\(','\\)\\}`\\)"
+  },
+  "RUNNER_USER_NAMESPACES_UNAVAILABLE": {
+   "invariant": "RUNNER_USER_NAMESPACES_UNAVAILABLE"
+  },
+  "SECRET_FILE_PERMISSIONS": {
+   "row": {
+    "code": "CONFIG_INVALID",
+    "category": "SYSTEM",
+    "audience": "operator"
+   },
+   "name": "SECRET_FILE_PERMISSIONS"
+  },
+  "SECRET_NOT_SEALED": {
+   "invariant": "SECRET_NOT_SEALED"
+  }
+ },
+ "dynamic": {
+  "pattern": "new Error\\(`INVALID_CONFIG_\\$\\{name\\}`\\)",
+  "row": "CONFIG_INVALID"
+ }
+}

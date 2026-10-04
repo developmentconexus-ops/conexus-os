@@ -1,3 +1,4 @@
+import { invariant } from './failure-matchers.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -296,7 +297,7 @@ test('a missing file still refuses by throwing, as the Preview API layer expects
   })
   await assert.rejects(
     () => call(invoker, 'p1', 'x'),
-    /APPLICATION_SERVER_FILE_MISSING/,
+    invariant('APPLICATION_SERVER_FILE_MISSING'),
   )
 })
 

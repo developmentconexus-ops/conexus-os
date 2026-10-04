@@ -557,7 +557,7 @@ test('OIDC begin, callback failures, and missing tokens log registered error cod
     const failure = logs.find((record) => record.msg === 'OIDC_BEGIN_FAILED')
     assert.ok(failure, 'OIDC_BEGIN_FAILED was logged')
     assert.equal(failure.level, 40, 'the identity provider is a third party: a warning')
-    assert.equal(failure['exception.message'], 'discovery network error')
+    assert.equal(failure['exception.type'], 'Error')
   })
 
   // 2. OIDC complete fails -> logs OIDC_CALLBACK_FAILED, returns 503
@@ -573,7 +573,7 @@ test('OIDC begin, callback failures, and missing tokens log registered error cod
     const failure = logs.find((record) => record.msg === 'OIDC_CALLBACK_FAILED')
     assert.ok(failure, 'OIDC_CALLBACK_FAILED was logged')
     assert.equal(failure.level, 40)
-    assert.equal(failure['exception.message'], 'token endpoint timeout')
+    assert.equal(failure['exception.type'], 'Error')
   })
 
   // 3. OIDC complete without refresh token -> logs OIDC_REFRESH_TOKEN_MISSING, returns 503

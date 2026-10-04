@@ -21,7 +21,7 @@ type ServerRoute = typeof SERVER_ROUTES[number]
  * Mastra renames or drops stops the Hub at boot instead of silently leaving the browser without it.
  */
 const mastraRoute = (method: ServerRoute['method'], path: string): string => {
-  if (!SERVER_ROUTES.some((route) => route.method === method && route.path === path)) throw new Error(`BUILDER_MASTRA_ROUTE_MISSING:${method} ${path}`)
+  if (!SERVER_ROUTES.some((route) => route.method === method && route.path === path)) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'BUILDER_MASTRA_ROUTE_MISSING', route: `${method} ${path}` } })
   return `${method} ${path}`
 }
 const sessionRoute = (method: ServerRoute['method'], suffix = ''): string => mastraRoute(method, `${SESSION_BASE}${suffix}`)

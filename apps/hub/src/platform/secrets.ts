@@ -2,18 +2,19 @@ import { createHash, createHmac, hkdfSync } from 'node:crypto'
 import { readFileSync, statSync } from 'node:fs'
 import { createFactorySecretEncryption } from './factory-secret-encryption.js'
 import type { FactorySecretEncryption, FactorySecretEncryptionKey } from './factory-secret-encryption.js'
+import { Failure } from './failure.js'
 
 export const readSecretFile = (path: string): string => {
   const stat = statSync(path)
-  if (!stat.isFile() || (stat.mode & 0o077) !== 0) throw new Error('SECRET_FILE_PERMISSIONS')
+  if (!stat.isFile() || (stat.mode & 0o077) !== 0) throw new Failure('CONFIG_INVALID', { details: { name: 'SECRET_FILE_PERMISSIONS' } })
   const value = readFileSync(path, 'utf8').trim()
-  if (!value) throw new Error('EMPTY_SECRET_FILE')
+  if (!value) throw new Failure('CONFIG_INVALID', { details: { name: 'EMPTY_SECRET_FILE' } })
   return value
 }
 
 /** The installation's AES-256 credential key (CONEXUS_FACTORY_SECRET_KEY_FILE), as the Factory's encryptor names it. */
 const factorySecretKey = (hexKey: string): FactorySecretEncryptionKey => {
-  if (!/^[0-9a-f]{64}$/.test(hexKey)) throw new Error('FACTORY_SECRET_KEY_REFUSED')
+  if (!/^[0-9a-f]{64}$/.test(hexKey)) throw new Failure('CONFIG_INVALID', { details: { name: 'FACTORY_SECRET_KEY_REFUSED' } })
   const key = Buffer.from(hexKey, 'hex')
   return { id: createHash('sha256').update(key).digest('hex').slice(0, 16), key }
 }
@@ -44,9 +45,9 @@ export const createSecretEnvelope = (hexKey: string, previousHexKeys: readonly s
   return Object.freeze({
     seal: (value: string) => encryption.encrypt(value),
     open: async (sealed: string) => {
-      if (!sealed.startsWith(ENVELOPE_PREFIX)) throw new Error('SECRET_NOT_SEALED')
+      if (!sealed.startsWith(ENVELOPE_PREFIX)) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'SECRET_NOT_SEALED' } })
       const { value } = await encryption.decrypt(sealed)
-      if (typeof value !== 'string') throw new Error('SECRET_NOT_SEALED')
+      if (typeof value !== 'string') throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'SECRET_NOT_SEALED' } })
       return value
     },
     fingerprints: (value: string) => [hmac(currentFingerprintKey, value), ...previousFingerprintKeys.map((key) => hmac(key, value))] as const,

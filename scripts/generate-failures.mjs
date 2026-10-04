@@ -9,6 +9,7 @@ export const failureTargets = Object.freeze({
   web: 'apps/web/src/generated/failures.ts',
   app: 'apps/hub/src/generated/app-failures.ts',
   events: 'apps/hub/src/platform/log-events.generated.ts',
+  text: 'apps/hub/src/platform/failure-text.generated.ts',
 })
 
 const CATEGORIES = Object.freeze(['USER', 'SYSTEM', 'THIRD_PARTY'])
@@ -70,6 +71,16 @@ export const renderHubFailures = ({ failures }) => [
   '} as const satisfies Readonly<Record<string, FailureRow>>',
   '',
   'export type FailureCode = keyof typeof FAILURES',
+  '',
+].join('\n')
+
+const renderFailureText = ({ actions, failures }) => [
+  header,
+  '',
+  '/** What a page the Hub renders itself says for a row that reaches a person: the message, then its action. */',
+  'export const FAILURE_TEXT = {',
+  ...failures.filter((row) => row.audience !== 'operator').map((row) => `  ${quoted(row.code)}: ${quoted([row.message, actions[row.action]].filter(Boolean).join(' '))},`),
+  '} as const satisfies Readonly<Record<string, string>>',
   '',
 ].join('\n')
 
@@ -140,7 +151,7 @@ const renderAppFailures = (table) => [
 /** Every problem in the table and every generated file that is not what the table renders. */
 export const failuresDrift = (table, generated) => {
   const drift = failureProblems(table)
-  const expected = { [failureTargets.hub]: renderHubFailures(table), [failureTargets.web]: renderWebFailures(table), [failureTargets.app]: renderAppFailures(table), [failureTargets.events]: renderLogEvents(table) }
+  const expected = { [failureTargets.hub]: renderHubFailures(table), [failureTargets.web]: renderWebFailures(table), [failureTargets.app]: renderAppFailures(table), [failureTargets.events]: renderLogEvents(table), [failureTargets.text]: renderFailureText(table) }
   for (const [target, rendered] of Object.entries(expected)) {
     if (generated[target] !== rendered) drift.push(`FAILURES_STALE: ${target} is not generated from ${sourcePath}; run node scripts/generate-failures.mjs`)
   }
@@ -166,5 +177,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     writeFileSync(resolve(repositoryRoot, failureTargets.web), renderWebFailures(table))
     writeFileSync(resolve(repositoryRoot, failureTargets.app), renderAppFailures(table))
     writeFileSync(resolve(repositoryRoot, failureTargets.events), renderLogEvents(table))
+    writeFileSync(resolve(repositoryRoot, failureTargets.text), renderFailureText(table))
   }
 }

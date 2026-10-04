@@ -8,6 +8,7 @@ import type { Broker } from './broker.js'
 import { refused } from './errors.js'
 import type { FetchResult } from './native.js'
 import type { ConsumerScope } from './scope.js'
+import { Failure } from '../platform/failure.js'
 
 // One owner-only unix socket per invocation, served by the Hub, closed over the scope the Hub minted.
 // Nothing on the wire names a Project.
@@ -71,7 +72,7 @@ const PORT_SOCKET_NAME = /^[A-Za-z0-9_-]{12}\.s$/
 const sweepSocketDirectory = async (directory: string): Promise<void> => {
   await mkdir(directory, { recursive: true, mode: 0o700 })
   const stat = await lstat(directory)
-  if (!stat.isDirectory() || stat.uid !== process.getuid?.() || (stat.mode & 0o777) !== 0o700) throw new Error('CONNECTOR_SOCKET_DIR_REFUSED')
+  if (!stat.isDirectory() || stat.uid !== process.getuid?.() || (stat.mode & 0o777) !== 0o700) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'CONNECTOR_SOCKET_DIR_REFUSED' } })
   for (const entry of await readdir(directory)) {
     if (!PORT_SOCKET_NAME.test(entry)) continue
     const path = join(directory, entry)

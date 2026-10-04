@@ -63,7 +63,7 @@ export const registerInstallationRoutes = async (app: FastifyInstance, { origin,
     })
     const administrators = await installationAdministration.list(caller.accountId)
     const administrator = administrators.find((entry) => entry.accountId === accountId)
-    if (!administrator) throw new Error('INSTALLATION_ADMINISTRATOR_MISSING_AFTER_GRANT')
+    if (!administrator) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'INSTALLATION_ADMINISTRATOR_MISSING_AFTER_GRANT' } })
     return reply.code(201).send({ administrator: administratorJson(administrator) })
   })
 

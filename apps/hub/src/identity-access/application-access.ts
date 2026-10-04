@@ -124,7 +124,7 @@ export const createApplicationAccessStore = ({ pool }: Readonly<{ pool: Postgres
     const entry = accessOf((await pool.query<AccessRow>(LIST_SQL, [actor, projectId])).rows).entries
       .find((candidate) => candidate.kind === settledEntry?.kind &&
         (candidate.kind === 'grant' ? candidate.grantId : candidate.invitationId) === settledEntry.entry_id)
-    if (!entry) throw new Error('APPLICATION_ACCESS_ENTRY_NOT_READABLE')
+    if (!entry) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'APPLICATION_ACCESS_ENTRY_NOT_READABLE' } })
     return entry
   },
   async cancelInvitation({ actor, projectId, invitationId }) {

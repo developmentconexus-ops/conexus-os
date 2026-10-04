@@ -29,7 +29,7 @@ const stateDir = required('CONEXUS_APP_RUNNER_STATE_DIR')
 const socketPath = required('CONEXUS_APP_RUNNER_SOCKET')
 // biome-ignore lint/style/noProcessEnv: debt: owning wave
 const connectorSocketDir = process.env.CONEXUS_CONNECTOR_SOCKET_DIR
-if (connectorSocketDir !== undefined && !connectorSocketDir.startsWith('/')) throw new Error('INVALID_CONFIG_CONEXUS_CONNECTOR_SOCKET_DIR')
+if (connectorSocketDir !== undefined && !connectorSocketDir.startsWith('/')) throw new Failure('CONFIG_INVALID', { details: { name: 'CONEXUS_CONNECTOR_SOCKET_DIR' } })
 mkdirSync(stateDir, { recursive: true, mode: 0o700 })
 chmodSync(stateDir, 0o700)
 rmSync(join(stateDir, 'i'), { recursive: true, force: true })

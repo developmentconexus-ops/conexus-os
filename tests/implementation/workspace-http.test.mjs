@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
+import { invalidConfig } from './failure-matchers.mjs'
 
 const built = hubModuleUrl
 const { createHttpApp } = await import(built('http/app.js'))
@@ -24,6 +25,7 @@ const authenticHeaders = {
 
 const baseEnvironment = {
   CONEXUS_ORIGIN: ORIGIN,
+  CONEXUS_PORT: '3000',
   CONEXUS_BOOTSTRAP_SUBJECT: OPERATOR.subject,
   CONEXUS_DB_HOST: '127.0.0.1',
   CONEXUS_DB_PORT: '5432',
@@ -47,9 +49,9 @@ test('local Preview config requires complete TLS, exact Hub origin and a separat
     ['CONEXUS_PREVIEW_CERT_FILE', 'CONEXUS_PREVIEW_CERT_FILE'],
     ['CONEXUS_PREVIEW_KEY_FILE', 'CONEXUS_PREVIEW_KEY_FILE'],
   ]) assert.throws(() => readHubConfig({ ...environment, [field]: undefined }), missing(code))
-  assert.throws(() => readHubConfig({ ...environment, CONEXUS_PREVIEW_PORT: '8080' }), /INVALID_CONFIG_CONEXUS_PREVIEW_PORT/)
+  assert.throws(() => readHubConfig({ ...environment, CONEXUS_PREVIEW_PORT: '8080' }), invalidConfig('CONEXUS_PREVIEW_PORT'))
   for (const origin of ['http://hub.conexus.localhost:8080', 'https://preview.conexus.localhost:8080', 'https://hub.conexus.localhost:9090', 'https://hub.conexus.localhost:8080/path', 'https://user@hub.conexus.localhost:8080']) {
-    assert.throws(() => readHubConfig({ ...environment, CONEXUS_ORIGIN: origin }), /INVALID_CONFIG_CONEXUS_ORIGIN_FOR_PREVIEW/)
+    assert.throws(() => readHubConfig({ ...environment, CONEXUS_ORIGIN: origin }), invalidConfig('CONEXUS_ORIGIN_FOR_PREVIEW'))
   }
 })
 

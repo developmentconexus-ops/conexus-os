@@ -1,3 +1,4 @@
+import { invariant } from './failure-matchers.mjs'
 import assert from 'node:assert/strict'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { chmodSync, copyFileSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
@@ -238,10 +239,10 @@ test('the runner migrates and serves each Project through its own sandboxed work
     await superuser.connect()
     try {
       await superuser.query('GRANT USAGE ON LANGUAGE plpgsql TO PUBLIC')
-      await assert.rejects(supervisor.checkProvisioner(), { message: 'RUNNER_ROUTINE_LANGUAGE_USABLE: plpgsql' })
+      await assert.rejects(supervisor.checkProvisioner(), invariant('RUNNER_ROUTINE_LANGUAGE_USABLE', { languages: 'plpgsql' }))
       await superuser.query('REVOKE USAGE ON LANGUAGE plpgsql FROM PUBLIC')
       await superuser.query(`GRANT USAGE ON LANGUAGE sql TO ${migrationB}`)
-      await assert.rejects(supervisor.checkProvisioner(), { message: 'RUNNER_ROUTINE_LANGUAGE_USABLE: sql' })
+      await assert.rejects(supervisor.checkProvisioner(), invariant('RUNNER_ROUTINE_LANGUAGE_USABLE', { languages: 'sql' }))
     } finally {
       await superuser.query(`REVOKE USAGE ON LANGUAGE sql FROM ${migrationB}`)
       await superuser.end()
@@ -285,7 +286,7 @@ test('the runner migrates and serves each Project through its own sandboxed work
       assert.equal(removed.state, 'MIGRATION_HISTORY_DIVERGED')
       assert.deepEqual(await state(), before)
 
-      await assert.rejects(supervisor.prepare({ projectId: a, files: edited, onDivergence: { resetBefore: Date.now() - 1 } }), /PREVIEW_RESET_EXPIRED/)
+      await assert.rejects(supervisor.prepare({ projectId: a, files: edited, onDivergence: { resetBefore: Date.now() - 1 } }), invariant('PREVIEW_RESET_EXPIRED'))
       assert.deepEqual(await state(), before)
 
       assert.deepEqual(await supervisor.prepare({ projectId: a, files: edited, onDivergence: RESET }), { state: 'READY', reset: true, applied: ['001_follow_up_note.sql'] })
@@ -304,10 +305,10 @@ test('the runner reads relay TLS only from a private directory holding exactly i
     chmodSync(directory, 0o700)
     assert.deepEqual(Object.keys(readRelayTls(directory)), ['ca', 'cert', 'key'])
     writeFileSync(join(directory, 'ca-key.pem'), 'authority', { mode: 0o600 })
-    assert.throws(() => readRelayTls(directory), { message: 'RUNNER_RELAY_TLS_DIR_REFUSED: ca-key.pem,ca.pem,relay-key.pem,relay.pem' })
+    assert.throws(() => readRelayTls(directory), invariant('RUNNER_RELAY_TLS_DIR_REFUSED', { present: 'ca-key.pem,ca.pem,relay-key.pem,relay.pem' }))
     rmSync(join(directory, 'ca-key.pem'))
     chmodSync(directory, 0o750)
-    assert.throws(() => readRelayTls(directory), { message: 'RUNNER_RELAY_TLS_DIR_PERMISSIONS' })
+    assert.throws(() => readRelayTls(directory), invariant('RUNNER_RELAY_TLS_DIR_PERMISSIONS'))
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
@@ -378,7 +379,7 @@ test('with the Node permission layer off, the namespaces alone hide host files, 
 })
 
 test('the runner refuses to start where the sandbox cannot be built', () => {
-  assert.throws(() => assertUserNamespaces({ ...SANDBOX, bwrap: '/nonexistent/bwrap' }), /RUNNER_USER_NAMESPACES_UNAVAILABLE/)
+  assert.throws(() => assertUserNamespaces({ ...SANDBOX, bwrap: '/nonexistent/bwrap' }), invariant('RUNNER_USER_NAMESPACES_UNAVAILABLE'))
 })
 
 test('the runner socket admits a prepare only when the Hub says whether a divergent history may reset', async () => {

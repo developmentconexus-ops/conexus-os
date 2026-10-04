@@ -7,6 +7,7 @@ import { MastraStorageExporter } from '@mastra/observability'
 import { EXPECTED_NATIVE_ORDER, FAKE_CREDENTIAL, NATIVE_ORDER_DATASET, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
 import { connectorRecord, recordText } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
+import { invalidConfig } from './failure-matchers.mjs'
 
 const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
 const { createBuilderObservability } = await import(hubModuleUrl('builder/observability.js'))
@@ -427,18 +428,18 @@ test('the Hub pins only a published gateway origin, and refuses any other at sta
     assert.equal(pinnedGatewayOrigin(origin), origin)
   }
   for (const refusedOrigin of [`${SANKHYA_GATEWAY_ORIGINS[0]}/`, `${SANKHYA_GATEWAY_ORIGINS[0]}.example.test`, SANKHYA_GATEWAY_ORIGINS[0].replace('https:', 'http:'), 'http://127.0.0.1:8080', '']) {
-    assert.throws(() => pinnedGatewayOrigin(refusedOrigin), { message: 'INVALID_CONFIG_CONEXUS_SANKHYA_GATEWAY_ORIGIN' }, refusedOrigin)
+    assert.throws(() => pinnedGatewayOrigin(refusedOrigin), invalidConfig('CONEXUS_SANKHYA_GATEWAY_ORIGIN'), refusedOrigin)
   }
 
   const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
   const base = {
-    NODE_ENV: 'test', CONEXUS_ORIGIN: 'https://hub.test', CONEXUS_BOOTSTRAP_SUBJECT: 'subject', CONEXUS_DB_HOST: '127.0.0.1', CONEXUS_DB_PORT: '5432',
+    NODE_ENV: 'test', CONEXUS_ORIGIN: 'https://hub.test', CONEXUS_PORT: '3000', CONEXUS_BOOTSTRAP_SUBJECT: 'subject', CONEXUS_DB_HOST: '127.0.0.1', CONEXUS_DB_PORT: '5432',
     CONEXUS_DB_NAME: 'conexus', CONEXUS_DB_USER: 'hub', CONEXUS_DB_PASSWORD_FILE: '/run/hub-password', CONEXUS_OIDC_ISSUER: 'https://issuer.test',
     CONEXUS_OIDC_CLIENT_ID: 'hub', CONEXUS_OIDC_CLIENT_SECRET_FILE: '/run/oidc-secret', CONEXUS_FACTORY_SECRET_KEY_FILE: '/run/secret-key',
   }
   assert.deepEqual(readHubConfig(base).connectors, { gatewayOrigin: undefined, socketDirectory: undefined })
-  assert.throws(() => readHubConfig({ ...base, CONEXUS_SANKHYA_GATEWAY_ORIGIN: 'http://127.0.0.1:8080' }), { message: 'INVALID_CONFIG_CONEXUS_SANKHYA_GATEWAY_ORIGIN' })
-  assert.throws(() => readHubConfig({ ...base, CONEXUS_SANKHYA_GATEWAY_ORIGIN: SANKHYA_GATEWAY_ORIGINS[0] }), { message: 'CONNECTOR_GATEWAY_FACTORY_RUNTIME_REQUIRED' }, 'no gateway without the Mastra storage that records its calls')
-  assert.throws(() => readHubConfig({ ...base, CONEXUS_CONNECTOR_SOCKET_DIR: 'relative/dir' }), { message: 'INVALID_CONFIG_CONEXUS_CONNECTOR_SOCKET_DIR' })
+  assert.throws(() => readHubConfig({ ...base, CONEXUS_SANKHYA_GATEWAY_ORIGIN: 'http://127.0.0.1:8080' }), invalidConfig('CONEXUS_SANKHYA_GATEWAY_ORIGIN'))
+  assert.throws(() => readHubConfig({ ...base, CONEXUS_SANKHYA_GATEWAY_ORIGIN: SANKHYA_GATEWAY_ORIGINS[0] }), invalidConfig('CONNECTOR_GATEWAY_FACTORY_RUNTIME_REQUIRED'), 'no gateway without the Mastra storage that records its calls')
+  assert.throws(() => readHubConfig({ ...base, CONEXUS_CONNECTOR_SOCKET_DIR: 'relative/dir' }), invalidConfig('CONEXUS_CONNECTOR_SOCKET_DIR'))
   assert.deepEqual(readHubConfig({ ...base, CONEXUS_CONNECTOR_SOCKET_DIR: '/run/conexus-connectors' }).connectors, { gatewayOrigin: undefined, socketDirectory: '/run/conexus-connectors' })
 })

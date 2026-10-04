@@ -61,7 +61,7 @@ test('GET project-summaries authenticates, sorts by lastActivityAt, and answers 
   const failure = logs.find((record) => record.msg === 'PROJECT_SUMMARIES_UNAVAILABLE')
   assert.ok(failure, 'PROJECT_SUMMARIES_UNAVAILABLE was logged')
   assert.equal(failure.level, 50)
-  assert.equal(failure['exception.message'], 'PROJECT_READ_POOL_NOT_CONFIGURED')
+  assert.equal(failure['exception.type'], 'Error')
   assert.equal(failure['failure.details.workspaceId'], workspaceId)
 })
 

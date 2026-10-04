@@ -7,6 +7,7 @@ import test from 'node:test'
 import { EXPECTED_NATIVE_ORDER, FAKE_CREDENTIAL, NATIVE_ORDER_DATASET, startFakeGateway } from './connector-fake-gateway.mjs'
 import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
+import { invariant } from './failure-matchers.mjs'
 
 const { createHandlerPorts } = await import(hubModuleUrl('connectors/handler-port.js'))
 const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
@@ -105,7 +106,7 @@ test('M2: the startup sweep unlinks only stale port sockets, and refuses a direc
   const shared = socketDirectory(t)
   chmodSync(shared, 0o755)
   writeFileSync(join(shared, 'data.txt'), 'keep')
-  await assert.rejects(createHandlerPorts({ directory: shared, broker: recordingBroker() }).sweep(), { message: 'CONNECTOR_SOCKET_DIR_REFUSED' })
+  await assert.rejects(createHandlerPorts({ directory: shared, broker: recordingBroker() }).sweep(), invariant('CONNECTOR_SOCKET_DIR_REFUSED'))
   assert.equal(existsSync(join(shared, 'data.txt')), true)
   assert.equal(statSync(shared).mode & 0o777, 0o755, 'a refused directory keeps its mode')
 })

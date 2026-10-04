@@ -1,8 +1,7 @@
 import { ErrorDomain, MastraError } from '@mastra/core/error'
-import type { Attributes } from '@opentelemetry/api'
+import { type Attributes, SpanStatusCode, trace } from '@opentelemetry/api'
 import type { FastifyBaseLogger } from 'fastify'
 import { FAILURES, type FailureCode } from './failures.generated.js'
-import { recordFailure } from './logger.js'
 
 export type { FailureCode }
 
@@ -42,8 +41,18 @@ export const toFailure = (error: unknown): Failure => {
 
 const LEVEL_BY_CATEGORY = { SYSTEM: 'error', THIRD_PARTY: 'warn', USER: 'info' } as const
 
-/** The one log line of a failure, written where it leaves the process. The level follows the row's category. */
+/**
+ * The one log line of a failure, written where it leaves the process. The level follows the row's
+ * category. It holds the code, the category, the cause's type and our own ids: never the cause's
+ * message or stack, which may carry a person's or a vendor's text.
+ */
 export const logFailure = (log: Pick<FastifyBaseLogger, 'error' | 'warn' | 'info'>, failure: Failure, fields: Attributes = {}): void => {
   const details = Object.fromEntries(Object.entries(failure.details ?? {}).map(([key, value]) => [`failure.details.${key}`, value]))
-  recordFailure(log, failure.id, failure.cause ?? failure, { ...fields, ...details, 'failure.category': failure.category }, LEVEL_BY_CATEGORY[failureRow(failure).category])
+  const cause = failure.cause ?? failure
+  const type = cause instanceof Error ? cause.name : typeof cause
+  const level = LEVEL_BY_CATEGORY[failureRow(failure).category]
+  log[level]({ ...fields, ...details, 'failure.category': failure.category, 'error.type': type, 'exception.type': type }, failure.id)
+  const span = trace.getActiveSpan()
+  span?.recordException(Object.assign(new Error(failure.id), { name: type }))
+  if (level === 'error') span?.setStatus({ code: SpanStatusCode.ERROR })
 }

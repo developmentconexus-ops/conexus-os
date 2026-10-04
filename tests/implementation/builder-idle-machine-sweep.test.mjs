@@ -19,7 +19,7 @@ const sweepOnce = async (ports) => {
 }
 
 const eventLine = (log) => (code, fields = {}) => log.push([code, ...Object.values(fields)].join(':'))
-const failureLine = ({ message, fields }) => `${message}:${fields['exception.message']}`
+const failureLine = ({ message, fields }) => `${message}:${fields['exception.type']}`
 
 const sweepWith = ({ machines, open = [], failKill = [] }) => {
   const killed = []
@@ -70,7 +70,7 @@ test('#423 a kill that fails is not logged as a deletion, and the next sweep tri
   const { sweep, killed, log } = sweepWith({ machines: [machine('conv-a', 'ivm-a', 9), machine('conv-b', 'ivm-b', 9)], failKill: ['ivm-a'] })
   assert.equal(await sweep(), 1)
   assert.deepEqual(killed, ['ivm-b'])
-  assert.deepEqual(takeHubLogs().map(failureLine), ['BUILDER_SANDBOX_KILL_FAILED:E2B_TIMEOUT'])
+  assert.deepEqual(takeHubLogs().map(failureLine), ['BUILDER_SANDBOX_KILL_FAILED:Error'])
   assert.deepEqual(log, ['BUILDER_IDLE_MACHINE_DELETED:conv-b:ivm-b:9'])
 })
 
@@ -98,7 +98,7 @@ test('#423 a sweep that fails is logged with its code and the schedule keeps run
   await new Promise((wake) => { setTimeout(wake, 60) })
   schedule.close()
   assert.ok(calls >= 2, 'it swept at boot and again on the timer')
-  assert.equal(failureLine(takeHubLogs()[0]), 'BUILDER_IDLE_MACHINE_SWEEP_FAILED:E2B_UNREACHABLE')
+  assert.equal(failureLine(takeHubLogs()[0]), 'BUILDER_IDLE_MACHINE_SWEEP_FAILED:Error')
 })
 
 test('closing the schedule waits for the sweep in flight, so the database can close after it', async () => {

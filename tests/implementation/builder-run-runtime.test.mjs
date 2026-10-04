@@ -593,7 +593,7 @@ test('an observational-memory failure while closing the session does not discard
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild' || kind === 'fail'), [
     ['advance', result], ['settleBuild', result, null],
   ])
-  assert.ok(endLines.some((line) => String(line.fields['exception.message']).includes('BUILDER_OM_OBSERVATION_FAILED')), 'the OM failure is logged, not silenced')
+  assert.ok(endLines.some((line) => line.message === 'BUILDER_SESSION_CLOSE_FAILED'), 'the OM failure is logged, not silenced')
 })
 
 test('the checkout is seeded from a bundle of the base that root wrote, and holds exactly the base before the agent runs', async (t) => {
@@ -1218,7 +1218,7 @@ test('a failed start whose kill fails logs BUILDER_SANDBOX_KILL_FAILED and still
   await run.start()
   await run.service.close()
   assert.equal(run.calls.at(-1)[0], 'fail')
-  assert.deepEqual(failureLines('BUILDER_SANDBOX_KILL_FAILED').map((line) => line.fields['exception.message']), ['E2B_UNREACHABLE'])
+  assert.deepEqual(failureLines('BUILDER_SANDBOX_KILL_FAILED').map((line) => line.fields['exception.type']), ['Error'])
 })
 
 test('a VM whose commands run as root, from a template before the agent user, is refused before the seed', async (t) => {
@@ -1514,7 +1514,7 @@ test('a mirror moved by someone else after the turn started fails the write with
   assert.equal(await run.main(), result)
   assert.deepEqual(admissionCalls(run), [['candidate', result], ['advance', result], ['settleBuild', result, null]])
   assert.equal(run.mirror(), run.base)
-  assert.deepEqual(failureLines('BUILDER_MIRROR_FAILED').map((line) => line.fields['exception.message']), ['CONEXUS_GIT_REF_MOVED'])
+  assert.deepEqual(failureLines('BUILDER_MIRROR_FAILED').map((line) => line.fields['exception.type']), ['Error'])
 })
 
 // The seed bundle's root writes, one per turn that fetched one.

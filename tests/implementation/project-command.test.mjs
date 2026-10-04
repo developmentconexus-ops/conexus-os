@@ -192,6 +192,6 @@ test('S3-P5 generated HTTP route enforces authenticity/session and returns only 
   const routeFailedLog = logs.find((r) => r.msg === 'INTERNAL_UNEXPECTED')
   assert.ok(routeFailedLog, 'INTERNAL_UNEXPECTED was logged')
   assert.equal(routeFailedLog.level, 50)
-  assert.equal(routeFailedLog['exception.message'], 'UNEXPECTED_STORE_BLOWUP')
+  assert.equal(routeFailedLog['exception.type'], 'Error')
 })
 

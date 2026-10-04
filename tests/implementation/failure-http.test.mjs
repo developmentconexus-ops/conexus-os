@@ -127,13 +127,14 @@ test('every route shape answers a failure as problem+json and writes exactly one
   }
 })
 
-test('a fault nobody named answers INTERNAL_UNEXPECTED with a trace id, and its text stays in the log', async () => {
+test('a fault nobody named answers INTERNAL_UNEXPECTED with a trace id, and its text is in neither the answer nor the log', async () => {
   const { answer, logged, stdout } = await run()
   for (const name of ['plain Error', 'mount plain Error']) {
     const { body } = answer(name)
     assert.match(body.traceId, /^[0-9a-f]{32}$/, name)
     assert.equal(JSON.stringify(body).includes('PLANTED_VENDOR_TEXT'), false, `${name}: the answer carries no vendor text`)
-    assert.equal(logged(name)[0]['exception.message'], 'PLANTED_VENDOR_TEXT', `${name}: the log has the cause`)
+    assert.equal(logged(name)[0]['exception.type'], 'Error', `${name}: the log has the cause's type`)
+    assert.equal(JSON.stringify(logged(name)).includes('PLANTED_VENDOR_TEXT'), false, `${name}: the log carries no vendor text`)
   }
   assert.equal(answer('root async Failure').body.traceId.length, 32)
   assert.equal(logged('root async Failure')[0]['failure.details.project'], 'p1')

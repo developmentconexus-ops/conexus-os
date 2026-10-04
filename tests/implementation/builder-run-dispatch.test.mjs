@@ -534,7 +534,7 @@ const settleHarness = async ({ failures }) => {
   const projectId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   const lines = []
   const originalError = logger.error
-  logger.error = (fields, code) => lines.push(`${code}:${fields['builder.run_id']}:${fields['exception.message']}`)
+  logger.error = (fields, code) => lines.push(`${code}:${fields['builder.run_id']}:${fields['exception.type']}`)
   const written = []
   let refused = 0
   const run = { builderRunId: runId, projectId, conversationId: 'conv-build', state: 'QUEUED', baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null }
@@ -584,7 +584,7 @@ test('a settle write that keeps failing is logged with a code, and once the leg 
   }
   await h.service.close()
   h.restore()
-  assert.deepEqual(h.lines, [`BUILDER_RUN_SETTLE_FAILED:${h.runId}:BUILDER_RUN_FAILURE_REFUSED`])
+  assert.deepEqual(h.lines, [`BUILDER_RUN_SETTLE_FAILED:${h.runId}:Error`])
   assert.deepEqual(h.written, ['BUILDER_RUN_SETTLE_LOST'])
 })
 

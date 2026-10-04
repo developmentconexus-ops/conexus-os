@@ -1,0 +1,8 @@
+`new Error($message)` where {
+    $message <: r"^['\"`][A-Z][A-Z0-9_]{3,}['\"`]$",
+    register_diagnostic(
+        span = $message,
+        message = "A failure is a row of contracts/technical/failures.json: throw new Failure('ROW_CODE'). An invariant that no person or operator needs to tell apart is new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'NAME' } }).",
+        severity = "error"
+    )
+}

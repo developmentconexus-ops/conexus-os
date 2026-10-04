@@ -151,7 +151,7 @@ export const createApplicationInvoker = (dependencies: Readonly<{
       const reads: { path: string; sha256: string; bytes: Uint8Array }[] = []
       for (const path of input.serverFiles) {
         const file = await dependencies.readFile({ source: input.source, path })
-        if (!file) throw new Error('APPLICATION_SERVER_FILE_MISSING')
+        if (!file) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'APPLICATION_SERVER_FILE_MISSING' } })
         totalBytes += file.bytes.byteLength
         if (totalBytes > limits.maxServerTreeBytes) return refusal('SERVER_TREE_TOO_LARGE')
         reads.push({ path, sha256: file.sha256, bytes: file.bytes })

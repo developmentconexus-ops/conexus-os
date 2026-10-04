@@ -4,6 +4,7 @@ import type { PostgresPool } from '../platform/postgres.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import type { BindingId, BindingName, BoundConnection, Connection, ConnectionId, ConnectorId, Environment, ProjectBinding, ProjectBindingEntry } from './model.js'
 import { bindingId as toBindingId, bindingName as toBindingName, connectionId as toConnectionId } from './model.js'
+import { Failure } from '../platform/failure.js'
 
 type ConnectionRow = QueryResultRow & {
   connection_id: string
@@ -103,7 +104,7 @@ export const createConnectorStore = ({ pool, envelope }: Readonly<{ pool: Postgr
       'SELECT connection_id, connector_id, label, created_at, disabled_at, created FROM connector.create_connection($1, $2, $3, $4, $5, $6, $7)',
       [actor, connectionId, workspaceId, connectorId, label, sealed, digests])
     const row = result.rows[0]
-    if (!row) throw new Error('CONNECTOR_CONNECTION_NOT_READABLE')
+    if (!row) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'CONNECTOR_CONNECTION_NOT_READABLE' } })
     return { connection: toConnection(row), created: row.created }
   },
   async disableConnection({ actor, workspaceId, connectionId }) {
@@ -122,7 +123,7 @@ export const createConnectorStore = ({ pool, envelope }: Readonly<{ pool: Postgr
       'SELECT binding_id, name, connection_id, connector_id, label, bound_at FROM connector.bind_connection($1, $2, $3, $4)',
       [actor, projectId, connectionId, name])
     const row = result.rows[0]
-    if (!row) throw new Error('CONNECTOR_BINDING_NOT_READABLE')
+    if (!row) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'CONNECTOR_BINDING_NOT_READABLE' } })
     return toProjectBinding(row)
   },
   async unbindConnection({ actor, projectId, bindingId }) {

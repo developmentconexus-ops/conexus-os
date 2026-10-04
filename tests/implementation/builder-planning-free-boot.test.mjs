@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
+import { invalidConfig } from './failure-matchers.mjs'
 
 process.env.MASTRA_TELEMETRY_DISABLED = '1'
 
@@ -36,7 +37,7 @@ test('a Builder without its Mastra storage role is refused', async (t) => {
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
   const environment = Object.fromEntries(Object.entries(hubEnvironment(root)).filter(([name]) => !name.includes('_FACTORY_') || name === 'CONEXUS_FACTORY_SECRET_KEY_FILE'))
-  assert.throws(() => readHubConfig(environment), { message: 'BUILDER_FACTORY_RUNTIME_REQUIRED' })
+  assert.throws(() => readHubConfig(environment), invalidConfig('BUILDER_FACTORY_RUNTIME_REQUIRED'))
 })
 
 test('Builder boot needs no deployment model catalog and no pinned admission id', async (t) => {

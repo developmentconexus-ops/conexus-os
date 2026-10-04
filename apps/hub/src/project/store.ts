@@ -111,7 +111,7 @@ export const createProjectStore = ({
   mintIdentity?: () => string
 }>): ProjectStore => {
   const requireReadPool = (): PostgresPool => {
-    if (!readPool) throw new Error('PROJECT_READ_POOL_NOT_CONFIGURED')
+    if (!readPool) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_READ_POOL_NOT_CONFIGURED' } })
     return readPool
   }
   const deletionOrchestrator = createProjectDeletionOrchestrator({ commandPool, ports: deletion })

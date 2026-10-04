@@ -17,6 +17,7 @@ import { registerIdentityAccessRoutes } from './routes.js'
 import { createIdentityAccessStore } from './store.js'
 import type { CurrentSession } from './store.js'
 import type { ResolveCurrentSession, SessionRequest } from './current-session.js'
+import { Failure } from '../platform/failure.js'
 
 export type IdentityAccessModule = Readonly<{
   registerIdentityAccessRoutes(app: FastifyInstance): Promise<readonly IamOwnerId[]>
@@ -110,7 +111,7 @@ export const createIdentityAccessModule = async ({
     openPreview: async (request, launch) => {
       const hubSessionToken = request.cookies['__Host-conexus_session']
       const opened = hubSessionToken ? await hostSessions.openPreview({ hubSessionToken, launch }) : null
-      if (!opened) throw new Error('PREVIEW_ACCESS_UNAVAILABLE')
+      if (!opened) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PREVIEW_ACCESS_UNAVAILABLE' } })
       return opened
     },
     installationAdministration,

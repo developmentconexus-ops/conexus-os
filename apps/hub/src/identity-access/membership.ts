@@ -117,7 +117,7 @@ export const createMembershipStore = ({ pool }: Readonly<{ pool: PostgresPool }>
       'SELECT kind, account_id, invitation_id, display_name, email, role, since, expires_at FROM iam.list_workspace_roster($1, $2)',
       [actor, workspaceId])
     const row = stored.rows.find((candidate) => candidate.invitation_id === invitationId)
-    if (!row) throw new Error('INVITATION_NOT_READABLE')
+    if (!row) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'INVITATION_NOT_READABLE' } })
     return invitationEntry(row)
   },
   async cancelInvitation({ actor, invitationId }) {

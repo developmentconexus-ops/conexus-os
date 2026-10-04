@@ -1,3 +1,4 @@
+import { invariant } from './failure-matchers.mjs'
 import assert from 'node:assert/strict'
 import { randomBytes, randomUUID, createHash } from 'node:crypto'
 import { copyFileSync, mkdtempSync, rmSync } from 'node:fs'
@@ -407,6 +408,6 @@ test('allocation names derive from the Project id alone and refuse anything else
     migrationRole: 'app_0f5e1c2a3b4d4e5f8a9b0c1d2e3f4a5b_preview_mig',
   })
   for (const refused of ['', 'x', '0F5E1C2A-3B4D-4E5F-8A9B-0C1D2E3F4A5B', "0f5e1c2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b'; drop"]) {
-    assert.throws(() => previewAllocation(refused), /APPLICATION_PROJECT_ID_REFUSED/)
+    assert.throws(() => previewAllocation(refused), invariant('APPLICATION_PROJECT_ID_REFUSED'))
   }
 })

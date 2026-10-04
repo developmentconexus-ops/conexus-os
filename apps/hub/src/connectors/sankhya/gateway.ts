@@ -6,6 +6,7 @@ import { AccessToken } from '../token-cache.js'
 import type { IssuedToken, Redacted } from '../token-cache.js'
 import type { SankhyaCredential } from './credential.js'
 import { isOneReadStatement } from './read-only-sql.js'
+import { Failure } from '../../platform/failure.js'
 
 /** The gateway origins the Sankhya documentation publishes: production and sandbox. */
 const SANKHYA_GATEWAY_ORIGINS: readonly string[] = Object.freeze(['https://api.sankhya.com.br', 'https://api.sandbox.sankhya.com.br'])
@@ -37,7 +38,7 @@ const isRecordedEnvelopeStatus = (status: string): status is EnvelopeStatus => R
 
 /** Refuses anything but an exact published origin; the Hub reads CONEXUS_SANKHYA_GATEWAY_ORIGIN through this. */
 export const pinnedGatewayOrigin = (value: string): string => {
-  if (!SANKHYA_GATEWAY_ORIGINS.includes(value)) throw new Error('INVALID_CONFIG_CONEXUS_SANKHYA_GATEWAY_ORIGIN')
+  if (!SANKHYA_GATEWAY_ORIGINS.includes(value)) throw new Failure('CONFIG_INVALID', { details: { name: 'CONEXUS_SANKHYA_GATEWAY_ORIGIN' } })
   return value
 }
 

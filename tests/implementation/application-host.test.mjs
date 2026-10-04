@@ -5,6 +5,7 @@ import { request } from 'node:http'
 import { test } from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import { hubModuleUrl } from './hub-build.mjs'
+import { invalidConfig } from './failure-matchers.mjs'
 
 const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { registerApplicationHostRoutes } = await import(hubModuleUrl('mar/application-host-routes.js'))
@@ -138,9 +139,9 @@ test('the application host is configured by port and domain together, and only w
   assert.throws(() => readHubConfig({ ...configEnvironment, ...builderEnvironment, CONEXUS_APPLICATION_PORT: '3445' }), missing('CONEXUS_APPLICATION_DOMAIN'))
   assert.throws(() => readHubConfig({ ...configEnvironment, ...builderEnvironment, CONEXUS_APPLICATION_DOMAIN: 'conexus.localhost' }), missing('CONEXUS_APPLICATION_PORT'))
   for (const domain of ['Conexus.Localhost', '.conexus.localhost', 'conexus..localhost', 'conexus.localhost:3445', 'https://conexus.localhost']) {
-    assert.throws(() => readHubConfig({ ...configEnvironment, ...builderEnvironment, ...application, CONEXUS_APPLICATION_DOMAIN: domain }), { message: 'INVALID_CONFIG_CONEXUS_APPLICATION_DOMAIN' }, domain)
+    assert.throws(() => readHubConfig({ ...configEnvironment, ...builderEnvironment, ...application, CONEXUS_APPLICATION_DOMAIN: domain }), invalidConfig('CONEXUS_APPLICATION_DOMAIN'), domain)
   }
-  assert.throws(() => readHubConfig({ ...configEnvironment, ...application }), { message: 'APPLICATION_BUILDER_RUNTIME_REQUIRED' },
+  assert.throws(() => readHubConfig({ ...configEnvironment, ...application }), invalidConfig('APPLICATION_BUILDER_RUNTIME_REQUIRED'),
     'the application host reads the served artifact as the Builder executor, so it refuses to start without it')
 })
 

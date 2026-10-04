@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { join, resolve } from 'node:path'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
+import { invariant } from './failure-matchers.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const cacheRoot = resolve(repositoryRoot, 'node_modules/.cache')
@@ -28,7 +29,7 @@ test('refuses to start when the skills folder lacks a builder skill, and names i
   try {
     mkdirSync(join(root, 'conexus-server'))
     writeFileSync(join(root, 'conexus-server', 'SKILL.md'), '---\nname: conexus-server\n---\nguide\n')
-    assert.throws(() => assertBuilderSkillsAvailable(root), /^Error: BUILDER_SKILLS_MISSING: .* has no SKILL\.md for conexus-app, conexus-plan-new, conexus-plan-change, conexus-build, conexus-sankhya; /)
+    assert.throws(() => assertBuilderSkillsAvailable(root), invariant('BUILDER_SKILLS_MISSING', { missing: 'conexus-app,conexus-plan-new,conexus-plan-change,conexus-build,conexus-sankhya' }))
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

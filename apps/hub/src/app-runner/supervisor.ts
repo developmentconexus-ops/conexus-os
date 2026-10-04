@@ -169,7 +169,7 @@ export const createSupervisor = (config: SupervisorConfig) => {
       await client.query('BEGIN')
       try {
         await client.query(`SET LOCAL statement_timeout = ${RESET_STATEMENT_TIMEOUT_MS}`)
-        if (Date.now() >= onDivergence.resetBefore) throw new Error('PREVIEW_RESET_EXPIRED')
+        if (Date.now() >= onDivergence.resetBefore) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PREVIEW_RESET_EXPIRED' } })
         await resetPreviewSchema(client, allocation)
         await client.query('COMMIT')
       } catch (error) {
@@ -266,12 +266,12 @@ export const createSupervisor = (config: SupervisorConfig) => {
     // later runs with its authority, so the runner does not serve on such a database.
     checkProvisioner: () => withProvisioner(async (client) => {
       const { rows } = await client.query('SELECT current_user AS role, current_database() AS database')
-      if (rows[0]?.role !== PROVISIONER_ROLE || rows[0]?.database !== config.database) throw new Error('RUNNER_PROVISIONER_REFUSED')
+      if (rows[0]?.role !== PROVISIONER_ROLE || rows[0]?.database !== config.database) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'RUNNER_PROVISIONER_REFUSED' } })
       const { rows: usable } = await client.query(`SELECT l.lanname FROM pg_language l WHERE l.lanpltrusted AND (
         EXISTS (SELECT 1 FROM aclexplode(coalesce(l.lanacl, acldefault('l', l.lanowner))) acl WHERE acl.grantee = 0 AND acl.privilege_type = 'USAGE')
         OR EXISTS (SELECT 1 FROM pg_roles r WHERE r.rolname ~ $1 AND has_language_privilege(r.oid, l.oid, 'USAGE')))
         ORDER BY 1`, [PROJECT_ROLE_NAME.source])
-      if (usable.length > 0) throw new Error(`RUNNER_ROUTINE_LANGUAGE_USABLE: ${usable.map((row) => String(row.lanname)).join(',')}`)
+      if (usable.length > 0) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'RUNNER_ROUTINE_LANGUAGE_USABLE', languages: usable.map((row) => String(row.lanname)).join(',') } })
       return convergePreviewAllocations(client, config.database)
     }),
     prepare,

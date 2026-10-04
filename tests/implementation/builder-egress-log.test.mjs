@@ -121,21 +121,21 @@ test('a turn whose poller wrote no file is complete with no destinations, and th
 })
 
 test('a TCP log that cannot be read is a failed collection, never a complete one', async () => {
-  const held = ports({ readAgentFile: async (path) => { if (path === TCP) throw new Error('502 upstream timeout'); return null } })
+  const held = ports({ readAgentFile: async (path) => { if (path === TCP) throw new Error('Error'); return null } })
   await collectEgress(held.ports)
   assert.equal(held.lines.some((line) => line.includes(':complete:')), false)
-  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['exception.message']]), [['BUILDER_SANDBOX_EGRESS_COLLECT_FAILED', '502 upstream timeout']])
+  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['exception.type']]), [['BUILDER_SANDBOX_EGRESS_COLLECT_FAILED', 'Error']])
   assert.equal(held.lines.at(-1), 'BUILDER_SANDBOX_EGRESS_SUMMARY:run-1:failed:0')
 })
 
 test('a collection that fails or hangs is logged, never thrown, and never waits past its timeout', async () => {
   const failing = ports({ asRoot: async () => ({ exitCode: 1, stdout: '', stderr: 'no' }) })
   await collectEgress(failing.ports)
-  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['exception.message']]), [['BUILDER_SANDBOX_EGRESS_COLLECT_FAILED', 'BUILDER_SANDBOX_EGRESS_POLL_FAILED']])
+  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['exception.type']]), [['BUILDER_SANDBOX_EGRESS_COLLECT_FAILED', 'Error']])
   assert.deepEqual(failing.lines, ['BUILDER_SANDBOX_EGRESS_SUMMARY:run-1:failed:0'])
   const hanging = ports({ asRoot: () => new Promise(() => {}), timeoutMs: 20 })
   await collectEgress(hanging.ports)
-  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['exception.message']]), [['BUILDER_SANDBOX_EGRESS_COLLECT_FAILED', 'BUILDER_SANDBOX_EGRESS_COLLECT_TIMEOUT']])
+  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['exception.type']]), [['BUILDER_SANDBOX_EGRESS_COLLECT_FAILED', 'Error']])
   assert.deepEqual(hanging.lines, ['BUILDER_SANDBOX_EGRESS_SUMMARY:run-1:failed:0'])
 })
 

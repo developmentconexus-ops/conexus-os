@@ -411,7 +411,7 @@ test('the source compare route maps a not-found revision to 404 and any other fa
   const sourceLog = logs.find((r) => r.msg === 'BUILDER_SOURCE_UNAVAILABLE')
   assert.ok(sourceLog, 'BUILDER_SOURCE_UNAVAILABLE was logged')
   assert.equal(sourceLog.level, 50)
-  assert.equal(sourceLog['exception.message'], 'BUILDER_FACTORY_PROJECT_UNBOUND')
+  assert.equal(sourceLog['exception.type'], 'Error')
   assert.equal(sourceLog['failure.details.projectId'], projectA)
 })
 
@@ -465,7 +465,7 @@ test('a message names its conversation only: mode and promptVariant are refused,
   const runLog = logs.find((r) => r.msg === 'BUILDER_UNAVAILABLE')
   assert.ok(runLog, 'BUILDER_UNAVAILABLE was logged')
   assert.equal(runLog.level, 50)
-  assert.equal(runLog['exception.message'], 'STORE_UNAVAILABLE')
+  assert.equal(runLog['exception.type'], 'Error')
   assert.equal(runLog['failure.details.projectId'], projectA)
 })
 
@@ -511,7 +511,7 @@ test('builder session, cancel, trace, and preview routes log failure codes on in
   const sessionLog = logs.find((r) => r.msg === 'BUILDER_SESSION_UNAVAILABLE')
   assert.ok(sessionLog, 'BUILDER_SESSION_UNAVAILABLE was logged')
   assert.equal(sessionLog.level, 50)
-  assert.equal(sessionLog['exception.message'], 'SESSION_READ_FAIL')
+  assert.equal(sessionLog['exception.type'], 'Error')
   assert.equal(sessionLog['failure.details.projectId'], projectA)
 
   // 2. POST /runs/:id/cancel -> BUILDER_CANCEL_FAILED
@@ -520,7 +520,7 @@ test('builder session, cancel, trace, and preview routes log failure codes on in
   const cancelLog = logs.find((r) => r.msg === 'BUILDER_CANCELLATION_UNAVAILABLE')
   assert.ok(cancelLog, 'BUILDER_CANCELLATION_UNAVAILABLE was logged')
   assert.equal(cancelLog.level, 50)
-  assert.equal(cancelLog['exception.message'], 'CANCEL_SERVICE_FAIL')
+  assert.equal(cancelLog['exception.type'], 'Error')
   assert.equal(cancelLog['failure.details.projectId'], projectA)
   assert.equal(cancelLog['failure.details.builderRunId'], runId)
 
@@ -532,7 +532,7 @@ test('builder session, cancel, trace, and preview routes log failure codes on in
   const traceLog = logs.find((r) => r.msg === 'BUILDER_TRACE_UNAVAILABLE')
   assert.ok(traceLog, 'BUILDER_TRACE_UNAVAILABLE was logged')
   assert.equal(traceLog.level, 50)
-  assert.equal(traceLog['exception.message'], 'RUN_READ_FAIL')
+  assert.equal(traceLog['exception.type'], 'Error')
   assert.equal(traceLog['failure.details.projectId'], projectA)
   assert.equal(traceLog['failure.details.builderRunId'], runId)
 
@@ -553,7 +553,7 @@ test('builder session, cancel, trace, and preview routes log failure codes on in
   const previewLog = logs.find((r) => r.msg === 'PREVIEW_UNAVAILABLE')
   assert.ok(previewLog, 'PREVIEW_UNAVAILABLE was logged')
   assert.equal(previewLog.level, 50)
-  assert.equal(previewLog['exception.message'], 'LAUNCH_PREVIEW_FAIL')
+  assert.equal(previewLog['exception.type'], 'Error')
   assert.equal(previewLog['failure.details.projectId'], projectA)
 
   // 5. GET /source/tree -> BUILDER_SOURCE_FAILED
@@ -562,7 +562,7 @@ test('builder session, cancel, trace, and preview routes log failure codes on in
   const treeLog = logs.find((r) => r.msg === 'BUILDER_SOURCE_UNAVAILABLE')
   assert.ok(treeLog, 'BUILDER_SOURCE_UNAVAILABLE was logged')
   assert.equal(treeLog.level, 50)
-  assert.equal(treeLog['exception.message'], 'TREE_SERVICE_FAIL')
+  assert.equal(treeLog['exception.type'], 'Error')
   assert.equal(treeLog['failure.details.projectId'], projectA)
 })
 

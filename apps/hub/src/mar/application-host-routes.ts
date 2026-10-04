@@ -7,6 +7,7 @@ import { digest, opaqueToken, parseOpaqueToken } from '../platform/opaque-token.
 import { isExactOrigin } from '../platform/origin.js'
 import { applicationHostContentSecurityPolicy } from '../platform/application-csp.js'
 import { Failure } from '../platform/failure.js'
+import { FAILURE_TEXT } from '../platform/failure-text.generated.js'
 import { sendFailure } from '../http/problem.js'
 import { classifyAppPath, SERVER_ROOT } from '../platform/application-path.js'
 import { API_BODY_LIMIT, callerLeft, OPERATION } from './preview-routes.js'
@@ -53,11 +54,11 @@ export type ApplicationHostDependencies = Readonly<{
 const page = (title: string, text: string): string =>
   `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title></head><body><main><h1>${title}</h1><p>${text}</p></main></body></html>`
 
-const NO_ACCESS = page('Sem acesso', 'Você não tem acesso a este aplicativo. Peça acesso a quem administra o Workspace.')
-const EMAIL_NOT_VERIFIED = page('E-mail não verificado', 'Você não tem acesso a este aplicativo porque seu e-mail ainda não foi verificado. Verifique seu e-mail e tente entrar de novo.')
-const NOT_READY = page('Aplicativo sem versão pronta', 'Este aplicativo ainda não tem uma versão pronta para uso. Tente de novo mais tarde.')
-const SIGN_IN_FAILED = page('Não foi possível entrar', 'O link de entrada expirou ou já foi usado. Abra o endereço do aplicativo de novo para entrar.')
-const UNAVAILABLE = page('Aplicativo indisponível', 'Não foi possível confirmar seu acesso agora. Tente de novo em alguns minutos.')
+const NO_ACCESS = page('Sem acesso', FAILURE_TEXT.APPLICATION_NO_ACCESS)
+const EMAIL_NOT_VERIFIED = page('E-mail não verificado', FAILURE_TEXT.APPLICATION_EMAIL_NOT_VERIFIED)
+const NOT_READY = page('Aplicativo sem versão pronta', FAILURE_TEXT.APPLICATION_NOT_READY)
+const SIGN_IN_FAILED = page('Não foi possível entrar', FAILURE_TEXT.APPLICATION_SIGN_IN_FAILED)
+const UNAVAILABLE = page('Aplicativo indisponível', FAILURE_TEXT.IDENTITY_PROVIDER_UNAVAILABLE)
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const registerApplicationHostRoutes = async (

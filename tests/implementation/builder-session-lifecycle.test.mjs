@@ -271,12 +271,12 @@ test('#413 a Project deletion kills every VM its conversations recorded at E2B, 
   const { killRecorded } = sandboxCache({
     killProvider: async (providerSandboxId) => {
       asked.push(providerSandboxId)
-      if (providerSandboxId === 'ivm-unreachable') throw new Error('E2B_TIMEOUT')
+      if (providerSandboxId === 'ivm-unreachable') throw new Error('Error')
       return providerSandboxId !== 'ivm-gone'
     },
   })
   await killRecorded(['ivm-paused', 'ivm-unreachable', 'ivm-gone', 'ivm-running'])
   assert.deepEqual(asked, ['ivm-paused', 'ivm-unreachable', 'ivm-gone', 'ivm-running'])
-  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['builder.provider_sandbox_id'], fields['exception.message']]), [['BUILDER_SANDBOX_KILL_FAILED', 'ivm-unreachable', 'E2B_TIMEOUT']], 'a VM E2B no longer has is not a failure')
+  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['builder.provider_sandbox_id'], fields['exception.type']]), [['BUILDER_SANDBOX_KILL_FAILED', 'ivm-unreachable', 'Error']], 'a VM E2B no longer has is not a failure')
   await killRecorded([])
 })

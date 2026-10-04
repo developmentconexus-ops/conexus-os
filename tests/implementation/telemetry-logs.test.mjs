@@ -21,7 +21,7 @@ console.log(JSON.stringify({ report: { boom: [boom.status, await boom.json()], b
 await app.close()
 `
 
-test('a 5xx logs its type, message and stack with the trace id and marks the span; a user failure is logged at info and leaves the span unmarked', async () => {
+test('a 5xx logs its code and the type of its cause, never its text, with the trace id and marks the span; a user failure is logged at info and leaves the span unmarked', async () => {
   const collector = await startCollector()
   try {
     const result = await runWithTelemetry(APP, { endpoint: collector.endpoint })
@@ -34,8 +34,9 @@ test('a 5xx logs its type, message and stack with the trace id and marks the spa
     assert.ok(failure, 'the 5xx was logged')
     assert.equal(failure.level, 50)
     assert.equal(failure['exception.type'], 'Error')
-    assert.equal(failure['exception.message'], 'cause: PLANTED_CAUSE_TEXT')
-    assert.match(failure['exception.stacktrace'], /PLANTED_CAUSE_TEXT[\s\S]+at /)
+    assert.equal(failure['exception.message'], undefined)
+    assert.equal(failure['exception.stacktrace'], undefined)
+    assert.equal(JSON.stringify(failure).includes('PLANTED_CAUSE_TEXT'), false, 'the cause text is not in the line')
     assert.match(failure.trace_id, /^[0-9a-f]{32}$/)
     assert.match(failure.span_id, /^[0-9a-f]{16}$/)
     assert.equal(records.filter((record) => record.msg === 'INTERNAL_UNEXPECTED').length, 1, 'the user failure logs under its own code')
@@ -44,7 +45,6 @@ test('a 5xx logs its type, message and stack with the trace id and marks the spa
     const logs = Buffer.concat(collector.bodies('/v1/logs'))
     assert.ok(logs.includes('INTERNAL_UNEXPECTED'))
     assert.equal(logs.includes('PLANTED_CAUSE_TEXT'), false, 'the cause stays on stdout and out of the OTLP log export')
-    assert.ok(logs.includes('exception.stacktrace'), 'the export carries the frames')
     assert.ok(logs.includes(Buffer.from(failure.trace_id, 'hex')), 'the OTLP log record carries the same trace id')
     assert.ok(Buffer.concat(collector.bodies('/v1/traces')).includes(Buffer.from(failure.trace_id, 'hex')), 'and the trace holds it')
   } finally { await collector.close() }
@@ -81,20 +81,22 @@ console.log(JSON.stringify({ answer: [answer.statusCode, answer.json()] }))
 await app.close()
 `
 
-test('the application host logs the cause of a failed invoke with project and operation, then answers 503 as before', async () => {
+test('the application host logs the type of a failed invoke cause with project and operation, then answers 503 with its row', async () => {
   const collector = await startCollector()
   try {
     const result = await runWithTelemetry(HOST_FAILURE, { endpoint: collector.endpoint })
     assert.equal(result.code, 0, result.stderr)
     const records = jsonLines(result.stdout)
-    assert.deepEqual(records.find((record) => record.answer).answer, [503, { error: { code: 'APPLICATION_RUNNER_UNAVAILABLE' } }])
-    const failure = records.find((record) => record.msg === 'APPLICATION_INVOKE_FAILED')
-    assert.equal(failure['exception.message'], 'runner socket refused: PLANTED_RUNNER_CAUSE')
-    assert.equal(failure['conexus.project_id'], '11111111-1111-4111-8111-111111111111')
-    assert.equal(failure['conexus.operation'], 'listDeals')
+    const [status, body] = records.find((record) => record.answer).answer
+    assert.deepEqual([status, body.code], [503, 'APPLICATION_RUNNER_UNAVAILABLE'])
+    const failure = records.find((record) => record.msg === 'APPLICATION_RUNNER_UNAVAILABLE')
+    assert.equal(failure['exception.type'], 'Error')
+    assert.equal(JSON.stringify(failure).includes('PLANTED_RUNNER_CAUSE'), false)
+    assert.equal(failure['failure.details.project'], '11111111-1111-4111-8111-111111111111')
+    assert.equal(failure['failure.details.operation'], 'listDeals')
     assert.match(failure.trace_id, /^[0-9a-f]{32}$/)
     assert.ok(Buffer.concat(collector.bodies('/v1/traces')).includes(Buffer.from(failure.trace_id, 'hex')))
     assert.ok(Buffer.concat(collector.bodies('/v1/traces')).includes('exception'), 'the exception is recorded on the span')
-    assert.equal(collector.everything().includes('PLANTED_RUNNER_CAUSE'), false, 'the cause stays on stdout')
+    assert.equal(collector.everything().includes('PLANTED_RUNNER_CAUSE'), false, 'the cause text leaves nowhere')
   } finally { await collector.close() }
 })
