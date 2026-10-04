@@ -38,6 +38,9 @@ export const ROLE_BY_CALL_SITE = Object.freeze({
     'builder.read_project_sandboxes': 'hub_builder_executor',
     'builder.read_open_run_conversations': 'hub_builder_executor',
   }),
+  'identity-access/reaper.ts': Object.freeze({
+    'iam.reap_expired': 'hub_iam_runtime',
+  }),
   'identity-access/application-access.ts': Object.freeze({
     'iam.list_application_access': 'hub_iam_runtime',
     'iam.grant_application_access': 'hub_iam_runtime',

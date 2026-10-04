@@ -283,7 +283,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
 
   // Once the composition and the lock hold, and before the first listener: a start that fails past this
   // exits the process through `exitOnFailedStart`, which ends the jobs with it.
-  const jobs = startJobs(builder?.jobs ?? [])
+  const jobs = startJobs([...identityAccess.jobs, ...(builder?.jobs ?? [])])
   await app.listen({ host: '127.0.0.1', port: config.port })
   if (previewApp && config.preview) await previewApp.listen({ host: '127.0.0.1', port: config.preview.port })
   if (applicationApp && config.application) await applicationApp.listen({ host: '127.0.0.1', port: config.application.port })
