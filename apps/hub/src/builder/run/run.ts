@@ -19,6 +19,7 @@ import type { TurnMirror } from './mirror.js'
 import { createGatePhases } from './phase.js'
 import type { AgentTurn, BuilderRunPorts, ConnectorRun, DiagnosticAppender, RunContextBinder, RunSandbox, RunSession, Step, StopReason } from './ports.js'
 import { type AnswerOutcome, createInbox } from './question.js'
+import { traceRun } from './trace.js'
 
 // Where the agent's own check writes its build; the agent's user owns it, and no run reads it back.
 const AGENT_CHECK_OUT = '/tmp/conexus-agent-check'
@@ -101,6 +102,7 @@ type Run = {
   readonly keepalive: AbortController
   readonly timing: ReturnType<typeof createRunTiming>
   readonly inbox: ReturnType<typeof createInbox>
+  readonly trace: ReturnType<typeof traceRun>
   readonly vm: RunVmState
   sandbox: RunSandbox | undefined
   connectorRun: ConnectorRun | null
@@ -129,6 +131,7 @@ const logged = (run: Run, code: FailureCode) => (error: unknown): void => {
 const setPhase = async (run: Run, phase: BuilderRunPhase, written?: () => void): Promise<void> => {
   const summary = await run.env.store.setBuilderRunPhase(run.row.builderRunId, phase)
   if (!summary) throw await phaseRefusal(run)
+  run.trace.phase(phase)
   written?.()
   await run.env.publishRun(summary)
 }
@@ -413,8 +416,9 @@ const exit = async (run: Run, ending: RunEnding): Promise<void> => {
   // The exit's own commands may have resumed a VM the wait let pause, so its idle window starts again here.
   if (sandbox && live) void sandbox.idle().catch(logged(run, 'BUILDER_SANDBOX_PAUSE_FAILED'))
   else if (sandbox && run.vm.started) await sandbox.kill().catch(logged(run, 'BUILDER_SANDBOX_KILL_FAILED'))
-  run.env.ports.log('BUILDER_RUN_TIMING', run.timing.fields(run.row.builderRunId))
+  run.env.ports.log('BUILDER_RUN_TIMING', run.timing.fields(run.row))
   await writeEnding(run, final)
+  run.trace.end(final.kind === 'INTERRUPTED' || final.kind === 'FAILED' ? final.code : final.kind, final.kind === 'FAILED')
   const latest = await run.env.store.readBuilderRun({ accountId: run.request.accountId, projectId: run.row.projectId }).catch(() => null)
   if (latest?.builderRunId === run.row.builderRunId) await run.env.publishRun(latest)
   await run.session?.release().catch(logged(run, 'BUILDER_SESSION_RELEASE_FAILED'))
@@ -427,6 +431,7 @@ export const startRun = (env: RunEnvironment, row: BuilderRunSummary, request: R
   const run: Run = {
     env, row, request, stopSignal: stop.signal, keepalive, signal: AbortSignal.any([stop.signal, keepalive.signal]),
     timing: createRunTiming(),
+    trace: traceRun(row),
     inbox: createInbox((toolCallId) => run.session?.pending(toolCallId) === true, (signal) => (signal.reason === 'HUB_STOPPING' ? 'HUB_STOPPING' : 'USER_CANCELLED')),
     vm: { started: false, incarnation: undefined, release: undefined, unusable: false },
     sandbox: undefined, connectorRun: null, session: undefined, tools: undefined, mirror: undefined, pulled: () => null, keepaliveFailure: undefined,

@@ -485,10 +485,13 @@ test('a turn that only wrote the plan is a version that holds it, admitted like 
 })
 
 const timingStages = (run) => {
-  assert.deepEqual(run.timings.map((fields) => fields.run), [runId], 'one timing event per run')
-  const { run: _run, ...stages } = run.timings[0]
-  for (const [stage, value] of Object.entries(stages)) assert.ok(Number.isInteger(value) && value >= 0, `${stage} is whole milliseconds`)
-  return Object.keys(stages)
+  assert.deepEqual(run.timings.map((fields) => fields['builder.run_id']), [runId], 'one timing event per run')
+  const stages = Object.entries(run.timings[0]).flatMap(([key, value]) => {
+    const stage = /^builder\.stage\.(\w+)_ms$/.exec(key)?.[1]
+    return stage ? [[stage, value]] : []
+  })
+  for (const [stage, value] of stages) assert.ok(Number.isInteger(value) && value >= 0, `${stage} is whole milliseconds`)
+  return stages.map(([stage]) => stage)
 }
 
 test('each run logs one BUILDER_RUN_TIMING event with the stages it reached, in run order', async (t) => {

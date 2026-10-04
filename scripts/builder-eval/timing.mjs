@@ -21,8 +21,9 @@ const percentile = (sorted, fraction) => (sorted.length === 0 ? null : sorted[Ma
 const HUB_STAGES = Object.freeze(['sandbox', 'seed', 'starter', 'session', 'agent', 'pull', 'admission', 'compile', 'publish'])
 
 /**
- * Pure. One Hub log record (a JSON line) of the `BUILDER_RUN_TIMING` event: `run` and one integer
- * millisecond field per stage. Null for any other line. A stage the run never reached is absent.
+ * Pure. One Hub log record (a JSON line) of the `BUILDER_RUN_TIMING` event: `builder.run_id` and one
+ * integer `builder.stage.<stage>_ms` field per stage. Null for any other line. A stage the run never
+ * reached is absent.
  * @returns {{ runId: string, stages: Record<string, number> } | null}
  */
 export function parseRunTimingLine(line) {
@@ -30,10 +31,13 @@ export function parseRunTimingLine(line) {
   if (start === -1) return null
   let record
   try { record = JSON.parse(line.slice(start)) } catch { return null }
-  if (record?.msg !== 'BUILDER_RUN_TIMING' || typeof record.run !== 'string') return null
+  if (record?.msg !== 'BUILDER_RUN_TIMING' || typeof record['builder.run_id'] !== 'string') return null
   const stages = {}
-  for (const name of HUB_STAGES) if (Number.isInteger(record[name]) && record[name] >= 0) stages[name] = record[name]
-  return { runId: record.run, stages }
+  for (const name of HUB_STAGES) {
+    const elapsed = record[`builder.stage.${name}_ms`]
+    if (Number.isInteger(elapsed) && elapsed >= 0) stages[name] = elapsed
+  }
+  return { runId: record['builder.run_id'], stages }
 }
 
 /** Pure. The last timing line the Hub logged for one run, from the text of its log; null when none. */

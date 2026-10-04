@@ -57,6 +57,16 @@ test('span events and links are redacted like the span', () => {
   assert.deepEqual(span.links, [{ context: {}, attributes: { 'http.route': '/x' } }])
 })
 
+test("a Builder run event exports its run, conversation, Project, phase and stage durations, and nothing else of the run (AC-13)", () => {
+  const [record] = exportedBy(redactingLogs, [{ body: 'BUILDER_RUN_TIMING', attributes: {
+    'builder.run_id': 'r1', 'builder.conversation_id': 'c1', 'builder.project_id': 'p1', 'builder.phase': 'WAITING',
+    'builder.stage.agent_ms': 1200, 'builder.run.evidence': '{"stdout":"SECRET"}', 'failure.detail': 'SECRET detail', 'run': 'r1',
+  } }])
+  assert.deepEqual(record.attributes, {
+    'builder.run_id': 'r1', 'builder.conversation_id': 'c1', 'builder.project_id': 'p1', 'builder.phase': 'WAITING', 'builder.stage.agent_ms': 1200,
+  })
+})
+
 test('an exported log body leaves as its leading code, or UNCODED_LOG when it has none', () => {
   const logBodyCode = (body) => exportedBy(redactingLogs, [{ attributes: {}, body }])[0].body
   assert.equal(logBodyCode('INTERNAL_UNEXPECTED'), 'INTERNAL_UNEXPECTED')
