@@ -1,7 +1,9 @@
 {
  "kept": {
   "MANIFEST_REFUSED": "the admitter also runs in the build sandbox; the runner maps it to its row",
-  "SERVER_TREE_REFUSED": "same"
+  "SERVER_TREE_REFUSED": "same",
+  "APPLICATION_IDENTIFIER_REFUSED": "data-plane.ts runs inside the sandboxed worker, which has no Failure; its throws are plain Errors",
+  "APPLICATION_PROJECT_ID_REFUSED": "same"
  },
  "codes": {
   "APPLICATION_ACCESS_ENTRY_NOT_READABLE": {
@@ -14,9 +16,6 @@
     "audience": "operator"
    },
    "name": "APPLICATION_BUILDER_RUNTIME_REQUIRED"
-  },
-  "APPLICATION_IDENTIFIER_REFUSED": {
-   "invariant": "APPLICATION_IDENTIFIER_REFUSED"
   },
   "APPLICATION_NOT_FOUND": {
    "row": {
@@ -35,9 +34,6 @@
     "audience": "operator"
    },
    "name": "APPLICATION_PREVIEW_RUNTIME_REQUIRED"
-  },
-  "APPLICATION_PROJECT_ID_REFUSED": {
-   "invariant": "APPLICATION_PROJECT_ID_REFUSED"
   },
   "APPLICATION_REFRESH_TOKEN_MISSING": {
    "invariant": "APPLICATION_REFRESH_TOKEN_MISSING"

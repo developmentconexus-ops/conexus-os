@@ -53,9 +53,12 @@ const walk = (directory) => readdirSync(directory).flatMap((name) => {
   return statSync(path).isDirectory() ? walk(path) : path.endsWith('.ts') ? [path] : []
 })
 
+// Code a sandbox loads cannot import Failure (it pulls @mastra/core); it reports a plain code on its wire.
+const SANDBOXED = ['server-manifest.ts', 'app-runner/data-plane.ts', 'app-runner/worker.ts']
+
 const changed = []
 for (const file of walk(source)) {
-  if (file.includes('.generated.') || file.includes('server-manifest.ts')) continue
+  if (SANDBOXED.some((part) => file.includes(part)) || file.includes('.generated.')) continue
   const before = readFileSync(file, 'utf8')
   const converted = convert(before, file)
   if (converted === before) continue
