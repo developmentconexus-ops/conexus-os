@@ -42,7 +42,6 @@ export class ConexusRunSandbox extends E2BSandbox {
     return this.executeCommand(command, args, options)
   }
 
-  /** Leaves the VM the idle window, after which E2B pauses it with its files and its memory. */
   async idle(): Promise<void> {
     await this.e2b.setTimeout(this.#idleMs)
   }
@@ -52,9 +51,7 @@ export class ConexusRunSandbox extends E2BSandbox {
   }
 
   // E2B counts the sandbox timeout from creation and command activity never moves it, so a run
-  // holds the sandbox open by calling this (docs/reference/mastra-boundary.md, U7). Letting go
-  // leaves the VM the idle window, after which E2B pauses it with its files and its memory; the
-  // next command resumes it.
+  // holds the sandbox open by calling this (docs/reference/mastra-boundary.md, U7).
   async holdOpen(onLapse: (error: unknown) => void): Promise<() => void> {
     await this.#extend()
     let failures = 0
@@ -138,7 +135,6 @@ export const createConversationSandbox = ({ apiKey, templateId, conversationId, 
   templateId: string
   conversationId: string
   providerSandboxId: string | null
-  /** How long the VM stays on once nothing holds it, before E2B pauses it. */
   idleMs: number
   timeoutMs?: number
 }>): ConexusRunSandbox => new ConexusRunSandbox({

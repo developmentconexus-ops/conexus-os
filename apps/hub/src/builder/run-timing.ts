@@ -1,7 +1,5 @@
 /**
- * Where a Builder run's time goes outside the agent, one log event per run so the eval reads it
- * without a database column: `BUILDER_RUN_TIMING` with the run's ids and one `builder.stage.<stage>_ms`
- * field per stage, which telemetry exports as attributes.
+ * Where a Builder run's time goes outside the agent: one `BUILDER_RUN_TIMING` event per run.
  * A stage's time runs from the previous mark, so the marks partition the run and their sum is the
  * run's wall time. A stage the run never reached is left out of the line.
  */

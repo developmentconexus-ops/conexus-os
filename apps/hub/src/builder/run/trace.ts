@@ -4,9 +4,8 @@ import type { BuilderRunPhase } from '../../generated/builder-run-vocabulary.js'
 const tracer = trace.getTracer('conexus-builder')
 
 /**
- * A run as telemetry sees it: one span from its claim to its last write, the wait included, and one
- * child span per phase, so each phase has its duration. A wait starting is an event on the run span,
- * so a long wait shows before its phase span ends.
+ * One run span from claim to last write, with a child span per phase; a wait starting is an event
+ * on the run span.
  */
 export const traceRun = (identity: Readonly<{ builderRunId: string; conversationId: string; projectId: string }>) => {
   const attributes: Attributes = {

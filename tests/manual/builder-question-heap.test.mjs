@@ -20,9 +20,8 @@ const settledHeap = async () => {
   return process.memoryUsage().heapUsed
 }
 
-// One run per iteration on the conversation's one session: a control run takes two plain turns,
-// a question run asks and ends its question by a message (a send, and a new Hub's next send after a
-// restart) or by the run's exit (expiry and Stop).
+// One run per iteration: a control run takes two plain turns; a question run asks, then ends by a
+// message (a send, or a new Hub's next send) or by the run's exit (expiry, Stop).
 const iterations = {
   control: async (session, signal) => {
     assert.equal((await session.takeStep({ kind: 'SEND', content: 'oi' }, signal)).reason, 'complete')

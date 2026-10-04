@@ -24,7 +24,6 @@ export const e2bConversationSandboxes = ({
 }: Readonly<{
   apiKey: string
   templateId: string
-  /** How long a VM stays on once the Builder stops, before E2B pauses it. */
   idleMs: number
   create?: typeof createConversationSandbox
   killProvider?: (providerSandboxId: string) => Promise<boolean>

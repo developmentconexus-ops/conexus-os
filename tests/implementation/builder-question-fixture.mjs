@@ -50,8 +50,7 @@ export const scriptedModel = () => {
   return { model, prompts }
 }
 
-// The Builder's controller on real Mastra, over one store a restarted Hub would find again. With
-// `sandboxes`, each conversation's sandbox is a real one and its run counts as open.
+// The Builder's controller on real Mastra over a store a restarted Hub finds again.
 export const builderOn = async (t, storage, model, options = {}) => {
   const workspace = scratchWorkspace(t)
   let conversations

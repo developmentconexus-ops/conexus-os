@@ -36,8 +36,7 @@ type Live = Readonly<{ ref: ConversationRef; sandbox: RunSandbox }>
  * first, so the session Mastra makes on the scope finds its workspace; it starts no VM until its
  * first command. Mastra resolves the workspace on every agent call, so the resolver only looks up.
  * A conversation idle for `idleMs` is let go unless its run is open, its session is running, or a
- * question waits on it. Letting a conversation go, by the sweep or by a killed VM, is decided with
- * no await between the last check and the entry's removal, and an open waits for it to finish.
+ * question waits on it.
  */
 export const createLiveConversations = ({ controller, sandboxes, readSandboxId, runOpen, idleMs = CONVERSATION_IDLE_MS, sweepEveryMs = SWEEP_EVERY_MS, now = Date.now }: Readonly<{
   controller: SessionPorts

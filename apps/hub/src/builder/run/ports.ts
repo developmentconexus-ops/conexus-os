@@ -19,7 +19,7 @@ export type RunSandbox = Readonly<{
   // Runs the Hub's check on the tree at `root` as root, its steps as the agent's user, writing the
   // build to `out`; `collect` also reads the build back when the source passed.
   runCheck(input: Readonly<{ root: string; out: string; collect: boolean; thumbnail?: string; user: 'root' | 'agent' }>): Promise<ApplicationCheckRun>
-  /** Keeps the VM on while the run works; letting go leaves it the idle window, after which E2B pauses it. */
+  /** Keeps the VM on while the run works; letting go starts the idle window. */
   holdOpen(onLapse: (error: unknown) => void): Promise<() => void>
   /** Leaves the VM the idle window from now, after which E2B pauses it; the next command resumes it. */
   idle(): Promise<void>

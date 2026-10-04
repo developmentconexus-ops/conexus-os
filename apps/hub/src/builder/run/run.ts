@@ -29,7 +29,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 // Only these end a run with a recorded candidate knowing its source is not on main.
 const NOT_ADMITTED: ReadonlySet<string> = new Set(['BUILDER_SOURCE_BASE_MOVED', 'BUILDER_SOURCE_ADMISSION_FAILED', 'BUILDER_RUN_CANCELLED'])
-// What a stop surfaces depends on where the run stood.
 const STOP_CODES: ReadonlySet<string> = new Set(['BUILDER_RUN_CANCELLED', 'BUILDER_LATE_RESULT_REFUSED'])
 
 /** The row ended without this run, by a takeover: its ending is the one written there. */
@@ -83,8 +82,7 @@ export type LiveRun = Readonly<{
 
 type RunRequest = Readonly<{ accountId: string; content: string; idempotencyKey: string }>
 
-// How the run ended: settled by its own work, left to the sweep (a candidate that may be on `main`,
-// or a row a takeover already ended), or ended with a code its exit writes.
+// Settled, left to the sweep (maybe on `main`, or ended by a takeover), or ended with a code the exit writes.
 type RunEnding =
   | Readonly<{ kind: 'SETTLED' }>
   | Readonly<{ kind: 'LEFT' }>
@@ -400,10 +398,8 @@ const endOpenQuestions = async (run: Run, ending: RunEnding): Promise<RunEnding>
 }
 
 /**
- * The run's exit, however it ended. A VM still the run's own is let go, and E2B pauses it with its
- * files after its idle window; the conversation's next command resumes it. A run that started a VM
- * and does not leave it live kills it. The stream that follows the run hears how it ended before
- * the session goes.
+ * The run's exit, however it ended. Lets the VM go, or kills one the run started and does not leave
+ * live; the stream that follows the run hears how it ended before the session goes.
  */
 const exit = async (run: Run, ending: RunEnding): Promise<void> => {
   const final = await endOpenQuestions(run, ending)
