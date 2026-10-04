@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import { toast } from '@mastra/playground-ui/components/Toaster'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { UseMutationResult } from '@tanstack/react-query'
 import { Link2, MoreHorizontal } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useId, useState } from 'react'
@@ -21,6 +22,7 @@ import {
   workspaceRosterQueryKey,
 } from '../membership-api'
 import type { InvitationEntry, MemberEntry } from '../membership-api'
+import type { InviteWorkspaceMemberInput, WorkspaceInvitation } from '../../../generated/iam-client'
 import '../people.css'
 import { failureText } from '../../../app/http'
 import { FailureState } from '../../../app/failure-state'
@@ -43,6 +45,8 @@ async function copyEntryLink(email?: string) {
     toast.error(`Não foi possível copiar. O link de entrada é ${link}`)
   }
 }
+
+type Invite = UseMutationResult<WorkspaceInvitation, Error, InviteWorkspaceMemberInput>
 
 type Pending = Readonly<{ kind: 'remove'; member: MemberEntry } | { kind: 'leave'; member: MemberEntry }>
 
@@ -80,6 +84,11 @@ export function WorkspaceMembers({
     },
     onError: fail,
   })
+  // The one invite call: the form and the row of an expired invitation both use it.
+  const invite = useMutation({
+    mutationFn: (input: InviteWorkspaceMemberInput) => inviteWorkspaceMember(workspaceId, input),
+    onSuccess: refresh,
+  })
   const cancelInvitation = useMutation({
     mutationFn: (invitationId: string) => cancelWorkspaceInvitation(workspaceId, invitationId),
     onSuccess: async () => { setMessage(''); await refresh() },
@@ -100,7 +109,7 @@ export function WorkspaceMembers({
   const viewerIsOwner = roster.data.viewerRole === 'owner'
   const members = roster.data.entries.filter((entry): entry is MemberEntry => entry.kind === 'member')
   const invitations = roster.data.entries.filter((entry): entry is InvitationEntry => entry.kind === 'invitation')
-  const busy = changeRole.isPending || removeMember.isPending || cancelInvitation.isPending
+  const busy = changeRole.isPending || removeMember.isPending || cancelInvitation.isPending || invite.isPending
 
   return <div className="cx-people">
     {message && <p className="cx-people-message" role="alert">{message}</p>}
@@ -140,9 +149,9 @@ export function WorkspaceMembers({
     </section>
 
     <section aria-labelledby="people-invitations">
-      <h2 id="people-invitations" className="cx-section-title">Convites pendentes <span className="cx-count">{invitations.length}</span></h2>
+      <h2 id="people-invitations" className="cx-section-title">Convites <span className="cx-count">{invitations.length}</span></h2>
       {invitations.length === 0 ? (
-        <p className="cx-people-empty">Nenhum convite esperando resposta.</p>
+        <p className="cx-people-empty">Nenhum convite.</p>
       ) : (
         <ul className="cx-person-list">
           {invitations.map((invitation) => (
@@ -150,16 +159,20 @@ export function WorkspaceMembers({
               <Avatar name={invitation.email} size="md" />
               <div className="cx-person-who">
                 <strong>{invitation.email}</strong>
-                <span>{ROLE_LABEL[roleOf(invitation.role)]} · vale até {formatDate(invitation.expiresAt)}</span>
+                <span>{ROLE_LABEL[roleOf(invitation.role)]} · {invitation.state === 'EXPIRED' ? 'venceu em' : 'vale até'} {formatDate(invitation.expiresAt)}</span>
               </div>
-              <span className="cx-chip" data-tone="pending">Pendente</span>
+              <span className="cx-chip" data-tone={invitation.state === 'EXPIRED' ? 'neutral' : 'pending'}>{invitation.state === 'EXPIRED' ? 'Vencido' : 'Pendente'}</span>
               {viewerIsOwner ? (
                 <DropdownMenu>
                   <DropdownMenu.Trigger className="cx-row-menu" aria-label={`Ações para o convite de ${invitation.email}`} disabled={busy}>
                     <MoreHorizontal size={16} aria-hidden />
                   </DropdownMenu.Trigger>
                   <DropdownMenu.Content align="end" className="cx-menu">
-                    <DropdownMenu.Item onClick={() => void copyEntryLink(invitation.email)}>Copiar link de entrada</DropdownMenu.Item>
+                    {invitation.state === 'EXPIRED' ? (
+                      <DropdownMenu.Item onClick={() => invite.mutate({ email: invitation.email, role: roleOf(invitation.role) }, { onSuccess: () => setMessage(''), onError: fail })}>Convidar de novo</DropdownMenu.Item>
+                    ) : (
+                      <DropdownMenu.Item onClick={() => void copyEntryLink(invitation.email)}>Copiar link de entrada</DropdownMenu.Item>
+                    )}
                     <DropdownMenu.Separator />
                     <DropdownMenu.Item variant="destructive" onClick={() => cancelInvitation.mutate(invitation.invitationId)}>Cancelar convite</DropdownMenu.Item>
                   </DropdownMenu.Content>
@@ -171,7 +184,7 @@ export function WorkspaceMembers({
       )}
     </section>
 
-    {viewerIsOwner && <InviteForm workspaceId={workspaceId} onInvited={refresh} />}
+    {viewerIsOwner && <InviteForm invite={invite} />}
 
     <AlertDialog open={pending !== null} onOpenChange={(open) => { if (!open) setPending(null) }}>
       <AlertDialog.Content>
@@ -194,21 +207,12 @@ export function WorkspaceMembers({
   </div>
 }
 
-function InviteForm({ workspaceId, onInvited }: Readonly<{ workspaceId: string; onInvited: () => Promise<unknown> }>) {
+function InviteForm({ invite }: Readonly<{ invite: Invite }>) {
   const emailId = useId()
   const roleId = useId()
   const [role, setRole] = useState<Role>('member')
   const [message, setMessage] = useState('')
   const [invited, setInvited] = useState<string | null>(null)
-  const invite = useMutation({
-    mutationFn: (input: { email: string; role: Role }) => inviteWorkspaceMember(workspaceId, input),
-    onSuccess: async (invitation, _input) => {
-      setMessage('')
-      await onInvited()
-      setInvited(invitation.email)
-    },
-    onError: (error) => setMessage(failureText(error)),
-  })
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -220,7 +224,10 @@ function InviteForm({ workspaceId, onInvited }: Readonly<{ workspaceId: string; 
       return
     }
     setInvited(null)
-    invite.mutate({ email, role }, { onSuccess: () => form.reset() })
+    invite.mutate({ email, role }, {
+      onSuccess: (invitation) => { setMessage(''); setInvited(invitation.email); form.reset() },
+      onError: (error) => setMessage(failureText(error)),
+    })
   }
 
   return <section aria-labelledby="people-invite" className="cx-panel cx-invite">

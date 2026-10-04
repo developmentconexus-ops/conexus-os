@@ -32,6 +32,7 @@ type ApplicationInvitationEntry = Readonly<{
   email: string
   invitedAt: string
   expiresAt: string
+  state: 'PENDING' | 'EXPIRED'
 }>
 
 type ApplicationAccessEntry = ApplicationGrantEntry | ApplicationInvitationEntry
@@ -61,9 +62,10 @@ type AccessRow = QueryResultRow & {
   since: Date
   expires_at: Date | null
   slug: string | null
+  state: 'PENDING' | 'EXPIRED' | null
 }
 
-const LIST_SQL = 'SELECT kind, entry_id, account_id, display_name, email, since, expires_at, slug FROM iam.list_application_access($1, $2)'
+const LIST_SQL = 'SELECT kind, entry_id, account_id, display_name, email, since, expires_at, slug, state FROM iam.list_application_access($1, $2)'
 
 const accessOf = (rows: readonly AccessRow[]): ApplicationAccess => {
   const entries: ApplicationAccessEntry[] = []
@@ -86,6 +88,7 @@ const accessOf = (rows: readonly AccessRow[]): ApplicationAccess => {
         email: row.email ?? '',
         invitedAt: row.since.toISOString(),
         expiresAt: (row.expires_at ?? row.since).toISOString(),
+        state: row.state ?? 'EXPIRED',
       })
     }
   }

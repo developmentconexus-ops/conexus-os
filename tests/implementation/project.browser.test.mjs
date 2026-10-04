@@ -40,7 +40,7 @@ function hubFixture() {
       entries: [
         { kind: 'member', accountId: ids.account, displayName: 'Marina Alves', email: 'marina@empresa.com.br', role: 'owner', since: '2026-08-01T12:00:00.000Z' },
         { kind: 'member', accountId: ids.diego, displayName: 'Diego Souza', email: 'diego@empresa.com.br', role: 'member', since: '2026-09-02T12:00:00.000Z' },
-        { kind: 'invitation', invitationId: ids.invitation, email: 'carla@empresa.com.br', role: 'member', invitedAt: '2026-09-20T12:00:00.000Z', expiresAt: '2026-10-04T12:00:00.000Z' },
+        { kind: 'invitation', invitationId: ids.invitation, email: 'carla@empresa.com.br', role: 'member', invitedAt: '2026-09-20T12:00:00.000Z', expiresAt: '2026-10-04T12:00:00.000Z', state: 'PENDING' },
       ],
     },
     requests: [],
@@ -84,8 +84,10 @@ async function mockHub(page, hub) {
       return json(route, 200, hub.roster)
     }
     if (p.endsWith('/invitations') && method === 'POST') {
-      const invitation = { kind: 'invitation', invitationId: ids.invitation, email: body.email, role: body.role, invitedAt: '2026-09-22T12:00:00.000Z', expiresAt: '2026-10-06T12:00:00.000Z' }
-      hub.roster.entries = [...hub.roster.entries, invitation]
+      // An invitation for an email that already has one is renewed in place, as the database does.
+      const renewed = hub.roster.entries.find((entry) => entry.kind === 'invitation' && entry.email === body.email)
+      const invitation = { kind: 'invitation', invitationId: renewed?.invitationId ?? ids.invitation, email: body.email, role: body.role, invitedAt: '2026-09-22T12:00:00.000Z', expiresAt: '2026-10-06T12:00:00.000Z', state: 'PENDING' }
+      hub.roster.entries = [...hub.roster.entries.filter((entry) => entry !== renewed), invitation]
       return json(route, 200, invitation)
     }
     if (p.includes('/roster/') && method === 'DELETE') return route.fulfill({ status: 204 })
@@ -408,6 +410,28 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     releaseRefresh()
     await page.getByText('Convite criado para nova@empresa.com.br.').waitFor()
     await page.getByText('nova@empresa.com.br', { exact: true }).waitFor()
+  })
+
+  await t.test('an expired invitation shows Vencido, and Convidar de novo asks the server again with its email and role', async () => {
+    await reset()
+    hub.roster = { ...hub.roster, entries: [...hub.roster.entries, { kind: 'invitation', invitationId: 'expired-1', email: 'vencida@empresa.com.br', role: 'owner', invitedAt: '2026-08-01T12:00:00.000Z', expiresAt: '2026-08-15T12:00:00.000Z', state: 'EXPIRED' }] }
+    await page.goto(`${origin}/workspaces/${ids.operations}/settings/people`)
+    await page.getByRole('heading', { name: 'Convites 2' }).waitFor()
+    const expired = page.locator('.cx-person', { hasText: 'vencida@empresa.com.br' })
+    await expired.getByText('Vencido', { exact: true }).waitFor()
+    assert.match(await expired.locator('.cx-person-who span').innerText(), /^Owner · venceu em /)
+    const pendingRow = page.locator('.cx-person', { hasText: 'carla@empresa.com.br' })
+    assert.match(await pendingRow.locator('.cx-person-who span').innerText(), /^Membro · vale até /)
+    await pendingRow.getByText('Pendente', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Ações para o convite de vencida@empresa.com.br' }).click()
+    await page.getByRole('menuitem', { name: 'Convidar de novo' }).click()
+    await expired.getByText('Pendente', { exact: true }).waitFor()
+    assert.deepEqual(hub.requests.findLast((entry) => entry.path.endsWith('/invitations')).body, { email: 'vencida@empresa.com.br', role: 'owner' })
+    assert.equal(await page.getByText('Vencido', { exact: true }).count(), 0)
+    assert.match(await expired.locator('.cx-person-who span').innerText(), /^Owner · vale até /)
+    await page.getByRole('button', { name: 'Ações para o convite de carla@empresa.com.br' }).click()
+    await page.getByRole('menuitem', { name: 'Copiar link de entrada' }).waitFor()
+    assert.equal(await page.getByRole('menuitem', { name: 'Convidar de novo' }).count(), 0, 'a pending invitation offers no new invitation')
   })
 
   await t.test('a member sees Pessoas read only, with a way to leave', async () => {

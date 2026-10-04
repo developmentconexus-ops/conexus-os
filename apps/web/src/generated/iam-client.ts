@@ -1,16 +1,16 @@
 // GENERATED from contracts/api/product/openapi.yaml by scripts/generate-iam-contracts.mjs. Do not edit.
 export const IAM_PRODUCT_OAS_DIGEST = "ee4a506205e3cd08549d3cdbebf5a25c1162c8a5cf10cd76abb6d99d044aa1e4"
-export const IAM_ROUTE_PROJECTION_DIGEST = "514234bc2cad559510d788cd5427fa9560143abc9424efbc1e8eca435db37fc1"
+export const IAM_ROUTE_PROJECTION_DIGEST = "8f01e91fcf7730f1b8f56abc9a4d9274f87d74e5e8480a590ee35d90ad39c74d"
 export type AccountSummary = { "accountId": string; "displayName": string; "email"?: string }
 export type AccessContext = { "account": { "accountId": string; "displayName": string; "email"?: string }; "workspaces": { "workspaceId": string; "name": string }[]; "projects": { "projectId": string; "workspaceId": string; "name": string; "archived": boolean }[] }
 export type ProvisionAccountInput = { "displayName": string; "email"?: string }
-export type WorkspaceRoster = { "viewerRole": string; "entries": ({ "kind": "member"; "accountId": string; "displayName": string; "email"?: string; "role": string; "since": string } | { "kind": "invitation"; "invitationId": string; "email": string; "role": string; "invitedAt": string; "expiresAt": string })[] }
+export type WorkspaceRoster = { "viewerRole": string; "entries": ({ "kind": "member"; "accountId": string; "displayName": string; "email"?: string; "role": string; "since": string } | { "kind": "invitation"; "invitationId": string; "email": string; "role": string; "invitedAt": string; "expiresAt": string; "state": string })[] }
 export type InviteWorkspaceMemberInput = { "email": string; "role": string }
-export type WorkspaceInvitation = { "kind": "invitation"; "invitationId": string; "email": string; "role": string; "invitedAt": string; "expiresAt": string }
+export type WorkspaceInvitation = { "kind": "invitation"; "invitationId": string; "email": string; "role": string; "invitedAt": string; "expiresAt": string; "state": string }
 export type SetWorkspaceMemberRoleInput = { "role": string }
-export type ApplicationAccess = { "address"?: string; "entries": ({ "kind": "grant"; "grantId": string; "accountId": string; "displayName": string; "email"?: string; "grantedAt": string } | { "kind": "invitation"; "invitationId": string; "email": string; "invitedAt": string; "expiresAt": string })[] }
+export type ApplicationAccess = { "address"?: string; "entries": ({ "kind": "grant"; "grantId": string; "accountId": string; "displayName": string; "email"?: string; "grantedAt": string } | { "kind": "invitation"; "invitationId": string; "email": string; "invitedAt": string; "expiresAt": string; "state": string })[] }
 export type GrantApplicationAccessInput = { "email": string }
-export type GrantedApplicationAccess = { "kind": "grant"; "grantId": string; "accountId": string; "displayName": string; "email"?: string; "grantedAt": string } | { "kind": "invitation"; "invitationId": string; "email": string; "invitedAt": string; "expiresAt": string }
+export type GrantedApplicationAccess = { "kind": "grant"; "grantId": string; "accountId": string; "displayName": string; "email"?: string; "grantedAt": string } | { "kind": "invitation"; "invitationId": string; "email": string; "invitedAt": string; "expiresAt": string; "state": string }
 const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')
 const request = async (url: string, init: RequestInit = {}) => fetch(url, { ...init, credentials: 'same-origin', headers: { ...(init.headers ?? {}), ...(init.method && init.method !== 'GET' ? { 'x-conexus-csrf': decodeURIComponent(csrf() ?? '') } : {}) } })
 export const iamClient = Object.freeze({

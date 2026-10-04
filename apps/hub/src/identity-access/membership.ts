@@ -30,6 +30,7 @@ const memberParamsSchema = { type: 'object', additionalProperties: false, requir
 const rosterEntryParamsSchema = { type: 'object', additionalProperties: false, required: ['workspaceId', 'entryKind', 'entryId'], properties: { workspaceId: uuid, entryKind: { type: 'string' }, entryId: uuid } } as const
 
 type WorkspaceRole = 'owner' | 'member'
+type InvitationState = 'PENDING' | 'EXPIRED'
 
 const parseWorkspaceRole = (value: unknown): WorkspaceRole | null =>
   value === 'owner' || value === 'member' ? value : null
@@ -50,6 +51,7 @@ type InvitationEntry = Readonly<{
   role: WorkspaceRole
   invitedAt: string
   expiresAt: string
+  state: InvitationState
 }>
 
 type RosterEntry = MemberEntry | InvitationEntry
@@ -72,6 +74,7 @@ type RosterRow = QueryResultRow & {
   role: WorkspaceRole
   since: Date
   expires_at: Date | null
+  state: InvitationState | null
 }
 
 const memberEntry = (row: RosterRow): MemberEntry => ({
@@ -91,6 +94,7 @@ const invitationEntry = (row: RosterRow): InvitationEntry => ({
   role: row.role,
   invitedAt: row.since.toISOString(),
   expiresAt: (row.expires_at ?? row.since).toISOString(),
+  state: row.state ?? 'EXPIRED',
 })
 
 const rosterEntry = (row: RosterRow): RosterEntry => row.kind === 'member' ? memberEntry(row) : invitationEntry(row)
@@ -98,7 +102,7 @@ const rosterEntry = (row: RosterRow): RosterEntry => row.kind === 'member' ? mem
 export const createMembershipStore = ({ pool }: Readonly<{ pool: PostgresPool }>): MembershipStore => Object.freeze({
   async roster({ actor, workspaceId }) {
     const result = await pool.query<RosterRow>(
-      'SELECT kind, account_id, invitation_id, display_name, email, role, since, expires_at FROM iam.list_workspace_roster($1, $2)',
+      'SELECT kind, account_id, invitation_id, display_name, email, role, since, expires_at, state FROM iam.list_workspace_roster($1, $2)',
       [actor, workspaceId])
     // A Workspace always holds at least one owner, so no rows means this caller is not a
     // member of it. The route answers 404 rather than confirming that it exists.
@@ -114,7 +118,7 @@ export const createMembershipStore = ({ pool }: Readonly<{ pool: PostgresPool }>
       [actor, workspaceId, randomUUID(), email, role, expiresAt])
     const invitationId = settled.rows[0]?.invitation_id ?? ''
     const stored = await pool.query<RosterRow>(
-      'SELECT kind, account_id, invitation_id, display_name, email, role, since, expires_at FROM iam.list_workspace_roster($1, $2)',
+      'SELECT kind, account_id, invitation_id, display_name, email, role, since, expires_at, state FROM iam.list_workspace_roster($1, $2)',
       [actor, workspaceId])
     const row = stored.rows.find((candidate) => candidate.invitation_id === invitationId)
     if (!row) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'INVITATION_NOT_READABLE' } })

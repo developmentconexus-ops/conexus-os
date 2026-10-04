@@ -34,7 +34,7 @@ test('an Owner sees the application address, grants and invitations', async (t) 
       address: 'https://faturamento.apps.conexus.example',
       entries: [
         { kind: 'grant', grantId: 'g1', accountId: 'acc-1', displayName: 'Diego Fonseca', email: 'diego@example.com', grantedAt: '2026-09-01T00:00:00.000Z' },
-        { kind: 'invitation', invitationId: 'inv-1', email: 'convidada@example.com', invitedAt: '2026-09-10T00:00:00.000Z', expiresAt: '2026-10-10T00:00:00.000Z' },
+        { kind: 'invitation', invitationId: 'inv-1', email: 'convidada@example.com', invitedAt: '2026-09-10T00:00:00.000Z', expiresAt: '2026-10-10T00:00:00.000Z', state: 'PENDING' },
       ],
     }),
   }))
@@ -76,7 +76,7 @@ test('granting access shows the new invitation, and revoking a grant removes it'
   await page.route(`**/api/control/projects/${PROJECT_ID}/application-access`, async (route) => {
     if (route.request().method() === 'POST') {
       grantSubmitted = true
-      const invitation = { kind: 'invitation', invitationId: 'inv-2', email: route.request().postDataJSON().email, invitedAt: '2026-09-20T00:00:00.000Z', expiresAt: '2026-10-20T00:00:00.000Z' }
+      const invitation = { kind: 'invitation', invitationId: 'inv-2', email: route.request().postDataJSON().email, invitedAt: '2026-09-20T00:00:00.000Z', expiresAt: '2026-10-20T00:00:00.000Z', state: 'PENDING' }
       entries = [...entries, invitation]
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(invitation) })
     }
@@ -108,4 +108,43 @@ test('granting access shows the new invitation, and revoking a grant removes it'
   await page.getByRole('alertdialog').getByRole('button', { name: 'Remover' }).click()
   await page.getByRole('alertdialog').waitFor({ state: 'detached' })
   await page.getByText('Diego Fonseca').waitFor({ state: 'detached' })
+})
+
+test('an expired invitation shows Vencido, and Convidar de novo shows what the server answered: the renewed invitation, or the access the person already holds', async (t) => {
+  const { page, origin } = await withServer(t)
+  await routeAccessContext(page, { accountId: 'a4', displayName: 'Ana Beatriz Cardoso', email: 'ana@example.com' })
+  await routeProject(page)
+  const expired = (email, id) => ({ kind: 'invitation', invitationId: id, email, invitedAt: '2026-08-01T00:00:00.000Z', expiresAt: '2026-08-15T00:00:00.000Z', state: 'EXPIRED' })
+  let entries = [expired('antiga@example.com', 'inv-old'), expired('ja-tem@example.com', 'inv-covered')]
+  const posts = []
+  await page.route(`**/api/control/projects/${PROJECT_ID}/application-access`, (route) => {
+    if (route.request().method() === 'POST') {
+      const { email } = route.request().postDataJSON()
+      posts.push(email)
+      if (email === 'ja-tem@example.com') {
+        entries = [{ kind: 'grant', grantId: 'g9', accountId: 'acc-9', displayName: 'Joana Já Tem', email, grantedAt: '2026-09-01T00:00:00.000Z' }, ...entries.filter((entry) => entry.email !== email)]
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(entries[0]) })
+      }
+      const renewed = { kind: 'invitation', invitationId: 'inv-old', email, invitedAt: '2026-09-20T00:00:00.000Z', expiresAt: '2026-10-20T00:00:00.000Z', state: 'PENDING' }
+      entries = entries.map((entry) => (entry.email === email ? renewed : entry))
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(renewed) })
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ address: 'https://faturamento.apps.conexus.example', entries }) })
+  })
+
+  await page.goto(`${origin}/projects/${PROJECT_ID}/settings/access`)
+  await page.getByRole('heading', { name: 'Convites 2' }).waitFor()
+  const old = page.locator('.cx-person', { hasText: 'antiga@example.com' })
+  await old.getByText('Vencido', { exact: true }).waitFor()
+  assert.match(await old.locator('.cx-person-who span').innerText(), /^Venceu em /)
+
+  await old.getByRole('button', { name: 'Convidar de novo' }).click()
+  await old.getByText('Pendente', { exact: true }).waitFor()
+  await page.getByText('Convite criado para antiga@example.com.').waitFor()
+  assert.match(await old.locator('.cx-person-who span').innerText(), /^Vale até /)
+  assert.equal(await old.getByRole('button', { name: 'Convidar de novo' }).count(), 0)
+
+  await page.locator('.cx-person', { hasText: 'ja-tem@example.com' }).getByRole('button', { name: 'Convidar de novo' }).click()
+  await page.getByText('Joana Já Tem já tem acesso.').waitFor()
+  assert.deepEqual(posts, ['antiga@example.com', 'ja-tem@example.com'])
 })

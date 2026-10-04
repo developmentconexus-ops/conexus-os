@@ -15,7 +15,7 @@ const notAdmitted = () => Object.assign(new Error('NOT_ADMITTED'), { code: '4250
 const notFound = () => Object.assign(new Error('APPLICATION_NOT_FOUND'), { code: 'P0002' })
 
 const grantEntry = { kind: 'grant', grantId, accountId: '55555555-5555-4555-8555-555555555555', displayName: 'Funcionária', email: 'funcionaria@example.test', grantedAt: '2026-09-23T10:00:00.000Z' }
-const invitationEntry = { kind: 'invitation', invitationId, email: 'nova@example.test', invitedAt: '2026-09-23T11:00:00.000Z', expiresAt: '2026-10-07T11:00:00.000Z' }
+const invitationEntry = { kind: 'invitation', invitationId, email: 'nova@example.test', invitedAt: '2026-09-23T11:00:00.000Z', expiresAt: '2026-10-07T11:00:00.000Z', state: 'PENDING' }
 
 const makeStore = (overrides = {}) => {
   const calls = []

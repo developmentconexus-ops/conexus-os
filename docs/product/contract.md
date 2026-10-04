@@ -260,7 +260,7 @@ Where usage or cost is not reported it is shown as unavailable rather than as ze
 sign-in through Keycloak with a verified email address
 Account self-provisioning for the bootstrap identity, invitation for everyone else
 Workspaces with owner and member roles
-a Workspace roster of members and pending invitations
+a Workspace roster of members and invitations with their state
 Projects, created new or imported from an existing repository
 read-only inspection of Project source at an exact revision
 the Builder: conversation, run, compile and Preview
