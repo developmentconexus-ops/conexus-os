@@ -16,13 +16,16 @@
     // here would hide orphaned helpers (tests/repository/knip-config.test.mjs guards both lists).
     "tests/live/harness.mjs",
     "tests/live/hub-entry.mjs",
+    "tests/implementation/check-lock-child.mjs",
     "tests/implementation/builder-google-ai-pro-fake-cliproxy.mjs",
     "tests/implementation/sandbox-probe/network_egress.mjs",
     "tests/implementation/sandbox-probe/read_proc.mjs",
     "tests/implementation/sandbox-probe/read_secrets.mjs",
     "tests/implementation/sandbox-probe/walk_fs.mjs",
-    // Read as text by the check, which writes it into each Project as conexus/sankhya.gen.ts.
+    // Bundled as text into the check by scripts/build-app-check.mjs, which writes it into each Project as conexus/sankhya.gen.ts.
     "apps/hub/src/builder/handler-kit/sankhya.ts",
+    // The application check's bundle starts here; the Hub itself imports only its report module.
+    "apps/hub/src/builder/check/main.ts",
     "apps/hub/src/server.ts",
     "apps/hub/src/app-runner/main.ts",
     "apps/hub/src/telemetry/register.ts",

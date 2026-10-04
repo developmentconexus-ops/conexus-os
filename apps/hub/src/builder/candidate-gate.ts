@@ -35,7 +35,7 @@ const TOO_LARGE = 'O Conexus não aceita esta versão: os arquivos do projeto pa
 export const classifyCheck = (revision: string, run: ApplicationCheckRun): CandidateVerdict => {
   const refused = refusingStep(run.report)
   // A step the check stopped on its clock says nothing about the app's code.
-  if (refused?.problems.every((problem) => problem.code === 'STEP_TIMEOUT')) return { kind: 'RED_PLATFORM', error: new Failure('APPLICATION_CHECK_TIMEOUT') }
+  if (refused?.code === 'STEP_TIMEOUT') return { kind: 'RED_PLATFORM', error: new Failure('APPLICATION_CHECK_TIMEOUT') }
   if (refused) return { kind: 'RED_APP', revision, detail: failedStepEvidence(refused) }
   const unrendered = unrenderedBootStep(run.report)
   if (unrendered) return { kind: 'UNRENDERED', revision, detail: failedStepEvidence(unrendered) }

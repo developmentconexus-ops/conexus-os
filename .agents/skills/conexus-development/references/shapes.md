@@ -14,6 +14,7 @@ owner document decides, and the disagreement is a finding.
 | The agent's "done" is one checked verdict on the candidate; a red check goes back to the agent in the same run | [roadmap, phase 1 fixes](../../../../docs/roadmap.md#order-of-work-to-q5); built in `candidate-gate.ts` |
 | An external system is one integrator; a Project reads it through its own bindings and one executor, and every call is recorded | C-029, C-030 |
 | Generated apps use the app stack v2 | C-033 |
+| The application check is typed files bundled when the Hub is built and delivered to each VM by sha256 | [spec 0012](../../../../docs/tasks/specs/0012-app-check-typed-files/index.md) |
 | Conexus designs its screens; `@mastra/playground-ui` supplies parts | C-031 |
 | A failure is a row of `failures.json`; one `Failure` type; one exit logs it | [spec 0009](../../../../docs/tasks/specs/0009-one-failure-table/index.md) |
 | Every concept has one owner, Conexus or Factory | [single-owner map](../../../../docs/reference/single-owner-map.md) |

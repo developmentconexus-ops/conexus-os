@@ -152,7 +152,7 @@ const startKeycloak = async (state, realm) => {
   await waitFor('KEYCLOAK', async () => (await httpsGet(state, state.ports.keycloak, '/realms/conexus/.well-known/openid-configuration')).status === 200, 180_000)
 }
 
-const hubEnvironment = (state, secrets, fake) => {
+const hubEnvironment = (state, secrets, fake, e2b) => {
   const environment = {
     NODE_EXTRA_CA_CERTS: join(state.stateDir, 'tls/ca.pem'),
     CONEXUS_ORIGIN: state.origin,
@@ -164,8 +164,8 @@ const hubEnvironment = (state, secrets, fake) => {
     CONEXUS_DB_NAME: DATABASE,
     CONEXUS_DB_USER: 'hub_iam_runtime',
     CONEXUS_BUILDER_E2B_API_KEY_FILE: join(secrets, 'e2b-api-key'),
-    CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'verify-e2b-disabled', CONEXUS_BUILDER_QUESTION_WAIT_MS: String(5 * 60_000),
-    ...E2B_CLOSED,
+    CONEXUS_BUILDER_E2B_TEMPLATE_ID: e2b ? e2b.templateId : 'verify-e2b-disabled', CONEXUS_BUILDER_QUESTION_WAIT_MS: String(5 * 60_000),
+    ...(e2b ? {} : E2B_CLOSED),
     CONEXUS_FACTORY_SECRET_KEY_FILE: join(secrets, 'secret-key'),
     CONEXUS_OIDC_ISSUER: state.issuer,
     CONEXUS_OIDC_CLIENT_ID: 'conexus-hub',
@@ -202,7 +202,7 @@ const startHub = async (state, environment, scripted) => {
   const entry = scripted ? join(REPO, 'tests/live/hub-entry.mjs') : join(state.hubBuildDir, 'server.js')
   state.hubEntry = entry
   saveState(state)
-  const hub = spawn(process.execPath, hubNodeArguments({ buildRoot: state.hubBuildDir, diagnosticDir, entry, args: scripted ? [state.hubBuildDir, scripted.sandboxRoot] : [] }),
+  const hub = spawn(process.execPath, hubNodeArguments({ buildRoot: state.hubBuildDir, diagnosticDir, entry, args: scripted ? [state.hubBuildDir, scripted.sandboxRoot, ...(scripted.e2b ? ['e2b'] : [])] : [] }),
     { cwd: REPO, env: { ...baseEnvironment(), ...environment }, detached: true, stdio: ['ignore', out, out] })
   hub.unref()
   state.pids.hub = hub.pid
@@ -259,9 +259,10 @@ const writeScriptedProxy = (state, modelUrl) => {
 
 /**
  * Starts one run. With no `scripted`, the model proxy answers no model call and E2B is closed. With it,
- * the Hub's model calls go to `modelUrl` and its sandboxes are directories under `sandboxRoot`; E2B stays closed.
+ * the Hub's model calls go to `modelUrl` and its sandboxes are directories under `sandboxRoot`; E2B stays closed
+ * unless `e2b` (key file, template) is given: then the Hub opens real sandboxes, a paid manual proof.
  * `onState` receives the run as soon as it exists, so a caller can clean up a launch that fails midway.
- * @param {{ browser: boolean, scripted?: { modelUrl: string, sandboxRoot: string }, onState?: (state: object) => void }} options
+ * @param {{ browser: boolean, scripted?: { modelUrl: string, sandboxRoot: string, e2b?: { apiKeyFile: string, templateId: string } }, onState?: (state: object) => void }} options
  */
 export const launch = async ({ browser, scripted, onState }) => {
   const runId = `${new Date().toTimeString().slice(0, 8).replaceAll(':', '')}-${randomBytes(2).toString('hex')}`
@@ -276,7 +277,7 @@ export const launch = async ({ browser, scripted, onState }) => {
     gitDirty: run('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: REPO }) !== '',
     ports, origin: `https://${HUB_HOST}:${ports.hub}`, issuer: `https://127.0.0.1:${ports.keycloak}/realms/conexus`,
     containers: { postgres: `conexus-verify-pg-${runId}`, keycloak: `conexus-verify-kc-${runId}` },
-    person: { ...PERSON, subject: randomUUID() }, pids: {}, tlsFingerprint: null, cleanedAt: null,
+    person: { ...PERSON, subject: randomUUID() }, pids: {}, tlsFingerprint: null, cleanedAt: null, e2bOpen: Boolean(scripted?.e2b),
   }
   mkdirSync(state.evidenceDir, { recursive: true })
   saveState(state)
@@ -287,7 +288,7 @@ export const launch = async ({ browser, scripted, onState }) => {
   state.tlsFingerprint = makeTls(join(stateDir, 'tls'))
   writeSecret(join(secrets, 'oidc-client-secret'), randomBytes(24).toString('hex'))
   writeSecret(join(secrets, 'secret-key'), randomBytes(32).toString('hex'))
-  writeSecret(join(secrets, 'e2b-api-key'), 'e2b_verify_disabled')
+  writeSecret(join(secrets, 'e2b-api-key'), scripted?.e2b ? readFileSync(scripted.e2b.apiKeyFile, 'utf8').trim() : 'e2b_verify_disabled')
   writeSecret(join(secrets, 'person-password'), randomBytes(12).toString('hex'))
   for (const role of Object.values(ROLE_FILES)) writeSecret(join(secrets, `db-${role}`), randomBytes(18).toString('hex'))
   saveState(state)
@@ -295,7 +296,7 @@ export const launch = async ({ browser, scripted, onState }) => {
   step('postgres')
   await startPostgres(state, secrets)
   const proxy = scripted ? writeScriptedProxy(state, scripted.modelUrl) : join(SKILL_DIR, 'scripts/fake-cliproxy.mjs')
-  const environment = hubEnvironment(state, secrets, proxy)
+  const environment = hubEnvironment(state, secrets, proxy, scripted?.e2b)
   step('migrations and roles')
   state.database = await prepareDatabase(state, secrets, environment)
   saveState(state)
@@ -345,7 +346,7 @@ const doctor = async () => {
   })
   await check('E2B unreachable from the hub', () => {
     const environ = readFileSync(`/proc/${state.pids.hub}/environ`, 'utf8')
-    if (!environ.includes(`E2B_API_URL=${E2B_CLOSED.E2B_API_URL}`)) fail('hub environment does not close E2B')
+    if (!state.e2bOpen && !environ.includes(`E2B_API_URL=${E2B_CLOSED.E2B_API_URL}`)) fail('hub environment does not close E2B')
   })
   await check('keycloak issuer', async () => {
     const answer = await httpsGet(state, state.ports.keycloak, '/realms/conexus/.well-known/openid-configuration')

@@ -1,6 +1,8 @@
 import type { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput, Workspace } from '@mastra/core/workspace'
 import type { ApplicationCheckRun } from '../application-artifact-runtime.js'
+import type { CheckBundle } from '../check-delivery.js'
+import type { Caller } from '../check/command.js'
 import type { ConexusGit } from '../conexus-git.js'
 import type { CandidateOperationPorts } from '../run-operation.js'
 import type { EventLog } from '../../platform/logger.js'
@@ -17,9 +19,10 @@ export type RunSandbox = Readonly<{
   readAgentFile(path: string): Promise<Uint8Array>
   readAgentFileIfPresent(path: string): Promise<Uint8Array | null>
   readAgentFileStream(path: string): Promise<ReadableStream<Uint8Array>>
-  // Runs the Hub's check on the tree at `root` as root, its steps as the agent's user, writing the
-  // build to `out`; `collect` also reads the build back when the source passed.
-  runCheck(input: Readonly<{ root: string; out: string; collect: boolean; thumbnail?: string; user: 'root' | 'agent' }>): Promise<ApplicationCheckRun>
+  // Runs the Hub's check on the tree at `root`, writing the build to `out`; the gate runs as root and the
+  // agent's tool as the agent, and every step that runs application code runs as the agent. `collect`
+  // also reads the build back when the source passed.
+  runCheck(input: Readonly<{ caller: Caller; root: string; out: string; collect: boolean; thumbnail?: string }>): Promise<ApplicationCheckRun>
   /** Keeps the VM on while the run works; letting go starts the idle window. */
   holdOpen(onLapse: (error: unknown) => void): Promise<() => void>
   /** Leaves the VM the idle window from now, after which E2B pauses it; the next command resumes it. */
@@ -51,6 +54,8 @@ export type BuilderRunPorts = Readonly<{
    * checks that one model only: the account for each later call is looked up when the call is made.
    */
   checkModel(input: Readonly<{ builderRunId: string; accountId: string; projectId: string; conversationId: string }>): Promise<void>
+  /** The check this Hub sends to each VM, and the identity every report must carry. */
+  check: CheckBundle
   git: Pick<ConexusGit, 'startTurn' | 'seedBundle' | 'acceptSnapshot' | 'moveMirror' | 'fastForwardMain' | 'isStarter' | 'listFilesLong' | 'archive' | 'readBlob'>
   /** How long the conversation's mirror waits after the last edit before it snapshots the checkout. */
   mirrorDebounceMs?: number

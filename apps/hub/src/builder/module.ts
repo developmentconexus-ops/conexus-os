@@ -21,6 +21,7 @@ import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig, InstallationSecret
 import { assertBuilderSkillsAvailable } from './skills-guard.js'
 import type { BuilderRunPorts } from './run/ports.js'
 import { createControllerRunSessions } from './run/turn.js'
+import { loadCheckBundle } from './check-delivery.js'
 import { e2bConversationSandboxes } from './conversation-sandboxes.js'
 import type { ConversationSandboxes } from './conversation-sandboxes.js'
 import { listPausedConversationMachines } from './sandbox.js'
@@ -106,6 +107,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   conversationSandboxes?: ConversationSandboxes
 }>) => {
   assertBuilderSkillsAvailable()
+  const check = loadCheckBundle()
   const log = logLine
   const executorPool = createPostgresPool({ ...database, user: 'hub_builder_executor', password: readSecretFile(builder.executorPasswordFile) })
   const store = createBuilderStore({
@@ -184,7 +186,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   // own sandboxes have no E2B machines, so no key is read and nothing is swept.
   const e2bSandboxes = () => {
     const e2bApiKey = readSecretFile(builder.e2bApiKeyFile)
-    const sandboxes = e2bConversationSandboxes({ apiKey: e2bApiKey, templateId: builder.e2bTemplateId, idleMs: builder.sandboxIdleMs })
+    const sandboxes = e2bConversationSandboxes({ apiKey: e2bApiKey, templateId: builder.e2bTemplateId, idleMs: builder.sandboxIdleMs, check })
     const idleMachineSweep = scheduleIdleMachineSweep({
       listPaused: () => listPausedConversationMachines(e2bApiKey),
       openRunConversations: store.readOpenRunConversations,
@@ -222,6 +224,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       return openSession(input)
     },
     checkModel: modelRouting.check,
+    check,
     readProjectName,
     git,
     ...(connectors ? { openConnectorRun: connectors.openRun } : {}),

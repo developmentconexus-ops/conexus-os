@@ -23,6 +23,7 @@ const built = hubModuleUrl
 const { createBuilderService } = await import(built('builder/service.js'))
 export const { scheduleIdleMachineSweep } = await import(built('builder/idle-machine-sweep.js'))
 const { createConexusGit } = await import(built('builder/conexus-git.js'))
+const { loadCheckBundle } = await import(built('builder/check-delivery.js'))
 const { createProjectSourceReads } = await import(built('builder/source.js'))
 export const { conexusInstructions } = await import(built('builder/harness/prompt.js'))
 export const { RequestContext } = await import('@mastra/core/request-context')
@@ -47,20 +48,26 @@ export const completed = (summary = 'Pronto.') => ({ reason: 'complete', userMes
 export const listFiles = (root) => readdirSync(root, { recursive: true, withFileTypes: true })
   .filter((entry) => entry.isFile()).map((entry) => relative(root, join(entry.parentPath, entry.name))).sort()
 
+export const CHECK_BUNDLE = loadCheckBundle()
+const STEP_ORDER = ['generate', 'typecheck', 'build', 'server', 'boot']
+const REPORT_ARTIFACT = { templateRef: 'template:pin', files: [{ path: 'index.html', bytes: 8, sha256: 'f'.repeat(64) }] }
 export const PASSING_REPORT = {
   ok: true,
-  steps: ['generate', 'typecheck', 'build', 'server', 'boot'].map((step) => ({ step, status: 'passed', durationMs: 1 })),
-  facts: { operations: 0, migrations: 0, jsGzipBytes: 1 },
+  checkSha256: CHECK_BUNDLE.sha256,
+  steps: STEP_ORDER.map((step) => ({ step, status: 'passed', durationMs: 1 })),
+  artifact: REPORT_ARTIFACT,
 }
+const FAILURE_CODES = { generate: 'MANIFEST_REFUSED', typecheck: 'TYPECHECK_ERRORS', build: 'BUILD_FAILED', server: 'SERVER_BUNDLE_REFUSED' }
 export const failedReport = (step, problems) => {
-  const order = ['generate', 'typecheck', 'build', 'server', 'boot']
-  const failedAt = order.indexOf(step)
+  const failedAt = STEP_ORDER.indexOf(step)
+  const ok = step === 'boot'
   return {
-    ok: step === 'boot',
-    steps: order.map((id, index) => index < failedAt ? { step: id, status: 'passed', durationMs: 1 }
-      : index === failedAt ? { step: id, status: 'failed', durationMs: 1, problems }
-        : { step: id, status: 'skipped', reason: `after failed ${step}` }),
-    facts: { operations: 0, migrations: 0, jsGzipBytes: 0 },
+    ok,
+    checkSha256: CHECK_BUNDLE.sha256,
+    steps: STEP_ORDER.map((id, index) => index < failedAt ? { step: id, status: 'passed', durationMs: 1 }
+      : index === failedAt ? { step: id, status: 'failed', code: FAILURE_CODES[id] ?? problems[0].code, durationMs: 1, problems }
+        : { step: id, status: 'skipped', code: 'AFTER_BLOCKING_FAILURE', reason: `after failed ${step}` }),
+    artifact: ok ? REPORT_ARTIFACT : null,
   }
 }
 
@@ -187,8 +194,8 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
       if (line.startsWith('sh -c kill -KILL -1')) return { exitCode: 0, success: true, stdout: '', stderr: '' }
       return shell(command, args.map(local), local(options.cwd ?? '/workspace'))
     },
-    runCheck: async ({ root, out, collect, user }) => {
-      if (user === 'agent') {
+    runCheck: async ({ root, out, collect, caller }) => {
+      if (caller === 'tool') {
         agentChecks.push({ root, out, collect })
         return { report: PASSING_REPORT, files: null }
       }
@@ -208,6 +215,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
   }
   const ports = {
     openSandbox: async (ref) => { events.push(['sandbox', ref.conversationId]); sandboxRefs.push(ref); return openSandbox ? openSandbox(ref) : sandbox },
+    check: CHECK_BUNDLE,
     checkModel: async ({ builderRunId, accountId: payer }) => {
       events.push(['model-check', builderRunId, payer])
       if (!modelAccount) throw new Failure('BUILDER_MODEL_NOT_SELECTED')

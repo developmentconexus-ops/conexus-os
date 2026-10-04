@@ -175,8 +175,11 @@ and the sandbox tools, and widened S1; the operator approved that order.
    session ended (a Hub restart, a long idle) ends with it, and the person's next message carries
    the answer, as in Claude Code. The run file is split by subject first, and an idle session
    retires, so memory does not grow with every conversation.
-5. **Sandbox tools as files.** The check, the server build and the egress recorder become real
-   files, typed and tested, shipped in the template image, instead of programs inside strings.
+5. **The check as typed files** (spec 0012). The application check and the server build become one
+   typed program, compiled and tested with the Hub, bundled into one file when the Hub is built and
+   delivered to each VM by its hash, instead of two programs inside strings. The template image does
+   not change. The egress recorder is not part of this: scope item 26, phase 2, replaces it with E2B's
+   native egress control.
 6. **S4.** One runner for every periodic job, and one reaper for everything that expires, on the
    lifetimes S2 sets.
 7. **S3.** One owner for each security and policy rule: the Origin, CSRF and session checks, and

@@ -20,7 +20,7 @@ const repositoryRoot = resolve(import.meta.dirname, '../..')
 const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
 const streamOf = (parts) => new ReadableStream({ start(controller) { for (const part of parts) controller.enqueue(part); controller.close() } })
 
-const PASSING = { ok: true, steps: ['generate', 'typecheck', 'build', 'server', 'boot'].map((step) => ({ step, status: 'passed', durationMs: 1 })), facts: { operations: 0, migrations: 0, jsGzipBytes: 1 } }
+const PASSING = { ok: true, steps: ['generate', 'typecheck', 'build', 'server', 'boot'].map((step) => ({ step, status: 'passed', durationMs: 1 })) }
 
 const PLACEHOLDERS = ['{project name}', '{date}', '{cutoff}', '`{name}`: {integrator}', '{AGENTS.md content}', '{index}']
 

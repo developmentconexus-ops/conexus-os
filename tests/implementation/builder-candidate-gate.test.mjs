@@ -8,25 +8,24 @@ const { classifyCheck, createCandidateGate, GATE_RED_BUDGET } = await import(hub
 
 const REVISION = 'a'.repeat(40)
 const OTHER = 'b'.repeat(40)
-const facts = { operations: 0, migrations: 0, jsGzipBytes: 0 }
 const passed = (step) => ({ step, status: 'passed', durationMs: 1 })
-const failed = (step, problems) => ({ step, status: 'failed', durationMs: 1, problems })
+const failed = (step, code, problems) => ({ step, status: 'failed', code, durationMs: 1, problems })
 const files = [{ path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes: new Uint8Array([60]), sha256: 'c'.repeat(64) }]
-const report = (steps) => ({ ok: steps.every((step) => step.status === 'passed'), steps, facts })
+const report = (steps) => ({ ok: steps.every((step) => step.status === 'passed'), steps })
 const green = report(['generate', 'typecheck', 'build', 'server', 'boot'].map(passed))
-const typeError = report([passed('generate'), failed('typecheck', [{ file: 'app/src/total.ts', line: 1, code: 'TS2322', message: 'Type string is not number' }])])
+const typeError = report([passed('generate'), failed('typecheck', 'TYPECHECK_ERRORS', [{ file: 'app/src/total.ts', line: 1, code: 'TS2322', message: 'Type string is not number' }])])
 
 test('a check is labelled where it fails: the app, a page that did not render, Conexus, or green', () => {
   assert.deepEqual(classifyCheck(REVISION, { report: typeError, files: null }), {
     kind: 'RED_APP', revision: REVISION, detail: 'typecheck failed:\napp/src/total.ts:1: TS2322 Type string is not number',
   })
-  const unrendered = report([...['generate', 'typecheck', 'build', 'server'].map(passed), failed('boot', [{ code: 'BOOT_NO_ROOT_CHILD', message: 'nothing drawn' }])])
+  const unrendered = report([...['generate', 'typecheck', 'build', 'server'].map(passed), failed('boot', 'BOOT_NO_ROOT_CHILD', [{ code: 'BOOT_NO_ROOT_CHILD', message: 'nothing drawn' }])])
   assert.equal(classifyCheck(REVISION, { report: unrendered, files }).kind, 'UNRENDERED')
   const unreadable = classifyCheck(REVISION, { report: green, files: null })
   assert.deepEqual([unreadable.kind, unreadable.error.message], ['RED_PLATFORM', 'APPLICATION_CHECK_UNREADABLE'])
-  const slow = classifyCheck(REVISION, { report: report([passed('generate'), failed('typecheck', [{ code: 'STEP_TIMEOUT', message: 'typecheck exceeded 60 s and was stopped' }])]), files: null })
+  const slow = classifyCheck(REVISION, { report: report([passed('generate'), failed('typecheck', 'STEP_TIMEOUT', [{ code: 'STEP_TIMEOUT', message: 'typecheck exceeded 60 s and was stopped' }])]), files: null })
   assert.deepEqual([slow.kind, slow.error.message], ['RED_PLATFORM', 'APPLICATION_CHECK_TIMEOUT'], 'a blocking step stopped on its clock is not charged to the app')
-  const consoleError = report([...['generate', 'typecheck', 'build', 'server'].map(passed), failed('boot', [{ code: 'BOOT_CONSOLE_ERROR', message: 'oops' }])])
+  const consoleError = report([...['generate', 'typecheck', 'build', 'server'].map(passed), failed('boot', 'BOOT_CONSOLE_ERROR', [{ code: 'BOOT_CONSOLE_ERROR', message: 'oops' }])])
   const built = classifyCheck(REVISION, { report: consoleError, files, thumbnail: { mediaType: 'image/png', bytes: new Uint8Array([1]) } })
   assert.equal(built.kind, 'GREEN')
   assert.equal(built.build.files, files)

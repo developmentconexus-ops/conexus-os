@@ -1,5 +1,6 @@
 import { APPLICATION_CHECK_EXCLUDED } from '../application-starter.js'
 import type { ApplicationServerPort, BuilderApplicationArtifacts } from '../application-build.js'
+import { agentReportOf } from '../check/report.js'
 import { SANDBOX_CHECKOUT } from '../sandbox.js'
 import { CONVERSATION_ID_KEY, RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } from '../model-routing.js'
 import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_PROJECT_NEW_KEY, CONEXUS_TURN_CONFLICTS_KEY, CONEXUS_TURN_DATE_KEY, type RunTools } from '../harness/index.js'
@@ -213,7 +214,7 @@ const prepare = async (run: Run): Promise<Prepared> => {
     log: ports.log, cancelled: () => cancelled(run), gatePhase: gatePhases.enter, vm, sandbox,
   })
   const tools: RunTools = {
-    check: async () => (await sandbox.runCheck({ root: SANDBOX_CHECKOUT, out: AGENT_CHECK_OUT, collect: false, user: 'agent' })).report,
+    check: async () => agentReportOf((await sandbox.runCheck({ caller: 'tool', root: SANDBOX_CHECKOUT, out: AGENT_CHECK_OUT, collect: false })).report),
     ...(runOperation ? { runOperation } : {}),
     gate,
   }

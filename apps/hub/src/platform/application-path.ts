@@ -38,19 +38,3 @@ export const classifyAppPath = (method: string, pathname: string, isDeclared: (p
   if (SERVABLE_PATH.test(path) && isDeclared(path)) return { kind: 'file', path }
   return segments[segments.length - 1]?.includes('.') ? NOT_FOUND : APP_SHELL
 }
-
-/**
- * The classifier as source text for the check script, which runs in the sandbox and cannot import
- * from the Hub. It carries the same constants and helpers by name, so the boot server answers what
- * the Prévia and the app host answer.
- */
-export const appPathClassifierSource = [
-  `const SERVER_ROOT = ${JSON.stringify(SERVER_ROOT)}`,
-  `const PLATFORM_ROOT = ${JSON.stringify(PLATFORM_ROOT)}`,
-  `const ENTRY_PATH = ${JSON.stringify(ENTRY_PATH)}`,
-  `const SERVABLE_PATH = ${SERVABLE_PATH.toString()}`,
-  `const NOT_FOUND = ${JSON.stringify(NOT_FOUND)}`,
-  `const APP_SHELL = ${JSON.stringify(APP_SHELL)}`,
-  `const decodedSegments = ${decodedSegments.toString()}`,
-  `const classifyAppPath = ${classifyAppPath.toString()}`,
-].join('\n')

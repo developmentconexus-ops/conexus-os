@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import type { CommandResult, SandboxFileInput } from '@mastra/core/workspace'
-import { redactEvidence } from './application-check.js'
+import { redactEvidence } from './check/problems.js'
 import { Failure } from '../platform/failure.js'
 
 export type FixedApplicationStarterResult = 'MATERIALIZED' | 'PRESERVED'

@@ -36,10 +36,10 @@ const valid = {
   'conexus/migrations/002_created_at.sql': 'ALTER TABLE follow_up_note ADD COLUMN created_at timestamptz NOT NULL DEFAULT now()',
 }
 
-test('the server build bundles the declared handlers and inlines the migrations in name order', async (t) => {
+test('the server command bundles the declared handlers and inlines the migrations in name order', async (t) => {
   const built = project(t, valid)
   assert.equal(built.status, 0, built.stderr)
-  assert.equal(built.stdout, 'conexus server check: 1 operations, 2 migrations')
+  assert.equal(built.stdout, '')
   const manifest = JSON.parse(readFileSync(join(built.out, 'conexus-server/manifest.json'), 'utf8'))
   const { handler, ...declared } = MANIFEST.operations.createNote
   assert.equal(handler, 'handlers/notes.ts')
@@ -58,7 +58,7 @@ test('a Project without a server manifest has no server half', (t) => {
   assert.deepEqual([built.status, built.stdout, existsSync(join(built.out, 'conexus-server'))], [0, '', false])
 })
 
-test('the check names what is wrong with the server source, in words the Builder can act on', (t) => {
+test('the server command names what is wrong with the server source, in words the Builder can act on', (t) => {
   const refused = (files, message) => {
     const built = project(t, files)
     assert.equal(built.status, 1, built.stdout)

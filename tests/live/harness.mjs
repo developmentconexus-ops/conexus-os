@@ -131,7 +131,7 @@ export const globalSetup = async () => {
   try {
     const model = await startScriptedModel()
     suite = { model, sandboxRoot: mkdtempSync(join(tmpdir(), 'conexus-live-sandboxes-')) }
-    state = await launch({ browser: false, scripted: { modelUrl: model.url, sandboxRoot: suite.sandboxRoot }, onState: (run) => { suite.state = run } })
+    state = await launch({ browser: false, scripted: { modelUrl: model.url, sandboxRoot: suite.sandboxRoot, ...(process.env.CONEXUS_LIVE_E2B_TEMPLATE_ID ? { e2b: { templateId: process.env.CONEXUS_LIVE_E2B_TEMPLATE_ID, apiKeyFile: process.env.CONEXUS_LIVE_E2B_API_KEY_FILE ?? '' } } : {}) }, onState: (run) => { suite.state = run } })
     suite.state = state
     timing.launch = Date.now() - started
     const setupStarted = Date.now()

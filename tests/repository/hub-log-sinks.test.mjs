@@ -12,8 +12,10 @@ const walk = (directory) => readdirSync(directory, { withFileTypes: true }).flat
   return entry.name.endsWith('.ts') ? [path] : []
 })
 
-// The two check scripts run as child processes whose stdout is their contract.
-const CHILD_PROCESS_SCRIPTS = new Set(['builder/application-check.ts', 'builder/application-server-build.ts'])
+// The check runs as a child process whose stdout is its contract. The bundled check is the whole of
+// builder/check/, and the Hub's side of reading it is application-check.ts.
+const CHILD_PROCESS_SCRIPTS = new Set(['builder/application-check.ts'])
+const isCheckBundleSource = (name) => name.startsWith('builder/check/')
 const SINK = /process\.(stderr|stdout)\b|\bconsole\./
 const READY_LINE = "process.stderr.write(`${JSON.stringify({ event: 'ready', socketPath,"
 
@@ -21,7 +23,7 @@ test('runtime code under apps/hub/src writes through the shared logger, not to p
   const offenders = []
   for (const file of walk(source)) {
     const name = relative(source, file)
-    if (CHILD_PROCESS_SCRIPTS.has(name)) continue
+    if (CHILD_PROCESS_SCRIPTS.has(name) || isCheckBundleSource(name)) continue
     readFileSync(file, 'utf8').split('\n').forEach((line, index) => {
       if (!SINK.test(line)) return
       if (name === 'app-runner/main.ts' && line.includes(READY_LINE)) return

@@ -3,7 +3,7 @@ import { createTool, formatQuestionAnswer } from '@mastra/core/tools'
 import { z } from 'zod'
 import { logFailure, toFailure } from '../../platform/failure.js'
 import { logger } from '../../platform/logger.js'
-import { checkReportSchema, type CheckReport } from '../application-check.js'
+import { type AgentReport, agentReportSchema } from '../check/report.js'
 import { operationRunReportSchema, type RunOperation } from '../run-operation.js'
 import { isPlanPath, PLAN_PATH, splitPlanFile } from './plan-file.js'
 
@@ -27,16 +27,16 @@ export const CHECK_TOOL = 'conexus_check'
 
 const CHECK_DESCRIPTION = [
   "Runs Conexus's own check on the app in the checkout: it generates the client from the manifest, type checks `app/` and `conexus/`, builds the app, builds the server half and opens the app in a browser.",
-  'Takes no input and returns one report: `ok`, each step as passed, failed (with its problems: file, line, message) or skipped, and counts.',
+  'Takes no input and returns one report: `ok` and each step as passed, failed (with its problems: file, line, message) or skipped.',
   'Run it at the end of each step of the work, and fix what a failed step lists before the next one.',
   'A passing report proves the app type checks, builds and opens. It does not prove that an operation returns the right data, that a screen shows the right values or that anything saves: prove those another way.',
 ].join(' ')
 
 /** `conexus_check`: the run's check, run as the agent's user through the run's sandbox. */
-export const createCheckTool = (runCheck: () => Promise<CheckReport>) => createTool({
+export const createCheckTool = (runCheck: () => Promise<AgentReport>) => createTool({
   id: CHECK_TOOL,
   description: CHECK_DESCRIPTION,
-  outputSchema: checkReportSchema,
+  outputSchema: agentReportSchema,
   execute: failing(CHECK_TOOL, async () => runCheck()),
 })
 

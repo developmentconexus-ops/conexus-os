@@ -11,8 +11,11 @@ import { SEED_ROOT } from './checkout.js'
 import type { RunVm } from './checkout.js'
 import type { RunSandbox } from './ports.js'
 
-// Root-only folder: the tree the build compiles.
+// Root-only folder: the tree the build compiles. The candidate always sits at the same path, emptied
+// and refilled for each check, because the typecheck's build info records paths: a path that carried
+// the run id would make every cached entry a miss.
 const BUILD_ROOT = '/var/lib/conexus-build'
+const CANDIDATE_ROOT = `${BUILD_ROOT}/candidate`
 
 const APPLICATION_TREE_LIMITS = 'tree failed:\napp/ precisa de app/index.html; app/ e conexus/ aceitam só arquivos comuns (sem links), até 256 arquivos, cada um até 1 MiB e 12 MiB no total.'
 
@@ -45,7 +48,7 @@ const createJudge = ({ git, projectId, executionId, log, cancelled, gatePhase, v
   const roots = APPLICATION_TREE_ROOTS.filter((root) => admitted.some((path) => path.startsWith(`${root}/`)))
   const candidateTar = `${SEED_ROOT}/${executionId}.candidate.tar`
   await vm.writeRootFile(candidateTar, await git.archive(projectId, revision, roots))
-  const checkRoot = `${BUILD_ROOT}/${executionId}`
+  const checkRoot = CANDIDATE_ROOT
   const unpacked = await vm.asRoot([
     `rm -rf ${quoted(BUILD_ROOT)}`,
     `mkdir -p -m 711 ${quoted(BUILD_ROOT)}`,
@@ -54,7 +57,7 @@ const createJudge = ({ git, projectId, executionId, log, cancelled, gatePhase, v
     `rm -f ${quoted(candidateTar)}`,
   ].join(' && '))
   if (unpacked.exitCode !== 0) throw new Failure('BUILDER_CANDIDATE_UNPACK_FAILED')
-  const checked = await sandbox.runCheck({ root: checkRoot, out: `${checkRoot}.dist`, collect: true, thumbnail: `${BUILD_ROOT}/${executionId}.png`, user: 'root' })
+  const checked = await sandbox.runCheck({ root: checkRoot, out: `${checkRoot}.dist`, collect: true, thumbnail: `${BUILD_ROOT}/candidate.png`, caller: 'gate' })
   log('BUILDER_CHECK', { run: executionId, revision: revision.slice(0, 12), summary: checkSummary(checked.report) })
   const verdict = classifyCheck(revision, checked)
   const boot = verdict.kind === 'GREEN' ? failedBootStep(checked.report) : null

@@ -141,6 +141,7 @@ export const FAILURES = {
   'BUILDER_APP_NOT_FIXED': { message: 'O agente tentou corrigir o app e a verificação do Conexus ainda falha. O que quebrou está na conversa, acima. A versão em uso não mudou, e os arquivos ficaram nesta conversa para o próximo pedido.', action: 'NONE' },
   'BUILDER_CANDIDATE_UNPACK_FAILED': { message: 'O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.', action: 'NONE' },
   'BUILDER_CHECK_FAILED': { message: 'O código novo quebrou as regras do próprio Projeto, então foi recusado. O Projeto continua no código anterior.', action: 'NONE' },
+  'BUILDER_CHECK_IDENTITY_MISMATCH': { message: 'O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.', action: 'NONE' },
   'BUILDER_CHECK_INSTALL_REFUSED': { message: 'O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.', action: 'NONE' },
   'BUILDER_CONVERSATIONS_UNAVAILABLE': { message: 'O Conexus falhou ao executar o Builder. A falha foi registrada.', action: 'NONE' },
   'BUILDER_GATEWAY_MODEL_REFUSED': { message: 'O provedor não aceita esse modelo.', action: 'CHOOSE_OTHER_MODEL' },

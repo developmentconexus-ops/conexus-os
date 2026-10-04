@@ -26,9 +26,11 @@ export type ServerManifest = Readonly<{
  * Admits a manifest or refuses it with the first violation, as `MANIFEST_REFUSED: <where>: <why>`.
  * `source` is the Builder's `conexus/manifest.json`; `server` is the build's normalized one.
  *
- * It references nothing outside its own body: the Conexus build and the Project check run it inside
- * the build sandbox from `Function.prototype.toString`, so both refuse exactly what the runner refuses.
+ * The Hub's check bundle imports this same function, so the Project check, the Conexus build and
+ * the runner refuse exactly the same manifests.
  */
+export function admitManifest(value: unknown, stage: 'source'): SourceManifest
+export function admitManifest(value: unknown, stage: 'server'): ServerManifest
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export function admitManifest(value: unknown, stage: 'source' | 'server'): SourceManifest | ServerManifest {
   const refuse = (where: string, why: string): never => { throw new Error(`MANIFEST_REFUSED: ${where}: ${why}`) }
@@ -184,9 +186,8 @@ export type ServerTree = Readonly<{ manifest: ServerManifest; modules: ReadonlyM
  * Admits a `conexus-server/` tree or refuses it with the first violation, as
  * `SERVER_TREE_REFUSED: <where>: <why>`. `sha256` hashes bytes to a hex digest.
  *
- * Like `admitManifest`, it references nothing outside its own body but `admitManifest` and `Buffer`:
- * the build script embeds it from `Function.prototype.toString`, so the Project check refuses exactly
- * the tree the runner would refuse.
+ * The Hub's check bundle imports this same function, so the Project check refuses exactly the tree
+ * the runner would refuse.
  */
 export function admitServerTree(files: readonly ServerFile[], sha256: (bytes: Buffer) => string): ServerTree {
   const refuse = (where: string, why: string): never => { throw new Error(`SERVER_TREE_REFUSED: ${where}: ${why}`) }

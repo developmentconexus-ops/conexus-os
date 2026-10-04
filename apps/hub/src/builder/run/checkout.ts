@@ -1,7 +1,8 @@
 import type { CommandResult, ExecuteCommandOptions } from '@mastra/core/workspace'
-import { CHECK_NODE_PATH, CHECK_SCRIPT_PATH, checkScriptSource } from '../application-check.js'
-import { commandEvidence, materializeApplicationShape, materializeFixedApplicationStarter } from '../application-starter.js'
-import { SERVER_BUILD_SCRIPT_PATH, serverBuildScriptSource } from '../application-server-build.js'
+import { CHECK_NODE_PATH } from '../application-check.js'
+import { checkEntryPath, installCheck } from '../check-delivery.js'
+import { AGENT_HOME } from '../check/agent.js'
+import { materializeApplicationShape, materializeFixedApplicationStarter } from '../application-starter.js'
 import { startCheckout } from '../conexus-git.js'
 import type { RunSourceSandbox } from '../conexus-git.js'
 import { collectEgress, ensureEgressLog } from '../egress-log.js'
@@ -122,8 +123,9 @@ const startCheckoutTurn = async ({ ports, projectId, conversationId, executionId
 }
 
 /**
- * The Hub's check and its server build run from paths only root can write, so the agent and the
- * admission see exactly the refusal the Conexus build would give, and neither can change the gate.
+ * The Hub's check bundle, which also builds the server half, runs from a path only root can write,
+ * so the agent and the admission see exactly the refusal the Conexus build would give, and neither
+ * can change the gate.
  * Answers the operation run `conexus_run_operation` does, when the Hub has a Prévia runner.
  */
 export const installRunTools = async ({ ports, projectId, accountId, vm, sandbox, connectorRun, timing }: Readonly<{
@@ -135,17 +137,7 @@ export const installRunTools = async ({ ports, projectId, accountId, vm, sandbox
   connectorRun: ConnectorRun | null
   timing: RunTiming
 }>): Promise<RunOperation | undefined> => {
-  const installed = await vm.asRoot([
-    `cat > '${SERVER_BUILD_SCRIPT_PATH}.next' <<'CONEXUS_SERVER_BUILD_EOF'`,
-    serverBuildScriptSource(),
-    'CONEXUS_SERVER_BUILD_EOF',
-    `cat > '${CHECK_SCRIPT_PATH}.next' <<'CONEXUS_CHECK_EOF'`,
-    checkScriptSource(),
-    'CONEXUS_CHECK_EOF',
-    `chmod 555 '${SERVER_BUILD_SCRIPT_PATH}.next' '${CHECK_SCRIPT_PATH}.next'`,
-    `mv '${SERVER_BUILD_SCRIPT_PATH}.next' '${SERVER_BUILD_SCRIPT_PATH}' && mv '${CHECK_SCRIPT_PATH}.next' '${CHECK_SCRIPT_PATH}'`,
-  ].join('\n'))
-  if (installed.exitCode !== 0) throw new Failure('BUILDER_CHECK_INSTALL_REFUSED', { cause: { stderr: commandEvidence(installed.stderr) } })
+  await installCheck(vm, ports.check)
   await (ports.materializeStarter ?? materializeRunStarter)({
     repositoryRoot: SANDBOX_CHECKOUT,
     directCommand: (command, args) => vm.direct(command, [...args]),
@@ -159,9 +151,9 @@ export const installRunTools = async ({ ports, projectId, accountId, vm, sandbox
     projectId,
     caller: { accountId, email: null, displayName: 'Builder' },
     buildServer: () => buildCandidateServer(
-      { node: CHECK_NODE_PATH, script: SERVER_BUILD_SCRIPT_PATH, checkout: SANDBOX_CHECKOUT, out: RUN_OPERATION_OUT },
+      { node: CHECK_NODE_PATH, entry: checkEntryPath(ports.check.sha256), checkout: SANDBOX_CHECKOUT, out: RUN_OPERATION_OUT },
       (script, args) => vm.onIncarnation(() => sandbox.executeCommand('sh', ['-c', script, 'conexus-run-operation', ...args], {
-        timeout: 120_000, cwd: '/', env: { PATH: '/usr/local/bin:/usr/bin:/bin', HOME: `/home/${SANDBOX_AGENT_USER}`, LANG: 'C.UTF-8' },
+        timeout: 120_000, cwd: '/', env: { PATH: '/usr/local/bin:/usr/bin:/bin', HOME: AGENT_HOME, LANG: 'C.UTF-8' },
       })),
       (path) => sandbox.readAgentFile(path),
     ),
