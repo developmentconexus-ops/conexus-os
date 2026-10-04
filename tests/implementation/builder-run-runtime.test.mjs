@@ -1408,6 +1408,22 @@ test('a message while the question waits ends the question and goes on as a plai
   assert.deepEqual(run.calls.at(-1), ['settle', 'RESPONSE_ONLY'])
 })
 
+test('a reply sent before the row says WAITING is refused, so a WAITING write that fails loses no message', async (t) => {
+  const offered = []
+  const run = await harness(t, {
+    onWaitingWrite: async (service) => {
+      offered.push(await service.sendBuilderMessage({ accountId, projectId, conversationId, idempotencyKey: 'early', content: 'Use verde' }).then(() => 'ACCEPTED', (error) => error.id))
+      offered.push(service.answerQuestion({ projectId, conversationId, toolCallId: 'c1', resumeData: ['Azul'] }))
+      return 'REFUSE'
+    },
+    turn: async () => SUSPENDED,
+  })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(offered, ['BUILDER_BUSY', 'ENDED'])
+  assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'], 'a refused phase write is a stop that won')
+})
+
 test('a question nobody answers ends the run INTERRUPTED with BUILDER_QUESTION_EXPIRED, after the question ends', async (t) => {
   const run = await harness(t, { questionWaitMs: 20, turn: async () => SUSPENDED })
   await run.start()

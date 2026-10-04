@@ -65,7 +65,7 @@ const builderOn = async (t, storage, model, options = {}) => {
   t.after(() => controller.destroy?.())
   conversations = testConversations(controller, () => workspace, options.sweep ?? {})
   t.after(() => conversations.close())
-  const openSession = createControllerRunSessions({ controller, conversations, readDefaultModel: async () => 'anthropic/default-model' })
+  const openSession = createControllerRunSessions({ controller, conversations, readDefaultModel: async () => 'anthropic/default-model', ...(options.questionReleaseMs ? { questionReleaseMs: options.questionReleaseMs } : {}) })
   return { controller, mastra, openSession, conversations }
 }
 
@@ -264,6 +264,36 @@ test('the idle sweep keeps a conversation whose question waits, and lets it go o
   await session.endQuestions()
   await builder.conversations.sweep()
   assert.equal(await liveSession(builder.controller), undefined)
+})
+
+test('a cleanup past its bound releases nothing, so a question asked after it keeps its registration and rows', async (t) => {
+  const storage = new InMemoryStore()
+  await storage.init()
+  const builder = await builderOn(t, storage, scriptedModel().model, { questionReleaseMs: 300 })
+  const builderRunId = '11111111-1111-4111-8111-111111111105'
+  const signal = new AbortController().signal
+  const session = await builder.openSession({ projectId, conversationId, builderRunId, bindContext: bindRun(builderRunId) })
+  assert.equal((await session.takeStep({ kind: 'SEND', content: ASK }, signal)).reason, 'suspended')
+  await session.untilQuestionStored()
+  const agent = await agentOf(builder.controller)
+  const listSuspendedRuns = agent.listSuspendedRuns.bind(agent)
+  let late = () => undefined
+  const held = new Promise((settle) => { late = settle })
+  let calls = 0
+  // The first cleanup's read answers only after its bound, and then with what the thread holds by then.
+  agent.listSuspendedRuns = async (input) => {
+    calls += 1
+    if (calls === 1) await held
+    return listSuspendedRuns(input)
+  }
+  await assert.rejects(session.endQuestions(), (error) => error.id === 'BUILDER_QUESTION_NOT_RELEASED')
+  assert.equal((await session.takeStep({ kind: 'SEND', content: ASK }, signal)).reason, 'suspended')
+  await session.untilQuestionStored()
+  const asked = await snapshotOf(await liveSession(builder.controller))
+  late()
+  await new Promise((settle) => { setTimeout(settle, 200) })
+  assert.deepEqual(await leftovers({ mastra: builder.mastra, storage }, asked), { registered: true, rows: 2 })
+  assert.equal(await pendingCall(builder.controller) !== undefined, true, 'the new question still waits')
 })
 
 const { createInbox, endQuestions } = await import(hubModuleUrl('builder/run/question.js'))

@@ -23,7 +23,7 @@ export type ComposerMode =
   | Readonly<{ kind: 'LOADING_MODEL' }>
   | Readonly<{ kind: 'MODEL_ERROR'; message: string }>
   | Readonly<{ kind: 'RUNNING'; stopping: boolean }>
-  | Readonly<{ kind: 'WAITING'; stopping: boolean }>
+  | Readonly<{ kind: 'WAITING'; stopping: boolean; sending: boolean }>
   | Readonly<{ kind: 'BUSY_ELSEWHERE' }>
   | Readonly<{ kind: 'SENDING' }>
   | Readonly<{ kind: 'BLOCKED' }>
@@ -79,7 +79,7 @@ export function BuilderComposer({
   const [pulse, setPulse] = useState(0)
   const [pickerOpen, setPickerOpen] = useState(false)
   // The Hub refuses a model change while a turn is active, so the control waits for it to end.
-  const modelLocked = working || mode.kind === 'SENDING'
+  const modelLocked = working || mode.kind === 'SENDING' || mode.kind === 'WAITING'
   const dictation = useDictation(
     (text) => onDraftChange(draft.trim() ? `${draft.trimEnd()} ${text}` : text),
     setInterim,
@@ -100,7 +100,7 @@ export function BuilderComposer({
   }
   const submit = (text: string) => {
     if (runCommand(text)) return
-    if ((mode.kind !== 'READY' && mode.kind !== 'WAITING') || !text.trim()) return
+    if (!(mode.kind === 'READY' || (mode.kind === 'WAITING' && !mode.sending)) || !text.trim()) return
     setPulse((value) => value + 1)
     onSend(text.trim())
   }
@@ -211,7 +211,9 @@ function SendButton({ mode, empty }: Readonly<{ mode: ComposerMode; empty: boole
       <Square size={13} fill="currentColor" aria-hidden="true" />
     </button>
   }
-  return <button type="submit" className="cx-send-button" aria-label={mode.kind === 'SENDING' ? 'Enviando' : 'Enviar'} disabled={(mode.kind !== 'READY' && mode.kind !== 'WAITING') || empty}>
+  const sending = mode.kind === 'SENDING' || (mode.kind === 'WAITING' && mode.sending)
+  const open = mode.kind === 'READY' || (mode.kind === 'WAITING' && !mode.sending)
+  return <button type="submit" className="cx-send-button" aria-label={sending ? 'Enviando' : 'Enviar'} disabled={!open || empty}>
     <ArrowUp size={17} aria-hidden="true" />
   </button>
 }

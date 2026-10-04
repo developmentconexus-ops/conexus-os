@@ -118,9 +118,11 @@ const logged = (run: Run, code: FailureCode) => (error: unknown): void => {
 }
 
 // A phase the database refuses means a stop was asked for; the browser following the run hears every one written.
-const setPhase = async (run: Run, phase: BuilderRunPhase): Promise<void> => {
+// `written` runs once the row holds the phase, before the browser hears of it.
+const setPhase = async (run: Run, phase: BuilderRunPhase, written?: () => void): Promise<void> => {
   const summary = await run.env.store.setBuilderRunPhase(run.row.builderRunId, phase)
   if (!summary) throw new Failure('BUILDER_RUN_PHASE_UPDATE_REFUSED')
+  written?.()
   await run.env.publishRun(summary)
 }
 
@@ -220,9 +222,9 @@ const prepare = async (run: Run): Promise<Prepared> => {
  * paused VM, and holds it again.
  */
 const awaitReply = async (run: Run, prepared: Prepared): Promise<Step> => {
-  run.inbox.open()
   await prepared.session.untilQuestionStored()
-  await setPhase(run, 'WAITING')
+  // A reply is taken only once the row says the run waits, so a failed write loses none.
+  await setPhase(run, 'WAITING', () => { run.inbox.open() })
   run.vm.release?.()
   run.vm.release = undefined
   const end = await run.inbox.wait({ waitMs: run.env.questionWaitMs, signal: run.stopSignal })

@@ -29,7 +29,7 @@ const openParkedRun = async (t, { phase, messages, refusal = null }) => {
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
   const state = builderState([conversation(conversationId, 'Título')], { [conversationId]: messages })
   const run = { builderRunId: '70000000-0000-4000-8000-000000000323', projectId, conversationId, state: 'RUNNING', phase, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'Mude o título', createdAt: new Date(Date.now() - 10 * 60_000).toISOString() }
-  const requests = { session: 0, stream: 0, answers: [], messages: [], cancels: 0 }
+  const requests = { session: 0, stream: 0, answers: [], messages: [], cancels: 0, holdMessages: null }
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, state)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Título', projectRevision: 'revision', archived: false }) }))
@@ -51,8 +51,9 @@ const openParkedRun = async (t, { phase, messages, refusal = null }) => {
     run.phase = 'AGENT'
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
-  await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
+  await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, async (route) => {
     requests.messages.push(route.request().postDataJSON())
+    if (requests.holdMessages) await requests.holdMessages
     run.phase = 'AGENT'
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ builderRun: run, created: false }) })
   })
@@ -146,4 +147,21 @@ test('while a question waits, Enter sends the message to the run and Stop is its
   assert.deepEqual(requests.messages.map((message) => message.content), ['Use o número 42'])
   assert.equal(requests.cancels, 0, 'sending never stops the run')
   assert.equal(await page.getByText('Use o número 42').count() > 0, true, 'the message joins the thread')
+})
+
+test('while the message that continues a waiting run is still being sent, Stop stays available', async (t) => {
+  const { page, requests } = await openParkedCard(t)
+  let deliver = () => undefined
+  requests.holdMessages = new Promise((settle) => { deliver = settle })
+  const form = page.getByRole('form', { name: 'Enviar pedido ao agente' })
+  await page.getByLabel('Mensagem para o agente').fill('Use o número 42')
+  await page.getByLabel('Mensagem para o agente').press('Enter')
+  await form.getByRole('button', { name: 'Enviando' }).waitFor()
+  const stop = form.getByRole('button', { name: 'Parar' })
+  assert.equal(await stop.isEnabled(), true, 'Stop is there while the send is pending')
+  const cancelled = page.waitForRequest((request) => request.url().endsWith('/cancel'))
+  await stop.click()
+  await cancelled
+  assert.equal(requests.cancels, 1, 'Stop reaches the Hub during the send')
+  deliver()
 })

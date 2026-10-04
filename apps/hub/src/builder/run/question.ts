@@ -59,23 +59,32 @@ const LOOP_WORKFLOWS = ['agentic-loop', 'executionWorkflow'] as const
  * Mastra lets go of the thread, and releases what Mastra 1.71 keeps of a suspended run that never
  * resumes (Mastra issue #25903): the `agentic-loop` registration and the two snapshot rows. With
  * nothing open it reads the thread once and changes nothing. The bound holds the whole operation,
- * since any of Mastra's storage reads can hang.
+ * since any of Mastra's storage reads can hang, and a cleanup past its bound changes nothing more.
  */
-export const endQuestions = (controller: Pick<AgentController, 'getMastra'>, session: ControllerSession, bound: Readonly<{ ms: number }>): Promise<void> => {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const late = new Promise<never>((_, reject) => { timer = setTimeout(() => { reject(new Failure('BUILDER_QUESTION_NOT_RELEASED')) }, bound.ms) })
-  return Promise.race([releaseQuestions(controller, session, bound), late]).finally(() => { clearTimeout(timer) })
+export const endQuestions = async (controller: Pick<AgentController, 'getMastra'>, session: ControllerSession, bound: Readonly<{ ms: number }>): Promise<void> => {
+  const late = new AbortController()
+  const timer = setTimeout(() => { late.abort(new Failure('BUILDER_QUESTION_NOT_RELEASED')) }, bound.ms)
+  const expired = new Promise<never>((_, reject) => { late.signal.addEventListener('abort', () => { reject(late.signal.reason) }, { once: true }) })
+  expired.catch(() => undefined)
+  try {
+    await Promise.race([releaseQuestions(controller, session, bound, late.signal), expired])
+  } finally {
+    clearTimeout(timer)
+    late.abort(new Failure('BUILDER_QUESTION_NOT_RELEASED'))
+  }
 }
 
-const releaseQuestions = async (controller: Pick<AgentController, 'getMastra'>, session: ControllerSession, bound: Readonly<{ ms: number }>): Promise<void> => {
+const releaseQuestions = async (controller: Pick<AgentController, 'getMastra'>, session: ControllerSession, bound: Readonly<{ ms: number }>, signal: AbortSignal): Promise<void> => {
   const threadId = session.thread.requireId()
   const resourceId = session.identity.getResourceId()
   const agent = session.machinery.getAgent()
   if (session.suspensions.hasPending()) {
     await untilQuestionStored(session, bound)
+    signal.throwIfAborted()
     session.abort()
   } else {
     const lost = await readOpenCalls(session)
+    signal.throwIfAborted()
     if (lost.length > 0) await session.runEngine.settleSuspendedToolCallsAsDenied(lost.map((call) => ({ ...call, threadId, resourceId })))
   }
   await until(async () => (await readOpenCalls(session)).length === 0 && !agent.listActiveThreadRuns().some((run) => run.threadId === threadId), bound)
@@ -84,8 +93,15 @@ const releaseQuestions = async (controller: Pick<AgentController, 'getMastra'>, 
   const mastra = controller.getMastra()
   const workflows = await mastra?.getStorage()?.getStore('workflows')
   for (const { runId } of runs) {
+    // A question asked since this cleanup began is not its own to release.
+    const held = new Set([...session.displayState.get().pendingSuspensions.keys()].map((toolCallId) => session.suspensions.get({ toolCallId })?.runId))
+    if (held.has(runId)) continue
+    signal.throwIfAborted()
     mastra?.__unregisterInternalWorkflow('agentic-loop', runId)
-    for (const workflowName of LOOP_WORKFLOWS) await workflows?.deleteWorkflowRunById({ runId, workflowName })
+    for (const workflowName of LOOP_WORKFLOWS) {
+      signal.throwIfAborted()
+      await workflows?.deleteWorkflowRunById({ runId, workflowName })
+    }
   }
 }
 

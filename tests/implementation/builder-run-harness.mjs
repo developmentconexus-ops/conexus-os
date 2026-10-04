@@ -68,7 +68,7 @@ export const failedReport = (step, problems) => {
 // runtime names under /workspace, /var/lib or /opt lands under the harness's
 // own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run. It is the
 // conversation's one VM: every turn reaches the same directory until `loseVm` replaces it.
-export const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate = false, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0, questionWaitMs = 60_000, answers = [], session } = {}) => {
+export const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate = false, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0, questionWaitMs = 60_000, answers = [], session, onWaitingWrite } = {}) => {
   endLines.splice(0)
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
@@ -275,6 +275,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     claimBuilderRun: async () => claimed,
     setBuilderRunPhase: async (_id, phase) => {
       calls.push(['phase', phase])
+      if (phase === 'WAITING' && onWaitingWrite && await onWaitingWrite(context.service) === 'REFUSE') return null
       // The person acts once the browser shows the question.
       const reply = phase === 'WAITING' ? answers.shift() : undefined
       if (reply) setTimeout(() => { void reply(context.service) }, 0)
