@@ -5,14 +5,13 @@ import type { PausedConversationMachine } from './sandbox.js'
 
 /**
  * A paused conversation machine nobody resumed for this long is deleted (spec 0002, B6). The files
- * stay in the conversation's branch mirror, so the limit decides speed and never loss. It is not the
- * limit on a parked run: the two numbers are the same today and stay separate.
+ * stay in the conversation's branch mirror, so the limit decides speed and never loss.
  */
 const IDLE_MACHINE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 export type IdleMachineSweepPorts = Readonly<{
   listPaused(): Promise<readonly PausedConversationMachine[]>
-  /** The conversations with a run that is queued or running, a run parked on a question included. */
+  /** The conversations with a run that is queued or running, a run waiting on a question included. */
   openRunConversations(): Promise<ReadonlySet<string>>
   /** Kills the machines by provider id and answers the ones that are gone. */
   kill(providerSandboxIds: readonly string[]): Promise<readonly string[]>

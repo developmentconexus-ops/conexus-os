@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { ConexusGit } from './conexus-git.js'
 import type { Conversations } from './conversations.js'
 import { settleTakenOverCandidate } from './run/admit.js'
+import type { RunTools } from './harness/index.js'
 import type { BuilderRunPorts, DiagnosticAppender } from './run/ports.js'
 import type { AnswerOutcome } from './run/question.js'
 import { type LiveRun, startRun } from './run/run.js'
@@ -23,6 +24,10 @@ export type BuilderService = Readonly<{
   cancelBuilderRun(input: Readonly<{ accountId: string; projectId: string; builderRunId: string }>): Promise<BuilderRunSummary>
   /** The person's answer to the question the conversation's run waits on. */
   answerQuestion(input: Readonly<{ projectId: string; conversationId: string; toolCallId: string; resumeData: unknown }>): AnswerOutcome
+  /** The tools of the conversation's run, while that run is the one in this Hub. */
+  runTools(conversationId: string, builderRunId: string): RunTools | undefined
+  /** Whether the conversation has a run in this Hub. */
+  runOpen(conversationId: string): boolean
   listSourceTree(input: SourceCoordinates): Promise<BuilderSourceTree>
   getSourceFile(input: SourceCoordinates & Readonly<{ path: string }>): Promise<BuilderSourceFile>
   compareSourceRevisions(input: Readonly<{ accountId: string; projectId: string; baseSourceRevision: string; resultSourceRevision: string }>): Promise<BuilderSourceComparison>
@@ -168,6 +173,11 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       return result
     },
     answerQuestion: ({ projectId, conversationId, toolCallId, resumeData }) => live(projectId, conversationId)?.answer(toolCallId, resumeData) ?? 'ENDED',
+    runTools: (conversationId, builderRunId) => {
+      const run = runs.get(conversationId)
+      return run?.builderRunId === builderRunId ? run.tools() : undefined
+    },
+    runOpen: (conversationId) => runs.has(conversationId),
     listSourceTree: async (input) => {
       if (!await admitSource(input, input.sourceRevision)) throw new Failure('SOURCE_REVISION_NOT_FOUND')
       return dependencies.source.listSourceTree(input.projectId, input.sourceRevision)

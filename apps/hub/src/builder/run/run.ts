@@ -2,7 +2,7 @@ import { APPLICATION_CHECK_EXCLUDED } from '../application-starter.js'
 import type { ApplicationServerPort, BuilderApplicationArtifacts } from '../application-build.js'
 import { SANDBOX_CHECKOUT } from '../sandbox.js'
 import { CONVERSATION_ID_KEY, RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } from '../model-routing.js'
-import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_PROJECT_NEW_KEY, CONEXUS_TURN_CONFLICTS_KEY, CONEXUS_TURN_DATE_KEY } from '../harness/index.js'
+import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_PROJECT_NEW_KEY, CONEXUS_TURN_CONFLICTS_KEY, CONEXUS_TURN_DATE_KEY, type RunTools } from '../harness/index.js'
 import { turnDate } from '../harness/prompt.js'
 import { createRunTiming } from '../run-timing.js'
 import { PROJECT_FILE_READ_LIMIT, PROJECT_INSTRUCTIONS_PATH, PROJECT_MEMORY_PATH, readProjectInstructions, readProjectMemory } from '../project-context.js'
@@ -39,7 +39,7 @@ class CandidateRefused extends Failure {
 }
 
 type RunStore = Pick<BuilderStore, 'claimBuilderRun' | 'setBuilderRunPhase' | 'recordBuilderRunCandidate' | 'bindBuilderRunMessage' | 'bindBuilderRunSandbox' |
-  'recordConversationSandbox' | 'recordConversationSession' | 'readConversationSandbox' | 'settleBuilderRun' | 'advanceBuilderRunSource' |
+  'recordConversationSandbox' | 'recordConversationSession' | 'settleBuilderRun' | 'advanceBuilderRunSource' |
   'settleBuilderRunBuild' | 'failBuilderRun' | 'interruptBuilderRun' | 'readBuilderRun'>
 
 /** What a run needs of the Hub. */
@@ -67,6 +67,8 @@ export type LiveRun = Readonly<{
   /** A message for the run: taken while it waits on the person, else the run is busy. A known key is taken once. */
   message(content: string, idempotencyKey: string): 'ACCEPTED' | 'BUSY'
   stop(reason: StopReason): void
+  /** The run's own tools, which the controller hands the agent on the conversation's session. */
+  tools(): RunTools | undefined
   /** Settles after the run's last write. */
   done: Promise<void>
 }>
@@ -96,6 +98,8 @@ type Run = {
   sandbox: RunSandbox | undefined
   connectorRun: ConnectorRun | null
   session: RunSession | undefined
+  /** What `conexus_check`, `conexus_run_operation` and the finish gate run, once the checkout is ready. */
+  tools: RunTools | undefined
   mirror: TurnMirror | undefined
   pulled(): string | null
   keepaliveFailure: Error | undefined
@@ -177,7 +181,7 @@ const prepare = async (run: Run): Promise<Prepared> => {
   const { projectId, conversationId, builderRunId, baseSourceRevision } = run.row
   const conversation = { projectId, conversationId }
   const bindContextFor = await readRunContext(run)
-  const sandbox = ports.openSandbox({ conversationId, providerSandboxId: await store.readConversationSandbox(conversation) })
+  const sandbox = await ports.openSandbox(conversation)
   run.sandbox = sandbox
   const vm = await startRunVm({
     sandbox, state: run.vm, executionId: builderRunId, timing: run.timing, hold: () => holdVm(run, sandbox),
@@ -199,13 +203,12 @@ const prepare = async (run: Run): Promise<Prepared> => {
     log: ports.log, cancelled: () => cancelled(run), gatePhase: gatePhases.enter, vm, sandbox,
   })
   run.pulled = pulled
-  const session = await ports.openSession({
-    projectId, conversationId, builderRunId,
-    workspace: sandbox.workspace, bindContext: bindContextFor(turnStart.conflicted),
-    runCheck: async () => (await sandbox.runCheck({ root: SANDBOX_CHECKOUT, out: AGENT_CHECK_OUT, collect: false, user: 'agent' })).report,
+  run.tools = {
+    check: async () => (await sandbox.runCheck({ root: SANDBOX_CHECKOUT, out: AGENT_CHECK_OUT, collect: false, user: 'agent' })).report,
     ...(runOperation ? { runOperation } : {}),
     gate,
-  })
+  }
+  const session = await ports.openSession({ projectId, conversationId, builderRunId, bindContext: bindContextFor(turnStart.conflicted) })
   run.session = session
   run.timing.mark('session')
   return { gate, gatePhases: gatePhases.settled, session, sandbox, vm }
@@ -408,7 +411,7 @@ export const startRun = (env: RunEnvironment, row: BuilderRunSummary, request: R
     timing: createRunTiming(),
     inbox: createInbox((toolCallId) => run.session?.pending(toolCallId) === true, (signal) => (signal.reason === 'HUB_STOPPING' ? 'HUB_STOPPING' : 'USER_CANCELLED')),
     vm: { started: false, incarnation: undefined, release: undefined, unusable: false },
-    sandbox: undefined, connectorRun: null, session: undefined, mirror: undefined, pulled: () => null, keepaliveFailure: undefined,
+    sandbox: undefined, connectorRun: null, session: undefined, tools: undefined, mirror: undefined, pulled: () => null, keepaliveFailure: undefined,
     agentUnadmitted: false, candidateRecorded: false, mirrorEnded: undefined,
   }
   const taken = new Set([request.idempotencyKey])
@@ -428,6 +431,7 @@ export const startRun = (env: RunEnvironment, row: BuilderRunSummary, request: R
       return outcome
     },
     stop: (reason) => { stop.abort(reason) },
+    tools: () => run.tools,
     done,
   })
 }

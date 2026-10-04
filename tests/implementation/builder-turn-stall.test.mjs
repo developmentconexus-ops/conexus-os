@@ -6,6 +6,7 @@ import test from 'node:test'
 import { InMemoryStore } from '@mastra/core/storage'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { hubModuleUrl } from './hub-build.mjs'
+import { testConversations } from './builder-conversation-fixture.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
 const { createControllerRunSessions } = await import(hubModuleUrl('builder/run/turn.js'))
@@ -33,7 +34,7 @@ test('a storage read that never settles ends the turn as BUILDER_AGENT_STALLED, 
   const root = mkdtempSync(resolve(tmpdir(), 'builder-turn-stall-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const workspace = new Workspace({ id: 'stall-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
-  const conversationWorkspaces = new Map()
+  let conversations
   const storage = new InMemoryStore()
   await storage.init()
   const workflows = await storage.getStore('workflows')
@@ -46,18 +47,19 @@ test('a storage read that never settles ends the turn as BUILDER_AGENT_STALLED, 
     return new Promise(() => {})
   }
   const controller = createBuilderController({
-    workspace: ({ requestContext }) => conversationWorkspaces.get(requestContext.getRaw('conexusBuilderConversationId')),
+    workspace: (context) => conversations.workspace(context),
     model, storage, skillsPath: resolve(repositoryRoot, 'builder-skills'),
   })
   await controller.init()
   t.after(() => controller.destroy?.())
+  conversations = testConversations(controller, () => workspace)
+  t.after(() => conversations.close())
   const openSession = createControllerRunSessions({
-    controller, runContexts: new Map(), conversationWorkspaces, runTools: new Map(),
+    controller, conversations,
     readDefaultModel: async () => 'anthropic/default-model', turnSilenceMs: SILENCE_MS,
   })
   const open = (builderRunId) => openSession({
-    projectId, conversationId, builderRunId, workspace,
-    runCheck: async () => { throw new Error('not used') },
+    projectId, conversationId, builderRunId,
     bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId) },
   })
 

@@ -66,10 +66,7 @@ export const localConversationSandboxes = (root, workspaceTools, readCheckReport
     return join(base, conversationId)
   }
 
-  // As in the E2B pool, a parked run's instance, and so the workspace its live session holds, is kept for the answer.
-  const kept = new Map()
-  const open = ({ conversationId }) => kept.get(conversationId) ?? build(conversationId)
-  const build = (conversationId) => {
+  const open = ({ conversationId, onKill }) => {
     const vm = directoryOf(conversationId)
     const local = (text) => text.replace(VM_PATH, (_, folder) => `${vm}/${folder}`)
     const inside = (path) => {
@@ -142,16 +139,9 @@ export const localConversationSandboxes = (root, workspaceTools, readCheckReport
         return { report, files, thumbnail: picture && picture.byteLength > 0 ? { mediaType: 'image/png', bytes: picture } : null }
       },
       holdOpen: async () => () => {},
-      pause: async (parked = false) => {
-        if (parked) kept.set(conversationId, instance)
-        else kept.delete(conversationId)
-      },
-      release: () => {
-        if (kept.get(conversationId) === instance) kept.delete(conversationId)
-      },
+      pause: async () => {},
       kill: async () => {
-        kept.delete(conversationId)
-        rmSync(vm, { recursive: true, force: true })
+        try { rmSync(vm, { recursive: true, force: true }) } finally { await onKill() }
       },
     })
     return instance
@@ -160,7 +150,6 @@ export const localConversationSandboxes = (root, workspaceTools, readCheckReport
   const remove = (conversationId) => rmSync(directoryOf(conversationId), { recursive: true, force: true })
   return Object.freeze({
     open,
-    destroy: async (conversationIds) => { for (const conversationId of conversationIds) remove(conversationId) },
     // Answers the ids that are gone, as E2B's does: every id this stand-in made, and none it did not.
     killRecorded: async (providerSandboxIds) => providerSandboxIds.filter((providerSandboxId) => {
       if (!providerSandboxId.startsWith('local-')) return false

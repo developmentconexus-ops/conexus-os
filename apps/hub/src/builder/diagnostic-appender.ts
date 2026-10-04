@@ -53,8 +53,8 @@ const noteSignal = (note: RunNote) => ({
   attributes: { source: 'conexus', outcome: note.outcome, run: note.builderRunId },
 })
 
-export const createDiagnosticAppender = (openSession: (target: Readonly<{ resourceId: string; threadId: string }>) => Promise<NoteSession>) =>
+export const createDiagnosticAppender = (openSession: (conversation: Readonly<{ projectId: string; conversationId: string }>) => Promise<NoteSession>) =>
   async (note: RunNote): Promise<void> => {
     const target = { resourceId: projectResourceId(note.projectId), threadId: note.conversationId }
-    await (await openSession(target)).sendSignalToThread(noteSignal(note), target).accepted
+    await (await openSession(note)).sendSignalToThread(noteSignal(note), target).accepted
   }

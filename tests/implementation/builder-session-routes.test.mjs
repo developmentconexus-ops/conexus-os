@@ -8,6 +8,7 @@ import { Mastra } from '@mastra/core/mastra'
 import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
 import { hubModuleUrl } from './hub-build.mjs'
+import { testConversations } from './builder-conversation-fixture.mjs'
 
 const built = hubModuleUrl
 const { createHttpApp } = await import(built('http/app.js'))
@@ -16,7 +17,6 @@ const { registerBuilderSessionRoutes } = await import(built('builder/mastra-sess
 const { registerBuilderRoutes } = await import(built('builder/routes.js'))
 const { createBuilderController } = await import(built('builder/harness/controller.js'))
 const { createConversations } = await import(built('builder/conversations.js'))
-const { createConversationSessions } = await import(built('builder/conversation-sessions.js'))
 
 const CONVERSATION_SESSION_IDLE_MS = 10 * 60_000
 const origin = 'https://conexus.test'
@@ -49,7 +49,7 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
   await controller.init()
   const conversations = createConversations(async () => storage.getStore('memory'))
   const clock = { now: 0 }
-  const sessions = createConversationSessions({ controller, now: () => clock.now, sweepEveryMs: 3_600_000 })
+  const sessions = testConversations(controller, () => undefined, { now: () => clock.now, sweepEveryMs: 3_600_000 })
   await controller.createSession({ resourceId: `project:${projectA}`, scope: `conversation:${conversationA}`, threadId: conversationA })
   const reachedContexts = []
   const { createHostSessions } = await import(hubModuleUrl('identity-access/host-sessions.js'))
@@ -70,11 +70,10 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
         if (request.requestContext) reachedContexts.push({ url: request.url, user: request.requestContext.get('user') })
       })
       await registerBuilderSessionRoutes(instance, {
-        mastra, controllerId: 'conexus-builder', controller, sessions, origin, resolveCurrentSession,
+        mastra, controllerId: 'conexus-builder', controller, conversations: sessions, origin, resolveCurrentSession,
         admitProject: async ({ accountId: caller, projectId }) => admittedProjects[caller]?.includes(projectId) ?? false,
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async () => busy,
-        runContext: () => undefined,
         answerQuestion: (input) => { answered.push(input); return answerOutcome(input) },
       })
       return []
@@ -166,16 +165,12 @@ test('a conversation session opens only on its own thread, and an id another Pro
   assert.equal(read.statusCode, 404, "another Project's conversation is not found under this Project")
 })
 
-test("a conversation's model changes only while no run is in flight, and a run's own session refuses it", async (t) => {
-  const { app, controller } = await createBuilderApp(t)
+test("a conversation's model changes only while no run is in flight", async (t) => {
+  const { app } = await createBuilderApp(t)
   const switched = await app.inject({ method: 'POST', url: `${sessionBase()}/model?${inConversation()}`, ...authentic, payload: { modelId: 'google-ai-pro/gemini-3-flash', scope: 'thread' } })
   assert.equal(switched.statusCode, 200)
   const state = await app.inject({ method: 'GET', url: `${sessionBase()}?${inConversation()}`, ...authentic })
   assert.equal(state.json().modelId, 'google-ai-pro/gemini-3-flash')
-  const liveRun = `builder:${randomUUID()}`
-  await controller.createSession({ resourceId: `project:${projectA}`, scope: liveRun, threadId: conversationA })
-  const onRun = await app.inject({ method: 'POST', url: `${sessionBase()}/model?sessionScope=${liveRun}`, ...authentic, payload: { modelId: 'google-ai-pro/gemini-3-flash', scope: 'thread' } })
-  assert.equal(onRun.statusCode, 409)
 
   const { app: busyApp } = await createBuilderApp(t, { busy: true })
   const refused = await busyApp.inject({ method: 'POST', url: `${sessionBase()}/model?${inConversation()}`, ...authentic, payload: { modelId: 'google-ai-pro/gemini-3-flash', scope: 'thread' } })
@@ -196,45 +191,34 @@ test('only the Builder controller id is served, the Factory mount is gone, and t
   assert.deepEqual(answers.map((response) => response.statusCode), [404, 404, 404, 404, 404, 404])
 })
 
-test("a run's own session takes no abort: the question a run waits on ends only through the Hub's stop", async (t) => {
-  const { app, controller } = await createBuilderApp(t)
-  const liveRun = `builder:${randomUUID()}`
-  await controller.createSession({ resourceId: `project:${projectA}`, scope: liveRun, threadId: conversationA })
-  const response = await app.inject({ method: 'POST', url: `${sessionBase()}/abort?sessionScope=${liveRun}`, ...authentic, payload: {} })
+test("a conversation's session takes no abort: the question a run waits on ends only through the Hub's stop", async (t) => {
+  const { app } = await createBuilderApp(t)
+  const response = await app.inject({ method: 'POST', url: `${sessionBase()}/abort?${inConversation()}`, ...authentic, payload: {} })
   assert.deepEqual([response.statusCode, response.json().type], [409, 'urn:conexus:problem:BUILDER_RUN_STOP_REFUSED'])
 })
 
-test('a run whose session does not exist yet is a conflict, never a fresh empty session', async (t) => {
-  const { app } = await createBuilderApp(t)
-  const response = await app.inject({ method: 'GET', url: `${sessionBase()}/stream?sessionScope=builder:${randomUUID()}`, ...authentic })
-  assert.equal(response.statusCode, 409)
+test('a scope other than a conversation\'s is not served, never a fresh empty session', async (t) => {
+  const { app, controller } = await createBuilderApp(t)
+  const response = await app.inject({ method: 'GET', url: `${sessionBase()}/stream?sessionScope=builder:${conversationA}`, ...authentic })
+  assert.equal(response.statusCode, 404)
+  assert.equal(await controller.getSessionByResource(`project:${projectA}`, `builder:${conversationA}`), undefined)
 })
 
-test('a conversation takes no message, steer or follow-up, not even inside a run session; a new message is a new run', async (t) => {
-  const { app, controller } = await createBuilderApp(t)
-  const liveRun = `builder:${randomUUID()}`
-  await controller.createSession({ resourceId: `project:${projectA}`, scope: liveRun, threadId: conversationA })
+test('a conversation takes no message, steer or follow-up through Mastra; a message goes through the Hub', async (t) => {
+  const { app } = await createBuilderApp(t)
   const answered = []
   for (const operation of ['messages', 'steer', 'follow-up']) {
-    for (const [name, query] of [['conversation', `?${inConversation()}`], ['run session', `?sessionScope=${liveRun}`]]) {
-      const response = await app.inject({ method: 'POST', url: `${sessionBase()}/${operation}${query}`, ...authentic, payload: { message: 'apague tudo', content: 'apague tudo' } })
-      answered.push([operation, name, response.statusCode])
-    }
+    const response = await app.inject({ method: 'POST', url: `${sessionBase()}/${operation}?${inConversation()}`, ...authentic, payload: { message: 'apague tudo', content: 'apague tudo' } })
+    answered.push([operation, response.statusCode])
   }
   assert.equal(await turnsWithin(3_000), 0, 'no request reached the model')
-  assert.deepEqual(answered, [
-    ['messages', 'conversation', 404], ['messages', 'run session', 404],
-    ['steer', 'conversation', 404], ['steer', 'run session', 404],
-    ['follow-up', 'conversation', 404], ['follow-up', 'run session', 404],
-  ])
-  assert.equal((await app.inject({ method: 'POST', url: `${sessionBase()}/abort?${inConversation()}`, ...authentic, payload: {} })).statusCode, 200, 'abort needs no run')
+  assert.deepEqual(answered, [['messages', 404], ['steer', 404], ['follow-up', 404]])
 })
 
 test("an answer to a run's call goes to the run waiting on it through the Hub, never to Mastra's own route", async (t) => {
   const answered = []
   const { app } = await createBuilderApp(t, { answered })
-  const runScope = `builder:${conversationA}`
-  const answer = (payload) => app.inject({ method: 'POST', url: `${sessionBase()}/tool-suspension?sessionScope=${runScope}`, ...authentic, payload })
+  const answer = (payload) => app.inject({ method: 'POST', url: `${sessionBase()}/tool-suspension?${inConversation()}`, ...authentic, payload })
   const first = await answer({ toolCallId: 'call-1', resumeData: ['Azul'] })
   assert.deepEqual([first.statusCode, first.json()], [200, { ok: true }])
   assert.deepEqual(answered, [{ projectId: projectA, conversationId: conversationA, toolCallId: 'call-1', resumeData: ['Azul'] }])
@@ -246,7 +230,7 @@ test('each outcome of an answer has its own HTTP status and problem type, which 
   const outcomes = { 'call-taken': () => 'ACCEPTED', 'call-again': () => 'ALREADY_ANSWERED', 'call-forged': () => 'UNKNOWN_CALL', 'call-ended': () => 'ENDED' }
   const { app } = await createBuilderApp(t, { answerOutcome: ({ toolCallId }) => outcomes[toolCallId]() })
   const answer = async (toolCallId) => {
-    const response = await app.inject({ method: 'POST', url: `${sessionBase()}/tool-suspension?sessionScope=builder:${conversationA}`, ...authentic, payload: { toolCallId, resumeData: ['Azul'] } })
+    const response = await app.inject({ method: 'POST', url: `${sessionBase()}/tool-suspension?${inConversation()}`, ...authentic, payload: { toolCallId, resumeData: ['Azul'] } })
     return [response.statusCode, response.json().type ?? response.json()]
   }
   assert.deepEqual(await Promise.all(Object.keys(outcomes).map(answer)), [

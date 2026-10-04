@@ -6,6 +6,7 @@ import test from 'node:test'
 import { InMemoryStore } from '@mastra/core/storage'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { hubModuleUrl } from './hub-build.mjs'
+import { testConversations } from './builder-conversation-fixture.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
 const { createControllerRunSessions } = await import(hubModuleUrl('builder/run/turn.js'))
@@ -41,7 +42,7 @@ const openRun = async (t, { model, failsRead, bindExtra = () => {} }) => {
   t.after(() => rmSync(root, { recursive: true, force: true }))
   mkdirSync(root, { recursive: true })
   const workspace = new Workspace({ id: 'retry-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
-  const runWorkspaces = new Map([[conversationId, workspace]])
+  let conversations
   const storage = new InMemoryStore()
   await storage.init()
   const workflows = await storage.getStore('workflows')
@@ -56,14 +57,15 @@ const openRun = async (t, { model, failsRead, bindExtra = () => {} }) => {
     return original(args)
   }
   const controller = createBuilderController({
-    workspace: ({ requestContext }) => runWorkspaces.get(requestContext.getRaw('conexusBuilderConversationId')),
+    workspace: (context) => conversations.workspace(context),
     model, storage, skillsPath: resolve(repositoryRoot, 'builder-skills'), modelRetryDelayMs: () => 1,
   })
   await controller.init()
   t.after(() => controller.destroy?.())
-  const run = await createControllerRunSessions({ controller, runContexts: new Map(), conversationWorkspaces: runWorkspaces, runTools: new Map(), readDefaultModel: async () => 'anthropic/default-model' })({
-    projectId, conversationId, builderRunId, workspace,
-    runCheck: async () => { throw new Error('not used') },
+  conversations = testConversations(controller, () => workspace)
+  t.after(() => conversations.close())
+  const run = await createControllerRunSessions({ controller, conversations, readDefaultModel: async () => 'anthropic/default-model' })({
+    projectId, conversationId, builderRunId,
     bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId); bindExtra(requestContext) },
   })
   return { run, storageCalls, controller }
@@ -109,7 +111,7 @@ for (const [label, failure] of MODEL_FAILURES) {
     const { model, calls } = answering(failure, 3)
     const { run, controller } = await openRun(t, { model, failsRead: () => false })
     const retryEvents = []
-    const session = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
+    const session = await controller.getSessionByResource(`project:${projectId}`, `conversation:${conversationId}`)
     session.subscribe((event) => { if (event.type === 'error') retryEvents.push([event.retryable, event.retryAttempt, event.maxRetries]) })
     assert.deepEqual(await settle(run.takeStep({ kind: 'SEND', content: 'Faça o app.' }, new AbortController().signal)), { settled: 'resolved', reason: 'complete' })
     assert.equal(calls.length, 4, 'one call that failed three times, then the one that answered')
@@ -173,7 +175,7 @@ const runOnUpstream = async (t, replies) => {
   const { run, controller } = await openRun(t, { model: (ctx) => routing.resolve(ctx), failsRead: () => false, bindExtra: bindAccount })
   const notices = []
   const everything = []
-  const session = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
+  const session = await controller.getSessionByResource(`project:${projectId}`, `conversation:${conversationId}`)
   session.subscribe((event) => {
     everything.push(event.type === 'error' ? { ...event, error: event.error && Object.fromEntries(Object.getOwnPropertyNames(event.error).map((name) => [name, event.error[name]])) } : event)
     if (event.type === 'error' && event.retryable) notices.push([event.retryable, event.retryAttempt, event.maxRetries])

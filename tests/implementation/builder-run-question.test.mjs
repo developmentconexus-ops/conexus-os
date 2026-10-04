@@ -9,13 +9,14 @@ import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace
 import { Memory } from '@mastra/memory'
 import { hubModuleUrl } from './hub-build.mjs'
 import { accountId, conversationId, harness, projectId } from './builder-run-harness.mjs'
+import { testConversations } from './builder-conversation-fixture.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
 const { createControllerRunSessions } = await import(hubModuleUrl('builder/run/turn.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const resourceId = `project:${projectId}`
-const runScope = `builder:${conversationId}`
+const conversationScope = `conversation:${conversationId}`
 const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
 const streamOf = (parts) => new ReadableStream({ start(controller) { for (const part of parts) controller.enqueue(part); controller.close() } })
 const textParts = (text) => [{ type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: text }, { type: 'text-end', id: 't' }]
@@ -52,17 +53,20 @@ const scriptedModel = () => {
 }
 
 // The Builder's controller on real Mastra, over one store a restarted Hub would find again.
-const builderOn = async (t, storage, model) => {
-  const conversationWorkspaces = new Map()
+const builderOn = async (t, storage, model, options = {}) => {
+  const workspace = scratchWorkspace(t)
+  let conversations
   const controller = createBuilderController({
-    workspace: ({ requestContext }) => conversationWorkspaces.get(requestContext.getRaw('conexusBuilderConversationId')),
+    workspace: (context) => conversations.workspace(context),
     model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills'),
   })
   const mastra = new Mastra({ storage, agentControllers: { 'conexus-builder': controller }, logger: false })
   await controller.init()
   t.after(() => controller.destroy?.())
-  const openSession = createControllerRunSessions({ controller, runContexts: new Map(), conversationWorkspaces, runTools: new Map(), readDefaultModel: async () => 'anthropic/default-model' })
-  return { controller, mastra, openSession }
+  conversations = testConversations(controller, () => workspace, options.sweep ?? {})
+  t.after(() => conversations.close())
+  const openSession = createControllerRunSessions({ controller, conversations, readDefaultModel: async () => 'anthropic/default-model' })
+  return { controller, mastra, openSession, conversations }
 }
 
 const scratchWorkspace = (t) => {
@@ -76,7 +80,7 @@ const bindRun = (builderRunId) => (requestContext) => {
   requestContext.setRaw('conexusBuilderConversationId', conversationId)
 }
 
-const liveSession = (controller) => controller.getSessionByResource(resourceId, runScope)
+const liveSession = (controller) => controller.getSessionByResource(resourceId, conversationScope)
 const agentOf = async (controller) => (await liveSession(controller)).machinery.getAgent()
 const suspendedRuns = async (session) => (await session.machinery.getAgent().listSuspendedRuns({ threadId: conversationId, resourceId })).runs.map((run) => run.runId)
 // Mastra writes the question's snapshot rows a moment after the call itself.
@@ -129,7 +133,7 @@ test('an answer resumes the question on the same session and VM, and the run goe
   assert.equal(run.events.filter((event) => event === 'start').length, 1, 'no second sandbox start')
   assert.equal(run.events.filter((event) => Array.isArray(event) && event[0] === 'open').length, 1, 'one session for the run')
   assert.equal(JSON.stringify(run.prompts.at(-1)).includes('User answered:\\nQual cor?: Azul'), true, 'the model read the answer')
-  assert.equal(await liveSession(run.controller), undefined, 'the run deleted its session at its end')
+  assert.notEqual(await liveSession(run.controller), undefined, 'the session stays with the conversation after the run')
 })
 
 test('a message while the question waits ends the question as denied, and the same run takes it as a plain turn', async (t) => {
@@ -181,28 +185,26 @@ test('a message sent the moment the question is asked, before Mastra stores it, 
   await storage.init()
   const { model, prompts } = scriptedModel()
   const builder = await builderOn(t, storage, model)
-  const workspace = scratchWorkspace(t)
   const signal = new AbortController().signal
   const echoed = []
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const builderRunId = `11111111-1111-4111-8111-1111111111${String(attempt).padStart(2, '0')}`
-    const session = await builder.openSession({ projectId, conversationId, builderRunId, workspace, bindContext: bindRun(builderRunId), runCheck: async () => { throw new Error('not used') } })
+    const session = await builder.openSession({ projectId, conversationId, builderRunId, bindContext: bindRun(builderRunId) })
     assert.equal((await session.takeStep({ kind: 'SEND', content: ASK }, signal)).reason, 'suspended')
     assert.equal((await session.takeStep({ kind: 'SEND', content: `cor ${attempt}` }, signal)).reason, 'complete')
     echoed.push(partsOf(prompts.at(-1).at(-1)).map((part) => part.text).join(''))
     await session.release()
   }
   assert.deepEqual(echoed, Array.from({ length: 10 }, (_, attempt) => `cor ${attempt}`))
-  assert.equal(await liveSession(builder.controller), undefined)
+  assert.deepEqual(await suspendedRuns(await liveSession(builder.controller)), [])
 })
 
 test('a question a stopped Hub left open is denied at the next send of a new Hub, which deletes its rows, and the model reads both', async (t) => {
   const storage = new InMemoryStore()
   await storage.init()
-  const workspace = scratchWorkspace(t)
   const signal = new AbortController().signal
   const before = await builderOn(t, storage, scriptedModel().model)
-  const asking = await before.openSession({ projectId, conversationId, builderRunId: '11111111-1111-4111-8111-111111111101', workspace, bindContext: bindRun('11111111-1111-4111-8111-111111111101'), runCheck: async () => { throw new Error('not used') } })
+  const asking = await before.openSession({ projectId, conversationId, builderRunId: '11111111-1111-4111-8111-111111111101', bindContext: bindRun('11111111-1111-4111-8111-111111111101') })
   assert.equal((await asking.takeStep({ kind: 'SEND', content: ASK }, signal)).reason, 'suspended')
   await asking.untilQuestionStored()
   const call = await pendingCall(before.controller)
@@ -210,7 +212,7 @@ test('a question a stopped Hub left open is denied at the next send of a new Hub
 
   const { model, prompts } = scriptedModel()
   const after = await builderOn(t, storage, model)
-  const next = await after.openSession({ projectId, conversationId, builderRunId: '11111111-1111-4111-8111-111111111102', workspace, bindContext: bindRun('11111111-1111-4111-8111-111111111102'), runCheck: async () => { throw new Error('not used') } })
+  const next = await after.openSession({ projectId, conversationId, builderRunId: '11111111-1111-4111-8111-111111111102', bindContext: bindRun('11111111-1111-4111-8111-111111111102') })
   assert.equal(next.pending(call), false, 'a new Hub holds no question, so no card is drawn')
   assert.equal((await next.takeStep({ kind: 'SEND', content: 'Use verde' }, signal)).reason, 'complete')
   const last = prompts.at(-1)
@@ -229,9 +231,8 @@ test('Mastra still leaves the loop registration and the snapshot rows of a quest
   const storage = new InMemoryStore()
   await storage.init()
   const builder = await builderOn(t, storage, scriptedModel().model)
-  const workspace = scratchWorkspace(t)
   const builderRunId = '11111111-1111-4111-8111-111111111103'
-  const session = await builder.openSession({ projectId, conversationId, builderRunId, workspace, bindContext: bindRun(builderRunId), runCheck: async () => { throw new Error('not used') } })
+  const session = await builder.openSession({ projectId, conversationId, builderRunId, bindContext: bindRun(builderRunId) })
   assert.equal((await session.takeStep({ kind: 'SEND', content: ASK }, new AbortController().signal)).reason, 'suspended')
   await session.untilQuestionStored()
   const live = await liveSession(builder.controller)
@@ -246,6 +247,23 @@ test('Mastra still leaves the loop registration and the snapshot rows of a quest
   await session.endQuestions()
   assert.deepEqual(await leftovers({ mastra: builder.mastra, storage }, questionRun), { registered: false, rows: 0 })
   await session.release()
+})
+
+test('the idle sweep keeps a conversation whose question waits, and lets it go once the question ended', async (t) => {
+  const storage = new InMemoryStore()
+  await storage.init()
+  const clock = { now: 0 }
+  const builder = await builderOn(t, storage, scriptedModel().model, { sweep: { now: () => clock.now, sweepEveryMs: 3_600_000 } })
+  const builderRunId = '11111111-1111-4111-8111-111111111104'
+  const session = await builder.openSession({ projectId, conversationId, builderRunId, bindContext: bindRun(builderRunId) })
+  assert.equal((await session.takeStep({ kind: 'SEND', content: ASK }, new AbortController().signal)).reason, 'suspended')
+  await session.untilQuestionStored()
+  clock.now += 60 * 60_000
+  await builder.conversations.sweep()
+  assert.notEqual(await liveSession(builder.controller), undefined, 'a waiting question keeps its session')
+  await session.endQuestions()
+  await builder.conversations.sweep()
+  assert.equal(await liveSession(builder.controller), undefined)
 })
 
 const { createInbox, endQuestions } = await import(hubModuleUrl('builder/run/question.js'))

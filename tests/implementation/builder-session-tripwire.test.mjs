@@ -39,7 +39,7 @@ const openSession = async (t, { observationFails }) => {
   const controller = new AgentController({ id: 'code', storage: new InMemoryStore(), modes: [{ id: 'build', name: 'Build', default: true }], agent })
   await controller.init()
   t.after(() => controller.destroy())
-  const session = await controller.createSession({ resourceId: 'conversation', scope: 'builder:run', threadId: 'conversation' })
+  const session = await controller.createSession({ resourceId: 'conversation', scope: 'conversation:run', threadId: 'conversation' })
   return { controller, session }
 }
 
@@ -61,7 +61,7 @@ test('a turn whose input processor trips fails with the processor named, and its
     code: 'BUILDER_AGENT_TRIPWIRE',
     cause: { processorId: 'observational-memory', reason: OBSERVATION_FAILED },
   })
-  assert.equal(await controller.deleteSession({ resourceId: 'conversation', scope: 'builder:run' }), true)
+  assert.equal(await controller.deleteSession({ resourceId: 'conversation', scope: 'conversation:run' }), true)
 })
 
 test('a tripwire that asks the agent to retry does not end the turn', async () => {

@@ -3,10 +3,10 @@
   "sqlRunWriterTriggers": 1,
   "runSummaryLiterals": 1,
   "parkedReferences": 0,
-  "abortUndoCalls": 4,
+  "abortUndoCalls": 0,
   "hubSendMessageCalls": 1,
-  "sessionScopes": 2,
-  "collectionsAcrossModules": 3,
+  "sessionScopes": 1,
+  "collectionsAcrossModules": 0,
   "runFunctionLengthSuppressions": 0,
   "failureCodesWithoutRow": 0
 }

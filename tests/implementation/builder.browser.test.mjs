@@ -200,7 +200,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   assert.ok(requests[0].key)
   await page.locator('.cx-messages').getByText('Crie um contador até 100 interativo', { exact: true }).waitFor()
   await page.getByText('Aplicando a alteração', { exact: true }).waitFor()
-  assert.deepEqual(streamScopes.slice(0, 1), [`builder:${conversationId}`])
+  assert.deepEqual(streamScopes.slice(0, 1), [`conversation:${conversationId}`])
   await page.getByTitle('Prévia do aplicativo').waitFor()
   assert.deepEqual(previewRequests, [{}])
   await page.locator('.cx-messages').getByText('Build concluído', { exact: true }).waitFor()
@@ -1144,7 +1144,7 @@ test('a Project lists its conversations as the threads of its resource, and each
   await page.getByRole('button', { name: 'Enviar' }).click()
   await sendResponse
   await page.getByText('Trabalhando no repositório', { exact: true }).waitFor()
-  assert.deepEqual(streams.at(0), [`project:${projectId}`, `builder:${counterId}`])
+  assert.deepEqual(streams.at(0), [`project:${projectId}`, `conversation:${counterId}`])
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
 })
 

@@ -1,10 +1,8 @@
 import type { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput, Workspace } from '@mastra/core/workspace'
 import type { ApplicationCheckRun } from '../application-artifact-runtime.js'
-import type { CheckReport } from '../application-check.js'
-import type { CandidateGate } from '../candidate-gate.js'
 import type { ConexusGit } from '../conexus-git.js'
-import type { CandidateOperationPorts, RunOperation } from '../run-operation.js'
+import type { CandidateOperationPorts } from '../run-operation.js'
 import type { EventLog } from '../../platform/logger.js'
 
 /** What a run needs of its conversation's sandbox; the E2B one in production, a fake in tests. */
@@ -26,12 +24,9 @@ export type RunSandbox = Readonly<{
   workspace: Workspace
   /** The run's end: the VM pauses with its files and its checkout, and the next `start()` resumes it. */
   pause(): Promise<void>
-  /** A broken VM: it is killed, and the conversation's next turn gets a new one. */
+  /** A broken VM: it is killed, and the conversation gets a new instance and session. */
   kill(): Promise<void>
 }>
-
-/** What the Hub knows of a conversation's VM between turns (spec 0002 amendment, B3). */
-type ConversationSandboxRef = Readonly<{ conversationId: string; providerSandboxId: string | null }>
 
 /** One run's reach into its Project's bound Connections: the brief for its instructions, the scope its tools read through, and a handler port on that scope. */
 export type ConnectorRun = Readonly<{
@@ -45,17 +40,10 @@ export type ConnectorRun = Readonly<{
 export type RunContextBinder = (requestContext: RequestContext) => void
 
 export type BuilderRunPorts = Readonly<{
-  /** The conversation's sandbox: the same one for every turn while it lives, resumed or created by `start()`. */
-  openSandbox(ref: ConversationSandboxRef): RunSandbox
-  openSession(input: Readonly<{
-    projectId: string; conversationId: string; builderRunId: string; workspace: Workspace; bindContext: RunContextBinder
-    /** The check `conexus_check` runs: the Hub's script on the checkout, as the agent's user. */
-    runCheck: () => Promise<CheckReport>
-    /** The run's finish gate, which Mastra's completion check calls when the agent says it is done. */
-    gate?: CandidateGate
-    /** The operation run `conexus_run_operation` does; absent when the Hub has no Prévia runner. */
-    runOperation?: RunOperation
-  }>): Promise<RunSession>
+  /** The conversation's sandbox instance, the same one for each of its runs while it lives; it starts no VM until `start()`. */
+  openSandbox(ref: Readonly<{ projectId: string; conversationId: string }>): Promise<RunSandbox>
+  /** The conversation's session, on that sandbox's workspace, for the run's steps. */
+  openSession(input: Readonly<{ projectId: string; conversationId: string; builderRunId: string; bindContext: RunContextBinder }>): Promise<RunSession>
   /**
    * Refuses a run before a sandbox exists when the model it starts on has no usable account. It
    * checks that one model only: the account for each later call is looked up when the call is made.
@@ -118,6 +106,6 @@ export type RunSession = Readonly<{
   /** Resolves once every call the session holds is stored on the thread. */
   untilQuestionStored(): Promise<void>
   endQuestions(): Promise<void>
-  /** Deletes the session, which Mastra keeps in memory until it is deleted. */
+  /** The run is over: the session stays with the conversation, and one whose turn stalled is deleted. */
   release(): Promise<void>
 }>

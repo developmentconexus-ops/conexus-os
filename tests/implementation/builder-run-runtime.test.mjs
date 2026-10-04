@@ -1167,7 +1167,7 @@ test("the conversation's next turn runs on the same sandbox, resumed by the id t
   await run.again()
   assert.equal(await run.settled(), true)
   await run.service.close()
-  assert.deepEqual(run.sandboxRefs, [{ conversationId, providerSandboxId: null }, { conversationId, providerSandboxId: 'sbx-1' }])
+  assert.deepEqual(run.sandboxRefs, [{ projectId, conversationId }, { projectId, conversationId }])
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'sandbox'), [['sandbox', 'sbx-1'], ['sandbox', 'sbx-1']])
   assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_CHECKOUT:')), [
     `BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-1`, `BUILDER_TURN_CHECKOUT:${runId}:RESUMED:sbx-1`,
@@ -1229,7 +1229,6 @@ test('a sandbox E2B lost between turns is rebuilt from the mirror on a new VM, a
     `BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-1`, `BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-2`,
   ])
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'sandbox'), [['sandbox', 'sbx-1'], ['sandbox', 'sbx-2']])
-  assert.deepEqual(run.sandboxRefs.at(-1), { conversationId, providerSandboxId: 'sbx-1' })
   assert.equal(seedWrites(run), 2)
 })
 

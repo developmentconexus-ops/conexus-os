@@ -205,25 +205,26 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     assert.match(String(written), /^Wrote /, `the write tool wrote ${path}`)
   }
   const ports = {
-    openSandbox: (ref) => { events.push(['sandbox', ref.conversationId]); sandboxRefs.push(ref); return sandbox },
+    openSandbox: async (ref) => { events.push(['sandbox', ref.conversationId]); sandboxRefs.push(ref); return sandbox },
     checkModel: async ({ builderRunId, accountId: payer }) => {
       events.push(['model-check', builderRunId, payer])
       if (!modelAccount) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
     },
     openSession: async (input) => {
-      events.push(['open', input.conversationId, input.builderRunId, input.workspace.id])
+      events.push(['open', input.conversationId, input.builderRunId])
       if (openError) throw openError
       if (session) return session(input)
+      const tools = service.runTools(input.conversationId, input.builderRunId)
       input.bindContext({ setRaw: (key, value) => sessionContext.set(key, value) })
       // The turn as Mastra runs it: each time the agent says it is done the gate answers, and a red
       // check sends it back to work on the next scripted repair.
       const drive = async (signal, resume) => {
         const finish = async () => {
-          const feedback = await input.gate.finish()
+          const feedback = await tools.gate.finish()
           if (feedback !== null) feedbacks.push(feedback)
           return feedback
         }
-        const context = { signal, sandbox, checkout, runCheck: input.runCheck, write: writeThroughTool, bare: inBare, mirror, finish, resume }
+        const context = { signal, sandbox, checkout, runCheck: tools.check, write: writeThroughTool, bare: inBare, mirror, finish, resume }
         let ended
         if (turn) ended = await turn(context)
         else {
@@ -233,7 +234,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
         if (ended.reason !== 'complete' || skipGate) return ended
         const queue = [...repairs]
         for (;;) {
-          if (await finish() === null || input.gate.gaveUp()) return ended
+          if (await finish() === null || tools.gate.gaveUp()) return ended
           await queue.shift()?.(context)
         }
       }

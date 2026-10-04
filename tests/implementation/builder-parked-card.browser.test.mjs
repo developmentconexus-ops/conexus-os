@@ -4,8 +4,8 @@ import { chromium } from '@playwright/test'
 import { BUILDER_CONTROLLER, builderState, conversation, routeBuilder, userMessage } from './builder-browser-fixtures.mjs'
 import { startWebServer } from './web-dev-server.mjs'
 
-// A run that parked on a question, with its stream down (the Hub answers 409, as once it let the
-// parked session go): the open call lives in the thread message's metadata until the answer clears it.
+// A run waiting on a question, with its stream down: the open call lives in the thread message's
+// metadata until the answer clears it.
 const parkedAsk = (question) => {
   const args = { questions: [{ question }] }
   return {

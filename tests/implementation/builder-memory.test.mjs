@@ -8,13 +8,13 @@ import { Mastra } from '@mastra/core/mastra'
 import { RequestContext } from '@mastra/core/request-context'
 import { LibSQLStore } from '@mastra/libsql'
 import { hubModuleUrl } from './hub-build.mjs'
+import { testConversations } from './builder-conversation-fixture.mjs'
 
 const built = hubModuleUrl
 const { createHttpApp } = await import(built('http/app.js'))
 const { createBuilderController } = await import(built('builder/harness/controller.js'))
 const { createBuilderMemory } = await import(built('builder/memory.js'))
 const { registerBuilderSessionRoutes } = await import(built('builder/mastra-session-routes.js'))
-const { createConversationSessions } = await import(built('builder/conversation-sessions.js'))
 const { createConversations } = await import(built('builder/conversations.js'))
 const { createModelRouting, RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } = await import(built('builder/model-routing.js'))
 
@@ -91,7 +91,7 @@ const builderWithMemory = async (t, script, onObserverPrompt, titleDelayMs) => {
 
 // A turn of a conversation on the model its session holds, the way a run's session does.
 const firstWindows = async (controller, content, { resourceId = 'project:memory', threadId } = {}) => {
-  const session = await controller.createSession({ resourceId, scope: `builder:${runId}`, requestContext: runContext(), ...(threadId ? { threadId } : {}) })
+  const session = await controller.createSession({ resourceId, scope: `conversation:${threadId ?? runId}`, requestContext: runContext(), ...(threadId ? { threadId } : {}) })
   await session.model.switch({ modelId: 'probe/main' })
   await session.state.set({ yolo: true })
   const windows = []
@@ -155,12 +155,11 @@ test('the conversation\'s own session shows the memory a run of it stored, throu
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
       await registerBuilderSessionRoutes(instance, {
-        mastra, controllerId: 'conexus-builder', controller, sessions: createConversationSessions({ controller }), origin,
+        mastra, controllerId: 'conexus-builder', controller, conversations: testConversations(controller, () => undefined), origin,
         resolveCurrentSession: async () => ({ account: { accountId: ana, displayName: 'Ana' }, issuer: 'https://issuer.test', subject: 'ana' }),
         admitProject: async () => true,
         conversationOwner: ({ projectId: project, conversationId: conversation }) => conversations.ownerOf(project, conversation),
         projectBusy: async () => false,
-        runContext: () => undefined,
       })
       return []
     },

@@ -5,6 +5,7 @@ import { Mastra } from '@mastra/core/mastra'
 import { InMemoryStore } from '@mastra/core/storage'
 import { Memory } from '@mastra/memory'
 import { hubModuleUrl } from './hub-build.mjs'
+import { testConversations } from './builder-conversation-fixture.mjs'
 
 // What the browser can count on from the Builder's controller through the Hub's mount, recorded
 // from createBuilderController: the facts the conversation screen is built on. Mastra itself leaves
@@ -13,14 +14,13 @@ const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { registerBuilderSessionRoutes } = await import(hubModuleUrl('builder/mastra-session-routes.js'))
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
 const { createConversations } = await import(hubModuleUrl('builder/conversations.js'))
-const { createConversationSessions } = await import(hubModuleUrl('builder/conversation-sessions.js'))
 
 const origin = 'https://conexus.test'
 const accountId = '22222222-2222-4222-8222-222222222222'
 const projectId = '33333333-3333-4333-8333-333333333333'
 const conversationId = '77777777-7777-4777-8777-777777777777'
 const resourceId = `project:${projectId}`
-const runScope = `builder:${conversationId}`
+const runScope = `conversation:${conversationId}`
 const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
 const streamOf = (parts) => new ReadableStream({ start(controller) { for (const part of parts) controller.enqueue(part); controller.close() } })
 
@@ -59,12 +59,11 @@ const startMount = async (t, memoryOptions = {}, model = askingModel()) => {
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
       await registerBuilderSessionRoutes(instance, {
-        mastra, controllerId: 'conexus-builder', controller, sessions: createConversationSessions({ controller }), origin,
+        mastra, controllerId: 'conexus-builder', controller, conversations: testConversations(controller, () => undefined), origin,
         resolveCurrentSession: async (request) => request.cookies['__Host-conexus_session'] ? { account: { accountId, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' } : null,
         admitProject: async () => true,
         conversationOwner: ({ projectId: project, conversationId: id }) => conversations.ownerOf(project, id),
         projectBusy: async () => false,
-        runContext: () => undefined,
       })
       return []
     },

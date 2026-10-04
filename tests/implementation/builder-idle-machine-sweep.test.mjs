@@ -56,10 +56,10 @@ test('#423 a machine idle exactly 7 days is deleted, and one idle a millisecond 
   assert.deepEqual(killed, ['ivm-7'])
 })
 
-test('#423 the machine of a conversation with a queued, running or parked run is never deleted, however old', async () => {
+test('#423 the machine of a conversation with a queued, running or waiting run is never deleted, however old', async () => {
   const { sweep, killed, log } = sweepWith({
-    machines: [machine('conv-active', 'ivm-active', 30), machine('conv-parked', 'ivm-parked', 30), machine('conv-idle', 'ivm-idle', 30)],
-    open: ['conv-active', 'conv-parked'],
+    machines: [machine('conv-active', 'ivm-active', 30), machine('conv-waiting', 'ivm-waiting', 30), machine('conv-idle', 'ivm-idle', 30)],
+    open: ['conv-active', 'conv-waiting'],
   })
   await sweep()
   assert.deepEqual(killed, ['ivm-idle'])
