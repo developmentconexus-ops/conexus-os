@@ -31,7 +31,7 @@ export type ComposerMode =
 // `/raciocinio` offers exactly the levels the selected model honors, the ones the slider shows, and
 // none for a model with no reasoning level.
 const commandsFor = (levels: readonly ReasoningLevel[]): readonly ComposerCommand[] => [
-  { name: 'nova', description: 'Abrir uma conversa nova neste Project' },
+  { name: 'nova', description: 'Abrir uma conversa nova neste Projeto' },
   ...levels.length ? [{ name: 'raciocinio', description: 'Mudar o nível de raciocínio', options: levels.map((level) => ({ value: level, label: reasoningLabels[level] })) }] : [],
 ]
 

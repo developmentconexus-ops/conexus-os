@@ -5,7 +5,8 @@ import type { PausedConversationMachine } from './sandbox.js'
 
 /**
  * A paused conversation machine nobody resumed for this long is deleted (spec 0002, B6). The files
- * stay in the conversation's branch mirror, so the limit decides speed and never loss.
+ * stay in the conversation's branch mirror, so the limit decides speed and never loss. This sweep
+ * is for E2B's paused VMs; the live sessions have their own in `conversation.ts`.
  */
 const IDLE_MACHINE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 

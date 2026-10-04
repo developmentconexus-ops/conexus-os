@@ -1307,7 +1307,7 @@ test('a suspended ask_user with options renders the options and submits the chos
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
     latestBuilderRun: {
-      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'WAITING',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
       failureCode: null, requestText: 'Destaque o título com uma cor', createdAt: new Date().toISOString(),
     },
@@ -1375,18 +1375,23 @@ const openLiveTurn = async (t, events) => {
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, state)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Título', projectRevision: 'revision', archived: false }) }))
+  // The Hub publishes a waiting run into the stream.
+  const ended = new Set(events.filter((event) => event.type === 'tool_end').map((event) => event.toolCallId))
+  const waits = events.some((event) => event.type === 'tool_suspended' && !ended.has(event.toolCallId))
+  const run = {
+    builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: waits ? 'WAITING' : 'AGENT',
+    baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
+    failureCode: null, requestText: 'Mude o título', createdAt: new Date().toISOString(),
+  }
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
-    latestBuilderRun: {
-      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
-      baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-      failureCode: null, requestText: 'Mude o título', createdAt: new Date().toISOString(),
-    },
+    latestBuilderRun: run,
     latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
     runHistory: [],
   }) }))
-  await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(...events)))
+  const published = waits ? [...events, { type: 'state_changed', state: { yolo: true, conexusRun: run }, changedKeys: ['conexusRun'] }] : events
+  await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(...published)))
   await page.goto(`${origin}/projects/${projectId}`)
   return page
 }
@@ -1649,7 +1654,7 @@ test('the eval driver answers every question of the real multi-question ask_user
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
     latestBuilderRun: {
-      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'WAITING',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
       failureCode: null, requestText: 'Crie um painel', createdAt: new Date().toISOString(),
     },
@@ -1705,7 +1710,7 @@ test('a suspended ask_user with no options renders the pt-BR free-text form', as
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
     latestBuilderRun: {
-      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'WAITING',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
       failureCode: null, requestText: 'Crie um app de lista de tarefas', createdAt: new Date().toISOString(),
     },
@@ -2033,7 +2038,7 @@ for (const width of [1536, 1700]) {
     await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
       projectId,
       latestBuilderRun: {
-        builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
+        builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'WAITING',
         baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
         failureCode: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
       },
@@ -2212,7 +2217,7 @@ test('a 403 poll after a good load shows the denied screen', async (t) => {
 
   status = 403
   await pollNow(page)
-  await page.getByText('Você não pode construir neste Project').waitFor()
+  await page.getByText('Você não pode construir neste Projeto').waitFor()
   await messageBox(page).waitFor({ state: 'detached' })
 })
 

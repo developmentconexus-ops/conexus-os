@@ -19,7 +19,7 @@ import {
   answerPendingCall, type Conversation, useBuilderConversation, useBuilderModels, useConversationActions, useConversationStreamOpen,
   useProjectConversations, useSessionModel,
 } from '../mastra-session'
-import { localMessageId, promptIsOpenFor, type PromptEntry, type TaskSnapshot } from '../transcript.ts'
+import { localMessageId, type PromptEntry, type TaskSnapshot } from '../transcript.ts'
 import { LensCode } from './lens-code'
 import { changeBasisOf, LensDiff } from './lens-diff'
 import { LensDetails } from './lens-details'
@@ -146,10 +146,9 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const { history, transcript, runtime } = thread
   // The run's own memory while it works here; the conversation's, as the Hub stored it, otherwise.
   const shownMemory = runHere && isActive(runHere) && runtime.memory ? runtime.memory : sessionModel.memory
-  // A call stays parked on the person only while the run that parked it is still going.
-  // A card the thread kept from an earlier run is not open for this one.
-  const openEntries = transcript.entries.filter((entry) => entry.kind !== 'prompt' || (runHere !== null && promptIsOpenFor(entry, runHere, runs)))
-  const pending = runHere && isActive(runHere) ? openEntries.filter((entry): entry is PromptEntry => entry.kind === 'prompt') : []
+  // A run's first step ends the questions earlier runs left, so the calls pending while it waits are its own.
+  const openEntries = transcript.entries.filter((entry) => entry.kind !== 'prompt' || isWaiting(runHere))
+  const pending = openEntries.filter((entry): entry is PromptEntry => entry.kind === 'prompt')
 
   // The message this page sent waits for the thread to show it back. Once its run settled and the
   // thread was read again, one never shown belongs to a run that stopped before its agent, and the
@@ -222,8 +221,8 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   if (session.isError && (session.data === undefined || denied)) {
     return <section className="cx-unavailable" role="alert">
       <ConexusMark size={32} />
-      <h2>{denied ? 'Você não pode construir neste Project' : 'Não foi possível abrir o Construir'}</h2>
-      <p>{denied ? 'Sua conta vê este Project, mas não tem permissão para construir nele. Peça acesso a um owner.' : failureText(session.error)}</p>
+      <h2>{denied ? 'Você não pode construir neste Projeto' : 'Não foi possível abrir o Construir'}</h2>
+      <p>{denied ? 'Sua conta vê este Projeto, mas não tem permissão para construir nele. Peça acesso a um owner.' : failureText(session.error)}</p>
       {!denied && isRetryable(session.error) && <Button onClick={() => void session.refetch()}>Tentar novamente</Button>}
     </section>
   }
@@ -285,7 +284,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
       </div>
     </div>
     <div className="cx-lens-panel" id="cx-lens-panel" role="tabpanel" aria-labelledby={`cx-lens-${lens}`}>
-      {session.isPending ? <div className="cx-preview-empty"><ConexusMark size={40} working /><p>Abrindo o Project…</p></div> : <>
+      {session.isPending ? <div className="cx-preview-empty"><ConexusMark size={40} working /><p>Abrindo o Projeto…</p></div> : <>
         {/* The Preview stays mounted under the other lenses so its frame never reloads on a lens switch. */}
         <div className="cx-lens-layer" hidden={lens !== 'preview'}>
           <LensPreview preview={preview} view={view} wait={wait} history={runs} lastGoodSourceRevision={preview_?.lastGoodSourceRevision ?? null} sourceAhead={sourceAhead} />

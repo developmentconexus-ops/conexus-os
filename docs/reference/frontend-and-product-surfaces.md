@@ -95,11 +95,11 @@ ask for another color review.
 | Interaction | Required behavior / source of truth |
 | --- | --- |
 | Workspace | Dominant Preview and contextual Conexus chat. Resize, expand/collapse, and narrow-screen switching remain usable; neither panel loses state when hidden. |
-| Composer | Multiline input, Enter to send, Shift+Enter for newline, IME-safe behavior, clear sending/stopping feedback, keyboard/focus operation. |
-| Model | Offer the models Mastra Code's credential store has authenticated, and refuse to send until one is chosen. A choice belongs to the conversation it was made in. A choice change never changes an active run. |
+| Composer | Multiline input, Enter to send, Shift+Enter for newline, IME-safe behavior, clear sending/stopping feedback, keyboard/focus operation. While a question waits, Enter sends the message, which ends the question, and Stop is its own control beside Send. |
+| Model | Offer the models Mastra Code's credential store has authenticated, and refuse to send until one is chosen. A choice belongs to the conversation it was made in. A choice change never changes an active run, and the picker stays locked while a run waits on a question. |
 | Tool restriction | Friendly Edit and Read-only labels map to the BUILD and PLAN tool sets. They are a tool restriction on the run, not an approval workflow. |
 | Conversation | Persistent native Thread messages with ordered safe parts and streaming native activity. Scroll follows only when the user remains at the tail. |
-| Progress | Preparation, agent work, compilation and Preview opening reflect actual facts. Missing facts are not fabricated percentages or timers. |
+| Progress | Preparation, agent work, compilation and Preview opening reflect actual facts. Missing facts are not fabricated percentages or timers. A wait on the person shows "Esperando a sua resposta" with no countdown. |
 | Preview | The actual authorized application remains usable while new work runs. Old launch responses cannot replace newer identity. A grant or iframe load is not proof of a working app. |
 | Second request | Uses current source and the same Project conversation. Changing model does not reset the code or Thread. |
 | Failure and correction | Failed admitted source stays current. The last good Preview remains today, as implementation rather than a guarantee (C-020 amended 2026-09-22). Safe diagnostic is available to the user and the next explicit correction. No automatic repair loop. |

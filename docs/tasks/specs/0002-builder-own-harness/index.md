@@ -280,7 +280,7 @@ Removed: `/api/control/installation/github`, `/api/control/installation/github/c
   fast forward, only by the Hub, only from the run's own base.
 - The mode has one home: the thread setting.
 - The sandbox holds no secret. Model calls, Git writes and connector calls happen in the Hub.
-- One active run per Project, including runs waiting on the person.
+- One active run per Project, including a run waiting on the person, which waits inside the run on the live session (spec 0011).
 - A secret is written only as a Conexus envelope and never leaves the Hub.
 
 ### Security model
@@ -484,7 +484,7 @@ right stop falls out of the same design. The studies are
 | Criterion | Now | Amended |
 | --- | --- | --- |
 | AC-14 | A run seeds a fresh sandbox from `main`. The end of Construir is admission | A turn runs in the conversation's sandbox. The sandbox resumes, or is rebuilt from the mirror or from `main`, and brings in `main` at turn start when `main` moved. Every turn end, stop included, mirrors the checkout. A version is its own act: the platform check on the branch tip, then a fast forward of `main`, or a clean merge commit when `main` moved. A failed check leaves the work in the branch |
-| AC-16 | One active run per Project | One active turn per conversation. A turn that waits on the person stays active as a PARKED run: it holds no session, sandbox or lock in the Hub, its question lives in Mastra's storage, and the answer, whenever it comes and after any restart, resumes it. Two conversations of one Project work at once and meet only at the compare-and-swap on `main` |
+| AC-16 | One active run per Project | One active turn per conversation. A turn that waits on the person stays active in `WAITING` (spec 0011): the run holds the conversation's live Mastra session and lets the VM go, and the question ends with the run, by an answer, a message, the configured wait, Stop or a Hub restart. Two conversations of one Project work at once and meet only at the compare-and-swap on `main` |
 | AC-17 | A failed run ends failed, the next run starts from `main`, and the note says the edits were discarded | A failed or interrupted turn keeps its files in the mirror. The next turn resumes the sandbox or rebuilds it from the mirror. A version already on `main` is recorded as admitted. The note says the files are kept |
 | Cancel, API surface (line 248) | As today: the run ends interrupted and its edits are discarded | Stop ends the turn as stopped, not failed. It keeps the sandbox and the files and makes no version |
 | Scenario "Restart after admission" (lines 331-332) | Kill the Hub after `main` advances: admitted. Kill it before: failed, `main` unchanged | Kill the Hub between the swap on `main` and the Preview: boot records "admitted, Preview not built". Kill it mid-turn: the next turn finds the files the killed turn wrote |

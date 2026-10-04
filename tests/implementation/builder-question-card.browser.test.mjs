@@ -6,22 +6,22 @@ import { startWebServer } from './web-dev-server.mjs'
 
 // A run waiting on a question, with its stream down: the open call lives in the thread message's
 // metadata until the answer clears it.
-const parkedAsk = (question) => {
+const waitingAsk = (question) => {
   const args = { questions: [{ question }] }
   return {
-    id: 'assistant-parked', role: 'assistant', createdAt: new Date().toISOString(),
+    id: 'assistant-waiting', role: 'assistant', createdAt: new Date().toISOString(),
     content: {
       format: 2,
-      parts: [{ type: 'tool-invocation', toolInvocation: { toolCallId: 'call_parked', toolName: 'ask_user', state: 'call', args } }],
-      metadata: { suspendedTools: { call_parked: { toolCallId: 'call_parked', toolName: 'ask_user', args, suspendPayload: args } } },
+      parts: [{ type: 'tool-invocation', toolInvocation: { toolCallId: 'call_waiting', toolName: 'ask_user', state: 'call', args } }],
+      metadata: { suspendedTools: { call_waiting: { toolCallId: 'call_waiting', toolName: 'ask_user', args, suspendPayload: args } } },
     },
   }
 }
 
-const openParkedRun = async (t, { phase, messages, refusal = null }) => {
+const openWaitingRun = async (t, { phase, messages, refusal = null }) => {
   const accountId = '70000000-0000-4000-8000-000000000321'
   const projectId = '70000000-0000-4000-8000-000000000322'
-  const conversationId = 'conversation-parked'
+  const conversationId = 'conversation-waiting'
   const sourceRevision = 'd'.repeat(40)
   const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
@@ -68,21 +68,21 @@ const openParkedRun = async (t, { phase, messages, refusal = null }) => {
 const WAITING_QUESTION = 'Qual número de orçamento podemos usar?'
 const card = (page) => page.getByLabel('Pergunta do agente')
 
-const openParkedCard = async (t) => {
-  const opened = await openParkedRun(t, { phase: 'WAITING', messages: [userMessage('user-1', 'Mude o título'), parkedAsk(WAITING_QUESTION)] })
+const openWaitingCard = async (t) => {
+  const opened = await openWaitingRun(t, { phase: 'WAITING', messages: [userMessage('user-1', 'Mude o título'), waitingAsk(WAITING_QUESTION)] })
   await card(opened.page).getByText(WAITING_QUESTION, { exact: true }).waitFor()
   return opened
 }
 
-test('a run parked on a question shows the card once and no clock counting the wait', async (t) => {
-  const { page } = await openParkedCard(t)
+test('a run waiting on a question shows the card once and no clock counting the wait', async (t) => {
+  const { page } = await openWaitingCard(t)
   assert.equal(await page.getByTestId('ask-user').count(), 1, 'one card')
   assert.equal(await page.getByText(WAITING_QUESTION, { exact: true }).count(), 1, 'the question is drawn once')
   assert.equal(await page.locator('.cx-working').innerText(), 'Esperando a sua resposta · Aguardando você')
 })
 
-test('typing in the composer while a parked run shows its card is never taken over by the card', async (t) => {
-  const { page } = await openParkedCard(t)
+test('typing in the composer while a waiting run shows its card is never taken over by the card', async (t) => {
+  const { page } = await openWaitingCard(t)
   const composer = page.getByLabel('Mensagem para o agente')
   await composer.click()
   await composer.pressSequentially('abcdefghij', { delay: 150 })
@@ -91,39 +91,38 @@ test('typing in the composer while a parked run shows its card is never taken ov
   assert.equal(await composer.evaluate((node) => node === document.activeElement), true, 'the composer keeps focus')
 })
 
-test('a parked run whose stream is down is read every 15 s, retrying its stream with each read, never every second', async (t) => {
-  const { page, requests } = await openParkedCard(t)
+test('an open call the thread kept from an earlier run draws no card until this run waits on the person', async (t) => {
+  const { page, run } = await openWaitingRun(t, { phase: 'PREPARING', messages: [userMessage('user-1', 'Mude o título'), waitingAsk(WAITING_QUESTION)] })
+  await page.getByText('Preparando', { exact: false }).first().waitFor()
   await page.waitForTimeout(1_000)
-  const before = { ...requests }
-  await page.waitForTimeout(16_000)
-  const reads = requests.session - before.session
-  const retries = requests.stream - before.stream
-  assert.deepEqual({ reads: reads >= 1 && reads <= 2, retries: retries >= 1 && retries <= 2 }, { reads: true, retries: true })
+  assert.equal(await page.getByTestId('ask-user').count(), 0, 'no card while the run prepares')
+  run.phase = 'WAITING'
+  await card(page).getByText(WAITING_QUESTION, { exact: true }).waitFor({ timeout: 8_000 })
 })
 
-test('a page that read the thread before the run parked draws the card once the run turns parked', async (t) => {
-  const { page, state, run, conversationId } = await openParkedRun(t, { phase: 'AGENT', messages: [userMessage('user-1', 'Mude o título')] })
+test('a page that read the thread before the run asked draws the card once the run waits', async (t) => {
+  const { page, state, run, conversationId } = await openWaitingRun(t, { phase: 'AGENT', messages: [userMessage('user-1', 'Mude o título')] })
   await page.getByText('Agente trabalhando', { exact: false }).first().waitFor()
   assert.equal(await page.getByTestId('ask-user').count(), 0)
-  state.messages[conversationId] = [userMessage('user-1', 'Mude o título'), parkedAsk(WAITING_QUESTION)]
+  state.messages[conversationId] = [userMessage('user-1', 'Mude o título'), waitingAsk(WAITING_QUESTION)]
   run.phase = 'WAITING'
   await card(page).getByText(WAITING_QUESTION, { exact: true }).waitFor({ timeout: 8_000 })
   assert.equal(await page.getByTestId('ask-user').count(), 1)
   assert.equal(await page.getByText('Pensando…').count(), 0)
 })
 
-test('answering the card of a parked run shows the run going again without the slow poll', async (t) => {
-  const { page, requests } = await openParkedRun(t, { phase: 'WAITING', messages: [userMessage('user-1', 'Mude o título'), parkedAsk(WAITING_QUESTION)] })
+test('answering the card of a waiting run shows the run going again without the slow poll', async (t) => {
+  const { page, requests } = await openWaitingRun(t, { phase: 'WAITING', messages: [userMessage('user-1', 'Mude o título'), waitingAsk(WAITING_QUESTION)] })
   await card(page).getByRole('textbox').fill('144118')
   await card(page).getByRole('button', { name: 'Enviar resposta' }).click()
   await page.getByText('Agente trabalhando').first().waitFor({ timeout: 4_000 })
-  assert.deepEqual(requests.answers, [{ toolCallId: 'call_parked', resumeData: ['144118'] }])
+  assert.deepEqual(requests.answers, [{ toolCallId: 'call_waiting', resumeData: ['144118'] }])
 })
 
 test('an answer the Hub refuses keeps the card and says why: already answered, no longer waited on, or not delivered', async (t) => {
   const said = []
   for (const refusal of [{ status: 409, type: 'TOOL_ANSWER_ALREADY_GIVEN' }, { status: 409, type: 'QUESTION_ENDED' }, { status: 503, type: 'BUILDER_UNAVAILABLE' }]) {
-    const { page } = await openParkedRun(t, { phase: 'WAITING', messages: [userMessage('user-1', 'Mude o título'), parkedAsk(WAITING_QUESTION)], refusal })
+    const { page } = await openWaitingRun(t, { phase: 'WAITING', messages: [userMessage('user-1', 'Mude o título'), waitingAsk(WAITING_QUESTION)], refusal })
     await card(page).getByRole('textbox').fill('144118')
     await card(page).getByRole('button', { name: 'Enviar resposta' }).click()
     said.push(await card(page).getByRole('alert').innerText())
@@ -136,7 +135,7 @@ test('an answer the Hub refuses keeps the card and says why: already answered, n
 })
 
 test('while a question waits, Enter sends the message to the run and Stop is its own control', async (t) => {
-  const { page, requests } = await openParkedCard(t)
+  const { page, requests } = await openWaitingCard(t)
   const form = page.getByRole('form', { name: 'Enviar pedido ao agente' })
   const composer = page.getByLabel('Mensagem para o agente')
   assert.equal(await form.getByRole('button', { name: 'Parar' }).count(), 1, 'Stop is shown')
@@ -150,7 +149,7 @@ test('while a question waits, Enter sends the message to the run and Stop is its
 })
 
 test('while the message that continues a waiting run is still being sent, Stop stays available', async (t) => {
-  const { page, requests } = await openParkedCard(t)
+  const { page, requests } = await openWaitingCard(t)
   let deliver = () => undefined
   requests.holdMessages = new Promise((settle) => { deliver = settle })
   const form = page.getByRole('form', { name: 'Enviar pedido ao agente' })

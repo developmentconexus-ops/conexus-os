@@ -81,7 +81,7 @@ export const useBuilderSession = (queryClient: QueryClient, projectId: string, c
     const latest = query.state.data?.latestBuilderRun
     if (!isActive(latest)) return false
     if (latest.conversationId !== conversationId) return 2_000
-    if (streamOpen || isWaiting(latest)) return 15_000
+    if (streamOpen) return 15_000
     return Math.min(1_000 * 2 ** query.state.fetchFailureCount, 30_000)
   },
 })
