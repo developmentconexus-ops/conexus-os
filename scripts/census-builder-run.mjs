@@ -106,6 +106,9 @@ const webSource = walk(join(repo, 'apps/web/src'), (path) => /\.tsx?$/.test(path
 const abortUndoCalls = hits(hubSource, /\bsuspensions\.(clear|register)\(|\brequestAbort\(|\b(letGoOfParked|deleteSessionLeavingParked)\(/)
   .filter((at) => !/(?:const|function)\s+(letGoOfParked|deleteSessionLeavingParked)\b/.test(readFileSync(join(repo, at.split(':')[0]), 'utf8').split('\n')[Number(at.split(':')[1]) - 1]))
 const hubSendMessageCalls = hits(hubSource, /\.sendMessage\(/)
+// Mastra's internal registration and its workflow snapshots are released in one module only, the
+// documented boundary exception for mastra-ai/mastra#25903.
+const mastraInternalsOutsideLeftovers = hits(hubSource.filter((path) => rel(path) !== 'apps/hub/src/builder/mastra-leftovers.ts'), /__unregisterInternalWorkflow|deleteWorkflowRunById/)
 
 const sessionScopes = [...new Set([...hubSource, ...webSource].flatMap((path) =>
   [...readFileSync(path, 'utf8').matchAll(/[`'^]([a-z]+):\$\{|\^([a-z]+):\(/g)].map((match) => match[1] ?? match[2])))]
@@ -128,6 +131,7 @@ const census = {
   parkedReferences,
   abortUndoCalls,
   hubSendMessageCalls,
+  mastraInternalsOutsideLeftovers,
   sessionScopes,
   collectionsAcrossModules,
   runFunctionLengthSuppressions,

@@ -147,9 +147,11 @@ test('a question a stopped Hub left open is denied at the next send of a new Hub
   await next.release()
 })
 
-// Mastra 1.71 keeps the `agentic-loop` registration of a suspended run that an abort ends, and the
-// Hub releases it in endQuestions (https://github.com/mastra-ai/mastra/issues/25903). When this
-// fails, an upgrade fixed it: the release goes, and so does this test.
+// The removal trigger of a Mastra boundary exception (docs/reference/mastra-boundary.md, item 18).
+// Mastra 1.71 keeps the `agentic-loop` registration and the snapshot rows of a suspended run that an
+// abort ends, and the Hub releases them in apps/hub/src/builder/mastra-leftovers.ts
+// (https://github.com/mastra-ai/mastra/issues/25903). When this fails, an upgrade fixed it: that
+// module, its caller in run/question.ts, the census item and this test go.
 test('Mastra still leaves the loop registration and the snapshot rows of a question an abort ends', async (t) => {
   const storage = new InMemoryStore()
   await storage.init()

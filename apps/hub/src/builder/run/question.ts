@@ -1,6 +1,7 @@
 import type { AgentController } from '@mastra/core/agent-controller'
 import { z } from 'zod'
 import { Failure } from '../../platform/failure.js'
+import { releaseMastraLeftovers } from '../mastra-leftovers.js'
 import type { ControllerSession, StopReason, WaitEnd } from './ports.js'
 
 
@@ -50,13 +51,11 @@ export const untilQuestionStored = (session: ControllerSession, bound: Readonly<
     return [...session.displayState.get().pendingSuspensions.keys()].every((toolCallId) => stored.has(toolCallId))
   }, bound)
 
-const LOOP_WORKFLOWS = ['agentic-loop', 'executionWorkflow'] as const
-
 /**
  * Ends every open question without an answer: the live one through Mastra's abort, which stores the
  * call as denied, and one a stopped Hub left on the thread through Mastra's deny. Then it waits until
  * Mastra lets go of the thread, and releases what Mastra 1.71 keeps of a suspended run that never
- * resumes (Mastra issue #25903): the `agentic-loop` registration and the two snapshot rows. With
+ * resumes (Mastra issue #25903, through mastra-leftovers.ts): the `agentic-loop` registration and the two snapshot rows. With
  * nothing open it reads the thread once and changes nothing. The bound holds the whole operation,
  * since any of Mastra's storage reads can hang, and a cleanup past its bound changes nothing more.
  */
@@ -83,19 +82,11 @@ const releaseQuestions = async (controller: Pick<AgentController, 'getMastra'>, 
   await until(async () => (await readOpenCalls(session)).length === 0 && !agent.listActiveThreadRuns().some((run) => run.threadId === threadId), bound)
   const { runs } = await agent.listSuspendedRuns({ threadId, resourceId })
   if (runs.length === 0) return
-  const mastra = controller.getMastra()
-  const workflows = await mastra?.getStorage()?.getStore('workflows')
-  for (const { runId } of runs) {
+  await releaseMastraLeftovers(controller.getMastra(), runs.map(({ runId }) => runId), {
+    signal,
     // A question asked since this cleanup began is not its own to release.
-    const held = new Set([...session.displayState.get().pendingSuspensions.keys()].map((toolCallId) => session.suspensions.get({ toolCallId })?.runId))
-    if (held.has(runId)) continue
-    signal.throwIfAborted()
-    mastra?.__unregisterInternalWorkflow('agentic-loop', runId)
-    for (const workflowName of LOOP_WORKFLOWS) {
-      signal.throwIfAborted()
-      await workflows?.deleteWorkflowRunById({ runId, workflowName })
-    }
-  }
+    held: (runId) => [...session.displayState.get().pendingSuspensions.keys()].some((toolCallId) => session.suspensions.get({ toolCallId })?.runId === runId),
+  })
 }
 
 type Inbox = Readonly<{

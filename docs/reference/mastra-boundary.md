@@ -42,6 +42,7 @@ embedded doc page.
 | 15 | AppShell's frame chrome | Deliberate override, C-031 | Implemented |
 | 16 | MainSidebar's row and icon sizing | Deliberate override, C-031 | Implemented |
 | 17 | Retrying a model's transient failures | A for the processor, B for Mastra Code's policy | Implemented; waits on U10 |
+| 18 | Releasing what Mastra keeps of an ended question | Exception, until mastra-ai/mastra#25903 | Implemented; contained in one module |
 
 ## 1. Moving repositories to a new GitHub App installation
 
@@ -488,6 +489,34 @@ to carry a turn on.
 
 **Implemented.** `error-processors.ts` and `runtime.ts`. The web reads a `retryable` error event as a
 retry in progress (`live-turn.ts`).
+
+## 18. Releasing what Mastra keeps of an ended question
+
+**Current code.** `apps/hub/src/builder/mastra-leftovers.ts` calls the Mastra instance's
+`__unregisterInternalWorkflow('agentic-loop', runId)` and deletes the snapshot rows of the
+`agentic-loop` and `executionWorkflow` workflows through the workflows store's
+`deleteWorkflowRunById`. Its one caller is `endQuestions` in `apps/hub/src/builder/run/question.ts`,
+after a question the person ended without an answer is aborted or denied.
+
+**What Mastra offers.** Mastra 1.71 keeps the loop registration and both snapshot rows of a suspended
+run that an abort ends and that never resumes (mastra-ai/mastra#25903). There is no public release:
+`declineToolCall` throws on the aborted run, and resuming only to skip the call costs a model turn.
+Without the release, every question ended without an answer stays in the Hub process's heap and in
+storage.
+
+**Evidence.** Spike S-8 of spec 0011 (`docs/tasks/specs/0011-builder-run-one-state-machine/rationale.md`):
+abort, release and snapshot delete keep the heap at the control level and leave no rows; a skip resume
+costs an extra model call. The heap test `tests/manual/builder-question-heap.test.mjs` measures it
+through real runs.
+
+**Decision.** A documented exception to this page's rule, contained so it cannot spread:
+`mastra-leftovers.ts` is the only file that reaches these internals, and the census item
+`mastraInternalsOutsideLeftovers` in `scripts/census-builder-run.mjs`, recorded at 0, fails on any other
+caller.
+
+**Removal trigger.** The test "Mastra still leaves the loop registration and the snapshot rows of a
+question an abort ends" in `tests/implementation/builder-run-question.test.mjs` fails once an upgrade
+fixes #25903. Then the module, its caller, the census item and that test go.
 
 ## Upstream proposals
 

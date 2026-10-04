@@ -5,6 +5,7 @@
   "parkedReferences": 0,
   "abortUndoCalls": 0,
   "hubSendMessageCalls": 1,
+  "mastraInternalsOutsideLeftovers": 0,
   "sessionScopes": 1,
   "collectionsAcrossModules": 0,
   "runFunctionLengthSuppressions": 0,
