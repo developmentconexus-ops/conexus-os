@@ -2,6 +2,7 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
+import { FAILURES } from '../../../generated/failures.ts'
 import { failureText, hubCall, hubFetch, isFailure } from '../../../app/http'
 import { Chip, SectionError, StatusLine } from './states'
 
@@ -15,7 +16,7 @@ const connectionQueryKey = ['model-accounts', PROVIDER] as const
 
 const OUTCOME: Readonly<Record<Exclude<LoginState, 'waiting'>, string>> = {
   succeeded: 'Google AI Pro conectado.',
-  failed: 'O Google recusou a entrada.',
+  failed: FAILURES.MODEL_LOGIN_GOOGLE_REFUSED.message,
   expired: 'A entrada expirou.',
 }
 

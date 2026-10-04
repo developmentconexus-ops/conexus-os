@@ -2,6 +2,7 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useId, useState } from 'react'
+import { FAILURES } from '../../../generated/failures.ts'
 import { accountsQueryKey, accountsUrl, callModelAccounts as call, type Accounts } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
 import { failureText } from '../../../app/http'
@@ -18,7 +19,7 @@ function PasteCode({ login, onDone, onCancel }: Readonly<{ login: Login; onDone:
   const pastedId = useId()
   const complete = useMutation({
     mutationFn: () => call<{ state: LoginState }>('POST', `${base}/complete`, { loginId: login.loginId, code: pasted.trim() }),
-    onSuccess: ({ state }) => { if (state === 'failed') setRefusal('A Anthropic recusou esse código. Confira se copiou o código inteiro.'); else onDone(state) },
+    onSuccess: ({ state }) => { if (state === 'failed') setRefusal(FAILURES.MODEL_LOGIN_ANTHROPIC_REFUSED.message); else onDone(state) },
     onError: (error) => setRefusal(failureText(error)),
   })
   return <div className="cxs-connect">
