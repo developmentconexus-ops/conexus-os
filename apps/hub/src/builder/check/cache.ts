@@ -1,4 +1,4 @@
-import { chmodSync, chownSync, closeSync, constants, copyFileSync, existsSync, fstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, chownSync, closeSync, constants, copyFileSync, existsSync, fstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
@@ -47,41 +47,20 @@ const createExclusive = (path: string): boolean => {
   }
 }
 
-/** A takeover guard older than this belongs to a process that died inside its few microseconds. */
-const GUARD_STALE_MS = 10_000
-
 /**
- * Removes a lock whose holder is gone. Two waiters must not both remove it, or the second removes
- * the fresh lock the first just took: only the one that holds the guard (an exclusive file of its
- * own) looks again at the holder and removes the lock, and the other sees the new holder alive.
- */
-const takeOverStale = (path: string): void => {
-  const guard = `${path}.takeover`
-  try {
-    if (Date.now() - statSync(guard).mtimeMs > GUARD_STALE_MS) rmSync(guard, { force: true })
-  } catch { /* no guard */ }
-  if (!createExclusive(guard)) return
-  try {
-    const holder = holderOf(path)
-    if (holder !== null && !isAlive(holder)) rmSync(path, { force: true })
-  } finally {
-    rmSync(guard, { force: true })
-  }
-}
-
-/**
- * Takes the lock file of one cache key, waiting for the check that holds it. A lock left by a
- * process that is gone is taken over. Answers how to release it, or null when the lock was not free
- * in time.
+ * Takes the lock file of one cache key, waiting for the check that holds it up to `waitMs`. A lock
+ * whose holder is gone is removed and taken. That removal assumes one waiter per key, which holds
+ * because a VM runs one check at a time: a stale lock exists only after a check died, and the next
+ * check is the only one that finds it. Answers how to release it, or null when it was not free in time.
  */
 const acquireLock = async (path: string, waitMs = LOCK_WAIT_MS): Promise<(() => void) | null> => {
   const deadline = Date.now() + waitMs
   for (;;) {
     if (createExclusive(path)) return () => rmSync(path, { force: true })
-    const holder = holderOf(path)
-    if (holder !== null && !isAlive(holder)) { takeOverStale(path); continue }
     if (Date.now() >= deadline) return null
-    await pause(LOCK_POLL_MS)
+    const holder = holderOf(path)
+    if (holder !== null && !isAlive(holder)) rmSync(path, { force: true })
+    else await pause(LOCK_POLL_MS)
   }
 }
 
@@ -92,8 +71,14 @@ type Run<T> = (tsBuildInfoFile: string | null) => Promise<T>
  * decides admission, so the agent may forge it; the lock only keeps two checks from writing it at once.
  */
 export const withToolCache = async <T>(directory: string, run: Run<T>): Promise<T> => {
-  try { mkdirSync(directory, { recursive: true }) } catch { return run(null) }
-  const release = await acquireLock(`${directory}.lock`)
+  // The tool's cache decides nothing, so any trouble with its folder or lock means checking without it.
+  let release: (() => void) | null
+  try {
+    mkdirSync(directory, { recursive: true })
+    release = await acquireLock(`${directory}.lock`)
+  } catch {
+    return run(null)
+  }
   if (!release) return run(null)
   try { return await run(join(directory, INFO_NAME)) } finally { release() }
 }

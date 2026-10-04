@@ -208,37 +208,28 @@ test('AC-8: tsc runs as uid 1500, so an import of a file only root can read is a
   }
 })
 
-test('AC-9: the gate reads only its own root-only store, whatever the agent plants, and a type error is still reported', { skip, timeout: 8 * 60_000 }, async () => {
+test('AC-9: a valid build info planted where the agent can write, the lend folder included, cannot hide a type error from the gate', { skip, timeout: 8 * 60_000 }, async () => {
   const sandbox = await openCheckSandbox()
   try {
     await sandbox.start()
     process.stdout.write(`E2B_SANDBOX ${sandbox.sandboxId}\n`)
     const files = await starterFiles()
     const bundle = await placeHubCheck(sandbox, files)
-    assert.equal((await rootCheck(sandbox, bundle)).ok, true, 'a clean tree fills the gate store')
+    assert.equal((await rootCheck(sandbox, bundle)).ok, true, 'a clean tree passes and fills the gate store')
     const store = `/var/lib/conexus-check-cache/${bundle.sha256}/gate/app`
     assert.equal((await sandbox.runAsRoot(`stat -c '%U %a' ${store}/tsbuildinfo`, {})).stdout.trim(), 'root 600')
-    // The cache the gate reads is the store, and only the store: a check of the unchanged tree finds
-    // nothing to write back, so the file keeps the date it was given. A gate that read any other file
-    // (the tool's cache, a folder the agent can write) would rewrite it.
-    const marked = '@1577836800'
-    assert.equal((await sandbox.runAsRoot(`touch -d ${marked} ${store}/tsbuildinfo`, {})).exitCode, 0)
-    const clean = (await sandbox.runAsRoot(`cat ${store}/tsbuildinfo`, {})).stdout
+    // The forgery is a valid build info, the clean run's own, planted at every path the agent can write
+    // and the gate could read: the tool's cache, a gate folder in the agent's home, and the folder the gate lends from.
+    const valid = (await sandbox.runAsRoot(`cat ${store}/tsbuildinfo`, {})).stdout
     const lend = `/tmp/conexus-lend-${createHash('sha256').update(store).digest('hex').slice(0, 16)}`
-    // The agent plants its forgery everywhere it can write, among them the folder the gate lends from.
-    assert.equal((await asAgent(sandbox, `mkdir -p ${lend} ${`/home/conexus-agent/.conexus-check-cache/${bundle.sha256}`}/tool/app ${`/home/conexus-agent/.conexus-check-cache/${bundle.sha256}`}/gate/app && echo decoy > ${lend}/decoy`)).exitCode, 0)
-    await sandbox.writeFiles([
-      { path: '/workspace/tsbuildinfo', content: clean }, { path: `${lend}/tsbuildinfo`, content: 'forged' },
-      { path: `/home/conexus-agent/.conexus-check-cache/${bundle.sha256}/tool/app/tsbuildinfo`, content: 'forged' },
-      { path: `/home/conexus-agent/.conexus-check-cache/${bundle.sha256}/gate/app/tsbuildinfo`, content: 'forged' },
-    ])
-    assert.equal((await rootCheck(sandbox, bundle)).ok, true)
-    assert.equal((await sandbox.runAsRoot(`stat -c %Y ${store}/tsbuildinfo`, {})).stdout.trim(), '1577836800', 'the gate read the store and nothing it wrote was needed')
-    assert.notEqual((await sandbox.runAsRoot(`test -e ${lend}`, {})).exitCode, 0, 'the lent folder, planted decoy and all, is gone after the check')
+    const home = `/home/conexus-agent/.conexus-check-cache/${bundle.sha256}`
+    assert.equal((await asAgent(sandbox, `mkdir -p ${lend} ${home}/tool/app ${home}/gate/app`)).exitCode, 0)
+    await sandbox.writeFiles([`${lend}/tsbuildinfo`, `${home}/tool/app/tsbuildinfo`, `${home}/gate/app/tsbuildinfo`].map((path) => ({ path, content: valid })))
     await sandbox.writeRootFile(`${CHECK_ROOT}/app/src/main.tsx`, Buffer.from(`${files['app/src/main.tsx']}export const answer: number = 'six'\n`))
     const refused = await rootCheck(sandbox, bundle)
     assert.equal(refused.ok, false)
     assert.deepEqual(refused.steps.find((step) => step.step === 'typecheck').problems.map((problem) => problem.code), ['TS2322'])
+    assert.notEqual((await sandbox.runAsRoot(`test -e ${lend}`, {})).exitCode, 0, 'the lent folder is gone after the check')
     assert.notEqual((await sandbox.runAsRoot('pgrep -u 1500', {})).exitCode, 0, 'no uid 1500 process outlives the check')
     assert.equal((await sandbox.runAsRoot(`ls ${store} | tr '\\n' ' '`, {})).stdout.trim(), 'tsbuildinfo', 'the store holds only its own file, and the lock is released')
   } finally {

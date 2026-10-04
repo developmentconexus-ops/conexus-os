@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -138,12 +138,11 @@ test('every lend of one key uses the same folder, because the build info records
   await withGateCache(other, async (info) => { assert.notEqual(info, lent[0], 'another key has its own folder') })
 })
 
-test('real processes finding one dead holder take the lock one at a time: none removes another\'s fresh lock', async (t) => {
+test('real processes racing for one key take its lock one at a time', async (t) => {
   const dir = scratchOf(t)
   const directory = join(dir, 'tool', 'app')
   mkdirSync(join(dir, 'tool'), { recursive: true })
   const race = async (round) => {
-    writeFileSync(`${directory}.lock`, '2147483646')
     const logFile = join(dir, `log-${round}`)
     const startFile = join(dir, `start-${round}`)
     const children = Array.from({ length: 8 }, () => new Promise((resolve) => {
@@ -172,4 +171,18 @@ test('a build info that did not change is not written back, so the stored file k
   assert.equal(statSync(stored).mtimeMs, marked.getTime())
   await withGateCache(input, async (info) => { writeFileSync(info, 'changed') })
   assert.equal(readFileSync(stored, 'utf8'), 'changed')
+})
+
+test('trouble with the tool cache lock means checking without the cache, not failing the check', async (t) => {
+  if (process.getuid() === 0) return t.skip('root ignores directory modes')
+  const directory = join(scratchOf(t), 'tool', 'app')
+  mkdirSync(directory, { recursive: true })
+  chmodSync(join(directory, '..'), 0o500)
+  const seen = []
+  try {
+    await withToolCache(directory, async (info) => { seen.push(info) })
+  } finally {
+    chmodSync(join(directory, '..'), 0o700)
+  }
+  assert.deepEqual(seen, [null])
 })

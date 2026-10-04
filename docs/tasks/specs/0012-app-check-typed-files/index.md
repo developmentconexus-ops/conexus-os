@@ -246,14 +246,18 @@ Kept as they are: `APPLICATION_CHECK_REPORT_UNREADABLE`, `APPLICATION_CHECK_UNRE
 ### 7. Tests
 
 - `builder-application-check.browser.test.mjs` runs the built bundle against the real compiler and
-  Chromium for the six reference apps (AC-11), a step timeout (AC-12), the root only import (AC-8),
-  and a forged gate cache (AC-9).
+  Chromium for the six reference apps (AC-11), a step timeout (AC-12), and that tsc reads the tool
+  cache (an unchanged tree leaves the build info alone).
 - A report module test: valid reports to literal values; each malformed shape in AC-2 refused.
 - Runtime tests: install on a new VM, no write on a second run, a second bundle beside the first, two
   concurrent installs (AC-4); identity mismatch (AC-5); manifest mismatch both ways (AC-6); the server
   half through `server` (AC-13); a Hub started without the bundle fails at boot (AC-3).
-- The manual E2B test runs AC-7 to AC-11 and the AC-15 pairs; the live harness proves AC-16. Each E2B
-  run is recorded and its sandbox killed.
+- Lock tests with real concurrent processes: eight waiters on one key, one inside at a time (AC-10);
+  a stale lock left by a dead check is taken over by the next one.
+- The manual E2B test covers AC-7, AC-8, AC-9 and AC-12; the live harness with real E2B proves AC-16.
+  Each E2B run is recorded and its sandbox killed.
+- AC-15 was measured once, on E2B, against the old check before that check was deleted, so the pairs
+  cannot be rerun after this change merges. The numbers are in rationale.md, under Evidence.
 
 **Key invariants**:
 - Only root writes under `/opt/conexus/check` and the gate's cache store; installed bundles are never
@@ -261,6 +265,10 @@ Kept as they are: `APPLICATION_CHECK_REPORT_UNREADABLE`, `APPLICATION_CHECK_UNRE
 - `tsc` and every step that reads or executes agent code run as uid 1500.
 - An artifact exists exactly when the report is ok, and every collected file matches the manifest.
 - One bundle, one server build, one redactor, one report schema.
+- A VM runs one check at a time. The gate runs in Mastra's `isTaskComplete`, after the step's tool
+  calls have settled, and there is one run per conversation, so two gate checks never share a VM. The
+  uid-wide sweep of the agent's processes relies on this: a second check at once would lose its
+  children.
 
 **Security model**: the Hub places and identifies the check; the agent's code and everything that
 reads it run as uid 1500; the gate's cache is only ever written by root.
@@ -287,8 +295,9 @@ reads it run as uid 1500; the gate's cache is only ever written by root.
 3. `conexus_run_operation` through the bundle's `server` command. Satisfies **AC-13**.
 4. Typecheck as uid 1500 with the gate's lent cache, the tool cache and the locks. Satisfies
    **AC-8**, **AC-9**, **AC-10**.
-5. E2B proofs: attacks, the six apps, timing pairs; then the live Hub run to a Preview. Satisfies
-   **AC-7**, **AC-15**, **AC-16**, **AC-17**.
+5. E2B proofs: the manual test for the attacks and the step timeout (AC-7, AC-8, AC-9, AC-12); one
+   timing measurement against the old check before it is deleted (AC-15); then the live Hub run to a
+   Preview (AC-16). Satisfies **AC-7**, **AC-15**, **AC-16**, **AC-17**.
 
 ## Consequences
 
