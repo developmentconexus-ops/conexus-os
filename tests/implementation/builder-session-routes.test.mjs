@@ -241,23 +241,6 @@ test('each outcome of an answer has its own HTTP status and problem type, which 
   ])
 })
 
-test('a tool answer other than approve or decline is refused on the Builder mount before Mastra runs it', async (t) => {
-  const { app, reachedContexts } = await createBuilderApp(t)
-  const approvalUrl = `${sessionBase()}/tool-approval?${inConversation()}`
-  const suspensionUrl = `${sessionBase()}/tool-suspension?${inConversation()}`
-
-  const escalatedApproval = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: true, decision: 'always_allow_category' } })
-  const escalatedSuspensionField = await app.inject({ method: 'POST', url: suspensionUrl, ...authentic, payload: { toolCallId: 'call-1', resumeData: { decision: 'always_allow_category' } } })
-  const escalatedSuspensionString = await app.inject({ method: 'POST', url: suspensionUrl, ...authentic, payload: { toolCallId: 'call-1', resumeData: 'always_allow_category' } })
-  assert.deepEqual([escalatedApproval.statusCode, escalatedSuspensionField.statusCode, escalatedSuspensionString.statusCode], [400, 400, 400])
-  assert.deepEqual(reachedContexts.filter((entry) => entry.url.includes('/tool-')), [])
-
-  const approved = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: true } })
-  const declined = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: false } })
-  const resumed = await app.inject({ method: 'POST', url: suspensionUrl, ...authentic, payload: { toolCallId: 'call-1', resumeData: 'Use SQLite.' } })
-  assert.deepEqual([approved.statusCode, declined.statusCode, resumed.statusCode], [200, 200, 200])
-})
-
 test('a state-changing request without CSRF is refused on the mount', async (t) => {
   const { app } = await createBuilderApp(t)
   const withoutCsrf = { headers: { origin, 'content-type': 'application/json' }, cookies: { '__Host-conexus_session': 'session-1' } }
@@ -574,7 +557,7 @@ test("the browser reaches exactly ten of Mastra's agent-controller routes, each 
     .map((route) => `${route.method} ${route.path.replace('/agent-controller/:controllerId/sessions', '')}`)
   assert.deepEqual(mounted.sort(), [
     'GET /:resourceId', 'GET /:resourceId/stream', 'GET /:resourceId/threads', 'GET /:resourceId/threads/:threadId/messages',
-    'POST ', 'POST /:resourceId/abort', 'POST /:resourceId/model', 'POST /:resourceId/tool-approval', 'POST /:resourceId/tool-suspension',
+    'POST ', 'POST /:resourceId/abort', 'POST /:resourceId/model', 'POST /:resourceId/tool-suspension',
     'PUT /:resourceId/state',
   ])
 })

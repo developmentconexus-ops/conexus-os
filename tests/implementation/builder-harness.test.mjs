@@ -189,9 +189,10 @@ test('the model sees each skill by name and never a path on the Hub host, and re
   await controller.init()
   t.after(() => controller.destroy?.())
   const session = await controller.createSession({ resourceId: 'project:probe-skill-path', scope: 'probe-skill-path' })
+  // As every Builder run sets it: the agent's tools run with no approval gate.
+  await session.state.set({ yolo: true })
   const toolResults = {}
   session.subscribe((event) => {
-    if (event.type === 'tool_approval_required') session.respondToToolApproval({ toolCallId: event.toolCallId, decision: 'approve' })
     if (event.type === 'tool_end') toolResults[event.toolCallId] = String(event.result)
   })
   await session.sendMessage({ content: 'oi' })

@@ -48,7 +48,6 @@ const BROWSER_ROUTES: ReadonlySet<string> = new Set([
   sessionRoute('GET', '/threads/:threadId/messages'),
   sessionRoute('POST', '/abort'),
   sessionRoute('POST', '/model'),
-  sessionRoute('POST', '/tool-approval'),
   sessionRoute('POST', '/tool-suspension'),
   sessionRoute('PUT', '/state'),
 ])
@@ -60,11 +59,6 @@ const SESSIONLESS_ROUTES: ReadonlySet<string> = new Set([sessionRoute('GET', '/t
 // A conversation's model changes only between runs (AC-12); a run in flight is refused.
 const IDLE_ONLY_ROUTES: ReadonlySet<string> = new Set([sessionRoute('POST', '/model')])
 
-// The Hub is the single writer of tool policy; the browser may only answer for the one pending
-// tool call it was shown. Core's approval decision is 'approve' | 'decline' | 'always_allow_category',
-// and the third literal grants the tool's whole category for the rest of the session, so it is a
-// policy write, not an answer to a call. tool-suspension's resumeData is unknown() and free-form
-// (a custom interactive tool could echo the same literal), so both routes are checked alike.
 const TOOL_SUSPENSION_KEY = sessionRoute('POST', '/tool-suspension')
 const ABORT_KEY = sessionRoute('POST', '/abort')
 // The web card reads the problem code to say why its answer did not reach the run.
@@ -72,15 +66,6 @@ const ANSWER_REFUSALS: Readonly<Record<Exclude<AnswerOutcome, 'ACCEPTED'>, 'TOOL
   ALREADY_ANSWERED: 'TOOL_ANSWER_ALREADY_GIVEN',
   UNKNOWN_CALL: 'QUESTION_ENDED',
   ENDED: 'QUESTION_ENDED',
-}
-const APPROVAL_ANSWER_ROUTES: readonly string[] = [sessionRoute('POST', '/tool-approval'), TOOL_SUSPENSION_KEY]
-const POLICY_CHANGING_DECISION = 'always_allow_category'
-const carriesPolicyChangingAnswer = (value: unknown): boolean => {
-  if (typeof value === 'string') return value === POLICY_CHANGING_DECISION
-  if (Array.isArray(value)) return value.some(carriesPolicyChangingAnswer)
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  if (value && typeof value === 'object') return Object.values(value as Readonly<Record<string, unknown>>).some(carriesPolicyChangingAnswer)
-  return false
 }
 
 // The browser's only session-state write is its own reasoning level; yolo, notifications, and
@@ -304,9 +289,6 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
         throw new Failure('REQUEST_CONTEXT_REFUSED')
       }
       const key = route(request)
-      if (APPROVAL_ANSWER_ROUTES.includes(key) && carriesPolicyChangingAnswer(body)) {
-        throw new Failure('TOOL_ANSWER_REFUSED')
-      }
       if (STATE_ROUTES.includes(key) && !isReasoningLevelOnlyState(body)) {
         throw new Failure('SESSION_STATE_REFUSED')
       }

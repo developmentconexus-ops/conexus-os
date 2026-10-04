@@ -212,7 +212,7 @@ components:
     BuilderRunSummary:
       type: object
       additionalProperties: false
-      required: [builderRunId, projectId, conversationId, state, baseSourceRevision, requestText, createdAt, cancellationRequested]
+      required: [builderRunId, projectId, conversationId, state, phase, baseSourceRevision, requestText, createdAt, cancellationRequested]
       properties:
         builderRunId: { type: string, format: uuid }
         projectId: { type: string, format: uuid }
@@ -220,6 +220,7 @@ components:
         # resourceId, not a Conexus record: the product keeps no conversation store of its own.
         conversationId: { type: string, minLength: 1, maxLength: 200 }
         state: { type: string, enum: [QUEUED, RUNNING, SUCCEEDED, FAILED, INTERRUPTED] }
+        phase: { type: [string, 'null'], enum: [PREPARING, AGENT, WAITING, SOURCE_ADMISSION, COMPILING, FINALIZING, null] }
         baseSourceRevision: { type: string, pattern: '^[0-9a-f]{40}$' }
         resultSourceRevision: { type: [string, 'null'], pattern: '^[0-9a-f]{40}$' }
         resultKind: { type: [string, 'null'], enum: [RESPONSE_ONLY, SOURCE_CHANGED, SOURCE_CHANGED_BUILD_FAILED, null] }
@@ -230,12 +231,26 @@ components:
         cancellationRequested: { type: boolean }
     BuilderRunView:
       description: The run as the browser reads it. pendingCalls are the calls the run's live session waits on while the run waits on the person; a Hub with no live run for it serves none.
-      allOf:
-        - $ref: '#/components/schemas/BuilderRunSummary'
-        - type: object
-          required: [pendingCalls]
-          properties:
-            pendingCalls: { type: array, items: { type: string } }
+      type: object
+      additionalProperties: false
+      required: [builderRunId, projectId, conversationId, state, phase, baseSourceRevision, requestText, createdAt, cancellationRequested, pendingCalls]
+      properties:
+        builderRunId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        # The conversation this run spoke in. It is a Mastra thread id under the Project's
+        # resourceId, not a Conexus record: the product keeps no conversation store of its own.
+        conversationId: { type: string, minLength: 1, maxLength: 200 }
+        state: { type: string, enum: [QUEUED, RUNNING, SUCCEEDED, FAILED, INTERRUPTED] }
+        phase: { type: [string, 'null'], enum: [PREPARING, AGENT, WAITING, SOURCE_ADMISSION, COMPILING, FINALIZING, null] }
+        baseSourceRevision: { type: string, pattern: '^[0-9a-f]{40}$' }
+        resultSourceRevision: { type: [string, 'null'], pattern: '^[0-9a-f]{40}$' }
+        resultKind: { type: [string, 'null'], enum: [RESPONSE_ONLY, SOURCE_CHANGED, SOURCE_CHANGED_BUILD_FAILED, null] }
+        # A row of the failure table (contracts/technical/failures.json). The words are the table's.
+        failureCode: { type: [string, 'null'] }
+        requestText: { type: [string, 'null'], maxLength: 20000 }
+        createdAt: { type: string, format: date-time }
+        cancellationRequested: { type: boolean }
+        pendingCalls: { type: array, items: { type: string, minLength: 1, maxLength: 200 } }
     BuilderPreviewSummary:
       type: object
       additionalProperties: false
