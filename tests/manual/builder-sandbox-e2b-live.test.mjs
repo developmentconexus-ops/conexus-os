@@ -252,5 +252,5 @@ test('holdOpen() pushes a real sandbox\'s deadline out: the same incarnation sur
   }
 })
 
-// The run runtime on a real VM, with a session that only parks: the lifecycle of the VM is what is
+// The run runtime on a real VM, with a session that only suspends: the lifecycle of the VM is what is
 // under test, so no model is called and no candidate reaches admission.

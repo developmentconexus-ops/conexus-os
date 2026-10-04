@@ -133,11 +133,11 @@ const openStream = async (base) => {
   }
 }
 
-test('a parked thread carries its open question in metadata.suspendedTools on the message window, and the answer clears it', async (t) => {
+test('a suspended thread carries its open question in metadata.suspendedTools on the message window, and the answer clears it', async (t) => {
   const { base, session } = await startMount(t)
-  const parked = nextEvent(session, 'agent_end')
+  const suspended = nextEvent(session, 'agent_end')
   void session.sendMessage({ content: 'faça um app' })
-  assert.equal((await parked).reason, 'suspended')
+  assert.equal((await suspended).reason, 'suspended')
 
   const whileParked = (await readMessages(base)).flatMap((message) => Object.values(message.content.metadata?.suspendedTools ?? {}))
   assert.deepEqual(whileParked.map((entry) => [entry.toolCallId, entry.toolName, entry.args]), [['ask-1', 'ask_user', { questions: [{ question: 'Qual cor?' }] }]])
@@ -185,15 +185,15 @@ test("the title memory gives a conversation reaches the browser's stream on the 
   assert.deepEqual(titled && { threadId: titled.threadId, title: titled.title }, { threadId: conversationId, title: 'Lista de compras' })
 })
 
-// The title of a first turn that parks is made on the turn that resumes it; Mastra sends no
+// The title of a first turn that suspends is made on the turn that resumes it; Mastra sends no
 // thread_title_updated for that turn, so the browser rereads the list at its agent_end. With
 // emitEvent the turn waits for the title, so even a slow title model has stored it by then.
-test('a first turn that parks and is answered has its title stored when the resumed turn ends, however slow the title model', async (t) => {
+test('a first turn that suspends and is answered has its title stored when the resumed turn ends, however slow the title model', async (t) => {
   const { base, session } = await startMount(t, { generateTitle: { model: titleModel(800), emitEvent: true } })
   const stream = await openStream(base)
-  const parked = nextEvent(session, 'agent_end')
+  const suspended = nextEvent(session, 'agent_end')
   void session.sendMessage({ content: 'faça uma lista de compras' })
-  await parked
+  await suspended
   const ended = nextEvent(session, 'agent_end')
   await session.respondToToolSuspension({ toolCallId: 'ask-1', resumeData: ['Azul'] })
   await ended

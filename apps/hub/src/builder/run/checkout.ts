@@ -9,7 +9,7 @@ import { buildCandidateServer, createOperationRunner } from '../run-operation.js
 import type { RunOperation } from '../run-operation.js'
 import type { createRunTiming } from '../run-timing.js'
 import { SANDBOX_AGENT_USER, SANDBOX_CHECKOUT } from '../sandbox.js'
-import { Failure, logFailure } from '../../platform/failure.js'
+import { Failure, type FailureCode, logFailure } from '../../platform/failure.js'
 import { logger } from '../../platform/logger.js'
 import { createTurnMirror, MIRROR_DEBOUNCE_MS, mirrorAfterEdits } from './mirror.js'
 import type { TurnMirror } from './mirror.js'
@@ -26,14 +26,6 @@ const SEED_FILE = `${SEED_ROOT}/turn.bundle`
 
 type RunTiming = ReturnType<typeof createRunTiming>
 
-export type RunVmState = {
-  // Set before the run's `start()`: from then on the instance may hold a VM this run made or resumed.
-  started: boolean
-  incarnation: string | undefined
-  release: (() => void) | undefined
-  unusable: boolean
-}
-
 export type RunVm = Readonly<{
   incarnation: string
   onIncarnation(work: () => Promise<CommandResult>): Promise<CommandResult>
@@ -49,23 +41,26 @@ const materializeRunStarter: NonNullable<BuilderRunPorts['materializeStarter']> 
   await materializeApplicationShape(input)
 }
 
-export const startRunVm = async ({ sandbox, state, executionId, timing, bindPhysicalSandbox, hold }: Readonly<{
+const startVm = async ({ sandbox, executionId, timing, started, recorded, bindPhysicalSandbox, hold }: Readonly<{
   sandbox: RunSandbox
-  state: RunVmState
   executionId: string
   timing: RunTiming
+  /** Called before the run's `start()`: from then on the instance may hold a VM this run made or resumed. */
+  started(): void
+  /** The incarnation that will run the run, known before anything else can fail. */
+  recorded(incarnation: string | undefined): void
   bindPhysicalSandbox(sandboxId: string): Promise<void>
   /** Holds the VM open while the run works. */
   hold(): Promise<void>
 }>): Promise<RunVm> => {
   // The conversation's VM resumes when E2B still has it; a new one is created only when it has none.
-  state.started = true
+  started()
   await sandbox.start()
   // The first command replaces a VM E2B already reaped, so the run records the incarnation
   // that will actually run it.
   await sandbox.executeCommand('true', [], { env: {}, cwd: '/' })
-  state.incarnation = sandbox.sandboxId
-  const incarnation = state.incarnation
+  const incarnation = sandbox.sandboxId
+  recorded(incarnation)
   if (!incarnation) throw new Failure('BUILDER_SANDBOX_ID_UNAVAILABLE')
   await bindPhysicalSandbox(incarnation)
   await hold()
@@ -98,7 +93,7 @@ export const startRunVm = async ({ sandbox, state, executionId, timing, bindPhys
   return Object.freeze({ incarnation, onIncarnation, direct, sh, asRoot, writeRootFile, source })
 }
 
-export const startCheckoutTurn = async ({ ports, projectId, conversationId, executionId, base, vm, sandbox, state, excluded, timing, mirrorFailed }: Readonly<{
+const startCheckoutTurn = async ({ ports, projectId, conversationId, executionId, base, vm, sandbox, markUnusable, excluded, timing, mirrorFailed }: Readonly<{
   ports: BuilderRunPorts
   projectId: string
   conversationId: string
@@ -106,7 +101,7 @@ export const startCheckoutTurn = async ({ ports, projectId, conversationId, exec
   base: string
   vm: RunVm
   sandbox: RunSandbox
-  state: RunVmState
+  markUnusable(): void
   excluded: readonly string[]
   timing: RunTiming
   mirrorFailed(error: unknown): void
@@ -115,7 +110,7 @@ export const startCheckoutTurn = async ({ ports, projectId, conversationId, exec
   if (turnStart.conflicted.length > 0) ports.log('BUILDER_TURN_START_CONFLICT', { run: executionId, files: turnStart.conflicted.join(',').slice(0, 2_000) })
   // A checkout that cannot take the start, even seeded again, is one the agent broke: the VM goes.
   const checkoutStart = await startCheckout({ git: ports.git, projectId, turn: turnStart, sandbox: vm.source, checkout: SANDBOX_CHECKOUT, seedFile: SEED_FILE })
-    .catch((error: unknown) => { state.unusable = true; throw error })
+    .catch((error: unknown) => { markUnusable(); throw error })
   ports.log('BUILDER_TURN_CHECKOUT', { run: executionId, start: checkoutStart, incarnation: vm.incarnation })
   timing.mark('seed')
   const mirror = createTurnMirror({
@@ -181,19 +176,17 @@ export const installRunTools = async ({ ports, projectId, accountId, vm, sandbox
  * replaced VM has no checkout left to mirror; the edit-time mirrors hold what reached it. Answers
  * whether the VM is still the run's own and live.
  */
-export const settleRunVm = async ({ sandbox, state, lapsed, ports, executionId, conversationId, endMirror, mirror }: Readonly<{
+const settleVm = async ({ sandbox, incarnation, live: usable, ports, executionId, conversationId, endMirror, mirror }: Readonly<{
   sandbox: RunSandbox
-  state: RunVmState
-  lapsed: boolean
+  incarnation: string | undefined
+  live: boolean
   ports: BuilderRunPorts
   executionId: string
   conversationId: string
   endMirror(): Promise<void>
   mirror: TurnMirror | undefined
 }>): Promise<boolean> => {
-  state.release?.()
-  const { incarnation } = state
-  let live = incarnation !== undefined && !lapsed && !state.unusable && sandbox.sandboxId === incarnation
+  let live = incarnation !== undefined && usable && sandbox.sandboxId === incarnation
   if (live) {
     await sandbox.executeCommand('sh', ['-c', 'kill -KILL -1 2>/dev/null; true'], { timeout: 30_000, cwd: '/', env: {} }).catch((error: unknown) => {
       logFailure(logger, new Failure('BUILDER_AGENT_PROCESSES_KILL_FAILED', { cause: error }), { 'builder.run_id': executionId })
@@ -215,3 +208,77 @@ export const settleRunVm = async ({ sandbox, state, lapsed, ports, executionId, 
   await Promise.race([mirrorSettled, new Promise((settle) => { setTimeout(settle, FAILED_TURN_MIRROR_MS).unref?.() })])
   return live
 }
+
+const logged = (code: FailureCode, executionId: string) => (error: unknown): void => {
+  logFailure(logger, new Failure(code, { cause: error }), { 'builder.run_id': executionId })
+}
+
+/**
+ * The one owner of the run's sandbox, from the moment it opens: it holds the VM open while the run
+ * works, lets it go while the run waits on the person, and at the run's end, however it ended,
+ * pauses a VM still the run's own and live or kills one the run started.
+ */
+export const createRunVm = ({ ports, executionId, conversationId, timing, lapsed }: Readonly<{
+  ports: BuilderRunPorts
+  executionId: string
+  conversationId: string
+  timing: RunTiming
+  /** E2B stopped extending the VM, so it may reap it under the run. */
+  lapsed(failure: Failure): void
+}>) => {
+  let sandbox: RunSandbox | undefined
+  let started = false
+  let incarnation: string | undefined
+  let release: (() => void) | undefined
+  let unusable = false
+  let mirror: TurnMirror | undefined
+  let vm: RunVm | undefined
+  // E2B counts its timeout from the last extension, so the run holds the VM while it works.
+  const hold = async (opened: RunSandbox): Promise<void> => {
+    release = await opened.holdOpen((error: unknown) => {
+      unusable = true
+      lapsed(new Failure('BUILDER_SANDBOX_KEEPALIVE_FAILED', { cause: { message: error instanceof Error ? error.message : String(error) } }))
+    }).catch((error: unknown) => {
+      throw new Failure('BUILDER_SANDBOX_KEEPALIVE_FAILED', { cause: { message: error instanceof Error ? error.message : String(error) } })
+    })
+  }
+  const letGo = (): void => {
+    release?.()
+    release = undefined
+  }
+  return Object.freeze({
+    open: async (opened: RunSandbox, bindPhysicalSandbox: (sandboxId: string) => Promise<void>): Promise<RunVm> => {
+      sandbox = opened
+      vm = await startVm({
+        sandbox: opened, executionId, timing, bindPhysicalSandbox, hold: () => hold(opened),
+        started: () => { started = true },
+        recorded: (id) => { incarnation = id },
+      })
+      return vm
+    },
+    startTurn: async (input: Readonly<{ projectId: string; base: string; vm: RunVm; sandbox: RunSandbox; excluded: readonly string[]; mirrorFailed(error: unknown): void }>) => {
+      const turn = await startCheckoutTurn({ ...input, ports, conversationId, executionId, timing, markUnusable: () => { unusable = true } })
+      mirror = turn.mirror
+      return { start: turn.start, conflicted: turn.conflicted }
+    },
+    /** The turn-end mirror, which answers its head; none before the checkout holds the turn's start. */
+    endMirror: (candidate: string | null, pulled: string | null): Promise<string | null> => (mirror ? mirror.end(candidate, pulled) : Promise.resolve(null)),
+    letGo,
+    /** Checks the VM is the same one, which also resumes a paused VM, and holds it again. */
+    resume: async (): Promise<void> => {
+      if (!vm || !sandbox) throw new Failure('BUILDER_SANDBOX_ID_UNAVAILABLE')
+      await vm.direct('true')
+      await hold(sandbox)
+    },
+    settle: async (endMirror: () => Promise<void>): Promise<void> => {
+      letGo()
+      if (!sandbox) return
+      const live = await settleVm({ sandbox, incarnation, live: !unusable, ports, executionId, conversationId, endMirror, mirror })
+      // The exit's own commands may have resumed a VM the wait let pause, so its idle window starts again here.
+      if (live) void sandbox.idle().catch(logged('BUILDER_SANDBOX_PAUSE_FAILED', executionId))
+      else if (started) await sandbox.kill().catch(logged('BUILDER_SANDBOX_KILL_FAILED', executionId))
+    },
+  })
+}
+
+export type RunVmOwner = ReturnType<typeof createRunVm>

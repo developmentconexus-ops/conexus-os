@@ -29,7 +29,7 @@ const openWaitingRun = async (t, { phase, messages, refusal = null, pendingCalls
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
   const state = builderState([conversation(conversationId, 'Título')], { [conversationId]: messages })
   const run = { builderRunId: '70000000-0000-4000-8000-000000000323', projectId, conversationId, state: 'RUNNING', phase, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'Mude o título', createdAt: new Date(Date.now() - 10 * 60_000).toISOString(), pendingCalls }
-  const requests = { session: 0, stream: 0, answers: [], messages: [], cancels: 0, holdMessages: null }
+  const requests = { session: 0, stream: 0, answers: [], messages: [], cancels: 0, holdMessages: null, holdPublish: false }
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, state)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Título', projectRevision: 'revision', archived: false }) }))
@@ -48,13 +48,14 @@ const openWaitingRun = async (t, { phase, messages, refusal = null, pendingCalls
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
     requests.answers.push(route.request().postDataJSON())
     if (refusal) return route.fulfill({ status: refusal.status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${refusal.type}`, title: refusal.type, status: refusal.status, code: refusal.type }) })
-    run.phase = 'AGENT'
+    // The Hub publishes the run going again, waiting on nothing; a test that holds it publishes later.
+    if (!requests.holdPublish) Object.assign(run, { phase: 'AGENT', pendingCalls: [] })
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, async (route) => {
     requests.messages.push(route.request().postDataJSON())
     if (requests.holdMessages) await requests.holdMessages
-    run.phase = 'AGENT'
+    Object.assign(run, { phase: 'AGENT', pendingCalls: [] })
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ builderRun: run, created: false }) })
   })
   await page.route(`**/api/control/projects/${projectId}/builder-session/runs/*/cancel`, (route) => {
@@ -89,6 +90,33 @@ test('typing in the composer while a waiting run shows its card is never taken o
   await page.waitForTimeout(2_500)
   assert.equal(await composer.inputValue(), 'abcdefghij', 'every key typed in the composer stays there')
   assert.equal(await composer.evaluate((node) => node === document.activeElement), true, 'the composer keeps focus')
+})
+
+test('a call the waiting run waits on is never drawn as failed, even as a row with no card', async (t) => {
+  const asked = waitingAsk(WAITING_QUESTION)
+  const bare = { ...asked, content: { ...asked.content, metadata: {} } }
+  for (const messages of [[userMessage('user-1', 'Mude o título'), asked], [userMessage('user-1', 'Mude o título'), bare]]) {
+    const { page } = await openWaitingRun(t, { phase: 'WAITING', messages })
+    await page.locator('.cx-working').getByText('Esperando a sua resposta', { exact: false }).waitFor()
+    await page.getByTestId('ask-user').or(page.locator('.builder-turn-body button')).first().waitFor()
+    assert.equal(await page.locator('[data-status="error"]').count(), 0, 'no error status')
+    assert.equal(await page.getByText('Tool call failed').count(), 0)
+  }
+})
+
+test('a question the person ended by sending a message is drawn as asked, with no answer and no error status', async (t) => {
+  const args = { questions: [{ question: WAITING_QUESTION }] }
+  const ended = {
+    id: 'assistant-ended', role: 'assistant', createdAt: new Date().toISOString(),
+    content: { format: 2, parts: [{ type: 'tool-invocation', toolInvocation: { toolCallId: 'call_ended', toolName: 'ask_user', state: 'output-denied', args, errorText: 'denied' } }] },
+  }
+  const { page } = await openWaitingRun(t, { phase: 'AGENT', messages: [userMessage('user-1', 'Mude o título'), ended], pendingCalls: [] })
+  const row = page.getByRole('button', { name: 'Perguntou a você' })
+  await row.waitFor()
+  assert.equal(await page.locator('[data-status="error"]').count(), 0, 'no error status')
+  assert.equal(await page.getByText('Tool call failed').count(), 0)
+  await row.click()
+  assert.equal((await page.locator('.cx-asked').textContent()).trim(), WAITING_QUESTION, 'the question, with no answer')
 })
 
 test('a run still WAITING in the database with no live session in this Hub, as after a restart, draws no card', async (t) => {
@@ -162,6 +190,20 @@ test('answering the card of a waiting run shows the run going again without the 
   await card(page).getByRole('button', { name: 'Enviar resposta' }).click()
   await page.getByText('Agente trabalhando').first().waitFor({ timeout: 4_000 })
   assert.deepEqual(requests.answers, [{ toolCallId: 'call_waiting', resumeData: ['144118'] }])
+})
+
+test('an accepted answer keeps the card until the Hub publishes the run without the call, which then leaves it a row', async (t) => {
+  const { page, run, requests } = await openWaitingCard(t)
+  requests.holdPublish = true
+  await card(page).getByRole('textbox').fill('144118')
+  const read = requests.session
+  await card(page).getByRole('button', { name: 'Enviar resposta' }).click()
+  while (requests.session < read + 2) await page.waitForTimeout(100)
+  assert.equal(await card(page).count(), 1, 'the card stays while the Hub still says the run waits on it')
+  Object.assign(run, { phase: 'AGENT', pendingCalls: [] })
+  await card(page).waitFor({ state: 'detached', timeout: 5_000 })
+  assert.equal(await page.getByRole('button', { name: 'Perguntando a você' }).count(), 1, 'the question stays in the thread as a row')
+  assert.equal(await page.locator('[data-status="error"]').count(), 0)
 })
 
 test('an answer the Hub refuses keeps the card and says why: already answered, no longer waited on, or not delivered', async (t) => {

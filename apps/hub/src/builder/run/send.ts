@@ -2,11 +2,10 @@ import type { AgentController, AgentControllerEvent } from '@mastra/core/agent-c
 import type { RequestContext } from '@mastra/core/request-context'
 import { classifyAgentFailure, safeCause } from '../runtime.js'
 import { Failure } from '../../platform/failure.js'
-import type { Step } from './ports.js'
+import type { SendableAgentEndReason, Step } from './ports.js'
 
 type ControllerSession = Awaited<ReturnType<AgentController['createSession']>>
 type AgentEndReason = Extract<AgentControllerEvent, { type: 'agent_end' }>['reason']
-type SendableAgentEndReason = Exclude<AgentEndReason, 'error'>
 
 type Tripwire = Readonly<{ processorId: string | undefined; reason: string }>
 

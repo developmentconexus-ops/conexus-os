@@ -97,7 +97,7 @@ const sourceFiles = ['apps/hub', 'apps/web', 'contracts', 'tests', 'scripts']
   .filter((path) => !rel(path).startsWith('apps/hub/migrations/') && rel(path) !== 'scripts/census-builder-run.mjs')
   .filter((path) => !generatedJson.has(rel(path)) && !readFileSync(path, 'utf8').startsWith('// GENERATED'))
 const parkedReferences = sourceFiles.flatMap((path) => readFileSync(path, 'utf8').split('\n')
-  .flatMap((line, i) => (/(?<![A-Z0-9_])PARKED(?![A-Z0-9_])|parked_at|parkedAt/.test(line) ? [`${rel(path)}:${i + 1}`] : [])))
+  .flatMap((line, i) => (/(?<![A-Z0-9_])PARKED(?![A-Z0-9_])|parked_at|parkedAt|\bpark(?:ed|s|ing)?\b|\blegs?\b/i.test(line) ? [`${rel(path)}:${i + 1}`] : [])))
 
 const hubSource = walk(join(repo, 'apps/hub/src'), (path) => /\.tsx?$/.test(path))
 const builderSource = hubSource.filter((path) => rel(path).startsWith('apps/hub/src/builder/'))
@@ -113,7 +113,7 @@ const sessionScopes = [...new Set([...hubSource, ...webSource].flatMap((path) =>
 
 const collectionsAcrossModules = hits(builderSource, /^\s+[A-Za-z0-9_]+\??:\s*(?:Map|Set|WeakMap|WeakSet)</)
 
-const runFiles = builderSource.filter((path) => /^apps\/hub\/src\/builder\/(run\/|run-runtime\.ts$|service\.ts$|runtime\.ts$)/.test(rel(path)))
+const runFiles = builderSource.filter((path) => /^apps\/hub\/src\/builder\/(run\/|service\.ts$|runtime\.ts$)/.test(rel(path)))
 const runFunctionLengthSuppressions = hits(runFiles, /biome-ignore lint\/complexity\/noExcessiveLinesPerFunction/, { comments: true })
 
 const tableCodes = new Set(JSON.parse(readFileSync(join(repo, 'contracts/technical/failures.json'), 'utf8')).failures.map((row) => row.code))

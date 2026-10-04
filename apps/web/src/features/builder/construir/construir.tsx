@@ -148,9 +148,9 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const shownMemory = runHere && isActive(runHere) && runtime.memory ? runtime.memory : sessionModel.memory
   // A card is drawn only for a call the run's live session waits on, as the Hub says; a card the
   // thread kept from an earlier run, or from a Hub that stopped, is never one.
-  const waitingOn = new Set(runHere && isWaiting(runHere) ? runHere.pendingCalls ?? [] : [])
-  const openEntries = transcript.entries.filter((entry) => entry.kind !== 'prompt' || waitingOn.has(entry.toolCallId))
-  const pending = openEntries.filter((entry): entry is PromptEntry => entry.kind === 'prompt')
+  const waitingOn = runHere && isWaiting(runHere) ? runHere.pendingCalls ?? [] : []
+  const pending = waitingOn.flatMap((toolCallId) => transcript.calls[toolCallId] ?? [])
+  const openEntries = [...transcript.entries, ...pending]
 
   // The message this page sent waits for the thread to show it back. Once its run settled and the
   // thread was read again, one never shown belongs to a run that stopped before its agent, and the
@@ -328,6 +328,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
                     persistedRequests={persisted}
                     runs={conversationRuns}
                     working={Boolean(runHere && isActive(runHere) && runHere.phase === 'AGENT')}
+                    waitingOn={waitingOn}
                     model={offeredModels.find((entry) => entry.id === sessionModel.modelId) ?? null}
                     {...(runHere && isActive(runHere) ? {
                       renderPrompt: (entry: PromptEntry) => <PendingCard
@@ -336,7 +337,6 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
                           const outcome = await answerPendingCall(projectId, runHere.conversationId, entry, answer)
                           if (outcome !== 'ACCEPTED') return outcome
                           void queryClient.invalidateQueries({ queryKey: builderSessionKey(projectId) })
-                          dispatch({ type: 'resolvePrompt', toolCallId: entry.toolCallId })
                           return outcome
                         }}
                       />,

@@ -1020,6 +1020,15 @@ test('a run whose session cannot open still revokes the scope it minted', async 
   assert.deepEqual([run.calls.at(-1), minted.map((scope) => isMintedScope(scope))], [['fail', 'INTERNAL_UNEXPECTED'], [false]])
 })
 
+test('a run whose session cannot open still lets its VM go and leaves it to pause', async (t) => {
+  const run = await harness(t, { openError: new Error('BUILDER_SESSION_OPEN_FAILED') })
+  await run.start()
+  await run.settled()
+  await run.service.close()
+  const vmEvents = run.events.filter((event) => ['hold-open', 'release', 'idle', 'kill'].includes(event))
+  assert.deepEqual([vmEvents, run.calls.at(-1), run.idled, run.killed], [['hold-open', 'release', 'idle'], ['fail', 'INTERNAL_UNEXPECTED'], ['sbx-1'], []])
+})
+
 const until = async (predicate, what) => {
   for (let attempt = 0; attempt < 400; attempt++) {
     if (predicate()) return

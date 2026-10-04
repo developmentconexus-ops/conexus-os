@@ -12,24 +12,20 @@ import type { CandidateGate } from '../candidate-gate.js'
 import { Failure, type FailureCode, logFailure, toFailure } from '../../platform/failure.js'
 import { logger } from '../../platform/logger.js'
 import { admitCandidate, settleAdmittedSource } from './admit.js'
-import { installRunTools, settleRunVm, startCheckoutTurn, startRunVm } from './checkout.js'
-import type { RunVm, RunVmState } from './checkout.js'
+import { createRunVm, installRunTools } from './checkout.js'
+import type { RunVm, RunVmOwner } from './checkout.js'
 import { createRunGate } from './judge.js'
-import type { TurnMirror } from './mirror.js'
 import { createGatePhases } from './phase.js'
-import type { AgentTurn, BuilderRunPorts, ConnectorRun, DiagnosticAppender, RunContextBinder, RunSandbox, RunSession, Step, StopReason } from './ports.js'
+import type { BuilderRunPorts, ConnectorRun, DiagnosticAppender, RunContextBinder, RunSession, Step, StopReason } from './ports.js'
 import { type AnswerOutcome, createInbox } from './question.js'
 import { traceRun } from './trace.js'
 
 // Where the agent's own check writes its build; the agent's user owns it, and no run reads it back.
 const AGENT_CHECK_OUT = '/tmp/conexus-agent-check'
 
-const OID = /^[0-9a-f]{40}$/
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-
 // Only these end a run with a recorded candidate knowing its source is not on main.
-const NOT_ADMITTED: ReadonlySet<string> = new Set(['BUILDER_SOURCE_BASE_MOVED', 'BUILDER_SOURCE_ADMISSION_FAILED', 'BUILDER_RUN_CANCELLED'])
-const STOP_CODES: ReadonlySet<string> = new Set(['BUILDER_RUN_CANCELLED', 'BUILDER_LATE_RESULT_REFUSED'])
+const NOT_ADMITTED: ReadonlySet<FailureCode> = new Set(['BUILDER_SOURCE_BASE_MOVED', 'BUILDER_SOURCE_ADMISSION_FAILED', 'BUILDER_RUN_CANCELLED'])
+const STOP_CODES: ReadonlySet<FailureCode> = new Set(['BUILDER_RUN_CANCELLED', 'BUILDER_LATE_RESULT_REFUSED'])
 
 /** The row ended without this run, by a takeover: its ending is the one written there. */
 class RowEnded extends Failure {
@@ -103,22 +99,31 @@ type Run = {
   readonly timing: ReturnType<typeof createRunTiming>
   readonly inbox: ReturnType<typeof createInbox>
   readonly trace: ReturnType<typeof traceRun>
-  readonly vm: RunVmState
-  sandbox: RunSandbox | undefined
+  /** The run's sandbox, from the moment it opens. */
+  readonly vm: RunVmOwner
   connectorRun: ConnectorRun | null
-  session: RunSession | undefined
-  /** What `conexus_check`, `conexus_run_operation` and the finish gate run, once the checkout is ready. */
-  tools: RunTools | undefined
-  mirror: TurnMirror | undefined
-  pulled(): string | null
+  /** Set once the session opens on a ready checkout. */
+  prepared: Prepared | undefined
   keepaliveFailure: Error | undefined
-  // The agent ran and nothing of it is admitted yet, so a failure leaves the thread a note.
-  agentUnadmitted: boolean
-  candidateRecorded: boolean
+  source: RunSource
   mirrorEnded: Promise<void> | undefined
 }
 
-type Prepared = Readonly<{ gate: CandidateGate; gatePhases(): Promise<void>; session: RunSession; sandbox: RunSandbox; vm: RunVm }>
+/**
+ * How far the run's source got. Once the agent ran, nothing of it admitted yet, a failure leaves the
+ * thread a note; once a candidate is recorded its source may be on `main`.
+ */
+type RunSource = 'NONE' | 'AGENT_UNADMITTED' | 'CANDIDATE_RECORDED' | 'ADMITTED'
+
+type Prepared = Readonly<{
+  gate: CandidateGate
+  gatePhases(): Promise<void>
+  session: RunSession
+  vm: RunVm
+  /** What `conexus_check`, `conexus_run_operation` and the finish gate run. */
+  tools: RunTools
+  pulled(): string | null
+}>
 
 const cancelled = (run: Run): boolean => run.stopSignal.aborted
 
@@ -136,7 +141,7 @@ const setPhase = async (run: Run, phase: BuilderRunPhase, written?: () => void):
   await run.env.publishRun(viewOf(run, summary))
 }
 
-const pendingCallsOf = (run: Run): readonly string[] => (run.inbox.waiting() ? run.session?.pendingCalls() ?? [] : [])
+const pendingCallsOf = (run: Run): readonly string[] => (run.inbox.waiting() ? run.prepared?.session.pendingCalls() ?? [] : [])
 const viewOf = (run: Run, summary: BuilderRunSummary): BuilderRunView => ({ ...summary, pendingCalls: pendingCallsOf(run) })
 
 // The database refuses a phase once a stop is asked for or once the row is no longer running; the row says which.
@@ -149,7 +154,7 @@ const phaseRefusal = async (run: Run): Promise<Failure> => {
 // Set once the checkout holds the turn's start; the run's end mirrors it however the run ends.
 const endMirror = (run: Run, candidate: string | null): Promise<void> => {
   run.mirrorEnded ??= (async () => {
-    const head = await run.mirror?.end(candidate, run.pulled())
+    const head = await run.vm.endMirror(candidate, run.prepared?.pulled() ?? null)
     if (head) {
       await run.env.store.recordConversationSession({
         projectId: run.row.projectId, conversationId: run.row.conversationId, mirrorHead: head, syncedMain: run.row.baseSourceRevision, turnEnded: true,
@@ -187,53 +192,34 @@ const readRunContext = async (run: Run): Promise<(conflicted: readonly string[])
   }
 }
 
-// E2B counts its timeout from the last extension, so the run holds the VM while it works.
-const holdVm = async (run: Run, sandbox: RunSandbox): Promise<void> => {
-  run.vm.release = await sandbox.holdOpen((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error)
-    run.keepaliveFailure ??= new Failure('BUILDER_SANDBOX_KEEPALIVE_FAILED', { cause: { message } })
-    run.keepalive.abort()
-  }).catch((error: unknown) => {
-    throw new Failure('BUILDER_SANDBOX_KEEPALIVE_FAILED', { cause: { message: error instanceof Error ? error.message : String(error) } })
-  })
-}
-
 const prepare = async (run: Run): Promise<Prepared> => {
   const { ports, store } = run.env
   const { projectId, conversationId, builderRunId, baseSourceRevision } = run.row
   const conversation = { projectId, conversationId }
   const bindContextFor = await readRunContext(run)
   const sandbox = await ports.openSandbox(conversation)
-  run.sandbox = sandbox
-  const vm = await startRunVm({
-    sandbox, state: run.vm, executionId: builderRunId, timing: run.timing, hold: () => holdVm(run, sandbox),
-    bindPhysicalSandbox: async (sandboxId) => {
-      await store.bindBuilderRunSandbox(builderRunId, sandboxId)
-      await store.recordConversationSandbox({ ...conversation, providerSandboxId: sandboxId })
-    },
+  const vm = await run.vm.open(sandbox, async (sandboxId) => {
+    await store.bindBuilderRunSandbox(builderRunId, sandboxId)
+    await store.recordConversationSandbox({ ...conversation, providerSandboxId: sandboxId })
   })
   if (cancelled(run)) throw new Failure('BUILDER_RUN_CANCELLED')
-  const turnStart = await startCheckoutTurn({
-    ports, projectId, conversationId, executionId: builderRunId, base: baseSourceRevision,
-    vm, sandbox, state: run.vm, excluded: APPLICATION_CHECK_EXCLUDED, timing: run.timing, mirrorFailed: logged(run, 'BUILDER_MIRROR_FAILED'),
+  const turnStart = await run.vm.startTurn({
+    projectId, base: baseSourceRevision, vm, sandbox, excluded: APPLICATION_CHECK_EXCLUDED, mirrorFailed: logged(run, 'BUILDER_MIRROR_FAILED'),
   })
-  run.mirror = turnStart.mirror
   const runOperation = await installRunTools({ ports, projectId, accountId: run.request.accountId, vm, sandbox, connectorRun: run.connectorRun, timing: run.timing })
   const gatePhases = createGatePhases((phase) => setPhase(run, phase))
   const { gate, pulled } = createRunGate({
     git: ports.git, projectId, executionId: builderRunId, base: baseSourceRevision, turnStart: turnStart.start, excluded: APPLICATION_CHECK_EXCLUDED,
     log: ports.log, cancelled: () => cancelled(run), gatePhase: gatePhases.enter, vm, sandbox,
   })
-  run.pulled = pulled
-  run.tools = {
+  const tools: RunTools = {
     check: async () => (await sandbox.runCheck({ root: SANDBOX_CHECKOUT, out: AGENT_CHECK_OUT, collect: false, user: 'agent' })).report,
     ...(runOperation ? { runOperation } : {}),
     gate,
   }
   const session = await ports.openSession({ projectId, conversationId, builderRunId, bindContext: bindContextFor(turnStart.conflicted) })
-  run.session = session
   run.timing.mark('session')
-  return { gate, gatePhases: gatePhases.settled, session, sandbox, vm }
+  return { gate, gatePhases: gatePhases.settled, session, vm, tools, pulled }
 }
 
 /**
@@ -245,19 +231,14 @@ const awaitReply = async (run: Run, prepared: Prepared): Promise<Step> => {
   await prepared.session.untilQuestionStored()
   // A reply is taken only once the row says the run waits, so a failed write loses none.
   await setPhase(run, 'WAITING', () => { run.inbox.open() })
-  run.vm.release?.()
-  run.vm.release = undefined
+  run.vm.letGo()
   const end = await run.inbox.wait({ waitMs: run.env.questionWaitMs, signal: run.stopSignal })
-  const resume = async (): Promise<void> => {
-    await prepared.vm.direct('true')
-    await holdVm(run, prepared.sandbox)
-  }
   switch (end.kind) {
     case 'ANSWER':
-      await resume()
+      await run.vm.resume()
       return { kind: 'ANSWER', toolCallId: end.toolCallId, resumeData: end.resumeData }
     case 'MESSAGE':
-      await resume()
+      await run.vm.resume()
       return { kind: 'SEND', content: end.content }
     case 'EXPIRED': throw new Failure('BUILDER_QUESTION_EXPIRED')
     case 'STOPPED': throw new Failure('BUILDER_RUN_CANCELLED')
@@ -265,13 +246,13 @@ const awaitReply = async (run: Run, prepared: Prepared): Promise<Step> => {
   }
 }
 
-/** The agent's steps, from the person's message to a step that does not end on a question. */
-const converse = async (run: Run, prepared: Prepared): Promise<AgentTurn> => {
+/** The agent's steps, from the person's message to the step that completes the turn. */
+const converse = async (run: Run, prepared: Prepared): Promise<void> => {
   let step: Step = { kind: 'SEND', content: run.request.content }
   let bound = false
   for (;;) {
     await setPhase(run, 'AGENT')
-    run.agentUnadmitted = true
+    run.source = 'AGENT_UNADMITTED'
     const turn = await prepared.session.takeStep(step, run.signal)
     if (run.keepaliveFailure) throw run.keepaliveFailure
     if (turn.reason === 'aborted') run.env.ports.log('BUILDER_AGENT_END', { run: run.row.builderRunId, reason: 'aborted' })
@@ -283,8 +264,14 @@ const converse = async (run: Run, prepared: Prepared): Promise<AgentTurn> => {
     // An agent that ends aborted without a stop failed on its own, for example a model call it
     // could not authenticate; reporting that as the person's cancellation would be false.
     if (cancelled(run)) throw new Failure('BUILDER_RUN_CANCELLED')
-    if (turn.reason !== 'suspended') return turn
-    step = await awaitReply(run, prepared)
+    switch (turn.reason) {
+      case 'complete': return
+      case 'suspended':
+        step = await awaitReply(run, prepared)
+        break
+      case 'aborted': throw new Failure('BUILDER_MODEL_INCOMPLETE')
+      default: { const unhandled: never = turn.reason; throw new Failure('BUILDER_MODEL_INCOMPLETE', { cause: unhandled }) }
+    }
   }
 }
 
@@ -315,10 +302,10 @@ const conclude = async (run: Run, prepared: Prepared): Promise<RunEnding> => {
     gatePhases: prepared.gatePhases(), setPhase: (phase) => setPhase(run, phase), timing: run.timing,
     recordCandidate: async (sourceRevision) => {
       await env.store.recordBuilderRunCandidate(row.builderRunId, sourceRevision)
-      run.candidateRecorded = true
+      run.source = 'CANDIDATE_RECORDED'
     },
   })
-  run.agentUnadmitted = false
+  run.source = 'ADMITTED'
   await settleAdmittedSource({
     store: env.store, applicationArtifacts: env.applicationArtifacts, applicationServer: env.applicationServer, appendDiagnostic: env.appendDiagnostic,
     finalizing: () => setPhase(run, 'FINALIZING').catch(() => undefined),
@@ -330,47 +317,50 @@ const work = async (run: Run): Promise<RunEnding> => {
   const { env, row } = run
   await env.store.claimBuilderRun(row.builderRunId, env.ownerId)
   await setPhase(run, 'PREPARING')
-  if (!UUID.test(row.builderRunId) || !UUID.test(row.projectId) || !UUID.test(row.conversationId) ||
-    !OID.test(row.baseSourceRevision) || !run.request.content.trim()) throw new Failure('BUILDER_RUNTIME_INPUT_REFUSED')
   // The start model's account is the person's own, else the installation's shared one; none
   // refuses the run before a sandbox exists, with the "connect a model" answer.
   await env.ports.checkModel({ builderRunId: row.builderRunId, accountId: run.request.accountId, projectId: row.projectId, conversationId: row.conversationId })
   run.connectorRun = env.ports.openConnectorRun ? await env.ports.openConnectorRun({ projectId: row.projectId, builderRunId: row.builderRunId }) : null
   const prepared = await prepare(run)
-  const turn = await converse(run, prepared)
-  if (turn.reason !== 'complete') throw new Failure('BUILDER_MODEL_INCOMPLETE')
+  run.prepared = prepared
+  await converse(run, prepared)
   // The agent's turn is the only reader of the run's connector scope, so it ends with the turn.
   run.connectorRun?.end()
   run.timing.mark('agent')
   return conclude(run, prepared)
 }
 
-const endingOf = async (run: Run, error: unknown): Promise<RunEnding> => {
+/** How the run ends, from the failure that ended it. */
+const endingOf = (run: Run, error: unknown, ended: Failure): RunEnding => {
+  const code = ended.id
+  // Its source may be on main: the run stays running with its candidate until a sweep, once its
+  // heartbeat has lapsed, reads `main` and settles it.
+  if (error instanceof RowEnded) return { kind: 'LEFT' }
+  if ((run.source === 'CANDIDATE_RECORDED' || run.source === 'ADMITTED') && !NOT_ADMITTED.has(code)) return { kind: 'LEFT' }
+  if (run.stopSignal.reason === 'HUB_STOPPING') return { kind: 'INTERRUPTED', code: 'HUB_RESTART' }
+  if (code === 'BUILDER_QUESTION_EXPIRED') return { kind: 'INTERRUPTED', code }
+  if (cancelled(run) || STOP_CODES.has(code)) return { kind: 'INTERRUPTED', code: 'USER_CANCELLED' }
+  return { kind: 'FAILED', code }
+}
+
+/** The failure's one log line, and the thread's note when the run ends with the agent's work not admitted. */
+const diagnose = async (run: Run, error: unknown, ended: Failure, ending: RunEnding): Promise<void> => {
   const { row } = run
-  const ended = toFailure(run.keepaliveFailure ?? error)
   // The one log line of the run's end is the row's: its level follows the row's category, and
   // command evidence rides along as a field.
   const evidence = ended.cause !== undefined && !(ended.cause instanceof Error) ? { 'builder.run.evidence': JSON.stringify(ended.cause) } : {}
   if (!cancelled(run) || 'builder.run.evidence' in evidence) logFailure(logger, ended, { 'builder.run_id': row.builderRunId, ...evidence })
   const code = ended.id
-  // Its source may be on main: the run stays running with its candidate until a sweep, once its
-  // heartbeat has lapsed, reads `main` and settles it.
-  if (error instanceof RowEnded) return { kind: 'LEFT' }
-  if (run.candidateRecorded && !NOT_ADMITTED.has(code)) return { kind: 'LEFT' }
   // A run that spent its repair budget already told the person why, in the check's last notice.
-  if (run.agentUnadmitted && code !== 'BUILDER_APP_NOT_FIXED') {
-    // A refused candidate says why, so the next turn in this conversation can fix it.
-    const refused = error instanceof CandidateRefused ? error : null
-    await run.env.appendDiagnostic({
-      projectId: row.projectId, conversationId: row.conversationId, builderRunId: row.builderRunId, code,
-      outcome: refused ? 'CANDIDATE_REFUSED' : code === 'BUILDER_SOURCE_BASE_MOVED' ? 'SOURCE_BASE_MOVED' : 'RUN_NOT_FINISHED',
-      sourceRevision: row.baseSourceRevision, ...(refused ? { detail: refused.detail } : {}),
-    }).catch(() => undefined)
-  }
-  if (run.stopSignal.reason === 'HUB_STOPPING') return { kind: 'INTERRUPTED', code: 'HUB_RESTART' }
-  if (code === 'BUILDER_QUESTION_EXPIRED') return { kind: 'INTERRUPTED', code }
-  if (cancelled(run) || STOP_CODES.has(code)) return { kind: 'INTERRUPTED', code: 'USER_CANCELLED' }
-  return { kind: 'FAILED', code }
+  if (ending.kind === 'LEFT' || code === 'BUILDER_APP_NOT_FIXED') return
+  if (run.source !== 'AGENT_UNADMITTED' && run.source !== 'CANDIDATE_RECORDED') return
+  // A refused candidate says why, so the next turn in this conversation can fix it.
+  const refused = error instanceof CandidateRefused ? error : null
+  await run.env.appendDiagnostic({
+    projectId: row.projectId, conversationId: row.conversationId, builderRunId: row.builderRunId, code,
+    outcome: refused ? 'CANDIDATE_REFUSED' : code === 'BUILDER_SOURCE_BASE_MOVED' ? 'SOURCE_BASE_MOVED' : 'RUN_NOT_FINISHED',
+    sourceRevision: row.baseSourceRevision, ...(refused ? { detail: refused.detail } : {}),
+  }).catch(() => undefined)
 }
 
 // A database blip is common and the Project answers PROJECT_BUSY while the row stays running, so
@@ -394,7 +384,7 @@ const writeEnding = async (run: Run, ending: RunEnding): Promise<void> => {
 // does not let go of fails a run that would otherwise end interrupted; the next send ends it again.
 const endOpenQuestions = async (run: Run, ending: RunEnding): Promise<RunEnding> => {
   try {
-    await run.session?.endQuestions()
+    await run.prepared?.session.endQuestions()
     return ending
   } catch (error) {
     logged(run, 'BUILDER_QUESTION_NOT_RELEASED')(error)
@@ -408,40 +398,43 @@ const endOpenQuestions = async (run: Run, ending: RunEnding): Promise<RunEnding>
  */
 const exit = async (run: Run, ending: RunEnding): Promise<void> => {
   const final = await endOpenQuestions(run, ending)
-  const { sandbox } = run
-  const live = sandbox ? await settleRunVm({
-    sandbox, state: run.vm, lapsed: run.keepaliveFailure !== undefined, ports: run.env.ports, executionId: run.row.builderRunId,
-    conversationId: run.row.conversationId, endMirror: () => endMirror(run, null), mirror: run.mirror,
-  }) : false
+  await run.vm.settle(() => endMirror(run, null))
   run.connectorRun?.end()
-  // The exit's own commands may have resumed a VM the wait let pause, so its idle window starts again here.
-  if (sandbox && live) void sandbox.idle().catch(logged(run, 'BUILDER_SANDBOX_PAUSE_FAILED'))
-  else if (sandbox && run.vm.started) await sandbox.kill().catch(logged(run, 'BUILDER_SANDBOX_KILL_FAILED'))
   run.env.ports.log('BUILDER_RUN_TIMING', run.timing.fields(run.row))
   await writeEnding(run, final)
   run.trace.end(final.kind === 'INTERRUPTED' || final.kind === 'FAILED' ? final.code : final.kind, final.kind === 'FAILED')
   const latest = await run.env.store.readBuilderRun({ accountId: run.request.accountId, projectId: run.row.projectId }).catch(() => null)
   if (latest?.builderRunId === run.row.builderRunId) await run.env.publishRun(viewOf(run, latest))
-  await run.session?.release().catch(logged(run, 'BUILDER_SESSION_RELEASE_FAILED'))
+  await run.prepared?.session.release().catch(logged(run, 'BUILDER_SESSION_RELEASE_FAILED'))
 }
 
 /** Starts a run the database created, from its claim to its last write. */
 export const startRun = (env: RunEnvironment, row: BuilderRunSummary, request: RunRequest): LiveRun => {
   const stop = new AbortController()
   const keepalive = new AbortController()
+  const timing = createRunTiming()
   const run: Run = {
     env, row, request, stopSignal: stop.signal, keepalive, signal: AbortSignal.any([stop.signal, keepalive.signal]),
-    timing: createRunTiming(),
+    timing,
     trace: traceRun(row),
-    inbox: createInbox((toolCallId) => run.session?.pendingCalls().includes(toolCallId) === true, (signal) => (signal.reason === 'HUB_STOPPING' ? 'HUB_STOPPING' : 'USER_CANCELLED')),
-    vm: { started: false, incarnation: undefined, release: undefined, unusable: false },
-    sandbox: undefined, connectorRun: null, session: undefined, tools: undefined, mirror: undefined, pulled: () => null, keepaliveFailure: undefined,
-    agentUnadmitted: false, candidateRecorded: false, mirrorEnded: undefined,
+    inbox: createInbox((toolCallId) => run.prepared?.session.pendingCalls().includes(toolCallId) === true, (signal) => (signal.reason === 'HUB_STOPPING' ? 'HUB_STOPPING' : 'USER_CANCELLED')),
+    vm: createRunVm({
+      ports: env.ports, executionId: row.builderRunId, conversationId: row.conversationId, timing,
+      lapsed: (failure) => {
+        run.keepaliveFailure ??= failure
+        keepalive.abort()
+      },
+    }),
+    connectorRun: null, prepared: undefined, keepaliveFailure: undefined, source: 'NONE', mirrorEnded: undefined,
   }
   const taken = new Set([request.idempotencyKey])
   const done = (async () => {
     let ending: RunEnding
-    try { ending = await work(run) } catch (error) { ending = await endingOf(run, error) }
+    try { ending = await work(run) } catch (error) {
+      const ended = toFailure(run.keepaliveFailure ?? error)
+      ending = endingOf(run, error, ended)
+      await diagnose(run, error, ended, ending)
+    }
     await exit(run, ending)
   })()
   return Object.freeze({
@@ -456,7 +449,7 @@ export const startRun = (env: RunEnvironment, row: BuilderRunSummary, request: R
     },
     stop: (reason) => { stop.abort(reason) },
     pendingCalls: () => pendingCallsOf(run),
-    tools: () => run.tools,
+    tools: () => run.prepared?.tools,
     done,
   })
 }

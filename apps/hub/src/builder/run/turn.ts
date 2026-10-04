@@ -98,7 +98,7 @@ const takeStep = async (session: ControllerSession, step: Step, requestContext: 
   else signal.addEventListener('abort', abort, { once: true })
   try {
     working()
-    const reason: string = await within(driveStep(session, step, requestContext, endOpenQuestions)) ?? 'unknown'
+    const reason = await within(driveStep(session, step, requestContext, endOpenQuestions))
     userMessageId ??= [...await within(session.thread.listActiveMessages())].reverse().find(isUserAuthoredMessage)?.id
     return { reason, userMessageId }
   } finally {

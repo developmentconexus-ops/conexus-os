@@ -3,8 +3,9 @@
 // (http://www.apache.org/licenses/LICENSE-2.0); see the repository's LICENSE.md. The window merge,
 // the tool reconciliation, the message updates and the persisted suspension prompts are Mastra's.
 // Changed: a conversation owns the transcript; a window drops the step-start parts the stream never
-// sends; a local message is keyed by its send's idempotency key; a prompt also closes on tool_end, on a cancelled suspension and on a finished part in a merged
-// window; errors become notices in Conexus's own words; the task list comes from the display state;
+// sends; a local message is keyed by its send's idempotency key; a suspended call is kept by its id,
+// and whether it still waits is the Hub's to say; errors become notices in Conexus's own words; the
+// task list comes from the display state;
 // subagents, goals, steering, files, authorship, notifications and thread events are left out.
 
 import type { AgentControllerEvent, KnownAgentControllerEvent, MastraDBMessage } from '@mastra/client-js'
@@ -42,7 +43,7 @@ export type MessageEntry = Readonly<{
 
 type NoticeEntry = Readonly<{ kind: 'notice'; id: string; text: string }>
 
-/** A call the run waits on the person for: a question to answer, or a plan to approve. */
+/** A call that asked the person: a question to answer, or a plan to approve. */
 export type PromptEntry = Readonly<{
   kind: 'prompt'
   id: string
@@ -57,7 +58,9 @@ export type TranscriptEntry = MessageEntry | NoticeEntry | PromptEntry
 
 export type TranscriptState = Readonly<{
   conversationId: string
-  entries: readonly TranscriptEntry[]
+  entries: readonly (MessageEntry | NoticeEntry)[]
+  // Every call that asked the person, by its id; the card is drawn for the one the Hub says the run waits on.
+  calls: Readonly<Record<string, PromptEntry>>
   // The agent's own task list, from the controller's display state.
   tasks: readonly TaskSnapshot[]
 }>
@@ -68,11 +71,10 @@ export type TranscriptAction =
   | Readonly<{ type: 'unknownLocalUser'; id: string }>
   | Readonly<{ type: 'failLocalUser'; id: string }>
   | Readonly<{ type: 'dropLocalUser'; id: string }>
-  | Readonly<{ type: 'resolvePrompt'; toolCallId: string }>
   | Readonly<{ type: 'mergeWindow'; messages: readonly MastraDBMessage[] }>
   | Readonly<{ type: 'reset'; conversationId: string }>
 
-export const emptyTranscript = (conversationId: string): TranscriptState => ({ conversationId, entries: [], tasks: [] })
+export const emptyTranscript = (conversationId: string): TranscriptState => ({ conversationId, entries: [], calls: {}, tasks: [] })
 
 /** The local message of the send made under this idempotency key; a retry of it reuses the entry. */
 export const localMessageId = (idempotencyKey: string): string => `local-${idempotencyKey}`
@@ -99,8 +101,6 @@ export const transcriptReducer = (state: TranscriptState, action: TranscriptActi
       return settleLocalUser(state, action.id, 'failed')
     case 'dropLocalUser':
       return { ...state, entries: state.entries.filter((entry) => !(entry.kind === 'message' && entry.id === action.id && entry.delivery !== undefined)) }
-    case 'resolvePrompt':
-      return withoutPrompt(state, action.toolCallId)
     case 'mergeWindow':
       return mergeServerWindow(state, action.messages.map(withoutStepStarts))
     case 'event':
@@ -170,11 +170,9 @@ const applyEvent = (previous: TranscriptState, event: AgentControllerEvent): Tra
     case 'tool_update':
       return withTool(state, event.toolCallId, (tool) => ({ ...tool, result: event.partialResult }))
     case 'tool_end':
-      return withoutPrompt(withTool(state, event.toolCallId, (tool) => ({ ...tool, status: event.isError ? 'error' : 'done', result: event.result })), event.toolCallId)
+      return withTool(state, event.toolCallId, (tool) => ({ ...tool, status: event.isError ? 'error' : 'done', result: event.result }))
     case 'tool_suspended':
-      return pushPrompt(state, suspensionPrompt(event.toolCallId, event.toolName, event.args, event.suspendPayload))
-    case 'tool_suspension_cancelled':
-      return withoutPrompt(state, event.toolCallId)
+      return withCalls(state, [suspensionPrompt(event.toolCallId, event.toolName, event.args, event.suspendPayload)])
     case 'display_state_changed':
       return { ...state, tasks: event.displayState.tasks }
     // The provider's own words name sandboxes, ids and stack frames; the thread says it in ours.
@@ -197,10 +195,10 @@ const suspensionPrompt = (toolCallId: string, toolName: string, args: unknown, p
 const withoutEntry = (state: TranscriptState, id: string): TranscriptState =>
   state.entries.some((entry) => entry.id === id) ? { ...state, entries: state.entries.filter((entry) => entry.id !== id) } : state
 
-const withoutPrompt = (state: TranscriptState, toolCallId: string): TranscriptState => withoutEntry(state, promptId(toolCallId))
-
-const pushPrompt = (state: TranscriptState, prompt: PromptEntry): TranscriptState =>
-  state.entries.some((entry) => entry.id === prompt.id) ? state : { ...state, entries: [...state.entries, prompt] }
+const withCalls = (state: TranscriptState, prompts: readonly PromptEntry[]): TranscriptState => {
+  const added = prompts.filter((prompt) => !(prompt.toolCallId in state.calls))
+  return added.length === 0 ? state : { ...state, calls: { ...state.calls, ...Object.fromEntries(added.map((prompt) => [prompt.toolCallId, prompt])) } }
+}
 
 const upsertNotice = (state: TranscriptState, notice: NoticeEntry): TranscriptState => {
   const index = state.entries.findIndex((entry) => entry.id === notice.id)
@@ -213,9 +211,6 @@ const withoutStepStarts = (message: MastraDBMessage): MastraDBMessage => message
   ? { ...message, content: { ...message.content, parts: message.content.parts.filter((part) => part.type !== 'step-start') } }
   : message
 
-const messagesToEntries = (messages: readonly MastraDBMessage[]): TranscriptEntry[] =>
-  messages.flatMap((message) => [toMessageEntry(message, { streaming: false }), ...persistedSuspensionPrompts(message)])
-
 // A thread whose run waits on the person keeps the open call in its message's metadata until the answer
 // clears it, so a page opened while the run waits draws the card from the window alone.
 const persistedSuspensionPrompts = (message: MastraDBMessage): PromptEntry[] => {
@@ -224,9 +219,6 @@ const persistedSuspensionPrompts = (message: MastraDBMessage): PromptEntry[] => 
   return Object.values(suspendedTools).flatMap((suspension: unknown) => {
     if (!suspension || typeof suspension !== 'object' || Array.isArray(suspension) || !('toolCallId' in suspension) || !('toolName' in suspension)
       || typeof suspension.toolCallId !== 'string' || typeof suspension.toolName !== 'string') return []
-    // A call a stop denied keeps its record on the message; the tool part says it no longer waits.
-    const callId = suspension.toolCallId
-    if (message.content.parts.some((part) => part.type === 'tool-invocation' && part.toolInvocation.toolCallId === callId && part.toolInvocation.state !== 'call')) return []
     return [suspensionPrompt(suspension.toolCallId, suspension.toolName, 'args' in suspension ? suspension.args : undefined, 'suspendPayload' in suspension ? suspension.suspendPayload : undefined)]
   })
 }
@@ -235,13 +227,11 @@ const mergeServerWindow = (state: TranscriptState, messages: readonly MastraDBMe
   if (messages.length === 0) return state
   const onScreenIndex = claimOnScreenEntries(state.entries, messages)
   const confirmed = confirmPendingUserMessages(state, onScreenIndex)
-  const reconciled = withoutFinishedPrompts(reconcileToolResults(adoptCoveringWindowCopies(confirmed, onScreenIndex), messages), messages)
-  if (messages.every((message) => onScreenIndex.has(message))) return withPersistedPrompts(reconciled, messages)
+  const reconciled = withCalls(reconcileToolResults(adoptCoveringWindowCopies(confirmed, onScreenIndex), messages), messages.flatMap(persistedSuspensionPrompts))
+  if (messages.every((message) => onScreenIndex.has(message))) return reconciled
 
-  const drawnPrompts = new Set(reconciled.entries.flatMap((entry) => entry.kind === 'prompt' ? [entry.id] : []))
-  const added = (missing: readonly MastraDBMessage[]): TranscriptEntry[] =>
-    messagesToEntries(missing).filter((entry) => entry.kind !== 'prompt' || (!drawnPrompts.has(entry.id) && !finishedCallIds(messages).has(entry.toolCallId)))
-  const entries: TranscriptEntry[] = []
+  const added = (missing: readonly MastraDBMessage[]): MessageEntry[] => missing.map((message) => toMessageEntry(message, { streaming: false }))
+  const entries: (MessageEntry | NoticeEntry)[] = []
   let cursor = 0
   let missing: MastraDBMessage[] = []
   for (const message of messages) {
@@ -256,27 +246,7 @@ const mergeServerWindow = (state: TranscriptState, messages: readonly MastraDBMe
     cursor = anchorIndex
   }
   entries.push(...reconciled.entries.slice(cursor), ...added(missing))
-  return withPersistedPrompts({ ...reconciled, entries }, messages)
-}
-
-// A message already on screen can gain its suspension after it was drawn: a resumed run asks again in
-// the message the first leg wrote. Every window message is read for its open calls, once per call.
-const withPersistedPrompts = (state: TranscriptState, messages: readonly MastraDBMessage[]): TranscriptState => {
-  const finished = finishedCallIds(messages)
-  return messages.flatMap(persistedSuspensionPrompts)
-    .filter((prompt) => !finished.has(prompt.toolCallId))
-    .reduce(pushPrompt, state)
-}
-
-const finishedCallIds = (messages: readonly MastraDBMessage[]): ReadonlySet<string> =>
-  new Set(messages.flatMap((message) => message.content.parts.flatMap((part) =>
-    part.type === 'tool-invocation' && isTerminalInvocationState(part.toolInvocation.state) ? [part.toolInvocation.toolCallId] : [])))
-
-const withoutFinishedPrompts = (state: TranscriptState, messages: readonly MastraDBMessage[]): TranscriptState => {
-  const finished = finishedCallIds(messages)
-  return state.entries.some((entry) => entry.kind === 'prompt' && finished.has(entry.toolCallId))
-    ? { ...state, entries: state.entries.filter((entry) => entry.kind !== 'prompt' || !finished.has(entry.toolCallId)) }
-    : state
+  return { ...reconciled, entries }
 }
 
 type OnScreenMessage = Readonly<{ entry: MessageEntry; toolCallIds: ReadonlySet<string>; texts: ReadonlySet<string> }>

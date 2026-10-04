@@ -4,6 +4,7 @@ import type { ApplicationCheckRun } from '../application-artifact-runtime.js'
 import type { ConexusGit } from '../conexus-git.js'
 import type { CandidateOperationPorts } from '../run-operation.js'
 import type { EventLog } from '../../platform/logger.js'
+import type { AgentControllerEvent } from '@mastra/core/agent-controller'
 
 /** What a run needs of its conversation's sandbox; the E2B one in production, a fake in tests. */
 export type RunSandbox = Readonly<{
@@ -64,7 +65,9 @@ export type BuilderRunPorts = Readonly<{
 }>
 
 /** How the agent's step ended. */
-export type AgentTurn = Readonly<{ reason: string; userMessageId: string | undefined }>
+/** How an agent step ended; an `error` end is thrown as its failure instead. */
+export type SendableAgentEndReason = Exclude<Extract<AgentControllerEvent, { type: 'agent_end' }>['reason'], 'error' | undefined>
+export type AgentTurn = Readonly<{ reason: SendableAgentEndReason; userMessageId: string | undefined }>
 
 /** A note in the run's conversation thread, keyed by run and code so a retry writes it once. */
 export type RunNote = Readonly<{

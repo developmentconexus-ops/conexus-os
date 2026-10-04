@@ -59,7 +59,7 @@ export type BuilderStore = Readonly<{
   readBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderRunSummary | null>
   listBuilderRuns(input: Readonly<{ accountId: string; projectId: string; limit?: number }>): Promise<readonly BuilderRunSummary[]>
   readLatestCodeChangingBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderCodeChangingRun | null>
-  // Starts a queued run under its owner, the Hub process whose leg works it.
+  // Starts a queued run under its owner, the Hub process that works it.
   claimBuilderRun(builderRunId: string, ownerId: string): Promise<BuilderRunSummary>
   // Answers the run as written, or null when a stop was requested first.
   setBuilderRunPhase(builderRunId: string, phase: BuilderRunPhase): Promise<BuilderRunSummary | null>

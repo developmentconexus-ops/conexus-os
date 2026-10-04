@@ -18,7 +18,7 @@ import type { MastraDBMessage } from '@mastra/client-js'
 import type { BuilderRun } from '../api'
 import type { BuilderModel } from '../mastra-session'
 import type { MessageEntry, PromptEntry, RuntimeTool, TranscriptEntry } from '../transcript.ts'
-import { ASK_USER_TOOL } from '../mastra-tool-names.ts'
+import { ASK_USER_TOOL, SUBMIT_PLAN_TOOL } from '../mastra-tool-names.ts'
 import { mergeCalls } from './merge-calls'
 import { RunFailure } from '../construir/run-failure'
 import { clockLabel, failureOutcome } from '../construir/run-state'
@@ -69,22 +69,29 @@ const COMPLETION_CHECK_REASON = /Reason: ([\s\S]*?)\n+(?:✅|⚠️|🔄)[^\n]*\
 const completionCheckText = (message: MastraDBMessage): string =>
   COMPLETION_CHECK_REASON.exec(userText(message))?.[1]?.trim() ?? 'O Conexus verificou o app.'
 
-type CallState = 'running' | 'failed' | 'done'
+type CallState = 'running' | 'waiting' | 'ended' | 'failed' | 'done'
+
+const PERSON_TOOLS: ReadonlySet<string> = new Set([ASK_USER_TOOL, SUBMIT_PLAN_TOOL])
 
 const isErrorResult = (result: unknown): boolean =>
   typeof result === 'object' && result !== null && (('isError' in result && result.isError === true) || ('error' in result && result.error === true))
 
-// The part the thread holds is the truth about a call. One still open when no run works here was
-// cut short with its run.
-const callState = (part: ToolInvocationPart, working: boolean): CallState => {
-  const { state } = part.toolInvocation
+// The part the thread holds is the truth about a call, and the Hub says which open calls the run
+// waits on the person for. Any other call still open when no run works here was cut short with its
+// run. A question the person ended without answering, by a message or a stop, was asked, not failed.
+const callState = (part: ToolInvocationPart, calls: Calls): CallState => {
+  const { state, toolCallId, toolName } = part.toolInvocation
+  if (state === 'output-denied' && PERSON_TOOLS.has(toolName)) return 'ended'
   if (state === 'output-error' || state === 'output-denied') return 'failed'
   if (state === 'result') return isErrorResult(part.toolInvocation.result) || ('isError' in part.toolInvocation && part.toolInvocation.isError === true) ? 'failed' : 'done'
-  return working ? 'running' : 'failed'
+  if (calls.waitingOn.has(toolCallId)) return 'waiting'
+  return calls.working ? 'running' : 'failed'
 }
 
-// Whether a run works here, and the output the stream reported for each call by its id.
-type Calls = Readonly<{ working: boolean; runtime: ReadonlyMap<string, RuntimeTool> }>
+const isOpen = (state: CallState): boolean => state === 'running' || state === 'waiting'
+
+// Whether a run works here, the calls it waits on the person for, and the output the stream reported for each call by its id.
+type Calls = Readonly<{ working: boolean; waitingOn: ReadonlySet<string>; runtime: ReadonlyMap<string, RuntimeTool> }>
 
 // What the person asked and was answered: the controller words the answer in English, one
 // "question: answer" line per question.
@@ -115,17 +122,17 @@ function AskedAndAnswered({ asked }: Readonly<{ asked: readonly Readonly<{ quest
 // would not show it.
 function ToolInvocation({ part, calls }: Readonly<{ part: ToolInvocationPart; calls: Calls }>) {
   const { toolName, args } = part.toolInvocation
-  const state = callState(part, calls.working)
+  const state = callState(part, calls)
   const live = calls.runtime.get(part.toolInvocation.toolCallId)
   const result = part.toolInvocation.state === 'result' ? part.toolInvocation.result : live?.result
   const presentation = presentTool(toolName, args)
   const edit = toolEdit(toolName, args)
   const resultText = result === undefined ? '' : stringifyToolValue(result)
   const running = live?.output || (typeof live?.result === 'string' ? live.result : '')
-  const output = presentation.command ? (state === 'running' ? running : resultText) : state === 'failed' ? resultText : ''
-  return <ToolCall status={state === 'done' ? 'idle' : state === 'failed' ? 'error' : 'running'}>
+  const output = presentation.command ? (isOpen(state) ? running : resultText) : state === 'failed' ? resultText : ''
+  return <ToolCall status={state === 'failed' ? 'error' : isOpen(state) ? 'running' : 'idle'}>
     <ToolCallTrigger>
-      <ToolCallPresentedHeader icon={presentation.icon} label={toolSentence(toolName, state === 'running')} {...(presentation.detail ? { detail: presentation.detail } : {})} disclosure />
+      <ToolCallPresentedHeader icon={presentation.icon} label={toolSentence(toolName, isOpen(state))} {...(presentation.detail ? { detail: presentation.detail } : {})} disclosure />
     </ToolCallTrigger>
     <ToolCallContent>
       {presentation.command && <ToolCallCommand command={presentation.command} />}
@@ -186,8 +193,8 @@ function RequestTurn({ entry }: Readonly<{ entry: PersistedRequest }>) {
 // are done; settled, it says what the calls did. Opened, the rows scroll in a fixed height and follow
 // the newest while the agent works.
 function ToolGroup({ parts, calls }: Readonly<{ parts: readonly ToolInvocationPart[]; calls: Calls }>) {
-  const states = parts.map((part) => callState(part, calls.working))
-  const runningIndex = states.lastIndexOf('running')
+  const states = parts.map((part) => callState(part, calls))
+  const runningIndex = states.map(isOpen).lastIndexOf(true)
   const current = runningIndex === -1 ? undefined : parts[runningIndex]
   const presentation = current && presentTool(current.toolInvocation.toolName, current.toolInvocation.args)
   const failed = states.filter((state) => state === 'failed').length
@@ -198,7 +205,7 @@ function ToolGroup({ parts, calls }: Readonly<{ parts: readonly ToolInvocationPa
         <ToolCallLabel className="max-w-full">{current ? toolSentence(current.toolInvocation.toolName, true) : groupSummary(parts.map((part) => part.toolInvocation.toolName), failed)}</ToolCallLabel>
         {presentation?.detail && <ToolCallDetail>{presentation.detail}</ToolCallDetail>}
         <ToolCallSpacer />
-        {current && <ToolCallTrailing className="cx-tool-group-count">{parts.length - states.filter((state) => state === 'running').length}/{parts.length}</ToolCallTrailing>}
+        {current && <ToolCallTrailing className="cx-tool-group-count">{parts.length - states.filter(isOpen).length}/{parts.length}</ToolCallTrailing>}
         <ToolCallDisclosure />
       </ToolCallHeader>
     </ToolCallTrigger>
@@ -351,7 +358,7 @@ const matchRequests = (messages: readonly MessageEntry[], requests: readonly Per
   return { owner, orphans }
 }
 
-export function BuilderConversation({ entries, persistedRequests, runs, model, working, renderPrompt }: Readonly<{
+export function BuilderConversation({ entries, persistedRequests, runs, model, working, waitingOn, renderPrompt }: Readonly<{
   entries: readonly TranscriptEntry[]
   persistedRequests: readonly PersistedRequest[]
   // The conversation's runs, oldest first. Each run that settled in a failure ends its own turn with it.
@@ -359,6 +366,8 @@ export function BuilderConversation({ entries, persistedRequests, runs, model, w
   model: BuilderModel | null
   // The run here is in its agent step: until it speaks after the person, the thread says it is thinking.
   working: boolean
+  // The calls the run here waits on the person for, as the Hub says; none unless it waits now.
+  waitingOn: readonly string[]
   // Draws a call the run here waits on the person for; absent while no run here waits.
   renderPrompt?: (prompt: PromptEntry) => ReactNode
 }>) {
@@ -414,7 +423,7 @@ export function BuilderConversation({ entries, persistedRequests, runs, model, w
   failuresBefore(null)
   if (working && prompts.length === 0 && !spokeSinceUser) pieces.push({ kind: 'thinking', key: 'awaiting-first-part' })
 
-  const rendered = renderPieces(pieces, { working, runtime }, model, renderPrompt ?? (() => null))
+  const rendered = renderPieces(pieces, { working, waitingOn: new Set(waitingOn), runtime }, model, renderPrompt ?? (() => null))
   return <>
     {rendered}
     {!rendered.length && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}

@@ -216,11 +216,12 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
       events.push(['open', input.conversationId, input.builderRunId])
       if (openError) throw openError
       if (session) return session(input)
-      const tools = service.runTools(input.conversationId, input.builderRunId)
       input.bindContext({ setRaw: (key, value) => sessionContext.set(key, value) })
       // The turn as Mastra runs it: each time the agent says it is done the gate answers, and a red
       // check sends it back to work on the next scripted repair.
       const drive = async (signal, resume) => {
+        // The controller resolves the run's tools at each agent call, as Mastra does.
+        const tools = service.runTools(input.conversationId, input.builderRunId)
         const finish = async () => {
           const feedback = await tools.gate.finish()
           if (feedback !== null) feedbacks.push(feedback)
@@ -304,7 +305,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     interruptBuilderRun: async (_id, reason) => { calls.push(['interrupt', reason]); row.running = false },
     requestBuilderRunCancellation: async () => ({ ...claimed, cancellationRequested: true }),
     recordConversationSession: async (input) => { sessions.push(input) },
-    // A run a leg of this Hub works is beating; one with a candidate and no beat is stale.
+    // A run this Hub works is beating; one with a candidate and no beat is stale.
     heartbeatBuilderRuns: async (_owner, ids) => { row.beating = ids.includes(runId) },
     takeOverStaleBuilderRuns: async () => row.running && row.candidate && !row.beating
       ? [{ builderRunId: runId, projectId, conversationId, candidateRevision: row.candidate, resultSourceRevision: row.result, previousOwnerId: null }]
@@ -355,7 +356,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
   // The candidate the run offered, as the Conexus Git holds it under the run's own ref.
   const result = () => inBare('rev-parse', '--verify', '--quiet', `refs/conexus/runs/${runId}`) || null
   const commands = () => events.filter((event) => typeof event === 'string')
-  // The run's own ending, or the lease's: a heartbeat for the legs in flight, then a sweep.
+  // The run's own ending, or the lease's: a heartbeat for the runs in flight, then a sweep.
   const settled = async () => {
     for (let attempt = 0; row.running && attempt < 400; attempt++) {
       row.beating = false
