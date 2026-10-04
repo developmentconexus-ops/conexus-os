@@ -228,8 +228,9 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
     </section>
   }
 
+  const stopping = cancel.isPending || runHere?.cancellationRequested === true
   const composerMode: ComposerMode = runHere && isActive(runHere)
-    ? { kind: 'RUNNING', stopping: cancel.isPending || runHere.cancellationRequested === true }
+    ? (isWaiting(runHere) ? (send.isPending ? { kind: 'SENDING' } : { kind: 'WAITING', stopping }) : { kind: 'RUNNING', stopping })
     : isActive(run) ? { kind: 'BUSY_ELSEWHERE' }
       : send.isPending ? { kind: 'SENDING' }
         : modelReady ? { kind: 'READY' }

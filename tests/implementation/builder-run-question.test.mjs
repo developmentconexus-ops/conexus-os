@@ -247,3 +247,31 @@ test('Mastra still leaves the loop registration and the snapshot rows of a quest
   assert.deepEqual(await leftovers({ mastra: builder.mastra, storage }, questionRun), { registered: false, rows: 0 })
   await session.release()
 })
+
+const { createInbox, endQuestions } = await import(hubModuleUrl('builder/run/question.js'))
+
+test('an answer that arrives after a wait ended is refused and never ends the next wait', async () => {
+  const inbox = createInbox(() => true, () => 'USER_CANCELLED')
+  const signal = new AbortController().signal
+  inbox.open()
+  const first = inbox.wait({ waitMs: 60_000, signal })
+  assert.equal(inbox.message('continue', 'key-1'), 'ACCEPTED')
+  assert.deepEqual(await first, { kind: 'MESSAGE', content: 'continue', idempotencyKey: 'key-1' })
+  assert.equal(inbox.answer('call-of-the-ended-question', { answer: 'late' }), 'ENDED')
+  assert.equal(inbox.message('another', 'key-2'), 'BUSY')
+  inbox.open()
+  assert.deepEqual(await inbox.wait({ waitMs: 20, signal }), { kind: 'EXPIRED' })
+})
+
+test('ending the questions fails within its bound when Mastra never answers', async () => {
+  const never = () => new Promise(() => undefined)
+  const session = {
+    thread: { requireId: () => conversationId, listActiveMessages: async () => [] },
+    identity: { getResourceId: () => resourceId },
+    suspensions: { hasPending: () => false },
+    machinery: { getAgent: () => ({ listActiveThreadRuns: () => [], listSuspendedRuns: never }) },
+  }
+  const started = Date.now()
+  await assert.rejects(endQuestions({ getMastra: () => undefined }, session, { ms: 200 }), (error) => error.id === 'BUILDER_QUESTION_NOT_RELEASED')
+  assert.ok(Date.now() - started < 2_000, 'the bound holds the whole operation')
+})

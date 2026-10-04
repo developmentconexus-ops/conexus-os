@@ -58,9 +58,16 @@ const LOOP_WORKFLOWS = ['agentic-loop', 'executionWorkflow'] as const
  * call as denied, and one a stopped Hub left on the thread through Mastra's deny. Then it waits until
  * Mastra lets go of the thread, and releases what Mastra 1.71 keeps of a suspended run that never
  * resumes (Mastra issue #25903): the `agentic-loop` registration and the two snapshot rows. With
- * nothing open it reads the thread once and changes nothing.
+ * nothing open it reads the thread once and changes nothing. The bound holds the whole operation,
+ * since any of Mastra's storage reads can hang.
  */
-export const endQuestions = async (controller: Pick<AgentController, 'getMastra'>, session: ControllerSession, bound: Readonly<{ ms: number }>): Promise<void> => {
+export const endQuestions = (controller: Pick<AgentController, 'getMastra'>, session: ControllerSession, bound: Readonly<{ ms: number }>): Promise<void> => {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<never>((_, reject) => { timer = setTimeout(() => { reject(new Failure('BUILDER_QUESTION_NOT_RELEASED')) }, bound.ms) })
+  return Promise.race([releaseQuestions(controller, session, bound), late]).finally(() => { clearTimeout(timer) })
+}
+
+const releaseQuestions = async (controller: Pick<AgentController, 'getMastra'>, session: ControllerSession, bound: Readonly<{ ms: number }>): Promise<void> => {
   const threadId = session.thread.requireId()
   const resourceId = session.identity.getResourceId()
   const agent = session.machinery.getAgent()
@@ -83,6 +90,8 @@ export const endQuestions = async (controller: Pick<AgentController, 'getMastra'
 }
 
 type Inbox = Readonly<{
+  /** Opens the slot for the question the agent just asked; the next `wait` closes it. */
+  open(): void
   /** The person's answer to a call pending on the live session. */
   answer(toolCallId: string, resumeData: unknown): AnswerOutcome
   /** A message typed while the run waits; a run that is not waiting is busy. */
@@ -94,45 +103,50 @@ type Inbox = Readonly<{
 export type AnswerOutcome = 'ACCEPTED' | 'ALREADY_ANSWERED' | 'UNKNOWN_CALL' | 'ENDED'
 
 /**
- * The run's one-slot inbox. Routes, the wait timer and a stop offer a `WaitEnd`; the first one in
- * the slot wins, with no await between the check and the take. Whether a call is pending is read
- * from the session each time, never copied.
+ * The run's one-slot inbox. It takes offers only from the moment the agent asked until the wait
+ * ends: routes, the wait timer and a stop offer a `WaitEnd`, and the first one wins, with no await
+ * between the check and the take. A reply offered before the wait starts is taken by it, and none
+ * outlives it. Whether a call is pending is read from the session each time, never copied.
  */
 export const createInbox = (pending: (toolCallId: string) => boolean, stopReason: (signal: AbortSignal) => StopReason): Inbox => {
+  let accepting = false
   let slot: WaitEnd | null = null
-  let waiting = false
   let take: ((end: WaitEnd) => void) | null = null
   const answered = new Set<string>()
   const offer = (end: WaitEnd): boolean => {
-    if (slot) return false
+    if (!accepting || slot) return false
     slot = end
-    if (take) take(end)
+    take?.(end)
     return true
   }
   return Object.freeze({
+    open: () => {
+      accepting = true
+      slot = null
+    },
     answer: (toolCallId, resumeData) => {
       if (answered.has(toolCallId)) return 'ALREADY_ANSWERED'
+      if (!accepting) return 'ENDED'
       if (!pending(toolCallId)) return 'UNKNOWN_CALL'
       if (!offer({ kind: 'ANSWER', toolCallId, resumeData })) return 'ENDED'
       answered.add(toolCallId)
       return 'ACCEPTED'
     },
-    message: (content, idempotencyKey) => (waiting && offer({ kind: 'MESSAGE', content, idempotencyKey }) ? 'ACCEPTED' : 'BUSY'),
+    message: (content, idempotencyKey) => (offer({ kind: 'MESSAGE', content, idempotencyKey }) ? 'ACCEPTED' : 'BUSY'),
     wait: ({ waitMs, signal }) => new Promise<WaitEnd>((resolve) => {
       const expiry = setTimeout(() => { offer({ kind: 'EXPIRED' }) }, waitMs)
       const stopped = (): void => { offer({ kind: 'STOPPED', reason: stopReason(signal) }) }
       take = (end) => {
         clearTimeout(expiry)
         signal.removeEventListener('abort', stopped)
-        waiting = false
+        accepting = false
         take = null
         slot = null
         resolve(end)
       }
-      waiting = true
-      if (signal.aborted) stopped()
-      else signal.addEventListener('abort', stopped, { once: true })
       if (slot) take(slot)
+      else if (signal.aborted) stopped()
+      else signal.addEventListener('abort', stopped, { once: true })
     }),
   })
 }

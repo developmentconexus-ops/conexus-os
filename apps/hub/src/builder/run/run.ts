@@ -217,6 +217,7 @@ const prepare = async (run: Run): Promise<Prepared> => {
  * paused VM, and holds it again.
  */
 const awaitReply = async (run: Run, prepared: Prepared): Promise<Step> => {
+  run.inbox.open()
   await prepared.session.untilQuestionStored()
   await setPhase(run, 'WAITING')
   run.vm.release?.()

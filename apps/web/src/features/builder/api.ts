@@ -67,7 +67,7 @@ export type BuilderTraceSummary = Readonly<{
   scores: readonly BuilderTraceScore[]
 }>
 
-const request = (url: string, init: RequestInit = {}, expected: 'ok' | number = 'ok'): Promise<Response> => hubCall(hubFetch(url, init), expected)
+const request = (url: string, init: RequestInit = {}, expected: Parameters<typeof hubCall>[1] = 'ok'): Promise<Response> => hubCall(hubFetch(url, init), expected)
 const sourceBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/source`
 const sessionBase = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/builder-session`
 
@@ -83,7 +83,7 @@ export const sendBuilderMessage = async (
     method: 'POST',
     headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
     body: JSON.stringify({ content, conversationId }),
-  }, 201)
+  }, [200, 201])
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<BuilderMessageAccepted>
 }

@@ -29,7 +29,7 @@ const openParkedRun = async (t, { phase, messages, refusal = null }) => {
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
   const state = builderState([conversation(conversationId, 'Título')], { [conversationId]: messages })
   const run = { builderRunId: '70000000-0000-4000-8000-000000000323', projectId, conversationId, state: 'RUNNING', phase, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'Mude o título', createdAt: new Date(Date.now() - 10 * 60_000).toISOString() }
-  const requests = { session: 0, stream: 0, answers: [] }
+  const requests = { session: 0, stream: 0, answers: [], messages: [], cancels: 0 }
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, state)
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Título', projectRevision: 'revision', archived: false }) }))
@@ -50,6 +50,15 @@ const openParkedRun = async (t, { phase, messages, refusal = null }) => {
     if (refusal) return route.fulfill({ status: refusal.status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${refusal.type}`, title: refusal.type, status: refusal.status, code: refusal.type }) })
     run.phase = 'AGENT'
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+  })
+  await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
+    requests.messages.push(route.request().postDataJSON())
+    run.phase = 'AGENT'
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ builderRun: run, created: false }) })
+  })
+  await page.route(`**/api/control/projects/${projectId}/builder-session/runs/*/cancel`, (route) => {
+    requests.cancels += 1
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(run) })
   })
   await page.goto(`${origin}/projects/${projectId}`)
   return { page, state, run, requests, conversationId }
@@ -123,4 +132,18 @@ test('an answer the Hub refuses keeps the card and says why: already answered, n
     'Esta pergunta já foi encerrada. A resposta pode ir na próxima mensagem.',
     'O Builder não está disponível agora. A falha foi registrada.',
   ])
+})
+
+test('while a question waits, Enter sends the message to the run and Stop is its own control', async (t) => {
+  const { page, requests } = await openParkedCard(t)
+  const form = page.getByRole('form', { name: 'Enviar pedido ao agente' })
+  const composer = page.getByLabel('Mensagem para o agente')
+  assert.equal(await form.getByRole('button', { name: 'Parar' }).count(), 1, 'Stop is shown')
+  await composer.fill('Use o número 42')
+  assert.equal(await form.getByRole('button', { name: 'Enviar' }).isEnabled(), true, 'Send is enabled while the run waits')
+  await composer.press('Enter')
+  await page.waitForFunction(() => document.querySelector('[aria-label="Mensagem para o agente"]')?.value === '')
+  assert.deepEqual(requests.messages.map((message) => message.content), ['Use o número 42'])
+  assert.equal(requests.cancels, 0, 'sending never stops the run')
+  assert.equal(await page.getByText('Use o número 42').count() > 0, true, 'the message joins the thread')
 })

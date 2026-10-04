@@ -23,6 +23,7 @@ export type ComposerMode =
   | Readonly<{ kind: 'LOADING_MODEL' }>
   | Readonly<{ kind: 'MODEL_ERROR'; message: string }>
   | Readonly<{ kind: 'RUNNING'; stopping: boolean }>
+  | Readonly<{ kind: 'WAITING'; stopping: boolean }>
   | Readonly<{ kind: 'BUSY_ELSEWHERE' }>
   | Readonly<{ kind: 'SENDING' }>
   | Readonly<{ kind: 'BLOCKED' }>
@@ -99,7 +100,7 @@ export function BuilderComposer({
   }
   const submit = (text: string) => {
     if (runCommand(text)) return
-    if (mode.kind !== 'READY' || !text.trim()) return
+    if ((mode.kind !== 'READY' && mode.kind !== 'WAITING') || !text.trim()) return
     setPulse((value) => value + 1)
     onSend(text.trim())
   }
@@ -173,6 +174,7 @@ export function BuilderComposer({
               data-listening={dictation.listening || undefined}
               onClick={() => { dictation.toggle(); inputRef.current?.focus() }}
             ><Mic size={17} aria-hidden="true" /></button>}
+            {mode.kind === 'WAITING' && <StopButton stopping={mode.stopping} onStop={onStop} />}
             <SendButton mode={mode} empty={!draft.trim()} />
           </div>
         </ComposerActions>
@@ -196,13 +198,20 @@ export function BuilderComposer({
   </Composer>
 }
 
+// While the run waits on the person, Send continues it with the message and Stop is its own control.
+function StopButton({ stopping, onStop }: Readonly<{ stopping: boolean; onStop: (() => void) | undefined }>) {
+  return <button type="button" className="cx-send-button" data-stop aria-label={stopping ? 'Parando' : 'Parar'} disabled={stopping} onClick={onStop}>
+    <Square size={13} fill="currentColor" aria-hidden="true" />
+  </button>
+}
+
 function SendButton({ mode, empty }: Readonly<{ mode: ComposerMode; empty: boolean }>) {
   if (mode.kind === 'RUNNING') {
     return <button type="submit" className="cx-send-button" data-stop aria-label={mode.stopping ? 'Parando' : 'Parar'} disabled={mode.stopping}>
       <Square size={13} fill="currentColor" aria-hidden="true" />
     </button>
   }
-  return <button type="submit" className="cx-send-button" aria-label={mode.kind === 'SENDING' ? 'Enviando' : 'Enviar'} disabled={mode.kind !== 'READY' || empty}>
+  return <button type="submit" className="cx-send-button" aria-label={mode.kind === 'SENDING' ? 'Enviando' : 'Enviar'} disabled={(mode.kind !== 'READY' && mode.kind !== 'WAITING') || empty}>
     <ArrowUp size={17} aria-hidden="true" />
   </button>
 }
