@@ -40,7 +40,7 @@ export type MessageEntry = Readonly<{
   sourcePartIndexes?: readonly number[]
 }>
 
-type NoticeEntry = Readonly<{ kind: 'notice'; id: string; level: 'info' | 'error'; text: string }>
+type NoticeEntry = Readonly<{ kind: 'notice'; id: string; text: string }>
 
 /** A call the run parked on the person: a tool to allow, a question to answer, or a plan to approve. */
 export type PromptEntry = Readonly<{
@@ -204,15 +204,12 @@ const applyEvent = (previous: TranscriptState, event: AgentControllerEvent): Tra
     case 'display_state_changed':
       return { ...state, tasks: event.displayState.tasks }
     // The provider's own words name sandboxes, ids and stack frames; the thread says it in ours.
-    case 'error': {
-      const attempt = event.retryAttempt ?? 1
-      const maxRetries = event.maxRetries ?? null
-      if (event.retryable && (maxRetries === null || attempt < maxRetries)) {
-        return upsertNotice(state, { kind: 'notice', id: RETRY_NOTICE_ID, level: 'info', text: modelRetryNotice(attempt, maxRetries) })
-      }
-      // The run's own failure says the rest, once, from the failure table.
-      return withoutEntry(state, RETRY_NOTICE_ID)
-    }
+    // Every retry event is a retry, attempt 10 of 10 included, as Mastra Code shows it. The one
+    // that is not retryable ends the retrying, and the settled run's own failure says the rest, once.
+    case 'error':
+      return event.retryable
+        ? upsertNotice(state, { kind: 'notice', id: RETRY_NOTICE_ID, text: modelRetryNotice(event.retryAttempt ?? 1, event.maxRetries ?? null) })
+        : withoutEntry(state, RETRY_NOTICE_ID)
     default:
       return state
   }

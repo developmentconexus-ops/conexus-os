@@ -93,7 +93,6 @@
 .cx-run-entry { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: .75rem; width: 100%; padding: .55rem .6rem; border: 0; border-radius: 6px; background: transparent; color: var(--cx-text); text-align: left; }
 .cx-run-entry[aria-pressed="true"] { background: var(--cx-surface-3); }
 .cx-run-entry-body { display: grid; gap: .25rem; min-width: 0; }
-.cx-run-reason { margin: 0; color: var(--cx-text-2); font-size: .8125rem; }
 li[data-selected] { background: color-mix(in srgb, var(--cx-accent) 5%, transparent); border-radius: 6px; }
 
 @media (max-width: 767px) {

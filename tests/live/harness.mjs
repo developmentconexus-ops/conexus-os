@@ -19,7 +19,8 @@ import { BROWSER_OPTIONS, cleanup, evidence, launch, query, seedModelDefaults, s
  */
 /**
  * What the scripted model streams for one call. A `thought` is the reasoning Gemini returns, a `call` a tool call.
- * @typedef {{ parts: Array<{ text: string } | { thought: string } | { call: { name: string, args: object } }> }} ModelTurn
+ * A turn with `error` answers the call with that HTTP status instead, and `times` repeats a turn that often.
+ * @typedef {{ parts?: Array<{ text: string } | { thought: string } | { call: { name: string, args: object } }>, delayMs?: number, error?: { status: number, message: string }, times?: number }} ModelTurn
  */
 /**
  * What one request to the model carried.
@@ -68,9 +69,10 @@ const startScriptedModel = () => new Promise((settle, reject) => {
     }
     // A turn may hold its answer, so a flow can look at the screen while the model "thinks".
     if (turn.delayMs) await new Promise((wake) => { setTimeout(wake, turn.delayMs) })
+    if (turn.error) return geminiError(response, turn.error.status, turn.error.message)
     response.writeHead(200, { 'content-type': 'text/event-stream' })
     const send = (chunk) => response.write(`data: ${JSON.stringify(chunk)}\r\n\r\n`)
-    for (const part of turn.parts) send({ candidates: [{ content: { role: 'model', parts: [partOf(part)] } }] })
+    for (const part of turn.parts ?? []) send({ candidates: [{ content: { role: 'model', parts: [partOf(part)] } }] })
     send({ candidates: [{ finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 10, totalTokenCount: 20 } })
     response.end()
   })
@@ -79,7 +81,7 @@ const startScriptedModel = () => new Promise((settle, reject) => {
     url: `http://127.0.0.1:${server.address().port}`,
     calls,
     /** Queues one reply per model call, streamed in order. */
-    script: (...turns) => { queue.push(...turns) },
+    script: (...turns) => { queue.push(...turns.flatMap((turn) => Array.from({ length: turn.times ?? 1 }, () => turn))) },
     pending: () => queue.length,
     unanswered: () => unanswered.length,
     reset: () => { queue.length = 0; calls.length = 0; unanswered.length = 0 },

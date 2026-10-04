@@ -36,7 +36,7 @@ const rows = (html) => html.match(/Pergunt(?:ou|ando) a você/g)?.length ?? 0
 const asked = (messages) => mergeCalls(messages).flatMap((message) => message.content.parts.flatMap((part) => part.type === 'tool-invocation' && part.toolInvocation.toolName === 'ask_user'
   ? [[part.toolInvocation.args.questions.map((entry) => entry.question), part.toolInvocation.result.content]] : []))
 const answer = [[['Qual cor?'], 'User answered:\nQual cor?: azul']]
-const render = (props) => renderToStaticMarkup(createElement(BuilderConversation, { entries: [], persistedRequests: [], failure: null, model: null, working: false, ...props }))
+const render = (props) => renderToStaticMarkup(createElement(BuilderConversation, { entries: [], persistedRequests: [], runs: [], model: null, working: false, ...props }))
 const card = (prompt) => createElement('p', null, `card ${prompt.toolCallId}`)
 
 test('an ask, its answer and the finish are one "Perguntou a você" row with the question and the answer', () => {
@@ -125,7 +125,7 @@ test('a message still marked streaming after its run ended reads as settled, wit
   assert.equal(count(html, 'Pensou'), 1)
 })
 
-const persistedRun = { runId: 'run-1', text: 'Crie um contador', createdAt: '2026-10-01T14:00:00.000Z', reason: null }
+const persistedRun = { runId: 'run-1', text: 'Crie um contador', createdAt: '2026-10-01T14:00:00.000Z' }
 const sentLocally = (settle) => reduce([{ type: 'localUser', id: 'local-k1', text: 'Crie um contador' }, ...settle])
 
 test('a send with no confirmation says so, and does not claim the Hub refused it', () => {

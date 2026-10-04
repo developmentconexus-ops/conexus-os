@@ -100,7 +100,7 @@
 .cx-messages .builder-turn-author { color: var(--cx-text); font: 600 .8125rem/1 var(--cx-font-body); }
 .cx-messages .builder-turn-model { display: inline-flex; align-items: center; gap: .3rem; padding: .1rem .5rem; border-radius: 999px; background: var(--cx-surface-3); color: var(--cx-text-2); font: 400 .6875rem/1.4 var(--cx-font-mono); }
 .cx-messages .builder-turn-body { display: grid; gap: .6rem; }
-.cx-messages .builder-turn-reason { margin: 0; padding: .55rem .8rem; border-radius: 8px; background: color-mix(in srgb, var(--cx-warning) 8%, var(--cx-surface)); color: var(--cx-text); font-size: .875rem; }
+.cx-messages .builder-turn-reference { margin: .25rem 0 0; color: var(--cx-text-2); font-size: .8125rem; }
 .cx-messages .builder-turn-notice { justify-self: stretch; max-width: 100%; margin: 0; white-space: pre-line; }
 .cx-messages .builder-conversation-empty { margin: 2rem 0 0; color: var(--cx-text-2); text-align: center; }
 

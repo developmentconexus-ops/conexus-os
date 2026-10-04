@@ -7,11 +7,13 @@ import { FAILURE_ACTIONS, FAILURES, type FailureCode } from '../generated/failur
 export class HubFailure extends Error {
   readonly code: FailureCode
   readonly status: number | null
+  readonly traceId: string | null
 
-  constructor(code: FailureCode, status: number | null) {
+  constructor(code: FailureCode, status: number | null, traceId: string | null = null) {
     super(code)
     this.code = code
     this.status = status
+    this.traceId = traceId
   }
 }
 
@@ -24,8 +26,9 @@ const isFailureCode = (value: unknown): value is FailureCode => typeof value ===
 export async function readFailure(response: Response): Promise<HubFailure> {
   const body: unknown = await response.json().catch(() => null)
   const code = typeof body === 'object' && body !== null && 'code' in body ? body.code : undefined
-  if (isFailureCode(code)) return new HubFailure(code, response.status)
-  return new HubFailure(typeof code === 'string' ? 'INTERNAL_UNEXPECTED' : 'HUB_RESPONSE_UNREADABLE', response.status)
+  const traceId = typeof body === 'object' && body !== null && 'traceId' in body && typeof body.traceId === 'string' ? body.traceId : null
+  if (isFailureCode(code)) return new HubFailure(code, response.status, traceId)
+  return new HubFailure(typeof code === 'string' ? 'INTERNAL_UNEXPECTED' : 'HUB_RESPONSE_UNREADABLE', response.status, traceId)
 }
 
 /** Whether an error is the Hub's failure with one of these codes, or any code when none is named. */
@@ -38,8 +41,14 @@ const sentence = (code: FailureCode): string => {
   return action === null ? row.message : `${row.message} ${action}`
 }
 
-/** The sentence a person reads: the row's message and, when the row has one, what to do. */
-export const failureText = (error: unknown): string => sentence(error instanceof HubFailure ? error.code : 'HUB_RESPONSE_UNREADABLE')
+/** The short reference a person can quote: the first 8 characters of an id. */
+export const shortReference = (id: string): string => `Referência: ${id.slice(0, 8)}.`
+
+/** The sentence a person reads: the row's message, what to do when the row has one, and the trace's short reference when the Hub sent one. */
+export const failureText = (error: unknown): string => {
+  const text = sentence(error instanceof HubFailure ? error.code : 'HUB_RESPONSE_UNREADABLE')
+  return error instanceof HubFailure && error.traceId !== null ? `${text} ${shortReference(error.traceId)}` : text
+}
 
 /** The same for a code the Hub stored, such as a settled run's `failureCode`; a code the table does not have is the unexpected failure. */
 export const failureCodeText = (code: string | null | undefined): string => sentence(code !== null && code !== undefined && isFailureCode(code) ? code : 'INTERNAL_UNEXPECTED')

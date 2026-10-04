@@ -15,7 +15,6 @@ import { type BuilderRun, cancelBuilderRun, compareProjectSource, sendBuilderMes
 import { builderSessionKey, useBuilderSession } from '../builder-session'
 import { BuilderConversation, type PersistedRequest } from '../components/builder-conversation'
 import { BuilderComposer, type ComposerMode } from '../composer/composer'
-import { failureCodeText } from '../../../app/failure'
 import {
   answerPendingCall, type Conversation, useBuilderConversation, useBuilderModels, useConversationActions, useConversationStreamOpen,
   useProjectConversations, useSessionModel,
@@ -56,7 +55,6 @@ const persistedRequestsOf = (history: readonly BuilderRun[], latest: BuilderRun 
     runId: entry.builderRunId,
     text: entry.requestText,
     createdAt: entry.createdAt,
-    reason: entry.state === 'FAILED' || entry.state === 'INTERRUPTED' ? failureCodeText(entry.failureCode) : null,
   }])
 }
 
@@ -132,6 +130,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   for (const entry of session.data?.runHistory ?? []) runsById.set(entry.builderRunId, entry)
   if (run) runsById.set(run.builderRunId, run)
   const runs = [...runsById.values()].sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+  const conversationRuns = runs.filter((entry) => entry.conversationId === conversationId).reverse()
   const selectedRun = (selectedRunId && runsById.get(selectedRunId)) || run
   const diffRun = selectedRunId ? runsById.get(selectedRunId) ?? null : runs.find((entry) => entry.resultSourceRevision) ?? null
   const diffBasis = changeBasisOf(diffRun)
@@ -235,7 +234,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
       : send.isPending ? { kind: 'SENDING' }
         : modelReady ? { kind: 'READY' }
           : (models.isPending || sessionModel.state.isPending) ? { kind: 'LOADING_MODEL' }
-            : (models.isError || sessionModel.state.isError) ? { kind: 'MODEL_ERROR' }
+            : (models.isError || sessionModel.state.isError) ? { kind: 'MODEL_ERROR', message: failureText(models.isError ? models.error : sessionModel.state.error) }
               : { kind: 'NO_MODEL' }
   const hereView = viewRun(runHere)
   const headerLine = working
@@ -325,7 +324,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
                   : <BuilderConversation
                     entries={openEntries}
                     persistedRequests={persisted}
-                    failure={runHere ?? null}
+                    runs={conversationRuns}
                     working={Boolean(runHere && isActive(runHere) && runHere.phase === 'AGENT')}
                     model={offeredModels.find((entry) => entry.id === sessionModel.modelId) ?? null}
                     {...(runHere && isActive(runHere) ? {
