@@ -102,7 +102,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Current Workspace roster. Members and pending invitations are one server-resolved projection, and the caller's own role is stated so the browser can hide controls the server would refuse anyway.
+          description: Current Workspace roster. Members and invitations with their state are one server-resolved projection, and the caller's own role is stated so the browser can hide controls the server would refuse anyway.
           content:
             application/json:
               schema:
@@ -300,7 +300,7 @@ paths:
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
-          description: Who may use the Project's application besides the members of its Workspace. Open grants and pending invitations are one server-resolved projection. Only an Owner of the Project's Workspace reads it.
+          description: Who may use the Project's application besides the members of its Workspace. Open grants and invitations with their state are one server-resolved projection. Only an Owner of the Project's Workspace reads it.
           content:
             application/json:
               schema:
@@ -399,7 +399,7 @@ components:
     WorkspaceInvitationEntry:
       type: object
       additionalProperties: false
-      required: [kind, invitationId, email, role, invitedAt, expiresAt]
+      required: [kind, invitationId, email, role, invitedAt, expiresAt, state]
       properties:
         kind: { const: invitation }
         invitationId: { type: string, minLength: 1 }
@@ -411,6 +411,10 @@ components:
           $ref: '#/components/schemas/WorkspaceRole'
         invitedAt: { type: string, format: date-time }
         expiresAt: { type: string, format: date-time }
+        state:
+          type: string
+          enum: [PENDING, EXPIRED]
+          description: Decided by the database clock when the list is read, never by the browser. An expired invitation stays listed for 30 days so the person can be invited again.
     WorkspaceMemberEntry:
       type: object
       additionalProperties: false
@@ -446,7 +450,7 @@ components:
     ApplicationInvitationEntry:
       type: object
       additionalProperties: false
-      required: [kind, invitationId, email, invitedAt, expiresAt]
+      required: [kind, invitationId, email, invitedAt, expiresAt, state]
       properties:
         kind: { const: invitation }
         invitationId: { type: string, minLength: 1 }
@@ -456,6 +460,10 @@ components:
           description: Address the person must sign in with, verified by the identity provider. It is never Account identity or authorization.
         invitedAt: { type: string, format: date-time }
         expiresAt: { type: string, format: date-time }
+        state:
+          type: string
+          enum: [PENDING, EXPIRED]
+          description: Decided by the database clock when the list is read, never by the browser. An expired invitation stays listed for 30 days so the person can be invited again.
     ApplicationGrantEntry:
       type: object
       additionalProperties: false

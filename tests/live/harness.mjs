@@ -20,7 +20,8 @@ import { BROWSER_OPTIONS, cleanup, evidence, launch, query, seedModelDefaults, s
 /**
  * What the scripted model streams for one call. A `thought` is the reasoning Gemini returns, a `call` a tool call.
  * A turn with `error` answers the call with that HTTP status instead, and `times` repeats a turn that often.
- * @typedef {{ parts?: Array<{ text: string } | { thought: string } | { call: { name: string, args: object } }>, delayMs?: number, error?: { status: number, message: string }, times?: number }} ModelTurn
+ * A turn with `until` holds its answer until that promise settles, so a flow can read the screen while the model "thinks".
+ * @typedef {{ parts?: Array<{ text: string } | { thought: string } | { call: { name: string, args: object } }>, until?: Promise<void>, error?: { status: number, message: string }, times?: number }} ModelTurn
  */
 /**
  * What one request to the model carried.
@@ -49,6 +50,8 @@ const startScriptedModel = () => new Promise((settle, reject) => {
   /** @type {ModelCall[]} */
   const calls = []
   const unanswered = []
+  let dropHeld = Promise.withResolvers()
+  const dropAllHeld = () => { dropHeld.resolve(); dropHeld = Promise.withResolvers() }
   const server = createServer(async (request, response) => {
     const generate = /^\/v1beta\/models\/([^:/]+):(streamGenerateContent|generateContent)$/.exec(new URL(request.url, 'http://model').pathname)
     if (request.method !== 'POST' || !generate) return geminiError(response, 404, 'not found')
@@ -67,8 +70,10 @@ const startScriptedModel = () => new Promise((settle, reject) => {
       unanswered.push(call)
       return geminiError(response, 500, 'LIVE_MODEL_NO_SCRIPTED_TURN')
     }
-    // A turn may hold its answer, so a flow can look at the screen while the model "thinks".
-    if (turn.delayMs) await new Promise((wake) => { setTimeout(wake, turn.delayMs) })
+    if (turn.until) {
+      const dropped = dropHeld.promise.then(() => 'dropped')
+      if (await Promise.race([turn.until.then(() => 'released'), dropped]) === 'dropped') return response.destroy()
+    }
     if (turn.error) return geminiError(response, turn.error.status, turn.error.message)
     response.writeHead(200, { 'content-type': 'text/event-stream' })
     const send = (chunk) => response.write(`data: ${JSON.stringify(chunk)}\r\n\r\n`)
@@ -84,8 +89,8 @@ const startScriptedModel = () => new Promise((settle, reject) => {
     script: (...turns) => { queue.push(...turns.flatMap((turn) => Array.from({ length: turn.times ?? 1 }, () => turn))) },
     pending: () => queue.length,
     unanswered: () => unanswered.length,
-    reset: () => { queue.length = 0; calls.length = 0; unanswered.length = 0 },
-    close: () => new Promise((done) => { server.closeAllConnections(); server.close(done) }),
+    reset: () => { dropAllHeld(); queue.length = 0; calls.length = 0; unanswered.length = 0 },
+    close: () => new Promise((done) => { dropAllHeld(); server.closeAllConnections(); server.close(done) }),
   }))
 })
 
@@ -180,7 +185,7 @@ export const globalTeardown = async () => {
  * Registers one flow as a test named `<id>: <nome>`. The body gets a fresh browser context signed in as the
  * suite's person, the scripted model, and the Hub: `hub.db(sql)` reads, `hub.origin`, `hub.workspaceId`, `hub.evidenceDir`
  * (which holds `hub.log`), and `hub.signIn(page)` signs the suite's person in through Keycloak's form when the page holds
- * no Keycloak session. A scripted turn with `delayMs` holds its answer that long.
+ * no Keycloak session. A scripted turn with `until` holds its answer until the flow resolves that promise; a flow that ends first has the held turn dropped.
  * @param {FlowDeclaration} declaration
  * @param {(world: { page: import('@playwright/test').Page, model: Pick<Awaited<ReturnType<typeof startScriptedModel>>, 'script' | 'calls'>, hub: { origin: string, workspaceId: string, evidenceDir: string, db(sql: string): Promise<object[]>, signIn(page: import('@playwright/test').Page): Promise<void> } }) => Promise<void>} body
  */

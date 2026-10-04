@@ -29,5 +29,6 @@ export const startHeapWatch = (warn: (fields: Readonly<{ ratio: number; rss: num
   const sample = createHeapWatch((ratio) => {
     warn({ ratio: Number(ratio.toFixed(3)), rss: process.memoryUsage().rss })
   })
+  // biome-ignore lint/style/noRestrictedGlobals: started by the --import preload that the application runner shares (telemetry/register.ts), outside the Hub's composition and its jobs
   setInterval(() => sample(heapUsedRatio()), INTERVAL_MS).unref()
 }

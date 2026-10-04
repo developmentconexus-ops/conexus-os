@@ -7,7 +7,7 @@ import type { BuilderRunPorts, DiagnosticAppender } from './run/ports.js'
 import type { AnswerOutcome } from './run/question.js'
 import { type LiveRun, startRun } from './run/run.js'
 import type { BuilderSourceComparison, BuilderSourceFile, BuilderSourceTree, ProjectSourceReads } from './source.js'
-import type { BuilderRunSummary, BuilderRunView, BuilderStore } from './store.js'
+import type { BuilderRunSummary, BuilderRunView, BuilderStore, TakenOverRun } from './store.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
 import { Failure, logFailure, toFailure } from '../platform/failure.js'
 import { logLine, logger } from '../platform/logger.js'
@@ -35,14 +35,13 @@ export type BuilderService = Readonly<{
   compareSourceRevisions(input: Readonly<{ accountId: string; projectId: string; baseSourceRevision: string; resultSourceRevision: string }>): Promise<BuilderSourceComparison>
   getApplicationBySource(input: SourceCoordinates): Promise<ApplicationArtifactMetadata | null>
   readApplicationFileBySource(input: SourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
-  /** Refreshes the heartbeat of every run this Hub works, so no sweep takes it over. */
-  heartbeat(): Promise<void>
   /**
-   * Takes over every run whose owner went quiet (a crash, a restart, or an ending whose write
-   * failed) and settles it from the database and the Conexus Git alone. A run a sweep could not
-   * settle is taken over again by a later one.
+   * One pass of the run lease: refreshes the heartbeat of every run this Hub works, and takes over
+   * every other run whose owner went quiet (a crash, a restart, or an ending whose write failed),
+   * settling it from the database and the Conexus Git alone. A run this Hub works is never taken
+   * over by it. A run a pass could not settle is taken over again by a later one.
    */
-  sweep(): Promise<void>
+  renewLease(signal: AbortSignal): Promise<void>
   /** Stops every run for a Hub that is stopping; each ends INTERRUPTED HUB_RESTART. */
   stopRuns(): void
   close(): Promise<void>
@@ -61,7 +60,7 @@ export type BuilderRunDependencies = Readonly<{
   questionWaitMs: number
   /** The wait before a failed ending write is tried again; it is tried three times. */
   settleRetryMs?: number
-  /** How long a run's owner may go without a heartbeat before a sweep takes the run over. */
+  /** How long a run's owner may go without a heartbeat before a lease pass takes the run over. */
   staleAfterMs?: number
   /** This Hub process as the owner of the runs it works; a new one at every start. */
   ownerId?: string
@@ -69,7 +68,7 @@ export type BuilderRunDependencies = Readonly<{
   heapUsedRatio?: () => number
 }>
 
-/** Three heartbeats missed. */
+/** Three lease passes missed. */
 const RUN_STALE_AFTER_MS = 30_000
 /**
  * Above this a new run is refused. The heap watch warns at 0.8 held over two samples 15 s apart;
@@ -79,31 +78,39 @@ const RUN_STALE_AFTER_MS = 30_000
 const HEAP_REFUSE_RATIO = 0.85
 
 /**
- * Settles each run whose owner went quiet from the database and the Conexus Git alone. It keeps how
- * each run this Hub took over and has not yet settled lost its owner: a settle that failed leaves the
- * run owned here, so the next sweep takes it from this Hub and must not read that as this Hub's own
- * lost ending.
+ * One pass of the run lease: renews the heartbeat of the runs this Hub works and settles each run the
+ * database took over from an owner that went quiet, from the database and the Conexus Git alone. It
+ * keeps how each run this Hub took over and has not yet settled lost its owner: a settle that failed
+ * leaves the run owned here, so a later pass takes it from this Hub and must not read that as this
+ * Hub's own lost ending. A run that is live in this Hub when its turn to settle comes is skipped: it
+ * began after the pass listed the live runs, and it already has a fresh heartbeat.
  */
-const createStaleRunSweep = ({ store, git, ownerId, staleAfterMs }: Readonly<{
+const createRunLease = ({ store, git, ownerId, staleAfterMs, liveRunIds }: Readonly<{
   store: BuilderStore
   git: BuilderRunDependencies['git']
   ownerId: string
   staleAfterMs: number
+  liveRunIds(): readonly string[]
 }>) => {
   const takenOver = new Map<string, 'SETTLE_LOST' | 'OWNER_GONE'>()
-  return async (): Promise<void> => {
-    for (const run of await store.takeOverStaleBuilderRuns(ownerId, staleAfterMs)) {
-      // This Hub's own run is gone with its ending unwritten; any other owner stopped with its process.
-      const loss = takenOver.get(run.builderRunId) ?? (run.previousOwnerId === ownerId ? 'SETTLE_LOST' : 'OWNER_GONE')
-      takenOver.set(run.builderRunId, loss)
-      logLine('BUILDER_RUN_TAKEN_OVER', { run: run.builderRunId, loss }, 'warn')
-      try {
-        if (run.candidateRevision) await settleTakenOverCandidate({ store, git }, { ...run, candidateRevision: run.candidateRevision })
-        else await (loss === 'SETTLE_LOST' ? store.failBuilderRun(run.builderRunId, 'BUILDER_RUN_SETTLE_LOST') : store.interruptBuilderRun(run.builderRunId, 'HUB_RESTART'))
-        takenOver.delete(run.builderRunId)
-      } catch (error) {
-        logFailure(logger, new Failure('BUILDER_RUN_SWEEP_SETTLE_FAILED', { cause: error }), { 'builder.run_id': run.builderRunId })
-      }
+  const settle = async (run: TakenOverRun): Promise<void> => {
+    // This Hub's own run is gone with its ending unwritten; any other owner stopped with its process.
+    const loss = takenOver.get(run.builderRunId) ?? (run.previousOwnerId === ownerId ? 'SETTLE_LOST' : 'OWNER_GONE')
+    takenOver.set(run.builderRunId, loss)
+    logLine('BUILDER_RUN_TAKEN_OVER', { run: run.builderRunId, loss }, 'warn')
+    try {
+      if (run.candidateRevision) await settleTakenOverCandidate({ store, git }, { ...run, candidateRevision: run.candidateRevision })
+      else await (loss === 'SETTLE_LOST' ? store.failBuilderRun(run.builderRunId, 'BUILDER_RUN_SETTLE_LOST') : store.interruptBuilderRun(run.builderRunId, 'HUB_RESTART'))
+      takenOver.delete(run.builderRunId)
+    } catch (error) {
+      logFailure(logger, new Failure('BUILDER_RUN_SWEEP_SETTLE_FAILED', { cause: error }), { 'builder.run_id': run.builderRunId })
+    }
+  }
+  return async (signal: AbortSignal): Promise<void> => {
+    if (signal.aborted) return
+    for (const run of await store.renewRunLease(ownerId, liveRunIds(), staleAfterMs)) {
+      if (signal.aborted) return
+      if (!liveRunIds().includes(run.builderRunId)) await settle(run)
     }
   }
 }
@@ -117,6 +124,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   const ownerId = dependencies.ownerId ?? randomUUID()
   // The live runs by conversation: the only map of runs in the Hub.
   const runs = new Map<string, LiveRun>()
+  const liveRunIds = (): readonly string[] => [...runs.values()].map((live) => live.builderRunId)
   const applicationShutdown = new AbortController()
   let serviceClosing: Promise<void> | null = null
   // A browser that misses a publish still reads the run from the builder-session poll, so a failed
@@ -196,10 +204,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     },
     getApplicationBySource: (input) => unlessClosed(async () => (applicationArtifacts.getApplicationBySource ? applicationArtifacts.getApplicationBySource(input) : null)),
     readApplicationFileBySource: (input) => unlessClosed(async () => (applicationArtifacts.readApplicationFileBySource ? applicationArtifacts.readApplicationFileBySource(input) : null)),
-    heartbeat: async () => {
-      if (runs.size > 0) await store.heartbeatBuilderRuns(ownerId, [...runs.values()].map((run) => run.builderRunId))
-    },
-    sweep: createStaleRunSweep({ store, git: dependencies.git, ownerId, staleAfterMs: dependencies.staleAfterMs ?? RUN_STALE_AFTER_MS }),
+    renewLease: createRunLease({ store, git: dependencies.git, ownerId, staleAfterMs: dependencies.staleAfterMs ?? RUN_STALE_AFTER_MS, liveRunIds }),
     stopRuns: () => { for (const run of runs.values()) run.stop('HUB_STOPPING') },
     close: () => {
       serviceClosing ??= (async () => {

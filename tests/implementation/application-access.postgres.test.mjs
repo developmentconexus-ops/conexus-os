@@ -639,7 +639,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal(await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch, now: at(8_000) }), null, 'an ended Hub session opens nothing')
   })
 
-  await t.test('nothing of a Preview is kept after it ends: the next launch removes it and its sessions', async () => {
+  await t.test('nothing of a Preview is kept after it ends: the reaper removes it and its sessions, and a launch removes nothing', async () => {
     const launch = () => {
       const artifactRevisionId = randomUUID()
       return { accountId: owner, projectId, sourceRevision: 'e'.repeat(40), artifactRevisionId, artifactDigest: 'f'.repeat(64),
@@ -653,9 +653,12 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     await client.query("UPDATE iam.preview SET opened_at = opened_at - interval '16 minutes', expires_at = expires_at - interval '16 minutes' WHERE artifact_revision_id = $1", [first.artifactRevisionId])
     await client.query("UPDATE iam.host_session SET started_at = started_at - interval '16 minutes', absolute_expires_at = absolute_expires_at - interval '16 minutes' WHERE token_digest = $1",
       [createHash('sha256').update(entered.sessionToken).digest()])
+    const remains = async () => (await client.query('SELECT (SELECT count(*) FROM iam.preview WHERE artifact_revision_id = $1)::int AS previews, (SELECT count(*) FROM iam.host_session WHERE token_digest = $2)::int AS sessions',
+      [first.artifactRevisionId, createHash('sha256').update(entered.sessionToken).digest()])).rows
     assert.deepEqual(Object.keys(await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch: launch(), now: new Date() })).sort(), ['entryGrant', 'expiresAt'])
-    assert.deepEqual((await client.query('SELECT (SELECT count(*) FROM iam.preview WHERE artifact_revision_id = $1)::int AS previews, (SELECT count(*) FROM iam.host_session WHERE token_digest = $2)::int AS sessions',
-      [first.artifactRevisionId, createHash('sha256').update(entered.sessionToken).digest()])).rows, [{ previews: 0, sessions: 0 }])
+    assert.deepEqual(await remains(), [{ previews: 1, sessions: 1 }], 'a launch no longer removes what expired')
+    await client.query('SELECT * FROM iam.reap_expired(clock_timestamp(), 500)')
+    assert.deepEqual(await remains(), [{ previews: 0, sessions: 0 }])
   })
 
   await t.test('revoking the grant stops the next request and drops the refresh token', async () => {

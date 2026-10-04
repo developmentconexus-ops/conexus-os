@@ -38,6 +38,8 @@ export type CliproxyPool = Readonly<{
   startLogin(): Promise<LoginInstance>
   // Boot only, before anything is acquired: kills what a crashed Hub left and empties the state dir.
   sweepOrphans(): Promise<void>
+  // One pass of the `idle-cliproxy` job: stops the instances nobody leased for the idle window.
+  sweepIdle(signal: AbortSignal): Promise<void>
   close(): Promise<void>
 }>
 
@@ -109,11 +111,10 @@ const processGone = async (pid: number, ms: number): Promise<boolean> => {
 }
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
-export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, sweepEveryMs = 60_000, readyTimeoutMs = 10_000, authReadyTimeoutMs = AUTH_READY_TIMEOUT_MS }: Readonly<{
+export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, readyTimeoutMs = 10_000, authReadyTimeoutMs = AUTH_READY_TIMEOUT_MS }: Readonly<{
   binary: string
   stateDir: string
   idleMs?: number
-  sweepEveryMs?: number
   readyTimeoutMs?: number
   authReadyTimeoutMs?: number
 }>): CliproxyPool => {
@@ -241,14 +242,17 @@ export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, swe
     }
   }
 
-  const sweepIdle = (): void => {
+  // Resolves or rejects only once every stop it started has settled, so none outlives the job's drain.
+  const sweepIdle = async (signal: AbortSignal): Promise<void> => {
     const now = Date.now()
+    const stops: Promise<void>[] = []
     for (const [id, instance] of instances) {
-      if (instance.state === 'ready' && instance.leases === 0 && now - instance.idleSince >= idleMs) void stop(id, instance)
+      if (signal.aborted) break
+      if (instance.state === 'ready' && instance.leases === 0 && now - instance.idleSince >= idleMs) stops.push(stop(id, instance))
     }
+    const failed = (await Promise.allSettled(stops)).find((outcome) => outcome.status === 'rejected')
+    if (failed) throw failed.reason
   }
-  const sweeper = setInterval(sweepIdle, sweepEveryMs)
-  sweeper.unref()
 
   const acquire = async (key: GoogleAiProKey, persistRefresh?: PersistGoogleAiProRefresh): Promise<Lease> => {
     const id = instanceIdOf(key)
@@ -323,7 +327,6 @@ export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, swe
 
   const close = async (): Promise<void> => {
     closed = true
-    clearInterval(sweeper)
     const pending = [...instances.entries()].map(async ([id, instance]) => {
       if (instance.state === 'starting') {
         const ready = await instance.ready.catch(() => null)
@@ -337,5 +340,5 @@ export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, swe
     await Promise.all([...pending, ...[...logins].map((login) => login.close())])
   }
 
-  return Object.freeze({ acquire, startLogin, sweepOrphans, close })
+  return Object.freeze({ acquire, startLogin, sweepOrphans, sweepIdle, close })
 }

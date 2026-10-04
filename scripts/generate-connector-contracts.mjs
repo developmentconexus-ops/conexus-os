@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { canonicalBytes, sha256 } from '../packages/canonical-json/src/index.mjs'
+import { toTypeScript } from './schema-to-typescript.mjs'
 
 // Same shape as scripts/generate-iam-contracts.mjs, over the Connector Path Items instead of the
 // IAM and Workspace ones. A second per-module generator earns its place once the projection differs
@@ -146,22 +147,4 @@ function publishAtomically(publications) {
     }
     throw error
   }
-}
-
-function toTypeScript(schema) {
-  if (schema.oneOf) return schema.oneOf.map(toTypeScript).join(' | ')
-  if (schema.type === 'array') {
-    const item = toTypeScript(schema.items)
-    return `${item.includes(' | ') ? `(${item})` : item}[]`
-  }
-  if (schema.type === 'string') return Array.isArray(schema.enum) && schema.enum.length > 0 ? schema.enum.map((value) => JSON.stringify(value)).join(' | ') : 'string'
-  if (schema.type === 'integer' || schema.type === 'number') return 'number'
-  if (schema.type === 'boolean') return 'boolean'
-  if (schema.type === 'object') {
-    const required = new Set(schema.required ?? [])
-    const members = Object.entries(schema.properties ?? {}).map(([name, property]) => `${JSON.stringify(name)}${required.has(name) ? '' : '?'}: ${toTypeScript(property)}`)
-    return `{ ${members.join('; ')} }`
-  }
-  if (Object.hasOwn(schema, 'const')) return JSON.stringify(schema.const)
-  return 'unknown'
 }

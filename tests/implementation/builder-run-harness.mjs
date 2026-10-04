@@ -21,7 +21,7 @@ for (const level of ['info', 'warn', 'error']) {
 
 const built = hubModuleUrl
 const { createBuilderService } = await import(built('builder/service.js'))
-export const { scheduleIdleMachineSweep } = await import(built('builder/idle-machine-sweep.js'))
+export const { sweepIdleMachines } = await import(built('builder/idle-machine-sweep.js'))
 const { createConexusGit } = await import(built('builder/conexus-git.js'))
 const { loadCheckBundle } = await import(built('builder/check-delivery.js'))
 const { createProjectSourceReads } = await import(built('builder/source.js'))
@@ -313,9 +313,8 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     interruptBuilderRun: async (_id, reason) => { calls.push(['interrupt', reason]); row.running = false },
     requestBuilderRunCancellation: async () => ({ ...claimed, cancellationRequested: true }),
     recordConversationSession: async (input) => { sessions.push(input) },
-    // A run this Hub works is beating; one with a candidate and no beat is stale.
-    heartbeatBuilderRuns: async (_owner, ids) => { row.beating = ids.includes(runId) },
-    takeOverStaleBuilderRuns: async () => row.running && row.candidate && !row.beating
+    // A run this Hub lists as live is never taken over; one with a candidate that it does not list is stale.
+    renewRunLease: async (_owner, liveIds) => row.running && row.candidate && !liveIds.includes(runId)
       ? [{ builderRunId: runId, projectId, conversationId, candidateRevision: row.candidate, resultSourceRevision: row.result, previousOwnerId: null }]
       : [],
     close: async () => {},
@@ -364,12 +363,10 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
   // The candidate the run offered, as the Conexus Git holds it under the run's own ref.
   const result = () => inBare('rev-parse', '--verify', '--quiet', `refs/conexus/runs/${runId}`) || null
   const commands = () => events.filter((event) => typeof event === 'string')
-  // The run's own ending, or the lease's: a heartbeat for the runs in flight, then a sweep.
+  // The run's own ending, or the lease's: a lease pass settles what this Hub no longer lists.
   const settled = async () => {
     for (let attempt = 0; row.running && attempt < 400; attempt++) {
-      row.beating = false
-      await service.heartbeat()
-      await service.sweep()
+      await service.renewLease(new AbortController().signal)
       if (row.running) await new Promise((wake) => { setTimeout(wake, 5) })
     }
     return !row.running

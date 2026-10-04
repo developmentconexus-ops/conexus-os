@@ -66,6 +66,9 @@ const parkedRunExpiryDigest = 'ad64d6e9283dd8cfef24929aa0406a662f1e4b0192a06e423
 const recoveryListsInterruptedRunsDigest = 'a98079bbaf5cde34c00634f476c7384be552eae519102aede76c5793d4b4cd17'
 const applicationThumbnailDigest = 'bfb1537352b74f50692c47ecc738c75b158663715a2fe8471556f3824340a212'
 const hubSignOutProviderLogoutDigest = '082ef3a53dabaddc24937bcb0f236d0d8107287d4d73cdf35f9c27f8abf42413'
+const runLeaseOneCallDigest = '50803879e04d4e94d30991049c478df0fb2a3ef276e0d55fc8db986087583e21'
+const iamReaperDigest = '6610e1b0533fc80561064142011b26e971bcc7dc831933471b2338e596d26f2e'
+const invitationStateDigest = '52f15875fe72585faafb7bccab2e9b9aaebb8711db537772507caa81bcd9f874'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -124,6 +127,9 @@ const migrationDigests = new Map([
   ['0054_compiler_template_failures_gen.sql', compilerTemplateFailuresGenDigest],
   ['0055_get_project_names_its_tombstone_column.sql', getProjectTombstoneDigest],
   ['0056_builder_question_waits_in_the_run.sql', questionWaitsInTheRunDigest],
+  ['0057_builder_run_lease_one_call.sql', runLeaseOneCallDigest],
+  ['0058_iam_reaper.sql', iamReaperDigest],
+  ['0059_invitation_state.sql', invitationStateDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

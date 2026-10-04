@@ -38,6 +38,7 @@ const pendingInvitationEntry = {
   role: 'member',
   invitedAt: '2026-09-19T00:00:00.000Z',
   expiresAt: '2026-10-03T00:00:00.000Z',
+  state: 'PENDING',
 }
 
 const makeStore = (overrides = {}) => {
@@ -58,6 +59,7 @@ const makeStore = (overrides = {}) => {
         role: input.role,
         invitedAt: '2026-09-19T00:00:00.000Z',
         expiresAt: '2026-10-03T00:00:00.000Z',
+        state: 'PENDING',
       }
     },
     cancelInvitation: record('cancelInvitation'),
@@ -134,6 +136,7 @@ test('inviting the same email twice answers the same invitation', async (t) => {
     role: 'member',
     invitedAt: '2026-09-19T00:00:00.000Z',
     expiresAt: '2026-10-03T00:00:00.000Z',
+    state: 'PENDING',
   })
   assert.deepEqual(second.json(), first.json())
   assert.deepEqual(
@@ -327,7 +330,7 @@ test('an invitation that belongs to a different Workspace is a 404, not a cross-
       if (queriedWorkspaceId === otherWorkspaceId) {
         return {
           viewerRole: 'owner',
-          entries: [{ kind: 'invitation', invitationId, email: 'ana@example.test', role: 'member', invitedAt: '2026-09-19T00:00:00.000Z', expiresAt: '2026-10-03T00:00:00.000Z' }],
+          entries: [{ kind: 'invitation', invitationId, email: 'ana@example.test', role: 'member', invitedAt: '2026-09-19T00:00:00.000Z', expiresAt: '2026-10-03T00:00:00.000Z', state: 'PENDING' }],
         }
       }
       return { viewerRole: 'owner', entries: [ownerEntry, memberEntry] }

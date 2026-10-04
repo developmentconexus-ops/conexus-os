@@ -6,6 +6,7 @@ import type { ObservabilityInstance } from '@mastra/core/observability'
 import type { RequestContext } from '@mastra/core/request-context'
 import { createPostgresPool } from '../platform/postgres.js'
 import { Failure } from '../platform/failure.js'
+import type { Job } from '../platform/jobs.js'
 import { logLine } from '../platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
@@ -28,11 +29,10 @@ import { listPausedConversationMachines } from './sandbox.js'
 import { APPLICATION_SHAPE_FILES, fixedApplicationStarterFiles } from './application-starter.js'
 import { createConexusGit } from './conexus-git.js'
 import { createConversations, projectResourceId } from './conversations.js'
-import { scheduleIdleMachineSweep } from './idle-machine-sweep.js'
-import { scheduleRunLease } from './run-lease.js'
+import { sweepIdleMachines } from './idle-machine-sweep.js'
 import { createBuilderObservability, createBuilderObservabilityLifecycle } from './observability.js'
 import { createDiagnosticAppender } from './diagnostic-appender.js'
-import { createBuilderStorage, scheduleRetentionPrune } from './storage.js'
+import { createBuilderStorage, pruneSpans } from './storage.js'
 import { conversationScope, createLiveConversations } from './conversation.js'
 import { createBuilderController, createContext7Docs } from './harness/index.js'
 import { starterProjectFiles } from './project-context.js'
@@ -80,6 +80,11 @@ export type BuilderConnectorPort = Readonly<{
 }>
 
 const BUILDER_CONTROLLER_ID = 'conexus-builder'
+
+const MINUTE_MS = 60_000
+const HOUR_MS = 60 * MINUTE_MS
+const DAY_MS = 24 * HOUR_MS
+const RUN_LEASE_EVERY_MS = 10_000
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
@@ -182,20 +187,20 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   })
   const ready = controller.init()
   ready.catch(() => undefined)
-  // E2B's sandboxes come with the sweep that deletes its idle paused machines. A test composition's
-  // own sandboxes have no E2B machines, so no key is read and nothing is swept.
+  // E2B's sandboxes come with the ports of the job that deletes its idle paused machines. A test
+  // composition's own sandboxes have no E2B machines, so no key is read and nothing is swept.
   const e2bSandboxes = () => {
     const e2bApiKey = readSecretFile(builder.e2bApiKeyFile)
     const sandboxes = e2bConversationSandboxes({ apiKey: e2bApiKey, templateId: builder.e2bTemplateId, idleMs: builder.sandboxIdleMs, check })
-    const idleMachineSweep = scheduleIdleMachineSweep({
+    const machines = {
       listPaused: () => listPausedConversationMachines(e2bApiKey),
       openRunConversations: store.readOpenRunConversations,
       kill: sandboxes.killRecorded,
       log,
-    })
-    return { sandboxes, idleMachineSweep }
+    }
+    return { sandboxes, machines }
   }
-  const { sandboxes, idleMachineSweep } = conversationSandboxes ? { sandboxes: conversationSandboxes, idleMachineSweep: undefined } : e2bSandboxes()
+  const { sandboxes, machines } = conversationSandboxes ? { sandboxes: conversationSandboxes, machines: undefined } : e2bSandboxes()
   const liveConversations = createLiveConversations({
     controller, sandboxes, readSandboxId: store.readConversationSandbox, runOpen: (conversationId) => service.runOpen(conversationId),
   })
@@ -209,7 +214,6 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     await session.thread.loadMetadata()
     return session.model.hasSelection() ? session.model.get() : null
   }
-  const retentionPrune = scheduleRetentionPrune(storage, log)
   const conversations = createConversations(async () => {
     const memory = await mastra.getStorage()?.getStore('memory')
     if (!memory) throw new Failure('BUILDER_CONVERSATIONS_UNAVAILABLE')
@@ -248,8 +252,14 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   const service = createBuilderService({
     store, applicationArtifacts: boundApplicationArtifacts, ...(applicationServer ? { applicationServer } : {}), runs,
   })
-  // Sweeps at boot: the runs a stopped Hub left in flight are settled once their heartbeat is stale.
-  const runLease = scheduleRunLease({ heartbeat: service.heartbeat, sweep: service.sweep })
+  // The first lease pass runs at start: the runs a stopped Hub left in flight are settled once their heartbeat is stale.
+  const jobs: readonly Job[] = [
+    { name: 'run-lease', everyMs: RUN_LEASE_EVERY_MS, run: service.renewLease },
+    { name: 'span-prune', everyMs: DAY_MS, run: (signal) => pruneSpans(storage, log, signal) },
+    { name: 'idle-conversations', everyMs: MINUTE_MS, run: liveConversations.sweep },
+    ...(machines ? [{ name: 'idle-machines', everyMs: HOUR_MS, run: async (signal: AbortSignal) => { await sweepIdleMachines(machines, signal) } }] : []),
+    ...(googleAiPro ? [{ name: 'idle-cliproxy', everyMs: MINUTE_MS, run: async (signal: AbortSignal) => { await (await googleAiProReady)?.pool.sweepIdle(signal) } }] : []),
+  ]
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })
@@ -290,6 +300,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   const admitProject = async ({ accountId, projectId }: Readonly<{ accountId: string; projectId: string }>): Promise<boolean> =>
     (await store.readPreviewSubject({ accountId, projectId })) !== null
   return Object.freeze({
+    jobs,
     registerBuilderRoutes: async (app: FastifyInstance) => {
       const builderOperations = await registerBuilderRoutes(app, { store, service, session, resolveCurrentSession, origin, ...(launchPreview ? { launchPreview } : {}) })
       await ready
@@ -327,15 +338,9 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     getApplicationBySource: service.getApplicationBySource,
     getApplicationThumbnail: boundApplicationArtifacts.getApplicationThumbnail,
     close: async () => {
-      let drained: Promise<unknown> = Promise.resolve()
+      // The Hub closed its jobs first, so no pass reads what closes below.
       try {
-        try {
-          service.stopRuns()
-        } finally {
-          drained = Promise.all([retentionPrune.close(), idleMachineSweep?.close()])
-        }
-        // The lease reads the run store's pool, which the service's close ends.
-        await runLease.close()
+        service.stopRuns()
         await service.close()
       } finally {
         try {
@@ -345,7 +350,6 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
           await docsTools.close()
           await googleAiProReady.then((started) => started?.close(), () => undefined)
           await observabilityLifecycle.close()
-          await drained
           await Promise.all([storagePool.end(), modelAccountPool.end()])
         }
       }

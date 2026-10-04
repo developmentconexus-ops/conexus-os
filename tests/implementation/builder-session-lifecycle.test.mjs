@@ -61,7 +61,7 @@ const runner = async (t, { runOpen = () => false } = {}) => {
   await controller.init()
   t.after(() => controller.destroy?.())
   conversations = createLiveConversations({
-    controller, sandboxes, readSandboxId: async ({ conversationId }) => recorded.get(conversationId) ?? null, runOpen, now: () => clock.now, sweepEveryMs: 3_600_000,
+    controller, sandboxes, readSandboxId: async ({ conversationId }) => recorded.get(conversationId) ?? null, runOpen, now: () => clock.now,
   })
   t.after(() => conversations.close())
   const openSession = createControllerRunSessions({ controller, conversations, readDefaultModel: async () => 'anthropic/default-model' })
@@ -124,19 +124,19 @@ test('the idle sweep lets an idle conversation go, and never one whose run is op
   await conversations.open({ projectId, conversationId: conversation(1) })
   await conversations.open({ projectId, conversationId: conversation(2) })
   clock.now += CONVERSATION_SESSION_IDLE_MS - 1
-  await conversations.sweep()
+  await conversations.sweep(new AbortController().signal)
   assert.notEqual(await live(conversation(1)), undefined, 'not idle long enough yet')
   clock.now += 1
-  await conversations.sweep()
+  await conversations.sweep(new AbortController().signal)
   assert.deepEqual([await live(conversation(1)) === undefined, await live(conversation(2)) === undefined], [true, false])
   open.delete(conversation(2))
   conversations.touch(conversation(2))
   await new Promise((settle) => { setImmediate(settle) })
   clock.now += CONVERSATION_SESSION_IDLE_MS - 1
-  await conversations.sweep()
+  await conversations.sweep(new AbortController().signal)
   assert.notEqual(await live(conversation(2)), undefined, 'the idle window starts again when the run ends')
   clock.now += 1
-  await conversations.sweep()
+  await conversations.sweep(new AbortController().signal)
   assert.equal(await live(conversation(2)), undefined)
 })
 
@@ -175,7 +175,7 @@ test('a conversation opened while the idle sweep looks at it is not retired unde
   let answer = () => undefined
   const held = new Promise((settle) => { answer = settle })
   controller.getSessionByResource = async (...input) => { await held; controller.getSessionByResource = lookup; return lookup(...input) }
-  const sweeping = conversations.sweep()
+  const sweeping = conversations.sweep(new AbortController().signal)
   await new Promise((settle) => { setImmediate(settle) })
   const opening = conversations.open({ projectId, conversationId: conversation(1) })
   answer()

@@ -6,6 +6,7 @@ import { Label } from '@mastra/playground-ui/components/Label'
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import { toast } from '@mastra/playground-ui/components/Toaster'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { UseMutationResult } from '@tanstack/react-query'
 import { Link2 } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useId, useState } from 'react'
@@ -17,12 +18,15 @@ import {
   revokeApplicationAccessEntry,
 } from '../application-access-api'
 import type { GrantEntry, InvitationEntry } from '../application-access-api'
+import type { GrantedApplicationAccess } from '../../../generated/iam-client'
 import '../people.css'
+import { INVITATION_STATE } from '../invitation-state'
 import { failureText } from '../../../app/http'
 import { FailureState } from '../../../app/failure-state'
 
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })
 const formatDate = (value: string) => date.format(new Date(value))
+const sentenceCase = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
 
 async function copyAddress(address: string) {
   try {
@@ -33,12 +37,19 @@ async function copyAddress(address: string) {
   }
 }
 
+type Grant = UseMutationResult<GrantedApplicationAccess, Error, string>
+
+// What the server answered to a grant or an invitation: the screen shows it as it came.
+const outcomeText = (access: GrantedApplicationAccess): string =>
+  access.kind === 'grant' ? `${access.displayName} já tem acesso.` : `Convite criado para ${access.email}.`
+
 type Pending = Readonly<{ kind: 'grant'; entry: GrantEntry } | { kind: 'invitation'; entry: InvitationEntry }>
 
 export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>) {
   const queryClient = useQueryClient()
   const [message, setMessage] = useState('')
   const [pending, setPending] = useState<Pending | null>(null)
+  const [outcome, setOutcome] = useState<string | null>(null)
   const access = useQuery({ queryKey: applicationAccessQueryKey(projectId), queryFn: () => getApplicationAccess(projectId) })
   const refresh = () => queryClient.invalidateQueries({ queryKey: applicationAccessQueryKey(projectId) })
   const fail = (error: unknown) => setMessage(failureText(error))
@@ -47,6 +58,12 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
     mutationFn: ({ kind, id }: { kind: 'grant' | 'invitation'; id: string }) => revokeApplicationAccessEntry(projectId, kind, id),
     onSuccess: async () => { setMessage(''); setPending(null); await refresh() },
     onError: fail,
+  })
+
+  // The one grant call: the form and the row of an expired invitation both use it.
+  const grant = useMutation({
+    mutationFn: (email: string) => grantApplicationAccess(projectId, { email }),
+    onSuccess: async (granted) => { await refresh(); setOutcome(outcomeText(granted)) },
   })
 
   if (access.isPending) {
@@ -67,7 +84,7 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
   const grants = access.data.entries.filter((entry): entry is GrantEntry => entry.kind === 'grant')
   const invitations = access.data.entries.filter((entry): entry is InvitationEntry => entry.kind === 'invitation')
   const address = access.data.address
-  const busy = revoke.isPending
+  const busy = revoke.isPending || grant.isPending
 
   return <div className="cx-people">
     {message && <p className="cx-people-message" role="alert">{message}</p>}
@@ -109,9 +126,9 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
     </section>
 
     <section aria-labelledby="access-invitations">
-      <h2 id="access-invitations" className="cx-section-title">Convites pendentes <span className="cx-count">{invitations.length}</span></h2>
+      <h2 id="access-invitations" className="cx-section-title">Convites <span className="cx-count">{invitations.length}</span></h2>
       {invitations.length === 0 ? (
-        <p className="cx-people-empty">Nenhum convite esperando resposta.</p>
+        <p className="cx-people-empty">Nenhum convite.</p>
       ) : (
         <ul className="cx-person-list">
           {invitations.map((invitation) => (
@@ -119,8 +136,12 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
               <Avatar name={invitation.email} size="md" />
               <div className="cx-person-who">
                 <strong>{invitation.email}</strong>
-                <span>Vale até {formatDate(invitation.expiresAt)}</span>
+                <span>{sentenceCase(INVITATION_STATE[invitation.state].dateWord)} {formatDate(invitation.expiresAt)}</span>
               </div>
+              <span className="cx-chip" data-tone={INVITATION_STATE[invitation.state].tone}>{INVITATION_STATE[invitation.state].word}</span>
+              {invitation.state === 'EXPIRED' && (
+                <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => { setOutcome(null); grant.mutate(invitation.email, { onError: fail }) }}>Convidar de novo</Button>
+              )}
               <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setPending({ kind: 'invitation', entry: invitation })}>Cancelar</Button>
             </li>
           ))}
@@ -128,7 +149,7 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
       )}
     </section>
 
-    <GrantForm projectId={projectId} onGranted={refresh} />
+    <GrantForm grant={grant} outcome={outcome} onSubmit={() => setOutcome(null)} />
 
     <p className="cx-field-hint cx-app-note">Quem é membro do Workspace já usa o aplicativo sem precisar estar nesta lista.</p>
 
@@ -161,19 +182,9 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
   </div>
 }
 
-function GrantForm({ projectId, onGranted }: Readonly<{ projectId: string; onGranted: () => Promise<unknown> }>) {
+function GrantForm({ grant, outcome, onSubmit }: Readonly<{ grant: Grant; outcome: string | null; onSubmit: () => void }>) {
   const emailId = useId()
   const [message, setMessage] = useState('')
-  const [granted, setGranted] = useState<string | null>(null)
-  const grant = useMutation({
-    mutationFn: (email: string) => grantApplicationAccess(projectId, { email }),
-    onSuccess: async (access) => {
-      setMessage('')
-      await onGranted()
-      setGranted(access.kind === 'grant' ? `${access.displayName} já tem acesso.` : `Convite criado para ${access.email}.`)
-    },
-    onError: (error) => setMessage(failureText(error)),
-  })
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -184,8 +195,11 @@ function GrantForm({ projectId, onGranted }: Readonly<{ projectId: string; onGra
       setMessage('Escreva o email da pessoa.')
       return
     }
-    setGranted(null)
-    grant.mutate(email, { onSuccess: () => form.reset() })
+    onSubmit()
+    grant.mutate(email, {
+      onSuccess: () => { setMessage(''); form.reset() },
+      onError: (error) => setMessage(failureText(error)),
+    })
   }
 
   return <section aria-labelledby="access-grant" className="cx-panel cx-invite">
@@ -200,7 +214,7 @@ function GrantForm({ projectId, onGranted }: Readonly<{ projectId: string; onGra
     <p className="cx-field-hint">A pessoa entra com esse e-mail no endereço acima. Ela não passa a ver o Workspace nem o Projeto.</p>
     <p className="cx-form-status" data-tone={message ? 'error' : undefined} role="status" aria-live="polite">
       {message}
-      {granted && !message && granted}
+      {outcome && !message && outcome}
     </p>
   </section>
 }

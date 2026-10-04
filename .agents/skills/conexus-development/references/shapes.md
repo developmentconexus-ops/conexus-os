@@ -18,6 +18,8 @@ owner document decides, and the disagreement is a finding.
 | Conexus designs its screens; `@mastra/playground-ui` supplies parts | C-031 |
 | A failure is a row of `failures.json`; one `Failure` type; one exit logs it | [spec 0009](../../../../docs/tasks/specs/0009-one-failure-table/index.md) |
 | Every concept has one owner, Conexus or Factory | [single-owner map](../../../../docs/reference/single-owner-map.md) |
+| Periodic work is a `Job` run by the one executor; whatever expires is removed by `iam.reap_expired` | [spec 0013](../../../../docs/tasks/specs/0013-one-job-executor-one-reaper/index.md) |
+| A module is a function returning a frozen object with private state; a class only extends `Error`, `Failure` or a library base class | [spec 0013](../../../../docs/tasks/specs/0013-one-job-executor-one-reaper/index.md) |
 
 ## Never
 
@@ -56,7 +58,8 @@ is judged in review.
   lines than it deletes, stop and report. `review`, principle 11.
 - **Never ship a second way for one need.** A native `title` tooltip appeared beside the design
   system's `Tooltip`. Instead use the existing way, or replace the old way everywhere in the same
-  change. `review`, principle 6.
+  change. A second way is allowed only while a census that only falls counts the old way and a wave owns it.
+  `review`, principle 6.
 - **Never let one function run a whole lifecycle.** Functions over 80 lines still sit under a
   `debt: owning wave` suppression. Instead split by subject, and never grow a function under a
   size `biome-ignore`. `lint` (`noExcessiveLinesPerFunction`), principle 5.

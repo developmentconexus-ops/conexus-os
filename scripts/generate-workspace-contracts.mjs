@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, u
 import { dirname, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { canonicalBytes, sha256 } from '../packages/canonical-json/src/index.mjs'
+import { toTypeScript } from './schema-to-typescript.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '..')
 const source = resolve(repositoryRoot, 'contracts/api/product/openapi.yaml')
@@ -153,27 +154,4 @@ function publishAtomically(publications, temporaryRoot) {
     }
     throw error
   }
-}
-
-function toTypeScript(schema) {
-  if (!schema) return 'unknown'
-  if (schema.oneOf) return schema.oneOf.map(toTypeScript).join(' | ')
-  if (schema.anyOf) return schema.anyOf.map(toTypeScript).join(' | ')
-  if (schema.allOf) return schema.allOf.map(toTypeScript).join(' & ')
-  if (schema.enum) return schema.enum.map((value) => JSON.stringify(value)).join(' | ')
-  if (Object.hasOwn(schema, 'const')) return JSON.stringify(schema.const)
-  if (Array.isArray(schema.type)) return schema.type.map((type) => toTypeScript({ ...schema, type })).join(' | ')
-  if (schema.type === 'array') return `${toTypeScript(schema.items)}[]`
-  if (schema.type === 'string') return 'string'
-  if (schema.type === 'integer' || schema.type === 'number') return 'number'
-  if (schema.type === 'boolean') return 'boolean'
-  if (schema.type === 'null') return 'null'
-  if (schema.type === 'object' || schema.properties) {
-    const required = new Set(schema.required ?? [])
-    const members = Object.entries(schema.properties ?? {}).map(([name, property]) => `${JSON.stringify(name)}${required.has(name) ? '' : '?'}: ${toTypeScript(property)}`)
-    if (schema.additionalProperties && typeof schema.additionalProperties === 'object') members.push(`[key: string]: ${toTypeScript(schema.additionalProperties)}`)
-    else if (schema.additionalProperties === true) members.push('[key: string]: unknown')
-    return `{ ${members.join('; ')} }`
-  }
-  return 'unknown'
 }

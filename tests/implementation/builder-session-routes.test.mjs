@@ -49,7 +49,7 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
   await controller.init()
   const conversations = createConversations(async () => storage.getStore('memory'))
   const clock = { now: 0 }
-  const sessions = testConversations(controller, () => undefined, { now: () => clock.now, sweepEveryMs: 3_600_000 })
+  const sessions = testConversations(controller, () => undefined, { now: () => clock.now })
   await controller.createSession({ resourceId: `project:${projectA}`, scope: `conversation:${conversationA}`, threadId: conversationA })
   const reachedContexts = []
   const { createHostSessions } = await import(hubModuleUrl('identity-access/host-sessions.js'))
@@ -300,10 +300,10 @@ test("a conversation's session the browser stops using is deleted by the idle sw
   assert.equal((await openConversation(app, projectA, conversation)).statusCode, 200)
   assert.notEqual(await live(conversation), undefined, 'the browser opened the session')
   clock.now += CONVERSATION_SESSION_IDLE_MS - 1
-  await sessions.sweep()
+  await sessions.sweep(new AbortController().signal)
   assert.notEqual(await live(conversation), undefined, 'a session idle for less than the limit stays')
   clock.now += 1
-  await sessions.sweep()
+  await sessions.sweep(new AbortController().signal)
   assert.equal(await live(conversation), undefined, 'a session idle for the limit is deleted')
   const read = await app.inject({ method: 'GET', url: `${sessionBase()}?${inConversation(conversation)}`, ...authentic })
   assert.equal(read.statusCode, 200)
@@ -311,7 +311,7 @@ test("a conversation's session the browser stops using is deleted by the idle sw
   clock.now += CONVERSATION_SESSION_IDLE_MS - 1
   assert.equal((await app.inject({ method: 'GET', url: `${sessionBase()}?${inConversation(conversation)}`, ...authentic })).statusCode, 200)
   clock.now += CONVERSATION_SESSION_IDLE_MS - 1
-  await sessions.sweep()
+  await sessions.sweep(new AbortController().signal)
   assert.notEqual(await live(conversation), undefined, 'a request renews the session\'s time')
 })
 

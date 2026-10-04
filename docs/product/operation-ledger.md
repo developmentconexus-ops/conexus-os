@@ -86,11 +86,11 @@ must agree exactly.
 | `IAM-01` | `GetControlPlaneAccessContext` | I&A | Control Plane shell; server-resolved Account + Workspace/Project context | read |
 | `IAM-02` | `EndSession` | I&A | authenticated human through the current Conexus session | command |
 | `IAM-03` | `ProvisionAccount` | I&A | first account for the configured bootstrap identity, or an invited verified email | command |
-| `IAM-04` | `ListWorkspaceMembers` | I&A | current Workspace roster: members and pending invitations in one projection | read |
+| `IAM-04` | `ListWorkspaceMembers` | I&A | current Workspace roster: members and invitations with their state in one projection | read |
 | `IAM-05` | `InviteWorkspaceMember` | I&A | exact Workspace + verified email the invited person must sign in with; the pair is the natural key | command |
 | `IAM-06` | `RemoveWorkspaceRosterEntry` | I&A | exact Workspace roster entry; narrowing, and removing a member withdraws every derived right | narrowing command |
 | `IAM-10` | `SetWorkspaceMemberRole` | I&A | exact Workspace membership; the last owner cannot be demoted | command/current-authority |
-| `IAM-11` | `ListApplicationAccess` | I&A | exact Project's application: its address, open grants and pending invitations in one projection; Owner of the Project's Workspace only | read |
+| `IAM-11` | `ListApplicationAccess` | I&A | exact Project's application: its address, open grants and invitations with their state in one projection; Owner of the Project's Workspace only | read |
 | `IAM-12` | `GrantApplicationAccess` | I&A | exact Project + verified email the person must sign in with; the pair is the natural key; an email whose person already holds an open grant answers that grant and opens nothing; the first grant fixes the application's address; Owner of the Project's Workspace only | command |
 | `IAM-13` | `RevokeApplicationAccessEntry` | I&A | exact Project access entry (grant or invitation); narrowing, and a revoked grant stops the person at their next request and withdraws any invitation to their email for the application | narrowing command |
 | `WS-01` | `CreateWorkspace` | Workspace | any authenticated Account; the creator becomes its owner | command |

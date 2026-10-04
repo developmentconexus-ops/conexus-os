@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { IamOwnerId } from '../generated/iam-routes.js'
 import { applicationOrigin } from '../platform/config.js'
 import type { ApplicationAddress } from '../platform/config.js'
+import type { Job } from '../platform/jobs.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { createApplicationAccessStore, registerApplicationAccessRoutes } from './application-access.js'
@@ -13,6 +14,7 @@ import type { InstallationAdministration } from './installation-administration.j
 import { registerInstallationRoutes } from './installation-routes.js'
 import { createMembershipStore, registerMembershipRoutes } from './membership.js'
 import { createOidcAdapter } from './oidc.js'
+import { iamReaperJob } from './reaper.js'
 import { registerIdentityAccessRoutes } from './routes.js'
 import { createIdentityAccessStore } from './store.js'
 import type { CurrentSession } from './store.js'
@@ -29,6 +31,8 @@ export type IdentityAccessModule = Readonly<{
   hostSessions: HostSessions
   /** Acts on whether the Project has an application, whose Preview data must then never be erased; none can be created meanwhile. */
   withApplicationPresence: ApplicationAccessStore['withApplicationPresence']
+  /** The periodic work this module owns, run by the Hub's executor. */
+  jobs: readonly Job[]
   close(): Promise<void>
 }>
 
@@ -117,6 +121,7 @@ export const createIdentityAccessModule = async ({
     installationAdministration,
     hostSessions,
     withApplicationPresence: (projectId, work) => applicationAccess.withApplicationPresence(projectId, work),
+    jobs: [iamReaperJob(pool)],
     close: async () => {
       await Promise.all([oidc.close(), store.close()])
     },

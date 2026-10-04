@@ -1,11 +1,7 @@
 import type { MastraCompositeStore, RetentionConfig } from '@mastra/core/storage'
 import { PostgresStore } from '@mastra/pg'
-import { Failure, logFailure } from '../platform/failure.js'
-import { logger } from '../platform/logger.js'
 import type { EventLog } from '../platform/logger.js'
 import type { PostgresPool } from '../platform/postgres.js'
-
-const RETENTION_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000
 
 // Spans hold prompts, tool I/O and source text. Bounding their age is the only retention: Builder
 // evidence lives in the threads' messages, so memory is never a retention key here.
@@ -19,43 +15,16 @@ const OBSERVABILITY_SPAN_RETENTION: RetentionConfig = { observability: { spans: 
 export const createBuilderStorage = (pool: PostgresPool): PostgresStore =>
   new PostgresStore({ id: 'conexus-builder', pool, schemaName: 'factory', retention: OBSERVABILITY_SPAN_RETENTION })
 
-// Mastra never runs prune() itself (reference-storage-retention.md). The store declares the
-// `maxAge` policy above; this is the schedule that actually deletes rows older than it. Each tick
-// waits for the store's own init, which creates the tables a fresh installation does not have yet.
-// `close()` stops the timer, aborts the prune in flight between batches, and settles after it, so the pool it uses can end after it.
-type RetentionSchedule = Readonly<{ tick(): Promise<void>; close(): Promise<void> }>
-
-export const scheduleRetentionPrune = (
-  storage: Pick<MastraCompositeStore, 'init' | 'prune'>,
-  log: EventLog,
-  intervalMs = RETENTION_PRUNE_INTERVAL_MS,
-): RetentionSchedule => {
-  const inFlight = new Set<Promise<void>>()
-  const stop = new AbortController()
-  const run = async (): Promise<void> => {
-    await storage.init()
-    for (const result of await storage.prune({ signal: stop.signal })) {
-      log('BUILDER_RETENTION_PRUNED', { table: `${result.domain}.${result.table}`, deleted: result.deleted })
-      if (!result.done) log('BUILDER_RETENTION_PRUNE_INCOMPLETE', { table: `${result.domain}.${result.table}` })
-    }
+/**
+ * One pass of the `span-prune` job. Mastra never runs prune() itself (reference-storage-retention.md);
+ * the store declares the `maxAge` policy above and this deletes the rows older than it. It waits for
+ * the store's own init, which creates the tables a fresh installation does not have yet, and aborts
+ * between batches.
+ */
+export const pruneSpans = async (storage: Pick<MastraCompositeStore, 'init' | 'prune'>, log: EventLog, signal: AbortSignal): Promise<void> => {
+  await storage.init()
+  for (const result of await storage.prune({ signal })) {
+    log('BUILDER_RETENTION_PRUNED', { table: `${result.domain}.${result.table}`, deleted: result.deleted })
+    if (!result.done) log('BUILDER_RETENTION_PRUNE_INCOMPLETE', { table: `${result.domain}.${result.table}` })
   }
-  const tick = (): Promise<void> => {
-    const pass = run()
-    inFlight.add(pass)
-    const settled = (): void => { inFlight.delete(pass) }
-    pass.then(settled, settled)
-    return pass
-  }
-  const tickLogged = (): void => { tick().catch((error: unknown) => logFailure(logger, new Failure('BUILDER_RETENTION_PRUNE_FAILED', { cause: error }))) }
-  tickLogged()
-  const timer = setInterval(tickLogged, intervalMs)
-  timer.unref()
-  return Object.freeze({
-    tick,
-    close: async () => {
-      clearInterval(timer)
-      stop.abort()
-      await Promise.allSettled([...inFlight])
-    },
-  })
 }

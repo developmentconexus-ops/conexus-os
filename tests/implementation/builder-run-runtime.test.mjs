@@ -8,7 +8,7 @@ import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 import {
-  endLines, failureLines, runId, projectId, accountId, conversationId, AGENTS_MD, CONNECTOR_BRIEF_UNBOUND, CONNECTOR_BRIEF_UNAVAILABLE, BASE_FILES, GIT_ENV, completed, listFiles, PASSING_REPORT, failedReport, harness, Failure, scheduleIdleMachineSweep, conexusInstructions, RequestContext, STARTER,
+  endLines, failureLines, runId, projectId, accountId, conversationId, AGENTS_MD, CONNECTOR_BRIEF_UNBOUND, CONNECTOR_BRIEF_UNAVAILABLE, BASE_FILES, GIT_ENV, completed, listFiles, PASSING_REPORT, failedReport, harness, Failure, sweepIdleMachines, conexusInstructions, RequestContext, STARTER,
 } from './builder-run-harness.mjs'
 
 const admissionCalls = (run) => run.calls.filter(([kind]) => ['candidate', 'advance', 'settleBuild', 'fail', 'interrupt'].includes(kind))
@@ -1292,16 +1292,13 @@ test('#423 the conversation of an idle machine that the sweep deleted runs its n
   const log = []
   const day = 86_400_000
   const now = Date.now()
-  let listed = 0
-  const sweep = scheduleIdleMachineSweep({
-    listPaused: async () => (listed++ === 0 ? [] : [{ providerSandboxId: 'ivm-idle', conversationId, idleSince: new Date(now - 8 * day) }]),
+  await sweepIdleMachines({
+    listPaused: async () => [{ providerSandboxId: 'ivm-idle', conversationId, idleSince: new Date(now - 8 * day) }],
     openRunConversations: async () => new Set(),
     kill: async (ids) => { deleted.push(...ids); run.loseVm('sbx-new'); return ids },
     log: (code, fields) => log.push([code, ...Object.values(fields)].join(':')),
     now: () => now,
-  }, 3_600_000)
-  await sweep.tick()
-  await sweep.close()
+  }, new AbortController().signal)
   assert.deepEqual(deleted, ['ivm-idle'])
   assert.deepEqual(log, [`BUILDER_IDLE_MACHINE_DELETED:${conversationId}:ivm-idle:8`])
   await run.again()

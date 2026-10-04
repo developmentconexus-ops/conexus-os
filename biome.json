@@ -181,6 +181,23 @@
       }
     },
     {
+      "includes": ["apps/hub/src/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "setInterval": "Periodic work is a Job run by startJobs in platform/jobs.ts (spec 0013)."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "includes": [
         "apps/hub/src/**",
         "!apps/hub/src/platform/config.ts"

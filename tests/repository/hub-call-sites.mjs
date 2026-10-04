@@ -29,8 +29,7 @@ export const ROLE_BY_CALL_SITE = Object.freeze({
     'builder.settle_builder_run_build': 'hub_builder_executor',
     'builder.fail_builder_run': 'hub_builder_executor',
     'builder.interrupt_builder_run': 'hub_builder_executor',
-    'builder.heartbeat_builder_runs': 'hub_builder_executor',
-    'builder.take_over_stale_builder_runs': 'hub_builder_executor',
+    'builder.renew_run_lease': 'hub_builder_executor',
     'builder.lock_project_for_run': 'hub_builder_ingress',
     'builder.record_builder_run_model_account': 'hub_builder_executor',
     'builder.record_conversation_session': 'hub_builder_executor',
@@ -38,6 +37,9 @@ export const ROLE_BY_CALL_SITE = Object.freeze({
     'builder.read_conversation_sandbox': 'hub_builder_executor',
     'builder.read_project_sandboxes': 'hub_builder_executor',
     'builder.read_open_run_conversations': 'hub_builder_executor',
+  }),
+  'identity-access/reaper.ts': Object.freeze({
+    'iam.reap_expired': 'hub_iam_runtime',
   }),
   'identity-access/application-access.ts': Object.freeze({
     'iam.list_application_access': 'hub_iam_runtime',

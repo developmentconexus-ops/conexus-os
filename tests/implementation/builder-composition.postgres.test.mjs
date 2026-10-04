@@ -4,7 +4,6 @@ import { test } from 'node:test'
 import pg from 'pg'
 import { createEmptyDatabase, testPool } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
-import { takeHubLogs } from './hub-log-capture.mjs'
 import { invalidConfig } from './failure-matchers.mjs'
 
 const built = hubModuleUrl
@@ -333,103 +332,54 @@ test("the Builder's spans persist, and the 30-day retention prunes only stale sp
   assert.equal(messages.messages.length, 1)
 })
 
-test("the retention prune at boot on a fresh installation waits for the store's tables instead of failing on them", async (t) => {
-  const { scheduleRetentionPrune } = await import(built('builder/storage.js'))
+test("a span prune pass on a fresh installation waits for the store's tables instead of failing on them", async (t) => {
+  const { pruneSpans } = await import(built('builder/storage.js'))
   const { pool } = await storageRole(t, 'conexus_builder_fresh_prune')
   const logs = []
-  const schedule = scheduleRetentionPrune(createBuilderStorage(pool), (code, fields) => logs.push([code, ...Object.values(fields)].join(':')), 60_000)
-  await schedule.tick()
-  await schedule.close()
-  assert.deepEqual(logs, [
-    'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:0',
-    'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:0',
-  ])
+  await pruneSpans(createBuilderStorage(pool), (code, fields) => logs.push([code, ...Object.values(fields)].join(':')), new AbortController().signal)
+  assert.deepEqual(logs, ['BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:0'])
 })
 
-test('closing the retention schedule waits for the prune in flight, so the pool can end after it', async () => {
-  const { scheduleRetentionPrune } = await import(built('builder/storage.js'))
-  const events = []
-  const storage = {
-    init: async () => undefined,
-    prune: async () => {
-      await new Promise((release) => setTimeout(release, 50))
-      events.push('pruned')
-      return []
-    },
-  }
-  const schedule = scheduleRetentionPrune(storage, () => {}, 60_000)
-  await schedule.close()
-  events.push('closed')
-  assert.deepEqual(events, ['pruned', 'closed'])
-})
-
-test('closing the retention schedule aborts a prune that never ends on its own and returns inside the shutdown deadline', async () => {
-  const { scheduleRetentionPrune } = await import(built('builder/storage.js'))
+test('a span prune pass aborts a prune that never ends on its own, so the executor can drain it inside the shutdown deadline', async () => {
+  const { pruneSpans } = await import(built('builder/storage.js'))
   const logs = []
-  let seen
+  const stop = new AbortController()
   const storage = {
     init: async () => undefined,
     prune: ({ signal }) => new Promise((settle) => {
-      seen = signal
       signal.addEventListener('abort', () => settle([{ domain: 'observability', table: 'mastra_ai_spans', deleted: 1000, done: false }]))
     }),
   }
-  const schedule = scheduleRetentionPrune(storage, (code, fields) => logs.push([code, ...Object.values(fields)].join(':')), 60_000)
+  const pass = pruneSpans(storage, (code, fields) => logs.push([code, ...Object.values(fields)].join(':')), stop.signal)
   await new Promise((r) => setImmediate(r))
   const started = Date.now()
-  await schedule.close()
-  assert.equal(seen.aborted, true)
-  assert.ok(Date.now() - started < 1_000, 'close returned without waiting for the backlog')
+  stop.abort()
+  await pass
+  assert.ok(Date.now() - started < 1_000, 'the pass returned without waiting for the backlog')
   assert.deepEqual(logs, [
     'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:1000',
     'BUILDER_RETENTION_PRUNE_INCOMPLETE:observability.mastra_ai_spans',
   ])
 })
 
-test('scheduleRetentionPrune prunes immediately at boot, logs deleted rows and errors, and can be ticked and closed', async () => {
-  const { scheduleRetentionPrune } = await import(built('builder/storage.js'))
+test('a span prune pass logs each table it pruned, and a prune that fails rejects the pass', async () => {
+  const { pruneSpans } = await import(built('builder/storage.js'))
   const logs = []
-  let pruneCalls = 0
-  let pruneResult = [{ domain: 'observability', table: 'mastra_ai_spans', deleted: 5, done: true }]
-
-  const storage = {
-    init: async () => undefined,
-    prune: async () => {
-      pruneCalls++
-      return pruneResult
-    },
-  }
-
-  const schedule = scheduleRetentionPrune(storage, (code, fields) => logs.push([code, ...Object.values(fields)].join(':')), 60_000)
-  // Yield microtask so the immediate boot tick runs
-  await new Promise((r) => setImmediate(r))
-
-  assert.equal(pruneCalls, 1)
-  assert.deepEqual(logs, ['BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:5'])
-
-  // Manual tick
-  pruneResult = [
+  const log = (code, fields) => logs.push([code, ...Object.values(fields)].join(':'))
+  const signal = new AbortController().signal
+  const storage = (prune) => ({ init: async () => undefined, prune })
+  await pruneSpans(storage(async () => [{ domain: 'observability', table: 'mastra_ai_spans', deleted: 5, done: true }]), log, signal)
+  await pruneSpans(storage(async () => [
     { domain: 'observability', table: 'mastra_ai_spans', deleted: 2, done: false },
     { domain: 'observability', table: 'other_table', deleted: 0, done: true },
-  ]
-  await schedule.tick()
-  assert.equal(pruneCalls, 2)
+  ]), log, signal)
   assert.deepEqual(logs, [
     'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:5',
     'BUILDER_RETENTION_PRUNED:observability.mastra_ai_spans:2',
     'BUILDER_RETENTION_PRUNE_INCOMPLETE:observability.mastra_ai_spans',
     'BUILDER_RETENTION_PRUNED:observability.other_table:0',
   ])
-
-  // Failed prune is caught and logged
-  const failing = { init: async () => undefined, prune: async () => { throw new Error('Error') } }
-  takeHubLogs()
-  const failingSchedule = scheduleRetentionPrune(failing, () => undefined, 60_000)
-  await new Promise((r) => setImmediate(r))
-  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['exception.type']]), [['BUILDER_RETENTION_PRUNE_FAILED', 'Error']])
-
-  schedule.close()
-  failingSchedule.close()
+  await assert.rejects(pruneSpans(storage(async () => { throw new Error('PRUNE_DOWN') }), log, signal), { message: 'PRUNE_DOWN' })
 })
 
 test('the Builder observability compacts PROCESSOR_RUN input and output message arrays to messageCount', async () => {

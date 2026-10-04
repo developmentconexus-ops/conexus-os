@@ -3,20 +3,14 @@ import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 import { takeHubLogs } from './hub-log-capture.mjs'
 
-const { scheduleIdleMachineSweep } = await import(hubModuleUrl('builder/idle-machine-sweep.js'))
+const { sweepIdleMachines } = await import(hubModuleUrl('builder/idle-machine-sweep.js'))
 const { e2bConversationSandboxes } = await import(hubModuleUrl('builder/conversation-sandboxes.js'))
 
 const DAY = 86_400_000
 const NOW = Date.UTC(2026, 9, 2)
 const machine = (conversationId, providerSandboxId, days) => ({ conversationId, providerSandboxId, idleSince: new Date(NOW - days * DAY) })
 
-// The production sandbox cache with E2B's kill stubbed out, so a sweep's kill is the real killRecorded.
-// The schedule's boot pass lists nothing, so the tick is the one sweep that sees the machines.
-const sweepOnce = async (ports) => {
-  let listed = 0
-  const schedule = scheduleIdleMachineSweep({ ...ports, listPaused: async () => (listed++ === 0 ? [] : ports.listPaused()) }, 3_600_000)
-  try { return await schedule.tick() } finally { await schedule.close() }
-}
+const sweepOnce = (ports) => sweepIdleMachines(ports, new AbortController().signal)
 
 const eventLine = (log) => (code, fields = {}) => log.push([code, ...Object.values(fields)].join(':'))
 const failureLine = ({ message, fields }) => `${message}:${fields['exception.type']}`
@@ -86,53 +80,19 @@ test('#423 a sweep with nothing idle never reads the runs', async () => {
   assert.equal(reads, 0)
 })
 
-test('#423 a sweep that fails is logged with its code and the schedule keeps running', async () => {
-  takeHubLogs()
-  let calls = 0
-  const schedule = scheduleIdleMachineSweep({
-    listPaused: async () => { calls += 1; throw new Error('E2B_UNREACHABLE') },
-    openRunConversations: async () => new Set(),
-    kill: async () => [],
-    log: () => undefined,
-  }, 5)
-  await new Promise((wake) => { setTimeout(wake, 60) })
-  schedule.close()
-  assert.ok(calls >= 2, 'it swept at boot and again on the timer')
-  assert.equal(failureLine(takeHubLogs()[0]), 'BUILDER_IDLE_MACHINE_SWEEP_FAILED:Error')
-})
-
-test('closing the schedule waits for the sweep in flight, so the database can close after it', async () => {
-  const events = []
-  const schedule = scheduleIdleMachineSweep({
-    listPaused: async () => {
-      await new Promise((release) => { setTimeout(release, 50) })
-      events.push('listed')
-      return []
-    },
-    openRunConversations: async () => new Set(),
-    kill: async () => [],
-    log: () => {},
-  })
-  await schedule.close()
-  events.push('closed')
-  assert.deepEqual(events, ['listed', 'closed'])
-})
-
-test('closing the schedule stops a sweep before it kills anything', async () => {
+test('closing the signal before the kill stops a sweep before it kills anything', async () => {
   const killed = []
-  let release
-  const listed = new Promise((resolve) => { release = resolve })
-  const schedule = scheduleIdleMachineSweep({
+  const stop = new AbortController()
+  const swept = sweepIdleMachines({
     listPaused: async () => {
-      await listed
+      stop.abort()
       return [machine('c1', 'sbx-1', 30)]
     },
     openRunConversations: async () => new Set(),
     kill: async (ids) => { killed.push(...ids); return ids },
     log: () => {},
-  })
-  const closing = schedule.close()
-  release()
-  await closing
+    now: () => NOW,
+  }, stop.signal)
+  assert.equal(await swept, 0)
   assert.deepEqual(killed, [])
 })

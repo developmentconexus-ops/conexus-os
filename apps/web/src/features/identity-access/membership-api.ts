@@ -31,7 +31,7 @@ export async function inviteWorkspaceMember(
 export async function setWorkspaceMemberRole(
   workspaceId: string,
   accountId: string,
-  role: string,
+  role: InviteWorkspaceMemberInput['role'],
 ): Promise<void> {
   await hubCall(iamClient.setWorkspaceMemberRole(workspaceId, accountId, { role }), 204)
 }
