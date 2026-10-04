@@ -47,6 +47,7 @@ test('on a real E2B VM the checkout is seeded from a bundle only root can change
   }
   try {
     await sandbox.start()
+    process.stdout.write(`E2B_SANDBOX ${sandbox.sandboxId}\n`)
     assert.equal((await agent('id -un')).stdout.trim(), 'conexus-agent')
     assert.notEqual((await agent('sudo -n true')).exitCode, 0, 'the agent user has no sudo')
     const seedFile = '/var/lib/conexus-seed/turn.bundle'
@@ -70,6 +71,7 @@ test('a VM that E2B killed for idling is replaced by the next command, and root 
   const sandbox = new ConexusRunSandbox({ id: `conexus-live-idle-${randomUUID()}`, template: templateId, apiKey, timeout: 15_000, lifecycle: { onTimeout: 'kill' }, env: {} })
   try {
     await sandbox.start()
+    process.stdout.write(`E2B_SANDBOX ${sandbox.sandboxId}\n`)
     const dead = sandbox.sandboxId
     await sleep(35_000)
     const ran = await sandbox.executeCommand('true', [], { env: {} })
@@ -89,7 +91,7 @@ const placeHubCheck = async (sandbox, files) => {
   const hub = await loadHub()
   const { loadCheckBundle, installCheck } = await hub('builder/check-delivery.js')
   const bundle = loadCheckBundle()
-  await installCheck(sandbox, bundle)
+  await installCheck({ asRoot: (script) => sandbox.runAsRoot(script, {}), writeRootFile: (path, bytes) => sandbox.writeRootFile(path, bytes) }, bundle)
   assert.equal((await sandbox.runAsRoot("rm -rf /var/lib/conexus-build && mkdir -p -m 711 /var/lib/conexus-build", {})).exitCode, 0)
   for (const [path, content] of Object.entries(files)) await sandbox.writeRootFile(`${CHECK_ROOT}/${path}`, Buffer.from(content))
   return bundle
@@ -119,6 +121,7 @@ test('the Hub check runs the starter in the real template as root with every ste
   const sandbox = new ConexusRunSandbox({ id: `conexus-live-check-${randomUUID()}`, template: templateId, apiKey, timeout: 240_000, lifecycle: { onTimeout: 'kill' }, env: {} })
   try {
     await sandbox.start()
+    process.stdout.write(`E2B_SANDBOX ${sandbox.sandboxId}\n`)
     const files = await starterFiles()
     const bundle = await placeHubCheck(sandbox, files)
     const started = Date.now()
@@ -163,6 +166,7 @@ test('AC-7: as uid 1500 every write, replace, rename, chmod, symlink and delete 
   const sandbox = await openCheckSandbox()
   try {
     await sandbox.start()
+    process.stdout.write(`E2B_SANDBOX ${sandbox.sandboxId}\n`)
     const files = await starterFiles()
     const bundle = await placeHubCheck(sandbox, files)
     await rootCheck(sandbox, bundle)
@@ -190,6 +194,7 @@ test('AC-8: tsc runs as uid 1500, so an import of a file only root can read is a
   const sandbox = await openCheckSandbox()
   try {
     await sandbox.start()
+    process.stdout.write(`E2B_SANDBOX ${sandbox.sandboxId}\n`)
     const files = await starterFiles()
     const bundle = await placeHubCheck(sandbox, { ...files, 'app/src/main.tsx': `import { secret } from '/root/conexus-probe-secret'\nexport const leaked: string = secret\n${files['app/src/main.tsx']}` })
     assert.equal((await sandbox.runAsRoot("mkdir -p /root && printf 'export const secret = \"ROOT_ONLY_MARKER\"\\n' > /root/conexus-probe-secret.ts && chmod 600 /root/conexus-probe-secret.ts", {})).exitCode, 0)
@@ -207,6 +212,7 @@ test('AC-9 and AC-10: a build info the agent forged cannot hide a type error fro
   const sandbox = await openCheckSandbox()
   try {
     await sandbox.start()
+    process.stdout.write(`E2B_SANDBOX ${sandbox.sandboxId}\n`)
     const files = await starterFiles()
     const bundle = await placeHubCheck(sandbox, files)
     assert.equal((await rootCheck(sandbox, bundle)).ok, true, 'a clean tree fills the gate store')
@@ -237,6 +243,7 @@ test('AC-12: a step past its limit is stopped with its whole process group, in t
   const sandbox = await openCheckSandbox()
   try {
     await sandbox.start()
+    process.stdout.write(`E2B_SANDBOX ${sandbox.sandboxId}\n`)
     const bundle = await placeHubCheck(sandbox, await starterFiles())
     // A probe layout of its own: the bundle beside a compiler whose vite config never returns and leaves a sleeper behind.
     const probe = '/var/lib/conexus-probe/opt'
