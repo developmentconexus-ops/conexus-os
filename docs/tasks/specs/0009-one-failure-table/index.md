@@ -1,7 +1,7 @@
 # 0009. One failure table: one code, one row, one exit
 
 **Date**: 2026-10-03
-**Status**: Approved
+**Status**: Approved (revision 3, approved by the operator on 2026-10-03 after /jm-check verify)
 **Lane**: `lane:shaped`
 **Depends on**: nothing outside this repository. It lands before the spec that adds a question that
 waits inside a run, which inherits its closed `FailureCode`.
@@ -11,7 +11,17 @@ branch that is not in this repository. Each slice proves again, in its own tests
 relies on.
 
 Goal: every failure a person or operator can meet has one code, one category, one producer, one
-person-facing message and action, and one log shape, defined in one place.
+person-facing message and action, and one log shape, defined in one place. A person sees a failure
+once, on one surface, and the code makes any other path fail to compile or fail lint.
+
+Scope rule: the table owns every failure that crosses a process boundary (Hub, runner, MAR, the
+generated app, boot). A failure that never leaves the browser (clipboard, microphone, dictation, a
+local file read) is screen copy under the frontend voice rule, not a row.
+
+Revision 3. `/jm-check verify` found six defects; the root cause is in section 9. Four share one
+premise: the pre-build census found producers by name and location, so every producer that used an
+unnamed mechanism survived, and the code kept those mechanisms legal. Revision 3 takes the census
+by mechanism and closes the mechanisms in slice 6.
 
 ## 1. The shape and its one owner
 
@@ -26,7 +36,7 @@ already uses (P6), not a new one. One row per code:
 | `status` | HTTP status, optional | Only for codes a route can return. A missing status means 500. |
 | `audience` | `operator` \| `person` \| `person+app` | `operator` rows are logged only (boot, config). `person+app` rows also reach a generated app. |
 | `message` | Portuguese, required unless `operator` | What happened, in the person's words. |
-| `action` | closed union | `NONE`, `SIGN_IN`, `CONNECT_MODEL_ACCOUNT`, `ASK_ADMIN`, `ASK_CHANGE`, `CHOOSE_OTHER_MODEL`, `RETRY_LATER`. Each has one fixed Portuguese sentence. |
+| `action` | closed union | `NONE`, `SIGN_IN`, `CONNECT_MODEL_ACCOUNT`, `ASK_ADMIN`, `ASK_CHANGE`, `CHOOSE_OTHER_MODEL`, `FIX_IN_CONVERSATION`, `RETRY_LATER`. Each has one fixed Portuguese sentence; `FIX_IN_CONVERSATION` is "Peça ao Builder para corrigir." |
 
 Derived, not stored: log level (`SYSTEM` error, `THIRD_PARTY` warn, `USER` info), problem type
 (`urn:conexus:problem:<code>`), problem title (the code). No `domain`, `outcome`, `ours` or `title`
@@ -37,7 +47,8 @@ Types and the generator do the checking. `FailureCode` is the union of the codes
 Hub copy holds only code, category and status, so the generator's `--check` enforces the rest: a
 `SYSTEM` row's `action` cannot be `RETRY_LATER`, a `SYSTEM` row's message says the failure was
 recorded, and no `message` contains "tente", "novamente" or "de novo", so the only way to say "try
-again" is the `RETRY_LATER` action.
+again" is the `RETRY_LATER` action. The same check rejects an imperative in `message` ("Peça",
+"Escolha", "Conecte", "Entre", "Confira", "Corrija"): what to do lives only in `action`.
 
 Generated copies are needed because no shared import exists. The Hub, the web app and a generated
 app are three builds, and `check-import-law.mjs` forbids cross-app imports. A generated app is a
@@ -91,7 +102,9 @@ checks it, and a `Readonly<Record<string, string | number | boolean>>` type keep
      (`application-host-routes.ts:86`, about 10 calls; `preview-routes.ts:201`, about 5 calls)
      and `refusal()` in `application-invoker.ts`. Each helper becomes `throw new Failure(code)`
      to the shared handler, and the helpers are deleted.
-   - Boot: the process entry logs the `operator` row and exits.
+   - Boot: `server.ts` has one explicit exit, `startHub().catch((error) => { logFailure(logger,
+     toFailure(error)); process.exit(78) })`. The crash handler stays for real crashes and also
+     goes through `toFailure`, so `HUB_FATAL` is a row, not a string.
 3. **Show.** The web reads `code` from the problem body or the run's `failureCode`, and looks up
    `{message, action}` in its generated copy. `hubFetch` gains one `hubFailure(response)` that
    parses problem+json at the edge (P3). An unreadable body becomes the web row
@@ -112,11 +125,46 @@ the one wrapper that builds Conexus tools calls `logFailure` on the way out, and
 reads a `tool-error` chunk reads `error.cause`, not `error.id`.
 
 In the web transcript, `modelRetryNotice` stays: retry events carry `retryable`, `attempt` and
-`max`, and they are not failures. `modelStoppedNotice` goes only after a browser check, run with
-the existing flow tests, shows a failed run displaying its row message with no blank gap.
-Spike 5 proved only that the turn rejects within about 2 ms of a terminal stream error. It did not
-cover the Postgres write, `publishRun`, or the poll. Until that check passes, the terminal
-`error` event stays handled in `transcript.ts`.
+`max`, and they are not failures. A retry event is always a retry, including attempt 10 of 10, as
+Mastra Code treats it (`mastracode/tui/src/tui/display.ts`). Revision 3: `modelStoppedNotice` and
+the terminal `error` notice go. The verify browser check showed the row message on the settled
+screen and after reload, so the notice only repeats it.
+
+One surface per failure (revision 3). A settled run's failure has one owner in the web, the
+`RunFailure` component, placed at the end of that run's turn in the thread, live and after reload.
+`failureCodeText` is importable only there (Biome `noRestrictedImports` with `importNames`).
+Mastra's stored `error` part renders nothing of its own. The code it shows is the run's
+`failureCode`, or for `BUILD_FAILED` the build check's code the Hub already sends in the run note.
+
+| Outcome (`run-state.ts`) | `RunFailure` | Preview card | Status line |
+| --- | --- | --- | --- |
+| `RESPONDED`, `CHANGED` | nothing | as today | as today |
+| `FAILED` | row message, action sentence, short reference | "A última execução falhou. Veja a conversa." | "Falhou" |
+| `BUILD_FAILED` | the build code's row, short reference | "A compilação falhou. Veja a conversa." | as today |
+| `BASE_MOVED`, `STOPPED`, `DISCARDED` | the row message (`BUILDER_SOURCE_BASE_MOVED`, `USER_CANCELLED`, `HUB_RESTART` and their kin), no reference | as today | as today |
+
+The short reference is the first 8 characters of the run id, and of the trace id when the failure
+carries one. The Details lens shows the code and both ids as technical detail.
+
+Who reads a Conexus signal (revision 3). The diagnostic appender's `notification` text is for the
+next model turn only. The web renders a `source: conexus` signal by its `outcome` attribute, never
+from `contents`: the five failure outcomes (`SOURCE_BASE_MOVED`, `RUN_NOT_FINISHED`,
+`BUILD_FAILED`, `PLATFORM_FAILED`, `CANDIDATE_REFUSED`) render nothing, because `RunFailure` already
+shows that run. The two notices that are not failures render fixed screen copy inside `RunFailure`'s
+slot: `BOOT_PROBLEMS` "O app abriu, mas com problemas. Peça ao Builder para corrigir." and
+`PREVIEW_DATA_RESET` "Os dados da Prévia foram apagados porque migrações já aplicadas mudaram."
+
+Polling (revision 3). The session query polls the stream only while the persisted run is `QUEUED`
+or `RUNNING` (`isActive`); a new send makes a new active run and polling resumes. No new state. A
+settlement whose write failed stays active until the existing sweep settles it, and the screen
+follows the persisted state.
+
+Trace id (revision 3). The SDK puts the trace id in `SYSTEM` bodies and in the log line when
+`OTEL_EXPORTER_OTLP_ENDPOINT` is set; no collector is needed for the id. The verify skill's
+`control.mjs` passes `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318` and
+`OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=verify` to the Hub it starts, so every verify
+and live run has ids. Grafana from `infra/telemetry/compose.dev.yaml` stays an optional manual
+step. The web keeps `traceId` from the problem body for the short reference.
 
 ## 3. What it deletes, and what stays
 
@@ -146,7 +194,9 @@ Deletes (counts from the pre-build census):
   - The runner's `error.message.split(':')` at `app-runner/http.ts:35,69`.
   - The MAR `refuse()` and `refusal()` helpers.
 - The 14 `MISSING_CONFIG_*` throws become one `operator` row, `CONFIG_MISSING`, with the name in
-  `details`.
+  `details`. Revision 3: the 20 `INVALID_CONFIG_*` and `*_REQUIRED` throws in the same file become
+  one `operator` row, `CONFIG_INVALID`, with the name in `details`, and `CONEXUS_PORT` loses its
+  silent `'3000'` default (a missing port is `CONFIG_MISSING`).
 - The 8 `noEmptyBlockStatements` debt lines (section 4).
 
 Stays, and why:
@@ -157,9 +207,9 @@ Stays, and why:
   becomes `FailureCode`.
 - The SQL `^[A-Z0-9_]{1,120}$` checks in three functions. They are the database's own boundary
   guard and list no codes, so they cannot drift. Removing them would only redefine three functions.
-- `LOG_CODES` and its generator. They allowlist which log bodies leave for OTel, including the
-  event lines, which are not failures. Typing those lines belongs to the telemetry spec (0007).
-  Failure codes now have a real owner, so the derived list only follows it.
+- `LOG_CODES` and its generator, for event lines only (not failures). Revision 3: `logLine` and
+  every `ports.log` take a generated `EventCode` from it plus scalar fields, never a string, so a
+  failure can be logged only through `logFailure`. This moves from spec 0007 into this wave.
 - `modelRetryNotice`. It is not a failure (section 2).
 
 Net size: about 390 lines of whole files go, plus the route branches (about 100 by thermo's
@@ -292,6 +342,43 @@ One PR from HQ, one commit per slice, each slice green on `verify`:
    - `shapes.md` gains the line "A failure is a row of `failures.json`; one `Failure` type; one
      exit logs it."
 
+6. **Close the bypasses** (revision 3, after verify), four commits, each green on its own
+   observable invariant. First, the builder inventories the paused uncommitted edits in the
+   worktree and keeps what fits these commits; nothing is discarded unread.
+   - **6a Logs.** An explicit event registry (`contracts/technical/log-events.json`) lists the
+     non-failure event codes; the generator emits `EventCode` from it and rejects any code that is
+     a failure row. `logLine(code: EventCode, fields?: Readonly<Record<string, string | number |
+     boolean>>)` and `ports.log` take that signature. The 23 string failure lines and the 6 direct
+     `recordFailure` calls (OIDC 4, `HUB_FATAL`, `HUB_SHUTDOWN_FAILED`) go through `logFailure`;
+     the run end logs once through it at the category's level. "Exactly one line" counts Conexus
+     log lines: Mastra's own `trackException` on a tool error is Mastra's record, and a test on
+     the real tool executor path proves one Conexus line.
+     Invariant: a failed run writes one Conexus line at its category's level.
+   - **6b Throws, config, boot.** A Biome GritQL plugin, `biome/plugins/no-error-code.grit`, listed
+     under `plugins` in `biome.json` and gated by `biome ci`, bans `new Error('UPPER_CODE')` in
+     `apps/hub/src` (scripts and the compiler template are CLIs and keep their usage errors). A
+     code becomes a row only if it reaches a person or the operator distinctly; an internal
+     invariant becomes `new Failure('INTERNAL_UNEXPECTED', { details: { invariant: '<NAME>' } })`.
+     The builder classifies the 58 codes by that rule and lists each with its row or its
+     invariant name in the PR; the operator reads the result on the sheet. `CONEXUS_PORT` is
+     required: absent is `CONFIG_MISSING`, a malformed value of any config is `CONFIG_INVALID`;
+     the line carries only `details.name`. `server.ts` gets its exit.
+     Invariant: a bad config boots to one operator line and exit 78.
+   - **6c Run display.** `RunFailure`, the outcome table and the signal rule of section 2, the
+     reducer fix and `modelStoppedNotice` gone, the 5 second code-to-text maps
+     (`connector-api.ts`, `composer.tsx`, the model notices) and the MAR access pages' "Tente de
+     novo" text read the table, and polling follows `isActive`.
+     Invariant: a settled failed run shows exactly one failure sentence, live and after reload.
+   - **6d Words, telemetry, SQL.** `FIX_IN_CONVERSATION`; the generator rejects, after lowercasing
+     and at word boundaries, the verbs "peça", "peca", "escolha", "conecte", "entre", "confira",
+     "corrija", "envie", "tente", "verifique" and the words "novamente" and "de novo" in `message`,
+     with fixtures for each; own sentences for the migration, smoke and integrity rows. Telemetry
+     on in `control.mjs`. Migration 0055 qualifies `project_id` in `project.get_project`.
+     Invariants: with the SDK on, the body's `traceId` equals the log line's `trace_id`; an
+     administrator `get_project` answers not found, and the tombstone when one exists.
+   - Tests that pin the old strings are deleted. At 6d's head, `defect-census.mjs` (root cause
+     notebook) shows 0 bypasses in every row of section 9's census except the browser only copy.
+
 S2 inherits a closed `FailureCode`. Its six end reasons (`QUESTION_EXPIRED`, `SANDBOX_LOST`,
 `SANDBOX_REPLACED`, `RESUME_TIMEOUT`, `CONVERSATION_STUCK`, `CONVERSATION_IN_USE`) are six JSON rows
 with messages, and S2 needs no map and no web change. S2 also inherits one settle input
@@ -304,7 +391,27 @@ with messages, and S2 needs no map and no web change. S2 also inherits one settl
    novamente", even after a Hub restart. The request text stays in the composer, so sending it again
    takes one click without the screen asking for it.
 2. **Who writes the messages.** One pass under the frontend voice rule, and the operator reads the
-   whole table once, as a sheet in the PR, before merge.
+   whole table once, as a sheet in the PR, before merge. Revision 3: the generator rejects
+   imperatives and retry words in `message`, so the pass cannot hide an action in the words, and
+   rows that share a sentence are listed together on the sheet so a wrong shared sentence shows.
 3. **Can the Builder change the failure texts of a generated app?** No. They come from the table
    through the generated client, so every app says the same thing and a rebuild updates them. An app
    shows its own words only for its own business rules.
+
+## 9. Revision 3: what verify found and why
+
+| Defect | Root cause | Kind |
+| --- | --- | --- |
+| A failed run showed its failure four or five times | Five surfaces each render one `failureCode`, nothing owns where it appears; the reducer read retry 10 of 10 as the end (#383); the spec kept `modelStoppedNotice` on a condition no commit recorded | spec decision and slip |
+| The run end logged a plain string at info | Slice 3 fixed the regex line by number; `ports.log(string)` stayed legal; tests pinned the old string | slip the spec allowed |
+| The diagnostic card leaked the code and "envie o pedido novamente" | The appender writes for the model and the person at once; the census never named it | census by name |
+| A missing project answered 500 | `project_id` ambiguous in `0030` since #323; no test runs the administrator branch | old slip |
+| A missing port gave an uncoded error; `CONFIG_MISSING` left through the crash handler | The census counted the `MISSING_CONFIG_` prefix only; slice 5 built no boot exit | census by name and slip |
+| "O aplicativo não compilou" on 29 codes | The action union had no "fix it in the conversation", so 35 messages carried an imperative; one drafting pass grouped rows by prefix | spec decision |
+
+Census by mechanism at `44112eba` (`defect-census.mjs`): 23 Hub string failure log lines, 6
+direct `recordFailure` calls, 73 `throw new Error('CODE')` sites (58 codes not in the table), 12
+Hub failure texts outside the table, 5 web code-to-text maps, 4 web surfaces for one run failure, 2
+web branches on a literal code. Browser-only failure copy (about 17 sentences) is out of scope by
+the scope rule. Full evidence: the wave's root cause notebook (not in this repository).
+
