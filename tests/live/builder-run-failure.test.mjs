@@ -3,7 +3,7 @@ import { expect } from '@playwright/test'
 import { FAILURES } from '../../apps/web/src/generated/failures.ts'
 import { liveFlow } from './harness.mjs'
 
-const REQUEST = 'Crie um contador simples com um botão de somar'
+const REQUEST = 'Crie uma planilha de despesas da viagem'
 const IDLE_POLL_MS = 12_000
 
 liveFlow({ id: 'builder.run-failure', nome: 'Uma execução que falha mostra a falha uma vez, ao vivo e depois de recarregar' }, async ({ page, model, hub }) => {
@@ -43,7 +43,7 @@ liveFlow({ id: 'builder.run-failure', nome: 'Uma execução que falha mostra a f
   assert.equal(await said(), 1, 'the failure is still said once')
 
   await page.reload()
-  await expect(page.getByText(REQUEST, { exact: true })).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole('log').getByText(REQUEST, { exact: true })).toBeVisible({ timeout: 30_000 })
   await expectOneFailure()
   await page.waitForTimeout(3_000)
   assert.equal(await said(), 1, 'after reload the failure is said once')
