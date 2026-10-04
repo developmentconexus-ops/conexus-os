@@ -139,7 +139,7 @@ export const localConversationSandboxes = (root, workspaceTools, readCheckReport
         return { report, files, thumbnail: picture && picture.byteLength > 0 ? { mediaType: 'image/png', bytes: picture } : null }
       },
       holdOpen: async () => () => {},
-      pause: async () => {},
+      idle: async () => {},
       kill: async () => {
         try { rmSync(vm, { recursive: true, force: true }) } finally { await onKill() }
       },

@@ -135,7 +135,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
   const agentChecks = []
   // What the gate told the agent at each "done" that went back to it.
   const feedbacks = []
-  const paused = []
+  const idled = []
   const killed = []
   // What the service read and recorded of the conversation's sandbox.
   const sandboxRefs = []
@@ -148,7 +148,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
   const sandbox = {
     sandboxId: 'sbx-1',
     workspace: new Workspace({ id: 'run-workspace', filesystem: new LocalFilesystem({ basePath: checkout }) }),
-    pause: async () => { events.push('pause'); paused.push(sandbox.sandboxId) },
+    idle: async () => { events.push('idle'); idled.push(sandbox.sandboxId) },
     kill: async () => { events.push('kill'); killed.push(sandbox.sandboxId) },
     holdOpen: async (onLapse) => { events.push('hold-open'); await onHoldOpen?.(onLapse); return () => { events.push('release') } },
     start: async () => { events.push('start'); onStart?.(sandbox) },
@@ -363,6 +363,6 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     }
     return !row.running
   }
-  return { mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, timings, egress, egressLogs, service, start, main, result, commands, checks, feedbacks, settled, sessionContext, checkout, outside, moveMain, paused, killed, sandboxRefs, loseVm, bare, vm }
+  return { mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, timings, egress, egressLogs, service, start, main, result, commands, checks, feedbacks, settled, sessionContext, checkout, outside, moveMain, idled, killed, sandboxRefs, loseVm, bare, vm }
 }
 

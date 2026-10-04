@@ -382,10 +382,10 @@ const endOpenQuestions = async (run: Run, ending: RunEnding): Promise<RunEnding>
 }
 
 /**
- * The run's exit, however it ended. A VM still the run's own pauses with its files, and nothing
- * waits for the pause: the conversation's next `start()` does. A run that started a VM and does
- * not leave it live kills it. The stream that follows the run hears how it ended before the
- * session goes.
+ * The run's exit, however it ended. A VM still the run's own is let go, and E2B pauses it with its
+ * files after its idle window; the conversation's next command resumes it. A run that started a VM
+ * and does not leave it live kills it. The stream that follows the run hears how it ended before
+ * the session goes.
  */
 const exit = async (run: Run, ending: RunEnding): Promise<void> => {
   const final = await endOpenQuestions(run, ending)
@@ -395,7 +395,8 @@ const exit = async (run: Run, ending: RunEnding): Promise<void> => {
     conversationId: run.row.conversationId, endMirror: () => endMirror(run, null), mirror: run.mirror,
   }) : false
   run.connectorRun?.end()
-  if (sandbox && live) void sandbox.pause().catch(logged(run, 'BUILDER_SANDBOX_PAUSE_FAILED'))
+  // The exit's own commands may have resumed a VM the wait let pause, so its idle window starts again here.
+  if (sandbox && live) void sandbox.idle().catch(logged(run, 'BUILDER_SANDBOX_PAUSE_FAILED'))
   else if (sandbox && run.vm.started) await sandbox.kill().catch(logged(run, 'BUILDER_SANDBOX_KILL_FAILED'))
   run.env.ports.log('BUILDER_RUN_TIMING', run.timing.fields(run.row.builderRunId))
   await writeEnding(run, final)

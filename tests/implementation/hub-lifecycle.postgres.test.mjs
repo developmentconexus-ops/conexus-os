@@ -13,7 +13,7 @@ import { buildHubDatabase, createEmptyDatabase, query, testPool } from './hub-da
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const migrationsRoot = resolve(repositoryRoot, 'apps/hub/migrations')
-const { assertSchemaCurrent, takeInstanceLock } = await import(hubModuleUrl('platform/lifecycle.js'))
+const { assertSchemaCurrent, exitOnLostInstanceLock, takeInstanceLock } = await import(hubModuleUrl('platform/lifecycle.js'))
 const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 
 const latestVersion = loadHubMigrationFiles(migrationsRoot).at(-1).version
@@ -36,12 +36,26 @@ test('a database with no ledger at all is behind by every migration', async (t) 
 
 test('a second Hub on the same database is refused until the first lets go', async (t) => {
   const { connection, onCleanup } = await buildHubDatabase(t, 'conexus_lifecycle_lock')
-  const release = await takeInstanceLock(connection)
+  const lost = []
+  const release = await takeInstanceLock(connection, (cause) => { lost.push(cause) })
   onCleanup(() => release().catch(() => undefined))
-  await assert.rejects(takeInstanceLock(connection), failureOf('HUB_ALREADY_RUNNING'))
+  await assert.rejects(takeInstanceLock(connection, () => undefined), failureOf('HUB_ALREADY_RUNNING'))
   await release()
-  const releaseSecond = await takeInstanceLock(connection)
+  const releaseSecond = await takeInstanceLock(connection, (cause) => { lost.push(cause) })
   await releaseSecond()
+  assert.deepEqual(lost, [], 'a lock the Hub lets go of itself is not lost')
+})
+
+test('a Hub whose instance lock connection drops is told once, and logs HUB_INSTANCE_LOCK_LOST and exits 1 (AC-12)', async (t) => {
+  const { connection, connectionString } = await buildHubDatabase(t, 'conexus_lifecycle_lock_lost')
+  const exits = []
+  const release = await takeInstanceLock(connection, exitOnLostInstanceLock((code) => { exits.push(code) }))
+  t.after(() => release().catch(() => undefined))
+  await query(connectionString, "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = 'conexus-hub:instance-lock' AND datname = current_database()")
+  for (let waited = 0; exits.length === 0 && waited < 5_000; waited += 20) await new Promise((settle) => { setTimeout(settle, 20) })
+  assert.deepEqual(exits, [1])
+  const next = await takeInstanceLock(connection, () => undefined)
+  await next()
 })
 
 test('shutdown with an open stream ends the close and does not wait for the browser', async () => {
@@ -166,7 +180,7 @@ test('SIGTERM with the real instance lock and pool ends the close and exits 0 we
   const { status, output } = await runFixture('real-close', `
 const connection = ${JSON.stringify(connection)}
 const pool = (await import(${JSON.stringify(hubModuleUrl('platform/postgres.js'))})).createPostgresPool(connection)
-const releaseInstanceLock = await lifecycle.takeInstanceLock(connection)
+const releaseInstanceLock = await lifecycle.takeInstanceLock(connection, () => undefined)
 await pool.query('SELECT 1')
 lifecycle.exitOnSignals(async () => {
   await pool.end()

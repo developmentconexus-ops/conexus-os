@@ -4,7 +4,8 @@ import { SandboxFilesystem } from '@mastra/code-sdk/agents/sandbox-filesystem'
 import { E2BSandbox } from '@mastra/e2b'
 import { FileNotFoundError, Sandbox } from 'e2b'
 import { fieldOf } from '../platform/field-of.js'
-import { Failure } from '../platform/failure.js'
+import { Failure, logFailure } from '../platform/failure.js'
+import { logger } from '../platform/logger.js'
 
 // The template's own home for the agent; the conversation's checkout lives inside it.
 const SANDBOX_HOME = '/workspace'
@@ -21,19 +22,13 @@ type E2BSandboxOptions = NonNullable<ConstructorParameters<typeof E2BSandbox>[0]
 // where nothing that user left running can reach them. The agent's commands start in the checkout.
 export class ConexusRunSandbox extends E2BSandbox {
   readonly #timeoutMs: number
+  readonly #idleMs: number
 
-  constructor(options: Omit<E2BSandboxOptions, 'workingDirectory'> & Readonly<{ timeout: number }>) {
-    super({ ...options, workingDirectory: SANDBOX_CHECKOUT })
+  constructor(options: Omit<E2BSandboxOptions, 'workingDirectory'> & Readonly<{ timeout: number; idleMs: number }>) {
+    const { idleMs, ...sandbox } = options
+    super({ ...sandbox, workingDirectory: SANDBOX_CHECKOUT })
     this.#timeoutMs = options.timeout
-  }
-
-  /**
-   * A turn's end: Mastra's stop, which pauses the VM with its files and its memory and stops the
-   * bill. The next `start()` finds the paused VM and resumes it. `stop()` alone would leave the
-   * instance marked running, and that `start()` would then do nothing.
-   */
-  pause(): Promise<void> {
-    return this._stop()
+    this.#idleMs = idleMs
   }
 
   /** A broken VM: Mastra's destroy, which kills it at E2B. */
@@ -47,12 +42,19 @@ export class ConexusRunSandbox extends E2BSandbox {
     return this.executeCommand(command, args, options)
   }
 
+  /** Leaves the VM the idle window, after which E2B pauses it with its files and its memory. */
+  async idle(): Promise<void> {
+    await this.e2b.setTimeout(this.#idleMs)
+  }
+
   async #extend(): Promise<void> {
     await this.e2b.setTimeout(this.#timeoutMs)
   }
 
   // E2B counts the sandbox timeout from creation and command activity never moves it, so a run
-  // holds the sandbox open by calling this (docs/reference/mastra-boundary.md, U7).
+  // holds the sandbox open by calling this (docs/reference/mastra-boundary.md, U7). Letting go
+  // leaves the VM the idle window, after which E2B pauses it with its files and its memory; the
+  // next command resumes it.
   async holdOpen(onLapse: (error: unknown) => void): Promise<() => void> {
     await this.#extend()
     let failures = 0
@@ -77,6 +79,9 @@ export class ConexusRunSandbox extends E2BSandbox {
     return () => {
       active = false
       clearInterval(interval)
+      void this.idle().catch((error: unknown) => {
+        logFailure(logger, new Failure('BUILDER_SANDBOX_PAUSE_FAILED', { cause: error }), { 'builder.provider_sandbox_id': this.sandboxId })
+      })
     }
   }
 
@@ -128,13 +133,16 @@ export class ConexusRunSandbox extends E2BSandbox {
  * provider id the Hub recorded and else by the logical id, and creates one only when E2B has none.
  * A Hub that stops keeping it alive mid-turn leaves it to pause at its timeout, never to die.
  */
-export const createConversationSandbox = ({ apiKey, templateId, conversationId, providerSandboxId, timeoutMs = 15 * 60_000 }: Readonly<{
+export const createConversationSandbox = ({ apiKey, templateId, conversationId, providerSandboxId, idleMs, timeoutMs = 15 * 60_000 }: Readonly<{
   apiKey: string
   templateId: string
   conversationId: string
   providerSandboxId: string | null
+  /** How long the VM stays on once nothing holds it, before E2B pauses it. */
+  idleMs: number
   timeoutMs?: number
 }>): ConexusRunSandbox => new ConexusRunSandbox({
+  idleMs,
   id: `conexus-conv-${conversationId}`,
   ...(providerSandboxId ? { sandboxId: providerSandboxId } : {}),
   template: templateId,

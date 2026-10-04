@@ -110,7 +110,7 @@ const toolsOfARun = async () => {
       },
     }
     const { createConversationSandbox, createRunWorkspace } = await import(hubModuleUrl('builder/sandbox.js'))
-    const tools = createRunWorkspace(createConversationSandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', conversationId: '00000000-0000-4000-8000-000000000001', providerSandboxId: null })).getToolsConfig()
+    const tools = createRunWorkspace(createConversationSandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', conversationId: '00000000-0000-4000-8000-000000000001', providerSandboxId: null, idleMs: 300_000 })).getToolsConfig()
     const workspace = new Workspace({ id: 'sentences-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }), tools })
     const controller = createBuilderController({
       workspace, model, storage: new InMemoryStore(), skillsPath: resolve(import.meta.dirname, '../../builder-skills'),

@@ -278,6 +278,7 @@
     { "code": "BUILDER_SANDBOX_EGRESS_COLLECT_FAILED", "category": "SYSTEM", "audience": "operator" },
     { "code": "BUILDER_RETENTION_PRUNE_FAILED", "category": "SYSTEM", "audience": "operator" },
     { "code": "HUB_POOL_ERROR", "category": "SYSTEM", "audience": "operator" },
+    { "code": "HUB_INSTANCE_LOCK_LOST", "category": "SYSTEM", "audience": "operator" },
     { "code": "HUB_SHUTDOWN_FORCED", "category": "SYSTEM", "audience": "operator" },
     { "code": "HUB_SHUTDOWN_TIMEOUT", "category": "SYSTEM", "audience": "operator" },
     { "code": "HUB_SHUTDOWN_FAILED", "category": "SYSTEM", "audience": "operator" },

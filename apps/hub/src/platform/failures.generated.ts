@@ -272,6 +272,7 @@ export const FAILURES = {
   'BUILDER_SANDBOX_EGRESS_COLLECT_FAILED': { category: 'SYSTEM', status: 500 },
   'BUILDER_RETENTION_PRUNE_FAILED': { category: 'SYSTEM', status: 500 },
   'HUB_POOL_ERROR': { category: 'SYSTEM', status: 500 },
+  'HUB_INSTANCE_LOCK_LOST': { category: 'SYSTEM', status: 500 },
   'HUB_SHUTDOWN_FORCED': { category: 'SYSTEM', status: 500 },
   'HUB_SHUTDOWN_TIMEOUT': { category: 'SYSTEM', status: 500 },
   'HUB_SHUTDOWN_FAILED': { category: 'SYSTEM', status: 500 },

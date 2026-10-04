@@ -18,11 +18,14 @@ const PROVIDER_KILL_TIMEOUT_MS = 15_000
 export const e2bConversationSandboxes = ({
   apiKey,
   templateId,
+  idleMs,
   create = createConversationSandbox,
   killProvider = (providerSandboxId) => Sandbox.kill(providerSandboxId, { apiKey, requestTimeoutMs: PROVIDER_KILL_TIMEOUT_MS }),
 }: Readonly<{
   apiKey: string
   templateId: string
+  /** How long a VM stays on once the Builder stops, before E2B pauses it. */
+  idleMs: number
   create?: typeof createConversationSandbox
   killProvider?: (providerSandboxId: string) => Promise<boolean>
 }>): Readonly<{
@@ -35,7 +38,7 @@ export const e2bConversationSandboxes = ({
   killRecorded(providerSandboxIds: readonly string[]): Promise<readonly string[]>
 }> => Object.freeze({
   open: ({ conversationId, providerSandboxId, onKill }) => {
-    const sandbox = create({ apiKey, templateId, conversationId, providerSandboxId })
+    const sandbox = create({ apiKey, templateId, conversationId, providerSandboxId, idleMs })
     return Object.freeze({
       get sandboxId() { return sandbox.sandboxId },
       workspace: createRunWorkspace(sandbox),
@@ -49,7 +52,7 @@ export const e2bConversationSandboxes = ({
       readAgentFileStream: (path: string) => sandbox.readAgentFileStream(path),
       runCheck: ({ root, out, collect, thumbnail, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, ...(thumbnail ? { thumbnail } : {}), user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
       holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
-      pause: () => sandbox.pause(),
+      idle: () => sandbox.idle(),
       kill: async () => {
         try { await sandbox.kill() } finally { await onKill() }
       },

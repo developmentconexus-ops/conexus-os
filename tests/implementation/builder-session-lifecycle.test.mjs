@@ -32,12 +32,12 @@ const model = {
 const sandboxCache = ({ killProvider } = {}) => {
   const built = []
   const cache = e2bConversationSandboxes({
-    apiKey: 'test-key', templateId: 'conexus:template',
+    apiKey: 'test-key', templateId: 'conexus:template', idleMs: 300_000,
     ...(killProvider ? { killProvider } : {}),
     create: (input) => {
       const sandbox = createConversationSandbox(input)
-      const entry = { conversationId: input.conversationId, providerSandboxId: input.providerSandboxId, paused: 0, killed: 0 }
-      sandbox.pause = async () => { entry.paused += 1 }
+      const entry = { conversationId: input.conversationId, providerSandboxId: input.providerSandboxId, idled: 0, killed: 0 }
+      sandbox.idle = async () => { entry.idled += 1 }
       sandbox.kill = async () => { entry.killed += 1 }
       built.push(entry)
       return sandbox
@@ -140,20 +140,20 @@ test('the idle sweep lets an idle conversation go, and never one whose run is op
   assert.equal(await live(conversation(2)), undefined)
 })
 
-test("a conversation's sandbox instance resumes the recorded VM, outlives a pause, and a killed VM gives the conversation a new instance and session", async (t) => {
+test("a conversation's sandbox instance resumes the recorded VM, outlives its idle window, and a killed VM gives the conversation a new instance and session", async (t) => {
   const { conversations, live, built, recorded } = await runner(t)
   recorded.set(conversation(1), 'sbx-1')
   const session = await conversations.open({ projectId, conversationId: conversation(1) })
   const sandbox = await conversations.sandbox({ projectId, conversationId: conversation(1) })
   assert.equal(session.getWorkspace(), sandbox.workspace, 'the session stands on the conversation\'s sandbox')
-  await sandbox.pause()
-  assert.equal(await conversations.sandbox({ projectId, conversationId: conversation(1) }), sandbox, 'a paused VM resumes on the same instance')
+  await sandbox.idle()
+  assert.equal(await conversations.sandbox({ projectId, conversationId: conversation(1) }), sandbox, 'a VM left to pause resumes on the same instance')
   recorded.set(conversation(1), 'sbx-2')
   await sandbox.kill()
   assert.equal(await live(conversation(1)), undefined, 'the session on the killed VM goes with it')
   const next = await conversations.sandbox({ projectId, conversationId: conversation(1) })
   assert.notEqual(next, sandbox)
-  assert.deepEqual(built.map(({ providerSandboxId, paused, killed }) => [providerSandboxId, paused, killed]), [['sbx-1', 1, 1], ['sbx-2', 0, 0]])
+  assert.deepEqual(built.map(({ providerSandboxId, idled, killed }) => [providerSandboxId, idled, killed]), [['sbx-1', 1, 1], ['sbx-2', 0, 0]])
 })
 
 test('the workspace resolver only looks up: it builds nothing for a scope with no conversation, and gives the same workspace each time', async (t) => {

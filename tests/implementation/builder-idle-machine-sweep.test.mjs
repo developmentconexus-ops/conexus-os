@@ -26,7 +26,7 @@ const sweepWith = ({ machines, open = [], failKill = [] }) => {
   const log = []
   takeHubLogs()
   const cache = e2bConversationSandboxes({
-    apiKey: 'test-key', templateId: 'conexus:template',
+    apiKey: 'test-key', templateId: 'conexus:template', idleMs: 300_000,
     killProvider: async (id) => {
       if (failKill.includes(id)) throw new Error('E2B_TIMEOUT')
       killed.push(id)

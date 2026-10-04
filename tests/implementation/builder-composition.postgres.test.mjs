@@ -36,6 +36,7 @@ const baseEnvironment = {
   CONEXUS_BUILDER_E2B_API_KEY_FILE: '/secrets/e2b',
   CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'conexus:11111111-1111-4111-8111-111111111111',
   CONEXUS_BUILDER_QUESTION_WAIT_MS: String(5 * 60_000),
+  CONEXUS_BUILDER_SANDBOX_IDLE_MS: String(5 * 60_000),
 }
 const storageEnvironment = { CONEXUS_DB_FACTORY_PASSWORD_FILE: '/secrets/factory-db' }
 const CONVERSATION = '44444444-4444-4444-8444-444444444444'
@@ -55,8 +56,8 @@ const fakeVm = (sandboxId) => {
 }
 
 // E2B as the conversation's sandbox sees it: `found` is the VM E2B already has for its logical id.
-const offlineRunSandbox = (vm, { timeoutMs, found = () => undefined } = {}) => {
-  const sandbox = createConversationSandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', conversationId: CONVERSATION, providerSandboxId: null, ...(timeoutMs ? { timeoutMs } : {}) })
+const offlineRunSandbox = (vm, { timeoutMs, idleMs = 300_000, found = () => undefined } = {}) => {
+  const sandbox = createConversationSandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', conversationId: CONVERSATION, providerSandboxId: null, idleMs, ...(timeoutMs ? { timeoutMs } : {}) })
   const created = []
   sandbox.findExistingSandbox = async () => found()
   sandbox.createSdkSandbox = async (templateId, options) => { created.push({ templateId, options }); return vm }
@@ -64,7 +65,7 @@ const offlineRunSandbox = (vm, { timeoutMs, found = () => undefined } = {}) => {
 }
 
 test("a conversation's sandbox is its own E2B sandbox, named for the conversation, with no environment and the agent's commands starting in the checkout", () => {
-  const sandbox = createConversationSandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', conversationId: CONVERSATION, providerSandboxId: null })
+  const sandbox = createConversationSandbox({ apiKey: 'e2b-key', templateId: 'conexus:tpl', conversationId: CONVERSATION, providerSandboxId: null, idleMs: 300_000 })
   assert.ok(sandbox instanceof ConexusRunSandbox)
   assert.deepEqual({ id: sandbox.id, workingDirectory: sandbox.workingDirectory, env: sandbox.getEnv() }, { id: `conexus-conv-${CONVERSATION}`, workingDirectory: '/workspace/repo', env: {} })
   const workspace = createRunWorkspace(sandbox)
@@ -80,16 +81,18 @@ test("a conversation's sandbox is created from the template, closed to public in
   }])
 })
 
-test("a conversation's sandbox pauses at a turn end and the next start resumes the same VM without creating one", async () => {
+test("a conversation's sandbox is never paused by the Hub: once let go it gets the idle window, and E2B pauses it on its own", async () => {
   const vm = fakeVm('vm-kept')
-  let paused = false
-  const { sandbox, created } = offlineRunSandbox(vm, { found: () => (paused ? vm : undefined) })
+  const deadlines = []
+  vm.setTimeout = async (ms) => { deadlines.push(ms) }
+  const { sandbox, created } = offlineRunSandbox(vm, { timeoutMs: 900_000, idleMs: 300_000 })
   assert.deepEqual(await sandbox.start(), { outcome: 'created' })
-  await sandbox.pause()
-  paused = true
-  assert.deepEqual({ paused: vm.paused, killed: vm.killed, status: sandbox.status }, { paused: 1, killed: false, status: 'stopped' })
-  assert.deepEqual(await sandbox.start(), { outcome: 'connected' })
-  assert.deepEqual({ sandboxId: sandbox.sandboxId, created: created.length, status: sandbox.status }, { sandboxId: 'vm-kept', created: 1, status: 'running' })
+  const release = await sandbox.holdOpen(() => {})
+  release()
+  await new Promise((resolve) => setImmediate(resolve))
+  await sandbox.idle()
+  assert.deepEqual({ deadlines, paused: vm.paused, status: sandbox.status }, { deadlines: [900_000, 300_000, 300_000], paused: 0, status: 'running' })
+  assert.deepEqual({ sandboxId: sandbox.sandboxId, created: created.length }, { sandboxId: 'vm-kept', created: 1 })
   await sandbox.kill()
   assert.deepEqual({ killed: vm.killed, status: sandbox.status }, { killed: true, status: 'destroyed' })
 })
@@ -121,7 +124,8 @@ test('holdOpen extends the deadline now and every third of the budget until rele
   assert.deepEqual(setTimeoutCalls, [600_000, 600_000, 600_000])
   release()
   t.mock.timers.tick(600_000)
-  assert.deepEqual(setTimeoutCalls, [600_000, 600_000, 600_000])
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.deepEqual(setTimeoutCalls, [600_000, 600_000, 600_000, 300_000], 'letting go leaves the idle window and extends no more')
 })
 
 test('holdOpen retries transient extension failures three times, reports once, and refuses when the first extension fails', async (t) => {

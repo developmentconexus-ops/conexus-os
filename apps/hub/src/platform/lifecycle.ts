@@ -48,20 +48,43 @@ export const assertSchemaCurrent = async (pool: Pick<PostgresPool, 'query'>, mig
 /**
  * One Hub per database. The session lock outlives every request and vanishes with the process, so
  * a Hub that cannot take it exits before recovery marks the live Hub's runs INTERRUPTED. It sits on
- * its own connection, not the pool's, so ending the pool at shutdown never waits on it.
+ * its own connection, not the pool's, so ending the pool at shutdown never waits on it. The lock
+ * lives only as long as that connection: once it drops, another Hub may take the lock and the runs,
+ * so `onLost` is told, once, unless the Hub let go of the lock itself.
  */
-export const takeInstanceLock = async (connection: PostgresConnection): Promise<() => Promise<void>> => {
+export const takeInstanceLock = async (connection: PostgresConnection, onLost: (cause: unknown) => void): Promise<() => Promise<void>> => {
   const client = new pg.Client({ ...connection, application_name: 'conexus-hub:instance-lock' })
-  client.on('error', (error) => logFailure(logger, new Failure('HUB_POOL_ERROR', { cause: error }), { 'hub.capability': 'instance-lock' }))
+  let releasing = false
+  let lost = false
+  const lose = (cause: unknown): void => {
+    if (releasing || lost) return
+    lost = true
+    onLost(cause)
+  }
+  client.on('error', (error) => {
+    logFailure(logger, new Failure('HUB_POOL_ERROR', { cause: error }), { 'hub.capability': 'instance-lock' })
+    lose(error)
+  })
+  client.on('end', () => { lose(new Error('the instance lock connection ended')) })
   await client.connect()
   try {
     const { rows } = await client.query<{ taken: boolean }>("SELECT pg_try_advisory_lock(hashtext('conexus.hub.instance')) AS taken")
     if (rows[0]?.taken !== true) throw new Failure('HUB_ALREADY_RUNNING')
   } catch (error) {
+    releasing = true
     await client.end()
     throw error
   }
-  return () => client.end()
+  return () => {
+    releasing = true
+    return client.end()
+  }
+}
+
+/** A Hub that lost its instance lock may already share the database with another: it stops serving at once. */
+export const exitOnLostInstanceLock = (exit: ExitProcess = (code) => process.exit(code)) => (cause: unknown): void => {
+  logFailure(logger, new Failure('HUB_INSTANCE_LOCK_LOST', { cause }))
+  exit(1)
 }
 
 type ExitProcess = (code: number) => never

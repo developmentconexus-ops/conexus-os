@@ -85,7 +85,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; modelAccountPasswordFile: string; e2bApiKeyFile: string
-    e2bTemplateId: string; gitRoot: string; context7ApiKeyFile?: string | undefined; questionWaitMs: number
+    e2bTemplateId: string; gitRoot: string; context7ApiKeyFile?: string | undefined; questionWaitMs: number; sandboxIdleMs: number
   }>
   // Only its database password is still read: the Builder's Mastra storage lives in the `factory`
   // schema through the `hub_factory` role until slice 7 moves it to schema `mastra`.
@@ -184,7 +184,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   // own sandboxes have no E2B machines, so no key is read and nothing is swept.
   const e2bSandboxes = () => {
     const e2bApiKey = readSecretFile(builder.e2bApiKeyFile)
-    const sandboxes = e2bConversationSandboxes({ apiKey: e2bApiKey, templateId: builder.e2bTemplateId })
+    const sandboxes = e2bConversationSandboxes({ apiKey: e2bApiKey, templateId: builder.e2bTemplateId, idleMs: builder.sandboxIdleMs })
     const idleMachineSweep = scheduleIdleMachineSweep({
       listPaused: () => listPausedConversationMachines(e2bApiKey),
       openRunConversations: store.readOpenRunConversations,

@@ -167,7 +167,7 @@ test('a replaced sandbox incarnation fails the run with BUILDER_SANDBOX_INCARNAT
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_SANDBOX_INCARNATION_CHANGED'])
   assert.equal(await run.main(), run.base)
-  assert.deepEqual({ killed: run.killed, paused: run.paused }, { killed: ['sbx-2'], paused: [] }, 'a VM replaced mid-turn is killed, never kept')
+  assert.deepEqual({ killed: run.killed, idled: run.idled }, { killed: ['sbx-2'], idled: [] }, 'a VM replaced mid-turn is killed, never kept')
 })
 
 test('a run holds its sandbox open before its first command', async (t) => {
@@ -221,7 +221,7 @@ test('a terminal keepalive lapse aborts the turn and fails the run for recovery 
   assert.deepEqual(run.calls.filter(([kind]) => ['fail', 'advance', 'settleBuild'].includes(kind)), [['fail', 'BUILDER_SANDBOX_KEEPALIVE_FAILED']])
   assert.deepEqual(run.diagnostics.map(({ code, outcome }) => [code, outcome]), [['BUILDER_SANDBOX_KEEPALIVE_FAILED', 'RUN_NOT_FINISHED']])
   assert.deepEqual(failureLines('BUILDER_SANDBOX_KEEPALIVE_FAILED').map((line) => line.level), ['error'], 'one line, at the run end')
-  assert.deepEqual({ killed: run.killed, paused: run.paused }, { killed: ['sbx-1'], paused: [] }, 'a VM whose keepalive lapsed is killed, never kept')
+  assert.deepEqual({ killed: run.killed, idled: run.idled }, { killed: ['sbx-1'], idled: [] }, 'a VM whose keepalive lapsed is killed, never kept')
 })
 
 test("a check that fails in Conexus fails the run with its code, keeps the files in the mirror and leaves main at the base", async (t) => {
@@ -773,7 +773,7 @@ test('a person with no model account is refused before a sandbox exists', async 
   assert.equal(run.events.some((event) => Array.isArray(event) && event[0] === 'sandbox'), false)
 })
 
-test("a run checks its start model once, names its payer in every turn's context, and keeps the conversation's sandbox however it ends: the agent's processes are killed, then the VM pauses", async (t) => {
+test("a run checks its start model once, names its payer in every turn's context, and keeps the conversation's sandbox however it ends: the agent's processes are killed, then the VM is left its idle window", async (t) => {
   const ok = await harness(t)
   await ok.start()
   await ok.service.close()
@@ -783,10 +783,10 @@ test("a run checks its start model once, names its payer in every turn's context
   for (const run of [ok, failed]) {
     assert.deepEqual(run.events.filter((event) => Array.isArray(event) && event[0] === 'model-check'), [['model-check', runId, accountId]])
     assert.equal(run.sessionContext.get('conexusBuilderAccountId'), accountId)
-    assert.deepEqual({ paused: run.paused, killed: run.killed }, { paused: ['sbx-1'], killed: [] })
+    assert.deepEqual({ idled: run.idled, killed: run.killed }, { idled: ['sbx-1'], killed: [] })
     const processesKilled = run.events.lastIndexOf('sh -c kill -KILL -1 2>/dev/null; true')
-    assert.ok(run.events.indexOf('turn') < processesKilled && processesKilled < run.events.indexOf('pause'), 'the agent\'s processes die after its turn and before the pause')
-    assert.equal(run.events.filter((event) => event !== 'session-release').at(-1), 'pause', 'the pause is the last step of the run itself; only the held session closes after it')
+    assert.ok(run.events.indexOf('turn') < processesKilled && processesKilled < run.events.indexOf('idle'), 'the agent\'s processes die after its turn and before the idle window starts')
+    assert.equal(run.events.filter((event) => event !== 'session-release').at(-1), 'idle', 'the idle window is the last step of the run itself; only the session closes after it')
   }
 })
 
@@ -806,7 +806,7 @@ test('a run deletes the session it opened, once, after the agent and its admissi
   for (const run of [completedRun, failedTurn, thrown, stopped]) assert.deepEqual(run.events.filter((event) => event === 'session-release'), ['session-release'])
   for (const run of [completedRun, failedTurn, thrown, stopped]) {
     assert.ok(run.events.indexOf('session-release') > run.events.indexOf('turn'), 'the session outlives the agent turn')
-    assert.equal(run.events.at(-1), 'session-release', 'and is held through the terminal publication, so it closes last, after the VM pauses')
+    assert.equal(run.events.at(-1), 'session-release', 'and is held through the terminal publication, so it closes last, after the VM is let go')
   }
   assert.ok(completedRun.events.indexOf('check') < completedRun.events.indexOf('session-release'), 'the browser stream sees the admission and the check in the session')
 })
@@ -822,7 +822,7 @@ test('a seed the checkout cannot fetch refuses the pin with BUILDER_SOURCE_BASE_
   assert.match(line.fields['builder.run.evidence'], /^\{"exitCode":128,/)
   assert.deepEqual(run.diagnostics, [], 'a run that never reached the agent has no edits to disown')
   assert.equal(run.events.includes('turn'), false)
-  assert.deepEqual({ killed: run.killed, paused: run.paused }, { killed: ['sbx-1'], paused: [] }, 'a checkout that cannot take the start takes its VM with it')
+  assert.deepEqual({ killed: run.killed, idled: run.idled }, { killed: ['sbx-1'], idled: [] }, 'a checkout that cannot take the start takes its VM with it')
 })
 
 test('a start that fails, or a first command that fails on the VM it started, kills that VM and keeps the run failure', async (t) => {
@@ -836,7 +836,7 @@ test('a start that fails, or a first command that fails on the VM it started, ki
   await firstCommandFailed.service.close()
   for (const [run, code] of [[startFailed, 'E2B_START_FAILED'], [firstCommandFailed, 'E2B_COMMAND_FAILED']]) {
     assert.deepEqual(run.calls.at(-1)[0], 'fail', code)
-    assert.deepEqual({ killed: run.killed, paused: run.paused }, { killed: ['sbx-1'], paused: [] }, `${code}: the VM the start holds is killed, never paused`)
+    assert.deepEqual({ killed: run.killed, idled: run.idled }, { killed: ['sbx-1'], idled: [] }, `${code}: the VM the start holds is killed, never left to pause`)
     assert.equal(run.calls.some(([kind]) => kind === 'sandbox'), false, `${code}: no incarnation was recorded`)
   }
 })
@@ -1172,7 +1172,7 @@ test("the conversation's next turn runs on the same sandbox, resumed by the id t
   assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_CHECKOUT:')), [
     `BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-1`, `BUILDER_TURN_CHECKOUT:${runId}:RESUMED:sbx-1`,
   ])
-  assert.deepEqual({ paused: run.paused, killed: run.killed }, { paused: ['sbx-1', 'sbx-1'], killed: [] })
+  assert.deepEqual({ idled: run.idled, killed: run.killed }, { idled: ['sbx-1', 'sbx-1'], killed: [] })
 })
 
 test("a paused sandbox resumes with the previous turn's files, its plan and an edit the mirror never saw, without a new seed", async (t) => {
@@ -1429,7 +1429,7 @@ test('a question nobody answers ends the run INTERRUPTED with BUILDER_QUESTION_E
   await run.start()
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['interrupt', 'BUILDER_QUESTION_EXPIRED'])
-  assert.ok(run.events.indexOf('end-questions') < run.events.indexOf('pause'), 'the question ends before the VM is let go')
+  assert.ok(run.events.indexOf('end-questions') < run.events.indexOf('idle'), 'the question ends before the VM is let go')
   assert.equal(run.events.at(-1), 'session-release')
 })
 
