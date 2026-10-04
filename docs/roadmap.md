@@ -182,8 +182,8 @@ and the sandbox tools, and widened S1; the operator approved that order.
    native egress control.
 6. **S4.** One runner for every periodic job, and one reaper for everything that expires, on the
    lifetimes S2 sets.
-7. **S3.** One owner for each security and policy rule: the Origin, CSRF and session checks, and
-   the session lifetimes.
+7. **S3.** One owner for each security and policy rule: the access rule for every route (Origin and
+   Fetch Metadata, the CSRF token removed), the session checks, and the session lifetimes.
 8. **S1.** One generated contract between the web app and the Hub for every route the web app
    calls, parsed at the edge into domain types, with branded ids.
 9. **S5.** The Builder screen holds one record of the conversation; browser tests run against a

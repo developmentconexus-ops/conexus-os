@@ -18,8 +18,10 @@ const OPTIONS = Object.freeze({ path: '/', secure: true, httpOnly: true, sameSit
 
 const FIXED_SECONDS: Readonly<Partial<Record<CookieKey, number>>> = Object.freeze({ applicationSignIn: APPLICATION_SIGN_IN_COOKIE_SECONDS })
 
-export const setCookie = <Key extends CookieKey>(reply: FastifyReply, key: Key, value: string, ...rowSeconds: Key extends RowLived ? [maxAge: number] : []): FastifyReply => {
-  const maxAge = rowSeconds[0] ?? FIXED_SECONDS[key]
+type SetCookieArguments = { [Key in CookieKey]: Key extends RowLived ? [key: Key, value: string, maxAge: number] : [key: Key, value: string] }[CookieKey]
+
+export const setCookie = (reply: FastifyReply, ...[key, value, rowSeconds]: SetCookieArguments): FastifyReply => {
+  const maxAge = rowSeconds ?? FIXED_SECONDS[key]
   return reply.setCookie(NAMES[key], value, maxAge === undefined ? OPTIONS : { ...OPTIONS, maxAge })
 }
 

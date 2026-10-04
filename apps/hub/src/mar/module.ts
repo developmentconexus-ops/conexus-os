@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { HeaderFact } from '../http/access.js'
-import type { ListenerPolicy } from '../http/app.js'
+import type { ListenerPolicy } from '../http/access.js'
 import { applicationHostContentSecurityPolicy, previewContentSecurityPolicy } from '../platform/application-csp.js'
 import { applicationOrigin, applicationSlugOfHost, authority } from '../platform/config.js'
 import type { ApplicationAddress } from '../platform/config.js'

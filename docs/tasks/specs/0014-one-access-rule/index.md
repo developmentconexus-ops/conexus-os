@@ -33,8 +33,8 @@ SQL, and each cookie name one owner in TypeScript; a CI check keeps every reader
 
 Four rules hold the design together, and each closes a family of cases rather than one:
 
-1. **A read changes nothing, and HEAD is opt in.** Only page reads answer HEAD. A GET that runs a
-   transaction is declared as such and has no HEAD (section 1).
+1. **A read runs no transaction, and HEAD is opt in.** Only page reads answer HEAD. A GET that runs a
+   transaction is declared as such and has no HEAD (section 1). Session upkeep (the idle slide, the provider recheck, ending an expired session) happens on every authenticated request, a page read or HEAD included; it is authentication, not an effect of the route.
 2. **The routes are a ledger, not a rule applied blind.** One file lists every route with its kind,
    its body shape and the answers it must give; the walk test fails on any route the ledger does not
    name (section 5).
@@ -90,11 +90,11 @@ Four rules hold the design together, and each closes a family of cases rather th
   `Sec-Fetch-Site` passes.
 - **AC-6**: Origin, by kind: on `session` a present Origin must be exactly the Hub origin on every
   method, and a write needs it; `sign-out`, `bootstrap` and `hub-entry` always need exactly the Hub
-  origin; `host-write` needs exactly the request's own application or Preview origin. A missing Origin
+  origin, and `hub-entry` also a Host that `previewHostOf` accepts; `host-write` needs exactly the request's own application or Preview origin. A missing Origin
   where one is needed is refused with 403 `REQUEST_AUTHENTICITY_DENIED`.
-- **AC-7**: Mode and form, by kind. On `session`, `sign-out` and `bootstrap` writes, either condition
-  alone refuses with 403 `REQUEST_AUTHENTICITY_DENIED`: a present `Sec-Fetch-Mode: navigate`, or a
-  form media type (`application/x-www-form-urlencoded`, `multipart/form-data`, `text/plain`), read as
+- **AC-7**: Mode and form, by kind. On `session`, `sign-out` and `bootstrap`, a present
+  `Sec-Fetch-Mode: navigate` refuses with 403 `REQUEST_AUTHENTICITY_DENIED` on any method (a GET form or
+  a link on a Hub page included), and on a write a form media type refuses alone too (`application/x-www-form-urlencoded`, `multipart/form-data`, `text/plain`), read as
   the `content-type` up to its first `;`, trimmed and lowercased. A write with no `content-type` (a
   body-less write) and a JSON write pass this rule. On `sign-in` a present `Sec-Fetch-Mode` must be
   `navigate`. `navigation` and `sign-in` have no Origin or `Sec-Fetch-Site` rule.
@@ -103,8 +103,8 @@ Four rules hold the design together, and each closes a family of cases rather th
 - **AC-8**: The order on every listener: the listener's header hook (on the Preview, a closing
   listener answers 503 here); authenticity in `onRequest` (403); Fastify reads, parses and validates
   the body against the route's schema (400, 413, 415); the credential in a root `preHandler` (401,
-  503); the route's own `preHandler` and handler. A request that matches no route passes both access
-  hooks and answers 404 `NOT_FOUND` with the listener's headers. On the Builder mount, Mastra
+  503); the route's own `preHandler` and handler. A request that matches no route answers 404 `NOT_FOUND`
+  with the listener's headers in `onRequest`, before its body is read, whatever its body or media type. On the Builder mount, Mastra
   validates its own body schema inside its handler (`@mastra/fastify/dist/index.js:418,549`), so a
   well-formed body that fails Mastra's schema answers 400 after the credential and the Project
   admission; a malformed JSON body answers 400 `REQUEST_JSON_INVALID` before the credential (today 500).
@@ -139,7 +139,9 @@ Four rules hold the design together, and each closes a family of cases rather th
 - **AC-13**: Each listener's security headers have one owner, passed to `createHttpApp` in its
   `ListenerPolicy` (section 4), and the walk asserts the header table of section 4 on a 403, a 401, a
   400 from the parser, a 404 and a success, per listener. CSP is compared by directives and nonce
-  shape, not by a literal nonce.
+  shape, not by a literal nonce. Fastify's router refusals before any hook, such as a malformed URL
+  (`FST_ERR_BAD_URL`), carry Fastify's own answer and reach no route: `frameworkErrors` runs with no
+  route context and no hook, and `@fastify/helmet` sets its headers only in its own `onRequest` hooks.
 
 *The token, the cookies and the lifetimes*
 - **AC-14**: The CSRF token does not exist: no cookie `__Host-conexus_csrf`, no header
@@ -232,24 +234,28 @@ authenticity.
 | --- | --- | --- | --- | --- | --- | --- |
 | `navigation` | SPA shell, static files, application host `no-access`, application and Preview pages `/` and `/*` | PAGE | any | any | none | none; `{ document: boolean }` |
 | `sign-in` | Hub OIDC `GET /protocol/oidc/login` and `/callback`; application host `GET /__conexus/sign-in/complete` | GET | any | navigate when present | none | none; `{}` |
-| `session` | every `/api/control/**` route except IAM-02 and IAM-03, and the 9 Builder mount routes | ANY | same-origin or none | writes: not navigate, no form type | Hub when present; required on writes | live Hub session; `HubSession` |
+| `session` | every `/api/control/**` route except IAM-02 and IAM-03, and the 9 Builder mount routes | ANY | same-origin or none | not navigate; writes: no form type | Hub when present; required on writes | live Hub session; `HubSession` |
 | `sign-out` | `DELETE /api/session` | WRITE | same-origin or none | not navigate, no form type | Hub, required | session cookie, unresolved; `{ digest }` |
 | `bootstrap` | `POST /api/control/accounts` | WRITE | same-origin or none | not navigate, no form type | Hub, required | bootstrap cookie; `{ token }` |
 | `host-write` | application host `sign-out` and `api/:operation`; Preview `api/:operation` | WRITE | same-origin or none | any | own, required | none; `{}` |
-| `hub-entry` | Preview `POST /__conexus/preview-entry` | WRITE | any | any (it is a form) | Hub, required | none; `{}` |
+| `hub-entry` | Preview `POST /__conexus/preview-entry` | WRITE | any | any (it is a form) | Hub, required, on a host of the listener | none; `{}` |
 
 Methods: `PAGE` is GET and HEAD; `GET` is GET only; `WRITE` is POST, PUT, PATCH or DELETE; `ANY` is
 GET or a write, never HEAD. The boot check refuses any other method on the kind (AC-3).
 
-**Rule 1, a read changes nothing.** A HEAD runs its GET's handler and drops the body, so a GET that
+**Rule 1, a read runs no transaction.** Session upkeep (the idle slide, the provider recheck, ending an expired session) happens on every authenticated request, a page read or HEAD included; it is authentication, not an effect of the route. A HEAD runs its GET's handler and drops the body, so a GET that
 changes state does so on HEAD too, unseen. The table therefore gives HEAD only to `navigation`, whose
 routes read. The routes that run a transaction on GET (the OIDC pair, and the application sign-in
 completion, which redeems a one-use handoff) are `sign-in`, GET only. The mount's four GETs open the
 conversation's live session; they stay GET because Mastra and `EventSource` own them, and they are
-`session`, so a cross-site or sibling link is refused by Fetch Metadata and a foreign Origin by AC-6.
+`session`, so a cross-site or sibling link is refused by Fetch Metadata, a foreign Origin by AC-6, and
+a navigation from a Hub page (a GET form or a link) by its mode (AC-7).
 The two model account polls, which finish a login, become POST (AC-11). An application page answers a
 signed-out document navigation by starting a sign in (it sets the binding cookie and redirects); a
-HEAD is never a document navigation, so a HEAD there answers 401 and sets nothing.
+HEAD is never a document navigation, so a HEAD there answers 401 and sets nothing. The host page
+routes `/` and `/*` answer 404 `NOT_FOUND` before any application, session or authority lookup to a
+path no page serves (under `/__conexus/` or `conexus-server/`, or one the path classifier refuses), so
+a HEAD or GET that falls through to them from a write or `sign-in` endpoint runs nothing.
 
 `document` is `Sec-Fetch-Mode: navigate` and `Sec-Fetch-Dest: document` (the application host's
 redirect-or-401 choice, today `mar/application-host-routes.ts:180`). `hub-entry` takes any Fetch
@@ -263,8 +269,8 @@ type AccessKind = 'navigation' | 'sign-in' | 'session' | 'sign-out' | 'bootstrap
 type AccessRow = Readonly<{
   methods: 'PAGE' | 'GET' | 'WRITE' | 'ANY'
   fetchSite: 'SAME_ORIGIN_OR_NONE' | 'ANY'
-  mode: 'NAVIGATE' | 'NOT_NAVIGATE_ON_WRITE' | 'ANY'   // NOT_NAVIGATE_ON_WRITE also refuses form media types on writes
-  origin: 'NONE' | 'HUB_WHEN_PRESENT_REQUIRED_ON_WRITE' | 'HUB_ALWAYS' | 'OWN_ALWAYS'
+  mode: 'NAVIGATE' | 'NOT_NAVIGATE' | 'ANY'   // NOT_NAVIGATE refuses navigate on any method and the form media types on writes
+  origin: 'NONE' | 'HUB_WHEN_PRESENT_REQUIRED_ON_WRITE' | 'HUB_ALWAYS' | 'HUB_ALWAYS_ON_OWN_HOST' | 'OWN_ALWAYS'
   credential: 'NONE' | 'HUB_SESSION' | 'HUB_SESSION_COOKIE' | 'BOOTSTRAP_COOKIE'
 }>
 export const ACCESS: Readonly<Record<AccessKind, AccessRow>>
@@ -398,7 +404,7 @@ A null host answers 404 on `navigation` (as today) and 403 on `host-write` and `
 binding check refuses it, as today. `exactHost` is the value stored in the Preview binding, so the
 binding compare and the authenticity origin come from one parse.
 
-**The headers.** `http/app.ts` exports `type ListenerPolicy`:
+**The headers.** `http/access.ts`, the policy's consumer, exports `type ListenerPolicy`; `http/app.ts` and `mar/module.ts` import it from there:
 
 ```ts
 type ListenerPolicy =
@@ -579,7 +585,9 @@ TypeScript lifetimes (AC-18) live in `platform/lifetimes.ts` because `mar/` may 
 - `identity-access/store.ts`, `identity-access/membership.ts`, `identity-access/application-access.ts`
   and `mar/` may import `platform/lifetimes.ts`.
 - No edge from `hub.ts` to `http/access.ts`, and none from `http/app.ts` to `mar/` or
-  `platform/application-csp.ts`: the policies travel as values (section 4).
+  `platform/application-csp.ts`: the policies travel as values (section 4). The `ListenerPolicy` type
+  lives in `http/access.ts`, so `http/app.ts` imports it and `http/access.ts` imports nothing from
+  `http/app.ts` (no cycle).
 
 ### 9. The migration
 
@@ -633,6 +641,7 @@ every route except the pages. Behavior changes, all with existing codes:
 | --- | --- | --- |
 | `session`, `sign-out`, `bootstrap` or `host-write` with `Sec-Fetch-Site: cross-site` or `same-site` | GET passes; write refused by Origin | 403 `REQUEST_AUTHENTICITY_DENIED`, GET included |
 | `session` GET with a foreign Origin (a sibling's fetch) | passes | 403 |
+| `session` GET opened as a navigation (a GET form or a link on a Hub page) | passes | 403 |
 | Hub write posted by an HTML form (navigate, or a form media type) | refused by the token | 403 |
 | HEAD to an API, mount or sign-in route | runs the GET handler | 404 `NOT_FOUND` |
 | Mount write with a malformed JSON body | 500 | 400 `REQUEST_JSON_INVALID` |
@@ -685,7 +694,7 @@ is. Together they cover what the token covered: a sibling application on the sam
 or set a `__Host-` cookie of the Hub host (spike 1) and is refused by the exact Origin and by
 `same-site`; an HTML form injected into a Hub page, which sends the Hub Origin and `same-origin`, is
 refused by its mode or its media type (review). A GET runs no transaction except the declared
-`sign-in` routes and the mount's GETs, and no HEAD runs one at all. Residual cases: a browser older
+`sign-in` routes and the mount's GETs, and no HEAD runs one at all; session upkeep (the idle slide, the provider recheck, ending an expired session) happens on every authenticated request, a page read or HEAD included; it is authentication, not an effect of the route. Residual cases: a browser older
 than March 2023 sends no `Sec-Fetch-Site`, so the mount's GETs stay open to a cross-site link in it
 (effect: cost on the person's own conversation, not authority); XSS on the Hub origin defeats any of
 these, the token included. On the host listeners the session is checked in the handler, and the
@@ -751,7 +760,7 @@ Verification (`/jm-check verify S3`) proves AC-22 live.
 
 - Positive: one place answers how a request is checked; the GETs with side effects close (two by
   method, the sign-in routes by losing HEAD, the mount's by Fetch Metadata); no HEAD runs a
-  transaction; the mount's writes, which never checked the token against the database, follow the
+  transaction (session upkeep is authentication, section 1); the mount's writes, which never checked the token against the database, follow the
   same rule as every other write; one order on every listener; a session is checked after the body,
   not before; changing a lifetime is one function.
 - Positive: the ledger turns "every route is covered" from a claim into a test that fails on a new

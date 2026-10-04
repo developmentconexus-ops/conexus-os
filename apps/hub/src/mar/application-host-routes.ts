@@ -148,6 +148,9 @@ export const registerApplicationHostRoutes = async (
   } })
 
   const serve = async (request: FastifyRequest, reply: FastifyReply, { document }: Readonly<{ document: boolean }>): Promise<unknown> => {
+    const pathname = request.url.split('?', 1)[0] ?? ''
+    let served = classifyAppPath(request.method, pathname, () => true)
+    if (served.kind === 'not-found') throw new Failure('NOT_FOUND')
     const target = await application(request)
     if (!target) return reply.code(404).send()
     const authority = await dependencies.sessions.applicationAuthority({ sessionToken: readCookie(request, 'applicationSession'), projectId: target.projectId, now: now() })
@@ -155,11 +158,6 @@ export const registerApplicationHostRoutes = async (
     if (authority.kind === 'SIGN_IN_REQUIRED') {
       return document ? startSignIn(request, reply, target.slug) : sendFailure(reply, new Failure('APPLICATION_SIGN_IN_REQUIRED'))
     }
-    const pathname = request.url.split('?', 1)[0] ?? ''
-    // The host cannot list the files without a second read, so it asks the classifier as if the path were
-    // declared and, when the read finds nothing, as if it were not.
-    let served = classifyAppPath(request.method, pathname, () => true)
-    if (served.kind === 'not-found') return reply.code(404).send()
     let requested = served.kind === 'file' ? served.path : ENTRY_PATH
     let read = await dependencies.reader.readServedFile({ accountId: authority.caller.accountId, projectId: target.projectId, path: requested })
     if (read.kind === 'NOT_FOUND' && served.kind === 'file') {

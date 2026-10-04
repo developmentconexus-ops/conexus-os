@@ -133,11 +133,13 @@ export const registerPreviewRoutes = async (
   }
 
   const serve = async (request: FastifyRequest, reply: FastifyReply): Promise<unknown> => {
+    const pathname = request.url.split('?', 1)[0] ?? ''
+    if (classifyAppPath(request.method, pathname, () => true).kind === 'not-found') throw new Failure('NOT_FOUND')
     const active = await activePreview(request)
     if (typeof active === 'number') return reply.code(active).send()
     const { binding: before, cookie } = active
     // The server tree is retained with the artifact for the runner; the classifier never serves it.
-    const served = classifyAppPath(request.method, request.url.split('?', 1)[0] ?? '', (candidate) => before.manifest.files.some((file) => file.path === candidate))
+    const served = classifyAppPath(request.method, pathname, (candidate) => before.manifest.files.some((file) => file.path === candidate))
     if (served.kind === 'not-found') return reply.code(404).send()
     const path = served.kind === 'file' ? served.path : before.manifest.entryPath
     const declared = before.manifest.files.find((file) => file.path === path)

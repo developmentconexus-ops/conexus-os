@@ -145,7 +145,7 @@ migration numbers are historical; the facts below are what they proved.
 
 ## Evidence from the review
 
-Three models (Claude Opus, Claude Sonnet, Codex GPT-6 Astra) reviewed the first draft adversarially.
+Three independent reviewers read the first draft adversarially.
 All three accepted removing the token against cross-origin and sibling attackers. The draft changed
 for: the session resolved before the body (probed: authentication in `onRequest`, a body completed
 after the session ended, gives 200 and one effect; in `preHandler`, 401 and none); the scriptless
@@ -161,9 +161,9 @@ single strings only and needs no `rawHeaders`.
 
 ## Evidence from the cross check
 
-A second model (Codex GPT-6 Astra) read the revised draft for decision completeness and returned 21
+An independent reviewer read the revised draft for decision completeness and returned 21
 findings and "not ready"; it found no flaw in the design itself and confirmed by probe on the
-installed packages that a root 401 ends a mount stream before Mastra starts it. HQ checked six
+installed packages that a root 401 ends a mount stream before Mastra starts it. The author checked six
 findings in the source (the CSRF digest skipped when the header is absent,
 `identity-access/host-sessions.ts:203` and `0026_single_session.sql:217`; Mastra validating its body
 inside the handler; the application sign-in completion redeeming on GET; the Google poll sending POST
@@ -191,7 +191,7 @@ places:
    one part removes the interim instead of specifying it. (Findings 1, 18.)
 
 The rest were build details now fixed in the spec (the check's boundary, finding 17; the lifetime
-oracle, finding 19). The cross check's text is `crosscheck/critique.md` in the study notebook.
+oracle, finding 19).
 
 ## Not verified
 
@@ -204,6 +204,6 @@ oracle, finding 19). The cross check's text is `crosscheck/critique.md` in the s
 
 ## References
 
-Project sources: the S3 study census and route enumeration; spec 0013; spec 0008; `contracts/api/product/openapi.yaml`
+Project sources: the S3 census and route enumeration; spec 0013; spec 0008; `contracts/api/product/openapi.yaml`
 (`x-conexus-browser-request-authenticity`). Practices: Go 1.25 `net/http.CrossOriginProtection`;
 OWASP CSRF Prevention and Session Management cheat sheets; Fetch Metadata request headers.

@@ -23,11 +23,11 @@ const { registerBuilderSessionRoutes } = await module('builder/mastra-session-ro
 const { registerModelAccountRoutes } = await module('builder/model-accounts.js')
 const { registerConnectorRoutes } = await module('connectors/routes.js')
 const { createBuilderController } = await module('builder/harness/controller.js')
-const { createConversations } = await module('builder/conversations.js')
 const { createMarModule } = await module('mar/module.js')
 
 const ACCOUNT = '22222222-2222-4222-8222-222222222222'
 const PROJECT = '33333333-3333-4333-8333-333333333333'
+const CONVERSATION = '77777777-7777-4777-8777-777777777777'
 const ARTIFACT = '0f8fad5b-d9cb-469f-a165-70867728950e'
 export const PREVIEW_PORT = 8444
 const APPLICATION_PORT = 8445
@@ -71,12 +71,11 @@ const builderMount = async (root, calls) => {
   const controller = createBuilderController({ id: 'conexus-builder', model, storage, memory, modelRetryDelayMs: () => 1, skillsPath: resolve(import.meta.dirname, '../../../builder-skills') })
   const mastra = new Mastra({ storage, agentControllers: { 'conexus-builder': controller }, logger: false })
   await controller.init()
-  const conversations = createConversations(async () => storage.getStore('memory'))
   const sessions = testConversations(controller, () => undefined, { now: () => 0 })
   const register = (server) => registerBuilderSessionRoutes(server, {
     mastra, controllerId: 'conexus-builder', controller, conversations: sessions,
     admitProject: async () => { calls.push('mount.admitProject'); return true },
-    conversationOwner: ({ projectId, conversationId }) => { calls.push('mount.conversationOwner'); return conversations.ownerOf(projectId, conversationId) },
+    conversationOwner: ({ conversationId }) => { calls.push('mount.conversationOwner'); return conversationId === CONVERSATION ? 'PROJECT' : 'NONE' },
     projectBusy: async () => { calls.push('mount.projectBusy'); return false },
     answerQuestion: () => { calls.push('mount.answerQuestion'); return 'UNKNOWN_CALL' },
   })
@@ -92,7 +91,14 @@ export const walkListeners = async () => {
   const root = mkdtempSync(join(tmpdir(), 'conexus-route-walk-'))
   const calls = []
   const records = []
-  const record = (listener, server) => server.addHook('onRoute', (route) => { records.push({ listener, route }) })
+  const record = (listener, server) => server.addHook('onRoute', (route) => {
+    records.push({ listener, route })
+    const handler = route.handler
+    route.handler = function marked(request, reply) {
+      calls.push(`handler ${listener} ${request.method} ${route.url}`)
+      return handler.call(this, request, reply)
+    }
+  })
   const mount = await builderMount(root, calls)
   const applicationAddress = { port: APPLICATION_PORT, domain: 'conexus.localhost' }
   const hub = await testListener({

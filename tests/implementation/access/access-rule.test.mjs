@@ -31,7 +31,7 @@ test('session: a present Origin must be the Hub on every method, and a write nee
   assert.equal(decide('session', 'PATCH', { ...json, origin: [HUB, HUB] }), 'DENY')
 })
 
-test('session writes refuse a navigation and a form media type, each alone; a JSON or body-less write passes', () => {
+test('session refuses a navigation on every method and a form media type on a write, each alone; a JSON or body-less write passes', () => {
   assert.equal(decide('session', 'POST', { ...json, origin: HUB, 'sec-fetch-mode': 'cors' }), 'ALLOW')
   assert.equal(decide('session', 'POST', { ...json, origin: HUB, 'sec-fetch-mode': 'navigate' }), 'DENY')
   assert.equal(decide('session', 'POST', { origin: HUB, 'content-type': 'Text/Plain; charset=utf-8' }), 'DENY')
@@ -39,7 +39,9 @@ test('session writes refuse a navigation and a form media type, each alone; a JS
   assert.equal(decide('session', 'POST', { origin: HUB, 'content-type': ' application/x-www-form-urlencoded ' }), 'DENY')
   assert.equal(decide('session', 'POST', { origin: HUB, 'content-type': 'application/json; charset=utf-8' }), 'ALLOW')
   assert.equal(decide('session', 'DELETE', { origin: HUB }), 'ALLOW')
-  assert.equal(decide('session', 'GET', { 'sec-fetch-mode': 'navigate' }), 'ALLOW')
+  assert.equal(decide('session', 'GET', { 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }), 'DENY')
+  assert.equal(decide('session', 'GET', { 'sec-fetch-mode': ['cors', 'cors'] }), 'DENY')
+  assert.equal(decide('session', 'GET', { 'sec-fetch-mode': 'cors', 'content-type': 'text/plain' }), 'ALLOW')
 })
 
 test('sign-out and bootstrap always need the exact Hub origin', () => {
@@ -70,11 +72,12 @@ test('host-write needs its own host origin and same-origin Fetch Metadata, and t
   assert.equal(decide('host-write', 'POST', { origin: OWN, ...json }, { hub: HUB, own: null }), 'DENY')
 })
 
-test('hub-entry is a cross-site form from the Hub page: only the Hub origin counts', () => {
+test('hub-entry is a cross-site form from the Hub page: only the Hub origin counts, on a host of the listener', () => {
   const form = { 'content-type': 'application/x-www-form-urlencoded', 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate' }
   assert.equal(decide('hub-entry', 'POST', { ...form, origin: HUB }, hostListener), 'ALLOW')
   assert.equal(decide('hub-entry', 'POST', { ...form, origin: OWN }, hostListener), 'DENY')
   assert.equal(decide('hub-entry', 'POST', form, hostListener), 'DENY')
+  assert.equal(decide('hub-entry', 'POST', { ...form, origin: HUB }, { hub: HUB, own: null }), 'DENY')
 })
 
 test('every condition wrong at once is refused', () => {

@@ -66,12 +66,12 @@ const refusals = (row) => {
         ['same-site', { ...right, 'sec-fetch-site': 'same-site' }],
         ['cross-site', { ...right, 'sec-fetch-site': 'cross-site' }],
         ['a sibling application as the Origin', { ...right, origin: SIBLING[row.listener] }],
+        ['a navigation', { ...right, 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }],
       ]
-      if (!write) return site
+      if (!write) return [...site, ['a GET form or a link on a Hub page', { 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }]]
       return [
         ...site,
         ['no Origin', without(right, 'origin')],
-        ['a navigation', { ...right, 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }],
         ['a form media type', right, { contentType: 'text/plain;charset=UTF-8', payload: 'name=x' }],
         ['every condition wrong at once', allWrong, { contentType: 'multipart/form-data; boundary=x', payload: '{' }],
       ]
@@ -97,15 +97,22 @@ for (const row of LEDGER) {
       if (row.method !== 'HEAD') assert.equal(refused.json().code, 'REQUEST_AUTHENTICITY_DENIED', label)
       assert.deepEqual(walk.calls.slice(before), [], `${label}: no session, provider or store work`)
     }
+    const marker = `handler ${row.listener} ${row.method} ${row.url}`
+    const beforeAnswer = walk.calls.length
     const answered = await send(row, rightHeaders(row))
     const expected = row.withoutCredential
+    assert.equal(walk.calls.slice(beforeAnswer).includes(marker), credentialOf(row) === undefined, 'the handler runs exactly when the kind needs no credential')
     assert.equal(answered.statusCode, expected.status, 'without a credential')
     if (expected.code) assert.equal(answered.json().code, expected.code, 'without a credential')
     if (expected.location) assert.ok(answered.headers.location?.startsWith(expected.location), `location ${answered.headers.location}`)
     if (expected.html) assert.match(answered.headers['content-type'], /^text\/html/)
     const credential = credentialOf(row)
     if (!credential || row.url.endsWith('/stream')) return
+    const beforeAdmitted = walk.calls.length
     const admitted = await send(row, rightHeaders(row), { cookie: credential })
+    const passed = walk.calls.slice(beforeAdmitted)
+    if (row.guardAnswers?.code) assert.equal(admitted.json().code, row.guardAnswers.code, 'the mount guard answers it after admission')
+    else assert.ok(passed.includes(row.guardAnswers?.call ?? marker), `the handler ran: ${passed.join(', ')}`)
     const code = admitted.headers['content-type']?.includes('json') ? admitted.json().code : undefined
     t.diagnostic(`with its credential: ${admitted.statusCode} ${code ?? ''}`)
     assert.ok(admitted.statusCode !== 400 && !REFUSED.has(code), `the sample passes the access rule and the body schema: ${admitted.statusCode} ${code}`)
@@ -203,6 +210,63 @@ test('every listener sends its own headers on every answer class', async () => {
       if (listener === 'hub') assertHubHeaders(response, named)
       if (listener === 'application') assertApplicationHeaders(response, named)
       if (listener === 'preview') assertPreviewHeaders(response, named, label === '403 page' ? 'GET' : 'POST')
+    }
+  }
+})
+
+const HOST_COOKIE = Object.freeze({ preview: '__Host-conexus_preview', application: '__Host-conexus_app' })
+const hostAnswer = (listener, method, path, headers = {}) => walk.listeners[listener].inject({ method, url: path, headers: { host: HOST[listener], ...headers } })
+
+test('a host endpoint that is not a page answers 404 to HEAD and to an unregistered GET, before any lookup', async () => {
+  const endpoints = LEDGER.filter((row) => row.listener !== 'hub' && row.kind !== 'navigation')
+  const extra = ['/__conexus/elsewhere', '/conexus-server/handler.js']
+  const requests = ['preview', 'application'].flatMap((listener) => [
+    ...endpoints.filter((row) => row.listener === listener).flatMap((row) => [
+      ['HEAD', row.sample.path],
+      ...(LEDGER.some((other) => other.listener === listener && other.method === 'GET' && other.url === row.url) ? [] : [['GET', row.sample.path]]),
+    ]).map(([method, path]) => [listener, method, path]),
+    ...extra.flatMap((path) => [['HEAD', path], ['GET', path]]).map(([method, path]) => [listener, method, path]),
+  ])
+  assert.ok(requests.length >= 14, `${requests.length} requests`)
+  for (const [listener, method, path] of requests) {
+    for (const cookie of [undefined, `${HOST_COOKIE[listener]}=${SESSION_TOKEN}`]) {
+      const label = `${listener} ${method} ${path} ${cookie ? 'with' : 'without'} a session`
+      const before = walk.calls.length
+      const answered = await hostAnswer(listener, method, path, { ...DOCUMENT, ...(cookie ? { cookie } : {}) })
+      assert.equal(answered.statusCode, 404, label)
+      if (method === 'GET') assert.equal(answered.json().code, 'NOT_FOUND', label)
+      assert.deepEqual(walk.calls.slice(before).filter((call) => !call.startsWith('handler ')), [], `${label}: no lookup`)
+    }
+  }
+})
+
+test('hub-entry refuses a host that is not one of its Previews before the body', async () => {
+  const hosts = {
+    absent: '',
+    malformed: PREVIEW_HOST.toUpperCase(),
+    'the wrong port': PREVIEW_HOST.replace(`:${PREVIEW_PORT}`, ':8443'),
+    foreign: 'evil.test',
+  }
+  for (const [label, host] of Object.entries(hosts)) {
+    const before = walk.calls.length
+    const refused = await walk.listeners.preview.inject({
+      method: 'POST', url: '/__conexus/preview-entry', payload: '{',
+      headers: { host, origin: HUB_ORIGIN, 'content-type': 'application/json', 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate' },
+    })
+    assert.equal(refused.statusCode, 403, label)
+    assert.equal(refused.json().code, 'REQUEST_AUTHENTICITY_DENIED', label)
+    assert.deepEqual(walk.calls.slice(before), [], `${label}: no work`)
+  }
+})
+
+test('a request no route matches answers 404 before its body is read, on every listener', async () => {
+  for (const listener of ['hub', 'preview', 'application']) {
+    for (const [contentType, payload] of [['application/json', '{'], ['application/xml', '<x/>'], ['text/plain', 'x']]) {
+      const answered = await walk.listeners[listener].inject({
+        method: 'POST', url: '/nowhere', payload, headers: { 'content-type': contentType, ...(HOST[listener] ? { host: HOST[listener] } : {}) },
+      })
+      assert.equal(answered.statusCode, 404, `${listener} ${contentType}`)
+      assert.equal(answered.json().code, 'NOT_FOUND', `${listener} ${contentType}`)
     }
   }
 })

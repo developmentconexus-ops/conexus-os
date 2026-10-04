@@ -18,8 +18,6 @@ declare module 'fastify' {
   }
 }
 
-export type { ListenerPolicy }
-
 export type RouteRegistrar = (app: FastifyInstance) => Promise<readonly string[]>
 
 export const parseJsonBody = (app: FastifyInstance): void => {
@@ -69,11 +67,6 @@ export const createHttpApp = async ({
     const failure = namedFailure(error) ?? toFailure(error)
     logFailure(request.log, failure, { 'http.route': request.routeOptions.url ?? '' })
     return sendFailure(reply, failure)
-  })
-  app.setNotFoundHandler((request, reply) => {
-    const missing = new Failure('NOT_FOUND')
-    logFailure(request.log, missing)
-    return sendFailure(reply, missing)
   })
   const ajv = new Ajv2020({ allErrors: true, strict: true, coerceTypes: false, useDefaults: false, removeAdditional: false })
   ajv.addKeyword({ keyword: 'x-conexus-schema-source', schemaType: 'string', valid: true })

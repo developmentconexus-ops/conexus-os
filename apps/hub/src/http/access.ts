@@ -13,8 +13,8 @@ type Methods = 'PAGE' | 'GET' | 'WRITE' | 'ANY'
 type AccessRow = Readonly<{
   methods: Methods
   fetchSite: 'SAME_ORIGIN_OR_NONE' | 'ANY'
-  mode: 'NAVIGATE' | 'NOT_NAVIGATE_ON_WRITE' | 'ANY'
-  origin: 'NONE' | 'HUB_WHEN_PRESENT_REQUIRED_ON_WRITE' | 'HUB_ALWAYS' | 'OWN_ALWAYS'
+  mode: 'NAVIGATE' | 'NOT_NAVIGATE' | 'ANY'
+  origin: 'NONE' | 'HUB_WHEN_PRESENT_REQUIRED_ON_WRITE' | 'HUB_ALWAYS' | 'HUB_ALWAYS_ON_OWN_HOST' | 'OWN_ALWAYS'
   credential: 'NONE' | 'HUB_SESSION' | 'HUB_SESSION_COOKIE' | 'BOOTSTRAP_COOKIE'
 }>
 
@@ -22,11 +22,11 @@ type AccessRow = Readonly<{
 export const ACCESS: Readonly<Record<AccessKind, AccessRow>> = Object.freeze({
   navigation: { methods: 'PAGE', fetchSite: 'ANY', mode: 'ANY', origin: 'NONE', credential: 'NONE' },
   'sign-in': { methods: 'GET', fetchSite: 'ANY', mode: 'NAVIGATE', origin: 'NONE', credential: 'NONE' },
-  session: { methods: 'ANY', fetchSite: 'SAME_ORIGIN_OR_NONE', mode: 'NOT_NAVIGATE_ON_WRITE', origin: 'HUB_WHEN_PRESENT_REQUIRED_ON_WRITE', credential: 'HUB_SESSION' },
-  'sign-out': { methods: 'WRITE', fetchSite: 'SAME_ORIGIN_OR_NONE', mode: 'NOT_NAVIGATE_ON_WRITE', origin: 'HUB_ALWAYS', credential: 'HUB_SESSION_COOKIE' },
-  bootstrap: { methods: 'WRITE', fetchSite: 'SAME_ORIGIN_OR_NONE', mode: 'NOT_NAVIGATE_ON_WRITE', origin: 'HUB_ALWAYS', credential: 'BOOTSTRAP_COOKIE' },
+  session: { methods: 'ANY', fetchSite: 'SAME_ORIGIN_OR_NONE', mode: 'NOT_NAVIGATE', origin: 'HUB_WHEN_PRESENT_REQUIRED_ON_WRITE', credential: 'HUB_SESSION' },
+  'sign-out': { methods: 'WRITE', fetchSite: 'SAME_ORIGIN_OR_NONE', mode: 'NOT_NAVIGATE', origin: 'HUB_ALWAYS', credential: 'HUB_SESSION_COOKIE' },
+  bootstrap: { methods: 'WRITE', fetchSite: 'SAME_ORIGIN_OR_NONE', mode: 'NOT_NAVIGATE', origin: 'HUB_ALWAYS', credential: 'BOOTSTRAP_COOKIE' },
   'host-write': { methods: 'WRITE', fetchSite: 'SAME_ORIGIN_OR_NONE', mode: 'ANY', origin: 'OWN_ALWAYS', credential: 'NONE' },
-  'hub-entry': { methods: 'WRITE', fetchSite: 'ANY', mode: 'ANY', origin: 'HUB_ALWAYS', credential: 'NONE' },
+  'hub-entry': { methods: 'WRITE', fetchSite: 'ANY', mode: 'ANY', origin: 'HUB_ALWAYS_ON_OWN_HOST', credential: 'NONE' },
 })
 
 export type ListenerPolicy =
@@ -98,7 +98,7 @@ const modeAllows = (rule: AccessRow['mode'], facts: RequestFacts): boolean => {
   switch (rule) {
     case 'ANY': return true
     case 'NAVIGATE': return facts.fetchMode === undefined || facts.fetchMode === 'navigate'
-    case 'NOT_NAVIGATE_ON_WRITE': return !facts.write || (facts.fetchMode !== 'navigate' && facts.fetchMode !== MALFORMED && !facts.formBody)
+    case 'NOT_NAVIGATE': return facts.fetchMode !== 'navigate' && facts.fetchMode !== MALFORMED && !(facts.write && facts.formBody)
     default: return rule satisfies never
   }
 }
@@ -108,6 +108,7 @@ const originAllows = (rule: AccessRow['origin'], { origin, write }: RequestFacts
     case 'NONE': return true
     case 'HUB_WHEN_PRESENT_REQUIRED_ON_WRITE': return origin === undefined ? !write : origin === expected.hub
     case 'HUB_ALWAYS': return origin === expected.hub
+    case 'HUB_ALWAYS_ON_OWN_HOST': return expected.own !== null && origin === expected.hub
     case 'OWN_ALWAYS': return expected.own !== null && origin === expected.own
     default: return rule satisfies never
   }
@@ -222,7 +223,7 @@ export const installAccess = (app: FastifyInstance, policy: ListenerPolicy): voi
   })
   app.addHook('onRequest', async (request) => {
     const kind = request.routeOptions.config.access
-    if (kind === undefined) return
+    if (kind === undefined) throw new Failure('NOT_FOUND')
     const facts = requestFacts(request.method, request.headers)
     const expected = { hub: policy.hubOrigin, own: policy.listener === 'hub' ? null : policy.ownOrigin(facts.host) }
     if (authentic(ACCESS[kind], facts, expected) === 'DENY') throw new Failure('REQUEST_AUTHENTICITY_DENIED')
