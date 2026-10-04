@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
+import { hubSessionCookie, opaque, testListener } from './access/test-listener.mjs'
+
+const TOKEN = opaque('summary-reader')
+const cookie = hubSessionCookie(TOKEN)
 
 test('GET project-summaries authenticates, sorts by lastActivityAt, and answers the store as-is', async (t) => {
-  const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
   const { registerProjectSummaryRoutes } = await import(hubModuleUrl('project/summary-routes.js'))
   const { logger } = await import(hubModuleUrl('platform/logger.js'))
 
@@ -24,10 +27,9 @@ test('GET project-summaries authenticates, sorts by lastActivityAt, and answers 
   let authenticated = true
   let calledWith = null
   let failWith = null
-  const app = await createHttpApp({
-    staticRoot: null,
+  const { app } = await testListener({
+    sessions: { [TOKEN]: () => authenticated ? { account: { accountId: 'account-101' } } : null },
     registerRoutes: (server) => registerProjectSummaryRoutes(server, {
-      resolveCurrentSession: async () => authenticated ? { account: { accountId: 'account-101' } } : null,
       store: {
         listProjectSummariesWithActivity: async (input) => {
           calledWith = input
@@ -39,7 +41,7 @@ test('GET project-summaries authenticates, sorts by lastActivityAt, and answers 
   })
   t.after(() => app.close())
 
-  const list = () => app.inject({ method: 'GET', url: `/api/control/workspaces/${workspaceId}/project-summaries` })
+  const list = () => app.inject({ method: 'GET', url: `/api/control/workspaces/${workspaceId}/project-summaries`, headers: { cookie } })
   const response = await list()
   assert.equal(response.statusCode, 200)
   assert.deepEqual(response.json(), { projects: summaries })
@@ -66,7 +68,6 @@ test('GET project-summaries authenticates, sorts by lastActivityAt, and answers 
 })
 
 test('GET project thumbnail streams PNG bytes with ETag and cache control, handles 401, 404, 503', async (t) => {
-  const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
   const { registerProjectThumbnailRoutes } = await import(hubModuleUrl('project/thumbnail-routes.js'))
 
   const projectId = '30000000-0000-4000-8000-000000000103'
@@ -82,10 +83,9 @@ test('GET project thumbnail streams PNG bytes with ETag and cache control, handl
   }
   let calledWith = null
 
-  const app = await createHttpApp({
-    staticRoot: null,
+  const { app } = await testListener({
+    sessions: { [TOKEN]: () => authenticated ? { account: { accountId: 'account-103' } } : null },
     registerRoutes: (server) => registerProjectThumbnailRoutes(server, {
-      resolveCurrentSession: async () => authenticated ? { account: { accountId: 'account-103' } } : null,
       reader: {
         readThumbnail: async (input) => {
           calledWith = input
@@ -97,7 +97,7 @@ test('GET project thumbnail streams PNG bytes with ETag and cache control, handl
   })
   t.after(() => app.close())
 
-  const fetchThumbnail = (id = projectId) => app.inject({ method: 'GET', url: `/api/control/projects/${id}/thumbnail` })
+  const fetchThumbnail = (id = projectId) => app.inject({ method: 'GET', url: `/api/control/projects/${id}/thumbnail`, headers: { cookie } })
 
   // 200 Success
   const res = await fetchThumbnail()

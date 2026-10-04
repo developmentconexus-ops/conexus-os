@@ -67,8 +67,6 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   const connectors = createConnectorModule({
     pool,
     envelope: identityAccessDependencies.envelope,
-    origin: config.origin,
-    resolveCurrentSession: identityAccess.resolveCurrentSession,
     isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
     gatewayOrigin: config.connectors.gatewayOrigin,
     socketDirectory: config.connectors.socketDirectory,
@@ -84,8 +82,6 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
       password: readSecretFile(config.database.workspace.commandPasswordFile),
     }),
     readPool: s2ReadPool,
-    origin: config.origin,
-    resolveCurrentSession: identityAccess.resolveCurrentSession,
   }) : undefined
   const project = config.project ? createConfiguredProjectModule({
     database: {
@@ -117,8 +113,6 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
         return builder.deleteProjectRepository(projectId)
       },
     },
-    origin: config.origin,
-    resolveCurrentSession: identityAccess.resolveCurrentSession,
     thumbnailReader: {
       readThumbnail: async (input) => {
         if (servedApplications) {
@@ -177,9 +171,10 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
       applicationHost: { sessions: identityAccess.hostSessions, reader: servedApplications, application: config.application },
     } : {}),
   }) : undefined
-  const launchPreview = mar ? async (request: import('fastify').FastifyRequest, input: Parameters<NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>>[1]) => {
+  type LaunchPreview = NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>
+  const launchPreview: LaunchPreview | undefined = mar ? async (hubSessionDigest, input) => {
     const address = mar.previewAddress(input.artifactRevisionId)
-    const opened = await identityAccess.openPreview(request, {
+    const opened = await identityAccess.openPreview(hubSessionDigest, {
       accountId: input.accountId,
       projectId: input.projectId,
       sourceRevision: input.artifact.sourceRevision,
@@ -224,8 +219,6 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
       },
     } : {}),
     ...(launchPreview ? { launchPreview } : {}),
-    origin: config.origin,
-    resolveCurrentSession: identityAccess.resolveCurrentSession,
     isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
     readProjectName: async (input) => {
       const name = await project?.readProjectName(input)
@@ -241,6 +234,12 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     ...(conversationSandboxes ? { conversationSandboxes } : {}),
   }) : undefined
   const app = await createHttpApp({
+    policy: {
+      listener: 'hub',
+      hubOrigin: config.origin,
+      resolveHubSession: identityAccess.resolveHubSession,
+      ...(config.preview ? { previewCspSource: `https://*.conexus.localhost:${config.preview.port}` } : {}),
+    },
     registerRoutes: async (server) => [
       ...await identityAccess.registerIdentityAccessRoutes(server),
       ...(workspace ? await workspace.registerWorkspaceRoutes(server) : []),
@@ -250,7 +249,6 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     ],
     staticRoot: resolve(import.meta.dirname, '../public'),
     ...(config.preview ? {
-      previewCspSource: `https://*.conexus.localhost:${config.preview.port}`,
       https: {
         cert: readFileSync(config.preview.certFile),
         key: readFileSync(config.preview.keyFile),
@@ -258,6 +256,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     } : {}),
   })
   const previewApp = mar && config.preview ? await createHttpApp({
+    policy: mar.previewPolicy,
     registerRoutes: mar.registerPreviewRoutes,
     staticRoot: null,
     https: {
@@ -265,8 +264,9 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
       key: readFileSync(config.preview.keyFile),
     },
   }) : undefined
-  const applicationApp = mar?.registerApplicationHostRoutes && config.preview && config.application ? await createHttpApp({
-    registerRoutes: mar.registerApplicationHostRoutes,
+  const applicationApp = mar?.applicationHost && config.preview && config.application ? await createHttpApp({
+    policy: mar.applicationHost.policy,
+    registerRoutes: mar.applicationHost.registerRoutes,
     staticRoot: null,
     https: {
       cert: readFileSync(config.preview.certFile),

@@ -5,8 +5,7 @@ export type ProjectSummary = { "projectId": string; "workspaceId": string; "name
 export type ProjectRepresentation = { "projectId": string; "workspaceId": string; "name": string; "projectRevision": string; "archived": boolean; "deleting": boolean }
 export type CreateProjectInput = { "name": string; "sourceBootstrap": { "mode": "NEW" } | { "mode": "EXISTING_GIT"; "repositoryLocator": string } }
 export type CreateProjectResponse = { "projectId": string; "workspaceId": string; "name": string; "projectRevision": string; "archived": boolean }
-const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')
-const request = async (url: string, init: RequestInit = {}) => { const method = (init.method ?? 'GET').toUpperCase(); return fetch(url, { ...init, credentials: 'same-origin', headers: { ...(init.headers ?? {}), ...(method === 'POST' || method === 'DELETE' ? { 'x-conexus-csrf': decodeURIComponent(csrf() ?? '') } : {}) } }) }
+const request = async (url: string, init: RequestInit = {}) => fetch(url, { ...init, credentials: 'same-origin' })
 export const projectClient = Object.freeze({
   listProjects: (workspaceId: string) => request("/api/control/workspaces/" + encodeURIComponent(workspaceId) + '/projects'),
   getProject: (projectId: string) => request("/api/control/projects/" + encodeURIComponent(projectId)),

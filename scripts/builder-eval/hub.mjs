@@ -41,10 +41,9 @@ export async function openHub({ baseUrl, statePath }) {
 
     const call = async (method, path, { body, headers = {} } = {}) => {
       const response = await page.evaluate(async (request) => {
-        const csrf = document.cookie.split('; ').find((entry) => entry.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')
         const answer = await fetch(request.path, {
           method: request.method, credentials: 'same-origin',
-          headers: { ...(request.body === undefined ? {} : { 'content-type': 'application/json' }), 'x-conexus-csrf': decodeURIComponent(csrf ?? ''), ...request.headers },
+          headers: { ...(request.body === undefined ? {} : { 'content-type': 'application/json' }), ...request.headers },
           body: request.body,
         })
         return { status: answer.status, text: await answer.text() }

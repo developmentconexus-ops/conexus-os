@@ -1,3 +1,7 @@
+import { Failure } from '../platform/failure.js'
+import { digest, parseOpaqueToken } from '../platform/opaque-token.js'
+import type { OpaqueToken } from '../platform/opaque-token.js'
+
 export type AccountId = string & { readonly __brand: 'AccountId' }
 export type WorkspaceId = string & { readonly __brand: 'WorkspaceId' }
 export type InvitationId = string & { readonly __brand: 'InvitationId' }
@@ -7,9 +11,20 @@ export type AccountSummary = Readonly<{ accountId: AccountId; displayName: strin
 // `issuer` and `subject` are the provider identity this session was established from.
 // No route reads them to decide authority.
 export type CurrentSession = Readonly<{ account: AccountSummary; issuer: string; subject: string }>
-// What a session is read from: the Hub's own requests, and the Builder's Mastra routes' requests.
-export type SessionRequest = Readonly<{ cookies: Readonly<Record<string, string | undefined>>; headers: Readonly<Record<string, string | string[] | undefined>> }>
-export type ResolveCurrentSession = (request: SessionRequest, requireCsrf?: boolean) => Promise<CurrentSession | null>
+export type HubSessionDigest = Buffer & { readonly __brand: 'HubSessionDigest' }
+export type BootstrapToken = string & { readonly __brand: 'BootstrapToken' }
+export type HubSession = CurrentSession & Readonly<{ digest: HubSessionDigest }>
+
+const isHubSessionDigest = (value: Buffer): value is HubSessionDigest => value.length === 32
+const isBootstrapToken = (value: unknown): value is BootstrapToken => parseOpaqueToken(value) !== null
+
+export const hubSessionDigest = (token: OpaqueToken): HubSessionDigest => {
+  const hashed = digest(token)
+  if (!isHubSessionDigest(hashed)) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'HUB_SESSION_DIGEST_SHAPE' } })
+  return hashed
+}
+
+export const bootstrapToken = (value: unknown): BootstrapToken | null => isBootstrapToken(value) ? value : null
 
 // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
 export const accountId = (value: string): AccountId => value as AccountId

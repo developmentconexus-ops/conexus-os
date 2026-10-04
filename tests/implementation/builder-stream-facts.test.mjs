@@ -5,17 +5,17 @@ import { Mastra } from '@mastra/core/mastra'
 import { InMemoryStore } from '@mastra/core/storage'
 import { Memory } from '@mastra/memory'
 import { hubModuleUrl } from './hub-build.mjs'
+import { hubSessionCookie, opaque, testListener } from './access/test-listener.mjs'
 import { testConversations } from './builder-conversation-fixture.mjs'
 
 // What the browser can count on from the Builder's controller through the Hub's mount, recorded
 // from createBuilderController: the facts the conversation screen is built on. Mastra itself leaves
 // a stream open when its session is deleted; the mount ends it.
-const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { registerBuilderSessionRoutes } = await import(hubModuleUrl('builder/mastra-session-routes.js'))
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
 const { createConversations } = await import(hubModuleUrl('builder/conversations.js'))
 
-const origin = 'https://conexus.test'
+const SESSION_TOKEN = opaque('operator')
 const accountId = '22222222-2222-4222-8222-222222222222'
 const projectId = '33333333-3333-4333-8333-333333333333'
 const conversationId = '77777777-7777-4777-8777-777777777777'
@@ -56,18 +56,17 @@ const startMount = async (t, memoryOptions = {}, model = askingModel()) => {
   const mastra = new Mastra({ storage, agentControllers: { 'conexus-builder': controller }, logger: false })
   await controller.init()
   const conversations = createConversations(async () => storage.getStore('memory'))
-  const app = await createHttpApp({
+  const { app } = await testListener({
+    sessions: { [SESSION_TOKEN]: { account: { accountId, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' } },
     registerRoutes: async (instance) => {
       await registerBuilderSessionRoutes(instance, {
-        mastra, controllerId: 'conexus-builder', controller, conversations: testConversations(controller, () => undefined), origin,
-        resolveCurrentSession: async (request) => request.cookies['__Host-conexus_session'] ? { account: { accountId, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' } : null,
+        mastra, controllerId: 'conexus-builder', controller, conversations: testConversations(controller, () => undefined),
         admitProject: async () => true,
         conversationOwner: ({ projectId: project, conversationId: id }) => conversations.ownerOf(project, id),
         projectBusy: async () => false,
       })
       return []
     },
-    staticRoot: null,
   })
   await app.listen({ host: '127.0.0.1', port: 0 })
   const base = `http://127.0.0.1:${app.server.address().port}/api/builder/agent-controller/conexus-builder/sessions/${resourceId}`
@@ -83,7 +82,7 @@ const startMount = async (t, memoryOptions = {}, model = askingModel()) => {
   return { base, controller, session }
 }
 
-const headers = { cookie: '__Host-conexus_session=session-1; __Host-conexus_csrf=csrf-1' }
+const headers = { cookie: hubSessionCookie(SESSION_TOKEN) }
 
 const nextEvent = (session, type) => new Promise((done) => {
   const detach = session.subscribe((event) => { if (event.type === type) { detach(); done(event) } })

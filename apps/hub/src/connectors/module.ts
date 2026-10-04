@@ -3,7 +3,7 @@ import type { ToolsInput } from '@mastra/core/agent'
 import type { RequestContext } from '@mastra/core/request-context'
 import { MastraStorageExporter } from '@mastra/observability'
 import type { FastifyInstance } from 'fastify'
-import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
+import type { AccountId } from '../identity-access/current-session.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { logLine } from '../platform/logger.js'
 import type { EventLog } from '../platform/logger.js'
@@ -61,8 +61,6 @@ const CHECK_OUTCOME: Readonly<Partial<Record<BrokerErrorCode, CheckConnectionOut
 export const createConnectorModule = ({
   pool,
   envelope,
-  origin,
-  resolveCurrentSession,
   isInstallationAdministrator,
   gatewayOrigin,
   socketDirectory,
@@ -72,8 +70,6 @@ export const createConnectorModule = ({
    * exactly as the application-access functions are (no new login role, no new pilot secret). */
   pool: PostgresPool
   envelope: SecretEnvelope
-  origin: string
-  resolveCurrentSession: ResolveCurrentSession
   isInstallationAdministrator(account: AccountId): Promise<boolean>
   /** The pinned Sankhya gateway origin; absent, every call and check answers CONNECTOR_UNCONFIGURED with no network. */
   gatewayOrigin?: string | undefined
@@ -116,11 +112,9 @@ export const createConnectorModule = ({
   return Object.freeze({
     registerConnectorRoutes: (app: FastifyInstance) => registerConnectorRoutes(app, {
       store: administeredStore,
-      resolveCurrentSession,
       isInstallationAdministrator,
       checkConnection,
       credentialSchemas: { sankhya: sankhyaDefinition.credential },
-      config: { origin },
     }),
     openHandlerPort: async (source) => (ports ? ports.open(scopeFromArtifactSource(source)) : null),
     sweepHandlerPorts: async () => { await ports?.sweep() },

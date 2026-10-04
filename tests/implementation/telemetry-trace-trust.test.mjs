@@ -13,7 +13,9 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 const { createHttpApp } = await import(process.env.HUB_BUILD + '/http/app.js')
-const seen = async (server) => { server.get('/seen', async () => ({ traceId: trace.getActiveSpan()?.spanContext().traceId })); return ['seen'] }
+const { routes } = await import(process.env.HUB_BUILD + '/http/access.js')
+const policy = { listener: 'hub', hubOrigin: 'https://hub.test', resolveHubSession: async () => null }
+const seen = async (server) => { routes(server).navigation({ url: '/seen', handler: async () => ({ traceId: trace.getActiveSpan()?.spanContext().traceId }) }); return ['seen'] }
 const raw = (target) => new Promise((resolve, reject) => {
   const socket = connect(target)
   let answer = ''
@@ -23,7 +25,7 @@ const raw = (target) => new Promise((resolve, reject) => {
   socket.end('GET /seen HTTP/1.1\\r\\nHost: hub.test\\r\\ntraceparent: 00-${FORGED_TRACE}-${FORGED_PARENT}-01\\r\\ntracestate: forged=1\\r\\nbaggage: forged=1\\r\\nConnection: close\\r\\n\\r\\n')
 })
 const directory = mkdtempSync(join(tmpdir(), 'conexus-trust-'))
-const app = await createHttpApp({ registerRoutes: seen })
+const app = await createHttpApp({ policy, registerRoutes: seen })
 const socketPath = join(directory, 'runner.sock')
 if (process.env.LISTENER === 'unix') await app.listen({ path: socketPath })
 else await app.listen({ host: '127.0.0.1', port: 0 })

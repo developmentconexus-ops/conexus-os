@@ -13,8 +13,7 @@ export const accountsUrl = '/api/control/model-accounts'
 export const callModelAccounts = async <T,>(method: 'GET' | 'POST' | 'PUT', url: string, body?: unknown): Promise<T> => {
   const response = await hubCall(hubFetch(url, {
     method,
-    headers: method === 'GET' ? {} : { 'content-type': 'application/json' },
-    ...(method === 'GET' ? {} : { body: JSON.stringify(body ?? {}) }),
+    ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
   }))
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return (response.status === 204 ? undefined : await response.json()) as T

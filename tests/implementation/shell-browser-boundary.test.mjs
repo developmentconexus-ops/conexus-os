@@ -2,16 +2,15 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
-import { hubModuleUrl } from './hub-build.mjs'
+import { testListener } from './access/test-listener.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 
 test('the SPA page carries its own style nonce, the same one its CSP allows, fresh per response', async (t) => {
-  const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
   const staticRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/shell-static-'))
   t.after(() => rmSync(staticRoot, { recursive: true, force: true }))
   writeFileSync(resolve(staticRoot, 'index.html'), '<!doctype html><html><head><title>Conexus</title></head><body></body></html>')
-  const app = await createHttpApp({ staticRoot, registerRoutes: async () => [] })
+  const { app } = await testListener({ staticRoot })
   t.after(() => app.close())
 
   const nonces = []
@@ -29,11 +28,10 @@ test('the SPA page carries its own style nonce, the same one its CSP allows, fre
 })
 
 test('every SPA path answers with the shell page', async (t) => {
-  const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
   const staticRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/shell-static-'))
   t.after(() => rmSync(staticRoot, { recursive: true, force: true }))
   writeFileSync(resolve(staticRoot, 'index.html'), '<!doctype html><html><head><title>Conexus</title></head><body></body></html>')
-  const app = await createHttpApp({ staticRoot, registerRoutes: async () => [] })
+  const { app } = await testListener({ staticRoot })
   t.after(() => app.close())
 
   const id = '10000000-0000-4000-8000-000000000001'
@@ -50,7 +48,6 @@ test('every SPA path answers with the shell page', async (t) => {
 })
 
 test('fingerprinted assets under assets/ are cached immutably for a year; other static files are not', async (t) => {
-  const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
   const tempDir = mkdtempSync(resolve(repositoryRoot, 'apps/hub/test-tmp-'))
   t.after(() => rmSync(tempDir, { recursive: true, force: true }))
   const staticRoot = resolve(tempDir, 'assets', 'public')
@@ -59,7 +56,7 @@ test('fingerprinted assets under assets/ are cached immutably for a year; other 
   mkdirSync(resolve(staticRoot, 'assets'))
   writeFileSync(resolve(staticRoot, 'assets/app-abc123.js'), 'console.log(1)')
   writeFileSync(resolve(staticRoot, 'favicon.svg'), '<svg></svg>')
-  const app = await createHttpApp({ staticRoot, registerRoutes: async () => [] })
+  const { app } = await testListener({ staticRoot })
   t.after(() => app.close())
 
   const fingerprinted = await app.inject({ method: 'GET', url: '/assets/app-abc123.js' })

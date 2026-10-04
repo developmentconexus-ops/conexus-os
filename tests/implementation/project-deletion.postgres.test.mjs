@@ -149,10 +149,10 @@ test('real PostgreSQL proves project.purge_project clears every project-scoped r
     await client.query(
       `INSERT INTO iam.host_session(
          token_digest, kind, account_id, started_at, absolute_expires_at,
-         provider_refresh_token, provider_checked_at, csrf_digest, idle_expires_at
+         provider_refresh_token, provider_checked_at, idle_expires_at
        ) VALUES ($1, 'HUB', $2, $3, $3::timestamptz + interval '8 hours',
-         'mastra:factory-secret:v1:hub-token', $3, $4, $3::timestamptz + interval '30 minutes')`,
-      [hubDigest, accountId, hubStartedAt, randomBytes(32)],
+         'mastra:factory-secret:v1:hub-token', $3, $3::timestamptz + interval '30 minutes')`,
+      [hubDigest, accountId, hubStartedAt],
     )
     const previewSessionDigest = randomBytes(32)
     const previewSessionStartedAt = new Date()

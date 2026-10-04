@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { Failure } from '../platform/failure.js'
-import type { ResolveCurrentSession } from '../identity-access/current-session.js'
+import { routes } from '../http/access.js'
 import type { ProjectStore, ProjectSummaryWithActivity } from './store.js'
 
 const uuid = { type: 'string', format: 'uuid' } as const
@@ -20,15 +20,13 @@ export const registerProjectSummaryRoutes = async (
   app: FastifyInstance,
   dependencies: Readonly<{
     store: Pick<ProjectStore, 'listProjectSummariesWithActivity'>
-    resolveCurrentSession: ResolveCurrentSession
   }>,
 ): Promise<readonly ProjectSummaryOperationId[]> => {
-  app.get<{ Params: { workspaceId: string } }>(
-    '/api/control/workspaces/:workspaceId/project-summaries',
-    { schema: { params } },
-    async (request) => {
-      const current = await dependencies.resolveCurrentSession(request)
-      if (!current) throw new Failure('AUTHENTICATION_REQUIRED')
+  routes(app).session<{ Params: { workspaceId: string } }>({
+    method: 'GET',
+    url: '/api/control/workspaces/:workspaceId/project-summaries',
+    schema: { params },
+    handler: async (request, _reply, current) => {
       const projects: readonly ProjectSummaryWithActivity[] = await dependencies.store.listProjectSummariesWithActivity({
         accountId: current.account.accountId,
         workspaceId: request.params.workspaceId,
@@ -38,6 +36,6 @@ export const registerProjectSummaryRoutes = async (
       })
       return { projects }
     },
-  )
+  })
   return ['PRJ-SUMMARIES']
 }

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
 import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
@@ -123,17 +123,18 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
   let hub = createHostSessions({ pool: hubPool, envelope, refresh: async () => ({ kind: 'UNAVAILABLE' }) })
   const established = await hub.openHub({ accountId: first.accountId, refreshToken: 'refresh-1' })
   const signedIn = { account: { accountId: first.accountId, displayName: 'Leandro', email: 'leandro@example.test' }, issuer: 'https://issuer.test', subject: 'subject-1' }
-  assert.deepEqual(await hub.resolveHub({ sessionToken: established.sessionToken }), signedIn)
-  assert.equal(await hub.resolveHub({ sessionToken: established.sessionToken, csrfToken: 'w'.repeat(43) }), null)
-  assert.deepEqual(await hub.resolveHub({ sessionToken: established.sessionToken, csrfToken: established.csrfToken }), signedIn)
+  const sessionDigest = createHash('sha256').update(established.sessionToken).digest()
+  assert.deepEqual(await hub.resolveHub(sessionDigest), signedIn)
+  assert.equal(await hub.resolveHub(createHash('sha256').update('w'.repeat(43)).digest()), null, 'a digest no session has')
   await store.close()
 
   store = createIdentityAccessStore({ pool: createPostgresPool(runtimeConnection) })
   hub = createHostSessions({ pool: hubPool, envelope, refresh: async () => ({ kind: 'UNAVAILABLE' }) })
-  assert.deepEqual(await hub.resolveHub({ sessionToken: established.sessionToken }), signedIn, 'another Hub process reads the same session')
-  assert.equal(await hub.endHub({ sessionToken: established.sessionToken, csrfToken: 'w'.repeat(43) }), null, 'not without its CSRF token')
-  assert.deepEqual(await hub.endHub({ sessionToken: established.sessionToken, csrfToken: established.csrfToken }), { refreshToken: 'refresh-1' })
-  assert.equal(await hub.resolveHub({ sessionToken: established.sessionToken }), null)
+  assert.deepEqual(await hub.resolveHub(sessionDigest), signedIn, 'another Hub process reads the same session')
+  assert.equal(await hub.endHub(createHash('sha256').update('w'.repeat(43)).digest()), null, 'a digest no session has ends nothing')
+  assert.deepEqual(await hub.endHub(sessionDigest), { refreshToken: 'refresh-1' })
+  assert.equal(await hub.endHub(sessionDigest), null, 'ending twice ends nothing')
+  assert.equal(await hub.resolveHub(sessionDigest), null)
   await hubPool.end()
   hubPool = null
 

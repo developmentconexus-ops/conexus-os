@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
+import { hubJsonWrite, hubWrite, opaque, testListener } from './access/test-listener.mjs'
 
 const built = hubModuleUrl
-const { createHttpApp } = await import(built('http/app.js'))
 const { registerMembershipRoutes } = await import(built('identity-access/membership.js'))
 
-const origin = 'https://conexus.test'
+const SESSION_TOKEN = opaque('leandro')
 const workspaceId = '11111111-1111-4111-8111-111111111111'
 const ownerAccountId = '22222222-2222-4222-8222-222222222222'
 const memberAccountId = '33333333-3333-4333-8333-333333333333'
@@ -69,28 +69,18 @@ const makeStore = (overrides = {}) => {
   }
 }
 
-const createHubApp = (store, { accountId = ownerAccountId, signedIn = true } = {}) => createHttpApp({
-  registerRoutes: (app) => registerMembershipRoutes(app, {
-    store,
-    config: { origin },
-    resolveCurrentSession: async (request, requireCsrf = false) => {
-      if (!signedIn || !request.cookies['__Host-conexus_session']) return null
-      const value = request.headers['x-conexus-csrf']
-      const csrfToken = Array.isArray(value) ? value[0] : value
-      if (requireCsrf && csrfToken !== 'csrf-1') return null
-      return { account: { accountId, displayName: 'Leandro' }, issuer: 'https://issuer.test', subject: 'subject-1' }
-    },
-  }),
-  staticRoot: null,
-})
+const createHubApp = async (store, { accountId = ownerAccountId, signedIn = true } = {}) => (await testListener({
+  sessions: { [SESSION_TOKEN]: signedIn ? { account: { accountId, displayName: 'Leandro' }, issuer: 'https://issuer.test', subject: 'subject-1' } : null },
+  registerRoutes: (app) => registerMembershipRoutes(app, { store }),
+})).app
 
 const authentic = {
-  headers: { origin, 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' },
-  cookies: { '__Host-conexus_session': 'session-1', '__Host-conexus_csrf': 'csrf-1' },
+  headers: hubJsonWrite,
+  cookies: { '__Host-conexus_session': SESSION_TOKEN },
 }
 
 const authenticDelete = {
-  headers: { origin, 'x-conexus-csrf': 'csrf-1' },
+  headers: hubWrite,
   cookies: authentic.cookies,
 }
 
@@ -102,7 +92,7 @@ test('the roster carries members, invitations and the caller role', async (t) =>
   const response = await app.inject({
     method: 'GET',
     url: `/api/control/workspaces/${workspaceId}/members`,
-    cookies: { '__Host-conexus_session': 'session-1' },
+    cookies: authentic.cookies,
   })
   assert.equal(response.statusCode, 200)
   assert.deepEqual(response.json(), { viewerRole: 'owner', entries: [ownerEntry, memberEntry, pendingInvitationEntry] })
@@ -115,7 +105,7 @@ test('a caller who is not a member is not told the Workspace exists', async (t) 
   const response = await app.inject({
     method: 'GET',
     url: `/api/control/workspaces/${workspaceId}/members`,
-    cookies: { '__Host-conexus_session': 'session-1' },
+    cookies: authentic.cookies,
   })
   assert.equal(response.statusCode, 404)
   assert.equal(response.json().title, 'WORKSPACE_NOT_FOUND')
@@ -266,26 +256,20 @@ test('a role outside the two admitted values never reaches SQL', async (t) => {
   assert.deepEqual(store.calls, [])
 })
 
-test('every write demands the exact origin, the CSRF pair and a session', async (t) => {
+test('every write demands the exact origin and Hub page fetch metadata before the session', async (t) => {
   const store = makeStore()
   const app = await createHubApp(store)
   t.after(() => app.close())
-  const foreignOrigin = await app.inject({
+  const forged = async (headers) => app.inject({
     method: 'POST',
     url: `/api/control/workspaces/${workspaceId}/invitations`,
-    headers: { origin: 'https://attacker.test', 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' },
+    headers,
     cookies: authentic.cookies,
     payload: { email: 'ana@example.test', role: 'member' },
   })
-  assert.equal(foreignOrigin.statusCode, 403)
-  const wrongCsrf = await app.inject({
-    method: 'POST',
-    url: `/api/control/workspaces/${workspaceId}/invitations`,
-    headers: { origin, 'x-conexus-csrf': 'wrong', 'content-type': 'application/json' },
-    cookies: authentic.cookies,
-    payload: { email: 'ana@example.test', role: 'member' },
-  })
-  assert.equal(wrongCsrf.statusCode, 403)
+  assert.equal((await forged({ ...hubJsonWrite, origin: 'https://attacker.test' })).statusCode, 403)
+  assert.equal((await forged({ 'content-type': 'application/json' })).statusCode, 403)
+  assert.equal((await forged({ ...hubJsonWrite, 'sec-fetch-site': 'cross-site' })).statusCode, 403)
   assert.deepEqual(store.calls, [])
 })
 
@@ -296,7 +280,7 @@ test('a malformed path id is refused with 400 before it reaches SQL', async (t) 
   const badWorkspace = await app.inject({
     method: 'GET',
     url: '/api/control/workspaces/not-a-uuid/members',
-    cookies: { '__Host-conexus_session': 'session-1' },
+    cookies: authentic.cookies,
   })
   assert.equal(badWorkspace.statusCode, 400)
   const badAccount = await app.inject({

@@ -13,6 +13,7 @@ import { Memory } from '@mastra/memory'
 import { EXPECTED_NATIVE_ORDER, FAKE_CREDENTIAL, NATIVE_ORDER_DATASET, SECRET_MARKER, startFakeGateway } from './connector-fake-gateway.mjs'
 import { connectorRecord, recordText } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
+import { hubSessionCookie, opaque, testListener } from './access/test-listener.mjs'
 import { testConversations } from './builder-conversation-fixture.mjs'
 
 const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
@@ -22,7 +23,6 @@ const { createToolPayloadProjection } = await import(hubModuleUrl('connectors/fe
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
-const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { registerBuilderSessionRoutes } = await import(hubModuleUrl('builder/mastra-session-routes.js'))
 const { driveStep } = await import(hubModuleUrl('builder/run/send.js'))
 // The Hub's one send: a message with no question open, so there is nothing to end first.
@@ -35,7 +35,7 @@ const CONNECTION = '33333333-3333-4333-8333-333333333333'
 const RUN = '11111111-1111-4111-8111-111111111111'
 const LOAD = 'CRUDServiceProvider.loadRecords'
 const ROUTE = '/gateway/v1/mge/service.sbr'
-const origin = 'https://conexus.test'
+const SESSION_TOKEN = opaque('operator')
 
 const envelope = createSecretEnvelope('ef'.repeat(32))
 const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
@@ -223,11 +223,11 @@ test('a Builder turn reads through the tool; the model receives the vendor body,
   await controller.init()
   const mastra = new Mastra({ storage, agentControllers: { code: controller }, logger: false })
   const conversation = randomUUID()
-  const app = await createHttpApp({
+  const { app } = await testListener({
+    sessions: { [SESSION_TOKEN]: () => ({ account: { accountId: randomUUID(), displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' }) },
     registerRoutes: async (instance) => {
       await registerBuilderSessionRoutes(instance, {
-        mastra, controllerId: 'code', controller, conversations: testConversations(controller, () => undefined), origin,
-        resolveCurrentSession: async (request) => (request.cookies['__Host-conexus_session'] ? { account: { accountId: randomUUID(), displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' } : null),
+        mastra, controllerId: 'code', controller, conversations: testConversations(controller, () => undefined),
         admitProject: async ({ projectId }) => projectId === PROJECT,
         conversationOwner: async () => 'PROJECT',
         projectBusy: async () => false,
@@ -235,7 +235,6 @@ test('a Builder turn reads through the tool; the model receives the vendor body,
       })
       return []
     },
-    staticRoot: null,
   })
   await app.listen({ host: '127.0.0.1', port: 0 })
   t.after(async () => {
@@ -245,7 +244,7 @@ test('a Builder turn reads through the tool; the model receives the vendor body,
     rmSync(root, { recursive: true, force: true })
   })
   const base = `http://127.0.0.1:${app.server.address().port}/api/builder/agent-controller/code/sessions/project:${PROJECT}`
-  const headers = { cookie: '__Host-conexus_session=session-1' }
+  const headers = { cookie: hubSessionCookie(SESSION_TOKEN) }
 
   const run = await openRun()
   const requestContext = contextOf(run)

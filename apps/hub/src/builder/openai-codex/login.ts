@@ -25,9 +25,7 @@ const realDevice: CodexDevice = Object.freeze({ start: () => startCodexDeviceLog
 /**
  * A ChatGPT sign-in by device code: the person opens OpenAI's page in their own browser and types
  * the code, so nothing has to reach the Hub on a localhost callback. Each sign-in belongs to the
- * person who started it and ends at OpenAI's deadline; a person has at most one at a time. The
- * sign-in settles on a later poll, which carries no write's CSRF, so the Hub writes the person's
- * own row itself and the browser only ever learns the state.
+ * person who started it and ends at OpenAI's deadline; a person has at most one at a time.
  */
 export const createCodexLogin = <C extends Caller>({ writeCredential, device = realDevice, now = Date.now }: Readonly<{
   writeCredential(caller: C, tokens: CodexTokens): Promise<void>

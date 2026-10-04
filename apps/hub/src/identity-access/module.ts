@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 import type { IamOwnerId } from '../generated/iam-routes.js'
 import { applicationOrigin } from '../platform/config.js'
 import type { ApplicationAddress } from '../platform/config.js'
@@ -17,15 +17,15 @@ import { createOidcAdapter } from './oidc.js'
 import { iamReaperJob } from './reaper.js'
 import { registerIdentityAccessRoutes } from './routes.js'
 import { createIdentityAccessStore } from './store.js'
-import type { CurrentSession } from './store.js'
-import type { ResolveCurrentSession, SessionRequest } from './current-session.js'
+import type { CurrentSession, HubSessionDigest } from './current-session.js'
 import { Failure } from '../platform/failure.js'
 
 export type IdentityAccessModule = Readonly<{
   registerIdentityAccessRoutes(app: FastifyInstance): Promise<readonly IamOwnerId[]>
-  resolveCurrentSession: ResolveCurrentSession
-  /** Opens a Preview for the developer behind the request's Hub session and mints its entry handoff. */
-  openPreview(request: FastifyRequest, launch: PreviewLaunch): Promise<Readonly<{ entryGrant: string; expiresAt: number }>>
+  /** The live Hub session a session cookie's digest names; slides its idle limit. */
+  resolveHubSession(digest: HubSessionDigest): Promise<CurrentSession | null>
+  /** Opens a Preview for the developer behind a live Hub session and mints its entry handoff. */
+  openPreview(hubSessionDigest: HubSessionDigest, launch: PreviewLaunch): Promise<Readonly<{ entryGrant: string; expiresAt: number }>>
   installationAdministration: InstallationAdministration
   /** The sessions of application and Preview hosts. */
   hostSessions: HostSessions
@@ -73,14 +73,6 @@ export const createIdentityAccessModule = async ({
   })
   const originOf = application ? (slug: string): string => applicationOrigin(application.address, slug) : undefined
   const hostSessions = createHostSessions({ pool, refresh: oidc.refresh, envelope })
-  const resolveCurrentSession = async (request: SessionRequest, requireCsrf = false): Promise<CurrentSession | null> => {
-    const sessionToken = request.cookies['__Host-conexus_session']
-    if (!sessionToken) return null
-    const csrfHeader = request.headers['x-conexus-csrf']
-    const csrfToken = Array.isArray(csrfHeader) ? csrfHeader[0] : csrfHeader
-    if (!requireCsrf) return hostSessions.resolveHub({ sessionToken })
-    return csrfToken ? hostSessions.resolveHub({ sessionToken, csrfToken }) : null
-  }
   const installationAdministration = createInstallationAdministration({ pool })
   return Object.freeze({
     registerIdentityAccessRoutes: async (app: FastifyInstance) => {
@@ -90,31 +82,23 @@ export const createIdentityAccessModule = async ({
           workspaceReader: store,
           oidc,
           config: { origin, bootstrapIssuer: issuer, bootstrapSubject },
-          resolveCurrentSession,
           hubSessions: hostSessions,
           ...(originOf ? { applications: { sessions: hostSessions, origin: originOf } } : {}),
         }),
-        ...await registerMembershipRoutes(app, {
-          store: membership,
-          resolveCurrentSession,
-          config: { origin },
-        }),
+        ...await registerMembershipRoutes(app, { store: membership }),
         ...await registerApplicationAccessRoutes(app, {
           store: applicationAccess,
-          resolveCurrentSession,
           config: {
-            origin,
             applicationAddress: (slug) => originOf?.(slug) ?? null,
           },
         }),
       ]
-      await registerInstallationRoutes(app, { origin, resolveCurrentSession, installationAdministration })
+      await registerInstallationRoutes(app, { installationAdministration })
       return owners
     },
-    resolveCurrentSession,
-    openPreview: async (request, launch) => {
-      const hubSessionToken = request.cookies['__Host-conexus_session']
-      const opened = hubSessionToken ? await hostSessions.openPreview({ hubSessionToken, launch }) : null
+    resolveHubSession: (digest) => hostSessions.resolveHub(digest),
+    openPreview: async (hubSessionDigest, launch) => {
+      const opened = await hostSessions.openPreview({ hubSessionDigest, launch })
       if (!opened) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PREVIEW_ACCESS_UNAVAILABLE' } })
       return opened
     },

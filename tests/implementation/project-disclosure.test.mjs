@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
+import { hubSessionCookie, opaque, testListener } from './access/test-listener.mjs'
+
+const TOKEN = opaque('project-reader')
+const cookie = hubSessionCookie(TOKEN)
 
 test('S3-P6 store composes read-only current admission before Project disclosure', async () => {
   const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
@@ -57,7 +61,6 @@ test('S3-P6 store composes read-only current admission before Project disclosure
 })
 
 test('S3-P6 HTTP reads separate authentication, empty list, exact detail and non-disclosure', async (t) => {
-  const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
   const { registerProjectRoutes } = await import(hubModuleUrl('project/routes.js'))
   const { logger } = await import(hubModuleUrl('platform/logger.js'))
 
@@ -77,11 +80,9 @@ test('S3-P6 HTTP reads separate authentication, empty list, exact detail and non
   }
   let authenticated = true
   let disclose = true
-  const app = await createHttpApp({
-    staticRoot: null,
+  const { app } = await testListener({
+    sessions: { [TOKEN]: () => authenticated ? { account: { accountId: 'account-72' } } : null },
     registerRoutes: (server) => registerProjectRoutes(server, {
-      origin: 'https://conexus.test',
-      resolveCurrentSession: async () => authenticated ? { account: { accountId: 'account-72' } } : null,
       store: {
         listProjects: async () => disclose ? [summary] : [],
         getProject: async () => disclose ? { ...summary, projectRevision: 'revision-72', deleting: false } : null,
@@ -91,8 +92,8 @@ test('S3-P6 HTTP reads separate authentication, empty list, exact detail and non
   })
   t.after(() => app.close())
 
-  const list = () => app.inject({ method: 'GET', url: `/api/control/workspaces/${summary.workspaceId}/projects` })
-  const detail = () => app.inject({ method: 'GET', url: `/api/control/projects/${summary.projectId}` })
+  const list = () => app.inject({ method: 'GET', url: `/api/control/workspaces/${summary.workspaceId}/projects`, headers: { cookie } })
+  const detail = () => app.inject({ method: 'GET', url: `/api/control/projects/${summary.projectId}`, headers: { cookie } })
   assert.deepEqual((await list()).json(), [summary])
   assert.deepEqual((await detail()).json(), { ...summary, projectRevision: 'revision-72', deleting: false })
   disclose = false
@@ -104,11 +105,9 @@ test('S3-P6 HTTP reads separate authentication, empty list, exact detail and non
 
   authenticated = true
   let failReads = false
-  const errorApp = await createHttpApp({
-    staticRoot: null,
+  const { app: errorApp } = await testListener({
+    sessions: { [TOKEN]: { account: { accountId: 'account-72' } } },
     registerRoutes: (server) => registerProjectRoutes(server, {
-      origin: 'https://conexus.test',
-      resolveCurrentSession: async () => ({ account: { accountId: 'account-72' } }),
       store: {
         listProjects: async () => { if (failReads) throw new Error('STORE_DOWN'); return [] },
         getProject: async () => { if (failReads) throw new Error('STORE_DOWN'); return null },
@@ -119,14 +118,14 @@ test('S3-P6 HTTP reads separate authentication, empty list, exact detail and non
   t.after(() => errorApp.close())
 
   failReads = true
-  const listErr = await errorApp.inject({ method: 'GET', url: `/api/control/workspaces/${summary.workspaceId}/projects` })
+  const listErr = await errorApp.inject({ method: 'GET', url: `/api/control/workspaces/${summary.workspaceId}/projects`, headers: { cookie } })
   assert.equal(listErr.statusCode, 500)
   const listLog = logs.find((r) => r.msg === 'INTERNAL_UNEXPECTED' && r['http.route'] === '/api/control/workspaces/:workspaceId/projects')
   assert.ok(listLog, 'INTERNAL_UNEXPECTED logged for list')
   assert.equal(listLog.level, 50)
   assert.equal(listLog['exception.type'], 'Error')
 
-  const getErr = await errorApp.inject({ method: 'GET', url: `/api/control/projects/${summary.projectId}` })
+  const getErr = await errorApp.inject({ method: 'GET', url: `/api/control/projects/${summary.projectId}`, headers: { cookie } })
   assert.equal(getErr.statusCode, 500)
   const getLog = logs.find((r) => r.msg === 'INTERNAL_UNEXPECTED' && r['http.route'] === '/api/control/projects/:projectId')
   assert.ok(getLog, 'INTERNAL_UNEXPECTED logged for get')

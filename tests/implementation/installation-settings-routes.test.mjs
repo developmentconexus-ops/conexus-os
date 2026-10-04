@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
+import { hubJsonWrite, hubWrite, opaque, testListener } from './access/test-listener.mjs'
 
 const built = hubModuleUrl
-const { createHttpApp } = await import(built('http/app.js'))
 const { registerInstallationRoutes } = await import(built('identity-access/installation-routes.js'))
 
-const origin = 'https://hub.test'
 const admin = '11111111-1111-4111-8111-111111111111'
 const plain = '22222222-2222-4222-8222-222222222222'
 
@@ -41,24 +40,22 @@ const createFakeAdministration = (initial = [admin]) => {
   }
 }
 
+const sessionOf = (accountId) => ({ account: { accountId, displayName: accountId }, issuer: 'https://issuer.test', subject: accountId })
+
 const buildApp = async (t, { administration = createFakeAdministration() } = {}) => {
-  const resolveCurrentSession = async (request) => {
-    const accountId = request.cookies['__Host-conexus_session']
-    return accountId ? { account: { accountId, displayName: accountId }, issuer: 'https://issuer.test', subject: accountId } : null
-  }
-  const app = await createHttpApp({
+  const { app } = await testListener({
+    sessions: { [opaque(admin)]: sessionOf(admin), [opaque(plain)]: sessionOf(plain) },
     registerRoutes: async (instance) => {
-      await registerInstallationRoutes(instance, { origin, resolveCurrentSession, installationAdministration: administration })
+      await registerInstallationRoutes(instance, { installationAdministration: administration })
       return []
     },
-    staticRoot: null,
   })
   t.after(() => app.close())
   const as = (accountId) => async (method, url, payload) => {
     const response = await app.inject({
       method, url, ...(payload !== undefined ? { payload } : {}),
-      headers: { origin, 'x-conexus-csrf': 'csrf-1', ...(payload !== undefined ? { 'content-type': 'application/json' } : {}) },
-      cookies: accountId ? { '__Host-conexus_session': accountId, '__Host-conexus_csrf': 'csrf-1' } : {},
+      headers: payload !== undefined ? hubJsonWrite : hubWrite,
+      cookies: accountId ? { '__Host-conexus_session': opaque(accountId) } : {},
     })
     return { status: response.statusCode, body: response.body ? response.json() : null }
   }
@@ -68,25 +65,19 @@ const buildApp = async (t, { administration = createFakeAdministration() } = {})
 test('every route refuses an unauthenticated caller', async (t) => {
   const { as, app } = await buildApp(t)
   const anonymous = as(undefined)
-  // GET carries no CSRF check, so the admit() path reaches the session check and answers 401.
   const reads = ['/api/control/installation', '/api/control/installation/administrators']
-  for (const url of reads) assert.equal((await anonymous('GET', url)).status, 401, url)
+  for (const url of reads) assert.equal((await app.inject({ method: 'GET', url })).statusCode, 401, url)
 
-  // A write with no session and no CSRF cookie fails the authenticity check first: a forged write
-  // is refused before the Hub even asks who is calling.
   const writes = [
     ['POST', '/api/control/installation/administrators', { email: 'x@test.dev' }],
     ['DELETE', `/api/control/installation/administrators/${plain}`],
   ]
-  for (const [method, url, payload] of writes) assert.equal((await anonymous(method, url, payload)).status, 403, `${method} ${url}`)
+  for (const [method, url, payload] of writes) {
+    const forged = await app.inject({ method, url, ...(payload !== undefined ? { payload } : {}), headers: payload !== undefined ? { 'content-type': 'application/json' } : {} })
+    assert.equal(forged.statusCode, 403, `${method} ${url}`)
+  }
 
-  // A write with the Origin and CSRF pair right, but no session cookie, reaches the session check.
-  const authenticButSessionless = async (method, url, payload) => app.inject({
-    method, url, ...(payload !== undefined ? { payload } : {}),
-    headers: { origin, 'x-conexus-csrf': 'csrf-1', ...(payload !== undefined ? { 'content-type': 'application/json' } : {}) },
-    cookies: { '__Host-conexus_csrf': 'csrf-1' },
-  })
-  for (const [method, url, payload] of writes) assert.equal((await authenticButSessionless(method, url, payload)).statusCode, 401, `${method} ${url}`)
+  for (const [method, url, payload] of writes) assert.equal((await anonymous(method, url, payload)).status, 401, `${method} ${url}`)
 })
 
 test('every admin-only route refuses a signed-in caller who is not an administrator', async (t) => {
@@ -103,10 +94,10 @@ test('every admin-only route refuses a signed-in caller who is not an administra
   assert.deepEqual(await asPlain('GET', '/api/control/installation'), { status: 200, body: { administrator: false } })
 })
 
-test('a write without CSRF is refused before the administrator check', async (t) => {
+test('a write from another origin is refused before the administrator check', async (t) => {
   const { app } = await buildApp(t, { administration: createFakeAdministration([admin]) })
-  const withoutCsrf = { headers: { origin, 'content-type': 'application/json' }, cookies: { '__Host-conexus_session': plain } }
-  const posted = await app.inject({ method: 'POST', url: '/api/control/installation/administrators', ...withoutCsrf, payload: { email: 'x@test.dev' } })
+  const foreign = { headers: { ...hubJsonWrite, origin: 'https://evil.test' }, cookies: { '__Host-conexus_session': opaque(plain) } }
+  const posted = await app.inject({ method: 'POST', url: '/api/control/installation/administrators', ...foreign, payload: { email: 'x@test.dev' } })
   assert.equal(posted.statusCode, 403)
   assert.equal(posted.json().type.endsWith('REQUEST_AUTHENTICITY_DENIED'), true)
 })

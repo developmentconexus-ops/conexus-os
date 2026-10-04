@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
+import { hubJsonWrite, hubWrite, opaque, testListener } from './access/test-listener.mjs'
 
-const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { registerApplicationAccessRoutes } = await import(hubModuleUrl('identity-access/application-access.js'))
 
-const origin = 'https://conexus.test'
+const SESSION_TOKEN = opaque('leandro')
 const projectId = '11111111-1111-4111-8111-111111111111'
 const ownerAccountId = '22222222-2222-4222-8222-222222222222'
 const grantId = '33333333-3333-4333-8333-333333333333'
@@ -29,23 +29,17 @@ const makeStore = (overrides = {}) => {
   }
 }
 
-const createHubApp = (store, { applicationPort = 3445 } = {}) => createHttpApp({
+const createHubApp = async (store, { applicationPort = 3445 } = {}) => (await testListener({
+  sessions: { [SESSION_TOKEN]: { account: { accountId: ownerAccountId, displayName: 'Leandro' }, issuer: 'https://issuer.test', subject: 'subject-1' } },
   registerRoutes: (app) => registerApplicationAccessRoutes(app, {
     store,
-    config: { origin, applicationAddress: (slug) => applicationPort ? `https://${slug}.conexus.localhost:${applicationPort}` : null },
-    resolveCurrentSession: async (request, requireCsrf = false) => {
-      if (!request.cookies['__Host-conexus_session']) return null
-      const value = request.headers['x-conexus-csrf']
-      if (requireCsrf && (Array.isArray(value) ? value[0] : value) !== 'csrf-1') return null
-      return { account: { accountId: ownerAccountId, displayName: 'Leandro' }, issuer: 'https://issuer.test', subject: 'subject-1' }
-    },
+    config: { applicationAddress: (slug) => applicationPort ? `https://${slug}.conexus.localhost:${applicationPort}` : null },
   }),
-  staticRoot: null,
-})
+})).app
 
-const session = { '__Host-conexus_session': 'session-1', '__Host-conexus_csrf': 'csrf-1' }
-const authentic = { headers: { origin, 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' }, cookies: session }
-const authenticDelete = { headers: { origin, 'x-conexus-csrf': 'csrf-1' }, cookies: session }
+const session = { '__Host-conexus_session': SESSION_TOKEN }
+const authentic = { headers: hubJsonWrite, cookies: session }
+const authenticDelete = { headers: hubWrite, cookies: session }
 const accessUrl = `/api/control/projects/${projectId}/application-access`
 
 test('an Owner reads the application address, its grants and its invitations', async (t) => {
@@ -92,21 +86,22 @@ test('an Owner grants by verified email, normalized, and a malformed email is re
   assert.equal(store.calls.length, 1)
 })
 
-test('a state change without the exact Origin or the CSRF token is refused before the store', async (t) => {
+test('a state change that is not the Hub page writing is refused before the store', async (t) => {
   const store = makeStore()
   const app = await createHubApp(store)
   t.after(() => app.close())
   const cases = [
     { headers: { ...authentic.headers, origin: 'https://caderno-de-compras.conexus.localhost:3445' } },
-    { headers: { 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' } },
-    { headers: { ...authentic.headers, 'x-conexus-csrf': 'other' } },
+    { headers: { ...authentic.headers, origin: 'https://caderno-de-compras.conexus.localhost:3445', 'sec-fetch-site': 'same-site' } },
+    { headers: { 'content-type': 'application/json' } },
+    { headers: { ...authentic.headers, 'sec-fetch-site': 'cross-site' } },
   ]
   for (const { headers } of cases) {
     const response = await app.inject({ method: 'POST', url: accessUrl, headers, cookies: session, payload: { email: 'a@example.test' } })
     assert.equal(response.statusCode, 403)
     assert.equal(response.json().type, 'urn:conexus:problem:REQUEST_AUTHENTICITY_DENIED')
   }
-  const revoke = await app.inject({ method: 'DELETE', url: `${accessUrl}/grant/${grantId}`, headers: { 'x-conexus-csrf': 'csrf-1' }, cookies: session })
+  const revoke = await app.inject({ method: 'DELETE', url: `${accessUrl}/grant/${grantId}`, headers: {}, cookies: session })
   assert.equal(revoke.statusCode, 403)
   assert.deepEqual(store.calls, [])
 })
@@ -131,5 +126,5 @@ test('without a session every operation answers 401', async (t) => {
   const app = await createHubApp(makeStore())
   t.after(() => app.close())
   assert.equal((await app.inject({ method: 'GET', url: accessUrl })).statusCode, 401)
-  assert.equal((await app.inject({ method: 'POST', url: accessUrl, headers: authentic.headers, cookies: { '__Host-conexus_csrf': 'csrf-1' }, payload: { email: 'a@example.test' } })).statusCode, 401)
+  assert.equal((await app.inject({ method: 'POST', url: accessUrl, headers: authentic.headers, payload: { email: 'a@example.test' } })).statusCode, 401)
 })

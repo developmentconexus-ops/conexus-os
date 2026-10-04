@@ -17,7 +17,7 @@ import { createBuilderService } from './service.js'
 import type { ApplicationServerPort, ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderStore } from './store.js'
 import { buildTraceSummary, UNAVAILABLE_TRACE_SUMMARY } from './trace-summary.js'
-import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
+import type { AccountId } from '../identity-access/current-session.js'
 import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig, InstallationSecretKey } from '../platform/config.js'
 import { assertBuilderSkillsAvailable } from './skills-guard.js'
 import type { BuilderRunPorts } from './run/ports.js'
@@ -87,7 +87,7 @@ const DAY_MS = 24 * HOUR_MS
 const RUN_LEASE_EVERY_MS = 10_000
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
-export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, origin, resolveCurrentSession, isInstallationAdministrator, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, isInstallationAdministrator, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; modelAccountPasswordFile: string; e2bApiKeyFile: string
@@ -101,8 +101,6 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   applicationArtifacts: UnboundBuilderApplicationArtifacts
   applicationServer?: ApplicationServerPort
   launchPreview?: BuilderLaunchPreviewPort
-  origin: string
-  resolveCurrentSession: ResolveCurrentSession
   isInstallationAdministrator(account: AccountId): Promise<boolean>
   /** The Project's display name, which the Builder's prompt states. */
   readProjectName(input: Readonly<{ accountId: string; projectId: string }>): Promise<string>
@@ -302,10 +300,10 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   return Object.freeze({
     jobs,
     registerBuilderRoutes: async (app: FastifyInstance) => {
-      const builderOperations = await registerBuilderRoutes(app, { store, service, session, resolveCurrentSession, origin, ...(launchPreview ? { launchPreview } : {}) })
+      const builderOperations = await registerBuilderRoutes(app, { store, service, session, ...(launchPreview ? { launchPreview } : {}) })
       await ready
       await registerBuilderSessionRoutes(app, {
-        mastra, controller, conversations: liveConversations, controllerId: BUILDER_CONTROLLER_ID, origin, resolveCurrentSession, admitProject,
+        mastra, controller, conversations: liveConversations, controllerId: BUILDER_CONTROLLER_ID, admitProject,
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async ({ accountId, projectId }) => {
           const latest = await store.readBuilderRun({ accountId, projectId })
@@ -316,8 +314,6 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       })
       const googleAiProPool = (await googleAiProReady)?.pool
       await registerModelAccountRoutes(app, {
-        origin,
-        resolveCurrentSession,
         isInstallationAdministrator,
         modelAccounts,
         ...(googleAiProPool ? { googleAiPro: googleAiProPool, googleAiProAccounts } : {}),

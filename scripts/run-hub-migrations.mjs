@@ -69,6 +69,7 @@ const hubSignOutProviderLogoutDigest = '082ef3a53dabaddc24937bcb0f236d0d8107287d
 const runLeaseOneCallDigest = '50803879e04d4e94d30991049c478df0fb2a3ef276e0d55fc8db986087583e21'
 const iamReaperDigest = '6610e1b0533fc80561064142011b26e971bcc7dc831933471b2338e596d26f2e'
 const invitationStateDigest = '52f15875fe72585faafb7bccab2e9b9aaebb8711db537772507caa81bcd9f874'
+const oneOwnerPerLifetimeDigest = '718c64fd896e0c04550c59d3b3fddea548737aea6256c5d5b57e8ba2bd9cd7c7'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -130,6 +131,7 @@ const migrationDigests = new Map([
   ['0057_builder_run_lease_one_call.sql', runLeaseOneCallDigest],
   ['0058_iam_reaper.sql', iamReaperDigest],
   ['0059_invitation_state.sql', invitationStateDigest],
+  ['0060_one_owner_per_lifetime_no_csrf_token.sql', oneOwnerPerLifetimeDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

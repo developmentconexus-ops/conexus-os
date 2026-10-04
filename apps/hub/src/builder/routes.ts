@@ -1,13 +1,12 @@
 import type { UsageStats } from '@mastra/core/observability'
-import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { FastifyInstance, } from 'fastify'
 import { Failure, type FailureCode } from '../platform/failure.js'
 import type { BuilderService } from './service.js'
 import type { BuilderRunSummary, BuilderStore } from './store.js'
 import type { ApplicationArtifactMetadata } from './application-build.js'
-import type { ResolveCurrentSession } from '../identity-access/current-session.js'
-import { isExactOrigin } from '../platform/origin.js'
+import type { HubSessionDigest } from '../identity-access/current-session.js'
+import { routes } from '../http/access.js'
 
-const CSRF_COOKIE = '__Host-conexus_csrf'
 const uuid = { type: 'string', format: 'uuid' } as const
 const params = { type: 'object', additionalProperties: false, required: ['projectId'], properties: { projectId: uuid } } as const
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
@@ -55,7 +54,7 @@ export type BuilderTraceSummary = Readonly<{
   toolCalls: number
   scores: readonly BuilderTraceScore[]
 }>
-export type BuilderLaunchPreviewPort = (request: FastifyRequest, input: Readonly<{
+export type BuilderLaunchPreviewPort = (hubSessionDigest: HubSessionDigest, input: Readonly<{
   accountId: string
   projectId: string
   artifactRevisionId: string
@@ -75,22 +74,12 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
   store: BuilderStore
   service: BuilderService
   session?: BuilderSessionPort
-  resolveCurrentSession: ResolveCurrentSession
-  origin: string
   launchPreview?: BuilderLaunchPreviewPort
 }>): Promise<readonly BuilderOperationId[]> => {
-  const authentic = (request: FastifyRequest): void => {
-    const csrf = header(request.headers['x-conexus-csrf'])
-    if (!isExactOrigin(request.headers.origin, dependencies.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) throw new Failure('REQUEST_AUTHENTICITY_DENIED')
-  }
-  const signedIn = async (request: FastifyRequest, write = false): Promise<string> => {
-    const session = await dependencies.resolveCurrentSession(request, write)
-    if (!session) throw new Failure('AUTHENTICATION_REQUIRED')
-    return session.account.accountId
-  }
+  const route = routes(app)
 
-  app.get<{ Params: { projectId: string } }>('/api/control/projects/:projectId/builder-session', { schema: { params } }, async (request) => {
-    const accountId = await signedIn(request)
+  route.session<{ Params: { projectId: string } }>({ method: 'GET', url: '/api/control/projects/:projectId/builder-session', schema: { params }, handler: async (request, _reply, session) => {
+    const accountId = session.account.accountId
     const { projectId } = request.params
     const port = dependencies.session
     if (!port) throw new Failure('BUILDER_SESSION_UNAVAILABLE')
@@ -113,16 +102,13 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       }
     }
     return read().catch(unavailableAs('BUILDER_SESSION_UNAVAILABLE', { projectId }))
-  })
+  } })
 
-  app.post<{ Params: { projectId: string }; Body: { content: string; conversationId: string } }>('/api/control/projects/:projectId/builder-session/messages', {
-    schema: {
+  route.session<{ Params: { projectId: string }; Body: { content: string; conversationId: string } }>({ method: 'POST', url: '/api/control/projects/:projectId/builder-session/messages', schema: {
       params,
       body: { type: 'object', additionalProperties: false, required: ['content', 'conversationId'], properties: { content: { type: 'string', minLength: 1, maxLength: 20_000, pattern: '.*\\S.*' }, conversationId: { type: 'string', minLength: 1, maxLength: 200 } } },
-    },
-  }, async (request, reply) => {
-    authentic(request)
-    const accountId = await signedIn(request, true)
+    }, handler: async (request, reply, session) => {
+    const accountId = session.account.accountId
     const idempotencyKey = header(request.headers['idempotency-key'])
     if (!idempotencyKey) throw new Failure('IDEMPOTENCY_KEY_REQUIRED')
     const { builderRun, created } = await dependencies.service.sendBuilderMessage({
@@ -131,25 +117,20 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       idempotencyKey, content: request.body.content,
     }).catch(unavailableAs('BUILDER_UNAVAILABLE', { projectId: request.params.projectId }))
     return reply.code(created ? 201 : 200).send({ builderRun })
-  })
+  } })
 
-  app.post<{ Params: { projectId: string; builderRunId: string }; Body: Record<string, never> }>('/api/control/projects/:projectId/builder-session/runs/:builderRunId/cancel', {
-    schema: {
+  route.session<{ Params: { projectId: string; builderRunId: string }; Body: Record<string, never> }>({ method: 'POST', url: '/api/control/projects/:projectId/builder-session/runs/:builderRunId/cancel', schema: {
       params: { type: 'object', additionalProperties: false, required: ['projectId', 'builderRunId'], properties: { projectId: uuid, builderRunId: uuid } },
       body: { type: 'object', additionalProperties: false },
-    },
-  }, async (request, reply) => {
-    authentic(request)
-    const accountId = await signedIn(request, true)
+    }, handler: async (request, reply, session) => {
+    const accountId = session.account.accountId
     const run = await dependencies.service.cancelBuilderRun({ accountId, projectId: request.params.projectId, builderRunId: request.params.builderRunId })
       .catch(unavailableAs('BUILDER_CANCELLATION_UNAVAILABLE', { projectId: request.params.projectId, builderRunId: request.params.builderRunId }))
     return reply.code(200).send({ builderRun: run })
-  })
+  } })
 
-  app.get<{ Params: { projectId: string; builderRunId: string } }>('/api/control/projects/:projectId/builder-session/runs/:builderRunId/trace', {
-    schema: { params: { type: 'object', additionalProperties: false, required: ['projectId', 'builderRunId'], properties: { projectId: uuid, builderRunId: uuid } } },
-  }, async (request) => {
-    const accountId = await signedIn(request)
+  route.session<{ Params: { projectId: string; builderRunId: string } }>({ method: 'GET', url: '/api/control/projects/:projectId/builder-session/runs/:builderRunId/trace', schema: { params: { type: 'object', additionalProperties: false, required: ['projectId', 'builderRunId'], properties: { projectId: uuid, builderRunId: uuid } } }, handler: async (request, _reply, session) => {
+    const accountId = session.account.accountId
     const readTrace = dependencies.session?.readTrace?.bind(dependencies.session)
     if (!readTrace) throw new Failure('BUILDER_TRACE_UNAVAILABLE')
     const { projectId, builderRunId } = request.params
@@ -159,16 +140,13 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       return readTrace({ accountId, projectId, builderRunId })
     }
     return read().catch(unavailableAs('BUILDER_TRACE_UNAVAILABLE', { projectId, builderRunId }))
-  })
+  } })
 
-  app.post<{ Params: { projectId: string }; Body: Record<string, never> }>('/api/control/projects/:projectId/builder-session/preview', {
-    schema: {
+  route.session<{ Params: { projectId: string }; Body: Record<string, never> }>({ method: 'POST', url: '/api/control/projects/:projectId/builder-session/preview', schema: {
       params,
       body: { type: 'object', additionalProperties: false },
-    },
-  }, async (request, reply) => {
-    authentic(request)
-    const accountId = await signedIn(request, true)
+    }, handler: async (request, reply, session) => {
+    const accountId = session.account.accountId
     const { launchPreview } = dependencies
     if (!launchPreview) throw new Failure('PREVIEW_UNAVAILABLE')
     const { projectId } = request.params
@@ -177,40 +155,34 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       if (!subject?.lastPreviewSourceRevision || !subject.lastPreviewArtifactRevisionId || !subject.lastPreviewArtifactDigest) throw new Failure('PREVIEW_SUBJECT_NOT_FOUND')
       const artifact = await dependencies.service.getApplicationBySource({ accountId, projectId, sourceRevision: subject.lastPreviewSourceRevision })
       if (!artifact || artifact.artifactRevisionId !== subject.lastPreviewArtifactRevisionId || artifact.artifactDigest !== subject.lastPreviewArtifactDigest) throw new Failure('PREVIEW_SUBJECT_NOT_FOUND')
-      return launchPreview(request, { accountId, projectId, artifactRevisionId: artifact.artifactRevisionId, artifactDigest: artifact.artifactDigest, artifact })
+      return launchPreview(session.digest, { accountId, projectId, artifactRevisionId: artifact.artifactRevisionId, artifactDigest: artifact.artifactDigest, artifact })
     }
     const launched = await launch().catch((error: unknown) => {
       if (error instanceof Error && error.message === 'APPLICATION_SUBJECT_REFUSED') throw new Failure('PROJECT_BUILD_DENIED')
       return unavailableAs('PREVIEW_UNAVAILABLE', { projectId })(error)
     })
     return reply.code(201).send(launched)
-  })
+  } })
 
-  app.get<{ Params: { projectId: string }; Querystring: { sourceRevision: string } }>(
-    '/api/control/projects/:projectId/source/tree', { schema: { params, querystring: sourceQuery } }, async (request) => {
-      const accountId = await signedIn(request)
+  route.session<{ Params: { projectId: string }; Querystring: { sourceRevision: string } }>({ method: 'GET', url: '/api/control/projects/:projectId/source/tree', schema: { params, querystring: sourceQuery }, handler: async (request, _reply, session) => {
+      const accountId = session.account.accountId
       return dependencies.service.listSourceTree({ accountId, projectId: request.params.projectId, sourceRevision: request.query.sourceRevision })
         .catch(unavailableAs('BUILDER_SOURCE_UNAVAILABLE', { projectId: request.params.projectId }))
-    },
-  )
+  } })
 
-  app.get<{ Params: { projectId: string }; Querystring: { sourceRevision: string; path: string } }>(
-    '/api/control/projects/:projectId/source/file', { schema: { params, querystring: sourceFileQuery } }, async (request) => {
-      const accountId = await signedIn(request)
+  route.session<{ Params: { projectId: string }; Querystring: { sourceRevision: string; path: string } }>({ method: 'GET', url: '/api/control/projects/:projectId/source/file', schema: { params, querystring: sourceFileQuery }, handler: async (request, _reply, session) => {
+      const accountId = session.account.accountId
       return dependencies.service.getSourceFile({ accountId, projectId: request.params.projectId, sourceRevision: request.query.sourceRevision, path: request.query.path })
         .catch(unavailableAs('BUILDER_SOURCE_UNAVAILABLE', { projectId: request.params.projectId }))
-    },
-  )
+  } })
 
-  app.get<{ Params: { projectId: string }; Querystring: { baseSourceRevision: string; resultSourceRevision: string } }>(
-    '/api/control/projects/:projectId/source/compare', { schema: { params, querystring: sourceCompareQuery } }, async (request) => {
-      const accountId = await signedIn(request)
+  route.session<{ Params: { projectId: string }; Querystring: { baseSourceRevision: string; resultSourceRevision: string } }>({ method: 'GET', url: '/api/control/projects/:projectId/source/compare', schema: { params, querystring: sourceCompareQuery }, handler: async (request, _reply, session) => {
+      const accountId = session.account.accountId
       return dependencies.service.compareSourceRevisions({
         accountId, projectId: request.params.projectId,
         baseSourceRevision: request.query.baseSourceRevision, resultSourceRevision: request.query.resultSourceRevision,
       }).catch(unavailableAs('BUILDER_SOURCE_UNAVAILABLE', { projectId: request.params.projectId }))
-    },
-  )
+  } })
 
   return ['BLD-08', 'BLD-09', 'BLD-23', 'BLD-24', 'BLD-25', 'BLD-26', 'BLD-29']
 }

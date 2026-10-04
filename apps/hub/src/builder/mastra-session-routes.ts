@@ -5,11 +5,11 @@ import { MastraServer } from '@mastra/fastify'
 import { HTTPException, SERVER_ROUTES } from '@mastra/server/server-adapter'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { ServerResponse } from 'node:http'
+import { foreignRoutes } from '../http/access.js'
+import { parseJsonBody } from '../http/app.js'
 import { failureProblem } from '../http/problem.js'
-import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { Failure, failureRow, logFailure, toFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
-import { isExactOrigin } from '../platform/origin.js'
 import type { LiveConversations } from './conversation.js'
 import type { ControllerSession } from './run/ports.js'
 import type { AnswerOutcome } from './run/question.js'
@@ -27,7 +27,6 @@ const mastraRoute = (method: ServerRoute['method'], path: string): string => {
 const sessionRoute = (method: ServerRoute['method'], suffix = ''): string => mastraRoute(method, `${SESSION_BASE}${suffix}`)
 
 const BUILDER_PREFIX = '/api/builder'
-const CSRF_COOKIE = '__Host-conexus_csrf'
 const SESSIONS_PATH = '/agent-controller/:controllerId/sessions'
 const SESSION_BASE = `${SESSIONS_PATH}/:resourceId`
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
@@ -105,8 +104,6 @@ const closeWhenBehind = (response: ServerResponse, { limitBytes, checkMs }: Stre
   timer.unref()
   response.once('close', () => clearInterval(timer))
 }
-
-const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 
 /** A projection the Hub applies to what a session route serves: one value, or each event of one stream. */
 export type ToolPayloadProjection = Readonly<{ value(value: unknown): unknown; stream(): (event: unknown) => unknown }>
@@ -244,8 +241,6 @@ type GuardedMount = Readonly<{
   prefix: string
   controllerId: string
   routes: ReadonlySet<string>
-  origin: string
-  resolveCurrentSession: ResolveCurrentSession
   /** Whether the Account may build this Project. */
   admitProject(input: Readonly<{ accountId: string; projectId: string }>): Promise<boolean>
   /** Whose thread the conversation id is: this Project's, another resource's, or nobody's yet. */
@@ -267,21 +262,14 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
   const admitted = new WeakMap<FastifyRequest, Admitted>()
   const route = (request: FastifyRequest): string => `${request.method} ${request.routeOptions.url?.slice(mount.prefix.length) ?? ''}`
   // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
-  await app.register(async (scope) => {
+  await foreignRoutes(app, 'session', async (scope, grant) => {
     const following = new WeakMap<ControllerSession, Set<() => void>>()
     const unwatch = mount.controller.onSessionDeleted((session) => {
       for (const close of [...following.get(session) ?? []]) close()
     })
     scope.addHook('onClose', async () => { unwatch() })
     scope.addHook('preHandler', async (request, reply) => {
-      const session = await mount.resolveCurrentSession(request)
-      if (!session) throw new Failure('AUTHENTICATION_REQUIRED')
-      if (request.method !== 'GET') {
-        const csrf = header(request.headers['x-conexus-csrf'])
-        if (!isExactOrigin(request.headers.origin, mount.origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
-          throw new Failure('REQUEST_AUTHENTICITY_DENIED')
-        }
-      }
+      const session = grant(request)
       // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
       const body = request.body as Readonly<Record<string, unknown>> | undefined
       // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
@@ -355,6 +343,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
     })
     const server = new MastraServer({ app: scope, mastra: mount.mastra, prefix: mount.prefix })
     server.registerContextMiddleware()
+    parseJsonBody(scope)
     // Runs after Mastra has built the request's context, so the Hub has the last word on it.
     scope.addHook('preHandler', async (request) => {
       const entry = admitted.get(request)
@@ -385,13 +374,11 @@ const bindConversationSession = async (controller: AgentController, conversation
  * browser needs to list and open a Project's conversations, follow a run, answer it, and set a
  * conversation's model, each behind the Hub session and the Project the resource names.
  */
-export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, conversations, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, answerQuestion, toolPayloads, streamBacklog }: Readonly<{
+export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, conversations, admitProject, conversationOwner, projectBusy, answerQuestion, toolPayloads, streamBacklog }: Readonly<{
   mastra: Mastra
   controllerId: string
   controller: AgentController
   conversations: GuardedMount['conversations']
-  origin: string
-  resolveCurrentSession: ResolveCurrentSession
   admitProject: GuardedMount['admitProject']
   conversationOwner: GuardedMount['conversationOwner']
   projectBusy: GuardedMount['projectBusy']
@@ -401,7 +388,7 @@ export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastr
   /** The unsent bytes a stream may hold, and how often they are checked; tests set it small. */
   streamBacklog?: StreamBacklog
 }>): Promise<void> => registerGuardedMastraMount(app, {
-  mastra, controller, conversations, controllerId, origin, resolveCurrentSession, admitProject, conversationOwner, projectBusy, answerQuestion,
+  mastra, controller, conversations, controllerId, admitProject, conversationOwner, projectBusy, answerQuestion,
   ...(toolPayloads ? { toolPayloads } : {}),
   ...(streamBacklog ? { streamBacklog } : {}),
   prefix: BUILDER_PREFIX,

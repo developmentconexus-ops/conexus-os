@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { IAM_GENERATED_ROUTES } from '../generated/iam-routes.js'
 import type { Iam05Body, Iam10Body, MemberParams, RosterEntryParams, IamOwnerId, WorkspaceParams } from '../generated/iam-routes.js'
 import { Failure } from '../platform/failure.js'
+import { INVITATION_DAYS } from '../platform/lifetimes.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import {
   accountId as brandAccountId,
@@ -13,12 +14,9 @@ import {
   isNotAdmitted,
   parseEmailAddress,
 } from './current-session.js'
-import type { AccountId, EmailAddress, InvitationId, ResolveCurrentSession, WorkspaceId } from './current-session.js'
-import { isExactOrigin } from '../platform/origin.js'
+import type { AccountId, EmailAddress, InvitationId, WorkspaceId } from './current-session.js'
+import { routes } from '../http/access.js'
 
-const INVITATION_MS = 14 * 24 * 60 * 60 * 1000
-const CSRF_COOKIE = '__Host-conexus_csrf'
-const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 const uuid = { type: 'string', format: 'uuid' } as const
 // The S1 generator emits no `params` schema, so a malformed id used to reach Postgres as a
 // `uuid` parameter and raise SQLSTATE 22P02, which the error handler could only see as a 500.
@@ -117,7 +115,7 @@ export const createMembershipStore = ({ pool }: Readonly<{ pool: PostgresPool }>
     return { viewerRole: viewer.role, entries: rows.map(rosterEntry) }
   },
   async invite({ actor, workspaceId, email, role, now = new Date() }) {
-    const expiresAt = new Date(now.getTime() + INVITATION_MS)
+    const expiresAt = new Date(now.getTime() + INVITATION_DAYS * 24 * 60 * 60 * 1000)
     const settled = await pool.query(
       'SELECT iam.invite_workspace_member($1, $2, $3, $4, $5, $6) AS invitation_id',
       [actor, workspaceId, randomUUID(), email, role, expiresAt])
@@ -139,23 +137,13 @@ export const createMembershipStore = ({ pool }: Readonly<{ pool: PostgresPool }>
 
 export type MembershipRouteDependencies = Readonly<{
   store: MembershipStore
-  resolveCurrentSession: ResolveCurrentSession
-  config: Readonly<{ origin: string }>
 }>
 
 export const registerMembershipRoutes = async (
   app: FastifyInstance,
-  { store, resolveCurrentSession, config }: MembershipRouteDependencies,
+  { store }: MembershipRouteDependencies,
 ): Promise<readonly IamOwnerId[]> => {
-  const authentic = (request: FastifyRequest): void => {
-    const requestCsrf = header(request.headers['x-conexus-csrf'])
-    if (!isExactOrigin(request.headers.origin, config.origin) || !requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) throw new Failure('REQUEST_AUTHENTICITY_DENIED')
-  }
-  const signedIn = async (request: FastifyRequest, write = false): Promise<AccountId> => {
-    const current = await resolveCurrentSession(request, write)
-    if (!current) throw new Failure('AUTHENTICATION_REQUIRED')
-    return current.account.accountId
-  }
+  const route = routes(app)
   // The database's refusals of a member change, as rows.
   const refused = (error: unknown): never => {
     if (isLastOwner(error)) throw new Failure('LAST_OWNER')
@@ -163,23 +151,22 @@ export const registerMembershipRoutes = async (
     throw error
   }
 
-  app.route<{ Params: WorkspaceParams }>({
+  route.session<{ Params: WorkspaceParams }>({
     ...IAM_GENERATED_ROUTES['IAM-04'],
     schema: { ...IAM_GENERATED_ROUTES['IAM-04'].schema, params: workspaceParamsSchema },
-    handler: async (request) => {
-      const actor = await signedIn(request)
+    handler: async (request, _reply, session) => {
+      const actor = session.account.accountId
       const roster = await store.roster({ actor, workspaceId: brandWorkspaceId(request.params.workspaceId) })
       if (!roster) throw new Failure('WORKSPACE_NOT_FOUND')
       return roster
     },
   })
 
-  app.route<{ Params: WorkspaceParams; Body: Iam05Body }>({
+  route.session<{ Params: WorkspaceParams; Body: Iam05Body }>({
     ...IAM_GENERATED_ROUTES['IAM-05'],
     schema: { ...IAM_GENERATED_ROUTES['IAM-05'].schema, params: workspaceParamsSchema },
-    handler: async (request) => {
-      authentic(request)
-      const actor = await signedIn(request, true)
+    handler: async (request, _reply, session) => {
+      const actor = session.account.accountId
       const email = parseEmailAddress(request.body.email)
       const role = parseWorkspaceRole(request.body.role)
       if (!email || !role) throw new Failure('INVITATION_NOT_ACCEPTABLE')
@@ -190,12 +177,11 @@ export const registerMembershipRoutes = async (
     },
   })
 
-  app.route<{ Params: MemberParams; Body: Iam10Body }>({
+  route.session<{ Params: MemberParams; Body: Iam10Body }>({
     ...IAM_GENERATED_ROUTES['IAM-10'],
     schema: { ...IAM_GENERATED_ROUTES['IAM-10'].schema, params: memberParamsSchema },
-    handler: async (request, reply) => {
-      authentic(request)
-      const actor = await signedIn(request, true)
+    handler: async (request, reply, session) => {
+      const actor = session.account.accountId
       const role = parseWorkspaceRole(request.body.role)
       if (!role) throw new Failure('ROLE_NOT_ACCEPTABLE')
       await store.setRole({
@@ -208,12 +194,11 @@ export const registerMembershipRoutes = async (
     },
   })
 
-  app.route<{ Params: RosterEntryParams }>({
+  route.session<{ Params: RosterEntryParams }>({
     ...IAM_GENERATED_ROUTES['IAM-06'],
     schema: { ...IAM_GENERATED_ROUTES['IAM-06'].schema, params: rosterEntryParamsSchema },
-    handler: async (request, reply) => {
-      authentic(request)
-      const actor = await signedIn(request, true)
+    handler: async (request, reply, session) => {
+      const actor = session.account.accountId
       const { entryKind, entryId } = request.params
       if (entryKind !== 'member' && entryKind !== 'invitation') throw new Failure('ROSTER_ENTRY_NOT_FOUND')
       const workspaceId = brandWorkspaceId(request.params.workspaceId)

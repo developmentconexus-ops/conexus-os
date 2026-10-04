@@ -4,10 +4,11 @@ import type { Caller } from '../platform/caller.js'
 import { Failure } from '../platform/failure.js'
 import type { ApplicationInvoker } from './application-invoker.js'
 import { digest } from '../platform/opaque-token.js'
-import { previewContentSecurityPolicy } from '../platform/application-csp.js'
-import { isExactOrigin } from '../platform/origin.js'
+import { routes } from '../http/access.js'
+import type { HeaderFact } from '../http/access.js'
+import { readCookie, setCookie } from '../http/cookies.js'
 
-const PREVIEW_COOKIE = '__Host-conexus_preview'
+export type PreviewHost = Readonly<{ artifactRevisionId: string; exactHost: string; origin: string }>
 
 type ManifestFile = Readonly<{ path: string; mediaType: string }>
 type Manifest = Readonly<{ entryPath: 'index.html'; files: readonly ManifestFile[] }>
@@ -45,19 +46,10 @@ export type PreviewRouteDependencies = Readonly<{
   sessions: PreviewSessions
   registryReader: RegistryReader
   invokeApplication?: ApplicationInvoker
-  exactHubOrigin: string
-  previewPort: number
+  previewHostOf(host: HeaderFact): PreviewHost | null
   pendingRequests: Set<Promise<unknown>>
   isClosed: () => boolean
 }>
-
-
-const securityHeaders = (reply: { header(name: string, value: string): unknown; removeHeader(name: string): unknown }, exactHubOrigin: string): void => {
-  reply.header('referrer-policy', 'no-referrer')
-  reply.header('cache-control', 'no-store')
-  reply.header('content-security-policy', previewContentSecurityPolicy(exactHubOrigin))
-  reply.removeHeader('x-frame-options')
-}
 
 const sameBinding = (left: PreviewBinding, right: PreviewBinding): boolean => (
   left.accountId === right.accountId && left.projectId === right.projectId && left.sourceRevision === right.sourceRevision &&
@@ -81,15 +73,7 @@ export const registerPreviewRoutes = async (
   app: FastifyInstance,
   dependencies: PreviewRouteDependencies,
 ): Promise<readonly ['MAR-Preview']> => {
-  app.addHook('onRequest', async (request, reply) => {
-    securityHeaders(reply, dependencies.exactHubOrigin)
-    if ((request.method === 'GET' || request.method === 'HEAD') && isExactOrigin(request.headers.origin, dependencies.exactHubOrigin)) {
-      reply.header('access-control-allow-origin', dependencies.exactHubOrigin)
-      reply.header('access-control-allow-credentials', 'true')
-      reply.header('vary', 'Origin')
-    }
-    if (dependencies.isClosed()) return reply.code(503).send()
-  })
+  const route = routes(app)
   const tracked = <Request extends FastifyRequest>(handler: (request: Request, reply: FastifyReply) => Promise<unknown>) =>
     async (request: Request, reply: FastifyReply): Promise<unknown> => {
       if (dependencies.isClosed()) return reply.code(503).send()
@@ -109,50 +93,38 @@ export const registerPreviewRoutes = async (
     return done(null, { entryGrant })
   })
 
-  // The Preview's host without the listener's port: the host a Preview is launched for.
-  const routeHostOf = (requestHost: string | undefined): string | undefined =>
-    typeof requestHost === 'string' && requestHost.endsWith(`:${dependencies.previewPort}`)
-      ? requestHost.slice(0, -String(dependencies.previewPort).length - 1)
-      : requestHost
-
   // The Hub's own page posts the entry handoff it was given for this host. Redemption opens the Preview's
   // session only on the host the handoff names; a handoff presented anywhere else is refused and kept.
-  app.post<{ Body: { entryGrant: string } }>('/__conexus/preview-entry', tracked<FastifyRequest<{ Body: { entryGrant: string } }>>(async (request, reply) => {
-    securityHeaders(reply, dependencies.exactHubOrigin)
-    if (request.headers['content-type']?.split(';', 1)[0]?.trim() !== 'application/x-www-form-urlencoded') return reply.code(415).send()
-    const routeHost = routeHostOf(request.headers.host)
-    if (!routeHost || !isExactOrigin(request.headers.origin, dependencies.exactHubOrigin)) return reply.code(403).send()
-    let redeemed: Awaited<ReturnType<PreviewSessions['redeem']>>
-    try {
-      redeemed = await dependencies.sessions.redeem({ handoff: request.body.entryGrant, target: { kind: 'PREVIEW', exactHost: routeHost } })
-    } catch {
-      return reply.code(503).send()
-    }
-    if (!redeemed) return reply.code(403).send()
-    return reply
-      .setCookie(PREVIEW_COOKIE, redeemed.sessionToken, { path: '/', secure: true, httpOnly: true, sameSite: 'lax', maxAge: redeemed.maxAgeSeconds })
-      .code(303)
-      .header('location', '/')
-      .send()
-  }))
+  route['hub-entry']<{ Body: { entryGrant: string } }>({
+    method: 'POST',
+    url: '/__conexus/preview-entry',
+    handler: tracked<FastifyRequest<{ Body: { entryGrant: string } }>>(async (request, reply) => {
+      if (request.headers['content-type']?.split(';', 1)[0]?.trim() !== 'application/x-www-form-urlencoded') return reply.code(415).send()
+      const host = dependencies.previewHostOf(request.headers.host)
+      if (!host) return reply.code(403).send()
+      let redeemed: Awaited<ReturnType<PreviewSessions['redeem']>>
+      try {
+        redeemed = await dependencies.sessions.redeem({ handoff: request.body.entryGrant, target: { kind: 'PREVIEW', exactHost: host.exactHost } })
+      } catch {
+        return reply.code(503).send()
+      }
+      if (!redeemed) return reply.code(403).send()
+      return setCookie(reply, 'previewSession', redeemed.sessionToken, redeemed.maxAgeSeconds)
+        .code(303)
+        .header('location', '/')
+        .send()
+    }),
+  })
 
-  type PreviewRequest = { headers: { host?: string | undefined }; cookies: Record<string, string | undefined>; url: string; method: string }
-  type PreviewReply = {
-    code(status: number): PreviewReply
-    header(name: string, value: string): PreviewReply
-    removeHeader(name: string): PreviewReply
-    type(value: string): PreviewReply
-    send(value?: unknown): unknown
-  }
   // The Preview this request's cookie is bound to on this host, or the status that refuses it.
-  const activePreview = async (request: PreviewRequest): Promise<Readonly<{ binding: PreviewBinding; cookie: string }> | number> => {
-    const routeHost = routeHostOf(request.headers.host)
-    if (!routeHost) return 404
-    const cookie = request.cookies[PREVIEW_COOKIE]
+  const activePreview = async (request: FastifyRequest): Promise<Readonly<{ binding: PreviewBinding; cookie: string }> | number> => {
+    const host = dependencies.previewHostOf(request.headers.host)
+    if (!host) return 404
+    const cookie = readCookie(request, 'previewSession')
     if (!cookie) return 403
     let authority: Awaited<ReturnType<PreviewSessions['previewAuthority']>>
     try {
-      authority = await dependencies.sessions.previewAuthority({ sessionToken: cookie, exactHost: routeHost })
+      authority = await dependencies.sessions.previewAuthority({ sessionToken: cookie, exactHost: host.exactHost })
     } catch {
       return 503
     }
@@ -160,8 +132,7 @@ export const registerPreviewRoutes = async (
     return authority.kind === 'SIGNED_IN' ? { binding: authority.binding, cookie } : 403
   }
 
-  const serve = async (request: PreviewRequest, reply: PreviewReply): Promise<unknown> => {
-    securityHeaders(reply, dependencies.exactHubOrigin)
+  const serve = async (request: FastifyRequest, reply: FastifyReply): Promise<unknown> => {
     const active = await activePreview(request)
     if (typeof active === 'number') return reply.code(active).send()
     const { binding: before, cookie } = active
@@ -197,15 +168,11 @@ export const registerPreviewRoutes = async (
   }
 
   type ApiRequest = FastifyRequest<{ Params: { operation: string }; Body: unknown }>
-  app.post<{ Params: { operation: string }; Body: unknown }>('/__conexus/api/:operation', { bodyLimit: API_BODY_LIMIT }, tracked<ApiRequest>(async (request, reply) => {
-    securityHeaders(reply, dependencies.exactHubOrigin)
+  route['host-write']<{ Params: { operation: string }; Body: unknown }>({ method: 'POST', url: '/__conexus/api/:operation', bodyLimit: API_BODY_LIMIT, handler: tracked<ApiRequest>(async (request, reply) => {
     if (request.headers['content-type']?.split(';', 1)[0]?.trim() !== 'application/json') throw new Failure('CONTENT_TYPE_REFUSED')
     const active = await activePreview(request)
     if (typeof active === 'number') throw new Failure(active === 503 ? 'IDENTITY_PROVIDER_UNAVAILABLE' : 'PREVIEW_REFUSED')
     const { binding } = active
-    // Only the Preview's own page may call its API: a cross-site POST carries no Lax cookie, and a
-    // sibling Preview on the same site sends its own Origin.
-    if (!isExactOrigin(request.headers.origin, `https://${binding.exactHost}:${dependencies.previewPort}`)) throw new Failure('ORIGIN_REFUSED')
     const serverFiles = binding.manifest.files.map((file) => file.path).filter((path) => path.startsWith(SERVER_ROOT))
     if (!OPERATION.test(request.params.operation) || serverFiles.length === 0) throw new Failure('OPERATION_NOT_FOUND')
     if (!dependencies.invokeApplication) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE')
@@ -222,8 +189,8 @@ export const registerPreviewRoutes = async (
       throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: error })
     }
     return reply.code(result.status).type('application/problem+json').send(JSON.stringify(result.body))
-  }))
-  app.get('/', tracked(serve))
-  app.get('/*', tracked(serve))
+  }) })
+  route.navigation({ url: '/', handler: tracked(serve) })
+  route.navigation({ url: '/*', handler: tracked(serve) })
   return ['MAR-Preview']
 }

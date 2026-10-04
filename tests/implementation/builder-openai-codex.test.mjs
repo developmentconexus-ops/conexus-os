@@ -1,20 +1,20 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
+import { hubJsonWrite, hubWrite, opaque, testListener } from './access/test-listener.mjs'
 
 const built = hubModuleUrl
-const { createHttpApp } = await import(built('http/app.js'))
 const { registerModelAccountRoutes } = await import(built('builder/model-accounts.js'))
 const { createCodexHolds, parseCodexTokens, serializeCodexTokens } = await import(built('builder/openai-codex/credential.js'))
 const { createOpenAICodexRoute } = await import(built('builder/openai-codex/route.js'))
 const { codexModel } = await import('./codex-model.mjs')
 
-const origin = 'https://conexus.test'
+const SESSION_TOKEN = opaque('ana')
 const ana = '22222222-2222-4222-8222-222222222222'
 const bia = '55555555-5555-4555-8555-555555555555'
 const authentic = {
-  headers: { origin, 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' },
-  cookies: { '__Host-conexus_session': 'session-1', '__Host-conexus_csrf': 'csrf-1' },
+  headers: hubJsonWrite,
+  cookies: { '__Host-conexus_session': SESSION_TOKEN },
 }
 const tokens = (label, expires) => ({ access: `access-${label}`, refresh: `refresh-${label}`, expires, accountId: 'chatgpt-account-1', email: 'ana@example.com' })
 
@@ -70,25 +70,23 @@ const createApp = async (t) => {
   const { device, answer, expireSoon } = fakeDevice()
   let caller = ana
   let administrator = false
-  const app = await createHttpApp({
+  const { app } = await testListener({
+    sessions: { [SESSION_TOKEN]: () => ({ account: { accountId: caller } }) },
     registerRoutes: async (instance) => {
       await registerModelAccountRoutes(instance, {
-        origin,
-        resolveCurrentSession: async (request) => request.cookies['__Host-conexus_session'] ? { account: { accountId: caller } } : null,
         isInstallationAdministrator: async () => administrator,
         modelAccounts: store,
         openaiCodexDevice: device,
       })
       return []
     },
-    staticRoot: null,
   })
   t.after(() => app.close())
   return { app, rows, share, answer, expireSoon, as: (accountId) => { caller = accountId }, makeAdministrator: () => { administrator = true } }
 }
 
 const base = '/api/control/model-accounts/openai-codex/oauth'
-const poll = async (app, loginId) => (await app.inject({ method: 'GET', url: `${base}/poll?loginId=${loginId}`, ...authentic })).json()
+const poll = async (app, loginId) => (await app.inject({ method: 'POST', url: `${base}/poll?loginId=${loginId}`, headers: hubWrite, cookies: authentic.cookies })).json()
 const start = async (app) => (await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })).json()
 
 test('signing in with ChatGPT hands the person a device code, and the sign-in stores the tokens as their own just_me oauth row', async (t) => {
@@ -146,12 +144,16 @@ test('a sign-in belongs to the person who started it, and it expires', async (t)
   assert.equal(rows.size, 1)
 })
 
-test('the sign-in routes need a Hub session, and starting one needs the CSRF pair', async (t) => {
+test('the sign-in routes need a Hub session, and starting one needs a write from the Hub page', async (t) => {
   const { app } = await createApp(t)
-  const forged = await app.inject({ method: 'POST', url: `${base}/start`, headers: { origin, 'content-type': 'application/json' }, cookies: authentic.cookies, payload: {} })
+  const forged = await app.inject({ method: 'POST', url: `${base}/start`, headers: { ...hubJsonWrite, origin: 'https://evil.test' }, cookies: authentic.cookies, payload: {} })
   assert.equal(forged.statusCode, 403)
-  const anonymous = await app.inject({ method: 'GET', url: `${base}/poll?loginId=x`, headers: {} })
+  const anonymous = await app.inject({ method: 'POST', url: `${base}/poll?loginId=x`, headers: hubWrite })
   assert.equal(anonymous.statusCode, 401)
+  for (const method of ['GET', 'HEAD']) {
+    const old = await app.inject({ method, url: `${base}/poll?loginId=x`, cookies: authentic.cookies })
+    assert.equal(old.statusCode, 404, `${method} is no longer a poll`)
+  }
   const accounts = await app.inject({ method: 'GET', url: '/api/control/model-accounts', headers: {} })
   assert.equal(accounts.statusCode, 401)
 })

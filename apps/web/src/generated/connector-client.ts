@@ -8,8 +8,7 @@ export type ConnectionBindingEntry = { "kind": "binding"; "bindingId": string; "
 export type BindProjectConnectionInput = { "connectionId": string; "name": string }
 export type ConnectionBinding = { "kind": "binding"; "bindingId": string; "name": string; "connectionId": string; "connectorId": "sankhya"; "label": string; "boundAt": string }
 export const BINDING_NAME_PATTERN = new RegExp("^[a-z][a-z0-9-]{0,39}$")
-const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')
-const request = async (url: string, init: RequestInit = {}) => fetch(url, { ...init, credentials: 'same-origin', headers: { ...(init.headers ?? {}), ...(init.method && init.method !== 'GET' ? { 'x-conexus-csrf': decodeURIComponent(csrf() ?? '') } : {}) } })
+const request = async (url: string, init: RequestInit = {}) => fetch(url, { ...init, credentials: 'same-origin' })
 export const connectorClient = Object.freeze({
   listWorkspaceConnections: (workspaceId: string) => request(`/api/control/workspaces/${encodeURIComponent(workspaceId)}/connections`),
   createWorkspaceConnection: (workspaceId: string, body: CreateWorkspaceConnectionInput) => request(`/api/control/workspaces/${encodeURIComponent(workspaceId)}/connections`, { method: "POST", headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),

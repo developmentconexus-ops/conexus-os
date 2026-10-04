@@ -7,13 +7,13 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import { hubModuleUrl } from './hub-build.mjs'
+import { hubJsonWrite, hubWrite, opaque, testListener } from './access/test-listener.mjs'
 
 const built = hubModuleUrl
 const { encodeKey, decodeKey, parseKey, instanceIdOf } = await import(built('builder/google-ai-pro/credential.js'))
 const { createCliproxyPool, verifyCliproxyBinary } = await import(built('builder/google-ai-pro/pool.js'))
 const { startModelRouter } = await import(built('builder/google-ai-pro/router.js'))
 const { createRefreshWriteBack } = await import(built('builder/google-ai-pro/write-back.js'))
-const { createHttpApp } = await import(built('http/app.js'))
 const { registerModelAccountRoutes } = await import(built('builder/model-accounts.js'))
 const { createGoogleAiProAccounts } = await import(built('builder/google-ai-pro/store.js'))
 
@@ -312,12 +312,12 @@ test('a Hub killed without cleaning up takes its proxies with it', async (t) => 
   assert.equal(await until(() => !alive(proxy)), true)
 })
 
-const origin = 'https://conexus.test'
+const SESSION_TOKEN = opaque('ana')
 const ana = '22222222-2222-4222-8222-222222222222'
 const bia = '55555555-5555-4555-8555-555555555555'
 const authentic = {
-  headers: { origin, 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' },
-  cookies: { '__Host-conexus_session': 'session-1', '__Host-conexus_csrf': 'csrf-1' },
+  headers: hubJsonWrite,
+  cookies: { '__Host-conexus_session': SESSION_TOKEN },
 }
 
 // The sign-in routes run for real; only model.model_account is a recording stand-in
@@ -343,11 +343,10 @@ const createLoginApp = async (t) => {
   const pool = openPool(t, { binary, stateDir })
   const modelAccounts = fakeModelAccounts()
   let caller = ana
-  const app = await createHttpApp({
+  const { app } = await testListener({
+    sessions: { [SESSION_TOKEN]: () => ({ account: { accountId: caller } }) },
     registerRoutes: async (instance) => {
       await registerModelAccountRoutes(instance, {
-        origin,
-        resolveCurrentSession: async (request) => request.cookies['__Host-conexus_session'] ? { account: { accountId: caller } } : null,
         isInstallationAdministrator: async () => false,
         modelAccounts: modelAccounts.store,
         googleAiPro: pool,
@@ -355,7 +354,6 @@ const createLoginApp = async (t) => {
       })
       return []
     },
-    staticRoot: null,
   })
   t.after(() => app.close())
   return { app, stateDir, writes: modelAccounts.writes, share: modelAccounts.share, as: (accountId) => { caller = accountId } }
@@ -367,9 +365,10 @@ const callback = (url, overrides = {}) => {
   const params = new URLSearchParams({ state, code: 'good', ...overrides })
   return `http://localhost:51121/oauth-callback?${params}`
 }
+const pollOnce = (app, loginId) => app.inject({ method: 'POST', url: `${base}/${loginId}`, headers: hubWrite, cookies: authentic.cookies })
 const pollUntilSettled = async (app, loginId) => {
   for (let polls = 0; polls < 100; polls++) {
-    const { state } = (await app.inject({ method: 'GET', url: `${base}/${loginId}`, ...authentic })).json()
+    const { state } = (await pollOnce(app, loginId)).json()
     if (state !== 'waiting') return state
     await delay(25)
   }
@@ -425,11 +424,11 @@ test('one sign-in at a time: another person is told to wait, and the same person
   const busy = await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })
   assert.equal(busy.statusCode, 409)
   assert.equal(busy.json().type.endsWith('MODEL_LOGIN_BUSY'), true)
-  assert.deepEqual((await app.inject({ method: 'GET', url: `${base}/${first.loginId}`, ...authentic })).json(), { state: 'expired' }, 'a sign-in is visible only to its person')
+  assert.deepEqual((await pollOnce(app, first.loginId)).json(), { state: 'expired' }, 'a sign-in is visible only to its person')
   as(ana)
   const second = (await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })).json()
   assert.notEqual(second.loginId, first.loginId)
-  assert.deepEqual((await app.inject({ method: 'GET', url: `${base}/${first.loginId}`, ...authentic })).json(), { state: 'expired' })
+  assert.deepEqual((await pollOnce(app, first.loginId)).json(), { state: 'expired' })
 })
 
 test('the Builder offers the Google AI Pro models only to a person who can use them, own or shared', async (t) => {
@@ -453,12 +452,17 @@ test('the Builder offers the Google AI Pro models only to a person who can use t
   assert.deepEqual([await offered(), await offered('?scope=installation')], [all, all])
 })
 
-test('the sign-in routes need a Hub session, and their writes need the CSRF pair', async (t) => {
+test('the sign-in routes need a Hub session, and their writes need a write from the Hub page', async (t) => {
   const { app } = await createLoginApp(t)
-  const forged = await app.inject({ method: 'POST', url: `${base}/start`, headers: { origin, 'content-type': 'application/json' }, cookies: authentic.cookies, payload: {} })
+  const forged = await app.inject({ method: 'POST', url: `${base}/start`, headers: { ...hubJsonWrite, origin: 'https://evil.test' }, cookies: authentic.cookies, payload: {} })
   assert.equal(forged.statusCode, 403)
-  const anonymous = await app.inject({ method: 'GET', url: `${base}/00000000-0000-4000-8000-000000000000`, headers: {} })
+  const idle = '00000000-0000-4000-8000-000000000000'
+  const anonymous = await app.inject({ method: 'POST', url: `${base}/${idle}`, headers: hubWrite })
   assert.equal(anonymous.statusCode, 401)
+  for (const method of ['GET', 'HEAD']) {
+    const old = await app.inject({ method, url: `${base}/${idle}`, cookies: authentic.cookies })
+    assert.equal(old.statusCode, 404, `${method} is no longer a poll`)
+  }
 })
 
 // Opt-in: runs the pinned CLIProxyAPI itself. It binds Google's callback port 51121 while it runs.

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { Failure } from '../platform/failure.js'
-import type { ResolveCurrentSession } from '../identity-access/current-session.js'
+import { routes } from '../http/access.js'
 
 const uuid = { type: 'string', format: 'uuid' } as const
 const params = { type: 'object', additionalProperties: false, required: ['projectId'], properties: { projectId: uuid } } as const
@@ -22,15 +22,13 @@ export const registerProjectThumbnailRoutes = async (
   app: FastifyInstance,
   dependencies: Readonly<{
     reader: ProjectThumbnailReader
-    resolveCurrentSession: ResolveCurrentSession
   }>,
 ): Promise<readonly ProjectThumbnailOperationId[]> => {
-  app.get<{ Params: { projectId: string } }>(
-    '/api/control/projects/:projectId/thumbnail',
-    { schema: { params } },
-    async (request, reply) => {
-      const current = await dependencies.resolveCurrentSession(request)
-      if (!current) throw new Failure('AUTHENTICATION_REQUIRED')
+  routes(app).session<{ Params: { projectId: string } }>({
+    method: 'GET',
+    url: '/api/control/projects/:projectId/thumbnail',
+    schema: { params },
+    handler: async (request, reply, current) => {
       const thumbnail = await dependencies.reader.readThumbnail({
         accountId: current.account.accountId,
         projectId: request.params.projectId,
@@ -45,6 +43,6 @@ export const registerProjectThumbnailRoutes = async (
         .header('ETag', `"${thumbnail.artifactRevisionId}"`)
         .send(Buffer.from(thumbnail.bytes))
     },
-  )
+  })
   return ['PRJ-THUMBNAIL']
 }

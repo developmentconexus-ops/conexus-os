@@ -50,7 +50,7 @@ export function ClaudeAccount() {
     queryClient.invalidateQueries({ queryKey: ['builder-models'] }),
   ])
   const start = useMutation({
-    mutationFn: () => call<Login>('POST', `${base}/start`),
+    mutationFn: () => call<Login>('POST', `${base}/start`, {}),
     onSuccess: (started) => { setMessage(null); setLogin(started) },
     onError: () => setMessage({ text: 'Não foi possível iniciar a entrada com a Claude agora.', failed: true }),
   })
