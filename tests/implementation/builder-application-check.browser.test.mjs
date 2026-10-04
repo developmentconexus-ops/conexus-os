@@ -54,10 +54,12 @@ const TEMPLATE_REF = 'test-template:00000000-0000-4000-8000-000000000000'
 const bundleBytes = readFileSync(join(hubBuildDirectory(), 'app-check/main.mjs'))
 const BUNDLE_SHA256 = createHash('sha256').update(bundleBytes).digest('hex')
 
-const check = (t, files, { limits = [], compilerFiles = {}, before, thumbnail, chromiumPath = () => chromium.executablePath(), onlyBrowserOnPath = false } = {}) => {
-  const scratch = mkdtempSync(join(tmpdir(), 'conexus-check-test-'))
-  t.after(() => rmSync(scratch, { recursive: true, force: true }))
+const check = (t, files, { limits = [], compilerFiles = {}, before, thumbnail, chromiumPath = () => chromium.executablePath(), onlyBrowserOnPath = false, scratch: reused } = {}) => {
+  const scratch = reused ?? mkdtempSync(join(tmpdir(), 'conexus-check-test-'))
+  if (!reused) t.after(() => rmSync(scratch, { recursive: true, force: true }))
   const root = join(scratch, 'repo')
+  rmSync(root, { recursive: true, force: true })
+  rmSync(join(scratch, 'dist'), { recursive: true, force: true })
   const tools = join(scratch, 'opt')
   const out = join(scratch, 'dist')
   for (const [path, content] of Object.entries({ ...files })) {
@@ -65,7 +67,7 @@ const check = (t, files, { limits = [], compilerFiles = {}, before, thumbnail, c
     writeFileSync(join(root, path), typeof content === 'string' ? content : JSON.stringify(content))
   }
   mkdirSync(join(tools, 'compiler'), { recursive: true })
-  for (const name of ['node_modules', 'full']) symlinkSync(join(compilerRoot, name), join(tools, 'compiler', name))
+  for (const name of ['node_modules', 'full']) if (!existsSync(join(tools, 'compiler', name))) symlinkSync(join(compilerRoot, name), join(tools, 'compiler', name))
   for (const name of ['allowlist.mjs', 'generate-client.mjs', 'tsconfig.mjs', 'package.json']) copyFileSync(join(compilerRoot, name), join(tools, 'compiler', name))
   writeFileSync(join(tools, 'compiler/vite.config.mjs'), templateConfig.replace("'/workspace/.vite'", JSON.stringify(join(scratch, 'vite-cache'))))
   for (const [path, content] of Object.entries(compilerFiles)) writeFileSync(join(tools, 'compiler', path), content)
@@ -74,8 +76,9 @@ const check = (t, files, { limits = [], compilerFiles = {}, before, thumbnail, c
   mkdirSync(dirname(main), { recursive: true })
   writeFileSync(main, bundleBytes)
   const bin = join(scratch, 'bin')
-  mkdirSync(bin)
+  mkdirSync(bin, { recursive: true })
   const browser = chromiumPath(scratch)
+  rmSync(join(bin, 'chromium'), { force: true })
   if (browser) symlinkSync(browser, join(bin, 'chromium'))
   const ran = spawnSync(process.execPath, [
     main, 'check', '--caller', 'tool', '--root', root, '--out', out, '--template-ref', TEMPLATE_REF, '--as', `${process.getuid()}:${process.getgid()}`,
@@ -499,4 +502,35 @@ test('conexus_check hands the model the steps of the run check, a type error as 
   assert.deepEqual(report.steps.map((step) => step.step), ['generate', 'typecheck', 'build', 'server', 'boot'])
   const typecheck = failedStep(report, 'typecheck')
   assert.deepEqual([report.ok, typecheck.problems[0].file, typecheck.problems[0].line, typecheck.problems[0].code], [false, 'app/src/main.tsx', 1, 'TS2322'])
+})
+
+test('the tool check keeps an incremental cache per project, and it never hides a type error nor a fix', (t) => {
+  const scratch = mkdtempSync(join(tmpdir(), 'conexus-check-cache-test-'))
+  t.after(() => rmSync(scratch, { recursive: true, force: true }))
+  const info = (project) => join(scratch, '.conexus-check-cache', BUNDLE_SHA256, 'tool', project, 'tsbuildinfo')
+  const withServer = (main) => ({ ...withMain(main), 'conexus/manifest.json': MANIFEST, 'conexus/handlers/notes.ts': HANDLER })
+  const first = check(t, withServer(`${STARTER['app/src/main.tsx']}export const answer: number = 6\n`), { scratch })
+  assert.deepEqual(stepsOf(first.report), [['generate', 'passed'], ['typecheck', 'passed'], ['build', 'passed'], ['server', 'passed'], ['boot', 'passed']])
+  assert.ok(existsSync(info('app')) && existsSync(info('server')), 'one build info per project, keyed by bundle, caller and project')
+  assert.equal(existsSync(`${info('app')}.lock`), false, 'the lock is released')
+  const broken = check(t, withServer(`${STARTER['app/src/main.tsx']}export const answer: number = 'six'\n`), { scratch })
+  assert.deepEqual(failedStep(broken.report, 'typecheck').problems.map((problem) => [problem.file, problem.line, problem.code]), [['app/src/main.tsx', 9, 'TS2322']])
+  const fixed = check(t, withServer(`${STARTER['app/src/main.tsx']}export const answer: number = 6\n`), { scratch })
+  const typecheckMs = ({ report }) => report.steps.find((step) => step.step === 'typecheck').durationMs
+  t.diagnostic(`typecheck ms: first ${typecheckMs(first)}, with type error ${typecheckMs(broken)}, fixed ${typecheckMs(fixed)}`)
+  assert.deepEqual(stepsOf(fixed.report).map(([, status]) => status), ['passed', 'passed', 'passed', 'passed', 'passed'])
+})
+
+test('a build info the agent forged for the tool cache cannot make a type error pass', (t) => {
+  const scratch = mkdtempSync(join(tmpdir(), 'conexus-check-forged-test-'))
+  t.after(() => rmSync(scratch, { recursive: true, force: true }))
+  const clean = check(t, withMain(`${STARTER['app/src/main.tsx']}export const answer: number = 6\n`), { scratch })
+  assert.equal(clean.report.ok, true)
+  const info = join(scratch, '.conexus-check-cache', BUNDLE_SHA256, 'tool/app/tsbuildinfo')
+  // The agent's tool cache is the agent's to write: a forged copy of the clean run, or plain noise.
+  for (const forged of [readFileSync(info, 'utf8'), '{"version":"0","program":{}}', 'not json']) {
+    writeFileSync(info, forged)
+    const { report } = check(t, withMain(`${STARTER['app/src/main.tsx']}export const answer: number = 'six'\n`), { scratch })
+    assert.deepEqual(failedStep(report, 'typecheck')?.problems.map((problem) => problem.code), ['TS2322'])
+  }
 })

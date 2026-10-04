@@ -1,6 +1,8 @@
 import { chmodSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { endAgentProcesses } from '../agent.js'
+import { type CacheProject, cacheDirectory, withGateCache, withToolCache } from '../cache.js'
 import { typescriptProjects } from '../compiler.js'
 import type { CheckContext } from '../context.js'
 import { runTool, stepEnvironment } from '../exec.js'
@@ -28,6 +30,16 @@ const problemsFromTsc = (root: string, text: string): readonly Problem[] => {
 }
 
 /**
+ * The gate runs as root and lends its cache (`withGateCache`); the tool is the agent already and keeps
+ * its own. A gate that is not root has no store it may write, so it checks without a cache.
+ */
+const withCache = <T>(ctx: CheckContext, project: CacheProject, run: (info: string | null) => Promise<T>): Promise<T> => {
+  if (ctx.caller === 'tool') return withToolCache(cacheDirectory(ctx, project), run)
+  if (!ctx.drop) return run(null)
+  return withGateCache({ store: cacheDirectory(ctx, project), agent: ctx.drop, sweep: () => endAgentProcesses(ctx) }, run)
+}
+
+/**
  * Two programs, because one cannot give node: to handlers and refuse it to screens: the app project
  * (screens) and the server project (handlers, only when `conexus/` holds TypeScript). Both share the
  * one typecheck budget. `tsc` runs as the agent's user, so an import of a file only root can read
@@ -43,9 +55,9 @@ export const typecheck = async (ctx: CheckContext): Promise<Outcome> => {
     for (const name of hasTypeScript(join(ctx.root, 'conexus')) ? (['app', 'server'] as const) : (['app'] as const)) {
       const config = join(directory, `tsconfig.${name}.json`)
       writeFileSync(config, JSON.stringify(projects[name]), { mode: 0o644 })
-      const result = await runTool(ctx, process.execPath, [join(ctx.compiler, 'node_modules/typescript/bin/tsc'), '-p', config, '--pretty', 'false'], {
-        cwd: ctx.root, env: stepEnvironment(ctx), limitMs: Math.max(1, deadline - performance.now()),
-      })
+      const result = await withCache(ctx, name, (info) => runTool(ctx, process.execPath, [
+        join(ctx.compiler, 'node_modules/typescript/bin/tsc'), '-p', config, '--pretty', 'false', ...(info ? ['--incremental', '--tsBuildInfoFile', info] : []),
+      ], { cwd: ctx.root, env: stepEnvironment(ctx), limitMs: Math.max(1, deadline - performance.now()) }))
       if (result.timedOut) return timedOut('typecheck', ctx.limits.typecheck)
       if (result.code !== 0) problems.push(...problemsFromTsc(ctx.root, `${result.stdout}\n${result.stderr}`))
     }
