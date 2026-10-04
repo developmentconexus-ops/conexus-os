@@ -1,5 +1,5 @@
 // GENERATED from contracts/api/product/openapi.yaml by scripts/generate-workspace-contracts.mjs. Do not edit.
-export const WORKSPACE_PRODUCT_OAS_DIGEST = "ee4a506205e3cd08549d3cdbebf5a25c1162c8a5cf10cd76abb6d99d044aa1e4"
+export const WORKSPACE_PRODUCT_OAS_DIGEST = "f4b9c6939bbe81986098965a89ef7d158f12ba703999d0e37a31111d6d2b55c8"
 export const WORKSPACE_ROUTE_PROJECTION_DIGEST = "0986286b2672b071e5e4309b0d78bed2bb2466a8c0c3324bbea9df90b71c211e"
 export type WorkspaceSummary = { "workspaceId": string; "name": string }
 export type CreateWorkspaceInput = { "name": string }

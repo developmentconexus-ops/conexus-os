@@ -17,8 +17,9 @@ the platform builds, the realm, the sign-in theme and the administrator bootstra
       A realm change states its effect on every client in the realm.
 - [ ] The caller is built from a resolved session, never from request input. Owner:
       [Security and authority](../../reference/security-and-authority.md#4-human-authentication).
-- [ ] Every state-changing route checks Origin and the CSRF token the way the existing routes do. A
-      new variant says why the existing check cannot serve.
+- [ ] Every route declares its access kind through `routes(app)` or `foreignRoutes` and has a row in
+      the route ledger; no handler reads a request header or cookie itself. Owner:
+      [Request authenticity](../../reference/security-and-authority.md#421-request-authenticity).
 - [ ] A route that acts on a child resource by id checks that the child belongs to the parent the
       path names.
 - [ ] A claim or attribute from the identity provider is parsed at the boundary. A malformed value
@@ -31,7 +32,7 @@ the platform builds, the realm, the sign-in theme and the administrator bootstra
 ## Proof required
 
 - A negative case for each refusal the change adds: another Workspace, another Project, an expired
-  or revoked session, a missing CSRF token. A test that proves only the allowed path fails.
+  or revoked session, a missing or foreign `Origin`. A test that proves only the allowed path fails.
 - A claim about Keycloak behavior (refresh, logout, token exchange) cites the documentation or
   source at the pilot's Keycloak version, or asks for a probe.
 

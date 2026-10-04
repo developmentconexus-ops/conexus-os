@@ -41,12 +41,15 @@ For C-015 human authentication, the verified external identity key `(issuer, sub
 Sessions are one model in `iam` (migration `0026_single_session.sql`, the single session qualification):
 
 - `iam.host_session`: one row per session cookie, of kind `HUB`, `APPLICATION` or `PREVIEW`, with one CHECK per
-  kind. A Hub row holds its CSRF digest and idle limit; Hub and application rows hold the sign-in's Keycloak refresh
+  kind. A Hub row holds its idle limit; Hub and application rows hold the sign-in's Keycloak refresh
   token sealed with the installation's credential key and the time of the last Keycloak check; a Preview row points
   to its Preview and to the Hub session that opened it. An ended row keeps why it ended and drops the token.
 - `iam.handoff`: a one-use proof for one host, kind `APPLICATION` (60 s, bound to the browser's sign-in binding,
   carrying the sealed token) or `PREVIEW` (30 s, bound to the Hub session that opened it). Redemption checks
   everything and deletes in one statement.
+- `iam.session_lifetimes()`: the one owner of every session and handoff lifetime (migration
+  `0060_one_owner_per_lifetime_no_csrf_token.sql`). Only `iam_owner` functions read it; the table checks hold shape
+  only, so a lifetime changes in one migration and rows keep the deadlines they were written with.
 - `iam.preview`: the immutable facts of one Preview launch (Account, Project, source and artifact revision, digest,
   exact host, manifest), removed with its sessions at a later launch once it has ended.
 

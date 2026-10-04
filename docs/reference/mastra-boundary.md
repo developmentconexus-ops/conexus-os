@@ -165,8 +165,8 @@ single-owner map and the decision register record it.
    organization id instead of the `local` sentinel.
 3. `registerFactoryApiRoutes` (`apps/hub/src/builder/mastra-session-routes.ts`) gives a
    `MastraServer` only the Factory's credential routes through its `customApiRoutes` constructor
-   option, then calls `registerCustomApiRoutes()`. A scope `preHandler` requires the Hub session and,
-   on a write, origin plus CSRF. The browser calls the routes at their own paths
+   option, then calls `registerCustomApiRoutes()`. The routes are of the `session` access kind
+   (`apps/hub/src/http/access.ts`): the Hub session, and on a write the exact Hub Origin. The browser calls the routes at their own paths
    (`/web/config/providers…`), and no other Factory route is reachable. The fake context, the handler
    lookup and the casts are deleted.
 4. The Hub keeps only what the Factory does not own: sharing with everyone, Google AI Pro (C-027),
@@ -175,7 +175,7 @@ single-owner map and the decision register record it.
    reflect shared account coverage). It then adds Google AI Pro's models from the
    Hub's own list when the router runs and the caller has the credential. A Google AI Pro sign-in
    writes the person's row through the Factory's credential storage, because it settles on a later
-   poll that carries no write's CSRF.
+   poll.
 
 **Still to verify on the pilot.** A person connects a provider, the installation administrator shares
 it, and a run uses it.
@@ -207,8 +207,8 @@ meanwhile.
 1. The Hub mounts the Factory's session route with `registerFactoryApiRoutes`. Its guard also requires
    the Account to build the Project bound to the route's project repository, so the route cannot open
    a session on a Project the person may not build.
-2. `POST /api/control/projects/:projectId/conversations` keeps Conexus admission: the session, CSRF and
-   the Project binding. It then calls the Factory's route with the conversation id and the Conexus
+2. `POST /api/control/projects/:projectId/conversations` keeps Conexus admission: the session, the exact
+   Origin and the Project binding. It then calls the Factory's route with the conversation id and the Conexus
    branch, and opens the conversation's thread with the person's model defaults. The Factory decides
    idempotency and writes the row. The Hub's DTO and storage write are deleted. The Hub reads the row
    first only to tell a retry (200) from a creation (201).

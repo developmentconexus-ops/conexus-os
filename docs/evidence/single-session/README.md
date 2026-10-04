@@ -56,6 +56,10 @@ Nothing in the installed Mastra, Keycloak 26.x, PostgreSQL 17 or an installed de
 handoff or the CSRF policy of this repository. The two mechanisms the census simplifies are the claim protocol (S1)
 and the duplicated helpers and session models (S3, S5).
 
+Since then, spec 0014 (one access rule) removed the CSRF token and the Origin copies of the census rows above: every
+route declares an access kind that one enforcer in `apps/hub/src/http/access.ts` applies, by Fetch Metadata, the exact
+`Origin` and a `__Host-` session cookie (`docs/reference/security-and-authority.md`, section 4.2.1).
+
 ## S0. Keycloak probe
 
 **Rotation off holds on Keycloak 26.7.2.** Every case below passed with `revokeRefreshToken: false`, and the
@@ -71,7 +75,9 @@ theme, no keys, no users) and one probe user. The pilot's realm and users were n
 `revokeRefreshToken: true`, `refreshTokenMaxReuse: 0`, `ssoSessionIdleTimeout: 1800`. The scratch realm sets the
 SSO idle limit to 60 s so that the `idle` case takes 80 s, and the rotation flag as each run states. The
 confirmation on the pilot itself, with a real 1800 s limit, waits for the operator's go-ahead to touch the pilot
-realm.
+realm. The 1800 s figures here are the limit at the time of the probe: the realm now sets `ssoSessionIdleTimeout`
+2400 (`infra/keycloak/realm-conexus.json`, decision 2 below), and a test of spec 0014 (AC-19) holds it above the Hub's
+idle limit plus its five-minute Keycloak check.
 
 | Case | Result on 26.7.2 (rotation off) |
 | --- | --- |

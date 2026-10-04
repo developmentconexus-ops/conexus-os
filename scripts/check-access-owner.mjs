@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { relative, resolve, sep } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -6,7 +6,6 @@ import ts from 'typescript'
 
 const OWNERS = new Set(['apps/hub/src/http/access.ts', 'apps/hub/src/http/cookies.ts'])
 const FIXTURES = 'scripts/fixtures/check-access-owner'
-const BASELINE = 'scripts/check-access-owner.baseline.json'
 const CSRF_HEADER = ['x-conexus', 'csrf'].join('-')
 const COOKIE_OPTION_KEYS = new Set(['path', 'secure', 'httpOnly', 'sameSite'])
 const TEXT_SCANS = [
@@ -154,7 +153,7 @@ function scanText(root) {
         const file = posix(relative(root, path))
         if (entry.isDirectory()) {
           if (!SKIPPED_DIRECTORIES.has(entry.name) && !SKIPPED_PATHS.has(file)) walk(path)
-        } else if (entry.isFile() && file !== BASELINE && statSync(path).size < 4_000_000) {
+        } else if (entry.isFile() && statSync(path).size < 4_000_000) {
           const buffer = readFileSync(path)
           if (buffer.includes(0)) continue
           for (const line of buffer.toString('utf8').split('\n')) {
@@ -173,51 +172,14 @@ export const findAccessViolations = (root) => {
   return [...scanProgram(root), ...scanText(root)].sort((a, b) => key(a).localeCompare(key(b)))
 }
 
-const keyOf = (item) => JSON.stringify([item.predicate, item.file, item.symbol])
-
-/** A violation fails when its (predicate, file, symbol) occurs more often than the baseline records, or when its predicate's total rises. */
-export const againstBaseline = (violations, baseline) => {
-  const recorded = new Map()
-  for (const item of baseline) recorded.set(keyOf(item), (recorded.get(keyOf(item)) ?? 0) + 1)
-  const baselineTotals = new Map()
-  for (const item of baseline) baselineTotals.set(item.predicate, (baselineTotals.get(item.predicate) ?? 0) + 1)
-  const totals = new Map()
-  const failures = []
-  for (const item of violations) {
-    totals.set(item.predicate, (totals.get(item.predicate) ?? 0) + 1)
-    const left = recorded.get(keyOf(item)) ?? 0
-    if (left === 0) failures.push({ ...item, reason: 'new violation' })
-    else recorded.set(keyOf(item), left - 1)
-  }
-  for (const [predicate, count] of totals) {
-    if (count > (baselineTotals.get(predicate) ?? 0)) failures.push({ predicate, reason: `count ${count} is above the baseline ${baselineTotals.get(predicate) ?? 0}` })
-  }
-  return failures
-}
-
 const countsOf = (violations) => Object.fromEntries(PREDICATES.map((predicate) => [predicate, violations.filter((item) => item.predicate === predicate).length]))
 
 const main = () => {
-  const root = resolve(fileURLToPath(new URL('../', import.meta.url)))
-  const violations = findAccessViolations(root)
-  const baselinePath = resolve(root, BASELINE)
-  const baseline = existsSync(baselinePath) ? JSON.parse(readFileSync(baselinePath, 'utf8')) : []
-  const failures = againstBaseline(violations, baseline)
-  if (process.argv.includes('--write')) {
-    if (failures.length > 0 && existsSync(baselinePath)) {
-      console.error('check-access-owner: a violation rose; remove it instead of recording it.')
-    } else {
-      writeFileSync(baselinePath, `${JSON.stringify(violations, null, 2)}\n`)
-      console.log(`check-access-owner: recorded ${JSON.stringify(countsOf(violations))}`)
-      return 0
-    }
-  }
+  const violations = findAccessViolations(resolve(fileURLToPath(new URL('../', import.meta.url))))
   const counts = countsOf(violations)
-  const recordedCounts = countsOf(baseline)
-  for (const predicate of PREDICATES) console.log(`check-access-owner: ${predicate} ${counts[predicate]} (baseline ${recordedCounts[predicate]})`)
-  if (failures.length === 0) return 0
-  for (const failure of failures) console.error(`check-access-owner: ${failure.predicate} ${failure.reason}${failure.file ? ` in ${failure.file} (${failure.symbol})` : ''}`)
-  return 1
+  for (const predicate of PREDICATES) console.log(`check-access-owner: ${predicate} ${counts[predicate]}`)
+  for (const item of violations) console.error(`check-access-owner: ${item.predicate} in ${item.file} (${item.symbol})`)
+  return violations.length === 0 ? 0 : 1
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) process.exitCode = main()
