@@ -40,6 +40,25 @@ test('an answer resumes the question on the same session and VM, and the run goe
   assert.notEqual(await liveSession(run.controller), undefined, 'the session stays with the conversation after the run')
 })
 
+test('while the run waits, the Hub serves and publishes the call its live session waits on, and none once the wait ends', async (t) => {
+  const held = {}
+  const run = await realRun(t, {
+    answers: [async (service) => {
+      held.call = await pendingCall(run.controller)
+      held.during = service.pendingCalls(projectId, conversationId)
+      assert.equal(service.answerQuestion({ projectId, conversationId, toolCallId: held.call, resumeData: ['Azul'] }), 'ACCEPTED')
+      held.answered = service.pendingCalls(projectId, conversationId)
+    }],
+  })
+  await run.start()
+  await run.untilEnded()
+  const published = run.publishedRuns.map((view) => [view.phase, view.pendingCalls])
+  assert.deepEqual({ during: held.during, answered: held.answered, after: run.service.pendingCalls(projectId, conversationId) }, { during: [held.call], answered: [], after: [] })
+  assert.deepEqual(published.filter(([phase]) => phase === 'WAITING'), [['WAITING', [held.call]]])
+  assert.deepEqual(published.filter(([phase]) => phase !== 'WAITING').flatMap(([, calls]) => calls), [], 'no other publish names a call')
+  await run.service.close()
+})
+
 test('a message while the question waits ends the question as denied, and the same run takes it as a plain turn', async (t) => {
   const held = {}
   const run = await realRun(t, {
@@ -117,7 +136,7 @@ test('a question a stopped Hub left open is denied at the next send of a new Hub
   const { model, prompts } = scriptedModel()
   const after = await builderOn(t, storage, model)
   const next = await after.openSession({ projectId, conversationId, builderRunId: '11111111-1111-4111-8111-111111111102', bindContext: bindRun('11111111-1111-4111-8111-111111111102') })
-  assert.equal(next.pending(call), false, 'a new Hub holds no question, so no card is drawn')
+  assert.deepEqual(next.pendingCalls(), [], 'a new Hub holds no question, so no card is drawn')
   assert.equal((await next.takeStep({ kind: 'SEND', content: 'Use verde' }, signal)).reason, 'complete')
   const last = prompts.at(-1)
   assert.deepEqual(partsOf(last.at(-1)).map((part) => part.text), ['Use verde'])

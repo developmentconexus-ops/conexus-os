@@ -1,6 +1,6 @@
 # Construir
 
-Construir is the Project's conversation with the Builder. The person sends a message, watches the agent's turn stream into the conversation, answers questions it parks, approves its plan, picks the model and reasoning level, and sees the result in the Stage lenses.
+Construir is the Project's conversation with the Builder. The person sends a message, watches the agent's turn stream into the conversation, answers the questions it waits on, approves its plan, picks the model and reasoning level, and sees the result in the Stage lenses.
 
 ## Sub-features
 
@@ -8,9 +8,8 @@ Construir is the Project's conversation with the Builder. The person sends a mes
 - `turn-failed` shows a failed turn's reason as a note in the conversation, as an alert with `Detalhe técnico` in the `Prévia` lens, and as `Resultado` in the `Sobre` lens.
 - `stream` streams the agent's answer into the conversation. Not reachable under this harness.
 - `reasoning` shows `Pensando…` while the model's reasoning streams, then a collapsed `Pensou` row. Not reachable under this harness.
-- `question-card` parks a question (`Pergunta do agente`) answered with radios and `Enviar resposta` or `Enviar respostas`. Not reachable under this harness.
-- `plan-card` parks a plan (`Plano para aprovar`) with `Aprovar e construir` and `O que mudar no plano`. Not reachable under this harness.
-- `permission-card` parks a tool request (`Pedido de permissão`) with `Permitir` and `Recusar`. Not reachable under this harness.
+- `question-card` shows a question the run waits on (`Pergunta do agente`), answered with radios and `Enviar resposta` or `Enviar respostas`. Not reachable under this harness.
+- `plan-card` shows a plan the run waits on (`Plano para aprovar`) with `Aprovar e construir` and `O que mudar no plano`. Not reachable under this harness.
 - `model-picker` opens `Modelo <name>, raciocínio <level>`, a popover with the `Modelo desta conversa` listbox, `Buscar modelo` and the `Raciocínio` slider.
 - `conversations` switches conversations in the `Conversa` combobox and opens one with `Nova conversa`.
 - `lenses` shows the Stage tabs `Prévia`, `Código`, `Alterações` and `Sobre`.
@@ -46,7 +45,7 @@ Preconditions:
 - `tests/live/` (`npm run test:live`) drives the same launch with a scripted model and a local sandbox, and reaches `stream`, `question-card`, `plan-card` and `done-check`. This CLI doesn't.
 - `composer-states` is source-only (`composer.tsx`, `model-picker.tsx`). The fake proxy always lists models, and a failed turn ends before a stop button can be clicked.
 - While a conversation is open, `browser.log` gains a `409 (Conflict)` console error on the conversation URL about every ten seconds, because the Builder's session never becomes ready without a sandbox (cause read from `mastra-session-routes.ts`, not observed). On a Project in deletion, `settings` logs `503`. Both are expected here.
-- The Builder opens its E2B sandbox before the model's first token, and this harness closes E2B on purpose. So `stream`, `reasoning`, the parked cards and every lens that needs a built app can't be proven here. The fake model proxy does not answer model calls either, so even with a sandbox these need a model stand-in on Gemini's `/v1beta` API. Report these sub-features as skipped, with "E2B closed" as the unmet precondition.
+- The Builder opens its E2B sandbox before the model's first token, and this harness closes E2B on purpose. So `stream`, `reasoning`, the question and plan cards and every lens that needs a built app can't be proven here. The fake model proxy does not answer model calls either, so even with a sandbox these need a model stand-in on Gemini's `/v1beta` API. Report these sub-features as skipped, with "E2B closed" as the unmet precondition.
 - The sandbox failure surfaces as the generic internal-error sentence, not `ENVIRONMENT_PREPARATION_FAILED`'s copy. Treat a change in that copy as a behavior change.
 - Other models offer other levels. The full set of words is `Desligado`, `Baixo`, `Médio`, `Alto`, `Muito alto` and `Máximo`.
 - A conversation whose only turn failed keeps the title `Conversa sem título`, so the `Conversa` list can hold several options with the same name.

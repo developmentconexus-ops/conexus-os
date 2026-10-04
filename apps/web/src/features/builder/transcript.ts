@@ -42,11 +42,11 @@ export type MessageEntry = Readonly<{
 
 type NoticeEntry = Readonly<{ kind: 'notice'; id: string; text: string }>
 
-/** A call the run parked on the person: a tool to allow, a question to answer, or a plan to approve. */
+/** A call the run waits on the person for: a question to answer, or a plan to approve. */
 export type PromptEntry = Readonly<{
   kind: 'prompt'
   id: string
-  ask: 'APPROVAL' | 'QUESTION' | 'PLAN'
+  ask: 'QUESTION' | 'PLAN'
   toolCallId: string
   toolName: string
   args: unknown
@@ -171,8 +171,6 @@ const applyEvent = (previous: TranscriptState, event: AgentControllerEvent): Tra
       return withTool(state, event.toolCallId, (tool) => ({ ...tool, result: event.partialResult }))
     case 'tool_end':
       return withoutPrompt(withTool(state, event.toolCallId, (tool) => ({ ...tool, status: event.isError ? 'error' : 'done', result: event.result })), event.toolCallId)
-    case 'tool_approval_required':
-      return pushPrompt(state, { kind: 'prompt', id: promptId(event.toolCallId), ask: 'APPROVAL', toolCallId: event.toolCallId, toolName: event.toolName, args: event.args, prompt: null })
     case 'tool_suspended':
       return pushPrompt(state, suspensionPrompt(event.toolCallId, event.toolName, event.args, event.suspendPayload))
     case 'tool_suspension_cancelled':
@@ -218,7 +216,7 @@ const withoutStepStarts = (message: MastraDBMessage): MastraDBMessage => message
 const messagesToEntries = (messages: readonly MastraDBMessage[]): TranscriptEntry[] =>
   messages.flatMap((message) => [toMessageEntry(message, { streaming: false }), ...persistedSuspensionPrompts(message)])
 
-// A thread parked on the person keeps the open call in its message's metadata until the answer
+// A thread whose run waits on the person keeps the open call in its message's metadata until the answer
 // clears it, so a page opened while the run waits draws the card from the window alone.
 const persistedSuspensionPrompts = (message: MastraDBMessage): PromptEntry[] => {
   const suspendedTools: unknown = message.content.metadata?.suspendedTools

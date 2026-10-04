@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
-import { BUILDER_CONTROLLER, builderState, conversation, routeBuilder, userMessage } from './builder-browser-fixtures.mjs'
+import { BUILDER_CONTROLLER, builderState, conversation, routeBuilder, sse, userMessage } from './builder-browser-fixtures.mjs'
 import { startWebServer } from './web-dev-server.mjs'
 
 // A run waiting on a question, with its stream down: the open call lives in the thread message's
@@ -18,7 +18,7 @@ const waitingAsk = (question) => {
   }
 }
 
-const openWaitingRun = async (t, { phase, messages, refusal = null }) => {
+const openWaitingRun = async (t, { phase, messages, refusal = null, pendingCalls = ['call_waiting'] }) => {
   const accountId = '70000000-0000-4000-8000-000000000321'
   const projectId = '70000000-0000-4000-8000-000000000322'
   const conversationId = 'conversation-waiting'
@@ -28,7 +28,7 @@ const openWaitingRun = async (t, { phase, messages, refusal = null }) => {
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
   const state = builderState([conversation(conversationId, 'Título')], { [conversationId]: messages })
-  const run = { builderRunId: '70000000-0000-4000-8000-000000000323', projectId, conversationId, state: 'RUNNING', phase, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'Mude o título', createdAt: new Date(Date.now() - 10 * 60_000).toISOString() }
+  const run = { builderRunId: '70000000-0000-4000-8000-000000000323', projectId, conversationId, state: 'RUNNING', phase, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'Mude o título', createdAt: new Date(Date.now() - 10 * 60_000).toISOString(), pendingCalls }
   const requests = { session: 0, stream: 0, answers: [], messages: [], cancels: 0, holdMessages: null }
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, state)
@@ -89,6 +89,51 @@ test('typing in the composer while a waiting run shows its card is never taken o
   await page.waitForTimeout(2_500)
   assert.equal(await composer.inputValue(), 'abcdefghij', 'every key typed in the composer stays there')
   assert.equal(await composer.evaluate((node) => node === document.activeElement), true, 'the composer keeps focus')
+})
+
+test('a run still WAITING in the database with no live session in this Hub, as after a restart, draws no card', async (t) => {
+  const { page } = await openWaitingRun(t, { phase: 'WAITING', messages: [userMessage('user-1', 'Mude o título'), waitingAsk(WAITING_QUESTION)], pendingCalls: [] })
+  await page.locator('.cx-working').getByText('Esperando a sua resposta', { exact: false }).waitFor()
+  await page.waitForTimeout(1_000)
+  assert.equal(await page.getByTestId('ask-user').count(), 0, 'no card the Hub would refuse')
+})
+
+// Two tabs on one conversation: run 1 asked OLD, the person answered it in tab A, and run 2 now waits
+// on NEW. Tab B still holds OLD as an open card when run 2's WAITING reaches it, before its thread
+// read or the NEW call does.
+test('a tab that still holds an earlier question shows only the call the waiting run waits on, whatever reaches it first', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000331'
+  const projectId = '70000000-0000-4000-8000-000000000332'
+  const conversationId = 'conversation-two-tabs'
+  const sourceRevision = 'e'.repeat(40)
+  const OLD = 'Qual cor usar?'
+  const NEW = 'Qual fonte usar?'
+  const ask = (toolCallId, question) => ({ type: 'tool_suspended', toolCallId, toolName: 'ask_user', args: { questions: [{ question }] }, suspendPayload: { questions: [{ question }] } })
+  const run = { builderRunId: '70000000-0000-4000-8000-000000000334', projectId, conversationId, state: 'RUNNING', phase: 'WAITING', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'Agora a fonte', createdAt: new Date().toISOString(), pendingCalls: ['call-new'] }
+  const origin = await startWebServer(t)
+  const browser = await chromium.launch({ headless: true })
+  t.after(() => browser.close())
+  const openTab = async (events) => {
+    const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+    await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+    await routeBuilder(page, builderState([conversation(conversationId, 'Título')], { [conversationId]: [userMessage('user-1', 'Mude a cor'), userMessage('user-2', 'Agora a fonte')] }))
+    await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Título', projectRevision: 'revision', archived: false }) }))
+    await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      projectId, latestBuilderRun: run, latestCodeChangingRun: null,
+      preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+      runHistory: [],
+    }) }))
+    await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(...events)))
+    await page.goto(`${origin}/projects/${projectId}`)
+    return page
+  }
+  const tabA = await openTab([ask('call-new', NEW)])
+  const tabB = await openTab([ask('call-old', OLD), { type: 'state_changed', state: { yolo: true, conexusRun: run }, changedKeys: ['conexusRun'] }, ask('call-new', NEW)])
+  for (const tab of [tabA, tabB]) {
+    await card(tab).getByText(NEW, { exact: true }).waitFor()
+    assert.equal(await tab.getByText(OLD, { exact: true }).count(), 0, 'the earlier question has no card')
+    assert.equal(await tab.getByTestId('ask-user').count(), 1)
+  }
 })
 
 test('an open call the thread kept from an earlier run draws no card until this run waits on the person', async (t) => {

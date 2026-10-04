@@ -19,6 +19,8 @@ export type BuilderRunSummary = Readonly<{
   createdAt: string
   cancellationRequested?: boolean
 }>
+/** The run as the browser reads it: its row, and the calls its live session waits on while the run waits. */
+export type BuilderRunView = BuilderRunSummary & Readonly<{ pendingCalls: readonly string[] }>
 type BuilderCodeChangingRun = Readonly<{
   builderRunId: string
   projectId: string

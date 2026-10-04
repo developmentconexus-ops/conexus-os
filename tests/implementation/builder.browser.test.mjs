@@ -1219,17 +1219,17 @@ test('a turn the stream delivered only in part is completed from the thread, and
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
 })
 
-test('a page opened while the run is parked shows the question card once from the thread alone, and answering takes the run out of WAITING', async (t) => {
+test('a page opened while the run waits shows the question card once from the thread alone, and answering takes the run out of WAITING', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000301'
   const projectId = '70000000-0000-4000-8000-000000000302'
   const runId = '70000000-0000-4000-8000-000000000303'
-  const conversationId = 'conversation-parked-reload'
+  const conversationId = 'conversation-waiting-reload'
   const sourceRevision = 'a'.repeat(40)
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
 
   const question = 'Qual status um pedido pode ter?'
   const ask = { questions: [{ question, options: [{ label: 'Aberto' }, { label: 'Pago' }] }] }
-  // The thread as Mastra stores it while parked: the open call, and its suspension in the metadata.
+  // The thread as Mastra stores it while the run waits: the open call, and its suspension in the metadata.
   const asking = {
     id: 'asking-1', role: 'assistant', createdAt: new Date().toISOString(),
     content: { format: 2, parts: [{ type: 'text', text: 'Preciso saber uma coisa.' }, { type: 'tool-invocation', toolInvocation: { toolCallId: 'ask-1', toolName: 'ask_user', state: 'call', args: ask } }],
@@ -1243,7 +1243,7 @@ test('a page opened while the run is parked shows the question card once from th
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
     latestBuilderRun: {
-      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: answered ? 'AGENT' : 'WAITING',
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: answered ? 'AGENT' : 'WAITING', pendingCalls: answered ? [] : ['ask-1'],
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
       failureCode: null, requestText: 'Crie um controle de pedidos', createdAt: new Date().toISOString(),
     },
@@ -1307,7 +1307,7 @@ test('a suspended ask_user with options renders the options and submits the chos
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
     latestBuilderRun: {
-      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'WAITING',
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'WAITING', pendingCalls: ['tool-ask-1'],
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
       failureCode: null, requestText: 'Destaque o título com uma cor', createdAt: new Date().toISOString(),
     },
@@ -1382,6 +1382,7 @@ const openLiveTurn = async (t, events) => {
     builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: waits ? 'WAITING' : 'AGENT',
     baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
     failureCode: null, requestText: 'Mude o título', createdAt: new Date().toISOString(),
+    pendingCalls: events.flatMap((event) => (event.type === 'tool_suspended' && !ended.has(event.toolCallId) ? [event.toolCallId] : [])),
   }
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
@@ -1654,7 +1655,7 @@ test('the eval driver answers every question of the real multi-question ask_user
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
     latestBuilderRun: {
-      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'WAITING',
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'WAITING', pendingCalls: ['tool-ask-many'],
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
       failureCode: null, requestText: 'Crie um painel', createdAt: new Date().toISOString(),
     },
@@ -1710,7 +1711,7 @@ test('a suspended ask_user with no options renders the pt-BR free-text form', as
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId,
     latestBuilderRun: {
-      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'WAITING',
+      builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'WAITING', pendingCalls: ['tool-ask-2'],
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
       failureCode: null, requestText: 'Crie um app de lista de tarefas', createdAt: new Date().toISOString(),
     },
@@ -2038,7 +2039,7 @@ for (const width of [1536, 1700]) {
     await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
       projectId,
       latestBuilderRun: {
-        builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'WAITING',
+        builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'WAITING', pendingCalls: ['ask-w'],
         baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
         failureCode: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
       },

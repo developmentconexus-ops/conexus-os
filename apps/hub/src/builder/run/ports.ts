@@ -102,8 +102,8 @@ export type RunSession = Readonly<{
    * holds one. Ends `suspended` when the agent asks the person something.
    */
   takeStep(step: Step, signal: AbortSignal): Promise<AgentTurn>
-  /** Whether the call waits on the live session. */
-  pending(toolCallId: string): boolean
+  /** The calls that wait on the live session. */
+  pendingCalls(): readonly string[]
   /** Resolves once every call the session holds is stored on the thread. */
   untilQuestionStored(): Promise<void>
   endQuestions(): Promise<void>

@@ -146,8 +146,10 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const { history, transcript, runtime } = thread
   // The run's own memory while it works here; the conversation's, as the Hub stored it, otherwise.
   const shownMemory = runHere && isActive(runHere) && runtime.memory ? runtime.memory : sessionModel.memory
-  // A run's first step ends the questions earlier runs left, so the calls pending while it waits are its own.
-  const openEntries = transcript.entries.filter((entry) => entry.kind !== 'prompt' || isWaiting(runHere))
+  // A card is drawn only for a call the run's live session waits on, as the Hub says; a card the
+  // thread kept from an earlier run, or from a Hub that stopped, is never one.
+  const waitingOn = new Set(runHere && isWaiting(runHere) ? runHere.pendingCalls ?? [] : [])
+  const openEntries = transcript.entries.filter((entry) => entry.kind !== 'prompt' || waitingOn.has(entry.toolCallId))
   const pending = openEntries.filter((entry): entry is PromptEntry => entry.kind === 'prompt')
 
   // The message this page sent waits for the thread to show it back. Once its run settled and the
@@ -208,8 +210,8 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
 
   const preview = usePreview(projectId, session.data?.preview)
   const working = view.kind === 'ACTIVE'
-  const parked = isWaiting(runHere)
-  const now = useNow(working && !parked)
+  const waitsHere = isWaiting(runHere)
+  const now = useNow(working && !waitsHere)
   // The Hub starts a new conversation from the person's defaults, else the installation's, and a
   // model chosen in one conversation stays with that conversation.
   const newConversation = () => conversationActions.create.mutate(undefined, { onSuccess: (created) => onConversationChange(created.id) })
@@ -369,7 +371,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
         {runHere && <TaskListPt className="cx-task-list" tasks={[...transcript.tasks]} title={taskListTitle(transcript.tasks)} />}
         {/* The result card already names a code-changing run's outcome; a settled working-state row
             underneath would just repeat "Alterou o app" a second time. */}
-        {headerLine !== null && !resultCardShown && <WorkingState line={headerLine} working={working} elapsedMs={working && run && !parked ? now - new Date(run.createdAt).getTime() : null} />}
+        {headerLine !== null && !resultCardShown && <WorkingState line={headerLine} working={working} elapsedMs={working && run && !waitsHere ? now - new Date(run.createdAt).getTime() : null} />}
         <BuilderComposer
           draft={draft}
           onDraftChange={setDraft}

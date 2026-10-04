@@ -23,8 +23,8 @@ owner document decides, and the disagreement is a finding.
 Each item happened in this repository. A `lint` item fails `npm run verify:quick`. A `review` item
 is judged in review.
 
-- **Never keep state beside what Mastra, E2B or PostgreSQL already holds.** A Hub map kept parked
-  runs next to Mastra's `pendingSuspensions`. Instead read the Mastra session, the way Mastra
+- **Never keep state beside what Mastra, E2B or PostgreSQL already holds.** Before S2 (spec 0011), a Hub map
+  kept parked runs next to Mastra's `pendingSuspensions`. Instead read the Mastra session, the way Mastra
   Factory does. `review`, principle 4.
 - **Never create and delete a long-lived resource on every run.** #380 paused the sandbox after
   each run, against the idle window in spec 0002, and later fixes patched the next run to find it
@@ -32,8 +32,8 @@ is judged in review.
 - **Never fix one premise a third time.** Eight pull requests kept "an answer to a question is a
   new run" alive before the redesign. Instead stop after the second fix and report that the
   premise needs a redesign. `review`, principle 12.
-- **Never encode a lifecycle in booleans.** `parked`, `answered` and `parking` together encoded
-  the parked-run state machine. Instead write a union of states with one owner. `review`,
+- **Never encode a lifecycle in booleans.** Before S2 (spec 0011), `parked`, `answered` and
+  `parking` together encoded the parked-run state machine. Instead write a union of states with one owner. `review`,
   principle 2.
 - **Never connect two calls through a module-level variable.** #380 added `fedMirrors`, a module
   `WeakMap` from a workspace to its turn mirror, and tests later kept it alive. Instead pass the

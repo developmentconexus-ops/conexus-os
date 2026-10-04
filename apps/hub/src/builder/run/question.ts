@@ -108,6 +108,8 @@ const releaseQuestions = async (controller: Pick<AgentController, 'getMastra'>, 
 type Inbox = Readonly<{
   /** Opens the slot for the question the agent just asked; the next `wait` closes it. */
   open(): void
+  /** Whether the run waits on the person now: open, and no reply taken yet. */
+  waiting(): boolean
   /** The person's answer to a call pending on the live session. */
   answer(toolCallId: string, resumeData: unknown): AnswerOutcome
   /** A message typed while the run waits; a run that is not waiting is busy. */
@@ -140,6 +142,7 @@ export const createInbox = (pending: (toolCallId: string) => boolean, stopReason
       accepting = true
       slot = null
     },
+    waiting: () => accepting && slot === null,
     answer: (toolCallId, resumeData) => {
       if (answered.has(toolCallId)) return 'ALREADY_ANSWERED'
       if (!accepting) return 'ENDED'

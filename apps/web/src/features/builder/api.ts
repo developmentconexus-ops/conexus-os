@@ -42,6 +42,8 @@ export type BuilderRun = Readonly<{
   createdAt: string
   conversationId: string
   cancellationRequested?: boolean
+  /** The calls the run's live session waits on while the run waits on the person. */
+  pendingCalls?: readonly string[]
 }>
 export type BuilderMessageAccepted = Readonly<{ builderRun: BuilderRun }>
 type BuilderTraceUsage = Readonly<{ inputTokens: number | null; outputTokens: number | null; totalTokens: number | null }>
@@ -147,6 +149,7 @@ export const parseRunState = (value: unknown): BuilderRun | null => {
     && RUN_STATES.has(run.state) && RUN_PHASES.has(run.phase) && RESULT_KINDS.has(run.resultKind)
     && isTextOrNull(run.resultSourceRevision) && isTextOrNull(run.failureCode) && isTextOrNull(run.requestText)
     && (run.cancellationRequested === undefined || typeof run.cancellationRequested === 'boolean')
+    && (run.pendingCalls === undefined || (Array.isArray(run.pendingCalls) && run.pendingCalls.every(isText)))
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return valid ? run as BuilderRun : null
 }

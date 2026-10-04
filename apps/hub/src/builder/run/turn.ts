@@ -60,7 +60,7 @@ export const createControllerRunSessions = ({ controller, conversations, readDef
         throw error
       }
     },
-    pending: (toolCallId) => session.suspensions.has({ toolCallId }),
+    pendingCalls: () => [...session.displayState.get().pendingSuspensions.keys()].filter((toolCallId) => session.suspensions.has({ toolCallId })),
     untilQuestionStored: () => untilQuestionStored(session, bound),
     // A stalled store would hold the release past its bound; the conversation's next send ends the question.
     endQuestions: async () => { if (!stalled) await endQuestions(controller, session, bound) },

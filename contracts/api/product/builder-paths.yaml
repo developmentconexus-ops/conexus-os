@@ -228,6 +228,14 @@ components:
         requestText: { type: [string, 'null'], maxLength: 20000 }
         createdAt: { type: string, format: date-time }
         cancellationRequested: { type: boolean }
+    BuilderRunView:
+      description: The run as the browser reads it. pendingCalls are the calls the run's live session waits on while the run waits on the person; a Hub with no live run for it serves none.
+      allOf:
+        - $ref: '#/components/schemas/BuilderRunSummary'
+        - type: object
+          required: [pendingCalls]
+          properties:
+            pendingCalls: { type: array, items: { type: string } }
     BuilderPreviewSummary:
       type: object
       additionalProperties: false
@@ -256,7 +264,7 @@ components:
         # projected here.
         latestBuilderRun:
           oneOf:
-            - $ref: '#/components/schemas/BuilderRunSummary'
+            - $ref: '#/components/schemas/BuilderRunView'
             - type: 'null'
         latestCodeChangingRun:
           oneOf:

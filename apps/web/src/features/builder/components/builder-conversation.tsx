@@ -248,7 +248,7 @@ type Piece =
   | Readonly<{ kind: 'thinking'; key: string }>
   | Readonly<{ kind: 'thought'; key: string; text: string }>
 
-const flattenMessage = (entry: MessageEntry, message: MastraDBMessage, streaming: boolean, parked: ReadonlySet<string>): readonly Piece[] => {
+const flattenMessage = (entry: MessageEntry, message: MastraDBMessage, streaming: boolean, awaited: ReadonlySet<string>): readonly Piece[] => {
   const key = entry.id
   if (isUserAuthored(message)) {
     const text = userText(message)
@@ -266,8 +266,8 @@ const flattenMessage = (entry: MessageEntry, message: MastraDBMessage, streaming
     // A task tool call drives the pinned checklist (construir.tsx, from the AgentController's own
     // display state), not a conversation row: rendering it here too would repeat what the
     // checklist already shows, one row per task_write/task_update/task_check/task_complete call.
-    // A call parked for the person is answered on its card, so it has no row yet.
-    if (part.type === 'tool-invocation') return TASK_TOOL_NAMES.has(part.toolInvocation.toolName) || parked.has(part.toolInvocation.toolCallId) ? [] : [{ kind: 'tool', key: partKey, part }]
+    // A call the run waits on the person for is answered on its card, so it has no row yet.
+    if (part.type === 'tool-invocation') return TASK_TOOL_NAMES.has(part.toolInvocation.toolName) || awaited.has(part.toolInvocation.toolCallId) ? [] : [{ kind: 'tool', key: partKey, part }]
     if (part.type === 'text') return part.text ? [{ kind: 'text', key: partKey, text: part.text, streaming: last }] : []
     // The part still streaming says the agent is thinking; a settled one is a row that opens to its text.
     if (part.type === 'reasoning') return last ? [{ kind: 'thinking', key: partKey }] : part.reasoning.trim() ? [{ kind: 'thought', key: partKey, text: part.reasoning }] : []
@@ -359,7 +359,7 @@ export function BuilderConversation({ entries, persistedRequests, runs, model, w
   model: BuilderModel | null
   // The run here is in its agent step: until it speaks after the person, the thread says it is thinking.
   working: boolean
-  // Draws a call the run here parked on the person; absent while no run here is active.
+  // Draws a call the run here waits on the person for; absent while no run here waits.
   renderPrompt?: (prompt: PromptEntry) => ReactNode
 }>) {
   const messages = entries.filter((entry): entry is MessageEntry => entry.kind === 'message')
@@ -367,7 +367,7 @@ export function BuilderConversation({ entries, persistedRequests, runs, model, w
   const { owner, orphans: unspoken } = matchRequests(messages, persistedRequests)
   const orphans = unspoken.map((entry) => ({ at: new Date(entry.createdAt).getTime(), entry })).sort((left, right) => left.at - right.at)
   const prompts = renderPrompt ? entries.filter((entry): entry is PromptEntry => entry.kind === 'prompt') : []
-  const parked = new Set(prompts.map((prompt) => prompt.toolCallId))
+  const awaited = new Set(prompts.map((prompt) => prompt.toolCallId))
   const { revealed, caughtUp } = useRevealedTurn(messages, merged, working)
   const runtime = new Map(messages.flatMap((entry) => Object.values(entry.runtimeTools ?? {}).map((tool): [string, RuntimeTool] => [tool.toolCallId, tool])))
 
@@ -406,7 +406,7 @@ export function BuilderConversation({ entries, persistedRequests, runs, model, w
     const message = parts ? { ...whole, content: { ...whole.content, parts } } : whole
     requestsBefore(messageTime(message))
     if (isUserAuthored(message)) failuresBefore(owner.get(entry.id)?.createdAt ?? newest)
-    const flat = flattenMessage(entry, message, working && entry.streaming === true, parked)
+    const flat = flattenMessage(entry, message, working && entry.streaming === true, awaited)
     for (const piece of flat) spokeSinceUser = piece.kind === 'user' ? false : piece.kind === 'notice' ? spokeSinceUser : true
     pieces.push(...flat)
   }

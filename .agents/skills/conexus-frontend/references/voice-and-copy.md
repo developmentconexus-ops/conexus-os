@@ -42,7 +42,6 @@ Cada ferramenta vira uma frase, uma enquanto roda e outra quando termina ("Lendo
 
 - Três ou mais chamadas seguidas viram uma linha: rodando, nomeia a atual e mostra "2/5"; terminada, resume ("Editou 4 arquivos, executou 1 comando"). Uma chamada que falhou entra como "1 falhou".
 - O raciocínio do modelo aparece só como "Pensando…" e some depois.
-- Pedido de permissão: "O agente quer executar um comando: `npm install date-fns`. Permitir?", com só **Permitir** e **Recusar**.
 
 ## Honestidade
 

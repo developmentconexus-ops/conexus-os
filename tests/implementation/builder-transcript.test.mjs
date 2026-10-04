@@ -550,12 +550,6 @@ test('a prompt pushed by tool_suspended is removed by tool_suspension_cancelled'
   assert.deepEqual(state.entries, [])
 })
 
-test('tool_approval_required pushes one APPROVAL prompt per call', () => {
-  const approval = { type: 'tool_approval_required', toolCallId: 'a1', toolName: 'execute_command', args: { command: 'ls' } }
-  const state = event(event(emptyTranscript('c1'), approval), approval)
-  assert.deepEqual(state.entries, [{ kind: 'prompt', id: 'prompt-a1', ask: 'APPROVAL', toolCallId: 'a1', toolName: 'execute_command', args: { command: 'ls' }, prompt: null }])
-})
-
 test('resolvePrompt removes the prompt of that call only', () => {
   let state = event(emptyTranscript('c1'), { type: 'tool_suspended', toolCallId: 'q1', toolName: 'ask_user', args: {}, suspendPayload: {} })
   state = event(state, { type: 'tool_suspended', toolCallId: 'q2', toolName: 'ask_user', args: {}, suspendPayload: {} })

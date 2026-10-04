@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
-import { TASK_TOOL_NAMES, groupSummary, toolRequest, toolSentence } from '../../apps/web/src/features/builder/construir/tool-sentences.ts'
+import { TASK_TOOL_NAMES, groupSummary, toolSentence } from '../../apps/web/src/features/builder/construir/tool-sentences.ts'
 
 // Regression for the mislabeled-row bug: Mastra Code's task_update/task_check/task_complete
 // reached the heuristics (only task_write had a table entry) where /ask|approve|confirm|question/i
@@ -24,7 +24,6 @@ test('task_update, task_check and task_complete have their own pt-BR sentence, n
 test('ask_user itself still reads as a question', () => {
   assert.equal(toolSentence('ask_user', true), 'Perguntando a você')
   assert.equal(toolSentence('ask_user', false), 'Perguntou a você')
-  assert.equal(toolRequest('ask_user'), 'perguntar a você')
 })
 
 // An id this table has never seen falls to the heuristics: task-shaped ids must not fall through
@@ -135,7 +134,6 @@ test('every tool the Builder offers a run has its own pt-BR sentence, running an
   for (const [toolName, done] of Object.entries(REGISTERED_TOOL_SENTENCES)) {
     assert.equal(toolSentence(toolName, false), done, toolName)
     assert.notEqual(toolSentence(toolName, true), 'Usando uma ferramenta', toolName)
-    assert.notEqual(toolRequest(toolName), 'usar uma ferramenta', toolName)
   }
 })
 
@@ -153,7 +151,6 @@ test('groupSummary names the failures when there are any', () => {
 test('submit_plan has its own pt-BR sentence and stays a row of its own', () => {
   assert.equal(toolSentence('submit_plan', true), 'Enviando o plano')
   assert.equal(toolSentence('submit_plan', false), 'Enviou o plano')
-  assert.equal(toolRequest('submit_plan'), 'enviar o plano')
 })
 
 test('every Mastra workspace tool the Builder reads, prefixed as it reaches the conversation, has its own sentence, and none falls to the generic one', async () => {

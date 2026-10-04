@@ -101,6 +101,8 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     return { exitCode: ran.status ?? 1, success: ran.status === 0, stdout: ran.stdout ?? '', stderr: ran.stderr ?? '' }
   }
   const events = []
+  // Each run the Hub published into the conversation's session, as the browser's stream hears it.
+  const publishedRuns = []
   // The service, for an answer the person gives while the run waits.
   const context = {}
   const calls = []
@@ -248,7 +250,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
           if (ended.reason === 'suspended') pending.add(ended.toolCallId ?? 'c1')
           return ended
         },
-        pending: (toolCallId) => pending.has(toolCallId),
+        pendingCalls: () => [...pending],
         untilQuestionStored: async () => { events.push('stored') },
         endQuestions: async () => { events.push('end-questions'); pending.clear() },
         release: async () => { events.push('session-release'); if (close) await close() },
@@ -328,7 +330,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
       },
       source: createProjectSourceReads({ git }),
       appendDiagnostic: async (input) => { diagnostics.push({ ...input, from: 'service' }) },
-      publishRun: async () => {},
+      publishRun: async (published) => { publishedRuns.push(published) },
       questionWaitMs,
     },
   })
@@ -367,6 +369,6 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
   const untilEnded = async () => {
     while (row.running || service.runOpen(conversationId)) await new Promise((wake) => { setTimeout(wake, 50) })
   }
-  return { untilEnded, mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, timings, egress, egressLogs, service, start, main, result, commands, checks, feedbacks, settled, sessionContext, checkout, outside, moveMain, idled, killed, sandboxRefs, loseVm, bare, vm }
+  return { publishedRuns, untilEnded, mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, timings, egress, egressLogs, service, start, main, result, commands, checks, feedbacks, settled, sessionContext, checkout, outside, moveMain, idled, killed, sandboxRefs, loseVm, bare, vm }
 }
 

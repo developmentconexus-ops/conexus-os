@@ -453,6 +453,21 @@ test('a message names its conversation only: mode and promptVariant are refused,
   assert.equal(runLog['failure.details.projectId'], projectA)
 })
 
+test('the session read serves the latest run with the calls its live run in this Hub waits on, and none for a run this Hub does not hold', async (t) => {
+  const runId = '99999999-9999-4999-8999-999999999999'
+  const waiting = { builderRunId: runId, projectId: projectA, conversationId: conversationA, state: 'RUNNING', phase: 'WAITING', baseSourceRevision: '0'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'c', createdAt: new Date().toISOString(), cancellationRequested: false }
+  let held = ['call-1']
+  const { app } = await createBuilderRoutesApp(t, {
+    session: { read: async () => ({ projectId: projectA, workingSourceRevision: null, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null, runHistory: [] }) },
+    store: { readBuilderRun: async () => waiting, readLatestCodeChangingBuilderRun: async () => null },
+    service: { pendingCalls: (projectId, conversationId) => (projectId === projectA && conversationId === conversationA ? held : ['wrong']) },
+  })
+  const read = async () => (await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/builder-session`, ...authentic })).json().latestBuilderRun.pendingCalls
+  assert.deepEqual(await read(), ['call-1'])
+  held = []
+  assert.deepEqual(await read(), [], 'after a restart the row still says WAITING, and nothing is answerable')
+})
+
 test('builder session, cancel, trace, and preview routes log failure codes on internal errors', async (t) => {
   const { logger } = await import(hubModuleUrl('platform/logger.js'))
   const pinoStreamSym = Object.getOwnPropertySymbols(logger).find((s) => s.description === 'pino.stream')

@@ -6,7 +6,7 @@ const emptyArgs = (args: unknown): boolean =>
   args === null || args === undefined || (typeof args === 'object' && Object.keys(args).length === 0)
 
 // A call is one thing however many snapshots of it the thread carries. The controller resolves a
-// parked call in a new message, as a part with no arguments, after the message that asked, and a
+// suspended call in a new message, as a part with no arguments, after the message that asked, and a
 // finished turn's stored copy repeats the live one. The call keeps the place and the arguments of
 // its first snapshot and takes the state of its last; later snapshots leave their message.
 export const mergeCalls = (messages: readonly MastraDBMessage[]): readonly MastraDBMessage[] => {

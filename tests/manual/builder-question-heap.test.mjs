@@ -48,7 +48,7 @@ const measure = async (t, way) => {
     await (index === 0 ? run.start(content, `run-${index}`) : run.again(content, `run-${index}`))
     await run.untilEnded()
     endings.add(run.calls.at(-1).join(':'))
-    for (const kept of [run.calls, run.events, run.logs, run.timings, run.sessions, prompts]) kept.length = 0
+    for (const kept of [run.calls, run.events, run.logs, run.timings, run.sessions, run.publishedRuns, prompts]) kept.length = 0
   }
   const growth = (await settledHeap()) - heapAtStart
   const kept = []

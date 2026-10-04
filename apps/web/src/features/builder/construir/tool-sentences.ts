@@ -5,9 +5,9 @@ import type { BuiltinToolId } from '@mastra/core/agent-controller'
 import type { WORKSPACE_TOOLS_PREFIX, WorkspaceToolName } from '@mastra/core/workspace'
 
 type ToolKind = 'ler' | 'editar' | 'executar' | 'buscar' | 'verificar' | 'outros'
-type Sentence = Readonly<{ running: string; done: string; ask: string; kind: ToolKind }>
+type Sentence = Readonly<{ running: string; done: string; kind: ToolKind }>
 
-const sentence = (running: string, done: string, ask: string, kind: ToolKind): Sentence => ({ running, done, ask, kind })
+const sentence = (running: string, done: string, kind: ToolKind): Sentence => ({ running, done, kind })
 
 // Typed by Mastra's own tool names, so a name Mastra renames stops compiling instead of quietly
 // reading as "Usou uma ferramenta". The web cannot import the runtime constants (@mastra/core's
@@ -18,58 +18,58 @@ type BareWorkspaceTool = WorkspaceToolName extends `${WorkspacePrefix}${infer Na
 type OfferedWorkspaceTool = Exclude<BareWorkspaceTool, `computer_${string}`>
 type OfferedBuiltinTool = Exclude<BuiltinToolId, 'subagent'>
 
-const readFile = sentence('Lendo um arquivo', 'Leu um arquivo', 'ler um arquivo', 'ler')
-const editFile = sentence('Editando um arquivo', 'Editou um arquivo', 'editar um arquivo', 'editar')
-const grep = sentence('Buscando no código', 'Buscou no código', 'buscar no código', 'buscar')
-const deleteFile = sentence('Apagando um arquivo', 'Apagou um arquivo', 'apagar um arquivo', 'outros')
+const readFile = sentence('Lendo um arquivo', 'Leu um arquivo', 'ler')
+const editFile = sentence('Editando um arquivo', 'Editou um arquivo', 'editar')
+const grep = sentence('Buscando no código', 'Buscou no código', 'buscar')
+const deleteFile = sentence('Apagando um arquivo', 'Apagou um arquivo', 'outros')
 
 const workspaceSentences: Readonly<Record<OfferedWorkspaceTool, Sentence>> = {
   read_file: readFile,
-  write_file: sentence('Escrevendo um arquivo', 'Escreveu um arquivo', 'escrever um arquivo', 'editar'),
+  write_file: sentence('Escrevendo um arquivo', 'Escreveu um arquivo', 'editar'),
   edit_file: editFile,
   ast_edit: editFile,
-  execute_command: sentence('Executando um comando', 'Executou um comando', 'executar um comando', 'executar'),
-  get_process_output: sentence('Lendo a saída de um processo', 'Leu a saída de um processo', 'ler a saída de um processo', 'executar'),
-  kill_process: sentence('Parando um processo', 'Parou um processo', 'parar um processo', 'executar'),
-  list_files: sentence('Listando arquivos', 'Listou arquivos', 'listar arquivos', 'buscar'),
+  execute_command: sentence('Executando um comando', 'Executou um comando', 'executar'),
+  get_process_output: sentence('Lendo a saída de um processo', 'Leu a saída de um processo', 'executar'),
+  kill_process: sentence('Parando um processo', 'Parou um processo', 'executar'),
+  list_files: sentence('Listando arquivos', 'Listou arquivos', 'buscar'),
   grep,
-  search: sentence('Buscando', 'Buscou', 'buscar', 'buscar'),
-  index: sentence('Indexando arquivos', 'Indexou arquivos', 'indexar arquivos', 'buscar'),
-  lsp_inspect: sentence('Inspecionando o código', 'Inspecionou o código', 'inspecionar o código', 'buscar'),
-  file_stat: sentence('Consultando um arquivo', 'Consultou um arquivo', 'consultar um arquivo', 'ler'),
+  search: sentence('Buscando', 'Buscou', 'buscar'),
+  index: sentence('Indexando arquivos', 'Indexou arquivos', 'buscar'),
+  lsp_inspect: sentence('Inspecionando o código', 'Inspecionou o código', 'buscar'),
+  file_stat: sentence('Consultando um arquivo', 'Consultou um arquivo', 'ler'),
   delete: deleteFile,
-  mkdir: sentence('Criando uma pasta', 'Criou uma pasta', 'criar uma pasta', 'outros'),
+  mkdir: sentence('Criando uma pasta', 'Criou uma pasta', 'outros'),
 }
 
 const builtinSentences: Readonly<Record<OfferedBuiltinTool, Sentence>> = {
-  ask_user: sentence('Perguntando a você', 'Perguntou a você', 'perguntar a você', 'outros'),
-  submit_plan: sentence('Enviando o plano', 'Enviou o plano', 'enviar o plano', 'outros'),
-  task_write: sentence('Organizando as tarefas', 'Organizou as tarefas', 'organizar as tarefas', 'outros'),
-  task_update: sentence('Atualizando as tarefas', 'Atualizou as tarefas', 'atualizar as tarefas', 'outros'),
-  task_check: sentence('Conferindo as tarefas', 'Conferiu as tarefas', 'conferir as tarefas', 'outros'),
-  task_complete: sentence('Concluindo uma tarefa', 'Concluiu uma tarefa', 'concluir uma tarefa', 'outros'),
+  ask_user: sentence('Perguntando a você', 'Perguntou a você', 'outros'),
+  submit_plan: sentence('Enviando o plano', 'Enviou o plano', 'outros'),
+  task_write: sentence('Organizando as tarefas', 'Organizou as tarefas', 'outros'),
+  task_update: sentence('Atualizando as tarefas', 'Atualizou as tarefas', 'outros'),
+  task_check: sentence('Conferindo as tarefas', 'Conferiu as tarefas', 'outros'),
+  task_complete: sentence('Concluindo uma tarefa', 'Concluiu uma tarefa', 'outros'),
 }
 
 // The Builder's own tools, and the names other agents give the same file actions.
 const ownSentences: Readonly<Record<string, Sentence>> = {
   view: readFile,
-  create_file: sentence('Criando um arquivo', 'Criou um arquivo', 'criar um arquivo', 'editar'),
+  create_file: sentence('Criando um arquivo', 'Criou um arquivo', 'editar'),
   string_replace: editFile,
   str_replace: editFile,
-  find_files: sentence('Procurando arquivos', 'Procurou arquivos', 'procurar arquivos', 'buscar'),
+  find_files: sentence('Procurando arquivos', 'Procurou arquivos', 'buscar'),
   search_content: grep,
   delete_file: deleteFile,
-  web_search: sentence('Pesquisando na internet', 'Pesquisou na internet', 'pesquisar na internet', 'buscar'),
-  conexus_check: sentence('Verificando o app', 'Verificou o app', 'verificar o app', 'verificar'),
-  conexus_run_operation: sentence('Testando uma operação com dados reais', 'Testou uma operação com dados reais', 'testar uma operação com dados reais', 'verificar'),
-  skill: sentence('Consultando a skill', 'Consultou a skill', 'consultar a skill', 'ler'),
-  skill_read: sentence('Lendo a skill', 'Leu a skill', 'ler a skill', 'ler'),
-  skill_search: sentence('Procurando uma skill', 'Procurou uma skill', 'procurar uma skill', 'buscar'),
-  connector_fetch: sentence('Consultando um sistema da empresa', 'Consultou um sistema da empresa', 'consultar um sistema da empresa', 'outros'),
-  web_fetch: sentence('Abrindo uma página da internet', 'Abriu uma página da internet', 'abrir uma página da internet', 'outros'),
-  context7_resolve_library_id: sentence('Procurando uma biblioteca na documentação', 'Procurou uma biblioteca na documentação', 'procurar uma biblioteca na documentação', 'outros'),
-  context7_query_docs: sentence('Lendo a documentação de uma biblioteca', 'Leu a documentação de uma biblioteca', 'ler a documentação de uma biblioteca', 'outros'),
-  recall: sentence('Relendo conversas anteriores', 'Releu conversas anteriores', 'reler conversas anteriores', 'outros'),
+  web_search: sentence('Pesquisando na internet', 'Pesquisou na internet', 'buscar'),
+  conexus_check: sentence('Verificando o app', 'Verificou o app', 'verificar'),
+  conexus_run_operation: sentence('Testando uma operação com dados reais', 'Testou uma operação com dados reais', 'verificar'),
+  skill: sentence('Consultando a skill', 'Consultou a skill', 'ler'),
+  skill_read: sentence('Lendo a skill', 'Leu a skill', 'ler'),
+  skill_search: sentence('Procurando uma skill', 'Procurou uma skill', 'buscar'),
+  connector_fetch: sentence('Consultando um sistema da empresa', 'Consultou um sistema da empresa', 'outros'),
+  web_fetch: sentence('Abrindo uma página da internet', 'Abriu uma página da internet', 'outros'),
+  context7_resolve_library_id: sentence('Procurando uma biblioteca na documentação', 'Procurou uma biblioteca na documentação', 'outros'),
+  context7_query_docs: sentence('Lendo a documentação de uma biblioteca', 'Leu a documentação de uma biblioteca', 'outros'),
+  recall: sentence('Relendo conversas anteriores', 'Releu conversas anteriores', 'outros'),
 }
 
 const sentences: Readonly<Record<string, Sentence>> = { ...ownSentences, ...workspaceSentences, ...builtinSentences }
@@ -100,13 +100,13 @@ const aliases: Readonly<Record<string, string>> = {
 // has no \w/\W boundary on either side). "ask" alone matched the "ask" inside "task", which is how
 // every task_write/task_update/task_check/task_complete call used to render as a question.
 const heuristics: readonly Readonly<{ test: RegExp; sentence: Sentence }>[] = [
-  { test: /delete|remove|rm\b/i, sentence: { running: 'Apagando um arquivo', done: 'Apagou um arquivo', ask: 'apagar um arquivo', kind: 'outros' } },
-  { test: /search|find|grep|lookup/i, sentence: { running: 'Buscando', done: 'Buscou', ask: 'buscar', kind: 'buscar' } },
-  { test: /write|edit|replace|patch|append|create/i, sentence: { running: 'Editando um arquivo', done: 'Editou um arquivo', ask: 'editar um arquivo', kind: 'editar' } },
-  { test: /read|view|get|list|inspect|stat/i, sentence: { running: 'Lendo um arquivo', done: 'Leu um arquivo', ask: 'ler um arquivo', kind: 'ler' } },
-  { test: /run|exec|command|shell|bash|build|test|install/i, sentence: { running: 'Executando um comando', done: 'Executou um comando', ask: 'executar um comando', kind: 'executar' } },
-  { test: /task|plan|todo/i, sentence: { running: 'Organizando as tarefas', done: 'Organizou as tarefas', ask: 'organizar as tarefas', kind: 'outros' } },
-  { test: /ask_user|approve|confirm|question/i, sentence: { running: 'Perguntando a você', done: 'Perguntou a você', ask: 'perguntar a você', kind: 'outros' } },
+  { test: /delete|remove|rm\b/i, sentence: { running: 'Apagando um arquivo', done: 'Apagou um arquivo', kind: 'outros' } },
+  { test: /search|find|grep|lookup/i, sentence: { running: 'Buscando', done: 'Buscou', kind: 'buscar' } },
+  { test: /write|edit|replace|patch|append|create/i, sentence: { running: 'Editando um arquivo', done: 'Editou um arquivo', kind: 'editar' } },
+  { test: /read|view|get|list|inspect|stat/i, sentence: { running: 'Lendo um arquivo', done: 'Leu um arquivo', kind: 'ler' } },
+  { test: /run|exec|command|shell|bash|build|test|install/i, sentence: { running: 'Executando um comando', done: 'Executou um comando', kind: 'executar' } },
+  { test: /task|plan|todo/i, sentence: { running: 'Organizando as tarefas', done: 'Organizou as tarefas', kind: 'outros' } },
+  { test: /ask_user|approve|confirm|question/i, sentence: { running: 'Perguntando a você', done: 'Perguntou a você', kind: 'outros' } },
 ]
 
 // The Builder's workspace tools reach the conversation as `mastra_workspace_<name>`; the tables above
@@ -118,7 +118,6 @@ const lookup = (toolName: string): Sentence | undefined => {
 }
 
 /** The permission a pending call asks for, as in "O agente quer executar um comando". */
-export const toolRequest = (toolName: string): string => lookup(toolName)?.ask ?? 'usar uma ferramenta'
 
 export const toolSentence = (toolName: string, running: boolean): string => {
   const sentence = lookup(toolName)

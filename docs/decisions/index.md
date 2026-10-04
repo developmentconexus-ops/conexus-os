@@ -38,7 +38,7 @@ eight times around one premise: that an answer to a question is a new run.
 | --- | --- |
 | The phase 2 waves (Subtract, S2, S4, S3, S1, S5, CI) come before the screen check and the Q5 preparation. | Neither is built on shapes the waves replace. Q5 starts later and is not built twice. |
 | S2 moves ahead of S3 and S4. | S2 settles who owns the session, the sandbox and an open question; S4's reaper is designed on those lifetimes. |
-| A question whose Mastra session ended ends with it, as in Claude Code. | The person's next message carries the answer, and the agent asks again if it still needs to. S2 removes the resume of a question after its session is gone, and amends the 7-day parked limit of C-036 when it lands. |
+| A question whose Mastra session ended ends with it, as in Claude Code. | The person's next message carries the answer, and the agent asks again if it still needs to. S2 (spec 0011) removed the resume of a question after its session is gone and replaced the 7-day limit of C-036 with the configured wait. |
 | Every wave follows one method: census against Mastra and similar tools, redesign from first principles, a proved blast radius, a spec the operator approves, one pull request from HQ. | Nothing stays in a wave only because it exists. |
 | The design of the Builder leaving the Hub process is part of phase 2, right after S2. | Building it may come after Q5. |
 

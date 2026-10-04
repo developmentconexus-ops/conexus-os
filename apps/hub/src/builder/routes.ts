@@ -102,7 +102,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       ])
       return {
         projectId: snapshot.projectId,
-        latestBuilderRun: run ?? null,
+        latestBuilderRun: run ? { ...run, pendingCalls: dependencies.service.pendingCalls(projectId, run.conversationId) } : null,
         latestCodeChangingRun: latestCodeChangingRun ? {
           baseSourceRevision: latestCodeChangingRun.baseSourceRevision,
           resultSourceRevision: latestCodeChangingRun.resultSourceRevision,

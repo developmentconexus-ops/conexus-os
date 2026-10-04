@@ -94,8 +94,9 @@ Source and runs
 - **AC-15**: The sandbox never holds a model credential, a Git write credential, or any Hub secret,
   and it cannot write to the Conexus Git; only the Hub moves commits.
 - **AC-16**: Only one run is active per Project, held by the database lock taken before the base
-  commit is read. A run waiting for a plan approval or an answer is still active. A new message while
-  a run is active gets the same busy answer the Builder gives today.
+  commit is read. A run waiting for a plan approval or an answer is still active. A message while the
+  run waits on the person ends the question and continues the same run; a message while the run works
+  gets the busy answer (spec 0011).
 - **AC-17**: If the sandbox dies, the model fails, or the Hub restarts during a run, the run ends as
   failed with a readable reason and the next run starts from `main`. If `main` had already advanced
   to the run's candidate, the run is recorded as admitted instead. The existing failure vocabulary and

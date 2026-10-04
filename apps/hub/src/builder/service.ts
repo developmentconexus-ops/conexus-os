@@ -7,7 +7,7 @@ import type { BuilderRunPorts, DiagnosticAppender } from './run/ports.js'
 import type { AnswerOutcome } from './run/question.js'
 import { type LiveRun, startRun } from './run/run.js'
 import type { BuilderSourceComparison, BuilderSourceFile, BuilderSourceTree, ProjectSourceReads } from './source.js'
-import type { BuilderRunSummary, BuilderStore } from './store.js'
+import type { BuilderRunSummary, BuilderRunView, BuilderStore } from './store.js'
 import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
 import { Failure, logFailure, toFailure } from '../platform/failure.js'
 import { logLine, logger } from '../platform/logger.js'
@@ -24,6 +24,8 @@ export type BuilderService = Readonly<{
   cancelBuilderRun(input: Readonly<{ accountId: string; projectId: string; builderRunId: string }>): Promise<BuilderRunSummary>
   /** The person's answer to the question the conversation's run waits on. */
   answerQuestion(input: Readonly<{ projectId: string; conversationId: string; toolCallId: string; resumeData: unknown }>): AnswerOutcome
+  /** The calls the conversation's run in this Hub waits on the person for; none when no run here waits. */
+  pendingCalls(projectId: string, conversationId: string): readonly string[]
   /** The tools of the conversation's run, while that run is the one in this Hub. */
   runTools(conversationId: string, builderRunId: string): RunTools | undefined
   /** Whether the conversation has a run in this Hub. */
@@ -54,7 +56,7 @@ export type BuilderRunDependencies = Readonly<{
   source: ProjectSourceReads
   appendDiagnostic: DiagnosticAppender
   /** Hands the run, as the builder-session read serves it, to a browser following its conversation. */
-  publishRun(run: BuilderRunSummary): Promise<void>
+  publishRun(run: BuilderRunView): Promise<void>
   /** How long a question waits for the person before its run ends. */
   questionWaitMs: number
   /** The wait before a failed ending write is tried again; it is tried three times. */
@@ -119,7 +121,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   let serviceClosing: Promise<void> | null = null
   // A browser that misses a publish still reads the run from the builder-session poll, so a failed
   // one never stops a run or a stop request.
-  const publishRun = async (run: BuilderRunSummary): Promise<void> => {
+  const publishRun = async (run: BuilderRunView): Promise<void> => {
     try {
       await dependencies.publishRun(run)
     } catch (error) {
@@ -169,10 +171,11 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     cancelBuilderRun: async (input) => {
       const result = await store.requestBuilderRunCancellation(input)
       for (const run of runs.values()) if (run.builderRunId === input.builderRunId) run.stop('USER_CANCELLED')
-      await publishRun(result)
+      await publishRun({ ...result, pendingCalls: [] })
       return result
     },
     answerQuestion: ({ projectId, conversationId, toolCallId, resumeData }) => live(projectId, conversationId)?.answer(toolCallId, resumeData) ?? 'ENDED',
+    pendingCalls: (projectId, conversationId) => live(projectId, conversationId)?.pendingCalls() ?? [],
     runTools: (conversationId, builderRunId) => {
       const run = runs.get(conversationId)
       return run?.builderRunId === builderRunId ? run.tools() : undefined

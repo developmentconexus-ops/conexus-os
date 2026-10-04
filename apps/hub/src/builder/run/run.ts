@@ -6,7 +6,7 @@ import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_
 import { turnDate } from '../harness/prompt.js'
 import { createRunTiming } from '../run-timing.js'
 import { PROJECT_FILE_READ_LIMIT, PROJECT_INSTRUCTIONS_PATH, PROJECT_MEMORY_PATH, readProjectInstructions, readProjectMemory } from '../project-context.js'
-import type { BuilderRunSummary, BuilderStore, InterruptionCode } from '../store.js'
+import type { BuilderRunSummary, BuilderRunView, BuilderStore, InterruptionCode } from '../store.js'
 import type { BuilderRunPhase } from '../../generated/builder-run-vocabulary.js'
 import type { CandidateGate } from '../candidate-gate.js'
 import { Failure, type FailureCode, logFailure, toFailure } from '../../platform/failure.js'
@@ -57,7 +57,7 @@ export type RunEnvironment = Readonly<{
   applicationServer: ApplicationServerPort | undefined
   appendDiagnostic: DiagnosticAppender
   /** Hands the run, as the builder-session read serves it, to a browser following its conversation; never throws. */
-  publishRun(run: BuilderRunSummary): Promise<void>
+  publishRun(run: BuilderRunView): Promise<void>
   /** This Hub process as the owner of the runs it works. */
   ownerId: string
   /** How long a question waits for the person before the run ends. */
@@ -74,6 +74,8 @@ export type LiveRun = Readonly<{
   /** A message for the run: taken while it waits on the person, else the run is busy. A known key is taken once. */
   message(content: string, idempotencyKey: string): 'ACCEPTED' | 'BUSY'
   stop(reason: StopReason): void
+  /** The calls the run waits on the person for; none unless it waits now. */
+  pendingCalls(): readonly string[]
   /** The run's own tools, which the controller hands the agent on the conversation's session. */
   tools(): RunTools | undefined
   /** Settles after the run's last write. */
@@ -131,8 +133,11 @@ const setPhase = async (run: Run, phase: BuilderRunPhase, written?: () => void):
   if (!summary) throw await phaseRefusal(run)
   run.trace.phase(phase)
   written?.()
-  await run.env.publishRun(summary)
+  await run.env.publishRun(viewOf(run, summary))
 }
+
+const pendingCallsOf = (run: Run): readonly string[] => (run.inbox.waiting() ? run.session?.pendingCalls() ?? [] : [])
+const viewOf = (run: Run, summary: BuilderRunSummary): BuilderRunView => ({ ...summary, pendingCalls: pendingCallsOf(run) })
 
 // The database refuses a phase once a stop is asked for or once the row is no longer running; the row says which.
 const phaseRefusal = async (run: Run): Promise<Failure> => {
@@ -416,7 +421,7 @@ const exit = async (run: Run, ending: RunEnding): Promise<void> => {
   await writeEnding(run, final)
   run.trace.end(final.kind === 'INTERRUPTED' || final.kind === 'FAILED' ? final.code : final.kind, final.kind === 'FAILED')
   const latest = await run.env.store.readBuilderRun({ accountId: run.request.accountId, projectId: run.row.projectId }).catch(() => null)
-  if (latest?.builderRunId === run.row.builderRunId) await run.env.publishRun(latest)
+  if (latest?.builderRunId === run.row.builderRunId) await run.env.publishRun(viewOf(run, latest))
   await run.session?.release().catch(logged(run, 'BUILDER_SESSION_RELEASE_FAILED'))
 }
 
@@ -428,7 +433,7 @@ export const startRun = (env: RunEnvironment, row: BuilderRunSummary, request: R
     env, row, request, stopSignal: stop.signal, keepalive, signal: AbortSignal.any([stop.signal, keepalive.signal]),
     timing: createRunTiming(),
     trace: traceRun(row),
-    inbox: createInbox((toolCallId) => run.session?.pending(toolCallId) === true, (signal) => (signal.reason === 'HUB_STOPPING' ? 'HUB_STOPPING' : 'USER_CANCELLED')),
+    inbox: createInbox((toolCallId) => run.session?.pendingCalls().includes(toolCallId) === true, (signal) => (signal.reason === 'HUB_STOPPING' ? 'HUB_STOPPING' : 'USER_CANCELLED')),
     vm: { started: false, incarnation: undefined, release: undefined, unusable: false },
     sandbox: undefined, connectorRun: null, session: undefined, tools: undefined, mirror: undefined, pulled: () => null, keepaliveFailure: undefined,
     agentUnadmitted: false, candidateRecorded: false, mirrorEnded: undefined,
@@ -450,6 +455,7 @@ export const startRun = (env: RunEnvironment, row: BuilderRunSummary, request: R
       return outcome
     },
     stop: (reason) => { stop.abort(reason) },
+    pendingCalls: () => pendingCallsOf(run),
     tools: () => run.tools,
     done,
   })
