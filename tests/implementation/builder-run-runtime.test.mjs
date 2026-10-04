@@ -1416,12 +1416,35 @@ test('a reply sent before the row says WAITING is refused, so a WAITING write th
       offered.push(service.answerQuestion({ projectId, conversationId, toolCallId: 'c1', resumeData: ['Azul'] }))
       return 'REFUSE'
     },
+    persisted: (claimed) => ({ ...claimed, state: 'RUNNING', cancellationRequested: true }),
     turn: async () => SUSPENDED,
   })
   await run.start()
   await run.service.close()
   assert.deepEqual(offered, ['BUILDER_BUSY', 'ENDED'])
   assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'], 'a refused phase write is a stop that won')
+})
+
+test('a phase write refused because the row already ended elsewhere writes no ending of its own', async (t) => {
+  const run = await harness(t, {
+    onWaitingWrite: async () => 'REFUSE',
+    persisted: (claimed) => ({ ...claimed, state: 'INTERRUPTED', failureCode: 'HUB_RESTART' }),
+    turn: async () => SUSPENDED,
+  })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'interrupt' || kind === 'fail'), [], 'the ending a takeover wrote stands')
+})
+
+test('a phase write refused by a stop the row records ends the run USER_CANCELLED', async (t) => {
+  const run = await harness(t, {
+    onWaitingWrite: async () => 'REFUSE',
+    persisted: (claimed) => ({ ...claimed, state: 'RUNNING', cancellationRequested: true }),
+    turn: async () => SUSPENDED,
+  })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
 })
 
 test('a question nobody answers ends the run INTERRUPTED with BUILDER_QUESTION_EXPIRED, after the question ends', async (t) => {

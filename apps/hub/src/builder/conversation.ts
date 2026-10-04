@@ -29,14 +29,15 @@ const scopeOf = (requestContext: RequestContext): string | undefined => {
 
 export type ConversationRef = Readonly<{ projectId: string; conversationId: string }>
 
-type Live = { readonly ref: ConversationRef; readonly sandbox: RunSandbox; at: number }
+type Live = Readonly<{ ref: ConversationRef; sandbox: RunSandbox }>
 
 /**
  * The owner of each conversation's one Mastra session and one sandbox instance. The sandbox comes
  * first, so the session Mastra makes on the scope finds its workspace; it starts no VM until its
  * first command. Mastra resolves the workspace on every agent call, so the resolver only looks up.
  * A conversation idle for `idleMs` is let go unless its run is open, its session is running, or a
- * question waits on it.
+ * question waits on it. Letting a conversation go, by the sweep or by a killed VM, is decided with
+ * no await between the last check and the entry's removal, and an open waits for it to finish.
  */
 export const createLiveConversations = ({ controller, sandboxes, readSandboxId, runOpen, idleMs = CONVERSATION_IDLE_MS, sweepEveryMs = SWEEP_EVERY_MS, now = Date.now }: Readonly<{
   controller: SessionPorts
@@ -50,37 +51,50 @@ export const createLiveConversations = ({ controller, sandboxes, readSandboxId, 
   now?: () => number
 }>) => {
   const conversations = new Map<string, Promise<Live>>()
+  const used = new Map<string, number>()
+  const retiring = new Map<string, Promise<void>>()
   const sessionOf = (ref: ConversationRef) => controller.getSessionByResource(projectResourceId(ref.projectId), conversationScope(ref.conversationId))
   const deleteSession = async (ref: ConversationRef): Promise<void> => {
     await controller.deleteSession({ resourceId: projectResourceId(ref.projectId), scope: conversationScope(ref.conversationId) }).catch((error: unknown) => {
       logFailure(logger, new Failure('BUILDER_SESSION_DELETE_FAILED', { cause: error }), { 'builder.conversation_id': ref.conversationId })
     })
   }
-  const forget = async (ref: ConversationRef): Promise<void> => {
-    conversations.delete(conversationScope(ref.conversationId))
-    await deleteSession(ref)
-  }
-  const live = (ref: ConversationRef): Promise<Live> => {
+  // Synchronous up to the returned promise: from this call on, no open finds the entry, and each waits for the end.
+  const retire = (ref: ConversationRef, work: () => Promise<void> = async () => undefined): Promise<void> => {
     const scope = conversationScope(ref.conversationId)
+    conversations.delete(scope)
+    used.delete(scope)
+    const ended = (async () => {
+      try { await work() } finally { await deleteSession(ref) }
+    })()
+    const settled = ended.catch(() => undefined).then(() => { if (retiring.get(scope) === settled) retiring.delete(scope) })
+    retiring.set(scope, settled)
+    return ended
+  }
+  const use = (scope: string): void => { used.set(scope, now()) }
+  const live = async (ref: ConversationRef): Promise<Live> => {
+    const scope = conversationScope(ref.conversationId)
+    for (let ending = retiring.get(scope); ending; ending = retiring.get(scope)) await ending
     const known = conversations.get(scope)
     if (known) return known
     const made = (async (): Promise<Live> => ({
-      ref, at: now(),
-      sandbox: sandboxes.open({ conversationId: ref.conversationId, providerSandboxId: await readSandboxId(ref), onKill: () => forget(ref) }),
+      ref,
+      sandbox: sandboxes.open({ conversationId: ref.conversationId, providerSandboxId: await readSandboxId(ref), retire: (kill) => retire(ref, kill) }),
     }))()
     conversations.set(scope, made)
+    if (!used.has(scope)) use(scope)
     made.catch(() => { if (conversations.get(scope) === made) conversations.delete(scope) })
     return made
   }
-  const idle = async (entry: Live): Promise<boolean> => {
-    if (now() - entry.at < idleMs || runOpen(entry.ref.conversationId)) return false
-    const session = await sessionOf(entry.ref)
-    return !session || (!session.run.isRunning() && !session.suspensions.hasPending())
-  }
+  const idleSince = (scope: string): boolean => now() - (used.get(scope) ?? 0) >= idleMs
   const sweep = async (): Promise<void> => {
     for (const [scope, entry] of [...conversations]) {
       const settled = await entry.catch(() => undefined)
-      if (settled && conversations.get(scope) === entry && await idle(settled)) await forget(settled.ref)
+      if (!settled || !idleSince(scope) || runOpen(settled.ref.conversationId)) continue
+      const session = await sessionOf(settled.ref)
+      // Checked again after the await: an open or a run that started meanwhile keeps the conversation.
+      const still = conversations.get(scope) === entry && idleSince(scope) && !runOpen(settled.ref.conversationId)
+      if (still && (!session || (!session.run.isRunning() && !session.suspensions.hasPending()))) await retire(settled.ref)
     }
   }
   const timer = setInterval(() => { void sweep() }, sweepEveryMs)
@@ -92,18 +106,21 @@ export const createLiveConversations = ({ controller, sandboxes, readSandboxId, 
       return scope === undefined ? undefined : (await conversations.get(scope)?.catch(() => undefined))?.sandbox.workspace
     },
     /** The conversation's sandbox instance, made on first use. */
-    sandbox: async (ref: ConversationRef): Promise<RunSandbox> => (await live(ref)).sandbox,
+    sandbox: async (ref: ConversationRef): Promise<RunSandbox> => {
+      use(conversationScope(ref.conversationId))
+      return (await live(ref)).sandbox
+    },
     /** The conversation's session, opened on its thread and on its sandbox's workspace, and noted as in use. */
     open: async (ref: ConversationRef): Promise<ControllerSession> => {
+      use(conversationScope(ref.conversationId))
       const entry = await live(ref)
-      entry.at = now()
       const session = await controller.createSession({ resourceId: projectResourceId(ref.projectId), scope: conversationScope(ref.conversationId), threadId: ref.conversationId, requestContext: new RequestContext() })
       if (session.getWorkspace() !== entry.sandbox.workspace) throw new Failure('BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED')
       return session
     },
     /** Notes that the conversation was used now, so the idle window starts again. */
     touch: (conversationId: string): void => {
-      void conversations.get(conversationScope(conversationId))?.then((entry) => { entry.at = now() }, () => undefined)
+      if (conversations.has(conversationScope(conversationId))) use(conversationScope(conversationId))
     },
     /** A turn that stalled holds the session; it goes, and the next request opens it again on the same sandbox. */
     deleteSession,
@@ -126,7 +143,7 @@ export const createLiveConversations = ({ controller, sandboxes, readSandboxId, 
       clearInterval(timer)
       for (const entry of [...conversations.values()]) {
         const settled = await entry.catch(() => undefined)
-        if (settled) await forget(settled.ref)
+        if (settled) await retire(settled.ref)
       }
     },
   })

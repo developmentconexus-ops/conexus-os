@@ -38,7 +38,7 @@ const sandboxCache = ({ killProvider } = {}) => {
       const sandbox = createConversationSandbox(input)
       const entry = { conversationId: input.conversationId, providerSandboxId: input.providerSandboxId, idled: 0, killed: 0 }
       sandbox.idle = async () => { entry.idled += 1 }
-      sandbox.kill = async () => { entry.killed += 1 }
+      sandbox.kill = async () => { entry.killed += 1; await entry.hold }
       built.push(entry)
       return sandbox
     },
@@ -165,6 +165,40 @@ test('the workspace resolver only looks up: it builds nothing for a scope with n
   const resolved = await Promise.all([1, 2, 3].map(() => conversations.workspace(contextOf(`conversation:${conversation(1)}`))))
   assert.deepEqual(resolved.map((workspace) => workspace === sandbox.workspace), [true, true, true])
   assert.equal(built.length, 1)
+})
+
+test('a conversation opened while the idle sweep looks at it is not retired under it', async (t) => {
+  const { controller, conversations, live, clock } = await runner(t)
+  await conversations.open({ projectId, conversationId: conversation(1) })
+  clock.now += CONVERSATION_SESSION_IDLE_MS
+  const lookup = controller.getSessionByResource.bind(controller)
+  let answer = () => undefined
+  const held = new Promise((settle) => { answer = settle })
+  controller.getSessionByResource = async (...input) => { await held; controller.getSessionByResource = lookup; return lookup(...input) }
+  const sweeping = conversations.sweep()
+  await new Promise((settle) => { setImmediate(settle) })
+  const opening = conversations.open({ projectId, conversationId: conversation(1) })
+  answer()
+  await sweeping
+  const session = await opening
+  assert.equal(await live(conversation(1)), session, 'the session the browser opened during the sweep stays')
+})
+
+test('a conversation opened while its VM is being killed waits for the kill and stands on a new instance and session', async (t) => {
+  const { conversations, live, built } = await runner(t)
+  const sandbox = await conversations.sandbox({ projectId, conversationId: conversation(1) })
+  let finish = () => undefined
+  const dying = new Promise((settle) => { finish = settle })
+  built[0].hold = dying
+  const killing = sandbox.kill()
+  await new Promise((settle) => { setImmediate(settle) })
+  const opening = conversations.open({ projectId, conversationId: conversation(1) })
+  finish()
+  await killing
+  const session = await opening
+  assert.notEqual(session.getWorkspace(), sandbox.workspace, 'never the dying instance')
+  assert.equal(await live(conversation(1)), session, 'the kill took the old session, never the new one')
+  assert.equal(built.length, 2)
 })
 
 test('#413 a Project deletion kills every VM its conversations recorded at E2B, and a kill that fails is logged without stopping the rest', async () => {

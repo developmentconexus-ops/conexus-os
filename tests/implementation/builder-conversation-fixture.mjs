@@ -9,7 +9,7 @@ const { createLiveConversations } = await import(hubModuleUrl('builder/conversat
  */
 export const testConversations = (controller, workspaceOf, options = {}) => createLiveConversations({
   controller,
-  sandboxes: { open: ({ conversationId, onKill }) => ({ sandboxId: undefined, workspace: workspaceOf(conversationId), kill: onKill }) },
+  sandboxes: { open: ({ conversationId, retire }) => ({ sandboxId: undefined, workspace: workspaceOf(conversationId), kill: () => retire(async () => undefined) }) },
   readSandboxId: async () => null,
   runOpen: () => false,
   ...options,

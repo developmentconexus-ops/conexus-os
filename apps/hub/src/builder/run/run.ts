@@ -28,8 +28,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 // Only these end a run with a recorded candidate knowing its source is not on main.
 const NOT_ADMITTED: ReadonlySet<string> = new Set(['BUILDER_SOURCE_BASE_MOVED', 'BUILDER_SOURCE_ADMISSION_FAILED', 'BUILDER_RUN_CANCELLED'])
-// What a stop surfaces depends on where the run stood: a phase write the database now refuses is still a stop.
-const STOP_CODES: ReadonlySet<string> = new Set(['BUILDER_RUN_CANCELLED', 'BUILDER_LATE_RESULT_REFUSED', 'BUILDER_RUN_PHASE_UPDATE_REFUSED'])
+// What a stop surfaces depends on where the run stood.
+const STOP_CODES: ReadonlySet<string> = new Set(['BUILDER_RUN_CANCELLED', 'BUILDER_LATE_RESULT_REFUSED'])
+
+/** The row ended without this run, by a takeover: its ending is the one written there. */
+class RowEnded extends Failure {
+  constructor() {
+    super('BUILDER_RUN_PHASE_UPDATE_REFUSED')
+  }
+}
 
 /** A candidate the Hub refuses before admission, with the reason the next turn reads. */
 class CandidateRefused extends Failure {
@@ -75,8 +82,8 @@ export type LiveRun = Readonly<{
 
 type RunRequest = Readonly<{ accountId: string; content: string; idempotencyKey: string }>
 
-// How the run ended: settled by its own work, left for a sweep with a candidate that may be on
-// `main`, or ended with a code its exit writes.
+// How the run ended: settled by its own work, left to the sweep (a candidate that may be on `main`,
+// or a row a takeover already ended), or ended with a code its exit writes.
 type RunEnding =
   | Readonly<{ kind: 'SETTLED' }>
   | Readonly<{ kind: 'LEFT' }>
@@ -121,9 +128,16 @@ const logged = (run: Run, code: FailureCode) => (error: unknown): void => {
 // `written` runs once the row holds the phase, before the browser hears of it.
 const setPhase = async (run: Run, phase: BuilderRunPhase, written?: () => void): Promise<void> => {
   const summary = await run.env.store.setBuilderRunPhase(run.row.builderRunId, phase)
-  if (!summary) throw new Failure('BUILDER_RUN_PHASE_UPDATE_REFUSED')
+  if (!summary) throw await phaseRefusal(run)
   written?.()
   await run.env.publishRun(summary)
+}
+
+// The database refuses a phase once a stop is asked for or once the row is no longer running; the row says which.
+const phaseRefusal = async (run: Run): Promise<Failure> => {
+  const persisted = await run.env.store.readBuilderRun({ accountId: run.request.accountId, projectId: run.row.projectId })
+  if (persisted?.builderRunId !== run.row.builderRunId || persisted.state !== 'RUNNING') return new RowEnded()
+  return new Failure(persisted.cancellationRequested ? 'BUILDER_RUN_CANCELLED' : 'BUILDER_RUN_PHASE_UPDATE_REFUSED')
 }
 
 // Set once the checkout holds the turn's start; the run's end mirrors it however the run ends.
@@ -335,6 +349,7 @@ const endingOf = async (run: Run, error: unknown): Promise<RunEnding> => {
   const code = ended.id
   // Its source may be on main: the run stays running with its candidate until a sweep, once its
   // heartbeat has lapsed, reads `main` and settles it.
+  if (error instanceof RowEnded) return { kind: 'LEFT' }
   if (run.candidateRecorded && !NOT_ADMITTED.has(code)) return { kind: 'LEFT' }
   // A run that spent its repair budget already told the person why, in the check's last notice.
   if (run.agentUnadmitted && code !== 'BUILDER_APP_NOT_FIXED') {

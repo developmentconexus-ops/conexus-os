@@ -13,7 +13,7 @@ const PROVIDER_KILL_TIMEOUT_MS = 15_000
  * The production sandboxes: one E2B VM per conversation, with the agent's workspace on its checkout.
  * An instance starts no VM until its first command, which resumes the VM the conversation had, by
  * the provider id the Hub recorded, or creates one. A paused VM resumes on the same instance. A
- * killed one ends the instance: `onKill` lets the conversation make a new one.
+ * killed one ends the instance, and the conversation makes a new one.
  */
 export const e2bConversationSandboxes = ({
   apiKey,
@@ -29,7 +29,8 @@ export const e2bConversationSandboxes = ({
   create?: typeof createConversationSandbox
   killProvider?: (providerSandboxId: string) => Promise<boolean>
 }>): Readonly<{
-  open(input: Readonly<{ conversationId: string; providerSandboxId: string | null; onKill(): Promise<void> }>): RunSandbox
+  /** `retire` runs the kill with the conversation letting go of the instance first, so nothing opens on it while it dies. */
+  open(input: Readonly<{ conversationId: string; providerSandboxId: string | null; retire(kill: () => Promise<void>): Promise<void> }>): RunSandbox
   /**
    * Kills the VMs by the provider ids the Hub recorded, running, paused or held by an earlier Hub
    * process. A VM E2B no longer has counts as killed; a kill that fails is logged and never throws.
@@ -37,7 +38,7 @@ export const e2bConversationSandboxes = ({
    */
   killRecorded(providerSandboxIds: readonly string[]): Promise<readonly string[]>
 }> => Object.freeze({
-  open: ({ conversationId, providerSandboxId, onKill }) => {
+  open: ({ conversationId, providerSandboxId, retire }) => {
     const sandbox = create({ apiKey, templateId, conversationId, providerSandboxId, idleMs })
     return Object.freeze({
       get sandboxId() { return sandbox.sandboxId },
@@ -53,9 +54,7 @@ export const e2bConversationSandboxes = ({
       runCheck: ({ root, out, collect, thumbnail, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, ...(thumbnail ? { thumbnail } : {}), user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
       holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
       idle: () => sandbox.idle(),
-      kill: async () => {
-        try { await sandbox.kill() } finally { await onKill() }
-      },
+      kill: () => retire(() => sandbox.kill()),
     } satisfies RunSandbox)
   },
   killRecorded: async (providerSandboxIds) => {

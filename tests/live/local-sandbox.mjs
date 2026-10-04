@@ -66,7 +66,7 @@ export const localConversationSandboxes = (root, workspaceTools, readCheckReport
     return join(base, conversationId)
   }
 
-  const open = ({ conversationId, onKill }) => {
+  const open = ({ conversationId, retire }) => {
     const vm = directoryOf(conversationId)
     const local = (text) => text.replace(VM_PATH, (_, folder) => `${vm}/${folder}`)
     const inside = (path) => {
@@ -140,9 +140,7 @@ export const localConversationSandboxes = (root, workspaceTools, readCheckReport
       },
       holdOpen: async () => () => {},
       idle: async () => {},
-      kill: async () => {
-        try { rmSync(vm, { recursive: true, force: true }) } finally { await onKill() }
-      },
+      kill: () => retire(async () => { rmSync(vm, { recursive: true, force: true }) }),
     })
     return instance
   }

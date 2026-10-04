@@ -135,7 +135,7 @@ test('a browser following the conversation is handed the run as the builder-sess
 
 test('a phase the database refuses, as it does once a stop is requested, interrupts the run instead of failing it', async () => {
   const calls = []
-  const store = makeStore(calls, { setBuilderRunPhase: async (_id, phase) => { calls.push(['phase', phase]); return null } })
+  const store = makeStore(calls, { setBuilderRunPhase: async (_id, phase) => { calls.push(['phase', phase]); return null }, readBuilderRun: async () => ({ builderRunId: runId, projectId, conversationId, state: 'RUNNING', cancellationRequested: true }) })
   const service = createBuilderService({ store, runs: makeRuns(), applicationArtifacts: {} })
   await send(service)
   await service.close()
