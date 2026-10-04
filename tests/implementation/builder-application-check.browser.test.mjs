@@ -534,3 +534,18 @@ test('a build info the agent forged for the tool cache cannot make a type error 
     assert.deepEqual(failedStep(report, 'typecheck')?.problems.map((problem) => problem.code), ['TS2322'])
   }
 })
+
+test('a second check of an edited project at the same path reuses the cache, and the typecheck gets faster', (t) => {
+  const scratch = mkdtempSync(join(tmpdir(), 'conexus-check-big-test-'))
+  t.after(() => rmSync(scratch, { recursive: true, force: true }))
+  const modules = (edit) => Object.fromEntries(Array.from({ length: 400 }, (_, index) => [`app/src/m/f${index}.tsx`, `import * as React from 'react'
+${index > 0 ? `import { f${index - 1} } from './f${index - 1}'\n` : ''}type P${index} = { a: number; b: string; c: Array<{ k: string; v: number }> }
+export const f${index} = (p: P${index}) => <div>{p.c.map((x) => <span key={x.k}>{x.v + ${index}}{p.b}{${index > 0 ? `f${index - 1}(p).props.children.length` : '0'}}</span>)}</div>
+${edit && index === 399 ? 'export const edited = 1\n' : ''}`]))
+  const typecheckMs = ({ report }) => report.steps.find((step) => step.step === 'typecheck').durationMs
+  const first = check(t, { ...STARTER, ...modules(false) }, { scratch })
+  const second = check(t, { ...STARTER, ...modules(true) }, { scratch })
+  t.diagnostic(`typecheck ms, 400 modules: cold ${typecheckMs(first)}, after a one line edit at the same path ${typecheckMs(second)}`)
+  assert.deepEqual([first.report.ok, second.report.ok], [true, true])
+  assert.ok(typecheckMs(second) < typecheckMs(first) * 0.8, 'the build info was read: the edited check is clearly faster')
+})

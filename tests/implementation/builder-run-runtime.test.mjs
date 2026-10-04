@@ -435,7 +435,7 @@ test("the check runs on the candidate from the Conexus Git in a root-only direct
   const run_ = run
   await run.start()
   await run.service.close()
-  const checkRoot = `/var/lib/conexus-build/${runId}`
+  const checkRoot = '/var/lib/conexus-build/candidate'
   const result = run.result()
   // The write after the kill is pulled and checked as a revision of its own, and that is what main admits.
   assert.deepEqual(run.checks.map(({ root, out, files, index }) => [root, out, files, index]), [

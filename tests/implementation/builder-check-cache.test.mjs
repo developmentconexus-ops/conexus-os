@@ -124,3 +124,15 @@ test('two gate checks of one key run one after the other, each ending the agent 
   await Promise.all([gate('one', 200), gate('two', 10)])
   assert.deepEqual(events, ['one sweep', 'one in', 'one out', 'one sweep', 'two sweep', 'two in', 'two out', 'two sweep'])
 })
+
+test('every lend of one key uses the same folder, because the build info records its distance to the sources', async (t) => {
+  const input = gateInput(t)
+  const lent = []
+  for (let index = 0; index < 3; index += 1) {
+    await withGateCache(input, async (info) => { lent.push(info); writeFileSync(info, `run ${index}`) })
+  }
+  assert.equal(new Set(lent).size, 1)
+  assert.equal(readFileSync(join(input.store, 'tsbuildinfo'), 'utf8'), 'run 2')
+  const other = gateInput(t)
+  await withGateCache(other, async (info) => { assert.notEqual(info, lent[0], 'another key has its own folder') })
+})

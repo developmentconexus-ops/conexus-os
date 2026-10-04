@@ -1,7 +1,7 @@
 import { chmodSync, chownSync, closeSync, constants, copyFileSync, existsSync, fstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { Identity } from './command.js'
 import type { CheckContext } from './context.js'
 
@@ -94,9 +94,11 @@ export const withGateCache = async <T>(
   try { mkdirSync(input.store, { recursive: true, mode: 0o700 }) } catch { return run(null) }
   const release = await acquireLock(`${input.store}.lock`)
   if (!release) return run(null)
-  const lend = join(tmpdir(), `conexus-lend-${randomUUID()}`)
+  // The same path for every lend of one key: the build info records its own distance to the sources.
+  const lend = join(tmpdir(), `conexus-lend-${createHash('sha256').update(input.store).digest('hex').slice(0, 16)}`)
   try {
     input.sweep()
+    rmSync(lend, { recursive: true, force: true })
     mkdirSync(lend, { mode: 0o700 })
     const stored = join(input.store, INFO_NAME)
     const lent = join(lend, INFO_NAME)
