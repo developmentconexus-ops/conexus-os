@@ -85,19 +85,27 @@ const serverPass = 'process.exit(0)\n'
 const CHECK_ROOT = '/var/lib/conexus-build/live'
 const CHECK_OUT = `${CHECK_ROOT}.dist`
 
-// The Hub's check placed the way a run places it, and a tree only root can change.
+// The Hub's bundle placed the way a run places it (`installCheck`, by its hash), and a tree only root can change.
 const placeHubCheck = async (sandbox, files) => {
   const hub = await loadHub()
-  const { checkScriptSource } = await hub('builder/application-check.js')
+  const { loadCheckBundle, installCheck } = await hub('builder/check-delivery.js')
   const { serverBuildScriptSource } = await hub('builder/application-server-build.js')
-  await sandbox.writeRootFile('/opt/conexus/check.mjs', Buffer.from(checkScriptSource()))
+  const bundle = loadCheckBundle()
+  await installCheck(sandbox, bundle)
   await sandbox.writeRootFile('/opt/conexus/server-build.mjs', Buffer.from(serverBuildScriptSource()))
-  assert.equal((await sandbox.runAsRoot("chmod 555 /opt/conexus/check.mjs /opt/conexus/server-build.mjs && rm -rf /var/lib/conexus-build && mkdir -p -m 711 /var/lib/conexus-build", {})).exitCode, 0)
+  assert.equal((await sandbox.runAsRoot("chmod 555 /opt/conexus/server-build.mjs && rm -rf /var/lib/conexus-build && mkdir -p -m 711 /var/lib/conexus-build", {})).exitCode, 0)
   for (const [path, content] of Object.entries(files)) await sandbox.writeRootFile(`${CHECK_ROOT}/${path}`, Buffer.from(content))
+  return bundle
 }
 
-const rootCheck = async (sandbox, extra = '') => {
-  const ran = await sandbox.runAsRoot(`/usr/local/bin/node /opt/conexus/check.mjs --root ${CHECK_ROOT} --out ${CHECK_OUT} --as 1500:1500 ${extra}`, {})
+const checkLine = async (bundle, caller, root, out) => {
+  const hub = await loadHub()
+  const { checkCommand } = await hub('builder/application-check.js')
+  return checkCommand({ sha256: bundle.sha256, caller, root, out })
+}
+
+const rootCheck = async (sandbox, bundle) => {
+  const ran = await sandbox.runAsRoot(await checkLine(bundle, 'gate', CHECK_ROOT, CHECK_OUT), {})
   const { readCheckReport } = await (await loadHub())('builder/application-check.js')
   assert.equal(ran.exitCode, 0, ran.stderr)
   return readCheckReport(ran.stdout)
@@ -115,9 +123,9 @@ test('the Hub check runs the starter in the real template as root with every ste
   try {
     await sandbox.start()
     const files = await starterFiles()
-    await placeHubCheck(sandbox, files)
+    const bundle = await placeHubCheck(sandbox, files)
     const started = Date.now()
-    const report = await rootCheck(sandbox)
+    const report = await rootCheck(sandbox, bundle)
     t.diagnostic(`root check ${Date.now() - started} ms wall, steps ${JSON.stringify(report.steps.map((step) => [step.step, step.status, step.durationMs]))}`)
     assert.equal(report.ok, true, JSON.stringify(report.steps))
     assert.deepEqual(report.steps.map((step) => step.status), ['passed', 'passed', 'passed', 'passed', 'passed'])
@@ -125,16 +133,17 @@ test('the Hub check runs the starter in the real template as root with every ste
 
     // The same script as the agent user: what the Builder's tool will do.
     await sandbox.writeFiles(Object.entries(files).map(([path, content]) => ({ path: `/workspace/check-probe/${path}`, content })))
-    const asAgent = await sandbox.executeCommand('/usr/local/bin/node', ['/opt/conexus/check.mjs', '--root', '/workspace/check-probe', '--out', '/workspace/check-probe-dist'], { env: {}, cwd: '/workspace' })
+    const agentLine = (await checkLine(bundle, 'tool', '/workspace/check-probe', '/workspace/check-probe-dist')).split(' ')
+    const asAgent = await sandbox.executeCommand(agentLine[0], agentLine.slice(1).map((part) => part.replace(/^'|'$/g, '')), { env: {}, cwd: '/workspace' })
     const { readCheckReport } = await (await loadHub())('builder/application-check.js')
     const agentReport = readCheckReport(asAgent.stdout)
     t.diagnostic(`agent check steps ${JSON.stringify(agentReport.steps.map((step) => [step.step, step.status, step.durationMs]))}`)
     assert.deepEqual(agentReport.steps.map((step) => step.status), ['passed', 'passed', 'passed', 'passed', 'passed'], 'Chromium boots the starter as the agent user')
 
-    assert.notEqual((await sandbox.executeCommand('sh', ['-c', 'echo x > /opt/conexus/check.mjs'], { env: {}, cwd: '/workspace' })).exitCode, 0, 'the agent user cannot replace the script')
+    assert.notEqual((await sandbox.executeCommand('sh', ['-c', `echo x > /opt/conexus/check/${bundle.sha256}/main.mjs`], { env: {}, cwd: '/workspace' })).exitCode, 0, 'the agent user cannot replace the bundle')
 
     await sandbox.writeFiles([{ path: '/workspace/check-probe/app/src/main.tsx', content: 'const answer: number = "six"\nexport { answer }\n' }])
-    const refused = readCheckReport((await sandbox.executeCommand('/usr/local/bin/node', ['/opt/conexus/check.mjs', '--root', '/workspace/check-probe', '--out', '/workspace/check-probe-dist'], { env: {}, cwd: '/workspace' })).stdout)
+    const refused = readCheckReport((await sandbox.executeCommand(agentLine[0], agentLine.slice(1).map((part) => part.replace(/^'|'$/g, '')), { env: {}, cwd: '/workspace' })).stdout)
     assert.equal(refused.ok, false)
     assert.deepEqual(refused.steps.find((step) => step.status === 'failed').problems, [
       { file: 'app/src/main.tsx', line: 1, column: 7, code: 'TS2322', message: "Type 'string' is not assignable to type 'number'." },

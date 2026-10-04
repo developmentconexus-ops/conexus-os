@@ -56,9 +56,9 @@ const execute = (command, args, { cwd, env }) => new Promise((settle) => {
 /**
  * @param {string} root the host directory that holds one directory per conversation
  * @param {object} workspaceTools the `tools` option of the agent's workspace (the built Hub's `createRunWorkspace(...).getToolsConfig()`)
- * @param {(stdout: string) => object} readCheckReport the built Hub's reader of check.mjs output
+ * @param {{ readCheckReport: (stdout: string) => object, checkEntryPath: (sha256: string) => string, templateRef: string }} hub the built Hub's reader of the check's report, the path a bundle runs from, and the template pin
  */
-export const localConversationSandboxes = (root, workspaceTools, readCheckReport) => {
+export const localConversationSandboxes = (root, workspaceTools, hub) => {
   const base = resolve(root)
   mkdirSync(base, { recursive: true })
   const directoryOf = (conversationId) => {
@@ -119,17 +119,21 @@ export const localConversationSandboxes = (root, workspaceTools, readCheckReport
       readAgentFile: async (path) => readFileSync(inside(path)),
       readAgentFileIfPresent: async (path) => (existsSync(inside(path)) ? readFileSync(inside(path)) : null),
       readAgentFileStream: async (path) => new Blob([readFileSync(inside(path))]).stream(),
-      // The Hub's own check.mjs, as the run placed it in /opt/conexus, on the real compiler and the
-      // Playwright Chromium. It runs as this machine's user: there is no root or agent identity here.
-      runCheck: async ({ root: tree, out, collect, thumbnail }) => {
+      // The Hub's own bundle, as the run placed it by its hash in /opt/conexus, on the real compiler and
+      // the Playwright Chromium (the `chromium` on the check's PATH). It runs as this machine's user:
+      // there is no root or agent identity here, so it names that user as the agent and drops nothing.
+      runCheck: async ({ check, caller, root: tree, out, collect, thumbnail }) => {
         await placeCompiler(vm)
-        const tools = join(vm, 'opt/conexus')
+        const bin = join(vm, 'bin')
+        mkdirSync(bin, { recursive: true })
+        if (!existsSync(join(bin, 'chromium'))) symlinkSync(chromium.executablePath(), join(bin, 'chromium'))
         const ran = await execute(process.execPath, [
-          join(tools, 'check.mjs'), '--root', inside(tree), '--out', inside(out), '--tools', tools, '--home', join(vm, 'home'),
-          '--chromium', chromium.executablePath(), ...(thumbnail ? ['--thumbnail', inside(thumbnail)] : []),
-        ], { cwd: vm, env: environment })
+          inside(hub.checkEntryPath(check.sha256)), 'check', '--caller', caller, '--root', inside(tree), '--out', inside(out),
+          ...(thumbnail ? ['--thumbnail', inside(thumbnail)] : []),
+          '--template-ref', hub.templateRef, '--as', `${process.getuid()}:${process.getgid()}`,
+        ], { cwd: vm, env: { ...environment, PATH: `${bin}:${process.env.PATH}` } })
         if (ran.exitCode !== 0) throw new Error('APPLICATION_CHECK_UNREADABLE', { cause: { stderr: ran.stderr.slice(-2_000) } })
-        const report = readCheckReport(ran.stdout)
+        const report = hub.readCheckReport(ran.stdout)
         const dist = inside(out)
         const files = collect && report.ok ? filesUnder(dist).map((path) => {
           const bytes = new Uint8Array(readFileSync(join(dist, path)))

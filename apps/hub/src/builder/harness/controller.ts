@@ -21,8 +21,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { ASK_USER_TOOL, CHECK_TOOL, createAskUserTool, failing, createCheckTool, createRunOperationTool, createSubmitPlanTool, RUN_OPERATION_TOOL, SUBMIT_PLAN_TOOL } from './tools.js'
 import type { DocsTools } from './context7.js'
 import { SANDBOX_CHECKOUT } from '../sandbox.js'
-import type { CheckReport } from '../application-check.js'
-import { CHECK_COMMAND_TIMEOUT_MS } from '../check/report.js'
+import { type AgentReport, CHECK_COMMAND_TIMEOUT_MS } from '../check/report.js'
 import type { RunOperation } from '../run-operation.js'
 import type { CandidateGate } from '../candidate-gate.js'
 import { createScorer } from '@mastra/core/evals'
@@ -147,7 +146,7 @@ const BUILDER_MAX_OUTPUT_TOKENS = 32_000
 const BUILDER_MODEL_STEP_TIMEOUT_MS = 5 * 60_000
 
 /** What the Hub proves about a run's checkout on the agent's behalf: the check, and one operation run when the Prévia's runner is there. */
-export type RunTools = Readonly<{ check: () => Promise<CheckReport>; runOperation?: RunOperation | undefined; gate?: CandidateGate | undefined }>
+export type RunTools = Readonly<{ check: () => Promise<AgentReport>; runOperation?: RunOperation | undefined; gate?: CandidateGate | undefined }>
 
 /**
  * The run's finish gate as Mastra's own completion check (`isTaskComplete`): when the model stops on

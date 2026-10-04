@@ -186,7 +186,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   // own sandboxes have no E2B machines, so no key is read and nothing is swept.
   const e2bSandboxes = () => {
     const e2bApiKey = readSecretFile(builder.e2bApiKeyFile)
-    const sandboxes = e2bConversationSandboxes({ apiKey: e2bApiKey, templateId: builder.e2bTemplateId, idleMs: builder.sandboxIdleMs })
+    const sandboxes = e2bConversationSandboxes({ apiKey: e2bApiKey, templateId: builder.e2bTemplateId, idleMs: builder.sandboxIdleMs, check })
     const idleMachineSweep = scheduleIdleMachineSweep({
       listPaused: () => listPausedConversationMachines(e2bApiKey),
       openRunConversations: store.readOpenRunConversations,

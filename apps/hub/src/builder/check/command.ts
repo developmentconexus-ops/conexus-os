@@ -2,7 +2,7 @@ import { parseArgs } from 'node:util'
 import { type ChildStepId, STEP_IDS, STEP_LIMIT_MS } from './report.js'
 
 /** Who asks: the Hub's gate, which decides admission, or the agent's own tool, which decides nothing. */
-type Caller = 'gate' | 'tool'
+export type Caller = 'gate' | 'tool'
 export type Identity = Readonly<{ uid: number; gid: number }>
 type StepLimits = Readonly<Record<ChildStepId, number>>
 export type Worker = 'build' | 'server' | 'boot'

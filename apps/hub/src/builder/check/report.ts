@@ -122,17 +122,13 @@ const reportRules = (report: z.infer<typeof reportShape>): readonly string[] => 
   return refusals
 }
 
-/**
- * What the check prints and the Hub parses: the one definition of a report and of every rule it keeps.
- * @public
- */
+/** What the check prints and the Hub parses: the one definition of a report and of every rule it keeps. */
 export const checkReportSchema = reportShape.superRefine((report, context) => {
   for (const message of reportRules(report)) context.addIssue({ code: 'custom', message })
 }).readonly()
 export type CheckReport = z.infer<typeof checkReportSchema>
 
-/**
- * What the model reads from `conexus_check`: the verdict and its steps, never the artifact's file list.
- * @public
- */
+/** What the model reads from `conexus_check`: the verdict and its steps, never the artifact's file list. */
 export const agentReportSchema = reportShape.pick({ ok: true, steps: true })
+export type AgentReport = z.infer<typeof agentReportSchema>
+export const agentReportOf = ({ ok, steps }: CheckReport): AgentReport => ({ ok, steps })

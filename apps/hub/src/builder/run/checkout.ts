@@ -1,5 +1,6 @@
 import type { CommandResult, ExecuteCommandOptions } from '@mastra/core/workspace'
-import { CHECK_NODE_PATH, CHECK_SCRIPT_PATH, checkScriptSource } from '../application-check.js'
+import { CHECK_NODE_PATH } from '../application-check.js'
+import { installCheck } from '../check-delivery.js'
 import { commandEvidence, materializeApplicationShape, materializeFixedApplicationStarter } from '../application-starter.js'
 import { SERVER_BUILD_SCRIPT_PATH, serverBuildScriptSource } from '../application-server-build.js'
 import { startCheckout } from '../conexus-git.js'
@@ -135,15 +136,13 @@ export const installRunTools = async ({ ports, projectId, accountId, vm, sandbox
   connectorRun: ConnectorRun | null
   timing: RunTiming
 }>): Promise<RunOperation | undefined> => {
+  await installCheck(vm, ports.check)
   const installed = await vm.asRoot([
     `cat > '${SERVER_BUILD_SCRIPT_PATH}.next' <<'CONEXUS_SERVER_BUILD_EOF'`,
     serverBuildScriptSource(),
     'CONEXUS_SERVER_BUILD_EOF',
-    `cat > '${CHECK_SCRIPT_PATH}.next' <<'CONEXUS_CHECK_EOF'`,
-    checkScriptSource(),
-    'CONEXUS_CHECK_EOF',
-    `chmod 555 '${SERVER_BUILD_SCRIPT_PATH}.next' '${CHECK_SCRIPT_PATH}.next'`,
-    `mv '${SERVER_BUILD_SCRIPT_PATH}.next' '${SERVER_BUILD_SCRIPT_PATH}' && mv '${CHECK_SCRIPT_PATH}.next' '${CHECK_SCRIPT_PATH}'`,
+    `chmod 555 '${SERVER_BUILD_SCRIPT_PATH}.next'`,
+    `mv '${SERVER_BUILD_SCRIPT_PATH}.next' '${SERVER_BUILD_SCRIPT_PATH}'`,
   ].join('\n'))
   if (installed.exitCode !== 0) throw new Failure('BUILDER_CHECK_INSTALL_REFUSED', { cause: { stderr: commandEvidence(installed.stderr) } })
   await (ports.materializeStarter ?? materializeRunStarter)({

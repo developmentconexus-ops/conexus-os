@@ -54,7 +54,7 @@ const createJudge = ({ git, projectId, executionId, log, cancelled, gatePhase, v
     `rm -f ${quoted(candidateTar)}`,
   ].join(' && '))
   if (unpacked.exitCode !== 0) throw new Failure('BUILDER_CANDIDATE_UNPACK_FAILED')
-  const checked = await sandbox.runCheck({ root: checkRoot, out: `${checkRoot}.dist`, collect: true, thumbnail: `${BUILD_ROOT}/${executionId}.png`, user: 'root' })
+  const checked = await sandbox.runCheck({ root: checkRoot, out: `${checkRoot}.dist`, collect: true, thumbnail: `${BUILD_ROOT}/${executionId}.png`, caller: 'gate' })
   log('BUILDER_CHECK', { run: executionId, revision: revision.slice(0, 12), summary: checkSummary(checked.report) })
   const verdict = classifyCheck(revision, checked)
   const boot = verdict.kind === 'GREEN' ? failedBootStep(checked.report) : null

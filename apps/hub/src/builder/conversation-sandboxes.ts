@@ -1,7 +1,8 @@
 import type { ExecuteCommandOptions, SandboxFileInput } from '@mastra/core/workspace'
 import { Sandbox } from 'e2b'
 import { checkApplicationInSandbox } from './application-artifact-runtime.js'
-import { createConversationSandbox, createRunWorkspace, SANDBOX_AGENT_USER } from './sandbox.js'
+import type { CheckBundle } from './check-delivery.js'
+import { createConversationSandbox, createRunWorkspace, } from './sandbox.js'
 import type { RunSandbox } from './run/ports.js'
 import { Failure, logFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
@@ -19,12 +20,15 @@ export const e2bConversationSandboxes = ({
   apiKey,
   templateId,
   idleMs,
+  check,
   create = createConversationSandbox,
   killProvider = (providerSandboxId) => Sandbox.kill(providerSandboxId, { apiKey, requestTimeoutMs: PROVIDER_KILL_TIMEOUT_MS }),
 }: Readonly<{
   apiKey: string
   templateId: string
   idleMs: number
+  /** The check every `runCheck` asks the VM to run, by its hash. */
+  check: CheckBundle
   create?: typeof createConversationSandbox
   killProvider?: (providerSandboxId: string) => Promise<boolean>
 }>): Readonly<{
@@ -50,7 +54,7 @@ export const e2bConversationSandboxes = ({
       readAgentFile: (path: string) => sandbox.readAgentFile(path),
       readAgentFileIfPresent: (path: string) => sandbox.readAgentFileIfPresent(path),
       readAgentFileStream: (path: string) => sandbox.readAgentFileStream(path),
-      runCheck: ({ root, out, collect, thumbnail, user }) => checkApplicationInSandbox(sandbox.e2b, { root, out, collect, ...(thumbnail ? { thumbnail } : {}), user: user === 'root' ? 'root' : SANDBOX_AGENT_USER }),
+      runCheck: ({ caller, root, out, collect, thumbnail }) => checkApplicationInSandbox(sandbox.e2b, { check, caller, root, out, collect, ...(thumbnail ? { thumbnail } : {}) }),
       holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
       idle: () => sandbox.idle(),
       kill: () => retire(() => sandbox.kill()),

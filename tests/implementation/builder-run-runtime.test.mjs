@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
@@ -33,7 +33,7 @@ test("the session's check tool runs the Hub's check on the checkout as the agent
   await run.start()
   await run.service.close()
   assert.deepEqual(run.agentChecks, [{ root: '/workspace/repo', out: '/tmp/conexus-agent-check', collect: false }])
-  assert.deepEqual(report, PASSING_REPORT)
+  assert.deepEqual(report, { ok: true, steps: PASSING_REPORT.steps }, 'the agent reads the steps only, never the bundle hash or the artifact')
 })
 
 test('a turn that changed nothing settles as a response and leaves main at the base', async (t) => {
@@ -676,18 +676,18 @@ test('each check the run makes leaves one line in the Hub log with its steps', a
   assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_CHECK:')), [`BUILDER_CHECK:${runId}:${run.result().slice(0, 12)}:${steps}`])
 })
 
-test('the Hub check is placed at run start, root owned and read only, before the agent runs', async (t) => {
-  const { checkScriptSource } = await import(hubModuleUrl('builder/application-check.js'))
+test('the Hub check is placed at run start by its hash, root owned and read only, before the agent runs', async (t) => {
+  const { CHECK_BUNDLE } = await import('./builder-run-harness.mjs')
   const run = await harness(t)
   await run.start()
   await run.service.close()
-  const install = run.events.findIndex((event) => Array.isArray(event) && event[0] === 'root' && event[1].includes("cat > '/opt/conexus/check.mjs.next'"))
+  const entry = `/opt/conexus/check/${CHECK_BUNDLE.sha256}/main.mjs`
+  const install = run.events.findIndex((event) => Array.isArray(event) && event[0] === 'rootFile' && event[1].startsWith('/opt/conexus/check/.tmp-'))
   assert.ok(install > -1 && install < run.events.indexOf('turn'), 'installed before the agent turn')
-  assert.match(run.events[install][1], /chmod 555 '\/opt\/conexus\/server-build\.mjs\.next' '\/opt\/conexus\/check\.mjs\.next'/)
-  const placed = join(run.vm, 'opt/conexus/check.mjs')
-  // The harness maps /opt/conexus into its own folder in every script it runs.
-  assert.ok(readFileSync(placed, 'utf8').trimEnd() === checkScriptSource().replaceAll('/opt/conexus', join(run.vm, 'opt/conexus')).trimEnd(), 'the placed script is the Hub script')
-  assert.equal(statSync(placed).mode & 0o777, 0o555)
+  const placed = join(run.vm, entry)
+  assert.deepEqual(readFileSync(placed), Buffer.from(CHECK_BUNDLE.bytes), 'the placed file is the Hub bundle')
+  assert.equal(statSync(placed).mode & 0o777, 0o444)
+  assert.equal(readdirSync(join(run.vm, 'opt/conexus/check')).filter((name) => name.startsWith('.tmp-')).length, 0, 'no staging directory is left')
 })
 
 test('a generated file the agent wrote never reaches Git, and a file beside it does', async (t) => {

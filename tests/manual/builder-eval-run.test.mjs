@@ -166,9 +166,9 @@ test('a page with no card answers nothing', async () => {
 })
 
 test('the last conexus_check report is the one with the latest message', () => {
-  const check = (createdAt, ok) => ({ role: 'assistant', createdAt, content: { parts: [{ type: 'tool-invocation', toolInvocation: { toolName: 'conexus_check', state: 'result', result: { ok, steps: [], facts: { operations: 1, migrations: 0, jsGzipBytes: 9 } } } }] } })
+  const check = (createdAt, ok) => ({ role: 'assistant', createdAt, content: { parts: [{ type: 'tool-invocation', toolInvocation: { toolName: 'conexus_check', state: 'result', result: { ok, steps: [] } } }] } })
   const messages = [check('2026-09-29T10:05:00Z', true), { role: 'user', createdAt: '2026-09-29T10:00:00Z', content: { parts: [] } }, check('2026-09-29T10:02:00Z', false)]
-  assert.deepEqual(lastCheckReport(messages), { report: { ok: true, steps: [], facts: { operations: 1, migrations: 0, jsGzipBytes: 9 } }, reason: null })
+  assert.deepEqual(lastCheckReport(messages), { report: { ok: true, steps: [] }, reason: null })
   assert.deepEqual(lastCheckReport([]), { report: null, reason: 'no conexus_check result in the conversation' })
 })
 
