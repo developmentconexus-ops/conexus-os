@@ -18,4 +18,6 @@ const workspaceTools = createRunWorkspace(createConversationSandbox({ apiKey: 'u
 const { readCheckReport } = await built('builder/application-check.js')
 const { checkEntryPath } = await built('builder/check-delivery.js')
 const { CURRENT_TEMPLATE_PIN } = await built('platform/application-template-pins.js')
-exitOnSignals((await startHub({ conversationSandboxes: localConversationSandboxes(sandboxRoot, workspaceTools, { readCheckReport, checkEntryPath, templateRef: CURRENT_TEMPLATE_PIN.templateRef }) })).close)
+// A manual proof on real E2B passes `e2b` as the third argument: the Hub then opens its own sandboxes.
+const realE2B = process.argv[4] === 'e2b'
+exitOnSignals((await startHub(realE2B ? {} : { conversationSandboxes: localConversationSandboxes(sandboxRoot, workspaceTools, { readCheckReport, checkEntryPath, templateRef: CURRENT_TEMPLATE_PIN.templateRef }) })).close)
