@@ -209,16 +209,16 @@ test('the idle sweep keeps a conversation whose question waits, and lets it go o
   const storage = new InMemoryStore()
   await storage.init()
   const clock = { now: 0 }
-  const builder = await builderOn(t, storage, scriptedModel().model, { sweep: { now: () => clock.now, sweepEveryMs: 3_600_000 } })
+  const builder = await builderOn(t, storage, scriptedModel().model, { sweep: { now: () => clock.now } })
   const builderRunId = '11111111-1111-4111-8111-111111111104'
   const session = await builder.openSession({ projectId, conversationId, builderRunId, bindContext: bindRun(builderRunId) })
   assert.equal((await session.takeStep({ kind: 'SEND', content: ASK }, new AbortController().signal)).reason, 'suspended')
   await session.untilQuestionStored()
   clock.now += 60 * 60_000
-  await builder.conversations.sweep()
+  await builder.conversations.sweep(new AbortController().signal)
   assert.notEqual(await liveSession(builder.controller), undefined, 'a waiting question keeps its session')
   await session.endQuestions()
-  await builder.conversations.sweep()
+  await builder.conversations.sweep(new AbortController().signal)
   assert.equal(await liveSession(builder.controller), undefined)
 })
 

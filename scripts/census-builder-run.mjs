@@ -119,6 +119,10 @@ const collectionsAcrossModules = hits(builderSource, /^\s+[A-Za-z0-9_]+\??:\s*(?
 const runFiles = builderSource.filter((path) => /^apps\/hub\/src\/builder\/(run\/|service\.ts$|runtime\.ts$)/.test(rel(path)))
 const runFunctionLengthSuppressions = hits(runFiles, /biome-ignore lint\/complexity\/noExcessiveLinesPerFunction/, { comments: true })
 
+// Periodic work is a Job (spec 0013); each timer that stays outside the executor carries a reasoned suppression of the
+// `setInterval` ban, and the count may only fall.
+const repeatedTimerSuppressions = hits(hubSource, /biome-ignore lint\/style\/noRestrictedGlobals/, { comments: true })
+
 const tableCodes = new Set(JSON.parse(readFileSync(join(repo, 'contracts/technical/failures.json'), 'utf8')).failures.map((row) => row.code))
 const failureCodesWithoutRow = hubSource.flatMap((path) => [...readFileSync(path, 'utf8')
   .matchAll(/\b(?:failBuilderRun|interruptBuilderRun)\([^,()]+,\s*'([A-Z][A-Z0-9_]+)'|\bfailureCode:\s*'([A-Z][A-Z0-9_]+)'/g)]
@@ -136,6 +140,7 @@ const census = {
   collectionsAcrossModules,
   runFunctionLengthSuppressions,
   failureCodesWithoutRow,
+  repeatedTimerSuppressions,
 }
 const counts = Object.fromEntries(Object.entries(census).map(([item, found]) => [item, found.length]))
 

@@ -15,7 +15,6 @@ type SessionPorts = Pick<AgentController, 'createSession' | 'deleteSession' | 'g
  * it again from the thread, and the next command resumes its VM.
  */
 const CONVERSATION_IDLE_MS = 10 * 60_000
-const SWEEP_EVERY_MS = 60_000
 
 /** The one session scope of a conversation, which the browser and its runs share. */
 export const conversationScope = (conversationId: string): string => `conversation:${conversationId}`
@@ -37,7 +36,7 @@ type Live = Readonly<{ ref: ConversationRef; sandbox: RunSandbox }>
  * A conversation idle for `idleMs` is let go unless its run is open, its session is running, or a
  * question waits on it.
  */
-export const createLiveConversations = ({ controller, sandboxes, readSandboxId, runOpen, idleMs = CONVERSATION_IDLE_MS, sweepEveryMs = SWEEP_EVERY_MS, now = Date.now }: Readonly<{
+export const createLiveConversations = ({ controller, sandboxes, readSandboxId, runOpen, idleMs = CONVERSATION_IDLE_MS, now = Date.now }: Readonly<{
   controller: SessionPorts
   sandboxes: Pick<ConversationSandboxes, 'open'>
   /** The provider id of the VM the conversation last had, so its instance resumes that VM. */
@@ -45,7 +44,6 @@ export const createLiveConversations = ({ controller, sandboxes, readSandboxId, 
   /** Whether the conversation has a run in this Hub. */
   runOpen(conversationId: string): boolean
   idleMs?: number
-  sweepEveryMs?: number
   now?: () => number
 }>) => {
   const conversations = new Map<string, Promise<Live>>()
@@ -85,8 +83,9 @@ export const createLiveConversations = ({ controller, sandboxes, readSandboxId, 
     return made
   }
   const idleSince = (scope: string): boolean => now() - (used.get(scope) ?? 0) >= idleMs
-  const sweep = async (): Promise<void> => {
+  const sweep = async (signal: AbortSignal): Promise<void> => {
     for (const [scope, entry] of [...conversations]) {
+      if (signal.aborted) return
       const settled = await entry.catch(() => undefined)
       if (!settled || !idleSince(scope) || runOpen(settled.ref.conversationId)) continue
       const session = await sessionOf(settled.ref)
@@ -95,8 +94,6 @@ export const createLiveConversations = ({ controller, sandboxes, readSandboxId, 
       if (still && (!session || (!session.run.isRunning() && !session.suspensions.hasPending()))) await retire(settled.ref)
     }
   }
-  const timer = setInterval(() => { void sweep() }, sweepEveryMs)
-  timer.unref()
   return Object.freeze({
     /** The controller's workspace resolver: the workspace of the conversation the session's scope names; it never builds one. */
     workspace: async ({ requestContext }: Readonly<{ requestContext: RequestContext }>): Promise<Workspace | undefined> => {
@@ -122,6 +119,7 @@ export const createLiveConversations = ({ controller, sandboxes, readSandboxId, 
     },
     /** A turn that stalled holds the session; it goes, and the next request opens it again on the same sandbox. */
     deleteSession,
+    /** One pass of the `idle-conversations` job: lets go of the conversations idle past the window. */
     sweep,
     /** A Project's conversations are gone: their sessions go, and the VMs their instances hold are killed. */
     drop: async (projectId: string, conversationIds: readonly string[]): Promise<void> => {
@@ -138,7 +136,6 @@ export const createLiveConversations = ({ controller, sandboxes, readSandboxId, 
     },
     /** The Hub is closing: no conversation session outlives it. */
     close: async (): Promise<void> => {
-      clearInterval(timer)
       for (const entry of [...conversations.values()]) {
         const settled = await entry.catch(() => undefined)
         if (settled) await retire(settled.ref)

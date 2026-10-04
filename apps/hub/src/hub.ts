@@ -5,6 +5,7 @@ import { createConnectorModule } from './connectors/module.js'
 import { createHttpApp } from './http/app.js'
 import { createIdentityAccessModule } from './identity-access/module.js'
 import { createMarModule } from './mar/module.js'
+import { startJobs } from './platform/jobs.js'
 import { readHubConfig } from './platform/config.js'
 import { censusConnections, reportConnectionCensus } from './platform/connection-census.js'
 import { createPostgresPool } from './platform/postgres.js'
@@ -280,6 +281,9 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     logLine,
   )
 
+  // Once the composition and the lock hold, and before the first listener: a start that fails past this
+  // exits the process through `exitOnFailedStart`, which ends the jobs with it.
+  const jobs = startJobs(builder?.jobs ?? [])
   await app.listen({ host: '127.0.0.1', port: config.port })
   if (previewApp && config.preview) await previewApp.listen({ host: '127.0.0.1', port: config.preview.port })
   if (applicationApp && config.application) await applicationApp.listen({ host: '127.0.0.1', port: config.application.port })
@@ -288,6 +292,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   const close = async (): Promise<void> => {
     if (closed) return
     closed = true
+    await jobs.close()
     await Promise.all([app.close(), previewApp?.close(), applicationApp?.close()])
     await mar?.close()
     await Promise.all([builder?.close(), project?.close(), workspace?.close(), identityAccess.close(), servedPool?.end()])

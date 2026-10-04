@@ -116,9 +116,9 @@ test('a sweep settles every stale run by whether main holds its candidate, after
     { name: 'own-ending-lost', phase: 'AGENT', candidate: false, main: 'BASE', owner: SWEEPER, expected: { state: 'FAILED', result_kind: null, result_source_revision: null, failure_code: 'BUILDER_RUN_SETTLE_LOST' } },
   ]
   const { service, runs, rows } = await recoveryHarness(t, 'conexus_run_recovery', crashes)
-  await service.sweep()
+  await service.renewLease(new AbortController().signal)
   // A second sweep over the settled rows changes nothing.
-  await service.sweep()
+  await service.renewLease(new AbortController().signal)
   assert.deepEqual(await rows(), Object.fromEntries(runs.map(({ name, expected }) => [name, expected])))
 })
 
@@ -129,10 +129,10 @@ test('a candidate a sweep cannot confirm while the Conexus Git fails stays runni
   ]
   const { service, rows, outage } = await recoveryHarness(t, 'conexus_run_recovery_outage', crashes)
   outage.active = true
-  await service.sweep()
+  await service.renewLease(new AbortController().signal)
   assert.deepEqual(await rows(), { 'landed-unconfirmed': pending, compiled: interrupted })
   outage.active = false
-  await service.sweep()
+  await service.renewLease(new AbortController().signal)
   assert.deepEqual(await rows(), { 'landed-unconfirmed': admitted, compiled: interrupted })
 })
 
@@ -183,7 +183,7 @@ test("a stop on a working or waiting run only marks the request, and the run's n
   assert.deepEqual(await phase(waiting), { state: 'INTERRUPTED', phase: null })
 })
 
-test('a heartbeat keeps its runs from every sweep, a waiting run is taken like any other, and two sweeps at once take each stale run once', async (t) => {
+test('a fresh heartbeat keeps a run from every lease pass, a waiting run is taken like any other, and two passes at once take each stale run once', async (t) => {
   const live = '0f000000-0000-4000-8000-000000000003'
   const crashes = [
     { name: 'beating', phase: 'AGENT', candidate: false, main: 'BASE', owner: live },
@@ -193,8 +193,8 @@ test('a heartbeat keeps its runs from every sweep, a waiting run is taken like a
   ]
   const { runs, store, connectionString } = await recoveryHarness(t, 'conexus_run_lease', crashes)
   await query(connectionString, "UPDATE builder.builder_run SET heartbeat_at = clock_timestamp() - interval '1 minute', created_at = clock_timestamp() - interval '1 minute'")
-  await store.heartbeatBuilderRuns(live, [runs[0].builderRunId])
-  const [one, other] = await Promise.all([store.takeOverStaleBuilderRuns(SWEEPER, 30_000), store.takeOverStaleBuilderRuns('0f000000-0000-4000-8000-000000000004', 30_000)])
+  await query(connectionString, 'UPDATE builder.builder_run SET heartbeat_at = clock_timestamp() WHERE builder_run_id = $1', [runs[0].builderRunId])
+  const [one, other] = await Promise.all([store.renewRunLease(SWEEPER, [], 30_000), store.renewRunLease('0f000000-0000-4000-8000-000000000004', [], 30_000)])
   const names = new Map(runs.map(({ builderRunId, name }) => [builderRunId, name]))
   assert.deepEqual([...one, ...other].map(({ builderRunId }) => names.get(builderRunId)).sort(), ['quiet-a', 'quiet-b', 'waiting'])
 })

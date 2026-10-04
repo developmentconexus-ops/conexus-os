@@ -181,21 +181,20 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
     assert.equal(await one(connectionString, 'hub_builder_ingress', 'SELECT builder.read_preview_subject($1,$2)', [outsider, projectId]), null)
   })
 
-  await t.test('a stale run is taken over once with what its settling needs, and a fresh heartbeat keeps it from the sweep', async () => {
+  await t.test('a stale run is taken over once with what its settling needs, and a fresh heartbeat or a listing keeps it from the lease', async () => {
     const gone = '0e000000-0000-4000-8000-000000000001'
     const sweeper = '0e000000-0000-4000-8000-000000000002'
     const withCandidate = randomUUID()
     await one(connectionString, 'hub_builder_ingress', CREATE_RUN, runArguments(owner, projectId, '6', withCandidate, CANDIDATE))
     await one(connectionString, 'hub_builder_executor', 'SELECT builder.claim_builder_run($1,$2)', [withCandidate, gone])
     await one(connectionString, 'hub_builder_executor', 'SELECT builder.record_builder_run_candidate($1,$2)', [withCandidate, OTHER])
-    const takeOver = (staleAfterMs) => one(connectionString, 'hub_builder_executor', 'SELECT builder.take_over_stale_builder_runs($1,$2)', [sweeper, staleAfterMs])
+    const takeOver = (staleAfterMs, live = []) => one(connectionString, 'hub_builder_executor', 'SELECT builder.renew_run_lease($1,$2,$3)', [sweeper, live, staleAfterMs])
     assert.deepEqual(await takeOver(60_000), [], 'a heartbeat younger than the limit keeps the run')
     assert.deepEqual(await takeOver(0), [{
       builderRunId: withCandidate, projectId, conversationId: `conversation-${projectId}`, candidateRevision: OTHER, resultSourceRevision: null, previousOwnerId: gone,
     }])
     assert.deepEqual(await takeOver(60_000), [], 'the takeover is a fresh heartbeat of its own')
-    assert.equal(await one(connectionString, 'hub_builder_executor', 'SELECT builder.heartbeat_builder_runs($1,$2)', [gone, [withCandidate]]), 0, 'the old owner no longer beats for it')
-    assert.equal(await one(connectionString, 'hub_builder_executor', 'SELECT builder.heartbeat_builder_runs($1,$2)', [sweeper, [withCandidate]]), 1)
+    assert.deepEqual(await takeOver(0, [withCandidate]), [], 'a run the caller lists is never taken, however stale')
     await query(connectionString, "UPDATE builder.builder_run SET state = 'FAILED', failure_code = 'TEST' WHERE builder_run_id = $1", [withCandidate])
   })
 
@@ -240,14 +239,14 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
       SELECT n.nspname || '.' || p.proname AS name, array_agg(r.rolname::text ORDER BY r.rolname) AS roles
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
       CROSS JOIN pg_roles r
-      WHERE p.proname IN ('lock_project_for_run', 'create_builder_run', 'admit_source_revision', 'take_over_stale_builder_runs', 'create_project_with_repository', 'register_project_repository')
+      WHERE p.proname IN ('lock_project_for_run', 'create_builder_run', 'admit_source_revision', 'renew_run_lease', 'create_project_with_repository', 'register_project_repository')
         AND r.rolname LIKE 'hub\\_%' AND has_function_privilege(r.oid, p.oid, 'EXECUTE')
       GROUP BY 1 ORDER BY 1`)
     assert.deepEqual(rows, [
       { name: 'builder.admit_source_revision', roles: ['hub_builder_ingress'] },
       { name: 'builder.create_builder_run', roles: ['hub_builder_ingress'] },
       { name: 'builder.lock_project_for_run', roles: ['hub_builder_ingress'] },
-      { name: 'builder.take_over_stale_builder_runs', roles: ['hub_builder_executor'] },
+      { name: 'builder.renew_run_lease', roles: ['hub_builder_executor'] },
       { name: 'project.create_project_with_repository', roles: ['hub_project_command'] },
     ])
   })

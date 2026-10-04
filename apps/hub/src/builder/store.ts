@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
+import { z } from 'zod'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import type { BuilderRunPhase, BuilderRunResultKind, BuilderRunState } from '../generated/builder-run-vocabulary.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
@@ -37,17 +38,18 @@ type BuilderPreview = Readonly<{
 }>
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 
-/** A queued or working run a sweep took over from an owner that went quiet. */
-export type TakenOverRun = Readonly<{
-  builderRunId: string
-  projectId: string
-  conversationId: string
+/** A queued or working run a lease pass took over from an owner that went quiet. */
+const takenOverRuns = z.array(z.object({
+  builderRunId: z.string(),
+  projectId: z.string(),
+  conversationId: z.string(),
   /** Offered before `main` moved; `main` in the Conexus Git says whether it was admitted. */
-  candidateRevision: string | null
+  candidateRevision: z.string().nullable(),
   // Equal to the candidate once the advance is recorded.
-  resultSourceRevision: string | null
-  previousOwnerId: string | null
-}>
+  resultSourceRevision: z.string().nullable(),
+  previousOwnerId: z.string().nullable(),
+}).readonly()).readonly()
+export type TakenOverRun = z.infer<typeof takenOverRuns>[number]
 
 /** How a run ends without failing: the person's stop, a Hub that stopped, or a question nobody answered. */
 export type InterruptionCode = Extract<FailureCode, 'USER_CANCELLED' | 'HUB_RESTART' | 'BUILDER_QUESTION_EXPIRED'>
@@ -77,9 +79,9 @@ export type BuilderStore = Readonly<{
   readPreviewSubject(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderPreview | null>
   // mainRevision is `main` as the Hub just read it from the Conexus Git.
   admitSourceRevision(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; mainRevision: string | null }>): Promise<boolean>
-  heartbeatBuilderRuns(ownerId: string, builderRunIds: readonly string[]): Promise<void>
-  // Takes over the queued and working runs whose owner's heartbeat is older than the limit.
-  takeOverStaleBuilderRuns(ownerId: string, staleAfterMs: number): Promise<readonly TakenOverRun[]>
+  // One call: beats every listed run of this owner, then takes over the queued and working runs that are not
+  // listed and whose owner's heartbeat is older than the limit. A listed run is never taken.
+  renewRunLease(ownerId: string, liveRunIds: readonly string[], staleAfterMs: number): Promise<readonly TakenOverRun[]>
   // Upserts the conversation's working state outside any one turn; the Git ref stays the mirror's truth.
   recordConversationSession(input: Readonly<{ projectId: string; conversationId: string; mirrorHead: string; syncedMain?: string; turnEnded: boolean }>): Promise<void>
   // The E2B sandbox a conversation's turns resume, by its provider id.
@@ -247,12 +249,9 @@ export const createBuilderStore = ({
     )
     return result.rows[0]?.admitted === true
   },
-  heartbeatBuilderRuns: async (ownerId, builderRunIds) => {
-    await executorPool.query('SELECT builder.heartbeat_builder_runs($1,$2)', [ownerId, builderRunIds])
-  },
-  takeOverStaleBuilderRuns: async (ownerId, staleAfterMs) => {
-    const result = await executorPool.query<JsonRow<readonly TakenOverRun[]>>('SELECT builder.take_over_stale_builder_runs($1,$2) AS value', [ownerId, staleAfterMs])
-    return result.rows[0]?.value ?? []
+  renewRunLease: async (ownerId, liveRunIds, staleAfterMs) => {
+    const result = await executorPool.query<JsonRow<unknown>>('SELECT builder.renew_run_lease($1,$2,$3) AS value', [ownerId, liveRunIds, staleAfterMs])
+    return takenOverRuns.parse(result.rows[0]?.value ?? [])
   },
   recordConversationSession: async ({ projectId, conversationId, mirrorHead, syncedMain, turnEnded }) => {
     await executorPool.query(

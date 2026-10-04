@@ -30,7 +30,7 @@ const mastra = new Mastra({
   server: { onValidationError: mountValidationFailure, onError: (error, context) => { onErrorCalls.push(error.message); return context.json({}, 500) } },
 })
 await controller.init()
-const sessions = createLiveConversations({ controller, sandboxes: { open: () => ({ workspace: undefined }) }, readSandboxId: async () => null, runOpen: () => false, now: () => 0, sweepEveryMs: 3_600_000 })
+const sessions = createLiveConversations({ controller, sandboxes: { open: () => ({ workspace: undefined }) }, readSandboxId: async () => null, runOpen: () => false, now: () => 0 })
 const PROJECT = '33333333-3333-4333-8333-333333333333'
 const THREADS = '/api/builder/agent-controller/conexus-builder/sessions/project:' + PROJECT + '/threads?sessionScope=conversation:77777777-7777-4777-8777-777777777777'
 const MODEL = '/api/builder/agent-controller/conexus-builder/sessions/project:' + PROJECT + '/model?sessionScope=conversation:77777777-7777-4777-8777-777777777777'

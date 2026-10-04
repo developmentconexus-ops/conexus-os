@@ -51,6 +51,8 @@ const alive = (pid) => {
   try { process.kill(pid, 0); return true } catch { return false }
 }
 
+// An idle sweep per poll: the router releases its lease when the response ends, which the test cannot see.
+const sweptUntil = (pool, predicate) => until(async () => { await pool.sweepIdle(new AbortController().signal); return predicate() })
 const until = async (predicate, ms = 5_000) => {
   for (const deadline = Date.now() + ms; Date.now() < deadline; await delay(25)) if (await predicate()) return true
   return false
@@ -201,13 +203,14 @@ test('a proxy 401 becomes a reconnect message', async (t) => {
 
 test('an idle proxy stops and its directory is removed', async (t) => {
   const { binary, stateDir } = scratch(t)
-  const pool = openPool(t, { binary, stateDir, idleMs: 100, sweepEveryMs: 50 })
+  const pool = openPool(t, { binary, stateDir, idleMs: 0 })
   const key = encodeKey(record('ana@example.com'))
   const lease = await pool.acquire(key)
   const { pid } = await (await fetch(`${lease.url}/v1/models`, { headers: { authorization: `Bearer ${lease.proxyKey}` } })).json()
-  await delay(300)
+  await pool.sweepIdle(new AbortController().signal)
   assert.equal(alive(pid), true, 'a leased proxy is never stopped')
   lease.release()
+  await pool.sweepIdle(new AbortController().signal)
   assert.equal(await until(() => !alive(pid) && !existsSync(join(stateDir, instanceIdOf(key)))), true)
   const next = await pool.acquire(key)
   const restarted = await (await fetch(`${next.url}/v1/models`, { headers: { authorization: `Bearer ${next.proxyKey}` } })).json()
@@ -217,7 +220,7 @@ test('an idle proxy stops and its directory is removed', async (t) => {
 
 test('a refreshed auth file is captured and written back before an idle proxy\'s copy is deleted (AC-22)', async (t) => {
   const { binary, stateDir } = scratch(t)
-  const pool = openPool(t, { binary, stateDir, idleMs: 100, sweepEveryMs: 50 })
+  const pool = openPool(t, { binary, stateDir, idleMs: 0 })
   const key = encodeKey(record('ana@example.com'))
   const refreshed = []
   const lease = await pool.acquire(key, async (refreshedKey) => { refreshed.push(refreshedKey) })
@@ -225,6 +228,7 @@ test('a refreshed auth file is captured and written back before an idle proxy\'s
   // the record, while the lease is held.
   writeFileSync(join(stateDir, instanceIdOf(key), 'auth', 'antigravity-ana@example.com.json'), JSON.stringify({ type: 'antigravity', refresh_token: 'refreshed-token' }))
   lease.release()
+  await pool.sweepIdle(new AbortController().signal)
   assert.equal(await until(() => refreshed.length === 1 && !existsSync(join(stateDir, instanceIdOf(key)))), true)
   const stored = decodeKey(refreshed[0])
   assert.equal(stored.fileName, 'antigravity-ana@example.com.json')
@@ -235,7 +239,8 @@ test("a call through the router writes the refreshed record back to the caller's
   const { binary, stateDir } = scratch(t)
   const rewrites = []
   const writeBack = createRefreshWriteBack({ rewrite: async (modelAccountId, secret) => { rewrites.push([modelAccountId, secret]); return true } })
-  const router = await openRouter(t, openPool(t, { binary, stateDir, idleMs: 100, sweepEveryMs: 50 }), writeBack.persistFor)
+  const pool = openPool(t, { binary, stateDir, idleMs: 0 })
+  const router = await openRouter(t, pool, writeBack.persistFor)
   const key = encodeKey(record('ana@example.com'))
   writeBack.track(key, 'row-ana')
   const answer = await gemini(router, 'models', key)
@@ -243,11 +248,11 @@ test("a call through the router writes the refreshed record back to the caller's
   await answer.json()
   // Stands in for CLIProxyAPI refreshing the Google token inside the instance's own copy.
   writeFileSync(join(stateDir, instanceIdOf(key), 'auth', 'antigravity-ana@example.com.json'), JSON.stringify({ type: 'antigravity', refresh_token: 'refreshed-token' }))
-  assert.equal(await until(() => rewrites.length === 1 && !existsSync(join(stateDir, instanceIdOf(key)))), true)
+  assert.equal(await sweptUntil(pool, () => rewrites.length === 1 && !existsSync(join(stateDir, instanceIdOf(key)))), true)
   const [[modelAccountId, secret]] = rewrites
   assert.equal(modelAccountId, 'row-ana')
   assert.deepEqual(JSON.parse(Buffer.from(decodeKey(secret).bytes).toString()), { type: 'antigravity', refresh_token: 'refreshed-token' })
-  await delay(300)
+  await pool.sweepIdle(new AbortController().signal)
   assert.equal(rewrites.length, 1, 'one refresh, one write')
 })
 
@@ -255,12 +260,13 @@ test('an unrefreshed record, or one whose row is not known, writes nothing back'
   const { binary, stateDir } = scratch(t)
   const rewrites = []
   const writeBack = createRefreshWriteBack({ rewrite: async (modelAccountId, secret) => { rewrites.push([modelAccountId, secret]); return true } })
-  const router = await openRouter(t, openPool(t, { binary, stateDir, idleMs: 100, sweepEveryMs: 50 }), writeBack.persistFor)
+  const pool = openPool(t, { binary, stateDir, idleMs: 0 })
+  const router = await openRouter(t, pool, writeBack.persistFor)
   const known = encodeKey(record('ana@example.com'))
   const unknown = encodeKey(record('bia@example.com'))
   writeBack.track(known, 'row-ana')
   for (const key of [known, unknown]) await (await gemini(router, 'models', key)).json()
-  assert.equal(await until(() => !existsSync(join(stateDir, instanceIdOf(known))) && !existsSync(join(stateDir, instanceIdOf(unknown)))), true)
+  assert.equal(await sweptUntil(pool, () => !existsSync(join(stateDir, instanceIdOf(known))) && !existsSync(join(stateDir, instanceIdOf(unknown)))), true)
   assert.deepEqual(rewrites, [])
 })
 

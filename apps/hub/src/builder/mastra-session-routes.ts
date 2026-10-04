@@ -100,6 +100,7 @@ const STREAM_BACKLOG_CHECK_MS = 1_000
 type StreamBacklog = Readonly<{ limitBytes: number; checkMs: number }>
 
 const closeWhenBehind = (response: ServerResponse, { limitBytes, checkMs }: StreamBacklog): void => {
+  // biome-ignore lint/style/noRestrictedGlobals: one timer per open stream, born and closed with its response
   const timer = setInterval(() => { if (response.writableLength > limitBytes) response.destroy() }, checkMs)
   timer.unref()
   response.once('close', () => clearInterval(timer))

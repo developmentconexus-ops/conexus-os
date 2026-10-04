@@ -9,5 +9,6 @@
   "sessionScopes": 1,
   "collectionsAcrossModules": 0,
   "runFunctionLengthSuppressions": 0,
-  "failureCodesWithoutRow": 0
+  "failureCodesWithoutRow": 0,
+  "repeatedTimerSuppressions": 3
 }

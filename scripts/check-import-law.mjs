@@ -238,6 +238,7 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/platform/config.ts',
           'apps/hub/src/platform/connection-census.ts',
           'apps/hub/src/platform/failure.ts',
+          'apps/hub/src/platform/jobs.ts',
           'apps/hub/src/platform/lifecycle.ts',
           'apps/hub/src/platform/logger.ts',
           'apps/hub/src/platform/postgres.ts',

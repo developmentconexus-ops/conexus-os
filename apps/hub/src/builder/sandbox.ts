@@ -66,6 +66,7 @@ export class ConexusRunSandbox extends E2BSandbox {
     let failures = 0
     let extending = false
     let active = true
+    // biome-ignore lint/style/noRestrictedGlobals: one timer per run, born and cleared with the hold
     const interval = setInterval(() => {
       if (!active || extending) return
       extending = true

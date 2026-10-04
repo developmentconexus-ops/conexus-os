@@ -156,29 +156,26 @@ test("a conversation that is not the Project's is refused before a run exists", 
 })
 
 // A run that fails, a store whose failBuilderRun throws `failures` times before it writes, and the
-// lines the Hub logged. The store's lease takes the run over once no run beats for it.
+// lines the Hub logged. The store's lease takes the run over once the Hub no longer lists it as live.
 const settleHarness = async ({ failures }) => {
   const lines = []
   const originalError = logger.error
   logger.error = (fields, code) => lines.push(`${code}:${fields['builder.run_id']}:${fields['exception.type']}`)
   const written = []
   let refused = 0
-  let beating = true
   const store = makeStore([], {
     failBuilderRun: async (_id, code) => {
       if (refused < failures) { refused += 1; throw new Failure('BUILDER_RUN_FAILURE_REFUSED') }
       written.push(code)
     },
-    heartbeatBuilderRuns: async (_owner, ids) => { beating = ids.includes(runId) },
-    takeOverStaleBuilderRuns: async (owner) => (beating || written.length > 0 ? [] : [{ builderRunId: runId, projectId, conversationId, candidateRevision: null, resultSourceRevision: null, previousOwnerId: owner }]),
+    renewRunLease: async (owner, liveIds) => (liveIds.includes(runId) || written.length > 0 ? [] : [{ builderRunId: runId, projectId, conversationId, candidateRevision: null, resultSourceRevision: null, previousOwnerId: owner }]),
   })
   const service = createBuilderService({
     store, runs: makeRuns({ checkModel: async () => { throw new Failure('BUILDER_MODEL_INCOMPLETE') } }), applicationArtifacts: {},
   })
   await send(service)
   const until = async (done) => { for (let i = 0; i < 400 && !done(); i++) await new Promise((wake) => { setTimeout(wake, 5) }) }
-  // A beat lasts until the next pass: what no run refreshes goes stale.
-  return { service, written, lines, until, quiet: () => { beating = false }, restore: () => { logger.error = originalError } }
+  return { service, written, lines, until, restore: () => { logger.error = originalError } }
 }
 
 test('a failed run whose settle write fails once ends settled after the retry, with only the failure logged', async () => {
@@ -190,13 +187,11 @@ test('a failed run whose settle write fails once ends settled after the retry, w
   assert.deepEqual(h.lines.filter((line) => !line.startsWith('BUILDER_MODEL_INCOMPLETE')), [])
 })
 
-test('a settle write that keeps failing is logged with a code, and once the run stops beating a sweep settles the row', async () => {
+test('a settle write that keeps failing is logged with a code, and once the run is no longer live a lease pass settles the row', async () => {
   const h = await settleHarness({ failures: 3 })
   await h.until(() => h.lines.some((line) => line.startsWith('BUILDER_RUN_SETTLE_FAILED')))
   for (let pass = 0; pass < 100 && h.written.length === 0; pass++) {
-    h.quiet()
-    await h.service.heartbeat()
-    await h.service.sweep()
+    await h.service.renewLease(new AbortController().signal)
     await new Promise((wake) => { setTimeout(wake, 5) })
   }
   await h.service.close()
