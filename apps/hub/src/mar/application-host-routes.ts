@@ -6,7 +6,9 @@ import type { ApplicationInvoker } from './application-invoker.js'
 import { digest, opaqueToken, parseOpaqueToken } from '../platform/opaque-token.js'
 import { isExactOrigin } from '../platform/origin.js'
 import { applicationHostContentSecurityPolicy } from '../platform/application-csp.js'
-import { recordFailure } from '../platform/logger.js'
+import { Failure } from '../platform/failure.js'
+import { FAILURE_TEXT } from '../platform/failure-text.generated.js'
+import { sendFailure } from '../http/problem.js'
 import { classifyAppPath, SERVER_ROOT } from '../platform/application-path.js'
 import { API_BODY_LIMIT, callerLeft, OPERATION } from './preview-routes.js'
 
@@ -52,11 +54,11 @@ export type ApplicationHostDependencies = Readonly<{
 const page = (title: string, text: string): string =>
   `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title></head><body><main><h1>${title}</h1><p>${text}</p></main></body></html>`
 
-const NO_ACCESS = page('Sem acesso', 'Você não tem acesso a este aplicativo. Peça acesso a quem administra o Workspace.')
-const EMAIL_NOT_VERIFIED = page('E-mail não verificado', 'Você não tem acesso a este aplicativo porque seu e-mail ainda não foi verificado. Verifique seu e-mail e tente entrar de novo.')
-const NOT_READY = page('Aplicativo sem versão pronta', 'Este aplicativo ainda não tem uma versão pronta para uso. Tente de novo mais tarde.')
-const SIGN_IN_FAILED = page('Não foi possível entrar', 'O link de entrada expirou ou já foi usado. Abra o endereço do aplicativo de novo para entrar.')
-const UNAVAILABLE = page('Aplicativo indisponível', 'Não foi possível confirmar seu acesso agora. Tente de novo em alguns minutos.')
+const NO_ACCESS = page('Sem acesso', FAILURE_TEXT.APPLICATION_NO_ACCESS)
+const EMAIL_NOT_VERIFIED = page('E-mail não verificado', FAILURE_TEXT.APPLICATION_EMAIL_NOT_VERIFIED)
+const NOT_READY = page('Aplicativo sem versão pronta', FAILURE_TEXT.APPLICATION_NOT_READY)
+const SIGN_IN_FAILED = page('Não foi possível entrar', FAILURE_TEXT.APPLICATION_SIGN_IN_FAILED)
+const UNAVAILABLE = page('Aplicativo indisponível', FAILURE_TEXT.IDENTITY_PROVIDER_UNAVAILABLE)
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const registerApplicationHostRoutes = async (
@@ -83,8 +85,6 @@ export const registerApplicationHostRoutes = async (
   }
   const html = (reply: FastifyReply, status: number, body: string): unknown =>
     reply.code(status).type('text/html; charset=utf-8').send(body)
-  const refuse = (reply: FastifyReply, status: number, code: string): unknown =>
-    reply.code(status).type('application/json').send({ error: { code } })
 
   // A browser without a session is sent to sign in, bound to a secret only this browser holds. A
   // sign-in already in progress keeps its binding, so parallel navigations share it and every handoff
@@ -127,7 +127,7 @@ export const registerApplicationHostRoutes = async (
   app.post('/__conexus/sign-out', async (request, reply) => {
     const target = await application(request)
     if (!target) return reply.code(404).send()
-    if (!isExactOrigin(request.headers.origin, applicationOrigin(dependencies.application, target.slug))) return refuse(reply, 403, 'ORIGIN_REFUSED')
+    if (!isExactOrigin(request.headers.origin, applicationOrigin(dependencies.application, target.slug))) throw new Failure('ORIGIN_REFUSED')
     const sessionToken = request.cookies[SESSION_COOKIE]
     if (sessionToken) await dependencies.sessions.signOut(sessionToken)
     // A sign-in that started before this sign-out must not redeem afterward: its binding cookie
@@ -140,19 +140,19 @@ export const registerApplicationHostRoutes = async (
 
   app.post<{ Params: { operation: string }; Body: unknown }>('/__conexus/api/:operation', { bodyLimit: API_BODY_LIMIT }, async (request, reply) => {
     const target = await application(request)
-    if (!target) return refuse(reply, 404, 'APPLICATION_NOT_FOUND')
+    if (!target) throw new Failure('APPLICATION_NOT_FOUND')
     // Every application host under the domain is one site, so SameSite does not stop a sibling
     // application's POST. The exact Origin of this application's own host is the only admission.
-    if (!isExactOrigin(request.headers.origin, applicationOrigin(dependencies.application, target.slug))) return refuse(reply, 403, 'ORIGIN_REFUSED')
-    if (request.headers['content-type']?.split(';', 1)[0]?.trim() !== 'application/json') return refuse(reply, 415, 'CONTENT_TYPE_REFUSED')
+    if (!isExactOrigin(request.headers.origin, applicationOrigin(dependencies.application, target.slug))) throw new Failure('ORIGIN_REFUSED')
+    if (request.headers['content-type']?.split(';', 1)[0]?.trim() !== 'application/json') throw new Failure('CONTENT_TYPE_REFUSED')
     const authority = await dependencies.sessions.applicationAuthority({ sessionToken: request.cookies[SESSION_COOKIE], projectId: target.projectId, now: now() })
-    if (authority.kind === 'PROVIDER_UNAVAILABLE') return refuse(reply, 503, 'IDENTITY_PROVIDER_UNAVAILABLE')
-    if (authority.kind === 'SIGN_IN_REQUIRED') return refuse(reply, 401, 'APPLICATION_SIGN_IN_REQUIRED')
+    if (authority.kind === 'PROVIDER_UNAVAILABLE') throw new Failure('IDENTITY_PROVIDER_UNAVAILABLE')
+    if (authority.kind === 'SIGN_IN_REQUIRED') throw new Failure('APPLICATION_SIGN_IN_REQUIRED')
     const served = await dependencies.reader.served({ accountId: authority.caller.accountId, projectId: target.projectId })
-    if (!served) return refuse(reply, 503, 'APPLICATION_NOT_READY')
+    if (!served) throw new Failure('APPLICATION_NOT_READY')
     const serverFiles = served.files.map((file) => file.path).filter((path) => path.startsWith(SERVER_ROOT))
-    if (!OPERATION.test(request.params.operation) || serverFiles.length === 0) return refuse(reply, 404, 'OPERATION_NOT_FOUND')
-    if (!dependencies.invokeApplication) return refuse(reply, 503, 'APPLICATION_RUNNER_UNAVAILABLE')
+    if (!OPERATION.test(request.params.operation) || serverFiles.length === 0) throw new Failure('OPERATION_NOT_FOUND')
+    if (!dependencies.invokeApplication) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE')
     let result: Awaited<ReturnType<ApplicationInvoker>>
     try {
       result = await dependencies.invokeApplication({
@@ -164,10 +164,9 @@ export const registerApplicationHostRoutes = async (
         callerLeft: callerLeft(reply),
       })
     } catch (error) {
-      recordFailure(request.log, 'APPLICATION_INVOKE_FAILED', error, { 'conexus.project_id': target.projectId, 'conexus.operation': request.params.operation })
-      return refuse(reply, 503, 'APPLICATION_RUNNER_UNAVAILABLE')
+      throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: error, details: { project: target.projectId, operation: request.params.operation } })
     }
-    return reply.code(result.status).type('application/json').send(JSON.stringify(result.body))
+    return reply.code(result.status).type('application/problem+json').send(JSON.stringify(result.body))
   })
 
   const serve = async (request: FastifyRequest, reply: FastifyReply): Promise<unknown> => {
@@ -179,7 +178,7 @@ export const registerApplicationHostRoutes = async (
       // Only the page itself goes to sign in. A script, image or fetch without a session is refused,
       // so it neither follows a redirect to the Hub nor replaces the binding of a sign-in in progress.
       const navigation = request.headers['sec-fetch-mode'] === 'navigate' && request.headers['sec-fetch-dest'] === 'document'
-      return navigation ? startSignIn(request, reply, target.slug) : refuse(reply, 401, 'APPLICATION_SIGN_IN_REQUIRED')
+      return navigation ? startSignIn(request, reply, target.slug) : sendFailure(reply, new Failure('APPLICATION_SIGN_IN_REQUIRED'))
     }
     const pathname = request.url.split('?', 1)[0] ?? ''
     // The host cannot list the files without a second read, so it asks the classifier as if the path were

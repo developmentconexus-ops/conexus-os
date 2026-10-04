@@ -97,12 +97,12 @@ test('the report names every unhealthy connection and counts the rest', () => {
     { role: 'hub_project_read', capability: 'project-read', state: 'unreachable', sqlstate: 'ECONNREFUSED' },
     { role: 'hub_project_command', capability: 'project-command', state: 'unreadable' },
     { role: 'hub_workspace_read', capability: 'workspace-read', state: 'unconfigured' },
-  ], line => lines.push(line))
+  ], (code, fields) => lines.push([code, fields]))
   assert.deepEqual(lines, [
-    'HUB_CONNECTION_CENSUS:ok=1:invalid=1:unreachable=1:unreadable=1:unconfigured=1\n',
-    'HUB_CONNECTION_CENSUS:invalid:hub_builder_ingress:builder-request:28P01\n',
-    'HUB_CONNECTION_CENSUS:unreachable:hub_project_read:project-read:ECONNREFUSED\n',
-    'HUB_CONNECTION_CENSUS:unreadable:hub_project_command:project-command:\n',
-    'HUB_CONNECTION_CENSUS:unconfigured:hub_workspace_read:workspace-read:\n',
+    ['HUB_CONNECTION_CENSUS', { ok: 1, invalid: 1, unreachable: 1, unreadable: 1, unconfigured: 1 }],
+    ['HUB_CONNECTION_CENSUS', { state: 'invalid', role: 'hub_builder_ingress', capability: 'builder-request', sqlstate: '28P01' }],
+    ['HUB_CONNECTION_CENSUS', { state: 'unreachable', role: 'hub_project_read', capability: 'project-read', sqlstate: 'ECONNREFUSED' }],
+    ['HUB_CONNECTION_CENSUS', { state: 'unreadable', role: 'hub_project_command', capability: 'project-command', sqlstate: '' }],
+    ['HUB_CONNECTION_CENSUS', { state: 'unconfigured', role: 'hub_workspace_read', capability: 'workspace-read', sqlstate: '' }],
   ])
 })

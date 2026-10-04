@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { connectorRecord, recordText } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
+import { invariant } from './failure-matchers.mjs'
 
 const { createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
@@ -109,7 +110,7 @@ test('the module opens no Builder run, and reads no binding, for a Project id it
     isInstallationAdministrator: async () => false,
     log: () => {},
   })
-  await assert.rejects(module.openBuilderRun({ projectId: 'not-a-uuid', builderRunId: '11111111-1111-4111-8111-111111111111' }), /^Error: CONNECTOR_SCOPE_REFUSED$/)
+  await assert.rejects(module.openBuilderRun({ projectId: 'not-a-uuid', builderRunId: '11111111-1111-4111-8111-111111111111' }), invariant('CONNECTOR_SCOPE_REFUSED'))
 })
 
 test('the Sankhya guide teaches how to find any data, and carries no one-app recipe or real value', () => {

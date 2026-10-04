@@ -36,7 +36,7 @@ const refused = async (t, reply) => {
 }
 
 test('a source-shape refusal from the runner keeps its own code and a string reason', async (t) => {
-  const error = await refused(t, { status: 422, body: { error: { code: 'SERVER_TREE_REFUSED' } } })
+  const error = await refused(t, { status: 422, body: { code: 'SERVER_TREE_REFUSED' } })
   assert.equal(error.message, 'SERVER_TREE_REFUSED')
   assert.equal(typeof error.cause, 'string')
   assert.equal(error.cause, 'SERVER_TREE_REFUSED')
@@ -44,23 +44,23 @@ test('a source-shape refusal from the runner keeps its own code and a string rea
 
 test('a manifest refusal carries its code and its full reason, not just the code', async (t) => {
   const detail = 'MANIFEST_REFUSED: operations.listOpenTitles.input: unknown key "format"'
-  const error = await refused(t, { status: 422, body: { error: { code: 'MANIFEST_REFUSED', detail } } })
+  const error = await refused(t, { status: 422, body: { code: 'MANIFEST_REFUSED', detail } })
   assert.equal(error.message, 'MANIFEST_REFUSED')
   assert.equal(error.cause, detail)
 })
 
 test('a platform-side prepare fault collapses to the generic refusal, not a source-shape code', async (t) => {
   const detail = 'connect ECONNREFUSED 127.0.0.1:5432'
-  const error = await refused(t, { status: 422, body: { error: { code: 'PREPARE_FAILED', detail } } })
+  const error = await refused(t, { status: 422, body: { code: 'INTERNAL_UNEXPECTED', detail } })
   assert.equal(error.message, 'APPLICATION_SERVER_REFUSED')
   assert.equal(typeof error.cause, 'string')
   assert.equal(error.cause, detail)
 })
 
 test('a malformed-request refusal with no detail still carries a string reason, the runner\'s own code', async (t) => {
-  const error = await refused(t, { status: 400, body: { error: { code: 'PREPARE_REFUSED' } } })
+  const error = await refused(t, { status: 400, body: { code: 'RUNNER_REQUEST_REFUSED' } })
   assert.equal(error.message, 'APPLICATION_SERVER_REFUSED')
-  assert.equal(error.cause, 'PREPARE_REFUSED')
+  assert.equal(error.cause, 'RUNNER_REQUEST_REFUSED')
 })
 
 test('an unparseable refusal body still gives a string reason, never leaving cause undefined', async (t) => {

@@ -1,4 +1,5 @@
 import type { Environment } from './model.js'
+import { Failure } from '../platform/failure.js'
 
 declare const scopeBrand: unique symbol
 
@@ -17,7 +18,7 @@ const terms = new WeakMap<object, Terms>()
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const mint = (projectId: string, environment: Environment, term: Terms): ConsumerScope => {
-  if (!UUID.test(projectId)) throw new Error('CONNECTOR_SCOPE_REFUSED')
+  if (!UUID.test(projectId)) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'CONNECTOR_SCOPE_REFUSED' } })
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   const scope = Object.freeze({ projectId, environment }) as ConsumerScope
   terms.set(scope, term)

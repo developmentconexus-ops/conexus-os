@@ -1,5 +1,8 @@
 import type { MastraCompositeStore, RetentionConfig } from '@mastra/core/storage'
 import { PostgresStore } from '@mastra/pg'
+import { Failure, logFailure } from '../platform/failure.js'
+import { logger } from '../platform/logger.js'
+import type { EventLog } from '../platform/logger.js'
 import type { PostgresPool } from '../platform/postgres.js'
 
 const RETENTION_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000
@@ -24,7 +27,7 @@ type RetentionSchedule = Readonly<{ tick(): Promise<void>; close(): Promise<void
 
 export const scheduleRetentionPrune = (
   storage: Pick<MastraCompositeStore, 'init' | 'prune'>,
-  log: (line: string) => void,
+  log: EventLog,
   intervalMs = RETENTION_PRUNE_INTERVAL_MS,
 ): RetentionSchedule => {
   const inFlight = new Set<Promise<void>>()
@@ -32,8 +35,8 @@ export const scheduleRetentionPrune = (
   const run = async (): Promise<void> => {
     await storage.init()
     for (const result of await storage.prune({ signal: stop.signal })) {
-      log(`BUILDER_RETENTION_PRUNED:${result.domain}.${result.table}:${result.deleted}`)
-      if (!result.done) log(`BUILDER_RETENTION_PRUNE_INCOMPLETE:${result.domain}.${result.table}`)
+      log('BUILDER_RETENTION_PRUNED', { table: `${result.domain}.${result.table}`, deleted: result.deleted })
+      if (!result.done) log('BUILDER_RETENTION_PRUNE_INCOMPLETE', { table: `${result.domain}.${result.table}` })
     }
   }
   const tick = (): Promise<void> => {
@@ -43,7 +46,7 @@ export const scheduleRetentionPrune = (
     pass.then(settled, settled)
     return pass
   }
-  const tickLogged = (): void => { tick().catch((error) => log(`BUILDER_RETENTION_PRUNE_FAILED:${error instanceof Error ? error.message : String(error)}`)) }
+  const tickLogged = (): void => { tick().catch((error: unknown) => logFailure(logger, new Failure('BUILDER_RETENTION_PRUNE_FAILED', { cause: error }))) }
   tickLogged()
   const timer = setInterval(tickLogged, intervalMs)
   timer.unref()

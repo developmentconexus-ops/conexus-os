@@ -4,8 +4,7 @@ import type {
   WorkspaceRoster,
 } from '../../generated/iam-client'
 import { iamClient } from '../../generated/iam-client'
-import { IdentityAccessRequestError } from './api'
-import { clearAuthorityCache } from '../../app/query-client'
+import { hubCall } from '../../app/http'
 
 export const workspaceRosterQueryKey = (workspaceId: string) =>
   ['identity-access', 'workspace-roster', workspaceId] as const
@@ -14,24 +13,8 @@ type RosterEntry = WorkspaceRoster['entries'][number]
 export type MemberEntry = Extract<RosterEntry, { kind: 'member' }>
 export type InvitationEntry = Extract<RosterEntry, { kind: 'invitation' }>
 
-function reject(response: Response): never {
-  if (response.status === 401) clearAuthorityCache()
-  throw new IdentityAccessRequestError(response.status)
-}
-
-async function send(call: () => Promise<Response>, expected: number): Promise<Response> {
-  let response: Response
-  try {
-    response = await call()
-  } catch {
-    throw new IdentityAccessRequestError(null)
-  }
-  if (response.status !== expected) reject(response)
-  return response
-}
-
 export async function getWorkspaceRoster(workspaceId: string): Promise<WorkspaceRoster> {
-  const response = await send(() => iamClient.listWorkspaceMembers(workspaceId), 200)
+  const response = await hubCall(iamClient.listWorkspaceMembers(workspaceId), 200)
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<WorkspaceRoster>
 }
@@ -40,7 +23,7 @@ export async function inviteWorkspaceMember(
   workspaceId: string,
   input: InviteWorkspaceMemberInput,
 ): Promise<WorkspaceInvitation> {
-  const response = await send(() => iamClient.inviteWorkspaceMember(workspaceId, input), 200)
+  const response = await hubCall(iamClient.inviteWorkspaceMember(workspaceId, input), 200)
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return response.json() as Promise<WorkspaceInvitation>
 }
@@ -50,25 +33,16 @@ export async function setWorkspaceMemberRole(
   accountId: string,
   role: string,
 ): Promise<void> {
-  await send(() => iamClient.setWorkspaceMemberRole(workspaceId, accountId, { role }), 204)
+  await hubCall(iamClient.setWorkspaceMemberRole(workspaceId, accountId, { role }), 204)
 }
 
 export async function removeWorkspaceMember(workspaceId: string, accountId: string): Promise<void> {
-  await send(() => iamClient.removeWorkspaceRosterEntry(workspaceId, 'member', accountId), 204)
+  await hubCall(iamClient.removeWorkspaceRosterEntry(workspaceId, 'member', accountId), 204)
 }
 
 export async function cancelWorkspaceInvitation(
   workspaceId: string,
   invitationId: string,
 ): Promise<void> {
-  await send(() => iamClient.removeWorkspaceRosterEntry(workspaceId, 'invitation', invitationId), 204)
-}
-
-export function membershipMessage(error: unknown): string {
-  if (!(error instanceof IdentityAccessRequestError)) return 'A alteração não foi confirmada.'
-  if (error.status === 403) return 'Só owners podem fazer isso neste Workspace.'
-  if (error.status === 409) return 'O Workspace ficaria sem owner. Torne outra pessoa owner antes.'
-  if (error.status === 422) return 'Informe um email válido e um papel válido.'
-  if (error.status === 404) return 'Esta pessoa ou convite não está mais no Workspace.'
-  return 'A alteração não foi confirmada.'
+  await hubCall(iamClient.removeWorkspaceRosterEntry(workspaceId, 'invitation', invitationId), 204)
 }

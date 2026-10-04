@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
-import { sendProblem } from '../http/problem.js'
-import { recordFailure } from '../platform/logger.js'
+import { Failure, logFailure } from '../platform/failure.js'
+import { logLine } from '../platform/logger.js'
 import { IAM_GENERATED_ROUTES } from '../generated/iam-routes.js'
 import type { Iam03Body, IamOwnerId } from '../generated/iam-routes.js'
 import { parseApplicationSlug } from '../platform/application-slug.js'
@@ -8,7 +8,6 @@ import { opaqueToken, parseOpaqueToken } from '../platform/opaque-token.js'
 import { isExactOrigin } from '../platform/origin.js'
 import type { HostSessions } from './host-sessions.js'
 import type { ResolveCurrentSession } from './current-session.js'
-import { identityAccessErrorCode } from './errors.js'
 import type { OidcAdapter } from './oidc.js'
 import type { IdentityAccessStore, SignInReturn } from './store.js'
 
@@ -59,7 +58,7 @@ export const registerIdentityAccessRoutes = async (
       await store.createOidcTransaction({ ...transaction, signInReturn })
       return reply.setCookie(OIDC_STATE_COOKIE, transaction.state, cookieOptions).redirect(transaction.location, 302)
     } catch (error) {
-      recordFailure(request.log, 'OIDC_BEGIN_FAILED', error)
+      logFailure(request.log, new Failure('OIDC_BEGIN_FAILED', { cause: error }))
       return reply.code(503).send()
     }
   })
@@ -83,9 +82,7 @@ export const registerIdentityAccessRoutes = async (
         // This branch never sets the Hub session or its CSRF cookie: the person leaves with a
         // one-use handoff for the application's own host, or with no access at all.
         if (!applications) {
-          recordFailure(request.log, 'OIDC_APPLICATION_SIGN_IN_UNAVAILABLE', new Error('Applications module unavailable'), {
-            'conexus.project_id': signInReturn.projectId,
-          })
+          logFailure(request.log, new Failure('OIDC_APPLICATION_SIGN_IN_UNAVAILABLE', { details: { projectId: signInReturn.projectId } }))
           return reply.code(503).send()
         }
         const outcome = await applications.sessions.signIn({
@@ -104,7 +101,7 @@ export const registerIdentityAccessRoutes = async (
         await store.claimInvitations({ accountId: account.accountId, verifiedEmail: identity.verifiedEmail })
         // The Hub keeps this sign-in's Keycloak refresh token, sealed, to ask Keycloak again while the session lasts.
         if (!identity.refreshToken) {
-          recordFailure(request.log, 'OIDC_REFRESH_TOKEN_MISSING', new Error('OIDC provider returned no refresh token'))
+          logFailure(request.log, new Failure('OIDC_REFRESH_TOKEN_MISSING'))
           return reply.code(503).send()
         }
         const established = await hubSessions.openHub({ accountId: account.accountId, refreshToken: identity.refreshToken })
@@ -124,17 +121,17 @@ export const registerIdentityAccessRoutes = async (
         .setCookie(CSRF_COOKIE, csrfToken, visibleCookieOptions)
         .redirect('/setup', 303)
     } catch (error) {
-      if (identityAccessErrorCode(error) === 'IDENTITY_NOT_ELIGIBLE') return reply.code(403).send()
-      recordFailure(request.log, 'OIDC_CALLBACK_FAILED', error)
+      if (error instanceof Failure && error.id === 'IDENTITY_NOT_ELIGIBLE') return reply.code(403).send()
+      logFailure(request.log, new Failure('OIDC_CALLBACK_FAILED', { cause: error }))
       return reply.code(503).send()
     }
   })
 
   app.route({
     ...IAM_GENERATED_ROUTES['IAM-01'],
-    handler: async (request, reply) => {
+    handler: async (request) => {
       const current = await resolveCurrentSession(request)
-      if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      if (!current) throw new Failure('AUTHENTICATION_REQUIRED')
       const workspaces = await workspaceReader?.listAccessibleWorkspaces(current.account.accountId) ?? []
       return { account: current.account, workspaces, projects: [] }
     },
@@ -143,10 +140,10 @@ export const registerIdentityAccessRoutes = async (
   app.route({
     ...IAM_GENERATED_ROUTES['IAM-02'],
     handler: async (request, reply) => {
-      if (!isExactOrigin(request.headers.origin, config.origin)) return sendProblem(reply, 403, 'origin-denied', 'Origin denied')
+      if (!isExactOrigin(request.headers.origin, config.origin)) throw new Failure('REQUEST_AUTHENTICITY_DENIED')
       const requestCsrf = header(request.headers['x-conexus-csrf'])
       if (!requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) {
-        return sendProblem(reply, 403, 'csrf-denied', 'Request authenticity denied')
+        throw new Failure('REQUEST_AUTHENTICITY_DENIED')
       }
       // The session and its own CSRF token are enough to end the Conexus session, and it ends before Keycloak
       // is asked anything. Only then is Keycloak asked, for a bounded time, to end the SSO session behind it,
@@ -154,12 +151,12 @@ export const registerIdentityAccessRoutes = async (
       // past that bound, and is never reported as a Keycloak sign-out.
       const sessionToken = request.cookies[SESSION_COOKIE]
       const ended = sessionToken ? await hubSessions.endHub({ sessionToken, csrfToken: requestCsrf }) : null
-      if (!ended) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
+      if (!ended) throw new Failure('AUTHENTICATION_REQUIRED')
       const providerLogout = ended.refreshToken
         ? await oidc.endProviderSession({ refreshToken: ended.refreshToken, signal: AbortSignal.timeout(PROVIDER_LOGOUT_TIMEOUT_MS) })
         : 'UNCONFIRMED'
       if (providerLogout !== 'ENDED') {
-        request.log.warn({ event: 'hub_sign_out_provider_logout_unconfirmed' }, 'Conexus session ended; Keycloak did not confirm the SSO session ended')
+        logLine('HUB_SIGN_OUT_PROVIDER_LOGOUT_UNCONFIRMED', {}, 'warn')
       }
       return reply
         .clearCookie(SESSION_COOKIE, clearCookieOptions)
@@ -173,32 +170,22 @@ export const registerIdentityAccessRoutes = async (
     handler: async (request, reply) => {
       const requestCsrf = header(request.headers['x-conexus-csrf'])
       if (!isExactOrigin(request.headers.origin, config.origin) || !requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) {
-        return sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
+        throw new Failure('REQUEST_AUTHENTICITY_DENIED')
       }
       const idempotencyKey = header(request.headers['idempotency-key'])
-      if (!idempotencyKey) return sendProblem(reply, 400, 'idempotency-key-required', 'Idempotency key required')
-      try {
-        const bootstrapToken = request.cookies[BOOTSTRAP_COOKIE]
-        if (!bootstrapToken) return sendProblem(reply, 401, 'bootstrap-required', 'Bootstrap context required')
-        const result = await store.provisionBootstrap({
-          bootstrapToken,
-          idempotencyKey,
-          configuredIssuer: config.bootstrapIssuer,
-          configuredSubject: config.bootstrapSubject,
-          ...request.body,
-        })
-        reply.clearCookie(BOOTSTRAP_COOKIE, clearCookieOptions).clearCookie(CSRF_COOKIE, clearCookieOptions)
-        const { replayed: _replayed, ...body } = result
-        return reply.code(201).send(body)
-      } catch (error) {
-        const code = identityAccessErrorCode(error)
-        if (code === 'IDEMPOTENCY_CONFLICT' || code === 'BOOTSTRAP_SEALED' || code === 'OUTCOME_UNKNOWN') {
-          return sendProblem(reply, 409, code.toLowerCase(), 'Account provisioning conflict')
-        }
-        if (code === 'IDENTITY_NOT_ELIGIBLE') return sendProblem(reply, 403, 'identity-not-eligible', 'Identity not eligible')
-        if (code === 'ACCOUNT_CONFLICT') return sendProblem(reply, 409, 'account-conflict', 'Account already exists')
-        throw error
-      }
+      if (!idempotencyKey) throw new Failure('IDEMPOTENCY_KEY_REQUIRED')
+      const bootstrapToken = request.cookies[BOOTSTRAP_COOKIE]
+      if (!bootstrapToken) throw new Failure('BOOTSTRAP_REQUIRED')
+      const result = await store.provisionBootstrap({
+        bootstrapToken,
+        idempotencyKey,
+        configuredIssuer: config.bootstrapIssuer,
+        configuredSubject: config.bootstrapSubject,
+        ...request.body,
+      })
+      reply.clearCookie(BOOTSTRAP_COOKIE, clearCookieOptions).clearCookie(CSRF_COOKIE, clearCookieOptions)
+      const { replayed: _replayed, ...body } = result
+      return reply.code(201).send(body)
     },
   })
 

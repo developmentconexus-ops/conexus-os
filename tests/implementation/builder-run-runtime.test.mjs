@@ -9,6 +9,16 @@ import { createWorkspaceTools, LocalFilesystem, Workspace } from '@mastra/core/w
 import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
+const { Failure } = await import(hubModuleUrl('platform/failure.js'))
+const { logger } = await import(hubModuleUrl('platform/logger.js'))
+
+const endLines = []
+const failureLines = (code) => endLines.filter((line) => line.message === code)
+for (const level of ['info', 'warn', 'error']) {
+  const write = logger[level].bind(logger)
+  logger[level] = (fields, message) => { if (typeof message === 'string') endLines.push({ level, message, fields }); return write(fields, message) }
+}
+
 const built = hubModuleUrl
 const { createBuilderService } = await import(built('builder/service.js'))
 const { createBuilderRunRuntime } = await import(built('builder/run-runtime.js'))
@@ -60,6 +70,7 @@ const failedReport = (step, problems) => {
 // own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run. It is the
 // conversation's one VM: every turn reaches the same directory until `loseVm` replaces it.
 const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate = false, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0, warmParkedMs } = {}) => {
+  endLines.splice(0)
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
   const vm = join(scratch, 'vm')
@@ -198,7 +209,7 @@ const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate
     openSandbox: (ref) => { events.push(['sandbox', ref.conversationId]); sandboxRefs.push(ref); return sandbox },
     checkModel: async ({ builderRunId, accountId: payer }) => {
       events.push(['model-check', builderRunId, payer])
-      if (!modelAccount) throw new Error('BUILDER_MODEL_NOT_SELECTED')
+      if (!modelAccount) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
     },
     openSession: async (input) => {
       events.push(['open', input.conversationId, input.builderRunId, input.workspace.id])
@@ -247,7 +258,8 @@ const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate
     materializeStarter: async () => { events.push('starter'); await starter?.() },
     ...(openConnectorRun ? { openConnectorRun } : {}),
     readProjectName: async () => 'Compras',
-    log: (line) => { (line.startsWith('BUILDER_RUN_TIMING:') ? timings : line.startsWith('BUILDER_SANDBOX_EGRESS') ? egressLogs : logs).push(line) },
+    log: (code, fields = {}) => { if (code === 'BUILDER_RUN_TIMING') timings.push(fields)
+      else (code.startsWith('BUILDER_SANDBOX_EGRESS') ? egressLogs : logs).push([code, ...Object.values(fields)].join(':')) },
   })
   const claimed = { builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'PREPARING', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null }
   // The one run's row as the database holds it.
@@ -530,7 +542,7 @@ test('a run releases its sandbox after the turn and completes normally', async (
   const releaseIndex = run.events.indexOf('release')
   assert.ok(turnIndex >= 0 && releaseIndex >= 0, 'the run both turns and releases')
   assert.ok(turnIndex < releaseIndex, `release (${releaseIndex}) must run after the turn (${turnIndex})`)
-  assert.equal(run.logs.some((line) => line.startsWith('BUILDER_SANDBOX_KEEPALIVE_FAILED:')), false)
+  assert.deepEqual(failureLines('BUILDER_SANDBOX_KEEPALIVE_FAILED'), [])
   const plain = await harness(t)
   await plain.start()
   await plain.service.close()
@@ -552,16 +564,14 @@ test('a terminal keepalive lapse aborts the turn and fails the run for recovery 
   assert.equal(await run.main(), run.base)
   assert.deepEqual(run.calls.filter(([kind]) => ['fail', 'advance', 'settleBuild'].includes(kind)), [['fail', 'BUILDER_SANDBOX_KEEPALIVE_FAILED']])
   assert.deepEqual(run.diagnostics.map(({ code, outcome }) => [code, outcome]), [['BUILDER_SANDBOX_KEEPALIVE_FAILED', 'RUN_NOT_FINISHED']])
-  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_SANDBOX_KEEPALIVE_FAILED:')), [
-    `BUILDER_SANDBOX_KEEPALIVE_FAILED:${runId}:Sandbox sbx-1 not found`,
-  ])
+  assert.deepEqual(failureLines('BUILDER_SANDBOX_KEEPALIVE_FAILED').map((line) => line.level), ['error'], 'one line, at the run end')
   assert.deepEqual({ killed: run.killed, paused: run.paused }, { killed: ['sbx-1'], paused: [] }, 'a VM whose keepalive lapsed is killed, never kept')
 })
 
 test("a check that fails in Conexus fails the run with its code, keeps the files in the mirror and leaves main at the base", async (t) => {
   const run = await harness(t, { build: async () => {
     await new Promise((settle) => { setTimeout(settle, 1100) })
-    throw new Error('APPLICATION_SMOKE_FAILED')
+    throw new Failure('APPLICATION_SMOKE_FAILED')
   } })
   await run.start()
   await run.service.close()
@@ -583,7 +593,7 @@ test('an observational-memory failure while closing the session does not discard
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild' || kind === 'fail'), [
     ['advance', result], ['settleBuild', result, null],
   ])
-  assert.ok(run.logs.some((line) => line.includes('BUILDER_OM_OBSERVATION_FAILED')), 'the OM failure is logged, not silenced')
+  assert.ok(endLines.some((line) => line.message === 'BUILDER_SESSION_CLOSE_FAILED'), 'the OM failure is logged, not silenced')
 })
 
 test('the checkout is seeded from a bundle of the base that root wrote, and holds exactly the base before the agent runs', async (t) => {
@@ -819,16 +829,13 @@ test('a turn that only wrote the plan is a version that holds it, admitted like 
 })
 
 const timingStages = (run) => {
-  const lines = run.timings
-  assert.deepEqual(lines.map((line) => line.split(':').slice(0, 2).join(':')), [`BUILDER_RUN_TIMING:${runId}`], 'one timing line per run')
-  return lines[0].split(':').slice(2).map((pair) => {
-    const [stage, value] = pair.split('=')
-    assert.match(value, /^\d+$/, `${stage} is whole milliseconds`)
-    return stage
-  })
+  assert.deepEqual(run.timings.map((fields) => fields.run), [runId], 'one timing event per run')
+  const { run: _run, ...stages } = run.timings[0]
+  for (const [stage, value] of Object.entries(stages)) assert.ok(Number.isInteger(value) && value >= 0, `${stage} is whole milliseconds`)
+  return Object.keys(stages)
 }
 
-test('each run logs one BUILDER_RUN_TIMING line with the stages it reached, in run order', async (t) => {
+test('each run logs one BUILDER_RUN_TIMING event with the stages it reached, in run order', async (t) => {
   const built = await harness(t)
   await built.start()
   await built.service.close()
@@ -852,7 +859,7 @@ test('an agent that aborts with no stop from the person fails with a named reaso
   const run = await harness(t, { turn: () => ({ reason: 'aborted', userMessageId: 'user-message', summary: '' }) })
   await run.start()
   await run.service.close()
-  assert.deepEqual(run.logs, [`BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-1`, `BUILDER_AGENT_END:aborted:${runId}`, `BUILDER_RUN_FAILED:${runId}:BUILDER_MODEL_INCOMPLETE`])
+  assert.deepEqual(run.logs, [`BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-1`, `BUILDER_AGENT_END:${runId}:aborted`])
   assert.notDeepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
   assert.ok(JSON.stringify(run.calls.at(-1)).includes('BUILDER_MODEL_INCOMPLETE'), JSON.stringify(run.calls.at(-1)))
   assert.equal(await run.main(), run.base)
@@ -938,7 +945,7 @@ test("a red check goes back to the agent in the same turn with the failed step's
   assert.deepEqual(run.feedbacks, [[
     'Verificação do Conexus: o app não passou (1 de 3).',
     CHECK_DETAIL,
-    'Corrija estes problemas e termine de novo: o Conexus verifica o app outra vez quando você terminar.',
+    'Resolva estes problemas e diga que terminou: o Conexus verifica o app quando você terminar.',
   ].join('\n')])
   assert.deepEqual(run.checks.map(({ index }) => index), ['<h1>UNIT1</h1>\n', '<h1>repaired</h1>\n'])
   assert.equal(run.events.filter((event) => event === 'turn').length, 1, 'the repair happened inside the one turn')
@@ -1028,7 +1035,7 @@ test('each check the run makes leaves one line in the Hub log with its steps', a
   await run.start()
   await run.service.close()
   const steps = 'generate=passed:1ms typecheck=passed:1ms build=passed:1ms server=passed:1ms boot=passed:1ms'
-  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_CHECK:')), [`BUILDER_CHECK:gate:${runId}:${run.result().slice(0, 12)}:${steps}`])
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_CHECK:')), [`BUILDER_CHECK:${runId}:${run.result().slice(0, 12)}:${steps}`])
 })
 
 test('the Hub check is placed at run start, root owned and read only, before the agent runs', async (t) => {
@@ -1176,8 +1183,10 @@ test('a seed the checkout cannot fetch refuses the pin with BUILDER_SOURCE_BASE_
   await run.start()
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_SOURCE_BASE_PIN_REFUSED'])
-  assert.equal(run.logs.length, 1)
-  assert.match(run.logs[0], new RegExp(`^BUILDER_RUN_FAILED:${runId}:BUILDER_SOURCE_BASE_PIN_REFUSED \\{"exitCode":128,`))
+  assert.deepEqual(run.logs, [])
+  const [line] = endLines.splice(0)
+  assert.deepEqual([line.level, line.message, line.fields['builder.run_id']], ['error', 'BUILDER_SOURCE_BASE_PIN_REFUSED', runId])
+  assert.match(line.fields['builder.run.evidence'], /^\{"exitCode":128,/)
   assert.deepEqual(run.diagnostics, [], 'a run that never reached the agent has no edits to disown')
   assert.equal(run.events.includes('turn'), false)
   assert.deepEqual({ killed: run.killed, paused: run.paused }, { killed: ['sbx-1'], paused: [] }, 'a checkout that cannot take the start takes its VM with it')
@@ -1209,7 +1218,7 @@ test('a failed start whose kill fails logs BUILDER_SANDBOX_KILL_FAILED and still
   await run.start()
   await run.service.close()
   assert.equal(run.calls.at(-1)[0], 'fail')
-  assert.ok(run.logs.includes(`BUILDER_SANDBOX_KILL_FAILED:${runId}:E2B_UNREACHABLE`), JSON.stringify(run.logs))
+  assert.deepEqual(failureLines('BUILDER_SANDBOX_KILL_FAILED').map((line) => line.fields['exception.type']), ['Error'])
 })
 
 test('a VM whose commands run as root, from a template before the agent user, is refused before the seed', async (t) => {
@@ -1239,16 +1248,15 @@ test('a VM that died while the conversation was idle is replaced before the run 
 test('a starter inspection that fails writes its command evidence to the Hub log under the run', async (t) => {
   const run = await harness(t, {
     starter: async () => {
-      throw new Error('BUILDER_STARTER_ENTRY_INSPECTION_FAILED', { cause: { exitCode: 1, stdout: '', stderr: 'Error: sandbox not found' } })
+      throw new Failure('BUILDER_STARTER_ENTRY_INSPECTION_FAILED', { cause: { exitCode: 1, stdout: '', stderr: 'Error: sandbox not found' } })
     },
   })
   await run.start()
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_STARTER_ENTRY_INSPECTION_FAILED'])
-  assert.deepEqual(run.logs, [
-    `BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-1`,
-    `BUILDER_RUN_FAILED:${runId}:BUILDER_STARTER_ENTRY_INSPECTION_FAILED {"exitCode":1,"stdout":"","stderr":"Error: sandbox not found"}`,
-  ])
+  assert.deepEqual(run.logs, [`BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-1`])
+  const [line] = endLines.splice(0)
+  assert.deepEqual([line.message, line.fields['builder.run.evidence']], ['BUILDER_STARTER_ENTRY_INSPECTION_FAILED', '{"exitCode":1,"stdout":"","stderr":"Error: sandbox not found"}'])
 })
 
 const briefOnly = (brief) => async () => ({ brief, bind: () => {}, end: () => {} })
@@ -1323,7 +1331,7 @@ test("the run's connector scope reaches its session, is live during the agent tu
     'the run succeeds': {},
     'the agent turn fails': { turn: () => ({ reason: 'error', userMessageId: 'user-message', summary: '' }) },
     'the person stops the run during the turn': { stop: true },
-    'the check fails in Conexus after the turn': { build: async () => { throw new Error('APPLICATION_SMOKE_FAILED') } },
+    'the check fails in Conexus after the turn': { build: async () => { throw new Failure('APPLICATION_SMOKE_FAILED') } },
   }
   const outcomes = {}
   for (const [name, { stop, ...options }] of Object.entries(cases)) {
@@ -1373,7 +1381,7 @@ test('a run whose session cannot open still revokes the scope it minted', async 
   await run.start()
   await run.settled()
   await run.service.close()
-  assert.deepEqual([run.calls.at(-1), minted.map((scope) => isMintedScope(scope))], [['fail', 'BUILDER_SESSION_OPEN_FAILED'], [false]])
+  assert.deepEqual([run.calls.at(-1), minted.map((scope) => isMintedScope(scope))], [['fail', 'INTERNAL_UNEXPECTED'], [false]])
 })
 
 const until = async (predicate, what) => {
@@ -1400,7 +1408,7 @@ test('a sandbox that dies mid-turn leaves every file the write tool wrote in the
   assert.deepEqual(run.mirrorFiles(), MIRRORED_THREE)
   assert.equal(run.inBare('rev-list', '--parents', '-n', '1', run.MIRROR), `${run.mirror()} ${run.base}`)
   assert.equal(await run.main(), run.base)
-  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_MIRROR_FAILED:')), [])
+  assert.deepEqual(failureLines('BUILDER_MIRROR_FAILED'), [])
 })
 
 test('a mirror write in flight when the sandbox dies lands before the run ends', async (t) => {
@@ -1489,7 +1497,7 @@ test('an edit mirror that runs during the turn-end pull corrupts neither the can
   assert.equal(run.mirror(), result)
   assert.equal(run.inBare('rev-parse', `${result}^{tree}`), run.inBare('rev-parse', `${run.MIRROR}^{tree}`))
   assert.equal(run.inBare('show', `${result}:app/index.html`), '<h1>UNIT1</h1>')
-  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_MIRROR_FAILED:')), [])
+  assert.deepEqual(failureLines('BUILDER_MIRROR_FAILED'), [])
 })
 
 test('a mirror moved by someone else after the turn started fails the write with a log line, and the run settles as it would have', async (t) => {
@@ -1506,7 +1514,7 @@ test('a mirror moved by someone else after the turn started fails the write with
   assert.equal(await run.main(), result)
   assert.deepEqual(admissionCalls(run), [['candidate', result], ['advance', result], ['settleBuild', result, null]])
   assert.equal(run.mirror(), run.base)
-  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_MIRROR_FAILED:')), [`BUILDER_MIRROR_FAILED:${runId}:CONEXUS_GIT_REF_MOVED`])
+  assert.deepEqual(failureLines('BUILDER_MIRROR_FAILED').map((line) => line.fields['exception.type']), ['Error'])
 })
 
 // The seed bundle's root writes, one per turn that fetched one.
@@ -1645,13 +1653,13 @@ test('#423 the conversation of an idle machine that the sweep deleted runs its n
     listPaused: async () => (listed++ === 0 ? [] : [{ providerSandboxId: 'ivm-idle', conversationId, idleSince: new Date(now - 8 * day) }]),
     openRunConversations: async () => new Set(),
     kill: async (ids) => { deleted.push(...ids); run.loseVm('sbx-new'); return ids },
-    log: (line) => log.push(line),
+    log: (code, fields) => log.push([code, ...Object.values(fields)].join(':')),
     now: () => now,
   }, 3_600_000)
   await sweep.tick()
   await sweep.close()
   assert.deepEqual(deleted, ['ivm-idle'])
-  assert.deepEqual(log, [`BUILDER_IDLE_MACHINE_DELETED:${conversationId}:ivm-idle:8d`])
+  assert.deepEqual(log, [`BUILDER_IDLE_MACHINE_DELETED:${conversationId}:ivm-idle:8`])
   await run.again()
   assert.equal(await run.settled(), true)
   await run.service.close()
@@ -1687,21 +1695,23 @@ test('a poll that fails is logged and the run still completes', async (t) => {
   assert.equal(await run.settled(), true)
   await run.service.close()
   assert.equal(original.starts, start + 1)
-  assert.ok(run.egressLogs.some((line) => line.startsWith(`BUILDER_SANDBOX_EGRESS_COLLECT_FAILED:${runId}:`)))
+  assert.equal(failureLines('BUILDER_SANDBOX_EGRESS_COLLECT_FAILED').length, 1)
   assert.ok(run.egressLogs.includes(`BUILDER_SANDBOX_EGRESS_SUMMARY:${runId}:failed:0`))
   assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_SANDBOX_EGRESS')), [])
 })
 
-test('a failed run without a cause still logs BUILDER_RUN_FAILED with its code and run id, never the message text', async (t) => {
-  const coded = await harness(t, { turn: () => { throw new Error('BUILDER_MODEL_INCOMPLETE') } })
+test('a failed run logs once through its row, at the row\'s level, with the run id', async (t) => {
+  endLines.splice(0)
+  const coded = await harness(t, { turn: () => { throw new Failure('BUILDER_MODEL_INCOMPLETE') } })
   await coded.start()
   await coded.service.close()
-  assert.deepEqual(coded.logs.filter((line) => line.startsWith('BUILDER_RUN_FAILED')), ['BUILDER_RUN_FAILED:11111111-1111-4111-8111-111111111111:BUILDER_MODEL_INCOMPLETE'])
-  const prose = await harness(t, { turn: () => { throw new Error('the tool said sk-secret-token') } })
+  assert.deepEqual(endLines.map((line) => [line.level, line.message, line.fields['builder.run_id']]), [['warn', 'BUILDER_MODEL_INCOMPLETE', '11111111-1111-4111-8111-111111111111']])
+  endLines.splice(0)
+  const prose = await harness(t, { turn: () => { throw new Error('the tool said something') } })
   await prose.start()
   await prose.service.close()
-  assert.deepEqual(prose.logs.filter((line) => line.startsWith('BUILDER_RUN_FAILED')), ['BUILDER_RUN_FAILED:11111111-1111-4111-8111-111111111111:BUILDER_PREPARATION_FAILED'])
-  assert.equal(prose.logs.some((line) => line.includes('sk-secret-token')), false)
+  assert.deepEqual(endLines.map((line) => [line.level, line.message]), [['error', 'INTERNAL_UNEXPECTED']])
+  assert.equal(prose.logs.some((line) => line.includes('the tool said')), false)
 })
 
 const SUSPENDED = { reason: 'suspended', userMessageId: 'user-message', summary: '' }

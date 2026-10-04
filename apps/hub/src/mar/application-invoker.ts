@@ -1,3 +1,6 @@
+import { failureProblem } from '../http/problem.js'
+import { Failure } from '../platform/failure.js'
+import type { FailureCode } from '../platform/failures.generated.js'
 import type { Caller } from '../platform/caller.js'
 
 /** One file of the admitted artifact's `conexus-server/` tree, exactly as the runner expects it. */
@@ -109,8 +112,10 @@ const createGate = (capacity: number, lineLimit: number): Gate => {
   }
 }
 
-const refusal = (status: number, code: string): Readonly<{ status: number; body: unknown }> =>
-  Object.freeze({ status, body: { error: { code } } })
+const refusal = (code: FailureCode): Readonly<{ status: number; body: unknown }> => {
+  const problem = failureProblem(new Failure(code))
+  return Object.freeze({ status: problem.status, body: problem })
+}
 
 export const createApplicationInvoker = (dependencies: Readonly<{
   readFile: ApplicationFileReader
@@ -131,12 +136,12 @@ export const createApplicationInvoker = (dependencies: Readonly<{
       project.leave()
       if (project.idle) projects.delete(projectId)
     }
-    if (!(await project.enter(waitEnds))) return refusal(429, 'APPLICATION_PROJECT_BUSY')
+    if (!(await project.enter(waitEnds))) return refusal('APPLICATION_PROJECT_BUSY')
     // The Project slot is taken first and held in the runner's line, which keeps each Project to its own
     // limit there.
     if (!(await runner.enter(waitEnds))) {
       leaveProject()
-      return refusal(429, 'APPLICATION_RUNNER_BUSY')
+      return refusal('APPLICATION_RUNNER_BUSY')
     }
     try {
       // Sequential, not Promise.all: an oversized tree is refused as soon as the running total crosses
@@ -146,9 +151,9 @@ export const createApplicationInvoker = (dependencies: Readonly<{
       const reads: { path: string; sha256: string; bytes: Uint8Array }[] = []
       for (const path of input.serverFiles) {
         const file = await dependencies.readFile({ source: input.source, path })
-        if (!file) throw new Error('APPLICATION_SERVER_FILE_MISSING')
+        if (!file) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'APPLICATION_SERVER_FILE_MISSING' } })
         totalBytes += file.bytes.byteLength
-        if (totalBytes > limits.maxServerTreeBytes) return refusal(413, 'SERVER_TREE_TOO_LARGE')
+        if (totalBytes > limits.maxServerTreeBytes) return refusal('SERVER_TREE_TOO_LARGE')
         reads.push({ path, sha256: file.sha256, bytes: file.bytes })
       }
       const files = reads.map((file) => ({ path: file.path, sha256: file.sha256, content: Buffer.from(file.bytes).toString('base64') }))

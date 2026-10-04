@@ -1,3 +1,6 @@
+import { Failure, logFailure } from '../platform/failure.js'
+import { logger } from '../platform/logger.js'
+
 /** How often the Hub proves it still works the runs its legs hold. */
 const RUN_HEARTBEAT_MS = 10_000
 /** Every third heartbeat, so every 30 s, the Hub also takes over and settles the runs whose owner went quiet. */
@@ -8,7 +11,6 @@ export type RunLeasePorts = Readonly<{
   heartbeat(): Promise<void>
   /** Takes over the runs whose heartbeat went stale and settles each. */
   sweep(): Promise<void>
-  log(line: string): void
 }>
 
 /**
@@ -35,7 +37,7 @@ export const scheduleRunLease = (ports: RunLeasePorts, heartbeatMs = RUN_HEARTBE
     return pass
   }
   const tickLogged = (sweep: boolean): void => {
-    tick(sweep).catch((error: unknown) => ports.log(`BUILDER_RUN_LEASE_FAILED:${error instanceof Error ? error.message : String(error)}`))
+    tick(sweep).catch((error: unknown) => logFailure(logger, new Failure('BUILDER_RUN_LEASE_FAILED', { cause: error })))
   }
   let beats = 0
   tickLogged(true)

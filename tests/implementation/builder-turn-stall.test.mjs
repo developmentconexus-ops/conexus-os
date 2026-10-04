@@ -9,7 +9,6 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
 const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
-const { builderFailureCategory } = await import(hubModuleUrl('builder/failure-vocabulary.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
@@ -68,7 +67,6 @@ test('a storage read that never settles ends the turn as BUILDER_AGENT_STALLED, 
   assert.deepEqual(outcome, { settled: 'rejected', code: 'BUILDER_AGENT_STALLED' })
   assert.ok(hungReads >= 1, 'the turn reached the storage read that never settles')
   assert.ok(Date.now() - started < 10_000, `the turn settled ${Date.now() - started} ms after it started`)
-  assert.equal(builderFailureCategory(outcome.code), 'INTERNAL_ERROR')
 
   hang = false
   const later = await open(laterRunId)
@@ -77,9 +75,9 @@ test('a storage read that never settles ends the turn as BUILDER_AGENT_STALLED, 
 })
 
 test('the web names a stalled turn as a Conexus fault, not the model', async () => {
-  const { failureReason } = await import('../../apps/web/src/features/builder/failure-reasons.ts')
+  const { failureCodeText } = await import('../../apps/web/src/app/failure.ts')
   assert.equal(
-    failureReason({ failureCategory: 'INTERNAL_ERROR', failureCode: 'BUILDER_AGENT_STALLED' }),
-    'O agente parou de responder por uma falha do Conexus, e não do modelo, então a execução foi encerrada. As alterações desta execução não foram aplicadas. Envie o pedido novamente.',
+    failureCodeText('BUILDER_AGENT_STALLED'),
+    'O agente parou de responder por uma falha do Conexus, e não do modelo, então a execução foi encerrada. As alterações desta execução não foram aplicadas. A falha foi registrada.',
   )
 })

@@ -2,7 +2,8 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
-import { hubFetch } from '../../../app/http'
+import { FAILURES } from '../../../generated/failures.ts'
+import { failureText, hubCall, hubFetch, isFailure } from '../../../app/http'
 import { Chip, SectionError, StatusLine } from './states'
 
 type Connection = Readonly<{ mine: boolean; shared: boolean; administrator: boolean }>
@@ -13,52 +14,25 @@ const PROVIDER = 'google-ai-pro'
 const base = `/api/control/model-accounts/${PROVIDER}`
 const connectionQueryKey = ['model-accounts', PROVIDER] as const
 
-class ModelAccountsRequestError extends Error {
-  constructor(readonly status: number, readonly expiresAt: string | null) {
-    super(`Model accounts request failed with ${status}`)
-  }
-}
-
 const OUTCOME: Readonly<Record<Exclude<LoginState, 'waiting'>, string>> = {
   succeeded: 'Google AI Pro conectado.',
-  failed: 'O Google recusou a entrada. Tente de novo.',
-  expired: 'A entrada expirou. Tente de novo.',
-}
-
-const minutesUntil = (iso: string | null): number | null => {
-  if (!iso) return null
-  const ms = new Date(iso).getTime() - Date.now()
-  return ms > 0 ? Math.ceil(ms / 60_000) : null
-}
-
-const startFailureText = (error: unknown): string => {
-  if (statusOf(error) !== 409) return 'Não foi possível iniciar a entrada agora.'
-  const minutes = error instanceof ModelAccountsRequestError ? minutesUntil(error.expiresAt) : null
-  return minutes
-    ? `Outra entrada do Google está em andamento nesta instalação. Tente de novo em ${minutes} min.`
-    : 'Outra entrada do Google está em andamento nesta instalação; tente de novo em até 5 minutos.'
+  failed: FAILURES.MODEL_LOGIN_GOOGLE_REFUSED.message,
+  expired: 'A entrada expirou.',
 }
 
 const call = async <T,>(method: 'GET' | 'POST', url: string, body?: unknown): Promise<T> => {
-  const response = await hubFetch(url, {
+  const response = await hubCall(hubFetch(url, {
     method,
     headers: method === 'GET' ? {} : { 'content-type': 'application/json' },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  })
-  if (!response.ok) {
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    const body = await response.json().catch(() => null) as { expiresAt?: string } | null
-    throw new ModelAccountsRequestError(response.status, body?.expiresAt ?? null)
-  }
+  }))
   // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
   return await response.json() as T
 }
 
-const statusOf = (error: unknown): number | undefined => error instanceof ModelAccountsRequestError ? error.status : undefined
-
 function SignIn({ login, autoOpened, onDone }: Readonly<{ login: Login; autoOpened: boolean; onDone: (state: Exclude<LoginState, 'waiting'>) => void }>) {
   const [pasted, setPasted] = useState('')
-  const [refused, setRefused] = useState(false)
+  const [refusal, setRefusal] = useState<unknown>(null)
   const pastedId = useId()
   // The poll lives as long as the sign-in, whatever the parent re-renders with.
   const finish = useRef(onDone)
@@ -75,7 +49,7 @@ function SignIn({ login, autoOpened, onDone }: Readonly<{ login: Login; autoOpen
   const complete = useMutation({
     mutationFn: () => call<{ state: LoginState }>('POST', `${base}/login/complete`, { loginId: login.loginId, callbackUrl: pasted.trim() }),
     onSuccess: ({ state }) => { if (state !== 'waiting') onDone(state) },
-    onError: () => setRefused(true),
+    onError: setRefusal,
   })
   return <div className="cxs-connect">
     <p><Button as="a" href={login.url} target="_blank" rel="noreferrer" variant={autoOpened ? 'outline' : 'primary'}>Abrir a entrada do Google</Button></p>
@@ -85,12 +59,12 @@ function SignIn({ login, autoOpened, onDone }: Readonly<{ login: Login; autoOpen
         : 'Não conseguimos abrir a aba automaticamente; use o botão acima. '}
       Depois de entrar, esta página conclui sozinha. Se a aba terminar em uma página que não abre, copie o endereço dela e cole aqui.
     </p>
-    <form className="cxs-connect-step" onSubmit={(event: FormEvent) => { event.preventDefault(); setRefused(false); complete.mutate() }}>
+    <form className="cxs-connect-step" onSubmit={(event: FormEvent) => { event.preventDefault(); setRefusal(null); complete.mutate() }}>
       <label htmlFor={pastedId}>Endereço da aba que não abriu</label>
       <Input id={pastedId} value={pasted} onChange={(event) => setPasted(event.target.value)} autoComplete="off" placeholder="http://localhost:51121/oauth-callback?…" />
       <Button type="submit" variant="primary" disabled={!pasted.trim() || complete.isPending}>Concluir</Button>
     </form>
-    {refused && <StatusLine tone="danger">Esse endereço não é o da entrada do Google iniciada aqui.</StatusLine>}
+    {refusal !== null && <StatusLine tone="danger">{failureText(refusal)}</StatusLine>}
   </div>
 }
 
@@ -128,12 +102,12 @@ export function GoogleAiProAccount() {
       if (tab) tab.location.href = started.url
       setLogin(started)
     },
-    onError: (error) => fail(startFailureText(error)),
+    onError: (error) => fail(failureText(error)),
   })
-  if (connection.isPending || (connection.isError && statusOf(connection.error) === 404)) return null
+  if (connection.isPending || (connection.isError && isFailure(connection.error, 'NOT_FOUND'))) return null
   if (connection.isError) return <section aria-labelledby={titleId}>
     <h2 id={titleId}>Google AI Pro</h2>
-    <SectionError description="Não foi possível consultar a sua conta Google AI Pro." onRetry={() => void connection.refetch()} />
+    <SectionError error={connection.error} description="Não foi possível consultar a sua conta Google AI Pro." onRetry={() => void connection.refetch()} />
   </section>
   const { mine, shared } = connection.data
   return <section aria-labelledby={titleId}>

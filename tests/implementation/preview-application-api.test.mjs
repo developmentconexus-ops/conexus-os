@@ -3,10 +3,9 @@ import { once } from 'node:events'
 import { request } from 'node:http'
 import test from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
-import cookie from '@fastify/cookie'
-import Fastify from 'fastify'
 import { hubModuleUrl } from './hub-build.mjs'
 
+const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { registerPreviewRoutes } = await import(hubModuleUrl('mar/preview-routes.js'))
 
 const PORT = 3444
@@ -27,9 +26,7 @@ const binding = Object.freeze({
 
 const preview = async (t, invokeApplication) => {
   const calls = []
-  const app = Fastify()
-  await app.register(cookie)
-  await registerPreviewRoutes(app, {
+  const app = await createHttpApp({ staticRoot: null, registerRoutes: (server) => registerPreviewRoutes(server, {
     sessions: {
       redeem: async () => null,
       previewAuthority: async ({ sessionToken, exactHost }) => (sessionToken === 'valid' && exactHost === HOST ? { kind: 'SIGNED_IN', binding } : { kind: 'SIGN_IN_REQUIRED' }),
@@ -40,7 +37,7 @@ const preview = async (t, invokeApplication) => {
     previewPort: PORT,
     pendingRequests: new Set(),
     isClosed: () => false,
-  })
+  }) })
   t.after(() => app.close())
   const call = (operation, overrides = {}) => app.inject({
     method: 'POST', url: `/__conexus/api/${operation}`,
@@ -49,6 +46,8 @@ const preview = async (t, invokeApplication) => {
   })
   return { app, call, calls }
 }
+
+const problem = (code, status) => ({ type: `urn:conexus:problem:${code}`, title: code, status, code })
 
 test('the Preview API passes the binding identity, the developer as caller and the operation to the runner, and nothing the page chose', async (t) => {
   const { call, calls } = await preview(t, async () => ({ status: 200, body: [{ id: 1 }] }))
@@ -72,7 +71,7 @@ test('the Preview API refuses another origin, a missing cookie, a non-JSON body 
   const { call, calls } = await preview(t, async () => ({ status: 200, body: {} }))
   const refused = async (operation, headers, status, code) => {
     const answer = await call(operation, { headers })
-    assert.deepEqual([answer.statusCode, answer.json()], [status, { error: { code } }])
+    assert.deepEqual([answer.statusCode, answer.json()], [status, problem(code, status)])
   }
   await refused('listNotes', { origin: 'https://preview-other.conexus.localhost:3444' }, 403, 'ORIGIN_REFUSED')
   await refused('listNotes', { origin: 'https://hub.conexus.localhost:3443' }, 403, 'ORIGIN_REFUSED')
@@ -86,10 +85,10 @@ test('the Preview API refuses another origin, a missing cookie, a non-JSON body 
 
 test('the Preview API says the runner is unavailable when it cannot be reached or is not configured', async (t) => {
   const failing = await preview(t, async () => { throw new Error('APPLICATION_RUNNER_UNAVAILABLE') })
-  assert.deepEqual((await failing.call('listNotes')).json(), { error: { code: 'APPLICATION_RUNNER_UNAVAILABLE' } })
+  assert.deepEqual((await failing.call('listNotes')).json(), problem('APPLICATION_RUNNER_UNAVAILABLE', 503))
   const absent = await preview(t, undefined)
   const answer = await absent.call('listNotes')
-  assert.deepEqual([answer.statusCode, answer.json()], [503, { error: { code: 'APPLICATION_RUNNER_UNAVAILABLE' } }])
+  assert.deepEqual([answer.statusCode, answer.json()], [503, problem('APPLICATION_RUNNER_UNAVAILABLE', 503)])
 })
 
 test('the retained server tree is never served to the browser', async (t) => {

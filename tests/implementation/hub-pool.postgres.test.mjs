@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import pg from 'pg'
 import { hubModuleUrl } from './hub-build.mjs'
+import { takeHubLogs } from './hub-log-capture.mjs'
 
 const { Client } = pg
 const { createPostgresPool } = await import(hubModuleUrl('platform/postgres.js'))
@@ -22,9 +23,11 @@ const connection = {
 
 test('idle pooled client termination does not crash the Hub and logs one diagnostic line with pool capability and error code', async (t) => {
   const logs = []
-  const write = (line) => { logs.push(line) }
+  takeHubLogs()
+  // A pool error reads as `HUB_POOL_ERROR:<capability>:<sqlstate>`, from the failure's record.
+  const drain = () => { for (const record of takeHubLogs()) if (record.message === 'HUB_POOL_ERROR') logs.push(`HUB_POOL_ERROR:${record.fields['hub.capability']}:${record.fields['db.error_code']}\n`) }
 
-  const pool = createPostgresPool(connection, write)
+  const pool = createPostgresPool(connection)
   const admin = new Client(connection)
   await admin.connect()
 
@@ -53,6 +56,7 @@ test('idle pooled client termination does not crash the Hub and logs one diagnos
   const start = Date.now()
   while (logs.length === 0 && Date.now() - start < 5000) {
     await new Promise((resolve) => setTimeout(resolve, 50))
+    drain()
   }
 
   assert.deepEqual(logs, [expectedLine])
@@ -64,9 +68,11 @@ test('idle pooled client termination does not crash the Hub and logs one diagnos
 
 test('checked-out pooled client termination fails the in-flight query cleanly, does not crash the Hub, and the pool recovers', async (t) => {
   const logs = []
-  const write = (line) => { logs.push(line) }
+  takeHubLogs()
+  // A pool error reads as `HUB_POOL_ERROR:<capability>:<sqlstate>`, from the failure's record.
+  const drain = () => { for (const record of takeHubLogs()) if (record.message === 'HUB_POOL_ERROR') logs.push(`HUB_POOL_ERROR:${record.fields['hub.capability']}:${record.fields['db.error_code']}\n`) }
 
-  const pool = createPostgresPool(connection, write)
+  const pool = createPostgresPool(connection)
   const admin = new Client(connection)
   await admin.connect()
 
@@ -119,6 +125,7 @@ test('checked-out pooled client termination fails the in-flight query cleanly, d
   const start = Date.now()
   while (logs.length === 0 && Date.now() - start < 5000) {
     await new Promise((resolve) => setTimeout(resolve, 50))
+    drain()
   }
 
   // Releasing the broken client must not throw, and must not return it to the pool
@@ -133,9 +140,11 @@ test('checked-out pooled client termination fails the in-flight query cleanly, d
 
 test('checked-out pooled client termination between queries rejects next query cleanly, does not crash the Hub, and the pool recovers', async (t) => {
   const logs = []
-  const write = (line) => { logs.push(line) }
+  takeHubLogs()
+  // A pool error reads as `HUB_POOL_ERROR:<capability>:<sqlstate>`, from the failure's record.
+  const drain = () => { for (const record of takeHubLogs()) if (record.message === 'HUB_POOL_ERROR') logs.push(`HUB_POOL_ERROR:${record.fields['hub.capability']}:${record.fields['db.error_code']}\n`) }
 
-  const pool = createPostgresPool(connection, write)
+  const pool = createPostgresPool(connection)
   const admin = new Client(connection)
   await admin.connect()
 
@@ -161,6 +170,7 @@ test('checked-out pooled client termination between queries rejects next query c
   const start = Date.now()
   while (logs.length < 2 && Date.now() - start < 5000) {
     await new Promise((resolve) => setTimeout(resolve, 50))
+    drain()
   }
 
   // The client listener logs two lines: the ErrorResponse (57P01) and the socket close

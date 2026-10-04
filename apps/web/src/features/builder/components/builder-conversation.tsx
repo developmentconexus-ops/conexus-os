@@ -15,15 +15,16 @@ import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { providerIcon } from '../composer/model-order'
 import { humanizeModelName } from '../composer/model-display-name'
 import type { MastraDBMessage } from '@mastra/client-js'
+import type { BuilderRun } from '../api'
 import type { BuilderModel } from '../mastra-session'
 import type { MessageEntry, PromptEntry, RuntimeTool, TranscriptEntry } from '../transcript.ts'
-import { type BuilderFailureCategory, failureReason } from '../failure-reasons'
 import { ASK_USER_TOOL } from '../mastra-tool-names.ts'
 import { mergeCalls } from './merge-calls'
-import { clockLabel } from '../construir/run-state'
+import { RunFailure } from '../construir/run-failure'
+import { clockLabel, failureOutcome } from '../construir/run-state'
 import { TASK_TOOL_NAMES, UNGROUPED_TOOL_NAMES, groupSummary, toolSentence } from '../construir/tool-sentences'
 
-export type PersistedRequest = Readonly<{ runId: string; text: string; createdAt: string; reason: string | null }>
+export type PersistedRequest = Readonly<{ runId: string; text: string; createdAt: string }>
 type MessagePart = MastraDBMessage['content']['parts'][number]
 type ToolInvocationPart = Extract<MessagePart, { type: 'tool-invocation' }>
 
@@ -35,13 +36,32 @@ const signalType = (message: MastraDBMessage): unknown => {
 const isUserAuthored = (message: MastraDBMessage): boolean =>
   message.role === 'user' || signalType(message) === 'user' || signalType(message) === 'user-message'
 
-// The Hub tells the thread what happened to a run with a Mastra `notification` signal. The model reads it
-// as context; the person reads it as a notice, never as something the Builder said.
-// Mastra's completion check writes its verdict as an assistant message; it is the Conexus check
-// speaking, so it is a notice too, in the check's own words.
+// The Hub tells the thread what happened to a run with a Mastra `notification` signal, written for the
+// next model turn. The person reads a Conexus signal by its `outcome`, never from its words, and never
+// as something the Builder said. Mastra's completion check writes its verdict as an assistant message;
+// it is the Conexus check speaking, so it is a notice too, in the check's own words.
 const isCompletionCheck = (message: MastraDBMessage): boolean =>
   message.role === 'assistant' && typeof message.content.metadata === 'object' && message.content.metadata !== null && 'completionResult' in message.content.metadata
 const isNotice = (message: MastraDBMessage): boolean => signalType(message) === 'notification' || isCompletionCheck(message)
+
+// The five outcomes that are a run's failure have no entry here: `RunFailure` already says that run.
+const CONEXUS_OUTCOME_NOTICE: Readonly<Record<string, string>> = {
+  BOOT_PROBLEMS: 'O app abriu, mas com problemas. Peça ao Builder para corrigir.',
+  PREVIEW_DATA_RESET: 'Os dados da Prévia foram apagados porque migrações já aplicadas mudaram.',
+}
+
+const signalAttribute = (message: MastraDBMessage, name: 'source' | 'outcome'): unknown => {
+  const signal = message.content.metadata?.signal
+  const attributes = typeof signal === 'object' && signal !== null && 'attributes' in signal ? signal.attributes : null
+  return typeof attributes === 'object' && attributes !== null ? Object.entries(attributes).find(([key]) => key === name)?.[1] : undefined
+}
+
+const noticeText = (message: MastraDBMessage): string => {
+  if (isCompletionCheck(message)) return completionCheckText(message)
+  if (signalAttribute(message, 'source') !== 'conexus') return userText(message)
+  const outcome = signalAttribute(message, 'outcome')
+  return (typeof outcome === 'string' ? CONEXUS_OUTCOME_NOTICE[outcome] : undefined) ?? ''
+}
 
 // The check's reason, without Mastra's scoring frame around it: everything from `Reason:` to the
 // verdict line Mastra closes the message with, blank lines in the reason included.
@@ -151,18 +171,15 @@ function UserBubble({ text, at, delivery }: Readonly<{ text: string; at: number 
   </div>
 }
 
-// What the thread says about the model in Conexus's words: a retry going on, or the model stopping.
-function TurnNotice({ level, text }: Readonly<{ level: 'info' | 'error'; text: string }>) {
-  return <div className="builder-turn-status" role={level === 'error' ? 'alert' : 'status'}>
-    <Notice variant={level === 'error' ? 'destructive' : 'info'}><Notice.Message>{text}</Notice.Message></Notice>
+// What the thread says about the model in Conexus's words while it retries.
+function TurnNotice({ text }: Readonly<{ text: string }>) {
+  return <div className="builder-turn-status" role="status">
+    <Notice variant="info"><Notice.Message>{text}</Notice.Message></Notice>
   </div>
 }
 
 function RequestTurn({ entry }: Readonly<{ entry: PersistedRequest }>) {
-  return <>
-    <UserBubble text={entry.text} at={new Date(entry.createdAt).getTime()} />
-    {entry.reason && <p className="builder-turn-reason" role="note">{entry.reason}</p>}
-  </>
+  return <UserBubble text={entry.text} at={new Date(entry.createdAt).getTime()} />
 }
 
 // Three or more calls in a row fold into one line. Closed, it names the call running now and how many
@@ -223,22 +240,22 @@ type Piece =
   | Readonly<{ kind: 'user'; key: string; text: string; at: number | null; delivery?: 'unknown' | 'failed' | undefined }>
   | Readonly<{ kind: 'request'; key: string; entry: PersistedRequest }>
   | Readonly<{ kind: 'notice'; key: string; text: string }>
-  | Readonly<{ kind: 'status'; key: string; level: 'info' | 'error'; text: string }>
+  | Readonly<{ kind: 'status'; key: string; text: string }>
+  | Readonly<{ kind: 'failure'; key: string; run: BuilderRun }>
   | Readonly<{ kind: 'prompt'; key: string; prompt: PromptEntry }>
   | Readonly<{ kind: 'tool'; key: string; part: ToolInvocationPart }>
   | Readonly<{ kind: 'text'; key: string; text: string; streaming: boolean }>
   | Readonly<{ kind: 'thinking'; key: string }>
   | Readonly<{ kind: 'thought'; key: string; text: string }>
-  | Readonly<{ kind: 'error'; key: string; text: string }>
 
-const flattenMessage = (entry: MessageEntry, message: MastraDBMessage, streaming: boolean, reason: string, parked: ReadonlySet<string>): readonly Piece[] => {
+const flattenMessage = (entry: MessageEntry, message: MastraDBMessage, streaming: boolean, parked: ReadonlySet<string>): readonly Piece[] => {
   const key = entry.id
   if (isUserAuthored(message)) {
     const text = userText(message)
     return text ? [{ kind: 'user', key, text, at: messageTime(message) || null, delivery: entry.delivery === 'unknown' || entry.delivery === 'failed' ? entry.delivery : undefined }] : []
   }
   if (isNotice(message)) {
-    const text = isCompletionCheck(message) ? completionCheckText(message) : userText(message)
+    const text = noticeText(message)
     return text ? [{ kind: 'notice', key, text }] : []
   }
   if (message.role !== 'assistant') return []
@@ -254,9 +271,8 @@ const flattenMessage = (entry: MessageEntry, message: MastraDBMessage, streaming
     if (part.type === 'text') return part.text ? [{ kind: 'text', key: partKey, text: part.text, streaming: last }] : []
     // The part still streaming says the agent is thinking; a settled one is a row that opens to its text.
     if (part.type === 'reasoning') return last ? [{ kind: 'thinking', key: partKey }] : part.reasoning.trim() ? [{ kind: 'thought', key: partKey, text: part.reasoning }] : []
-    // The provider's own words name sandboxes, ids and stack frames. The category is what the
-    // operator is told.
-    if (part.type === 'error') return [{ kind: 'error', key: partKey, text: reason }]
+    // Mastra's stored error part carries the provider's own words, which name sandboxes, ids and
+    // stack frames. The run's failure is `RunFailure`'s to say, so the part draws nothing.
     return []
   })
 }
@@ -284,15 +300,15 @@ function renderPieces(pieces: readonly Piece[], calls: Calls, model: BuilderMode
     if (piece.kind === 'request') { flushTurn(); out.push(<RequestTurn key={piece.key} entry={piece.entry} />); continue }
     if (piece.kind === 'notice') { flushTurn(); out.push(<div key={piece.key} className="builder-turn-notice" role="note"><Notice variant="note"><Notice.Message>{piece.text}</Notice.Message></Notice></div>); continue }
     if (piece.kind === 'prompt') { flushTurn(); out.push(<div key={piece.key}>{renderPrompt(piece.prompt)}</div>); continue }
-    if (piece.kind === 'status') { flushTurn(); out.push(<TurnNotice key={piece.key} level={piece.level} text={piece.text} />); continue }
+    if (piece.kind === 'status') { flushTurn(); out.push(<TurnNotice key={piece.key} text={piece.text} />); continue }
+    if (piece.kind === 'failure') { flushTurn(); out.push(<RunFailure key={piece.key} run={piece.run} />); continue }
     if (!turnBuffer.length && !toolBuffer.length) turnKey = piece.key
     if (piece.kind === 'tool' && !UNGROUPED_TOOL_NAMES.has(piece.part.toolInvocation.toolName)) { toolBuffer.push(piece.part); continue }
     flushTools()
     if (piece.kind === 'tool') { toolBuffer.push(piece.part); flushTools(); continue }
     if (piece.kind === 'text') turnBuffer.push(<MarkdownRenderer key={piece.key} streaming={piece.streaming}>{piece.text}</MarkdownRenderer>)
     else if (piece.kind === 'thinking') turnBuffer.push(<Thinking key={piece.key} />)
-    else if (piece.kind === 'thought') turnBuffer.push(<div key={piece.key} className="cx-tool-rows"><Thought text={piece.text} /></div>)
-    else turnBuffer.push(<p key={piece.key} className="builder-turn-reason" role="note">{piece.text}</p>)
+    else turnBuffer.push(<div key={piece.key} className="cx-tool-rows"><Thought text={piece.text} /></div>)
   }
   flushTurn()
   return out
@@ -321,10 +337,25 @@ const useRevealedTurn = (messages: readonly MessageEntry[], merged: ReadonlyMap<
   return { revealed, caughtUp }
 }
 
-export function BuilderConversation({ entries, persistedRequests, failure, model, working, renderPrompt }: Readonly<{
+// Which persisted request each message the thread showed back answers, one message to one request.
+// A local bubble still waiting on its send never stands in for the Hub's own row, which stays an orphan.
+const matchRequests = (messages: readonly MessageEntry[], requests: readonly PersistedRequest[]): Readonly<{ owner: ReadonlyMap<string, PersistedRequest>; orphans: readonly PersistedRequest[] }> => {
+  const shown = messages.filter((entry) => entry.delivery === undefined && isUserAuthored(entry.message))
+  const owner = new Map<string, PersistedRequest>()
+  const orphans: PersistedRequest[] = []
+  for (const request of requests) {
+    const bubble = shown.find((entry) => !owner.has(entry.id) && userText(entry.message) === request.text)
+    if (bubble) owner.set(bubble.id, request)
+    else orphans.push(request)
+  }
+  return { owner, orphans }
+}
+
+export function BuilderConversation({ entries, persistedRequests, runs, model, working, renderPrompt }: Readonly<{
   entries: readonly TranscriptEntry[]
   persistedRequests: readonly PersistedRequest[]
-  failure: Readonly<{ failureCategory: BuilderFailureCategory | null; failureCode: string | null }> | null
+  // The conversation's runs, oldest first. Each run that settled in a failure ends its own turn with it.
+  runs: readonly BuilderRun[]
   model: BuilderModel | null
   // The run here is in its agent step: until it speaks after the person, the thread says it is thinking.
   working: boolean
@@ -333,21 +364,8 @@ export function BuilderConversation({ entries, persistedRequests, failure, model
 }>) {
   const messages = entries.filter((entry): entry is MessageEntry => entry.kind === 'message')
   const merged = new Map(mergeCalls(messages.map((entry) => entry.message)).map((message, index) => [messages[index]?.id ?? '', message]))
-  // Only what the thread showed back covers a persisted request, one message to one request; a
-  // local bubble still waiting on its send never stands in for the Hub's own row.
-  const spoken = new Map<string, number>()
-  for (const entry of messages) {
-    if (entry.delivery === undefined && isUserAuthored(entry.message)) spoken.set(userText(entry.message), (spoken.get(userText(entry.message)) ?? 0) + 1)
-  }
-  const covered = (text: string): boolean => {
-    const left = spoken.get(text) ?? 0
-    if (left === 0) return false
-    spoken.set(text, left - 1)
-    return true
-  }
-  const orphans = persistedRequests.filter((entry) => !covered(entry.text)).map((entry) => ({ at: new Date(entry.createdAt).getTime(), entry }))
-    .sort((left, right) => left.at - right.at)
-  const reason = failureReason(failure)
+  const { owner, orphans: unspoken } = matchRequests(messages, persistedRequests)
+  const orphans = unspoken.map((entry) => ({ at: new Date(entry.createdAt).getTime(), entry })).sort((left, right) => left.at - right.at)
   const prompts = renderPrompt ? entries.filter((entry): entry is PromptEntry => entry.kind === 'prompt') : []
   const parked = new Set(prompts.map((prompt) => prompt.toolCallId))
   const { revealed, caughtUp } = useRevealedTurn(messages, merged, working)
@@ -355,10 +373,22 @@ export function BuilderConversation({ entries, persistedRequests, failure, model
 
   const pieces: Piece[] = []
   let spokeSinceUser = false
+  // A run's failure ends its turn: it comes before the request that began a later run, and the newest
+  // run's comes last. A bubble no request answers is the send still on its way, so it begins the newest run.
+  const owed = runs.filter((run) => failureOutcome(run) !== null)
+  const newest = runs.at(-1)?.createdAt ?? null
+  const failuresBefore = (boundary: string | null): void => {
+    while (owed.length && (boundary === null || (owed[0]?.createdAt ?? '') < boundary)) {
+      const run = owed.shift()
+      if (run) pieces.push({ kind: 'failure', key: `failure-${run.builderRunId}`, run })
+    }
+  }
   const requestsBefore = (at: number): void => {
     while (orphans.length && (orphans[0]?.at ?? 0) < at) {
       const next = orphans.shift()
-      if (next) pieces.push({ kind: 'request', key: `request-${next.entry.runId}`, entry: next.entry })
+      if (!next) continue
+      failuresBefore(next.entry.createdAt)
+      pieces.push({ kind: 'request', key: `request-${next.entry.runId}`, entry: next.entry })
     }
   }
   for (const entry of entries) {
@@ -368,18 +398,20 @@ export function BuilderConversation({ entries, persistedRequests, failure, model
       continue
     }
     if (entry.kind === 'notice') {
-      pieces.push({ kind: 'status', key: entry.id, level: entry.level, text: entry.text })
+      pieces.push({ kind: 'status', key: entry.id, text: entry.text })
       continue
     }
     const whole = merged.get(entry.id) ?? entry.message
     const parts = revealed.get(entry.id)
     const message = parts ? { ...whole, content: { ...whole.content, parts } } : whole
     requestsBefore(messageTime(message))
-    const flat = flattenMessage(entry, message, working && entry.streaming === true, reason, parked)
+    if (isUserAuthored(message)) failuresBefore(owner.get(entry.id)?.createdAt ?? newest)
+    const flat = flattenMessage(entry, message, working && entry.streaming === true, parked)
     for (const piece of flat) spokeSinceUser = piece.kind === 'user' ? false : piece.kind === 'notice' ? spokeSinceUser : true
     pieces.push(...flat)
   }
   requestsBefore(Number.POSITIVE_INFINITY)
+  failuresBefore(null)
   if (working && prompts.length === 0 && !spokeSinceUser) pieces.push({ kind: 'thinking', key: 'awaiting-first-part' })
 
   const rendered = renderPieces(pieces, { working, runtime }, model, renderPrompt ?? (() => null))

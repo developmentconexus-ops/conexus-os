@@ -17,23 +17,23 @@ const sum = (values) => values.reduce((total, value) => total + value, 0)
 
 const percentile = (sorted, fraction) => (sorted.length === 0 ? null : sorted[Math.min(sorted.length - 1, Math.ceil(fraction * sorted.length) - 1)])
 
-/** Hub stage names in the order BUILDER_RUN_TIMING prints them (apps/hub/src/builder/run-timing.ts). */
+/** Hub stage names of the BUILDER_RUN_TIMING event (apps/hub/src/builder/run-timing.ts). */
 const HUB_STAGES = Object.freeze(['sandbox', 'seed', 'starter', 'session', 'agent', 'pull', 'admission', 'compile', 'publish'])
 
 /**
- * Pure. One `BUILDER_RUN_TIMING:<runId>:sandbox=1200:seed=900:...` log line, in milliseconds per
- * stage; null for any other line. A stage the run never reached is absent from the line.
+ * Pure. One Hub log record (a JSON line) of the `BUILDER_RUN_TIMING` event: `run` and one integer
+ * millisecond field per stage. Null for any other line. A stage the run never reached is absent.
  * @returns {{ runId: string, stages: Record<string, number> } | null}
  */
 export function parseRunTimingLine(line) {
-  const match = /BUILDER_RUN_TIMING:([^:\s]+):(\S*)/.exec(line)
-  if (!match) return null
+  const start = line.indexOf('{')
+  if (start === -1) return null
+  let record
+  try { record = JSON.parse(line.slice(start)) } catch { return null }
+  if (record?.msg !== 'BUILDER_RUN_TIMING' || typeof record.run !== 'string') return null
   const stages = {}
-  for (const pair of match[2].split(':')) {
-    const [name, value] = pair.split('=')
-    if (HUB_STAGES.includes(name) && /^\d+$/.test(value ?? '')) stages[name] = Number(value)
-  }
-  return { runId: match[1], stages }
+  for (const name of HUB_STAGES) if (Number.isInteger(record[name]) && record[name] >= 0) stages[name] = record[name]
+  return { runId: record.run, stages }
 }
 
 /** Pure. The last timing line the Hub logged for one run, from the text of its log; null when none. */

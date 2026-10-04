@@ -1,34 +1,17 @@
-import { type Attributes, trace, SpanStatusCode } from '@opentelemetry/api'
 import type { FastifyBaseLogger } from 'fastify'
 import pino from 'pino'
+import type { EventCode } from './log-events.generated.js'
 
 // biome-ignore lint/style/noProcessEnv: debt: owning wave
 export const logger: FastifyBaseLogger = pino({ level: process.env.LOG_LEVEL ?? 'info' })
 
-/** The existing string sinks keep their call sites and text; the line becomes the record's message. */
-export const logLine = (line: string, level: 'info' | 'warn' | 'error' = 'info'): void => {
-  logger[level](line.replace(/\n$/, ''))
-}
+/** What an event line may carry: scalars only, so no object, error text or secret rides along. */
+export type EventFields = Readonly<Record<string, string | number | boolean>>
 
-const errorFields = (error: unknown): Attributes => {
-  const type = error instanceof Error ? error.name : typeof error
-  return {
-    'error.type': type,
-    'exception.type': type,
-    'exception.message': error instanceof Error ? error.message : String(error),
-    ...(error instanceof Error && error.stack ? { 'exception.stacktrace': error.stack } : {}),
-  }
-}
+/** Where an event is written: the code is the record's message, the fields its attributes. */
+export type EventLog = (code: EventCode, fields?: EventFields) => void
 
-/** Logs a failure with its type, message and stack, and marks the active span as failed. */
-export const recordFailure = (
-  log: Pick<FastifyBaseLogger, 'error'>,
-  message: string,
-  error: unknown,
-  fields: Attributes = {},
-): void => {
-  log.error({ ...fields, ...errorFields(error) }, message)
-  const span = trace.getActiveSpan()
-  span?.recordException(error instanceof Error ? error : new Error(String(error)))
-  span?.setStatus({ code: SpanStatusCode.ERROR })
+/** One line for something that happened and is not a failure. A failure goes through `logFailure`. */
+export const logLine = (code: EventCode, fields: EventFields = {}, level: 'info' | 'warn' | 'error' = 'info'): void => {
+  logger[level](fields, code)
 }

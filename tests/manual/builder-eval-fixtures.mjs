@@ -220,7 +220,7 @@ function fakeRunCase(storage, { failures = {}, replies = {} } = {}) {
     if (reply !== undefined) {
       return {
         outcome: 'FAIL', error: null, projectId: options.project, modelId: options.model,
-        runs: [{ builderRunId, isRepair: false, state: 'SUCCEEDED', resultKind: 'RESPONSE_ONLY', failureCategory: null, failureCode: null }],
+        runs: [{ builderRunId, isRepair: false, state: 'SUCCEEDED', resultKind: 'RESPONSE_ONLY', failureCode: null }],
         failure: 'NO_SOURCE_CHANGE', previewText: null, sourceRevisionAfter: 'rev-0', wallTimeToUsablePreviewMs: null,
       }
     }
@@ -230,7 +230,7 @@ function fakeRunCase(storage, { failures = {}, replies = {} } = {}) {
       outcome: failed ? 'FAIL' : 'PASS', error: null, projectId: options.project, modelId: options.model,
       runs: [{
         builderRunId, isRepair: false, state: failed ? 'FAILED' : 'SUCCEEDED', resultKind: failed ? null : 'SOURCE_CHANGED',
-        failureCategory: category ?? null, failureCode: failed ? `BUILDER_${category}` : null,
+        failureCode: category ?? null,
       }],
       failure: failed ? 'FINAL_RUN_NOT_BUILT' : null,
       previewText: failed ? null : SALES_PREVIEW_TEXT,

@@ -4,14 +4,14 @@ import { getEffectiveThinkingLevel, THINKING_LEVEL_TO_REASONING_EFFORT } from '@
 import { getAvailableThinkingLevelsForModel, THINKING_LEVEL_VALUES, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import type { AvailableModel } from '@mastra/core/agent-controller'
 import { getProviderConfig } from '@mastra/core/llm'
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { DEFAULT_THINKING_LEVEL } from './harness/request-context.js'
-import { sendProblem } from '../http/problem.js'
+import { Failure } from '../platform/failure.js'
 import { ANTHROPIC_KEY_SHAPE, ANTHROPIC_PROVIDER, serializeClaudeTokens } from './anthropic/credential.js'
 import { createClaudeLogin, type ClaudeAuthorization } from './anthropic/login.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import { GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
-import { createGoogleAiProLogin, GoogleAiProLoginError, type LoginProblem } from './google-ai-pro/login.js'
+import { createGoogleAiProLogin } from './google-ai-pro/login.js'
 import type { CliproxyPool } from './google-ai-pro/pool.js'
 import type { GoogleAiProAccounts } from './google-ai-pro/store.js'
 import type { ModelAccountKind, ModelAccountStore } from './model-account-store.js'
@@ -22,11 +22,6 @@ import { isExactOrigin } from '../platform/origin.js'
 const CSRF_COOKIE = '__Host-conexus_csrf'
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 const LOGIN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-const LOGIN_PROBLEMS: Readonly<Record<LoginProblem, readonly [number, string]>> = {
-  'model-login-busy': [409, 'Another sign-in is in progress'],
-  'model-login-unavailable': [503, 'Sign-in is unavailable'],
-  'model-login-callback-refused': [400, 'Sign-in address refused'],
-}
 
 type Caller = Readonly<{ accountId: AccountId }>
 /** `thinkingLevels`: the levels the composer offers for the model, lowest first; none when it has no thinking. */
@@ -97,7 +92,7 @@ const openaiCodexOffer = (): Promise<Offer> => Promise.all(chatModelsOf(OPENAI_M
 const anthropicSetting = async (model: string, level: ThinkingLevelSetting): Promise<unknown> => {
   const middleware = createAnthropicThinkingMiddleware(model, level)
   if (!middleware?.transformParams) return undefined
-  const unused = (): never => { throw new Error('MODEL_ACCOUNT_PROBE_NOT_CALLABLE') }
+  const unused = (): never => { throw new Failure('MODEL_ACCOUNT_PROBE_NOT_CALLABLE') }
   const call: Parameters<NonNullable<typeof middleware.transformParams>>[0] = {
     type: 'stream',
     params: { prompt: [], providerOptions: {} },
@@ -140,19 +135,13 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
   // The Google AI Pro credential's home, `model.model_account`: present exactly when googleAiPro is.
   googleAiProAccounts?: GoogleAiProAccounts
 }>): Promise<void> => {
-  const admit = async (request: FastifyRequest, reply: FastifyReply): Promise<Caller | null> => {
+  const admit = async (request: FastifyRequest): Promise<Caller> => {
     if (request.method !== 'GET') {
       const csrf = header(request.headers['x-conexus-csrf'])
-      if (!isExactOrigin(request.headers.origin, origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
-        await sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
-        return null
-      }
+      if (!isExactOrigin(request.headers.origin, origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) throw new Failure('REQUEST_AUTHENTICITY_DENIED')
     }
     const session = await resolveCurrentSession(request, request.method !== 'GET')
-    if (!session) {
-      await sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-      return null
-    }
+    if (!session) throw new Failure('AUTHENTICATION_REQUIRED')
     return { accountId: session.account.accountId }
   }
   // Offered only to a caller who can use it, own or shared, since a model whose first turn fails is
@@ -170,16 +159,14 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
   }
   app.get<{ Querystring: { scope?: 'installation' } }>('/api/control/model-accounts/models', {
     schema: { querystring: { type: 'object', additionalProperties: false, properties: { scope: { type: 'string', enum: ['installation'] } } } },
-  }, async (request, reply) => {
-    const caller = await admit(request, reply)
-    if (!caller) return reply
+  }, async (request) => {
+    const caller = await admit(request)
     return { models: (await offeredModels(caller.accountId, request.query.scope)).map((model) => ({ ...model, hasApiKey: true })), defaultThinkingLevel: DEFAULT_THINKING_LEVEL }
   })
 
   // The caller's accounts for the providers this Hub signs in to, never their secrets.
-  app.get('/api/control/model-accounts', async (request, reply) => {
-    const caller = await admit(request, reply)
-    if (!caller) return reply
+  app.get('/api/control/model-accounts', async (request) => {
+    const caller = await admit(request)
     const [administrator, accounts] = await Promise.all([
       isInstallationAdministrator(caller.accountId),
       Promise.all(LISTED_PROVIDERS.map(async (provider): Promise<Connection> => {
@@ -194,12 +181,11 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
   app.put<{ Params: { provider: string }; Body: { key: string } }>('/api/control/model-accounts/:provider/api-key', {
     schema: { body: { type: 'object', additionalProperties: false, required: ['key'], properties: { key: { type: 'string', maxLength: 512 } } } },
   }, async (request, reply) => {
-    const caller = await admit(request, reply)
-    if (!caller) return reply
+    const caller = await admit(request)
     const shape = Object.hasOwn(API_KEY_SHAPES, request.params.provider) ? API_KEY_SHAPES[request.params.provider] : undefined
-    if (!shape) return sendProblem(reply, 404, 'model-account-provider-unknown', 'No API key accounts for this provider')
+    if (!shape) throw new Failure('MODEL_ACCOUNT_PROVIDER_UNKNOWN')
     const key = request.body.key.trim()
-    if (!shape.test(key)) return sendProblem(reply, 400, 'model-account-key-refused', 'This is not an API key for this provider')
+    if (!shape.test(key)) throw new Failure('MODEL_ACCOUNT_KEY_REFUSED')
     await modelAccounts.write(caller.accountId, request.params.provider, 'api_key', key)
     return reply.code(204).send()
   })
@@ -209,12 +195,11 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
     ...(claudeAuthorization ? { authorization: claudeAuthorization } : {}),
   })
   const claudeBase = `/api/control/model-accounts/${ANTHROPIC_PROVIDER}/oauth`
-  app.post(`${claudeBase}/start`, async (request, reply) => {
-    const caller = await admit(request, reply)
-    if (!caller) return reply
+  app.post(`${claudeBase}/start`, async (request) => {
+    const caller = await admit(request)
     return claudeLogin.start(caller).then(
       ({ expiresAt, ...handoff }) => ({ ...handoff, expiresAt: new Date(expiresAt).toISOString() }),
-      () => sendProblem(reply, 503, 'model-login-unavailable', 'Sign-in is unavailable'),
+      (error: unknown) => { throw new Failure('MODEL_LOGIN_UNAVAILABLE', { cause: error }) },
     )
   })
   app.post<{ Body: { loginId: string; code: string } }>(`${claudeBase}/complete`, {
@@ -224,9 +209,8 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
         properties: { loginId: { type: 'string', pattern: LOGIN_ID.source }, code: { type: 'string', minLength: 1, maxLength: 4096 } },
       },
     },
-  }, async (request, reply) => {
-    const caller = await admit(request, reply)
-    if (!caller) return reply
+  }, async (request) => {
+    const caller = await admit(request)
     return { state: await claudeLogin.complete(caller, request.body.loginId, request.body.code) }
   })
 
@@ -235,19 +219,17 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
     ...(openaiCodexDevice ? { device: openaiCodexDevice } : {}),
   })
   const codexBase = `/api/control/model-accounts/${OPENAI_CODEX_PROVIDER}/oauth`
-  app.post(`${codexBase}/start`, async (request, reply) => {
-    const caller = await admit(request, reply)
-    if (!caller) return reply
+  app.post(`${codexBase}/start`, async (request) => {
+    const caller = await admit(request)
     return codexLogin.start(caller).then(
       ({ expiresAt, ...handoff }) => ({ ...handoff, expiresAt: new Date(expiresAt).toISOString() }),
-      () => sendProblem(reply, 503, 'model-login-unavailable', 'Sign-in is unavailable'),
+      (error: unknown) => { throw new Failure('MODEL_LOGIN_UNAVAILABLE', { cause: error }) },
     )
   })
   app.get<{ Querystring: { loginId?: string } }>(`${codexBase}/poll`, {
     schema: { querystring: { type: 'object', additionalProperties: false, properties: { loginId: { type: 'string', maxLength: 64 } } } },
-  }, async (request, reply) => {
-    const caller = await admit(request, reply)
-    if (!caller) return reply
+  }, async (request) => {
+    const caller = await admit(request)
     return { state: await codexLogin.poll(caller, request.query.loginId ?? '') }
   })
 
@@ -258,16 +240,9 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
       // poll, which carries no write's CSRF, so the Hub writes here.
       writeCredential: ({ accountId }, key) => googleAiProAccounts.write(accountId, key),
     })
-    const loginProblem = (reply: FastifyReply, error: unknown) => {
-      if (!(error instanceof GoogleAiProLoginError)) throw error
-      const [status, title] = LOGIN_PROBLEMS[error.problem]
-      const extra = error.expiresAt ? { expiresAt: new Date(error.expiresAt).toISOString() } : undefined
-      return sendProblem(reply, status, error.problem, title, undefined, extra)
-    }
     // The Settings card reads the person's own connection and whether one is shared.
-    app.get(`/api/control/model-accounts/${GOOGLE_AI_PRO_PROVIDER}/connection`, async (request, reply) => {
-      const caller = await admit(request, reply)
-      if (!caller) return reply
+    app.get(`/api/control/model-accounts/${GOOGLE_AI_PRO_PROVIDER}/connection`, async (request) => {
+      const caller = await admit(request)
       const [{ mine, shared }, administrator] = await Promise.all([
         googleAiProAccounts.connection(caller.accountId),
         isInstallationAdministrator(caller.accountId),
@@ -275,10 +250,9 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
       return { mine, shared, administrator }
     })
     const base = `/api/control/model-accounts/${GOOGLE_AI_PRO_PROVIDER}/login`
-    app.post(`${base}/start`, async (request, reply) => {
-      const caller = await admit(request, reply)
-      if (!caller) return reply
-      return login.start(caller).catch((error: unknown) => loginProblem(reply, error))
+    app.post(`${base}/start`, async (request) => {
+      const caller = await admit(request)
+      return login.start(caller)
     })
     app.post<{ Body: { loginId: string; callbackUrl: string } }>(`${base}/complete`, {
       schema: {
@@ -287,15 +261,12 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
           properties: { loginId: { type: 'string', pattern: LOGIN_ID.source }, callbackUrl: { type: 'string', maxLength: 4096 } },
         },
       },
-    }, async (request, reply) => {
-      const caller = await admit(request, reply)
-      if (!caller) return reply
-      return login.complete(caller, request.body.loginId, request.body.callbackUrl)
-        .then((state) => ({ state }), (error: unknown) => loginProblem(reply, error))
+    }, async (request) => {
+      const caller = await admit(request)
+      return { state: await login.complete(caller, request.body.loginId, request.body.callbackUrl) }
     })
-    app.get<{ Params: { loginId: string } }>(`${base}/:loginId`, async (request, reply) => {
-      const caller = await admit(request, reply)
-      if (!caller) return reply
+    app.get<{ Params: { loginId: string } }>(`${base}/:loginId`, async (request) => {
+      const caller = await admit(request)
       if (!LOGIN_ID.test(request.params.loginId)) return { state: 'expired' }
       return { state: await login.status(caller, request.params.loginId) }
     })

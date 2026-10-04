@@ -8,7 +8,7 @@ import type { PostgresPool } from '../platform/postgres.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { accountId as brandAccountId } from './current-session.js'
 import type { CurrentSession } from './current-session.js'
-import { identityAccessError } from './errors.js'
+import { Failure } from '../platform/failure.js'
 import type { CompletedSignIn, ProviderCheck, ProviderRefusal } from './oidc.js'
 
 /** A request on an application or Preview host: signed in, sent to sign in, or refused because Keycloak could not be asked. */
@@ -88,7 +88,7 @@ const ENDED_BY: Readonly<Record<ProviderRefusal, string>> = Object.freeze({
 type Refusal = Readonly<{ kind: 'SIGN_IN_REQUIRED' }> | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
 
 /** A due Keycloak check on a Hub request that Keycloak could not answer: the Hub answers 503 and keeps the session. */
-const providerUnavailable = (): Error => Object.assign(new Error('IDENTITY_PROVIDER_UNAVAILABLE'), { statusCode: 503, code: 'IDENTITY_PROVIDER_UNAVAILABLE' })
+const providerUnavailable = (): Failure => new Failure('IDENTITY_PROVIDER_UNAVAILABLE')
 
 type ApplicationRow = QueryResultRow & {
   account_id: string
@@ -129,7 +129,7 @@ type PreviewRow = QueryResultRow & {
 
 const callerOf = (row: Readonly<{ account_id: string; email: string | null; display_name: string }>): Caller => {
   const caller = parseCaller({ accountId: row.account_id, email: row.email, displayName: row.display_name })
-  if (!caller) throw new Error('HOST_CALLER_UNRESOLVABLE')
+  if (!caller) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'HOST_CALLER_UNRESOLVABLE' } })
   return caller
 }
 
@@ -182,7 +182,7 @@ export const createHostSessions = ({
   const slugOf = async (projectId: string): Promise<string> => {
     const result = await pool.query<QueryResultRow & { slug: string | null }>('SELECT iam.application_slug($1) AS slug', [projectId])
     const slug = result.rows[0]?.slug
-    if (!slug) throw new Error('APPLICATION_NOT_FOUND')
+    if (!slug) throw new Failure('APPLICATION_NOT_FOUND')
     return slug
   }
 
@@ -193,8 +193,8 @@ export const createHostSessions = ({
       const opened = await pool.query<QueryResultRow & { outcome: string }>('SELECT iam.open_hub_session($1, $2, $3, $4, $5) AS outcome',
         [digest(sessionToken), digest(csrfToken), accountId, await envelope.seal(refreshToken), now])
       const outcome = opened.rows[0]?.outcome
-      if (outcome === 'ACCOUNT_INACTIVE' || outcome === 'IDENTITY_NOT_ELIGIBLE') throw identityAccessError(outcome)
-      if (outcome !== 'OPENED') throw new Error('HUB_SESSION_NOT_OPENED')
+      if (outcome === 'ACCOUNT_INACTIVE' || outcome === 'IDENTITY_NOT_ELIGIBLE') throw new Failure(outcome)
+      if (outcome !== 'OPENED') throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'HUB_SESSION_NOT_OPENED' } })
       return { sessionToken, csrfToken }
     },
 
@@ -240,7 +240,7 @@ export const createHostSessions = ({
 
     async signIn({ identity, existingAccountId, projectId, bindingDigest, now = new Date() }) {
       const slug = await slugOf(projectId)
-      if (!identity.refreshToken) throw new Error('APPLICATION_REFRESH_TOKEN_MISSING')
+      if (!identity.refreshToken) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'APPLICATION_REFRESH_TOKEN_MISSING' } })
       // "Verify your email" is only true for a brand-new identity whose email claim is genuinely
       // unverified: that is the one case where verifying could change the outcome. An identity with
       // no existing Account but a verified-yet-unparseable-or-missing address can hold no invitation

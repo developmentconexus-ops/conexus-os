@@ -5,10 +5,13 @@ import { request } from 'node:http'
 import { test } from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import { hubModuleUrl } from './hub-build.mjs'
+import { invalidConfig } from './failure-matchers.mjs'
 
 const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { registerApplicationHostRoutes } = await import(hubModuleUrl('mar/application-host-routes.js'))
 const { applicationOrigin, applicationSlugOfHost, readHubConfig } = await import(hubModuleUrl('platform/config.js'))
+
+const missing = (name) => (error) => error.id === 'CONFIG_MISSING' && error.details?.name === name
 
 const HUB = 'https://hub.conexus.localhost:3443'
 const PORT = 3445
@@ -133,12 +136,12 @@ test('the application host is configured by port and domain together, and only w
   const application = { CONEXUS_APPLICATION_PORT: '3445', CONEXUS_APPLICATION_DOMAIN: 'conexus.localhost' }
   assert.deepEqual(readHubConfig({ ...configEnvironment, ...builderEnvironment, ...application }).application, { port: 3445, domain: 'conexus.localhost' })
   assert.equal(readHubConfig({ ...configEnvironment, ...builderEnvironment }).application, undefined)
-  assert.throws(() => readHubConfig({ ...configEnvironment, ...builderEnvironment, CONEXUS_APPLICATION_PORT: '3445' }), { message: 'MISSING_CONFIG_CONEXUS_APPLICATION_DOMAIN' })
-  assert.throws(() => readHubConfig({ ...configEnvironment, ...builderEnvironment, CONEXUS_APPLICATION_DOMAIN: 'conexus.localhost' }), { message: 'MISSING_CONFIG_CONEXUS_APPLICATION_PORT' })
+  assert.throws(() => readHubConfig({ ...configEnvironment, ...builderEnvironment, CONEXUS_APPLICATION_PORT: '3445' }), missing('CONEXUS_APPLICATION_DOMAIN'))
+  assert.throws(() => readHubConfig({ ...configEnvironment, ...builderEnvironment, CONEXUS_APPLICATION_DOMAIN: 'conexus.localhost' }), missing('CONEXUS_APPLICATION_PORT'))
   for (const domain of ['Conexus.Localhost', '.conexus.localhost', 'conexus..localhost', 'conexus.localhost:3445', 'https://conexus.localhost']) {
-    assert.throws(() => readHubConfig({ ...configEnvironment, ...builderEnvironment, ...application, CONEXUS_APPLICATION_DOMAIN: domain }), { message: 'INVALID_CONFIG_CONEXUS_APPLICATION_DOMAIN' }, domain)
+    assert.throws(() => readHubConfig({ ...configEnvironment, ...builderEnvironment, ...application, CONEXUS_APPLICATION_DOMAIN: domain }), invalidConfig('CONEXUS_APPLICATION_DOMAIN'), domain)
   }
-  assert.throws(() => readHubConfig({ ...configEnvironment, ...application }), { message: 'APPLICATION_BUILDER_RUNTIME_REQUIRED' },
+  assert.throws(() => readHubConfig({ ...configEnvironment, ...application }), invalidConfig('APPLICATION_BUILDER_RUNTIME_REQUIRED'),
     'the application host reads the served artifact as the Builder executor, so it refuses to start without it')
 })
 
@@ -163,7 +166,7 @@ test('the application host answers on its configured domain, and its API admits 
   assert.equal((await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A }, ...signedIn })).statusCode, 404)
   assert.equal((await app.inject(api('listNotes', { host, origin: `https://${host}` }))).statusCode, 200)
   const foreign = await app.inject(api('listNotes', { host, origin: ORIGIN_A }))
-  assert.deepEqual([foreign.statusCode, foreign.json().error.code], [403, 'ORIGIN_REFUSED'])
+  assert.deepEqual([foreign.statusCode, foreign.json().code], [403, 'ORIGIN_REFUSED'])
 })
 
 test('a browser without a session is sent to the Hub sign-in with the application and a binding only it holds', async (t) => {
@@ -191,7 +194,7 @@ test('only a document navigation starts a sign-in; any other request without a s
     {},
   ]) {
     const response = await app.inject({ method: 'GET', url: '/assets/app.js', headers: { host: HOST_A, ...headers } })
-    assert.deepEqual([response.statusCode, response.json(), response.headers['set-cookie']], [401, { error: { code: 'APPLICATION_SIGN_IN_REQUIRED' } }, undefined], JSON.stringify(headers))
+    assert.deepEqual([response.statusCode, response.json(), response.headers['set-cookie']], [401, { type: 'urn:conexus:problem:APPLICATION_SIGN_IN_REQUIRED', title: 'APPLICATION_SIGN_IN_REQUIRED', status: 401, code: 'APPLICATION_SIGN_IN_REQUIRED' }, undefined], JSON.stringify(headers))
   }
   assert.equal((await app.inject({ method: 'GET', url: '/assets/app.js', headers: { host: HOST_A, ...NAVIGATION } })).statusCode, 303)
 })
@@ -286,7 +289,7 @@ test('the Hub session cookie alone is no application session', async (t) => {
   const { app } = await harness(t)
   const response = await app.inject(api('addNote', { cookies: { '__Host-conexus_session': TOKEN_A, '__Host-conexus_csrf': 'c' } }))
   assert.equal(response.statusCode, 401)
-  assert.deepEqual(response.json(), { error: { code: 'APPLICATION_SIGN_IN_REQUIRED' } })
+  assert.deepEqual(response.json(), { type: 'urn:conexus:problem:APPLICATION_SIGN_IN_REQUIRED', title: 'APPLICATION_SIGN_IN_REQUIRED', status: 401, code: 'APPLICATION_SIGN_IN_REQUIRED' })
 })
 
 test('the application API admits only its own exact Origin', async (t) => {

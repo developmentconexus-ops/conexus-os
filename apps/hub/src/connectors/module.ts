@@ -6,6 +6,7 @@ import type { FastifyInstance } from 'fastify'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { logLine } from '../platform/logger.js'
+import type { EventLog } from '../platform/logger.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import type { ConnectorOwnerId } from '../generated/connector-routes.js'
 import { createBroker } from './broker.js'
@@ -65,7 +66,7 @@ export const createConnectorModule = ({
   isInstallationAdministrator,
   gatewayOrigin,
   socketDirectory,
-  log = (line) => logLine(line),
+  log = logLine,
 }: Readonly<{
   /** The `hub_iam_runtime` pool the Hub already opens: the Connector functions are executable by it,
    * exactly as the application-access functions are (no new login role, no new pilot secret). */
@@ -77,7 +78,7 @@ export const createConnectorModule = ({
   /** The pinned Sankhya gateway origin; absent, every call and check answers CONNECTOR_UNCONFIGURED with no network. */
   gatewayOrigin?: string | undefined
   socketDirectory?: string | undefined
-  log?: (line: string) => void
+  log?: EventLog
 }>): ConnectorModule => {
   const store = createConnectorStore({ pool, envelope })
   const brokerStore = createBrokerStore(pool)

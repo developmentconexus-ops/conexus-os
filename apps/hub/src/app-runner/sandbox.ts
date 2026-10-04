@@ -3,6 +3,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } fr
 import { Readable } from 'node:stream'
 import { dirname, join } from 'node:path'
 import type { WorkerJob, WorkerResult } from './worker.js'
+import { Failure } from '../platform/failure.js'
 
 /**
  * The per-invocation boundary: a rootless bubblewrap sandbox with unprivileged user, pid, network,
@@ -74,7 +75,7 @@ export const assertUserNamespaces = (config: SandboxConfig = DEFAULT_SANDBOX): v
   const probe = spawnSync(config.bwrap, [...isolation, ...rootFilesystem(config), '/runtime/node', '-e', 'process.exit(process.getuid() === 0 ? 1 : 0)'], {
     env: {}, timeout: 10_000, stdio: 'ignore',
   })
-  if (!(maxNamespaces > 0) || !cloneAllowed || probe.status !== 0) throw new Error('RUNNER_USER_NAMESPACES_UNAVAILABLE')
+  if (!(maxNamespaces > 0) || !cloneAllowed || probe.status !== 0) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'RUNNER_USER_NAMESPACES_UNAVAILABLE' } })
 }
 
 // pg and everything it depends on, found through each package.json; the sandbox receives a copy.
@@ -92,7 +93,7 @@ const dependencyClosure = (entry: string): ReadonlyMap<string, string> => {
     const directory = locate(name, from)
     if (!directory) {
       if (optional) return
-      throw new Error(`RUNNER_DEPENDENCY_MISSING:${name}`)
+      throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'RUNNER_DEPENDENCY_MISSING', name } })
     }
     found.set(name, directory)
     // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave

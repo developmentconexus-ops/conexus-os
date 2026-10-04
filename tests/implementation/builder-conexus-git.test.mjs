@@ -371,13 +371,13 @@ test('the source view reads tree, file and diff from the Conexus Git in its own 
   })
   assert.deepEqual(await source.compareRevisions(PROJECT, result, base).then((comparison) => comparison.files.map((file) => file.status)), ['MODIFIED', 'REMOVED', 'REMOVED', 'RENAMED'])
 
-  await assert.rejects(source.readSourceFile(PROJECT, result, 'app/logo.bin'), { message: 'BUILDER_SOURCE_READ_FILE_NOT_DISCLOSABLE' })
-  await assert.rejects(source.readSourceFile(PROJECT, result, 'app/missing.txt'), { message: 'BUILDER_SOURCE_READ_FILE_NOT_FOUND' })
-  await assert.rejects(source.readSourceFile(PROJECT, result, 'app'), { message: 'BUILDER_SOURCE_READ_FILE_NOT_FOUND' })
-  await assert.rejects(source.readSourceFile(PROJECT, result, '../etc/passwd'), { message: 'BUILDER_SOURCE_READ_PATH_REFUSED' })
-  await assert.rejects(source.listSourceTree(PROJECT, 'f'.repeat(40)), { message: 'BUILDER_SOURCE_READ_REVISION_NOT_FOUND' })
-  await assert.rejects(source.compareRevisions(PROJECT, base, 'f'.repeat(40)), { message: 'BUILDER_SOURCE_READ_REVISION_NOT_FOUND' })
-  await assert.rejects(source.listSourceTree(PROJECT, 'main'), { message: 'BUILDER_SOURCE_READ_REFUSED' })
+  await assert.rejects(source.readSourceFile(PROJECT, result, 'app/logo.bin'), { id: 'SOURCE_FILE_NOT_FOUND' })
+  await assert.rejects(source.readSourceFile(PROJECT, result, 'app/missing.txt'), { id: 'SOURCE_FILE_NOT_FOUND' })
+  await assert.rejects(source.readSourceFile(PROJECT, result, 'app'), { id: 'SOURCE_FILE_NOT_FOUND' })
+  await assert.rejects(source.readSourceFile(PROJECT, result, '../etc/passwd'), { id: 'SOURCE_FILE_NOT_FOUND' })
+  await assert.rejects(source.listSourceTree(PROJECT, 'f'.repeat(40)), { id: 'SOURCE_REVISION_NOT_FOUND' })
+  await assert.rejects(source.compareRevisions(PROJECT, base, 'f'.repeat(40)), { id: 'SOURCE_REVISION_NOT_FOUND' })
+  await assert.rejects(source.listSourceTree(PROJECT, 'main'), { id: 'BUILDER_SOURCE_READ_REFUSED' })
 
   run(work, ['checkout', '--quiet', '--detach', base])
   run(work, ['rm', '--quiet', 'app/index.html'])
@@ -385,8 +385,8 @@ test('the source view reads tree, file and diff from the Conexus Git in its own 
   symlinkSync('/etc/passwd', join(work, 'app/index.html'))
   const linked = commitIn(work, {}, 'symlink')
   run(work, ['push', '--quiet', 'origin', `${linked}:refs/conexus/runs/${OTHER_RUN}`])
-  await assert.rejects(source.listSourceTree(PROJECT, linked), { message: 'BUILDER_SOURCE_READ_UNSAFE_ENTRY' })
-  await assert.rejects(source.readSourceFile(PROJECT, linked, 'app/index.html'), { message: 'BUILDER_SOURCE_READ_FILE_NOT_DISCLOSABLE' })
+  await assert.rejects(source.listSourceTree(PROJECT, linked), { id: 'BUILDER_SOURCE_READ_UNSAFE_ENTRY' })
+  await assert.rejects(source.readSourceFile(PROJECT, linked, 'app/index.html'), { id: 'SOURCE_FILE_NOT_FOUND' })
 })
 
 const MIB = 1024 * 1024

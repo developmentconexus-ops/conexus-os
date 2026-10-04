@@ -1,6 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { sendProblem } from '../http/problem.js'
-import { recordFailure } from '../platform/logger.js'
+import { Failure } from '../platform/failure.js'
 import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { ProjectStore, ProjectSummaryWithActivity } from './store.js'
 
@@ -27,20 +26,17 @@ export const registerProjectSummaryRoutes = async (
   app.get<{ Params: { workspaceId: string } }>(
     '/api/control/workspaces/:workspaceId/project-summaries',
     { schema: { params } },
-    async (request, reply) => {
+    async (request) => {
       const current = await dependencies.resolveCurrentSession(request)
-      if (!current) return sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-      try {
-        const projects: readonly ProjectSummaryWithActivity[] = await dependencies.store.listProjectSummariesWithActivity({
-          accountId: current.account.accountId,
-          workspaceId: request.params.workspaceId,
-        })
-        return { projects }
-      } catch (error) {
-        if (driverCode(error) === '22P02') return sendProblem(reply, 404, 'workspace-not-found', 'Workspace not found')
-        recordFailure(request.log, 'PROJECT_SUMMARIES_FAILED', error, { 'conexus.workspace_id': request.params.workspaceId })
-        return sendProblem(reply, 503, 'project-summaries-unavailable', 'Project summaries unavailable')
-      }
+      if (!current) throw new Failure('AUTHENTICATION_REQUIRED')
+      const projects: readonly ProjectSummaryWithActivity[] = await dependencies.store.listProjectSummariesWithActivity({
+        accountId: current.account.accountId,
+        workspaceId: request.params.workspaceId,
+      }).catch((error: unknown) => {
+        if (driverCode(error) === '22P02') throw new Failure('WORKSPACE_NOT_FOUND')
+        throw new Failure('PROJECT_SUMMARIES_UNAVAILABLE', { cause: error, details: { workspaceId: request.params.workspaceId } })
+      })
+      return { projects }
     },
   )
   return ['PRJ-SUMMARIES']

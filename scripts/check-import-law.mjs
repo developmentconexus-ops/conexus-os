@@ -15,6 +15,8 @@ const APPLICATION_SERVER_CONTRACT = 'apps/hub/src/app-runner/server-manifest.ts'
 // The application runner's worker loads the one admitted handler module whose path the supervisor
 // fixed for this invocation, inside its sandbox. It is the only computed import in production.
 const ADMITTED_HANDLER_LOADER = 'apps/hub/src/app-runner/worker.ts'
+// What a Failure is has one definition too: every layer throws it, and the HTTP handler answers it.
+const FAILURE_CONTRACT = 'apps/hub/src/platform/failure.ts'
 
 function normalize(path) {
   return path.split(sep).join('/')
@@ -232,6 +234,7 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/mar/module.ts',
           'apps/hub/src/platform/config.ts',
           'apps/hub/src/platform/connection-census.ts',
+          'apps/hub/src/platform/failure.ts',
           'apps/hub/src/platform/lifecycle.ts',
           'apps/hub/src/platform/logger.ts',
           'apps/hub/src/platform/postgres.ts',
@@ -245,12 +248,13 @@ export function checkImportLaw(rootDirectory) {
         }
       }
       if (source.startsWith('apps/hub/src/http/') && isRelative &&
-          !target.startsWith('apps/hub/src/http/') && target !== 'apps/hub/src/platform/logger.ts') {
+          !target.startsWith('apps/hub/src/http/') && target !== 'apps/hub/src/platform/logger.ts' && target !== FAILURE_CONTRACT) {
         violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'HTTP mechanics cannot import semantic owners, generated contracts, or platform internals'))
       }
       if (source === 'apps/hub/src/identity-access/routes.ts' && isRelative) {
         const allowed = [
           'apps/hub/src/http/problem.',
+          'apps/hub/src/platform/failure.',
           'apps/hub/src/generated/iam-routes.',
           'apps/hub/src/identity-access/',
           'apps/hub/src/platform/application-slug.',
@@ -269,6 +273,7 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/identity-access/errors.',
           'apps/hub/src/identity-access/oidc.',
           'apps/hub/src/identity-access/current-session.',
+          'apps/hub/src/platform/failure.',
           'apps/hub/src/platform/opaque-token.',
         ]
         if (!allowed.some((prefix) => target.startsWith(prefix))) {
@@ -278,6 +283,7 @@ export function checkImportLaw(rootDirectory) {
       if (source === 'apps/hub/src/workspace/routes.ts' && isRelative) {
         const allowed = [
           'apps/hub/src/http/problem.',
+          'apps/hub/src/platform/failure.',
           'apps/hub/src/generated/workspace-routes.',
           'apps/hub/src/workspace/',
           'apps/hub/src/identity-access/current-session.',
@@ -291,7 +297,7 @@ export function checkImportLaw(rootDirectory) {
         const allowed = [
           'packages/canonical-json/src/index.',
           'apps/hub/src/platform/postgres.',
-          'apps/hub/src/workspace/errors.',
+          'apps/hub/src/platform/failure.',
         ]
         if (!allowed.some((prefix) => target.startsWith(prefix))) {
           violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'workspace store may use only owner errors/types, PostgreSQL types, and canonical JSON'))

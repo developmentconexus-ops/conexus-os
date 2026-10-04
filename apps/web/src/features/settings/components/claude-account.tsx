@@ -2,8 +2,10 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useId, useState } from 'react'
+import { FAILURES } from '../../../generated/failures.ts'
 import { accountsQueryKey, accountsUrl, callModelAccounts as call, type Accounts } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
+import { failureText } from '../../../app/http'
 
 type LoginState = 'succeeded' | 'failed' | 'expired'
 type Login = Readonly<{ loginId: string; url: string; expiresAt: string }>
@@ -13,17 +15,17 @@ const base = `/api/control/model-accounts/${PROVIDER}/oauth`
 
 function PasteCode({ login, onDone, onCancel }: Readonly<{ login: Login; onDone: (state: Exclude<LoginState, 'failed'>) => void; onCancel: () => void }>) {
   const [pasted, setPasted] = useState('')
-  const [refused, setRefused] = useState(false)
+  const [refusal, setRefusal] = useState<string | null>(null)
   const pastedId = useId()
   const complete = useMutation({
     mutationFn: () => call<{ state: LoginState }>('POST', `${base}/complete`, { loginId: login.loginId, code: pasted.trim() }),
-    onSuccess: ({ state }) => { if (state === 'failed') setRefused(true); else onDone(state) },
-    onError: () => setRefused(true),
+    onSuccess: ({ state }) => { if (state === 'failed') setRefusal(FAILURES.MODEL_LOGIN_ANTHROPIC_REFUSED.message); else onDone(state) },
+    onError: (error) => setRefusal(failureText(error)),
   })
   return <div className="cxs-connect">
     <p><Button as="a" href={login.url} target="_blank" rel="noreferrer" variant="primary">Abrir a página da Claude</Button></p>
     <p className="cxs-hint">Na página da Claude, entre com a sua conta e autorize. A última página mostra um código; copie e cole aqui.</p>
-    <form className="cxs-connect-step" onSubmit={(event: FormEvent) => { event.preventDefault(); setRefused(false); complete.mutate() }}>
+    <form className="cxs-connect-step" onSubmit={(event: FormEvent) => { event.preventDefault(); setRefusal(null); complete.mutate() }}>
       <label htmlFor={pastedId}>Código da Claude</label>
       <Input id={pastedId} value={pasted} onChange={(event) => setPasted(event.target.value)} autoComplete="off" spellCheck={false} />
       <div className="cxs-row-actions cxs-actions-start">
@@ -31,7 +33,7 @@ function PasteCode({ login, onDone, onCancel }: Readonly<{ login: Login; onDone:
         <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>
       </div>
     </form>
-    {refused && <StatusLine tone="danger">A Anthropic recusou esse código. Confira se copiou o código inteiro e cole de novo.</StatusLine>}
+    {refusal !== null && <StatusLine tone="danger">{refusal}</StatusLine>}
   </div>
 }
 
@@ -55,7 +57,7 @@ export function ClaudeAccount() {
   if (accounts.isPending) return null
   if (accounts.isError) return <section aria-labelledby={titleId}>
     <h2 id={titleId}>Assinatura Claude</h2>
-    <SectionError description="Não foi possível consultar a sua assinatura Claude." onRetry={() => void accounts.refetch()} />
+    <SectionError error={accounts.error} description="Não foi possível consultar a sua assinatura Claude." onRetry={() => void accounts.refetch()} />
   </section>
   const account = accounts.data.accounts.find((item) => item.provider === PROVIDER)
   const kind = account?.kind ?? null
@@ -68,7 +70,7 @@ export function ClaudeAccount() {
     {login
       ? <PasteCode login={login} onCancel={() => setLogin(null)} onDone={(state) => {
         setLogin(null)
-        setMessage(state === 'succeeded' ? { text: 'Assinatura Claude conectada.', failed: false } : { text: 'A entrada expirou. Comece de novo.', failed: true })
+        setMessage(state === 'succeeded' ? { text: 'Assinatura Claude conectada.', failed: false } : { text: 'A entrada expirou.', failed: true })
         void refresh()
       }} />
       : <div className="cxs-row-actions cxs-actions-start">

@@ -4,6 +4,7 @@
     // Scripts that are run but never imported, and that no package.json script names. Name each one:
     // package.json scripts are already roots, and a directory glob would hide orphaned scripts.
     "scripts/check-test-skips.mjs",
+    "scripts/codemods/error-code-to-failure.mjs",
     "scripts/keycloak-refresh-probe.mjs",
     "scripts/builder-eval/plan-bench.mjs",
     "scripts/builder-eval/experiment.mjs",

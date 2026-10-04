@@ -1,6 +1,7 @@
 import { request } from 'node:http'
 import { RESET_STATEMENT_TIMEOUT_MS } from './requests.js'
 import type { InvokeInput, OnDivergence, PrepareResult, Reply, ServerFile } from './supervisor.js'
+import { Failure } from '../platform/failure.js'
 
 /** The Hub's only way to the application runner: HTTP over its owner-only unix socket. */
 export type ApplicationRunnerClient = Readonly<{
@@ -23,9 +24,7 @@ const RESET_WINDOW_MS = PREPARE_TIMEOUT_MS - RESET_STATEMENT_TIMEOUT_MS - 40_000
 // server-manifest.ts). Both are facts about the Project's own build, so the Builder sees the exact
 // code. Anything else prepare threw, a database or allocation fault, a malformed request, the
 // runner's own generic PREPARE_FAILED, is not something the source caused, so it collapses to the
-// generic code below (failure-vocabulary.ts routes it like APPLICATION_RUNNER_UNAVAILABLE, not a
-// build failure).
-const SOURCE_REFUSAL_CODES = new Set(['SERVER_TREE_REFUSED', 'MANIFEST_REFUSED'])
+// generic code below (a platform row, like APPLICATION_RUNNER_UNAVAILABLE, not a build failure).
 
 const call = (socketPath: string, path: string, body: unknown, timeoutMs: number): Promise<Reply> => new Promise((resolve, reject) => {
   const payload = Buffer.from(JSON.stringify(body))
@@ -40,13 +39,13 @@ const call = (socketPath: string, path: string, body: unknown, timeoutMs: number
         // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
         resolve({ status: response.statusCode ?? 502, body: JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown })
       } catch (cause) {
-        reject(new Error('APPLICATION_RUNNER_UNAVAILABLE', { cause }))
+        reject(new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause }))
       }
     })
-    response.on('error', (cause) => reject(new Error('APPLICATION_RUNNER_UNAVAILABLE', { cause })))
+    response.on('error', (cause) => reject(new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause })))
   })
-  outgoing.on('timeout', () => outgoing.destroy(new Error('APPLICATION_RUNNER_UNAVAILABLE')))
-  outgoing.on('error', (cause) => reject(new Error('APPLICATION_RUNNER_UNAVAILABLE', { cause })))
+  outgoing.on('timeout', () => outgoing.destroy(new Failure('APPLICATION_RUNNER_UNAVAILABLE')))
+  outgoing.on('error', (cause) => reject(new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause })))
   outgoing.end(payload)
 })
 
@@ -56,16 +55,15 @@ export const createApplicationRunnerClient = (socketPath: string): ApplicationRu
     const reply = await call(socketPath, '/v1/prepare', { ...input, onDivergence }, PREPARE_TIMEOUT_MS)
     // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     if (reply.status === 200) return reply.body as PrepareResult
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    const error = (reply.body as Readonly<{ error?: Readonly<{ code?: unknown; detail?: unknown }> }> | undefined)?.error
-    const runnerCode = typeof error?.code === 'string' && /^[A-Z_]+$/.test(error.code) ? error.code : undefined
-    const detail = typeof error?.detail === 'string' ? error.detail : undefined
-    const code = runnerCode && SOURCE_REFUSAL_CODES.has(runnerCode) ? runnerCode : 'APPLICATION_SERVER_REFUSED'
-    throw new Error(code, { cause: detail ?? runnerCode ?? code })
+    const problem = typeof reply.body === 'object' && reply.body !== null ? reply.body : {}
+    const runnerCode = 'code' in problem && typeof problem.code === 'string' ? problem.code : undefined
+    const detail = 'detail' in problem && typeof problem.detail === 'string' ? problem.detail : undefined
+    const code = runnerCode === 'SERVER_TREE_REFUSED' || runnerCode === 'MANIFEST_REFUSED' ? runnerCode : 'APPLICATION_SERVER_REFUSED'
+    throw new Failure(code, { cause: detail ?? runnerCode ?? code })
   },
   invoke: (input) => call(socketPath, '/v1/invoke', input, 15_000),
   release: async (input) => {
     const reply = await call(socketPath, '/v1/release', input, 30_000)
-    if (reply.status !== 200) throw new Error('APPLICATION_RUNNER_RELEASE_REFUSED', { cause: reply.body })
+    if (reply.status !== 200) throw new Failure('APPLICATION_RUNNER_RELEASE_REFUSED', { cause: reply.body })
   },
 })

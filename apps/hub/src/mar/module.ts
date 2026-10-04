@@ -6,6 +6,7 @@ import { createApplicationInvoker } from './application-invoker.js'
 import type { ApplicationFileReader, ApplicationRunnerInvoke, ConnectorPortOpener } from './application-invoker.js'
 import { registerPreviewRoutes } from './preview-routes.js'
 import type { PreviewRouteDependencies, PreviewSessions } from './preview-routes.js'
+import { Failure } from '../platform/failure.js'
 
 export type MarModule = Readonly<{
   /** Where a Preview of this artifact revision is served: its own host on the Preview port. */
@@ -36,7 +37,7 @@ export const createMarModule = ({
 }>): MarModule => {
   if (!Number.isSafeInteger(previewPort) || previewPort < 1 || previewPort > 65_535 ||
     !/^https:\/\//.test(exactHubOrigin)) {
-    throw new Error('MAR_CONFIG_REFUSED')
+    throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'MAR_CONFIG_REFUSED' } })
   }
   const pendingRequests = new Set<Promise<unknown>>()
   let closed = false

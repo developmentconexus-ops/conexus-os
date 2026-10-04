@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
+import { takeHubLogs } from './hub-log-capture.mjs'
 
 const { scheduleIdleMachineSweep } = await import(hubModuleUrl('builder/idle-machine-sweep.js'))
 const { e2bConversationSandboxes } = await import(hubModuleUrl('builder/run-runtime.js'))
@@ -17,11 +18,15 @@ const sweepOnce = async (ports) => {
   try { return await schedule.tick() } finally { await schedule.close() }
 }
 
+const eventLine = (log) => (code, fields = {}) => log.push([code, ...Object.values(fields)].join(':'))
+const failureLine = ({ message, fields }) => `${message}:${fields['exception.type']}`
+
 const sweepWith = ({ machines, open = [], failKill = [] }) => {
   const killed = []
   const log = []
+  takeHubLogs()
   const cache = e2bConversationSandboxes({
-    apiKey: 'test-key', templateId: 'conexus:template', log: (line) => log.push(line),
+    apiKey: 'test-key', templateId: 'conexus:template',
     killProvider: async (id) => {
       if (failKill.includes(id)) throw new Error('E2B_TIMEOUT')
       killed.push(id)
@@ -32,7 +37,7 @@ const sweepWith = ({ machines, open = [], failKill = [] }) => {
     listPaused: async () => machines,
     openRunConversations: async () => new Set(open),
     kill: cache.killRecorded,
-    log: (line) => log.push(line),
+    log: eventLine(log),
     now: () => NOW,
   })
   return { sweep, killed, log }
@@ -42,7 +47,7 @@ test('#423 machines idle 6 and 8 days: only the older is deleted, and one line s
   const { sweep, killed, log } = sweepWith({ machines: [machine('conv-6', 'ivm-6', 6), machine('conv-8', 'ivm-8', 8)] })
   assert.equal(await sweep(), 1)
   assert.deepEqual(killed, ['ivm-8'])
-  assert.deepEqual(log, ['BUILDER_IDLE_MACHINE_DELETED:conv-8:ivm-8:8d'])
+  assert.deepEqual(log, ['BUILDER_IDLE_MACHINE_DELETED:conv-8:ivm-8:8'])
 })
 
 test('#423 a machine idle exactly 7 days is deleted, and one idle a millisecond less is kept', async () => {
@@ -58,14 +63,15 @@ test('#423 the machine of a conversation with a queued, running or parked run is
   })
   await sweep()
   assert.deepEqual(killed, ['ivm-idle'])
-  assert.deepEqual(log, ['BUILDER_IDLE_MACHINE_DELETED:conv-idle:ivm-idle:30d'])
+  assert.deepEqual(log, ['BUILDER_IDLE_MACHINE_DELETED:conv-idle:ivm-idle:30'])
 })
 
 test('#423 a kill that fails is not logged as a deletion, and the next sweep tries the machine again', async () => {
   const { sweep, killed, log } = sweepWith({ machines: [machine('conv-a', 'ivm-a', 9), machine('conv-b', 'ivm-b', 9)], failKill: ['ivm-a'] })
   assert.equal(await sweep(), 1)
   assert.deepEqual(killed, ['ivm-b'])
-  assert.deepEqual(log, ['BUILDER_SANDBOX_KILL_FAILED:ivm-a:E2B_TIMEOUT', 'BUILDER_IDLE_MACHINE_DELETED:conv-b:ivm-b:9d'])
+  assert.deepEqual(takeHubLogs().map(failureLine), ['BUILDER_SANDBOX_KILL_FAILED:Error'])
+  assert.deepEqual(log, ['BUILDER_IDLE_MACHINE_DELETED:conv-b:ivm-b:9'])
 })
 
 test('#423 a sweep with nothing idle never reads the runs', async () => {
@@ -81,18 +87,18 @@ test('#423 a sweep with nothing idle never reads the runs', async () => {
 })
 
 test('#423 a sweep that fails is logged with its code and the schedule keeps running', async () => {
-  const log = []
+  takeHubLogs()
   let calls = 0
   const schedule = scheduleIdleMachineSweep({
     listPaused: async () => { calls += 1; throw new Error('E2B_UNREACHABLE') },
     openRunConversations: async () => new Set(),
     kill: async () => [],
-    log: (line) => log.push(line),
+    log: () => undefined,
   }, 5)
   await new Promise((wake) => { setTimeout(wake, 60) })
   schedule.close()
   assert.ok(calls >= 2, 'it swept at boot and again on the timer')
-  assert.equal(log[0], 'BUILDER_IDLE_MACHINE_SWEEP_FAILED:E2B_UNREACHABLE')
+  assert.equal(failureLine(takeHubLogs()[0]), 'BUILDER_IDLE_MACHINE_SWEEP_FAILED:Error')
 })
 
 test('closing the schedule waits for the sweep in flight, so the database can close after it', async () => {

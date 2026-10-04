@@ -1,4 +1,7 @@
 import type { CommandResult } from '@mastra/core/workspace'
+import { Failure, logFailure } from '../platform/failure.js'
+import { logger } from '../platform/logger.js'
+import type { EventLog } from '../platform/logger.js'
 
 /**
  * The hosts a conversation's sandbox reaches (issue #418). Sandbox egress stays open (C-023); this is
@@ -183,7 +186,7 @@ export const ensureEgressLog = async (root: EgressRoot): Promise<void> => {
   await root.writeRootFile(DNS_SCRIPT_PATH, encoder.encode(dnsForwarderSource()))
   await root.writeRootFile(POLLER_SCRIPT_PATH, encoder.encode(tcpPollerSource()))
   const started = await root.asRoot(startScript)
-  if (started.exitCode !== 0) throw new Error('BUILDER_SANDBOX_EGRESS_START_FAILED', { cause: { stderr: started.stderr.slice(0, 500) } })
+  if (started.exitCode !== 0) throw new Failure('BUILDER_SANDBOX_EGRESS_START_FAILED', { cause: { stderr: started.stderr.slice(0, 500) } })
 }
 
 /** The complete lines of `bytes` after `offset`, parsed, and the offset after the last complete one. */
@@ -240,7 +243,7 @@ const aggregateEgress = (dnsRows: readonly unknown[], tcpRows: readonly unknown[
 export type EgressCollectPorts = Readonly<EgressRoot & {
   /** Null when the file is not there; any other failure rejects. */
   readAgentFile(path: string): Promise<Uint8Array | null>
-  log(line: string): void
+  log: EventLog
   executionId: string
   conversationId: string
   timeoutMs?: number
@@ -259,7 +262,7 @@ const readOffsets = async (ports: EgressCollectPorts): Promise<Offsets | null> =
 
 const collect = async (ports: EgressCollectPorts): Promise<EgressStatus> => {
   const polled = await ports.asRoot(`python3 '${POLLER_SCRIPT_PATH}' --once`)
-  if (polled.exitCode !== 0) throw new Error('BUILDER_SANDBOX_EGRESS_POLL_FAILED')
+  if (polled.exitCode !== 0) throw new Failure('BUILDER_SANDBOX_EGRESS_POLL_FAILED')
   const stored = await readOffsets(ports)
   const offsets = stored ?? { dns: 0, tcp: 0 }
   // The poller writes the log on first sighting: no file means no destinations. A read that fails otherwise fails the collection.
@@ -270,12 +273,12 @@ const collect = async (ports: EgressCollectPorts): Promise<EgressStatus> => {
   const dns = dnsBytes ? readJsonl(dnsBytes, offsets.dns) : { rows: [], offset: offsets.dns }
   const records = aggregateEgress(dns.rows, tcp.rows)
   for (const record of records.slice(0, MAX_EGRESS_LINES)) {
-    ports.log(`BUILDER_SANDBOX_EGRESS:${ports.executionId}:${ports.conversationId}:${record.host}:${record.port}:${record.protocol}:${record.firstSeen}:${record.count}`)
+    ports.log('BUILDER_SANDBOX_EGRESS', { run: ports.executionId, conversation: ports.conversationId, host: record.host, port: record.port, protocol: record.protocol, firstSeen: record.firstSeen, count: record.count })
   }
   await ports.writeRootFile(OFFSET_PATH, new TextEncoder().encode(JSON.stringify({ dns: dns.offset, tcp: tcp.offset })))
   const capped = [...dns.rows, ...tcp.rows].some((row) => isObject(row) && row.capped === true)
   const status: EgressStatus = (stored === null && tcpBytes !== null) || dnsBytes === null || capped || records.length > MAX_EGRESS_LINES ? 'partial' : 'complete'
-  ports.log(`BUILDER_SANDBOX_EGRESS_SUMMARY:${ports.executionId}:${status}:${Math.min(records.length, MAX_EGRESS_LINES)}`)
+  ports.log('BUILDER_SANDBOX_EGRESS_SUMMARY', { run: ports.executionId, status, count: Math.min(records.length, MAX_EGRESS_LINES) })
   return status
 }
 
@@ -286,16 +289,14 @@ const collect = async (ports: EgressCollectPorts): Promise<EgressStatus> => {
 export const collectEgress = async (ports: EgressCollectPorts): Promise<void> => {
   let timer: NodeJS.Timeout | undefined
   const work = collect(ports)
-  // biome-ignore lint/suspicious/noEmptyBlockStatements: debt: owning wave
-  work.catch(() => {})
   try {
     await Promise.race([
       work,
-      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('BUILDER_SANDBOX_EGRESS_COLLECT_TIMEOUT')), ports.timeoutMs ?? EGRESS_COLLECT_TIMEOUT_MS) }),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Failure('BUILDER_SANDBOX_EGRESS_COLLECT_TIMEOUT')), ports.timeoutMs ?? EGRESS_COLLECT_TIMEOUT_MS) }),
     ])
   } catch (error) {
-    ports.log(`BUILDER_SANDBOX_EGRESS_COLLECT_FAILED:${ports.executionId}:${error instanceof Error ? error.message : String(error)}`)
-    ports.log(`BUILDER_SANDBOX_EGRESS_SUMMARY:${ports.executionId}:failed:0`)
+    logFailure(logger, new Failure('BUILDER_SANDBOX_EGRESS_COLLECT_FAILED', { cause: error }), { 'builder.run_id': ports.executionId })
+    ports.log('BUILDER_SANDBOX_EGRESS_SUMMARY', { run: ports.executionId, status: 'failed', count: 0 })
   } finally {
     clearTimeout(timer)
   }

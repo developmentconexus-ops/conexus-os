@@ -9,7 +9,7 @@
 
 import type { AgentControllerEvent, KnownAgentControllerEvent, MastraDBMessage } from '@mastra/client-js'
 import { isKnownAgentControllerEvent } from '@mastra/client-js'
-import { modelRetryNotice, modelStoppedNotice } from './failure-reasons.ts'
+import { modelRetryNotice } from './model-notices.ts'
 import { SUBMIT_PLAN_TOOL } from './mastra-tool-names.ts'
 
 type MessagePart = MastraDBMessage['content']['parts'][number]
@@ -40,7 +40,7 @@ export type MessageEntry = Readonly<{
   sourcePartIndexes?: readonly number[]
 }>
 
-type NoticeEntry = Readonly<{ kind: 'notice'; id: string; level: 'info' | 'error'; text: string }>
+type NoticeEntry = Readonly<{ kind: 'notice'; id: string; text: string }>
 
 /** A call the run parked on the person: a tool to allow, a question to answer, or a plan to approve. */
 export type PromptEntry = Readonly<{
@@ -102,7 +102,6 @@ export const emptyTranscript = (conversationId: string): TranscriptState => ({ c
 export const localMessageId = (idempotencyKey: string): string => `local-${idempotencyKey}`
 
 const RETRY_NOTICE_ID = 'model-retry'
-let noticeSeq = 0
 
 export const transcriptReducer = (state: TranscriptState, action: TranscriptAction): TranscriptState => {
   switch (action.type) {
@@ -205,14 +204,12 @@ const applyEvent = (previous: TranscriptState, event: AgentControllerEvent): Tra
     case 'display_state_changed':
       return { ...state, tasks: event.displayState.tasks }
     // The provider's own words name sandboxes, ids and stack frames; the thread says it in ours.
-    case 'error': {
-      const attempt = event.retryAttempt ?? 1
-      const maxRetries = event.maxRetries ?? null
-      if (event.retryable && (maxRetries === null || attempt < maxRetries)) {
-        return upsertNotice(state, { kind: 'notice', id: RETRY_NOTICE_ID, level: 'info', text: modelRetryNotice(attempt, maxRetries) })
-      }
-      return upsertNotice(withoutEntry(state, RETRY_NOTICE_ID), { kind: 'notice', id: `notice-${noticeSeq++}`, level: 'error', text: modelStoppedNotice(event.retryable ? attempt : null) })
-    }
+    // Every retry event is a retry, attempt 10 of 10 included, as Mastra Code shows it. The one
+    // that is not retryable ends the retrying, and the settled run's own failure says the rest, once.
+    case 'error':
+      return event.retryable
+        ? upsertNotice(state, { kind: 'notice', id: RETRY_NOTICE_ID, text: modelRetryNotice(event.retryAttempt ?? 1, event.maxRetries ?? null) })
+        : withoutEntry(state, RETRY_NOTICE_ID)
     default:
       return state
   }

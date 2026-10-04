@@ -14,7 +14,9 @@ const CHECK_NOTICE = 'Verificação do Conexus'
 
 const runOf = async (hub, request) => (await hub.db(`select builder_run_id, state, result_kind, failure_code, result_source_revision from builder.builder_run where request_text = '${request}'`))[0]
 const settled = (hub, request, timeout = 240_000) => expect.poll(async () => (await runOf(hub, request))?.state, { timeout, intervals: [1_000] }).not.toMatch(/^(QUEUED|RUNNING)$/)
-const checksOf = (hub, runId) => readFileSync(join(hub.evidenceDir, 'hub.log'), 'utf8').split('\n').filter((line) => line.includes(`BUILDER_CHECK:gate:${runId}`)).length
+const checksOf = (hub, runId) => readFileSync(join(hub.evidenceDir, 'hub.log'), 'utf8').split('\n').filter((line) => {
+  try { const record = JSON.parse(line); return record.msg === 'BUILDER_CHECK' && record.run === runId } catch { return false }
+}).length
 const said = (call) => JSON.stringify(call.contents)
 const notices = (page) => page.getByRole('log').getByRole('note')
 const shot = async (page, hub, name) => {

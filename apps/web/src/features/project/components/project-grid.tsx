@@ -1,9 +1,9 @@
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
-import { Button } from '@mastra/playground-ui/components/Button'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { projectThumbnailUrl, type ProjectCardSummary } from '../api'
+import { FailureState } from '../../../app/failure-state'
 
 export type ProjectActivity = 'BUILDING' | 'FAILED' | 'LIVE' | 'NEW'
 
@@ -109,12 +109,8 @@ export function ProjectGridSkeleton() {
   </ul>
 }
 
-export function ProjectGridFailure({ onRetry }: Readonly<{ onRetry: () => void }>) {
-  return <div className="cx-state" role="alert">
-    <h2>Não foi possível carregar os Projetos</h2>
-    <p>Seus Projetos continuam onde estavam. O servidor não respondeu desta vez.</p>
-    <Button type="button" variant="outline" onClick={onRetry}>Tentar de novo</Button>
-  </div>
+export function ProjectGridFailure({ error, onRetry }: Readonly<{ error: unknown; onRetry: () => void }>) {
+  return <FailureState title="Não foi possível carregar os Projetos" error={error} onRetry={onRetry} />
 }
 
 export function ProjectGrid({ projects }: Readonly<{ projects: readonly ProjectCardSummary[] }>) {

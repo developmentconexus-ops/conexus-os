@@ -78,7 +78,6 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .builder-conversation-empty { margin: 1rem 0 0; padding: .9rem; border: 1px dashed var(--cx-line-strong); border-radius: .5rem; color: var(--cx-text-2); }
 .builder-turn { display: grid; gap: .5rem; min-width: 0; line-height: 1.55; }
 .builder-turn-user { justify-self: end; max-width: 88%; padding: .6rem .8rem; border-radius: .8rem; background: var(--cx-surface-3); }
-.builder-turn-reason { justify-self: end; max-width: 88%; margin: 0; padding: .5rem .8rem; border-radius: .5rem; background: color-mix(in srgb, var(--cx-warning) 8%, var(--cx-surface)); color: var(--cx-warning); font-size: .9rem; }
 .preview-empty { min-height: 18rem; display: grid; place-items: center; padding: 2rem; border: 1px dashed var(--cx-line-strong); border-radius: .6rem; color: var(--cx-text-2); text-align: center; }
 .preview-frame-stack { display: grid; min-height: 24rem; overflow: hidden; border: 1px solid var(--cx-line); border-radius: .6rem; background: var(--cx-surface-3); }
 .preview-frame-stack iframe { grid-area: 1 / 1; width: 100%; min-height: 24rem; border: 0; background: var(--cx-surface); }

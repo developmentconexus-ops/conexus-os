@@ -7,7 +7,7 @@ import { renderLogCodes, staleMessage } from '../../scripts/generate-log-codes.m
 
 test('the log code registry names the codes the Hub logs', () => {
   const committed = readFileSync(resolve(import.meta.dirname, '../../apps/hub/src/telemetry/log-codes.generated.ts'), 'utf8')
-  for (const code of ['BUILDER_RUN_FAILED', 'BUILDER_RETENTION_PRUNED', 'HUB_CONNECTION_CENSUS', 'HTTP_SERVER_ERROR', 'PROJECT_DELETION_INCOMPLETE', 'PROCESS_HEAP_HIGH', 'BUILDER_RUN_TIMING', 'BUILDER_SANDBOX_PAUSE_FAILED', 'HUB_POOL_ERROR']) {
+  for (const code of ['BUILDER_RUN_FAILED', 'BUILDER_RETENTION_PRUNED', 'HUB_CONNECTION_CENSUS', 'INTERNAL_UNEXPECTED', 'PROJECT_DELETION_INCOMPLETE', 'PROCESS_HEAP_HIGH', 'BUILDER_RUN_TIMING', 'BUILDER_SANDBOX_PAUSE_FAILED', 'HUB_POOL_ERROR']) {
     assert.ok(committed.includes(`"${code}"`), `${code} is registered`)
   }
 })

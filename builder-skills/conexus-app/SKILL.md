@@ -49,7 +49,7 @@ app/src/
   components/ui/      the kit. Do not edit.
   components/         your components shared by two or more screens
   lib/                utils.ts, zod.ts (leave it), format.ts and errors.ts (use and extend them)
-  conexus/api.gen.ts  generated on every check. Never edit or write it.
+  conexus/            api.gen.ts (when the manifest has operations) and failures.gen.ts, generated on every check. Never edit or write them.
   styles.css          the design tokens
 ```
 
@@ -59,7 +59,7 @@ app/src/
 - Read with `useQuery`. The key is `[operationId, input]`, and the input object is the whole cache identity.
 - Write with `useMutation({ mutationFn: api.<operation> })`. On success, invalidate every read the write changes by its operation id, which covers every filter already cached. Do not copy server data into `useState`.
 - Every part that reads data shows four states: loading (`Skeleton`), error (`Alert` with `errorMessage(error)`), empty (`Empty` that says what to do next) and data.
-- `errorMessage(error)` from `lib/errors.ts` turns a thrown `ConexusError` into a plain sentence. `connectionMessage(data.failure)` does the same for a failed Conexão read that the handler returned (`conexus-server`, Failures). Never show a code, the `detail` or a stack.
+- `errorMessage(error)` from `lib/errors.ts` turns a thrown `ConexusError` into the sentence of its row in the Conexus failure table. `connectionMessage(data.failure)` does the same for a failed Conexão read that the handler returned (`conexus-server`, Failures). Never show a code, the `detail` or a stack, and never write a retry sentence of your own.
 
 **Forms.** `useForm` with `resolver: zodResolver(schemas.<op>.input)`, typed with `Input<'op'>`, so the browser checks the limits the runner enforces. Register inputs with `form.register('name')`, a number with `{ valueAsNumber: true }`; a `Select`, radio group or checkbox goes through `Controller`. Disable the submit button while `mutation.isPending`, show `errorMessage(mutation.error)` on failure, and after success invalidate the reads and confirm with `toast.add({ title, type: 'success' })`. Never put an author or a person's name in an input; the server reads the person from `caller`.
 

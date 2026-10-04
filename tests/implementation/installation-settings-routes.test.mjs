@@ -108,7 +108,7 @@ test('a write without CSRF is refused before the administrator check', async (t)
   const withoutCsrf = { headers: { origin, 'content-type': 'application/json' }, cookies: { '__Host-conexus_session': plain } }
   const posted = await app.inject({ method: 'POST', url: '/api/control/installation/administrators', ...withoutCsrf, payload: { email: 'x@test.dev' } })
   assert.equal(posted.statusCode, 403)
-  assert.equal(posted.json().type.endsWith('request-authenticity-denied'), true)
+  assert.equal(posted.json().type.endsWith('REQUEST_AUTHENTICITY_DENIED'), true)
 })
 
 test('an administrator lists, grants by email, and revokes, and the last one cannot be revoked', async (t) => {
@@ -130,12 +130,12 @@ test('an administrator lists, grants by email, and revokes, and the last one can
 
   const notFound = await asAdmin('POST', '/api/control/installation/administrators', { email: 'nobody@test.dev' })
   assert.equal(notFound.status, 404)
-  assert.equal(notFound.body.type.endsWith('account-not-found'), true)
+  assert.equal(notFound.body.type.endsWith('ACCOUNT_NOT_FOUND'), true)
 
   assert.equal((await asAdmin('DELETE', `/api/control/installation/administrators/${plain}`)).status, 204)
   assert.equal((await asAdmin('DELETE', `/api/control/installation/administrators/${plain}`)).status, 204, 'revoking a non-administrator is idempotent')
 
   const lastAdministrator = await asAdmin('DELETE', `/api/control/installation/administrators/${admin}`)
   assert.equal(lastAdministrator.status, 409)
-  assert.equal(lastAdministrator.body.type.endsWith('last-installation-administrator'), true)
+  assert.equal(lastAdministrator.body.type.endsWith('LAST_INSTALLATION_ADMINISTRATOR'), true)
 })

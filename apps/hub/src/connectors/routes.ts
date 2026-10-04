@@ -1,11 +1,11 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import { CONNECTOR_GENERATED_ROUTES } from '../generated/connector-routes.js'
 import type {
   BindProjectConnectionBody, ConnectorOwnerId, CreateWorkspaceConnectionBody,
   ProjectConnectionBindingParams, ProjectConnectionBindingsParams, WorkspaceConnectionParams, WorkspaceConnectionsParams,
 } from '../generated/connector-routes.js'
-import { sendProblem } from '../http/problem.js'
+import { Failure } from '../platform/failure.js'
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import {
   isConnectorBindingConflict, isConnectorConnectionConflict, isConnectorConnectionNotAvailable, isConnectorNotAdmitted, isConnectorProjectNotFound,
@@ -48,41 +48,32 @@ export const registerConnectorRoutes = async (
   app: FastifyInstance,
   { store, resolveCurrentSession, isInstallationAdministrator, checkConnection, credentialSchemas, config }: ConnectorRouteDependencies,
 ): Promise<readonly ConnectorOwnerId[]> => {
-  const authentic = (request: Parameters<ResolveCurrentSession>[0]): boolean => {
-    const requestCsrf = header(request.headers['x-conexus-csrf'])
-    return request.headers.origin === config.origin && !!requestCsrf && requestCsrf === request.cookies[CSRF_COOKIE]
-  }
-  const admittedActor = async (request: Parameters<ResolveCurrentSession>[0], reply: Parameters<typeof sendProblem>[0], requireCsrf: boolean): Promise<AccountId | null> => {
-    if (requireCsrf && !authentic(request)) {
-      await sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
-      return null
+  const admittedActor = async (request: FastifyRequest, requireCsrf: boolean): Promise<AccountId> => {
+    if (requireCsrf) {
+      const requestCsrf = header(request.headers['x-conexus-csrf'])
+      if (request.headers.origin !== config.origin || !requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) throw new Failure('REQUEST_AUTHENTICITY_DENIED')
     }
     const current = await resolveCurrentSession(request, requireCsrf)
-    if (!current) {
-      await sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-      return null
-    }
+    if (!current) throw new Failure('AUTHENTICATION_REQUIRED')
     return current.account.accountId
   }
-  const refusedOwner = (reply: Parameters<typeof sendProblem>[0], error: unknown) => {
-    if (isConnectorProjectNotFound(error)) return sendProblem(reply, 404, 'project-not-found', 'Project not found')
-    if (isConnectorConnectionNotAvailable(error)) return sendProblem(reply, 404, 'connector-connection-not-available', 'Connector Connection not available')
-    if (isConnectorBindingConflict(error)) return sendProblem(reply, 409, 'connector-binding-conflict', 'Connector binding conflict')
-    if (isConnectorNotAdmitted(error)) return sendProblem(reply, 403, 'connector-binding-manage-required', 'Connector binding administration denied')
-    throw error
+  const admittedAdministrator = async (request: FastifyRequest, requireCsrf: boolean): Promise<AccountId> => {
+    const actor = await admittedActor(request, requireCsrf)
+    if (!await isInstallationAdministrator(actor)) throw new Failure('INSTALLATION_ADMINISTRATOR_REQUIRED')
+    return actor
   }
-  const requireAdministrator = async (actor: AccountId, reply: Parameters<typeof sendProblem>[0]): Promise<boolean> => {
-    if (await isInstallationAdministrator(actor)) return true
-    await sendProblem(reply, 403, 'installation-administrator-required', 'Installation administrator required')
-    return false
+  const refusedOwner = (error: unknown): never => {
+    if (isConnectorProjectNotFound(error)) throw new Failure('PROJECT_NOT_FOUND')
+    if (isConnectorConnectionNotAvailable(error)) throw new Failure('CONNECTOR_CONNECTION_NOT_AVAILABLE')
+    if (isConnectorBindingConflict(error)) throw new Failure('CONNECTOR_BINDING_CONFLICT')
+    if (isConnectorNotAdmitted(error)) throw new Failure('CONNECTOR_BINDING_MANAGE_REQUIRED')
+    throw error
   }
 
   app.route<{ Params: WorkspaceConnectionsParams }>({
     ...CONNECTOR_GENERATED_ROUTES['CON-01'],
-    handler: async (request, reply) => {
-      const actor = await admittedActor(request, reply, false)
-      if (!actor) return reply
-      if (!await requireAdministrator(actor, reply)) return reply
+    handler: async (request) => {
+      const actor = await admittedAdministrator(request, false)
       if (!isUuid(request.params.workspaceId)) return { entries: [] }
       const connections = await store.listConnections({ actor, workspaceId: request.params.workspaceId })
       return { entries: connections.map((connection) => ({ connectionId: connection.connectionId, connectorId: connection.connectorId, label: connection.label, createdAt: connection.createdAt.toISOString(), ...(connection.disabledAt ? { disabledAt: connection.disabledAt.toISOString() } : {}) })) }
@@ -92,42 +83,34 @@ export const registerConnectorRoutes = async (
   app.route<{ Params: WorkspaceConnectionsParams; Body: CreateWorkspaceConnectionBody }>({
     ...CONNECTOR_GENERATED_ROUTES['CON-02'],
     handler: async (request, reply) => {
-      const actor = await admittedActor(request, reply, true)
-      if (!actor) return reply
-      if (!await requireAdministrator(actor, reply)) return reply
+      const actor = await admittedAdministrator(request, true)
       const { connectionId, connectorId, label, credential } = request.body
-      if (!isUuid(request.params.workspaceId)) return sendProblem(reply, 422, 'connector-workspace-not-found', 'Connector Workspace not found')
-      if (!label.trim()) return sendProblem(reply, 422, 'connector-label-refused', 'Connector Connection label refused')
+      if (!isUuid(request.params.workspaceId)) throw new Failure('CONNECTOR_WORKSPACE_NOT_FOUND')
+      if (!label.trim()) throw new Failure('CONNECTOR_LABEL_REFUSED')
       const schema = credentialSchemas[connectorId]
-      if (!schema?.safeParse(credential).success) {
-        return sendProblem(reply, 422, 'connector-credential-refused', 'Connector credential refused')
-      }
-      try {
-        const { connection, created } = await store.createConnection({
-          actor, connectionId: toConnectionId(connectionId), workspaceId: request.params.workspaceId, connectorId, label, credential,
-        })
-        return reply.code(created ? 201 : 200).send({
-          connectionId: connection.connectionId, connectorId: connection.connectorId, label: connection.label, createdAt: connection.createdAt.toISOString(),
-          ...(connection.disabledAt ? { disabledAt: connection.disabledAt.toISOString() } : {}),
-        })
-      } catch (error) {
-        if (isConnectorConnectionConflict(error)) return sendProblem(reply, 409, 'connector-connection-conflict', 'Connector Connection conflict')
-        if (isConnectorWorkspaceNotFound(error)) return sendProblem(reply, 422, 'connector-workspace-not-found', 'Connector Workspace not found')
-        if (isConnectorNotAdmitted(error)) return sendProblem(reply, 403, 'installation-administrator-required', 'Installation administrator required')
+      if (!schema?.safeParse(credential).success) throw new Failure('CONNECTOR_CREDENTIAL_REFUSED')
+      const { connection, created } = await store.createConnection({
+        actor, connectionId: toConnectionId(connectionId), workspaceId: request.params.workspaceId, connectorId, label, credential,
+      }).catch((error: unknown) => {
+        if (isConnectorConnectionConflict(error)) throw new Failure('CONNECTOR_CONNECTION_CONFLICT')
+        if (isConnectorWorkspaceNotFound(error)) throw new Failure('CONNECTOR_WORKSPACE_NOT_FOUND')
+        if (isConnectorNotAdmitted(error)) throw new Failure('INSTALLATION_ADMINISTRATOR_REQUIRED')
         throw error
-      }
+      })
+      return reply.code(created ? 201 : 200).send({
+        connectionId: connection.connectionId, connectorId: connection.connectorId, label: connection.label, createdAt: connection.createdAt.toISOString(),
+        ...(connection.disabledAt ? { disabledAt: connection.disabledAt.toISOString() } : {}),
+      })
     },
   })
 
   app.route<{ Params: WorkspaceConnectionParams }>({
     ...CONNECTOR_GENERATED_ROUTES['CON-03'],
-    handler: async (request, reply) => {
-      const actor = await admittedActor(request, reply, true)
-      if (!actor) return reply
-      if (!await requireAdministrator(actor, reply)) return reply
-      if (!isUuid(request.params.workspaceId)) return sendProblem(reply, 404, 'connector-connection-not-found', 'Connector Connection not found')
+    handler: async (request) => {
+      const actor = await admittedAdministrator(request, true)
+      if (!isUuid(request.params.workspaceId)) throw new Failure('CONNECTOR_CONNECTION_NOT_FOUND')
       const outcome = await checkConnection({ actor, workspaceId: request.params.workspaceId, connectionId: request.params.connectionId })
-      if (outcome === 'NOT_FOUND') return sendProblem(reply, 404, 'connector-connection-not-found', 'Connector Connection not found')
+      if (outcome === 'NOT_FOUND') throw new Failure('CONNECTOR_CONNECTION_NOT_FOUND')
       return { outcome }
     },
   })
@@ -135,63 +118,46 @@ export const registerConnectorRoutes = async (
   app.route<{ Params: WorkspaceConnectionParams }>({
     ...CONNECTOR_GENERATED_ROUTES['CON-04'],
     handler: async (request, reply) => {
-      const actor = await admittedActor(request, reply, true)
-      if (!actor) return reply
-      if (!await requireAdministrator(actor, reply)) return reply
-      if (!isUuid(request.params.workspaceId)) return sendProblem(reply, 404, 'connector-connection-not-found', 'Connector Connection not found')
+      const actor = await admittedAdministrator(request, true)
+      if (!isUuid(request.params.workspaceId)) throw new Failure('CONNECTOR_CONNECTION_NOT_FOUND')
       const found = await store.disableConnection({ actor, workspaceId: request.params.workspaceId, connectionId: toConnectionId(request.params.connectionId) })
-      if (!found) return sendProblem(reply, 404, 'connector-connection-not-found', 'Connector Connection not found')
+      if (!found) throw new Failure('CONNECTOR_CONNECTION_NOT_FOUND')
       return reply.code(204).send()
     },
   })
 
   app.route<{ Params: ProjectConnectionBindingsParams }>({
     ...CONNECTOR_GENERATED_ROUTES['CON-08'],
-    handler: async (request, reply) => {
-      const actor = await admittedActor(request, reply, false)
-      if (!actor) return reply
-      if (!isUuid(request.params.projectId)) return sendProblem(reply, 404, 'project-not-found', 'Project not found')
-      try {
-        const entries = await store.listProjectBindings({ actor, projectId: request.params.projectId })
-        return { entries: entries.map((entry) => entry.kind === 'binding'
-          ? bindingBody(entry)
-          : { kind: 'bindable', connectionId: entry.connectionId, connectorId: entry.connectorId, label: entry.label }) }
-      } catch (error) {
-        return refusedOwner(reply, error)
-      }
+    handler: async (request) => {
+      const actor = await admittedActor(request, false)
+      if (!isUuid(request.params.projectId)) throw new Failure('PROJECT_NOT_FOUND')
+      const entries = await store.listProjectBindings({ actor, projectId: request.params.projectId }).catch(refusedOwner)
+      return { entries: entries.map((entry) => entry.kind === 'binding'
+        ? bindingBody(entry)
+        : { kind: 'bindable', connectionId: entry.connectionId, connectorId: entry.connectorId, label: entry.label }) }
     },
   })
 
   app.route<{ Params: ProjectConnectionBindingsParams; Body: BindProjectConnectionBody }>({
     ...CONNECTOR_GENERATED_ROUTES['CON-09'],
-    handler: async (request, reply) => {
-      const actor = await admittedActor(request, reply, true)
-      if (!actor) return reply
-      if (!isUuid(request.params.projectId)) return sendProblem(reply, 404, 'project-not-found', 'Project not found')
-      try {
-        const binding = await store.bindConnection({
-          actor, projectId: request.params.projectId, connectionId: toConnectionId(request.body.connectionId), name: toBindingName(request.body.name),
-        })
-        return bindingBody(binding)
-      } catch (error) {
-        return refusedOwner(reply, error)
-      }
+    handler: async (request) => {
+      const actor = await admittedActor(request, true)
+      if (!isUuid(request.params.projectId)) throw new Failure('PROJECT_NOT_FOUND')
+      const binding = await store.bindConnection({
+        actor, projectId: request.params.projectId, connectionId: toConnectionId(request.body.connectionId), name: toBindingName(request.body.name),
+      }).catch(refusedOwner)
+      return bindingBody(binding)
     },
   })
 
   app.route<{ Params: ProjectConnectionBindingParams }>({
     ...CONNECTOR_GENERATED_ROUTES['CON-10'],
     handler: async (request, reply) => {
-      const actor = await admittedActor(request, reply, true)
-      if (!actor) return reply
-      if (!isUuid(request.params.projectId)) return sendProblem(reply, 404, 'project-not-found', 'Project not found')
-      try {
-        const found = await store.unbindConnection({ actor, projectId: request.params.projectId, bindingId: toBindingId(request.params.bindingId) })
-        if (!found) return sendProblem(reply, 404, 'connector-binding-not-found', 'Connector binding not found')
-        return reply.code(204).send()
-      } catch (error) {
-        return refusedOwner(reply, error)
-      }
+      const actor = await admittedActor(request, true)
+      if (!isUuid(request.params.projectId)) throw new Failure('PROJECT_NOT_FOUND')
+      const found = await store.unbindConnection({ actor, projectId: request.params.projectId, bindingId: toBindingId(request.params.bindingId) }).catch(refusedOwner)
+      if (!found) throw new Failure('CONNECTOR_BINDING_NOT_FOUND')
+      return reply.code(204).send()
     },
   })
 

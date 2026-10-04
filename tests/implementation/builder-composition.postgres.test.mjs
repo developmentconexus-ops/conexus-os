@@ -4,15 +4,20 @@ import { test } from 'node:test'
 import pg from 'pg'
 import { createEmptyDatabase, testPool } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
+import { takeHubLogs } from './hub-log-capture.mjs'
+import { invalidConfig } from './failure-matchers.mjs'
 
 const built = hubModuleUrl
 const { ConexusRunSandbox, createConversationSandbox, createRunWorkspace } = await import(built('builder/sandbox.js'))
 const { createBuilderStorage } = await import(built('builder/storage.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
 
+const missing = (name) => (error) => error.id === 'CONFIG_MISSING' && error.details?.name === name
+
 const baseEnvironment = {
   NODE_ENV: 'test',
   CONEXUS_ORIGIN: 'https://hub.test',
+  CONEXUS_PORT: '3000',
   CONEXUS_BOOTSTRAP_SUBJECT: 'subject',
   CONEXUS_DB_HOST: '127.0.0.1',
   CONEXUS_DB_PORT: '5432',
@@ -166,11 +171,11 @@ test('with no Builder and no storage role the Hub boots, with the installation c
   assert.equal(readHubConfig(environmentWithoutBuilder).factory, undefined)
   assert.deepEqual(readHubConfig(environmentWithoutBuilder).secretKey, { file: '/secrets/installation-secret-key', previousFiles: [] })
   const { CONEXUS_FACTORY_SECRET_KEY_FILE: _key, ...keyless } = environmentWithoutBuilder
-  assert.throws(() => readHubConfig(keyless), /^Error: MISSING_CONFIG_CONEXUS_FACTORY_SECRET_KEY_FILE$/, 'every Hub seals its sessions\' refresh tokens')
+  assert.throws(() => readHubConfig(keyless), missing('CONEXUS_FACTORY_SECRET_KEY_FILE'), 'every Hub seals its sessions\' refresh tokens')
 })
 
 test("a Builder without its Mastra storage role is refused, and with it the role's password file is all the Hub reads", () => {
-  assert.throws(() => readHubConfig(baseEnvironment), /^Error: BUILDER_FACTORY_RUNTIME_REQUIRED$/)
+  assert.throws(() => readHubConfig(baseEnvironment), invalidConfig('BUILDER_FACTORY_RUNTIME_REQUIRED'))
   assert.deepEqual(readHubConfig({ ...baseEnvironment, ...storageEnvironment }).factory, { databasePasswordFile: '/secrets/factory-db' })
 })
 
@@ -185,11 +190,11 @@ test('Google AI Pro needs both CLIProxyAPI variables, an absolute path and a sha
   const complete = { ...baseEnvironment, ...storageEnvironment }
   assert.equal(readHubConfig(complete).googleAiPro, undefined)
   assert.deepEqual(readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: '/opt/cliproxy/cli-proxy-api', CONEXUS_CLIPROXY_SHA256: sha256 }).googleAiPro, { binary: '/opt/cliproxy/cli-proxy-api', sha256 })
-  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: '/opt/cliproxy/cli-proxy-api' }), /^Error: MISSING_CONFIG_CONEXUS_CLIPROXY_SHA256$/)
-  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_SHA256: sha256 }), /^Error: MISSING_CONFIG_CONEXUS_CLIPROXY_BIN$/)
-  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: 'cli-proxy-api', CONEXUS_CLIPROXY_SHA256: sha256 }), /^Error: INVALID_CONFIG_CONEXUS_CLIPROXY_BIN$/)
-  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: '/opt/cli-proxy-api', CONEXUS_CLIPROXY_SHA256: 'AB'.repeat(32) }), /^Error: INVALID_CONFIG_CONEXUS_CLIPROXY_SHA256$/)
-  assert.throws(() => readHubConfig({ ...environmentWithoutBuilder, CONEXUS_CLIPROXY_BIN: '/opt/cli-proxy-api', CONEXUS_CLIPROXY_SHA256: sha256 }), /^Error: GOOGLE_AI_PRO_FACTORY_RUNTIME_REQUIRED$/)
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: '/opt/cliproxy/cli-proxy-api' }), missing('CONEXUS_CLIPROXY_SHA256'))
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_SHA256: sha256 }), missing('CONEXUS_CLIPROXY_BIN'))
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: 'cli-proxy-api', CONEXUS_CLIPROXY_SHA256: sha256 }), invalidConfig('CONEXUS_CLIPROXY_BIN'))
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_CLIPROXY_BIN: '/opt/cli-proxy-api', CONEXUS_CLIPROXY_SHA256: 'AB'.repeat(32) }), invalidConfig('CONEXUS_CLIPROXY_SHA256'))
+  assert.throws(() => readHubConfig({ ...environmentWithoutBuilder, CONEXUS_CLIPROXY_BIN: '/opt/cli-proxy-api', CONEXUS_CLIPROXY_SHA256: sha256 }), invalidConfig('GOOGLE_AI_PRO_FACTORY_RUNTIME_REQUIRED'))
 })
 
 test('after a key rotation a secret sealed under a previous key still opens, and only through the keys the installation names', async () => {
@@ -206,7 +211,7 @@ test('previous credential keys are named by absolute paths, separated by commas'
   assert.deepEqual(readHubConfig(complete).secretKey.previousFiles, [])
   assert.deepEqual(readHubConfig({ ...complete, CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES: '/secrets/key-2025,/secrets/key-2026' }).secretKey.previousFiles,
     ['/secrets/key-2025', '/secrets/key-2026'])
-  assert.throws(() => readHubConfig({ ...complete, CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES: 'key-2025' }), /^Error: INVALID_CONFIG_CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES$/)
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES: 'key-2025' }), invalidConfig('CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES'))
 })
 
 // A probe role owning a `factory` schema, as hub_factory owns it in production.
@@ -299,7 +304,7 @@ test("the retention prune at boot on a fresh installation waits for the store's 
   const { scheduleRetentionPrune } = await import(built('builder/storage.js'))
   const { pool } = await storageRole(t, 'conexus_builder_fresh_prune')
   const logs = []
-  const schedule = scheduleRetentionPrune(createBuilderStorage(pool), (line) => logs.push(line), 60_000)
+  const schedule = scheduleRetentionPrune(createBuilderStorage(pool), (code, fields) => logs.push([code, ...Object.values(fields)].join(':')), 60_000)
   await schedule.tick()
   await schedule.close()
   assert.deepEqual(logs, [
@@ -336,7 +341,7 @@ test('closing the retention schedule aborts a prune that never ends on its own a
       signal.addEventListener('abort', () => settle([{ domain: 'observability', table: 'mastra_ai_spans', deleted: 1000, done: false }]))
     }),
   }
-  const schedule = scheduleRetentionPrune(storage, (line) => logs.push(line), 60_000)
+  const schedule = scheduleRetentionPrune(storage, (code, fields) => logs.push([code, ...Object.values(fields)].join(':')), 60_000)
   await new Promise((r) => setImmediate(r))
   const started = Date.now()
   await schedule.close()
@@ -362,7 +367,7 @@ test('scheduleRetentionPrune prunes immediately at boot, logs deleted rows and e
     },
   }
 
-  const schedule = scheduleRetentionPrune(storage, (line) => logs.push(line), 60_000)
+  const schedule = scheduleRetentionPrune(storage, (code, fields) => logs.push([code, ...Object.values(fields)].join(':')), 60_000)
   // Yield microtask so the immediate boot tick runs
   await new Promise((r) => setImmediate(r))
 
@@ -384,11 +389,11 @@ test('scheduleRetentionPrune prunes immediately at boot, logs deleted rows and e
   ])
 
   // Failed prune is caught and logged
-  const failing = { init: async () => undefined, prune: async () => { throw new Error('DB_DISCONNECTED') } }
-  const failLogs = []
-  const failingSchedule = scheduleRetentionPrune(failing, (line) => failLogs.push(line), 60_000)
+  const failing = { init: async () => undefined, prune: async () => { throw new Error('Error') } }
+  takeHubLogs()
+  const failingSchedule = scheduleRetentionPrune(failing, () => undefined, 60_000)
   await new Promise((r) => setImmediate(r))
-  assert.deepEqual(failLogs, ['BUILDER_RETENTION_PRUNE_FAILED:DB_DISCONNECTED'])
+  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['exception.type']]), [['BUILDER_RETENTION_PRUNE_FAILED', 'Error']])
 
   schedule.close()
   failingSchedule.close()

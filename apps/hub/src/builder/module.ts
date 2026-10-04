@@ -6,10 +6,11 @@ import type { ObservabilityInstance } from '@mastra/core/observability'
 import { RequestContext } from '@mastra/core/request-context'
 import type { Workspace } from '@mastra/core/workspace'
 import { createPostgresPool } from '../platform/postgres.js'
+import { Failure } from '../platform/failure.js'
 import { logLine } from '../platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from '../platform/secrets.js'
 import { registerBuilderRoutes } from './routes.js'
-import { registerBuilderSessionRoutes } from './mastra-session-routes.js'
+import { mountLogFilter, mountValidationFailure, registerBuilderSessionRoutes } from './mastra-session-routes.js'
 import type { ToolPayloadProjection } from './mastra-session-routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
 import { parkedCallStanding } from './runtime.js'
@@ -26,7 +27,6 @@ import type { BuilderRunPorts, RunContextBinder } from './run-runtime.js'
 import { APPLICATION_SHAPE_FILES, fixedApplicationStarterFiles } from './application-starter.js'
 import { createConexusGit } from './conexus-git.js'
 import { createConversations, projectResourceId } from './conversations.js'
-import { projectBuilderRun } from './failure-vocabulary.js'
 import { scheduleIdleMachineSweep } from './idle-machine-sweep.js'
 import { scheduleRunLease } from './run-lease.js'
 import { createBuilderObservability, createBuilderObservabilityLifecycle } from './observability.js'
@@ -107,7 +107,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   conversationSandboxes?: ConversationSandboxes
 }>) => {
   assertBuilderSkillsAvailable()
-  const log = (line: string): void => logLine(line)
+  const log = logLine
   const executorPool = createPostgresPool({ ...database, user: 'hub_builder_executor', password: readSecretFile(builder.executorPasswordFile) })
   const store = createBuilderStore({
     ingressPool: createPostgresPool({ ...database, user: 'hub_builder_ingress', password: readSecretFile(builder.ingressPasswordFile) }),
@@ -181,11 +181,12 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     storage,
     agentControllers: { [BUILDER_CONTROLLER_ID]: controller },
     observability,
-    logger: new ConsoleLogger({ name: 'conexus-builder', level: 'warn' }),
+    logger: new ConsoleLogger({ name: 'conexus-builder', level: 'warn', filter: mountLogFilter }),
+    server: { onValidationError: mountValidationFailure },
   })
   const ready = controller.init()
   ready.catch(() => undefined)
-  const sessions = createConversationSessions({ controller, log })
+  const sessions = createConversationSessions({ controller })
   const conversationSession = async (resourceId: string, conversationId: string) => {
     await ready
     return sessions.open({ resourceId, conversationId, requestContext: new RequestContext() })
@@ -199,7 +200,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   const retentionPrune = scheduleRetentionPrune(storage, log)
   const conversations = createConversations(async () => {
     const memory = await mastra.getStorage()?.getStore('memory')
-    if (!memory) throw new Error('BUILDER_CONVERSATIONS_UNAVAILABLE')
+    if (!memory) throw new Failure('BUILDER_CONVERSATIONS_UNAVAILABLE')
     return memory
   })
 
@@ -209,7 +210,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   // own sandboxes have no E2B machines, so no key is read and nothing is swept.
   const e2bSandboxes = () => {
     const e2bApiKey = readSecretFile(builder.e2bApiKeyFile)
-    const sandboxes = e2bConversationSandboxes({ apiKey: e2bApiKey, templateId: builder.e2bTemplateId, log })
+    const sandboxes = e2bConversationSandboxes({ apiKey: e2bApiKey, templateId: builder.e2bTemplateId })
     const idleMachineSweep = scheduleIdleMachineSweep({
       listPaused: () => listPausedConversationMachines(e2bApiKey),
       openRunConversations: store.readOpenRunConversations,
@@ -247,18 +248,18 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     // controller keeps it in memory only; a session not open yet, or gone, has no one to tell.
     publishRun: async (run) => {
       const session = await controller.getSessionByResource(projectResourceId(run.projectId), conversationRunScope(run.conversationId))
-      await session?.state.set({ conexusRun: projectBuilderRun(run) })
+      await session?.state.set({ conexusRun: run })
     },
   })
   const service = createBuilderService({
     store, applicationArtifacts: boundApplicationArtifacts, ...(applicationServer ? { applicationServer } : {}), runs,
   })
   // Sweeps at boot: the runs a stopped Hub left in flight are settled once their heartbeat is stale.
-  const runLease = scheduleRunLease({ heartbeat: service.heartbeat, sweep: service.sweep, log })
+  const runLease = scheduleRunLease({ heartbeat: service.heartbeat, sweep: service.sweep })
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })
-      if (!preview) throw new Error('NOT_AUTHORIZED')
+      if (!preview) throw new Failure('PROJECT_BUILD_DENIED')
       return Object.freeze({
         projectId,
         workingSourceRevision: await git.readMain(projectId).catch(() => null),
@@ -270,7 +271,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     },
     readTrace: async ({ accountId, projectId, builderRunId }): Promise<BuilderTraceSummary> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })
-      if (!preview) throw new Error('NOT_AUTHORIZED')
+      if (!preview) throw new Failure('PROJECT_BUILD_DENIED')
       const mastraStorage = mastra.getStorage()
       const observabilityStore = await mastraStorage?.getStore('observability')
       if (!observabilityStore) return UNAVAILABLE_TRACE_SUMMARY

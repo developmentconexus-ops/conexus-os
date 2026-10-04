@@ -7,9 +7,10 @@ import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
 import { useAccessContext } from '../app/access-gate'
 import { EntryFrame, SIGN_IN_URL } from '../features/entry/entry-screens'
-import { IdentityAccessRequestError, provisionCurrentAccount } from '../features/identity-access/api'
+import { provisionCurrentAccount } from '../features/identity-access/api'
 import type { ProvisionAccountInput } from '../generated/iam-client'
 import { rootRoute } from './__root'
+import { failureText, isFailure } from '../app/http'
 
 type ProvisionAttempt = { input: ProvisionAccountInput; idempotencyKey: string }
 
@@ -18,13 +19,6 @@ export const setupRoute = createRoute({
   path: '/setup',
   component: SetupRoute,
 })
-
-const refusal = (error: unknown): string => {
-  if (error instanceof IdentityAccessRequestError && error.status === 409) return 'A criação ainda não foi confirmada. Envie de novo com os mesmos dados.'
-  if (error instanceof IdentityAccessRequestError && error.status === 422) return 'Revise o nome e o email antes de enviar de novo.'
-  if (error instanceof IdentityAccessRequestError && error.status === 401) return 'O tempo para criar a conta acabou. Entre de novo para recomeçar.'
-  return 'A conta não foi criada. Envie de novo com os mesmos dados.'
-}
 
 function SetupRoute() {
   const displayNameId = useId()
@@ -39,14 +33,14 @@ function SetupRoute() {
     onSuccess: () => {
       attempt.current = undefined
     },
-    onError: (error) => setMessage(refusal(error)),
+    onError: (error) => setMessage(failureText(error)),
     onSettled: () => {
       provisionInFlight.current = false
     },
   })
 
   if (access.isSuccess) return <Navigate to="/" replace />
-  if (provision.error instanceof IdentityAccessRequestError && provision.error.status === 403) return <Navigate to="/no-access" replace />
+  if (isFailure(provision.error, 'IDENTITY_NOT_ELIGIBLE', 'ACCOUNT_INACTIVE')) return <Navigate to="/no-access" replace />
 
   if (provision.isSuccess) {
     return (

@@ -1,5 +1,7 @@
 import { SpanType } from '@mastra/core/observability'
 import type { AnySpan, ObservabilityInstance } from '@mastra/core/observability'
+import { Failure, logFailure } from '../platform/failure.js'
+import { logger } from '../platform/logger.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { AdapterFailure, brokerCodeOf, refused } from './errors.js'
 import type { BrokerErrorCode, BrokerResult } from './errors.js'
@@ -58,6 +60,12 @@ class BrokerRefusal extends Error {
     super(code)
     this.code = code
   }
+}
+
+/** A store, envelope or code fault of the platform: logged once here, and the consumer sees one closed code. */
+const platformFault = (error: unknown): BrokerErrorCode => {
+  logFailure(logger, new Failure('CONNECTOR_PLATFORM_FAILED', { cause: error }))
+  return 'CONNECTOR_PLATFORM_FAILED'
 }
 
 const RECORDED_CONSUMER_KINDS = {
@@ -120,13 +128,19 @@ export const createBroker = ({
     let sealed: string | null
     try {
       sealed = await store.readConnectionCredential(connectionId)
-    } catch {
-      throw new BrokerRefusal('PROVIDER_UNAVAILABLE')
+    } catch (error) {
+      throw new BrokerRefusal(platformFault(error))
     }
     if (sealed === null) throw new BrokerRefusal('NOT_GRANTED')
+    let opened: string
+    try {
+      opened = await envelope.open(sealed)
+    } catch (error) {
+      throw new BrokerRefusal(platformFault(error))
+    }
     let plain: unknown
     try {
-      plain = JSON.parse(await envelope.open(sealed))
+      plain = JSON.parse(opened)
     } catch {
       throw new BrokerRefusal('CREDENTIAL_REFUSED')
     }
@@ -186,8 +200,8 @@ export const createBroker = ({
     try {
       const lookup = store.listBindings({ projectId: scope.projectId, environment: scope.environment })
       bindings = await (signal ? untilDeadline(signal, lookup) : lookup)
-    } catch {
-      return { ok: false, refusal: refused(signal?.aborted ? 'PROVIDER_TIMEOUT' : 'PROVIDER_UNAVAILABLE'), binding: null, connector: null }
+    } catch (error) {
+      return { ok: false, refusal: refused(signal?.aborted ? 'PROVIDER_TIMEOUT' : platformFault(error)), binding: null, connector: null }
     }
     const binding = bindings.find((candidate) => candidate.name === connection)
     if (!binding) return { ok: false, refusal: refused('NOT_GRANTED'), binding: null, connector: null }
@@ -236,8 +250,8 @@ export const createBroker = ({
       let result: FetchResult
       try {
         result = await executeFetch(consumer, request, at, span, signal)
-      } catch {
-        result = refused('PROVIDER_UNAVAILABLE')
+      } catch (error) {
+        result = refused(platformFault(error))
       }
       endSpan(span, result.ok ? 'OK' : result.code)
       return result

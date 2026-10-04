@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { ApplicationProfile } from '../platform/application-template-pins.js'
 import type { CompiledApplication } from './application-artifact-runtime.js'
 import type { CandidateOperationPorts } from './run-operation.js'
+import { Failure } from '../platform/failure.js'
 
 export type BuilderRunApplicationBuildRequest = Readonly<{
   accountId: string
@@ -109,13 +110,13 @@ export const prepareApplicationServer = async (
 ): Promise<Readonly<{ reset: boolean }> | null> => {
   const files = compiled.files.filter((file) => file.path.startsWith(SERVER_ROOT))
   if (files.length === 0) return null
-  if (!server) throw new Error('APPLICATION_RUNNER_UNAVAILABLE')
+  if (!server) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE')
   const prepared = await server.prepare({
     projectId: compiled.projectId,
     files: files.map((file) => ({ path: file.path, sha256: file.sha256, content: Buffer.from(file.bytes).toString('base64') })),
   })
-  if (prepared.state === 'MIGRATION_FAILED') throw new Error('APPLICATION_MIGRATION_FAILED', { cause: prepared.detail })
-  if (prepared.state === 'MIGRATION_HISTORY_DIVERGED') throw new Error('APPLICATION_MIGRATION_HISTORY_DIVERGED', { cause: prepared.detail })
+  if (prepared.state === 'MIGRATION_FAILED') throw new Failure('APPLICATION_MIGRATION_FAILED', { cause: prepared.detail })
+  if (prepared.state === 'MIGRATION_HISTORY_DIVERGED') throw new Failure('APPLICATION_MIGRATION_HISTORY_DIVERGED', { cause: prepared.detail })
   return { reset: prepared.reset }
 }
 
@@ -125,11 +126,11 @@ export const prepareBuilderRunApplicationArtifact = async (
 ): Promise<ApplicationArtifactMetadata> => {
   if (!z.uuid().safeParse(input.accountId).success || !z.uuid().safeParse(input.projectId).success ||
     !z.uuid().safeParse(input.builderRunId).success || !/^[0-9a-f]{40}$/i.test(input.sourceRevision)) {
-    throw new Error('BUILDER_APPLICATION_REQUEST_REFUSED')
+    throw new Failure('BUILDER_APPLICATION_REQUEST_REFUSED')
   }
   const result = input.compiledApplication
   if (result.projectId !== input.projectId || result.executionId !== input.builderRunId || result.sourceRevision !== input.sourceRevision) {
-    throw new Error('BUILDER_APPLICATION_RESULT_SCOPE_REFUSED')
+    throw new Failure('BUILDER_APPLICATION_RESULT_SCOPE_REFUSED')
   }
   return dependencies.applicationArtifacts.retainApplication({ accountId: input.accountId, compiled: result })
 }

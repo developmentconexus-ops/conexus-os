@@ -28,7 +28,7 @@ const openParkedRun = async (t, { phase, messages, refusal = null }) => {
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
   const state = builderState([conversation(conversationId, 'Título')], { [conversationId]: messages })
-  const run = { builderRunId: '70000000-0000-4000-8000-000000000323', projectId, conversationId, state: 'RUNNING', phase, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: 'Mude o título', createdAt: new Date(Date.now() - 10 * 60_000).toISOString() }
+  const run = { builderRunId: '70000000-0000-4000-8000-000000000323', projectId, conversationId, state: 'RUNNING', phase, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'Mude o título', createdAt: new Date(Date.now() - 10 * 60_000).toISOString() }
   const requests = { session: 0, stream: 0, answers: [] }
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, state)
@@ -47,7 +47,7 @@ const openParkedRun = async (t, { phase, messages, refusal = null }) => {
   })
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
     requests.answers.push(route.request().postDataJSON())
-    if (refusal) return route.fulfill({ status: refusal.status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${refusal.type}`, title: 'refused', status: refusal.status }) })
+    if (refusal) return route.fulfill({ status: refusal.status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${refusal.type}`, title: refusal.type, status: refusal.status, code: refusal.type }) })
     run.phase = 'PREPARING'
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
@@ -112,7 +112,7 @@ test('answering the card of a parked run shows the run going again without the s
 
 test('an answer the Hub refuses keeps the card and says why: already answered, no longer waited on, or not delivered', async (t) => {
   const said = []
-  for (const refusal of [{ status: 409, type: 'tool-answer-already-given' }, { status: 404, type: 'parked-call-not-found' }, { status: 503, type: 'builder-answer-unavailable' }]) {
+  for (const refusal of [{ status: 409, type: 'TOOL_ANSWER_ALREADY_GIVEN' }, { status: 404, type: 'PARKED_CALL_NOT_FOUND' }, { status: 503, type: 'BUILDER_ANSWER_UNAVAILABLE' }]) {
     const { page } = await openParkedRun(t, { phase: 'PARKED', messages: [userMessage('user-1', 'Mude o título'), parkedAsk(PARKED_QUESTION)], refusal })
     await card(page).getByRole('textbox').fill('144118')
     await card(page).getByRole('button', { name: 'Enviar resposta' }).click()
@@ -120,7 +120,7 @@ test('an answer the Hub refuses keeps the card and says why: already answered, n
   }
   assert.deepEqual(said, [
     'Esta pergunta já foi respondida.',
-    'O agente não está mais esperando esta resposta.',
-    'A resposta não chegou ao agente. Tente de novo.',
+    'A execução não está esperando essa resposta.',
+    'A sua resposta não chegou à execução. A falha foi registrada.',
   ])
 })

@@ -59,14 +59,14 @@ test('span events and links are redacted like the span', () => {
 
 test('an exported log body leaves as its leading code, or UNCODED_LOG when it has none', () => {
   const logBodyCode = (body) => exportedBy(redactingLogs, [{ attributes: {}, body }])[0].body
-  assert.equal(logBodyCode('HTTP_SERVER_ERROR'), 'HTTP_SERVER_ERROR')
+  assert.equal(logBodyCode('INTERNAL_UNEXPECTED'), 'INTERNAL_UNEXPECTED')
   assert.equal(logBodyCode('BUILDER_RETENTION_PRUNED:builder.runs:12'), 'BUILDER_RETENTION_PRUNED')
   assert.equal(logBodyCode('BUILDER_RUN_FAILED SECRET cause'), 'BUILDER_RUN_FAILED')
   assert.equal(logBodyCode('PLANTED_CUSTOMER_NAME_123456789'), 'UNCODED_LOG')
   assert.equal(logBodyCode('PLANTED_CUSTOMER_NAME_123456789:detail'), 'UNCODED_LOG')
   assert.equal(logBodyCode('builder stream recorder stopped: SECRET'), 'UNCODED_LOG')
   assert.equal(logBodyCode('ACME failed'), 'UNCODED_LOG')
-  assert.equal(logBodyCode('HTTP_SERVER_ERROR-SECRET'), 'UNCODED_LOG')
+  assert.equal(logBodyCode('INTERNAL_UNEXPECTED-SECRET'), 'UNCODED_LOG')
   assert.equal(logBodyCode('{"event":"prepare_failed"}'), 'UNCODED_LOG')
   assert.equal(logBodyCode(undefined), undefined)
 })
@@ -138,23 +138,24 @@ const LOG_PLANT = {
   upperLine: 'PLANTED_CUSTOMER_NAME_123456789',
 }
 
-test('log lines and logged errors export their codes, types and frames, and none of the planted text', async () => {
+test('log lines and logged errors export their codes and types, and none of the planted text', async () => {
   const collector = await startCollector()
   try {
     const result = await runWithTelemetry(`
 const P = JSON.parse(process.env.PLANT)
-const { logLine, logger, recordFailure } = await import(process.env.HUB_BUILD + '/platform/logger.js')
-logLine('BUILDER_RUN_FAILED:run-1:' + P.lineText + '\\n')
-logLine('runner said ' + P.uncodedText, 'warn')
-logLine(P.upperLine)
+const { logLine, logger } = await import(process.env.HUB_BUILD + '/platform/logger.js')
+const { Failure, logFailure } = await import(process.env.HUB_BUILD + '/platform/failure.js')
+logLine('BUILDER_RUN_TAKEN_OVER', { run: 'run-1', loss: P.lineText })
+logger.warn({}, 'runner said ' + P.uncodedText)
+logger.info({}, P.upperLine)
 logger.info({ code: 'PLAIN_CODE_FIELD' }, 'PROCESS_HEAP_HIGH ' + P.pinoMessage)
-recordFailure(logger, 'PROJECT_DELETION_INCOMPLETE', new Error('provider echoed ' + P.errorMessage), { 'conexus.project_id': 'project-1' })
+logFailure(logger, new Failure('PROJECT_DELETION_INCOMPLETE', { cause: new Error('provider echoed ' + P.errorMessage) }), { 'conexus.project_id': 'project-1' })
 `, { endpoint: collector.endpoint, env: { PLANT: JSON.stringify(LOG_PLANT) } })
     assert.equal(result.code, 0, result.stderr)
     const stdout = result.stdout
-    for (const value of Object.values(LOG_PLANT)) assert.ok(stdout.includes(value), `${value} stays on stdout`)
+    for (const [name, value] of Object.entries(LOG_PLANT)) assert.equal(stdout.includes(value), name !== 'errorMessage', `${name} ${name === 'errorMessage' ? 'never reaches a log line' : 'stays on stdout'}`)
     const logs = Buffer.concat(collector.bodies('/v1/logs'))
-    for (const expected of ['BUILDER_RUN_FAILED', 'UNCODED_LOG', 'PROCESS_HEAP_HIGH', 'PLAIN_CODE_FIELD', 'PROJECT_DELETION_INCOMPLETE', 'project-1', 'exception.type', 'exception.stacktrace', '    at ']) {
+    for (const expected of ['BUILDER_RUN_TAKEN_OVER', 'UNCODED_LOG', 'PROCESS_HEAP_HIGH', 'PLAIN_CODE_FIELD', 'PROJECT_DELETION_INCOMPLETE', 'project-1', 'exception.type']) {
       assert.ok(logs.includes(expected), `the log export holds ${JSON.stringify(expected)}`)
     }
     const exported = collector.everything()

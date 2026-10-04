@@ -6,8 +6,9 @@ import Fastify from 'fastify'
 import { readFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import type { FastifyInstance } from 'fastify'
-import { recordFailure, logger } from '../platform/logger.js'
-import { sendProblem } from './problem.js'
+import { Failure, type FailureCode, logFailure, toFailure } from '../platform/failure.js'
+import { logger } from '../platform/logger.js'
+import { sendFailure } from './problem.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -17,9 +18,20 @@ declare module 'fastify' {
 
 export type RouteRegistrar = (app: FastifyInstance) => Promise<readonly string[]>
 
-const errorStatus = (error: unknown): number => {
-  if (typeof error !== 'object' || error === null || !('statusCode' in error)) return 500
-  return typeof error.statusCode === 'number' ? error.statusCode : 500
+// Fastify's own refusals, which carry a `code` and no `Failure`.
+const FASTIFY_FAILURES: ReadonlyMap<string, FailureCode> = new Map([
+  ['FST_ERR_VALIDATION', 'REQUEST_VALIDATION_FAILED'],
+  ['FST_ERR_CTP_BODY_TOO_LARGE', 'REQUEST_BODY_TOO_LARGE'],
+  ['FST_ERR_CTP_INVALID_JSON_BODY', 'REQUEST_JSON_INVALID'],
+  ['FST_ERR_CTP_EMPTY_JSON_BODY', 'REQUEST_JSON_EMPTY'],
+  ['FST_ERR_CTP_INVALID_MEDIA_TYPE', 'REQUEST_MEDIA_TYPE_UNSUPPORTED'],
+])
+
+const namedFailure = (error: unknown): Failure | null => {
+  if (error instanceof Failure) return error
+  if (typeof error !== 'object' || error === null || !('code' in error) || typeof error.code !== 'string') return null
+  const code = FASTIFY_FAILURES.get(error.code)
+  return code ? new Failure(code, { cause: error }) : null
 }
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
@@ -45,18 +57,14 @@ export const createHttpApp = async ({
     return parseJson(request, text, done)
   })
   app.setErrorHandler((error, request, reply) => {
-    const reportedStatus = errorStatus(error)
-    if (reportedStatus < 400 || reportedStatus >= 500) recordFailure(request.log, 'HTTP_SERVER_ERROR', error)
-    // Keycloak could not be asked about a session due for its check: the request waits, nobody is signed out.
-    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'IDENTITY_PROVIDER_UNAVAILABLE') {
-      return sendProblem(reply, 503, 'identity-provider-unavailable', 'Identity provider unavailable')
-    }
-    const status = reportedStatus >= 400 && reportedStatus < 500 ? reportedStatus : 500
-    if (status === 400) return sendProblem(reply, status, 'request-invalid', 'Request invalid')
-    if (status === 401) return sendProblem(reply, status, 'authentication-required', 'Authentication required')
-    if (status === 403) return sendProblem(reply, status, 'access-denied', 'Access denied')
-    if (status === 404) return sendProblem(reply, status, 'not-found', 'Not found')
-    return sendProblem(reply, status, status === 500 ? 'internal-error' : 'request-refused', status === 500 ? 'Internal server error' : 'Request refused')
+    const failure = namedFailure(error) ?? toFailure(error)
+    logFailure(request.log, failure, { 'http.route': request.routeOptions.url ?? '' })
+    return sendFailure(reply, failure)
+  })
+  app.setNotFoundHandler((request, reply) => {
+    const missing = new Failure('NOT_FOUND')
+    logFailure(request.log, missing)
+    return sendFailure(reply, missing)
   })
   const ajv = new Ajv2020({ allErrors: true, strict: true, coerceTypes: false, useDefaults: false, removeAdditional: false })
   ajv.addKeyword({ keyword: 'x-conexus-schema-source', schemaType: 'string', valid: true })

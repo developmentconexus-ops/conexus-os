@@ -36,7 +36,7 @@ const rows = (html) => html.match(/Pergunt(?:ou|ando) a você/g)?.length ?? 0
 const asked = (messages) => mergeCalls(messages).flatMap((message) => message.content.parts.flatMap((part) => part.type === 'tool-invocation' && part.toolInvocation.toolName === 'ask_user'
   ? [[part.toolInvocation.args.questions.map((entry) => entry.question), part.toolInvocation.result.content]] : []))
 const answer = [[['Qual cor?'], 'User answered:\nQual cor?: azul']]
-const render = (props) => renderToStaticMarkup(createElement(BuilderConversation, { entries: [], persistedRequests: [], failure: null, model: null, working: false, ...props }))
+const render = (props) => renderToStaticMarkup(createElement(BuilderConversation, { entries: [], persistedRequests: [], runs: [], model: null, working: false, ...props }))
 const card = (prompt) => createElement('p', null, `card ${prompt.toolCallId}`)
 
 test('an ask, its answer and the finish are one "Perguntou a você" row with the question and the answer', () => {
@@ -125,7 +125,7 @@ test('a message still marked streaming after its run ended reads as settled, wit
   assert.equal(count(html, 'Pensou'), 1)
 })
 
-const persistedRun = { runId: 'run-1', text: 'Crie um contador', createdAt: '2026-10-01T14:00:00.000Z', reason: null }
+const persistedRun = { runId: 'run-1', text: 'Crie um contador', createdAt: '2026-10-01T14:00:00.000Z' }
 const sentLocally = (settle) => reduce([{ type: 'localUser', id: 'local-k1', text: 'Crie um contador' }, ...settle])
 
 test('a send with no confirmation says so, and does not claim the Hub refused it', () => {
@@ -172,7 +172,7 @@ test('a call resolved in a later message keeps its first place and arguments and
 
 test("the Conexus check's verdict reads as a notice in its own words, without Mastra's scoring frame", async () => {
   const { formatStreamCompletionFeedback } = await import('@mastra/core/loop')
-  const reason = 'Verificação do Conexus: o app não passou (1 de 3).\ntypecheck failed:\napp/src/total.ts:1: TS2322 Type string is not number\nCorrija estes problemas e termine de novo: o Conexus verifica o app outra vez quando você terminar.'
+  const reason = 'Verificação do Conexus: o app não passou (1 de 3).\ntypecheck failed:\napp/src/total.ts:1: TS2322 Type string is not number\nResolva estes problemas e diga que terminou: o Conexus verifica o app quando você terminar.'
   const verdict = { complete: false, totalDuration: 1200, timedOut: false, scorers: [{ scorerId: 'conexus-check', scorerName: 'Verificação do Conexus', score: 0, passed: false, reason }] }
   const stored = (id, maxIterationReached) => ({ id, threadId: 't', role: 'assistant', createdAt: '2026-10-02T14:35:55.000Z', content: {
     format: 2, parts: [{ type: 'text', text: formatStreamCompletionFeedback(verdict, maxIterationReached) }], metadata: { mode: 'stream', completionResult: { passed: false, suppressFeedback: false } },

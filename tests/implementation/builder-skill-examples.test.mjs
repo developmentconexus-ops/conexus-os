@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { ensureCompilerRoot } from './compiler-root.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
+import { writeGeneratedFailures } from './app-workspace.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const compilerRoot = await ensureCompilerRoot()
@@ -76,6 +77,7 @@ const typecheck = (extraFiles = {}) => {
       mkdirSync(dirname(join(root, path)), { recursive: true })
       writeFileSync(join(root, path), content)
     }
+    writeGeneratedFailures(root)
     for (const [from, to] of Object.entries(PLACEMENT)) cpSync(resolve(repositoryRoot, from), join(root, to))
     for (const [path, content] of Object.entries(extraFiles)) writeFileSync(join(root, path), content)
     mkdirSync(join(root, dirname(API_GEN_PATH)), { recursive: true })

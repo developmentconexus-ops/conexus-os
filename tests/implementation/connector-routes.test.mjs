@@ -112,9 +112,9 @@ test('a retry the store recognizes answers 200, a changed one 409, and a Workspa
   assert.deepEqual({ status: retried.statusCode, body: retried.json() },
     { status: 200, body: { connectionId, connectorId: 'sankhya', label: 'ERP principal', createdAt: '2026-09-24T10:00:00.000Z' } })
   const changed = await post()
-  assert.deepEqual({ status: changed.statusCode, type: changed.json().type }, { status: 409, type: 'urn:conexus:problem:connector-connection-conflict' })
+  assert.deepEqual({ status: changed.statusCode, type: changed.json().type }, { status: 409, type: 'urn:conexus:problem:CONNECTOR_CONNECTION_CONFLICT' })
   const nowhere = await post()
-  assert.deepEqual({ status: nowhere.statusCode, type: nowhere.json().type }, { status: 422, type: 'urn:conexus:problem:connector-workspace-not-found' })
+  assert.deepEqual({ status: nowhere.statusCode, type: nowhere.json().type }, { status: 422, type: 'urn:conexus:problem:CONNECTOR_WORKSPACE_NOT_FOUND' })
   for (const response of [retried, changed, nowhere]) bodyHasNoCredential(response.json())
 })
 
@@ -125,22 +125,22 @@ test('a malformed id gets the declared 400, 404 or 422, and never reaches the st
   const bad = 'not-a-uuid'
   const cases = [
     { method: 'GET', url: `/api/control/workspaces/${bad}/connections`, cookies: session, expected: { status: 200, body: { entries: [] } } },
-    { method: 'POST', url: `/api/control/workspaces/${bad}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: 'x', credential }, expected: { status: 422, type: 'connector-workspace-not-found' } },
-    { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId: bad, connectorId: 'sankhya', label: 'x', credential }, expected: { status: 400, type: 'request-invalid' } },
-    { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: '   ', credential }, expected: { status: 422, type: 'connector-label-refused' } },
-    { method: 'POST', url: `/api/control/workspaces/${bad}/connections/${connectionId}/authentication-check`, ...authenticDelete, expected: { status: 404, type: 'connector-connection-not-found' } },
-    { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections/${bad}/authentication-check`, ...authenticDelete, expected: { status: 400, type: 'request-invalid' } },
-    { method: 'DELETE', url: `/api/control/workspaces/${bad}/connections/${connectionId}`, ...authenticDelete, expected: { status: 404, type: 'connector-connection-not-found' } },
-    { method: 'DELETE', url: `/api/control/workspaces/${workspaceId}/connections/${bad}`, ...authenticDelete, expected: { status: 400, type: 'request-invalid' } },
-    { method: 'GET', url: `/api/control/projects/${bad}/connection-bindings`, cookies: session, expected: { status: 404, type: 'project-not-found' } },
-    { method: 'POST', url: `/api/control/projects/${bad}/connection-bindings`, ...authentic, payload: { connectionId, name: 'erp' }, expected: { status: 404, type: 'project-not-found' } },
-    { method: 'POST', url: `/api/control/projects/${projectId}/connection-bindings`, ...authentic, payload: { connectionId: bad, name: 'erp' }, expected: { status: 400, type: 'request-invalid' } },
-    { method: 'POST', url: `/api/control/projects/${projectId}/connection-bindings`, ...authentic, payload: { connectionId, name: 'ERP' }, expected: { status: 400, type: 'request-invalid' } },
-    { method: 'POST', url: `/api/control/projects/${projectId}/connection-bindings`, ...authentic, payload: { connectionId, name: `e${'r'.repeat(40)}` }, expected: { status: 400, type: 'request-invalid' } },
-    { method: 'POST', url: `/api/control/projects/${projectId}/connection-bindings`, ...authentic, payload: { connectionId, name: 'erp', operationId: 'sankhya.purchase-order.read' }, expected: { status: 400, type: 'request-invalid' } },
-    { method: 'POST', url: `/api/control/projects/${projectId}/connection-bindings`, ...authentic, payload: { connectionId, name: 'erp', environment: 'production' }, expected: { status: 400, type: 'request-invalid' } },
-    { method: 'DELETE', url: `/api/control/projects/${bad}/connection-bindings/${bindingId}`, ...authenticDelete, expected: { status: 404, type: 'project-not-found' } },
-    { method: 'DELETE', url: `/api/control/projects/${projectId}/connection-bindings/${bad}`, ...authenticDelete, expected: { status: 400, type: 'request-invalid' } },
+    { method: 'POST', url: `/api/control/workspaces/${bad}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: 'x', credential }, expected: { status: 422, type: 'CONNECTOR_WORKSPACE_NOT_FOUND' } },
+    { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId: bad, connectorId: 'sankhya', label: 'x', credential }, expected: { status: 400, type: 'REQUEST_VALIDATION_FAILED' } },
+    { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: '   ', credential }, expected: { status: 422, type: 'CONNECTOR_LABEL_REFUSED' } },
+    { method: 'POST', url: `/api/control/workspaces/${bad}/connections/${connectionId}/authentication-check`, ...authenticDelete, expected: { status: 404, type: 'CONNECTOR_CONNECTION_NOT_FOUND' } },
+    { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections/${bad}/authentication-check`, ...authenticDelete, expected: { status: 400, type: 'REQUEST_VALIDATION_FAILED' } },
+    { method: 'DELETE', url: `/api/control/workspaces/${bad}/connections/${connectionId}`, ...authenticDelete, expected: { status: 404, type: 'CONNECTOR_CONNECTION_NOT_FOUND' } },
+    { method: 'DELETE', url: `/api/control/workspaces/${workspaceId}/connections/${bad}`, ...authenticDelete, expected: { status: 400, type: 'REQUEST_VALIDATION_FAILED' } },
+    { method: 'GET', url: `/api/control/projects/${bad}/connection-bindings`, cookies: session, expected: { status: 404, type: 'PROJECT_NOT_FOUND' } },
+    { method: 'POST', url: `/api/control/projects/${bad}/connection-bindings`, ...authentic, payload: { connectionId, name: 'erp' }, expected: { status: 404, type: 'PROJECT_NOT_FOUND' } },
+    { method: 'POST', url: `/api/control/projects/${projectId}/connection-bindings`, ...authentic, payload: { connectionId: bad, name: 'erp' }, expected: { status: 400, type: 'REQUEST_VALIDATION_FAILED' } },
+    { method: 'POST', url: `/api/control/projects/${projectId}/connection-bindings`, ...authentic, payload: { connectionId, name: 'ERP' }, expected: { status: 400, type: 'REQUEST_VALIDATION_FAILED' } },
+    { method: 'POST', url: `/api/control/projects/${projectId}/connection-bindings`, ...authentic, payload: { connectionId, name: `e${'r'.repeat(40)}` }, expected: { status: 400, type: 'REQUEST_VALIDATION_FAILED' } },
+    { method: 'POST', url: `/api/control/projects/${projectId}/connection-bindings`, ...authentic, payload: { connectionId, name: 'erp', operationId: 'sankhya.purchase-order.read' }, expected: { status: 400, type: 'REQUEST_VALIDATION_FAILED' } },
+    { method: 'POST', url: `/api/control/projects/${projectId}/connection-bindings`, ...authentic, payload: { connectionId, name: 'erp', environment: 'production' }, expected: { status: 400, type: 'REQUEST_VALIDATION_FAILED' } },
+    { method: 'DELETE', url: `/api/control/projects/${bad}/connection-bindings/${bindingId}`, ...authenticDelete, expected: { status: 404, type: 'PROJECT_NOT_FOUND' } },
+    { method: 'DELETE', url: `/api/control/projects/${projectId}/connection-bindings/${bad}`, ...authenticDelete, expected: { status: 400, type: 'REQUEST_VALIDATION_FAILED' } },
   ]
   for (const { expected, ...request } of cases) {
     const response = await app.inject(request)
@@ -199,7 +199,7 @@ test('an authentication check of a Connection absent from the Workspace is a 404
   t.after(() => app.close())
   const response = await app.inject({ method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections/${connectionId}/authentication-check`, ...authenticDelete })
   assert.equal(response.statusCode, 404)
-  assert.equal(response.json().type, 'urn:conexus:problem:connector-connection-not-found')
+  assert.equal(response.json().type, 'urn:conexus:problem:CONNECTOR_CONNECTION_NOT_FOUND')
 })
 
 test('a non-administrator is refused every Connection operation', async (t) => {
@@ -207,7 +207,7 @@ test('a non-administrator is refused every Connection operation', async (t) => {
   t.after(() => app.close())
   const list = await app.inject({ method: 'GET', url: `/api/control/workspaces/${workspaceId}/connections`, cookies: session })
   assert.equal(list.statusCode, 403)
-  assert.equal(list.json().type, 'urn:conexus:problem:installation-administrator-required')
+  assert.equal(list.json().type, 'urn:conexus:problem:INSTALLATION_ADMINISTRATOR_REQUIRED')
   const create = await app.inject({ method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: 'x', credential } })
   assert.equal(create.statusCode, 403)
   const disable = await app.inject({ method: 'DELETE', url: `/api/control/workspaces/${workspaceId}/connections/${connectionId}`, ...authenticDelete })
@@ -245,9 +245,9 @@ test('a bind conflict is a 409, and an unbind of a binding that is not open is a
   const app = await makeApp(makeStore({ bindConnection: async () => { throw bindingConflict() }, unbindConnection: async () => false }), { currentAccountId: memberAccountId })
   t.after(() => app.close())
   const conflict = await app.inject({ method: 'POST', url: `/api/control/projects/${projectId}/connection-bindings`, ...authentic, payload: { connectionId, name: 'erp-2' } })
-  assert.deepEqual({ status: conflict.statusCode, type: conflict.json().type }, { status: 409, type: 'urn:conexus:problem:connector-binding-conflict' })
+  assert.deepEqual({ status: conflict.statusCode, type: conflict.json().type }, { status: 409, type: 'urn:conexus:problem:CONNECTOR_BINDING_CONFLICT' })
   const gone = await app.inject({ method: 'DELETE', url: `/api/control/projects/${projectId}/connection-bindings/${bindingId}`, ...authenticDelete })
-  assert.deepEqual({ status: gone.statusCode, type: gone.json().type }, { status: 404, type: 'urn:conexus:problem:connector-binding-not-found' })
+  assert.deepEqual({ status: gone.statusCode, type: gone.json().type }, { status: 404, type: 'urn:conexus:problem:CONNECTOR_BINDING_NOT_FOUND' })
 })
 
 test('a non-member is not told the Project exists, and a Connection outside the Workspace answers the same non-disclosing 404', async (t) => {
@@ -255,21 +255,21 @@ test('a non-member is not told the Project exists, and a Connection outside the 
   const app = await makeApp(notFoundStore, { currentAccountId: memberAccountId })
   t.after(() => app.close())
   const listed = await app.inject({ method: 'GET', url: `/api/control/projects/${projectId}/connection-bindings`, cookies: session })
-  assert.deepEqual({ status: listed.statusCode, type: listed.json().type }, { status: 404, type: 'urn:conexus:problem:project-not-found' })
+  assert.deepEqual({ status: listed.statusCode, type: listed.json().type }, { status: 404, type: 'urn:conexus:problem:PROJECT_NOT_FOUND' })
   const unbound = await app.inject({ method: 'DELETE', url: `/api/control/projects/${projectId}/connection-bindings/${bindingId}`, ...authenticDelete })
-  assert.deepEqual({ status: unbound.statusCode, type: unbound.json().type }, { status: 404, type: 'urn:conexus:problem:project-not-found' })
+  assert.deepEqual({ status: unbound.statusCode, type: unbound.json().type }, { status: 404, type: 'urn:conexus:problem:PROJECT_NOT_FOUND' })
 
   const unavailableStore = makeStore({ bindConnection: async () => { throw connectionUnavailable() } })
   const app2 = await makeApp(unavailableStore, { currentAccountId: memberAccountId })
   t.after(() => app2.close())
   const refused = await app2.inject({ method: 'POST', url: `/api/control/projects/${projectId}/connection-bindings`, ...authentic, payload: { connectionId, name: 'erp' } })
-  assert.deepEqual({ status: refused.statusCode, type: refused.json().type }, { status: 404, type: 'urn:conexus:problem:connector-connection-not-available' })
+  assert.deepEqual({ status: refused.statusCode, type: refused.json().type }, { status: 404, type: 'urn:conexus:problem:CONNECTOR_CONNECTION_NOT_AVAILABLE' })
 
   const notOwnerStore = makeStore({ listProjectBindings: async () => { throw notAdmitted() } })
   const app3 = await makeApp(notOwnerStore, { currentAccountId: memberAccountId })
   t.after(() => app3.close())
   const denied = await app3.inject({ method: 'GET', url: `/api/control/projects/${projectId}/connection-bindings`, cookies: session })
-  assert.deepEqual({ status: denied.statusCode, type: denied.json().type }, { status: 403, type: 'urn:conexus:problem:connector-binding-manage-required' })
+  assert.deepEqual({ status: denied.statusCode, type: denied.json().type }, { status: 403, type: 'urn:conexus:problem:CONNECTOR_BINDING_MANAGE_REQUIRED' })
 })
 
 test('a state change without the exact Origin or the CSRF token is refused before the store', async (t) => {
@@ -284,7 +284,7 @@ test('a state change without the exact Origin or the CSRF token is refused befor
   for (const { headers } of cases) {
     const response = await app.inject({ method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, headers, cookies: session, payload: { connectionId, connectorId: 'sankhya', label: 'x', credential } })
     assert.equal(response.statusCode, 403)
-    assert.equal(response.json().type, 'urn:conexus:problem:request-authenticity-denied')
+    assert.equal(response.json().type, 'urn:conexus:problem:REQUEST_AUTHENTICITY_DENIED')
   }
   assert.deepEqual(store.calls, [])
 })

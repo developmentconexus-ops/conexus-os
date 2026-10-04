@@ -27,10 +27,11 @@ The Hub and the runner export traces, logs and metrics over OpenTelemetry (spec 
 
 ## Logs
 
-The Hub writes one structured line per event with a registered code
-([`log-codes.generated.ts`](../../../../apps/hub/src/telemetry/log-codes.generated.ts)), for example
-`BUILDER_RUN_TIMING` (time per stage of a run) and `BUILDER_RUN_FAILED`. An error a person sees
-always has a code.
+The Hub writes one structured line per event or failure, and its code is the record's message. A
+failure is a row of `failures.json` and is written once, by `logFailure`, at the level of its
+category; anything else that happened is an event of `log-events.json`, written by `logLine(code,
+fields)`, for example `BUILDER_RUN_TIMING` (time per stage of a run, one field per stage). Both
+lists feed [`log-codes.generated.ts`](../../../../apps/hub/src/telemetry/log-codes.generated.ts).
 
 ## Drive the real product
 

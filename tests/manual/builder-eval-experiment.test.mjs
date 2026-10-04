@@ -88,20 +88,20 @@ test('a refusal case runs on a Project with no binding and is graded on the unch
 
 test('an arm that breaks its own build is graded 0; a platform failure stays open until a rerun settles it', async (t) => {
   const { mastra, driver, run } = await experimentHarness(t, new InMemoryStore(), {
-    failures: { 'm-flash': ['APPLICATION_BUILD_FAILED'], 'm-luna': ['MODEL_RATE_LIMITED'] },
+    failures: { 'm-flash': ['APPLICATION_SMOKE_FAILED'], 'm-luna': ['BUILDER_MODEL_RATE_LIMITED'] },
   })
 
   const first = await run()
 
   assert.deepEqual(first, [
     completed('be:c1:flash:t0'),
-    { experimentId: 'be:c1:luna:t0', status: 'running', settled: 0, total: 1, pending: [{ item: 'sales-dashboard', code: 'MODEL_RATE_LIMITED' }] },
+    { experimentId: 'be:c1:luna:t0', status: 'running', settled: 0, total: 1, pending: [{ item: 'sales-dashboard', code: 'BUILDER_MODEL_RATE_LIMITED' }] },
   ])
   assert.deepEqual((await resultsOf(mastra, 'be:c1:flash:t0')).map((row) => [row.error, row.output.preview]), [[null, { kind: 'not-built', reason: 'FINAL_RUN_NOT_BUILT' }]])
   const flashScores = await scoresOf(mastra, 'be:c1:flash:t0')
   assert.deepEqual([flashScores['app-correct'], flashScores['tool-calls']], [0, 10])
   assert.deepEqual((await resultsOf(mastra, 'be:c1:luna:t0')).map((row) => row.error), [
-    { code: 'MODEL_RATE_LIMITED', message: 'the last Builder run failed with BUILDER_MODEL_RATE_LIMITED' },
+    { code: 'BUILDER_MODEL_RATE_LIMITED', message: 'the last Builder run failed with BUILDER_MODEL_RATE_LIMITED' },
   ])
   assert.deepEqual(await scoresOf(mastra, 'be:c1:luna:t0'), {})
 
@@ -120,19 +120,19 @@ test('an arm that breaks its own build is graded 0; a platform failure stays ope
 })
 
 test('a rerun runs only the items that still lack a non-error result', async (t) => {
-  const { driver, run } = await experimentHarness(t, new InMemoryStore(), { failures: { 'm-luna': ['MODEL_RATE_LIMITED'] } })
+  const { driver, run } = await experimentHarness(t, new InMemoryStore(), { failures: { 'm-luna': ['BUILDER_MODEL_RATE_LIMITED'] } })
   const cases = [CASES[0], { ...CASES[0], id: 'sales-by-seller' }]
 
   const first = await run({ arms: [ARMS[1]], cases, concurrency: 1 })
   const second = await run({ arms: [ARMS[1]], cases, concurrency: 1 })
 
-  assert.deepEqual(first, [{ experimentId: 'be:c1:luna:t0', status: 'running', settled: 1, total: 2, pending: [{ item: 'sales-by-seller', code: 'MODEL_RATE_LIMITED' }] }])
+  assert.deepEqual(first, [{ experimentId: 'be:c1:luna:t0', status: 'running', settled: 1, total: 2, pending: [{ item: 'sales-by-seller', code: 'BUILDER_MODEL_RATE_LIMITED' }] }])
   assert.deepEqual(second, [{ experimentId: 'be:c1:luna:t0', status: 'completed', settled: 2, total: 2, pending: [] }])
   assert.deepEqual(driver.calls.map((call) => call.item), ['sales-by-seller', 'sales-dashboard', 'sales-by-seller'])
 })
 
 test('a comparison keeps the dataset version it started on after a case changes; a new comparison takes the new one', async (t) => {
-  const { mastra, driver, run } = await experimentHarness(t, new InMemoryStore(), { failures: { 'm-luna': ['MODEL_RATE_LIMITED'] } })
+  const { mastra, driver, run } = await experimentHarness(t, new InMemoryStore(), { failures: { 'm-luna': ['BUILDER_MODEL_RATE_LIMITED'] } })
   await run()
   const changed = [{ ...CASES[0], input: { ...CASES[0].input, request: 'Quero o painel de vendas por vendedor.' } }]
 
@@ -184,7 +184,7 @@ test('a comparison refuses to continue after an arm changed its model', async (t
 })
 
 test('a comparison refuses to resume after a non-arm setup value changed mid-run, so results are never mixed', async (t) => {
-  const { mastra, driver, run } = await experimentHarness(t, new InMemoryStore(), { failures: { 'm-luna': ['MODEL_RATE_LIMITED'] } })
+  const { mastra, driver, run } = await experimentHarness(t, new InMemoryStore(), { failures: { 'm-luna': ['BUILDER_MODEL_RATE_LIMITED'] } })
   const cases = [CASES[0], { ...CASES[0], id: 'sales-by-seller' }]
 
   const first = await run({ arms: [ARMS[1]], cases, concurrency: 1, hubVersion: 'sha-1' })
@@ -196,7 +196,7 @@ test('a comparison refuses to resume after a non-arm setup value changed mid-run
 
   assert.equal(driver.calls.length, 2)
   const rows = (await resultsOf(mastra, 'be:c1:luna:t0'))
-  assert.deepEqual(rows.map((row) => row.error?.code ?? null).sort(), ['MODEL_RATE_LIMITED', null])
+  assert.deepEqual(rows.map((row) => row.error?.code ?? null).sort(), ['BUILDER_MODEL_RATE_LIMITED', null])
 })
 
 test('two arms, two trials run trial by trial, two Builder runs at a time', async (t) => {

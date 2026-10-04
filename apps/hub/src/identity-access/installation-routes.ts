@@ -1,5 +1,5 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { sendProblem } from '../http/problem.js'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
+import { Failure } from '../platform/failure.js'
 import type { AccountId, ResolveCurrentSession } from './current-session.js'
 import { isAccountEmailAmbiguous, isAccountNotFound, isLastInstallationAdministrator } from './current-session.js'
 import type { InstallationAdministration, InstallationAdministrator } from './installation-administration.js'
@@ -26,74 +26,56 @@ export const registerInstallationRoutes = async (app: FastifyInstance, { origin,
   resolveCurrentSession: ResolveCurrentSession
   installationAdministration: InstallationAdministration
 }>): Promise<void> => {
-  const admit = async (request: FastifyRequest, reply: FastifyReply): Promise<Caller | null> => {
+  const admit = async (request: FastifyRequest): Promise<Caller> => {
     if (request.method !== 'GET') {
       const csrf = header(request.headers['x-conexus-csrf'])
-      if (!isExactOrigin(request.headers.origin, origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) {
-        await sendProblem(reply, 403, 'request-authenticity-denied', 'Request authenticity denied')
-        return null
-      }
+      if (!isExactOrigin(request.headers.origin, origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) throw new Failure('REQUEST_AUTHENTICITY_DENIED')
     }
     const session = await resolveCurrentSession(request, request.method !== 'GET')
-    if (!session) {
-      await sendProblem(reply, 401, 'authentication-required', 'Authentication required')
-      return null
-    }
+    if (!session) throw new Failure('AUTHENTICATION_REQUIRED')
     return { accountId: session.account.accountId }
   }
-  const requireAdministrator = async (caller: Caller, reply: FastifyReply): Promise<boolean> => {
-    if (await installationAdministration.isInstallationAdministrator(caller.accountId)) return true
-    await sendProblem(reply, 403, 'installation-administrator-required', 'Installation administrator required')
-    return false
+  const admitAdministrator = async (request: FastifyRequest): Promise<Caller> => {
+    const caller = await admit(request)
+    if (!await installationAdministration.isInstallationAdministrator(caller.accountId)) throw new Failure('INSTALLATION_ADMINISTRATOR_REQUIRED')
+    return caller
   }
 
-  app.get('/api/control/installation', async (request, reply) => {
-    const caller = await admit(request, reply)
-    if (!caller) return reply
+  app.get('/api/control/installation', async (request) => {
+    const caller = await admit(request)
     return { administrator: await installationAdministration.isInstallationAdministrator(caller.accountId) }
   })
 
-  app.get('/api/control/installation/administrators', async (request, reply) => {
-    const caller = await admit(request, reply)
-    if (!caller || !await requireAdministrator(caller, reply)) return reply
+  app.get('/api/control/installation/administrators', async (request) => {
+    const caller = await admitAdministrator(request)
     const administrators = await installationAdministration.list(caller.accountId)
     return { administrators: administrators.map(administratorJson) }
   })
 
   app.post<{ Body: { email?: unknown } }>('/api/control/installation/administrators', async (request, reply) => {
-    const caller = await admit(request, reply)
-    if (!caller || !await requireAdministrator(caller, reply)) return reply
+    const caller = await admitAdministrator(request)
     const { email } = request.body ?? {}
-    if (typeof email !== 'string' || !EMAIL.test(email)) {
-      return sendProblem(reply, 400, 'installation-administrator-email-invalid', 'Email is invalid')
-    }
-    try {
-      const accountId = await installationAdministration.grantByEmail({ actor: caller.accountId, email })
-      const administrators = await installationAdministration.list(caller.accountId)
-      const administrator = administrators.find((entry) => entry.accountId === accountId)
-      if (!administrator) throw new Error('INSTALLATION_ADMINISTRATOR_MISSING_AFTER_GRANT')
-      return reply.code(201).send({ administrator: administratorJson(administrator) })
-    } catch (error) {
-      if (isAccountNotFound(error)) return sendProblem(reply, 404, 'account-not-found', 'Account not found')
-      if (isAccountEmailAmbiguous(error)) return sendProblem(reply, 409, 'account-email-ambiguous', 'Account email is ambiguous')
+    if (typeof email !== 'string' || !EMAIL.test(email)) throw new Failure('INSTALLATION_ADMINISTRATOR_EMAIL_INVALID')
+    const accountId = await installationAdministration.grantByEmail({ actor: caller.accountId, email }).catch((error: unknown) => {
+      if (isAccountNotFound(error)) throw new Failure('ACCOUNT_NOT_FOUND')
+      if (isAccountEmailAmbiguous(error)) throw new Failure('ACCOUNT_EMAIL_AMBIGUOUS')
       throw error
-    }
+    })
+    const administrators = await installationAdministration.list(caller.accountId)
+    const administrator = administrators.find((entry) => entry.accountId === accountId)
+    if (!administrator) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'INSTALLATION_ADMINISTRATOR_MISSING_AFTER_GRANT' } })
+    return reply.code(201).send({ administrator: administratorJson(administrator) })
   })
 
   app.delete<{ Params: { accountId: string } }>('/api/control/installation/administrators/:accountId', async (request, reply) => {
-    const caller = await admit(request, reply)
-    if (!caller || !await requireAdministrator(caller, reply)) return reply
+    const caller = await admitAdministrator(request)
     const { accountId } = request.params
-    if (!ACCOUNT_ID.test(accountId)) return sendProblem(reply, 404, 'account-not-found', 'Account not found')
-    try {
-      // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-      await installationAdministration.revoke({ actor: caller.accountId, account: accountId as AccountId })
-      return reply.code(204).send()
-    } catch (error) {
-      if (isLastInstallationAdministrator(error)) {
-        return sendProblem(reply, 409, 'last-installation-administrator', 'The last installation administrator cannot be revoked')
-      }
+    if (!ACCOUNT_ID.test(accountId)) throw new Failure('ACCOUNT_NOT_FOUND')
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
+    await installationAdministration.revoke({ actor: caller.accountId, account: accountId as AccountId }).catch((error: unknown) => {
+      if (isLastInstallationAdministrator(error)) throw new Failure('LAST_INSTALLATION_ADMINISTRATOR')
       throw error
-    }
+    })
+    return reply.code(204).send()
   })
 }

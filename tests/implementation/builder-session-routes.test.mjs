@@ -11,6 +11,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const built = hubModuleUrl
 const { createHttpApp } = await import(built('http/app.js'))
+const { Failure } = await import(built('platform/failure.js'))
 const { registerBuilderSessionRoutes } = await import(built('builder/mastra-session-routes.js'))
 const { registerBuilderRoutes } = await import(built('builder/routes.js'))
 const { createBuilderController } = await import(built('builder/harness/controller.js'))
@@ -111,7 +112,7 @@ test('a Builder request whose Hub session check Keycloak cannot answer is refuse
   const { app } = await createBuilderApp(t, { providerDown: true })
   const response = await app.inject({ method: 'GET', url: `${sessionBase()}/threads`, ...authentic })
   assert.equal(response.statusCode, 503)
-  assert.equal(response.json().type.endsWith('identity-provider-unavailable'), true)
+  assert.equal(response.json().type.endsWith('IDENTITY_PROVIDER_UNAVAILABLE'), true)
   assert.equal(response.headers['set-cookie'], undefined)
 })
 
@@ -119,7 +120,7 @@ test('a browser-supplied requestContext is refused on the Builder mount', async 
   const { app } = await createBuilderApp(t)
   const forged = await app.inject({ method: 'POST', url: `${sessionBase()}/abort?${inConversation()}`, ...authentic, payload: { requestContext: { user: { id: accountB } } } })
   assert.equal(forged.statusCode, 400)
-  assert.equal(forged.json().type.endsWith('request-context-refused'), true)
+  assert.equal(forged.json().type.endsWith('REQUEST_CONTEXT_REFUSED'), true)
   const queried = await app.inject({ method: 'GET', url: `${sessionBase()}/threads?requestContext=${encodeURIComponent(JSON.stringify({ user: { id: accountB } }))}`, ...authentic })
   assert.equal(queried.statusCode, 400)
 })
@@ -160,7 +161,7 @@ test('a conversation session opens only on its own thread, and an id another Pro
   const runScope = await app.inject({ method: 'POST', url: `${PREFIX}/sessions`, ...authentic, payload: { resourceId: `project:${projectA}`, sessionScope: `builder:${randomUUID()}`, threadId: conversationA } })
   const taken = await openConversation(app, projectA, elsewhere)
   assert.deepEqual([mismatched.statusCode, runScope.statusCode, taken.statusCode], [400, 400, 409])
-  assert.equal(taken.json().type.endsWith('conversation-conflict'), true)
+  assert.equal(taken.json().type.endsWith('CONVERSATION_CONFLICT'), true)
   const read = await app.inject({ method: 'GET', url: `${sessionBase()}?${inConversation(elsewhere)}`, ...authentic })
   assert.equal(read.statusCode, 404, "another Project's conversation is not found under this Project")
 })
@@ -179,7 +180,7 @@ test("a conversation's model changes only while no run is in flight, and a run's
   const { app: busyApp } = await createBuilderApp(t, { busy: true })
   const refused = await busyApp.inject({ method: 'POST', url: `${sessionBase()}/model?${inConversation()}`, ...authentic, payload: { modelId: 'google-ai-pro/gemini-3-flash', scope: 'thread' } })
   assert.equal(refused.statusCode, 409)
-  assert.deepEqual(refused.json().title, 'O modelo só muda quando o Builder está parado')
+  assert.equal(refused.json().code, 'BUILDER_BUSY')
 })
 
 test('only the Builder controller id is served, the Factory mount is gone, and the browser may not create, switch, rename or delete threads', async (t) => {
@@ -200,7 +201,7 @@ test("a run's own session takes no abort: a parked run's question is settled onl
   const liveRun = `builder:${randomUUID()}`
   await controller.createSession({ resourceId: `project:${projectA}`, scope: liveRun, threadId: conversationA })
   const response = await app.inject({ method: 'POST', url: `${sessionBase()}/abort?sessionScope=${liveRun}`, ...authentic, payload: {} })
-  assert.deepEqual([response.statusCode, response.json().type], [409, 'urn:conexus:problem:builder-run-stop-refused'])
+  assert.deepEqual([response.statusCode, response.json().type], [409, 'urn:conexus:problem:BUILDER_RUN_STOP_REFUSED'])
 })
 
 test('a run whose session does not exist yet is a conflict, never a fresh empty session', async (t) => {
@@ -250,9 +251,9 @@ test('each outcome of an answer has its own HTTP status and problem type, which 
   }
   assert.deepEqual(await Promise.all(Object.keys(outcomes).map(answer)), [
     [200, { ok: true }],
-    [409, 'urn:conexus:problem:tool-answer-already-given'],
-    [404, 'urn:conexus:problem:parked-call-not-found'],
-    [503, 'urn:conexus:problem:builder-answer-unavailable'],
+    [409, 'urn:conexus:problem:TOOL_ANSWER_ALREADY_GIVEN'],
+    [404, 'urn:conexus:problem:PARKED_CALL_NOT_FOUND'],
+    [503, 'urn:conexus:problem:BUILDER_ANSWER_UNAVAILABLE'],
   ])
 })
 
@@ -297,7 +298,7 @@ test('a session-state write outside the reasoning level is refused before it rea
   const mixed = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel: 'low', yolo: true } } })
   const extraTopLevel = await app.inject({ method: 'PUT', url: stateUrl, ...authentic, payload: { state: { thinkingLevel: 'low' }, extra: 1 } })
   assert.deepEqual([yolo.statusCode, badLevel.statusCode, mixed.statusCode, extraTopLevel.statusCode], [400, 400, 400, 400])
-  for (const response of [yolo, badLevel, mixed, extraTopLevel]) assert.equal(response.json().type.endsWith('session-state-refused'), true)
+  for (const response of [yolo, badLevel, mixed, extraTopLevel]) assert.equal(response.json().type.endsWith('SESSION_STATE_REFUSED'), true)
   assert.deepEqual(reachedContexts.filter((entry) => entry.url.includes('/state')), [])
 })
 
@@ -398,20 +399,20 @@ test('the source compare route maps a not-found revision to 404 and any other fa
   const base = 'b'.repeat(40)
   const result = 'c'.repeat(40)
   const url = `/api/control/projects/${projectA}/source/compare?baseSourceRevision=${base}&resultSourceRevision=${result}`
-  const { app: notFoundApp } = await createBuilderRoutesApp(t, { compareSourceRevisions: async () => { throw new Error('BUILDER_SOURCE_SUBJECT_NOT_FOUND') } })
+  const { app: notFoundApp } = await createBuilderRoutesApp(t, { compareSourceRevisions: async () => { throw new Failure('SOURCE_REVISION_NOT_FOUND') } })
   const notFound = await notFoundApp.inject({ method: 'GET', url, ...authentic })
   assert.equal(notFound.statusCode, 404)
-  assert.equal(notFound.json().type.endsWith('source-revision-not-found'), true)
+  assert.equal(notFound.json().type.endsWith('SOURCE_REVISION_NOT_FOUND'), true)
 
   const { app: unavailableApp } = await createBuilderRoutesApp(t, { compareSourceRevisions: async () => { throw new Error('BUILDER_FACTORY_PROJECT_UNBOUND') } })
   const unavailable = await unavailableApp.inject({ method: 'GET', url, ...authentic })
   assert.equal(unavailable.statusCode, 503)
-  assert.equal(unavailable.json().type.endsWith('builder-source-unavailable'), true)
-  const sourceLog = logs.find((r) => r.msg === 'BUILDER_SOURCE_FAILED')
-  assert.ok(sourceLog, 'BUILDER_SOURCE_FAILED was logged')
+  assert.equal(unavailable.json().type.endsWith('BUILDER_SOURCE_UNAVAILABLE'), true)
+  const sourceLog = logs.find((r) => r.msg === 'BUILDER_SOURCE_UNAVAILABLE')
+  assert.ok(sourceLog, 'BUILDER_SOURCE_UNAVAILABLE was logged')
   assert.equal(sourceLog.level, 50)
-  assert.equal(sourceLog['exception.message'], 'BUILDER_FACTORY_PROJECT_UNBOUND')
-  assert.equal(sourceLog['conexus.project_id'], projectA)
+  assert.equal(sourceLog['exception.type'], 'Error')
+  assert.equal(sourceLog['failure.details.projectId'], projectA)
 })
 
 test('the source compare route requires authentication and 40-hex revisions', async (t) => {
@@ -441,7 +442,7 @@ test('a message names its conversation only: mode and promptVariant are refused,
     createBuilderRun: async (input) => {
       received.push(input)
       if (failRun) throw failRun
-      throw new Error('BUILDER_CONVERSATION_NOT_FOUND')
+      throw new Failure('CONVERSATION_NOT_FOUND')
     },
   })
   const url = `/api/control/projects/${projectA}/builder-session/messages`
@@ -450,22 +451,22 @@ test('a message names its conversation only: mode and promptVariant are refused,
   const withVariant = await send({ content: 'altere', conversationId: conversationA, promptVariant: 'v2' })
   const unknown = await send({ content: 'altere', conversationId: conversationA })
   assert.deepEqual([withMode.statusCode, withVariant.statusCode, unknown.statusCode], [400, 400, 404])
-  assert.equal(unknown.json().type.endsWith('conversation-not-found'), true)
+  assert.equal(unknown.json().type.endsWith('CONVERSATION_NOT_FOUND'), true)
   assert.deepEqual(received, [{ accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k-1', content: 'altere' }])
 
-  failRun = new Error('BUILDER_HEAP_PRESSURE')
+  failRun = new Failure('BUILDER_CAPACITY_FULL')
   const full = await send({ content: 'altere', conversationId: conversationA })
-  assert.deepEqual([full.statusCode, full.json().type, logs.filter((r) => r.msg === 'BUILDER_RUN_START_FAILED').length], [503, 'urn:conexus:problem:builder-capacity-full', 0], 'a refusal under heap pressure is no failure to log')
+  assert.deepEqual([full.statusCode, full.json().type, logs.filter((r) => r.msg === 'BUILDER_UNAVAILABLE').length], [503, 'urn:conexus:problem:BUILDER_CAPACITY_FULL', 0], 'a refusal under heap pressure is no failure to log')
 
   failRun = new Error('STORE_UNAVAILABLE')
   const unavailable = await send({ content: 'altere', conversationId: conversationA })
   assert.equal(unavailable.statusCode, 503)
-  assert.equal(unavailable.json().type.endsWith('builder-unavailable'), true)
-  const runLog = logs.find((r) => r.msg === 'BUILDER_RUN_START_FAILED')
-  assert.ok(runLog, 'BUILDER_RUN_START_FAILED was logged')
+  assert.equal(unavailable.json().type.endsWith('BUILDER_UNAVAILABLE'), true)
+  const runLog = logs.find((r) => r.msg === 'BUILDER_UNAVAILABLE')
+  assert.ok(runLog, 'BUILDER_UNAVAILABLE was logged')
   assert.equal(runLog.level, 50)
-  assert.equal(runLog['exception.message'], 'STORE_UNAVAILABLE')
-  assert.equal(runLog['conexus.project_id'], projectA)
+  assert.equal(runLog['exception.type'], 'Error')
+  assert.equal(runLog['failure.details.projectId'], projectA)
 })
 
 test('builder session, cancel, trace, and preview routes log failure codes on internal errors', async (t) => {
@@ -510,58 +511,59 @@ test('builder session, cancel, trace, and preview routes log failure codes on in
   const sessionLog = logs.find((r) => r.msg === 'BUILDER_SESSION_UNAVAILABLE')
   assert.ok(sessionLog, 'BUILDER_SESSION_UNAVAILABLE was logged')
   assert.equal(sessionLog.level, 50)
-  assert.equal(sessionLog['exception.message'], 'SESSION_READ_FAIL')
-  assert.equal(sessionLog['conexus.project_id'], projectA)
+  assert.equal(sessionLog['exception.type'], 'Error')
+  assert.equal(sessionLog['failure.details.projectId'], projectA)
 
   // 2. POST /runs/:id/cancel -> BUILDER_CANCEL_FAILED
   const cancelRes = await app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/builder-session/runs/${runId}/cancel`, ...authentic, payload: {} })
   assert.equal(cancelRes.statusCode, 503)
-  const cancelLog = logs.find((r) => r.msg === 'BUILDER_CANCEL_FAILED')
-  assert.ok(cancelLog, 'BUILDER_CANCEL_FAILED was logged')
+  const cancelLog = logs.find((r) => r.msg === 'BUILDER_CANCELLATION_UNAVAILABLE')
+  assert.ok(cancelLog, 'BUILDER_CANCELLATION_UNAVAILABLE was logged')
   assert.equal(cancelLog.level, 50)
-  assert.equal(cancelLog['exception.message'], 'CANCEL_SERVICE_FAIL')
-  assert.equal(cancelLog['conexus.project_id'], projectA)
-  assert.equal(cancelLog['conexus.builder_run_id'], runId)
+  assert.equal(cancelLog['exception.type'], 'Error')
+  assert.equal(cancelLog['failure.details.projectId'], projectA)
+  assert.equal(cancelLog['failure.details.builderRunId'], runId)
 
   // 3. GET /runs/:id/trace -> BUILDER_TRACE_FAILED (the run read is the only failure the route's catch handles)
   failRunRead = true
   const traceRes = await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/builder-session/runs/${runId}/trace`, ...authentic })
   failRunRead = false
   assert.equal(traceRes.statusCode, 503)
-  const traceLog = logs.find((r) => r.msg === 'BUILDER_TRACE_FAILED')
-  assert.ok(traceLog, 'BUILDER_TRACE_FAILED was logged')
+  const traceLog = logs.find((r) => r.msg === 'BUILDER_TRACE_UNAVAILABLE')
+  assert.ok(traceLog, 'BUILDER_TRACE_UNAVAILABLE was logged')
   assert.equal(traceLog.level, 50)
-  assert.equal(traceLog['exception.message'], 'RUN_READ_FAIL')
-  assert.equal(traceLog['conexus.project_id'], projectA)
-  assert.equal(traceLog['conexus.builder_run_id'], runId)
+  assert.equal(traceLog['exception.type'], 'Error')
+  assert.equal(traceLog['failure.details.projectId'], projectA)
+  assert.equal(traceLog['failure.details.builderRunId'], runId)
 
   // 3b. GET /runs/:id/trace with mismatched run ID returns 404 builder-run-not-found
   const mismatchRunId = randomUUID()
   const traceNotFoundRes = await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/builder-session/runs/${mismatchRunId}/trace`, ...authentic })
   assert.equal(traceNotFoundRes.statusCode, 404)
   assert.deepEqual(JSON.parse(traceNotFoundRes.body), {
-    type: 'urn:conexus:problem:builder-run-not-found',
-    title: 'BuilderRun not found',
+    type: 'urn:conexus:problem:BUILDER_RUN_NOT_FOUND',
+    title: 'BUILDER_RUN_NOT_FOUND',
     status: 404,
+    code: 'BUILDER_RUN_NOT_FOUND',
   })
 
   // 4. POST /preview -> BUILDER_PREVIEW_FAILED
   const previewRes = await app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/builder-session/preview`, ...authentic, payload: {} })
   assert.equal(previewRes.statusCode, 503)
-  const previewLog = logs.find((r) => r.msg === 'BUILDER_PREVIEW_FAILED')
-  assert.ok(previewLog, 'BUILDER_PREVIEW_FAILED was logged')
+  const previewLog = logs.find((r) => r.msg === 'PREVIEW_UNAVAILABLE')
+  assert.ok(previewLog, 'PREVIEW_UNAVAILABLE was logged')
   assert.equal(previewLog.level, 50)
-  assert.equal(previewLog['exception.message'], 'LAUNCH_PREVIEW_FAIL')
-  assert.equal(previewLog['conexus.project_id'], projectA)
+  assert.equal(previewLog['exception.type'], 'Error')
+  assert.equal(previewLog['failure.details.projectId'], projectA)
 
   // 5. GET /source/tree -> BUILDER_SOURCE_FAILED
   const treeRes = await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/source/tree?sourceRevision=${'0'.repeat(40)}`, ...authentic })
   assert.equal(treeRes.statusCode, 503)
-  const treeLog = logs.find((r) => r.msg === 'BUILDER_SOURCE_FAILED')
-  assert.ok(treeLog, 'BUILDER_SOURCE_FAILED was logged')
+  const treeLog = logs.find((r) => r.msg === 'BUILDER_SOURCE_UNAVAILABLE')
+  assert.ok(treeLog, 'BUILDER_SOURCE_UNAVAILABLE was logged')
   assert.equal(treeLog.level, 50)
-  assert.equal(treeLog['exception.message'], 'TREE_SERVICE_FAIL')
-  assert.equal(treeLog['conexus.project_id'], projectA)
+  assert.equal(treeLog['exception.type'], 'Error')
+  assert.equal(treeLog['failure.details.projectId'], projectA)
 })
 
 test("the browser reaches exactly ten of Mastra's agent-controller routes, each one Mastra's own route table names", async (t) => {

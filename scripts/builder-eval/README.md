@@ -31,7 +31,7 @@ Options (`--help` prints the same list):
 - `--project-name <name>`: name for a newly created Project; default is the case's `person.projectName`
   (an organic name such as "Cobrança"), else `eval-<date>-<time>`.
 - `--max-repairs <n>`: repair messages ("o build falhou, corrija") to send after a run whose failure
-  category is `APPLICATION_BUILD_FAILED`, the only failure the source can fix; default 2. A platform
+  code is an `APPLICATION_*` row of the failure table the source broke, the only failure it can fix; default 2. A platform
   failure (runner unavailable, Hub restart) is recorded and never repaired.
 - `--base-url <url>`: Hub origin; default `https://hub.conexus.localhost:3443`. Any other origin needs
   `CONEXUS_STATE` set to a storage state for it; the driver then never calls the pilot session
@@ -84,7 +84,7 @@ result was saved outside the browser.
 - `sourceRevisionBefore` / `sourceRevisionAfter`, `filesChanged` (from
   `GET .../source/compare`).
 - `runs`: one entry per BuilderRun sent (the first request plus each repair), with
-  `builderRunId`, `state`, `resultKind`, `failureCode`, `failureCategory`.
+  `builderRunId`, `state`, `resultKind`, `failureCode`.
 - `answers`: each question the driver answered while the run waited for a person, as
   `{ kind, toolCallId, title, text, answer }`. A question card holds 1 to 4 questions: each is one record,
   all with the card's `toolCallId`, and one "Enviar" sends them together. `kind` is `APPROVAL` (the approval card), `QUESTION`, or `PLAN`
@@ -157,7 +157,7 @@ case has a `person` block (the answer sheet) and an `oracle` id, and no `checks`
 export CONEXUS_EVAL_VALUES_FILE=~/eval-private/values.json   # {"quoteTop": "...", "quoteNumber": "..."}, outside the repo
 export CONEXUS_EVAL_ORACLE_DIR=~/eval-private/oracle         # <case>.json per case, outside every workspace
 export CONEXUS_EVAL_DATABASE_URL=...             # optional: spans for the timing block
-export CONEXUS_HUB_LOG=~/conexus-branch-state/logs/hub.log   # optional: BUILDER_RUN_TIMING lines
+export CONEXUS_HUB_LOG=~/conexus-branch-state/logs/hub.log   # optional: BUILDER_RUN_TIMING records
 node scripts/builder-eval/run.mjs --case scripts/builder-eval/cases/bakeoff/h1.json --arm v2 --repetition 1 \
   --out /tmp/builder-eval/h1-v2-1 --mask-values
 ```
@@ -194,7 +194,7 @@ node scripts/builder-eval/run.mjs --case scripts/builder-eval/cases/bakeoff/h1.j
 - **Timing block.** `result.timings` holds the identity (case, arm, repetition, model, Hub version, machine
   load), the person's counts and, per Builder run, the block of `timing.mjs`: phases, model against tool
   time, tools, checks until green. It needs `CONEXUS_EVAL_DATABASE_URL`; without it the block is null and
-  says why. `BUILDER_RUN_TIMING:<runId>:sandbox=...` lines from the Hub log fill `phases.hubStages`.
+  says why. `BUILDER_RUN_TIMING` records (`run` and one field per stage) from the Hub log fill `phases.hubStages`.
 - **Outcome.** A bakeoff case is `PASS` when the first Preview matches the oracle, `FAIL` when it does
   not, and `UNGRADED` when no oracle file exists for it.
 

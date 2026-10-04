@@ -8,6 +8,8 @@ import { InMemoryStore } from '@mastra/core/storage'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { hubModuleUrl } from './hub-build.mjs'
 
+const { Failure } = await import(hubModuleUrl('platform/failure.js'))
+
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
 const { createControllerRunSessions, createParkedDiscard, deleteSessionLeavingParked } = await import(hubModuleUrl('builder/run-runtime.js'))
 const { createConversationSessions } = await import(hubModuleUrl('builder/conversation-sessions.js'))
@@ -334,7 +336,7 @@ const endingOverThread = async (t, { asks = 1 } = {}) => {
   store.interruptBuilderRun = async (_id, reason) => { row.state = 'INTERRUPTED'; row.phase = null; calls.push(['interrupt', reason]) }
   store.setBuilderRunPhase = async (_id, phase) => {
     // What the store throws when the database refuses the phase of a run whose stop it recorded.
-    if (phase === 'PARKED' && stopped.requested) throw new Error('BUILDER_RUN_PHASE_UPDATE_REFUSED')
+    if (phase === 'PARKED' && stopped.requested) throw new Failure('BUILDER_RUN_PHASE_UPDATE_REFUSED')
     row.phase = phase
   }
   const open = async () => {

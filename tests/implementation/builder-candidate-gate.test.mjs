@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
+const { Failure } = await import(hubModuleUrl('platform/failure.js'))
+
 const { classifyCheck, createCandidateGate, GATE_RED_BUDGET } = await import(hubModuleUrl('builder/candidate-gate.js'))
 
 const REVISION = 'a'.repeat(40)
@@ -52,7 +54,7 @@ const RED = { kind: 'RED_APP', detail: 'typecheck failed:\nboom' }
 test('a red finish goes back to the agent with the check in its words, counted against the budget', async () => {
   const { gate } = gateOver([RED])
   const feedback = await gate.finish()
-  assert.equal(feedback, `Verificação do Conexus: o app não passou (1 de ${GATE_RED_BUDGET}).\ntypecheck failed:\nboom\nCorrija estes problemas e termine de novo: o Conexus verifica o app outra vez quando você terminar.`)
+  assert.equal(feedback, `Verificação do Conexus: o app não passou (1 de ${GATE_RED_BUDGET}).\ntypecheck failed:\nboom\nResolva estes problemas e diga que terminou: o Conexus verifica o app quando você terminar.`)
   assert.equal(gate.gaveUp(), false)
 })
 
@@ -88,7 +90,7 @@ test('a green finish ends the turn, and the verdict it judged is the one the run
 })
 
 test('a Conexus failure never goes back to the agent, and is checked again rather than kept', async () => {
-  const unpack = new Error('BUILDER_CANDIDATE_UNPACK_FAILED')
+  const unpack = new Failure('BUILDER_CANDIDATE_UNPACK_FAILED')
   const { gate, judged } = gateOver([unpack, unpack])
   assert.equal(await gate.finish(), null)
   assert.deepEqual(await gate.settle(), { kind: 'RED_PLATFORM', error: unpack })
@@ -103,7 +105,7 @@ test('a candidate that cannot be read is Conexus failing', async () => {
 })
 
 test('a checkout too large to take back goes to the agent to fix', async () => {
-  const gate = createCandidateGate({ candidate: async () => { throw new Error('BUILDER_RESULT_BUNDLE_TOO_LARGE') }, judge: async () => assert.fail('nothing to judge') })
+  const gate = createCandidateGate({ candidate: async () => { throw new Failure('BUILDER_RESULT_BUNDLE_TOO_LARGE') }, judge: async () => assert.fail('nothing to judge') })
   assert.match(await gate.finish(), /^Verificação do Conexus: o app não passou \(1 de 3\)\.\nO Conexus não aceita esta versão: os arquivos do projeto passam do tamanho máximo/)
   assert.equal((await gate.settle()).revision, null)
 })

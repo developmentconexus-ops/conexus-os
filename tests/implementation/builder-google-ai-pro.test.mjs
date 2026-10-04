@@ -74,7 +74,7 @@ test('a credential carries the auth record whole, and only a well-formed Antigra
     `cxagy1.${encoded('antigravity-a.json')}.${encoded('not json')}`,
     `cxagy1.${encoded('antigravity-a.json')}`,
   ]) assert.equal(parseKey(refused), null, refused)
-  assert.throws(() => encodeKey({ fileName: '.oauth-antigravity-state.oauth', bytes: new Uint8Array([1]) }), /^Error: GOOGLE_AI_PRO_RECORD_REFUSED$/)
+  assert.throws(() => encodeKey({ fileName: '.oauth-antigravity-state.oauth', bytes: new Uint8Array([1]) }), { id: 'GOOGLE_AI_PRO_RECORD_REFUSED' })
 })
 
 test('the proxy config a person\'s proxy starts with sets no payload rule: the request itself asks Gemini for its thinking', async (t) => {
@@ -104,8 +104,8 @@ test('a binary whose sha256 differs from the pinned one is refused', async (t) =
   const { binary } = scratch(t)
   const pinned = createHash('sha256').update(readFileSync(binary)).digest('hex')
   await verifyCliproxyBinary(binary, pinned)
-  await assert.rejects(verifyCliproxyBinary(binary, '0'.repeat(64)), /^Error: GOOGLE_AI_PRO_BINARY_REFUSED$/)
-  await assert.rejects(verifyCliproxyBinary(join(binary, 'missing'), pinned), /^Error: GOOGLE_AI_PRO_BINARY_REFUSED$/)
+  await assert.rejects(verifyCliproxyBinary(binary, '0'.repeat(64)), { id: 'GOOGLE_AI_PRO_BINARY_REFUSED' })
+  await assert.rejects(verifyCliproxyBinary(join(binary, 'missing'), pinned), { id: 'GOOGLE_AI_PRO_BINARY_REFUSED' })
 })
 
 test('two people reach two proxies holding only their own record, and one person reuses one', async (t) => {
@@ -187,7 +187,7 @@ test('a proxy that never accepts the stored sign-in fails the start and is not k
   const router = await openRouter(t, pool)
   const answer = await generate(router, encodeKey(record('ana@example.com', { unavailableForMs: -1 })))
   assert.equal(answer.status, 503)
-  assert.deepEqual(await answer.json(), { error: { code: 503, message: 'O Google AI Pro não iniciou. Tente novamente.', status: 'UNAVAILABLE' } })
+  assert.deepEqual(await answer.json(), { error: { code: 503, message: 'O Google AI Pro não iniciou.', status: 'UNAVAILABLE' } })
   assert.deepEqual(readdirSync(stateDir), [])
 })
 
@@ -406,7 +406,7 @@ test('a pasted address with the wrong host, path or state is refused, and a refu
   ]) {
     const refused = await app.inject({ method: 'POST', url: `${base}/complete`, ...authentic, payload: { loginId, callbackUrl } })
     assert.equal(refused.statusCode, 400, callbackUrl)
-    assert.equal(refused.json().type.endsWith('model-login-callback-refused'), true)
+    assert.equal(refused.json().type.endsWith('MODEL_LOGIN_CALLBACK_REFUSED'), true)
   }
   await app.inject({ method: 'POST', url: `${base}/complete`, ...authentic, payload: { loginId, callbackUrl: callback(url, { code: 'bad' }) } })
   assert.equal(await pollUntilSettled(app, loginId), 'failed')
@@ -418,7 +418,7 @@ test('one sign-in at a time: another person is told to wait, and the same person
   as(bia)
   const busy = await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })
   assert.equal(busy.statusCode, 409)
-  assert.equal(busy.json().type.endsWith('model-login-busy'), true)
+  assert.equal(busy.json().type.endsWith('MODEL_LOGIN_BUSY'), true)
   assert.deepEqual((await app.inject({ method: 'GET', url: `${base}/${first.loginId}`, ...authentic })).json(), { state: 'expired' }, 'a sign-in is visible only to its person')
   as(ana)
   const second = (await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })).json()

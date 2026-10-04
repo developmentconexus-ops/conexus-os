@@ -6,7 +6,7 @@ const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/defi
 
 export const connectorRecord = ({ store = new TestExporter({ logMetricsOnFlush: false }), log } = {}) => {
   const lines = []
-  const observability = createConnectorObservability({ store, log: log ?? ((line) => lines.push(line)), secretFields: sankhyaDefinition.secretFields })
+  const observability = createConnectorObservability({ store, log: log ?? ((_code, fields) => lines.push(`${JSON.stringify(fields)}\n`)), secretFields: sankhyaDefinition.secretFields })
   // Past a deadline, a request's span ends after its call has already returned.
   const settled = async () => {
     for (let waited = 0; store.getIncompleteSpans?.().length > 0; waited += 10) {

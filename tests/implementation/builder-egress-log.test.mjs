@@ -5,12 +5,14 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { hubModuleUrl } from './hub-build.mjs'
+import { takeHubLogs } from './hub-log-capture.mjs'
 
 const { collectEgress, ensureEgressLog } = await import(hubModuleUrl('builder/egress-log.js'))
 
 const bytes = (rows) => Buffer.from(rows.map((row) => `${typeof row === 'string' ? row : JSON.stringify(row)}\n`).join(''))
 
 const ports = (overrides = {}) => {
+  takeHubLogs()
   const files = new Map()
   const lines = []
   return {
@@ -20,7 +22,7 @@ const ports = (overrides = {}) => {
       asRoot: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
       writeRootFile: async (path, content) => { files.set(path, Buffer.from(content)) },
       readAgentFile: async (path) => files.get(path) ?? null,
-      log: (line) => lines.push(line),
+      log: (code, fields = {}) => lines.push([code, ...Object.values(fields)].join(':')),
       executionId: 'run-1',
       conversationId: 'conv-1',
       ...overrides,
@@ -119,22 +121,22 @@ test('a turn whose poller wrote no file is complete with no destinations, and th
 })
 
 test('a TCP log that cannot be read is a failed collection, never a complete one', async () => {
-  const held = ports({ readAgentFile: async (path) => { if (path === TCP) throw new Error('502 upstream timeout'); return null } })
+  const held = ports({ readAgentFile: async (path) => { if (path === TCP) throw new Error('Error'); return null } })
   await collectEgress(held.ports)
   assert.equal(held.lines.some((line) => line.includes(':complete:')), false)
-  assert.equal(held.lines.some((line) => line.startsWith('BUILDER_SANDBOX_EGRESS_COLLECT_FAILED:run-1:')), true)
+  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['exception.type']]), [['BUILDER_SANDBOX_EGRESS_COLLECT_FAILED', 'Error']])
   assert.equal(held.lines.at(-1), 'BUILDER_SANDBOX_EGRESS_SUMMARY:run-1:failed:0')
 })
 
 test('a collection that fails or hangs is logged, never thrown, and never waits past its timeout', async () => {
   const failing = ports({ asRoot: async () => ({ exitCode: 1, stdout: '', stderr: 'no' }) })
   await collectEgress(failing.ports)
-  assert.match(failing.lines[0], /^BUILDER_SANDBOX_EGRESS_COLLECT_FAILED:run-1:BUILDER_SANDBOX_EGRESS_POLL_FAILED/)
-  assert.equal(failing.lines[1], 'BUILDER_SANDBOX_EGRESS_SUMMARY:run-1:failed:0')
+  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['exception.type']]), [['BUILDER_SANDBOX_EGRESS_COLLECT_FAILED', 'Error']])
+  assert.deepEqual(failing.lines, ['BUILDER_SANDBOX_EGRESS_SUMMARY:run-1:failed:0'])
   const hanging = ports({ asRoot: () => new Promise(() => {}), timeoutMs: 20 })
   await collectEgress(hanging.ports)
-  assert.match(hanging.lines[0], /^BUILDER_SANDBOX_EGRESS_COLLECT_FAILED:run-1:BUILDER_SANDBOX_EGRESS_COLLECT_TIMEOUT/)
-  assert.equal(hanging.lines[1], 'BUILDER_SANDBOX_EGRESS_SUMMARY:run-1:failed:0')
+  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['exception.type']]), [['BUILDER_SANDBOX_EGRESS_COLLECT_FAILED', 'Error']])
+  assert.deepEqual(hanging.lines, ['BUILDER_SANDBOX_EGRESS_SUMMARY:run-1:failed:0'])
 })
 
 test('a very long destination list is capped and the summary says it is partial', async () => {

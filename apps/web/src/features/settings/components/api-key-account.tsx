@@ -2,8 +2,9 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useId, useState } from 'react'
-import { accountsQueryKey, accountsUrl, callModelAccounts, ModelAccountsRequestError, type Accounts } from '../model-accounts-api'
+import { accountsQueryKey, accountsUrl, callModelAccounts, type Accounts } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
+import { failureText } from '../../../app/http'
 
 /** The providers a person connects by pasting a key, with where the key comes from. */
 const API_KEY_PROVIDERS = {
@@ -30,18 +31,13 @@ export function ApiKeyAccount({ provider }: Readonly<{ provider: keyof typeof AP
         queryClient.invalidateQueries({ queryKey: ['builder-models'] }),
       ])
     },
-    onError: (error) => setMessage({
-      text: error instanceof ModelAccountsRequestError && error.status === 400
-        ? `Essa não é uma chave de API da ${name}. Confira e cole de novo; nada foi alterado.`
-        : 'Não foi possível salvar a chave agora. Nada foi alterado.',
-      failed: true,
-    }),
+    onError: (error) => setMessage({ text: failureText(error), failed: true }),
   })
   const title = `Chave de API da ${name}`
   if (accounts.isPending) return null
   if (accounts.isError) return <section aria-labelledby={titleId}>
     <h2 id={titleId}>{title}</h2>
-    <SectionError description={`Não foi possível consultar a sua conta da ${name}.`} onRetry={() => void accounts.refetch()} />
+    <SectionError error={accounts.error} description={`Não foi possível consultar a sua conta da ${name}.`} onRetry={() => void accounts.refetch()} />
   </section>
   const account = accounts.data.accounts.find((item) => item.provider === provider)
   const kind = account?.kind ?? null

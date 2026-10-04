@@ -1,6 +1,8 @@
 import { chmodSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { createApplicationRunnerApp } from './http.js'
+import { Failure } from '../platform/failure.js'
+import { installFatalHandlers } from '../platform/lifecycle.js'
 import { logLine } from '../platform/logger.js'
 import { readRelayTls } from './pg-relay.js'
 import { assertUserNamespaces, stageWorkerRuntime } from './sandbox.js'
@@ -15,17 +17,19 @@ import { createSupervisor } from './supervisor.js'
 const required = (name: string): string => {
   // biome-ignore lint/style/noProcessEnv: debt: owning wave
   const value = process.env[name]
-  if (!value) throw new Error(`MISSING_CONFIG_${name}`)
+  if (!value) throw new Failure('CONFIG_MISSING', { details: { name } })
   return value
 }
 const secret = (name: string): string => readFileSync(required(name), 'utf8').trim()
 
+// A boot failure is logged once, by its row, and ends the process.
+installFatalHandlers()
 assertUserNamespaces()
 const stateDir = required('CONEXUS_APP_RUNNER_STATE_DIR')
 const socketPath = required('CONEXUS_APP_RUNNER_SOCKET')
 // biome-ignore lint/style/noProcessEnv: debt: owning wave
 const connectorSocketDir = process.env.CONEXUS_CONNECTOR_SOCKET_DIR
-if (connectorSocketDir !== undefined && !connectorSocketDir.startsWith('/')) throw new Error('INVALID_CONFIG_CONEXUS_CONNECTOR_SOCKET_DIR')
+if (connectorSocketDir !== undefined && !connectorSocketDir.startsWith('/')) throw new Failure('CONFIG_INVALID', { details: { name: 'CONEXUS_CONNECTOR_SOCKET_DIR' } })
 mkdirSync(stateDir, { recursive: true, mode: 0o700 })
 chmodSync(stateDir, 0o700)
 rmSync(join(stateDir, 'i'), { recursive: true, force: true })
@@ -42,7 +46,7 @@ const supervisor = createSupervisor({
 
 await supervisor.checkProvisioner()
 
-const app = createApplicationRunnerApp({ supervisor, log: (line) => logLine(line) })
+const app = createApplicationRunnerApp({ supervisor, log: logLine })
 
 rmSync(socketPath, { force: true })
 await app.listen({ path: socketPath })

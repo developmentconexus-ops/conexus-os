@@ -1,5 +1,6 @@
 import type { ApplicationCheckRun, CompiledApplication, CompiledApplicationThumbnail } from './application-artifact-runtime.js'
 import { failedBootStep, failedStepEvidence, refusingStep, unrenderedBootStep } from './application-check.js'
+import { Failure } from '../platform/failure.js'
 
 /** How many times one run's "done" may meet a red check of the app's own code before it stops. */
 export const GATE_RED_BUDGET = 3
@@ -34,11 +35,11 @@ const TOO_LARGE = 'O Conexus não aceita esta versão: os arquivos do projeto pa
 export const classifyCheck = (revision: string, run: ApplicationCheckRun): CandidateVerdict => {
   const refused = refusingStep(run.report)
   // A step the check stopped on its clock says nothing about the app's code.
-  if (refused?.problems.every((problem) => problem.code === 'STEP_TIMEOUT')) return { kind: 'RED_PLATFORM', error: new Error('APPLICATION_CHECK_TIMEOUT') }
+  if (refused?.problems.every((problem) => problem.code === 'STEP_TIMEOUT')) return { kind: 'RED_PLATFORM', error: new Failure('APPLICATION_CHECK_TIMEOUT') }
   if (refused) return { kind: 'RED_APP', revision, detail: failedStepEvidence(refused) }
   const unrendered = unrenderedBootStep(run.report)
   if (unrendered) return { kind: 'UNRENDERED', revision, detail: failedStepEvidence(unrendered) }
-  if (!run.files) return { kind: 'RED_PLATFORM', error: new Error('APPLICATION_CHECK_UNREADABLE') }
+  if (!run.files) return { kind: 'RED_PLATFORM', error: new Failure('APPLICATION_CHECK_UNREADABLE') }
   const boot = failedBootStep(run.report)
   return { kind: 'GREEN', revision, build: {
     files: run.files,
@@ -53,7 +54,7 @@ const repairFeedback = (detail: string, redFinishes: number): string => [
   detail,
   redFinishes >= GATE_RED_BUDGET
     ? 'O limite de tentativas acabou. A execução para aqui, e os arquivos ficam nesta conversa.'
-    : 'Corrija estes problemas e termine de novo: o Conexus verifica o app outra vez quando você terminar.',
+    : 'Resolva estes problemas e diga que terminou: o Conexus verifica o app quando você terminar.',
 ].join('\n')
 
 /**
@@ -77,7 +78,7 @@ export const createCandidateGate = ({ candidate, judge, redFinishes: spent = 0, 
     try {
       revision = await candidate()
     } catch (error) {
-      if (error instanceof Error && error.message === 'BUILDER_RESULT_BUNDLE_TOO_LARGE') return { kind: 'RED_APP', revision: null, detail: TOO_LARGE }
+      if (error instanceof Failure && error.id === 'BUILDER_RESULT_BUNDLE_TOO_LARGE') return { kind: 'RED_APP', revision: null, detail: TOO_LARGE }
       return { kind: 'RED_PLATFORM', error }
     }
     if (revision === null) return null

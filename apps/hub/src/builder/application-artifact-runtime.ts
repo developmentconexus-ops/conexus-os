@@ -6,6 +6,7 @@ import type { CheckReport } from './application-check.js'
 import { CURRENT_TEMPLATE_PIN } from '../platform/application-template-pins.js'
 import type { SANDBOX_AGENT_USER } from './sandbox.js'
 import { fieldOf } from '../platform/field-of.js'
+import { Failure } from '../platform/failure.js'
 
 /** Who runs the check's command: root for the Hub's own runs, the agent's user for the Builder's tool. */
 type CheckUser = 'root' | typeof SANDBOX_AGENT_USER
@@ -71,7 +72,7 @@ const mediaTypeForPath = (path: string): string => {
     '.woff2': 'font/woff2',
   }
   const mediaType = mediaTypes[extension]
-  if (!mediaType) throw new Error('APPLICATION_COMPILER_OUTPUT_MEDIA_TYPE_REFUSED')
+  if (!mediaType) throw new Failure('APPLICATION_COMPILER_OUTPUT_MEDIA_TYPE_REFUSED')
   return mediaType
 }
 
@@ -81,9 +82,9 @@ const distRoot = (place: BuildPlace): string => place.out
 
 const outputPath = (place: BuildPlace, path: string): string => {
   const prefix = `${distRoot(place)}/`
-  if (!path.startsWith(prefix)) throw new Error('APPLICATION_COMPILER_OUTPUT_PATH_REFUSED')
+  if (!path.startsWith(prefix)) throw new Failure('APPLICATION_COMPILER_OUTPUT_PATH_REFUSED')
   const relative = path.slice(prefix.length)
-  if (!safeRelativePath(relative) || relative.split('/').length > MAX_OUTPUT_DEPTH) throw new Error('APPLICATION_COMPILER_OUTPUT_PATH_REFUSED')
+  if (!safeRelativePath(relative) || relative.split('/').length > MAX_OUTPUT_DEPTH) throw new Failure('APPLICATION_COMPILER_OUTPUT_PATH_REFUSED')
   return relative
 }
 
@@ -104,7 +105,7 @@ const readBoundedOutput = async (sandbox: Sandbox, place: BuildPlace, entry: Ent
       if (!(next.value instanceof Uint8Array) || next.value.byteLength > MAX_TOTAL_BYTES ||
         totalBytes + next.value.byteLength > MAX_TOTAL_BYTES || totalBytes + next.value.byteLength > entry.size) {
         await reader.cancel().catch(() => undefined)
-        throw new Error('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
+        throw new Failure('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
       }
       chunks.push(next.value)
       totalBytes += next.value.byteLength
@@ -115,7 +116,7 @@ const readBoundedOutput = async (sandbox: Sandbox, place: BuildPlace, entry: Ent
   } finally {
     reader.releaseLock()
   }
-  if (totalBytes !== entry.size) throw new Error('APPLICATION_COMPILER_OUTPUT_SIZE_REFUSED')
+  if (totalBytes !== entry.size) throw new Failure('APPLICATION_COMPILER_OUTPUT_SIZE_REFUSED')
   const bytes = new Uint8Array(totalBytes)
   let offset = 0
   for (const chunk of chunks) {
@@ -127,35 +128,35 @@ const readBoundedOutput = async (sandbox: Sandbox, place: BuildPlace, entry: Ent
 
 const collectOutput = async (sandbox: Sandbox, place: BuildPlace): Promise<readonly CompiledApplicationFile[]> => {
   const entries = await sandbox.files.list(distRoot(place), { depth: MAX_FILES, ...requestOptions(place) })
-  if (entries.length > MAX_LIST_ENTRIES) throw new Error('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
+  if (entries.length > MAX_LIST_ENTRIES) throw new Failure('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
   const files = new Map<string, EntryInfo>()
   let listedTotalBytes = 0
   for (const entry of entries) {
     if (entry.path === distRoot(place) && entry.type === FileType.DIR) continue
     const path = outputPath(place, entry.path)
     if (entry.type === FileType.DIR) continue
-    if (entry.type !== FileType.FILE) throw new Error(entry.type === FileType.SYMLINK
+    if (entry.type !== FileType.FILE) throw new Failure(entry.type === FileType.SYMLINK
       ? 'APPLICATION_COMPILER_OUTPUT_SYMLINK_REFUSED'
       : 'APPLICATION_COMPILER_OUTPUT_NON_REGULAR_REFUSED')
     if (files.has(path) || !Number.isSafeInteger(entry.size) || entry.size < 0 || entry.size > MAX_TOTAL_BYTES) {
-      throw new Error('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
+      throw new Failure('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
     }
     listedTotalBytes += entry.size
-    if (listedTotalBytes > MAX_TOTAL_BYTES) throw new Error('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
+    if (listedTotalBytes > MAX_TOTAL_BYTES) throw new Failure('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
     mediaTypeForPath(path)
     files.set(path, entry)
-    if (files.size > MAX_FILES) throw new Error('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
+    if (files.size > MAX_FILES) throw new Failure('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
   }
-  if (!files.has('index.html')) throw new Error('APPLICATION_COMPILER_OUTPUT_ENTRYPOINT_REFUSED')
+  if (!files.has('index.html')) throw new Failure('APPLICATION_COMPILER_OUTPUT_ENTRYPOINT_REFUSED')
 
   let totalBytes = 0
   const output: CompiledApplicationFile[] = []
   for (const path of [...files.keys()].sort()) {
     const entry = files.get(path)
-    if (!entry) throw new Error('APPLICATION_COMPILER_OUTPUT_PATH_REFUSED')
+    if (!entry) throw new Failure('APPLICATION_COMPILER_OUTPUT_PATH_REFUSED')
     const bytes = await readBoundedOutput(sandbox, place, entry)
     if (bytes.byteLength > MAX_TOTAL_BYTES || totalBytes + bytes.byteLength > MAX_TOTAL_BYTES) {
-      throw new Error('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
+      throw new Failure('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
     }
     const ownedBytes = new Uint8Array(bytes)
     output.push(Object.freeze({
@@ -200,7 +201,7 @@ export const checkApplicationInSandbox = async (
   sandbox: Sandbox,
   input: Readonly<{ root: string; out: string; collect: boolean; thumbnail?: string; user?: CheckUser}>,
 ): Promise<ApplicationCheckRun> => {
-  if (!SAFE_ABSOLUTE_PATH.test(input.root) || !SAFE_ABSOLUTE_PATH.test(input.out) || (input.thumbnail !== undefined && !SAFE_ABSOLUTE_PATH.test(input.thumbnail))) throw new Error('APPLICATION_COMPILER_WORKSPACE_REFUSED')
+  if (!SAFE_ABSOLUTE_PATH.test(input.root) || !SAFE_ABSOLUTE_PATH.test(input.out) || (input.thumbnail !== undefined && !SAFE_ABSOLUTE_PATH.test(input.thumbnail))) throw new Failure('APPLICATION_COMPILER_WORKSPACE_REFUSED')
   const place: BuildPlace = { out: input.out, ...(input.user ? { user: input.user } : {}) }
   let result: CommandResult
   try {
@@ -213,10 +214,10 @@ export const checkApplicationInSandbox = async (
     const stdout = fieldOf(error, 'stdout')
     const stderr = fieldOf(error, 'stderr')
     const exitCode = fieldOf(error, 'exitCode')
-    if (typeof stdout !== 'string' || typeof exitCode !== 'number') throw new Error('APPLICATION_CHECK_UNREADABLE', { cause: error })
+    if (typeof stdout !== 'string' || typeof exitCode !== 'number') throw new Failure('APPLICATION_CHECK_UNREADABLE', { cause: error })
     result = { stdout, stderr: typeof stderr === 'string' ? stderr : '', exitCode }
   }
-  if (result.exitCode !== 0) throw new Error('APPLICATION_CHECK_UNREADABLE', { cause: { exitCode: result.exitCode, stderr: redactEvidence(result.stderr.slice(-2_000)) } })
+  if (result.exitCode !== 0) throw new Failure('APPLICATION_CHECK_UNREADABLE', { cause: { exitCode: result.exitCode, stderr: redactEvidence(result.stderr.slice(-2_000)) } })
   const report = readCheckReport(result.stdout)
   const files = input.collect && report.ok ? await collectOutput(sandbox, place) : null
   const thumbnail = files && input.thumbnail ? await readThumbnail(sandbox, place, input.thumbnail) : null

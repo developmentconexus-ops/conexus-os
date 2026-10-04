@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { CURRENT_TEMPLATE_PIN, type ApplicationProfile } from '../platform/application-template-pins.js'
 import type { RegistryQueryClient } from './store.js'
+import { Failure } from '../platform/failure.js'
 
 const MAX_FILES = 256
 const MAX_TOTAL_BYTES = 12 * 1024 * 1024
@@ -180,11 +181,11 @@ export type ApplicationArtifactStore = Readonly<{
 }>
 
 const refuseInput = (): never => {
-  throw new Error('APPLICATION_ARTIFACT_INPUT_REFUSED')
+  throw new Failure('APPLICATION_ARTIFACT_INPUT_REFUSED')
 }
 
 const refuseResponse = (): never => {
-  throw new Error('APPLICATION_ARTIFACT_RESPONSE_REFUSED')
+  throw new Failure('APPLICATION_ARTIFACT_RESPONSE_REFUSED')
 }
 
 const parseOrRefuse = <T>(schema: z.ZodType<T>, value: unknown): T => {
@@ -272,21 +273,21 @@ const parseCompiled = (value: unknown): Readonly<{
 const parseMetadata = (value: unknown, expected: Readonly<{ projectId: string; sourceRevision: string }>): ApplicationMetadata => {
   const parsed = parseResponseOrRefuse(metadataRowSchema, value)
   if (parsed.project_id !== expected.projectId || parsed.source_revision !== expected.sourceRevision) {
-    throw new Error('APPLICATION_ARTIFACT_RESPONSE_SCOPE_REFUSED')
+    throw new Failure('APPLICATION_ARTIFACT_RESPONSE_SCOPE_REFUSED')
   }
   const paths = new Set<string>()
   let totalBytes = 0
   let previousPath: string | undefined
   for (const file of parsed.files) {
-    if (previousPath !== undefined && previousPath >= file.path) throw new Error('APPLICATION_ARTIFACT_RESPONSE_REFUSED')
+    if (previousPath !== undefined && previousPath >= file.path) throw new Failure('APPLICATION_ARTIFACT_RESPONSE_REFUSED')
     if (!SAFE_APPLICATION_PATH.test(file.path) || paths.has(file.path) || mediaTypeForPath(file.path) !== file.mediaType) {
-      throw new Error('APPLICATION_ARTIFACT_RESPONSE_REFUSED')
+      throw new Failure('APPLICATION_ARTIFACT_RESPONSE_REFUSED')
     }
     paths.add(file.path)
     totalBytes += file.byteLength
     previousPath = file.path
   }
-  if (!paths.has('index.html') || totalBytes > MAX_TOTAL_BYTES) throw new Error('APPLICATION_ARTIFACT_RESPONSE_REFUSED')
+  if (!paths.has('index.html') || totalBytes > MAX_TOTAL_BYTES) throw new Failure('APPLICATION_ARTIFACT_RESPONSE_REFUSED')
   const files = Object.freeze(parsed.files.map((file) => Object.freeze({ ...file })))
   return Object.freeze({
     artifactRevisionId: parsed.artifact_revision_id,
@@ -310,7 +311,7 @@ const parseReadFile = (value: unknown, expected: Readonly<{
   const parsed = parseResponseOrRefuse(readRowSchema, value)
   if (parsed.project_id !== expected.projectId || parsed.source_revision !== expected.sourceRevision ||
     parsed.artifact_revision_id !== expected.artifactRevisionId || parsed.path !== expected.path || mediaTypeForPath(parsed.path) !== parsed.media_type) {
-    throw new Error('APPLICATION_ARTIFACT_RESPONSE_SCOPE_REFUSED')
+    throw new Failure('APPLICATION_ARTIFACT_RESPONSE_SCOPE_REFUSED')
   }
   const bytes = Uint8Array.from(parsed.bytes)
   if (bytes.byteLength > MAX_TOTAL_BYTES) refuseResponse()
@@ -355,7 +356,7 @@ export const createApplicationArtifactStore = (): ApplicationArtifactStore => Ob
       [parsedInput.accountId, compiled.projectId, compiled.executionId, compiled.sourceRevision, payloadText],
     )
     const row = rows[0]
-    if (!row) throw new Error('APPLICATION_ARTIFACT_RESPONSE_REFUSED')
+    if (!row) throw new Failure('APPLICATION_ARTIFACT_RESPONSE_REFUSED')
     return parseMetadata(row, { projectId: compiled.projectId, sourceRevision: compiled.sourceRevision })
   },
 
@@ -403,7 +404,7 @@ export const createApplicationArtifactStore = (): ApplicationArtifactStore => Ob
       [parsed.accountId, parsed.projectId, parsed.executionId, parsed.sourceRevision, parsed.artifactRevisionId, parsed.mediaType, parsed.bytes],
     )
     const row = rows[0]
-    if (!row) throw new Error('APPLICATION_ARTIFACT_RESPONSE_REFUSED')
+    if (!row) throw new Failure('APPLICATION_ARTIFACT_RESPONSE_REFUSED')
     return parseRetainedThumbnail(row)
   },
 

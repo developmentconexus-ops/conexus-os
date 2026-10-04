@@ -9,7 +9,6 @@ import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
 const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
-const { builderFailureCategory } = await import(hubModuleUrl('builder/failure-vocabulary.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const projectId = '22222222-2222-4222-8222-222222222222'
@@ -80,15 +79,11 @@ test('a tool call that never stops streaming ends the turn within the step budge
   assert.ok(seen.chunks > 5)
 })
 
-test('BUILDER_MODEL_STEP_TIMEOUT reaches the person as an internal platform category', () => {
-  assert.equal(builderFailureCategory('BUILDER_MODEL_STEP_TIMEOUT'), 'INTERNAL_ERROR')
-})
-
 test('the web tells the person the model ran too long on one answer and nothing was applied', async () => {
-  const { failureReason } = await import('../../apps/web/src/features/builder/failure-reasons.ts')
+  const { failureCodeText } = await import('../../apps/web/src/app/failure.ts')
   assert.equal(
-    failureReason({ failureCategory: 'INTERNAL_ERROR', failureCode: 'BUILDER_MODEL_STEP_TIMEOUT' }),
-    'O modelo passou tempo demais gerando uma única resposta, então o Conexus encerrou a execução. As alterações desta execução não foram aplicadas. Envie o pedido novamente, de preferência em partes menores.',
+    failureCodeText('BUILDER_MODEL_STEP_TIMEOUT'),
+    'O modelo passou tempo demais gerando uma única resposta, então o Conexus encerrou a execução. As alterações desta execução não foram aplicadas. Tente novamente mais tarde.',
   )
 })
 

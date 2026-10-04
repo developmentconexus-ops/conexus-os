@@ -1,5 +1,4 @@
 import type { BuilderRun } from '../api'
-import { failureReason } from '../failure-reasons'
 
 // The Hub owns the run state (structure 3.3). Every surface that speaks about a run reads it from
 // here, so the status line, the composer, the header and the Preview can never disagree.
@@ -38,9 +37,9 @@ const settledOutcome = (run: BuilderRun): SettledOutcome => {
     if (run.resultKind === 'SOURCE_CHANGED_BUILD_FAILED') return 'BUILD_FAILED'
     return 'RESPONDED'
   }
-  if (run.failureCategory === 'SOURCE_BASE_MOVED') return 'BASE_MOVED'
-  if (run.failureCategory === 'RUN_CANCELLED' || run.cancellationRequested) return 'STOPPED'
-  if (run.state === 'INTERRUPTED' || run.failureCategory === 'RUN_INTERRUPTED') return 'DISCARDED'
+  if (run.failureCode === 'BUILDER_SOURCE_BASE_MOVED') return 'BASE_MOVED'
+  if (run.failureCode === 'USER_CANCELLED' || run.failureCode === 'BUILDER_RUN_CANCELLED' || run.failureCode === 'BUILDER_LATE_RESULT_REFUSED' || run.cancellationRequested) return 'STOPPED'
+  if (run.state === 'INTERRUPTED') return 'DISCARDED'
   return 'FAILED'
 }
 
@@ -53,10 +52,11 @@ export const viewRun = (run: BuilderRun | null | undefined): RunView => {
   return { kind: 'SETTLED', run, outcome: settledOutcome(run) }
 }
 
-const settledLines: Readonly<Record<Exclude<SettledOutcome, 'FAILED'>, string>> = {
+const settledLines: Readonly<Record<SettledOutcome, string>> = {
   RESPONDED: 'Respondeu',
   CHANGED: 'Alterou o app',
   BUILD_FAILED: 'Alterou o código, mas não compilou',
+  FAILED: 'Falhou',
   BASE_MOVED: 'Não aplicado: o app mudou antes',
   STOPPED: 'Parado',
   DISCARDED: 'Interrompido',
@@ -70,7 +70,13 @@ export const activeLine = (view: ActiveRunView): string => view.stopping ? 'Para
 export const statusLine = (view: RunView): string | null => {
   if (view.kind === 'IDLE') return null
   if (view.kind === 'ACTIVE') return activeLine(view)
-  return view.outcome === 'FAILED' ? failureReason(view.run) : settledLines[view.outcome]
+  return settledLines[view.outcome]
+}
+
+/** What `RunFailure` has to say about a run: its outcome when it settled in anything but a reply or a change. */
+export const failureOutcome = (run: BuilderRun): Exclude<SettledOutcome, 'RESPONDED' | 'CHANGED'> | null => {
+  const view = viewRun(run)
+  return view.kind === 'SETTLED' && view.outcome !== 'RESPONDED' && view.outcome !== 'CHANGED' ? view.outcome : null
 }
 
 export const elapsedLabel = (milliseconds: number): string => {

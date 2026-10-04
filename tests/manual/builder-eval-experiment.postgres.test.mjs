@@ -27,7 +27,7 @@ test('over the Hub\'s Postgres Mastra tables a comparison syncs, keeps a platfor
   const tables = await factoryTableCount(fixture.connectionString)
   const storage = evalStorage(fixture.connectionString)
   fixture.onCleanup(() => storage.close())
-  const { mastra, driver, run } = await experimentHarness(t, storage, { failures: { 'm-luna': ['MODEL_RATE_LIMITED'] } })
+  const { mastra, driver, run } = await experimentHarness(t, storage, { failures: { 'm-luna': ['BUILDER_MODEL_RATE_LIMITED'] } })
 
   const first = await run()
   const second = await run()
@@ -35,7 +35,7 @@ test('over the Hub\'s Postgres Mastra tables a comparison syncs, keeps a platfor
 
   assert.deepEqual(first, [
     completed('be:c1:flash:t0'),
-    { experimentId: 'be:c1:luna:t0', status: 'running', settled: 0, total: 1, pending: [{ item: 'sales-dashboard', code: 'MODEL_RATE_LIMITED' }] },
+    { experimentId: 'be:c1:luna:t0', status: 'running', settled: 0, total: 1, pending: [{ item: 'sales-dashboard', code: 'BUILDER_MODEL_RATE_LIMITED' }] },
   ])
   assert.deepEqual(second, [completed('be:c1:flash:t0'), completed('be:c1:luna:t0')])
   assert.deepEqual(third, [completed('be:c1:flash:t0'), completed('be:c1:luna:t0')])

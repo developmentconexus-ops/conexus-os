@@ -66,7 +66,7 @@ async function mockHub(page, hub) {
     hub.requests.push({ method, path: url.pathname, body, idempotencyKey: await request.headerValue('idempotency-key') })
     const p = url.pathname
     if (p === '/api/control/access-context') {
-      if (hub.accessStatus !== 200) return json(route, hub.accessStatus, { type: 'authentication-required' })
+      if (hub.accessStatus !== 200) return json(route, hub.accessStatus, { type: 'AUTHENTICATION_REQUIRED' })
       return json(route, 200, { account: { accountId: ids.account, displayName: 'Marina Alves', email: 'marina@empresa.com.br' }, workspaces: hub.workspaces, projects: [] })
     }
     if (p === '/api/session' && method === 'DELETE') return route.fulfill({ status: 204 })
@@ -91,7 +91,7 @@ async function mockHub(page, hub) {
     if (p.includes('/roster/') && method === 'DELETE') return route.fulfill({ status: 204 })
     if (p.endsWith('/thumbnail') && method === 'GET') {
       const projectId = p.split('/')[4]
-      if (!hub.summaries.find((summary) => summary.projectId === projectId)?.hasPreview || projectId === ids.visits) return json(route, 404, { type: 'project-thumbnail-not-found' })
+      if (!hub.summaries.find((summary) => summary.projectId === projectId)?.hasPreview || projectId === ids.visits) return json(route, 404, { type: 'PROJECT_THUMBNAIL_NOT_FOUND' })
       return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'cache-control': 'private, no-cache', etag: '"rev-001"' }, body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') })
     }
     if (p.endsWith('/builder-session/preview')) {

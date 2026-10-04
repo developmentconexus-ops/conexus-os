@@ -9,5 +9,5 @@ register('@opentelemetry/instrumentation/hook.mjs', import.meta.url)
 // biome-ignore lint/style/noProcessEnv: debt: owning wave
 if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) startTelemetry({ service: serviceFromArgv(process.argv[1]) })
 // pino must load after the SDK has enabled its instrumentations.
-const { logger } = await import('../platform/logger.js')
-startHeapWatch((fields, message) => logger.warn(fields, message))
+const { logLine } = await import('../platform/logger.js')
+startHeapWatch((fields) => logLine('PROCESS_HEAP_HIGH', fields, 'warn'))

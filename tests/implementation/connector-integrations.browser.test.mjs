@@ -211,7 +211,7 @@ test('an installation administrator and Owner adds two Connections and binds one
     ['', '', ''], 'the form is reset once the Connection is saved, so no field holds a value')
 
   await page.getByRole('button', { name: 'Testar' }).click()
-  await page.getByText('O conector ainda não está configurado no servidor.').waitFor()
+  await page.getByText('A integração com o sistema da empresa não está configurada. A falha foi registrada.').waitFor()
 
   await addConnection(page, 'ERP filial')
   await connections.getByText('ERP filial').waitFor()
@@ -289,18 +289,18 @@ test('a create or bind whose answer was lost says so and its resubmit answers wh
   await page.goto(`${fixture.origin}/projects/${fixture.projectId}/integrations`)
   await page.getByRole('heading', { name: 'Integrações', exact: true }).waitFor()
   await addConnection(page, 'ERP de teste')
-  await page.getByText('A alteração não foi confirmada.').waitFor()
+  await page.getByText('A tela não conseguiu falar com o Conexus agora. Tente novamente mais tarde.').waitFor()
   await page.getByRole('button', { name: 'Adicionar conexão Sankhya' }).click()
   await connections.getByText('ERP de teste').waitFor()
   assert.deepEqual(created.map(({ status }) => status), [201, 200])
   assert.equal(created[1].connectionId, created[0].connectionId, 'the resubmit is the same request')
 
   await page.route(`${connectionsUrl}/*`, (route) => (route.request().method() === 'DELETE'
-    ? route.fulfill({ status: 503, contentType: 'application/problem+json', body: '{}' })
+    ? route.fulfill({ status: 500, contentType: 'application/problem+json', body: JSON.stringify({ type: 'urn:conexus:problem:INTERNAL_UNEXPECTED', title: 'INTERNAL_UNEXPECTED', status: 500, code: 'INTERNAL_UNEXPECTED' }) })
     : route.fallback()))
   await page.getByRole('button', { name: 'Desativar' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Desativar' }).click()
-  await page.getByText('A conexão não foi desativada e continua ativa.').waitFor()
+  await page.getByText('O Conexus falhou de um jeito que não esperávamos. A falha foi registrada.').waitFor()
   assert.equal(await page.getByText('· desativada').count(), 0)
 
   const bound = []
@@ -318,18 +318,18 @@ test('a create or bind whose answer was lost says so and its resubmit answers wh
   const row = bindableRow(page, 'ERP de teste')
   await row.getByLabel('Nome no Projeto').fill('erp')
   await row.getByRole('button', { name: 'Vincular', exact: true }).click()
-  await row.getByRole('alert').filter({ hasText: 'A alteração não foi confirmada.' }).waitFor()
+  await row.getByRole('alert').filter({ hasText: 'A tela não conseguiu falar com o Conexus agora. Tente novamente mais tarde.' }).waitFor()
   await row.getByRole('button', { name: 'Vincular', exact: true }).click()
   await bindings.getByRole('button', { name: 'Desvincular' }).waitFor()
   assert.deepEqual(bound.map(({ status }) => status), [200, 200])
   assert.equal(bound[1].bindingId, bound[0].bindingId, 'the resubmitted bind answers the binding the lost answer saved')
   await page.route(`**/api/control/projects/${fixture.projectId}/connection-bindings/*`, (route) => (route.request().method() === 'DELETE'
-    ? route.fulfill({ status: 503, contentType: 'application/problem+json', body: '{}' })
+    ? route.fulfill({ status: 500, contentType: 'application/problem+json', body: JSON.stringify({ type: 'urn:conexus:problem:INTERNAL_UNEXPECTED', title: 'INTERNAL_UNEXPECTED', status: 500, code: 'INTERNAL_UNEXPECTED' }) })
     : route.fallback()))
   await bindings.getByRole('button', { name: 'Desvincular' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Desvincular' }).click()
   await page.getByRole('alertdialog').waitFor({ state: 'detached' })
-  const unbindFailure = bindings.getByRole('alert').filter({ hasText: 'A alteração não foi confirmada.' })
+  const unbindFailure = bindings.getByRole('alert').filter({ hasText: 'O Conexus falhou de um jeito que não esperávamos. A falha foi registrada.' })
   await unbindFailure.waitFor()
   assert.equal(await unbindFailure.isVisible(), true, 'the failed unbind is reported where the Owner can see it')
   await bindings.getByRole('button', { name: 'Desvincular' }).waitFor()

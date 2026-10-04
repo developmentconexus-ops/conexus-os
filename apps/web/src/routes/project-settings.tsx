@@ -10,12 +10,14 @@ import { useId, useState } from 'react'
 import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
 import {
-  deleteProject, getProject, projectDeleteMessage, ProjectRequestError, projectQueryKey, projectSummariesQueryKey,
+  deleteProject, getProject, projectQueryKey, projectSummariesQueryKey,
 } from '../features/project/api'
 import { useInstallation } from '../features/settings/use-installation'
 import type { ProjectRepresentation } from '../generated/project-client'
 import '../features/project/project-settings.css'
 import { rootRoute } from './__root'
+import { failureText, isFailure } from '../app/http'
+import { FailureState } from '../app/failure-state'
 
 export const projectSettingsRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -39,11 +41,12 @@ function ProjectSettingsRoute() {
 }
 
 function ProjectUnavailable({ error, onRetry }: Readonly<{ error: unknown; onRetry: () => void }>) {
-  const hidden = error instanceof ProjectRequestError && (error.status === 403 || error.status === 404)
+  const hidden = isFailure(error, 'PROJECT_NOT_FOUND')
+  if (!hidden) return <FailureState title="Não foi possível carregar o Projeto" error={error} onRetry={onRetry} />
   return <div className="cx-state" role="alert">
-    <h2>{hidden ? 'Projeto indisponível' : 'Não foi possível carregar o Projeto'}</h2>
-    <p>{hidden ? 'Este Projeto não existe ou você não faz parte do Workspace dele.' : 'O servidor não respondeu desta vez. Nada foi alterado.'}</p>
-    {hidden ? <Button as={Link} to="/workspaces" variant="outline">Ver meus Workspaces</Button> : <Button type="button" variant="outline" onClick={onRetry}>Tentar de novo</Button>}
+    <h2>Projeto indisponível</h2>
+    <p>{failureText(error)}</p>
+    <Button as={Link} to="/workspaces" variant="outline">Ver meus Workspaces</Button>
   </div>
 }
 
@@ -107,7 +110,7 @@ function DeletionRecovery({ project }: Readonly<{ project: ProjectRepresentation
       await queryClient.invalidateQueries({ queryKey: projectSummariesQueryKey(project.workspaceId) })
       await navigate({ to: '/workspaces/$workspaceId/projects', params: { workspaceId: project.workspaceId } })
     },
-    onError: (error) => setMessage(projectDeleteMessage(error)),
+    onError: (error) => setMessage(failureText(error)),
   })
 
   return <div className="cx-state" role="alert">
@@ -138,7 +141,7 @@ function DangerZone({ project }: Readonly<{ project: ProjectRepresentation }>) {
       await queryClient.invalidateQueries({ queryKey: projectSummariesQueryKey(project.workspaceId) })
       await navigate({ to: '/workspaces/$workspaceId/projects', params: { workspaceId: project.workspaceId } })
     },
-    onError: (error) => setMessage(projectDeleteMessage(error)),
+    onError: (error) => setMessage(failureText(error)),
   })
 
   if (installation.data?.administrator !== true) return null

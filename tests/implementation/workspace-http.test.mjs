@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
+import { invalidConfig } from './failure-matchers.mjs'
 
 const built = hubModuleUrl
 const { createHttpApp } = await import(built('http/app.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
 const { registerWorkspaceRoutes } = await import(built('workspace/routes.js'))
-const { workspaceError } = await import(built('workspace/errors.js'))
+const { Failure } = await import(built('platform/failure.js'))
 const { createWorkspaceStore } = await import(built('workspace/store.js'))
+
+const missing = (name) => (error) => error.id === 'CONFIG_MISSING' && error.details?.name === name
 
 const ORIGIN = 'https://conexus.test'
 const OPERATOR = Object.freeze({ account: { accountId: '11111111-1111-4111-8111-111111111111' }, issuer: 'https://issuer.test', subject: 'bootstrap' })
@@ -22,6 +25,7 @@ const authenticHeaders = {
 
 const baseEnvironment = {
   CONEXUS_ORIGIN: ORIGIN,
+  CONEXUS_PORT: '3000',
   CONEXUS_BOOTSTRAP_SUBJECT: OPERATOR.subject,
   CONEXUS_DB_HOST: '127.0.0.1',
   CONEXUS_DB_PORT: '5432',
@@ -41,13 +45,13 @@ test('local Preview config requires complete TLS, exact Hub origin and a separat
   }
   assert.deepEqual(readHubConfig(environment).preview, { port: 8081, certFile: '/secrets/local-cert', keyFile: '/secrets/local-key' })
   for (const [field, code] of [
-    ['CONEXUS_PREVIEW_PORT', 'MISSING_CONFIG_CONEXUS_PREVIEW_PORT'],
-    ['CONEXUS_PREVIEW_CERT_FILE', 'MISSING_CONFIG_CONEXUS_PREVIEW_CERT_FILE'],
-    ['CONEXUS_PREVIEW_KEY_FILE', 'MISSING_CONFIG_CONEXUS_PREVIEW_KEY_FILE'],
-  ]) assert.throws(() => readHubConfig({ ...environment, [field]: undefined }), { message: code })
-  assert.throws(() => readHubConfig({ ...environment, CONEXUS_PREVIEW_PORT: '8080' }), /INVALID_CONFIG_CONEXUS_PREVIEW_PORT/)
+    ['CONEXUS_PREVIEW_PORT', 'CONEXUS_PREVIEW_PORT'],
+    ['CONEXUS_PREVIEW_CERT_FILE', 'CONEXUS_PREVIEW_CERT_FILE'],
+    ['CONEXUS_PREVIEW_KEY_FILE', 'CONEXUS_PREVIEW_KEY_FILE'],
+  ]) assert.throws(() => readHubConfig({ ...environment, [field]: undefined }), missing(code))
+  assert.throws(() => readHubConfig({ ...environment, CONEXUS_PREVIEW_PORT: '8080' }), invalidConfig('CONEXUS_PREVIEW_PORT'))
   for (const origin of ['http://hub.conexus.localhost:8080', 'https://preview.conexus.localhost:8080', 'https://hub.conexus.localhost:9090', 'https://hub.conexus.localhost:8080/path', 'https://user@hub.conexus.localhost:8080']) {
-    assert.throws(() => readHubConfig({ ...environment, CONEXUS_ORIGIN: origin }), /INVALID_CONFIG_CONEXUS_ORIGIN_FOR_PREVIEW/)
+    assert.throws(() => readHubConfig({ ...environment, CONEXUS_ORIGIN: origin }), invalidConfig('CONEXUS_ORIGIN_FOR_PREVIEW'))
   }
 })
 
@@ -56,7 +60,7 @@ test('S2 database capabilities are mandatory in production and preserve the pinn
   assert.equal(s1Test.database.workspace, undefined)
   assert.throws(
     () => readHubConfig(baseEnvironment),
-    /MISSING_CONFIG_CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE/,
+    missing('CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE'),
   )
   assert.throws(
     () => readHubConfig({
@@ -64,7 +68,7 @@ test('S2 database capabilities are mandatory in production and preserve the pinn
       NODE_ENV: 'test',
       CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE: '/secrets/command',
     }),
-    /MISSING_CONFIG_CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE/,
+    missing('CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE'),
   )
   assert.deepEqual(readHubConfig({
     ...baseEnvironment,
@@ -161,7 +165,7 @@ test('WS-01 admits any authenticated Account, who becomes the Workspace owner', 
 
 test('WS-01 maps changed-request/outcome conflicts to 409 without leaking internals', async (t) => {
   for (const code of ['IDEMPOTENCY_CONFLICT', 'OUTCOME_UNKNOWN']) {
-    const { app } = await buildRoutes({ storeOverrides: { createWorkspace: async () => { throw workspaceError(code) } } })
+    const { app } = await buildRoutes({ storeOverrides: { createWorkspace: async () => { throw new Failure(code) } } })
     t.after(() => app.close())
     const response = await app.inject({ method: 'POST', url: '/api/control/workspaces', headers: authenticHeaders, payload: { name: 'Operations' } })
     assert.equal(response.statusCode, 409)
@@ -184,9 +188,10 @@ test('WS-01/02 hide malformed identifiers and unexpected store/driver failures',
   assert.equal(hidden.statusCode, 404)
   assert.equal(hidden.headers['content-type'].startsWith('application/problem+json'), true)
   assert.deepEqual(hidden.json(), {
-    type: 'urn:conexus:problem:workspace-not-found',
-    title: 'Workspace not found',
+    type: 'urn:conexus:problem:WORKSPACE_NOT_FOUND',
+    title: 'WORKSPACE_NOT_FOUND',
     status: 404,
+    code: 'WORKSPACE_NOT_FOUND',
   })
   assert.equal(hidden.body.includes('secret-driver-detail'), false)
 
@@ -198,9 +203,10 @@ test('WS-01/02 hide malformed identifiers and unexpected store/driver failures',
   assert.equal(readFailure.statusCode, 500)
   assert.equal(readFailure.headers['content-type'].startsWith('application/problem+json'), true)
   assert.deepEqual(readFailure.json(), {
-    type: 'urn:conexus:problem:internal-error',
-    title: 'Internal server error',
+    type: 'urn:conexus:problem:INTERNAL_UNEXPECTED',
+    title: 'INTERNAL_UNEXPECTED',
     status: 500,
+    code: 'INTERNAL_UNEXPECTED',
   })
   assert.equal(readFailure.body.includes('read-driver-secret'), false)
 
@@ -212,9 +218,10 @@ test('WS-01/02 hide malformed identifiers and unexpected store/driver failures',
   assert.equal(createFailure.statusCode, 500)
   assert.equal(createFailure.headers['content-type'].startsWith('application/problem+json'), true)
   assert.deepEqual(createFailure.json(), {
-    type: 'urn:conexus:problem:internal-error',
-    title: 'Internal server error',
+    type: 'urn:conexus:problem:INTERNAL_UNEXPECTED',
+    title: 'INTERNAL_UNEXPECTED',
     status: 500,
+    code: 'INTERNAL_UNEXPECTED',
   })
   assert.equal(createFailure.body.includes('create-driver-secret'), false)
 })

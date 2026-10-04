@@ -74,7 +74,7 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
   assert.notEqual(expiredToken, replacementToken)
   await assert.rejects(
     store.provisionBootstrap({ bootstrapToken: expiredToken, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-expired', idempotencyKey: 'expired-key', displayName: 'Expired', now: new Date(12 * 60 * 1000) }),
-    (error) => error.code === 'BOOTSTRAP_SEALED',
+    (error) => error.id === 'BOOTSTRAP_SEALED',
   )
   const replacement = await store.provisionBootstrap({ bootstrapToken: replacementToken, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-expired', idempotencyKey: 'replacement-key', displayName: 'Replacement', now: new Date(12 * 60 * 1000) })
   assert.ok(replacement.accountId)
@@ -108,15 +108,15 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
   await verifyAdmin.end()
   await assert.rejects(
     store.provisionBootstrap({ bootstrapToken, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1', idempotencyKey: 'same-key', displayName: 'Changed' }),
-    (error) => error.code === 'IDEMPOTENCY_CONFLICT',
+    (error) => error.id === 'IDEMPOTENCY_CONFLICT',
   )
   await assert.rejects(
     store.createProvisioningContext({ issuer: 'https://issuer.test', subject: 'subject-1', verifiedEmail: null, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1' }),
-    (error) => error.code === 'BOOTSTRAP_SEALED',
+    (error) => error.id === 'BOOTSTRAP_SEALED',
   )
   await assert.rejects(
     store.createProvisioningContext({ issuer: 'https://issuer.test', subject: 'uninvited', verifiedEmail: 'uninvited@example.test', configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1' }),
-    (error) => error.code === 'IDENTITY_NOT_ELIGIBLE',
+    (error) => error.id === 'IDENTITY_NOT_ELIGIBLE',
   )
   const envelope = createSecretEnvelope('ab'.repeat(32))
   hubPool = createPostgresPool(runtimeConnection)

@@ -13,6 +13,7 @@ import { logLine } from './platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from './platform/secrets.js'
 import { createApplicationArtifactStore, createServedApplicationReader } from './registry/module.js'
 import { createWorkspaceModule } from './workspace/module.js'
+import { Failure } from './platform/failure.js'
 
 // Mastra is loaded only after the production entrypoint has disabled its
 // optional telemetry. Keep this before the dynamic Project-module import.
@@ -95,7 +96,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     // The builder module owns the Conexus Git and is composed below; creation reaches it at request time.
     repository: {
       prepare: async (projectId) => {
-        if (!builder) throw new Error('CONEXUS_GIT_NOT_CONFIGURED')
+        if (!builder) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'CONEXUS_GIT_NOT_CONFIGURED' } })
         return builder.prepareProjectRepository(projectId)
       },
     },
@@ -103,15 +104,15 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     // as repository.prepare above, since the Project module is composed before the Builder module is.
     deletion: {
       releaseApplicationData: async (projectId) => {
-        if (!applicationRunner) throw new Error('APPLICATION_RUNNER_NOT_CONFIGURED')
+        if (!applicationRunner) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'APPLICATION_RUNNER_NOT_CONFIGURED' } })
         return applicationRunner.release({ projectId })
       },
       killSandboxes: async (projectId) => {
-        if (!builder) throw new Error('CONEXUS_GIT_NOT_CONFIGURED')
+        if (!builder) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'CONEXUS_GIT_NOT_CONFIGURED' } })
         return builder.killProjectSandboxes(projectId)
       },
       deleteRepository: async (projectId) => {
-        if (!builder) throw new Error('CONEXUS_GIT_NOT_CONFIGURED')
+        if (!builder) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'CONEXUS_GIT_NOT_CONFIGURED' } })
         return builder.deleteProjectRepository(projectId)
       },
     },
@@ -123,7 +124,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
           return servedApplications.readThumbnail(input)
         }
         const reader = builder?.getApplicationThumbnail
-        if (!reader) throw new Error('BUILDER_THUMBNAIL_READER_UNAVAILABLE')
+        if (!reader) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'BUILDER_THUMBNAIL_READER_UNAVAILABLE' } })
         return reader(input)
       },
     },
@@ -144,7 +145,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     exactHubOrigin: config.origin,
     previewPort: config.preview.port,
     registryReader: (input) => {
-      if (!builder) throw new Error('MAR_REGISTRY_READER_UNAVAILABLE')
+      if (!builder) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'MAR_REGISTRY_READER_UNAVAILABLE' } })
       return builder.readApplicationFileBySource({
         accountId: input.accountId, projectId: input.projectId, sourceRevision: input.sourceRevision,
         artifactRevisionId: input.artifactRevisionId, path: input.path,
@@ -157,11 +158,11 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
       applicationRunner: {
         readFile: ({ source, path }) => {
           if (source.via === 'APPLICATION') {
-            if (!servedApplications) throw new Error('MAR_REGISTRY_READER_UNAVAILABLE')
+            if (!servedApplications) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'MAR_REGISTRY_READER_UNAVAILABLE' } })
             return servedApplications.readFile({ accountId: source.accountId, projectId: source.projectId, artifactRevisionId: source.artifactRevisionId, path })
           }
           const reader = builder
-          if (!reader) throw new Error('MAR_REGISTRY_READER_UNAVAILABLE')
+          if (!reader) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'MAR_REGISTRY_READER_UNAVAILABLE' } })
           return reader.readApplicationFileBySource({
             accountId: source.accountId, projectId: source.projectId, sourceRevision: source.sourceRevision, artifactRevisionId: source.artifactRevisionId, path,
           })
@@ -227,7 +228,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
     readProjectName: async (input) => {
       const name = await project?.readProjectName(input)
-      if (!name) throw new Error('BUILDER_PROJECT_NOT_FOUND')
+      if (!name) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'BUILDER_PROJECT_NOT_FOUND' } })
       return name
     },
     connectors: {
@@ -276,7 +277,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   // somebody's request.
   reportConnectionCensus(
     await censusConnections({ host: config.database.host, port: config.database.port, database: config.database.database }),
-    line => logLine(line),
+    logLine,
   )
 
   await app.listen({ host: '127.0.0.1', port: config.port })

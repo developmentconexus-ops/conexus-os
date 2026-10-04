@@ -1,4 +1,6 @@
-// The closed codes a consumer may see; never a provider body, header, status text or token.
+import type { FailureCode } from '../platform/failures.generated.js'
+
+// The closed codes a consumer may see; never a provider body, header, status text or token. Each is a row of the failure table.
 export const BROKER_ERROR_CODES = [
   'INPUT_REFUSED',
   'NOT_GRANTED',
@@ -11,7 +13,8 @@ export const BROKER_ERROR_CODES = [
   'RESPONSE_TOO_LARGE',
   'CALL_LIMIT',
   'SERVICE_REFUSED',
-] as const
+  'CONNECTOR_PLATFORM_FAILED',
+] as const satisfies readonly FailureCode[]
 
 export type BrokerErrorCode = typeof BROKER_ERROR_CODES[number]
 

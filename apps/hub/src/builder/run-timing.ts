@@ -1,6 +1,6 @@
 /**
- * Where a Builder run's time goes outside the agent, one log line per run so the eval reads it
- * without a database column: `BUILDER_RUN_TIMING:<runId>:sandbox=1200:seed=900:...` in milliseconds.
+ * Where a Builder run's time goes outside the agent, one log event per run so the eval reads it
+ * without a database column: `BUILDER_RUN_TIMING` with `run` and one field per stage, in milliseconds.
  * A stage's time runs from the previous mark, so the marks partition the run and their sum is the
  * run's wall time. A stage the run never reached is left out of the line.
  */
@@ -10,7 +10,7 @@ type RunTimingStage = (typeof RUN_TIMING_STAGES)[number]
 export type RunTiming = Readonly<{
   /** Ends `stage` now. */
   mark(stage: RunTimingStage): void
-  line(builderRunId: string): string
+  fields(builderRunId: string): Readonly<Record<string, string | number>>
 }>
 
 export const createRunTiming = (now: () => number = Date.now): RunTiming => {
@@ -22,9 +22,9 @@ export const createRunTiming = (now: () => number = Date.now): RunTiming => {
       elapsed.set(stage, (elapsed.get(stage) ?? 0) + Math.max(0, current - previous))
       previous = current
     },
-    line: (builderRunId) => [
-      `BUILDER_RUN_TIMING:${builderRunId}`,
-      ...RUN_TIMING_STAGES.flatMap((stage) => (elapsed.has(stage) ? [`${stage}=${elapsed.get(stage)}`] : [])),
-    ].join(':'),
+    fields: (builderRunId) => ({
+      run: builderRunId,
+      ...Object.fromEntries(RUN_TIMING_STAGES.flatMap((stage) => (elapsed.has(stage) ? [[stage, elapsed.get(stage) ?? 0]] : []))),
+    }),
   }
 }

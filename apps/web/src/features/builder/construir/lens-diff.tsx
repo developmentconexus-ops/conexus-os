@@ -1,4 +1,3 @@
-import { Button } from '@mastra/playground-ui/components/Button'
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip'
 import { useQuery } from '@tanstack/react-query'
@@ -7,6 +6,7 @@ import { useMemo, useRef, useState } from 'react'
 import { type BuilderRun, compareProjectSource, getProjectSourceFile, type SourceChange } from '../api'
 import { buildFileRows, type DiffLine, type DiffRow, toSplitRows, withOpenGaps } from './diff-rows'
 import './lens-surfaces.css'
+import { FailureNotice } from '../../../app/failure-state'
 
 const changeLabels: Readonly<Record<SourceChange['status'], string | null>> = {
   ADDED: 'Arquivo novo',
@@ -150,7 +150,7 @@ export function LensDiff({ projectId, basis, requestText, requestTime, version }
 
   if (!basis) return <p className="cx-lens-empty">Nenhuma execução alterou o código ainda. As alterações aparecem aqui quando o agente mudar o app.</p>
   if (comparison.isPending) return <div className="cx-lens-split"><Skeleton className="cx-skeleton" /><Skeleton className="cx-skeleton" /></div>
-  if (comparison.isError) return <div className="cx-note" role="alert"><p>Não foi possível comparar as versões.</p><Button size="sm" onClick={() => void comparison.refetch()}>Tentar novamente</Button></div>
+  if (comparison.isError) return <FailureNotice title="Não foi possível comparar as versões." error={comparison.error} onRetry={() => void comparison.refetch()} />
   if (!files.length) return <p className="cx-lens-empty">Esta execução não mudou nenhum arquivo.</p>
 
   return <div className="cx-diff-lens">
@@ -201,7 +201,7 @@ export function LensDiff({ projectId, basis, requestText, requestTime, version }
       </nav>
       <div className="cx-diff-files" ref={filesHost}>
         {sides.isPending && <Skeleton className="cx-skeleton" />}
-        {sides.isError && <div className="cx-note" role="alert"><p>Não foi possível ler os arquivos alterados.</p><Button size="sm" onClick={() => void sides.refetch()}>Tentar novamente</Button></div>}
+        {sides.isError && <FailureNotice title="Não foi possível ler os arquivos alterados." error={sides.error} onRetry={() => void sides.refetch()} />}
         {fileDiffs.map((file, index) => <FileCard key={file.entry.path} id={`cx-dfile-${index}`} file={file} mode={mode} open={open} onToggle={toggleGap} />)}
       </div>
     </div>

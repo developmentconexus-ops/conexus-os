@@ -4,6 +4,8 @@ import { z } from 'zod'
 import { previewContentSecurityPolicy } from '../platform/application-csp.js'
 import { appPathClassifierSource } from '../platform/application-path.js'
 import { admitManifest } from '../app-runner/server-manifest.js'
+import { APP_FAILURES_SOURCE } from '../generated/app-failures.js'
+import { Failure } from '../platform/failure.js'
 
 /**
  * The Conexus check: one Hub owned script, `/opt/conexus/check.mjs`, that the Builder's tool, source
@@ -64,7 +66,7 @@ export const readCheckReport = (stdout: string): CheckReport => {
   try {
     return checkReportSchema.parse(JSON.parse(stdout.trim().split('\n').pop() ?? ''))
   } catch (cause) {
-    throw new Error('APPLICATION_CHECK_REPORT_UNREADABLE', { cause })
+    throw new Failure('APPLICATION_CHECK_REPORT_UNREADABLE', { cause })
   }
 }
 
@@ -126,6 +128,7 @@ const MAX_MESSAGE = ${CHECK_LIMITS.messageChars}
 const BOOT_CSP = ${JSON.stringify(BOOT_CONTENT_SECURITY_POLICY)}
 const BLOCKING = new Set(${JSON.stringify([...BLOCKING_STEPS])})
 const SANKHYA_HELPER = ${JSON.stringify(readFileSync(resolve(cwd, SANKHYA_HELPER_PATH), 'utf8'))}
+const FAILURES_GEN = ${JSON.stringify(APP_FAILURES_SOURCE)}
 const redact = ${redactEvidence.toString()}
 const admitManifest = ${admitManifest.toString()}
 ${appPathClassifierSource}
@@ -239,10 +242,15 @@ const writeGenerated = (relativePath, content) => {
   if (runsAsRoot) chownSync(target, dropTo.uid, dropTo.gid)
 }
 
-// Admits the manifest with the runner's own function, then writes the typed client the screens and
+// Writes the failure table's app copy, which every app has. Then admits the manifest with the runner's own function and writes the typed client the screens and
 // handlers import, and the Sankhya reader handlers may import. A source with no manifest has no
 // server half and nothing to generate.
 const runGenerate = async () => {
+  try {
+    writeGenerated('app/src/conexus/failures.gen.ts', FAILURES_GEN)
+  } catch (error) {
+    return { problems: [{ code: 'GENERATE_WRITE_REFUSED', message: String(error.message) }] }
+  }
   const manifestPath = join(root, MANIFEST_PATH)
   let entry
   try { entry = lstatSync(manifestPath) } catch { return { problems: [] } }
@@ -418,7 +426,7 @@ const runBoot = async () => {
       socket = new WebSocket(webSocketUrl)
       await new Promise((opened, failed) => {
         socket.addEventListener('open', () => opened(), { once: true })
-        socket.addEventListener('error', () => failed(new Error('BOOT_BROWSER_UNAVAILABLE')), { once: true })
+        socket.addEventListener('error', () => failed(new Failure('BOOT_BROWSER_UNAVAILABLE')), { once: true })
       })
       let nextId = 1
       const pending = new Map()

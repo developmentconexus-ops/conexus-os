@@ -7,6 +7,7 @@ import { dirname, extname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { gzipSync } from 'node:zlib'
 import { chromium } from 'playwright'
+import { writeGeneratedFailures } from './app-workspace.mjs'
 import { ensureCompilerRoot } from './compiler-root.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
@@ -82,6 +83,7 @@ const materialize = (extra = {}) => {
     mkdirSync(dirname(join(root, path)), { recursive: true })
     writeFileSync(join(root, path), content)
   }
+  writeGeneratedFailures(root)
   for (const [path, content] of Object.entries(extra)) writeFileSync(join(root, path), content)
   symlinkSync(join(compilerRoot, 'node_modules'), join(root, 'app/node_modules'))
   return root

@@ -29,7 +29,7 @@ const RUNTIME_TEMP_FILE_LIMIT = '256MB'
 const MIGRATION_TEMP_FILE_LIMIT = '1GB'
 
 export const previewAllocation = (projectId: string): PreviewAllocation => {
-  if (!PROJECT_ID.test(projectId)) throw new Error('APPLICATION_PROJECT_ID_REFUSED')
+  if (!PROJECT_ID.test(projectId)) throw new Error('the Project id is not a UUID')
   const hex = projectId.replaceAll('-', '')
   return Object.freeze({
     projectId,
@@ -40,7 +40,7 @@ export const previewAllocation = (projectId: string): PreviewAllocation => {
 }
 
 const identifier = (value: string): string => {
-  if (!/^[a-z_][a-z0-9_]{0,62}$/.test(value)) throw new Error('APPLICATION_IDENTIFIER_REFUSED')
+  if (!/^[a-z_][a-z0-9_]{0,62}$/.test(value)) throw new Error('the SQL identifier is not one the data plane issues')
   return `"${value}"`
 }
 const literal = (value: string): string => `'${value.replaceAll("'", "''")}'`

@@ -1,6 +1,7 @@
 import { Popover, PopoverContent, PopoverTrigger } from '@mastra/playground-ui/components/Popover'
 import { formatCompactTokens, TokenBudget, TokenBudgetDetail } from '@mastra/playground-ui/components/TokenBudget'
 import { Brain, MessageSquare } from 'lucide-react'
+import { FAILURES } from '../../../generated/failures.ts'
 import type { MemoryGauge, MemoryOperation } from '../runtime'
 
 type Work = 'idle' | 'background' | 'blocking' | 'failed'
@@ -14,17 +15,15 @@ const messageLabel: Readonly<Record<Work, string>> = {
   idle: 'Mensagens até a próxima observação',
   background: 'Guardando as mensagens na memória em segundo plano',
   blocking: 'Guardando as mensagens na memória',
-  failed: 'Não foi possível guardar as mensagens na memória',
+  failed: FAILURES.MEMORY_OBSERVATION_FAILED.message,
 }
 
 const observationLabel: Readonly<Record<Work, string>> = {
   idle: 'Observações até a próxima reflexão',
   background: 'Resumindo as observações em segundo plano',
   blocking: 'Resumindo as observações',
-  failed: 'Não foi possível resumir as observações',
+  failed: FAILURES.MEMORY_REFLECTION_FAILED.message,
 }
-
-const retryLine = 'A última tentativa falhou. O Builder tenta de novo na próxima mensagem.'
 
 const reading = (tokens: number, threshold: number): string =>
   `${formatCompactTokens(tokens).replace('.', ',')} de ${formatCompactTokens(threshold).replace('.', ',')} mil tokens`
@@ -60,7 +59,7 @@ export function MemoryStatus({ memory, failed = null }: Readonly<{ memory: Memor
       {showMessages && <TokenBudgetDetail
         icon={<MessageSquare />}
         label="Mensagens"
-        description={work.messages === 'failed' ? retryLine : 'Quando encher, o Builder resume a conversa para lembrar do que importa'}
+        description={work.messages === 'failed' ? FAILURES.MEMORY_OBSERVATION_FAILED.message : 'Quando encher, o Builder resume a conversa para lembrar do que importa'}
         threshold={om.threshold}
         tokens={om.pendingTokens}
         tone={messageTone}
@@ -68,7 +67,7 @@ export function MemoryStatus({ memory, failed = null }: Readonly<{ memory: Memor
       {showObservations && <TokenBudgetDetail
         icon={<Brain />}
         label="Memória"
-        description={work.observations === 'failed' ? retryLine : 'Quando encher, o Builder junta as observações num resumo mais curto'}
+        description={work.observations === 'failed' ? FAILURES.MEMORY_REFLECTION_FAILED.message : 'Quando encher, o Builder junta as observações num resumo mais curto'}
         threshold={om.reflectionThreshold}
         tokens={om.observationTokens}
         tone={observationTone}

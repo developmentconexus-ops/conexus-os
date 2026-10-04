@@ -54,6 +54,7 @@ test('every pool carries its capability into application_name', async () => {
 test('the Hub config reads the password file and the role of every registered role from its variable', () => {
   const environment = {
     CONEXUS_ORIGIN: 'https://hub.conexus.localhost:3443',
+    CONEXUS_PORT: '3443',
     CONEXUS_BOOTSTRAP_SUBJECT: 'bootstrap-subject',
     CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/key',
     CONEXUS_DB_HOST: 'db.internal',

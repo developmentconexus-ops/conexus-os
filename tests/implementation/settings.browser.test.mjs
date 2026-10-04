@@ -7,7 +7,7 @@ const web = shareWebBrowser()
 const withServer = async (t) => {
   const { page, origin } = await web.openPage(t, { viewport: { width: 1200, height: 900 } })
   // This Hub runs no CLIProxyAPI unless a test says otherwise.
-  await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => route.fulfill({ status: 404 }))
+  await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => route.fulfill(notFound))
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({ administrator: false, accounts: [{ provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', mine: false, shared: false }] }),
   }))
@@ -24,7 +24,8 @@ const routeInstallation = (page, administrator) =>
     status: 200, contentType: 'application/json', body: JSON.stringify({ administrator }),
   }))
 
-const problem = (type) => ({ status: 409, contentType: 'application/json', body: JSON.stringify({ type }) })
+const notFound = { status: 404, contentType: 'application/problem+json', body: JSON.stringify({ type: 'urn:conexus:problem:NOT_FOUND', title: 'NOT_FOUND', status: 404, code: 'NOT_FOUND' }) }
+const problem = (code) => ({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${code}`, title: code, status: 409, code }) })
 
 test('/settings redirects to Minha conta, and a member sees no Instalação group and is refused an installation route', async (t) => {
   const { page, origin } = await withServer(t)
@@ -77,13 +78,13 @@ test('Administradores refuses to revoke the last administrator and to grant an u
   await routeAccessContext(page, { accountId: 'a6', displayName: 'Única Admin', email: 'unica@example.com' })
   await routeInstallation(page, true)
   await page.route('**/api/control/installation/administrators', (route) => {
-    if (route.request().method() === 'POST') return route.fulfill(problem('account-not-found'))
+    if (route.request().method() === 'POST') return route.fulfill(problem('ACCOUNT_NOT_FOUND'))
     return route.fulfill({
       status: 200, contentType: 'application/json',
       body: JSON.stringify({ administrators: [{ accountId: 'a6', displayName: 'Única Admin', email: 'unica@example.com', grantedVia: 'OPERATOR_BOOTSTRAP', grantedBy: null, grantedAt: '2026-09-01T00:00:00.000Z' }] }),
     })
   })
-  await page.route('**/api/control/installation/administrators/a6', (route) => route.fulfill({ ...problem('last-installation-administrator'), status: 409 }))
+  await page.route('**/api/control/installation/administrators/a6', (route) => route.fulfill({ ...problem('LAST_INSTALLATION_ADMINISTRATOR'), status: 409 }))
 
   await page.goto(`${origin}/settings/installation/admins`)
   await page.getByRole('heading', { name: 'Administradores' }).waitFor()
@@ -110,18 +111,18 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
     const request = route.request()
     const path = new URL(request.url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
     const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
-    if (!enabled) return json(404, { type: 'not-found' })
+    if (!enabled) return json(404, { code: 'NOT_FOUND' })
     writes.push([request.method(), path, 'x-conexus-csrf' in request.headers(), request.postDataJSON?.() ?? null])
     if (path === '/connection') return json(200, { mine: connected, shared: false, administrator: false })
     // Held open briefly so the test can observe the "Preparando…" label before the tab navigates.
     if (path === '/login/start') { await new Promise((resolve) => setTimeout(resolve, 200)); return json(200, { loginId, url: signIn }) }
     if (path === '/login/complete') {
-      if (!request.postDataJSON().callbackUrl.includes('state=issued-state')) return json(400, { type: 'model-login-callback-refused' })
+      if (!request.postDataJSON().callbackUrl.includes('state=issued-state')) return json(400, { code: 'MODEL_LOGIN_CALLBACK_REFUSED' })
       connected = true
       return json(200, { state: 'succeeded' })
     }
     if (path === `/login/${loginId}`) return json(200, { state: 'waiting' })
-    return json(404, {})
+    return json(404, { code: 'NOT_FOUND' })
   })
   // The popup navigates the real Google URL; answer it instead of letting the test hit the network.
   await page.context().route('https://accounts.google.com/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<html></html>' }))
@@ -141,7 +142,7 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
   const pasted = page.getByLabel('Endereço da aba que não abriu')
   await pasted.fill('http://localhost:51121/oauth-callback?state=other&code=x')
   await page.getByRole('button', { name: 'Concluir' }).click()
-  await page.getByText('Esse endereço não é o da entrada do Google iniciada aqui.').waitFor()
+  await page.getByText('O Conexus não aceitou esse endereço de retorno da entrada.').waitFor()
   await pasted.fill('http://localhost:51121/oauth-callback?state=issued-state&code=good')
   await page.getByRole('button', { name: 'Concluir' }).click()
   await page.getByText('Google AI Pro conectado.').waitFor()
@@ -170,7 +171,7 @@ test('Minhas contas de modelo falls back to the primary sign-in link when the po
     if (path === '/connection') return json(200, { mine: false, shared: false, administrator: false })
     if (path === '/login/start') return json(200, { loginId, url: signIn })
     if (path === `/login/${loginId}`) return json(200, { state: 'waiting' })
-    return json(404, {})
+    return json(404, { code: 'NOT_FOUND' })
   })
   // Simulates a browser popup blocker: window.open runs but returns no handle.
   await page.addInitScript(() => { window.open = () => null })
@@ -210,7 +211,7 @@ test('Minhas contas de modelo signs a person in to ChatGPT with a device code, a
       connected = true
       return json({ state: 'succeeded' })
     }
-    return route.fulfill({ status: 404 })
+    return route.fulfill(notFound)
   })
   await page.context().route('https://auth.openai.com/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<html></html>' }))
 
@@ -259,7 +260,7 @@ test('Minhas contas de modelo saves an Anthropic key and signs in with a Claude 
       kind = 'oauth'
       return json({ state: 'succeeded' })
     }
-    return route.fulfill({ status: 404 })
+    return route.fulfill(notFound)
   })
 
   await page.goto(`${origin}/settings/models`)

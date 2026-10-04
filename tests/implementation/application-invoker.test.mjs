@@ -1,3 +1,4 @@
+import { invariant } from './failure-matchers.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -54,6 +55,8 @@ const OK = { status: 200, body: { ok: true } }
 const tick = () => new Promise((resolve) => setImmediate(resolve))
 const beforeNextTurn = (promise) => Promise.race([promise, new Promise((resolve) => setImmediate(resolve, 'still waiting'))])
 
+const problem = (code, status) => ({ type: `urn:conexus:problem:${code}`, title: code, status, code })
+
 test('a call over its Project\'s limit waits and runs once a slot frees, while another Project\'s call is read at once, and a handed-over slot still counts', async () => {
   const { reader, invoker, admissionOrder } = admission({ globalConcurrency: 5, perProjectConcurrency: 2 })
   const [a, b, c] = ['a', 'b', 'c'].map((path) => call(invoker, 'p1', path))
@@ -80,7 +83,7 @@ test('a call over its Project\'s limit waits and runs once a slot frees, while a
 test('a call whose wait for its Project expires answers 429 APPLICATION_PROJECT_BUSY without being read, and leaks no slot', async () => {
   const { reader, invoker, admissionOrder } = admission({ perProjectConcurrency: 2, admissionQueueTimeoutMs: 30 })
   const [a, b, c] = ['a', 'b', 'c'].map((path) => call(invoker, 'p1', path))
-  assert.deepEqual(await c, { status: 429, body: { error: { code: 'APPLICATION_PROJECT_BUSY' } } })
+  assert.deepEqual(await c, { status: 429, body: problem('APPLICATION_PROJECT_BUSY', 429) })
   reader.release(2)
   assert.deepEqual(await Promise.all([a, b]), [OK, OK])
   const d = call(invoker, 'p1', 'd')
@@ -93,7 +96,7 @@ test('a call whose wait for its Project expires answers 429 APPLICATION_PROJECT_
 test('a call that finds its Project\'s line full answers 429 APPLICATION_PROJECT_BUSY at once', async () => {
   const { reader, invoker, admissionOrder } = admission({ perProjectConcurrency: 2, admissionQueueLimit: 1 })
   const [a, b, c] = ['a', 'b', 'c'].map((path) => call(invoker, 'p1', path))
-  assert.deepEqual(await beforeNextTurn(call(invoker, 'p1', 'd')), { status: 429, body: { error: { code: 'APPLICATION_PROJECT_BUSY' } } })
+  assert.deepEqual(await beforeNextTurn(call(invoker, 'p1', 'd')), { status: 429, body: problem('APPLICATION_PROJECT_BUSY', 429) })
   await tick()
   reader.release(1)
   assert.deepEqual(await a, OK)
@@ -123,7 +126,7 @@ test('a call whose wait for the runner expires answers 429 APPLICATION_RUNNER_BU
   const a = call(invoker, 'p1', 'a')
   const b = call(invoker, 'p2', 'b')
   const c = call(invoker, 'p3', 'c')
-  assert.deepEqual(await c, { status: 429, body: { error: { code: 'APPLICATION_RUNNER_BUSY' } } })
+  assert.deepEqual(await c, { status: 429, body: problem('APPLICATION_RUNNER_BUSY', 429) })
   reader.release(2)
   assert.deepEqual(await Promise.all([a, b]), [OK, OK])
   const d = call(invoker, 'p3', 'd')
@@ -138,7 +141,7 @@ test('a call that finds the runner\'s line full answers 429 APPLICATION_RUNNER_B
   const a = call(invoker, 'p1', 'a')
   const b = call(invoker, 'p2', 'b')
   const c = call(invoker, 'p3', 'c')
-  assert.deepEqual(await beforeNextTurn(call(invoker, 'p4', 'd')), { status: 429, body: { error: { code: 'APPLICATION_RUNNER_BUSY' } } })
+  assert.deepEqual(await beforeNextTurn(call(invoker, 'p4', 'd')), { status: 429, body: problem('APPLICATION_RUNNER_BUSY', 429) })
   await tick()
   reader.release(1)
   assert.deepEqual(await a, OK)
@@ -156,7 +159,7 @@ test('a caller that leaves its Project\'s line is refused at once and never read
   const c = call(invoker, 'p1', 'c')
   await tick()
   leaving.abort()
-  assert.deepEqual(await beforeNextTurn(b), { status: 429, body: { error: { code: 'APPLICATION_PROJECT_BUSY' } } })
+  assert.deepEqual(await beforeNextTurn(b), { status: 429, body: problem('APPLICATION_PROJECT_BUSY', 429) })
   reader.release(1)
   assert.deepEqual(await a, OK)
   await tick()
@@ -174,7 +177,7 @@ test('a caller that leaves the runner\'s line frees its Project slot, and both l
   const d = call(invoker, 'p3', 'd')
   await tick()
   leaving.abort()
-  assert.deepEqual(await beforeNextTurn(b), { status: 429, body: { error: { code: 'APPLICATION_RUNNER_BUSY' } } })
+  assert.deepEqual(await beforeNextTurn(b), { status: 429, body: problem('APPLICATION_RUNNER_BUSY', 429) })
   reader.release(1)
   assert.deepEqual(await a, OK)
   await tick()
@@ -195,7 +198,7 @@ test('one deadline covers the wait in the Project\'s line and in the runner\'s l
   await delay(250)
   reader.release(1)
   assert.deepEqual(await a, OK)
-  assert.deepEqual(await c, { status: 429, body: { error: { code: 'APPLICATION_RUNNER_BUSY' } } })
+  assert.deepEqual(await c, { status: 429, body: problem('APPLICATION_RUNNER_BUSY', 429) })
   assert.ok(performance.now() - started < 550, 'c had 400 ms across both lines, not 400 ms in each')
   reader.release(1)
   assert.deepEqual(await b, OK)
@@ -227,7 +230,7 @@ test('a caller that left before its call arrived still runs on a free slot, and 
   const { reader, invoker, admissionOrder } = admission({ perProjectConcurrency: 1 })
   const a = call(invoker, 'p1', 'a', AbortSignal.abort())
   await tick()
-  assert.deepEqual(await beforeNextTurn(call(invoker, 'p1', 'b', AbortSignal.abort())), { status: 429, body: { error: { code: 'APPLICATION_PROJECT_BUSY' } } })
+  assert.deepEqual(await beforeNextTurn(call(invoker, 'p1', 'b', AbortSignal.abort())), { status: 429, body: problem('APPLICATION_PROJECT_BUSY', 429) })
   reader.release(1)
   assert.deepEqual(await a, OK)
   assert.deepEqual(admissionOrder(), ['a'])
@@ -265,7 +268,7 @@ test('a server tree over the total byte limit is refused as soon as the running 
     serverFiles: ['conexus-server/a.mjs', 'conexus-server/b.mjs', 'conexus-server/c.mjs'], operation: 'op', input: {}, caller: CALLER, callerLeft: new AbortController().signal,
   })
   assert.equal(reader.calls.length, 2, 'the read stopped as soon as the total crossed the limit, not after the whole tree')
-  assert.deepEqual(result, { status: 413, body: { error: { code: 'SERVER_TREE_TOO_LARGE' } } })
+  assert.deepEqual(result, { status: 413, body: problem('SERVER_TREE_TOO_LARGE', 413) })
   assert.equal(runner.calls.length, 0, 'the runner never receives an over-limit tree')
 })
 
@@ -294,7 +297,7 @@ test('a missing file still refuses by throwing, as the Preview API layer expects
   })
   await assert.rejects(
     () => call(invoker, 'p1', 'x'),
-    /APPLICATION_SERVER_FILE_MISSING/,
+    invariant('APPLICATION_SERVER_FILE_MISSING'),
   )
 })
 

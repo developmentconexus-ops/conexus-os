@@ -4,6 +4,7 @@ import { SandboxFilesystem } from '@mastra/code-sdk/agents/sandbox-filesystem'
 import { E2BSandbox } from '@mastra/e2b'
 import { FileNotFoundError, Sandbox } from 'e2b'
 import { fieldOf } from '../platform/field-of.js'
+import { Failure } from '../platform/failure.js'
 
 // The template's own home for the agent; the conversation's checkout lives inside it.
 const SANDBOX_HOME = '/workspace'
@@ -42,7 +43,7 @@ export class ConexusRunSandbox extends E2BSandbox {
 
   /** `executeCommand`, which the base class declares optional and E2B always has. */
   runCommand(command: string, args?: string[], options?: ExecuteCommandOptions): Promise<CommandResult> {
-    if (!this.executeCommand) throw new Error('BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED')
+    if (!this.executeCommand) throw new Failure('BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED')
     return this.executeCommand(command, args, options)
   }
 
@@ -103,7 +104,7 @@ export class ConexusRunSandbox extends E2BSandbox {
   async writeRootFile(path: string, bytes: Uint8Array): Promise<void> {
     const folder = path.slice(0, path.lastIndexOf('/')) || '/'
     const made = await this.runAsRoot(`mkdir -p -m 755 '${folder}'`, {})
-    if (made.exitCode !== 0) throw new Error('BUILDER_SANDBOX_FILE_REFUSED')
+    if (made.exitCode !== 0) throw new Failure('BUILDER_SANDBOX_FILE_REFUSED')
     await this.e2b.files.write(path, new Blob([new Uint8Array(bytes)]), { user: 'root' })
   }
 

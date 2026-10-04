@@ -52,17 +52,17 @@ test('GET project-summaries authenticates, sorts by lastActivityAt, and answers 
   failWith = Object.assign(new Error('invalid input syntax for type uuid'), { code: '22P02' })
   const malformed = await list()
   assert.equal(malformed.statusCode, 404)
-  assert.equal(malformed.json().type.endsWith('workspace-not-found'), true)
+  assert.equal(malformed.json().type.endsWith('WORKSPACE_NOT_FOUND'), true)
 
   failWith = new Error('PROJECT_READ_POOL_NOT_CONFIGURED')
   const unavailable = await list()
   assert.equal(unavailable.statusCode, 503)
-  assert.equal(unavailable.json().type.endsWith('project-summaries-unavailable'), true)
-  const failure = logs.find((record) => record.msg === 'PROJECT_SUMMARIES_FAILED')
-  assert.ok(failure, 'PROJECT_SUMMARIES_FAILED was logged')
+  assert.equal(unavailable.json().type.endsWith('PROJECT_SUMMARIES_UNAVAILABLE'), true)
+  const failure = logs.find((record) => record.msg === 'PROJECT_SUMMARIES_UNAVAILABLE')
+  assert.ok(failure, 'PROJECT_SUMMARIES_UNAVAILABLE was logged')
   assert.equal(failure.level, 50)
-  assert.equal(failure['exception.message'], 'PROJECT_READ_POOL_NOT_CONFIGURED')
-  assert.equal(failure['conexus.workspace_id'], workspaceId)
+  assert.equal(failure['exception.type'], 'Error')
+  assert.equal(failure['failure.details.workspaceId'], workspaceId)
 })
 
 test('GET project thumbnail streams PNG bytes with ETag and cache control, handles 401, 404, 503', async (t) => {
@@ -119,17 +119,17 @@ test('GET project thumbnail streams PNG bytes with ETag and cache control, handl
   answer = null
   const notFound = await fetchThumbnail()
   assert.equal(notFound.statusCode, 404)
-  assert.equal(notFound.json().type.endsWith('project-thumbnail-not-found'), true)
+  assert.equal(notFound.json().type.endsWith('PROJECT_THUMBNAIL_NOT_FOUND'), true)
 
   // 404 Invalid project ID (e.g. Postgres 22P02)
   answer = Object.assign(new Error('invalid input syntax for type uuid'), { code: '22P02' })
   const malformed = await fetchThumbnail()
   assert.equal(malformed.statusCode, 404)
-  assert.equal(malformed.json().type.endsWith('project-not-found'), true)
+  assert.equal(malformed.json().type.endsWith('PROJECT_NOT_FOUND'), true)
 
   // 503 Service Unavailable / Store failure
   answer = new Error('DATABASE_CONNECTION_REFUSED')
   const unavailable = await fetchThumbnail()
   assert.equal(unavailable.statusCode, 503)
-  assert.equal(unavailable.json().type.endsWith('project-thumbnail-unavailable'), true)
+  assert.equal(unavailable.json().type.endsWith('PROJECT_THUMBNAIL_UNAVAILABLE'), true)
 })

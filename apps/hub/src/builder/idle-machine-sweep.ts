@@ -1,3 +1,6 @@
+import { Failure, logFailure } from '../platform/failure.js'
+import { logger } from '../platform/logger.js'
+import type { EventLog } from '../platform/logger.js'
 import type { PausedConversationMachine } from './sandbox.js'
 
 /**
@@ -13,7 +16,7 @@ export type IdleMachineSweepPorts = Readonly<{
   openRunConversations(): Promise<ReadonlySet<string>>
   /** Kills the machines by provider id and answers the ones that are gone. */
   kill(providerSandboxIds: readonly string[]): Promise<readonly string[]>
-  log(line: string): void
+  log: EventLog
   now?: () => number
 }>
 
@@ -33,7 +36,7 @@ const sweepIdleMachines = async ({ listPaused, openRunConversations, kill, log, 
   for (const machine of doomed) {
     if (!gone.has(machine.providerSandboxId)) continue
     const idleDays = Math.floor((now() - machine.idleSince.getTime()) / 86_400_000)
-    log(`BUILDER_IDLE_MACHINE_DELETED:${machine.conversationId}:${machine.providerSandboxId}:${idleDays}d`)
+    log('BUILDER_IDLE_MACHINE_DELETED', { conversation: machine.conversationId, machine: machine.providerSandboxId, idleDays })
   }
   return gone.size
 }
@@ -59,7 +62,7 @@ export const scheduleIdleMachineSweep = (
     return pass
   }
   const tickLogged = (): void => {
-    tick().catch((error: unknown) => ports.log(`BUILDER_IDLE_MACHINE_SWEEP_FAILED:${error instanceof Error ? error.message : String(error)}`))
+    tick().catch((error: unknown) => logFailure(logger, new Failure('BUILDER_IDLE_MACHINE_SWEEP_FAILED', { cause: error })))
   }
   tickLogged()
   const timer = setInterval(tickLogged, intervalMs)

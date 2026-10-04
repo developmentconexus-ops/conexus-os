@@ -3,6 +3,7 @@ import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import net from 'node:net'
 import tls from 'node:tls'
+import { Failure } from '../platform/failure.js'
 
 /**
  * One invocation's database path. The sandbox has an empty network namespace; the only way out is
@@ -32,10 +33,10 @@ const RELAY_FILES = ['ca.pem', 'relay-key.pem', 'relay.pem']
  * whoever reads either could mint relay certificates or impersonate the cluster.
  */
 export const readRelayTls = (directory: string): RelayTls => {
-  if ((statSync(directory).mode & 0o077) !== 0) throw new Error('RUNNER_RELAY_TLS_DIR_PERMISSIONS')
+  if ((statSync(directory).mode & 0o077) !== 0) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'RUNNER_RELAY_TLS_DIR_PERMISSIONS' } })
   const present = readdirSync(directory).sort()
-  if (present.join(',') !== RELAY_FILES.join(',')) throw new Error(`RUNNER_RELAY_TLS_DIR_REFUSED: ${present.join(',')}`)
-  if ((statSync(join(directory, 'relay-key.pem')).mode & 0o077) !== 0) throw new Error('RUNNER_RELAY_KEY_PERMISSIONS')
+  if (present.join(',') !== RELAY_FILES.join(',')) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'RUNNER_RELAY_TLS_DIR_REFUSED', present: present.join(',') } })
+  if ((statSync(join(directory, 'relay-key.pem')).mode & 0o077) !== 0) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'RUNNER_RELAY_KEY_PERMISSIONS' } })
   const read = (file: string): string => readFileSync(join(directory, file), 'utf8')
   return Object.freeze({ ca: read('ca.pem'), cert: read('relay.pem'), key: read('relay-key.pem') })
 }

@@ -1,7 +1,6 @@
 import type { QueryResultRow } from 'pg'
 import { errorCode, type PostgresPool } from '../platform/postgres.js'
-import { logger, recordFailure } from '../platform/logger.js'
-import { projectError, projectErrorCode } from './errors.js'
+import { Failure } from '../platform/failure.js'
 
 // The application's Preview data, the E2B VMs of the Project's conversations and the Project's
 // repository in the Conexus Git, torn down once the tombstone names the Project. Each is idempotent
@@ -37,16 +36,16 @@ export const createProjectDeletionOrchestrator = ({ commandPool, ports }: Readon
         [input.accountId, input.projectId, input.confirmName],
       )
       const row = result.rows[0]
-      if (!row) throw projectError('OUTCOME_UNKNOWN')
+      if (!row) throw new Failure('OUTCOME_UNKNOWN')
       await client.query('COMMIT')
       return row
     } catch (error) {
       await client.query('ROLLBACK')
-      if (isNotAdmitted(error)) throw projectError('AUTHORIZATION_DENIED')
+      if (isNotAdmitted(error)) throw new Failure('PROJECT_DELETE_DENIED')
       const text = errorText(error)
-      if (text.startsWith('PROJECT_NOT_FOUND')) throw projectError('PROJECT_NOT_FOUND')
-      if (text.startsWith('PROJECT_NAME_MISMATCH')) throw projectError('PROJECT_NAME_MISMATCH')
-      if (text.startsWith('PROJECT_BUSY')) throw projectError('PROJECT_BUSY')
+      if (text.startsWith('PROJECT_NOT_FOUND')) throw new Failure('PROJECT_NOT_FOUND')
+      if (text.startsWith('PROJECT_NAME_MISMATCH')) throw new Failure('PROJECT_NAME_MISMATCH')
+      if (text.startsWith('PROJECT_BUSY')) throw new Failure('PROJECT_BUSY')
       throw error
     } finally {
       client.release()
@@ -61,7 +60,7 @@ export const createProjectDeletionOrchestrator = ({ commandPool, ports }: Readon
       await client.query('COMMIT')
     } catch (error) {
       await client.query('ROLLBACK')
-      if (errorText(error).startsWith('PROJECT_BUSY')) throw projectError('PROJECT_BUSY')
+      if (errorText(error).startsWith('PROJECT_BUSY')) throw new Failure('PROJECT_BUSY')
       throw error
     } finally {
       client.release()
@@ -95,10 +94,9 @@ export const createProjectDeletionOrchestrator = ({ commandPool, ports }: Readon
       await ports.deleteRepository(tombstone.project_id)
       await complete(tombstone.project_id)
     } catch (error) {
-      if (projectErrorCode(error) === 'PROJECT_BUSY') throw error
-      // The caller only ever sees DELETION_INCOMPLETE, so the step that failed is logged here.
-      recordFailure(logger, 'PROJECT_DELETION_INCOMPLETE', error, { 'conexus.project_id': tombstone.project_id })
-      throw projectError('DELETION_INCOMPLETE')
+      if (error instanceof Failure && error.id === 'PROJECT_BUSY') throw error
+      // The caller only sees the row; the step that failed is the cause the exit logs.
+      throw new Failure('PROJECT_DELETION_INCOMPLETE', { cause: error, details: { projectId: tombstone.project_id } })
     }
   }
 

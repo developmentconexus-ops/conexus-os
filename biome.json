@@ -51,6 +51,10 @@
   },
   "overrides": [
     {
+      "includes": ["apps/hub/src/**"],
+      "plugins": ["./biome/plugins/no-error-code.grit"]
+    },
+    {
       "includes": [
         "apps/web/src/**",
         "packages/*/src/**"
@@ -233,7 +237,7 @@
             "noExcessiveLinesPerFile": {
               "level": "error",
               "options": {
-                "maxLines": 619
+                "maxLines": 615
               }
             }
           }
@@ -268,6 +272,34 @@
               "level": "error",
               "options": {
                 "maxLines": 684
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "apps/web/src/**",
+        "!apps/web/src/app/failure.ts",
+        "!apps/web/src/features/builder/construir/run-failure.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "**/app/failure",
+                      "**/app/failure.ts"
+                    ],
+                    "importNamePattern": "failureCodeText",
+                    "message": "A settled run's failure is said once, by RunFailure. Read the code there, nowhere else."
+                  }
+                ]
               }
             }
           }

@@ -1,5 +1,6 @@
 import { readdirSync } from 'node:fs'
-import { logLine, logger, recordFailure } from './logger.js'
+import { Failure, logFailure, toFailure } from './failure.js'
+import { logLine, logger } from './logger.js'
 import pg from 'pg'
 import type { PostgresConnection, PostgresPool } from './postgres.js'
 
@@ -12,8 +13,10 @@ const SHUTDOWN_DEADLINE_MS = 15_000
  */
 const REFUSED_START_EXIT_CODE = 78
 
-const isRefusedStart = (error: unknown): boolean =>
-  error instanceof Error && /^(HUB_ALREADY_RUNNING|HUB_SCHEMA_BEHIND:)/.test(error.message)
+const REFUSED_START_CODES: ReadonlySet<string> = new Set(['CONFIG_MISSING', 'CONFIG_INVALID', 'HUB_ALREADY_RUNNING', 'HUB_SCHEMA_BEHIND'])
+
+/** A start the operator must change something to allow exits 78; anything else that ends the Hub exits 1. */
+const exitCodeOf = (error: unknown): number => (error instanceof Failure && REFUSED_START_CODES.has(error.id) ? REFUSED_START_EXIT_CODE : 1)
 
 const MIGRATION_FILE = /^(\d{4})_[a-z0-9_]+\.sql$/
 const UNDEFINED_TABLE = '42P01'
@@ -39,7 +42,7 @@ export const assertSchemaCurrent = async (pool: Pick<PostgresPool, 'query'>, mig
     },
   )
   const missing = migrationVersionsIn(migrationsRoot).filter((version) => !applied.has(version))
-  if (missing.length > 0) throw new Error(`HUB_SCHEMA_BEHIND:${missing.join(',')}`)
+  if (missing.length > 0) throw new Failure('HUB_SCHEMA_BEHIND', { details: { versions: missing.join(',') } })
 }
 
 /**
@@ -49,11 +52,11 @@ export const assertSchemaCurrent = async (pool: Pick<PostgresPool, 'query'>, mig
  */
 export const takeInstanceLock = async (connection: PostgresConnection): Promise<() => Promise<void>> => {
   const client = new pg.Client({ ...connection, application_name: 'conexus-hub:instance-lock' })
-  client.on('error', () => logLine('HUB_POOL_ERROR:instance-lock:', 'error'))
+  client.on('error', (error) => logFailure(logger, new Failure('HUB_POOL_ERROR', { cause: error }), { 'hub.capability': 'instance-lock' }))
   await client.connect()
   try {
     const { rows } = await client.query<{ taken: boolean }>("SELECT pg_try_advisory_lock(hashtext('conexus.hub.instance')) AS taken")
-    if (rows[0]?.taken !== true) throw new Error('HUB_ALREADY_RUNNING')
+    if (rows[0]?.taken !== true) throw new Failure('HUB_ALREADY_RUNNING')
   } catch (error) {
     await client.end()
     throw error
@@ -63,11 +66,18 @@ export const takeInstanceLock = async (connection: PostgresConnection): Promise<
 
 type ExitProcess = (code: number) => never
 
+/** A Hub that cannot start logs the one line of why and exits. */
+export const exitOnFailedStart = (error: unknown, exit: ExitProcess = (code) => process.exit(code)): never => {
+  const failure = toFailure(error)
+  logFailure(logger, failure)
+  return exit(exitCodeOf(failure))
+}
+
 /** A rejection or exception nobody handled ends the Hub with one named line, never silently. */
 export const installFatalHandlers = (exit: ExitProcess = (code) => process.exit(code)): void => {
   const fatal = (cause: 'unhandledRejection' | 'uncaughtException') => (error: unknown): never => {
-    recordFailure(logger, 'HUB_FATAL', error, { 'hub.fatal.cause': cause })
-    return exit(isRefusedStart(error) ? REFUSED_START_EXIT_CODE : 1)
+    logFailure(logger, error instanceof Failure ? error : new Failure('HUB_FATAL', { cause: error }), { 'hub.fatal.cause': cause })
+    return exit(exitCodeOf(error))
   }
   process.on('unhandledRejection', fatal('unhandledRejection'))
   process.on('uncaughtException', fatal('uncaughtException'))
@@ -84,19 +94,19 @@ export const exitOnSignals = (
   let closing = false
   const onSignal = (signal: NodeJS.Signals): void => {
     if (closing) {
-      logLine(`HUB_SHUTDOWN_FORCED:${signal}`, 'error')
+      logFailure(logger, new Failure('HUB_SHUTDOWN_FORCED'), { 'hub.signal': signal })
       exit(1)
     }
     closing = true
-    logLine(`HUB_SHUTDOWN_STARTED:${signal}`)
+    logLine('HUB_SHUTDOWN_STARTED', { signal })
     setTimeout(() => {
-      logLine('HUB_SHUTDOWN_TIMEOUT', 'error')
+      logFailure(logger, new Failure('HUB_SHUTDOWN_TIMEOUT'))
       exit(1)
     }, deadlineMs)
     close().then(
       () => exit(0),
       (error: unknown) => {
-        recordFailure(logger, 'HUB_SHUTDOWN_FAILED', error)
+        logFailure(logger, new Failure('HUB_SHUTDOWN_FAILED', { cause: error }))
         exit(1)
       },
     )

@@ -2,6 +2,7 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
+import { FAILURES } from '../../../generated/failures.ts'
 import { accountsQueryKey, accountsUrl, callModelAccounts as call, type Accounts } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
 
@@ -13,8 +14,8 @@ const base = `/api/control/model-accounts/${PROVIDER}/oauth`
 
 const OUTCOME: Readonly<Record<Exclude<LoginState, 'waiting'>, string>> = {
   succeeded: 'ChatGPT conectado.',
-  failed: 'A OpenAI recusou a entrada. Tente de novo.',
-  expired: 'O código expirou. Gere outro para tentar de novo.',
+  failed: FAILURES.MODEL_LOGIN_OPENAI_REFUSED.message,
+  expired: 'O código expirou. Gere outro código.',
 }
 
 // A live "M:SS" until the code expires. A reading aid only: the Hub still answers `expired`.
@@ -78,7 +79,7 @@ export function ChatGptAccount() {
   if (accounts.isPending) return null
   if (accounts.isError) return <section aria-labelledby={titleId}>
     <h2 id={titleId}>ChatGPT</h2>
-    <SectionError description="Não foi possível consultar a sua conta do ChatGPT." onRetry={() => void accounts.refetch()} />
+    <SectionError error={accounts.error} description="Não foi possível consultar a sua conta do ChatGPT." onRetry={() => void accounts.refetch()} />
   </section>
   const account = accounts.data.accounts.find((item) => item.provider === PROVIDER)
   const mine = account?.mine === true

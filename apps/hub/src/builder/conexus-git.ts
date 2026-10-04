@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { CommandResult } from '@mastra/core/workspace'
+import { Failure } from '../platform/failure.js'
 
 /**
  * The Conexus Git: one bare repository per Project on the Hub's own disk, `<root>/<projectId>.git`.
@@ -125,7 +126,7 @@ const limitBytes = (limit: number): Transform => {
   return new Transform({
     transform(chunk: Buffer, _encoding, done) {
       seen += chunk.byteLength
-      done(seen > limit ? new Error('BUILDER_RESULT_BUNDLE_TOO_LARGE') : null, chunk)
+      done(seen > limit ? new Failure('BUILDER_RESULT_BUNDLE_TOO_LARGE') : null, chunk)
     },
   })
 }
@@ -138,7 +139,7 @@ const requireOid = (value: string, code: string): string => {
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createConexusGit = ({ root, starter }: Readonly<{ root: string; starter: readonly StarterFile[] }>) => {
   const repository = (projectId: string): string => {
-    if (!PROJECT_ID.test(projectId)) throw new Error('CONEXUS_GIT_PROJECT_REFUSED')
+    if (!PROJECT_ID.test(projectId)) throw new Failure('CONEXUS_GIT_PROJECT_REFUSED')
     return join(root, `${projectId}.git`)
   }
   const git = (projectId: string, args: readonly string[], options?: Parameters<typeof runGit>[1]): Promise<Buffer> =>
@@ -169,16 +170,16 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
 
   // A compare and swap from `expected` (null: the ref must not exist), or a plain move when omitted.
   const moveRef = async (projectId: string, ref: string, next: string, expected?: string | null): Promise<void> => {
-    if (!OID.test(next)) throw new Error('CONEXUS_GIT_REF_REFUSED')
+    if (!OID.test(next)) throw new Failure('CONEXUS_GIT_REF_REFUSED')
     const from = expected === undefined ? [] : [expected ?? NO_OBJECT]
     await git(projectId, ['update-ref', ref, next, ...from]).catch((error: unknown) => {
-      throw new Error('CONEXUS_GIT_REF_MOVED', { cause: error instanceof GitCommandError ? error.cause : undefined })
+      throw new Failure('CONEXUS_GIT_REF_MOVED', { cause: error instanceof GitCommandError ? error.cause : undefined })
     })
   }
 
   const readMain = async (projectId: string): Promise<string> => {
     const main = await readRef(projectId, MAIN).catch(() => null)
-    if (!main) throw new Error('CONEXUS_GIT_MAIN_MISSING')
+    if (!main) throw new Failure('CONEXUS_GIT_MAIN_MISSING')
     return main
   }
 
@@ -214,7 +215,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
      * conflicts and their markers included: the agent resolves them as ordinary work.
      */
     startTurn: async (projectId: string, conversationId: string, main: string): Promise<TurnStart> => {
-      if (!OID.test(main)) throw new Error('BUILDER_RUNTIME_INPUT_REFUSED')
+      if (!OID.test(main)) throw new Failure('BUILDER_RUNTIME_INPUT_REFUSED')
       const ref = mirrorRef(conversationId)
       const mirror = await readRef(projectId, ref)
       const isAncestor = (ancestor: string, descendant: string): Promise<boolean> => succeeds(git(projectId, ['merge-base', '--is-ancestor', ancestor, descendant]))
@@ -239,7 +240,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
       const bundle = await git(projectId, ['bundle', 'create', '--quiet', '-', ...refs.map((line) => line.slice(41))])
       const header = bundle.subarray(0, bundle.indexOf('\n\n')).toString('utf8').split('\n')
       const carried = header.filter((line) => /^[0-9a-f]{40} /.test(line)).sort()
-      if (carried.join('\n') !== [...refs].sort().join('\n')) throw new Error('BUILDER_SOURCE_BASE_MOVED')
+      if (carried.join('\n') !== [...refs].sort().join('\n')) throw new Failure('BUILDER_SOURCE_BASE_MOVED')
       return bundle
     },
 
@@ -250,7 +251,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
      * (null creates it), or unconditionally when omitted, as for a run's own candidate ref.
      */
     acceptSnapshot: async (projectId: string, { ref, parent, bundle, expected }: Snapshot & Readonly<{ bundle: Uint8Array | ReadableStream<Uint8Array>; expected?: string | null }>): Promise<string> => {
-      if (!SNAPSHOT_REF.test(ref) || !OID.test(parent) || (expected && !OID.test(expected))) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+      if (!SNAPSHOT_REF.test(ref) || !OID.test(parent) || (expected && !OID.test(expected))) throw new Failure('BUILDER_RESULT_MATERIALIZATION_REFUSED')
       const staging = `refs/conexus/staging/${randomUUID()}`
       try {
         await withTemporaryDirectory(async (directory) => {
@@ -263,14 +264,14 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
             '-c', 'transfer.fsckObjects=true', '-c', 'fetch.fsckObjects=true',
             'fetch', '--quiet', '--no-tags', '--no-write-fetch-head', file, `+${ref}:${staging}`,
           ]).catch((error: unknown) => {
-            throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED', { cause: error instanceof GitCommandError ? error.cause : undefined })
+            throw new Failure('BUILDER_RESULT_MATERIALIZATION_REFUSED', { cause: error instanceof GitCommandError ? error.cause : undefined })
           })
         })
         const [commit, ...parents] = (await text(git(projectId, ['rev-list', '--parents', '-n', '1', staging]))).split(' ')
-        if (!commit || !OID.test(commit) || parents.length !== 1 || parents[0] !== parent) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+        if (!commit || !OID.test(commit) || parents.length !== 1 || parents[0] !== parent) throw new Failure('BUILDER_RESULT_MATERIALIZATION_REFUSED')
         const tree = (await git(projectId, ['ls-tree', '-r', '-l', '-z', staging])).toString('utf8').split('\0').filter(Boolean)
         const sizes = tree.map((entry) => /^\d+ blob [0-9a-f]{40} +(\d+)\t/.exec(entry)?.[1]).map(Number)
-        if (tree.length > MAX_RESULT_FILES || sizes.some((size) => size > MAX_RESULT_FILE_BYTES)) throw new Error('BUILDER_RESULT_CONTENT_TOO_LARGE')
+        if (tree.length > MAX_RESULT_FILES || sizes.some((size) => size > MAX_RESULT_FILE_BYTES)) throw new Failure('BUILDER_RESULT_CONTENT_TOO_LARGE')
         await moveRef(projectId, ref, commit, expected)
         return commit
       } finally {
@@ -290,10 +291,10 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
      * under git's ref lock. A retry after `main` already moved to the candidate converges.
      */
     fastForwardMain: async (projectId: string, { base, candidate }: Readonly<{ base: string; candidate: string }>): Promise<void> => {
-      if (!OID.test(base) || !OID.test(candidate) || base === candidate) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
-      if (!await succeeds(git(projectId, ['merge-base', '--is-ancestor', base, candidate]))) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+      if (!OID.test(base) || !OID.test(candidate) || base === candidate) throw new Failure('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+      if (!await succeeds(git(projectId, ['merge-base', '--is-ancestor', base, candidate]))) throw new Failure('BUILDER_RESULT_MATERIALIZATION_REFUSED')
       const moved = await git(projectId, ['update-ref', MAIN, candidate, base]).then(() => true, () => false)
-      if (!moved && await readMain(projectId) !== candidate) throw new Error('BUILDER_SOURCE_BASE_MOVED')
+      if (!moved && await readMain(projectId) !== candidate) throw new Failure('BUILDER_SOURCE_BASE_MOVED')
     },
 
     /** Whether this commit is the starter: the root commit `ensureRepository` made, which no saved version precedes. */
@@ -358,7 +359,7 @@ const hasCommit = (git: (projectId: string, args: readonly string[]) => Promise<
   OID.test(revision) ? git(projectId, ['cat-file', '-e', `${revision}^{commit}`]).then(() => true, () => false) : Promise.resolve(false)
 
 const uuidRef = (prefix: string, id: string): string => {
-  if (!PROJECT_ID.test(id)) throw new Error('CONEXUS_GIT_REF_REFUSED')
+  if (!PROJECT_ID.test(id)) throw new Failure('CONEXUS_GIT_REF_REFUSED')
   return `${prefix}/${id}`
 }
 
@@ -416,7 +417,7 @@ const seedSandbox = async (input: SeedInput): Promise<void> => {
     'git clean -fdq',
     `test "$(git rev-parse HEAD)" = ${quoted(input.turn.start)}`,
   ].join('\n')])
-  if (seeded.exitCode !== 0) throw new Error('BUILDER_SOURCE_BASE_PIN_REFUSED', { cause: { exitCode: seeded.exitCode, stderr: evidence(seeded.stderr) } })
+  if (seeded.exitCode !== 0) throw new Failure('BUILDER_SOURCE_BASE_PIN_REFUSED', { cause: { exitCode: seeded.exitCode, stderr: evidence(seeded.stderr) } })
 }
 
 /**
@@ -494,14 +495,14 @@ export const pullSnapshot = async ({ git, projectId, snapshot, expected, unchang
   const lines = committed.stdout.trim().split('\n')
   const reported = lines.pop() ?? ''
   if (committed.exitCode !== 0 || (reported !== 'UNCHANGED' && reported !== 'SAME' && !OID.test(reported))) {
-    throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED', { cause: { exitCode: committed.exitCode, stderr: evidence(committed.stderr) } })
+    throw new Failure('BUILDER_RESULT_MATERIALIZATION_REFUSED', { cause: { exitCode: committed.exitCode, stderr: evidence(committed.stderr) } })
   }
   if (reported === 'UNCHANGED') return null
   if (reported === 'SAME' && sameAs) return sameAs
   const size = Number(/^size=(\d+)$/.exec(lines.pop() ?? '')?.[1])
-  if (!Number.isSafeInteger(size)) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
-  if (size > MAX_RESULT_BUNDLE_BYTES) throw new Error('BUILDER_RESULT_BUNDLE_TOO_LARGE')
+  if (!Number.isSafeInteger(size)) throw new Failure('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+  if (size > MAX_RESULT_BUNDLE_BYTES) throw new Failure('BUILDER_RESULT_BUNDLE_TOO_LARGE')
   const accepted = await git.acceptSnapshot(projectId, { ...snapshot, bundle: await sandbox.readAgentFileStream(bundleFile), ...(expected === undefined ? {} : { expected }) })
-  if (accepted !== reported) throw new Error('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+  if (accepted !== reported) throw new Failure('BUILDER_RESULT_MATERIALIZATION_REFUSED')
   return accepted
 }

@@ -8,6 +8,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { BuilderComposer, type ComposerMode } from '../../builder/composer/composer'
 import { type ReasoningLevel, useBuilderModels } from '../../builder/mastra-session'
+import { failureText } from '../../../app/http'
 import { suggestProjectName } from '../project-name'
 import { useStartProject } from '../start-project'
 import type { StartedProject } from '../start-project'
@@ -103,7 +104,7 @@ export function PromptBox({ workspaceId, workspaceName, returning }: Readonly<{ 
     : confirming ? { kind: 'BLOCKED' }
       : modelReady ? { kind: 'READY' }
         : models.isPending ? { kind: 'LOADING_MODEL' }
-          : models.isError ? { kind: 'MODEL_ERROR' }
+          : models.isError ? { kind: 'MODEL_ERROR', message: failureText(models.error) }
             : { kind: 'NO_MODEL' }
 
   return <section className="cx-prompt" aria-labelledby={`${promptId}-title`}>
@@ -113,8 +114,6 @@ export function PromptBox({ workspaceId, workspaceName, returning }: Readonly<{ 
       draft={description}
       onDraftChange={(value) => { setDescription(value); if (message) setMessage('') }}
       onSend={onSend}
-      // biome-ignore lint/suspicious/noEmptyBlockStatements: debt: owning wave
-      onStop={() => {}}
       onNewConversation={() => { setDescription(''); setName(null) }}
       mode={mode}
       working={mutation.isPending}

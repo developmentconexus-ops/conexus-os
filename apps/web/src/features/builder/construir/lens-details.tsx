@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query'
 import { Check, Copy } from 'lucide-react'
 import { useState } from 'react'
 import { type BuilderRun, getBuilderRunTrace } from '../api'
-import { failureReason } from '../failure-reasons'
 import './lens-surfaces.css'
 import { clockLabel, statusLine, viewRun } from './run-state'
 
@@ -106,14 +105,11 @@ export function LensDetails({ projectId, runs, selected, onSelect, preview }: Re
       <h3 id="cx-history-heading">O que já foi feito</h3>
       <ol className="cx-run-timeline">
         {runs.map((run) => {
-          const failed = timelineTone(run) === 'fail'
-          const reason = failed ? failureReason(run) : null
           return <li key={run.builderRunId} data-selected={run.builderRunId === selected.builderRunId || undefined}>
             <button type="button" className="cx-run-entry" aria-pressed={run.builderRunId === selected.builderRunId} onClick={() => onSelect(run.builderRunId)}>
               <time className="cx-history-time">{clockLabel(run.createdAt)}</time>
               <div className="cx-run-entry-body">
                 <p className="cx-history-text">{run.requestText ?? 'Pedido sem texto'}</p>
-                {reason && <p className="cx-run-reason"><strong>Motivo:</strong> {reason}</p>}
               </div>
               <span className="cx-chip" data-tone={timelineTone(run)}>{timelinePillText(run)}</span>
             </button>

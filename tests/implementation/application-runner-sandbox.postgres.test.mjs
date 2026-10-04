@@ -1,3 +1,4 @@
+import { invariant } from './failure-matchers.mjs'
 import assert from 'node:assert/strict'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { chmodSync, copyFileSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
@@ -136,6 +137,8 @@ const setup = async (t, sandbox, { connectorSocketDir } = {}) => {
   return { admin, database, supervisor, projects, stateDir }
 }
 
+const problem = (code, status, detail) => ({ type: `urn:conexus:problem:${code}`, title: code, status, code, ...(detail === undefined ? {} : { detail }) })
+
 test('the runner migrates and serves each Project through its own sandboxed worker', async (t) => {
   const { admin, database, supervisor, projects: [a, b] } = await setup(t)
   const files = serverTree([['001_follow_up_note.sql', NOTE_SQL]])
@@ -152,20 +155,20 @@ test('the runner migrates and serves each Project through its own sandboxed work
   assert.deepEqual(listed.body.map((note) => [note.id, note.purchaseOrderId, note.note]), [[created.body.id, 'PO-7', 'ligar para o fornecedor']])
   assert.deepEqual((await invoke(b, 'listNotes', { purchaseOrderId: 'PO-7' })).body, [])
 
-  assert.deepEqual(await invoke(a, 'listNotes', { purchaseOrderId: 'PO-7', projectId: b }), { status: 400, body: { error: { code: 'INPUT_REFUSED', detail: '/projectId: not declared' } } })
+  assert.deepEqual(await invoke(a, 'listNotes', { purchaseOrderId: 'PO-7', projectId: b }), { status: 400, body: problem('INPUT_REFUSED', 400, '/projectId: not declared') })
   // The handler sees the platform's caller, frozen, even when the input declares and carries one.
   assert.deepEqual(await invoke(a, 'whoAmI'), { status: 200, body: { caller: { accountId: '55555555-5555-4555-8555-555555555555', email: 'funcionaria@example.com', displayName: 'Funcionária' }, frozen: true } })
   assert.deepEqual(await invoke(a, 'whoAmI', { caller: { accountId: 'forged', displayName: 'Chefe' } }), { status: 200, body: { caller: { accountId: '55555555-5555-4555-8555-555555555555', email: 'funcionaria@example.com', displayName: 'Funcionária' }, frozen: true } })
-  assert.deepEqual(await invoke(a, 'dropEverything'), { status: 404, body: { error: { code: 'OPERATION_NOT_FOUND' } } })
-  assert.deepEqual(await invoke(a, 'wrongShape'), { status: 502, body: { error: { code: 'HANDLER_OUTPUT_REFUSED', detail: '/id: expected integer' } } })
-  assert.deepEqual(await invoke(a, 'huge'), { status: 502, body: { error: { code: 'RESPONSE_TOO_LARGE' } } })
+  assert.deepEqual(await invoke(a, 'dropEverything'), { status: 404, body: problem('OPERATION_NOT_FOUND', 404) })
+  assert.deepEqual(await invoke(a, 'wrongShape'), { status: 502, body: problem('HANDLER_OUTPUT_REFUSED', 502, '/id: expected integer') })
+  assert.deepEqual(await invoke(a, 'huge'), { status: 502, body: problem('RESPONSE_TOO_LARGE', 502) })
   assert.deepEqual(await invoke(a, 'environment'), { status: 200, body: { text: '{"PWD":"/"}' } })
 
   // The handler first lifts its own statement_timeout and transaction_timeout, which any session may
   // do, so only the relay's cancel at the invocation's wall clock can end the statement.
   await t.test('a worker past its wall clock is killed and its database statement cancelled', async () => {
     const started = Date.now()
-    assert.deepEqual(await invoke(a, 'sleepInDatabase'), { status: 504, body: { error: { code: 'HANDLER_TIMEOUT' } } })
+    assert.deepEqual(await invoke(a, 'sleepInDatabase'), { status: 504, body: problem('HANDLER_TIMEOUT', 504) })
     assert.ok(Date.now() - started < 8000)
     const superuser = new pg.Client({ ...admin, database })
     await superuser.connect()
@@ -176,13 +179,13 @@ test('the runner migrates and serves each Project through its own sandboxed work
     }
     await superuser.end()
     assert.equal(active, 0)
-    assert.deepEqual(await invoke(a, 'spin'), { status: 504, body: { error: { code: 'HANDLER_TIMEOUT' } } })
+    assert.deepEqual(await invoke(a, 'spin'), { status: 504, body: problem('HANDLER_TIMEOUT', 504) })
   })
 
   await t.test('a crashed or exhausted worker ends alone and the next request is served', async () => {
-    assert.equal((await invoke(a, 'crash')).body.error.code, 'HANDLER_CRASHED')
-    assert.equal((await invoke(a, 'hogMemory')).body.error.code, 'HANDLER_CRASHED')
-    assert.equal((await invoke(a, 'hogBuffers')).body.error.code, 'HANDLER_FAILED')
+    assert.equal((await invoke(a, 'crash')).body.code, 'HANDLER_CRASHED')
+    assert.equal((await invoke(a, 'hogMemory')).body.code, 'HANDLER_CRASHED')
+    assert.equal((await invoke(a, 'hogBuffers')).body.code, 'HANDLER_FAILED')
     assert.equal((await invoke(a, 'listNotes', { purchaseOrderId: 'PO-7' })).status, 200)
   })
 
@@ -236,10 +239,10 @@ test('the runner migrates and serves each Project through its own sandboxed work
     await superuser.connect()
     try {
       await superuser.query('GRANT USAGE ON LANGUAGE plpgsql TO PUBLIC')
-      await assert.rejects(supervisor.checkProvisioner(), { message: 'RUNNER_ROUTINE_LANGUAGE_USABLE: plpgsql' })
+      await assert.rejects(supervisor.checkProvisioner(), invariant('RUNNER_ROUTINE_LANGUAGE_USABLE', { languages: 'plpgsql' }))
       await superuser.query('REVOKE USAGE ON LANGUAGE plpgsql FROM PUBLIC')
       await superuser.query(`GRANT USAGE ON LANGUAGE sql TO ${migrationB}`)
-      await assert.rejects(supervisor.checkProvisioner(), { message: 'RUNNER_ROUTINE_LANGUAGE_USABLE: sql' })
+      await assert.rejects(supervisor.checkProvisioner(), invariant('RUNNER_ROUTINE_LANGUAGE_USABLE', { languages: 'sql' }))
     } finally {
       await superuser.query(`REVOKE USAGE ON LANGUAGE sql FROM ${migrationB}`)
       await superuser.end()
@@ -283,7 +286,7 @@ test('the runner migrates and serves each Project through its own sandboxed work
       assert.equal(removed.state, 'MIGRATION_HISTORY_DIVERGED')
       assert.deepEqual(await state(), before)
 
-      await assert.rejects(supervisor.prepare({ projectId: a, files: edited, onDivergence: { resetBefore: Date.now() - 1 } }), /PREVIEW_RESET_EXPIRED/)
+      await assert.rejects(supervisor.prepare({ projectId: a, files: edited, onDivergence: { resetBefore: Date.now() - 1 } }), invariant('PREVIEW_RESET_EXPIRED'))
       assert.deepEqual(await state(), before)
 
       assert.deepEqual(await supervisor.prepare({ projectId: a, files: edited, onDivergence: RESET }), { state: 'READY', reset: true, applied: ['001_follow_up_note.sql'] })
@@ -302,10 +305,10 @@ test('the runner reads relay TLS only from a private directory holding exactly i
     chmodSync(directory, 0o700)
     assert.deepEqual(Object.keys(readRelayTls(directory)), ['ca', 'cert', 'key'])
     writeFileSync(join(directory, 'ca-key.pem'), 'authority', { mode: 0o600 })
-    assert.throws(() => readRelayTls(directory), { message: 'RUNNER_RELAY_TLS_DIR_REFUSED: ca-key.pem,ca.pem,relay-key.pem,relay.pem' })
+    assert.throws(() => readRelayTls(directory), invariant('RUNNER_RELAY_TLS_DIR_REFUSED', { present: 'ca-key.pem,ca.pem,relay-key.pem,relay.pem' }))
     rmSync(join(directory, 'ca-key.pem'))
     chmodSync(directory, 0o750)
-    assert.throws(() => readRelayTls(directory), { message: 'RUNNER_RELAY_TLS_DIR_PERMISSIONS' })
+    assert.throws(() => readRelayTls(directory), invariant('RUNNER_RELAY_TLS_DIR_PERMISSIONS'))
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
@@ -376,7 +379,7 @@ test('with the Node permission layer off, the namespaces alone hide host files, 
 })
 
 test('the runner refuses to start where the sandbox cannot be built', () => {
-  assert.throws(() => assertUserNamespaces({ ...SANDBOX, bwrap: '/nonexistent/bwrap' }), /RUNNER_USER_NAMESPACES_UNAVAILABLE/)
+  assert.throws(() => assertUserNamespaces({ ...SANDBOX, bwrap: '/nonexistent/bwrap' }), invariant('RUNNER_USER_NAMESPACES_UNAVAILABLE'))
 })
 
 test('the runner socket admits a prepare only when the Hub says whether a divergent history may reset', async () => {
@@ -532,13 +535,13 @@ test('a handler reads through the bound connector socket, and holds nothing else
     writeFileSync(join(socketDir, 'plain.s'), 'x')
     symlinkSync(portA.socketPath, join(socketDir, 'link.s'))
     for (const path of [join(socketDir, 'plain.s'), join(socketDir, 'link.s'), join(tmpdir(), 'elsewhere.s'), `${socketDir}/../${portA.socketPath.split('/').at(-1)}`, 'relative.s']) {
-      assert.deepEqual(await invoke('fetchOrder', {}, path), { status: 500, body: { error: { code: 'CONNECTOR_SOCKET_REFUSED' } } }, path)
+      assert.deepEqual(await invoke('fetchOrder', {}, path), { status: 500, body: problem('CONNECTOR_SOCKET_REFUSED', 500) }, path)
     }
   })
 
   await t.test('a closed port refuses its next connection: the socket dies with the invocation', async () => {
     await portA.close()
-    assert.deepEqual(await invoke('fetchOrder', {}, portA.socketPath), { status: 500, body: { error: { code: 'CONNECTOR_SOCKET_REFUSED' } } })
+    assert.deepEqual(await invoke('fetchOrder', {}, portA.socketPath), { status: 500, body: problem('CONNECTOR_SOCKET_REFUSED', 500) })
   })
 })
 
@@ -567,7 +570,7 @@ test('a handler fetches through the socket: another Project gets NOT_GRANTED wit
 
   const leaked = await invoke('leakBody', {}, portA.socketPath)
   assert.equal(leaked.status, 502)
-  assert.equal(leaked.body.error.code, 'HANDLER_OUTPUT_REFUSED')
+  assert.equal(leaked.body.code, 'HANDLER_OUTPUT_REFUSED')
 
   const seen = await run('probe', { paths: [portA.socketPath, portB.socketPath], port })
   noSecretIn(JSON.stringify(seen))

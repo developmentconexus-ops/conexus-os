@@ -132,14 +132,14 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, async (route) => {
     if (capacityFull) {
       capacityFull = false
-      return route.fulfill({ status: 503, contentType: 'application/problem+json', body: JSON.stringify({ type: 'urn:conexus:problem:builder-capacity-full', title: 'Builder at capacity', status: 503 }) })
+      return route.fulfill(problem(503, 'BUILDER_CAPACITY_FULL'))
     }
     const body = route.request().postDataJSON()
     requests.push({ body, key: route.request().headers()['idempotency-key'] })
     buildCount += 1
     threadMessages.push(userMessage(`user-${threadMessages.length + 1}`, body.content))
     runFinished = false
-    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', baseSourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
+    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', baseSourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: body.content, createdAt: new Date().toISOString() }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) =>
@@ -169,7 +169,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => {
     streamScopes.push(new URL(route.request().url()).searchParams.get('sessionScope'))
     // The conversation is followed from the moment it opens; until a run made its session the Hub refuses.
-    if (!run || runFinished) return route.fulfill({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ type: 'builder-session-not-ready' }) })
+    if (!run || runFinished) return route.fulfill({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ type: 'BUILDER_SESSION_NOT_READY' }) })
     setTimeout(() => {
       threadMessages.push(assistantMessage('assistant-live-1', 'Aplicando a alteração'), assistantMessage(`assistant-final-${threadMessages.length}`, 'Build concluído'))
       runFinished = true
@@ -190,7 +190,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   await page.getByLabel('Mensagem para o agente').fill('Crie um contador até 100 interativo')
   await page.getByRole('button', { name: 'Enviar' }).click()
   await refused
-  await page.getByText('O Conexus está com muitas execuções abertas agora. Tente em instantes.', { exact: true }).waitFor()
+  await page.getByText('O Conexus está com muitas execuções abertas agora. Tente novamente mais tarde.', { exact: true }).waitFor()
   assert.equal(await page.getByLabel('Mensagem para o agente').inputValue(), 'Crie um contador até 100 interativo', 'the refused words go back to the composer')
   const firstSend = page.waitForResponse((response) => response.url().endsWith('/builder-session/messages') && response.status() === 201)
   await page.getByRole('button', { name: 'Enviar' }).click()
@@ -209,8 +209,8 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
     'the live message and its persisted twin share an id and render once')
   assert.equal(await page.locator('.cx-messages .builder-turn-user').count(), 1,
     'a run whose request is already a Mastra message renders one user bubble, not two')
-  assert.equal(await page.locator('.cx-messages .builder-turn-reason').count(), 0,
-    'a run that succeeded is given no failure reason')
+  assert.equal(await page.locator('.cx-messages .builder-turn-status').count(), 0,
+    'a run that succeeded says no failure')
   // The result card closes out the code-changing turn: the Project's own name, its first version,
   // that the build passed, and how many files it touched.
   await page.locator('.cx-result-card').getByText('Counter · versão 1 · Build passou', { exact: true }).waitFor()
@@ -325,12 +325,12 @@ test('an untitled conversation shows the title the Hub announces on the run\'s s
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
     const body = route.request().postDataJSON()
-    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
+    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: body.content, createdAt: new Date().toISOString() }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
   // The Hub titles a conversation from its first request and tells the browser on the run's stream, while the run is still working.
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => {
-    if (!run) return route.fulfill({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ type: 'builder-session-not-ready' }) })
+    if (!run) return route.fulfill({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ type: 'BUILDER_SESSION_NOT_READY' }) })
     state.conversations = [conversation(conversationId, 'Crie um contador de visitas')]
     return route.fulfill(sse({ type: 'thread_title_updated', threadId: conversationId, title: 'Crie um contador de visitas' }))
   })
@@ -432,7 +432,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   const conversationId = 'conversation-history'
   const settled = (builderRunId, baseSourceRevision, resultSourceRevision) => ({
     builderRunId, projectId, conversationId, state: 'SUCCEEDED', phase: null,
-    baseSourceRevision, resultSourceRevision, resultKind: 'SOURCE_CHANGED', failureCode: null, failureCategory: null,
+    baseSourceRevision, resultSourceRevision, resultKind: 'SOURCE_CHANGED', failureCode: null,
     requestText: `pedido ${builderRunId}`, createdAt: '2026-09-20T12:00:00.000Z',
   })
   const tracedRuns = []
@@ -538,14 +538,14 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
     keys.push(route.request().headers()['idempotency-key'])
     return keys.length === 1 ? route.abort('connectionreset') : route.fulfill({
       status: 201, contentType: 'application/json',
-      body: JSON.stringify({ builderRun: { builderRunId: '70000000-0000-4000-8000-000000000073', projectId, state: 'QUEUED', phase: null, baseSourceRevision: '5'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null } }),
+      body: JSON.stringify({ builderRun: { builderRunId: '70000000-0000-4000-8000-000000000073', projectId, state: 'QUEUED', phase: null, baseSourceRevision: '5'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null } }),
     })
   })
 
   await page.goto(`${origin}/projects/${projectId}`)
   await page.getByLabel('Mensagem para o agente').fill('Crie um contador')
   await page.getByRole('button', { name: 'Enviar' }).click()
-  await page.getByText('Não foi possível confirmar o envio. Enviar de novo é seguro: o pedido não se repete.', { exact: true }).waitFor()
+  await page.getByText('A tela não conseguiu falar com o Conexus agora. Tente novamente mais tarde.', { exact: true }).waitFor()
   const user = page.locator('.cx-messages .builder-turn-user-row')
   await user.getByText('Sem confirmação', { exact: true }).waitFor()
   assert.equal(await user.getByText('Não enviado', { exact: true }).count(), 0, 'a lost response is not a refusal')
@@ -579,16 +579,16 @@ test('a send the Hub refused reads Não enviado and takes a fresh key on a resen
   // The Hub answers the first attempt with a refusal, so the message certainly did not take.
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
     keys.push(route.request().headers()['idempotency-key'])
-    return keys.length === 1 ? route.fulfill({ status: 500, contentType: 'application/problem+json', body: JSON.stringify({ type: 'about:blank', status: 500 }) }) : route.fulfill({
+    return keys.length === 1 ? route.fulfill(problem(500, 'INTERNAL_UNEXPECTED')) : route.fulfill({
       status: 201, contentType: 'application/json',
-      body: JSON.stringify({ builderRun: { builderRunId: '70000000-0000-4000-8000-000000000083', projectId, state: 'QUEUED', phase: null, baseSourceRevision: '5'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null } }),
+      body: JSON.stringify({ builderRun: { builderRunId: '70000000-0000-4000-8000-000000000083', projectId, state: 'QUEUED', phase: null, baseSourceRevision: '5'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null } }),
     })
   })
 
   await page.goto(`${origin}/projects/${projectId}`)
   await page.getByLabel('Mensagem para o agente').fill('Crie um contador')
   await page.getByRole('button', { name: 'Enviar' }).click()
-  await page.getByText('Não foi possível enviar o pedido. Tente de novo.', { exact: true }).waitFor()
+  await page.getByText('O Conexus falhou de um jeito que não esperávamos. A falha foi registrada.', { exact: true }).waitFor()
   const user = page.locator('.cx-messages .builder-turn-user-row')
   await user.getByText('Não enviado', { exact: true }).waitFor()
   assert.equal(await user.getByText('Sem confirmação', { exact: true }).count(), 0)
@@ -688,7 +688,7 @@ test('a run that failed before the agent still shows the request and names why i
   const failedRun = {
     builderRunId: runId, projectId, conversationId, state: 'FAILED', phase: null,
     baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-    failureCode: 'BUILDER_STARTER_ROOT_REFUSED', failureCategory: 'ENVIRONMENT_PREPARATION_FAILED',
+    failureCode: 'BUILDER_STARTER_ROOT_REFUSED',
     requestText: 'Crie um contador até 100 interativo', createdAt: '2026-09-20T12:00:00.000Z',
   }
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
@@ -701,15 +701,66 @@ test('a run that failed before the agent still shows the request and names why i
   }) }))
   await page.goto(`${origin}/projects/${projectId}`)
   await page.locator('.cx-messages').getByText('Crie um contador até 100 interativo', { exact: true }).waitFor()
-  await page.locator('.cx-messages .builder-turn-reason').getByText('Não foi possível preparar o ambiente de código. Tente enviar o pedido novamente.', { exact: true }).waitFor()
+  await page.locator('.cx-messages .builder-turn-status').getByText('O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.', { exact: true }).waitFor()
   assert.equal(await page.locator('.cx-messages .builder-turn-user').count(), 1,
     'the run appears once although it is both the latest run and a history entry')
-  assert.equal(await page.locator('.cx-messages .builder-turn-reason').count(), 1)
+  assert.equal(await page.locator('.cx-messages .builder-turn-status').count(), 1)
+  await page.locator('.cx-messages .builder-turn-reference').getByText('Referência: 70000000.', { exact: true }).waitFor()
   // The failure code may now live only inside a closed <details>, so it must not be visible rather
   // than simply absent.
   assert.equal(await page.getByText('BUILDER_STARTER_ROOT_REFUSED', { exact: true }).isVisible(), false,
     'the internal code is never the sentence the operator reads')
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
+})
+
+test('each failed run ends its own turn with its failure said once, and the stored error part and the Hub notices say nothing of it', async (t) => {
+  const accountId = '70000000-0000-4000-8000-000000000051'
+  const projectId = '70000000-0000-4000-8000-000000000052'
+  const conversationId = 'conversation-two-runs'
+  const sourceRevision = '8'.repeat(40)
+  const failure = 'O provedor do modelo recusou ou interrompeu o pedido. Escolha outro modelo.'
+  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
+  const at = (minute) => `2026-09-20T12:0${minute}:00.000Z`
+  const stored = (id, minute, role, parts, metadata) => ({ id, role, createdAt: at(minute), content: { format: 2, parts, ...(metadata ? { metadata } : {}) } })
+  const notification = (id, minute, run, outcome, contents) => stored(id, minute, 'signal', [{ type: 'text', text: contents }], { signal: { type: 'notification', attributes: { source: 'conexus', outcome, run } } })
+  const failedRun = {
+    builderRunId: '70000000-0000-4000-8000-000000000053', projectId, conversationId, state: 'FAILED', phase: null, baseSourceRevision: sourceRevision,
+    resultSourceRevision: null, resultKind: null, failureCode: 'BUILDER_MODEL_STREAM_FAILED', requestText: 'Primeiro pedido', createdAt: at(0),
+  }
+  const answeredRun = {
+    builderRunId: '70000000-0000-4000-8000-000000000054', projectId, conversationId, state: 'SUCCEEDED', phase: null, baseSourceRevision: sourceRevision,
+    resultSourceRevision: null, resultKind: 'RESPONSE_ONLY', failureCode: null, requestText: 'Segundo pedido', createdAt: at(2),
+  }
+  const threadMessages = [
+    stored('user-1', 0, 'user', [{ type: 'text', text: 'Primeiro pedido' }]),
+    stored('assistant-1', 0, 'assistant', [{ type: 'error', error: 'sandbox sbx-42: upstream 500 at frame 7' }]),
+    notification('note-1', 1, failedRun.builderRunId, 'RUN_NOT_FINISHED', 'A execução não terminou e nada dela foi aplicado. Diagnóstico seguro: BUILDER_MODEL_STREAM_FAILED.'),
+    stored('user-2', 2, 'user', [{ type: 'text', text: 'Segundo pedido' }]),
+    stored('assistant-2', 2, 'assistant', [{ type: 'text', text: 'Respondido.' }]),
+    notification('note-2', 3, answeredRun.builderRunId, 'BOOT_PROBLEMS', 'A execução foi aplicada. Detalhe: BOOT_CONSOLE_ERROR Failed to load notes.'),
+    notification('note-3', 3, answeredRun.builderRunId, 'PREVIEW_DATA_RESET', 'A execução mudou migrações que já tinham sido aplicadas.'),
+  ]
+  await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
+  await routeBuilder(page, builderState([conversation(conversationId, 'Duas execuções')], { [conversationId]: threadMessages }))
+  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Duas execuções', projectRevision: 'revision', archived: false }) }))
+  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+    projectId, latestBuilderRun: answeredRun, latestCodeChangingRun: null,
+    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    runHistory: [answeredRun, failedRun],
+  }) }))
+  await page.goto(`${origin}/projects/${projectId}`)
+  const messages = page.locator('.cx-messages')
+  await messages.getByText('Respondido.', { exact: true }).waitFor()
+  await messages.getByText('O app abriu, mas com problemas. Peça ao Builder para corrigir.', { exact: true }).waitFor()
+  await messages.getByText('Os dados da Prévia foram apagados porque migrações já aplicadas mudaram.', { exact: true }).waitFor()
+  const text = await messages.innerText()
+  assert.equal(text.split(failure).length - 1, 1, 'the failure is said once')
+  assert.ok(text.indexOf('Primeiro pedido') < text.indexOf(failure) && text.indexOf(failure) < text.indexOf('Segundo pedido'), 'the failure ends the turn of the run that failed')
+  assert.ok(text.includes('Referência: 70000000.'))
+  for (const unsaid of ['sbx-42', 'Diagnóstico seguro', 'BUILDER_MODEL_STREAM_FAILED', 'BOOT_CONSOLE_ERROR', 'não terminou']) {
+    assert.equal(text.includes(unsaid), false, `${unsaid} is never drawn`)
+  }
+  assert.equal(await page.getByRole('alert').count(), 1)
 })
 
 test('the slider and /raciocinio offer exactly the levels of the selected model, named in Portuguese', async (t) => {
@@ -782,7 +833,7 @@ test('a run notice the Hub signalled into the thread reads as a notice, apart fr
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const notice = {
     id: 'notice-1', role: 'signal', createdAt: new Date().toISOString(),
-    content: { format: 2, parts: [{ type: 'text', text: 'A execução r1 não foi aplicada: o Conexus recusou o resultado antes de aprová-lo.' }], metadata: { signal: { id: 'notice-1', type: 'notification', attributes: { source: 'conexus' } } } },
+    content: { format: 2, parts: [{ type: 'text', text: 'A execução r1 foi aplicada, mas ao abrir o app o Conexus viu problemas. Detalhe: BOOT_CONSOLE_ERROR.' }], metadata: { signal: { id: 'notice-1', type: 'notification', attributes: { source: 'conexus', outcome: 'BOOT_PROBLEMS', run: 'r1' } } } },
   }
   const state = builderState([conversation(conversationId, 'Conversa')], { [conversationId]: [userMessage('user-1', 'Crie uma agenda'), assistantMessage('assistant-1', 'Comecei pela lista.'), notice] })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
@@ -796,7 +847,7 @@ test('a run notice the Hub signalled into the thread reads as a notice, apart fr
   await page.goto(`${origin}/projects/${projectId}`)
   const shown = page.locator('.cx-messages .builder-turn-notice')
   await shown.waitFor()
-  assert.deepEqual(await shown.allTextContents(), ['A execução r1 não foi aplicada: o Conexus recusou o resultado antes de aprová-lo.'])
+  assert.deepEqual(await shown.allTextContents(), ['O app abriu, mas com problemas. Peça ao Builder para corrigir.'])
   assert.equal(await shown.getAttribute('role'), 'note')
   await page.locator('.cx-messages .builder-turn-assistant .builder-turn-body', { hasText: 'Comecei pela lista.' }).waitFor()
   assert.deepEqual(await page.locator('.cx-messages .builder-turn-assistant .builder-turn-body').allTextContents(), ['Comecei pela lista.'],
@@ -814,7 +865,7 @@ test('an agent that spoke once and then works in silence still reads as working,
   const other = 'conversation-other'
   const baseRun = {
     builderRunId: runId, projectId, conversationId: working, state: 'RUNNING', phase: 'AGENT',
-    baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null,
+    baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null,
     requestText: 'Crie um cadastro de clientes', createdAt: new Date(Date.now() - 75_000).toISOString(),
   }
   const cancels = []
@@ -1037,7 +1088,7 @@ test('a Project lists its conversations as the threads of its resource, and each
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ threads: conversations }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
     const body = route.request().postDataJSON()
-    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, failureCategory: null, requestText: body.content, createdAt: new Date().toISOString() }
+    run = { builderRunId: runId, projectId, conversationId: body.conversationId, state: 'RUNNING', phase: 'AGENT', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: body.content, createdAt: new Date().toISOString() }
     return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ builderRun: run }) })
   })
   await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: BUILDER_MODELS, defaultThinkingLevel: 'medium' }) }))
@@ -1129,7 +1180,7 @@ test('a turn the stream delivered only in part is completed from the thread, and
     latestBuilderRun: {
       builderRunId: runId, projectId, conversationId, state: runFinished ? 'SUCCEEDED' : 'RUNNING', phase: runFinished ? null : 'AGENT',
       baseSourceRevision: sourceRevision, resultSourceRevision: runFinished ? sourceRevision : null, resultKind: runFinished ? 'SOURCE_CHANGED' : null,
-      failureCode: null, failureCategory: null, requestText: 'Atualize o texto em destaque', createdAt: new Date().toISOString(),
+      failureCode: null, requestText: 'Atualize o texto em destaque', createdAt: new Date().toISOString(),
     },
     latestCodeChangingRun: runFinished ? { baseSourceRevision: sourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED' } : null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: runFinished ? sourceRevision : null, lastGoodArtifactRevisionId: runFinished ? 'artifact' : null, lastGoodArtifactDigest: runFinished ? 'd'.repeat(64) : null },
@@ -1194,7 +1245,7 @@ test('a page opened while the run is parked shows the question card once from th
     latestBuilderRun: {
       builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: answered ? 'AGENT' : 'PARKED',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-      failureCode: null, failureCategory: null, requestText: 'Crie um controle de pedidos', createdAt: new Date().toISOString(),
+      failureCode: null, requestText: 'Crie um controle de pedidos', createdAt: new Date().toISOString(),
     },
     latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
@@ -1258,7 +1309,7 @@ test('a suspended ask_user with options renders the options and submits the chos
     latestBuilderRun: {
       builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-      failureCode: null, failureCategory: null, requestText: 'Destaque o título com uma cor', createdAt: new Date().toISOString(),
+      failureCode: null, requestText: 'Destaque o título com uma cor', createdAt: new Date().toISOString(),
     },
     latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
@@ -1329,7 +1380,7 @@ const openLiveTurn = async (t, events) => {
     latestBuilderRun: {
       builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-      failureCode: null, failureCategory: null, requestText: 'Mude o título', createdAt: new Date().toISOString(),
+      failureCode: null, requestText: 'Mude o título', createdAt: new Date().toISOString(),
     },
     latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
@@ -1350,7 +1401,7 @@ test('the run the Hub publishes into the stream moves the status line without an
   const run = {
     builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
     baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-    failureCode: null, failureCategory: null, requestText: 'Mude o título', createdAt: new Date().toISOString(),
+    failureCode: null, requestText: 'Mude o título', createdAt: new Date().toISOString(),
   }
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, builderState([conversation(conversationId, 'Título')], { [conversationId]: [userMessage('user-1', 'Mude o título')] }))
@@ -1407,10 +1458,12 @@ test('a model call the controller is retrying reads as a retry in progress, not 
   assert.equal(await recovered.getByRole('alert').count(), 0)
 })
 
-test("a model error the controller gives up on is a notice in Conexus's words, never the provider's", async (t) => {
+test("a model error the controller gives up on adds no card to the thread, and never shows the provider's words", async (t) => {
   const page = await openLiveTurn(t, [{ type: 'error', error: { message: 'sandbox sbx-42: upstream 500 at frame 7' }, retryable: false }])
-  await page.getByRole('alert').getByText('O modelo parou com um erro. Seu pedido continua nesta conversa.', { exact: true }).waitFor()
+  await page.locator('.cx-messages').waitFor()
+  assert.equal(await page.getByRole('alert').count(), 0)
   assert.equal(await page.getByText('sbx-42', { exact: false }).count(), 0)
+  assert.equal(await page.getByText('parou com um erro', { exact: false }).count(), 0)
 })
 
 const reasoningPart = { type: 'reasoning', reasoning: 'Planning schema validation', details: [{ type: 'text', text: 'Planning schema validation' }] }
@@ -1598,7 +1651,7 @@ test('the eval driver answers every question of the real multi-question ask_user
     latestBuilderRun: {
       builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-      failureCode: null, failureCategory: null, requestText: 'Crie um painel', createdAt: new Date().toISOString(),
+      failureCode: null, requestText: 'Crie um painel', createdAt: new Date().toISOString(),
     },
     latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
@@ -1654,7 +1707,7 @@ test('a suspended ask_user with no options renders the pt-BR free-text form', as
     latestBuilderRun: {
       builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-      failureCode: null, failureCategory: null, requestText: 'Crie um app de lista de tarefas', createdAt: new Date().toISOString(),
+      failureCode: null, requestText: 'Crie um app de lista de tarefas', createdAt: new Date().toISOString(),
     },
     latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
@@ -1686,7 +1739,7 @@ const openAgenda = async (t, { accountId, projectId, conversationId, runId = nul
     latestBuilderRun: runId ? {
       builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
       baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-      failureCode: null, failureCategory: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
+      failureCode: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
     } : null,
     latestCodeChangingRun: null,
     preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
@@ -1982,7 +2035,7 @@ for (const width of [1536, 1700]) {
       latestBuilderRun: {
         builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'AGENT',
         baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-        failureCode: null, failureCategory: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
+        failureCode: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
       },
       latestCodeChangingRun: null,
       preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
@@ -2096,6 +2149,8 @@ test('a failed read of the conversation\'s own model is said so too, and retried
 })
 
 const sessionOf = (projectId) => ({ projectId, latestBuilderRun: null, latestCodeChangingRun: null, preview: null, runHistory: [] })
+// A refusal as the Hub sends it: problem+json that names its row by code.
+const problem = (status, code) => ({ status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${code}`, title: code, status, code }) })
 const stubSessionReads = async (page, accountId, projectId, answer) => {
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, builderState([conversation('conversation-poll', 'Conversa')]))
@@ -2106,7 +2161,7 @@ const stubSessionReads = async (page, accountId, projectId, answer) => {
     const status = answer()
     await route.fulfill(status === 200
       ? { status, contentType: 'application/json', body: JSON.stringify(sessionOf(projectId)) }
-      : { status, contentType: 'application/json', body: '{}' })
+      : problem(status, { 401: 'AUTHENTICATION_REQUIRED', 403: 'PROJECT_BUILD_DENIED' }[status] ?? 'INTERNAL_UNEXPECTED'))
     answered()
   })
   return { firstRead }
@@ -2131,7 +2186,7 @@ test('failed background polls keep the chat and show a note until a poll succeed
   const { firstRead } = await stubSessionReads(page, accountId, projectId, () => status)
 
   await openAfterFirstSessionRead(page, origin, projectId, firstRead)
-  const note = page.getByText('Sem conexão com o Conexus. Tentando de novo…')
+  const note = page.getByText('O Conexus falhou de um jeito que não esperávamos. A falha foi registrada.')
   assert.equal(await note.count(), 0)
 
   status = 503

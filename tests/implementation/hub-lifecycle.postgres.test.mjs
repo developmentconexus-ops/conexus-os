@@ -5,8 +5,9 @@ import { request } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { loadHubMigrationFiles } from '../../scripts/run-hub-migrations.mjs'
+import { failureOf } from './failure-matchers.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { buildHubDatabase, createEmptyDatabase, query, testPool } from './hub-database.mjs'
 
@@ -23,21 +24,21 @@ test('a database one migration behind the code refuses to serve and names the mi
   onCleanup(() => pool.end())
   await assertSchemaCurrent(pool, migrationsRoot)
   await query(connectionString, 'DELETE FROM iam.schema_migration WHERE version = $1', [latestVersion])
-  await assert.rejects(assertSchemaCurrent(pool, migrationsRoot), { message: `HUB_SCHEMA_BEHIND:${latestVersion}` })
+  await assert.rejects(assertSchemaCurrent(pool, migrationsRoot), failureOf('HUB_SCHEMA_BEHIND', { versions: latestVersion }))
 })
 
 test('a database with no ledger at all is behind by every migration', async (t) => {
   const { connection, onCleanup } = await createEmptyDatabase(t, 'conexus_lifecycle_empty')
   const pool = testPool({ ...connection, max: 2 })
   onCleanup(() => pool.end())
-  await assert.rejects(assertSchemaCurrent(pool, migrationsRoot), (error) => error.message.startsWith('HUB_SCHEMA_BEHIND:0001,0002,') && error.message.endsWith(`,${latestVersion}`))
+  await assert.rejects(assertSchemaCurrent(pool, migrationsRoot), (error) => error.id === 'HUB_SCHEMA_BEHIND' && error.details.versions.startsWith('0001,0002,') && error.details.versions.endsWith(`,${latestVersion}`))
 })
 
 test('a second Hub on the same database is refused until the first lets go', async (t) => {
   const { connection, onCleanup } = await buildHubDatabase(t, 'conexus_lifecycle_lock')
   const release = await takeInstanceLock(connection)
   onCleanup(() => release().catch(() => undefined))
-  await assert.rejects(takeInstanceLock(connection), { message: 'HUB_ALREADY_RUNNING' })
+  await assert.rejects(takeInstanceLock(connection), failureOf('HUB_ALREADY_RUNNING'))
   await release()
   const releaseSecond = await takeInstanceLock(connection)
   await releaseSecond()
@@ -72,7 +73,7 @@ test.after(() => rmSync(fixtureDirectory, { recursive: true, force: true }))
 
 const runFixture = (name, source, { signalAfterLine, env = {} } = {}) => new Promise((resolveRun) => {
   const file = join(fixtureDirectory, `${name}.mjs`)
-  writeFileSync(file, `import * as lifecycle from ${JSON.stringify(hubModuleUrl('platform/lifecycle.js'))}\n${source}`)
+  writeFileSync(file, `import * as lifecycle from ${JSON.stringify(hubModuleUrl('platform/lifecycle.js'))}\nimport { Failure } from ${JSON.stringify(hubModuleUrl('platform/failure.js'))}\n${source}`)
   const child = spawn(process.execPath, [file], { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'inherit'] })
   let output = ''
   let signalled = false
@@ -91,22 +92,21 @@ test('a rejected promise nobody handled logs HUB_FATAL and exits non-zero', asyn
   const { status, output } = await runFixture('rejection', 'lifecycle.installFatalHandlers()\nPromise.reject(new Error("HUB_TEST_BOOM"))\nsetTimeout(() => {}, 10_000)\n')
   assert.equal(status, 1)
   assert.match(output, /"msg":"HUB_FATAL"/)
-  assert.match(output, /HUB_TEST_BOOM/)
+  assert.doesNotMatch(output, /HUB_TEST_BOOM/)
 })
 
 test('a boot step that rejects at the top level logs HUB_FATAL and exits non-zero', async () => {
   const { status, output } = await runFixture('top-level', 'lifecycle.installFatalHandlers()\nawait Promise.reject(new Error("HUB_TEST_BOOM"))\n')
   assert.equal(status, 1)
   assert.match(output, /"msg":"HUB_FATAL"/)
-  assert.match(output, /HUB_TEST_BOOM/)
+  assert.doesNotMatch(output, /HUB_TEST_BOOM/)
 })
 
-for (const refusal of ['HUB_SCHEMA_BEHIND:0045', 'HUB_ALREADY_RUNNING']) {
-  test(`a refused start (${refusal}) exits 78 so a supervisor does not retry it`, async () => {
-    const { status, output } = await runFixture(`refused-${refusal.slice(4, 9)}`, `lifecycle.installFatalHandlers()\nawait Promise.reject(new Error(${JSON.stringify(refusal)}))\n`)
+for (const [code, details] of [['HUB_SCHEMA_BEHIND', "{ details: { versions: '0045' } }"], ['HUB_ALREADY_RUNNING', '']]) {
+  test(`a refused start (${code}) exits 78 so a supervisor does not retry it`, async () => {
+    const { status, output } = await runFixture(`refused-${code.slice(4, 9)}`, `lifecycle.installFatalHandlers()\nawait Promise.reject(new Failure(${JSON.stringify(code)}${details ? `, ${details}` : ''}))\n`)
     assert.equal(status, 78)
-    assert.match(output, /"msg":"HUB_FATAL"/)
-    assert.match(output, new RegExp(refusal))
+    assert.match(output, new RegExp(`"msg":"${code}"`))
   })
 }
 
@@ -117,7 +117,7 @@ process.stdout.write('READY\\n')
 setInterval(() => {}, 1000)
 `, { signalAfterLine: { line: 'READY', signal: 'SIGTERM' } })
   assert.equal(status, 0)
-  assert.match(output, /HUB_SHUTDOWN_STARTED:SIGTERM/)
+  assert.match(output, /"msg":"HUB_SHUTDOWN_STARTED".*"signal":"SIGTERM"|"signal":"SIGTERM".*"msg":"HUB_SHUTDOWN_STARTED"/)
   assert.match(output, /CLOSED/)
 })
 
@@ -203,6 +203,23 @@ process.exitCode = await runForwarding(process.execPath, [${JSON.stringify(child
   }))
   process.kill(-launcher.pid, 'SIGINT')
   assert.equal(await exited, 0)
-  assert.match(output, /HUB_SHUTDOWN_STARTED:SIGINT/)
+  assert.match(output, /"msg":"HUB_SHUTDOWN_STARTED".*"signal":"SIGINT"|"signal":"SIGINT".*"msg":"HUB_SHUTDOWN_STARTED"/)
   assert.doesNotMatch(output, /HUB_SHUTDOWN_FORCED/)
+})
+
+const bootWith = (environment) => new Promise((resolveRun) => {
+  const child = spawn(process.execPath, [fileURLToPath(hubModuleUrl('server.js'))], { env: { PATH: process.env.PATH, NODE_ENV: 'test', ...environment }, stdio: ['ignore', 'pipe', 'pipe'] })
+  let output = ''
+  child.stdout.on('data', (chunk) => { output += chunk })
+  child.stderr.on('data', (chunk) => { output += chunk })
+  child.on('exit', (status) => resolveRun({ status, lines: output.split('\n').filter(Boolean).map((line) => JSON.parse(line)) }))
+})
+
+test('a Hub with a bad config boots to one operator line and exits 78', async () => {
+  const missing = await bootWith({ CONEXUS_ORIGIN: 'https://hub.test' })
+  assert.equal(missing.status, 78)
+  assert.deepEqual(missing.lines.map((line) => [line.msg, line['failure.details.name'], line.level]), [['CONFIG_MISSING', 'CONEXUS_PORT', 50]])
+  const invalid = await bootWith({ CONEXUS_ORIGIN: 'https://hub.test', CONEXUS_PORT: 'eighty' })
+  assert.equal(invalid.status, 78)
+  assert.deepEqual(invalid.lines.map((line) => [line.msg, line['failure.details.name'], line.level]), [['CONFIG_INVALID', 'CONEXUS_PORT', 50]])
 })

@@ -11,11 +11,10 @@ import { AppWindow, MessageSquare, SquarePen } from 'lucide-react'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Panel, useDefaultLayout } from 'react-resizable-panels'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
-import { BuilderRequestError, type BuilderRun, cancelBuilderRun, compareProjectSource, sendBuilderMessage } from '../api'
+import { type BuilderRun, cancelBuilderRun, compareProjectSource, sendBuilderMessage } from '../api'
 import { builderSessionKey, useBuilderSession } from '../builder-session'
 import { BuilderConversation, type PersistedRequest } from '../components/builder-conversation'
 import { BuilderComposer, type ComposerMode } from '../composer/composer'
-import { failureReason } from '../failure-reasons'
 import {
   answerPendingCall, type Conversation, useBuilderConversation, useBuilderModels, useConversationActions, useConversationStreamOpen,
   useProjectConversations, useSessionModel,
@@ -31,6 +30,8 @@ import { ResultCard, showsResultCard } from './result-card'
 import { clockLabel, isActive, isParked, statusLine, viewRun } from './run-state'
 import { usePreview } from './use-preview'
 import { WorkingState } from './working-state'
+import { FailureNotice } from '../../../app/failure-state'
+import { failureText, isFailure, isRetryable } from '../../../app/http'
 
 export const lenses = ['preview', 'code', 'diff', 'details'] as const
 export type Lens = typeof lenses[number]
@@ -54,7 +55,6 @@ const persistedRequestsOf = (history: readonly BuilderRun[], latest: BuilderRun 
     runId: entry.builderRunId,
     text: entry.requestText,
     createdAt: entry.createdAt,
-    reason: entry.state === 'FAILED' || entry.state === 'INTERRUPTED' ? failureReason(entry) : null,
   }])
 }
 
@@ -130,6 +130,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   for (const entry of session.data?.runHistory ?? []) runsById.set(entry.builderRunId, entry)
   if (run) runsById.set(run.builderRunId, run)
   const runs = [...runsById.values()].sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+  const conversationRuns = runs.filter((entry) => entry.conversationId === conversationId).reverse()
   const selectedRun = (selectedRunId && runsById.get(selectedRunId)) || run
   const diffRun = selectedRunId ? runsById.get(selectedRunId) ?? null : runs.find((entry) => entry.resultSourceRevision) ?? null
   const diffBasis = changeBasisOf(diffRun)
@@ -181,17 +182,13 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
     },
     onError: (error, { content, key }) => {
       // No status means the response never arrived, so the Hub may have the message.
-      const unknown = error instanceof BuilderRequestError && error.status === null
+      const unknown = isFailure(error, 'HUB_UNREACHABLE')
       dispatch({ type: unknown ? 'unknownLocalUser' : 'failLocalUser', id: localMessageId(key) })
       unsent.current = localMessageId(key)
       // The words go back to the composer, so sending again is one click.
       setDraft((current) => current === '' ? content : current)
       if (!unknown) retainedKey.current = null
-      if (error instanceof BuilderRequestError && error.problemType === 'urn:conexus:problem:builder-capacity-full') setSendError('O Conexus está com muitas execuções abertas agora. Tente em instantes.')
-      else if (error instanceof BuilderRequestError && error.status === 409) setSendError('O Project está ocupado ou recebeu outra alteração. Aguarde e envie de novo.')
-      else if (error instanceof BuilderRequestError && error.status === 403) setSendError('Você não tem permissão para construir neste Project.')
-      else if (unknown) setSendError('Não foi possível confirmar o envio. Enviar de novo é seguro: o pedido não se repete.')
-      else setSendError('Não foi possível enviar o pedido. Tente de novo.')
+      setSendError(failureText(error))
     },
   })
   // The message joins the thread the moment it is sent; the thread confirms it once the Hub has it.
@@ -207,7 +204,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const cancel = useMutation({
     mutationFn: () => runHere ? cancelBuilderRun(projectId, runHere.builderRunId) : Promise.reject(new Error('BUILDER_RUN_NOT_READY')),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['builder-session', projectId] }),
-    onError: () => setSendError('Não foi possível parar a execução. Tente de novo.'),
+    onError: (error) => setSendError(failureText(error)),
   })
 
   const preview = usePreview(projectId, session.data?.preview)
@@ -221,13 +218,13 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
 
   // Only a first load that failed replaces the screen; a failed refetch keeps the session already read.
   // A 403 denied error always replaces the screen (even on refetch) because permission was revoked.
-  const denied = session.error instanceof BuilderRequestError && session.error.status === 403
+  const denied = isFailure(session.error, 'PROJECT_BUILD_DENIED')
   if (session.isError && (session.data === undefined || denied)) {
     return <section className="cx-unavailable" role="alert">
       <ConexusMark size={32} />
       <h2>{denied ? 'Você não pode construir neste Project' : 'Não foi possível abrir o Construir'}</h2>
-      <p>{denied ? 'Sua conta vê este Project, mas não tem permissão para construir nele. Peça acesso a um owner.' : 'O Conexus não conseguiu ler o estado deste Project agora.'}</p>
-      {!denied && <Button onClick={() => void session.refetch()}>Tentar novamente</Button>}
+      <p>{denied ? 'Sua conta vê este Project, mas não tem permissão para construir nele. Peça acesso a um owner.' : failureText(session.error)}</p>
+      {!denied && isRetryable(session.error) && <Button onClick={() => void session.refetch()}>Tentar novamente</Button>}
     </section>
   }
 
@@ -237,7 +234,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
       : send.isPending ? { kind: 'SENDING' }
         : modelReady ? { kind: 'READY' }
           : (models.isPending || sessionModel.state.isPending) ? { kind: 'LOADING_MODEL' }
-            : (models.isError || sessionModel.state.isError) ? { kind: 'MODEL_ERROR' }
+            : (models.isError || sessionModel.state.isError) ? { kind: 'MODEL_ERROR', message: failureText(models.isError ? models.error : sessionModel.state.error) }
               : { kind: 'NO_MODEL' }
   const hereView = viewRun(runHere)
   const headerLine = working
@@ -323,11 +320,11 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
           <ChatShell.Column className="cx-messages">
             <MessageScrollerItem messageId="conversation">
               {history.isPending ? <p className="cx-lens-empty">Carregando a conversa…</p>
-                : history.isError ? <div className="cx-note" role="alert"><p>Não foi possível ler esta conversa.</p><Button size="sm" onClick={() => void history.refetch()}>Tentar novamente</Button></div>
+                : history.isError ? <FailureNotice title="Não foi possível ler esta conversa." error={history.error} onRetry={() => void history.refetch()} />
                   : <BuilderConversation
                     entries={openEntries}
                     persistedRequests={persisted}
-                    failure={runHere ?? null}
+                    runs={conversationRuns}
                     working={Boolean(runHere && isActive(runHere) && runHere.phase === 'AGENT')}
                     model={offeredModels.find((entry) => entry.id === sessionModel.modelId) ?? null}
                     {...(runHere && isActive(runHere) ? {
@@ -362,8 +359,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
       <ChatShell.ScrollButton aria-label="Ir para o fim da conversa" />
       <ChatShell.Column>
         {session.isRefetchError && <div className="cx-note" data-tone="warning" role="status">
-          <p>Sem conexão com o Conexus. Tentando de novo…</p>
-          <Button size="sm" onClick={() => void session.refetch()}>Tentar agora</Button>
+          <p>{failureText(session.error)}</p>
         </div>}
         {sendError && <p className="cx-composer-note" role="alert">{sendError}</p>}
         {/* Pinned above the working-state line, the Claude Code/Codex pattern: the agent's own

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { CredentialStore } from '@mastra/code-sdk/auth/types'
 import type { ModelAccountStore } from '../model-account-store.js'
 import { createTokenHolds, type TokenHolds } from '../oauth-holds.js'
+import { Failure } from '../../platform/failure.js'
 
 /**
  * Anthropic is one `model.model_account` provider with two kinds: `api_key`, a key from the
@@ -24,7 +25,7 @@ const storedClaudeTokens = z.object({ type: z.literal('oauth'), access: z.string
 
 export const parseClaudeTokens = (secret: string): ClaudeTokens => {
   const parsed = storedClaudeTokens.safeParse(JSON.parse(secret))
-  if (!parsed.success) throw new Error('ANTHROPIC_STORED_RECORD_REFUSED')
+  if (!parsed.success) throw new Failure('ANTHROPIC_STORED_RECORD_REFUSED')
   const { access, refresh, expires } = parsed.data
   return Object.freeze({ access, refresh, expires })
 }

@@ -1,9 +1,10 @@
 import type { AgentController, AgentControllerEvent } from '@mastra/core/agent-controller'
-import { parseError } from '@mastra/code-sdk/utils/errors'
+import { type ErrorType, parseError } from '@mastra/code-sdk/utils/errors'
 import { isMastraTimeoutError } from '@mastra/core/loop'
 import type { RequestContext } from '@mastra/core/request-context'
 import type { CompiledApplication, CompiledApplicationThumbnail } from './application-artifact-runtime.js'
 import { fieldOf } from '../platform/field-of.js'
+import { Failure, type FailureCode } from '../platform/failure.js'
 
 type CodingWorkerResultScope = Readonly<{
   runtimeId: 'conexus-builder-e2b-v1'
@@ -49,7 +50,7 @@ export const BUILDER_TRACE_REQUEST_CONTEXT_KEYS = Object.freeze([
   'conexusBuilderRunId',
 ])
 
-const NO_MODEL_ACCOUNT = 'BUILDER_MODEL_NOT_SELECTED'
+const NO_MODEL_ACCOUNT = 'BUILDER_MODEL_NOT_SELECTED' satisfies FailureCode
 
 // The resolver throws this when the model being called has no account; Mastra may wrap the throw.
 const namesNoModelAccount = (error: unknown): boolean =>
@@ -57,8 +58,6 @@ const namesNoModelAccount = (error: unknown): boolean =>
 
 const namesStepTimeout = (error: unknown): boolean =>
   isMastraTimeoutError(error) ? error.timeoutType === 'step' : error instanceof Error && error.cause !== undefined && namesStepTimeout(error.cause)
-
-type AgentFailureCode = 'BUILDER_MODEL_RATE_LIMITED' | 'BUILDER_MODEL_AUTH_FAILED' | 'BUILDER_AGENT_PLATFORM_FAILED' | 'BUILDER_MODEL_STEP_TIMEOUT' | typeof NO_MODEL_ACCOUNT
 
 /**
  * What a failed model call leaves in the run's log: its HTTP status only. The provider's own error
@@ -77,15 +76,29 @@ const hasHttpStatus = (error: unknown): boolean =>
 // storage or the network under the loop, not from the model. The model's own transient failures
 // (5xx, ECONNRESET, 529) are retried inside the call by Mastra's StreamErrorRetryProcessor
 // (harness/error-processors.ts) before they ever reach this code.
-const classifyAgentFailure = (error: unknown): AgentFailureCode | null => {
+// Every type Mastra's classifier names has a row or is a decision to leave the failure unnamed, so
+// a type added to the SDK stops the build here.
+const failureOfType = (type: ErrorType, error: unknown): FailureCode | null => {
+  switch (type) {
+    case 'rate_limit': return 'BUILDER_MODEL_RATE_LIMITED'
+    case 'auth': return 'BUILDER_MODEL_AUTH_FAILED'
+    case 'context_length': return 'BUILDER_MODEL_CONTEXT_LENGTH'
+    case 'content_filter': return 'BUILDER_MODEL_CONTENT_FILTERED'
+    case 'model_not_found': return 'BUILDER_GATEWAY_MODEL_REFUSED'
+    case 'timeout':
+    case 'network': return hasHttpStatus(error) ? null : 'BUILDER_AGENT_PLATFORM_FAILED'
+    case 'invalid_request':
+    case 'server_error':
+    case 'unknown': return null
+    default: return type satisfies never
+  }
+}
+
+const classifyAgentFailure = (error: unknown): FailureCode | null => {
   if (namesNoModelAccount(error)) return NO_MODEL_ACCOUNT
   // One model call outran its time budget (`BUILDER_MODEL_STEP_TIMEOUT_MS`).
   if (namesStepTimeout(error)) return 'BUILDER_MODEL_STEP_TIMEOUT'
-  const { type } = parseError(error)
-  if (type === 'rate_limit') return 'BUILDER_MODEL_RATE_LIMITED'
-  if (type === 'auth') return 'BUILDER_MODEL_AUTH_FAILED'
-  if ((type === 'timeout' || type === 'network') && !hasHttpStatus(error)) return 'BUILDER_AGENT_PLATFORM_FAILED'
-  return null
+  return failureOfType(parseError(error).type, error)
 }
 
 type Tripwire = Readonly<{ processorId: string | undefined; reason: string }>
@@ -170,7 +183,7 @@ export const sendBuilderSessionMessage = async (
       if ('resume' in step) {
         const { toolCallId, resumeData } = step.resume
         const call = (await readParkedCalls(session)).find((parked) => parked.toolCallId === toolCallId)
-        if (!call) throw new Error('BUILDER_SUSPENSION_NOT_FOUND')
+        if (!call) throw new Failure('BUILDER_SUSPENSION_NOT_FOUND')
         // The session is new, so Mastra's in-memory list of parked calls is empty; the call is
         // registered from its stored record, and Mastra resumes the run from its stored snapshot.
         registerParkedCalls(session, [call])
@@ -181,12 +194,12 @@ export const sendBuilderSessionMessage = async (
       }
     } catch (error) {
       const code = classifyAgentFailure(error)
-      throw code ? new Error(code, { cause: safeCause(error) }) : error
+      throw code ? new Failure(code, { cause: safeCause(error) }) : error
     }
-    if (tripwire) throw new Error('BUILDER_AGENT_TRIPWIRE', { cause: tripwire })
-    if (!terminalReason) throw new Error('BUILDER_AGENT_COMPLETION_UNAVAILABLE')
+    if (tripwire) throw new Failure('BUILDER_AGENT_TRIPWIRE', { cause: tripwire, ...(tripwire.processorId ? { details: { processorId: tripwire.processorId } } : {}) })
+    if (!terminalReason) throw new Failure('BUILDER_AGENT_COMPLETION_UNAVAILABLE')
     if (terminalReason === 'error') {
-      throw new Error((agentError ? classifyAgentFailure(agentError) : null) ?? 'BUILDER_MODEL_STREAM_FAILED', { cause: safeCause(agentError) })
+      throw new Failure((agentError ? classifyAgentFailure(agentError) : null) ?? 'BUILDER_MODEL_STREAM_FAILED', { cause: safeCause(agentError) })
     }
     return terminalReason
   } finally {
@@ -235,16 +248,16 @@ export const admitApplicationTree = (listing: string): readonly string[] => {
     // Only regular files. A symlink or a submodule refuses here rather than compiling into an
     // artifact that does not match the admitted tree.
     const [, size, path] = /^(?:100644|100755) blob [0-9a-f]{40} +(\d+)\t(.+)$/.exec(line) ?? []
-    if (size === undefined || path === undefined) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+    if (size === undefined || path === undefined) throw new Failure('BUILDER_APPLICATION_SOURCE_REFUSED')
     if (!IN_APPLICATION_TREE.test(path)) continue
     const bytes = Number(size)
-    if (!Number.isSafeInteger(bytes) || bytes > 1024 * 1024) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+    if (!Number.isSafeInteger(bytes) || bytes > 1024 * 1024) throw new Failure('BUILDER_APPLICATION_SOURCE_REFUSED')
     totalBytes += bytes
     paths.push(path)
   }
-  if (paths.length > 256 || totalBytes > 12 * 1024 * 1024) throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+  if (paths.length > 256 || totalBytes > 12 * 1024 * 1024) throw new Failure('BUILDER_APPLICATION_SOURCE_REFUSED')
   if (new Set(paths).size !== paths.length || !paths.includes('app/index.html')) {
-    throw new Error('BUILDER_APPLICATION_SOURCE_REFUSED')
+    throw new Failure('BUILDER_APPLICATION_SOURCE_REFUSED')
   }
   return Object.freeze(paths)
 }

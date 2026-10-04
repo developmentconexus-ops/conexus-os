@@ -110,11 +110,11 @@ test('S3-P5 command failure matrix never reaches a false terminal receipt', asyn
     return statements.map(({ statement }) => statement)
   }
 
-  await scenario({ reservationState: 'CONFLICT' }, { code: 'IDEMPOTENCY_CONFLICT' })
-  const imported = await scenario({ body: { name: 'Imported', sourceBootstrap: { mode: 'EXISTING_GIT', repositoryLocator: 'https://example.test/app.git' } } }, { code: 'SOURCE_INPUT_REFUSED' })
+  await scenario({ reservationState: 'CONFLICT' }, { id: 'IDEMPOTENCY_CONFLICT' })
+  const imported = await scenario({ body: { name: 'Imported', sourceBootstrap: { mode: 'EXISTING_GIT', repositoryLocator: 'https://example.test/app.git' } } }, { id: 'PROJECT_SOURCE_REFUSED' })
   assert.deepEqual(imported, [])
-  await scenario({ prepare: async () => { throw new Error('CONEXUS_GIT_MAIN_MISSING') } }, { code: 'REPOSITORY_REFUSED', reason: 'CONEXUS_GIT_MAIN_MISSING' })
-  await scenario({ prepare: async () => { throw new Error('spawn git ENOENT /var/lib/conexus/git/secret') } }, { code: 'REPOSITORY_REFUSED', reason: 'CONEXUS_GIT_FAILED' })
+  await scenario({ prepare: async () => { throw new Error('CONEXUS_GIT_MAIN_MISSING') } }, { id: 'PROJECT_REPOSITORY_UNAVAILABLE', details: { reason: 'CONEXUS_GIT_MAIN_MISSING' } })
+  await scenario({ prepare: async () => { throw new Error('spawn git ENOENT /var/lib/conexus/git/secret') } }, { id: 'PROJECT_REPOSITORY_UNAVAILABLE', details: { reason: 'CONEXUS_GIT_FAILED' } })
   const settlement = await scenario({ settlementFailure: new Error('SYNTHETIC_SETTLEMENT_FAILURE') }, /SYNTHETIC_SETTLEMENT_FAILURE/)
   assert.equal(settlement.includes('ROLLBACK'), true)
 })
@@ -122,7 +122,7 @@ test('S3-P5 command failure matrix never reaches a false terminal receipt', asyn
 test('S3-P5 generated HTTP route enforces authenticity/session and returns only terminal representation', async (t) => {
   const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
   const { registerProjectRoutes } = await import(hubModuleUrl('project/routes.js'))
-  const { ProjectError } = await import(hubModuleUrl('project/errors.js'))
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
   const { logger } = await import(hubModuleUrl('platform/logger.js'))
 
   const pinoStreamSym = Object.getOwnPropertySymbols(logger).find((s) => s.description === 'pino.stream')
@@ -176,24 +176,22 @@ test('S3-P5 generated HTTP route enforces authenticity/session and returns only 
   authenticated = true
   const malformed = await request({ payload: { name: 'Missing source' } })
   assert.equal(malformed.statusCode, 400)
-  refusal = new ProjectError('REPOSITORY_REFUSED', 'FACTORY_INSTALLATION_ORGANIZATION_REQUIRED')
+  refusal = new Failure('PROJECT_REPOSITORY_UNAVAILABLE', { details: { reason: 'FACTORY_INSTALLATION_ORGANIZATION_REQUIRED' } })
   const refused = await request()
   assert.deepEqual([refused.statusCode, refused.json()], [503, {
-    type: 'urn:conexus:problem:project-repository-unavailable', title: 'Project repository unavailable', status: 503, detail: 'FACTORY_INSTALLATION_ORGANIZATION_REQUIRED',
+    type: 'urn:conexus:problem:PROJECT_REPOSITORY_UNAVAILABLE', title: 'PROJECT_REPOSITORY_UNAVAILABLE', status: 503, code: 'PROJECT_REPOSITORY_UNAVAILABLE',
   }])
-  const repoRefusedLog = logs.find((r) => r.msg === 'PROJECT_REPOSITORY_REFUSED')
-  assert.ok(repoRefusedLog, 'PROJECT_REPOSITORY_REFUSED was logged')
+  const repoRefusedLog = logs.find((r) => r.msg === 'PROJECT_REPOSITORY_UNAVAILABLE')
+  assert.ok(repoRefusedLog, 'PROJECT_REPOSITORY_UNAVAILABLE was logged')
   assert.equal(repoRefusedLog.level, 50)
-  assert.equal(repoRefusedLog['exception.message'], 'REPOSITORY_REFUSED:FACTORY_INSTALLATION_ORGANIZATION_REQUIRED')
-  assert.equal(repoRefusedLog['conexus.workspace_id'], '20000000-0000-4000-8000-000000000063')
+  assert.equal(repoRefusedLog['failure.details.reason'], 'FACTORY_INSTALLATION_ORGANIZATION_REQUIRED')
 
   refusal = new Error('UNEXPECTED_STORE_BLOWUP')
   const failed = await request()
   assert.equal(failed.statusCode, 500)
-  const routeFailedLog = logs.find((r) => r.msg === 'PROJECT_ROUTE_FAILED')
-  assert.ok(routeFailedLog, 'PROJECT_ROUTE_FAILED was logged')
+  const routeFailedLog = logs.find((r) => r.msg === 'INTERNAL_UNEXPECTED')
+  assert.ok(routeFailedLog, 'INTERNAL_UNEXPECTED was logged')
   assert.equal(routeFailedLog.level, 50)
-  assert.equal(routeFailedLog['exception.message'], 'UNEXPECTED_STORE_BLOWUP')
-  assert.equal(routeFailedLog['conexus.workspace_id'], '20000000-0000-4000-8000-000000000063')
+  assert.equal(routeFailedLog['exception.type'], 'Error')
 })
 

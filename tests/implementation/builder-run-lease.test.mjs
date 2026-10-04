@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
+import { takeHubLogs } from './hub-log-capture.mjs'
 
 const { scheduleRunLease } = await import(hubModuleUrl('builder/run-lease.js'))
 const { createBuilderService } = await import(hubModuleUrl('builder/service.js'))
@@ -35,16 +36,16 @@ test('closing the lease waits for the pass in flight and skips its sweep, so the
 })
 
 test('a failed pass is logged with a code and the next one runs', async () => {
-  const lines = []
+  takeHubLogs()
   let passes = 0
   const lease = scheduleRunLease({
     heartbeat: async () => { passes += 1; if (passes === 1) throw new Error('DATABASE_DOWN') },
     sweep: async () => {},
-    log: (line) => { lines.push(line) },
   }, 10)
   for (let tries = 0; tries < 200 && passes < 2; tries++) await wait(10)
   await lease.close()
-  assert.deepEqual({ lines, ranAgain: passes >= 2 }, { lines: ['BUILDER_RUN_LEASE_FAILED:DATABASE_DOWN'], ranAgain: true })
+  const lines = takeHubLogs().map(({ level, message, fields }) => [level, message, fields['exception.type']])
+  assert.deepEqual({ lines, ranAgain: passes >= 2 }, { lines: [['error', 'BUILDER_RUN_LEASE_FAILED', 'Error']], ranAgain: true })
 })
 
 test('a sweep still in flight never runs beside another, while the beats go on', async () => {

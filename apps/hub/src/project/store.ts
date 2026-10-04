@@ -8,10 +8,10 @@ import type {
   Prj03Response,
 } from '../generated/project-routes.js'
 import type { BuilderRunResultKind, BuilderRunState } from '../generated/builder-run-vocabulary.js'
+import { Failure } from '../platform/failure.js'
 import { errorCode, type PostgresPool } from '../platform/postgres.js'
 import { createProjectDeletionOrchestrator } from './deletion.js'
 import type { ProjectDeletionPorts } from './deletion.js'
-import { projectError, repositoryRefused } from './errors.js'
 import { isProjectIdentity } from './identity.js'
 
 // Gives a Project that does not exist yet its repository in the Conexus Git, with the starter on
@@ -76,8 +76,11 @@ export type ProjectStore = Readonly<{
 const digestText = (value: string): string => sha256(Buffer.from(value, 'utf8'))
 const digestBody = (value: unknown): string => sha256(canonicalBytes(value))
 const isNotAdmitted = (error: unknown): boolean => errorCode(error) === '42501'
+// Conexus Git failures are named codes; only the code is kept, and anything else is a failure with no name.
+const GIT_FAILURE_NAME = /^(CONEXUS_GIT_[A-Z_]+)$/
+const gitFailureName = (error: unknown): string => GIT_FAILURE_NAME.exec(error instanceof Error ? error.message : '')?.[1] ?? 'CONEXUS_GIT_FAILED'
 const mapDatabaseError = (error: unknown): never => {
-  if (isNotAdmitted(error)) throw projectError('AUTHORIZATION_DENIED')
+  if (isNotAdmitted(error)) throw new Failure('PROJECT_CREATE_DENIED')
   throw error
 }
 
@@ -108,7 +111,7 @@ export const createProjectStore = ({
   mintIdentity?: () => string
 }>): ProjectStore => {
   const requireReadPool = (): PostgresPool => {
-    if (!readPool) throw new Error('PROJECT_READ_POOL_NOT_CONFIGURED')
+    if (!readPool) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_READ_POOL_NOT_CONFIGURED' } })
     return readPool
   }
   const deletionOrchestrator = createProjectDeletionOrchestrator({ commandPool, ports: deletion })
@@ -200,10 +203,10 @@ export const createProjectStore = ({
         SELECT * FROM project.reserve_or_replay_create_project($1, $2, $3, $4, $5)
       `, [input.accountId, input.workspaceId, keyDigest, requestDigest, candidateProjectId])
       const row = result.rows[0]
-      if (!row) throw projectError('OUTCOME_UNKNOWN')
-      if (row.state === 'CONFLICT') throw projectError('IDEMPOTENCY_CONFLICT')
-      if (!isProjectIdentity(row.project_id)) throw projectError('OUTCOME_UNKNOWN')
-      if (row.state === 'REPLAY' && !validReplay(row, input)) throw projectError('OUTCOME_UNKNOWN')
+      if (!row) throw new Failure('OUTCOME_UNKNOWN')
+      if (row.state === 'CONFLICT') throw new Failure('IDEMPOTENCY_CONFLICT')
+      if (!isProjectIdentity(row.project_id)) throw new Failure('OUTCOME_UNKNOWN')
+      if (row.state === 'REPLAY' && !validReplay(row, input)) throw new Failure('OUTCOME_UNKNOWN')
       await client.query('COMMIT')
       return row
     } catch (error) {
@@ -216,24 +219,24 @@ export const createProjectStore = ({
 
   const createProject = async (input: CreateProjectInput): Promise<CreateProjectResult> => {
     // Starting from an existing repository is not offered yet, and never from the host Git path.
-    if (input.body.sourceBootstrap.mode !== 'NEW') throw projectError('SOURCE_INPUT_REFUSED')
+    if (input.body.sourceBootstrap.mode !== 'NEW') throw new Failure('PROJECT_SOURCE_REFUSED')
     const candidateProjectId = mintIdentity()
     const projectRevision = mintIdentity()
-    if (![candidateProjectId, projectRevision].every(isProjectIdentity)) throw projectError('OUTCOME_UNKNOWN')
+    if (![candidateProjectId, projectRevision].every(isProjectIdentity)) throw new Failure('OUTCOME_UNKNOWN')
     const keyDigest = digestText(input.idempotencyKey)
     const requestDigest = digestBody(input.body)
     const reservation = await reserve(input, keyDigest, requestDigest, candidateProjectId)
     if (reservation.state === 'REPLAY') {
-      if (!validReplay(reservation, input)) throw projectError('OUTCOME_UNKNOWN')
+      if (!validReplay(reservation, input)) throw new Failure('OUTCOME_UNKNOWN')
       return { ...reservation.response_body, replayed: true }
     }
-    if (reservation.state !== 'RESERVED') throw projectError('OUTCOME_UNKNOWN')
+    if (reservation.state !== 'RESERVED') throw new Failure('OUTCOME_UNKNOWN')
 
     // The reserved receipt is the intent: a retry with the same key reaches the same Project id, and
     // so the repository this call may already have created.
     const projectId = reservation.project_id
     const starterRevision = await repository.prepare(projectId).catch((error: unknown) => {
-      throw repositoryRefused(error)
+      throw new Failure('PROJECT_REPOSITORY_UNAVAILABLE', { cause: error, details: { reason: gitFailureName(error) } })
     })
 
     const client = await commandPool.connect()
@@ -243,17 +246,17 @@ export const createProjectStore = ({
         SELECT * FROM project.lock_create_project_receipt($1, $2, $3, $4, $5)
       `, [input.accountId, input.workspaceId, keyDigest, requestDigest, projectId])
       const lock = locked.rows[0]
-      if (!lock || lock.project_id !== projectId) throw projectError('OUTCOME_UNKNOWN')
+      if (!lock || lock.project_id !== projectId) throw new Failure('OUTCOME_UNKNOWN')
       if (lock.outcome === 'SUCCEEDED') {
         const replay = await client.query<ReservationRow>(`
           SELECT * FROM project.reserve_or_replay_create_project($1, $2, $3, $4, $5)
         `, [input.accountId, input.workspaceId, keyDigest, requestDigest, projectId])
         const row = replay.rows[0]
-        if (row?.state !== 'REPLAY' || !validReplay(row, input)) throw projectError('OUTCOME_UNKNOWN')
+        if (row?.state !== 'REPLAY' || !validReplay(row, input)) throw new Failure('OUTCOME_UNKNOWN')
         await client.query('COMMIT')
         return { ...row.response_body, replayed: true }
       }
-      if (lock.outcome !== 'RESERVED') throw projectError('OUTCOME_UNKNOWN')
+      if (lock.outcome !== 'RESERVED') throw new Failure('OUTCOME_UNKNOWN')
 
       const response: Prj03Response = {
         projectId,

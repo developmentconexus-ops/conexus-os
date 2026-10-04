@@ -3,6 +3,7 @@ import { ModelsDevGateway } from '@mastra/core/llm'
 import type { LanguageModelMiddleware } from 'ai'
 import { wrapGatewayModel, type ModelRoute } from '../model-routing.js'
 import { GOOGLE_AI_PRO_PROVIDER, parseKey, type GoogleAiProKey } from './credential.js'
+import { Failure } from '../../platform/failure.js'
 
 /** The provider Mastra's models.dev gateway builds Gemini's own API client for. */
 const GOOGLE_PROVIDER = 'google'
@@ -51,13 +52,13 @@ export const createGoogleAiProRoute = ({ routerUrl, track }: Readonly<{
   accountProvider: GOOGLE_AI_PRO_PROVIDER,
   take: (account) => {
     const key = parseKey(account.secret)
-    if (!key) throw new Error('GOOGLE_AI_PRO_STORED_RECORD_REFUSED')
+    if (!key) throw new Failure('GOOGLE_AI_PRO_STORED_RECORD_REFUSED')
     track(key, account.modelAccountId)
     return {
       modelProvider: GOOGLE_AI_PRO_PROVIDER,
       model: async (modelName, thinkingLevel) => {
         const url = await routerUrl()
-        if (!url) throw new Error('BUILDER_MODEL_NOT_SELECTED')
+        if (!url) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
         return wrapGatewayModel(
           await new GoogleAiProGateway(`${url}/v1beta`).resolveLanguageModel({ providerId: GOOGLE_PROVIDER, modelId: modelName, apiKey: key }),
           [createGoogleThinkingMiddleware(modelName, thinkingLevel), includeThoughts],
