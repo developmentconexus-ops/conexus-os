@@ -6,19 +6,19 @@ The wire contracts. `api/product/` is the Product HTTP API in OpenAPI, `api/tech
 
 - `api/product/openapi.yaml` lists every path by an explicit `$ref`. An operation added to a `*-paths.yaml` file alone is invisible. `npm run wire:bijection` fails on it.
 - A contract change and its [`operation-ledger.md`](../docs/product/operation-ledger.md) row go in one commit.
-- The Hub routes in `apps/hub/src/generated/` and the web clients in `apps/web/src/generated/` come from `openapi.yaml`. Regenerate them in the same commit with `npm run generate:iam`, `generate:workspace`, `generate:project` and `generate:connector`.
-- `technical/builder-run-vocabulary.json` is the one list of Builder run states, phases and result kinds. The Hub and the web import the copies `node scripts/generate-builder-run-vocabulary.mjs` writes into their `src/generated/`; a change also needs a migration for the matching `builder_run` CHECK constraint, and `--check` names every list still behind.
+- The Hub routes in `apps/hub/src/generated/` and the web clients in `apps/web/src/generated/` come from `openapi.yaml`. Regenerate them in the same commit with `npm run generate`; CI fails when running it changes a tracked or new file.
+- `technical/builder-run-vocabulary.json` is the one list of Builder run states, phases and result kinds. The Hub and the web import the copies `node scripts/generate-builder-run-vocabulary.mjs` writes into their `src/generated/`; a change also needs a migration for the matching `builder_run` CHECK constraint, and `tests/repository/builder-run-vocabulary.test.mjs` names every list still behind.
 - `technical/hub-catalog-snapshot.json` is written only by `npm run db:catalog:snapshot`. `technical/hub-database-roles.json` is the one role register. After you change it, run `npm run db:roles:generate`.
 
 ## Verify
 
 ```bash
 npm run wire:verify
-npm run check:contracts
+npm run generate && git status --short   # nothing may change
 npm run db:roles:check
 npm run db:catalog:check     # needs PostgreSQL
 ```
 
 ## Review
 
-Review: load the pages [`areas.json`](../docs/development/review/areas.json) maps your paths to. `api/` is [`contracts.md`](../docs/development/review/contracts.md), `technical/` is [`data-migrations.md`](../docs/development/review/data-migrations.md).
+Review: load the pages [`areas.json`](../docs/development/review/areas.json) maps your paths to.

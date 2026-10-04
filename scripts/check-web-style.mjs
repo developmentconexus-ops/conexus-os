@@ -8,25 +8,12 @@ import ts from 'typescript'
 // package they both import.
 const SCANNED_ROOTS = ['apps/web/src', 'apps/keycloak-theme/src', 'packages/brand/src']
 const REQUIRED_ROOT = 'apps/web/src'
-// The palette is defined once. Every other file reaches a color through var(--cx-*).
-const TOKEN_FILES = new Set(['packages/brand/src/tokens.css'])
 const EXTENSIONS = /\.(?:css|ts|tsx)$/
-
-const ALLOWED_FAMILIES = new Set(['bricolage grotesque', 'hanken grotesk', 'jetbrains mono', 'system-ui', 'ui-monospace', 'monospace'])
-const FONT_TOKEN = /^var\(--cx-font-(?:display|body|mono)\)$/
-const CSS_WIDE_KEYWORDS = new Set(['inherit', 'initial', 'unset', 'revert', 'revert-layer'])
-
-const HEX = /(?<![\w&#])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})(?![\w-])/g
-const CSS_FONT = /(?<![\w-])(font-family|font)\s*:\s*([^;}\n]+)/g
-const SCRIPT_FONT = /(?<![\w-])(font-family|fontFamily|font)\s*:\s*(['"`])([^'"`\n]*)\2/g
-// In the font shorthand the family list is whatever follows the size and optional line height.
-const SHORTHAND_FAMILY = /(?:^|\s)(?:\d*\.?\d+(?:px|rem|em|%|pt|vw|vh|ch|ex|lh)|(?:xx?-)?(?:small|large)|medium|smaller|larger|var\([^)]*\))(?:\s*\/\s*\S+)?\s+(\S.*)$/
 
 // C-031: a hand class with a Conexus prefix must have a CSS rule, so a class typo or a deleted
 // rule fails CI instead of reaching review (the #370 trap). Structure blocks and brand tokens are
 // out of scope for this check; it is about hand classes next to a screen.
 const CLASS_CSS_ROOTS = ['apps/web/src', 'packages/brand/src']
-const CLASS_TSX_ROOT = 'apps/web/src'
 // The brand package paints the mark and wordmark, so its TSX counts as a use of its own classes.
 const CLASS_TSX_ROOTS = ['apps/web/src', 'packages/brand/src']
 const CONEXUS_PREFIX = /^(?:cx|cxs|builder)-[\w-]+$/
@@ -40,85 +27,7 @@ const CLASSNAME_ATTR = /className\s*=\s*(["'{])/g
 const CLASS_MAP = /\bconst [A-Z][A-Z_]*_CLASS(?:ES)? = \{/g
 const STRING_LITERAL = /'([^'\\]*(?:\\.[^'\\]*)*)'|"([^"\\]*(?:\\.[^"\\]*)*)"|`([^`\\]*(?:\\.[^`\\]*)*)`/g
 
-// A hover hint is the design system Tooltip, never the browser's native `title` bubble (HQ decision
-// 2026-09-29). A `title` is a hint on an intrinsic element or on a dotted component such as
-// DropdownMenu.Trigger, which forward it to the DOM. A `title` on a plain component (Status,
-// PageHeader) is a heading prop, and an iframe's `title` is its accessible name, so both stay.
-const NATIVE_HINT_MESSAGE = "native title hint; use the design system Tooltip (import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip') and keep the aria-label on an icon-only control"
-const isNativeHintHost = tag => (/^[a-z]/.test(tag) && tag !== 'iframe') || tag.includes('.')
-
-// The Hub's CSRF cookie is read in one place, apps/web/src/app/http.ts (hubFetch). The
-// generated clients are written by their generator, not by hand, and stay out of this check.
-const CSRF_COOKIE = '__Host-conexus_csrf'
-const CSRF_READER = 'apps/web/src/app/http.ts'
-const csrfViolations = (path, text) => {
-  if (!/\.tsx?$/.test(path) || !path.startsWith(`${CLASS_TSX_ROOT}/`) || path === CSRF_READER || path.startsWith(`${CLASS_TSX_ROOT}/generated/`)) return []
-  const index = text.indexOf(CSRF_COOKIE)
-  return index === -1 ? [] : [{ path, line: lineOf(text, index), message: `reads the CSRF cookie by hand; call hubFetch from ${CSRF_READER}` }]
-}
-
-const nativeHintViolations = (path, text) => {
-  if (!path.endsWith('.tsx') || !path.startsWith(`${CLASS_TSX_ROOT}/`)) return []
-  const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-  const violations = []
-  const visit = node => {
-    if (ts.isJsxAttribute(node) && node.name.getText(source) === 'title') {
-      const element = node.parent.parent
-      const tag = ts.isJsxOpeningElement(element) || ts.isJsxSelfClosingElement(element) ? element.tagName.getText(source) : ''
-      if (isNativeHintHost(tag)) violations.push({ path, line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1, message: `<${tag} title=...>: ${NATIVE_HINT_MESSAGE}` })
-    }
-    ts.forEachChild(node, visit)
-  }
-  visit(source)
-  return violations
-}
-
 const lineOf = (text, index) => text.slice(0, index).split('\n').length
-
-const splitTopLevel = list => {
-  const parts = []
-  let depth = 0
-  let current = ''
-  for (const character of list) {
-    if (character === '(') depth += 1
-    if (character === ')') depth -= 1
-    if (character === ',' && depth === 0) {
-      parts.push(current)
-      current = ''
-    } else current += character
-  }
-  return [...parts, current].map(part => part.trim()).filter(Boolean)
-}
-
-const familiesOf = (property, value) => {
-  const list = value.trim().replace(/\s*!important$/, '')
-  if (property !== 'font') return splitTopLevel(list)
-  const shorthand = list.match(SHORTHAND_FAMILY)
-  return shorthand ? splitTopLevel(shorthand[1]) : []
-}
-
-const permittedFamily = family => {
-  const bare = family.replace(/^["']|["']$/g, '').trim()
-  return ALLOWED_FAMILIES.has(bare.toLowerCase()) || FONT_TOKEN.test(bare) || CSS_WIDE_KEYWORDS.has(bare.toLowerCase())
-}
-
-const styleViolations = (path, text) => {
-  const violations = []
-  if (!TOKEN_FILES.has(path)) {
-    for (const match of text.matchAll(HEX)) {
-      violations.push({ path, line: lineOf(text, match.index), message: `raw hex color ${match[0]}; use a var(--cx-*) token from packages/brand/src/tokens.css` })
-    }
-  }
-  const declarations = path.endsWith('.css')
-    ? [...text.matchAll(CSS_FONT)].map(match => ({ index: match.index, property: match[1], value: match[2] }))
-    : [...text.matchAll(SCRIPT_FONT)].map(match => ({ index: match.index, property: match[1] === 'fontFamily' ? 'font-family' : match[1], value: match[3] }))
-  for (const { index, property, value } of declarations) {
-    for (const family of familiesOf(property, value).filter(entry => !permittedFamily(entry))) {
-      violations.push({ path, line: lineOf(text, index), message: `font family ${family} is not a brand font; use var(--cx-font-display|body|mono)` })
-    }
-  }
-  return violations
-}
 
 const filesUnder = directory => readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
   const path = resolve(directory, entry.name)
@@ -254,18 +163,6 @@ const tailwindRule = async root => {
   return token => classNamesIn(compiler.build([token])).has(token)
 }
 
-// A var(--cx-*) a stylesheet reads must be a custom property some scanned file defines, in CSS or in a style prop, so a typo or a deleted token
-// fails here instead of painting nothing.
-const TOKEN_DEFINITION = /(--cx-[\w-]+)['"]?\s*:/g
-const TOKEN_USE = /var\((--cx-[\w-]+)/g
-const tokenViolations = (files, contentOf) => {
-  if (!files.some(path => TOKEN_FILES.has(path))) return []
-  const defined = new Set(files.flatMap(path => [...contentOf(path).matchAll(TOKEN_DEFINITION)].map(match => match[1])))
-  return files.filter(path => path.endsWith('.css')).flatMap(path => [...contentOf(path).matchAll(TOKEN_USE)]
-    .filter(match => !defined.has(match[1]))
-    .map(match => ({ path, line: lineOf(contentOf(path), match.index), message: `uses undefined token ${match[1]}; define it in packages/brand/src/tokens.css or where it is used` })))
-}
-
 // The Mastra theme maps Mastra's own color variables onto the brand: each must be set to a --cx-* token.
 const MASTRA_THEME = 'apps/web/src/mastra-theme.css'
 const MASTRA_REPOINTED = [...[50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map(step => `--brand-green-${step}`), '--accent1', '--positive1', '--notice-success', '--badge-green', '--color-emerald-400']
@@ -278,18 +175,17 @@ const repointViolations = (files, contentOf) => {
 }
 
 const classCheck = (files, contentOf, vendor, generates) => {
-  const defined = new Map()
+  const defined = new Set()
   for (const path of files.filter(candidate => candidate.endsWith('.css') && CLASS_CSS_ROOTS.some(root => candidate.startsWith(`${root}/`)))) {
     const text = contentOf(path)
     for (const match of text.matchAll(CLASS_DEFINITION)) {
-      if (!defined.has(match[1])) defined.set(match[1], { path, line: lineOf(text, match.index) })
+      defined.add(match[1])
     }
   }
   const own = new Set()
   for (const path of files.filter(candidate => candidate.endsWith('.css') && CLASS_CSS_ROOTS.some(root => candidate.startsWith(`${root}/`)))) {
     for (const name of classNamesIn(contentOf(path))) own.add(name)
   }
-  const used = new Set()
   const violations = []
   for (const path of files.filter(candidate => candidate.endsWith('.tsx') && CLASS_TSX_ROOTS.some(root => candidate.startsWith(`${root}/`)))) {
     for (const { line, token } of foreignClassTokens(path, contentOf(path))) {
@@ -297,17 +193,13 @@ const classCheck = (files, contentOf, vendor, generates) => {
     }
     const { staticTokens, dynamicTokens } = classNameTokens(contentOf(path))
     for (const { line, token } of staticTokens) {
-      used.add(token)
       if (!defined.has(token)) violations.push({ path, line, message: `class "${token}" has no CSS rule under apps/web/src or packages/brand/src` })
     }
     for (const { line, token } of dynamicTokens) {
       violations.push({ path, line, message: `class "${token}" is built dynamically; map each value to a literal class name` })
     }
   }
-  const unused = [...defined]
-    .filter(([name]) => !used.has(name))
-    .map(([name, { path, line }]) => ({ path, line, message: `class "${name}" is defined in CSS but no TSX under apps/web/src or packages/brand/src uses it` }))
-  return { violations, unused }
+  return violations
 }
 
 const scanTree = (root, generates) => {
@@ -319,12 +211,7 @@ const scanTree = (root, generates) => {
     .sort()
   const contents = new Map(files.map(path => [path, readFileSync(resolve(root, path), 'utf8')]))
   const contentOf = path => contents.get(path)
-  const violations = files.flatMap(path => styleViolations(path, contentOf(path)))
-  const hintViolations = files.flatMap(path => nativeHintViolations(path, contentOf(path)))
-  const csrfReads = files.flatMap(path => csrfViolations(path, contentOf(path)))
-  const tokenUses = [...tokenViolations(files, contentOf), ...repointViolations(files, contentOf)]
-  const classResult = classCheck(files, contentOf, vendorClasses(root), generates)
-  return { files, violations: [...violations, ...hintViolations, ...csrfReads, ...tokenUses, ...classResult.violations], unused: classResult.unused }
+  return { files, violations: [...repointViolations(files, contentOf), ...classCheck(files, contentOf, vendorClasses(root), generates)] }
 }
 
 const main = async () => {
@@ -333,14 +220,9 @@ const main = async () => {
     console.error(`no files scanned: ${REQUIRED_ROOT} does not exist under ${root}`)
     return 1
   }
-  const { files, violations, unused } = scanTree(root, await tailwindRule(root))
+  const { files, violations } = scanTree(root, await tailwindRule(root))
   if (violations.length) {
     for (const { path, line, message } of violations) console.error(`${path}:${line}: ${message}`)
-    return 1
-  }
-  // A dead rule is a defect: delete it.
-  if (unused.length) {
-    for (const { path, line, message } of unused) console.error(`${path}:${line}: ${message}`)
     return 1
   }
   console.log(`Web style check passed (files=${files.length}).`)

@@ -3,7 +3,7 @@ import test from 'node:test'
 import { PostgresStore } from '@mastra/pg'
 import { createEvalMastra, evalStorage } from '../../scripts/builder-eval/scorers.mjs'
 import { experimentHarness } from './builder-eval-fixtures.mjs'
-import { createEmptyDatabase, query } from './hub-database.mjs'
+import { createEmptyDatabase, query } from '../implementation/hub-database.mjs'
 
 const completed = (experimentId) => ({ experimentId, status: 'completed', settled: 1, total: 1, pending: [] })
 

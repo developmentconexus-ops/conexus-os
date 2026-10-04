@@ -21,7 +21,7 @@ How Conexus screens look, read and are proved: the web app (`apps/web`), the bra
 
 ## What a check decides
 
-`npm run web:style:check` decides raw colors, fonts, native `title`, the CSRF cookie and every class a screen writes. Run it and fix what it prints; do not restate or work around it.
+`npm run web:style:check` decides that every class a screen writes has a CSS rule and that the Mastra theme stays re-pointed at brand tokens. Raw colors, fonts, a native `title` and a hand-read CSRF cookie are review only. Run it and fix what it prints; do not restate or work around it.
 
 ## Prove it
 

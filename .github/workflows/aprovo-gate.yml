@@ -1,7 +1,5 @@
-name: Patch churn
+name: Aprovo gate
 
-# A separate workflow because the label premise-checked must re-run the check when it is added, and
-# the verify workflow does not run on label events.
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited, labeled, unlabeled]
@@ -10,8 +8,8 @@ permissions:
   contents: read
 
 jobs:
-  patch-churn:
-    name: patch-churn
+  aprovo-gate:
+    name: aprovo-gate
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -20,4 +18,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-      - run: node scripts/check-patch-churn.mjs --base "origin/${{ github.base_ref }}"
+      - run: node scripts/check-aprovo-gate.mjs --base "origin/${{ github.base_ref }}"

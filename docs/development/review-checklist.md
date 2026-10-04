@@ -77,7 +77,7 @@ These items judge the TypeScript the diff adds or changes. Biome in `biome.json`
 ## Tests and secrets
 
 - [ ] Each new or changed test calls the code as its users do and asserts a literal value the code computes, never one that restates a hand-maintained constant, digest or prompt. A value an owner outside the code approved, such as a brand token in `DESIGN.md`, is not a restatement.
-- [ ] No test in tests/implementation or tests/live reads production source to assert on its text, and no test's assertions are only truthiness checks (`check-empty-tests` finds a test with none).
+- [ ] No test in tests/implementation or tests/live reads production source to assert on its text, and no test's assertions are only truthiness checks (review only).
 - [ ] A function or file under a `biome-ignore` size line does not grow in this pull request.
 - [ ] No design was reshaped to keep a test passing. Tests whose subject is gone are deleted.
 - [ ] No secret, token or credential appears in code, fixtures, logs or the pull request body.
@@ -89,19 +89,9 @@ These items judge the TypeScript the diff adds or changes. Biome in `biome.json`
 
 ## Verdict
 
+- A re-review that finds new defects in the same mechanism a prior pass already sent back names
+  that mechanism's premise and asks whether a simpler contract removes the class of defect,
+  instead of asking for one more case to be handled. Principle 12.
+- A finding against one of the twelve principles names it by number, as step 4 of Load the pages
+  says; the severity tag is not the principle.
 - The review names the head SHA, the pages it loaded, the census table or "no new mechanism", and each failed or unevaluated item with its evidence. Any failed or unevaluated item, or a correctness defect, is `request changes`, otherwise `approve`.
-
-## CI guards against repeated patching and forgotten flaky tests
-
-- **Patch churn guard.** A pull request whose title starts with `fix` fails the `patch-churn` check
-  (`scripts/check-patch-churn.mjs`, its own workflow) when it touches a file with three or more `fix(` or `fix:` commits on `main` in
-  the last 30 days. Only production source under `apps/*/src` and `packages/*/src` counts, generated files excluded, so registries and tests that every fix touches do not trip it. The message lists the
-  commits and asks you to check the premise first. If a redesign was considered, add the label `premise-checked`. `npm run verify:quick`
-  prints the ten hottest files without failing.
-- **Test quarantine.** `tests/quarantine.json` (shipped `[]`) is the only source of quarantine. An entry is
-  `{ "test": "<file>:<test name>", "issue": <number>, "until": "YYYY-MM-DD" }`. Quarantine a test by adding the entry and writing
-  `test('<name>', { skip: quarantined(import.meta.url, '<name>') }, ...)` with `quarantined` from `tests/support/quarantine.mjs`, which skips the
-  test with `opt-in: quarantined, see #<issue> until <date>` while the entry is live. Removing the entry or letting it expire runs the test again, so
-  nothing is left to forget. The `test-quarantine` step fails on an entry past `until`, more than 14 days ahead, without an issue, or naming a
-  test that does not exist. `only-opt-in-skips` reads the real skip reason of the run, whatever form produced it, and fails any
-  `opt-in: quarantined` skip that has no live entry for that file and test.

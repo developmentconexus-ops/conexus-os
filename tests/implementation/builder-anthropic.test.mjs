@@ -22,7 +22,7 @@ const fakeKey = `sk-ant-api03-${'x'.repeat(40)}`
 const tokens = (label, expires) => ({ access: `access-${label}`, refresh: `refresh-${label}`, expires })
 
 // model.model_account as a recording stand-in; the Postgres-backed store is proven in
-// model-account-postgres.test.mjs.
+// model-account.postgres.test.mjs.
 const fakeStore = () => {
   const rows = new Map()
   const key = (owner, provider) => `${owner}:${provider}`

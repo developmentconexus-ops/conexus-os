@@ -9,6 +9,7 @@
   },
   {
     "area": "identity-session",
+    "gate": "aprovo",
     "paths": [
       "apps/hub/src/identity-access/**",
       "apps/hub/src/builder/mastra-session-routes.ts",
@@ -16,7 +17,6 @@
       "apps/hub/src/mar/preview-routes.ts",
       "apps/hub/src/platform/caller.ts",
       "infra/keycloak/**",
-      "apps/keycloak-theme/**",
       "scripts/bootstrap-installation-administrator.mjs",
       "scripts/keycloak-refresh-probe.mjs",
       "tests/implementation/identity-access-*",
@@ -26,9 +26,8 @@
       "tests/implementation/installation-settings-*",
       "tests/implementation/workspace-membership-*",
       "tests/implementation/preview-application-*",
-      "docs/tasks/specs/0005-app-access-perfis/**",
-      "docs/tasks/specs/0006-people-and-sign-in/**",
-      "docs/tasks/specs/0008-configuration-model/**"
+      "apps/hub/src/platform/secrets.ts",
+      "scripts/confine-application-cluster.mjs"
     ],
     "page": "docs/development/review/identity-session.md",
     "flows": [
@@ -40,9 +39,17 @@
     ]
   },
   {
+    "area": "migrations",
+    "gate": "aprovo",
+    "paths": [
+      "apps/hub/migrations/**"
+    ],
+    "page": "docs/development/review/data-migrations.md",
+    "flows": []
+  },
+  {
     "area": "data-migrations",
     "paths": [
-      "apps/hub/migrations/**",
       "contracts/technical/**",
       "apps/hub/src/*/store.ts",
       "apps/hub/src/registry/application-artifact-store.ts",
@@ -56,15 +63,15 @@
       "scripts/generate-hub-role-register.mjs",
       "scripts/provision-hub-roles.mjs",
       "packages/canonical-json/**",
-      "tests/implementation/*-postgres.test.mjs",
+      "tests/implementation/*.postgres.test.mjs",
       "tests/implementation/hub-migration-*",
-      "tests/implementation/hub-baseline.test.mjs",
+      "tests/implementation/hub-baseline.postgres.test.mjs",
       "tests/implementation/hub-database.mjs",
       "tests/implementation/hub-role-*",
       "tests/implementation/provision-hub-*",
       "tests/implementation/connection-census.test.mjs",
       "tests/implementation/protected-cluster*",
-      "tests/implementation/workspace-reads.test.mjs",
+      "tests/implementation/workspace-reads.postgres.test.mjs",
       "docs/tasks/specs/0005-app-access-perfis/**",
       "docs/tasks/specs/0006-people-and-sign-in/**",
       "docs/tasks/specs/0008-configuration-model/**"
@@ -97,7 +104,7 @@
       "tests/implementation/builder-google-*",
       "tests/implementation/builder-openai-*",
       "tests/implementation/builder-model-*",
-      "tests/implementation/builder-e2b-*",
+      "tests/manual/builder-e2b-*",
       "tests/implementation/builder-anthropic*",
       "tests/implementation/model-account-*",
       "tests/implementation/builder-conexus-git*"
@@ -115,7 +122,7 @@
       "tests/implementation/brand-*",
       "tests/implementation/web-dev-server.mjs",
       "tests/implementation/*-screenshot*",
-      "tests/implementation/preview-form-policy.test.mjs",
+      "tests/implementation/preview-form-policy.browser.test.mjs",
       "tests/repository/web-style.test.mjs"
     ],
     "page": "docs/development/review/frontend.md",

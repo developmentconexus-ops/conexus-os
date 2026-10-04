@@ -76,7 +76,7 @@ The exception is bounded in both directions:
 `scripts/hub-catalog.mjs` leaves the objects inside `factory` out of the catalog snapshot, because
 they are the package's, not the migrations'. The `factory` schema line itself stays, with its owner
 and grants, so a grant on it to any other role is catalog drift and refuses the next migration run.
-`tests/implementation/builder-conexus-git-postgres.test.mjs` asserts both bounds.
+`tests/implementation/builder-conexus-git.postgres.test.mjs` asserts both bounds.
 
 Its register row is `"optional": true`, so a Hub without `CONEXUS_DB_FACTORY_PASSWORD_FILE` leaves it
 out of the startup census instead of reporting it `unconfigured`. With the file, it is censused like
@@ -103,7 +103,7 @@ hub_s4_baseline_read   hub_s6_inception_command hub_ws01_command
 Eight of them were the phase-named predecessors of the capability roles above, and the rest held
 surfaces that were dropped with the Brain, the bindings, Baseline, Inception and the Sankhya
 connections. `0001_baseline.sql` names none of them, so a cluster built from it never has them, and
-`tests/implementation/hub-baseline.test.mjs` fails if one reappears in the file.
+`tests/implementation/hub-baseline.postgres.test.mjs` fails if one reappears in the file.
 
 A cluster that ran the old history still carries them, because a role is cluster-global while its
 privileges are per database, so no migration could drop one: `DROP ROLE` answers `2BP01` whenever
@@ -119,7 +119,7 @@ A role is not scoped to a database. A test that creates a throwaway database and
 `ALTER ROLE hub_builder_executor PASSWORD` changes the credential for every database in that
 cluster, including a live Hub's. This caused two incidents; the second was diagnosed on
 2026-09-18 when the roles were found holding fixture values from
-`builder-run-invariants-postgres.test.mjs`. `tests/implementation/protected-cluster.mjs`
+`builder-run-invariants.postgres.test.mjs`. `tests/implementation/protected-cluster.mjs`
 now refuses those suites against a cluster hosting a protected database.
 
 ## Provisioning and the startup census

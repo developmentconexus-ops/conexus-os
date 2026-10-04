@@ -32,7 +32,7 @@ instructions. Git history holds them.
 
 | Unit | Code it moved | Evidence it left |
 | --- | --- | --- |
-| P-02 | `builder/failure-vocabulary.ts` maps internal codes onto nine public categories and is the one place a run becomes wire shape; migration `0005` adds `builder_run.request_text`; the Build screen renders a request the thread has no message for. | `builder-failure-vocabulary.test.mjs`, `builder-run-request-text-postgres.test.mjs`, three pilot lanes: preparation failure, success, cancellation. |
+| P-02 | `builder/failure-vocabulary.ts` maps internal codes onto nine public categories and is the one place a run becomes wire shape; migration `0005` adds `builder_run.request_text`; the Build screen renders a request the thread has no message for. | `builder-failure-vocabulary.test.mjs`, `builder-run-request-text.postgres.test.mjs`, three pilot lanes: preparation failure, success, cancellation. |
 | P-03 | `project-build.tsx` gains an iframe load handler counted only after the entry submit for that lease, and states a grant and then a navigation. | A browser test that holds the entry route open so the grant resolves while the frame is still blank; a cold pilot load. |
 | P-04 | A selected run drives Details, Diff and the trace; an uncertain send keeps its idempotency key; `appendDiagnostic` derives its message id from the run and the code. | Three tests, each mutated to confirm it fails for the reason it claims. No pilot lane. |
 | P-05 | Nothing. Overtaken by Mastra-native model choice; the remaining line shipped with P-04. | The absence is the evidence: the constants and `apps/hub/src/claude-account` do not exist. |

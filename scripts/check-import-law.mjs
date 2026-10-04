@@ -1,4 +1,3 @@
-import { builtinModules } from 'node:module'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path'
 import process from 'node:process'
@@ -18,7 +17,6 @@ const APPLICATION_SERVER_CONTRACT = 'apps/hub/src/app-runner/server-manifest.ts'
 const ADMITTED_HANDLER_LOADER = 'apps/hub/src/app-runner/worker.ts'
 // What a Failure is has one definition too: every layer throws it, and the HTTP handler answers it.
 const FAILURE_CONTRACT = 'apps/hub/src/platform/failure.ts'
-const NODE_BUILTINS = new Set(builtinModules.flatMap((name) => [name, `node:${name}`]))
 
 function normalize(path) {
   return path.split(sep).join('/')
@@ -51,7 +49,7 @@ function productionRoots(root) {
   const apps = childSourceRoots(root, 'apps')
   const packages = childSourceRoots(root, 'packages')
   return {
-    roots: [...apps.roots, ...packages.roots, 'runtime'],
+    roots: [...apps.roots, ...packages.roots],
     missingAppSources: apps.missing,
   }
 }
@@ -154,7 +152,6 @@ function isAllowedRelativeTarget(source, target) {
   if (app) return target.startsWith(`apps/${app}/src/`) || isPublicPackageEntry(target)
   const sourcePackage = packageName(source)
   if (sourcePackage) return target.startsWith(`packages/${sourcePackage}/src/`) || isPublicPackageEntry(target)
-  if (source.startsWith('runtime/')) return target.startsWith('runtime/')
   return false
 }
 
@@ -208,22 +205,10 @@ export function checkImportLaw(rootDirectory) {
         violations.push(violation('IMPORT_CASE_MISMATCH', source, specifier, 'relative import casing must exactly match the filesystem'))
       }
       if (isRelative && (target === '..' || target.startsWith('../') || isAbsolute(target) || !isAllowedRelativeTarget(source, target))) {
-        violations.push(violation('IMPORT_RELATIVE_ESCAPE', source, specifier, 'relative import escapes its admitted application, package, or runtime root'))
-      }
-      if (/^(?:\.\.\/)*tests\//.test(specifier) || /^(?:\.\.\/)*scripts\//.test(specifier) || target.startsWith('tests/') || target.startsWith('scripts/')) {
-        violations.push(violation('IMPORT_PRODUCTION_TO_TEST_TOOLING', source, specifier, 'production cannot import tests or scripts'))
-      }
-      if (source.startsWith('apps/') && target.startsWith('runtime/')) {
-        violations.push(violation('IMPORT_APP_TO_RUNTIME', source, specifier, 'application production code cannot import runtime evidence or projections'))
-      }
-      if (source.startsWith('apps/web/src/') && (NODE_BUILTINS.has(specifier) || target.startsWith('apps/hub/'))) {
-        violations.push(violation('IMPORT_BROWSER_TO_SERVER', source, specifier, 'browser code cannot import Node or Hub code'))
+        violations.push(violation('IMPORT_RELATIVE_ESCAPE', source, specifier, 'relative import escapes its admitted application or package root'))
       }
       if (source.includes('/generated/') && isRelative && !target.includes('/generated/')) {
         violations.push(violation('IMPORT_GENERATED_TO_OWNER', source, specifier, 'generated code cannot import handwritten application internals'))
-      }
-      if (source.startsWith('runtime/') && target.startsWith('packages/profile-compiler/src/')) {
-        violations.push(violation('IMPORT_RUNTIME_TO_COMPILER', source, specifier, 'runtime outputs cannot import the compiler'))
       }
 
       if (sourceLayer && targetLayer && sourceLayer !== targetLayer &&

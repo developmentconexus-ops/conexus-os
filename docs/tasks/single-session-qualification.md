@@ -147,7 +147,7 @@ spike realm `r1f` was replaced on the pilot by a realm named `conexus`, created 
 `provider_check_claim*` columns and the clock correction of 0025. `record_provider_check` becomes a
 compare-and-set; the loser of the race is still served. `HELD`, `HELD_CHECK_READS` and the wait
 loop leave `application-session.ts`. Rewrite the rotation tests in
-`application-access-postgres.test.mjs` for the new behavior. Boundaries 6 and 7 of the Q3 evidence
+`application-access.postgres.test.mjs` for the new behavior. Boundaries 6 and 7 of the Q3 evidence
 no longer exist.
 
 ### S2. One handoff

@@ -1,9 +1,23 @@
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import os from 'node:os';
+import path from 'node:path';
+
+const bundledProductOas = () => {
+  if (process.env.CONEXUS_PRODUCT_OAS_BUNDLE) return JSON.parse(fs.readFileSync(process.env.CONEXUS_PRODUCT_OAS_BUNDLE, 'utf8'));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'conexus-product-oas-'));
+  try {
+    const output = path.join(directory, 'bundle.json');
+    const cli = path.resolve(import.meta.dirname, '../node_modules/@redocly/cli/bin/cli.js');
+    const bundled = spawnSync(process.execPath, [cli, 'bundle', 'contracts/api/product/openapi.yaml', '--output', output, '--ext', 'json'], { encoding: 'utf8' });
+    if (bundled.status !== 0) throw new Error(`the Product OAS did not bundle:\n${bundled.stderr}${bundled.stdout}`);
+    return JSON.parse(fs.readFileSync(output, 'utf8'));
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+};
 
 const ledgerPath = 'docs/product/operation-ledger.md';
-// A fixed name under /tmp is shared with anything else running on the machine, and the gate's
-// own tests need to point it at a controlled fixture.
-const bundlePath = process.env.CONEXUS_PRODUCT_OAS_BUNDLE ?? '/tmp/conexus-product-openapi.bundle.json';
 const productDirectory = 'contracts/api/product';
 const allowedContractStates = new Set(['METHOD_PATH_MAPPED', 'SCHEMA_CLOSED']);
 const httpMethods = new Set(['get', 'put', 'post', 'delete', 'patch', 'head', 'options', 'trace']);
@@ -99,7 +113,7 @@ if (expectedById.size === 0) {
   throw new Error('fixed-platform census contains no 4A operations');
 }
 
-const oas = JSON.parse(fs.readFileSync(bundlePath, 'utf8'));
+const oas = bundledProductOas();
 const methods = httpMethods;
 
 const bundledMethodPaths = new Set();
@@ -172,6 +186,36 @@ for (const entry of actual) {
 
 for (const [id, operationId] of expectedById) {
   if (!seenIds.has(id)) throw new Error(`4A operation missing from Product OAS: ${id} ${operationId}`);
+}
+
+const CREDENTIAL_FIELDS = new Set(['clientId', 'clientSecret', 'xToken', 'credential', 'credentialSealed']);
+const walkProperties = (schema, onProperty) => {
+  if (!schema || typeof schema !== 'object') return;
+  for (const [name, property] of Object.entries(schema.properties ?? {})) { onProperty(name, property); walkProperties(property, onProperty); }
+  if (schema.items) walkProperties(schema.items, onProperty);
+  for (const key of ['oneOf', 'anyOf', 'allOf']) for (const branch of schema[key] ?? []) walkProperties(branch, onProperty);
+};
+
+for (const entry of actual) {
+  if (entry.fourAId.startsWith('CON-') && entry.contractState !== 'SCHEMA_CLOSED') {
+    throw new Error(`current Connector operation is not schema-closed: ${entry.fourAId}`);
+  }
+}
+for (const pathItem of Object.values(oas.paths ?? {})) {
+  for (const [method, operation] of Object.entries(pathItem ?? {})) {
+    if (!methods.has(method)) continue;
+    for (const [status, response] of Object.entries(operation.responses ?? {})) {
+      if (status[0] !== '2') continue;
+      walkProperties(response.content?.['application/json']?.schema, (name) => {
+        if (CREDENTIAL_FIELDS.has(name)) throw new Error(`a successful response schema of ${operation.operationId} carries the credential field ${name}`);
+      });
+    }
+    walkProperties(operation.requestBody?.content?.['application/json']?.schema, (name, property) => {
+      if (CREDENTIAL_FIELDS.has(name) && name !== 'credential' && property?.writeOnly !== true) {
+        throw new Error(`credential field ${name} of ${operation.operationId} is not writeOnly`);
+      }
+    });
+  }
 }
 
 const schemaClosed = actual.filter((entry) => entry.contractState === 'SCHEMA_CLOSED').length;

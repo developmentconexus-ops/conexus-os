@@ -69,8 +69,3 @@
 - name: "needs-triage"
   color: "d4c5f9"
   description: "Needs a person before the dev Factory works on it"
-
-# A fix pull request on a file with repeated fixes fails scripts/check-patch-churn.mjs until this label is set.
-- name: "premise-checked"
-  color: "c5def5"
-  description: "A redesign was considered before this fix; turns off the patch churn check"

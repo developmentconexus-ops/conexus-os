@@ -19,7 +19,7 @@ const authentic = {
 const tokens = (label, expires) => ({ access: `access-${label}`, refresh: `refresh-${label}`, expires, accountId: 'chatgpt-account-1', email: 'ana@example.com' })
 
 // model.model_account as a recording stand-in; the Postgres-backed store is proven in
-// model-account-postgres.test.mjs.
+// model-account.postgres.test.mjs.
 const fakeStore = () => {
   const rows = new Map()
   const key = (owner, provider) => `${owner}:${provider}`

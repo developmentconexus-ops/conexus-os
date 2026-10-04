@@ -20,4 +20,4 @@ npm run keycloak-theme:check
 
 ## Review
 
-Review: load the pages [`areas.json`](../../docs/development/review/areas.json) maps your paths to (mostly [`identity-session.md`](../../docs/development/review/identity-session.md)).
+Review: load the pages [`areas.json`](../../docs/development/review/areas.json) maps your paths to.

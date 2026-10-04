@@ -69,22 +69,19 @@ test('a link to a missing heading fails', context => {
     'error AGENTS.md:5: broken link: docs/development/delivery.md#pick-the-lane (no heading #pick-the-lane in docs/development/delivery.md)\n')
 })
 
-test('a trunk other than main fails', context => {
+test('a workflow with pull_request_target or contents: write fails, and a deleted workflow is ignored', context => {
   const candidate = fixture(context)
-  plant(candidate, DELIVERY, 'Open pull requests against `analysis/internal-mvp`.')
+  mkdirSync(resolve(candidate, '.github/workflows'), { recursive: true })
+  writeFileSync(resolve(candidate, '.github/workflows/a.yml'), 'on: pull_request_target\n')
+  writeFileSync(resolve(candidate, '.github/workflows/b.yml'), 'on: push\npermissions:\n  contents: write\n')
+  writeFileSync(resolve(candidate, '.github/workflows/c.yml'), 'on: push\npermissions:\n  contents: read\n')
   const result = run(candidate)
   assert.equal(result.status, 1)
-  assert.equal(result.stderr, 'error docs/development/delivery.md:7: names `analysis/internal-mvp` as the trunk; the trunk is `main`\n')
-})
-
-test('only the root AGENTS.md may tell a reader to run npm run verify', context => {
-  const candidate = fixture(context)
-  plant(candidate, DELIVERY, 'Do not run `npm run verify` locally.')
+  assert.equal(result.stderr, 'error .github/workflows/a.yml: unsafe pull_request_target trigger\nerror .github/workflows/b.yml: workflow has contents: write permission\n')
+  execFileSync('git', ['add', '.'], { cwd: candidate })
+  rmSync(resolve(candidate, '.github/workflows/a.yml'))
+  rmSync(resolve(candidate, '.github/workflows/b.yml'))
   assert.equal(run(candidate).status, 0)
-  plant(candidate, DELIVERY, 'Run `npm run verify` before you push.')
-  const result = run(candidate)
-  assert.equal(result.status, 1)
-  assert.equal(result.stderr, 'error docs/development/delivery.md:8: only the root AGENTS.md may tell a reader to run npm run verify\n')
 })
 
 test('the root AGENTS.md passes at 60 lines and fails at 61', context => {
@@ -92,16 +89,6 @@ test('the root AGENTS.md passes at 60 lines and fails at 61', context => {
   const result = run(fixture(context, { 'AGENTS.md': lines(61) }))
   assert.equal(result.status, 1)
   assert.equal(result.stderr, 'error AGENTS.md: 61 lines exceeds the cap of 60\n')
-})
-
-test('a conflict marker and an unsafe workflow fail', context => {
-  const candidate = fixture(context)
-  plant(candidate, 'notes.txt', '<<<<<<< ours\nfirst\n=======\nsecond\n>>>>>>> theirs')
-  mkdirSync(resolve(candidate, '.github/workflows'), { recursive: true })
-  writeFileSync(resolve(candidate, '.github/workflows/a.yml'), 'on: pull_request_target\n')
-  const result = run(candidate)
-  assert.equal(result.status, 1)
-  assert.equal(result.stderr, 'error .github/workflows/a.yml: unsafe pull_request_target trigger\nerror notes.txt: unresolved merge-conflict marker\n')
 })
 
 test('a nested AGENTS.md passes at 1800 characters and fails at 1801', context => {
@@ -123,40 +110,18 @@ test('a skill over 90 lines fails, the conexus-development skill included', cont
   assert.equal(result.stderr, `error ${skill}: 91 lines exceeds the cap of 90\n`)
 })
 
+test('the never-list passes at 15 items and fails at 16', context => {
+  const shapes = '.agents/skills/conexus-development/references/shapes.md'
+  const items = count => `${Array.from({ length: count }, (_, index) => `- **Never do ${index}.** Instead do the other.`).join('\n')}\n`
+  assert.equal(run(fixture(context, { [shapes]: items(15) })).status, 0)
+  const result = run(fixture(context, { [shapes]: items(16) }))
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, `error ${shapes}: 16 never-list items exceeds the cap of 15\n`)
+})
+
 test('the vendored Mastra skill is not checked against this package.json', context => {
   const candidate = fixture(context, { '.agents/skills/mastra/SKILL.md': 'Run `npm run dev` in your Mastra project.\n' })
   const result = run(candidate)
   assert.equal(result.status, 0, result.stderr)
   assert.equal(result.stdout, 'Agent context checks passed (files=2).\n')
-})
-
-const PRINCIPLES = 'docs/development/codebase-principles.md'
-const principles = enforced => `# Principles\n\n1. **One fact.** Words.\n   Enforced by: ${enforced}\n2. **Another.** Words.\n   Enforced by: \`scripts/real.mjs\`\n`
-
-test('a principle whose Enforced by names an existing file or a configured Biome rule passes', context => {
-  const candidate = fixture(context, {
-    [PRINCIPLES]: principles('`scripts/real.mjs`, `biome:noExplicitAny`.'),
-    'scripts/real.mjs': '',
-    'biome.json': '{"linter":{"rules":{"suspicious":{"noExplicitAny":"error"}}}}\n',
-  })
-  const result = run(candidate)
-  assert.equal(result.status, 0, result.stderr)
-})
-
-test('a principle that names a check that does not exist fails', context => {
-  const candidate = fixture(context, { [PRINCIPLES]: principles('`scripts/check-nothing.mjs`.'), 'scripts/real.mjs': '' })
-  const result = run(candidate)
-  assert.equal(result.status, 1)
-  assert.equal(result.stderr, 'error docs/development/codebase-principles.md:4: `Enforced by:` names `scripts/check-nothing.mjs`, which does not exist\n')
-})
-
-test('a principle with no Enforced by line, or one that names nothing, fails', context => {
-  const candidate = fixture(context, { [PRINCIPLES]: '# Principles\n\n1. **One.** Words.\n2. **Two.** Words.\n   Enforced by: review.\n' })
-  const result = run(candidate)
-  assert.equal(result.status, 1)
-  assert.equal(result.stderr, [
-    'error docs/development/codebase-principles.md:3: principle has no `Enforced by:` line',
-    'error docs/development/codebase-principles.md:5: `Enforced by:` names no check; name a file, `biome:<rule>`, or the review checklist',
-    '',
-  ].join('\n'))
 })

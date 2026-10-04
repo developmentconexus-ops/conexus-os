@@ -41,7 +41,7 @@ spec. Here you build it.
    contract; do not redesign it.
 2. Build as in Build: the failing tests the spec names first, then the code.
 3. A gap or a contradiction in the spec stops the work and goes back as a report, with the evidence.
-4. The pull request shows the diff by kind (`node scripts/diff-shape.mjs . origin/main...HEAD`), and a diagnosis-only
+4. The pull request body says what the change deletes, and a diagnosis-only
    review (`/pstack:thermo-nuclear-code-quality-review`) checks that the code got smaller.
 
 ## Review
