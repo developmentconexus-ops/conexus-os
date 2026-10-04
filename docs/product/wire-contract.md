@@ -199,6 +199,7 @@ Where IC3/IC4 maps to caller-supplied repeatable intake:
 - unresolved/ambiguous downstream effect remains fenced under IC4; same key never authorizes blind replay;
 - server-generated owner/effect identity remains authority above the key;
 - expiry/retention must be exact before implementation for every operation class that uses it.
+- a project or workspace receipt is kept while its entity exists and goes with the entity; the reaper never deletes one on its own, except the `IAM-03` receipts of a bootstrap context it deletes in the same statement.
 
 Exact persistence/claim/reconciliation mechanics belong to 4D.
 

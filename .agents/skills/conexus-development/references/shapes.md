@@ -18,6 +18,8 @@ owner document decides, and the disagreement is a finding.
 | Conexus designs its screens; `@mastra/playground-ui` supplies parts | C-031 |
 | A failure is a row of `failures.json`; one `Failure` type; one exit logs it | [spec 0009](../../../../docs/tasks/specs/0009-one-failure-table/index.md) |
 | Every concept has one owner, Conexus or Factory | [single-owner map](../../../../docs/reference/single-owner-map.md) |
+| Periodic work is a `Job` run by the one executor; whatever expires is removed by `iam.reap_expired` | [spec 0013](../../../../docs/tasks/specs/0013-one-job-executor-one-reaper/index.md) |
+| A module is a function returning a frozen object with private state; a class only extends `Error`, `Failure` or a library base class | [spec 0013](../../../../docs/tasks/specs/0013-one-job-executor-one-reaper/index.md) |
 
 ## Never
 
