@@ -39,10 +39,11 @@ const candidateStep = (scope, command, environmentClass = 'static') => Object.fr
 
 const HUB_BUILD_DIRECTORY = 'node_modules/.cache/conexus-hub-build'
 
-// The hub typecheck also emits, once, the compiled Hub every Hub suite imports. It runs first and
-// publishes the directory to the steps after it, so no suite compiles the Hub again.
+// The hub typecheck also emits, once, the compiled Hub every Hub suite imports, and the bundle of the
+// application check the Hub sends to each VM. It runs first and publishes the directory to the steps
+// after it, so no suite compiles the Hub again.
 const hubBuildStep = Object.freeze({
-  ...candidateStep('hub-typecheck', `rm -rf ${HUB_BUILD_DIRECTORY} && node node_modules/typescript/bin/tsc --project apps/hub/tsconfig.json --pretty false --noEmit false --outDir ${HUB_BUILD_DIRECTORY}`),
+  ...candidateStep('hub-typecheck', `rm -rf ${HUB_BUILD_DIRECTORY} && node node_modules/typescript/bin/tsc --project apps/hub/tsconfig.json --pretty false --noEmit false --outDir ${HUB_BUILD_DIRECTORY} && node scripts/build-app-check.mjs ${HUB_BUILD_DIRECTORY}`),
   publishes: Object.freeze({ CONEXUS_HUB_BUILD: HUB_BUILD_DIRECTORY }),
 })
 

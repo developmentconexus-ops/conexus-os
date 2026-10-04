@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url'
 import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { constants } from 'node:os'
+import { buildAppCheck } from './build-app-check.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '..')
 
@@ -44,6 +45,7 @@ export const buildHubLocal = async ({ web = true } = {}) => {
       resolve(repositoryRoot, 'node_modules/typescript/bin/tsc'), '--project', resolve(repositoryRoot, 'apps/hub/tsconfig.json'),
       '--pretty', 'false', '--noEmit', 'false', '--outDir', buildRoot,
     ])
+    await buildAppCheck(buildRoot)
     return buildRoot
   } catch (error) {
     await rm(buildRoot, { recursive: true, force: true })

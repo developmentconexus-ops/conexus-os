@@ -6,6 +6,7 @@ import { appPathClassifierSource } from '../platform/application-path.js'
 import { admitManifest } from '../app-runner/server-manifest.js'
 import { APP_FAILURES_SOURCE } from '../generated/app-failures.js'
 import { Failure } from '../platform/failure.js'
+import { redactEvidence } from './check/problems.js'
 
 /**
  * The Conexus check: one Hub owned script, `/opt/conexus/check.mjs`, that the Builder's tool, source
@@ -48,18 +49,6 @@ const CHECK_LIMITS = Object.freeze({
   problemsPerStep: 50,
   messageChars: 2_000,
 })
-
-// Longest the whole check can run, and what the command that starts it waits for.
-export const CHECK_COMMAND_TIMEOUT_MS = Object.values(CHECK_LIMITS.stepMs).reduce((sum, ms) => sum + ms, 0) + 30_000
-
-/**
- * Output that can carry a Git header or a token from whatever produced it, and goes to a log or a
- * prompt. Self contained: the check script embeds this function's source.
- */
-export const redactEvidence = (text: string): string => text
-  .replace(/(authorization:\s*)(?:(?:basic|bearer|token)\s+)?\S+/gi, '$1[redacted]')
-  .replace(/x-access-token:[^@\s]+/gi, 'x-access-token:[redacted]')
-  .replace(/\bgh[pousr]_[A-Za-z0-9_]+/g, '[redacted]')
 
 /** The report is the last line the script printed; anything else it wrote before is not the report. */
 export const readCheckReport = (stdout: string): CheckReport => {

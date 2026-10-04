@@ -15,6 +15,9 @@ const APPLICATION_SERVER_CONTRACT = 'apps/hub/src/app-runner/server-manifest.ts'
 // The application runner's worker loads the one admitted handler module whose path the supervisor
 // fixed for this invocation, inside its sandbox. It is the only computed import in production.
 const ADMITTED_HANDLER_LOADER = 'apps/hub/src/app-runner/worker.ts'
+// The application check loads the template's compiler from its fixed place in the VM, which no
+// bundler can see. It does so in one module.
+const CHECK_COMPILER_LOADER = 'apps/hub/src/builder/check/compiler.ts'
 // What a Failure is has one definition too: every layer throws it, and the HTTP handler answers it.
 const FAILURE_CONTRACT = 'apps/hub/src/platform/failure.ts'
 
@@ -182,7 +185,7 @@ export function checkImportLaw(rootDirectory) {
     for (const imported of importsOf(sourcePath)) {
       const specifier = imported.specifier
       if (imported.computed) {
-        if (source === ADMITTED_HANDLER_LOADER) continue
+        if (source === ADMITTED_HANDLER_LOADER || source === CHECK_COMPILER_LOADER) continue
         violations.push(violation('IMPORT_COMPUTED_DYNAMIC', source, specifier, 'production dynamic imports must use a string literal'))
         continue
       }

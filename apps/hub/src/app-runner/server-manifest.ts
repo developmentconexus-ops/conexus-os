@@ -29,6 +29,8 @@ export type ServerManifest = Readonly<{
  * It references nothing outside its own body: the Conexus build and the Project check run it inside
  * the build sandbox from `Function.prototype.toString`, so both refuse exactly what the runner refuses.
  */
+export function admitManifest(value: unknown, stage: 'source'): SourceManifest
+export function admitManifest(value: unknown, stage: 'server'): ServerManifest
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export function admitManifest(value: unknown, stage: 'source' | 'server'): SourceManifest | ServerManifest {
   const refuse = (where: string, why: string): never => { throw new Error(`MANIFEST_REFUSED: ${where}: ${why}`) }

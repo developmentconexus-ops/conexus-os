@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto'
 import { FileType } from 'e2b'
 import type { CommandResult, EntryInfo, Sandbox } from 'e2b'
-import { CHECK_AGENT_IDENTITY, CHECK_COMMAND_TIMEOUT_MS, CHECK_NODE_PATH, CHECK_SCRIPT_PATH, readCheckReport, redactEvidence } from './application-check.js'
+import { CHECK_AGENT_IDENTITY, CHECK_NODE_PATH, CHECK_SCRIPT_PATH, readCheckReport } from './application-check.js'
+import { redactEvidence } from './check/problems.js'
+import { CHECK_COMMAND_TIMEOUT_MS, safeRelativePath } from './check/report.js'
 import type { CheckReport } from './application-check.js'
 import { CURRENT_TEMPLATE_PIN } from '../platform/application-template-pins.js'
 import type { SANDBOX_AGENT_USER } from './sandbox.js'
@@ -38,15 +40,6 @@ export type CompiledApplication = Readonly<{
   files: readonly CompiledApplicationFile[]
   executionId: string
 }>
-
-const hasControlCharacter = (value: string): boolean => [...value].some((character) => {
-  const codePoint = character.codePointAt(0) ?? 0
-  return codePoint <= 0x1f || codePoint === 0x7f
-})
-
-const safeRelativePath = (path: string): boolean => path.length > 0 && path.length <= 4096 &&
-  !hasControlCharacter(path) && !path.startsWith('/') && !path.includes('\\') &&
-  path.split('/').every((part) => part.length > 0 && part !== '.' && part !== '..')
 
 const mediaTypeForPath = (path: string): string => {
   const extension = path.slice(path.lastIndexOf('.')).toLowerCase()

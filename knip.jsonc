@@ -21,8 +21,10 @@
     "tests/implementation/sandbox-probe/read_proc.mjs",
     "tests/implementation/sandbox-probe/read_secrets.mjs",
     "tests/implementation/sandbox-probe/walk_fs.mjs",
-    // Read as text by the check, which writes it into each Project as conexus/sankhya.gen.ts.
+    // Bundled as text into the check by scripts/build-app-check.mjs, which writes it into each Project as conexus/sankhya.gen.ts.
     "apps/hub/src/builder/handler-kit/sankhya.ts",
+    // The application check's bundle starts here; the Hub itself imports only its report module.
+    "apps/hub/src/builder/check/main.ts",
     "apps/hub/src/server.ts",
     "apps/hub/src/app-runner/main.ts",
     "apps/hub/src/telemetry/register.ts",

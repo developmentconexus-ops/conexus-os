@@ -64,16 +64,22 @@ function computeHash({ sourceDir, tsconfigPath, baseTsconfigPath, typescriptVers
   hash.update(readFileSync(baseTsconfigPath))
   hash.update('\0')
   hash.update(typescriptVersion)
+  // The build also holds the application check's bundle, which these two decide.
+  hash.update(readFileSync(resolve(repositoryRoot, 'scripts/build-app-check.mjs')))
+  hash.update(JSON.parse(readFileSync(resolve(repositoryRoot, 'node_modules/rolldown/package.json'), 'utf8')).version)
   return hash.digest('hex').slice(0, 20)
 }
 
-function compileWithTsc(tmpDir, { tscBin, tsconfigPath }) {
+function compileWithTsc(tmpDir, { tscBin, tsconfigPath, bundle }) {
   const compiled = spawnSync(process.execPath, [
     tscBin,
     '--project', tsconfigPath,
     '--noEmit', 'false', '--outDir', tmpDir,
   ], { encoding: 'utf8' })
   if (compiled.status !== 0) throw new Error(`HUB_COMPILE_FAILED\n${compiled.stdout}\n${compiled.stderr}`)
+  if (!bundle) return
+  const bundled = spawnSync(process.execPath, [resolve(repositoryRoot, 'scripts/build-app-check.mjs'), tmpDir], { encoding: 'utf8' })
+  if (bundled.status !== 0) throw new Error(`HUB_APP_CHECK_BUNDLE_FAILED\n${bundled.stdout}\n${bundled.stderr}`)
 }
 
 function readLockPid(lockDir) {
@@ -153,7 +159,8 @@ export function resolveHubBuild(options = {}) {
   const baseTsconfigPath = options.baseTsconfigPath ?? resolve(repositoryRoot, 'tsconfig.base.json')
   const cacheDir = options.cacheDir ?? DEFAULT_HUB_BUILD_CACHE_DIR
   const typescriptVersion = options.typescriptVersion ?? readTypescriptVersion(tscBin)
-  const compile = options.compile ?? ((tmpDir) => compileWithTsc(tmpDir, { tscBin, tsconfigPath }))
+  // A fixture project has no application check to bundle; only the Hub's own source has.
+  const compile = options.compile ?? ((tmpDir) => compileWithTsc(tmpDir, { tscBin, tsconfigPath, bundle: options.sourceDir === undefined }))
   const keepCount = options.keepCount ?? DEFAULT_KEEP_COUNT
   const lockPollMs = options.lockPollMs ?? DEFAULT_LOCK_POLL_MS
   const lockWaitMs = options.lockWaitMs ?? DEFAULT_LOCK_WAIT_MS

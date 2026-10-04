@@ -1,6 +1,7 @@
 import type { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput, Workspace } from '@mastra/core/workspace'
 import type { ApplicationCheckRun } from '../application-artifact-runtime.js'
+import type { CheckBundle } from '../check-delivery.js'
 import type { ConexusGit } from '../conexus-git.js'
 import type { CandidateOperationPorts } from '../run-operation.js'
 import type { EventLog } from '../../platform/logger.js'
@@ -51,6 +52,8 @@ export type BuilderRunPorts = Readonly<{
    * checks that one model only: the account for each later call is looked up when the call is made.
    */
   checkModel(input: Readonly<{ builderRunId: string; accountId: string; projectId: string; conversationId: string }>): Promise<void>
+  /** The check this Hub sends to each VM, and the identity every report must carry. */
+  check: CheckBundle
   git: Pick<ConexusGit, 'startTurn' | 'seedBundle' | 'acceptSnapshot' | 'moveMirror' | 'fastForwardMain' | 'isStarter' | 'listFilesLong' | 'archive' | 'readBlob'>
   /** How long the conversation's mirror waits after the last edit before it snapshots the checkout. */
   mirrorDebounceMs?: number

@@ -131,6 +131,7 @@ export const FAILURES = {
   'BUILDER_APP_NOT_FIXED': { category: 'USER', status: 500 },
   'BUILDER_CANDIDATE_UNPACK_FAILED': { category: 'SYSTEM', status: 500 },
   'BUILDER_CHECK_FAILED': { category: 'USER', status: 500 },
+  'BUILDER_CHECK_IDENTITY_MISMATCH': { category: 'SYSTEM', status: 500 },
   'BUILDER_CHECK_INSTALL_REFUSED': { category: 'SYSTEM', status: 500 },
   'BUILDER_CONVERSATIONS_UNAVAILABLE': { category: 'SYSTEM', status: 500 },
   'BUILDER_GATEWAY_MODEL_REFUSED': { category: 'THIRD_PARTY', status: 500 },

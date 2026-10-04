@@ -1,15 +1,16 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
 import { ensureCompilerRoot } from './compiler-root.mjs'
-import { hubModuleUrl } from './hub-build.mjs'
+import { hubBuildDirectory, hubModuleUrl } from './hub-build.mjs'
 
-const { checkScriptSource, readCheckReport, failedStepEvidence } = await import(hubModuleUrl('builder/application-check.js'))
-const { serverBuildScriptSource } = await import(hubModuleUrl('builder/application-server-build.js'))
+const { failedStepEvidence } = await import(hubModuleUrl('builder/application-check.js'))
+const { checkReportSchema } = await import(hubModuleUrl('builder/check/report.js'))
 const { fixedApplicationStarterFiles } = await import(hubModuleUrl('builder/application-starter.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -46,10 +47,14 @@ const HANDLER = `export async function countNotes(): Promise<{ total: number }> 
 
 const withMain = (main) => ({ ...STARTER, 'app/src/main.tsx': main })
 
-// Runs the real script against a real install of the template's compiler (its lockfile, its allowlist
-// view of node_modules) and the Playwright Chromium, in a folder laid out like the sandbox:
-// /opt/conexus is `tools`.
-const check = (t, files, { limits = [], compilerFiles = {}, before, thumbnail, chromiumPath = () => chromium.executablePath() } = {}) => {
+// Runs the built bundle against a real install of the template's compiler (its lockfile, its
+// allowlist view of node_modules) and the Playwright Chromium, in a folder laid out like the VM:
+// `opt/compiler` and `opt/check/<sha256>/main.mjs`. The browser is the `chromium` on the PATH.
+const TEMPLATE_REF = 'test-template:00000000-0000-4000-8000-000000000000'
+const bundleBytes = readFileSync(join(hubBuildDirectory(), 'app-check/main.mjs'))
+const BUNDLE_SHA256 = createHash('sha256').update(bundleBytes).digest('hex')
+
+const check = (t, files, { limits = [], compilerFiles = {}, before, thumbnail, chromiumPath = () => chromium.executablePath(), onlyBrowserOnPath = false } = {}) => {
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-check-test-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
   const root = join(scratch, 'repo')
@@ -63,21 +68,23 @@ const check = (t, files, { limits = [], compilerFiles = {}, before, thumbnail, c
   for (const name of ['node_modules', 'full']) symlinkSync(join(compilerRoot, name), join(tools, 'compiler', name))
   for (const name of ['allowlist.mjs', 'generate-client.mjs', 'tsconfig.mjs', 'package.json']) copyFileSync(join(compilerRoot, name), join(tools, 'compiler', name))
   writeFileSync(join(tools, 'compiler/vite.config.mjs'), templateConfig.replace("'/workspace/.vite'", JSON.stringify(join(scratch, 'vite-cache'))))
-  writeFileSync(join(tools, 'server-build.mjs'), serverBuildScriptSource().replaceAll('/opt/conexus/compiler', join(tools, 'compiler')))
-  for (const [path, content] of Object.entries(compilerFiles)) {
-    mkdirSync(dirname(join(tools, path)), { recursive: true })
-    writeFileSync(join(tools, path), content)
-  }
+  for (const [path, content] of Object.entries(compilerFiles)) writeFileSync(join(tools, 'compiler', path), content)
   before?.(root)
-  const script = join(scratch, 'check.mjs')
-  writeFileSync(script, checkScriptSource())
+  const main = join(tools, 'check', BUNDLE_SHA256, 'main.mjs')
+  mkdirSync(dirname(main), { recursive: true })
+  writeFileSync(main, bundleBytes)
+  const bin = join(scratch, 'bin')
+  mkdirSync(bin)
+  const browser = chromiumPath(scratch)
+  if (browser) symlinkSync(browser, join(bin, 'chromium'))
   const ran = spawnSync(process.execPath, [
-    script, '--root', root, '--out', out, '--tools', tools, '--home', scratch, '--chromium', chromiumPath(scratch),
+    main, 'check', '--caller', 'tool', '--root', root, '--out', out, '--template-ref', TEMPLATE_REF, '--as', `${process.getuid()}:${process.getgid()}`,
     ...limits.flatMap((limit) => ['--limit', limit]),
     ...(thumbnail ? ['--thumbnail', thumbnail(scratch)] : []),
-  ], { encoding: 'utf8', timeout: 120_000 })
+  ], { encoding: 'utf8', timeout: 120_000, env: { PATH: onlyBrowserOnPath ? bin : `${bin}:/usr/bin:/bin`, HOME: scratch } })
   assert.equal(ran.status, 0, ran.stderr)
-  return { report: readCheckReport(ran.stdout), raw: JSON.parse(ran.stdout.trim().split('\n').pop()), root, out, scratch }
+  const raw = JSON.parse(ran.stdout.trim().split('\n').pop())
+  return { report: checkReportSchema.parse(raw), raw, root, out, scratch }
 }
 
 const stepsOf = (report) => report.steps.map((step) => [step.step, step.status])
@@ -130,16 +137,32 @@ server.listen(0, '127.0.0.1', () => writeFileSync(profile + '/DevToolsActivePort
       return fake
     },
   })
-  const boot = report.steps.find((step) => step.step === 'boot')
-  assert.deepEqual([boot?.status, boot?.reason], ['skipped', 'BOOT_BROWSER_UNAVAILABLE: the browser refused its DevTools connection'])
+  assert.deepEqual(report.steps.find((step) => step.step === 'boot'), { step: 'boot', status: 'skipped', code: 'BOOT_BROWSER_UNAVAILABLE', reason: 'the browser refused its DevTools connection' })
+  assert.equal(report.ok, true)
 })
 
-test('a starter with no server half passes all five steps and reports what it built', (t) => {
-  const { report } = check(t, STARTER)
+test('a missing browser skips the boot step and the check still passes', (t) => {
+  const { report } = check(t, STARTER, { chromiumPath: () => null, onlyBrowserOnPath: true })
+  const boot = report.steps.find((step) => step.step === 'boot')
+  assert.deepEqual([boot.status, boot.code, boot.reason.startsWith('the browser did not start: ')], ['skipped', 'BOOT_BROWSER_UNAVAILABLE', true])
   assert.equal(report.ok, true)
-  assert.deepEqual(stepsOf(report), [['generate', 'passed'], ['typecheck', 'passed'], ['build', 'passed'], ['server', 'passed'], ['boot', 'passed']])
-  assert.deepEqual({ operations: report.facts.operations, migrations: report.facts.migrations }, { operations: 0, migrations: 0 })
-  assert.ok(report.facts.jsGzipBytes > 10_000, `gzip size ${report.facts.jsGzipBytes}`)
+  assert.equal(report.artifact.files.some((file) => file.path === 'index.html'), true)
+})
+
+const passedSteps = ['generate', 'typecheck', 'build', 'server', 'boot'].map((step) => ({ step, status: 'passed' }))
+// A report without what only a clock or a hash decides.
+const settled = (report) => report.steps.map(({ durationMs, ...rest }) => ({ ...rest, ...(durationMs === undefined ? {} : { durationMs: 'measured' }) }))
+
+test('a starter with no server half passes all five steps and reports its artifact, with no facts', (t) => {
+  const { report, raw, out } = check(t, STARTER)
+  assert.equal(report.ok, true)
+  assert.deepEqual(settled(report), passedSteps.map((step) => ({ ...step, durationMs: 'measured' })))
+  assert.equal('facts' in raw, false)
+  assert.equal(report.checkSha256, BUNDLE_SHA256)
+  assert.equal(report.artifact.templateRef, TEMPLATE_REF)
+  assert.deepEqual(report.artifact.files.map((file) => file.path), readdirSync(out, { recursive: true }).map(String).filter((path) => lstatSync(join(out, path)).isFile()).sort())
+  assert.ok(report.artifact.files.some((file) => file.path === 'index.html' && file.bytes > 0), 'index.html is listed')
+  for (const file of report.artifact.files) assert.equal(file.sha256, createHash('sha256').update(readFileSync(join(out, file.path))).digest('hex'), file.path)
 })
 
 const V2_STARTER = Object.fromEntries(fixedApplicationStarterFiles(repositoryRoot).map((file) => [file.path, file.content]))
@@ -222,6 +245,7 @@ test('generate refuses a bad manifest with the runner message, and an unsatisfia
   assert.equal(bad.report.ok, false)
   assert.deepEqual(stepsOf(bad.report), [['generate', 'failed'], ['typecheck', 'skipped'], ['build', 'skipped'], ['server', 'skipped'], ['boot', 'skipped']])
   assert.deepEqual(failedStep(bad.report, 'generate').problems, [{ file: 'conexus/manifest.json', code: 'MANIFEST_REFUSED', message: 'operations.Bad: an operation id is camelCase letters and digits, starting lowercase' }])
+  assert.equal(failedStep(bad.report, 'generate').code, 'MANIFEST_REFUSED')
   const inverted = { operations: { countNotes: { ...MANIFEST.operations.countNotes, output: { type: 'object', properties: { total: { type: 'integer', minimum: 5, maximum: 2 } }, required: ['total'], additionalProperties: false } } } }
   const bounds = check(t, { ...STARTER, 'conexus/manifest.json': inverted, 'conexus/handlers/notes.ts': HANDLER })
   assert.deepEqual(failedStep(bounds.report, 'generate').problems, [{ file: 'conexus/manifest.json', code: 'MANIFEST_REFUSED', message: 'operations.countNotes.output.properties.total: "minimum" is above "maximum"' }])
@@ -274,17 +298,6 @@ test('a symlink or PNG the candidate commits as conexus-thumbnail.png is neither
   assert.equal(existsSync(join(scratch, 'thumbnail.png')), true)
 })
 
-test('the facts count operations and migrations from the source', (t) => {
-  const { report } = check(t, {
-    ...STARTER,
-    'conexus/manifest.json': MANIFEST,
-    'conexus/handlers/notes.ts': HANDLER,
-    'conexus/migrations/001_notes.sql': 'CREATE TABLE note (id integer PRIMARY KEY)',
-  })
-  assert.equal(report.ok, true)
-  assert.deepEqual({ operations: report.facts.operations, migrations: report.facts.migrations }, { operations: 1, migrations: 1 })
-})
-
 test('a type error is refused with its file, line and code, and the steps after it are skipped', (t) => {
   const { report } = check(t, withMain(`const answer: number = 'six'\nexport { answer }\n`))
   assert.equal(report.ok, false)
@@ -292,7 +305,9 @@ test('a type error is refused with its file, line and code, and the steps after 
   assert.deepEqual(failedStep(report, 'typecheck').problems, [
     { file: 'app/src/main.tsx', line: 1, column: 7, code: 'TS2322', message: "Type 'string' is not assignable to type 'number'." },
   ])
-  assert.deepEqual(report.steps.filter((step) => step.status === 'skipped').map((step) => step.reason), ['after failed typecheck', 'after failed typecheck', 'after failed typecheck'])
+  assert.deepEqual(report.steps.filter((step) => step.status === 'skipped'), ['build', 'server', 'boot'].map((step) => ({ step, status: 'skipped', code: 'AFTER_BLOCKING_FAILURE', reason: 'after failed typecheck' })))
+  assert.equal(failedStep(report, 'typecheck').code, 'TYPECHECK_ERRORS')
+  assert.equal(report.artifact, null)
 })
 
 test('a conexus/check.sh that exits 0 changes nothing: the type error still refuses the source', (t) => {
@@ -306,6 +321,7 @@ test('a build failure names the file the compiler blames', (t) => {
   assert.equal(report.ok, false)
   assert.deepEqual(stepsOf(report), [['generate', 'passed'], ['typecheck', 'passed'], ['build', 'failed'], ['server', 'skipped'], ['boot', 'skipped']])
   assert.match(failedStep(report, 'build').problems[0].message, /missing\.tsx/)
+  assert.equal(failedStep(report, 'build').code, 'BUILD_FAILED')
 })
 
 // A handler may not import from outside conexus/, which passes the type check and is refused by the
@@ -328,6 +344,7 @@ test('a server error longer than 400 characters reaches the report whole', (t) =
   assert.ok(problem.message.includes(name), 'the whole specifier is in the message')
   assert.ok(!problem.message.includes('…'))
   assert.ok(failedStepEvidence(failedStep(report, 'server')).includes(name))
+  assert.equal(failedStep(report, 'server').code, 'SERVER_BUNDLE_REFUSED')
 })
 
 test('a message past 2000 characters is cut there', (t) => {
@@ -367,6 +384,14 @@ createRoot(document.getElementById('root')!).render(<Broken />)
   const thrown = problems.find((problem) => problem.code === 'BOOT_UNCAUGHT_ERROR')
   assert.match(thrown.message, /^Error: boom on mount/)
   assert.ok(problems.some((problem) => problem.code === 'BOOT_NO_ROOT_CHILD'))
+  assert.equal(failedStep(report, 'boot').code, 'BOOT_UNCAUGHT_ERROR')
+})
+
+test('a blank page fails boot with BOOT_NO_ROOT_CHILD and the source is still admitted', (t) => {
+  const { report } = check(t, withMain('export {}\n'))
+  assert.equal(report.ok, true)
+  assert.deepEqual(report.steps.at(-1), { step: 'boot', status: 'failed', code: 'BOOT_NO_ROOT_CHILD', durationMs: report.steps.at(-1).durationMs, problems: [{ code: 'BOOT_NO_ROOT_CHILD', message: 'The page loaded but #root has no children: nothing was rendered.' }] })
+  assert.notEqual(report.artifact, null)
 })
 
 test('boot reports console.error calls and same origin requests that fail', (t) => {
@@ -450,26 +475,14 @@ test('a step that hangs ends as STEP_TIMEOUT and leaves no process behind', (t) 
   const hang = `import { spawn } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 writeFileSync(${JSON.stringify(pidFile)}, String(spawn('sleep', ['300'], { stdio: 'ignore' }).pid))
-setTimeout(() => {}, 300_000)
+await new Promise(() => {})
 `
   const started = Date.now()
-  const { report } = check(t, { ...STARTER, 'conexus/manifest.json': MANIFEST, 'conexus/handlers/notes.ts': HANDLER }, { limits: ['server=1500'], compilerFiles: { 'server-build.mjs': hang } })
+  const { report } = check(t, STARTER, { limits: ['build=1500'], compilerFiles: { 'vite.config.mjs': hang } })
   assert.ok(Date.now() - started < 60_000)
   assert.equal(report.ok, false)
-  assert.deepEqual(stepsOf(report), [['generate', 'passed'], ['typecheck', 'passed'], ['build', 'passed'], ['server', 'failed'], ['boot', 'skipped']])
-  assert.deepEqual(failedStep(report, 'server').problems, [{ code: 'STEP_TIMEOUT', message: 'server exceeded 1.5 s and was stopped' }])
+  assert.deepEqual(stepsOf(report), [['generate', 'passed'], ['typecheck', 'passed'], ['build', 'failed'], ['server', 'skipped'], ['boot', 'skipped']])
+  assert.deepEqual([failedStep(report, 'build').code, failedStep(report, 'build').problems], ['STEP_TIMEOUT', [{ code: 'STEP_TIMEOUT', message: 'build exceeded 1.5 s and was stopped' }]])
   const sleeper = Number(readFileSync(pidFile, 'utf8'))
   assert.throws(() => process.kill(sleeper, 0), { code: 'ESRCH' }, 'the grandchild of the hung step is gone')
-})
-
-test('conexus_check hands the model the report of the run check, a type error as a typecheck problem with file and line', async (t) => {
-  const { createCheckTool } = await import(hubModuleUrl('builder/harness/tools.js'))
-  const { RequestContext } = await import('@mastra/core/request-context')
-  const requestContext = new RequestContext()
-  requestContext.set('controller', { session: { modeId: 'build' } })
-  const tool = createCheckTool(async () => check(t, withMain('const answer: number = "six"\nexport { answer }\n')).report)
-  const report = await tool.execute({}, { requestContext })
-  assert.deepEqual(report.steps.map((step) => step.step), ['generate', 'typecheck', 'build', 'server', 'boot'])
-  const typecheck = failedStep(report, 'typecheck')
-  assert.deepEqual([report.ok, typecheck.problems[0].file, typecheck.problems[0].line, typecheck.problems[0].code], [false, 'app/src/main.tsx', 1, 'TS2322'])
 })
