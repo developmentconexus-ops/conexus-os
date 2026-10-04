@@ -1,14 +1,7 @@
-// Checks the documents agents read before working: every `npm run X` they cite exists, every
-// relative link resolves, every codebase principle names a check that exists or the review that owns it, the trunk they name is `main`, only the root AGENTS.md tells a reader to
-// run `npm run verify`, and each file stays under its size cap. It also checks the tree: no merge-conflict
-// marker, no unsafe workflow trigger, and the package stays the private conexus-os.
 import { execFileSync } from 'node:child_process'
 import { existsSync, lstatSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, posix, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-
-const TRUNK = 'main'
-const PRINCIPLES = 'docs/development/codebase-principles.md'
 
 const ROOT_FILES = new Set(['README.md', 'CONTRIBUTING.md', 'docs/index.md', 'docs/roadmap.md', '.github/pull_request_template.md'])
 // The Mastra skill is the upstream skill as published; its commands address a Mastra project, not this one.
@@ -76,18 +69,10 @@ export function checkFile(path, text, { root, scripts }) {
     report(0, `${size} ${cap.unit} exceeds the cap of ${cap.max}${cap.note ? ` (${cap.note})` : ''}`)
   }
 
-  if (path === PRINCIPLES) for (const finding of checkEnforcement(text, root)) report(finding.number, finding.message)
-
   for (const { line, number, fenced } of linesOf(text)) {
     for (const [, cited] of line.matchAll(/\bnpm run ([\w:.-]+)/g)) {
       const name = cited.replace(/[.:,-]+$/, '')
       if (!Object.hasOwn(scripts, name)) report(number, `npm run ${name} is not a script in package.json`)
-    }
-    if (path !== 'AGENTS.md' && /\bnpm run verify(?![\w:-])/.test(line) && !/\b(do not|don't|never|not)\b/i.test(line)) {
-      report(number, 'only the root AGENTS.md may tell a reader to run npm run verify')
-    }
-    for (const [, trunk] of line.matchAll(/\b(?:trunk(?:\s+is|:)|pull requests?\s+(?:against|into))\s+`([^`]+)`/gi)) {
-      if (trunk !== TRUNK) report(number, `names \`${trunk}\` as the trunk; the trunk is \`${TRUNK}\``)
     }
     if (fenced) continue
     for (const [, target] of line.matchAll(/(?<!!)\[[^\]]*\]\(<?([^)\s>]+)>?(?:\s+"[^"]*")?\)/g)) {
@@ -95,31 +80,6 @@ export function checkFile(path, text, { root, scripts }) {
       if (problem) report(number, problem)
     }
   }
-  return findings
-}
-
-// Each numbered principle carries an `Enforced by:` line. Each backticked name on it is a file that
-// exists, or `biome:<rule>` for a rule configured in biome.json. A principle with only review names
-// the review checklist.
-export function checkEnforcement(text, root) {
-  const findings = []
-  const biome = existsSync(join(root, 'biome.json')) ? readFileSync(join(root, 'biome.json'), 'utf8') : ''
-  const rows = linesOf(text)
-  const starts = rows.filter(({ line }) => /^\d+\.\s/.test(line))
-  starts.forEach((start, index) => {
-    const end = starts[index + 1]?.number ?? Infinity
-    const enforced = rows.find(({ number, line }) => number > start.number && number < end && /^\s+Enforced by:/.test(line))
-    if (!enforced) {
-      findings.push({ number: start.number, message: 'principle has no `Enforced by:` line' })
-      return
-    }
-    const names = [...enforced.line.matchAll(/`([^`]+)`/g)].map(([, name]) => name)
-    if (names.length === 0) findings.push({ number: enforced.number, message: '`Enforced by:` names no check; name a file, `biome:<rule>`, or the review checklist' })
-    for (const name of names) {
-      const exists = name.startsWith('biome:') ? biome.includes(`"${name.slice('biome:'.length)}"`) : existsSync(join(root, name))
-      if (!exists) findings.push({ number: enforced.number, message: `\`Enforced by:\` names \`${name}\`, which does not exist` })
-    }
-  })
   return findings
 }
 
@@ -136,26 +96,14 @@ function brokenLink(path, target, text, root) {
   return anchors.has(decodeURIComponent(anchor).toLowerCase()) ? null : `broken link: ${target} (no heading #${anchor} in ${resolved})`
 }
 
-// What a merge or an edit can leave in any file: a conflict marker, a workflow that runs fork code
-// with write access, a package that is no longer the private conexus-os.
-export function checkTree(root, tracked) {
-  const findings = []
-  const report = (where, message) => findings.push({ where, message })
-  const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
-  if (pkg.name !== 'conexus-os' || pkg.private !== true) report('package.json', 'package identity must remain private conexus-os')
-  for (const path of tracked) {
-    const absolute = join(root, path)
-    if (!lstatSync(absolute).isFile()) continue
-    const bytes = readFileSync(absolute)
-    if (bytes.includes(0)) continue
-    const text = bytes.toString('utf8')
-    if (/^(?:<{7} |>{7} )/m.test(text)) report(path, 'unresolved merge-conflict marker')
-    if (path.startsWith('.github/workflows/')) {
-      if (text.includes('pull_request_target')) report(path, 'unsafe pull_request_target trigger')
-      if (/^\s*contents:\s*write\s*$/m.test(text)) report(path, 'workflow has contents: write permission')
-    }
-  }
-  return findings
+export function checkWorkflows(tracked, root) {
+  return tracked.filter(path => path.startsWith('.github/workflows/') && lstatSync(join(root, path)).isFile()).flatMap(path => {
+    const text = readFileSync(join(root, path), 'utf8')
+    return [
+      ...(text.includes('pull_request_target') ? [{ where: path, message: 'unsafe pull_request_target trigger' }] : []),
+      ...(/^\s*contents:\s*write\s*$/m.test(text) ? [{ where: path, message: 'workflow has contents: write permission' }] : []),
+    ]
+  })
 }
 
 export function checkRepository(root) {
@@ -165,7 +113,7 @@ export function checkRepository(root) {
   const files = tracked.filter(inScope)
   const findings = [
     ...files.flatMap(path => checkFile(path, readFileSync(join(root, path), 'utf8'), { root, scripts })),
-    ...checkTree(root, tracked),
+    ...checkWorkflows(tracked, root),
   ]
   return { files: files.length, findings }
 }

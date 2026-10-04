@@ -42,6 +42,7 @@ An implementer spike answers one question, on its own branch and worktree, and n
 - a migration;
 - a change under an area marked `"gate": "aprovo"` in [`areas.json`](review/areas.json);
 - a screen the operator asked to see.
+The `aprovo-gate` workflow (`.github/workflows/aprovo-gate.yml`) fails a change under a gated area until the label is set.
 The label blocks auto-merge. Nothing else needs a per-pull-request "Aprovo" or a live pilot test by
 the operator. `needs:operator` marks an issue that waits on the operator for a fact or an action.
 
@@ -103,13 +104,13 @@ operator dictating filenames or implementation.
   browser, persistence or runtime needs evidence from that dependency.
 - A live provider, model, E2B or Sankhya run needs explicit authority for that proof. A green
   repository gate never implies it.
-- Verification is a flat graph of leaf checks in `scripts/conexus-verify.mjs`, each run once. Never regenerate expected
+- Verification is the static checks plus one `node --test` per group in `scripts/conexus-verify.mjs`, each run once. A test file joins a group by its folder and its suffix (`*.postgres.test.mjs`, `*.browser.test.mjs`, `tests/live`), never by a list, and `tests/manual` holds what runs by hand. Never regenerate expected
   output to hide drift; use the explicit generation command. Only an `opt-in:` reason may skip a test or leave it todo.
-  Before every push, after `git add` of new files, run `npm run verify:quick`: it runs the Hub and web typechecks, the repository check, the four contract projections with `--check`, the web style check, the `knip` unused-export check, `biome ci` (a warning fails it), the log code registry
-  check, the test census, the flow census, the empty-test check, the test quarantine check and a patch churn report (see `review-checklist.md`), with no Docker, browser or network, in about half a minute.
+  Before every push, after `git add` of new files, run `npm run verify:quick`: it runs the Hub and web typechecks, the repository check, the generators (CI then fails on a changed or new file), the web style check, the `knip` unused-export check, `biome ci` (a warning fails it), the log code registry
+  check and the import law, with no Docker, browser or network, in about half a minute.
   The cheap static checks run first so a run fails fast, and a pull request that changes only Markdown under `docs/`,
   `.agents/` or the repository root runs only the documentation checks (`npm run verify:docs`); `verify` still reports.
-  CI runs the graph as five jobs, `builder-ui`, `browser`, `postgres`, `rest` and `live` (`--group`), each on its own runner so no step shares
+  CI runs the graph as four jobs, `browser`, `postgres`, `rest` and `live` (`--group`), each on its own runner so no step shares
   a machine resource with a step of another group; the `verify` job is the one required check and fails if any group does.
 - A change to workflow events or concurrency needs evidence that the `main` rulesets and trigger
   coverage stay equivalent.
@@ -143,4 +144,4 @@ A pull request is ready when these hold at its exact head SHA, plus the lane's g
 - One coherent increment per pull request. Link the issue. Use conventional commits.
 - Migrations are forward-only. After a migration change, run `npm run db:catalog:snapshot` and commit the snapshot. See the [baseline rules](../reference/data-and-persistence.md#baseline-and-forward-migrations).
 - A contract change and its [operation ledger](../product/operation-ledger.md) change go in one commit. `npm run wire:bijection` gates on an exact count.
-- `scripts/check-agent-context.mjs`, run by `npm run repository:check`, enforces what a script can check in these documents: cited scripts exist, links resolve, the trunk is `main`, size caps.
+- `scripts/check-agent-context.mjs`, run by `npm run repository:check`, enforces what a script can check in these documents: cited scripts exist, links resolve, size caps, and no workflow uses `pull_request_target` or `contents: write`.

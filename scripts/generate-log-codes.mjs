@@ -34,12 +34,4 @@ export const staleMessage = (root = repositoryRoot) =>
     ? null
     : 'LOG_CODES_STALE: run node scripts/generate-log-codes.mjs'
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  if (process.argv.includes('--check')) {
-    const stale = staleMessage()
-    if (stale) {
-      process.stderr.write(`${stale}\n`)
-      process.exit(1)
-    }
-  } else writeFileSync(resolve(repositoryRoot, targetPath), renderLogCodes())
-}
+if (import.meta.url === `file://${process.argv[1]}`) writeFileSync(resolve(repositoryRoot, targetPath), renderLogCodes())

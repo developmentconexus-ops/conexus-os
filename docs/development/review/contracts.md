@@ -10,7 +10,7 @@ checks that bind contracts to routes and to the operation ledger. [`areas.json`]
 - [ ] A contract change and its [operation ledger](../../product/operation-ledger.md) change are in
       one commit. Owner: [Git and pull requests](../delivery.md#git-and-pull-requests).
 - [ ] Generated route files are regenerated, never edited. Each starts with "Do not edit", and its
-      `contract-projection-check-*` leaf refuses drift.
+      `generators` step plus the dirty tree check refuse drift.
 - [ ] Every leaf path in `contracts/api/product/*-paths.yaml` is bundled into `openapi.yaml`, and
       every bundled operation comes from a leaf. `npm run wire:bijection` gates on an exact count.
 - [ ] A route with an id in its path has a `params` schema with the id's format, so a malformed id
@@ -22,8 +22,8 @@ checks that bind contracts to routes and to the operation ledger. [`areas.json`]
 
 ## Proof required
 
-- `wire-openapi-lint`, `wire-bijection`, `wire-bijection-gate` and the `wire-*` leaves for the
-  changed surface passed at the head SHA.
+- `wire-openapi-lint`, `wire-bijection` (with the Connector credential rules), `wire-bijection-gate` and
+  `wire-technical-lint` passed at the head SHA.
 - A behavior change on a route has an HTTP test that sends the request and asserts the literal
   status and body.
 

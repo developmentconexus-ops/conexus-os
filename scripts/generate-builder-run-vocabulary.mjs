@@ -3,7 +3,6 @@ import { resolve } from 'node:path'
 
 const repositoryRoot = resolve(import.meta.dirname, '..')
 const sourcePath = 'contracts/technical/builder-run-vocabulary.json'
-const snapshotPath = 'contracts/technical/hub-catalog-snapshot.json'
 export const vocabularyTargets = Object.freeze([
   'apps/hub/src/generated/builder-run-vocabulary.ts',
   'apps/web/src/generated/builder-run-vocabulary.ts',
@@ -52,21 +51,7 @@ export const vocabularyDrift = (vocabulary, catalog, generated) => {
   return drift
 }
 
-const committedDrift = (root = repositoryRoot) => vocabularyDrift(
-  readVocabulary(root),
-  JSON.parse(readFileSync(resolve(root, snapshotPath), 'utf8')).catalog,
-  Object.fromEntries(vocabularyTargets.map((target) => [target, readFileSync(resolve(root, target), 'utf8')])),
-)
-
 if (import.meta.url === `file://${process.argv[1]}`) {
-  if (process.argv.includes('--check')) {
-    const drift = committedDrift()
-    if (drift.length > 0) {
-      process.stderr.write(`${drift.join('\n')}\n`)
-      process.exit(1)
-    }
-  } else {
-    const rendered = renderVocabulary(readVocabulary())
-    for (const target of vocabularyTargets) writeFileSync(resolve(repositoryRoot, target), rendered)
-  }
+  const rendered = renderVocabulary(readVocabulary())
+  for (const target of vocabularyTargets) writeFileSync(resolve(repositoryRoot, target), rendered)
 }

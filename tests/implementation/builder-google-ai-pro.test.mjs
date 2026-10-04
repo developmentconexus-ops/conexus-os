@@ -315,7 +315,7 @@ const authentic = {
 }
 
 // The sign-in routes run for real; only model.model_account is a recording stand-in
-// (the Postgres-backed store is proven separately in model-account-postgres.test.mjs).
+// (the Postgres-backed store is proven separately in model-account.postgres.test.mjs).
 const fakeModelAccounts = () => {
   const own = new Map()
   let sharedAccountId = null

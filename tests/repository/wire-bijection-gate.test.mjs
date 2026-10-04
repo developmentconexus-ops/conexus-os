@@ -47,11 +47,12 @@ ${leafOperations.join('')}components:
 `)
 
   const paths = {}
-  for (const { path, operationId, fourAId } of bundledOperations) {
+  for (const { path, operationId, fourAId, contractState = 'SCHEMA_CLOSED', schemas = {} } of bundledOperations) {
     paths[path] = { post: {
       operationId,
       'x-conexus-4a-id': fourAId,
-      'x-conexus-contract-state': 'SCHEMA_CLOSED',
+      'x-conexus-contract-state': contractState,
+      ...schemas,
     } }
   }
   const bundlePath = resolve(root, 'bundle.json')
@@ -197,4 +198,39 @@ test('a leaf contract file the scanner cannot read fails instead of reporting no
   const result = runGate(fixture)
   assert.equal(result.status, 1)
   assert.match(result.stderr, /leaf contract file has no top-level paths block: thing-paths\.yaml/)
+})
+
+const connectorFixture = (t, { contractState, schemas }) => buildFixture(t, {
+  rows: [censusRow('CON-02', 'CreateConnection')],
+  leafOperations: [leafOperation('/api/connections', 'CreateConnection', 'CON-02')],
+  bundledOperations: [{ path: '/api/connections', operationId: 'CreateConnection', fourAId: 'CON-02', contractState, schemas }],
+})
+
+const request = (properties) => ({ requestBody: { content: { 'application/json': { schema: { properties } } } } })
+const response = (properties) => ({ responses: { 201: { content: { 'application/json': { schema: { properties } } } } } })
+
+test('a Connector operation that accepts a credential only as writeOnly and never returns it passes', (t) => {
+  const result = runGate(connectorFixture(t, { schemas: {
+    ...request({ clientSecret: { type: 'string', writeOnly: true }, name: { type: 'string' } }),
+    ...response({ id: { type: 'string' } }),
+  } }))
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test('a credential field in a request that is not writeOnly fails the gate', (t) => {
+  const result = runGate(connectorFixture(t, { schemas: request({ clientSecret: { type: 'string' } }) }))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /credential field clientSecret of CreateConnection is not writeOnly/)
+})
+
+test('a credential field in a success response fails the gate, however deep', (t) => {
+  const result = runGate(connectorFixture(t, { schemas: response({ items: { items: { properties: { xToken: { type: 'string' } } } } }) }))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /successful response schema of CreateConnection carries the credential field xToken/)
+})
+
+test('a Connector operation that is not schema closed fails the gate', (t) => {
+  const result = runGate(connectorFixture(t, { contractState: 'METHOD_PATH_MAPPED' }))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /current Connector operation is not schema-closed: CON-02/)
 })

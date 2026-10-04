@@ -1,22 +1,22 @@
 import assert from 'node:assert/strict'
-import { existsSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, resolve } from 'node:path'
+import { dirname, matchesGlob, resolve } from 'node:path'
 import test from 'node:test'
 import {
   ALLOWED_ALIASES,
   CANDIDATE_GRAPH,
   DOCS_CHECK_SCOPES,
   DOCS_GRAPH,
-  FAST_CHECK_SCOPES,
   QUICK_GRAPH,
   VERIFY_GROUPS,
   graphForGroup,
   groupsOf,
+  loadPackageScripts,
   SCOPE_MANIFEST,
   assertExecutionEnvironment,
   executionEnvironment,
-  failFastOrder,
   listScopes,
   newTestLedger,
   parseArguments,
@@ -29,11 +29,85 @@ import {
   timedOut,
 } from '../../scripts/conexus-verify.mjs'
 
-test('every test file the candidate graph names exists on disk', () => {
-  const named = CANDIDATE_GRAPH.flatMap(entry => entry.command.match(/\S+\.test\.mjs/g) ?? [])
-  assert.ok(named.length > 0)
-  const missing = named.filter(path => !existsSync(resolve(repositoryRoot, path)))
-  assert.deepEqual(missing, [])
+const committedTests = () => execFileSync('git', ['ls-files', 'tests'], { cwd: repositoryRoot, encoding: 'utf8' })
+  .split('\n')
+  .filter(path => path.endsWith('.test.mjs') && !path.startsWith('tests/manual/'))
+  .sort()
+
+const workflowGroups = () => readFileSync(resolve(repositoryRoot, '.github/workflows/verify.yml'), 'utf8')
+  .match(/group: \[([^\]]+)\]/)[1]
+  .split(',')
+  .map(name => name.trim())
+
+const testGlobsOf = (command, scripts) => {
+  const expanded = command.replace(/^npm run (\S+)$/, (_, name) => scripts[name] ?? '')
+  if (!expanded.startsWith('node --test')) return []
+  return [...expanded.matchAll(/'([^']+)'|(\S+)/g)]
+    .map(([, quoted, bare]) => quoted ?? bare)
+    .filter(word => word.endsWith('.test.mjs'))
+}
+
+const globsPerGroup = (groups) => {
+  const scripts = loadPackageScripts()
+  return Object.fromEntries(groups.map(group => [
+    group,
+    graphForGroup(CANDIDATE_GRAPH, group).flatMap(step => testGlobsOf(step.command ?? `npm run ${step.npmScript ?? ''}`, scripts)),
+  ]))
+}
+
+const groupsRunning = (path, globsByGroup) => Object.entries(globsByGroup)
+  .filter(([, globs]) => globs.some(glob => matchesGlob(path, glob)))
+  .map(([group]) => group)
+
+const PLAYWRIGHT_IMPORT = /^[^'"\n]*\b(?:from|import)\s*\(?\s*['"](?:@playwright\/test|playwright(?:-core)?)['"]/m
+
+test('the workflow runs the four groups and each runs the tests its name places in it', () => {
+  assert.deepEqual(workflowGroups(), ['browser', 'postgres', 'rest', 'live'])
+  const globs = globsPerGroup(workflowGroups())
+  assert.deepEqual(groupsRunning('tests/implementation/a.postgres.test.mjs', globs), ['postgres'])
+  assert.deepEqual(groupsRunning('tests/implementation/a.browser.test.mjs', globs), ['browser'])
+  assert.deepEqual(groupsRunning('tests/implementation/a.test.mjs', globs), ['rest'])
+  assert.deepEqual(groupsRunning('tests/repository/a.test.mjs', globs), ['rest'])
+  assert.deepEqual(groupsRunning('tests/live/a.test.mjs', globs), ['live'])
+  assert.deepEqual(groupsRunning('tests/manual/a.test.mjs', globs), [])
+})
+
+const unplaced = (paths, globs) => paths.filter(path => groupsRunning(path, globs).length !== 1)
+
+const browserTestsOutsideBrowser = (paths, sourceOf, globs) => paths
+  .filter(path => PLAYWRIGHT_IMPORT.test(sourceOf(path)))
+  .filter(path => !groupsRunning(path, globs).every(group => group === 'browser' || group === 'live'))
+
+const readSource = path => readFileSync(resolve(repositoryRoot, path), 'utf8')
+
+test('every committed test file runs in exactly one group of the workflow', () => {
+  const tests = committedTests()
+  assert.ok(tests.length > 100)
+  assert.deepEqual(unplaced(tests, globsPerGroup(workflowGroups())), [])
+})
+
+test('a test in a folder no group runs is unplaced', () => {
+  const globs = globsPerGroup(workflowGroups())
+  assert.deepEqual(
+    unplaced(['tests/newfolder/a.test.mjs', 'tests/implementation/nested/a.test.mjs', 'tests/implementation/a.test.mjs'], globs),
+    ['tests/newfolder/a.test.mjs', 'tests/implementation/nested/a.test.mjs'],
+  )
+})
+
+test('every committed test that imports Playwright runs in the browser or live group', () => {
+  const tests = committedTests()
+  assert.ok(tests.filter(path => PLAYWRIGHT_IMPORT.test(readSource(path))).length >= 8, 'the guard sees the browser tests')
+  assert.deepEqual(browserTestsOutsideBrowser(tests, readSource, globsPerGroup(workflowGroups())), [])
+})
+
+test('a Playwright test without the .browser suffix is caught', () => {
+  const globs = globsPerGroup(workflowGroups())
+  const source = () => "import { chromium } from 'playwright'"
+  assert.deepEqual(browserTestsOutsideBrowser(['tests/implementation/preview.test.mjs', 'tests/implementation/preview-browser.test.mjs'], source, globs), [
+    'tests/implementation/preview.test.mjs',
+    'tests/implementation/preview-browser.test.mjs',
+  ])
+  assert.deepEqual(browserTestsOutsideBrowser(['tests/implementation/preview.browser.test.mjs', 'tests/live/preview.test.mjs'], source, globs), [])
 })
 
 const packageScripts = Object.freeze({
@@ -50,120 +124,24 @@ const packageScripts = Object.freeze({
 const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'hub-typecheck',
   'web-typecheck',
-  'db-role-register',
-  'repository-check',
-  'repository-import-law',
-  'import-law-check',
-  'repository-agent-context',
-  'contract-projection-check-iam',
-  'contract-projection-check-workspace',
-  'contract-projection-check-project',
-  'contract-projection-check-connector',
-  'repository-contract-checks',
-  'knip',
   'biome',
-  'builder-guidance-neutral',
-  'conexus-preflight',
+  'knip',
+  'repository-check',
+  'import-law-check',
+  'generators',
+  'e2b-template-check',
   'web-style',
   'wire-openapi-lint',
-  'wire-openapi-bundle',
   'wire-bijection',
-  'wire-bijection-gate',
-  'wire-carriers',
-  'wire-identity-workspace',
-  'wire-project',
-  'wire-builder',
-  'wire-connector',
   'wire-technical-lint',
-  'wire-technical-ingress',
-  'log-codes-check',
-  'test-census',
-  'empty-tests',
-  'flow-census',
-  'test-quarantine',
-  'patch-churn-report',
-  'hub-baseline',
-  'migration-selection',
-  'migration-postgres',
-  'iam-membership-authority',
-  'iam-application-access',
-  'iam-installation-administrator',
-  'installation-settings-routes',
-  'iam-grant-surface-excision',
-  'hub-call-site-privileges',
-  'connector-postgres',
-  'connector-routes',
-  'connector-broker',
-  'connector-broker-postgres',
-  'connector-builder-brief',
-  'connector-builder-tool',
-  'builder-harness',
-  'builder-run-postgres',
-  'builder-request-text-postgres',
-  'conexus-git-postgres',
-  'factory-dependency-tree',
-  'builder-composition',
-  'model-account-postgres',
-  'google-ai-pro',
-  'openai-codex',
-  'anthropic',
-  'run-runtime',
-  'run-recovery-postgres',
-  'builder-session-routes',
-  'conexus-git',
-  'application-data-postgres',
-  'application-runner-sandbox',
-  'app-runner-http',
-  'application-server',
-  'application-host',
-  'foundation-postgres',
-  'project-summary-activity-postgres',
-  'project-summary-routes',
-  'application-registry',
-  'working-source-runtime',
-  'builder-failure-vocabulary',
-  'application-compiler-runtime',
-  'builder-browser',
-  'settings-browser',
-  'application-access-browser',
-  'connector-integrations-browser',
-  'e2b-template',
-  'compiler-generation',
   'web-build',
+  'repository-tests',
+  'implementation-tests',
   'db-catalog-snapshot',
   'db-baseline-file',
-  'hub-lifecycle',
-  'hub-postgres-pool',
-  'db-role-provision-postgres',
-  'hub-build-shared',
-  'hub-log-sinks',
-  'telemetry',
-  'brand-wordmark-csp',
-  'builder-tool-sentences',
-  'builder-skills-guard',
-  'identity-access-http',
-  'application-access-http',
-  'workspace-membership-http',
-  'workspace-http',
-  'workspace-reads',
-  'project-disclosure',
-  'project-command-postgres',
-  'project-deletion',
-  'project-deletion-postgres',
-  'project-browser',
-  'project-settings-deletion-browser',
-  'project-name',
-  'project-delete-problem',
-  'shell-browser-boundary',
-  'web-dev-server',
-  'brand-tokens',
-  'preview-form-policy',
-  'builder-credential-generation',
-  'builder-first-operational-delivery',
-  'builder-planning-free-boot',
+  'postgres-tests',
+  'browser-tests',
   'live-builder',
-  'protected-cluster-coverage',
-  'conexus-backup',
   'only-opt-in-skips',
 ])
 
@@ -256,7 +234,7 @@ test('the hub build step publishes its directory to the steps after it, and only
     },
   })
   assert.equal(result.exitCode, 1)
-  assert.deepEqual(seen.map(([scope]) => scope), ['hub-typecheck', 'web-typecheck', 'db-role-register'])
+  assert.deepEqual(seen.map(([scope]) => scope), ['hub-typecheck', 'web-typecheck', 'biome'])
   assert.equal(seen[0][1], null)
   assert.equal(seen[1][1], resolve(repositoryRoot, 'node_modules/.cache/conexus-hub-build'))
   assert.equal(seen[2][1], seen[1][1])
@@ -285,82 +263,61 @@ test('final proof refuses a real Windows execution but remains inspectable as dr
   assert.doesNotThrow(() => assertExecutionEnvironment(finalEntry, { platform: 'linux', dryRun: false }))
 })
 
-test('candidate graph flattens equivalent leaves while preserving distinct proof selections', () => {
+test('candidate graph is the static checks, then one node --test per group by glob', () => {
   const scopes = CANDIDATE_GRAPH.map(entry => entry.scope)
   assert.deepEqual(scopes, EXPECTED_CANDIDATE_SCOPES)
-
+  const command = (scope) => CANDIDATE_GRAPH.find(entry => entry.scope === scope).command
+  assert.equal(command('repository-tests'), "node --test 'tests/repository/!(*.browser|*.postgres).test.mjs'")
+  assert.equal(command('implementation-tests'), "node --test 'tests/implementation/!(*.browser|*.postgres).test.mjs'")
+  assert.equal(command('postgres-tests'), "node --test --test-concurrency=1 'tests/implementation/*.postgres.test.mjs'")
+  assert.equal(command('browser-tests'), "node --test --test-concurrency=1 'tests/implementation/*.browser.test.mjs'")
+  assert.equal(command('biome'), 'npx --no-install biome ci . --error-on-warnings')
   const commands = CANDIDATE_GRAPH.map(entry => entry.command)
-  assert.equal(commands.some(command => command.includes('qualification/')), false,
-    'the qualification/ probe suite is an explicit audit, not current MVP blocker')
-  assert.equal(commands.filter(command => command.includes('tests/implementation/builder-run-invariants-postgres.test.mjs') && command.includes('tests/implementation/builder-run-execution-postgres.test.mjs')).length, 1)
-  assert.equal(commands.filter(command => command === 'node --test --test-concurrency=1 tests/implementation/builder-brain-context.test.mjs').length, 0)
-  assert.equal(commands.some(command => command.includes('tests/implementation/rb-builder-first-vertical.test.mjs')), false,
-    'historical Builder verifier suite is not a current MVP blocker')
-  assert.equal(commands.filter(command => command.includes('node scripts/builder-e2b-template.mjs --check')).length, 1,
-    'the existing E2B template check remains part of the current Builder proof')
-  assert.equal(commands.filter(command => command.startsWith('npx --no-install biome ci . --error-on-warnings')).length, 1)
-  const leavesRunning = (file) => CANDIDATE_GRAPH.filter(entry => entry.command.split(' ').includes(file)).map(({ scope, environmentClass }) => [scope, environmentClass])
-  assert.deepEqual(leavesRunning('tests/implementation/connector-fetch.test.mjs'), [['connector-broker', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/connector-handler-fetch.test.mjs'), [['connector-broker', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/app-runner-worker.test.mjs'), [['app-runner-http', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/application-release.test.mjs'), [['app-runner-http', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/manifest-enum.test.mjs'), [['app-runner-http', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-submit-plan.test.mjs'), [['builder-harness', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-project-context.test.mjs'), [['builder-harness', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-memory.test.mjs'), [['builder-harness', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-run-operation.test.mjs'), [['builder-harness', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-sankhya-reader.test.mjs'), [['builder-harness', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-agent-retry.test.mjs'), [['run-runtime', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-runaway-step.test.mjs'), [['run-runtime', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-parallel-tools.test.mjs'), [['run-runtime', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-run-timing.test.mjs'), [['run-runtime', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-turn-stall.test.mjs'), [['run-runtime', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-eval-oracle.test.mjs'), [], 'the Builder lab is opt-in, not a CI step')
-  assert.deepEqual(leavesRunning('tests/implementation/builder-skill-manifest-vocabulary.test.mjs'), [['builder-skills-guard', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-plan-sections.test.mjs'), [['builder-browser', 'browser']])
-  assert.deepEqual(leavesRunning('tests/implementation/builder-anthropic.test.mjs'), [['anthropic', 'static']])
-  assert.deepEqual(leavesRunning('tests/implementation/connector-fetch-postgres.test.mjs'), [['connector-broker-postgres', 'postgres']],
-    'a PostgreSQL suite outside a postgres leaf would skip')
-  const biomeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'biome').command
-  assert.equal(biomeCommand, 'npx --no-install biome ci . --error-on-warnings')
-  assert.equal(commands.filter(command => command.startsWith('node node_modules/vite/bin/vite.js build --config apps/web/vite.config.mjs apps/web')).length, 1)
-  assert.equal(commands.filter(command => command === 'npm run repository:check').length, 1)
-  assert.equal(commands.filter(command => command === 'npm run repository:check:extended').length, 0)
-  assert.equal(commands.some(command => /node scripts\/generate-[^ ]+\.mjs/.test(command) && !command.includes('--check')), false)
-  assert.equal(commands.some(command => /(?:^|\s|:)r[12](?:[-:]|\b)/.test(command)), false,
-    'historical R1/R2 commands are explicit audits, not current Builder proof')
-  assert.equal(scopes.some(scope => scope.includes('r1') || scope.includes('r2') || scope.includes('rb')), false)
-  const builderCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'working-source-runtime').command
-  assert.equal(builderCommand.includes('-live.test.mjs'), false,
-    'paid live experiments are explicit commands, not inherited flags in default verification')
-  const runRuntimeCommand = CANDIDATE_GRAPH.find(entry => entry.scope === 'run-runtime').command
-  assert.equal(runRuntimeCommand.includes('tests/implementation/builder-session-tripwire.test.mjs'), true,
-    'the tripwire test runs with the run runtime suites')
-
-  const builderBrowser = CANDIDATE_GRAPH.find(entry => entry.scope === 'builder-browser')
-  assert.equal(builderBrowser.command.includes('tests/implementation/builder-transcript.test.mjs'), true)
-  const appCheck = CANDIDATE_GRAPH.find(entry => entry.scope === 'application-compiler-runtime')
-  assert.equal(appCheck.command.includes('tests/implementation/builder-application-check.test.mjs'), true)
-  assert.equal(appCheck.environmentClass, 'browser')
-  assert.equal(CANDIDATE_GRAPH.find(entry => entry.scope === 'app-runner-http').command.includes('tests/implementation/app-path-classifier.test.mjs'), true)
-  assert.equal(CANDIDATE_GRAPH.find(entry => entry.scope === 'conexus-backup').command.includes('tests/implementation/conexus-backup.test.mjs'), true)
-
-  const result = runVerification({
-    processEnvironment: {},
-    scopes: ['candidate'],
-    packageScripts,
-    dryRun: true,
-    runCommand: () => assert.fail('candidate dry-run must not execute commands'),
-  })
-  assert.equal(result.records.length, CANDIDATE_GRAPH.length)
-  assert.deepEqual(result.records.map(record => record.command), commands)
-  assert.deepEqual(result.records.map(record => record.environmentClass), CANDIDATE_GRAPH.map(entry => entry.environmentClass))
-  assert.deepEqual(result.records.every(record => record.status === 'dry-run'), true)
+  assert.equal(commands.some(text => /\.test\.mjs(?!')/.test(text)), false, 'no step names a test file; the globs do')
+  assert.equal(commands.filter(text => /node scripts\/generate-[^ ]+\.mjs/.test(text)).length, 0, 'the generators run as the one generators step')
+  assert.equal(command('generators'), 'npm run generate')
+  assert.equal(commands.some(text => text.includes('qualification/')), false)
+  assert.equal(commands.filter(text => text.includes('-live.test.mjs')).length, 0, 'paid live runs are explicit commands')
 })
 
-test('candidate graph does not reference the deleted Change-era source-state test', () => {
-  assert.equal(CANDIDATE_GRAPH.some(({ command }) => command.includes('builder-working-source-state.test.mjs')), false)
+test('the workflow ends every group on the dirty tree check that makes the generators a check', () => {
+  const workflow = readFileSync(resolve(repositoryRoot, '.github/workflows/verify.yml'), 'utf8')
+  assert.match(workflow, /git status --porcelain\)" \]/)
+  assert.ok(workflow.indexOf('--scope candidate --group') < workflow.indexOf('git status --porcelain'))
 })
+
+const workflowSteps = (file) => readFileSync(resolve(repositoryRoot, `.github/workflows/${file}`), 'utf8')
+  .split(/\n {6}- /)
+  .slice(1)
+
+test('each group sets up only what it needs', () => {
+  const steps = workflowSteps('verify.yml')
+  const setupOf = (name) => steps.find(step => step.includes(`name: ${name}`))
+  const ifLine = (name) => setupOf(name).split('\n').find(line => line.trim().startsWith('if:'))
+  const gatedTo = (name) => ['browser', 'postgres', 'rest', 'live'].filter(group => ifLine(name).includes(`'${group}'`))
+  assert.deepEqual(gatedTo('Install Playwright Chromium'), ['browser', 'live'])
+  assert.deepEqual(gatedTo('Start the Hub PostgreSQL'), ['browser', 'postgres'])
+  assert.deepEqual(gatedTo('Start the Applications PostgreSQL test cluster'), ['postgres'])
+  assert.deepEqual(gatedTo('Rootless sandbox for the application runner suite'), ['postgres'])
+  assert.equal(readFileSync(resolve(repositoryRoot, '.github/workflows/verify.yml'), 'utf8').includes('services:'), false)
+})
+
+test('the aprovo gate runs on the same pull request events in its own workflow', () => {
+  const workflow = readFileSync(resolve(repositoryRoot, '.github/workflows/aprovo-gate.yml'), 'utf8')
+  assert.match(workflow, /types: \[opened, synchronize, reopened, edited, labeled, unlabeled\]/)
+  assert.match(workflow, /node scripts\/check-aprovo-gate\.mjs --base "origin\/\$\{\{ github\.base_ref \}\}"/)
+  assert.equal(readFileSync(resolve(repositoryRoot, '.github/workflows/verify.yml'), 'utf8').includes('check-aprovo-gate'), false)
+})
+
+test('the static checks run before every test step, and the Hub build stays first', () => {
+  const scopes = CANDIDATE_GRAPH.map(entry => entry.scope)
+  assert.equal(scopes[0], 'hub-typecheck')
+  const isSuite = entry => entry.command.startsWith('node --test') || entry.scope === 'live-builder'
+  const firstTest = CANDIDATE_GRAPH.findIndex(isSuite)
+  const lastStatic = Math.max(...CANDIDATE_GRAPH.filter(entry => entry.environmentClass === 'static' && !isSuite(entry) && entry.scope !== 'only-opt-in-skips').map(entry => scopes.indexOf(entry.scope)))
+  assert.ok(lastStatic < firstTest)
+})
+
 
 test('a step that never exits is killed and reported by name', () => {
   const candidate = CANDIDATE_GRAPH.find(entry => entry.environmentClass === 'static')
@@ -397,10 +354,10 @@ test('a step that never exits is killed and reported by name', () => {
 
 test('candidate graph labels execution environments and passes shell argv correctly', () => {
   const classes = new Set(CANDIDATE_GRAPH.map(entry => entry.environmentClass))
-  assert.deepEqual([...classes].sort(), ['browser', 'browser-postgres', 'live', 'postgres', 'static'])
+  assert.deepEqual([...classes].sort(), ['browser', 'live', 'postgres', 'static'])
 
-  const browserStep = CANDIDATE_GRAPH.find(entry => entry.scope === 'builder-browser')
-  const postgresStep = CANDIDATE_GRAPH.find(entry => entry.scope === 'builder-run-postgres')
+  const browserStep = CANDIDATE_GRAPH.find(entry => entry.scope === 'browser-tests')
+  const postgresStep = CANDIDATE_GRAPH.find(entry => entry.scope === 'postgres-tests')
   assert.equal(browserStep.environmentClass, 'browser')
   assert.equal(postgresStep.environmentClass, 'postgres')
 
@@ -445,9 +402,7 @@ test('candidate graph labels execution environments and passes shell argv correc
     CONEXUS_TEST_DB_PASSWORD: 'opaque',
   }
   assert.deepEqual(executionEnvironment(postgresStep, selectedPostgres), { ...selectedPostgres, CONEXUS_VERIFY_STEP_CLASS: 'postgres' })
-  const connectorBrowser = CANDIDATE_GRAPH.find(entry => entry.scope === 'connector-integrations-browser')
-  assert.equal(connectorBrowser.environmentClass, 'browser-postgres')
-  assert.deepEqual(executionEnvironment(connectorBrowser, { PATH: '/fixture/bin' }), { ...postgresDefaults, CONEXUS_VERIFY_STEP_CLASS: 'browser-postgres' })
+  assert.deepEqual(executionEnvironment(browserStep, { PATH: '/fixture/bin' }), { ...postgresDefaults, CONEXUS_VERIFY_STEP_CLASS: 'browser' })
   assert.throws(
     () => executionEnvironment(postgresStep, { CONEXUS_TEST_DB_HOST: 'db.internal' }),
     /requires either all CONEXUS_TEST_DB_\* values or none/,
@@ -531,45 +486,22 @@ test('the opt-in skip check runs last', () => {
   })
 })
 
-test('the cheap static checks run before every browser and PostgreSQL suite, and the Hub build stays first', () => {
-  const scopes = CANDIDATE_GRAPH.map(entry => entry.scope)
-  assert.equal(scopes[0], 'hub-typecheck')
-  const fast = new Set(FAST_CHECK_SCOPES)
-  const lastFast = Math.max(...FAST_CHECK_SCOPES.map(scope => scopes.indexOf(scope)))
-  assert.equal(lastFast, FAST_CHECK_SCOPES.length - 1, 'the fast checks are one prefix of the graph')
-  const environments = CANDIDATE_GRAPH.slice(0, FAST_CHECK_SCOPES.length).map(entry => entry.environmentClass)
-  assert.deepEqual([...new Set(environments)], ['static'])
-  const slowStart = CANDIDATE_GRAPH.findIndex(entry => !fast.has(entry.scope))
-  assert.equal(CANDIDATE_GRAPH.slice(slowStart).some(entry => fast.has(entry.scope)), false)
-  for (const scope of ['biome', 'knip', 'web-typecheck', 'repository-check', 'repository-agent-context', 'contract-projection-check-iam', 'test-census', 'flow-census']) {
-    assert.ok(scopes.indexOf(scope) < scopes.indexOf('hub-baseline'), `${scope} runs before the first PostgreSQL suite`)
-    assert.ok(scopes.indexOf(scope) < scopes.indexOf('builder-browser'), `${scope} runs before the first browser suite`)
-  }
-})
 
-test('failFastOrder moves the named scopes up in graph order and keeps every step', () => {
-  const steps = ['a', 'b', 'c', 'd', 'e'].map(scope => ({ scope }))
-  assert.deepEqual(failFastOrder(steps, ['d', 'b']).map(step => step.scope), ['b', 'd', 'a', 'c', 'e'])
-  assert.deepEqual(failFastOrder(steps, []).map(step => step.scope), ['a', 'b', 'c', 'd', 'e'])
-})
 
 test('the docs graph is the docs checks, in graph order, and still ends with the skip check', () => {
-  assert.deepEqual(DOCS_GRAPH.map(entry => entry.scope), [
-    'repository-check', 'repository-agent-context', 'repository-contract-checks', 'conexus-preflight',
-    'wire-openapi-bundle', 'wire-bijection', 'wire-bijection-gate', 'test-census', 'flow-census', 'only-opt-in-skips',
-  ])
+  assert.deepEqual(DOCS_GRAPH.map(entry => entry.scope), ['repository-check', 'wire-bijection', 'repository-tests', 'only-opt-in-skips'])
   assert.equal(DOCS_GRAPH.length, DOCS_CHECK_SCOPES.length)
   assert.equal(DOCS_GRAPH.every(entry => entry.environmentClass === 'static'), true)
   const result = runVerification({ processEnvironment: {}, scopes: ['candidate-docs'], packageScripts, dryRun: true })
   assert.deepEqual(result.records.map(record => record.scope), DOCS_GRAPH.map(entry => entry.scope))
 })
 
-test('the quick graph is both typechecks, the repository, style and contract projection checks and the lint, census and ratchet checks, all static and fast-checked', () => {
-  assert.deepEqual(QUICK_GRAPH.map(entry => entry.scope), ['hub-typecheck', 'web-typecheck', 'repository-check', 'import-law-check', 'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector', 'knip', 'biome', 'web-style', 'log-codes-check', 'test-census', 'empty-tests', 'flow-census', 'test-quarantine', 'patch-churn-report'])
+test('the quick graph is only static checks, no test suite', () => {
   assert.equal(QUICK_GRAPH.every(entry => entry.environmentClass === 'static'), true)
-  assert.equal(QUICK_GRAPH.every(entry => FAST_CHECK_SCOPES.includes(entry.scope)), true)
+  assert.equal(QUICK_GRAPH.some(entry => entry.command.startsWith('node --test')), false)
   const result = runVerification({ processEnvironment: {}, scopes: ['candidate-quick'], packageScripts, dryRun: true })
-  assert.deepEqual(result.records.map(record => record.scope), ['hub-typecheck', 'web-typecheck', 'repository-check', 'import-law-check', 'contract-projection-check-iam', 'contract-projection-check-workspace', 'contract-projection-check-project', 'contract-projection-check-connector', 'knip', 'biome', 'web-style', 'log-codes-check', 'test-census', 'empty-tests', 'flow-census', 'test-quarantine', 'patch-churn-report'])
+  assert.deepEqual(result.records.map(record => record.scope), QUICK_GRAPH.map(entry => entry.scope))
+  assert.deepEqual(QUICK_GRAPH.map(entry => entry.scope).slice(0, 3), ['hub-typecheck', 'web-typecheck', 'biome'])
 })
 
 test('step summary is a markdown table sorted slowest first with each share of the total', () => {
@@ -592,12 +524,6 @@ test('step summary is a markdown table sorted slowest first with each share of t
   ].join('\n'))
 })
 
-test('the CI helper tests run in the graph, so the census and the checks see them', () => {
-  const agentContext = CANDIDATE_GRAPH.find(entry => entry.scope === 'repository-agent-context')
-  for (const file of ['tests/repository/ci-change-scope.test.mjs', 'tests/repository/ci-install.test.mjs']) {
-    assert.equal(agentContext.command.split(' ').includes(file), true, file)
-  }
-})
 
 test('every graph step belongs to exactly one group, except the two every group runs', () => {
   const shared = ['hub-typecheck', 'only-opt-in-skips']
@@ -617,8 +543,8 @@ test('a group runs the Hub build first and the skip check last, and keeps graph 
     assert.equal(scopes[0], 'hub-typecheck', group)
     assert.equal(scopes.at(-1), 'only-opt-in-skips', group)
   }
-  for (const group of ['builder-ui', 'browser']) assert.equal(graphForGroup(CANDIDATE_GRAPH, group).some(entry => entry.environmentClass === 'postgres'), false, group)
-  assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'builder-ui').map(entry => entry.scope), ['hub-typecheck', 'builder-browser', 'only-opt-in-skips'])
+  assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'browser').map(entry => entry.scope), ['hub-typecheck', 'browser-tests', 'only-opt-in-skips'])
+  assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'postgres').map(entry => entry.scope), ['hub-typecheck', 'db-catalog-snapshot', 'db-baseline-file', 'postgres-tests', 'only-opt-in-skips'])
   assert.equal(graphForGroup(CANDIDATE_GRAPH, 'rest').every(entry => entry.environmentClass === 'static'), true)
   assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'live').map(entry => entry.scope), ['hub-typecheck', 'live-builder', 'only-opt-in-skips'])
 })
@@ -626,7 +552,7 @@ test('a group runs the Hub build first and the skip check last, and keeps graph 
 test('--group narrows the candidate graph and refuses an unknown group', async () => {
   assert.equal(parseArguments(['--scope', 'candidate', '--group', 'browser']).group, 'browser')
   assert.equal(parseArguments(['--scope', 'candidate', '--group=rest']).group, 'rest')
-  assert.throws(() => parseArguments(['--scope', 'candidate', '--group', 'slow']), /--group must be one of builder-ui, browser, postgres, rest, live/)
+  assert.throws(() => parseArguments(['--scope', 'candidate', '--group', 'slow']), /--group must be one of browser, postgres, rest, live/)
   const result = runVerification({ processEnvironment: {}, scopes: ['candidate'], packageScripts, dryRun: true, group: 'postgres' })
   assert.deepEqual(result.records.map(record => record.scope), graphForGroup(CANDIDATE_GRAPH, 'postgres').map(entry => entry.scope))
 })

@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { ESCAPE_LABEL } from '../../scripts/check-patch-churn.mjs'
 import { LABELS_FILE, parseLabels, planLabels } from '../../scripts/labels.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
@@ -17,12 +16,8 @@ test('labels.yml declares the lean set and the labels the Factory adds', () => {
     'status: needs triage', 'status: auto-triaged', 'status: needs approval', 'status: pending-close',
     'status:auto-approved', 'status:changes-requested',
     'effort:low', 'effort:medium', 'effort:high', 'impact:low', 'impact:medium', 'impact:high',
-    'needs-triage', 'premise-checked',
+    'needs-triage',
   ])
-})
-
-test('the label that turns off the patch churn check is declared, so it can be applied to GitHub', () => {
-  assert.equal(declared.some(label => label.name === ESCAPE_LABEL), true)
 })
 
 test('the plan creates missing labels, updates drifted ones and leaves undeclared ones alone', () => {
@@ -83,16 +78,16 @@ test('a dry run only reads, --apply converges, and a second run has nothing to d
   const dry = gh.run()
   assert.equal(dry.status, 0, dry.stderr)
   assert.deepEqual(gh.calls(), ['label list'])
-  assert.match(dry.stdout, /^21 to create, 0 to update, 0 unchanged\.$/m)
+  assert.match(dry.stdout, /^20 to create, 0 to update, 0 unchanged\.$/m)
   assert.match(dry.stdout, /^Not managed by labels\.yml, left alone: bug$/m)
   assert.match(dry.stdout, /^Dry run\. Run with --apply to write these changes to GitHub\.$/m)
 
   const applied = gh.run('--apply')
   assert.equal(applied.status, 0, applied.stderr)
-  assert.equal(gh.calls().filter(call => call === 'label create').length, 21)
+  assert.equal(gh.calls().filter(call => call === 'label create').length, 20)
   assert.match(applied.stdout, /^Labels converged: a second run has nothing to do\.$/m)
 
   const again = gh.run()
   assert.equal(again.status, 0, again.stderr)
-  assert.match(again.stdout, /^0 to create, 0 to update, 21 unchanged\.$/m)
+  assert.match(again.stdout, /^0 to create, 0 to update, 20 unchanged\.$/m)
 })

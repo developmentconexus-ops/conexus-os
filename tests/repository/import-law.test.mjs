@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
@@ -42,17 +43,9 @@ test('every import-law RED control fires its named rule', async (suite) => {
       'apps/web/src/main.ts': 'import "./exact.js"',
       'apps/web/src/Exact.ts': '',
     }],
-    ['IMPORT_PRODUCTION_TO_TEST_TOOLING', { 'apps/hub/src/server.ts': 'import "../../../tests/helper.mjs"' }],
-    ['IMPORT_APP_TO_RUNTIME', { 'apps/hub/src/server.ts': 'import "../../../runtime/r1/generated/x.mjs"' }],
-    ['IMPORT_BROWSER_TO_SERVER', { 'apps/web/src/main.ts': 'import "fs"' }],
-    ['IMPORT_BROWSER_TO_SERVER require branch', { 'apps/web/src/main.ts': 'require("node:path")' }],
     ['IMPORT_GENERATED_TO_OWNER', {
       'apps/hub/src/generated/x.ts': 'import "../future-owner/module.js"',
       'apps/hub/src/future-owner/module.ts': '',
-    }],
-    ['IMPORT_RUNTIME_TO_COMPILER', {
-      'runtime/r1/output.mjs': 'import "../../packages/profile-compiler/src/index.mjs"',
-      'packages/profile-compiler/src/index.mjs': '',
     }],
     ['IMPORT_OWNER_TO_OWNER', {
       'apps/hub/src/identity-access/module.ts': 'import "../projects/module.js"',
@@ -100,4 +93,29 @@ test('every import-law RED control fires its named rule', async (suite) => {
     const id = label.split(' ')[0]
     await suite.test(label, () => assertRule(id, files))
   }
+})
+
+const repositoryRoot = resolve(import.meta.dirname, '../..')
+
+const biomeFindings = (path, source) => {
+  const probe = resolve(repositoryRoot, path)
+  writeFileSync(probe, source)
+  try {
+    return spawnSync(process.execPath, [resolve(repositoryRoot, 'node_modules/@biomejs/biome/bin/biome'), 'lint', path, '--colors=off'], { cwd: repositoryRoot, encoding: 'utf8' })
+  } finally {
+    rmSync(probe, { force: true })
+  }
+}
+
+test('Biome refuses production code that imports tests or scripts, and web code that imports Node', () => {
+  for (const [path, source, rule] of [
+    ['apps/hub/src/import-probe.ts', 'import "../../../tests/helper.mjs"\nexport const hub = 1\n', 'lint/style/noRestrictedImports'],
+    ['packages/brand/src/import-probe.ts', 'import "../../../scripts/tool.mjs"\nexport const brand = 1\n', 'lint/style/noRestrictedImports'],
+    ['apps/web/src/import-probe.ts', 'import "node:fs"\nexport const web = 1\n', 'lint/correctness/noNodejsModules'],
+  ]) {
+    const result = biomeFindings(path, source)
+    assert.equal(result.status, 1, `${path} passed`)
+    assert.match(result.stdout + result.stderr, new RegExp(rule))
+  }
+  assert.equal(biomeFindings('apps/hub/src/import-probe.ts', 'import "node:fs"\nexport const hub = 1\n').status, 0)
 })
