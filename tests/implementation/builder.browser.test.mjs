@@ -168,8 +168,8 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   const streamScopes = []
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => {
     streamScopes.push(new URL(route.request().url()).searchParams.get('sessionScope'))
-    // The conversation is followed from the moment it opens; until a run made its session the Hub refuses.
-    if (!run || runFinished) return route.fulfill({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ type: 'BUILDER_SESSION_NOT_READY' }) })
+    // The conversation is followed from the moment it opens; a stream the Hub has no session for is refused.
+    if (!run || runFinished) return route.fulfill({ status: 404, contentType: 'application/problem+json', body: JSON.stringify({ type: 'BUILDER_SESSION_NOT_FOUND' }) })
     setTimeout(() => {
       threadMessages.push(assistantMessage('assistant-live-1', 'Aplicando a alteração'), assistantMessage(`assistant-final-${threadMessages.length}`, 'Build concluído'))
       runFinished = true
@@ -330,7 +330,7 @@ test('an untitled conversation shows the title the Hub announces on the run\'s s
   })
   // The Hub titles a conversation from its first request and tells the browser on the run's stream, while the run is still working.
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => {
-    if (!run) return route.fulfill({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ type: 'BUILDER_SESSION_NOT_READY' }) })
+    if (!run) return route.fulfill({ status: 404, contentType: 'application/problem+json', body: JSON.stringify({ type: 'BUILDER_SESSION_NOT_FOUND' }) })
     state.conversations = [conversation(conversationId, 'Crie um contador de visitas')]
     return route.fulfill(sse({ type: 'thread_title_updated', threadId: conversationId, title: 'Crie um contador de visitas' }))
   })

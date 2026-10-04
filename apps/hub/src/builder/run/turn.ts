@@ -3,11 +3,10 @@ import { RequestContext } from '@mastra/core/request-context'
 import type { LiveConversations } from '../conversation.js'
 import { isUserAuthoredMessage } from '../runtime.js'
 import { Failure } from '../../platform/failure.js'
-import type { AgentTurn, BuilderRunPorts, RunSession, Step } from './ports.js'
+import type { AgentTurn, BuilderRunPorts, ControllerSession, RunSession, Step } from './ports.js'
 import { endQuestions, untilQuestionStored } from './question.js'
 import { driveStep } from './send.js'
 
-type ControllerSession = Awaited<ReturnType<AgentController['createSession']>>
 
 /**
  * How long a turn may go without one event from its session while the agent is working. A storage

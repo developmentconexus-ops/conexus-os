@@ -58,7 +58,6 @@ export const FAILURES = {
   'CONVERSATION_CONFLICT': { category: 'USER', status: 409 },
   'BUILDER_BUSY': { category: 'USER', status: 409 },
   'BUILDER_RUN_STOP_REFUSED': { category: 'USER', status: 409 },
-  'BUILDER_SESSION_NOT_READY': { category: 'USER', status: 409 },
   'TOOL_ANSWER_ALREADY_GIVEN': { category: 'USER', status: 409 },
   'QUESTION_ENDED': { category: 'USER', status: 409 },
   'APPLICATION_ACCESS_MANAGE_REQUIRED': { category: 'USER', status: 403 },

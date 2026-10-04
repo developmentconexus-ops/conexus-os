@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto'
-import type { AgentController } from '@mastra/core/agent-controller'
 import { FAILURE_TEXT } from '../platform/failure-text.generated.js'
 import { projectResourceId } from './conversations.js'
-import type { RunNote } from './run/ports.js'
+import type { ControllerSession, RunNote } from './run/ports.js'
 
 // Deterministic on run+code so a retried call collapses onto the same message instead of
 // appending a duplicate diagnostic.
@@ -37,7 +36,7 @@ const NOTE_TEXT: Readonly<Record<RunNote['outcome'], (note: RunNote) => string>>
     `A execução ${builderRunId} mudou migrações que já tinham sido aplicadas, então os dados da Preview deste Project foram apagados e todas as migrações foram reaplicadas.`,
 })
 
-type NoteSession = Pick<Awaited<ReturnType<AgentController['createSession']>>, 'sendSignalToThread'>
+type NoteSession = Pick<ControllerSession, 'sendSignalToThread'>
 
 /**
  * A `notification` signal is Mastra's system notice for a thread (`sendSignalToThread`, planned as

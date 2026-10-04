@@ -64,7 +64,6 @@
     { "code": "CONVERSATION_CONFLICT", "category": "USER", "status": 409, "audience": "person", "message": "Esse identificador de conversa já está em uso.", "action": "NONE" },
     { "code": "BUILDER_BUSY", "category": "USER", "status": 409, "audience": "person", "message": "O modelo só muda quando o Builder está parado.", "action": "NONE" },
     { "code": "BUILDER_RUN_STOP_REFUSED", "category": "USER", "status": 409, "audience": "person", "message": "Uma execução só para pelo botão de parar.", "action": "NONE" },
-    { "code": "BUILDER_SESSION_NOT_READY", "category": "USER", "status": 409, "audience": "person", "message": "O Builder ainda está preparando esta conversa.", "action": "RETRY_LATER" },
     { "code": "TOOL_ANSWER_ALREADY_GIVEN", "category": "USER", "status": 409, "audience": "person", "message": "Esta pergunta já foi respondida.", "action": "NONE" },
     { "code": "QUESTION_ENDED", "category": "USER", "status": 409, "audience": "person", "message": "Esta pergunta já foi encerrada. A resposta pode ir na próxima mensagem.", "action": "NONE" },
     { "code": "APPLICATION_ACCESS_MANAGE_REQUIRED", "category": "USER", "status": 403, "audience": "person", "message": "Você não tem permissão para gerenciar quem acessa este aplicativo.", "action": "ASK_ADMIN" },

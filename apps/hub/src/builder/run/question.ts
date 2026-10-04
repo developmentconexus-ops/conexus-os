@@ -1,9 +1,8 @@
 import type { AgentController } from '@mastra/core/agent-controller'
 import { z } from 'zod'
 import { Failure } from '../../platform/failure.js'
-import type { StopReason, WaitEnd } from './ports.js'
+import type { ControllerSession, StopReason, WaitEnd } from './ports.js'
 
-type ControllerSession = Awaited<ReturnType<AgentController['createSession']>>
 
 /** A call the thread stores as still waiting on the person (`state: 'call'`). */
 type OpenCall = Readonly<{ toolCallId: string; toolName: string; runId: string }>
@@ -62,16 +61,10 @@ const LOOP_WORKFLOWS = ['agentic-loop', 'executionWorkflow'] as const
  * since any of Mastra's storage reads can hang, and a cleanup past its bound changes nothing more.
  */
 export const endQuestions = async (controller: Pick<AgentController, 'getMastra'>, session: ControllerSession, bound: Readonly<{ ms: number }>): Promise<void> => {
-  const late = new AbortController()
-  const timer = setTimeout(() => { late.abort(new Failure('BUILDER_QUESTION_NOT_RELEASED')) }, bound.ms)
-  const expired = new Promise<never>((_, reject) => { late.signal.addEventListener('abort', () => { reject(late.signal.reason) }, { once: true }) })
+  const late = AbortSignal.timeout(bound.ms)
+  const expired = new Promise<never>((_, reject) => { late.addEventListener('abort', () => { reject(new Failure('BUILDER_QUESTION_NOT_RELEASED')) }, { once: true }) })
   expired.catch(() => undefined)
-  try {
-    await Promise.race([releaseQuestions(controller, session, bound, late.signal), expired])
-  } finally {
-    clearTimeout(timer)
-    late.abort(new Failure('BUILDER_QUESTION_NOT_RELEASED'))
-  }
+  await Promise.race([releaseQuestions(controller, session, bound, late), expired])
 }
 
 const releaseQuestions = async (controller: Pick<AgentController, 'getMastra'>, session: ControllerSession, bound: Readonly<{ ms: number }>, signal: AbortSignal): Promise<void> => {
@@ -113,7 +106,7 @@ type Inbox = Readonly<{
   /** The person's answer to a call pending on the live session. */
   answer(toolCallId: string, resumeData: unknown): AnswerOutcome
   /** A message typed while the run waits; a run that is not waiting is busy. */
-  message(content: string, idempotencyKey: string): 'ACCEPTED' | 'BUSY'
+  message(content: string): 'ACCEPTED' | 'BUSY'
   /** The run waits here until the first `WaitEnd`: a reply, the expiry or a stop. */
   wait(input: Readonly<{ waitMs: number; signal: AbortSignal }>): Promise<WaitEnd>
 }>
@@ -151,7 +144,7 @@ export const createInbox = (pending: (toolCallId: string) => boolean, stopReason
       answered.add(toolCallId)
       return 'ACCEPTED'
     },
-    message: (content, idempotencyKey) => (offer({ kind: 'MESSAGE', content, idempotencyKey }) ? 'ACCEPTED' : 'BUSY'),
+    message: (content) => (offer({ kind: 'MESSAGE', content }) ? 'ACCEPTED' : 'BUSY'),
     wait: ({ waitMs, signal }) => new Promise<WaitEnd>((resolve) => {
       const expiry = setTimeout(() => { offer({ kind: 'EXPIRED' }) }, waitMs)
       const stopped = (): void => { offer({ kind: 'STOPPED', reason: stopReason(signal) }) }

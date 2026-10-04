@@ -38,7 +38,7 @@ session. The whole "parked run" path goes, and the code gets smaller.
   model (0 lost in 100 runs). The added delay is at most 2 s.
 - **AC-4**: A question unanswered for the configured wait ends the run `INTERRUPTED` with
   `BUILDER_QUESTION_EXPIRED`. The value is configuration (`CONEXUS_BUILDER_QUESTION_WAIT_MS`): 30
-  minutes in production, 5 minutes in local development and in tests. The Project is free right after.
+  minutes by default; a local run sets a shorter wait in its own env file. The Project is free right after.
 - **AC-5**: Stop during a question ends the run `INTERRUPTED` `USER_CANCELLED`, and the question is
   denied.
 - **AC-6**: After a Hub restart during a question, the takeover ends the run `INTERRUPTED`
@@ -120,21 +120,22 @@ In code the `RUNNING` rows are the step loop in `run/run.ts` and an exhaustive `
 
 ### 2. The key types
 
-```ts
-type ConversationId = string & { readonly __brand: 'ConversationId' }
-type BuilderRunId = string & { readonly __brand: 'BuilderRunId' }
+Ids stay plain `string`, as everywhere else in the Hub; the database and the routes check them at
+the boundary.
 
+```ts
 /** Every way a wait ends. A fifth kind is a compile error in the run's switch. */
 type WaitEnd =
   | Readonly<{ kind: 'ANSWER'; toolCallId: string; resumeData: unknown }>
-  | Readonly<{ kind: 'MESSAGE'; content: string; idempotencyKey: string }>
+  | Readonly<{ kind: 'MESSAGE'; content: string }>
   | Readonly<{ kind: 'EXPIRED' }>
   | Readonly<{ kind: 'STOPPED'; reason: 'USER_CANCELLED' | 'HUB_STOPPING' }>
 
 /** The one handle the service holds per conversation. Nothing else reaches the run's session, sandbox or row. */
 type LiveRun = Readonly<{
-  builderRunId: BuilderRunId
-  answer(toolCallId: string, resumeData: unknown): 'ACCEPTED' | 'ENDED'
+  builderRunId: string
+  answer(toolCallId: string, resumeData: unknown): 'ACCEPTED' | 'ALREADY_ANSWERED' | 'UNKNOWN_CALL' | 'ENDED'
+  /** A known key is taken once; the run is the one owner of that dedup. */
   message(content: string, idempotencyKey: string): 'ACCEPTED' | 'BUSY'
   stop(reason: 'USER_CANCELLED' | 'HUB_STOPPING'): void
   tools(): RunTools
@@ -144,7 +145,7 @@ type LiveRun = Readonly<{
 declare function endQuestions(session: ControllerSession, bound: { ms: number }): Promise<void>
 ```
 
-The service holds `runs: Map<ConversationId, LiveRun>`, the only map of runs in the Hub.
+The service holds `runs: Map<string, LiveRun>`, keyed by conversation id, the only map of runs in the Hub.
 
 ### 3. The question, step by step
 
@@ -196,7 +197,7 @@ session swap in the stream route.
 
 | Action | Value | Source |
 | --- | --- | --- |
-| wait timer | how long a question waits | `CONEXUS_BUILDER_QUESTION_WAIT_MS` in the Hub's typed loader (`apps/hub/src/platform/config.ts`), default 30 min; the local and test environment files set 5 min |
+| wait timer | how long a question waits | `CONEXUS_BUILDER_QUESTION_WAIT_MS` in the Hub's typed loader (`apps/hub/src/platform/config.ts`), default 30 min; a local run sets a shorter wait in its own env file |
 | VM idle window | 5 minutes | `CONEXUS_BUILDER_SANDBOX_IDLE_MS` in the same loader, default 5 min |
 | card shown | whether a question is open | the session's `pendingSuspensions` |
 | answer accepted | the open call id | the session's suspension registry, checked by the inbox |
@@ -355,8 +356,8 @@ order; the action is separate):
 
 Rows that go when the census finds no writer left: `BUILDER_RUN_PARKED_EXPIRED`,
 `BUILDER_SUSPENSION_NOT_FOUND`, `BUILDER_PARKED_DISCARD_FAILED`, `PARKED_CALL_NOT_FOUND`,
-`BUILDER_ANSWER_UNAVAILABLE`, `BUILDER_SESSION_NOT_READY`, and the events
-`BUILDER_PARKED_SESSION_EVICTED` and `BUILDER_RUN_TIMING`.
+`BUILDER_ANSWER_UNAVAILABLE`, `BUILDER_SESSION_NOT_READY`, and the event
+`BUILDER_PARKED_SESSION_EVICTED`. The event `BUILDER_RUN_TIMING` stays: the eval reads it.
 
 **The census in CI.** `scripts/census-builder-run.mjs` runs in the quick group of
 `.github/workflows/verify.yml`. It compares each count with `contracts/technical/census-builder-run.json`
@@ -381,8 +382,8 @@ test that fails when a Mastra upgrade no longer leaves the `agentic-loop` regist
 conversation owner check stays in the preHandler.
 
 **Configuration required**:
-- `CONEXUS_BUILDER_QUESTION_WAIT_MS`: how long a question waits. Default 30 minutes; 5 minutes in the
-  local and test environment files.
+- `CONEXUS_BUILDER_QUESTION_WAIT_MS`: how long a question waits. Default 30 minutes; a local run sets
+  a shorter wait in its own env file.
 - `CONEXUS_BUILDER_SANDBOX_IDLE_MS`: the VM idle window. Default 5 minutes.
 
 Spec 0008 sorts both as installation settings with editor `operator`. Its registry is slice 1 of

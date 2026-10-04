@@ -4,7 +4,7 @@ import type { ApplicationCheckRun } from '../application-artifact-runtime.js'
 import type { ConexusGit } from '../conexus-git.js'
 import type { CandidateOperationPorts } from '../run-operation.js'
 import type { EventLog } from '../../platform/logger.js'
-import type { AgentControllerEvent } from '@mastra/core/agent-controller'
+import type { AgentController, AgentControllerEvent } from '@mastra/core/agent-controller'
 
 /** What a run needs of its conversation's sandbox; the E2B one in production, a fake in tests. */
 export type RunSandbox = Readonly<{
@@ -65,6 +65,9 @@ export type BuilderRunPorts = Readonly<{
 }>
 
 /** How the agent's step ended. */
+/** The Mastra session of one conversation, as the AgentController creates it. */
+export type ControllerSession = Awaited<ReturnType<AgentController['createSession']>>
+
 /** How an agent step ended; an `error` end is thrown as its failure instead. */
 export type SendableAgentEndReason = Exclude<Extract<AgentControllerEvent, { type: 'agent_end' }>['reason'], 'error' | undefined>
 export type AgentTurn = Readonly<{ reason: SendableAgentEndReason; userMessageId: string | undefined }>
@@ -94,7 +97,7 @@ export type StopReason = 'USER_CANCELLED' | 'HUB_STOPPING'
 /** Every way a wait ends. A fifth kind is a compile error in the run's switch. */
 export type WaitEnd =
   | Readonly<{ kind: 'ANSWER'; toolCallId: string; resumeData: unknown }>
-  | Readonly<{ kind: 'MESSAGE'; content: string; idempotencyKey: string }>
+  | Readonly<{ kind: 'MESSAGE'; content: string }>
   | Readonly<{ kind: 'EXPIRED' }>
   | Readonly<{ kind: 'STOPPED'; reason: StopReason }>
 

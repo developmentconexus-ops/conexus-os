@@ -5,9 +5,8 @@ import { Failure, logFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
 import type { ConversationSandboxes } from './conversation-sandboxes.js'
 import { projectResourceId } from './conversations.js'
-import type { RunSandbox } from './run/ports.js'
+import type { ControllerSession, RunSandbox } from './run/ports.js'
 
-type ControllerSession = Awaited<ReturnType<AgentController['createSession']>>
 type SessionPorts = Pick<AgentController, 'createSession' | 'deleteSession' | 'getSessionByResource'>
 
 /**

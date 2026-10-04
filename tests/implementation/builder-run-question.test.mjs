@@ -226,10 +226,10 @@ test('an answer that arrives after a wait ended is refused and never ends the ne
   const signal = new AbortController().signal
   inbox.open()
   const first = inbox.wait({ waitMs: 60_000, signal })
-  assert.equal(inbox.message('continue', 'key-1'), 'ACCEPTED')
-  assert.deepEqual(await first, { kind: 'MESSAGE', content: 'continue', idempotencyKey: 'key-1' })
+  assert.equal(inbox.message('continue'), 'ACCEPTED')
+  assert.deepEqual(await first, { kind: 'MESSAGE', content: 'continue' })
   assert.equal(inbox.answer('call-of-the-ended-question', { answer: 'late' }), 'ENDED')
-  assert.equal(inbox.message('another', 'key-2'), 'BUSY')
+  assert.equal(inbox.message('another'), 'BUSY')
   inbox.open()
   assert.deepEqual(await inbox.wait({ waitMs: 20, signal }), { kind: 'EXPIRED' })
 })

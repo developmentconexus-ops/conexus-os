@@ -59,10 +59,9 @@ export const writeStreamedRun = (queryClient: QueryClient, projectId: string, ru
 
 /**
  * The Project's builder session. It is read only while a run is active: every 2 s while one works in
- * another conversation, and while one works here every 15 s with the stream open, or every
- * second, backing off on failures, with it down. A run waiting on an answer is read every 15 s either
- * way: its stream stays open while the Hub keeps its session warm, and is down after a Hub restart or
- * after the 30 minutes the Hub keeps it warm; only an answer or a stop moves the run.
+ * another conversation, and while one works here every 15 s with the stream open, or every second,
+ * backing off on failures, with it down. The stream stays open while the run is open, waiting on the
+ * person included, and the Hub publishes each change of the run into it.
  */
 export const useBuilderSession = (queryClient: QueryClient, projectId: string, conversationId: string, streamOpen: boolean) => useQuery({
   queryKey: builderSessionKey(projectId),

@@ -28,6 +28,12 @@ export type ComposerMode =
   | Readonly<{ kind: 'SENDING' }>
   | Readonly<{ kind: 'BLOCKED' }>
 
+// A message goes when nothing runs here, or to continue a run that waits on the person; Stop is one
+// control while a run works here, waiting or not.
+const canSend = (mode: ComposerMode): boolean => mode.kind === 'READY' || (mode.kind === 'WAITING' && !mode.sending)
+const isSending = (mode: ComposerMode): boolean => mode.kind === 'SENDING' || (mode.kind === 'WAITING' && mode.sending)
+const stopOf = (mode: ComposerMode): Readonly<{ stopping: boolean }> | null => (mode.kind === 'RUNNING' || mode.kind === 'WAITING' ? { stopping: mode.stopping } : null)
+
 // `/raciocinio` offers exactly the levels the selected model honors, the ones the slider shows, and
 // none for a model with no reasoning level.
 const commandsFor = (levels: readonly ReasoningLevel[]): readonly ComposerCommand[] => [
@@ -98,9 +104,10 @@ export function BuilderComposer({
     onDraftChange('')
     return true
   }
+  const stop = stopOf(mode)
   const submit = (text: string) => {
     if (runCommand(text)) return
-    if (!(mode.kind === 'READY' || (mode.kind === 'WAITING' && !mode.sending)) || !text.trim()) return
+    if (!canSend(mode) || !text.trim()) return
     setPulse((value) => value + 1)
     onSend(text.trim())
   }
@@ -112,8 +119,7 @@ export function BuilderComposer({
   }
   const onFormSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (mode.kind === 'RUNNING') onStop?.()
-    else submit(draft)
+    submit(draft)
   }
   const level = reasoning ? levelForModel(levels, reasoning) : null
   const placeholderByMode: Readonly<Record<string, string>> = {
@@ -174,8 +180,8 @@ export function BuilderComposer({
               data-listening={dictation.listening || undefined}
               onClick={() => { dictation.toggle(); inputRef.current?.focus() }}
             ><Mic size={17} aria-hidden="true" /></button>}
-            {mode.kind === 'WAITING' && <StopButton stopping={mode.stopping} onStop={onStop} />}
-            <SendButton mode={mode} empty={!draft.trim()} />
+            {stop && <StopButton stopping={stop.stopping} onStop={onStop} />}
+            {mode.kind !== 'RUNNING' && <SendButton mode={mode} empty={!draft.trim()} />}
           </div>
         </ComposerActions>
       </ComposerBox>
@@ -198,7 +204,6 @@ export function BuilderComposer({
   </Composer>
 }
 
-// While the run waits on the person, Send continues it with the message and Stop is its own control.
 function StopButton({ stopping, onStop }: Readonly<{ stopping: boolean; onStop: (() => void) | undefined }>) {
   return <button type="button" className="cx-send-button" data-stop aria-label={stopping ? 'Parando' : 'Parar'} disabled={stopping} onClick={onStop}>
     <Square size={13} fill="currentColor" aria-hidden="true" />
@@ -206,14 +211,7 @@ function StopButton({ stopping, onStop }: Readonly<{ stopping: boolean; onStop: 
 }
 
 function SendButton({ mode, empty }: Readonly<{ mode: ComposerMode; empty: boolean }>) {
-  if (mode.kind === 'RUNNING') {
-    return <button type="submit" className="cx-send-button" data-stop aria-label={mode.stopping ? 'Parando' : 'Parar'} disabled={mode.stopping}>
-      <Square size={13} fill="currentColor" aria-hidden="true" />
-    </button>
-  }
-  const sending = mode.kind === 'SENDING' || (mode.kind === 'WAITING' && mode.sending)
-  const open = mode.kind === 'READY' || (mode.kind === 'WAITING' && !mode.sending)
-  return <button type="submit" className="cx-send-button" aria-label={sending ? 'Enviando' : 'Enviar'} disabled={!open || empty}>
+  return <button type="submit" className="cx-send-button" aria-label={isSending(mode) ? 'Enviando' : 'Enviar'} disabled={!canSend(mode) || empty}>
     <ArrowUp size={17} aria-hidden="true" />
   </button>
 }

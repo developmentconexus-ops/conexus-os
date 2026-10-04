@@ -56,7 +56,6 @@ export const FAILURE_TEXT = {
   'CONVERSATION_CONFLICT': 'Esse identificador de conversa já está em uso.',
   'BUILDER_BUSY': 'O modelo só muda quando o Builder está parado.',
   'BUILDER_RUN_STOP_REFUSED': 'Uma execução só para pelo botão de parar.',
-  'BUILDER_SESSION_NOT_READY': 'O Builder ainda está preparando esta conversa. Tente novamente mais tarde.',
   'TOOL_ANSWER_ALREADY_GIVEN': 'Esta pergunta já foi respondida.',
   'QUESTION_ENDED': 'Esta pergunta já foi encerrada. A resposta pode ir na próxima mensagem.',
   'APPLICATION_ACCESS_MANAGE_REQUIRED': 'Você não tem permissão para gerenciar quem acessa este aplicativo. Peça a quem administra o Conexus.',

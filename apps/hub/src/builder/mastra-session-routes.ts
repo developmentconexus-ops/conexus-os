@@ -11,6 +11,7 @@ import { Failure, failureRow, logFailure, toFailure } from '../platform/failure.
 import { logger } from '../platform/logger.js'
 import { isExactOrigin } from '../platform/origin.js'
 import type { LiveConversations } from './conversation.js'
+import type { ControllerSession } from './run/ports.js'
 import type { AnswerOutcome } from './run/question.js'
 
 type ServerRoute = typeof SERVER_ROUTES[number]
@@ -178,8 +179,6 @@ export const mountValidationFailure = (): Readonly<{ status: number; body: unkno
 /** Mastra's adapter logs every 5xx handler throw itself; `failureRoute` already logged it once, with the cause. */
 export const mountLogFilter = ({ message }: Readonly<{ message: string }>): boolean => message !== 'Error calling handler'
 
-type BuilderSession = Awaited<ReturnType<AgentController['createSession']>>
-
 const STREAM_ROUTE = sessionRoute('GET', '/stream')
 
 // Mastra's stream stays open, and silent, when the controller deletes the session it follows, which
@@ -209,7 +208,7 @@ const closableStream = (served: ReadableStream<unknown>, follow: (close: () => v
   })
 }
 
-const followedRoute = (route: ServerRoute, controller: AgentController, following: WeakMap<BuilderSession, Set<() => void>>): ServerRoute =>
+const followedRoute = (route: ServerRoute, controller: AgentController, following: WeakMap<ControllerSession, Set<() => void>>): ServerRoute =>
   withHandler(route, async (params) => {
     const served: unknown = await route.handler(params)
     if (!(served instanceof ReadableStream)) return served
@@ -268,7 +267,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
   const route = (request: FastifyRequest): string => `${request.method} ${request.routeOptions.url?.slice(mount.prefix.length) ?? ''}`
   // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
   await app.register(async (scope) => {
-    const following = new WeakMap<BuilderSession, Set<() => void>>()
+    const following = new WeakMap<ControllerSession, Set<() => void>>()
     const unwatch = mount.controller.onSessionDeleted((session) => {
       for (const close of [...following.get(session) ?? []]) close()
     })
@@ -373,7 +372,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
 // A conversation's session reads its thread's settings again on every request, so the model a run
 // changed on the thread is what the browser sees and changes, and its observational-memory progress
 // from Mastra's own record.
-const bindConversationSession = async (controller: AgentController, conversations: GuardedMount['conversations'], projectId: string, conversationId: string): Promise<BuilderSession> => {
+const bindConversationSession = async (controller: AgentController, conversations: GuardedMount['conversations'], projectId: string, conversationId: string): Promise<ControllerSession> => {
   const session = await conversations.open({ projectId, conversationId })
   await session.thread.loadMetadata()
   await controller.loadOMProgress(session)

@@ -27,7 +27,7 @@ import { LensPreview } from './lens-preview'
 import { PendingCard } from './pending-card'
 import { previewWait } from './preview-wait'
 import { ResultCard, showsResultCard } from './result-card'
-import { clockLabel, isActive, isWaiting, statusLine, viewRun } from './run-state'
+import { clockLabel, isActive, isWaiting, statusLine, viewRun, waitingOn } from './run-state'
 import { usePreview } from './use-preview'
 import { WorkingState } from './working-state'
 import { FailureNotice } from '../../../app/failure-state'
@@ -148,8 +148,8 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const shownMemory = runHere && isActive(runHere) && runtime.memory ? runtime.memory : sessionModel.memory
   // A card is drawn only for a call the run's live session waits on, as the Hub says; a card the
   // thread kept from an earlier run, or from a Hub that stopped, is never one.
-  const waitingOn = runHere && isWaiting(runHere) ? runHere.pendingCalls ?? [] : []
-  const pending = waitingOn.flatMap((toolCallId) => transcript.calls[toolCallId] ?? [])
+  const waitsOn = waitingOn(runHere)
+  const pending = waitsOn.flatMap((toolCallId) => transcript.calls[toolCallId] ?? [])
   const openEntries = [...transcript.entries, ...pending]
 
   // The message this page sent waits for the thread to show it back. Once its run settled and the
@@ -231,7 +231,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
 
   const stopping = cancel.isPending || runHere?.cancellationRequested === true
   const composerMode: ComposerMode = runHere && isActive(runHere)
-    ? (isWaiting(runHere) ? { kind: 'WAITING', stopping, sending: send.isPending } : { kind: 'RUNNING', stopping })
+    ? (waitsHere ? { kind: 'WAITING', stopping, sending: send.isPending } : { kind: 'RUNNING', stopping })
     : isActive(run) ? { kind: 'BUSY_ELSEWHERE' }
       : send.isPending ? { kind: 'SENDING' }
         : modelReady ? { kind: 'READY' }
@@ -328,7 +328,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
                     persistedRequests={persisted}
                     runs={conversationRuns}
                     working={Boolean(runHere && isActive(runHere) && runHere.phase === 'AGENT')}
-                    waitingOn={waitingOn}
+                    waitingOn={waitsOn}
                     model={offeredModels.find((entry) => entry.id === sessionModel.modelId) ?? null}
                     {...(runHere && isActive(runHere) ? {
                       renderPrompt: (entry: PromptEntry) => <PendingCard

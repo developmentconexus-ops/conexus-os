@@ -443,7 +443,7 @@ export const startRun = (env: RunEnvironment, row: BuilderRunSummary, request: R
     answer: (toolCallId, resumeData) => run.inbox.answer(toolCallId, resumeData),
     message: (content, idempotencyKey) => {
       if (taken.has(idempotencyKey)) return 'ACCEPTED'
-      const outcome = run.inbox.message(content, idempotencyKey)
+      const outcome = run.inbox.message(content)
       if (outcome === 'ACCEPTED') taken.add(idempotencyKey)
       return outcome
     },

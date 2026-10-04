@@ -18,7 +18,8 @@ const waitingAsk = (question) => {
   }
 }
 
-const openWaitingRun = async (t, { phase, messages, refusal = null, pendingCalls = ['call_waiting'] }) => {
+// The Hub publishes the calls a run waits on only while it waits.
+const openWaitingRun = async (t, { phase, messages, refusal = null, pendingCalls = phase === 'WAITING' ? ['call_waiting'] : [] }) => {
   const accountId = '70000000-0000-4000-8000-000000000321'
   const projectId = '70000000-0000-4000-8000-000000000322'
   const conversationId = 'conversation-waiting'
@@ -169,7 +170,7 @@ test('an open call the thread kept from an earlier run draws no card until this 
   await page.getByText('Preparando', { exact: false }).first().waitFor()
   await page.waitForTimeout(1_000)
   assert.equal(await page.getByTestId('ask-user').count(), 0, 'no card while the run prepares')
-  run.phase = 'WAITING'
+  Object.assign(run, { phase: 'WAITING', pendingCalls: ['call_waiting'] })
   await card(page).getByText(WAITING_QUESTION, { exact: true }).waitFor({ timeout: 8_000 })
 })
 
@@ -178,7 +179,7 @@ test('a page that read the thread before the run asked draws the card once the r
   await page.getByText('Agente trabalhando', { exact: false }).first().waitFor()
   assert.equal(await page.getByTestId('ask-user').count(), 0)
   state.messages[conversationId] = [userMessage('user-1', 'Mude o título'), waitingAsk(WAITING_QUESTION)]
-  run.phase = 'WAITING'
+  Object.assign(run, { phase: 'WAITING', pendingCalls: ['call_waiting'] })
   await card(page).getByText(WAITING_QUESTION, { exact: true }).waitFor({ timeout: 8_000 })
   assert.equal(await page.getByTestId('ask-user').count(), 1)
   assert.equal(await page.getByText('Pensando…').count(), 0)

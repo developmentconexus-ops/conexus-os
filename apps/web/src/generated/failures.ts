@@ -68,7 +68,6 @@ export const FAILURES = {
   'CONVERSATION_CONFLICT': { message: 'Esse identificador de conversa já está em uso.', action: 'NONE' },
   'BUILDER_BUSY': { message: 'O modelo só muda quando o Builder está parado.', action: 'NONE' },
   'BUILDER_RUN_STOP_REFUSED': { message: 'Uma execução só para pelo botão de parar.', action: 'NONE' },
-  'BUILDER_SESSION_NOT_READY': { message: 'O Builder ainda está preparando esta conversa.', action: 'RETRY_LATER' },
   'TOOL_ANSWER_ALREADY_GIVEN': { message: 'Esta pergunta já foi respondida.', action: 'NONE' },
   'QUESTION_ENDED': { message: 'Esta pergunta já foi encerrada. A resposta pode ir na próxima mensagem.', action: 'NONE' },
   'APPLICATION_ACCESS_MANAGE_REQUIRED': { message: 'Você não tem permissão para gerenciar quem acessa este aplicativo.', action: 'ASK_ADMIN' },
