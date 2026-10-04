@@ -62,7 +62,7 @@ const { heapUsedRatio } = await import(${JSON.stringify(hubModuleUrl('platform/h
 let tick
 globalThis.setInterval = (callback) => { tick = callback; return { unref() {} } }
 const warnings = []
-startHeapWatch((fields, message) => warnings.push({ event: fields.event, ratioAbove08: fields.ratio > 0.8, rssIsNumber: typeof fields.rss === 'number', message }))
+startHeapWatch((fields) => warnings.push({ ratioAbove08: fields.ratio > 0.8, rssIsNumber: typeof fields.rss === 'number' }))
 let hold = []
 const grow = (target) => { while (heapUsedRatio() < target) hold.push(Array.from({ length: 5000 }, (_, i) => ({ i }))) }
 const release = () => { hold = []; globalThis.gc() }
@@ -95,5 +95,5 @@ console.log(JSON.stringify({ counts, warnings }))
   ])
   const dip = run.counts.find(([label]) => label === 'dip into 0.7 to 0.8')
   assert.ok(dip[2] >= 0.7 && dip[2] <= 0.8, `the dip sample sat between 0.7 and 0.8, at ${dip[2]}`)
-  assert.deepEqual(run.warnings, Array(2).fill({ event: 'PROCESS_HEAP_HIGH', ratioAbove08: true, rssIsNumber: true, message: 'PROCESS_HEAP_HIGH' }))
+  assert.deepEqual(run.warnings, Array(2).fill({ ratioAbove08: true, rssIsNumber: true }))
 })

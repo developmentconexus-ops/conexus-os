@@ -54,7 +54,7 @@ const RED = { kind: 'RED_APP', detail: 'typecheck failed:\nboom' }
 test('a red finish goes back to the agent with the check in its words, counted against the budget', async () => {
   const { gate } = gateOver([RED])
   const feedback = await gate.finish()
-  assert.equal(feedback, `Verificação do Conexus: o app não passou (1 de ${GATE_RED_BUDGET}).\ntypecheck failed:\nboom\nCorrija estes problemas e termine de novo: o Conexus verifica o app outra vez quando você terminar.`)
+  assert.equal(feedback, `Verificação do Conexus: o app não passou (1 de ${GATE_RED_BUDGET}).\ntypecheck failed:\nboom\nResolva estes problemas e diga que terminou: o Conexus verifica o app quando você terminar.`)
   assert.equal(gate.gaveUp(), false)
 })
 

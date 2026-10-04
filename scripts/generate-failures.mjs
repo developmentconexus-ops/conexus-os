@@ -15,7 +15,8 @@ export const failureTargets = Object.freeze({
 const CATEGORIES = Object.freeze(['USER', 'SYSTEM', 'THIRD_PARTY'])
 const AUDIENCES = Object.freeze(['operator', 'person', 'person+app'])
 const APP_FALLBACK = 'Não foi possível concluir a operação. A falha foi registrada.'
-const RETRY_WORDS = /tente|novamente|de novo/i
+const IMPERATIVES = ['peça', 'peca', 'escolha', 'conecte', 'entre', 'confira', 'corrija', 'envie', 'tente', 'verifique', 'novamente', 'de novo']
+const COMMAND_WORD = new RegExp(`(?<!\\p{L})(${IMPERATIVES.join('|')})(?!\\p{L})`, 'u')
 
 export const readFailures = (root = repositoryRoot) => {
   const table = JSON.parse(readFileSync(resolve(root, sourcePath), 'utf8'))
@@ -48,7 +49,8 @@ export const failureProblems = ({ actions, failures, events = [] }) => {
     }
     if (typeof row.message !== 'string' || row.message === '') problems.push(`${where} has no message`)
     else {
-      if (RETRY_WORDS.test(row.message)) problems.push(`${where} says "try again" in its message; the RETRY_LATER action is the only way`)
+      const command = COMMAND_WORD.exec(row.message.toLowerCase())?.[1]
+      if (command) problems.push(`${where} says "${command}" in its message; what the person does is the action's sentence, never the message's`)
       if (row.category === 'SYSTEM' && !/registrad/.test(row.message)) problems.push(`${where} is a SYSTEM row whose message does not say the failure was recorded`)
     }
     if (!Object.hasOwn(actions, row.action)) problems.push(`${where} has action ${row.action}`)
@@ -60,7 +62,7 @@ export const failureProblems = ({ actions, failures, events = [] }) => {
 const header = `// GENERATED from ${sourcePath} by scripts/generate-failures.mjs. Do not edit.`
 const quoted = (value) => JSON.stringify(value).replaceAll('"', "'")
 
-export const renderHubFailures = ({ failures }) => [
+const renderHubFailures = ({ failures }) => [
   header,
   '',
   "type FailureCategory = 'USER' | 'SYSTEM' | 'THIRD_PARTY'",
@@ -84,7 +86,7 @@ const renderFailureText = ({ actions, failures }) => [
   '',
 ].join('\n')
 
-export const renderWebFailures = ({ actions, failures }) => [
+const renderWebFailures = ({ actions, failures }) => [
   header,
   '',
   'export const FAILURE_ACTIONS = {',
@@ -149,10 +151,18 @@ const renderAppFailures = (table) => [
 ].join('\n')
 
 /** Every problem in the table and every generated file that is not what the table renders. */
+/** Every generated file as the table renders it, by path. */
+export const renderFailureTargets = (table) => ({
+  [failureTargets.hub]: renderHubFailures(table),
+  [failureTargets.web]: renderWebFailures(table),
+  [failureTargets.app]: renderAppFailures(table),
+  [failureTargets.events]: renderLogEvents(table),
+  [failureTargets.text]: renderFailureText(table),
+})
+
 export const failuresDrift = (table, generated) => {
   const drift = failureProblems(table)
-  const expected = { [failureTargets.hub]: renderHubFailures(table), [failureTargets.web]: renderWebFailures(table), [failureTargets.app]: renderAppFailures(table), [failureTargets.events]: renderLogEvents(table), [failureTargets.text]: renderFailureText(table) }
-  for (const [target, rendered] of Object.entries(expected)) {
+  for (const [target, rendered] of Object.entries(renderFailureTargets(table))) {
     if (generated[target] !== rendered) drift.push(`FAILURES_STALE: ${target} is not generated from ${sourcePath}; run node scripts/generate-failures.mjs`)
   }
   return drift
@@ -173,10 +183,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       process.stderr.write(`${problems.join('\n')}\n`)
       process.exit(1)
     }
-    writeFileSync(resolve(repositoryRoot, failureTargets.hub), renderHubFailures(table))
-    writeFileSync(resolve(repositoryRoot, failureTargets.web), renderWebFailures(table))
-    writeFileSync(resolve(repositoryRoot, failureTargets.app), renderAppFailures(table))
-    writeFileSync(resolve(repositoryRoot, failureTargets.events), renderLogEvents(table))
-    writeFileSync(resolve(repositoryRoot, failureTargets.text), renderFailureText(table))
+    for (const [target, rendered] of Object.entries(renderFailureTargets(table))) writeFileSync(resolve(repositoryRoot, target), rendered)
   }
 }

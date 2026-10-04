@@ -54,7 +54,7 @@ const repairFeedback = (detail: string, redFinishes: number): string => [
   detail,
   redFinishes >= GATE_RED_BUDGET
     ? 'O limite de tentativas acabou. A execução para aqui, e os arquivos ficam nesta conversa.'
-    : 'Corrija estes problemas e termine de novo: o Conexus verifica o app outra vez quando você terminar.',
+    : 'Resolva estes problemas e diga que terminou: o Conexus verifica o app quando você terminar.',
 ].join('\n')
 
 /**

@@ -24,10 +24,10 @@ const createHeapWatch = (onHigh: (ratio: number) => void): ((ratio: number) => v
   }
 }
 
-/** Runs with or without the SDK: the warning needs no backend. The logger is passed in so pino loads after the SDK's hooks. */
-export const startHeapWatch = (warn: (fields: Readonly<{ event: string; ratio: number; rss: number }>, message: string) => void): void => {
+/** Runs with or without the SDK: the warning needs no backend. The log is passed in so pino loads after the SDK's hooks. */
+export const startHeapWatch = (warn: (fields: Readonly<{ ratio: number; rss: number }>) => void): void => {
   const sample = createHeapWatch((ratio) => {
-    warn({ event: 'PROCESS_HEAP_HIGH', ratio: Number(ratio.toFixed(3)), rss: process.memoryUsage().rss }, 'PROCESS_HEAP_HIGH')
+    warn({ ratio: Number(ratio.toFixed(3)), rss: process.memoryUsage().rss })
   })
   setInterval(() => sample(heapUsedRatio()), INTERVAL_MS).unref()
 }

@@ -945,7 +945,7 @@ test("a red check goes back to the agent in the same turn with the failed step's
   assert.deepEqual(run.feedbacks, [[
     'Verificação do Conexus: o app não passou (1 de 3).',
     CHECK_DETAIL,
-    'Corrija estes problemas e termine de novo: o Conexus verifica o app outra vez quando você terminar.',
+    'Resolva estes problemas e diga que terminou: o Conexus verifica o app quando você terminar.',
   ].join('\n')])
   assert.deepEqual(run.checks.map(({ index }) => index), ['<h1>UNIT1</h1>\n', '<h1>repaired</h1>\n'])
   assert.equal(run.events.filter((event) => event === 'turn').length, 1, 'the repair happened inside the one turn')

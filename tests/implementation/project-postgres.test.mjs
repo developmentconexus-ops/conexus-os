@@ -258,4 +258,23 @@ test('real PostgreSQL proves current project.read disclosure and revocation', as
   await query(fresh, 'DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [accountId, workspaceId])
   assert.deepEqual((await read.query('SELECT * FROM project.get_project($1, $2)', [accountId, projectId])).rows, [])
   assert.deepEqual((await read.query('SELECT summary.* FROM project.list_project_summaries($1, $2) summary', [accountId, workspaceId])).rows, [])
+
+  // An installation administrator asking after a Project that never existed gets no row, which the Hub
+  // answers as not found; asking after one whose deletion is under way gets its tombstone.
+  const administratorId = '10000000-0000-4000-8000-000000000083'
+  const deletingProjectId = '30000000-0000-4000-8000-000000000084'
+  const neverExistedId = '30000000-0000-4000-8000-000000000085'
+  await query(fresh, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'p6-admin', 'P6 Admin')", [administratorId])
+  await query(fresh, "INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')", [administratorId])
+  await query(fresh, "INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Deleting Project', $3)", [deletingProjectId, workspaceId, administratorId])
+  assert.deepEqual((await read.query('SELECT * FROM project.get_project($1, $2)', [administratorId, neverExistedId])).rows, [])
+  assert.deepEqual((await read.query('SELECT * FROM project.get_project($1, $2)', [administratorId, deletingProjectId])).rows, [{
+    project_id: deletingProjectId,
+    workspace_id: workspaceId,
+    name: 'Deleting Project',
+    project_revision: '',
+    archived: false,
+    deleting: true,
+  }])
+  assert.deepEqual((await read.query('SELECT * FROM project.get_project($1, $2)', [accountId, deletingProjectId])).rows, [])
 })

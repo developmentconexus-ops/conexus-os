@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { test } from 'node:test'
-import { failureProblems, failureTargets, failuresDrift, readFailures, renderHubFailures, renderWebFailures } from '../../scripts/generate-failures.mjs'
+import { failureProblems, failureTargets, failuresDrift, readFailures, renderFailureTargets } from '../../scripts/generate-failures.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const committed = () => Object.fromEntries(Object.values(failureTargets).map((target) => [target, readFileSync(join(root, target), 'utf8')]))
@@ -15,13 +15,11 @@ test('the failure table and both generated files agree', () => {
   assert.equal(committed()[failureTargets.web].includes("'NOT_FOUND': { message: 'Não encontramos o que você procurou.', action: 'NONE' },"), true)
 })
 
-test('a row added to the table only fails naming both generated files', () => {
+test('a row added to the table fails naming every generated file it reaches, until they are regenerated', () => {
   const added = withRow(readFailures(), {})
-  assert.deepEqual(failuresDrift(added, committed()), [
-    'FAILURES_STALE: apps/hub/src/platform/failures.generated.ts is not generated from contracts/technical/failures.json; run node scripts/generate-failures.mjs',
-    'FAILURES_STALE: apps/web/src/generated/failures.ts is not generated from contracts/technical/failures.json; run node scripts/generate-failures.mjs',
-  ])
-  assert.deepEqual(failuresDrift(added, { ...committed(), [failureTargets.hub]: renderHubFailures(added), [failureTargets.web]: renderWebFailures(added) }), [])
+  const stale = (target) => `FAILURES_STALE: ${target} is not generated from contracts/technical/failures.json; run node scripts/generate-failures.mjs`
+  assert.deepEqual(failuresDrift(added, committed()), [stale(failureTargets.hub), stale(failureTargets.web), stale(failureTargets.text)])
+  assert.deepEqual(failuresDrift(added, renderFailureTargets(added)), [])
 })
 
 test('a SYSTEM row cannot ask the person to retry, and must say it was recorded', () => {
@@ -34,10 +32,19 @@ test('a SYSTEM row cannot ask the person to retry, and must say it was recorded'
   ])
 })
 
-test('a message cannot say "try again"; the RETRY_LATER action is the one way', () => {
+const COMMANDS = [
+  ['Peça ajuda.', 'peça'], ['Peca ajuda.', 'peca'], ['Escolha outro modelo.', 'escolha'], ['Conecte a conta.', 'conecte'], ['Entre na conta.', 'entre'],
+  ['Confira os dados.', 'confira'], ['Corrija o erro.', 'corrija'], ['Envie o pedido.', 'envie'], ['Tente depois.', 'tente'], ['Verifique o e-mail.', 'verifique'],
+  ['Refaça o pedido novamente.', 'novamente'], ['Abra o app de novo.', 'de novo'],
+]
+
+test('a message never tells the person what to do: each command word is refused, and the action carries the sentence', () => {
   const table = readFailures()
-  for (const message of ['Tente de novo.', 'Envie novamente o pedido.', 'Você pode tentar de novo.']) {
-    assert.deepEqual(failureProblems(withRow(table, { message })), ['FAILURES_INVALID: SAMPLE_FAILURE says "try again" in its message; the RETRY_LATER action is the only way'])
+  for (const [message, word] of COMMANDS) {
+    assert.deepEqual(failureProblems(withRow(table, { message })), [`FAILURES_INVALID: SAMPLE_FAILURE says "${word}" in its message; what the person does is the action's sentence, never the message's`], message)
+  }
+  for (const message of ['O app entregue não abriu.', 'Os dados ficam dentre 1 e 5 itens.', 'O pedido não chegou.']) {
+    assert.deepEqual(failureProblems(withRow(table, { message })), [], message)
   }
   assert.deepEqual(failureProblems(withRow(table, { category: 'THIRD_PARTY', status: 503, message: 'O provedor está fora do ar.', action: 'RETRY_LATER' })), [])
 })

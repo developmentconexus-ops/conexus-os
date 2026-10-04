@@ -172,7 +172,7 @@ test('a call resolved in a later message keeps its first place and arguments and
 
 test("the Conexus check's verdict reads as a notice in its own words, without Mastra's scoring frame", async () => {
   const { formatStreamCompletionFeedback } = await import('@mastra/core/loop')
-  const reason = 'Verificação do Conexus: o app não passou (1 de 3).\ntypecheck failed:\napp/src/total.ts:1: TS2322 Type string is not number\nCorrija estes problemas e termine de novo: o Conexus verifica o app outra vez quando você terminar.'
+  const reason = 'Verificação do Conexus: o app não passou (1 de 3).\ntypecheck failed:\napp/src/total.ts:1: TS2322 Type string is not number\nResolva estes problemas e diga que terminou: o Conexus verifica o app quando você terminar.'
   const verdict = { complete: false, totalDuration: 1200, timedOut: false, scorers: [{ scorerId: 'conexus-check', scorerName: 'Verificação do Conexus', score: 0, passed: false, reason }] }
   const stored = (id, maxIterationReached) => ({ id, threadId: 't', role: 'assistant', createdAt: '2026-10-02T14:35:55.000Z', content: {
     format: 2, parts: [{ type: 'text', text: formatStreamCompletionFeedback(verdict, maxIterationReached) }], metadata: { mode: 'stream', completionResult: { passed: false, suppressFeedback: false } },

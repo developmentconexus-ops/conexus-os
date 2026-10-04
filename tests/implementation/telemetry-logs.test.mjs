@@ -38,6 +38,7 @@ test('a 5xx logs its code and the type of its cause, never its text, with the tr
     assert.equal(failure['exception.stacktrace'], undefined)
     assert.equal(JSON.stringify(failure).includes('PLANTED_CAUSE_TEXT'), false, 'the cause text is not in the line')
     assert.match(failure.trace_id, /^[0-9a-f]{32}$/)
+    assert.equal(report.boom[1].traceId, failure.trace_id, 'the answer names the trace its log line is in')
     assert.match(failure.span_id, /^[0-9a-f]{16}$/)
     assert.equal(records.filter((record) => record.msg === 'INTERNAL_UNEXPECTED').length, 1, 'the user failure logs under its own code')
     const inside = records.find((record) => record.msg === 'inside-a-request')

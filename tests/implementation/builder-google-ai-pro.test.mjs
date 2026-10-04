@@ -187,7 +187,7 @@ test('a proxy that never accepts the stored sign-in fails the start and is not k
   const router = await openRouter(t, pool)
   const answer = await generate(router, encodeKey(record('ana@example.com', { unavailableForMs: -1 })))
   assert.equal(answer.status, 503)
-  assert.deepEqual(await answer.json(), { error: { code: 503, message: 'O Google AI Pro não iniciou. Tente novamente.', status: 'UNAVAILABLE' } })
+  assert.deepEqual(await answer.json(), { error: { code: 503, message: 'O Google AI Pro não iniciou.', status: 'UNAVAILABLE' } })
   assert.deepEqual(readdirSync(stateDir), [])
 })
 

@@ -385,7 +385,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       // not wait on the parked runs' warm sessions being let go, which waits on their VMs' pauses.
       const ratio = (runs.heapUsedRatio ?? heapUsedRatio)()
       if (ratio > HEAP_REFUSE_RATIO) {
-        logLine('BUILDER_RUN_REFUSED_HEAP', { ratio: Number(ratio.toFixed(3)) }, 'warn')
+        logLine('BUILDER_RUN_HEAP_PRESSURE', { ratio: Number(ratio.toFixed(3)) }, 'warn')
         void runs.runtime.evictParked().catch(() => undefined)
         throw new Failure('BUILDER_CAPACITY_FULL')
       }

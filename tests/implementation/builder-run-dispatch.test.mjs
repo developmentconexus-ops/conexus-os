@@ -613,7 +613,7 @@ test('near the heap limit a new run is refused before any row exists and the war
   })
   const ask = () => service.createBuilderRun({ accountId: '33333333-3333-4333-8333-333333333333', projectId, idempotencyKey: 'key', content: 'Faça um app', conversationId: 'conv-heap' })
   await assert.rejects(ask(), { message: 'BUILDER_CAPACITY_FULL' })
-  assert.deepEqual({ rows, evictions, warnings }, { rows: [], evictions: ['evict'], warnings: ['BUILDER_RUN_REFUSED_HEAP:0.860'] })
+  assert.deepEqual({ rows, evictions, warnings }, { rows: [], evictions: ['evict'], warnings: ['BUILDER_RUN_HEAP_PRESSURE:0.860'] })
   ratio = 0.85
   assert.equal((await ask()).state, 'QUEUED')
   await service.close()

@@ -24,7 +24,7 @@ const route = (pool: Pick<CliproxyPool, 'acquire'>, persistFor: PersistFor) => a
   try {
     lease = await pool.acquire(key, persistFor(key))
   } catch {
-    return refuse(response, 503, 'UNAVAILABLE', 'O Google AI Pro não iniciou. Tente novamente.')
+    return refuse(response, 503, 'UNAVAILABLE', 'O Google AI Pro não iniciou.')
   }
   response.once('close', lease.release)
   const upstream = new URL(lease.url)
@@ -45,7 +45,7 @@ const route = (pool: Pick<CliproxyPool, 'acquire'>, persistFor: PersistFor) => a
   })
   outgoing.once('error', () => {
     if (response.headersSent) response.destroy()
-    else refuse(response, 502, 'UNAVAILABLE', 'O Google AI Pro não respondeu. Tente novamente.')
+    else refuse(response, 502, 'UNAVAILABLE', 'O Google AI Pro não respondeu.')
   })
   response.once('close', () => { if (!response.writableFinished) outgoing.destroy() })
   request.pipe(outgoing)
