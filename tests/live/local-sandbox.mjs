@@ -56,7 +56,7 @@ const execute = (command, args, { cwd, env }) => new Promise((settle) => {
 /**
  * @param {string} root the host directory that holds one directory per conversation
  * @param {object} workspaceTools the `tools` option of the agent's workspace (the built Hub's `createRunWorkspace(...).getToolsConfig()`)
- * @param {{ readCheckReport: (stdout: string) => object, checkEntryPath: (sha256: string) => string, templateRef: string }} hub the built Hub's reader of the check's report, the path a bundle runs from, and the template pin
+ * @param {{ check: { sha256: string }, readCheckReport: (stdout: string) => object, checkEntryPath: (sha256: string) => string, templateRef: string }} hub the Hub's check bundle, its reader of the report, the path a bundle runs from, and the template pin
  */
 export const localConversationSandboxes = (root, workspaceTools, hub) => {
   const base = resolve(root)
@@ -122,14 +122,14 @@ export const localConversationSandboxes = (root, workspaceTools, hub) => {
       // The Hub's own bundle, as the run placed it by its hash in /opt/conexus, on the real compiler and
       // the Playwright Chromium (the `chromium` on the check's PATH). It runs as this machine's user:
       // there is no root here, so the gate's check runs as the tool caller (the check refuses a gate that is
-// not root), naming this user as the agent and dropping nothing.
-      runCheck: async ({ check, root: tree, out, collect, thumbnail }) => {
+      // not root), naming this user as the agent and dropping nothing.
+      runCheck: async ({ root: tree, out, collect, thumbnail }) => {
         await placeCompiler(vm)
         const bin = join(vm, 'bin')
         mkdirSync(bin, { recursive: true })
         if (!existsSync(join(bin, 'chromium'))) symlinkSync(chromium.executablePath(), join(bin, 'chromium'))
         const ran = await execute(process.execPath, [
-          inside(hub.checkEntryPath(check.sha256)), 'check', '--caller', 'tool', '--root', inside(tree), '--out', inside(out),
+          inside(hub.checkEntryPath(hub.check.sha256)), 'check', '--caller', 'tool', '--root', inside(tree), '--out', inside(out),
           ...(thumbnail ? ['--thumbnail', inside(thumbnail)] : []),
           '--template-ref', hub.templateRef, '--as', `${process.getuid()}:${process.getgid()}`,
         ], { cwd: vm, env: { ...environment, PATH: `${bin}:${process.env.PATH}` } })
