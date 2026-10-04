@@ -116,6 +116,23 @@ test('a boot step that rejects at the top level logs HUB_FATAL and exits non-zer
   assert.doesNotMatch(output, /HUB_TEST_BOOM/)
 })
 
+test('a boot step that fails unexpectedly logs where it failed and what caused it, by type and system code, and never the messages', async () => {
+  const { status, output } = await runFixture('unexpected-boot', `
+const discoverIssuer = async () => {
+  throw new TypeError('fetch failed HUB_TEST_SECRET_URL', { cause: Object.assign(new Error('connect ECONNREFUSED HUB_TEST_SECRET_HOST'), { code: 'ECONNREFUSED' }) })
+}
+const startHub = async () => { await discoverIssuer() }
+await startHub().catch(lifecycle.exitOnFailedStart)
+`)
+  assert.equal(status, 1)
+  const line = JSON.parse(output.split('\n').find((entry) => entry.includes('"msg":"INTERNAL_UNEXPECTED"')))
+  const stack = line['exception.stacktrace']
+  assert.equal(stack.split('\n')[0], 'TypeError')
+  assert.match(stack, /at discoverIssuer \(file:\/\/.*unexpected-boot\.mjs:\d+:\d+\)/)
+  assert.match(stack, /^caused by Error \(ECONNREFUSED\)$/m)
+  assert.doesNotMatch(output, /HUB_TEST_SECRET/)
+})
+
 for (const [code, details] of [['HUB_SCHEMA_BEHIND', "{ details: { versions: '0045' } }"], ['HUB_ALREADY_RUNNING', '']]) {
   test(`a refused start (${code}) exits 78 so a supervisor does not retry it`, async () => {
     const { status, output } = await runFixture(`refused-${code.slice(4, 9)}`, `lifecycle.installFatalHandlers()\nawait Promise.reject(new Failure(${JSON.stringify(code)}${details ? `, ${details}` : ''}))\n`)
