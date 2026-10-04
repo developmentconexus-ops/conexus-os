@@ -28,7 +28,7 @@ function PlanReply({ feedback, onFeedback, sending, refusal, onAnswer, children 
 }
 
 /**
- * The plan submit_plan parked on the person, on playground-ui's Plan parts in pt-BR: the person's
+ * The plan submit_plan waits on the person for, on playground-ui's Plan parts in pt-BR: the person's
  * part on the card, the whole plan in the reader, and one reply in both. The parts' own copy and
  * expand buttons speak English, so the card does without them.
  */

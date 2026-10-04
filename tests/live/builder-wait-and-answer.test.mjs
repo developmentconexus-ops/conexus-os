@@ -7,7 +7,7 @@ const QUESTION = 'Qual número de orçamento podemos usar?'
 const ANSWER = '144118'
 const REPLY = 'Anotei o orçamento 144118 e sigo com o estoque.'
 
-liveFlow({ id: 'builder.park-and-answer', nome: 'Deixar o pedido esperando uma pergunta e responder depois' }, async ({ page, model, hub }) => {
+liveFlow({ id: 'builder.wait-and-answer', nome: 'Deixar o pedido esperando uma pergunta e responder depois' }, async ({ page, model, hub }) => {
   model.script(
     { parts: [{ call: { name: 'ask_user', args: { questions: [{ question: QUESTION }] } } }] },
     { parts: [{ text: REPLY }] },
@@ -38,10 +38,10 @@ liveFlow({ id: 'builder.park-and-answer', nome: 'Deixar o pedido esperando uma p
   await expect(page.locator('.cx-working')).toHaveText('Esperando a sua resposta · Aguardando você')
 
   const waiting = `select state, phase, result_kind from builder.builder_run where request_text = '${REQUEST}'`
-  await expect.poll(() => hub.db(waiting), { timeout: 30_000 }).toEqual([{ state: 'RUNNING', phase: 'PARKED', result_kind: null }])
-  // Past one slow read of the run (15 s with the stream open), the page still follows the parked run's live session.
+  await expect.poll(() => hub.db(waiting), { timeout: 30_000 }).toEqual([{ state: 'RUNNING', phase: 'WAITING', result_kind: null }])
+  // Past one slow read of the run (15 s with the stream open), the page still follows the waiting run's session.
   await page.waitForTimeout(16_000)
-  assert.deepEqual(streams.filter(({ status }) => status === 200).map(({ open }) => open), [true], 'one stream, open while the run is parked')
+  assert.deepEqual(streams.filter(({ status }) => status === 200).map(({ open }) => open), [true], 'one stream, open while the run waits')
 
   await card.getByRole('textbox').fill(ANSWER)
   await card.getByRole('button', { name: 'Enviar resposta' }).click()
@@ -50,7 +50,7 @@ liveFlow({ id: 'builder.park-and-answer', nome: 'Deixar o pedido esperando uma p
   await expect(page.getByTestId('ask-user')).toHaveCount(0)
   await expect.poll(() => hub.db(waiting), { timeout: 30_000 }).toEqual([{ state: 'SUCCEEDED', phase: null, result_kind: 'RESPONSE_ONLY' }])
 
-  assert.equal(streams.filter(({ status }) => status === 200).length, 1, 'the answer reached the page on the stream that followed the park')
+  assert.equal(streams.filter(({ status }) => status === 200).length, 1, 'the answer reached the page on the stream that followed the wait')
   await expect(page.getByRole('combobox', { name: 'Conversa' })).toContainText('Contador simples', { timeout: 30_000 })
 
   assert.equal(model.calls.length, 2)

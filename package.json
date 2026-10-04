@@ -40,6 +40,8 @@
     "builder:template:live": "CONEXUS_E2B_TEMPLATE_LIVE=true node --test --test-concurrency=1 tests/manual/builder-e2b-live.test.mjs",
     "hub:local": "node --env-file=\"${CONEXUS_HUB_ENV:?set CONEXUS_HUB_ENV}\" scripts/build-hub-local.mjs",
     "builder:sandbox:live": "CONEXUS_FACTORY_LIVE=true node --env-file=\"${CONEXUS_HUB_ENV:?set CONEXUS_HUB_ENV}\" --test --test-concurrency=1 tests/manual/builder-sandbox-e2b-live.test.mjs",
+    "builder:question:live": "CONEXUS_FACTORY_LIVE=true node --env-file=\"${CONEXUS_HUB_ENV:?set CONEXUS_HUB_ENV}\" --test --test-concurrency=1 tests/manual/builder-question-e2b-live.test.mjs",
+    "builder:question:heap": "node --test tests/manual/builder-question-heap.test.mjs",
     "builder:composed:live": "CONEXUS_COMPOSED_LIVE=true node --env-file=\"${CONEXUS_HUB_ENV:?set CONEXUS_HUB_ENV}\" tests/implementation/builder-production-composed-live-runner.mjs",
     "builder:eval": "node --test --test-concurrency=1 'tests/manual/builder-eval-!(*.postgres).test.mjs'",
     "builder:eval:postgres": "node --test --test-concurrency=1 'tests/manual/builder-eval-*.postgres.test.mjs'",

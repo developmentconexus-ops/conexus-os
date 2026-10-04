@@ -19,7 +19,7 @@ type SettledOutcome =
 const phaseSteps: Readonly<Record<NonNullable<BuilderRun['phase']>, string>> = {
   PREPARING: 'Preparando o ambiente',
   AGENT: 'Agente trabalhando',
-  PARKED: 'Esperando a sua resposta',
+  WAITING: 'Esperando a sua resposta',
   SOURCE_ADMISSION: 'Aplicando a alteração',
   COMPILING: 'Verificando o app',
   FINALIZING: 'Gerando a prévia',
@@ -28,8 +28,14 @@ const phaseSteps: Readonly<Record<NonNullable<BuilderRun['phase']>, string>> = {
 export const isActive = (run: BuilderRun | null | undefined): run is BuilderRun =>
   run?.state === 'QUEUED' || run?.state === 'RUNNING'
 
-/** A run waiting on the person's answer: its stream stays open for the answer, and no clock runs. */
-export const isParked = (run: BuilderRun | null | undefined): boolean => isActive(run) && run.phase === 'PARKED'
+/** The calls the run waits on the person for, as the Hub says; none unless it waits now. */
+export const waitingOn = (run: BuilderRun | null | undefined): readonly string[] => (isActive(run) ? run.pendingCalls ?? [] : [])
+
+/**
+ * A run waiting on the person: the card, the composer and the clock all read this one signal, while
+ * the status line still names the run's phase.
+ */
+export const isWaiting = (run: BuilderRun | null | undefined): boolean => waitingOn(run).length > 0
 
 const settledOutcome = (run: BuilderRun): SettledOutcome => {
   if (run.state === 'SUCCEEDED') {

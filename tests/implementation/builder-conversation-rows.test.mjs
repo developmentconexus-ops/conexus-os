@@ -36,7 +36,9 @@ const rows = (html) => html.match(/Pergunt(?:ou|ando) a você/g)?.length ?? 0
 const asked = (messages) => mergeCalls(messages).flatMap((message) => message.content.parts.flatMap((part) => part.type === 'tool-invocation' && part.toolInvocation.toolName === 'ask_user'
   ? [[part.toolInvocation.args.questions.map((entry) => entry.question), part.toolInvocation.result.content]] : []))
 const answer = [[['Qual cor?'], 'User answered:\nQual cor?: azul']]
-const render = (props) => renderToStaticMarkup(createElement(BuilderConversation, { entries: [], persistedRequests: [], runs: [], model: null, working: false, ...props }))
+const render = (props) => renderToStaticMarkup(createElement(BuilderConversation, { entries: [], persistedRequests: [], runs: [], model: null, working: false, waitingOn: [], ...props }))
+// What the screen hands the thread while the run waits on every call the transcript kept, as the Hub says.
+const waitingOnAll = (state) => ({ entries: [...state.entries, ...Object.values(state.calls)], waitingOn: Object.keys(state.calls) })
 const card = (prompt) => createElement('p', null, `card ${prompt.toolCallId}`)
 
 test('an ask, its answer and the finish are one "Perguntou a você" row with the question and the answer', () => {
@@ -61,10 +63,10 @@ test('the live turn and the window that later holds it show one row between them
   assert.deepEqual(merged.entries.map((entry) => entry.id), lived.entries.map((entry) => entry.id))
 })
 
-test('while the run is parked on the question there is no row, only the card to answer', () => {
-  const parked = reduce(events.slice(0, events.findIndex((event) => event.type === 'agent_end') + 1).map((event) => ({ type: 'event', event })))
-  assert.deepEqual(parked.entries.flatMap((entry) => entry.kind === 'prompt' ? [[entry.ask, entry.toolCallId, entry.args.questions[0].question]] : []), [['QUESTION', 'q1', 'Qual cor?']])
-  const html = render({ entries: parked.entries, working: true, renderPrompt: card })
+test('while the run waits on the question there is no row, only the card to answer', () => {
+  const suspended = reduce(events.slice(0, events.findIndex((event) => event.type === 'agent_end') + 1).map((event) => ({ type: 'event', event })))
+  assert.deepEqual(Object.values(suspended.calls).map((call) => [call.ask, call.toolCallId, call.args.questions[0].question]), [['QUESTION', 'q1', 'Qual cor?']])
+  const html = render({ ...waitingOnAll(suspended), renderPrompt: card })
   assert.equal(rows(html), 0)
   assert.equal(count(html, 'card q1'), 1)
 })
@@ -75,14 +77,14 @@ test('the card to answer waits until the words above it are all shown, so it is 
   const reduced = globalThis.window
   globalThis.window = { matchMedia: () => ({ matches: false }) }
   try {
-    assert.equal(count(render({ entries: asking.entries, working: true, renderPrompt: card }), 'card q1'), 0)
+    assert.equal(count(render({ ...waitingOnAll(asking), working: true, renderPrompt: card }), 'card q1'), 0)
   } finally { globalThis.window = reduced }
-  assert.equal(count(render({ entries: asking.entries, working: true, renderPrompt: card }), 'card q1'), 1)
+  assert.equal(count(render({ ...waitingOnAll(asking), working: true, renderPrompt: card }), 'card q1'), 1)
 })
 
-test('a parked call whose run is over is a row again, and no card', () => {
-  const parked = reduce(events.slice(0, events.findIndex((event) => event.type === 'agent_end') + 1).map((event) => ({ type: 'event', event })))
-  const html = render({ entries: parked.entries })
+test('a suspended call whose run is over is a row again, and no card', () => {
+  const suspended = reduce(events.slice(0, events.findIndex((event) => event.type === 'agent_end') + 1).map((event) => ({ type: 'event', event })))
+  const html = render({ entries: suspended.entries })
   assert.equal(rows(html), 1)
   assert.equal(count(html, 'card q1'), 0)
 })
@@ -96,11 +98,11 @@ test('a run in its agent step says it is thinking before its first part arrives'
   assert.equal(count(render({ working: true }), 'Pensando…'), 1)
 })
 
-test('the thinking line goes once the run has spoken, and not while it is parked on a question', () => {
+test('the thinking line goes once the run has spoken, and not while it waits on a question', () => {
   const spoke = reduce([start(assistant('live-1', [{ type: 'text', text: 'Vou ver.' }]))])
   assert.equal(count(render({ working: true, entries: spoke.entries }), 'Pensando…'), 0)
   const asking = reduce([{ type: 'event', event: { type: 'tool_suspended', toolCallId: 'q1', toolName: 'ask_user', args: {}, suspendPayload: null } }])
-  assert.equal(count(render({ working: true, entries: asking.entries, renderPrompt: card }), 'Pensando…'), 0)
+  assert.equal(count(render({ working: true, ...waitingOnAll(asking), renderPrompt: card }), 'Pensando…'), 0)
 })
 
 test('a settled thought is one collapsed "Pensou" row, in the history and in the live turn', () => {
@@ -181,4 +183,34 @@ test("the Conexus check's verdict reads as a notice in its own words, without Ma
   const notices = [...html.matchAll(/<div class="builder-turn-notice" role="note">(.*?)<\/div><\/div>/gs)].map(([, inner]) => inner.replace(/<[^>]+>/g, ''))
   const escaped = reason.replaceAll("'", '&#x27;')
   assert.deepEqual(notices, [escaped, escaped])
+})
+
+// The step as Mastra stores it when a call runs beside a question: the sibling stays `call` until the
+// question is answered, and for good when the question ends without an answer.
+const questionStep = (askState) => assistant('step-1', [
+  { type: 'tool-invocation', toolInvocation: { state: 'call', toolCallId: 'sk-1', toolName: 'skill', args: { name: 'conexus-plan-new' } } },
+  { type: 'tool-invocation', toolInvocation: { state: askState, toolCallId: 'ask-1', toolName: 'ask_user', args: { questions: [{ question: 'Qual cor?' }] } } },
+])
+const failedMarks = (html) => count(html, 'Tool call failed') + count(html, 'data-status="error"')
+
+test('a call made beside a waiting question is never drawn as failed', () => {
+  const step = reduce([{ type: 'mergeWindow', messages: [{ ...questionStep('call'), content: { ...questionStep('call').content, metadata: { suspendedTools: { a: { toolCallId: 'ask-1', toolName: 'ask_user', args: {}, suspendPayload: {} } } } } }] }])
+  assert.equal(failedMarks(render({ ...waitingOnAll(step), renderPrompt: card })), 0)
+})
+
+test('a call made beside a question the person ended without an answer is never drawn as failed', () => {
+  const step = reduce([{ type: 'mergeWindow', messages: [questionStep('output-denied')] }])
+  assert.equal(failedMarks(render({ entries: step.entries })), 0)
+})
+
+test('a question a restarted Hub left open, and the call beside it, are never drawn as failed', () => {
+  const step = reduce([{ type: 'mergeWindow', messages: [questionStep('call')] }])
+  const html = render({ entries: step.entries })
+  assert.equal(rows(html), 1)
+  assert.equal(failedMarks(html), 0)
+})
+
+test('an open call with no question in its step, once no run works here, is still drawn as failed', () => {
+  const cut = reduce([{ type: 'mergeWindow', messages: [assistant('step-2', [{ type: 'tool-invocation', toolInvocation: { state: 'call', toolCallId: 'sk-2', toolName: 'skill', args: { name: 'conexus-app' } } }])] }])
+  assert.equal(count(render({ entries: cut.entries }), 'Tool call failed') > 0, true)
 })

@@ -102,7 +102,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
       ])
       return {
         projectId: snapshot.projectId,
-        latestBuilderRun: run ?? null,
+        latestBuilderRun: run ? { ...run, pendingCalls: dependencies.service.pendingCalls(projectId, run.conversationId) } : null,
         latestCodeChangingRun: latestCodeChangingRun ? {
           baseSourceRevision: latestCodeChangingRun.baseSourceRevision,
           resultSourceRevision: latestCodeChangingRun.resultSourceRevision,
@@ -125,12 +125,12 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     const accountId = await signedIn(request, true)
     const idempotencyKey = header(request.headers['idempotency-key'])
     if (!idempotencyKey) throw new Failure('IDEMPOTENCY_KEY_REQUIRED')
-    const run = await dependencies.service.createBuilderRun({
+    const { builderRun, created } = await dependencies.service.sendBuilderMessage({
       accountId, projectId: request.params.projectId,
       conversationId: request.body.conversationId,
       idempotencyKey, content: request.body.content,
     }).catch(unavailableAs('BUILDER_UNAVAILABLE', { projectId: request.params.projectId }))
-    return reply.code(201).send({ builderRun: run })
+    return reply.code(created ? 201 : 200).send({ builderRun })
   })
 
   app.post<{ Params: { projectId: string; builderRunId: string }; Body: Record<string, never> }>('/api/control/projects/:projectId/builder-session/runs/:builderRunId/cancel', {

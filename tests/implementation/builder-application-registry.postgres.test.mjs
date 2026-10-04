@@ -175,7 +175,7 @@ test('a BUILT result that carries a thumbnail settles through the real registry:
   const url = new URL('postgresql://localhost'); url.hostname = config.host; url.port = String(config.port); url.pathname = `/${database}`; url.username = config.user; url.password = config.password
   await runHubMigrations({ connectionString: url.toString() })
   const { createApplicationArtifactStore } = await import(hubModuleUrl('registry/application-artifact-store.js'))
-  const { createBuilderService } = await import(hubModuleUrl('builder/service.js'))
+  const { settleAdmittedSource } = await import(hubModuleUrl('builder/run/admit.js'))
   setup = await connect(config)
   const accountId = randomUUID(); const workspaceId = randomUUID(); const projectId = randomUUID(); const builderRunId = randomUUID()
   const sourceA = 'a'.repeat(40); const sourceB = 'b'.repeat(40); const digest = 'f'.repeat(64)
@@ -196,41 +196,22 @@ test('a BUILT result that carries a thumbnail settles through the real registry:
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d])
   const compiledApplication = { projectId, executionId: builderRunId, sourceRevision: sourceB, templateRef: '537fnzf4c16x9d7oz21k:3331a697-459d-44d8-bcdd-abade6ba1e81', recipeSha256: 'ce2a48f54c08ccdd7641fac8208560963cf43ecdc16bd459a3f333786d1ed4b5', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes, sha256: createHash('sha256').update(bytes).digest('hex') }] }
   const settled = []
-  const run = { builderRunId, projectId, state: 'QUEUED', baseSourceRevision: sourceA, resultSourceRevision: null, resultKind: null, failureCode: null }
-  const service = createBuilderService({
+  await settleAdmittedSource({
     store: {
-      createBuilderRun: async () => run,
-      claimBuilderRun: async () => ({ ...run, state: 'RUNNING' }),
-      setBuilderRunPhase: async () => {},
-      bindBuilderRunMessage: async () => {}, bindBuilderRunSandbox: async () => {}, readConversationSandbox: async () => null, recordConversationSandbox: async () => {},
-      failBuilderRun: async (_id, code) => settled.push(['fail', code]), close: async () => {},
       advanceBuilderRunSource: async () => {},
       settleBuilderRunBuild: async (input) => {
         settled.push(['build-settle', input.failureCode ?? null, Boolean(input.artifactRevisionId)])
         assert.equal((await runtime.query('SELECT builder.settle_builder_run_build($1,$2,$3,$4,$5) AS settled', [input.builderRunId, input.sourceRevision, input.artifactRevisionId ?? null, input.artifactDigest ?? null, input.failureCode ?? null])).rows[0].settled, true)
       },
     },
-    runs: {
-      runtime: {
-        execute: async () => ({
-          projectId, executionId: builderRunId, sandboxId: 'sandbox', baseSourceRevision: sourceA, summary: 'alterado', kind: 'SOURCE_ADMITTED', resultSourceRevision: sourceB,
-          applicationBuild: { kind: 'BUILT', compiledApplication, thumbnail: { mediaType: 'image/png', bytes: png } },
-        }),
-        discardParked: async () => {},
-      },
-      publishRun: async () => {},
-      conversations: { ownerOf: async () => 'PROJECT' },
-      git: { readMain: async () => sourceA, mainContains: async () => false },
-      appendDiagnostic: async (note) => settled.push(['note', note.code]),
-      source: { listSourceTree: async () => { throw new Error('not reached') }, readSourceFile: async () => { throw new Error('not reached') } },
-    },
     applicationArtifacts: {
       retainApplication: (input) => store.retainApplication(runtime, input),
       retainApplicationThumbnail: (input) => store.retainApplicationThumbnail(runtime, input),
     },
-  })
-  await service.createBuilderRun({ accountId, projectId, idempotencyKey: 'key', content: 'altere', conversationId: 'conv-build' })
-  await service.close()
+    applicationServer: undefined,
+    appendDiagnostic: async (note) => settled.push(['note', note.code]),
+    finalizing: async () => {},
+  }, { accountId, projectId, conversationId: 'conv-build', builderRunId }, sourceB, { kind: 'BUILT', compiledApplication, thumbnail: { mediaType: 'image/png', bytes: png } })
 
   assert.deepEqual(settled, [['build-settle', null, true]])
   const stored = await store.getApplicationBySource(runtime, { accountId, projectId, sourceRevision: sourceB })

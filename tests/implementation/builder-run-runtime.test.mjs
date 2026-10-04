@@ -1,359 +1,15 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { createReadStream, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative } from 'node:path'
-import { Readable } from 'node:stream'
+import { dirname, join } from 'node:path'
 import { test } from 'node:test'
-import { createWorkspaceTools, LocalFilesystem, Workspace } from '@mastra/core/workspace'
 import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { Failure } = await import(hubModuleUrl('platform/failure.js'))
-const { logger } = await import(hubModuleUrl('platform/logger.js'))
-
-const endLines = []
-const failureLines = (code) => endLines.filter((line) => line.message === code)
-for (const level of ['info', 'warn', 'error']) {
-  const write = logger[level].bind(logger)
-  logger[level] = (fields, message) => { if (typeof message === 'string') endLines.push({ level, message, fields }); return write(fields, message) }
-}
-
-const built = hubModuleUrl
-const { createBuilderService } = await import(built('builder/service.js'))
-const { createBuilderRunRuntime } = await import(built('builder/run-runtime.js'))
-const { scheduleIdleMachineSweep } = await import(built('builder/idle-machine-sweep.js'))
-const { createConexusGit } = await import(built('builder/conexus-git.js'))
-const { createProjectSourceReads } = await import(built('builder/source.js'))
-const { conexusInstructions } = await import(built('builder/harness/prompt.js'))
-const { RequestContext } = await import('@mastra/core/request-context')
-
-const runId = '11111111-1111-4111-8111-111111111111'
-const projectId = '22222222-2222-4222-8222-222222222222'
-const accountId = '33333333-3333-4333-8333-333333333333'
-const conversationId = '44444444-4444-4444-8444-444444444444'
-const AGENTS_MD = '# Project knowledge\n\nA base app.\n'
-const CONNECTOR_BRIEF_UNBOUND = 'No Conexão is bound to this Project, so it reads no external system. When a request needs data from one, '
-  + 'change no files: name the system, tell the person a Conexão for it can be added in Integrações, and stop.'
-const CONNECTOR_BRIEF_UNAVAILABLE = 'The Conexões bound to this Project could not be read in this run. Do not call `connector_fetch` or `connectors.fetch`; '
-  + 'when the request needs data from an external system, change no files, tell the person it is unavailable right now and that they can ask again later, and stop.'
-const STARTER = [
-  { path: 'AGENTS.md', content: AGENTS_MD },
-  { path: 'app/index.html', content: '<h1>base</h1>\n' },
-]
-const BASE_FILES = ['AGENTS.md', 'app/index.html']
-const MODEL_ACCOUNT = '55555555-5555-4555-8555-555555555555'
-const GIT_ENV = { PATH: process.env.PATH, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@t' }
-const completed = (summary = 'Pronto.') => ({ reason: 'complete', userMessageId: 'user-message', summary })
-const listFiles = (root) => readdirSync(root, { recursive: true, withFileTypes: true })
-  .filter((entry) => entry.isFile()).map((entry) => relative(root, join(entry.parentPath, entry.name))).sort()
-
-const PASSING_REPORT = {
-  ok: true,
-  steps: ['generate', 'typecheck', 'build', 'server', 'boot'].map((step) => ({ step, status: 'passed', durationMs: 1 })),
-  facts: { operations: 0, migrations: 0, jsGzipBytes: 1 },
-}
-const failedReport = (step, problems) => {
-  const order = ['generate', 'typecheck', 'build', 'server', 'boot']
-  const failedAt = order.indexOf(step)
-  return {
-    ok: step === 'boot',
-    steps: order.map((id, index) => index < failedAt ? { step: id, status: 'passed', durationMs: 1 }
-      : index === failedAt ? { step: id, status: 'failed', durationMs: 1, problems }
-        : { step: id, status: 'skipped', reason: `after failed ${step}` }),
-    facts: { operations: 0, migrations: 0, jsGzipBytes: 0 },
-  }
-}
-
-// A run against a real Conexus Git and a sandbox that is a directory on this machine: every path the
-// runtime names under /workspace, /var/lib or /opt lands under the harness's
-// own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run. It is the
-// conversation's one VM: every turn reaches the same directory until `loseVm` replaces it.
-const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate = false, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0, warmParkedMs } = {}) => {
-  endLines.splice(0)
-  const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
-  t.after(() => rmSync(scratch, { recursive: true, force: true }))
-  const vm = join(scratch, 'vm')
-  for (const directory of ['workspace', 'opt/conexus', 'tmp']) mkdirSync(join(vm, directory), { recursive: true })
-  const conexusGit = createConexusGit({ root: join(scratch, 'git'), starter: starterFiles })
-  const base = await conexusGit.ensureRepository(projectId)
-  const bare = join(scratch, 'git', `${projectId}.git`)
-  const inBare = (...args) => spawnSync('git', ['--git-dir', bare, ...args], { encoding: 'utf8', env: GIT_ENV }).stdout.trim()
-  // A commit on top of the base that no run made, for a writer that moves `main` behind the run's back.
-  const outside = () => inBare('commit-tree', `${base}^{tree}`, '-p', base, '-m', 'outside')
-  const moveMain = (revision) => inBare('update-ref', 'refs/heads/main', revision)
-  const git = {
-    ...conexusGit,
-    acceptSnapshot: async (...args) => {
-      await beforeAcceptSnapshot?.()
-      return conexusGit.acceptSnapshot(...args)
-    },
-    fastForwardMain: async (...args) => {
-      await beforeFastForward?.({ moveMain, outside })
-      const moved = await conexusGit.fastForwardMain(...args)
-      await afterFastForward?.()
-      return moved
-    },
-  }
-  const local = (text) => text.replaceAll('/workspace', `${vm}/workspace`).replaceAll('/var/lib/', `${vm}/var/lib/`).replaceAll('/opt/conexus', `${vm}/opt/conexus`)
-
-  const shell = (command, args, cwd) => {
-    const ran = spawnSync(command, args, { cwd, encoding: 'utf8', env: { PATH: process.env.PATH, HOME: scratch, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' } })
-    return { exitCode: ran.status ?? 1, success: ran.status === 0, stdout: ran.stdout ?? '', stderr: ran.stderr ?? '' }
-  }
-  const events = []
-  const calls = []
-  const diagnostics = []
-  const logs = []
-  // The run's BUILDER_RUN_TIMING lines, kept apart from the lines that say what happened.
-  const timings = []
-  // The BUILDER_SANDBOX_EGRESS* lines, and the VM's two recorders: `pending` holds what the
-  // processes would have written since the last poll, and the files are what the Hub reads back.
-  const egressLogs = []
-  const egress = { running: false, installs: 0, starts: 0, pollError: false, pollHangs: false, pending: { tcp: [], dns: [] }, files: new Map() }
-  const egressAppend = (name, rows) => {
-    if (rows.length === 0) return
-    const path = `/var/log/conexus-egress/${name}.jsonl`
-    egress.files.set(path, Buffer.concat([egress.files.get(path) ?? Buffer.alloc(0), Buffer.from(rows.map((row) => `${typeof row === 'string' ? row : JSON.stringify(row)}\n`).join(''))]))
-  }
-  const egressRoot = async (script) => {
-    if (script.includes('--once')) {
-      if (egress.pollHangs) return new Promise(() => {})
-      if (egress.pollError) return { exitCode: 1, success: false, stdout: '', stderr: 'poller failed' }
-      egressAppend('tcp', egress.pending.tcp.splice(0))
-      egressAppend('dns', egress.pending.dns.splice(0))
-      return { exitCode: 0, success: true, stdout: '', stderr: '' }
-    }
-    if (script.includes('setsid')) { egress.starts += 1; egress.running = true; return { exitCode: 0, success: true, stdout: '', stderr: '' } }
-    return { exitCode: egress.running ? 0 : 1, success: egress.running, stdout: '', stderr: '' }
-  }
-  const invocations = []
-  const rootInvocations = []
-  // Each check the Hub ran on a candidate, with the tree it was handed and where `main` stood.
-  const checks = []
-  const agentChecks = []
-  // What the gate told the agent at each "done" that went back to it.
-  const feedbacks = []
-  const paused = []
-  const killed = []
-  const discards = []
-  // What the service read and recorded of the conversation's sandbox.
-  const sandboxRefs = []
-  let recordedSandbox = null
-  // What the run put in its session's request context.
-  const sessionContext = new Map()
-  // What the service recorded of the conversation's session.
-  const sessions = []
-  const checkout = join(vm, 'workspace/repo')
-  const sandbox = {
-    sandboxId: 'sbx-1',
-    workspace: new Workspace({ id: 'run-workspace', filesystem: new LocalFilesystem({ basePath: checkout }) }),
-    pause: async () => { events.push('pause'); paused.push(sandbox.sandboxId) },
-    release: () => { events.push('instance-release') },
-    kill: async () => { events.push('kill'); killed.push(sandbox.sandboxId) },
-    holdOpen: async (onLapse) => { events.push('hold-open'); await onHoldOpen?.(onLapse); return () => { events.push('release') } },
-    start: async () => { events.push('start'); onStart?.(sandbox) },
-    writeFiles: async () => {},
-    runAsRoot: async (script, env) => {
-      if (script.includes('conexus-egress')) return egressRoot(script)
-      events.push(['root', script])
-      rootInvocations.push({ script, env })
-      const mapped = local(script)
-      for (const [, target] of mapped.matchAll(/rm -rf '([^']+)'/g)) assert.ok(target.startsWith(vm), `root removes only under the harness: ${target}`)
-      return shell('sh', ['-c', mapped], vm)
-    },
-    writeRootFile: async (path, bytes) => {
-      if (path.startsWith('/usr/local/lib/conexus-egress/')) { egress.installs += 1; return }
-      if (path.startsWith('/var/log/conexus-egress/')) { egress.files.set(path, Buffer.from(bytes)); return }
-      events.push(['rootFile', path])
-      mkdirSync(dirname(local(path)), { recursive: true })
-      writeFileSync(local(path), corruptSeed && path.endsWith('.bundle') ? Buffer.from('not a bundle') : bytes)
-    },
-    readAgentFileStream: async (path) => Readable.toWeb(createReadStream(local(path))),
-    readAgentFile: async (path) => {
-      if (!path.startsWith('/var/log/conexus-egress/')) return readFileSync(local(path))
-      const held = egress.files.get(path)
-      if (!held) throw new Error(`ENOENT: ${path}`)
-      return held
-    },
-    readAgentFileIfPresent: async (path) => egress.files.get(path) ?? null,
-    executeCommand: async (command, args = [], options = {}) => {
-      const line = [command, ...args].join(' ')
-      onCommand?.(sandbox, line)
-      events.push(line)
-      invocations.push({ argv: [command, ...args], env: options.env })
-      if (line === 'id -un') return { exitCode: 0, success: true, stdout: `${agentUser}\n`, stderr: '' }
-      if (line.startsWith('sh -c kill -KILL -1')) return { exitCode: 0, success: true, stdout: '', stderr: '' }
-      return shell(command, args.map(local), local(options.cwd ?? '/workspace'))
-    },
-    runCheck: async ({ root, out, collect, user }) => {
-      if (user === 'agent') {
-        agentChecks.push({ root, out, collect })
-        return { report: PASSING_REPORT, files: null }
-      }
-      events.push('check')
-      checks.push({ root, out, files: listFiles(local(root)), index: readFileSync(join(local(root), 'app/index.html'), 'utf8'), main: await conexusGit.readMain(projectId) })
-      await onCheck?.(sandbox, checks.length)
-      const reported = typeof report === 'function' ? report(checks.length - 1) : report ?? PASSING_REPORT
-      const files = build ? await build() : [{ path: 'index.html', mediaType: 'text/html', sha256: 'f'.repeat(64), bytes: 'PGh0bWw+' }]
-      return { report: reported, files: reported.ok ? files : null }
-    },
-  }
-  // A write the way the agent makes one: the workspace's write tool, with whatever hooks the run set on it.
-  const writeThroughTool = async (path, content) => {
-    const tools = await createWorkspaceTools(sandbox.workspace)
-    const written = await tools.mastra_workspace_write_file.execute({ path, content, overwrite: true }, {})
-    assert.match(String(written), /^Wrote /, `the write tool wrote ${path}`)
-  }
-  const runtime = createBuilderRunRuntime({
-    openSandbox: (ref) => { events.push(['sandbox', ref.conversationId]); sandboxRefs.push(ref); return sandbox },
-    checkModel: async ({ builderRunId, accountId: payer }) => {
-      events.push(['model-check', builderRunId, payer])
-      if (!modelAccount) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
-    },
-    openSession: async (input) => {
-      events.push(['open', input.conversationId, input.builderRunId, input.workspace.id])
-      if (openError) throw openError
-      input.bindContext({ setRaw: (key, value) => sessionContext.set(key, value) })
-      // The turn as Mastra runs it: each time the agent says it is done the gate answers, and a red
-      // check sends it back to work on the next scripted repair.
-      const drive = async (signal, resume) => {
-        const finish = async () => {
-          const feedback = await input.gate.finish()
-          if (feedback !== null) feedbacks.push(feedback)
-          return feedback
-        }
-        const context = { signal, sandbox, checkout, runCheck: input.runCheck, write: writeThroughTool, bare: inBare, mirror, finish, resume }
-        let ended
-        if (turn) ended = await turn(context)
-        else {
-          writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
-          ended = completed()
-        }
-        if (ended.reason !== 'complete' || skipGate) return ended
-        const queue = [...repairs]
-        for (;;) {
-          if (await finish() === null || input.gate.gaveUp()) return ended
-          await queue.shift()?.(context)
-        }
-      }
-      return {
-        sendTurn: async (_content, signal) => {
-          events.push('turn')
-          return drive(signal)
-        },
-        resumeTurn: async (resume, signal) => {
-          events.push('turn')
-          return drive(signal, resume)
-        },
-        end: async () => { events.push('close'); if (close) await close() },
-        release: async () => { events.push('session-release') },
-      }
-    },
-    git,
-    mirrorDebounceMs,
-    ...(warmParkedMs === undefined ? {} : { warmParkedMs }),
-    // Whether the parked run's session was still live when its open call was settled.
-    discardParked: async () => { discards.push(!events.includes('session-release')) },
-    materializeStarter: async () => { events.push('starter'); await starter?.() },
-    ...(openConnectorRun ? { openConnectorRun } : {}),
-    readProjectName: async () => 'Compras',
-    log: (code, fields = {}) => { if (code === 'BUILDER_RUN_TIMING') timings.push(fields)
-      else (code.startsWith('BUILDER_SANDBOX_EGRESS') ? egressLogs : logs).push([code, ...Object.values(fields)].join(':')) },
-  })
-  const claimed = { builderRunId: runId, projectId, conversationId, state: 'RUNNING', phase: 'PREPARING', baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null }
-  // The one run's row as the database holds it.
-  const row = { running: true, candidate: null, result: null }
-  const store = {
-    createBuilderRun: async (input) => {
-      calls.push(['create'])
-      claimed.baseSourceRevision = await input.readBase()
-      return { ...claimed, state: 'QUEUED', phase: null }
-    },
-    admitSourceRevision: async () => true,
-    claimBuilderRun: async () => claimed,
-    setBuilderRunPhase: async (_id, phase) => { calls.push(['phase', phase]) },
-    recordBuilderRunCandidate: async (_id, revision) => { calls.push(['candidate', revision]); row.candidate = revision },
-    bindBuilderRunMessage: async (_id, messageId) => { calls.push(['message', messageId]) },
-    bindBuilderRunSandbox: async (_id, sandboxId) => { calls.push(['sandbox', sandboxId]) },
-    readConversationSandbox: async () => recordedSandbox,
-    recordConversationSandbox: async ({ providerSandboxId }) => { recordedSandbox = providerSandboxId },
-    settleBuilderRun: async (input) => { calls.push(['settle', input.resultKind]); row.running = false },
-    advanceBuilderRunSource: async (_id, revision) => {
-      if (lostAdvances-- > 0) {
-        calls.push(['advanceLost', revision])
-        throw new Error('Connection terminated unexpectedly')
-      }
-      calls.push(['advance', revision])
-      row.result = revision
-    },
-    settleBuilderRunBuild: async (input) => { calls.push(['settleBuild', input.sourceRevision, input.failureCode ?? null]); row.running = false },
-    readLatestCodeChangingBuilderRun: async () => null,
-    failBuilderRun: async (_id, code) => { calls.push(['fail', code]); row.running = false },
-    interruptBuilderRun: async (_id, reason) => { calls.push(['interrupt', reason]); row.running = false },
-    requestBuilderRunCancellation: async () => ({ ...claimed, cancellationRequested: true }),
-    recordConversationSession: async (input) => { sessions.push(input) },
-    // A run a leg of this Hub works is beating; one with a candidate and no beat is stale.
-    heartbeatBuilderRuns: async (_owner, ids) => { row.beating = ids.includes(runId) },
-    expireParkedBuilderRuns: async () => [],
-    takeOverStaleBuilderRuns: async () => row.running && row.candidate && !row.beating
-      ? [{ builderRunId: runId, projectId, conversationId, started: true, candidateRevision: row.candidate, resultSourceRevision: row.result, previousOwnerId: null }]
-      : [],
-    close: async () => {},
-  }
-  const service = createBuilderService({
-    store,
-    ...(applicationServer ? { applicationServer } : {}),
-    applicationArtifacts: {
-      retainApplication: async ({ compiled }) => ({
-        artifactRevisionId: 'artifact-1', artifactDigest: 'g'.repeat(64),
-        projectId: compiled.projectId, sourceRevision: compiled.sourceRevision,
-        profile: 'REACT_VITE_V2', templateRef: compiled.templateRef, recipeSha256: compiled.recipeSha256,
-        entryPath: 'index.html', files: [],
-      }),
-    },
-    runs: {
-      runtime,
-      git,
-      conversations: {
-        ownerOf: async () => 'PROJECT',
-      },
-      source: createProjectSourceReads({ git }),
-      appendDiagnostic: async (input) => { diagnostics.push({ ...input, from: 'service' }) },
-    },
-  })
-  const start = () => service.createBuilderRun({ accountId, projectId, conversationId, idempotencyKey: 'key', content: 'Mostre UNIT1-nonce' })
-  // The same run row started once more on the same sandbox, as the next run of the conversation would.
-  const again = async () => {
-    await new Promise((wake) => { setTimeout(wake, 20) })
-    Object.assign(row, { running: true, candidate: null, result: null })
-    return start()
-  }
-  // E2B lost the conversation's VM between turns: the next start gets a new one with no checkout.
-  const loseVm = (sandboxId) => {
-    rmSync(checkout, { recursive: true, force: true })
-    sandbox.sandboxId = sandboxId
-  }
-  const main = () => conexusGit.readMain(projectId)
-  const MIRROR = `refs/conexus/conversations/${conversationId}`
-  // The conversation's mirror head, and the files it holds, as the Conexus Git has them.
-  const mirror = () => inBare('rev-parse', '--verify', '--quiet', MIRROR) || null
-  const mirrorFiles = () => inBare('ls-tree', '-r', '--name-only', MIRROR).split('\n').filter(Boolean)
-  // The candidate the run offered, as the Conexus Git holds it under the run's own ref.
-  const result = () => inBare('rev-parse', '--verify', '--quiet', `refs/conexus/runs/${runId}`) || null
-  const commands = () => events.filter((event) => typeof event === 'string')
-  // The run's own ending, or the lease's: a heartbeat for the legs in flight, then a sweep.
-  const settled = async () => {
-    for (let attempt = 0; row.running && attempt < 400; attempt++) {
-      row.beating = false
-      await service.heartbeat()
-      await service.sweep()
-      if (row.running) await new Promise((wake) => { setTimeout(wake, 5) })
-    }
-    return !row.running
-  }
-  return { runtime, runtimeInput: { projectId, accountId, conversationId, executionId: runId, intent: 'Mostre UNIT1-nonce', baseSourceRevision: base }, discards, mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, timings, egress, egressLogs, service, start, main, result, commands, checks, feedbacks, settled, sessionContext, checkout, outside, moveMain, paused, killed, sandboxRefs, loseVm, bare, vm }
-}
+import {
+  endLines, failureLines, runId, projectId, accountId, conversationId, AGENTS_MD, CONNECTOR_BRIEF_UNBOUND, CONNECTOR_BRIEF_UNAVAILABLE, BASE_FILES, GIT_ENV, completed, listFiles, PASSING_REPORT, failedReport, harness, Failure, scheduleIdleMachineSweep, conexusInstructions, RequestContext, STARTER,
+} from './builder-run-harness.mjs'
 
 const admissionCalls = (run) => run.calls.filter(([kind]) => ['candidate', 'advance', 'settleBuild', 'fail', 'interrupt'].includes(kind))
 
@@ -511,7 +167,7 @@ test('a replaced sandbox incarnation fails the run with BUILDER_SANDBOX_INCARNAT
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_SANDBOX_INCARNATION_CHANGED'])
   assert.equal(await run.main(), run.base)
-  assert.deepEqual({ killed: run.killed, paused: run.paused }, { killed: ['sbx-2'], paused: [] }, 'a VM replaced mid-turn is killed, never kept')
+  assert.deepEqual({ killed: run.killed, idled: run.idled }, { killed: ['sbx-2'], idled: [] }, 'a VM replaced mid-turn is killed, never kept')
 })
 
 test('a run holds its sandbox open before its first command', async (t) => {
@@ -565,7 +221,7 @@ test('a terminal keepalive lapse aborts the turn and fails the run for recovery 
   assert.deepEqual(run.calls.filter(([kind]) => ['fail', 'advance', 'settleBuild'].includes(kind)), [['fail', 'BUILDER_SANDBOX_KEEPALIVE_FAILED']])
   assert.deepEqual(run.diagnostics.map(({ code, outcome }) => [code, outcome]), [['BUILDER_SANDBOX_KEEPALIVE_FAILED', 'RUN_NOT_FINISHED']])
   assert.deepEqual(failureLines('BUILDER_SANDBOX_KEEPALIVE_FAILED').map((line) => line.level), ['error'], 'one line, at the run end')
-  assert.deepEqual({ killed: run.killed, paused: run.paused }, { killed: ['sbx-1'], paused: [] }, 'a VM whose keepalive lapsed is killed, never kept')
+  assert.deepEqual({ killed: run.killed, idled: run.idled }, { killed: ['sbx-1'], idled: [] }, 'a VM whose keepalive lapsed is killed, never kept')
 })
 
 test("a check that fails in Conexus fails the run with its code, keeps the files in the mirror and leaves main at the base", async (t) => {
@@ -582,7 +238,7 @@ test("a check that fails in Conexus fails the run with its code, keeps the files
   assert.deepEqual(run.feedbacks, [])
 })
 
-test('an observational-memory failure while closing the session does not discard a candidate whose build passed', async (t) => {
+test('a session whose delete fails does not discard a candidate whose build passed', async (t) => {
   const run = await harness(t, {
     close: async () => { throw new Error('BUILDER_OM_OBSERVATION_FAILED') },
   })
@@ -593,7 +249,7 @@ test('an observational-memory failure while closing the session does not discard
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'advance' || kind === 'settleBuild' || kind === 'fail'), [
     ['advance', result], ['settleBuild', result, null],
   ])
-  assert.ok(endLines.some((line) => line.message === 'BUILDER_SESSION_CLOSE_FAILED'), 'the OM failure is logged, not silenced')
+  assert.ok(endLines.some((line) => line.message === 'BUILDER_SESSION_RELEASE_FAILED'), 'the failure is logged, not silenced')
 })
 
 test('the checkout is seeded from a bundle of the base that root wrote, and holds exactly the base before the agent runs', async (t) => {
@@ -829,10 +485,13 @@ test('a turn that only wrote the plan is a version that holds it, admitted like 
 })
 
 const timingStages = (run) => {
-  assert.deepEqual(run.timings.map((fields) => fields.run), [runId], 'one timing event per run')
-  const { run: _run, ...stages } = run.timings[0]
-  for (const [stage, value] of Object.entries(stages)) assert.ok(Number.isInteger(value) && value >= 0, `${stage} is whole milliseconds`)
-  return Object.keys(stages)
+  assert.deepEqual(run.timings.map((fields) => fields['builder.run_id']), [runId], 'one timing event per run')
+  const stages = Object.entries(run.timings[0]).flatMap(([key, value]) => {
+    const stage = /^builder\.stage\.(\w+)_ms$/.exec(key)?.[1]
+    return stage ? [[stage, value]] : []
+  })
+  for (const [stage, value] of stages) assert.ok(Number.isInteger(value) && value >= 0, `${stage} is whole milliseconds`)
+  return stages.map(([stage]) => stage)
 }
 
 test('each run logs one BUILDER_RUN_TIMING event with the stages it reached, in run order', async (t) => {
@@ -987,27 +646,6 @@ test('a done on a red revision the agent did not change spends a finish and does
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_APP_NOT_FIXED'])
 })
 
-test('a run parked on a question keeps its red finishes for the next leg, which has only the rest of the budget', async (t) => {
-  const run = await harness(t, {
-    report: failedReport('typecheck', CHECK_PROBLEMS),
-    turn: async ({ checkout, finish, resume }) => {
-      if (resume) return completed()
-      writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
-      assert.match(await finish(), /\(1 de 3\)/)
-      return SUSPENDED
-    },
-  })
-  await run.start()
-  await until(() => run.calls.some(([kind, phase]) => kind === 'phase' && phase === 'PARKED') && run.events.includes('pause'), 'the park')
-  assert.equal(run.feedbacks.length, 1)
-  await assert.rejects(run.runtime.execute({
-    ...run.runtimeInput, resume: { toolCallId: 'c1', resumeData: ['Azul'] }, providerSandboxId: 'sbx-1',
-    bindPhysicalSandbox: async () => {}, bindMessage: async () => {}, setPhase: async () => {}, recordCandidate: async () => {}, recordMirror: async () => {},
-  }), { message: 'BUILDER_APP_NOT_FIXED' })
-  assert.deepEqual(run.feedbacks.map((feedback) => /\((\d de 3)\)/.exec(feedback)[1]), ['1 de 3', '2 de 3', '3 de 3'], 'the second leg counted on from one')
-  await run.service.close()
-})
-
 test('a candidate the loop ended without checking is checked when the turn settles, and a refused one leaves the problems for the next turn', async (t) => {
   const run = await harness(t, { report: failedReport('typecheck', CHECK_PROBLEMS), skipGate: true })
   await run.start()
@@ -1039,7 +677,7 @@ test('each check the run makes leaves one line in the Hub log with its steps', a
 })
 
 test('the Hub check is placed at run start, root owned and read only, before the agent runs', async (t) => {
-  const { checkScriptSource } = await import(built('builder/application-check.js'))
+  const { checkScriptSource } = await import(hubModuleUrl('builder/application-check.js'))
   const run = await harness(t)
   await run.start()
   await run.service.close()
@@ -1138,7 +776,7 @@ test('a person with no model account is refused before a sandbox exists', async 
   assert.equal(run.events.some((event) => Array.isArray(event) && event[0] === 'sandbox'), false)
 })
 
-test("a run checks its start model once, names its payer in every turn's context, and keeps the conversation's sandbox however it ends: the agent's processes are killed, then the VM pauses", async (t) => {
+test("a run checks its start model once, names its payer in every turn's context, and keeps the conversation's sandbox however it ends: the agent's processes are killed, then the VM is left its idle window", async (t) => {
   const ok = await harness(t)
   await ok.start()
   await ok.service.close()
@@ -1148,15 +786,14 @@ test("a run checks its start model once, names its payer in every turn's context
   for (const run of [ok, failed]) {
     assert.deepEqual(run.events.filter((event) => Array.isArray(event) && event[0] === 'model-check'), [['model-check', runId, accountId]])
     assert.equal(run.sessionContext.get('conexusBuilderAccountId'), accountId)
-    assert.deepEqual({ paused: run.paused, killed: run.killed }, { paused: ['sbx-1'], killed: [] })
+    assert.deepEqual({ idled: run.idled, killed: run.killed }, { idled: ['sbx-1'], killed: [] })
     const processesKilled = run.events.lastIndexOf('sh -c kill -KILL -1 2>/dev/null; true')
-    assert.ok(run.events.indexOf('turn') < processesKilled && processesKilled < run.events.indexOf('pause'), 'the agent\'s processes die after its turn and before the pause')
-    assert.equal(run.events.filter((event) => event !== 'session-release').at(-1), 'pause', 'the pause is the last step of the run itself; only the held session closes after it')
+    assert.ok(run.events.indexOf('turn') < processesKilled && processesKilled < run.events.indexOf('idle'), 'the agent\'s processes die after its turn and before the idle window starts')
+    assert.equal(run.events.filter((event) => event !== 'session-release').at(-1), 'idle', 'the idle window is the last step of the run itself; only the session closes after it')
   }
 })
 
 test('a run deletes the session it opened, once, after the agent and its admission, whether it completed, failed, threw or aborted', async (t) => {
-  const sessionEnds = (run) => run.events.filter((event) => event === 'close' || event === 'session-release')
   const completedRun = await harness(t)
   await completedRun.start()
   await completedRun.service.close()
@@ -1169,11 +806,10 @@ test('a run deletes the session it opened, once, after the agent and its admissi
   const stopped = await harness(t, { turn: () => ({ reason: 'aborted', userMessageId: 'user-message', summary: '' }) })
   await stopped.start()
   await stopped.service.close()
-  assert.deepEqual(sessionEnds(completedRun), ['close', 'session-release'], 'a completed run ends its turn, then deletes the session after the admission')
-  for (const run of [failedTurn, thrown, stopped]) assert.deepEqual(run.events.filter((event) => event === 'session-release'), ['session-release'])
+  for (const run of [completedRun, failedTurn, thrown, stopped]) assert.deepEqual(run.events.filter((event) => event === 'session-release'), ['session-release'])
   for (const run of [completedRun, failedTurn, thrown, stopped]) {
     assert.ok(run.events.indexOf('session-release') > run.events.indexOf('turn'), 'the session outlives the agent turn')
-    assert.equal(run.events.at(-1), 'session-release', 'and is held through the terminal publication, so it closes last, after the VM pauses')
+    assert.equal(run.events.at(-1), 'session-release', 'and is held through the terminal publication, so it closes last, after the VM is let go')
   }
   assert.ok(completedRun.events.indexOf('check') < completedRun.events.indexOf('session-release'), 'the browser stream sees the admission and the check in the session')
 })
@@ -1189,7 +825,7 @@ test('a seed the checkout cannot fetch refuses the pin with BUILDER_SOURCE_BASE_
   assert.match(line.fields['builder.run.evidence'], /^\{"exitCode":128,/)
   assert.deepEqual(run.diagnostics, [], 'a run that never reached the agent has no edits to disown')
   assert.equal(run.events.includes('turn'), false)
-  assert.deepEqual({ killed: run.killed, paused: run.paused }, { killed: ['sbx-1'], paused: [] }, 'a checkout that cannot take the start takes its VM with it')
+  assert.deepEqual({ killed: run.killed, idled: run.idled }, { killed: ['sbx-1'], idled: [] }, 'a checkout that cannot take the start takes its VM with it')
 })
 
 test('a start that fails, or a first command that fails on the VM it started, kills that VM and keeps the run failure', async (t) => {
@@ -1203,7 +839,7 @@ test('a start that fails, or a first command that fails on the VM it started, ki
   await firstCommandFailed.service.close()
   for (const [run, code] of [[startFailed, 'E2B_START_FAILED'], [firstCommandFailed, 'E2B_COMMAND_FAILED']]) {
     assert.deepEqual(run.calls.at(-1)[0], 'fail', code)
-    assert.deepEqual({ killed: run.killed, paused: run.paused }, { killed: ['sbx-1'], paused: [] }, `${code}: the VM the start holds is killed, never paused`)
+    assert.deepEqual({ killed: run.killed, idled: run.idled }, { killed: ['sbx-1'], idled: [] }, `${code}: the VM the start holds is killed, never left to pause`)
     assert.equal(run.calls.some(([kind]) => kind === 'sandbox'), false, `${code}: no incarnation was recorded`)
   }
 })
@@ -1384,6 +1020,15 @@ test('a run whose session cannot open still revokes the scope it minted', async 
   assert.deepEqual([run.calls.at(-1), minted.map((scope) => isMintedScope(scope))], [['fail', 'INTERNAL_UNEXPECTED'], [false]])
 })
 
+test('a run whose session cannot open still lets its VM go and leaves it to pause', async (t) => {
+  const run = await harness(t, { openError: new Error('BUILDER_SESSION_OPEN_FAILED') })
+  await run.start()
+  await run.settled()
+  await run.service.close()
+  const vmEvents = run.events.filter((event) => ['hold-open', 'release', 'idle', 'kill'].includes(event))
+  assert.deepEqual([vmEvents, run.calls.at(-1), run.idled, run.killed], [['hold-open', 'release', 'idle'], ['fail', 'INTERNAL_UNEXPECTED'], ['sbx-1'], []])
+})
+
 const until = async (predicate, what) => {
   for (let attempt = 0; attempt < 400; attempt++) {
     if (predicate()) return
@@ -1534,12 +1179,12 @@ test("the conversation's next turn runs on the same sandbox, resumed by the id t
   await run.again()
   assert.equal(await run.settled(), true)
   await run.service.close()
-  assert.deepEqual(run.sandboxRefs, [{ conversationId, providerSandboxId: null }, { conversationId, providerSandboxId: 'sbx-1' }])
+  assert.deepEqual(run.sandboxRefs, [{ projectId, conversationId }, { projectId, conversationId }])
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'sandbox'), [['sandbox', 'sbx-1'], ['sandbox', 'sbx-1']])
   assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_CHECKOUT:')), [
     `BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-1`, `BUILDER_TURN_CHECKOUT:${runId}:RESUMED:sbx-1`,
   ])
-  assert.deepEqual({ paused: run.paused, killed: run.killed }, { paused: ['sbx-1', 'sbx-1'], killed: [] })
+  assert.deepEqual({ idled: run.idled, killed: run.killed }, { idled: ['sbx-1', 'sbx-1'], killed: [] })
 })
 
 test("a paused sandbox resumes with the previous turn's files, its plan and an edit the mirror never saw, without a new seed", async (t) => {
@@ -1596,7 +1241,6 @@ test('a sandbox E2B lost between turns is rebuilt from the mirror on a new VM, a
     `BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-1`, `BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-2`,
   ])
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'sandbox'), [['sandbox', 'sbx-1'], ['sandbox', 'sbx-2']])
-  assert.deepEqual(run.sandboxRefs.at(-1), { conversationId, providerSandboxId: 'sbx-1' })
   assert.equal(seedWrites(run), 2)
 })
 
@@ -1714,53 +1358,146 @@ test('a failed run logs once through its row, at the row\'s level, with the run 
   assert.equal(prose.logs.some((line) => line.includes('the tool said')), false)
 })
 
-const SUSPENDED = { reason: 'suspended', userMessageId: 'user-message', summary: '' }
-const parkedLife = (run) => run.events.filter((event) => ['pause', 'session-release', 'instance-release', 'kill'].includes(event))
-const evictions = (run) => run.logs.filter((line) => line.startsWith('BUILDER_PARKED_SESSION_EVICTED'))
-const parks = async (run) => {
+const SUSPENDED = { reason: 'suspended', userMessageId: 'user-message', toolCallId: 'c1' }
+const answer = (resumeData) => (service) => service.answerQuestion({ projectId, conversationId, toolCallId: 'c1', resumeData })
+const phases = (run) => run.calls.filter(([kind]) => kind === 'phase').map(([, phase]) => phase)
+
+test('an answer resumes the question on the same session and sandbox, and the run admits its change without preparing again', async (t) => {
+  const run = await harness(t, {
+    answers: [answer(['Azul'])],
+    turn: async ({ checkout, resume }) => {
+      if (!resume) return SUSPENDED
+      assert.deepEqual(resume, { toolCallId: 'c1', resumeData: ['Azul'] })
+      writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
+      return completed()
+    },
+  })
   await run.start()
-  await until(() => run.calls.some(([kind, phase]) => kind === 'phase' && phase === 'PARKED') && run.events.includes('pause'), 'the park')
-}
-
-test('a parked run keeps its session and sandbox instance until the warm limit, then lets both go with the VM left paused', async (t) => {
-  const run = await harness(t, { warmParkedMs: 40, turn: async () => SUSPENDED })
-  await parks(run)
-  assert.deepEqual(parkedLife(run), ['pause'], 'parking pauses the VM and keeps the session and the instance')
-  await until(() => evictions(run).length > 0, 'the warm limit')
-  assert.deepEqual(parkedLife(run), ['pause', 'session-release', 'instance-release'])
-  assert.deepEqual(evictions(run), [`BUILDER_PARKED_SESSION_EVICTED:${runId}:TTL`])
   await run.service.close()
+  assert.deepEqual(phases(run).slice(0, 4), ['PREPARING', 'AGENT', 'WAITING', 'AGENT'])
+  assert.equal(run.events.filter((event) => event === 'start').length, 1, 'the VM started once')
+  assert.equal(run.events.filter((event) => Array.isArray(event) && event[0] === 'open').length, 1, 'one session for the run')
+  assert.deepEqual(run.events.filter((event) => event === 'hold-open' || event === 'release'), ['hold-open', 'release', 'hold-open', 'release'], 'the wait lets the VM go and the answer holds it again')
+  assert.equal(await run.main(), run.result())
+  assert.deepEqual(admissionCalls(run), [['candidate', run.result()], ['advance', run.result()], ['settleBuild', run.result(), null]])
 })
 
-test("the answer's leg takes over what its parked run kept warm, so the warm limit lets nothing go under it", async (t) => {
+test('the red budget counts across a question: the run after the answer has only what is left of it', async (t) => {
+  const run = await harness(t, {
+    report: failedReport('typecheck', CHECK_PROBLEMS),
+    answers: [answer(['Azul'])],
+    turn: async ({ checkout, finish, resume }) => {
+      if (resume) return completed()
+      writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n')
+      assert.match(await finish(), /\(1 de 3\)/)
+      return SUSPENDED
+    },
+  })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.feedbacks.map((feedback) => /\((\d de 3)\)/.exec(feedback)[1]), ['1 de 3', '2 de 3', '3 de 3'])
+  assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_APP_NOT_FIXED'])
+})
+
+test('a message while the question waits ends the question and goes on as a plain turn of the same run', async (t) => {
   let turns = 0
-  const run = await harness(t, { warmParkedMs: 40, turn: async () => (turns++ === 0 ? SUSPENDED : completed()) })
-  await parks(run)
-  await run.again()
-  assert.equal(await run.settled(), true)
-  await new Promise((wake) => { setTimeout(wake, 120) })
-  assert.deepEqual(evictions(run), [])
-  assert.deepEqual(parkedLife(run), ['pause', 'pause', 'session-release'], 'only the answering leg released the session, once its end was published')
+  const run = await harness(t, {
+    answers: [async (service) => {
+      const taken = await service.sendBuilderMessage({ accountId, projectId, conversationId, idempotencyKey: 'second', content: 'Use verde' })
+      assert.equal(taken.created, false)
+      const again = await service.sendBuilderMessage({ accountId, projectId, conversationId, idempotencyKey: 'second', content: 'Use verde' })
+      assert.equal(again.created, false, 'a resent message is taken once')
+    }],
+    turn: async ({ resume }) => {
+      assert.equal(resume, undefined, 'a message is no answer')
+      return turns++ === 0 ? SUSPENDED : completed()
+    },
+  })
+  await run.start()
   await run.service.close()
+  assert.equal(run.events.filter((event) => event === 'turn').length, 2, 'the message is a second SEND on the same session')
+  assert.equal(run.calls.filter(([kind]) => kind === 'create').length, 1, 'no second run')
+  assert.deepEqual(run.calls.at(-1), ['settle', 'RESPONSE_ONLY'])
 })
 
-test('the heap check lets go of every warm parked run at once and answers how many, and a second call finds none', async (t) => {
-  const run = await harness(t, { turn: async () => SUSPENDED })
-  await parks(run)
-  assert.equal(await run.runtime.evictParked(), 1)
-  assert.equal(await run.runtime.evictParked(), 0)
-  assert.deepEqual(parkedLife(run), ['pause', 'session-release', 'instance-release'])
-  assert.deepEqual(evictions(run), [`BUILDER_PARKED_SESSION_EVICTED:${runId}:HEAP`])
+test('a reply sent before the row says WAITING is refused, so a WAITING write that fails loses no message', async (t) => {
+  const offered = []
+  const run = await harness(t, {
+    onWaitingWrite: async (service) => {
+      offered.push(await service.sendBuilderMessage({ accountId, projectId, conversationId, idempotencyKey: 'early', content: 'Use verde' }).then(() => 'ACCEPTED', (error) => error.id))
+      offered.push(service.answerQuestion({ projectId, conversationId, toolCallId: 'c1', resumeData: ['Azul'] }))
+      return 'REFUSE'
+    },
+    persisted: (claimed) => ({ ...claimed, state: 'RUNNING', cancellationRequested: true }),
+    turn: async () => SUSPENDED,
+  })
+  await run.start()
   await run.service.close()
+  assert.deepEqual(offered, ['BUILDER_BUSY', 'ENDED'])
+  assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'], 'a refused phase write is a stop that won')
 })
 
-test('a discard settles the open call first and then lets go of what the parked run kept warm', async (t) => {
-  const run = await harness(t, { turn: async () => SUSPENDED })
-  await parks(run)
-  await run.runtime.discardParked({ projectId, conversationId })
-  assert.deepEqual(run.discards, [true], 'the call was settled on the live session')
-  assert.deepEqual(parkedLife(run), ['pause', 'session-release', 'instance-release'])
-  assert.deepEqual(evictions(run), [`BUILDER_PARKED_SESSION_EVICTED:${runId}:ENDED`])
-  assert.equal(await run.runtime.evictParked(), 0, 'nothing is left warm')
+test('a phase write refused because the row already ended elsewhere writes no ending of its own', async (t) => {
+  const run = await harness(t, {
+    onWaitingWrite: async () => 'REFUSE',
+    persisted: (claimed) => ({ ...claimed, state: 'INTERRUPTED', failureCode: 'HUB_RESTART' }),
+    turn: async () => SUSPENDED,
+  })
+  await run.start()
   await run.service.close()
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'interrupt' || kind === 'fail'), [], 'the ending a takeover wrote stands')
+})
+
+test('a phase write refused by a stop the row records ends the run USER_CANCELLED', async (t) => {
+  const run = await harness(t, {
+    onWaitingWrite: async () => 'REFUSE',
+    persisted: (claimed) => ({ ...claimed, state: 'RUNNING', cancellationRequested: true }),
+    turn: async () => SUSPENDED,
+  })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
+})
+
+test('a question nobody answers ends the run INTERRUPTED with BUILDER_QUESTION_EXPIRED, after the question ends', async (t) => {
+  const run = await harness(t, { questionWaitMs: 20, turn: async () => SUSPENDED })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.at(-1), ['interrupt', 'BUILDER_QUESTION_EXPIRED'])
+  assert.ok(run.events.indexOf('end-questions') < run.events.indexOf('idle'), 'the question ends before the VM is let go')
+  assert.equal(run.events.at(-1), 'session-release')
+})
+
+test('a stop while the question waits ends the run INTERRUPTED USER_CANCELLED, and an answer after it finds the question ended', async (t) => {
+  const run = await harness(t, {
+    answers: [async (service) => { await service.cancelBuilderRun({ accountId, projectId, builderRunId: runId }) }],
+    turn: async () => SUSPENDED,
+  })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
+  assert.ok(run.events.includes('end-questions'))
+  assert.equal(run.service.answerQuestion({ projectId, conversationId, toolCallId: 'c1', resumeData: ['Azul'] }), 'ENDED')
+})
+
+test('a Hub that stops while a question waits ends the run INTERRUPTED HUB_RESTART without waiting out the question', async (t) => {
+  const run = await harness(t, { questionWaitMs: 60 * 60_000, answers: [async (service) => { service.stopRuns() }], turn: async () => SUSPENDED })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.at(-1), ['interrupt', 'HUB_RESTART'])
+})
+
+test('the answer outcomes: a second answer to the same call, a call the session does not hold, and a conversation with no run', async (t) => {
+  const outcomes = []
+  const run = await harness(t, {
+    answers: [async (service) => {
+      const offer = (toolCallId) => service.answerQuestion({ projectId, conversationId, toolCallId, resumeData: ['Azul'] })
+      outcomes.push(offer('other'), offer('c1'), offer('c1'))
+    }],
+    turn: async ({ resume }) => (resume ? completed() : SUSPENDED),
+  })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(outcomes, ['UNKNOWN_CALL', 'ACCEPTED', 'ALREADY_ANSWERED'])
+  assert.equal(run.service.answerQuestion({ projectId, conversationId, toolCallId: 'c1', resumeData: [] }), 'ENDED')
 })

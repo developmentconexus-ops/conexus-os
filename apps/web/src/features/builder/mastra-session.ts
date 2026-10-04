@@ -21,16 +21,13 @@ const clientAt = (apiPrefix: string) => new MastraClient({
 })
 
 // The Builder's own controller, reached through Mastra's Agent Controller routes the Hub mounts
-// under /api/builder. A Project's conversations are the threads of its resource; each is opened as
-// its own session (scope conversation:<id>) bound to its thread, and its runs share one session the
-// Hub keeps across them (scope builder:<conversationId>) on the same thread.
+// under /api/builder. A Project's conversations are the threads of its resource; each is one session
+// (scope conversation:<id>) on its thread, which the browser and the conversation's runs share.
 const builderController = clientAt('/api/builder').getAgentController('conexus-builder')
 const projectResource = (projectId: string): string => `project:${projectId}`
 const projectSessions = (projectId: string) => builderController.session(projectResource(projectId))
 const conversationSession = (projectId: string, conversationId: string) =>
   builderController.session(projectResource(projectId), `conversation:${conversationId}`)
-const runSession = (projectId: string, conversationId: string) =>
-  builderController.session(projectResource(projectId), `builder:${conversationId}`)
 
 const builderThreadMessagesKey = (projectId: string, threadId: string) => ['builder-thread-messages', projectId, threadId] as const
 
@@ -162,8 +159,8 @@ const reduceConversation = (state: ConversationState, action: TranscriptAction):
 
 const startConversation = (conversationId: string): ConversationState => ({ transcript: emptyTranscript(conversationId), runtime: emptyRuntime })
 
-/** The stream of the session a conversation's runs go through, one per conversation on the page. */
-const conversationStreamKey = (projectId: string, conversationId: string): string => `${projectId}/builder:${conversationId}`
+/** The stream of the conversation's session, one per conversation on the page. */
+const conversationStreamKey = (projectId: string, conversationId: string): string => `${projectId}/${conversationId}`
 
 /** Whether the stream of the conversation's runs is open, for the poll to keep its pace. */
 export const useConversationStreamOpen = (projectId: string, conversationId: string): boolean =>
@@ -171,9 +168,8 @@ export const useConversationStreamOpen = (projectId: string, conversationId: str
 
 /**
  * The conversation's thread: the message window read from its Mastra thread, merged with the events
- * of the session its runs go through. The stream is followed whenever the conversation is on screen;
- * before a run made that session the Hub refuses it, and each new `epoch` (a builder-session read)
- * tries again.
+ * of its session. The stream is followed whenever the conversation is on screen, before, during and
+ * after a run; one that dropped is opened again at each new `epoch` (a builder-session read).
  */
 export const useBuilderConversation = (projectId: string, conversationId: string, epoch: number) => {
   const [state, dispatch] = useReducer(reduceConversation, conversationId, startConversation)
@@ -198,7 +194,7 @@ export const useBuilderConversation = (projectId: string, conversationId: string
   const repair = useRef<{ checking: boolean; awaitingSpeech: boolean }>({ checking: false, awaitingSpeech: false })
   useSessionStream({
     key: streamKey,
-    open: () => runSession(projectId, conversationId),
+    open: () => conversationSession(projectId, conversationId),
     // A window merges what it does not hold after what is on screen, so the stream waits for the
     // thread's first read: the history has to be there before anything streamed lands after it.
     epoch: history.data ? epoch : 0,
@@ -221,7 +217,7 @@ export const useBuilderConversation = (projectId: string, conversationId: string
       if (event.type === 'thread_title_updated') rereadConversations()
       if (event.type === 'agent_end') {
         rereadThread()
-        // A first turn that parks is titled on the turn that resumes it, with no thread_title_updated; the Hub's memory
+        // A first turn that asks is titled on the step that resumes it, with no thread_title_updated; the Hub's memory
         // makes that turn wait for the title, so the list read at its end carries it.
         rereadConversations()
         // The run stored memory for the conversation; read it again once the run is truly over.
@@ -246,34 +242,28 @@ export const useBuilderConversation = (projectId: string, conversationId: string
   }
 }
 
-/** What became of an answer, as the Hub's answer route says it: only `RESUMED` took the run back to work. */
-export type AnswerOutcome = 'RESUMED' | 'ALREADY_ANSWERED' | 'NOT_PARKED' | 'UNAVAILABLE'
+/** What became of an answer, as the Hub's answer route says it: only `ACCEPTED` reached the run. */
+export type AnswerOutcome = 'ACCEPTED' | 'ALREADY_ANSWERED' | 'ENDED' | 'UNAVAILABLE'
 const ANSWER_REFUSAL_BY_PROBLEM: Readonly<Partial<Record<string, AnswerOutcome>>> = {
   'urn:conexus:problem:TOOL_ANSWER_ALREADY_GIVEN': 'ALREADY_ANSWERED',
-  'urn:conexus:problem:PARKED_CALL_NOT_FOUND': 'NOT_PARKED',
+  'urn:conexus:problem:QUESTION_ENDED': 'ENDED',
 }
 
 // submit_plan resumes with the tool's own decision: approved lets the run build, rejected sends the
 // person's feedback back to the model.
 type PlanResume = Readonly<Pick<SubmitPlanResumeData, 'action' | 'feedback'>>
-export type PendingReply = Readonly<{ approved: boolean }> | Readonly<{ answers: (string | string[])[] }> | Readonly<{ plan: PlanResume }>
+export type PendingReply = Readonly<{ answers: (string | string[])[] }> | Readonly<{ plan: PlanResume }>
 
-/**
- * Answers a call the run parked on the person. The answer goes to the session the Hub runs the
- * conversation in, and the Hub refuses anything but approve or decline there, so there is no
- * "always allow" to send.
- */
-// A question card resumes the Hub's ask_user with one answer per question, in order: a string (free
+// Answers a call the run waits on the person for, on the conversation's session. A question card resumes the Hub's ask_user with one answer per question, in order: a string (free
 // text, or the option chosen in a single-select question) or a string array (a multi-select one).
 export const answerPendingCall = async (projectId: string, conversationId: string, pending: PromptEntry, answer: PendingReply): Promise<AnswerOutcome> => {
-  const session = runSession(projectId, conversationId)
+  const session = conversationSession(projectId, conversationId)
   try {
-    if ('approved' in answer) await session.approveTool(pending.toolCallId, answer.approved)
-    else if ('plan' in answer) await session.respondToToolSuspension(pending.toolCallId, answer.plan)
+    if ('plan' in answer) await session.respondToToolSuspension(pending.toolCallId, answer.plan)
     // The route takes any JSON (resumeData is unknown there); only the client's type is narrower.
     // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
     else await session.respondToToolSuspension(pending.toolCallId, answer.answers as unknown as string[])
-    return 'RESUMED'
+    return 'ACCEPTED'
   } catch (error) {
     const body = error instanceof MastraClientError && typeof error.body === 'object' && error.body !== null ? error.body : {}
     const type = 'type' in body && typeof body.type === 'string' ? body.type : ''

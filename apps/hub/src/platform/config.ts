@@ -36,6 +36,10 @@ export type HubConfig = Readonly<{
     gitRoot: string
     /** CONEXUS_BUILDER_CONTEXT7_API_KEY_FILE: the installation's Context7 key, optional; the Builder reads Context7 anonymously when unset. */
     context7ApiKeyFile: string | undefined
+    /** CONEXUS_BUILDER_QUESTION_WAIT_MS: how long a Builder question waits for the person before its run ends. */
+    questionWaitMs: number
+    /** CONEXUS_BUILDER_SANDBOX_IDLE_MS: how long a conversation's VM stays on once the Builder stops, before E2B pauses it. */
+    sandboxIdleMs: number
   }> | undefined
   /**
    * The installation's AES-256 credential key and the keys a rotation retired (decrypt-only). It seals every
@@ -97,6 +101,17 @@ const required = (environment: NodeJS.ProcessEnv, name: string): string => {
   const value = environment[name]
   if (!value) throw configMissing(name)
   return value
+}
+
+const DEFAULT_QUESTION_WAIT_MS = 30 * 60_000
+const DEFAULT_SANDBOX_IDLE_MS = 5 * 60_000
+
+const durationMs = (environment: NodeJS.ProcessEnv, name: string, fallback: number): number => {
+  const value = environment[name]
+  if (value === undefined || value === '') return fallback
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed) || parsed < 1) throw configInvalid(name)
+  return parsed
 }
 
 const port = (value: string, name: string): number => {
@@ -162,6 +177,8 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
     e2bTemplateId: required(environment, 'CONEXUS_BUILDER_E2B_TEMPLATE_ID'),
     gitRoot: gitRoot(environment),
     context7ApiKeyFile: environment.CONEXUS_BUILDER_CONTEXT7_API_KEY_FILE || undefined,
+    questionWaitMs: durationMs(environment, 'CONEXUS_BUILDER_QUESTION_WAIT_MS', DEFAULT_QUESTION_WAIT_MS),
+    sandboxIdleMs: durationMs(environment, 'CONEXUS_BUILDER_SANDBOX_IDLE_MS', DEFAULT_SANDBOX_IDLE_MS),
   }
   if (Object.values(values).some(Boolean)) {
     for (const [name, value] of Object.entries({

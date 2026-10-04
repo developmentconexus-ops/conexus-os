@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { emptyRuntime, runtimeReducer } from '../../apps/web/src/features/builder/runtime.ts'
-import { emptyTranscript, localMessageId, promptIsOpenFor, transcriptReducer } from '../../apps/web/src/features/builder/transcript.ts'
+import { emptyTranscript, localMessageId, transcriptReducer } from '../../apps/web/src/features/builder/transcript.ts'
 
 const dbMessage = (id, role, parts, metadata) => ({ id, role, createdAt: new Date(), content: { format: 2, parts, ...(metadata ? { metadata } : {}) } })
 const text = (value) => ({ type: 'text', text: value })
@@ -483,85 +483,49 @@ const askMessage = (tool = 'ask_user') => dbMessage('assistant-ask', 'assistant'
   suspendedTools: { ask: { toolCallId: 'q1', toolName: tool, args: { question: 'Which database?' }, suspendPayload: { question: 'Which database?', options: [{ label: 'Postgres' }] } } },
 })
 
-test('a window message with a suspended ask_user call is followed by a QUESTION prompt', () => {
-  const message = { ...askMessage(), createdAt: new Date('2026-10-01T12:05:00.000Z') }
-  const state = hydrate([message])
-  assert.deepEqual(state.entries.map((entry) => [entry.kind, entry.id]), [['message', 'assistant-ask'], ['prompt', 'prompt-q1']])
-  assert.deepEqual(state.entries[1], {
-    kind: 'prompt', id: 'prompt-q1', ask: 'QUESTION', toolCallId: 'q1', toolName: 'ask_user',
-    args: { question: 'Which database?' }, prompt: { question: 'Which database?', options: [{ label: 'Postgres' }] },
-    raisedAt: '2026-10-01T12:05:00.000Z',
-  })
+const question = { kind: 'prompt', id: 'prompt-q1', ask: 'QUESTION', toolCallId: 'q1', toolName: 'ask_user', args: { question: 'Which database?' }, prompt: { question: 'Which database?', options: [{ label: 'Postgres' }] } }
+
+test('a window message with a suspended ask_user call keeps the call as a QUESTION, beside the message', () => {
+  const state = hydrate([askMessage()])
+  assert.deepEqual([ids(state), state.calls], [['assistant-ask'], { q1: question }])
 })
 
-test('a window that holds the open call after an earlier window held the same message without it draws the card once', () => {
+test('a window that holds the open call after an earlier window held the same message without it keeps the call once', () => {
   const part = toolPart('q1', 'call', { toolName: 'ask_user', args: { question: 'Which database?' } })
   const before = dbMessage('assistant-ask', 'assistant', [part])
   const state = merge(hydrate([before]), [askMessage()])
-  assert.deepEqual(state.entries.map((entry) => [entry.kind, entry.id]), [['message', 'assistant-ask'], ['prompt', 'prompt-q1']])
-  assert.deepEqual(ids(merge(state, [askMessage()])), ['assistant-ask', 'prompt-q1'])
+  assert.deepEqual([ids(state), state.calls], [['assistant-ask'], { q1: question }])
+  assert.equal(merge(state, [askMessage()]).calls, state.calls)
 })
 
-test('the question a resumed run asks in the message its first leg wrote is drawn, and the answered call is not', () => {
+test('the question a resumed run asks in the message its first step wrote is kept beside the answered one', () => {
   const asked = (id, state, extra = {}) => toolPart(id, state, { toolName: 'ask_user', args: { question: id }, ...extra })
   const answered = asked('q1', 'result', { result: { content: 'User answered: a', isError: false } })
-  const firstLeg = dbMessage('assistant-run', 'assistant', [asked('q1', 'call')], { suspendedTools: { a: { toolCallId: 'q1', toolName: 'ask_user', args: { question: 'q1' }, suspendPayload: { question: 'q1' } } } })
-  const secondLeg = dbMessage('assistant-run', 'assistant', [answered, asked('q2', 'call')], { suspendedTools: { b: { toolCallId: 'q2', toolName: 'ask_user', args: { question: 'q2' }, suspendPayload: { question: 'q2' } } } })
-  const state = merge(hydrate([firstLeg]), [secondLeg])
-  assert.deepEqual(state.entries.filter((entry) => entry.kind === 'prompt').map((entry) => entry.id), ['prompt-q2'])
+  const firstStep = dbMessage('assistant-run', 'assistant', [asked('q1', 'call')], { suspendedTools: { a: { toolCallId: 'q1', toolName: 'ask_user', args: { question: 'q1' }, suspendPayload: { question: 'q1' } } } })
+  const secondStep = dbMessage('assistant-run', 'assistant', [answered, asked('q2', 'call')], { suspendedTools: { b: { toolCallId: 'q2', toolName: 'ask_user', args: { question: 'q2' }, suspendPayload: { question: 'q2' } } } })
+  const state = merge(hydrate([firstStep]), [secondStep])
+  assert.deepEqual(Object.keys(state.calls), ['q1', 'q2'])
 })
 
-test('a suspended submit_plan call is a PLAN prompt', () => {
+test('a suspended submit_plan call is a PLAN', () => {
   const state = hydrate([askMessage('submit_plan')])
-  assert.deepEqual(state.entries.map((entry) => [entry.kind, entry.id, entry.ask]), [['message', 'assistant-ask', undefined], ['prompt', 'prompt-q1', 'PLAN']])
+  assert.deepEqual([ids(state), state.calls.q1.ask], [['assistant-ask'], 'PLAN'])
 })
 
-test('merging the same window again adds no second prompt', () => {
-  const once = hydrate([askMessage()])
-  const twice = merge(once, [askMessage()])
-  assert.deepEqual(ids(twice), ['assistant-ask', 'prompt-q1'])
-})
-
-test('a later window where the call has a result part removes the prompt', () => {
+test('a later window where the call has a result part draws the result and keeps the call', () => {
   const asked = hydrate([askMessage()])
   const answered = dbMessage('assistant-ask', 'assistant', [toolPart('q1', 'result', { toolName: 'ask_user', result: { content: 'User answered: Postgres', isError: false } })])
   const next = merge(asked, [answered])
-  assert.deepEqual(next.entries.map((entry) => [entry.kind, entry.id]), [['message', 'assistant-ask']])
-  assert.deepEqual(partsOf(next.entries[0]), answered.content.parts)
+  assert.deepEqual([ids(next), partsOf(next.entries[0]), next.calls], [['assistant-ask'], answered.content.parts, { q1: question }])
 })
 
-test('a window where the parked call was denied by a stop removes its prompt', () => {
-  const asked = hydrate([askMessage()])
-  const denied = dbMessage('assistant-ask', 'assistant', [toolPart('q1', 'output-denied', { toolName: 'ask_user', errorText: 'denied' })])
-  const next = merge(asked, [denied])
-  assert.deepEqual(next.entries.map((entry) => [entry.kind, entry.id]), [['message', 'assistant-ask']])
-  assert.deepEqual(partsOf(next.entries[0]), denied.content.parts)
-})
-
-test('a prompt pushed by tool_suspended is removed by tool_end', () => {
+test('tool_suspended keeps the call, and neither its end nor a second suspension changes it', () => {
   let state = event(emptyTranscript('c1'), { type: 'tool_suspended', toolCallId: 'q1', toolName: 'ask_user', args: {}, suspendPayload: { question: 'x' } })
-  assert.deepEqual(state.entries.filter((entry) => entry.kind === 'prompt').map((entry) => [entry.id, entry.ask, entry.prompt]), [['prompt-q1', 'QUESTION', { question: 'x' }]])
+  const kept = state.calls
+  assert.deepEqual(Object.values(kept).map((call) => [call.id, call.ask, call.prompt]), [['prompt-q1', 'QUESTION', { question: 'x' }]])
   state = event(state, { type: 'tool_end', toolCallId: 'q1', result: 'azul', isError: false })
-  assert.deepEqual(state.entries.filter((entry) => entry.kind === 'prompt'), [])
-})
-
-test('a prompt pushed by tool_suspended is removed by tool_suspension_cancelled', () => {
-  let state = event(emptyTranscript('c1'), { type: 'tool_suspended', toolCallId: 'q1', toolName: 'submit_plan', args: {}, suspendPayload: {} })
-  assert.deepEqual(state.entries.map((entry) => [entry.id, entry.ask]), [['prompt-q1', 'PLAN']])
-  state = event(state, { type: 'tool_suspension_cancelled', toolCallId: 'q1' })
-  assert.deepEqual(state.entries, [])
-})
-
-test('tool_approval_required pushes one APPROVAL prompt per call', () => {
-  const approval = { type: 'tool_approval_required', toolCallId: 'a1', toolName: 'execute_command', args: { command: 'ls' } }
-  const state = event(event(emptyTranscript('c1'), approval), approval)
-  assert.deepEqual(state.entries, [{ kind: 'prompt', id: 'prompt-a1', ask: 'APPROVAL', toolCallId: 'a1', toolName: 'execute_command', args: { command: 'ls' }, prompt: null, raisedAt: null }])
-})
-
-test('resolvePrompt removes the prompt of that call only', () => {
-  let state = event(emptyTranscript('c1'), { type: 'tool_suspended', toolCallId: 'q1', toolName: 'ask_user', args: {}, suspendPayload: {} })
-  state = event(state, { type: 'tool_suspended', toolCallId: 'q2', toolName: 'ask_user', args: {}, suspendPayload: {} })
-  assert.deepEqual(ids(transcriptReducer(state, { type: 'resolvePrompt', toolCallId: 'q1' })), ['prompt-q2'])
+  state = event(state, { type: 'tool_suspended', toolCallId: 'q1', toolName: 'ask_user', args: {}, suspendPayload: { question: 'y' } })
+  assert.equal(state.calls, kept)
 })
 
 test('display_state_changed sets the task list', () => {
@@ -590,18 +554,14 @@ test('dropLocalUser never removes a confirmed message', () => {
 
 test('reset empties the transcript under the new conversation', () => {
   const state = transcriptReducer(hydrate([dbMessage('m1', 'user', [text('a')])]), { type: 'reset', conversationId: 'c2' })
-  assert.deepEqual(state, { conversationId: 'c2', entries: [], tasks: [] })
+  assert.deepEqual(state, { conversationId: 'c2', entries: [], calls: {}, tasks: [] })
 })
 
-test('the recorded ask, answer and finish events reduce to one user bubble, a closed prompt, a finished ask_user part and the final text', () => {
+test('the recorded ask, answer and finish events reduce to one user bubble, the kept call, a finished ask_user part and the final text', () => {
   const recorded = JSON.parse(readFileSync(new URL('./fixtures-builder-ask-events.json', import.meta.url), 'utf8'))
   let state = emptyTranscript('c1')
-  const seenPrompts = []
-  for (const recordedEvent of recorded) {
-    state = event(state, recordedEvent)
-    if (state.entries.some((entry) => entry.kind === 'prompt')) seenPrompts.push(recordedEvent.type)
-  }
-  assert.deepEqual(seenPrompts, ['tool_suspended', 'agent_end', 'agent_start', 'message_start'])
+  for (const recordedEvent of recorded) state = event(state, recordedEvent)
+  assert.deepEqual(Object.keys(state.calls), ['q1'])
 
   assert.deepEqual(state.entries.map((entry) => [entry.kind, entry.id, entry.message.role, entry.streaming, partsOf(entry).length]), [
     ['message', '1575ce24-a216-4f7e-b465-d5e9e818b985', 'user', false, 1],
@@ -694,35 +654,9 @@ test('the previous run\'s tasks are gone the moment the person sends the next me
   assert.deepEqual(state.tasks, [], 'a run that fails before any task state leaves no tasks behind')
 })
 
-test('a card the thread kept from an earlier run is not open for the next run, and the card of the run that asked is', () => {
-  const asking = (id) => dbMessage(id, 'assistant', [toolPart(`call-${id}`, 'call', { toolName: 'ask_user' })], {
-    suspendedTools: { [`call-${id}`]: { toolCallId: `call-${id}`, toolName: 'ask_user', runId: 'mastra', args: {}, suspendPayload: { questions: [] } } },
-  })
-  const dated = (message, iso) => ({ ...message, createdAt: new Date(iso) })
-  const run = (builderRunId, createdAt) => ({ builderRunId, createdAt })
-  const older = run('run-1', '2026-10-01T10:00:00.000Z')
-  const current = run('run-2', '2026-10-01T12:00:00.000Z')
-  const state = hydrate([dated(asking('old'), '2026-10-01T10:05:00.000Z'), dated(asking('new'), '2026-10-01T12:05:00.000Z')])
-  const prompts = state.entries.filter((entry) => entry.kind === 'prompt')
-  assert.deepEqual(prompts.map((entry) => [entry.toolCallId, entry.raisedAt]), [['call-old', '2026-10-01T10:05:00.000Z'], ['call-new', '2026-10-01T12:05:00.000Z']])
-  assert.deepEqual(prompts.map((entry) => promptIsOpenFor(entry, current, [older, current])), [false, true])
-  assert.deepEqual(prompts.map((entry) => promptIsOpenFor(entry, older, [older, current])), [true, false], 'the earlier run, still current, keeps its own card')
-  const live = event(emptyTranscript('c1'), { type: 'tool_suspended', toolCallId: 'c9', toolName: 'ask_user', args: {}, suspendPayload: {} })
-  assert.equal(promptIsOpenFor(live.entries[0], current, [older, current]), true, 'a card raised on the stream being followed belongs to the current run')
-})
-
 test('a call a stop denied draws no card even though its record stays on the message', () => {
   const denied = dbMessage('assistant-denied', 'assistant', [toolPart('q1', 'output-denied', { toolName: 'ask_user' })], {
     suspendedTools: { q1: { toolCallId: 'q1', toolName: 'ask_user', args: {}, suspendPayload: { question: 'Which database?' } } },
   })
   assert.deepEqual(hydrate([denied]).entries.map((entry) => entry.kind), ['message'])
-})
-
-test('a stored prompt slightly older than the only run stays open', () => {
-  const message = { ...dbMessage('assistant-skew', 'assistant', [toolPart('q1', 'call', { toolName: 'ask_user' })], {
-    suspendedTools: { q1: { toolCallId: 'q1', toolName: 'ask_user', args: {}, suspendPayload: { question: 'Which?' } } },
-  }), createdAt: new Date('2026-10-01T11:59:59.000Z') }
-  const only = { builderRunId: 'run-1', createdAt: '2026-10-01T12:00:00.000Z' }
-  const prompt = hydrate([message]).entries.find((entry) => entry.kind === 'prompt')
-  assert.equal(promptIsOpenFor(prompt, only, [only]), true)
 })

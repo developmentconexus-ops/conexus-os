@@ -14,8 +14,9 @@ const EXACT: ReadonlySet<string> = new Set([
   'mastra.metadata.shared',
   'error.type', 'exception.type', 'exception.stacktrace',
   'trace_id', 'span_id', 'level', 'event', 'code',
+  'builder.run_id', 'builder.conversation_id', 'builder.project_id', 'builder.phase', 'builder.ending',
 ])
-const PREFIXES = ['network.', 'gen_ai.usage.', 'conexus.'] as const
+const PREFIXES = ['network.', 'gen_ai.usage.', 'conexus.', 'builder.stage.'] as const
 
 // A stack begins with the error's message; only its frame lines leave.
 const framesOf = (stack: string): string | undefined => {

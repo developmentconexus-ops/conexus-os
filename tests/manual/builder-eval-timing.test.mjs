@@ -55,7 +55,7 @@ test('a run the driver has not seen finish has no after-agent time', () => {
   assert.equal(block.phases.hubStages, null)
 })
 
-const timingRecord = (run, stages) => JSON.stringify({ level: 30, msg: 'BUILDER_RUN_TIMING', run, ...stages })
+const timingRecord = (run, stages) => JSON.stringify({ level: 30, msg: 'BUILDER_RUN_TIMING', 'builder.run_id': run, ...Object.fromEntries(Object.entries(stages).map(([stage, elapsed]) => [`builder.stage.${stage}_ms`, elapsed])) })
 
 test('the Hub timing record parses into milliseconds per stage and ignores other records', () => {
   const stages = { sandbox: 1200, seed: 900, starter: 3100, session: 400, agent: 250_000, pull: 800, admission: 21_000, compile: 9000, publish: 1500 }

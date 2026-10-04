@@ -126,7 +126,7 @@ the [decision register](decisions/index.md#decided-on-2026-10-02-the-order-of-wo
 
 Phase 1 fixes, each with its own behavior test:
 
-- A run parked on a question has an exit, and the answer is checked before the run changes state.
+- A run waiting on a question has an exit (an answer, a message, the configured wait, Stop or a Hub restart, spec 0011), and the answer is checked before the run changes state.
 - One idempotent settle ends every run, and a failed settle write is retried and logged.
 - Every error that reaches a person leaves a log line with a code.
 - The Hub refuses a source bundle above a size cap.

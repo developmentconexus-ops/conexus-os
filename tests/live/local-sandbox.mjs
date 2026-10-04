@@ -7,7 +7,7 @@ import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace
 import { ensureCompilerRoot } from '../implementation/compiler-root.mjs'
 
 // The conversation's VM as a directory on this machine, for the Hub's `ConversationSandboxes` port
-// (apps/hub/src/builder/run-runtime.ts). Ported from the directory-backed fake in
+// (apps/hub/src/builder/conversation-sandboxes.ts). Ported from the directory-backed fake in
 // tests/implementation/builder-run-runtime.test.mjs, but its commands run for real, in a real Hub process.
 const AGENT_USER = 'conexus-agent'
 const CONVERSATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -66,10 +66,7 @@ export const localConversationSandboxes = (root, workspaceTools, readCheckReport
     return join(base, conversationId)
   }
 
-  // As in the E2B pool, a parked run's instance, and so the workspace its live session holds, is kept for the answer.
-  const kept = new Map()
-  const open = ({ conversationId }) => kept.get(conversationId) ?? build(conversationId)
-  const build = (conversationId) => {
+  const open = ({ conversationId, retire }) => {
     const vm = directoryOf(conversationId)
     const local = (text) => text.replace(VM_PATH, (_, folder) => `${vm}/${folder}`)
     const inside = (path) => {
@@ -142,17 +139,8 @@ export const localConversationSandboxes = (root, workspaceTools, readCheckReport
         return { report, files, thumbnail: picture && picture.byteLength > 0 ? { mediaType: 'image/png', bytes: picture } : null }
       },
       holdOpen: async () => () => {},
-      pause: async (parked = false) => {
-        if (parked) kept.set(conversationId, instance)
-        else kept.delete(conversationId)
-      },
-      release: () => {
-        if (kept.get(conversationId) === instance) kept.delete(conversationId)
-      },
-      kill: async () => {
-        kept.delete(conversationId)
-        rmSync(vm, { recursive: true, force: true })
-      },
+      idle: async () => {},
+      kill: () => retire(async () => { rmSync(vm, { recursive: true, force: true }) }),
     })
     return instance
   }
@@ -160,7 +148,6 @@ export const localConversationSandboxes = (root, workspaceTools, readCheckReport
   const remove = (conversationId) => rmSync(directoryOf(conversationId), { recursive: true, force: true })
   return Object.freeze({
     open,
-    destroy: async (conversationIds) => { for (const conversationId of conversationIds) remove(conversationId) },
     // Answers the ids that are gone, as E2B's does: every id this stand-in made, and none it did not.
     killRecorded: async (providerSandboxIds) => providerSandboxIds.filter((providerSandboxId) => {
       if (!providerSandboxId.startsWith('local-')) return false

@@ -194,7 +194,7 @@ node scripts/builder-eval/run.mjs --case scripts/builder-eval/cases/bakeoff/h1.j
 - **Timing block.** `result.timings` holds the identity (case, arm, repetition, model, Hub version, machine
   load), the person's counts and, per Builder run, the block of `timing.mjs`: phases, model against tool
   time, tools, checks until green. It needs `CONEXUS_EVAL_DATABASE_URL`; without it the block is null and
-  says why. `BUILDER_RUN_TIMING` records (`run` and one field per stage) from the Hub log fill `phases.hubStages`.
+  says why. `BUILDER_RUN_TIMING` records (`builder.run_id` and one `builder.stage.<stage>_ms` field per stage) from the Hub log fill `phases.hubStages`.
 - **Outcome.** A bakeoff case is `PASS` when the first Preview matches the oracle, `FAIL` when it does
   not, and `UNGRADED` when no oracle file exists for it.
 

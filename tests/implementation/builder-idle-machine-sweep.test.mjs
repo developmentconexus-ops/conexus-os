@@ -4,7 +4,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { takeHubLogs } from './hub-log-capture.mjs'
 
 const { scheduleIdleMachineSweep } = await import(hubModuleUrl('builder/idle-machine-sweep.js'))
-const { e2bConversationSandboxes } = await import(hubModuleUrl('builder/run-runtime.js'))
+const { e2bConversationSandboxes } = await import(hubModuleUrl('builder/conversation-sandboxes.js'))
 
 const DAY = 86_400_000
 const NOW = Date.UTC(2026, 9, 2)
@@ -26,7 +26,7 @@ const sweepWith = ({ machines, open = [], failKill = [] }) => {
   const log = []
   takeHubLogs()
   const cache = e2bConversationSandboxes({
-    apiKey: 'test-key', templateId: 'conexus:template',
+    apiKey: 'test-key', templateId: 'conexus:template', idleMs: 300_000,
     killProvider: async (id) => {
       if (failKill.includes(id)) throw new Error('E2B_TIMEOUT')
       killed.push(id)
@@ -56,10 +56,10 @@ test('#423 a machine idle exactly 7 days is deleted, and one idle a millisecond 
   assert.deepEqual(killed, ['ivm-7'])
 })
 
-test('#423 the machine of a conversation with a queued, running or parked run is never deleted, however old', async () => {
+test('#423 the machine of a conversation with a queued, running or waiting run is never deleted, however old', async () => {
   const { sweep, killed, log } = sweepWith({
-    machines: [machine('conv-active', 'ivm-active', 30), machine('conv-parked', 'ivm-parked', 30), machine('conv-idle', 'ivm-idle', 30)],
-    open: ['conv-active', 'conv-parked'],
+    machines: [machine('conv-active', 'ivm-active', 30), machine('conv-waiting', 'ivm-waiting', 30), machine('conv-idle', 'ivm-idle', 30)],
+    open: ['conv-active', 'conv-waiting'],
   })
   await sweep()
   assert.deepEqual(killed, ['ivm-idle'])

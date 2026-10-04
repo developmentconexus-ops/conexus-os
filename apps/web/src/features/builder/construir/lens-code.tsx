@@ -54,13 +54,13 @@ export function LensCode({ projectId, sourceRevision }: Readonly<{ projectId: st
     enabled: Boolean(sourceRevision && path),
   })
 
-  if (!sourceRevision) return <p className="cx-lens-empty">O Project ainda não tem código. Ele aparece aqui depois da primeira alteração.</p>
+  if (!sourceRevision) return <p className="cx-lens-empty">O Projeto ainda não tem código. Ele aparece aqui depois da primeira alteração.</p>
   if (tree.isPending) return <div className="cx-lens-split"><Skeleton className="cx-skeleton" /><Skeleton className="cx-skeleton" /></div>
-  if (tree.isError) return <FailureNotice title="Não foi possível ler os arquivos do Project." error={tree.error} onRetry={() => void tree.refetch()} />
+  if (tree.isError) return <FailureNotice title="Não foi possível ler os arquivos do Projeto." error={tree.error} onRetry={() => void tree.refetch()} />
   if (!files.length) return <p className="cx-lens-empty">Esta versão não tem arquivos.</p>
 
   return <div className="cx-lens-split">
-    <nav className="cx-files" aria-label="Arquivos do Project">
+    <nav className="cx-files" aria-label="Arquivos do Projeto">
       <Tree {...(path ? { selectedId: path } : {})} onSelect={setChosenPath}>
         <Branch nodes={nest(tree.data.entries)} open={ancestors(path ?? '')} />
       </Tree>

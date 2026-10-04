@@ -424,10 +424,11 @@ const runBoot = async () => {
       }
       if (!webSocketUrl) return { skipped: ['BOOT_BROWSER_UNAVAILABLE', (spawnError ?? lastError)?.message].filter(Boolean).join(': ') }
       socket = new WebSocket(webSocketUrl)
-      await new Promise((opened, failed) => {
-        socket.addEventListener('open', () => opened(), { once: true })
-        socket.addEventListener('error', () => failed(new Failure('BOOT_BROWSER_UNAVAILABLE')), { once: true })
+      const connected = await new Promise((settle) => {
+        socket.addEventListener('open', () => settle(true), { once: true })
+        socket.addEventListener('error', () => settle(false), { once: true })
       })
+      if (!connected) return { skipped: 'BOOT_BROWSER_UNAVAILABLE: the browser refused its DevTools connection' }
       let nextId = 1
       const pending = new Map()
       const send = (method, params = {}) => new Promise((resolveSend, rejectSend) => {

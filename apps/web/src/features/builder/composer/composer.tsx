@@ -23,14 +23,21 @@ export type ComposerMode =
   | Readonly<{ kind: 'LOADING_MODEL' }>
   | Readonly<{ kind: 'MODEL_ERROR'; message: string }>
   | Readonly<{ kind: 'RUNNING'; stopping: boolean }>
+  | Readonly<{ kind: 'WAITING'; stopping: boolean; sending: boolean }>
   | Readonly<{ kind: 'BUSY_ELSEWHERE' }>
   | Readonly<{ kind: 'SENDING' }>
   | Readonly<{ kind: 'BLOCKED' }>
 
+// A message goes when nothing runs here, or to continue a run that waits on the person; Stop is one
+// control while a run works here, waiting or not.
+const canSend = (mode: ComposerMode): boolean => mode.kind === 'READY' || (mode.kind === 'WAITING' && !mode.sending)
+const isSending = (mode: ComposerMode): boolean => mode.kind === 'SENDING' || (mode.kind === 'WAITING' && mode.sending)
+const stopOf = (mode: ComposerMode): Readonly<{ stopping: boolean }> | null => (mode.kind === 'RUNNING' || mode.kind === 'WAITING' ? { stopping: mode.stopping } : null)
+
 // `/raciocinio` offers exactly the levels the selected model honors, the ones the slider shows, and
 // none for a model with no reasoning level.
 const commandsFor = (levels: readonly ReasoningLevel[]): readonly ComposerCommand[] => [
-  { name: 'nova', description: 'Abrir uma conversa nova neste Project' },
+  { name: 'nova', description: 'Abrir uma conversa nova neste Projeto' },
   ...levels.length ? [{ name: 'raciocinio', description: 'Mudar o nível de raciocínio', options: levels.map((level) => ({ value: level, label: reasoningLabels[level] })) }] : [],
 ]
 
@@ -78,7 +85,7 @@ export function BuilderComposer({
   const [pulse, setPulse] = useState(0)
   const [pickerOpen, setPickerOpen] = useState(false)
   // The Hub refuses a model change while a turn is active, so the control waits for it to end.
-  const modelLocked = working || mode.kind === 'SENDING'
+  const modelLocked = working || mode.kind === 'SENDING' || mode.kind === 'WAITING'
   const dictation = useDictation(
     (text) => onDraftChange(draft.trim() ? `${draft.trimEnd()} ${text}` : text),
     setInterim,
@@ -97,9 +104,10 @@ export function BuilderComposer({
     onDraftChange('')
     return true
   }
+  const stop = stopOf(mode)
   const submit = (text: string) => {
     if (runCommand(text)) return
-    if (mode.kind !== 'READY' || !text.trim()) return
+    if (!canSend(mode) || !text.trim()) return
     setPulse((value) => value + 1)
     onSend(text.trim())
   }
@@ -111,8 +119,7 @@ export function BuilderComposer({
   }
   const onFormSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (mode.kind === 'RUNNING') onStop?.()
-    else submit(draft)
+    submit(draft)
   }
   const level = reasoning ? levelForModel(levels, reasoning) : null
   const placeholderByMode: Readonly<Record<string, string>> = {
@@ -173,7 +180,8 @@ export function BuilderComposer({
               data-listening={dictation.listening || undefined}
               onClick={() => { dictation.toggle(); inputRef.current?.focus() }}
             ><Mic size={17} aria-hidden="true" /></button>}
-            <SendButton mode={mode} empty={!draft.trim()} />
+            {stop && <StopButton stopping={stop.stopping} onStop={onStop} />}
+            {mode.kind !== 'RUNNING' && <SendButton mode={mode} empty={!draft.trim()} />}
           </div>
         </ComposerActions>
       </ComposerBox>
@@ -196,13 +204,14 @@ export function BuilderComposer({
   </Composer>
 }
 
+function StopButton({ stopping, onStop }: Readonly<{ stopping: boolean; onStop: (() => void) | undefined }>) {
+  return <button type="button" className="cx-send-button" data-stop aria-label={stopping ? 'Parando' : 'Parar'} disabled={stopping} onClick={onStop}>
+    <Square size={13} fill="currentColor" aria-hidden="true" />
+  </button>
+}
+
 function SendButton({ mode, empty }: Readonly<{ mode: ComposerMode; empty: boolean }>) {
-  if (mode.kind === 'RUNNING') {
-    return <button type="submit" className="cx-send-button" data-stop aria-label={mode.stopping ? 'Parando' : 'Parar'} disabled={mode.stopping}>
-      <Square size={13} fill="currentColor" aria-hidden="true" />
-    </button>
-  }
-  return <button type="submit" className="cx-send-button" aria-label={mode.kind === 'SENDING' ? 'Enviando' : 'Enviar'} disabled={mode.kind !== 'READY' || empty}>
+  return <button type="submit" className="cx-send-button" aria-label={isSending(mode) ? 'Enviando' : 'Enviar'} disabled={!canSend(mode) || empty}>
     <ArrowUp size={17} aria-hidden="true" />
   </button>
 }

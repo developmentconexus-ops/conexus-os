@@ -69,6 +69,7 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('knip', 'npx --no-install knip'),
   candidateStep('repository-check', 'npm run repository:check'),
   candidateStep('import-law-check', 'node scripts/check-import-law.mjs'),
+  candidateStep('census-builder-run', 'node scripts/census-builder-run.mjs'),
   candidateStep('generators', 'npm run generate'),
   candidateStep('e2b-template-check', 'node scripts/builder-e2b-template.mjs --check'),
   candidateStep('web-style', 'node scripts/check-web-style.mjs'),
@@ -119,10 +120,7 @@ export const DOCS_CHECK_SCOPES = Object.freeze([
 
 export const DOCS_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => DOCS_CHECK_SCOPES.includes(step.scope)))
 
-// The fast check to run before every push: the static gates CI fails on most, with no Docker, browser
-// or network. It runs both typechecks, the style and repository checks and the generators,
-// so a push does not wait for CI to report them.
-export const QUICK_CHECK_SCOPES = Object.freeze(['web-typecheck', 'hub-typecheck', 'repository-check', 'generators', 'web-style', 'knip', 'biome', 'import-law-check'])
+export const QUICK_CHECK_SCOPES = Object.freeze(['web-typecheck', 'hub-typecheck', 'repository-check', 'generators', 'web-style', 'knip', 'biome', 'import-law-check', 'census-builder-run'])
 
 export const QUICK_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => QUICK_CHECK_SCOPES.includes(step.scope)))
 

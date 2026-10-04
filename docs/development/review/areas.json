@@ -152,7 +152,7 @@
         "test": "tests/live/builder-done-gate.test.mjs"
       },
       {
-        "id": "builder.done-gate-parked",
+        "id": "builder.done-gate-waiting",
         "nome": "Uma pergunta do agente não dispara a verificação; ela roda uma vez depois da resposta",
         "test": "tests/live/builder-done-gate.test.mjs"
       },
@@ -162,19 +162,14 @@
         "test": "tests/live/builder-done-gate.test.mjs"
       },
       {
-        "id": "builder.park-and-answer",
-        "nome": "Deixar o pedido esperando uma pergunta e responder depois",
-        "test": "tests/live/builder-park-and-answer.test.mjs"
-      },
-      {
         "id": "builder.question-card",
         "nome": "Ver a pergunta do agente sem a tela pular e sem cursor de espera",
         "test": "tests/live/builder-question-card.test.mjs"
       },
       {
-        "id": "builder.reload-while-parked",
+        "id": "builder.reload-while-waiting",
         "nome": "Recarregar a página com uma pergunta esperando resposta",
-        "test": "tests/live/builder-reload-while-parked.test.mjs"
+        "test": "tests/live/builder-reload-while-waiting.test.mjs"
       },
       {
         "id": "builder.second-question",
@@ -187,9 +182,14 @@
         "test": "tests/live/builder-send-and-reply.test.mjs"
       },
       {
-        "id": "builder.typing-while-parked",
+        "id": "builder.typing-while-waiting",
         "nome": "Digitar no campo de mensagem enquanto o pedido espera",
-        "test": "tests/live/builder-typing-while-parked.test.mjs"
+        "test": "tests/live/builder-typing-while-waiting.test.mjs"
+      },
+      {
+        "id": "builder.wait-and-answer",
+        "nome": "Deixar o pedido esperando uma pergunta e responder depois",
+        "test": "tests/live/builder-wait-and-answer.test.mjs"
       }
     ]
   },

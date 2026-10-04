@@ -16,7 +16,7 @@ const { Failure } = await import(build + '/platform/failure.js')
 const { logger } = await import(build + '/platform/logger.js')
 const { mountLogFilter, mountValidationFailure, registerBuilderSessionRoutes } = await import(build + '/builder/mastra-session-routes.js')
 const { createBuilderController } = await import(build + '/builder/harness/controller.js')
-const { createConversationSessions } = await import(build + '/builder/conversation-sessions.js')
+const { createLiveConversations } = await import(build + '/builder/conversation.js')
 
 const root = mkdtempSync(join(tmpdir(), 'conexus-failure-http-'))
 const storage = new LibSQLStore({ id: 'failure-http', url: 'file:' + join(root, 'session.db') })
@@ -30,7 +30,7 @@ const mastra = new Mastra({
   server: { onValidationError: mountValidationFailure, onError: (error, context) => { onErrorCalls.push(error.message); return context.json({}, 500) } },
 })
 await controller.init()
-const sessions = createConversationSessions({ controller, now: () => 0, sweepEveryMs: 3_600_000 })
+const sessions = createLiveConversations({ controller, sandboxes: { open: () => ({ workspace: undefined }) }, readSandboxId: async () => null, runOpen: () => false, now: () => 0, sweepEveryMs: 3_600_000 })
 const PROJECT = '33333333-3333-4333-8333-333333333333'
 const THREADS = '/api/builder/agent-controller/conexus-builder/sessions/project:' + PROJECT + '/threads?sessionScope=conversation:77777777-7777-4777-8777-777777777777'
 const MODEL = '/api/builder/agent-controller/conexus-builder/sessions/project:' + PROJECT + '/model?sessionScope=conversation:77777777-7777-4777-8777-777777777777'
@@ -48,9 +48,9 @@ const app = await createHttpApp({ registerRoutes: async (server) => {
     scope.get('/scoped/hook', async () => 'x')
   })
   await registerBuilderSessionRoutes(server, {
-    mastra, controllerId: 'conexus-builder', controller, sessions, origin: 'https://conexus.test',
+    mastra, controllerId: 'conexus-builder', controller, conversations: sessions, origin: 'https://conexus.test',
     resolveCurrentSession: async () => ({ account: { accountId: '22222222-2222-4222-8222-222222222222', displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 's' }),
-    admitProject: async () => true, conversationOwner: async () => 'PROJECT', projectBusy: async () => false, runContext: () => undefined, answerParked: async () => 'RESUMED',
+    admitProject: async () => true, conversationOwner: async () => 'PROJECT', projectBusy: async () => false, answerQuestion: () => 'ACCEPTED',
   })
   return []
 } })

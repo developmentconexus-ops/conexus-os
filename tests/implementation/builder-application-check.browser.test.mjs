@@ -112,6 +112,28 @@ test('boot waits for the DevTools port when the browser first leaves its file em
   assert.deepEqual(report.steps.find((step) => step.step === 'boot')?.status, 'passed')
 })
 
+test('a browser that refuses its DevTools connection skips the boot step instead of crashing it', (t) => {
+  const { report } = check(t, STARTER, {
+    chromiumPath: (scratch) => {
+      const fake = join(scratch, 'chromium-refusing-socket.mjs')
+      writeFileSync(fake, `#!${process.execPath}
+import { createServer } from 'node:http'
+import { writeFileSync } from 'node:fs'
+const profile = process.argv.find((argument) => argument.startsWith('--user-data-dir=')).slice('--user-data-dir='.length)
+const server = createServer((request, response) => {
+  response.setHeader('content-type', 'application/json')
+  response.end(JSON.stringify([{ type: 'page', webSocketDebuggerUrl: 'ws://127.0.0.1:' + server.address().port + '/devtools/page/refused' }]))
+})
+server.on('upgrade', (request, socket) => socket.destroy())
+server.listen(0, '127.0.0.1', () => writeFileSync(profile + '/DevToolsActivePort', server.address().port + '\\n/devtools/browser/refused\\n'))
+`, { mode: 0o755 })
+      return fake
+    },
+  })
+  const boot = report.steps.find((step) => step.step === 'boot')
+  assert.deepEqual([boot?.status, boot?.reason], ['skipped', 'BOOT_BROWSER_UNAVAILABLE: the browser refused its DevTools connection'])
+})
+
 test('a starter with no server half passes all five steps and reports what it built', (t) => {
   const { report } = check(t, STARTER)
   assert.equal(report.ok, true)

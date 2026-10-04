@@ -212,23 +212,6 @@
     },
     {
       "includes": [
-        "apps/hub/src/builder/run-runtime.ts"
-      ],
-      "linter": {
-        "rules": {
-          "style": {
-            "noExcessiveLinesPerFile": {
-              "level": "error",
-              "options": {
-                "maxLines": 974
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "includes": [
         "apps/web/src/features/builder/transcript.ts"
       ],
       "linter": {

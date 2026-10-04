@@ -8,11 +8,11 @@ import { Mastra } from '@mastra/core/mastra'
 import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
 import { hubModuleUrl } from './hub-build.mjs'
+import { testConversations } from './builder-conversation-fixture.mjs'
 
 const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { registerBuilderSessionRoutes } = await import(hubModuleUrl('builder/mastra-session-routes.js'))
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
-const { createConversationSessions } = await import(hubModuleUrl('builder/conversation-sessions.js'))
 
 const accountId = '22222222-2222-4222-8222-222222222222'
 const projectId = '33333333-3333-4333-8333-333333333333'
@@ -33,19 +33,18 @@ const flood = async (t, streamBacklog) => {
   const controller = createBuilderController({ id: 'conexus-builder', model, storage, memory, skillsPath: resolve(import.meta.dirname, '../../builder-skills') })
   const mastra = new Mastra({ storage, agentControllers: { 'conexus-builder': controller }, logger: false })
   await controller.init()
-  const sessions = createConversationSessions({ controller })
-  const session = await controller.createSession({ resourceId: `project:${projectId}`, scope: `builder:${conversationId}`, threadId: conversationId })
+  const sessions = testConversations(controller, () => undefined)
+  const session = await controller.createSession({ resourceId: `project:${projectId}`, scope: `conversation:${conversationId}`, threadId: conversationId })
   const responses = []
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
       instance.addHook('onRequest', async (request, reply) => { if (request.url.includes('/stream')) responses.push(reply.raw) })
       await registerBuilderSessionRoutes(instance, {
-        mastra, controllerId: 'conexus-builder', controller, sessions, origin: 'https://conexus.test',
+        mastra, controllerId: 'conexus-builder', controller, conversations: sessions, origin: 'https://conexus.test',
         resolveCurrentSession: async () => ({ account: { accountId, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' }),
         admitProject: async () => true,
         conversationOwner: async () => 'PROJECT',
         projectBusy: async () => false,
-        runContext: () => undefined,
         ...(streamBacklog ? { streamBacklog } : {}),
       })
       return []
@@ -58,7 +57,7 @@ const flood = async (t, streamBacklog) => {
   client.on('close', () => { closed = true })
   client.on('error', () => {})
   await new Promise((connected) => client.once('connect', connected))
-  client.write(`GET /api/builder/agent-controller/conexus-builder/sessions/project:${projectId}/stream?sessionScope=builder:${conversationId} HTTP/1.1\r\nHost: 127.0.0.1\r\nCookie: __Host-conexus_session=session-1\r\n\r\n`)
+  client.write(`GET /api/builder/agent-controller/conexus-builder/sessions/project:${projectId}/stream?sessionScope=conversation:${conversationId} HTTP/1.1\r\nHost: 127.0.0.1\r\nCookie: __Host-conexus_session=session-1\r\n\r\n`)
   client.pause()
   for (let wait = 0; responses.length === 0 && wait < 100; wait += 1) await new Promise((tick) => setTimeout(tick, 20))
   assert.equal(responses.length, 1, 'the stream opened')

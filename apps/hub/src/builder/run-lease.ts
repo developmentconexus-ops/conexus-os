@@ -1,13 +1,13 @@
 import { Failure, logFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
 
-/** How often the Hub proves it still works the runs its legs hold. */
+/** How often the Hub proves it still works its runs. */
 const RUN_HEARTBEAT_MS = 10_000
 /** Every third heartbeat, so every 30 s, the Hub also takes over and settles the runs whose owner went quiet. */
 const SWEEP_EVERY_HEARTBEATS = 3
 
 export type RunLeasePorts = Readonly<{
-  /** Refreshes the heartbeat of every run a leg of this Hub works. */
+  /** Refreshes the heartbeat of every run this Hub works. */
   heartbeat(): Promise<void>
   /** Takes over the runs whose heartbeat went stale and settles each. */
   sweep(): Promise<void>
@@ -15,7 +15,7 @@ export type RunLeasePorts = Readonly<{
 
 /**
  * The run ownership lease: a sweep at boot, a heartbeat every 10 s, and a sweep after every third.
- * A sweep runs after the heartbeat of its own tick, so a leg of this Hub is never stale to it, and
+ * A sweep runs after the heartbeat of its own tick, so a run of this Hub is never stale to it, and
  * never beside another: a sweep that outlasts the interval would take its own unsettled runs again.
  * `close()` stops the timer, tells the pass in flight to skip its sweep, and settles after it, so
  * the pool it reads can end after it.

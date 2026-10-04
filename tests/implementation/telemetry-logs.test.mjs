@@ -35,7 +35,7 @@ test('a 5xx logs its code and the type of its cause, never its text, with the tr
     assert.equal(failure.level, 50)
     assert.equal(failure['exception.type'], 'Error')
     assert.equal(failure['exception.message'], undefined)
-    assert.equal(failure['exception.stacktrace'], undefined)
+    assert.match(failure['exception.stacktrace'], /^Error\n\s+at /, 'where it failed: the type, then frame lines only')
     assert.equal(JSON.stringify(failure).includes('PLANTED_CAUSE_TEXT'), false, 'the cause text is not in the line')
     assert.match(failure.trace_id, /^[0-9a-f]{32}$/)
     assert.equal(report.boom[1].traceId, failure.trace_id, 'the answer names the trace its log line is in')

@@ -54,15 +54,9 @@ ProjectWorkingState, Git custody, compiler/artifact identity, and last-good Prev
 Mastra owns the coding agent, shared AgentController, native Session registry,
 Thread/messages, Workspace tools, and live display mechanics.
 
-Each Project has a persistent Thread. Each BuilderRun has a fresh scoped Session
-and Workspace/E2B. There is no second Conexus conversation store or persistent Turn.
-
-That is the realization in force and it keeps running until something replaces it.
-It is no longer the destination: C-021 approved several persistent conversations per
-Project, so the single Thread and the run-scoped Session are one answer to a question
-that is now open. The rest of the sentence above still binds. There is no second
-conversation store, and getting to several conversations by building one is refused
-rather than qualified. Do not remove authorization, effect idempotency, source custody
+Each conversation of a Project (C-021) has a persistent Thread, one Mastra Session and
+one E2B sandbox, which every run of the conversation uses (spec 0011). There is no second
+Conexus conversation store or persistent Turn. Do not remove authorization, effect idempotency, source custody
 or Preview protection from `BuilderRun` before the qualification says what replaces it.
 
 | Fact | Authority |
@@ -95,10 +89,12 @@ live on the pilot. Stored user input has `role=signal`,
 ### 4.1 Lifetime
 
 The Hub owns one coding agent and one shared initialized AgentController.
-The native registry lookup uses Project/resource and `scope=builder:<BuilderRunId>`.
-The Session binds the Project's persistent Thread and a fresh run Workspace.
-Release it through `AgentController.deleteSession({ resourceId, scope })` and destroy
-the run sandbox. Keep the shared Controller and persisted Thread/messages alive.
+The native registry lookup uses the Project resource and `scope=conversation:<conversationId>`.
+The Session binds the conversation's Thread and its sandbox's Workspace, and outlives each run:
+a question waits inside the run on this Session, and the idle sweep releases a Session no run
+holds through `AgentController.deleteSession({ resourceId, scope })`. A run never destroys the
+sandbox at its end; it lets the VM go, and E2B pauses it after the idle window. Keep the shared
+Controller and persisted Thread/messages alive.
 Do not replace the registry with a Conexus map or use a no-storage alternative.
 
 ### 4.2 Conversation projection

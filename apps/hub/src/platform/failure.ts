@@ -46,12 +46,33 @@ const LEVEL_BY_CATEGORY = { SYSTEM: 'error', THIRD_PARTY: 'warn', USER: 'info' }
  * category. It holds the code, the category, the cause's type and our own ids: never the cause's
  * message or stack, which may carry a person's or a vendor's text.
  */
+const SYSTEM_CODE = /^[A-Z][A-Z0-9_]+$/
+const MAX_FRAMES = 12
+
+/**
+ * Where a failure came from: the frame lines of each error in its cause chain, each headed by the
+ * error's type and its system code (`ECONNREFUSED`). A message can carry a URL, a host or vendor
+ * text, so no message is written.
+ */
+const stackOf = (error: unknown): string | undefined => {
+  const lines: string[] = []
+  let current: unknown = error
+  for (let depth = 0; current instanceof Error && depth < 5; depth += 1) {
+    const code: unknown = 'code' in current ? current.code : undefined
+    lines.push(`${depth === 0 ? '' : 'caused by '}${current.name}${typeof code === 'string' && SYSTEM_CODE.test(code) ? ` (${code})` : ''}`)
+    lines.push(...(current.stack ?? '').split('\n').filter((line) => /^\s+at /.test(line) && !line.includes('(node:internal/')).slice(0, MAX_FRAMES))
+    current = current.cause
+  }
+  return lines.length > 0 ? lines.join('\n') : undefined
+}
+
 export const logFailure = (log: Pick<FastifyBaseLogger, 'error' | 'warn' | 'info'>, failure: Failure, fields: Attributes = {}): void => {
   const details = Object.fromEntries(Object.entries(failure.details ?? {}).map(([key, value]) => [`failure.details.${key}`, value]))
   const cause = failure.cause ?? failure
   const type = cause instanceof Error ? cause.name : typeof cause
   const level = LEVEL_BY_CATEGORY[failureRow(failure).category]
-  log[level]({ ...fields, ...details, 'failure.category': failure.category, 'error.type': type, 'exception.type': type }, failure.id)
+  const stack = level === 'error' ? stackOf(cause) : undefined
+  log[level]({ ...fields, ...details, 'failure.category': failure.category, 'error.type': type, 'exception.type': type, ...(stack ? { 'exception.stacktrace': stack } : {}) }, failure.id)
   const span = trace.getActiveSpan()
   span?.recordException(Object.assign(new Error(failure.id), { name: type }))
   if (level === 'error') span?.setStatus({ code: SpanStatusCode.ERROR })

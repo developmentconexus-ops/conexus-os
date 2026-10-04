@@ -6,9 +6,10 @@ import test from 'node:test'
 import { InMemoryStore } from '@mastra/core/storage'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { hubModuleUrl } from './hub-build.mjs'
+import { testConversations } from './builder-conversation-fixture.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
-const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
+const { createControllerRunSessions } = await import(hubModuleUrl('builder/run/turn.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const projectId = '22222222-2222-4222-8222-222222222222'
@@ -50,19 +51,20 @@ const openRun = async (t, model, modelStepTimeoutMs) => {
   t.after(() => rmSync(root, { recursive: true, force: true }))
   mkdirSync(root, { recursive: true })
   const workspace = new Workspace({ id: 'runaway-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
-  const runWorkspaces = new Map([[conversationId, workspace]])
+  let conversations
   const storage = new InMemoryStore()
   await storage.init()
   const controller = createBuilderController({
-    workspace: ({ requestContext }) => runWorkspaces.get(requestContext.getRaw('conexusBuilderConversationId')),
+    workspace: (context) => conversations.workspace(context),
     model, storage, skillsPath: resolve(repositoryRoot, 'builder-skills'),
     ...(modelStepTimeoutMs ? { modelStepTimeoutMs } : {}),
   })
   await controller.init()
   t.after(() => controller.destroy?.())
-  return createControllerRunSessions({ controller, runContexts: new Map(), conversationWorkspaces: runWorkspaces, runTools: new Map(), readDefaultModel: async () => 'anthropic/default-model' })({
-    projectId, conversationId, builderRunId, workspace,
-    runCheck: async () => { throw new Error('not used') },
+  conversations = testConversations(controller, () => workspace)
+  t.after(() => conversations.close())
+  return createControllerRunSessions({ controller, conversations, readDefaultModel: async () => 'anthropic/default-model' })({
+    projectId, conversationId, builderRunId,
     bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId) },
   })
 }
@@ -71,7 +73,7 @@ test('a tool call that never stops streaming ends the turn within the step budge
   const { model, seen } = streamingToolCallForever()
   const run = await openRun(t, model, 400)
   const started = Date.now()
-  const outcome = await run.sendTurn('Faça o app.').then((turn) => ({ settled: 'resolved', reason: turn.reason }), (error) => ({ settled: 'rejected', code: error.message }))
+  const outcome = await run.takeStep({ kind: 'SEND', content: 'Faça o app.' }, new AbortController().signal).then((turn) => ({ settled: 'resolved', reason: turn.reason }), (error) => ({ settled: 'rejected', code: error.message }))
   assert.deepEqual(outcome, { settled: 'rejected', code: 'BUILDER_MODEL_STEP_TIMEOUT' })
   assert.ok(Date.now() - started < 5_000, `the turn took ${Date.now() - started} ms`)
   assert.equal(seen.calls, 1)

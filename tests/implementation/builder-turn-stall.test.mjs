@@ -6,9 +6,10 @@ import test from 'node:test'
 import { InMemoryStore } from '@mastra/core/storage'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { hubModuleUrl } from './hub-build.mjs'
+import { testConversations } from './builder-conversation-fixture.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
-const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
+const { createControllerRunSessions } = await import(hubModuleUrl('builder/run/turn.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
@@ -33,7 +34,7 @@ test('a storage read that never settles ends the turn as BUILDER_AGENT_STALLED, 
   const root = mkdtempSync(resolve(tmpdir(), 'builder-turn-stall-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const workspace = new Workspace({ id: 'stall-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
-  const conversationWorkspaces = new Map()
+  let conversations
   const storage = new InMemoryStore()
   await storage.init()
   const workflows = await storage.getStore('workflows')
@@ -46,32 +47,32 @@ test('a storage read that never settles ends the turn as BUILDER_AGENT_STALLED, 
     return new Promise(() => {})
   }
   const controller = createBuilderController({
-    workspace: ({ requestContext }) => conversationWorkspaces.get(requestContext.getRaw('conexusBuilderConversationId')),
+    workspace: (context) => conversations.workspace(context),
     model, storage, skillsPath: resolve(repositoryRoot, 'builder-skills'),
   })
   await controller.init()
   t.after(() => controller.destroy?.())
+  conversations = testConversations(controller, () => workspace)
+  t.after(() => conversations.close())
   const openSession = createControllerRunSessions({
-    controller, runContexts: new Map(), conversationWorkspaces, runTools: new Map(),
+    controller, conversations,
     readDefaultModel: async () => 'anthropic/default-model', turnSilenceMs: SILENCE_MS,
   })
   const open = (builderRunId) => openSession({
-    projectId, conversationId, builderRunId, workspace,
-    runCheck: async () => { throw new Error('not used') },
+    projectId, conversationId, builderRunId,
     bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId) },
   })
 
   const first = await open(firstRunId)
   const started = Date.now()
-  const outcome = await settle(first.sendTurn('Faça o app.'))
+  const outcome = await settle(first.takeStep({ kind: 'SEND', content: 'Faça o app.' }, new AbortController().signal))
   assert.deepEqual(outcome, { settled: 'rejected', code: 'BUILDER_AGENT_STALLED' })
   assert.ok(hungReads >= 1, 'the turn reached the storage read that never settles')
   assert.ok(Date.now() - started < 10_000, `the turn settled ${Date.now() - started} ms after it started`)
 
   hang = false
   const later = await open(laterRunId)
-  assert.deepEqual(await settle(later.sendTurn('Faça o app de novo.')), { settled: 'resolved', reason: 'complete' })
-  await later.end()
+  assert.deepEqual(await settle(later.takeStep({ kind: 'SEND', content: 'Faça o app de novo.' }, new AbortController().signal)), { settled: 'resolved', reason: 'complete' })
 })
 
 test('the web names a stalled turn as a Conexus fault, not the model', async () => {

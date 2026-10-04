@@ -18,7 +18,7 @@ import type { MastraDBMessage } from '@mastra/client-js'
 import type { BuilderRun } from '../api'
 import type { BuilderModel } from '../mastra-session'
 import type { MessageEntry, PromptEntry, RuntimeTool, TranscriptEntry } from '../transcript.ts'
-import { ASK_USER_TOOL } from '../mastra-tool-names.ts'
+import { ASK_USER_TOOL, SUBMIT_PLAN_TOOL } from '../mastra-tool-names.ts'
 import { mergeCalls } from './merge-calls'
 import { RunFailure } from '../construir/run-failure'
 import { clockLabel, failureOutcome } from '../construir/run-state'
@@ -69,22 +69,45 @@ const COMPLETION_CHECK_REASON = /Reason: ([\s\S]*?)\n+(?:✅|⚠️|🔄)[^\n]*\
 const completionCheckText = (message: MastraDBMessage): string =>
   COMPLETION_CHECK_REASON.exec(userText(message))?.[1]?.trim() ?? 'O Conexus verificou o app.'
 
-type CallState = 'running' | 'failed' | 'done'
+type CallState = 'running' | 'waiting' | 'ended' | 'failed' | 'done'
+
+const PERSON_TOOLS: ReadonlySet<string> = new Set([ASK_USER_TOOL, SUBMIT_PLAN_TOOL])
 
 const isErrorResult = (result: unknown): boolean =>
   typeof result === 'object' && result !== null && (('isError' in result && result.isError === true) || ('error' in result && result.error === true))
 
-// The part the thread holds is the truth about a call. One still open when no run works here was
-// cut short with its run.
-const callState = (part: ToolInvocationPart, working: boolean): CallState => {
-  const { state } = part.toolInvocation
+// The part the thread holds is the truth about a call, and the Hub says which open calls the run
+// waits on the person for. A question the person ended without answering, by a message, a stop or a
+// Hub restart, was asked, not failed. Mastra settles a call made in the same step as a question only
+// when the question is answered, so until then, and for good once the question ended unanswered, it
+// shares the question's state. Any other call still open when no run works here was cut short with
+// its run.
+const callState = (part: ToolInvocationPart, calls: Calls): CallState => {
+  const { state, toolCallId, toolName } = part.toolInvocation
+  if (state === 'output-denied' && PERSON_TOOLS.has(toolName)) return 'ended'
   if (state === 'output-error' || state === 'output-denied') return 'failed'
   if (state === 'result') return isErrorResult(part.toolInvocation.result) || ('isError' in part.toolInvocation && part.toolInvocation.isError === true) ? 'failed' : 'done'
-  return working ? 'running' : 'failed'
+  if (calls.waitingOn.has(toolCallId)) return 'waiting'
+  if (calls.working) return 'running'
+  if (PERSON_TOOLS.has(toolName)) return 'ended'
+  return calls.besideQuestion.get(toolCallId) ?? 'failed'
 }
 
-// Whether a run works here, and the output the stream reported for each call by its id.
-type Calls = Readonly<{ working: boolean; runtime: ReadonlyMap<string, RuntimeTool> }>
+// Each open call made in the same step as a question, with that question's state.
+const besideQuestions = (messages: readonly MastraDBMessage[], waitingOn: ReadonlySet<string>): ReadonlyMap<string, 'waiting' | 'ended'> =>
+  new Map(messages.flatMap((message) => {
+    const invocations = message.content.parts.flatMap((part) => part.type === 'tool-invocation' ? [part.toolInvocation] : [])
+    const questions = invocations.filter((invocation) => PERSON_TOOLS.has(invocation.toolName))
+    if (questions.length === 0) return []
+    const fate = questions.some((question) => waitingOn.has(question.toolCallId)) ? 'waiting' : 'ended'
+    return invocations.filter((invocation) => invocation.state === 'call' && !PERSON_TOOLS.has(invocation.toolName)).map((invocation): [string, 'waiting' | 'ended'] => [invocation.toolCallId, fate])
+  }))
+
+const isOpen = (state: CallState): boolean => state === 'running' || state === 'waiting'
+
+// Whether a run works here, the calls it waits on the person for, the open calls made beside a
+// question, and the output the stream reported for each call by its id.
+type Calls = Readonly<{ working: boolean; waitingOn: ReadonlySet<string>; besideQuestion: ReadonlyMap<string, 'waiting' | 'ended'>; runtime: ReadonlyMap<string, RuntimeTool> }>
 
 // What the person asked and was answered: the controller words the answer in English, one
 // "question: answer" line per question.
@@ -115,17 +138,17 @@ function AskedAndAnswered({ asked }: Readonly<{ asked: readonly Readonly<{ quest
 // would not show it.
 function ToolInvocation({ part, calls }: Readonly<{ part: ToolInvocationPart; calls: Calls }>) {
   const { toolName, args } = part.toolInvocation
-  const state = callState(part, calls.working)
+  const state = callState(part, calls)
   const live = calls.runtime.get(part.toolInvocation.toolCallId)
   const result = part.toolInvocation.state === 'result' ? part.toolInvocation.result : live?.result
   const presentation = presentTool(toolName, args)
   const edit = toolEdit(toolName, args)
   const resultText = result === undefined ? '' : stringifyToolValue(result)
   const running = live?.output || (typeof live?.result === 'string' ? live.result : '')
-  const output = presentation.command ? (state === 'running' ? running : resultText) : state === 'failed' ? resultText : ''
-  return <ToolCall status={state === 'done' ? 'idle' : state === 'failed' ? 'error' : 'running'}>
+  const output = presentation.command ? (isOpen(state) ? running : resultText) : state === 'failed' ? resultText : ''
+  return <ToolCall status={state === 'failed' ? 'error' : isOpen(state) ? 'running' : 'idle'}>
     <ToolCallTrigger>
-      <ToolCallPresentedHeader icon={presentation.icon} label={toolSentence(toolName, state === 'running')} {...(presentation.detail ? { detail: presentation.detail } : {})} disclosure />
+      <ToolCallPresentedHeader icon={presentation.icon} label={toolSentence(toolName, isOpen(state))} {...(presentation.detail ? { detail: presentation.detail } : {})} disclosure />
     </ToolCallTrigger>
     <ToolCallContent>
       {presentation.command && <ToolCallCommand command={presentation.command} />}
@@ -186,8 +209,8 @@ function RequestTurn({ entry }: Readonly<{ entry: PersistedRequest }>) {
 // are done; settled, it says what the calls did. Opened, the rows scroll in a fixed height and follow
 // the newest while the agent works.
 function ToolGroup({ parts, calls }: Readonly<{ parts: readonly ToolInvocationPart[]; calls: Calls }>) {
-  const states = parts.map((part) => callState(part, calls.working))
-  const runningIndex = states.lastIndexOf('running')
+  const states = parts.map((part) => callState(part, calls))
+  const runningIndex = states.map(isOpen).lastIndexOf(true)
   const current = runningIndex === -1 ? undefined : parts[runningIndex]
   const presentation = current && presentTool(current.toolInvocation.toolName, current.toolInvocation.args)
   const failed = states.filter((state) => state === 'failed').length
@@ -198,7 +221,7 @@ function ToolGroup({ parts, calls }: Readonly<{ parts: readonly ToolInvocationPa
         <ToolCallLabel className="max-w-full">{current ? toolSentence(current.toolInvocation.toolName, true) : groupSummary(parts.map((part) => part.toolInvocation.toolName), failed)}</ToolCallLabel>
         {presentation?.detail && <ToolCallDetail>{presentation.detail}</ToolCallDetail>}
         <ToolCallSpacer />
-        {current && <ToolCallTrailing className="cx-tool-group-count">{parts.length - states.filter((state) => state === 'running').length}/{parts.length}</ToolCallTrailing>}
+        {current && <ToolCallTrailing className="cx-tool-group-count">{parts.length - states.filter(isOpen).length}/{parts.length}</ToolCallTrailing>}
         <ToolCallDisclosure />
       </ToolCallHeader>
     </ToolCallTrigger>
@@ -248,7 +271,7 @@ type Piece =
   | Readonly<{ kind: 'thinking'; key: string }>
   | Readonly<{ kind: 'thought'; key: string; text: string }>
 
-const flattenMessage = (entry: MessageEntry, message: MastraDBMessage, streaming: boolean, parked: ReadonlySet<string>): readonly Piece[] => {
+const flattenMessage = (entry: MessageEntry, message: MastraDBMessage, streaming: boolean, awaited: ReadonlySet<string>): readonly Piece[] => {
   const key = entry.id
   if (isUserAuthored(message)) {
     const text = userText(message)
@@ -266,8 +289,8 @@ const flattenMessage = (entry: MessageEntry, message: MastraDBMessage, streaming
     // A task tool call drives the pinned checklist (construir.tsx, from the AgentController's own
     // display state), not a conversation row: rendering it here too would repeat what the
     // checklist already shows, one row per task_write/task_update/task_check/task_complete call.
-    // A call parked for the person is answered on its card, so it has no row yet.
-    if (part.type === 'tool-invocation') return TASK_TOOL_NAMES.has(part.toolInvocation.toolName) || parked.has(part.toolInvocation.toolCallId) ? [] : [{ kind: 'tool', key: partKey, part }]
+    // A call the run waits on the person for is answered on its card, so it has no row yet.
+    if (part.type === 'tool-invocation') return TASK_TOOL_NAMES.has(part.toolInvocation.toolName) || awaited.has(part.toolInvocation.toolCallId) ? [] : [{ kind: 'tool', key: partKey, part }]
     if (part.type === 'text') return part.text ? [{ kind: 'text', key: partKey, text: part.text, streaming: last }] : []
     // The part still streaming says the agent is thinking; a settled one is a row that opens to its text.
     if (part.type === 'reasoning') return last ? [{ kind: 'thinking', key: partKey }] : part.reasoning.trim() ? [{ kind: 'thought', key: partKey, text: part.reasoning }] : []
@@ -351,7 +374,7 @@ const matchRequests = (messages: readonly MessageEntry[], requests: readonly Per
   return { owner, orphans }
 }
 
-export function BuilderConversation({ entries, persistedRequests, runs, model, working, renderPrompt }: Readonly<{
+export function BuilderConversation({ entries, persistedRequests, runs, model, working, waitingOn, renderPrompt }: Readonly<{
   entries: readonly TranscriptEntry[]
   persistedRequests: readonly PersistedRequest[]
   // The conversation's runs, oldest first. Each run that settled in a failure ends its own turn with it.
@@ -359,7 +382,9 @@ export function BuilderConversation({ entries, persistedRequests, runs, model, w
   model: BuilderModel | null
   // The run here is in its agent step: until it speaks after the person, the thread says it is thinking.
   working: boolean
-  // Draws a call the run here parked on the person; absent while no run here is active.
+  // The calls the run here waits on the person for, as the Hub says; none unless it waits now.
+  waitingOn: readonly string[]
+  // Draws a call the run here waits on the person for; absent while no run here waits.
   renderPrompt?: (prompt: PromptEntry) => ReactNode
 }>) {
   const messages = entries.filter((entry): entry is MessageEntry => entry.kind === 'message')
@@ -367,7 +392,7 @@ export function BuilderConversation({ entries, persistedRequests, runs, model, w
   const { owner, orphans: unspoken } = matchRequests(messages, persistedRequests)
   const orphans = unspoken.map((entry) => ({ at: new Date(entry.createdAt).getTime(), entry })).sort((left, right) => left.at - right.at)
   const prompts = renderPrompt ? entries.filter((entry): entry is PromptEntry => entry.kind === 'prompt') : []
-  const parked = new Set(prompts.map((prompt) => prompt.toolCallId))
+  const awaited = new Set(prompts.map((prompt) => prompt.toolCallId))
   const { revealed, caughtUp } = useRevealedTurn(messages, merged, working)
   const runtime = new Map(messages.flatMap((entry) => Object.values(entry.runtimeTools ?? {}).map((tool): [string, RuntimeTool] => [tool.toolCallId, tool])))
 
@@ -406,7 +431,7 @@ export function BuilderConversation({ entries, persistedRequests, runs, model, w
     const message = parts ? { ...whole, content: { ...whole.content, parts } } : whole
     requestsBefore(messageTime(message))
     if (isUserAuthored(message)) failuresBefore(owner.get(entry.id)?.createdAt ?? newest)
-    const flat = flattenMessage(entry, message, working && entry.streaming === true, parked)
+    const flat = flattenMessage(entry, message, working && entry.streaming === true, awaited)
     for (const piece of flat) spokeSinceUser = piece.kind === 'user' ? false : piece.kind === 'notice' ? spokeSinceUser : true
     pieces.push(...flat)
   }
@@ -414,7 +439,9 @@ export function BuilderConversation({ entries, persistedRequests, runs, model, w
   failuresBefore(null)
   if (working && prompts.length === 0 && !spokeSinceUser) pieces.push({ kind: 'thinking', key: 'awaiting-first-part' })
 
-  const rendered = renderPieces(pieces, { working, runtime }, model, renderPrompt ?? (() => null))
+  const waiting = new Set(waitingOn)
+  const besideQuestion = besideQuestions(messages.map((entry) => merged.get(entry.id) ?? entry.message), waiting)
+  const rendered = renderPieces(pieces, { working, waitingOn: waiting, besideQuestion, runtime }, model, renderPrompt ?? (() => null))
   return <>
     {rendered}
     {!rendered.length && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}

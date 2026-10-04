@@ -8,6 +8,7 @@ import { Mastra } from '@mastra/core/mastra'
 import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
 import { hubModuleUrl } from './hub-build.mjs'
+import { testConversations } from './builder-conversation-fixture.mjs'
 
 const built = hubModuleUrl
 const { createHttpApp } = await import(built('http/app.js'))
@@ -16,7 +17,6 @@ const { registerBuilderSessionRoutes } = await import(built('builder/mastra-sess
 const { registerBuilderRoutes } = await import(built('builder/routes.js'))
 const { createBuilderController } = await import(built('builder/harness/controller.js'))
 const { createConversations } = await import(built('builder/conversations.js'))
-const { createConversationSessions } = await import(built('builder/conversation-sessions.js'))
 
 const CONVERSATION_SESSION_IDLE_MS = 10 * 60_000
 const origin = 'https://conexus.test'
@@ -40,7 +40,7 @@ const turnsWithin = async (ms, started = modelTurns.length) => {
 
 // The Hub's own mount over the Builder's controller, with the Project admission, the conversation
 // owner and the busy check the Hub wires in production, and conversation A already opened.
-const createBuilderApp = async (t, { accountId = accountA, providerDown = false, busy = false, answered = [], answerOutcome = async () => 'RESUMED', model: modelOf = model } = {}) => {
+const createBuilderApp = async (t, { accountId = accountA, providerDown = false, busy = false, answered = [], answerOutcome = () => 'ACCEPTED', model: modelOf = model } = {}) => {
   const root = mkdtempSync(join(tmpdir(), 'conexus-builder-routes-'))
   const storage = new LibSQLStore({ id: `builder-boundary-${randomUUID()}`, url: `file:${join(root, 'session.db')}` })
   const memory = new Memory({ storage, options: { lastMessages: 20 } })
@@ -49,7 +49,7 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
   await controller.init()
   const conversations = createConversations(async () => storage.getStore('memory'))
   const clock = { now: 0 }
-  const sessions = createConversationSessions({ controller, now: () => clock.now, sweepEveryMs: 3_600_000 })
+  const sessions = testConversations(controller, () => undefined, { now: () => clock.now, sweepEveryMs: 3_600_000 })
   await controller.createSession({ resourceId: `project:${projectA}`, scope: `conversation:${conversationA}`, threadId: conversationA })
   const reachedContexts = []
   const { createHostSessions } = await import(hubModuleUrl('identity-access/host-sessions.js'))
@@ -70,12 +70,11 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
         if (request.requestContext) reachedContexts.push({ url: request.url, user: request.requestContext.get('user') })
       })
       await registerBuilderSessionRoutes(instance, {
-        mastra, controllerId: 'conexus-builder', controller, sessions, origin, resolveCurrentSession,
+        mastra, controllerId: 'conexus-builder', controller, conversations: sessions, origin, resolveCurrentSession,
         admitProject: async ({ accountId: caller, projectId }) => admittedProjects[caller]?.includes(projectId) ?? false,
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async () => busy,
-        runContext: () => undefined,
-        answerParked: async (input) => { answered.push(input); return answerOutcome(input) },
+        answerQuestion: (input) => { answered.push(input); return answerOutcome(input) },
       })
       return []
     },
@@ -166,16 +165,12 @@ test('a conversation session opens only on its own thread, and an id another Pro
   assert.equal(read.statusCode, 404, "another Project's conversation is not found under this Project")
 })
 
-test("a conversation's model changes only while no run is in flight, and a run's own session refuses it", async (t) => {
-  const { app, controller } = await createBuilderApp(t)
+test("a conversation's model changes only while no run is in flight", async (t) => {
+  const { app } = await createBuilderApp(t)
   const switched = await app.inject({ method: 'POST', url: `${sessionBase()}/model?${inConversation()}`, ...authentic, payload: { modelId: 'google-ai-pro/gemini-3-flash', scope: 'thread' } })
   assert.equal(switched.statusCode, 200)
   const state = await app.inject({ method: 'GET', url: `${sessionBase()}?${inConversation()}`, ...authentic })
   assert.equal(state.json().modelId, 'google-ai-pro/gemini-3-flash')
-  const liveRun = `builder:${randomUUID()}`
-  await controller.createSession({ resourceId: `project:${projectA}`, scope: liveRun, threadId: conversationA })
-  const onRun = await app.inject({ method: 'POST', url: `${sessionBase()}/model?sessionScope=${liveRun}`, ...authentic, payload: { modelId: 'google-ai-pro/gemini-3-flash', scope: 'thread' } })
-  assert.equal(onRun.statusCode, 409)
 
   const { app: busyApp } = await createBuilderApp(t, { busy: true })
   const refused = await busyApp.inject({ method: 'POST', url: `${sessionBase()}/model?${inConversation()}`, ...authentic, payload: { modelId: 'google-ai-pro/gemini-3-flash', scope: 'thread' } })
@@ -196,82 +191,54 @@ test('only the Builder controller id is served, the Factory mount is gone, and t
   assert.deepEqual(answers.map((response) => response.statusCode), [404, 404, 404, 404, 404, 404])
 })
 
-test("a run's own session takes no abort: a parked run's question is settled only by the Hub's stop", async (t) => {
-  const { app, controller } = await createBuilderApp(t)
-  const liveRun = `builder:${randomUUID()}`
-  await controller.createSession({ resourceId: `project:${projectA}`, scope: liveRun, threadId: conversationA })
-  const response = await app.inject({ method: 'POST', url: `${sessionBase()}/abort?sessionScope=${liveRun}`, ...authentic, payload: {} })
+test("a conversation's session takes no abort: the question a run waits on ends only through the Hub's stop", async (t) => {
+  const { app } = await createBuilderApp(t)
+  const response = await app.inject({ method: 'POST', url: `${sessionBase()}/abort?${inConversation()}`, ...authentic, payload: {} })
   assert.deepEqual([response.statusCode, response.json().type], [409, 'urn:conexus:problem:BUILDER_RUN_STOP_REFUSED'])
 })
 
-test('a run whose session does not exist yet is a conflict, never a fresh empty session', async (t) => {
-  const { app } = await createBuilderApp(t)
-  const response = await app.inject({ method: 'GET', url: `${sessionBase()}/stream?sessionScope=builder:${randomUUID()}`, ...authentic })
-  assert.equal(response.statusCode, 409)
+test('a scope other than a conversation\'s is not served, never a fresh empty session', async (t) => {
+  const { app, controller } = await createBuilderApp(t)
+  const response = await app.inject({ method: 'GET', url: `${sessionBase()}/stream?sessionScope=builder:${conversationA}`, ...authentic })
+  assert.equal(response.statusCode, 404)
+  assert.equal(await controller.getSessionByResource(`project:${projectA}`, `builder:${conversationA}`), undefined)
 })
 
-test('a conversation takes no message, steer or follow-up, not even inside a run session; a new message is a new run', async (t) => {
-  const { app, controller } = await createBuilderApp(t)
-  const liveRun = `builder:${randomUUID()}`
-  await controller.createSession({ resourceId: `project:${projectA}`, scope: liveRun, threadId: conversationA })
+test('a conversation takes no message, steer or follow-up through Mastra; a message goes through the Hub', async (t) => {
+  const { app } = await createBuilderApp(t)
   const answered = []
   for (const operation of ['messages', 'steer', 'follow-up']) {
-    for (const [name, query] of [['conversation', `?${inConversation()}`], ['run session', `?sessionScope=${liveRun}`]]) {
-      const response = await app.inject({ method: 'POST', url: `${sessionBase()}/${operation}${query}`, ...authentic, payload: { message: 'apague tudo', content: 'apague tudo' } })
-      answered.push([operation, name, response.statusCode])
-    }
+    const response = await app.inject({ method: 'POST', url: `${sessionBase()}/${operation}?${inConversation()}`, ...authentic, payload: { message: 'apague tudo', content: 'apague tudo' } })
+    answered.push([operation, response.statusCode])
   }
   assert.equal(await turnsWithin(3_000), 0, 'no request reached the model')
-  assert.deepEqual(answered, [
-    ['messages', 'conversation', 404], ['messages', 'run session', 404],
-    ['steer', 'conversation', 404], ['steer', 'run session', 404],
-    ['follow-up', 'conversation', 404], ['follow-up', 'run session', 404],
-  ])
-  assert.equal((await app.inject({ method: 'POST', url: `${sessionBase()}/abort?${inConversation()}`, ...authentic, payload: {} })).statusCode, 200, 'abort needs no run')
+  assert.deepEqual(answered, [['messages', 404], ['steer', 404], ['follow-up', 404]])
 })
 
-test("an answer to a run's call goes to the Hub, which resumes the parked run, and never to a session that no longer exists", async (t) => {
+test("an answer to a run's call goes to the run waiting on it through the Hub, never to Mastra's own route", async (t) => {
   const answered = []
   const { app } = await createBuilderApp(t, { answered })
-  const runScope = `builder:${conversationA}`
-  const answer = (payload) => app.inject({ method: 'POST', url: `${sessionBase()}/tool-suspension?sessionScope=${runScope}`, ...authentic, payload })
+  const answer = (payload) => app.inject({ method: 'POST', url: `${sessionBase()}/tool-suspension?${inConversation()}`, ...authentic, payload })
   const first = await answer({ toolCallId: 'call-1', resumeData: ['Azul'] })
   assert.deepEqual([first.statusCode, first.json()], [200, { ok: true }])
-  assert.deepEqual(answered, [{ accountId: accountA, projectId: projectA, conversationId: conversationA, toolCallId: 'call-1', resumeData: ['Azul'] }])
+  assert.deepEqual(answered, [{ projectId: projectA, conversationId: conversationA, toolCallId: 'call-1', resumeData: ['Azul'] }])
   assert.equal((await answer({ resumeData: ['Azul'] })).statusCode, 400, 'an answer names its call')
   assert.equal(answered.length, 1)
 })
 
 test('each outcome of an answer has its own HTTP status and problem type, which the web card reads', async (t) => {
-  const outcomes = { 'call-resumed': async () => 'RESUMED', 'call-again': async () => 'ALREADY_ANSWERED', 'call-forged': async () => 'NOT_PARKED', 'call-down': async () => { throw new Error('BUILDER_STORE_UNAVAILABLE') } }
+  const outcomes = { 'call-taken': () => 'ACCEPTED', 'call-again': () => 'ALREADY_ANSWERED', 'call-forged': () => 'UNKNOWN_CALL', 'call-ended': () => 'ENDED' }
   const { app } = await createBuilderApp(t, { answerOutcome: ({ toolCallId }) => outcomes[toolCallId]() })
   const answer = async (toolCallId) => {
-    const response = await app.inject({ method: 'POST', url: `${sessionBase()}/tool-suspension?sessionScope=builder:${conversationA}`, ...authentic, payload: { toolCallId, resumeData: ['Azul'] } })
+    const response = await app.inject({ method: 'POST', url: `${sessionBase()}/tool-suspension?${inConversation()}`, ...authentic, payload: { toolCallId, resumeData: ['Azul'] } })
     return [response.statusCode, response.json().type ?? response.json()]
   }
   assert.deepEqual(await Promise.all(Object.keys(outcomes).map(answer)), [
     [200, { ok: true }],
     [409, 'urn:conexus:problem:TOOL_ANSWER_ALREADY_GIVEN'],
-    [404, 'urn:conexus:problem:PARKED_CALL_NOT_FOUND'],
-    [503, 'urn:conexus:problem:BUILDER_ANSWER_UNAVAILABLE'],
+    [409, 'urn:conexus:problem:QUESTION_ENDED'],
+    [409, 'urn:conexus:problem:QUESTION_ENDED'],
   ])
-})
-
-test('a tool answer other than approve or decline is refused on the Builder mount before Mastra runs it', async (t) => {
-  const { app, reachedContexts } = await createBuilderApp(t)
-  const approvalUrl = `${sessionBase()}/tool-approval?${inConversation()}`
-  const suspensionUrl = `${sessionBase()}/tool-suspension?${inConversation()}`
-
-  const escalatedApproval = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: true, decision: 'always_allow_category' } })
-  const escalatedSuspensionField = await app.inject({ method: 'POST', url: suspensionUrl, ...authentic, payload: { toolCallId: 'call-1', resumeData: { decision: 'always_allow_category' } } })
-  const escalatedSuspensionString = await app.inject({ method: 'POST', url: suspensionUrl, ...authentic, payload: { toolCallId: 'call-1', resumeData: 'always_allow_category' } })
-  assert.deepEqual([escalatedApproval.statusCode, escalatedSuspensionField.statusCode, escalatedSuspensionString.statusCode], [400, 400, 400])
-  assert.deepEqual(reachedContexts.filter((entry) => entry.url.includes('/tool-')), [])
-
-  const approved = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: true } })
-  const declined = await app.inject({ method: 'POST', url: approvalUrl, ...authentic, payload: { toolCallId: 'call-1', approved: false } })
-  const resumed = await app.inject({ method: 'POST', url: suspensionUrl, ...authentic, payload: { toolCallId: 'call-1', resumeData: 'Use SQLite.' } })
-  assert.deepEqual([approved.statusCode, declined.statusCode, resumed.statusCode], [200, 200, 200])
 })
 
 test('a state-changing request without CSRF is refused on the mount', async (t) => {
@@ -348,12 +315,12 @@ test("a conversation's session the browser stops using is deleted by the idle sw
   assert.notEqual(await live(conversation), undefined, 'a request renews the session\'s time')
 })
 
-const createBuilderRoutesApp = async (t, { compareSourceRevisions, createBuilderRun, store, session, service: customService, launchPreview } = {}) => {
+const createBuilderRoutesApp = async (t, { compareSourceRevisions, sendBuilderMessage, store, session, service: customService, launchPreview } = {}) => {
   const resolveCurrentSession = async (request) => request.cookies['__Host-conexus_session']
     ? { account: { accountId: accountA, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' }
     : null
   const unused = async () => { throw new Error('unused in this test') }
-  const service = customService ?? { compareSourceRevisions: compareSourceRevisions ?? unused, createBuilderRun: createBuilderRun ?? unused }
+  const service = customService ?? { compareSourceRevisions: compareSourceRevisions ?? unused, sendBuilderMessage: sendBuilderMessage ?? unused }
   const app = await createHttpApp({
     registerRoutes: (instance) => registerBuilderRoutes(instance, {
       store: store ?? {},
@@ -439,7 +406,7 @@ test('a message names its conversation only: mode and promptVariant are refused,
   const received = []
   let failRun = null
   const { app } = await createBuilderRoutesApp(t, {
-    createBuilderRun: async (input) => {
+    sendBuilderMessage: async (input) => {
       received.push(input)
       if (failRun) throw failRun
       throw new Failure('CONVERSATION_NOT_FOUND')
@@ -467,6 +434,21 @@ test('a message names its conversation only: mode and promptVariant are refused,
   assert.equal(runLog.level, 50)
   assert.equal(runLog['exception.type'], 'Error')
   assert.equal(runLog['failure.details.projectId'], projectA)
+})
+
+test('the session read serves the latest run with the calls its live run in this Hub waits on, and none for a run this Hub does not hold', async (t) => {
+  const runId = '99999999-9999-4999-8999-999999999999'
+  const waiting = { builderRunId: runId, projectId: projectA, conversationId: conversationA, state: 'RUNNING', phase: 'WAITING', baseSourceRevision: '0'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'c', createdAt: new Date().toISOString(), cancellationRequested: false }
+  let held = ['call-1']
+  const { app } = await createBuilderRoutesApp(t, {
+    session: { read: async () => ({ projectId: projectA, workingSourceRevision: null, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null, runHistory: [] }) },
+    store: { readBuilderRun: async () => waiting, readLatestCodeChangingBuilderRun: async () => null },
+    service: { pendingCalls: (projectId, conversationId) => (projectId === projectA && conversationId === conversationA ? held : ['wrong']) },
+  })
+  const read = async () => (await app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/builder-session`, ...authentic })).json().latestBuilderRun.pendingCalls
+  assert.deepEqual(await read(), ['call-1'])
+  held = []
+  assert.deepEqual(await read(), [], 'after a restart the row still says WAITING, and nothing is answerable')
 })
 
 test('builder session, cancel, trace, and preview routes log failure codes on internal errors', async (t) => {
@@ -497,7 +479,7 @@ test('builder session, cancel, trace, and preview routes log failure codes on in
     service: {
       cancelBuilderRun: async () => { throw new Error('CANCEL_SERVICE_FAIL') },
       compareSourceRevisions: async () => { throw new Error('COMPARE_SERVICE_FAIL') },
-      createBuilderRun: async () => { throw new Error('unused') },
+      sendBuilderMessage: async () => { throw new Error('unused') },
       getApplicationBySource: async () => ({ artifactRevisionId: runId, artifactDigest: 'd'.repeat(64) }),
       listSourceTree: async () => { throw new Error('TREE_SERVICE_FAIL') },
       getSourceFile: async () => { throw new Error('FILE_SERVICE_FAIL') },
@@ -575,7 +557,7 @@ test("the browser reaches exactly ten of Mastra's agent-controller routes, each 
     .map((route) => `${route.method} ${route.path.replace('/agent-controller/:controllerId/sessions', '')}`)
   assert.deepEqual(mounted.sort(), [
     'GET /:resourceId', 'GET /:resourceId/stream', 'GET /:resourceId/threads', 'GET /:resourceId/threads/:threadId/messages',
-    'POST ', 'POST /:resourceId/abort', 'POST /:resourceId/model', 'POST /:resourceId/tool-approval', 'POST /:resourceId/tool-suspension',
+    'POST ', 'POST /:resourceId/abort', 'POST /:resourceId/model', 'POST /:resourceId/tool-suspension',
     'PUT /:resourceId/state',
   ])
 })
@@ -625,3 +607,15 @@ for (const [label, status, type] of [['401', 401, 'authentication_error'], ['503
     assert.equal(stored.body.includes(apiKey), false, 'the key is in no message the thread serves')
   })
 }
+
+test('a message that starts a run answers 201, and one a waiting run takes answers 200 with that run', async (t) => {
+  const run = { builderRunId: '88888888-8888-4888-8888-888888888888', projectId: projectA, conversationId: conversationA, state: 'RUNNING', phase: 'WAITING' }
+  let created = true
+  const { app } = await createBuilderRoutesApp(t, { sendBuilderMessage: async () => ({ builderRun: run, created }) })
+  const send = () => app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/builder-session/messages`, headers: { ...authentic.headers, 'idempotency-key': 'k-1' }, cookies: authentic.cookies, payload: { content: 'altere', conversationId: conversationA } })
+  const started = await send()
+  created = false
+  const taken = await send()
+  assert.deepEqual([started.statusCode, taken.statusCode], [201, 200])
+  assert.deepEqual(taken.json(), { builderRun: run })
+})

@@ -7,6 +7,7 @@ import { RequestContext } from '@mastra/core/request-context'
 import { InMemoryStore } from '@mastra/core/storage'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { hubModuleUrl } from './hub-build.mjs'
+import { testConversations } from './builder-conversation-fixture.mjs'
 
 const {
   CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_PROJECT_NEW_KEY, CONEXUS_TURN_CONFLICTS_KEY, CONEXUS_TURN_DATE_KEY,
@@ -188,9 +189,10 @@ test('the model sees each skill by name and never a path on the Hub host, and re
   await controller.init()
   t.after(() => controller.destroy?.())
   const session = await controller.createSession({ resourceId: 'project:probe-skill-path', scope: 'probe-skill-path' })
+  // As every Builder run sets it: the agent's tools run with no approval gate.
+  await session.state.set({ yolo: true })
   const toolResults = {}
   session.subscribe((event) => {
-    if (event.type === 'tool_approval_required') session.respondToToolApproval({ toolCallId: event.toolCallId, decision: 'approve' })
     if (event.type === 'tool_end') toolResults[event.toolCallId] = String(event.result)
   })
   await session.sendMessage({ content: 'oi' })
@@ -364,97 +366,92 @@ test('connector_fetch reaches a turn whose request context carries a run the Con
   assert.deepEqual([await toolsFor(run.bind), await toolsFor()], [['connector_fetch'], []])
 })
 
-test("a turn lasts through the person's answer on the conversation's session and workspace, ending it keeps the session, and a new conversation starts on the installation default (AC-12, AC-16)", async (t) => {
-  const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
+test("a run's question waits on the conversation's one session, the browser's, the answer resumes it there, and a new conversation starts on the installation default (AC-7, AC-12, AC-16)", async (t) => {
+  const { createControllerRunSessions } = await import(hubModuleUrl('builder/run/turn.js'))
   const root = mkdtempSync(resolve(tmpdir(), 'builder-harness-run-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
-  const workspace = new Workspace({ id: 'run-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
-  const runContexts = new Map()
-  const conversationWorkspaces = new Map()
+  let vm = 0
+  const workspaceOf = () => new Workspace({ id: `run-ws-${++vm}`, filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
   const { model, calls } = scriptedModel()
   const { Memory } = await import('@mastra/memory')
   const storage = new InMemoryStore()
+  let conversations
   const controller = createBuilderController({
-    workspace: ({ requestContext }) => conversationWorkspaces.get(requestContext.getRaw('conexusBuilderConversationId')),
+    workspace: (context) => conversations.workspace(context),
     model, storage, memory: new Memory({ storage, options: { lastMessages: 40, semanticRecall: false } }), skillsPath: resolve(repositoryRoot, 'builder-skills'),
   })
   await controller.init()
   t.after(() => controller.destroy?.())
+  conversations = testConversations(controller, workspaceOf)
+  t.after(() => conversations.close())
   const projectId = '22222222-2222-4222-8222-222222222222'
   const builderRunId = '11111111-1111-4111-8111-111111111111'
   const conversationId = '44444444-4444-4444-8444-444444444444'
-  const openSession = createControllerRunSessions({ controller, runContexts, conversationWorkspaces, runTools: new Map(), readDefaultModel: async () => 'anthropic/default-model' })
+  const openSession = createControllerRunSessions({ controller, conversations, readDefaultModel: async () => 'anthropic/default-model' })
   const bind = (runId) => (requestContext) => { requestContext.setRaw('conexusBuilderRunId', runId); requestContext.setRaw('conexusBuilderConversationId', conversationId) }
   // The browser's session, made before the first run the way the route guard makes it.
-  const conversation = await controller.createSession({ resourceId: `project:${projectId}`, scope: `conversation:${conversationId}`, threadId: conversationId })
+  const conversation = await conversations.open({ projectId, conversationId })
   assert.equal(conversation.model.hasSelection(), false, 'a new conversation has no model of its own')
-  const run = await openSession({ projectId, conversationId, builderRunId, workspace, runCheck: async () => PASSING, bindContext: bind(builderRunId) })
-  const live = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
-  assert.equal(live.model.get(), 'anthropic/default-model', 'the first turn starts on the installation default')
-  await conversation.thread.loadMetadata()
-  assert.equal(conversation.model.get(), 'anthropic/default-model', 'and keeps it on the thread, where the conversation session reads it')
+  assert.equal(conversation.getWorkspace()?.id, 'run-ws-1', 'the session stands on the conversation\'s sandbox from the start')
+  const run = await openSession({ projectId, conversationId, builderRunId, bindContext: bind(builderRunId) })
+  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `conversation:${conversationId}`), conversation, 'the run steps on the browser\'s session')
+  assert.equal(conversation.model.get(), 'anthropic/default-model', 'the first turn starts on the installation default')
   const answered = []
   const payloads = []
   let askedCallId = ''
-  live.subscribe((event) => {
+  conversation.subscribe((event) => {
     if (event.type !== 'tool_suspended') return
     answered.push(event.toolName)
     payloads.push(event.suspendPayload)
     askedCallId = event.toolCallId
   })
-  const asked = await run.sendTurn('faça um app')
-  assert.equal(asked.reason, 'suspended', 'the turn ends at the question')
+  const signal = new AbortController().signal
+  const asked = await run.takeStep({ kind: 'SEND', content: 'faça um app' }, signal)
+  assert.equal(asked.reason, 'suspended', 'the step ends at the question')
   assert.equal(typeof asked.userMessageId, 'string')
-  await run.end()
-  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`) === live, true, 'a run parked on the question keeps its session live for the answer')
-  // The answer gets the parked run's live session again and resumes the call on it.
-  const answering = await openSession({ projectId, conversationId, builderRunId, workspace, runCheck: async () => PASSING, bindContext: bind(builderRunId) })
-  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`) === live, true, 'the answer resumes on the same session object')
-  const turn = await answering.resumeTurn({ toolCallId: askedCallId, resumeData: ['Azul (recomendado)', ['Lista', 'Detalhe'], 'Nada'] })
-  assert.deepEqual({ reason: turn.reason, summary: turn.summary, answered, calls: calls.length }, { reason: 'complete', summary: 'ok', answered: ['ask_user'], calls: 3 })
+  await run.untilQuestionStored()
+  assert.deepEqual(run.pendingCalls(), [askedCallId], 'the question waits on the live session')
+  assert.equal(conversation.displayState.get().pendingSuspensions.has(askedCallId), true, 'the browser\'s session shows the card')
+  const turn = await run.takeStep({ kind: 'ANSWER', toolCallId: askedCallId, resumeData: ['Azul (recomendado)', ['Lista', 'Detalhe'], 'Nada'] }, signal)
+  assert.deepEqual({ reason: turn.reason, answered, calls: calls.length, pending: run.pendingCalls() }, { reason: 'complete', answered: ['ask_user'], calls: 3, pending: [] })
   assert.equal(typeof turn.userMessageId, 'string')
   assert.deepEqual(payloads, [{ questions: ASK_QUESTIONS }])
   assert.equal(calls[1].prompt.includes('User answered:\\nQual cor?: Azul (recomendado)\\nQuais telas?: Lista, Detalhe\\nAlgo mais?: Nada'), true, 'the model reads one line per answered question')
   // With no allowlist on the one mode, every tool the controller registers reaches the model, submit_plan included.
   for (const name of ['ask_user', 'task_write', 'task_update', 'task_complete', 'task_check', 'skill', 'submit_plan', 'mastra_workspace_execute_command']) assert.equal(calls[0].tools.includes(name), true, `${name} reaches the model`)
-  assert.deepEqual([[...runContexts.keys()], [...conversationWorkspaces.keys()]], [[`builder:${conversationId}`], [conversationId]])
-  const answeringLive = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
-  await answering.end()
-  assert.deepEqual([runContexts.size, conversationWorkspaces.size, await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`) === answeringLive], [0, 0, true])
-  await answering.release()
-  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`), undefined, 'the run deletes its session when it is over')
+  await run.release()
+  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `conversation:${conversationId}`), conversation, 'the session stays with the conversation after the run')
 
   // The person changes the model between messages, through the conversation's session; the next turn runs on it.
   await conversation.model.switch({ modelId: 'anthropic/chosen-model' })
   const nextRunId = '55555555-5555-4555-8555-555555555555'
-  const next = await openSession({ projectId, conversationId, builderRunId: nextRunId, workspace, runCheck: async () => PASSING, bindContext: bind(nextRunId) })
-  const nextLive = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
-  assert.notEqual(nextLive, answeringLive, 'the next run makes its own session, since the last run deleted its own')
-  assert.equal(nextLive.model.get(), 'anthropic/chosen-model', 'the turn reads the conversation\'s model from its thread')
-  await next.end()
-  const rebuilt = new Workspace({ id: 'run-ws-rebuilt', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
-  const onNewVm = await openSession({ projectId, conversationId, builderRunId: nextRunId, workspace: rebuilt, runCheck: async () => PASSING, bindContext: bind(nextRunId) })
-  const remade = await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`)
-  assert.deepEqual({ same: remade === nextLive, workspace: remade.getWorkspace() === rebuilt }, { same: false, workspace: true }, 'a turn on a new VM gets a session made on its workspace')
-  await onNewVm.release()
-  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `builder:${conversationId}`), undefined)
+  const next = await openSession({ projectId, conversationId, builderRunId: nextRunId, bindContext: bind(nextRunId) })
+  assert.equal(conversation.model.get(), 'anthropic/chosen-model', 'the next run keeps the conversation\'s model')
+  await next.release()
+  // A killed VM ends the conversation's instance and its session; the next open stands on a new one.
+  await (await conversations.sandbox({ projectId, conversationId })).kill()
+  assert.equal(await controller.getSessionByResource(`project:${projectId}`, `conversation:${conversationId}`), undefined)
+  const remade = await conversations.open({ projectId, conversationId })
+  assert.deepEqual({ same: remade === conversation, workspace: remade.getWorkspace()?.id }, { same: false, workspace: 'run-ws-2' })
 })
 
 test('a conversation with no model and no installation default fails the run before any turn', async (t) => {
-  const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
+  const { createControllerRunSessions } = await import(hubModuleUrl('builder/run/turn.js'))
   const root = mkdtempSync(resolve(tmpdir(), 'builder-harness-nomodel-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const workspace = new Workspace({ id: 'nomodel-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
-  const conversationWorkspaces = new Map()
+  let conversations
   const controller = createBuilderController({
-    workspace: ({ requestContext }) => conversationWorkspaces.get(requestContext.getRaw('conexusBuilderConversationId')),
+    workspace: (context) => conversations.workspace(context),
     model: scriptedModel().model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills'),
   })
   await controller.init()
   t.after(() => controller.destroy?.())
-  const openSession = createControllerRunSessions({ controller, runContexts: new Map(), conversationWorkspaces, runTools: new Map(), readDefaultModel: async () => null })
+  conversations = testConversations(controller, () => workspace)
+  t.after(() => conversations.close())
+  const openSession = createControllerRunSessions({ controller, conversations, readDefaultModel: async () => null })
   await assert.rejects(() => openSession({
     projectId: '22222222-2222-4222-8222-222222222222', conversationId: '44444444-4444-4444-8444-444444444444', builderRunId: '11111111-1111-4111-8111-111111111111',
-    workspace, runCheck: async () => PASSING, bindContext: (requestContext) => requestContext.setRaw('conexusBuilderConversationId', '44444444-4444-4444-8444-444444444444'),
+    bindContext: (requestContext) => requestContext.setRaw('conexusBuilderConversationId', '44444444-4444-4444-8444-444444444444'),
   }), /BUILDER_MODEL_NOT_SELECTED/)
 })

@@ -3,8 +3,7 @@ import type { ToolsInput } from '@mastra/core/agent'
 import { Mastra } from '@mastra/core/mastra'
 import { ConsoleLogger } from '@mastra/core/logger'
 import type { ObservabilityInstance } from '@mastra/core/observability'
-import { RequestContext } from '@mastra/core/request-context'
-import type { Workspace } from '@mastra/core/workspace'
+import type { RequestContext } from '@mastra/core/request-context'
 import { createPostgresPool } from '../platform/postgres.js'
 import { Failure } from '../platform/failure.js'
 import { logLine } from '../platform/logger.js'
@@ -13,7 +12,6 @@ import { registerBuilderRoutes } from './routes.js'
 import { mountLogFilter, mountValidationFailure, registerBuilderSessionRoutes } from './mastra-session-routes.js'
 import type { ToolPayloadProjection } from './mastra-session-routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
-import { parkedCallStanding } from './runtime.js'
 import { createBuilderService } from './service.js'
 import type { ApplicationServerPort, ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderStore } from './store.js'
@@ -21,9 +19,11 @@ import { buildTraceSummary, UNAVAILABLE_TRACE_SUMMARY } from './trace-summary.js
 import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
 import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig, InstallationSecretKey } from '../platform/config.js'
 import { assertBuilderSkillsAvailable } from './skills-guard.js'
-import { conversationRunScope, createBuilderRunRuntime, createControllerRunSessions, createParkedDiscard, e2bConversationSandboxes } from './run-runtime.js'
-import type { ConversationSandboxes } from './run-runtime.js'
-import type { BuilderRunPorts, RunContextBinder } from './run-runtime.js'
+import type { BuilderRunPorts } from './run/ports.js'
+import { createControllerRunSessions } from './run/turn.js'
+import { e2bConversationSandboxes } from './conversation-sandboxes.js'
+import type { ConversationSandboxes } from './conversation-sandboxes.js'
+import { listPausedConversationMachines } from './sandbox.js'
 import { APPLICATION_SHAPE_FILES, fixedApplicationStarterFiles } from './application-starter.js'
 import { createConexusGit } from './conexus-git.js'
 import { createConversations, projectResourceId } from './conversations.js'
@@ -32,9 +32,8 @@ import { scheduleRunLease } from './run-lease.js'
 import { createBuilderObservability, createBuilderObservabilityLifecycle } from './observability.js'
 import { createDiagnosticAppender } from './diagnostic-appender.js'
 import { createBuilderStorage, scheduleRetentionPrune } from './storage.js'
-import { listPausedConversationMachines } from './sandbox.js'
-import { createConversationSessions } from './conversation-sessions.js'
-import { createBuilderController, createContext7Docs, type RunTools } from './harness/index.js'
+import { conversationScope, createLiveConversations } from './conversation.js'
+import { createBuilderController, createContext7Docs } from './harness/index.js'
 import { starterProjectFiles } from './project-context.js'
 import { createProjectSourceReads } from './source.js'
 import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
@@ -86,7 +85,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     ingressPasswordFile: string; executorPasswordFile: string; modelAccountPasswordFile: string; e2bApiKeyFile: string
-    e2bTemplateId: string; gitRoot: string; context7ApiKeyFile?: string | undefined
+    e2bTemplateId: string; gitRoot: string; context7ApiKeyFile?: string | undefined; questionWaitMs: number; sandboxIdleMs: number
   }>
   // Only its database password is still read: the Builder's Mastra storage lives in the `factory`
   // schema through the `hub_factory` role until slice 7 moves it to schema `mastra`.
@@ -149,9 +148,6 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     // Called from the Hub with the person's Anthropic key or Claude subscription; neither leaves the Hub.
     [ANTHROPIC_PROVIDER]: createAnthropicRoute(createClaudeHolds({ store: modelAccounts })),
   })
-  const runContexts = new Map<string, RunContextBinder>()
-  const conversationWorkspaces = new Map<string, Workspace>()
-  const runTools = new Map<string, RunTools>()
   const modelRouting = createModelRouting({
     routes,
     modelAccounts,
@@ -164,13 +160,11 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   const docsTools = createContext7Docs({ apiKey: builder.context7ApiKeyFile ? readSecretFile(builder.context7ApiKeyFile) : undefined })
   const controller = createBuilderController({
     id: BUILDER_CONTROLLER_ID,
-    workspace: ({ requestContext }) => {
-      const conversationId = requestContext.getRaw(CONVERSATION_ID_KEY)
-      return typeof conversationId === 'string' ? conversationWorkspaces.get(conversationId) : undefined
-    },
+    workspace: (context) => liveConversations.workspace(context),
     runTools: ({ requestContext }) => {
+      const conversationId = requestContext.getRaw(CONVERSATION_ID_KEY)
       const runId = requestContext.getRaw(RUN_ID_KEY)
-      return typeof runId === 'string' ? runTools.get(runId) : undefined
+      return typeof conversationId === 'string' && typeof runId === 'string' ? service.runTools(conversationId, runId) : undefined
     },
     model: modelRouting.resolve,
     docsTools,
@@ -186,14 +180,30 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   })
   const ready = controller.init()
   ready.catch(() => undefined)
-  const sessions = createConversationSessions({ controller })
-  const conversationSession = async (resourceId: string, conversationId: string) => {
+  // E2B's sandboxes come with the sweep that deletes its idle paused machines. A test composition's
+  // own sandboxes have no E2B machines, so no key is read and nothing is swept.
+  const e2bSandboxes = () => {
+    const e2bApiKey = readSecretFile(builder.e2bApiKeyFile)
+    const sandboxes = e2bConversationSandboxes({ apiKey: e2bApiKey, templateId: builder.e2bTemplateId, idleMs: builder.sandboxIdleMs })
+    const idleMachineSweep = scheduleIdleMachineSweep({
+      listPaused: () => listPausedConversationMachines(e2bApiKey),
+      openRunConversations: store.readOpenRunConversations,
+      kill: sandboxes.killRecorded,
+      log,
+    })
+    return { sandboxes, idleMachineSweep }
+  }
+  const { sandboxes, idleMachineSweep } = conversationSandboxes ? { sandboxes: conversationSandboxes, idleMachineSweep: undefined } : e2bSandboxes()
+  const liveConversations = createLiveConversations({
+    controller, sandboxes, readSandboxId: store.readConversationSandbox, runOpen: (conversationId) => service.runOpen(conversationId),
+  })
+  const conversationSession = async (ref: Readonly<{ projectId: string; conversationId: string }>) => {
     await ready
-    return sessions.open({ resourceId, conversationId, requestContext: new RequestContext() })
+    return liveConversations.open(ref)
   }
   // The conversation's model is the one in its Mastra session, never a copy of Mastra's thread keys.
   const conversationModel = async (projectId: string, conversationId: string): Promise<string | null> => {
-    const session = await conversationSession(projectResourceId(projectId), conversationId)
+    const session = await conversationSession({ projectId, conversationId })
     await session.thread.loadMetadata()
     return session.model.hasSelection() ? session.model.get() : null
   }
@@ -204,31 +214,12 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     return memory
   })
 
-  const openSession = createControllerRunSessions({ controller, runContexts, conversationWorkspaces, runTools, readDefaultModel: () => readDefault('build') })
-  const discardParked = createParkedDiscard({ controller })
-  // E2B's sandboxes come with the sweep that deletes its idle paused machines. A test composition's
-  // own sandboxes have no E2B machines, so no key is read and nothing is swept.
-  const e2bSandboxes = () => {
-    const e2bApiKey = readSecretFile(builder.e2bApiKeyFile)
-    const sandboxes = e2bConversationSandboxes({ apiKey: e2bApiKey, templateId: builder.e2bTemplateId })
-    const idleMachineSweep = scheduleIdleMachineSweep({
-      listPaused: () => listPausedConversationMachines(e2bApiKey),
-      openRunConversations: store.readOpenRunConversations,
-      kill: sandboxes.killRecorded,
-      log,
-    })
-    return { sandboxes, idleMachineSweep }
-  }
-  const { sandboxes, idleMachineSweep } = conversationSandboxes ? { sandboxes: conversationSandboxes, idleMachineSweep: undefined } : e2bSandboxes()
-  const runtime = createBuilderRunRuntime({
-    openSandbox: sandboxes.open,
+  const openSession = createControllerRunSessions({ controller, conversations: liveConversations, readDefaultModel: () => readDefault('build') })
+  const ports: BuilderRunPorts = Object.freeze({
+    openSandbox: liveConversations.sandbox,
     openSession: async (input) => {
       await ready
       return openSession(input)
-    },
-    discardParked: async (input) => {
-      await ready
-      return discardParked(input)
     },
     checkModel: modelRouting.check,
     readProjectName,
@@ -238,18 +229,18 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     log,
   })
   const runs: BuilderRunDependencies = Object.freeze({
-    runtime,
+    ports,
     git,
     conversations,
     source: createProjectSourceReads({ git }),
-    appendDiagnostic: createDiagnosticAppender(({ resourceId, threadId }) => conversationSession(resourceId, threadId)),
-    findParkedCall: async ({ projectId, conversationId, toolCallId }) => parkedCallStanding(await conversationSession(projectResourceId(projectId), conversationId), toolCallId),
-    // Into the session the run's turns go through, which the browser's stream follows. The
-    // controller keeps it in memory only; a session not open yet, or gone, has no one to tell.
+    appendDiagnostic: createDiagnosticAppender(conversationSession),
+    // Into the conversation's session, which the browser's stream follows. The controller keeps it
+    // in memory only; a session not open yet, or gone, has no one to tell.
     publishRun: async (run) => {
-      const session = await controller.getSessionByResource(projectResourceId(run.projectId), conversationRunScope(run.conversationId))
+      const session = await controller.getSessionByResource(projectResourceId(run.projectId), conversationScope(run.conversationId))
       await session?.state.set({ conexusRun: run })
     },
+    questionWaitMs: builder.questionWaitMs,
   })
   const service = createBuilderService({
     store, applicationArtifacts: boundApplicationArtifacts, ...(applicationServer ? { applicationServer } : {}), runs,
@@ -300,18 +291,13 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       const builderOperations = await registerBuilderRoutes(app, { store, service, session, resolveCurrentSession, origin, ...(launchPreview ? { launchPreview } : {}) })
       await ready
       await registerBuilderSessionRoutes(app, {
-        mastra, controller, sessions, controllerId: BUILDER_CONTROLLER_ID, origin, resolveCurrentSession, admitProject,
+        mastra, controller, conversations: liveConversations, controllerId: BUILDER_CONTROLLER_ID, origin, resolveCurrentSession, admitProject,
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async ({ accountId, projectId }) => {
           const latest = await store.readBuilderRun({ accountId, projectId })
           return latest?.state === 'QUEUED' || latest?.state === 'RUNNING'
         },
-        runContext: (scope) => runContexts.get(scope),
-        answerParked: async ({ accountId, projectId, conversationId, toolCallId, resumeData }) => {
-          const latest = await store.readBuilderRun({ accountId, projectId })
-          if (latest?.conversationId !== conversationId) return 'NOT_PARKED'
-          return service.answerBuilderRun({ accountId, projectId, builderRunId: latest.builderRunId, toolCallId, resumeData })
-        },
+        answerQuestion: service.answerQuestion,
         ...(connectors ? { toolPayloads: connectors.toolPayloadProjection } : {}),
       })
       const googleAiProPool = (await googleAiProReady)?.pool
@@ -331,8 +317,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     // A deleted Project leaves neither its conversations nor its repository behind.
     deleteProjectRepository: async (projectId: string) => {
       const conversationIds = await conversations.deleteAll(projectId)
-      await sessions.drop(projectResourceId(projectId), conversationIds)
-      await sandboxes.destroy(conversationIds)
+      await liveConversations.drop(projectId, conversationIds)
       await git.deleteRepository(projectId)
     },
     readApplicationFileBySource: service.readApplicationFileBySource,
@@ -342,7 +327,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
       let drained: Promise<unknown> = Promise.resolve()
       try {
         try {
-          service.stopLegs()
+          service.stopRuns()
         } finally {
           drained = Promise.all([retentionPrune.close(), idleMachineSweep?.close()])
         }
@@ -351,7 +336,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
         await service.close()
       } finally {
         try {
-          await sessions.close()
+          await liveConversations.close()
           await controller.destroy()
         } finally {
           await docsTools.close()

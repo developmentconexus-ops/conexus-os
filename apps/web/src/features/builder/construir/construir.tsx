@@ -19,7 +19,7 @@ import {
   answerPendingCall, type Conversation, useBuilderConversation, useBuilderModels, useConversationActions, useConversationStreamOpen,
   useProjectConversations, useSessionModel,
 } from '../mastra-session'
-import { localMessageId, promptIsOpenFor, type PromptEntry, type TaskSnapshot } from '../transcript.ts'
+import { localMessageId, type PromptEntry, type TaskSnapshot } from '../transcript.ts'
 import { LensCode } from './lens-code'
 import { changeBasisOf, LensDiff } from './lens-diff'
 import { LensDetails } from './lens-details'
@@ -27,7 +27,7 @@ import { LensPreview } from './lens-preview'
 import { PendingCard } from './pending-card'
 import { previewWait } from './preview-wait'
 import { ResultCard, showsResultCard } from './result-card'
-import { clockLabel, isActive, isParked, statusLine, viewRun } from './run-state'
+import { clockLabel, isActive, isWaiting, statusLine, viewRun, waitingOn } from './run-state'
 import { usePreview } from './use-preview'
 import { WorkingState } from './working-state'
 import { FailureNotice } from '../../../app/failure-state'
@@ -146,10 +146,11 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const { history, transcript, runtime } = thread
   // The run's own memory while it works here; the conversation's, as the Hub stored it, otherwise.
   const shownMemory = runHere && isActive(runHere) && runtime.memory ? runtime.memory : sessionModel.memory
-  // A call stays parked on the person only while the run that parked it is still going.
-  // A card the thread kept from an earlier run is not open for this one.
-  const openEntries = transcript.entries.filter((entry) => entry.kind !== 'prompt' || (runHere !== null && promptIsOpenFor(entry, runHere, runs)))
-  const pending = runHere && isActive(runHere) ? openEntries.filter((entry): entry is PromptEntry => entry.kind === 'prompt') : []
+  // A card is drawn only for a call the run's live session waits on, as the Hub says; a card the
+  // thread kept from an earlier run, or from a Hub that stopped, is never one.
+  const waitsOn = waitingOn(runHere)
+  const pending = waitsOn.flatMap((toolCallId) => transcript.calls[toolCallId] ?? [])
+  const openEntries = [...transcript.entries, ...pending]
 
   // The message this page sent waits for the thread to show it back. Once its run settled and the
   // thread was read again, one never shown belongs to a run that stopped before its agent, and the
@@ -209,8 +210,8 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
 
   const preview = usePreview(projectId, session.data?.preview)
   const working = view.kind === 'ACTIVE'
-  const parked = isParked(runHere)
-  const now = useNow(working && !parked)
+  const waitsHere = isWaiting(runHere)
+  const now = useNow(working && !waitsHere)
   // The Hub starts a new conversation from the person's defaults, else the installation's, and a
   // model chosen in one conversation stays with that conversation.
   const newConversation = () => conversationActions.create.mutate(undefined, { onSuccess: (created) => onConversationChange(created.id) })
@@ -222,14 +223,15 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   if (session.isError && (session.data === undefined || denied)) {
     return <section className="cx-unavailable" role="alert">
       <ConexusMark size={32} />
-      <h2>{denied ? 'Você não pode construir neste Project' : 'Não foi possível abrir o Construir'}</h2>
-      <p>{denied ? 'Sua conta vê este Project, mas não tem permissão para construir nele. Peça acesso a um owner.' : failureText(session.error)}</p>
+      <h2>{denied ? 'Você não pode construir neste Projeto' : 'Não foi possível abrir o Construir'}</h2>
+      <p>{denied ? 'Sua conta vê este Projeto, mas não tem permissão para construir nele. Peça acesso a um owner.' : failureText(session.error)}</p>
       {!denied && isRetryable(session.error) && <Button onClick={() => void session.refetch()}>Tentar novamente</Button>}
     </section>
   }
 
+  const stopping = cancel.isPending || runHere?.cancellationRequested === true
   const composerMode: ComposerMode = runHere && isActive(runHere)
-    ? { kind: 'RUNNING', stopping: cancel.isPending || runHere.cancellationRequested === true }
+    ? (waitsHere ? { kind: 'WAITING', stopping, sending: send.isPending } : { kind: 'RUNNING', stopping })
     : isActive(run) ? { kind: 'BUSY_ELSEWHERE' }
       : send.isPending ? { kind: 'SENDING' }
         : modelReady ? { kind: 'READY' }
@@ -284,7 +286,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
       </div>
     </div>
     <div className="cx-lens-panel" id="cx-lens-panel" role="tabpanel" aria-labelledby={`cx-lens-${lens}`}>
-      {session.isPending ? <div className="cx-preview-empty"><ConexusMark size={40} working /><p>Abrindo o Project…</p></div> : <>
+      {session.isPending ? <div className="cx-preview-empty"><ConexusMark size={40} working /><p>Abrindo o Projeto…</p></div> : <>
         {/* The Preview stays mounted under the other lenses so its frame never reloads on a lens switch. */}
         <div className="cx-lens-layer" hidden={lens !== 'preview'}>
           <LensPreview preview={preview} view={view} wait={wait} history={runs} lastGoodSourceRevision={preview_?.lastGoodSourceRevision ?? null} sourceAhead={sourceAhead} />
@@ -326,15 +328,15 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
                     persistedRequests={persisted}
                     runs={conversationRuns}
                     working={Boolean(runHere && isActive(runHere) && runHere.phase === 'AGENT')}
+                    waitingOn={waitsOn}
                     model={offeredModels.find((entry) => entry.id === sessionModel.modelId) ?? null}
                     {...(runHere && isActive(runHere) ? {
                       renderPrompt: (entry: PromptEntry) => <PendingCard
                         pending={entry}
                         onAnswer={async (answer) => {
                           const outcome = await answerPendingCall(projectId, runHere.conversationId, entry, answer)
-                          if (outcome !== 'RESUMED') return outcome
+                          if (outcome !== 'ACCEPTED') return outcome
                           void queryClient.invalidateQueries({ queryKey: builderSessionKey(projectId) })
-                          dispatch({ type: 'resolvePrompt', toolCallId: entry.toolCallId })
                           return outcome
                         }}
                       />,
@@ -369,7 +371,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
         {runHere && <TaskListPt className="cx-task-list" tasks={[...transcript.tasks]} title={taskListTitle(transcript.tasks)} />}
         {/* The result card already names a code-changing run's outcome; a settled working-state row
             underneath would just repeat "Alterou o app" a second time. */}
-        {headerLine !== null && !resultCardShown && <WorkingState line={headerLine} working={working} elapsedMs={working && run && !parked ? now - new Date(run.createdAt).getTime() : null} />}
+        {headerLine !== null && !resultCardShown && <WorkingState line={headerLine} working={working} elapsedMs={working && run && !waitsHere ? now - new Date(run.createdAt).getTime() : null} />}
         <BuilderComposer
           draft={draft}
           onDraftChange={setDraft}

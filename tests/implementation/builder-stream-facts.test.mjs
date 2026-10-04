@@ -5,6 +5,7 @@ import { Mastra } from '@mastra/core/mastra'
 import { InMemoryStore } from '@mastra/core/storage'
 import { Memory } from '@mastra/memory'
 import { hubModuleUrl } from './hub-build.mjs'
+import { testConversations } from './builder-conversation-fixture.mjs'
 
 // What the browser can count on from the Builder's controller through the Hub's mount, recorded
 // from createBuilderController: the facts the conversation screen is built on. Mastra itself leaves
@@ -13,14 +14,13 @@ const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { registerBuilderSessionRoutes } = await import(hubModuleUrl('builder/mastra-session-routes.js'))
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
 const { createConversations } = await import(hubModuleUrl('builder/conversations.js'))
-const { createConversationSessions } = await import(hubModuleUrl('builder/conversation-sessions.js'))
 
 const origin = 'https://conexus.test'
 const accountId = '22222222-2222-4222-8222-222222222222'
 const projectId = '33333333-3333-4333-8333-333333333333'
 const conversationId = '77777777-7777-4777-8777-777777777777'
 const resourceId = `project:${projectId}`
-const runScope = `builder:${conversationId}`
+const runScope = `conversation:${conversationId}`
 const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
 const streamOf = (parts) => new ReadableStream({ start(controller) { for (const part of parts) controller.enqueue(part); controller.close() } })
 
@@ -59,12 +59,11 @@ const startMount = async (t, memoryOptions = {}, model = askingModel()) => {
   const app = await createHttpApp({
     registerRoutes: async (instance) => {
       await registerBuilderSessionRoutes(instance, {
-        mastra, controllerId: 'conexus-builder', controller, sessions: createConversationSessions({ controller }), origin,
+        mastra, controllerId: 'conexus-builder', controller, conversations: testConversations(controller, () => undefined), origin,
         resolveCurrentSession: async (request) => request.cookies['__Host-conexus_session'] ? { account: { accountId, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' } : null,
         admitProject: async () => true,
         conversationOwner: ({ projectId: project, conversationId: id }) => conversations.ownerOf(project, id),
         projectBusy: async () => false,
-        runContext: () => undefined,
       })
       return []
     },
@@ -134,11 +133,11 @@ const openStream = async (base) => {
   }
 }
 
-test('a parked thread carries its open question in metadata.suspendedTools on the message window, and the answer clears it', async (t) => {
+test('a suspended thread carries its open question in metadata.suspendedTools on the message window, and the answer clears it', async (t) => {
   const { base, session } = await startMount(t)
-  const parked = nextEvent(session, 'agent_end')
+  const suspended = nextEvent(session, 'agent_end')
   void session.sendMessage({ content: 'faça um app' })
-  assert.equal((await parked).reason, 'suspended')
+  assert.equal((await suspended).reason, 'suspended')
 
   const whileParked = (await readMessages(base)).flatMap((message) => Object.values(message.content.metadata?.suspendedTools ?? {}))
   assert.deepEqual(whileParked.map((entry) => [entry.toolCallId, entry.toolName, entry.args]), [['ask-1', 'ask_user', { questions: [{ question: 'Qual cor?' }] }]])
@@ -161,11 +160,11 @@ test("a run's session state written by the Hub reaches the browser's stream thro
 
 test("a stream opened after the Hub published the run starts with that run, as state_changed", async (t) => {
   const { base, session } = await startMount(t)
-  await session.state.set({ conexusRun: { builderRunId: 'run-1', state: 'RUNNING', phase: 'PARKED' } })
+  await session.state.set({ conexusRun: { builderRunId: 'run-1', state: 'RUNNING', phase: 'WAITING' } })
   const stream = await openStream(base)
   const opened = await stream.event((event) => event.type === 'state_changed')
   await stream.close()
-  assert.deepEqual([opened?.changedKeys, opened?.state.conexusRun], [['conexusRun'], { builderRunId: 'run-1', state: 'RUNNING', phase: 'PARKED' }])
+  assert.deepEqual([opened?.changedKeys, opened?.state.conexusRun], [['conexusRun'], { builderRunId: 'run-1', state: 'RUNNING', phase: 'WAITING' }])
 })
 
 test("deleting a run's session ends the browser's stream on it, so the browser reads the run again", async (t) => {
@@ -186,15 +185,15 @@ test("the title memory gives a conversation reaches the browser's stream on the 
   assert.deepEqual(titled && { threadId: titled.threadId, title: titled.title }, { threadId: conversationId, title: 'Lista de compras' })
 })
 
-// The title of a first turn that parks is made on the turn that resumes it; Mastra sends no
+// The title of a first turn that suspends is made on the turn that resumes it; Mastra sends no
 // thread_title_updated for that turn, so the browser rereads the list at its agent_end. With
 // emitEvent the turn waits for the title, so even a slow title model has stored it by then.
-test('a first turn that parks and is answered has its title stored when the resumed turn ends, however slow the title model', async (t) => {
+test('a first turn that suspends and is answered has its title stored when the resumed turn ends, however slow the title model', async (t) => {
   const { base, session } = await startMount(t, { generateTitle: { model: titleModel(800), emitEvent: true } })
   const stream = await openStream(base)
-  const parked = nextEvent(session, 'agent_end')
+  const suspended = nextEvent(session, 'agent_end')
   void session.sendMessage({ content: 'faça uma lista de compras' })
-  await parked
+  await suspended
   const ended = nextEvent(session, 'agent_end')
   await session.respondToToolSuspension({ toolCallId: 'ask-1', resumeData: ['Azul'] })
   await ended

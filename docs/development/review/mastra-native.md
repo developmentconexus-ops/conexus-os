@@ -43,6 +43,16 @@ and what it does instead.
       re-implemented in TypeScript beyond boundary parsing.
 - [ ] When two fixes in one review share a premise, the premise is questioned before a third fix.
 
+## Allowed exceptions
+
+An exception to the rule above is listed here and in the [Mastra boundary](../../reference/mastra-boundary.md)
+with what it does, why no public path exists, its evidence and its removal trigger. A check in CI keeps
+it in one place. Any other reach into Mastra internals is a blocking finding.
+
+| Exception | Where | Why | Evidence | Removal trigger | Check |
+| --- | --- | --- | --- | --- | --- |
+| Releasing the `agentic-loop` registration and the workflow snapshot rows of a question an abort ended ([boundary item 18](../../reference/mastra-boundary.md#18-releasing-what-mastra-keeps-of-an-ended-question)) | `apps/hub/src/builder/mastra-leftovers.ts` | mastra-ai/mastra#25903: Mastra keeps both, and `declineToolCall` throws on the aborted run | Spike S-8 of spec 0011 | The test "Mastra still leaves the loop registration..." in `tests/implementation/builder-run-question.test.mjs` fails after an upgrade | Census item `mastraInternalsOutsideLeftovers`, recorded at 0 |
+
 ## Proof required
 
 The census table, in the review, with one row per mechanism. The reviewer builds it this way:

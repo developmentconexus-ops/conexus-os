@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import type { BuilderRunPhase, BuilderRunResultKind, BuilderRunState } from '../generated/builder-run-vocabulary.js'
-import { Failure } from '../platform/failure.js'
+import { Failure, type FailureCode } from '../platform/failure.js'
 import { errorCode, type PostgresPool } from '../platform/postgres.js'
 
 export type BuilderRunSummary = Readonly<{
@@ -19,6 +19,8 @@ export type BuilderRunSummary = Readonly<{
   createdAt: string
   cancellationRequested?: boolean
 }>
+/** The run as the browser reads it: its row, and the calls its live session waits on while the run waits. */
+export type BuilderRunView = BuilderRunSummary & Readonly<{ pendingCalls: readonly string[] }>
 type BuilderCodeChangingRun = Readonly<{
   builderRunId: string
   projectId: string
@@ -40,14 +42,15 @@ export type TakenOverRun = Readonly<{
   builderRunId: string
   projectId: string
   conversationId: string
-  /** Claimed by a leg, so its agent may have left a question on the thread. */
-  started: boolean
   /** Offered before `main` moved; `main` in the Conexus Git says whether it was admitted. */
   candidateRevision: string | null
   // Equal to the candidate once the advance is recorded.
   resultSourceRevision: string | null
   previousOwnerId: string | null
 }>
+
+/** How a run ends without failing: the person's stop, a Hub that stopped, or a question nobody answered. */
+export type InterruptionCode = Extract<FailureCode, 'USER_CANCELLED' | 'HUB_RESTART' | 'BUILDER_QUESTION_EXPIRED'>
 
 export type BuilderStore = Readonly<{
   // Takes the Project's run lock, reads the base with readBase while holding it, and inserts the run
@@ -56,11 +59,10 @@ export type BuilderStore = Readonly<{
   readBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderRunSummary | null>
   listBuilderRuns(input: Readonly<{ accountId: string; projectId: string; limit?: number }>): Promise<readonly BuilderRunSummary[]>
   readLatestCodeChangingBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderCodeChangingRun | null>
-  // Starts a queued run under its owner, the Hub process whose leg works it.
+  // Starts a queued run under its owner, the Hub process that works it.
   claimBuilderRun(builderRunId: string, ownerId: string): Promise<BuilderRunSummary>
-  // Takes a PARKED run back to PREPARING under its owner for the answer; null when the run is not parked, which is how a second answer is told.
-  resumeBuilderRun(builderRunId: string, ownerId: string): Promise<BuilderRunSummary | null>
-  setBuilderRunPhase(builderRunId: string, phase: BuilderRunPhase): Promise<void>
+  // Answers the run as written, or null when a stop was requested first.
+  setBuilderRunPhase(builderRunId: string, phase: BuilderRunPhase): Promise<BuilderRunSummary | null>
   // Enters SOURCE_ADMISSION with the candidate about to be fast forwarded onto `main`; refused once a stop is requested.
   recordBuilderRunCandidate(builderRunId: string, sourceRevision: string): Promise<void>
   bindBuilderRunMessage(builderRunId: string, messageId: string): Promise<void>
@@ -68,18 +70,16 @@ export type BuilderStore = Readonly<{
   recordBuilderRunModelAccount(builderRunId: string, modelAccountId: string): Promise<void>
   settleBuilderRun(input: Readonly<{ builderRunId: string; resultSourceRevision: null; resultKind: 'RESPONSE_ONLY'; failureCode: null }>): Promise<void>
   advanceBuilderRunSource(builderRunId: string, sourceRevision: string): Promise<void>
-  settleBuilderRunBuild(input: Readonly<{ builderRunId: string; sourceRevision: string; artifactRevisionId?: string; artifactDigest?: string; failureCode?: string }>): Promise<void>
-  failBuilderRun(builderRunId: string, failureCode: string): Promise<void>
+  settleBuilderRunBuild(input: Readonly<{ builderRunId: string; sourceRevision: string; artifactRevisionId?: string; artifactDigest?: string; failureCode?: FailureCode }>): Promise<void>
+  failBuilderRun(builderRunId: string, failureCode: FailureCode): Promise<void>
   requestBuilderRunCancellation(input: Readonly<{ accountId: string; projectId: string; builderRunId: string }>): Promise<BuilderRunSummary>
-  interruptBuilderRun(builderRunId: string, reason: string): Promise<void>
+  interruptBuilderRun(builderRunId: string, reason: InterruptionCode): Promise<void>
   readPreviewSubject(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderPreview | null>
   // mainRevision is `main` as the Hub just read it from the Conexus Git.
   admitSourceRevision(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; mainRevision: string | null }>): Promise<boolean>
   heartbeatBuilderRuns(ownerId: string, builderRunIds: readonly string[]): Promise<void>
-  // Takes over the queued and working runs whose owner's heartbeat is older than the limit; a parked run has no owner and is never taken.
+  // Takes over the queued and working runs whose owner's heartbeat is older than the limit.
   takeOverStaleBuilderRuns(ownerId: string, staleAfterMs: number): Promise<readonly TakenOverRun[]>
-  // Interrupts the runs parked for longer than the limit with BUILDER_RUN_PARKED_EXPIRED, answering each as it ended.
-  expireParkedBuilderRuns(idleMs: number): Promise<readonly BuilderRunSummary[]>
   // Upserts the conversation's working state outside any one turn; the Git ref stays the mirror's truth.
   recordConversationSession(input: Readonly<{ projectId: string; conversationId: string; mirrorHead: string; syncedMain?: string; turnEnded: boolean }>): Promise<void>
   // The E2B sandbox a conversation's turns resume, by its provider id.
@@ -164,17 +164,11 @@ export const createBuilderStore = ({
     if (!value || value.builderRunId !== builderRunId || value.state !== 'RUNNING') throw new Failure('BUILDER_RUN_CLAIM_REFUSED')
     return value
   },
-  resumeBuilderRun: async (builderRunId, ownerId) => {
-    const result = await executorPool.query<JsonRow<BuilderRunSummary | null>>(
-      'SELECT builder.resume_builder_run($1,$2) AS value', [builderRunId, ownerId],
-    )
-    return result.rows[0]?.value ?? null
-  },
   setBuilderRunPhase: async (builderRunId, phase) => {
-    const result = await executorPool.query<{ value: boolean }>(
+    const result = await executorPool.query<JsonRow<BuilderRunSummary | null>>(
       'SELECT builder.set_builder_run_phase($1,$2) AS value', [builderRunId, phase],
     )
-    if (result.rows[0]?.value !== true) throw new Failure('BUILDER_RUN_PHASE_UPDATE_REFUSED')
+    return result.rows[0]?.value ?? null
   },
   recordBuilderRunCandidate: async (builderRunId, sourceRevision) => {
     const result = await executorPool.query<{ value: boolean }>(
@@ -258,10 +252,6 @@ export const createBuilderStore = ({
   },
   takeOverStaleBuilderRuns: async (ownerId, staleAfterMs) => {
     const result = await executorPool.query<JsonRow<readonly TakenOverRun[]>>('SELECT builder.take_over_stale_builder_runs($1,$2) AS value', [ownerId, staleAfterMs])
-    return result.rows[0]?.value ?? []
-  },
-  expireParkedBuilderRuns: async (idleMs) => {
-    const result = await executorPool.query<JsonRow<readonly BuilderRunSummary[]>>('SELECT builder.expire_parked_builder_runs($1) AS value', [idleMs])
     return result.rows[0]?.value ?? []
   },
   recordConversationSession: async ({ projectId, conversationId, mirrorHead, syncedMain, turnEnded }) => {

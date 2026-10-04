@@ -29,7 +29,7 @@ export const wrapGatewayModel = (model: GatewayLanguageModel, middleware: readon
 /** The installation's two default models: the Builder's, for a conversation with none of its own, and the memory's. */
 export type ModelRole = 'build' | 'memory'
 
-/** Where a run's request context carries its id, and the account that pays for its calls (run-runtime.ts sets both on every turn). */
+/** Where a run's request context carries its id, and the account that pays for its calls (run/run.ts sets both on every turn). */
 export const RUN_ID_KEY = 'conexusBuilderRunId'
 export const RUN_ACCOUNT_ID_KEY = 'conexusBuilderAccountId'
 /** Where a turn's request context carries its conversation, whose workspace a new session resolves. */

@@ -18,8 +18,7 @@ export const conversationOf = (url) => scopeOf(url).replace(/^conversation:/, ''
 
 // Every Project is developed through the Builder's controller: its conversations are the threads
 // of its resource, project:<id>, and each conversation is its own session (conversation:<id>) bound
-// to the thread of that id; its runs share the session the Hub keeps for it (builder:<conversationId>)
-// on the same thread.
+// to the thread of that id, which its runs share.
 export const routeBuilder = async (page, state) => {
   await page.route(`${BUILDER_CONTROLLER}/sessions`, (route) => {
     const { resourceId, sessionScope, threadId } = route.request().postDataJSON()
