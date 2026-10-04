@@ -5,13 +5,14 @@ import { E2BSandbox } from '@mastra/e2b'
 import { FileNotFoundError, Sandbox } from 'e2b'
 import { fieldOf } from '../platform/field-of.js'
 import { Failure, logFailure } from '../platform/failure.js'
+import { AGENT_USER } from './check/agent.js'
 import { logger } from '../platform/logger.js'
 
 // The template's own home for the agent; the conversation's checkout lives inside it.
 const SANDBOX_HOME = '/workspace'
 export const SANDBOX_CHECKOUT = `${SANDBOX_HOME}/repo`
 // The template's unprivileged user: every agent command and file write runs as it.
-export const SANDBOX_AGENT_USER = 'conexus-agent'
+export const SANDBOX_AGENT_USER = AGENT_USER
 const CONVERSATION_METADATA_KEY = 'conexus-builder-conversation'
 const MAX_CONSECUTIVE_KEEPALIVE_FAILURES = 3
 

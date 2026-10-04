@@ -12,7 +12,12 @@ const fail = (message: string, code: number): never => {
 }
 
 const check = async (command: Extract<Command, { kind: 'CHECK' }>, host: Host): Promise<void> => {
-  const run = await (async () => runCheck(checkContextOf(command, host)))().catch((error: unknown) => fail(`check setup failed: ${error instanceof Error ? error.message : String(error)}`, 3))
+  let run: Awaited<ReturnType<typeof runCheck>>
+  try {
+    run = await runCheck(checkContextOf(command, host))
+  } catch (error) {
+    return fail(`check setup failed: ${error instanceof Error ? error.message : String(error)}`, 3)
+  }
   if (run.thumbnail && command.thumbnail) writeThumbnail(command.thumbnail, run.thumbnail)
   finish(JSON.stringify(run.report))
 }
@@ -32,13 +37,11 @@ const worker = async (command: Extract<Command, { kind: 'WORKER' }>, host: Host)
   }
 }
 
-const command = parseCommand(process.argv.slice(2))
-if (!command) fail(USAGE, 2)
+const command = parseCommand(process.argv.slice(2)) ?? fail(USAGE, 2)
 // biome-ignore lint/style/noProcessEnv: the process environment is read once, here, at the check's boundary.
 const host: Host = { mainPath: process.argv[1] ?? '', uid: process.getuid?.() ?? -1, home: process.env.HOME, path: process.env.PATH }
-switch (command?.kind) {
+switch (command.kind) {
   case 'CHECK': await check(command, host); break
   case 'SERVER': await server(command, host); break
   case 'WORKER': await worker(command, host); break
-  case undefined: break
 }

@@ -38,8 +38,9 @@ do not change. Repeat checks get faster through an incremental `tsc` cache the a
 - **AC-1**: The check and the server build are TypeScript modules under `apps/hub/src/builder/check/`,
   read by `typecheck:hub`, Biome, knip and the import law. `checkScriptSource`,
   `serverBuildScriptSource`, `application-server-build.ts` and the per run heredoc install are
-  deleted. No file under `apps/hub/src/builder/` embeds program text in a string or a function's
-  `.toString()`.
+  deleted. No file under `apps/hub/src/builder/` embeds the check's own program text in a string or a function's
+  `.toString()`. A page-evaluated snippet sent to the browser over the DevTools protocol is an
+  argument of that protocol, not the check's code, and is outside this rule.
 - **AC-2**: The check and the Hub import one report module. The Hub parses each report with it and
   refuses with `APPLICATION_CHECK_UNREADABLE` any report that does not have exactly the five steps in
   order, has a step after a blocking failure that is not `skipped: AFTER_BLOCKING_FAILURE`, has `ok`

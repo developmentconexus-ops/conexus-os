@@ -1,16 +1,15 @@
 import { Failure } from '../platform/failure.js'
 import { CURRENT_TEMPLATE_PIN } from '../platform/application-template-pins.js'
 import { checkEntryPath } from './check-delivery.js'
+import { AGENT_IDENTITY } from './check/agent.js'
 import type { Caller } from './check/command.js'
-import { type CheckReport, checkReportSchema, STEP_BLOCKS, type StepResult } from './check/report.js'
+import { type CheckFailureCode, type CheckReport, checkReportSchema, STEP_BLOCKS, type StepResult } from './check/report.js'
 
 /**
  * The Hub's side of the check: the command it runs in a VM, how it reads what the check printed,
  * and what the gate asks of a report. The check itself is `./check/`, bundled when the Hub is built.
  */
 export const CHECK_NODE_PATH = '/usr/local/bin/node'
-/** The template's unprivileged user. Every step that runs application code runs as it. */
-const CHECK_AGENT_IDENTITY = '1500:1500'
 
 type FailedStep = Extract<StepResult, { status: 'failed' }>
 
@@ -19,7 +18,7 @@ export const checkCommand = (input: Readonly<{ sha256: string; caller: Caller; r
   [
     CHECK_NODE_PATH, checkEntryPath(input.sha256), 'check', '--caller', input.caller, '--root', `'${input.root}'`, '--out', `'${input.out}'`,
     ...(input.thumbnail ? ['--thumbnail', `'${input.thumbnail}'`] : []),
-    '--template-ref', `'${CURRENT_TEMPLATE_PIN.templateRef}'`, '--as', CHECK_AGENT_IDENTITY,
+    '--template-ref', `'${CURRENT_TEMPLATE_PIN.templateRef}'`, '--as', `${AGENT_IDENTITY.uid}:${AGENT_IDENTITY.gid}`,
   ].join(' ')
 
 /**
@@ -64,7 +63,7 @@ export const failedBootStep = (report: CheckReport): FailedStep | null =>
 
 // A page that threw or drew nothing has no Preview worth opening. The other boot problems (a blocked
 // font, a console error, a failed request) are reported and leave the Preview standing.
-const UNRENDERED_BOOT_CODES: ReadonlySet<string> = new Set(['BOOT_UNCAUGHT_ERROR', 'BOOT_NO_ROOT_CHILD', 'STEP_TIMEOUT'])
+const UNRENDERED_BOOT_CODES: ReadonlySet<CheckFailureCode> = new Set(['BOOT_UNCAUGHT_ERROR', 'BOOT_NO_ROOT_CHILD', 'STEP_TIMEOUT'])
 
 /** The `boot` step when the page did not render, which is the only boot result that withholds the Preview. */
 export const unrenderedBootStep = (report: CheckReport): FailedStep | null => {

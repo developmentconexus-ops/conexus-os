@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { spawn } from 'node:child_process'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { hubModuleUrl } from './hub-build.mjs'
+import { hubBuildDirectory, hubModuleUrl } from './hub-build.mjs'
 
 const { cacheDirectory, withGateCache, withToolCache } = await import(hubModuleUrl('builder/check/cache.js'))
 
@@ -135,4 +136,40 @@ test('every lend of one key uses the same folder, because the build info records
   assert.equal(readFileSync(join(input.store, 'tsbuildinfo'), 'utf8'), 'run 2')
   const other = gateInput(t)
   await withGateCache(other, async (info) => { assert.notEqual(info, lent[0], 'another key has its own folder') })
+})
+
+test('real processes finding one dead holder take the lock one at a time: none removes another\'s fresh lock', async (t) => {
+  const dir = scratchOf(t)
+  const directory = join(dir, 'tool', 'app')
+  mkdirSync(join(dir, 'tool'), { recursive: true })
+  const race = async (round) => {
+    writeFileSync(`${directory}.lock`, '2147483646')
+    const logFile = join(dir, `log-${round}`)
+    const startFile = join(dir, `start-${round}`)
+    const children = Array.from({ length: 8 }, () => new Promise((resolve) => {
+      const child = spawn(process.execPath, [join(import.meta.dirname, 'check-lock-child.mjs'), join(hubBuildDirectory(), 'builder/check/cache.js'), directory, logFile, startFile], { stdio: 'inherit' })
+      child.once('exit', (code) => resolve(code))
+    }))
+    await wait(400)
+    writeFileSync(startFile, '')
+    assert.deepEqual(await Promise.all(children), Array(8).fill(0))
+    const lines = readFileSync(logFile, 'utf8').split('\n').filter(Boolean)
+    assert.deepEqual(lines.filter((line) => line.startsWith('OVERLAP')), [], `round ${round}: no two processes were inside at once`)
+    assert.equal(lines.filter((line) => line.startsWith('IN')).length, 8)
+    assert.equal(existsSync(`${directory}.lock`), false)
+  }
+  for (let round = 0; round < 4; round += 1) await race(round)
+})
+
+test('a build info that did not change is not written back, so the stored file keeps its date', async (t) => {
+  const input = gateInput(t)
+  mkdirSync(input.store, { recursive: true })
+  const stored = join(input.store, 'tsbuildinfo')
+  writeFileSync(stored, 'same')
+  const marked = new Date('2020-01-01T00:00:00Z')
+  utimesSync(stored, marked, marked)
+  await withGateCache(input, async () => undefined)
+  assert.equal(statSync(stored).mtimeMs, marked.getTime())
+  await withGateCache(input, async (info) => { writeFileSync(info, 'changed') })
+  assert.equal(readFileSync(stored, 'utf8'), 'changed')
 })

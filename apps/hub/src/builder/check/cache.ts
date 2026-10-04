@@ -1,4 +1,4 @@
-import { chmodSync, chownSync, closeSync, constants, copyFileSync, existsSync, fstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, chownSync, closeSync, constants, copyFileSync, existsSync, fstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
@@ -12,6 +12,8 @@ const INFO_NAME = 'tsbuildinfo'
 const MAX_INFO_BYTES = 64 * 1024 * 1024
 const LOCK_WAIT_MS = 15_000
 const LOCK_POLL_MS = 100
+/** The gate does not run without its cache: a lock that stays taken fails the step with this code. */
+const GATE_CACHE_LOCK_TIMEOUT = 'GATE_CACHE_LOCK_TIMEOUT'
 
 export type CacheProject = 'app' | 'server'
 
@@ -33,24 +35,51 @@ const holderOf = (path: string): number | null => {
 
 const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
+const createExclusive = (path: string): boolean => {
+  try {
+    const fd = openSync(path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600)
+    writeFileSync(fd, String(process.pid))
+    closeSync(fd)
+    return true
+  } catch (error) {
+    if (errnoOf(error) === 'EEXIST') return false
+    throw error
+  }
+}
+
+/** A takeover guard older than this belongs to a process that died inside its few microseconds. */
+const GUARD_STALE_MS = 10_000
+
+/**
+ * Removes a lock whose holder is gone. Two waiters must not both remove it, or the second removes
+ * the fresh lock the first just took: only the one that holds the guard (an exclusive file of its
+ * own) looks again at the holder and removes the lock, and the other sees the new holder alive.
+ */
+const takeOverStale = (path: string): void => {
+  const guard = `${path}.takeover`
+  try {
+    if (Date.now() - statSync(guard).mtimeMs > GUARD_STALE_MS) rmSync(guard, { force: true })
+  } catch { /* no guard */ }
+  if (!createExclusive(guard)) return
+  try {
+    const holder = holderOf(path)
+    if (holder !== null && !isAlive(holder)) rmSync(path, { force: true })
+  } finally {
+    rmSync(guard, { force: true })
+  }
+}
+
 /**
  * Takes the lock file of one cache key, waiting for the check that holds it. A lock left by a
- * process that is gone is taken over. Answers how to release it, or null when the lock could not be
- * had in time, in which case the check runs without a cache rather than share one.
+ * process that is gone is taken over. Answers how to release it, or null when the lock was not free
+ * in time.
  */
 const acquireLock = async (path: string, waitMs = LOCK_WAIT_MS): Promise<(() => void) | null> => {
   const deadline = Date.now() + waitMs
   for (;;) {
-    try {
-      const fd = openSync(path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600)
-      writeFileSync(fd, String(process.pid))
-      closeSync(fd)
-      return () => rmSync(path, { force: true })
-    } catch (error) {
-      if (errnoOf(error) !== 'EEXIST') return null
-    }
+    if (createExclusive(path)) return () => rmSync(path, { force: true })
     const holder = holderOf(path)
-    if (holder !== null && !isAlive(holder)) { rmSync(path, { force: true }); continue }
+    if (holder !== null && !isAlive(holder)) { takeOverStale(path); continue }
     if (Date.now() >= deadline) return null
     await pause(LOCK_POLL_MS)
   }
@@ -91,9 +120,10 @@ export const withGateCache = async <T>(
   input: Readonly<{ store: string; agent: Identity; sweep(): void }>,
   run: Run<T>,
 ): Promise<T> => {
-  try { mkdirSync(input.store, { recursive: true, mode: 0o700 }) } catch { return run(null) }
+  // A store that cannot be made or a lock that is not free is a broken VM, not a reason to check without the cache.
+  mkdirSync(input.store, { recursive: true, mode: 0o700 })
   const release = await acquireLock(`${input.store}.lock`)
-  if (!release) return run(null)
+  if (!release) throw new Error(`${GATE_CACHE_LOCK_TIMEOUT}: ${input.store}`)
   // The same path for every lend of one key: the build info records its own distance to the sources.
   const lend = join(tmpdir(), `conexus-lend-${createHash('sha256').update(input.store).digest('hex').slice(0, 16)}`)
   try {
@@ -108,7 +138,8 @@ export const withGateCache = async <T>(
     const result = await run(lent)
     input.sweep()
     const updated = readBackInfo(lent)
-    if (updated) {
+    // An unchanged build info is not written back: the store keeps its file, and its date says so.
+    if (updated && !(existsSync(stored) && readFileSync(stored).equals(updated))) {
       const next = join(input.store, `.${randomUUID()}`)
       writeFileSync(next, updated, { mode: 0o600 })
       renameSync(next, stored)

@@ -1,6 +1,7 @@
 import type { CommandResult, ExecuteCommandOptions } from '@mastra/core/workspace'
 import { CHECK_NODE_PATH } from '../application-check.js'
 import { checkEntryPath, installCheck } from '../check-delivery.js'
+import { AGENT_HOME } from '../check/agent.js'
 import { materializeApplicationShape, materializeFixedApplicationStarter } from '../application-starter.js'
 import { startCheckout } from '../conexus-git.js'
 import type { RunSourceSandbox } from '../conexus-git.js'
@@ -152,7 +153,7 @@ export const installRunTools = async ({ ports, projectId, accountId, vm, sandbox
     buildServer: () => buildCandidateServer(
       { node: CHECK_NODE_PATH, entry: checkEntryPath(ports.check.sha256), checkout: SANDBOX_CHECKOUT, out: RUN_OPERATION_OUT },
       (script, args) => vm.onIncarnation(() => sandbox.executeCommand('sh', ['-c', script, 'conexus-run-operation', ...args], {
-        timeout: 120_000, cwd: '/', env: { PATH: '/usr/local/bin:/usr/bin:/bin', HOME: `/home/${SANDBOX_AGENT_USER}`, LANG: 'C.UTF-8' },
+        timeout: 120_000, cwd: '/', env: { PATH: '/usr/local/bin:/usr/bin:/bin', HOME: AGENT_HOME, LANG: 'C.UTF-8' },
       })),
       (path) => sandbox.readAgentFile(path),
     ),

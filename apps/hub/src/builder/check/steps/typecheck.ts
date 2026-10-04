@@ -29,15 +29,11 @@ const problemsFromTsc = (root: string, text: string): readonly Problem[] => {
   return problems.length > 0 ? problems : [outputProblem(root, 1, text)]
 }
 
-/**
- * The gate runs as root and lends its cache (`withGateCache`); the tool is the agent already and keeps
- * its own. A gate that is not root has no store it may write, so it checks without a cache.
- */
-const withCache = <T>(ctx: CheckContext, project: CacheProject, run: (info: string | null) => Promise<T>): Promise<T> => {
-  if (ctx.caller === 'tool') return withToolCache(cacheDirectory(ctx, project), run)
-  if (!ctx.drop) return run(null)
-  return withGateCache({ store: cacheDirectory(ctx, project), agent: ctx.drop, sweep: () => endAgentProcesses(ctx) }, run)
-}
+/** The gate runs as root and lends its cache (`withGateCache`); the tool is the agent already and keeps its own. */
+const withCache = <T>(ctx: CheckContext, project: CacheProject, run: (info: string | null) => Promise<T>): Promise<T> =>
+  ctx.caller === 'tool'
+    ? withToolCache(cacheDirectory(ctx, project), run)
+    : withGateCache({ store: cacheDirectory(ctx, project), agent: ctx.drop, sweep: () => endAgentProcesses(ctx) }, run)
 
 /**
  * Two programs, because one cannot give node: to handlers and refuse it to screens: the app project

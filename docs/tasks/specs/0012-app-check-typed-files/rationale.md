@@ -105,6 +105,8 @@ Choices settled while designing:
 | Spike iteration 1 (package) | correctness on six apps, 15 refused writes, 16 inert hostile files; slower and longer |
 | Spike iteration 2 (lean package) | first check 8.6 s against 7.8 s; root only cache saves about 2.4 s after an edit |
 | Spike iteration 3 (this design) | first 7.0 s against 7.3 s, repeat 4.9 s against 7.1 s; real Hub to Preview proven; production image unchanged |
+| AC-15 on the built bundle (gate caller, seven interleaved pairs, one sandbox, p50) | first check 7.7 s against 7.4 s today (+4.1%); after a one line edit 5.4 s against 7.3 s (-26.8%); install on a new VM 2.5 s. Raw pairs, trail and scripts: the private HQ study folder `2026-10-04/app-check-spike/ac15/` |
+| AC-16 (real Hub, scripted model, real E2B) | one `BUILDER_CHECK` with all five steps passed; artifact retained under the current pin with hashed bytes; the Preview served the gate's `index.html`. Log in the same `ac15/` folder; the flow is `tests/manual/builder-gate-e2b-live.test.mjs` |
 | Subtraction review of iteration 3 | about 87 lines of weight; the rest is boundary cost |
 | Cross check of the draft spec (another model) | 12 gaps: bundle source, atomic install, tsc privilege, cache key and lock, strict report, failure mapping, timeout scope, test oracles; all resolved in index.md |
 | Adversarial review of the study | publish as promotion is a Q5 hypothesis; one version authority; prove the registry path |

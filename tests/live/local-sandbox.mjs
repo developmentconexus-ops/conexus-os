@@ -121,14 +121,15 @@ export const localConversationSandboxes = (root, workspaceTools, hub) => {
       readAgentFileStream: async (path) => new Blob([readFileSync(inside(path))]).stream(),
       // The Hub's own bundle, as the run placed it by its hash in /opt/conexus, on the real compiler and
       // the Playwright Chromium (the `chromium` on the check's PATH). It runs as this machine's user:
-      // there is no root or agent identity here, so it names that user as the agent and drops nothing.
-      runCheck: async ({ check, caller, root: tree, out, collect, thumbnail }) => {
+      // there is no root here, so the gate's check runs as the tool caller (the check refuses a gate that is
+// not root), naming this user as the agent and dropping nothing.
+      runCheck: async ({ check, root: tree, out, collect, thumbnail }) => {
         await placeCompiler(vm)
         const bin = join(vm, 'bin')
         mkdirSync(bin, { recursive: true })
         if (!existsSync(join(bin, 'chromium'))) symlinkSync(chromium.executablePath(), join(bin, 'chromium'))
         const ran = await execute(process.execPath, [
-          inside(hub.checkEntryPath(check.sha256)), 'check', '--caller', caller, '--root', inside(tree), '--out', inside(out),
+          inside(hub.checkEntryPath(check.sha256)), 'check', '--caller', 'tool', '--root', inside(tree), '--out', inside(out),
           ...(thumbnail ? ['--thumbnail', inside(thumbnail)] : []),
           '--template-ref', hub.templateRef, '--as', `${process.getuid()}:${process.getgid()}`,
         ], { cwd: vm, env: { ...environment, PATH: `${bin}:${process.env.PATH}` } })

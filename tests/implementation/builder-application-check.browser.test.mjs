@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -521,7 +521,7 @@ test('the tool check keeps an incremental cache per project, and it never hides 
   assert.deepEqual(stepsOf(fixed.report).map(([, status]) => status), ['passed', 'passed', 'passed', 'passed', 'passed'])
 })
 
-test('a build info the agent forged for the tool cache cannot make a type error pass', (t) => {
+test('a build info copied from another tree or plain noise cannot make a type error pass', (t) => {
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-check-forged-test-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
   const clean = check(t, withMain(`${STARTER['app/src/main.tsx']}export const answer: number = 6\n`), { scratch })
@@ -535,17 +535,16 @@ test('a build info the agent forged for the tool cache cannot make a type error 
   }
 })
 
-test('a second check of an edited project at the same path reuses the cache, and the typecheck gets faster', (t) => {
-  const scratch = mkdtempSync(join(tmpdir(), 'conexus-check-big-test-'))
+test('tsc reads the tool cache: a second check of an unchanged tree leaves the build info alone, and an edit rewrites it', (t) => {
+  const scratch = mkdtempSync(join(tmpdir(), 'conexus-check-read-test-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
-  const modules = (edit) => Object.fromEntries(Array.from({ length: 400 }, (_, index) => [`app/src/m/f${index}.tsx`, `import * as React from 'react'
-${index > 0 ? `import { f${index - 1} } from './f${index - 1}'\n` : ''}type P${index} = { a: number; b: string; c: Array<{ k: string; v: number }> }
-export const f${index} = (p: P${index}) => <div>{p.c.map((x) => <span key={x.k}>{x.v + ${index}}{p.b}{${index > 0 ? `f${index - 1}(p).props.children.length` : '0'}}</span>)}</div>
-${edit && index === 399 ? 'export const edited = 1\n' : ''}`]))
-  const typecheckMs = ({ report }) => report.steps.find((step) => step.step === 'typecheck').durationMs
-  const first = check(t, { ...STARTER, ...modules(false) }, { scratch })
-  const second = check(t, { ...STARTER, ...modules(true) }, { scratch })
-  t.diagnostic(`typecheck ms, 400 modules: cold ${typecheckMs(first)}, after a one line edit at the same path ${typecheckMs(second)}`)
-  assert.deepEqual([first.report.ok, second.report.ok], [true, true])
-  assert.ok(typecheckMs(second) < typecheckMs(first) * 0.8, 'the build info was read: the edited check is clearly faster')
+  const info = join(scratch, '.conexus-check-cache', BUNDLE_SHA256, 'tool/app/tsbuildinfo')
+  const tree = (value) => withMain(`${STARTER['app/src/main.tsx']}export const answer: number = ${value}\n`)
+  assert.equal(check(t, tree(6), { scratch }).report.ok, true)
+  const marked = new Date('2020-01-01T00:00:00Z')
+  utimesSync(info, marked, marked)
+  assert.equal(check(t, tree(6), { scratch }).report.ok, true)
+  assert.equal(statSync(info).mtimeMs, marked.getTime(), 'tsc read the build info and found nothing to write')
+  assert.equal(check(t, tree(7), { scratch }).report.ok, true)
+  assert.notEqual(statSync(info).mtimeMs, marked.getTime(), 'an edit is written back')
 })

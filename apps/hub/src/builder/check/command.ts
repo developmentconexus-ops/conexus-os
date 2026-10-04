@@ -7,13 +7,14 @@ export type Identity = Readonly<{ uid: number; gid: number }>
 type StepLimits = Readonly<Record<ChildStepId, number>>
 export type Worker = 'build' | 'server' | 'boot'
 
-type Place = Readonly<{ root: string; out: string }>
+/** Where the work is: the checkout and the folder the build goes to. */
+export type Tree = Readonly<{ root: string; out: string }>
 
 /** Every way the check is started. A fourth kind is a compile error in `main.ts`. */
 export type Command =
-  | (Place & Readonly<{ kind: 'CHECK'; caller: Caller; thumbnail: string | null; templateRef: string; agent: Identity; limits: StepLimits }>)
-  | (Place & Readonly<{ kind: 'SERVER' }>)
-  | (Place & Readonly<{ kind: 'WORKER'; worker: Worker }>)
+  | (Tree & Readonly<{ kind: 'CHECK'; caller: Caller; thumbnail: string | null; templateRef: string; agent: Identity; limits: StepLimits }>)
+  | (Tree & Readonly<{ kind: 'SERVER' }>)
+  | (Tree & Readonly<{ kind: 'WORKER'; worker: Worker }>)
 export type CheckCommand = Extract<Command, { kind: 'CHECK' }>
 
 export const USAGE = [

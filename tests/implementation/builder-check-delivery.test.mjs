@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -18,10 +18,10 @@ const vmFor = (t, { corrupt = false } = {}) => {
   const local = (text) => text.replaceAll('/opt/conexus', join(dir, 'opt/conexus'))
   const writes = []
   const vm = {
-    asRoot: async (script) => {
-      const run = spawnSync('sh', ['-c', local(script)], { encoding: 'utf8' })
-      return { exitCode: run.status ?? 1, stderr: run.stderr }
-    },
+    // Each script is its own process, so installs started together really run together.
+    asRoot: (script) => new Promise((resolve) => {
+      execFile('sh', ['-c', local(script)], { encoding: 'utf8' }, (error, _stdout, stderr) => resolve({ exitCode: error ? (typeof error.code === 'number' ? error.code : 1) : 0, stderr }))
+    }),
     writeRootFile: async (path, bytes) => {
       writes.push(path)
       mkdirSync(dirname(local(path)), { recursive: true })
@@ -62,8 +62,9 @@ test('another bundle lands beside the first, and the first is not touched', asyn
 
 test('two installs of the same bundle at once both succeed and leave one directory', async (t) => {
   const bundle = bundleOf('console.log("one")')
-  const { vm, folder } = vmFor(t)
-  await Promise.all([installCheck(vm, bundle), installCheck(vm, bundle), installCheck(vm, bundle)])
+  const { vm, folder, writes } = vmFor(t)
+  await Promise.all(Array.from({ length: 6 }, () => installCheck(vm, bundle)))
+  assert.equal(writes.length, 6, 'all six found the bundle missing and raced to rename their staging folder')
   assert.deepEqual(readdirSync(folder), [bundle.sha256])
 })
 

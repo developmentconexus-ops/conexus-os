@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { FAILURE_CODES, type CheckFailureCode, type CheckSkipCode, type Problem, problemSchema, SKIP_CODES } from './report.js'
+import { FAILURE_CODES, type CheckFailureCode, type CheckSkipCode, type Problem, problemSchema, SKIP_CODES, type StepId } from './report.js'
 
 /** How one step ended, before the runner times it. A worker prints one as its only line. */
 type Passed = Readonly<{ kind: 'ok'; thumbnailBase64?: string }>
@@ -14,5 +14,5 @@ export const outcomeSchema = z.discriminatedUnion('kind', [
 
 export const OK: Passed = Object.freeze({ kind: 'ok' })
 export const failed = (code: CheckFailureCode, problems: readonly Problem[]): Failed => ({ kind: 'failed', code, problems })
-export const timedOut = (step: string, limitMs: number): Outcome =>
+export const timedOut = (step: StepId, limitMs: number): Outcome =>
   failed('STEP_TIMEOUT', [{ code: 'STEP_TIMEOUT', message: `${step} exceeded ${limitMs / 1000} s and was stopped` }])

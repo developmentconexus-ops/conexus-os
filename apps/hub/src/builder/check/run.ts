@@ -4,12 +4,16 @@ import { artifactManifest } from './artifact.js'
 import type { CheckContext } from './context.js'
 import { failed } from './outcome.js'
 import { shapeProblem } from './problems.js'
-import { type CheckReport, MAX_PROBLEMS, STEP_BLOCKS, type StepResult } from './report.js'
+import { type CheckReport, MAX_PROBLEMS, STEP_BLOCKS, type StepId, type StepResult } from './report.js'
 import { STEPS } from './steps.js'
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
-/** The agent owns the output folder, and its `app/node_modules` is the template's compiler view. */
+/**
+ * The agent owns the output folder, and its `app/node_modules` is the template's compiler view. These
+ * writes run as root inside the candidate's tree, which is safe only because the gate unpacks a
+ * link-free git archive into a root-only folder (`run/judge.ts`): no link there can point root elsewhere.
+ */
 const prepareTree = (ctx: CheckContext): void => {
   mkdirSync(ctx.out, { recursive: true })
   if (ctx.drop) chownSync(ctx.out, ctx.drop.uid, ctx.drop.gid)
@@ -27,7 +31,7 @@ export type CheckRun = Readonly<{ report: CheckReport; thumbnail: Buffer | null 
 export const runCheck = async (ctx: CheckContext): Promise<CheckRun> => {
   prepareTree(ctx)
   const steps: StepResult[] = []
-  let blockedBy: string | null = null
+  let blockedBy: StepId | null = null
   let thumbnail: Buffer | null = null
   for (const step of STEPS) {
     if (blockedBy !== null) { steps.push({ step: step.id, status: 'skipped', code: 'AFTER_BLOCKING_FAILURE', reason: `after failed ${blockedBy}` }); continue }
