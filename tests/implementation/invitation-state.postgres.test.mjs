@@ -68,6 +68,8 @@ test('application access lists an invitation as PENDING or EXPIRED, a grant and 
 test('an expired invitation can still be cancelled', async (t) => {
   const { connectionString, owner, workspaceId } = await seeded(t, 'conexus_invitation_cancel')
   const id = (await query(connectionString, 'SELECT iam.invite_workspace_member($1,$2,$3,$4,$5,$6) AS id', [owner, workspaceId, randomUUID(), 'old@example.test', 'member', new Date(Date.now() - DAY)])).rows[0].id
+  const invitations = async () => (await query(connectionString, "SELECT invitation_id, state FROM iam.list_workspace_roster($1,$2) WHERE kind = 'invitation'", [owner, workspaceId])).rows
+  assert.deepEqual(await invitations(), [{ invitation_id: id, state: 'EXPIRED' }])
   await query(connectionString, 'SELECT iam.cancel_workspace_invitation($1,$2)', [owner, id])
-  assert.deepEqual((await query(connectionString, "SELECT 1 FROM iam.list_workspace_roster($1,$2) WHERE kind = 'invitation'", [owner, workspaceId])).rows, [])
+  assert.deepEqual(await invitations(), [])
 })

@@ -34,8 +34,8 @@ const startProject = async (page, hub, request) => {
 
 liveFlow({ id: 'builder.done-gate-repairs', nome: 'Um erro do app volta para o agente no mesmo pedido, e a pessoa vê a verificação enquanto ele corrige' }, async ({ page, model, hub }) => {
   const REQUEST = 'Crie um total simples'
-  // The repair answer is held, so the screen can be read while the agent works on the fix.
-  model.script(write('app/src/total.ts', BROKEN), say('Pronto, terminei.'), { ...write('app/src/total.ts', FIXED), delayMs: 15_000 }, say('Corrigi o erro de tipo.'))
+  const repair = Promise.withResolvers()
+  model.script(write('app/src/total.ts', BROKEN), say('Pronto, terminei.'), { ...write('app/src/total.ts', FIXED), until: repair.promise }, say('Corrigi o erro de tipo.'))
   await startProject(page, hub, REQUEST)
 
   const notice = notices(page).filter({ hasText: `${CHECK_NOTICE}: o app não passou (1 de 3).` })
@@ -45,6 +45,7 @@ liveFlow({ id: 'builder.done-gate-repairs', nome: 'Um erro do app volta para o a
   // A notice spans the conversation, never one character per line.
   expect((await notice.boundingBox()).width).toBeGreaterThan(300)
   await shot(page, hub, 'repairs-1-while-the-agent-fixes')
+  repair.resolve()
 
   await settled(hub, REQUEST)
   await expect(page.getByRole('log')).toContainText('Corrigi o erro de tipo.')

@@ -6,10 +6,7 @@ import { takeHubLogs } from './hub-log-capture.mjs'
 const { iamReaperJob } = await import(hubModuleUrl('identity-access/reaper.js'))
 
 const signal = new AbortController().signal
-const poolAnswering = (rows) => {
-  const calls = []
-  return { calls, query: async (sql, values) => { calls.push([sql, values]); return { rows } } }
-}
+const poolAnswering = (rows) => ({ query: async () => ({ rows }) })
 
 test('the reaper job writes one IAM_EXPIRED_REAPED line for each rule that removed or ended a row, and none for the rest', async () => {
   takeHubLogs()
