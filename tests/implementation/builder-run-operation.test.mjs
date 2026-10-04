@@ -8,7 +8,7 @@ import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import { RequestContext } from '@mastra/core/request-context'
-import { ensureCompilerRoot } from './compiler-root.mjs'
+import { placeBundle } from './check-bundle-vm.mjs'
 import { FAKE_CREDENTIAL, NATIVE_ORDER_DATASET, startFakeGateway } from './connector-fake-gateway.mjs'
 import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
@@ -22,7 +22,6 @@ const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/defi
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
 const { schemaViolation } = await import(hubModuleUrl('app-runner/server-manifest.js'))
 const { buildCandidateServer, createOperationRunner } = await import(hubModuleUrl('builder/run-operation.js'))
-const { serverBuildScriptSource } = await import(hubModuleUrl('builder/application-server-build.js'))
 const { createRunOperationTool } = await import(hubModuleUrl('builder/harness/tools.js'))
 
 const PROJECT = '22222222-2222-4222-8222-222222222222'
@@ -212,16 +211,14 @@ export async function orderLines(_input: unknown, { connectors }: { connectors: 
 }
 `
 
-// The Hub's server build script, run for real with the template's compiler, as the tool runs it in
-// the sandbox: one shell script, positional paths, and the files read back.
+// The Hub's bundle, run for real by its `server` command, as the tool runs it in the sandbox: one
+// shell script, positional paths, and the files read back.
 const localServerBuild = async (t) => {
-  const compilerRoot = await ensureCompilerRoot()
   const scratch = mkdtempSync(join(tmpdir(), 'cx-run-op-build-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
-  const script = join(scratch, 'server-build.mjs')
-  writeFileSync(script, serverBuildScriptSource().replaceAll('/opt/conexus/compiler', compilerRoot))
+  const entry = placeBundle(join(scratch, 'opt'))
   const checkout = join(scratch, 'repo')
-  const place = { node: process.execPath, script, checkout, out: join(scratch, 'out') }
+  const place = { node: process.execPath, entry, checkout, out: join(scratch, 'out') }
   const write = (files) => {
     rmSync(checkout, { recursive: true, force: true })
     for (const [path, content] of Object.entries(files)) {

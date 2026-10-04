@@ -89,11 +89,9 @@ const CHECK_OUT = `${CHECK_ROOT}.dist`
 const placeHubCheck = async (sandbox, files) => {
   const hub = await loadHub()
   const { loadCheckBundle, installCheck } = await hub('builder/check-delivery.js')
-  const { serverBuildScriptSource } = await hub('builder/application-server-build.js')
   const bundle = loadCheckBundle()
   await installCheck(sandbox, bundle)
-  await sandbox.writeRootFile('/opt/conexus/server-build.mjs', Buffer.from(serverBuildScriptSource()))
-  assert.equal((await sandbox.runAsRoot("chmod 555 /opt/conexus/server-build.mjs && rm -rf /var/lib/conexus-build && mkdir -p -m 711 /var/lib/conexus-build", {})).exitCode, 0)
+  assert.equal((await sandbox.runAsRoot("rm -rf /var/lib/conexus-build && mkdir -p -m 711 /var/lib/conexus-build", {})).exitCode, 0)
   for (const [path, content] of Object.entries(files)) await sandbox.writeRootFile(`${CHECK_ROOT}/${path}`, Buffer.from(content))
   return bundle
 }

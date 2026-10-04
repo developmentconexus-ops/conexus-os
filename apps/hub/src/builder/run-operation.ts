@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { admitManifest } from '../app-runner/server-manifest.js'
-import type { ServerManifest, ValueSchema } from '../app-runner/server-manifest.js'
+import type { ValueSchema } from '../app-runner/server-manifest.js'
 import type { Caller } from '../platform/caller.js'
 import { commandEvidence } from './application-starter.js'
 
@@ -125,11 +125,11 @@ export type CandidateOperationPorts = Readonly<{
 const SERVER_TREE_FILES = 128
 const SERVER_TREE_BYTES = 8 * 1024 * 1024
 
-/** Where the server half is built: the node binary, the Hub's build script, the checkout and the output folder. */
-export type ServerBuildPlace = Readonly<{ node: string; script: string; checkout: string; out: string }>
+/** Where the server half is built: the node binary, the Hub's check bundle by its hash path, the checkout and the output folder. */
+export type ServerBuildPlace = Readonly<{ node: string; entry: string; checkout: string; out: string }>
 
 /**
- * Builds the checkout's server half with the Hub's own script into a folder emptied first, so a
+ * Builds the checkout's server half with the Hub's own bundle (`main.mjs server`) into a folder emptied first, so a
  * Project without a manifest never serves an earlier build, and reads the tree back. `run` runs a
  * shell script with positional arguments as the agent's user; `read` reads a file as that user.
  */
@@ -142,9 +142,9 @@ export const buildCandidateServer = async (
     'set -e',
     'rm -rf "$4"',
     'mkdir -p "$4"',
-    '"$1" "$2" "$3" "$4" >/dev/null',
+    '"$1" "$2" server --root "$3" --out "$4" >/dev/null',
     'if [ -d "$4/conexus-server" ]; then cd "$4/conexus-server" && find . -type f | cut -c3-; fi',
-  ].join('\n'), [place.node, place.script, place.checkout, place.out])
+  ].join('\n'), [place.node, place.entry, place.checkout, place.out])
   if (built.exitCode !== 0) return { ok: false, detail: commandEvidence(built.stderr.trim().replace(/^conexus server check: /, '')) }
   const paths = built.stdout.split('\n').filter(Boolean).sort()
   if (paths.length > SERVER_TREE_FILES) return { ok: false, detail: `the server half has more than ${SERVER_TREE_FILES} files` }
@@ -182,8 +182,7 @@ const runOnce = async (ports: CandidateOperationPorts, { operation, input }: Par
   if (!built.ok) return refused(operation, 'SERVER_BUILD_FAILED', built.detail)
   const manifestFile = built.files.find((file) => file.path === MANIFEST_PATH)
   if (!manifestFile) return refused(operation, 'SERVER_HALF_MISSING', 'the checkout has no conexus/manifest.json')
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const manifest = admitManifest(JSON.parse(Buffer.from(manifestFile.content, 'base64').toString('utf8')), 'server') as ServerManifest
+  const manifest = admitManifest(JSON.parse(Buffer.from(manifestFile.content, 'base64').toString('utf8')), 'server')
   const declared = Object.hasOwn(manifest.operations, operation) ? manifest.operations[operation] : undefined
   if (!declared) return refused(operation, 'OPERATION_NOT_FOUND', `declared: ${Object.keys(manifest.operations).join(', ')}`)
   let reply: Readonly<{ status: number; body: unknown }>

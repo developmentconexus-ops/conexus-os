@@ -1,29 +1,23 @@
-import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve, sep } from 'node:path'
+import { dirname, join, sep } from 'node:path'
+import { placeBundle, serverCommand } from './check-bundle-vm.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 export const { SUPPORTED_NODE_IMPORTS } = await import(hubModuleUrl('app-runner/server-manifest.js'))
 
-// The same script the Conexus build and the Project check run in the build sandbox, pointed at this
-// repository's vite instead of the template's copy of the same version.
-const { serverBuildScriptSource } = await import(hubModuleUrl('builder/application-server-build.js'))
-const repositoryVite = resolve(import.meta.dirname, '../../node_modules/vite/dist/node/index.js')
-const script = serverBuildScriptSource().replace("'/opt/conexus/compiler/node_modules/vite/dist/node/index.js'", JSON.stringify(repositoryVite))
-
-/** Writes `files` into a fresh Project root and runs the server build on it, as the Project check does. */
+/** Writes `files` into a fresh Project root and builds its server half with the Hub's bundle, as the Project check does. */
 export const buildServerProject = (t, files) => {
-  const root = mkdtempSync(join(tmpdir(), 'conexus-server-build-'))
-  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const scratch = mkdtempSync(join(tmpdir(), 'conexus-server-build-'))
+  t.after(() => rmSync(scratch, { recursive: true, force: true }))
+  const root = join(scratch, 'repo')
   for (const [path, content] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true })
     writeFileSync(join(root, path), typeof content === 'string' ? content : JSON.stringify(content))
   }
-  writeFileSync(join(root, '.server-build.mjs'), script)
-  const out = join(root, 'dist')
-  const ran = spawnSync(process.execPath, [join(root, '.server-build.mjs'), root, out], { encoding: 'utf8', timeout: 60_000 })
+  const out = join(scratch, 'dist')
+  const ran = serverCommand(placeBundle(join(scratch, 'opt')), root, out)
   return { root, out, status: ran.status, stdout: ran.stdout.trim(), stderr: ran.stderr.trim() }
 }
 
