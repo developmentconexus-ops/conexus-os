@@ -195,6 +195,14 @@ Beside the waves, each when its area is touched: one idempotent command and one 
 in the Hub, with a project started by one command; typed tests, after a design pass; and one
 migration baseline after S2.
 
+A known defect waits for its own fix, found on 2026-10-04 while verifying S3: when the Builder
+cannot open its sandbox (E2B unreachable), the turn ends as `INTERNAL_UNEXPECTED`, and the person
+reads that Conexus failed in a way it did not expect. The code `BUILDER_PREPARATION_FAILED` left the
+failure table and nothing replaced it. A sandbox that cannot start is an expected platform failure:
+it needs its own row in the failure table with its person-facing text, and the verify skill's
+Construir recipe, which still names the old code, changes with it. It is fixed before the Builder
+screen check.
+
 Every wave is built the same way:
 
 1. A census of what exists and of what the installed `@mastra` packages already offer, compared
