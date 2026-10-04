@@ -11,7 +11,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 const { Failure } = await import(hubModuleUrl('platform/failure.js'))
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
-const { createControllerRunSessions, createParkedDiscard, deleteSessionLeavingParked } = await import(hubModuleUrl('builder/run-runtime.js'))
+const { createControllerRunSessions, createParkedDiscard, deleteSessionLeavingParked } = await import(hubModuleUrl('builder/run/turn.js'))
 const { createConversationSessions } = await import(hubModuleUrl('builder/conversation-sessions.js'))
 const { createBuilderMemory } = await import(hubModuleUrl('builder/memory.js'))
 const { createBuilderService } = await import(hubModuleUrl('builder/service.js'))

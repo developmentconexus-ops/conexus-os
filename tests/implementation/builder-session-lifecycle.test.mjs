@@ -10,7 +10,8 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { takeHubLogs } from './hub-log-capture.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
-const { createControllerRunSessions, e2bConversationSandboxes } = await import(hubModuleUrl('builder/run-runtime.js'))
+const { createControllerRunSessions } = await import(hubModuleUrl('builder/run/turn.js'))
+const { e2bConversationSandboxes } = await import(hubModuleUrl('builder/conversation-sandboxes.js'))
 const { createConversationSandbox } = await import(hubModuleUrl('builder/sandbox.js'))
 const { createConversationSessions } = await import(hubModuleUrl('builder/conversation-sessions.js'))
 

@@ -270,7 +270,8 @@ const until = async (condition, what, limitMs = 90_000) => {
 
 const liveParkedRuntime = async (t, { warmParkedMs } = {}) => {
   const hub = await loadHub()
-  const { createBuilderRunRuntime, e2bConversationSandboxes } = await hub('builder/run-runtime.js')
+  const { createBuilderRunRuntime } = await hub('builder/run/run.js')
+  const { e2bConversationSandboxes } = await hub('builder/conversation-sandboxes.js')
   const { createConexusGit } = await hub('builder/conexus-git.js')
   const { templateId, apiKey } = liveConfig()
   const gitRoot = mkdtempSync(join(tmpdir(), 'conexus-live-parked-git-'))

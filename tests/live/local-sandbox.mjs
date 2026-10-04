@@ -7,7 +7,7 @@ import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace
 import { ensureCompilerRoot } from '../implementation/compiler-root.mjs'
 
 // The conversation's VM as a directory on this machine, for the Hub's `ConversationSandboxes` port
-// (apps/hub/src/builder/run-runtime.ts). Ported from the directory-backed fake in
+// (apps/hub/src/builder/conversation-sandboxes.ts). Ported from the directory-backed fake in
 // tests/implementation/builder-run-runtime.test.mjs, but its commands run for real, in a real Hub process.
 const AGENT_USER = 'conexus-agent'
 const CONVERSATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/

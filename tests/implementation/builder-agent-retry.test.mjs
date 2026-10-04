@@ -8,7 +8,7 @@ import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
-const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
+const { createControllerRunSessions } = await import(hubModuleUrl('builder/run/turn.js'))
 const { createModelRouting } = await import(hubModuleUrl('builder/model-routing.js'))
 const { createAnthropicRoute } = await import(hubModuleUrl('builder/anthropic/route.js'))
 const { createClaudeHolds } = await import(hubModuleUrl('builder/anthropic/credential.js'))

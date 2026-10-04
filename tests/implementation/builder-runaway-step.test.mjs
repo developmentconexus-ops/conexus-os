@@ -8,7 +8,7 @@ import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
-const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
+const { createControllerRunSessions } = await import(hubModuleUrl('builder/run/turn.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const projectId = '22222222-2222-4222-8222-222222222222'

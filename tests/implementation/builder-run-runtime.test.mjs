@@ -21,7 +21,7 @@ for (const level of ['info', 'warn', 'error']) {
 
 const built = hubModuleUrl
 const { createBuilderService } = await import(built('builder/service.js'))
-const { createBuilderRunRuntime } = await import(built('builder/run-runtime.js'))
+const { createBuilderRunRuntime } = await import(built('builder/run/run.js'))
 const { scheduleIdleMachineSweep } = await import(built('builder/idle-machine-sweep.js'))
 const { createConexusGit } = await import(built('builder/conexus-git.js'))
 const { createProjectSourceReads } = await import(built('builder/source.js'))

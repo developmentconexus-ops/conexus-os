@@ -66,7 +66,7 @@ const probeRouting = (script = [], onObserverPrompt = () => {}, titleDelayMs = 0
   return { routing, calls, titled, recorded, offered }
 }
 
-// What run-runtime.ts binds on every turn of a run.
+// What run/run.ts binds on every turn of a run.
 const runContext = () => {
   const requestContext = new RequestContext()
   requestContext.setRaw(RUN_ID_KEY, runId)

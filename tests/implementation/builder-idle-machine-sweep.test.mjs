@@ -4,7 +4,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { takeHubLogs } from './hub-log-capture.mjs'
 
 const { scheduleIdleMachineSweep } = await import(hubModuleUrl('builder/idle-machine-sweep.js'))
-const { e2bConversationSandboxes } = await import(hubModuleUrl('builder/run-runtime.js'))
+const { e2bConversationSandboxes } = await import(hubModuleUrl('builder/conversation-sandboxes.js'))
 
 const DAY = 86_400_000
 const NOW = Date.UTC(2026, 9, 2)

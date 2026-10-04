@@ -303,7 +303,7 @@ routes in `@mastra/server`. Checked against `@mastra/core` 1.71.0, the mount has
   Mastra Code's `prepareAgentControllerMount` built the controller as `mastra-code` under another key
   (`code-sdk/dist/index.js:731,1006`); the Builder does not use it.
 - **A session has no model.** `SessionModel` starts with an empty id, so `hasSelection()` is false
-  (`core/dist/agent-controller-0NjSdCnl.js:2486`). `run-runtime.ts` seeds the installation default
+  (`core/dist/agent-controller-0NjSdCnl.js:2486`). `run/turn.ts` seeds the installation default
   with `session.model.switch` when a run starts and the conversation has none.
 - **A model choice belongs to one thread.** `session.model.switch()` persists only when `scope` is
   `"thread"` (`core/dist/agent-controller-0NjSdCnl.js:2554`). `scope: "global"` persists nothing.

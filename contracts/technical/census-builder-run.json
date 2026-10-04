@@ -7,6 +7,6 @@
   "hubSendMessageCalls": 1,
   "sessionScopes": 2,
   "collectionsAcrossModules": 3,
-  "runFunctionLengthSuppressions": 7,
+  "runFunctionLengthSuppressions": 5,
   "failureCodesWithoutRow": 2
 }

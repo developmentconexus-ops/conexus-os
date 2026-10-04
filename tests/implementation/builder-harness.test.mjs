@@ -365,7 +365,7 @@ test('connector_fetch reaches a turn whose request context carries a run the Con
 })
 
 test("a turn lasts through the person's answer on the conversation's session and workspace, ending it keeps the session, and a new conversation starts on the installation default (AC-12, AC-16)", async (t) => {
-  const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
+  const { createControllerRunSessions } = await import(hubModuleUrl('builder/run/turn.js'))
   const root = mkdtempSync(resolve(tmpdir(), 'builder-harness-run-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const workspace = new Workspace({ id: 'run-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })
@@ -441,7 +441,7 @@ test("a turn lasts through the person's answer on the conversation's session and
 })
 
 test('a conversation with no model and no installation default fails the run before any turn', async (t) => {
-  const { createControllerRunSessions } = await import(hubModuleUrl('builder/run-runtime.js'))
+  const { createControllerRunSessions } = await import(hubModuleUrl('builder/run/turn.js'))
   const root = mkdtempSync(resolve(tmpdir(), 'builder-harness-nomodel-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const workspace = new Workspace({ id: 'nomodel-ws', filesystem: new LocalFilesystem({ basePath: root }), sandbox: new LocalSandbox({ workingDirectory: root }) })

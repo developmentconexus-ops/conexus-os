@@ -2,7 +2,7 @@ import type { AgentController } from '@mastra/core/agent-controller'
 import type { RequestContext } from '@mastra/core/request-context'
 import { Failure, logFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
-import { conversationRunScope, deleteSessionLeavingParked } from './run-runtime.js'
+import { conversationRunScope, deleteSessionLeavingParked } from './run/turn.js'
 
 /**
  * How long a conversation's session may go unused before the Hub deletes it. Mastra keeps a live
