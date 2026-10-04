@@ -211,7 +211,7 @@ test('an installation administrator and Owner adds two Connections and binds one
     ['', '', ''], 'the form is reset once the Connection is saved, so no field holds a value')
 
   await page.getByRole('button', { name: 'Testar' }).click()
-  await page.getByText('O conector ainda não está configurado no servidor.').waitFor()
+  await page.getByText('A integração com o sistema da empresa não está configurada. A falha foi registrada.').waitFor()
 
   await addConnection(page, 'ERP filial')
   await connections.getByText('ERP filial').waitFor()

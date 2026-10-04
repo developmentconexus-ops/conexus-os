@@ -14,6 +14,7 @@ const repositoryRoot = resolve(import.meta.dirname, '../..')
 const compilerRoot = await ensureCompilerRoot()
 const { typescriptProjects } = await import(join(compilerRoot, 'tsconfig.mjs'))
 const { fixedApplicationStarterFiles, APPLICATION_SHAPE_FILES } = await import(hubModuleUrl('builder/application-starter.js'))
+const { APP_FAILURES_SOURCE } = await import(hubModuleUrl('generated/app-failures.js'))
 const { previewContentSecurityPolicy } = await import(hubModuleUrl('platform/application-csp.js'))
 
 const DEMO_ROUTE = `import { useState } from 'react'
@@ -82,6 +83,8 @@ const materialize = (extra = {}) => {
     mkdirSync(dirname(join(root, path)), { recursive: true })
     writeFileSync(join(root, path), content)
   }
+  mkdirSync(join(root, 'app/src/conexus'), { recursive: true })
+  writeFileSync(join(root, 'app/src/conexus/failures.gen.ts'), APP_FAILURES_SOURCE)
   for (const [path, content] of Object.entries(extra)) writeFileSync(join(root, path), content)
   symlinkSync(join(compilerRoot, 'node_modules'), join(root, 'app/node_modules'))
   return root
