@@ -23,6 +23,8 @@ type E2BSandboxOptions = NonNullable<ConstructorParameters<typeof E2BSandbox>[0]
 export class ConexusRunSandbox extends E2BSandbox {
   readonly #timeoutMs: number
   readonly #idleMs: number
+  // E2B keeps the deadline set last, so each change waits for the one before it to land.
+  #deadline: Promise<void> = Promise.resolve()
 
   constructor(options: Omit<E2BSandboxOptions, 'workingDirectory'> & Readonly<{ timeout: number; idleMs: number }>) {
     const { idleMs, ...sandbox } = options
@@ -42,12 +44,18 @@ export class ConexusRunSandbox extends E2BSandbox {
     return this.executeCommand(command, args, options)
   }
 
-  async idle(): Promise<void> {
-    await this.e2b.setTimeout(this.#idleMs)
+  idle(): Promise<void> {
+    return this.#setDeadline(this.#idleMs)
   }
 
-  async #extend(): Promise<void> {
-    await this.e2b.setTimeout(this.#timeoutMs)
+  #extend(): Promise<void> {
+    return this.#setDeadline(this.#timeoutMs)
+  }
+
+  #setDeadline(ms: number): Promise<void> {
+    const set = this.#deadline.catch(() => undefined).then(() => this.e2b.setTimeout(ms))
+    this.#deadline = set
+    return set
   }
 
   // E2B counts the sandbox timeout from creation and command activity never moves it, so a run

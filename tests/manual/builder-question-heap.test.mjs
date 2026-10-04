@@ -3,8 +3,8 @@ import { test } from 'node:test'
 import { setFlagsFromString } from 'node:v8'
 import { runInNewContext } from 'node:vm'
 import { InMemoryStore } from '@mastra/core/storage'
-import { conversationId, projectId } from '../implementation/builder-run-harness.mjs'
-import { ASK, bindRun, builderOn, leftovers, liveSession, scriptedModel, snapshotOf, suspendedRuns } from '../implementation/builder-question-fixture.mjs'
+import { accountId, conversationId, harness, projectId, runId } from '../implementation/builder-run-harness.mjs'
+import { ASK, builderOn, leftovers, liveSession, scriptedModel, snapshotOf, suspendedRuns } from '../implementation/builder-question-fixture.mjs'
 
 setFlagsFromString('--expose-gc')
 const gc = runInNewContext('gc')
@@ -20,62 +20,54 @@ const settledHeap = async () => {
   return process.memoryUsage().heapUsed
 }
 
-// One run per iteration: a control run takes two plain turns; a question run asks, then ends by a
-// message (a send, or a new Hub's next send) or by the run's exit (expiry, Stop).
-const iterations = {
-  control: async (session, signal) => {
-    assert.equal((await session.takeStep({ kind: 'SEND', content: 'oi' }, signal)).reason, 'complete')
-    assert.equal((await session.takeStep({ kind: 'SEND', content: 'de novo' }, signal)).reason, 'complete')
-  },
-  message: async (session, signal, live) => {
-    assert.equal((await session.takeStep({ kind: 'SEND', content: ASK }, signal)).reason, 'suspended')
-    const runId = await snapshotOf(await live())
-    assert.equal((await session.takeStep({ kind: 'SEND', content: 'Use verde' }, signal)).reason, 'complete')
-    return runId
-  },
-  exit: async (session, signal, live) => {
-    assert.equal((await session.takeStep({ kind: 'SEND', content: ASK }, signal)).reason, 'suspended')
-    const runId = await snapshotOf(await live())
-    await session.endQuestions()
-    return runId
-  },
+// Each way a question ends in a real run, and the run's last write. A run with no question is the control.
+const WAYS = {
+  control: { content: 'oi', ending: 'settle:RESPONSE_ONLY' },
+  message: { content: ASK, ending: 'settle:RESPONSE_ONLY', act: (service, index) => service.sendBuilderMessage({ accountId, projectId, conversationId, idempotencyKey: `message-${index}`, content: 'Use verde' }) },
+  expiry: { content: ASK, ending: 'interrupt:BUILDER_QUESTION_EXPIRED', questionWaitMs: 300 },
+  stop: { content: ASK, ending: 'interrupt:USER_CANCELLED', act: (service) => service.cancelBuilderRun({ accountId, projectId, builderRunId: runId }) },
 }
 
 const measure = async (t, way) => {
+  const { content, ending, act, questionWaitMs = 60_000 } = WAYS[way]
   const storage = new InMemoryStore()
   await storage.init()
   const { model, prompts } = scriptedModel()
   const builder = await builderOn(t, storage, model)
-  const signal = new AbortController().signal
-  const live = () => liveSession(builder.controller)
+  const answers = []
+  const run = await harness(t, { answers, questionWaitMs, session: (input) => builder.openSession(input) })
   const questionRuns = []
+  const endings = new Set()
   let heapAtStart = 0
   for (let index = 0; index < WARMUP + ENDINGS; index += 1) {
     if (index === WARMUP) heapAtStart = await settledHeap()
-    const builderRunId = `22222222-2222-4222-8222-${String(index).padStart(12, '0')}`
-    const session = await builder.openSession({ projectId, conversationId, builderRunId, bindContext: bindRun(builderRunId) })
-    const runId = await iterations[way](session, signal, live)
-    await session.release()
-    if (runId) questionRuns.push(runId)
-    prompts.length = 0
+    answers.splice(0, answers.length, async (service) => {
+      questionRuns.push(await snapshotOf(await liveSession(builder.controller)))
+      await act?.(service, index)
+    })
+    await (index === 0 ? run.start(content, `run-${index}`) : run.again(content, `run-${index}`))
+    await run.untilEnded()
+    endings.add(run.calls.at(-1).join(':'))
+    for (const kept of [run.calls, run.events, run.logs, run.timings, run.sessions, prompts]) kept.length = 0
   }
   const growth = (await settledHeap()) - heapAtStart
   const kept = []
-  for (const runId of questionRuns) {
-    const left = await leftovers({ mastra: builder.mastra, storage }, runId)
-    if (left.registered || left.rows > 0) kept.push(runId)
+  for (const questionRun of questionRuns) {
+    const left = await leftovers({ mastra: builder.mastra, storage }, questionRun)
+    if (left.registered || left.rows > 0) kept.push(questionRun)
   }
-  return { growth, questions: questionRuns.length, kept, suspended: await suspendedRuns(await live()) }
+  const suspended = await suspendedRuns(await liveSession(builder.controller))
+  await run.service.close()
+  return { growth, outcome: { questions: questionRuns.length, endings: [...endings], kept, suspended }, expected: ending }
 }
 
-test(`${ENDINGS} questions ended each way leave no Mastra leftovers and keep the heap within 5 MB of a control run`, { timeout: 600_000 }, async (t) => {
+test(`${ENDINGS} questions ended each way in real runs leave no Mastra leftovers and keep the heap within 5 MB of a control run`, { timeout: 3_600_000 }, async (t) => {
   const control = await measure(t, 'control')
-  for (const way of ['message', 'exit']) {
+  assert.deepEqual(control.outcome, { questions: 0, endings: ['settle:RESPONSE_ONLY'], kept: [], suspended: [] })
+  for (const way of ['message', 'expiry', 'stop']) {
     const ended = await measure(t, way)
-    t.diagnostic(`${way}: ${ended.questions} questions, heap growth ${(ended.growth / MB).toFixed(2)} MB against control ${(control.growth / MB).toFixed(2)} MB`)
-    assert.equal(ended.questions, WARMUP + ENDINGS)
-    assert.deepEqual(ended.kept, [], `${way}: no question keeps its loop registration or snapshot rows`)
-    assert.deepEqual(ended.suspended, [], `${way}: Mastra lists no suspended run`)
+    t.diagnostic(`${way}: heap growth ${(ended.growth / MB).toFixed(2)} MB against control ${(control.growth / MB).toFixed(2)} MB`)
+    assert.deepEqual(ended.outcome, { questions: WARMUP + ENDINGS, endings: [ended.expected], kept: [], suspended: [] }, way)
     assert.ok(ended.growth - control.growth < 5 * MB, `${way}: heap growth ${(ended.growth / MB).toFixed(2)} MB against control ${(control.growth / MB).toFixed(2)} MB`)
   }
 })

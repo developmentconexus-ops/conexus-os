@@ -68,7 +68,7 @@ export const failedReport = (step, problems) => {
 // runtime names under /workspace, /var/lib or /opt lands under the harness's
 // own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run. It is the
 // conversation's one VM: every turn reaches the same directory until `loseVm` replaces it.
-export const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate = false, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0, questionWaitMs = 60_000, answers = [], session, onWaitingWrite, persisted } = {}) => {
+export const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate = false, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0, questionWaitMs = 60_000, answers = [], session, onWaitingWrite, persisted, openSandbox } = {}) => {
   endLines.splice(0)
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
@@ -205,7 +205,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     assert.match(String(written), /^Wrote /, `the write tool wrote ${path}`)
   }
   const ports = {
-    openSandbox: async (ref) => { events.push(['sandbox', ref.conversationId]); sandboxRefs.push(ref); return sandbox },
+    openSandbox: async (ref) => { events.push(['sandbox', ref.conversationId]); sandboxRefs.push(ref); return openSandbox ? openSandbox(ref) : sandbox },
     checkModel: async ({ builderRunId, accountId: payer }) => {
       events.push(['model-check', builderRunId, payer])
       if (!modelAccount) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
@@ -333,12 +333,12 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     },
   })
   context.service = service
-  const start = () => service.sendBuilderMessage({ accountId, projectId, conversationId, idempotencyKey: 'key', content: 'Mostre UNIT1-nonce' })
+  const start = (content = 'Mostre UNIT1-nonce', idempotencyKey = 'key') => service.sendBuilderMessage({ accountId, projectId, conversationId, idempotencyKey, content })
   // The same run row started once more on the same sandbox, as the next run of the conversation would.
-  const again = async () => {
+  const again = async (content, idempotencyKey) => {
     await new Promise((wake) => { setTimeout(wake, 20) })
     Object.assign(row, { running: true, candidate: null, result: null })
-    return start()
+    return start(content, idempotencyKey)
   }
   // E2B lost the conversation's VM between turns: the next start gets a new one with no checkout.
   const loseVm = (sandboxId) => {
@@ -363,6 +363,10 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     }
     return !row.running
   }
-  return { mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, timings, egress, egressLogs, service, start, main, result, commands, checks, feedbacks, settled, sessionContext, checkout, outside, moveMain, idled, killed, sandboxRefs, loseVm, bare, vm }
+  // The run's last write and its exit, however long the run waits.
+  const untilEnded = async () => {
+    while (row.running || service.runOpen(conversationId)) await new Promise((wake) => { setTimeout(wake, 50) })
+  }
+  return { untilEnded, mirror, mirrorFiles, sessions, MIRROR, inBare, agentChecks, base, again, events, invocations, rootInvocations, calls, diagnostics, logs, timings, egress, egressLogs, service, start, main, result, commands, checks, feedbacks, settled, sessionContext, checkout, outside, moveMain, idled, killed, sandboxRefs, loseVm, bare, vm }
 }
 

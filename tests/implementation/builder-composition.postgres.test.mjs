@@ -97,6 +97,34 @@ test("a conversation's sandbox is never paused by the Hub: once let go it gets t
   assert.deepEqual({ killed: vm.killed, status: sandbox.status }, { killed: true, status: 'destroyed' })
 })
 
+test('a hold taken right after letting go is the deadline E2B keeps, however late the idle request lands', async () => {
+  const vm = fakeVm('vm-raced')
+  // Each request waits until the test lands it; `landed` is the order E2B applied them in.
+  const sent = []
+  const landed = []
+  vm.setTimeout = (ms) => new Promise((resolve) => { sent.push({ ms, land: () => { landed.push(ms); resolve() } }) })
+  const { sandbox } = offlineRunSandbox(vm, { timeoutMs: 900_000, idleMs: 300_000 })
+  await sandbox.start()
+  const holding = sandbox.holdOpen(() => {})
+  await new Promise((resolve) => setImmediate(resolve))
+  sent.shift().land()
+  const release = await holding
+  release()
+  let held = false
+  const resumed = sandbox.holdOpen(() => {}).then((again) => { held = true; return again })
+  // The network lands the newest request first, for as long as the resume waits.
+  while (!held) {
+    await new Promise((resolve) => setImmediate(resolve))
+    sent.pop()?.land()
+  }
+  ;(await resumed)()
+  for (let tick = 0; tick < 3; tick += 1) {
+    await new Promise((resolve) => setImmediate(resolve))
+    sent.pop()?.land()
+  }
+  assert.deepEqual(landed.slice(0, 3), [900_000, 300_000, 900_000], 'the idle request lands before the resumed hold')
+})
+
 test('a Hub root command runs as root from / with exactly the environment given, and a nonzero exit is returned, not thrown', async () => {
   const vm = fakeVm('vm-fresh')
   const { sandbox } = offlineRunSandbox(vm)
