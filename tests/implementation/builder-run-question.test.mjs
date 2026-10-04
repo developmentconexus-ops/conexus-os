@@ -174,6 +174,37 @@ test('Mastra still leaves the loop registration and the snapshot rows of a quest
   await session.release()
 })
 
+// Mastra settles a call made in the same step as a question only when the question is answered: until
+// then it stays `call`, and when the question ends unanswered it stays `call` for good. The screen draws
+// it with the question's state (builder-conversation.tsx), never as a failure.
+test('Mastra leaves a call made beside a question open until the answer, and for good when the question ends unanswered', async (t) => {
+  const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+  const streamOf = (parts) => new ReadableStream({ start(controller) { for (const part of parts) controller.enqueue(part); controller.close() } })
+  const model = {
+    specificationVersion: 'v2', provider: 'anthropic', modelId: 'probe-1', supportedUrls: {},
+    async doGenerate() { throw new Error('doGenerate not used') },
+    async doStream() {
+      return { stream: streamOf([{ type: 'stream-start', warnings: [] },
+        { type: 'tool-call', toolCallId: 'skill-1', toolName: 'skill', input: JSON.stringify({ name: 'conexus-app' }) },
+        { type: 'tool-call', toolCallId: 'ask-1', toolName: 'ask_user', input: JSON.stringify({ questions: [{ question: 'Qual cor?' }] }) },
+        { type: 'finish', finishReason: 'tool-calls', usage }]) }
+    },
+  }
+  const storage = new InMemoryStore()
+  await storage.init()
+  const builder = await builderOn(t, storage, model)
+  const builderRunId = '11111111-1111-4111-8111-111111111109'
+  const session = await builder.openSession({ projectId, conversationId, builderRunId, bindContext: bindRun(builderRunId) })
+  const states = async () => (await (await liveSession(builder.controller)).thread.listActiveMessages())
+    .flatMap((message) => message.content.parts.flatMap((part) => (part.type === 'tool-invocation' ? [`${part.toolInvocation.toolName}:${part.toolInvocation.state}`] : [])))
+  assert.equal((await session.takeStep({ kind: 'SEND', content: ASK }, new AbortController().signal)).reason, 'suspended')
+  await session.untilQuestionStored()
+  const waiting = await states()
+  await session.endQuestions()
+  assert.deepEqual([waiting, await states()], [['skill:call', 'ask_user:call'], ['skill:call', 'ask_user:output-denied']])
+  await session.release()
+})
+
 test('the idle sweep keeps a conversation whose question waits, and lets it go once the question ended', async (t) => {
   const storage = new InMemoryStore()
   await storage.init()

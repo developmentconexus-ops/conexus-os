@@ -77,21 +77,37 @@ const isErrorResult = (result: unknown): boolean =>
   typeof result === 'object' && result !== null && (('isError' in result && result.isError === true) || ('error' in result && result.error === true))
 
 // The part the thread holds is the truth about a call, and the Hub says which open calls the run
-// waits on the person for. Any other call still open when no run works here was cut short with its
-// run. A question the person ended without answering, by a message or a stop, was asked, not failed.
+// waits on the person for. A question the person ended without answering, by a message, a stop or a
+// Hub restart, was asked, not failed. Mastra settles a call made in the same step as a question only
+// when the question is answered, so until then, and for good once the question ended unanswered, it
+// shares the question's state. Any other call still open when no run works here was cut short with
+// its run.
 const callState = (part: ToolInvocationPart, calls: Calls): CallState => {
   const { state, toolCallId, toolName } = part.toolInvocation
   if (state === 'output-denied' && PERSON_TOOLS.has(toolName)) return 'ended'
   if (state === 'output-error' || state === 'output-denied') return 'failed'
   if (state === 'result') return isErrorResult(part.toolInvocation.result) || ('isError' in part.toolInvocation && part.toolInvocation.isError === true) ? 'failed' : 'done'
   if (calls.waitingOn.has(toolCallId)) return 'waiting'
-  return calls.working ? 'running' : 'failed'
+  if (calls.working) return 'running'
+  if (PERSON_TOOLS.has(toolName)) return 'ended'
+  return calls.besideQuestion.get(toolCallId) ?? 'failed'
 }
+
+// Each open call made in the same step as a question, with that question's state.
+const besideQuestions = (messages: readonly MastraDBMessage[], waitingOn: ReadonlySet<string>): ReadonlyMap<string, 'waiting' | 'ended'> =>
+  new Map(messages.flatMap((message) => {
+    const invocations = message.content.parts.flatMap((part) => part.type === 'tool-invocation' ? [part.toolInvocation] : [])
+    const questions = invocations.filter((invocation) => PERSON_TOOLS.has(invocation.toolName))
+    if (questions.length === 0) return []
+    const fate = questions.some((question) => waitingOn.has(question.toolCallId)) ? 'waiting' : 'ended'
+    return invocations.filter((invocation) => invocation.state === 'call' && !PERSON_TOOLS.has(invocation.toolName)).map((invocation): [string, 'waiting' | 'ended'] => [invocation.toolCallId, fate])
+  }))
 
 const isOpen = (state: CallState): boolean => state === 'running' || state === 'waiting'
 
-// Whether a run works here, the calls it waits on the person for, and the output the stream reported for each call by its id.
-type Calls = Readonly<{ working: boolean; waitingOn: ReadonlySet<string>; runtime: ReadonlyMap<string, RuntimeTool> }>
+// Whether a run works here, the calls it waits on the person for, the open calls made beside a
+// question, and the output the stream reported for each call by its id.
+type Calls = Readonly<{ working: boolean; waitingOn: ReadonlySet<string>; besideQuestion: ReadonlyMap<string, 'waiting' | 'ended'>; runtime: ReadonlyMap<string, RuntimeTool> }>
 
 // What the person asked and was answered: the controller words the answer in English, one
 // "question: answer" line per question.
@@ -423,7 +439,9 @@ export function BuilderConversation({ entries, persistedRequests, runs, model, w
   failuresBefore(null)
   if (working && prompts.length === 0 && !spokeSinceUser) pieces.push({ kind: 'thinking', key: 'awaiting-first-part' })
 
-  const rendered = renderPieces(pieces, { working, waitingOn: new Set(waitingOn), runtime }, model, renderPrompt ?? (() => null))
+  const waiting = new Set(waitingOn)
+  const besideQuestion = besideQuestions(messages.map((entry) => merged.get(entry.id) ?? entry.message), waiting)
+  const rendered = renderPieces(pieces, { working, waitingOn: waiting, besideQuestion, runtime }, model, renderPrompt ?? (() => null))
   return <>
     {rendered}
     {!rendered.length && <p className="builder-conversation-empty">Descreva o aplicativo que você quer criar.</p>}

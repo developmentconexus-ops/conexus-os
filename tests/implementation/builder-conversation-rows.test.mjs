@@ -184,3 +184,33 @@ test("the Conexus check's verdict reads as a notice in its own words, without Ma
   const escaped = reason.replaceAll("'", '&#x27;')
   assert.deepEqual(notices, [escaped, escaped])
 })
+
+// The step as Mastra stores it when a call runs beside a question: the sibling stays `call` until the
+// question is answered, and for good when the question ends without an answer.
+const questionStep = (askState) => assistant('step-1', [
+  { type: 'tool-invocation', toolInvocation: { state: 'call', toolCallId: 'sk-1', toolName: 'skill', args: { name: 'conexus-plan-new' } } },
+  { type: 'tool-invocation', toolInvocation: { state: askState, toolCallId: 'ask-1', toolName: 'ask_user', args: { questions: [{ question: 'Qual cor?' }] } } },
+])
+const failedMarks = (html) => count(html, 'Tool call failed') + count(html, 'data-status="error"')
+
+test('a call made beside a waiting question is never drawn as failed', () => {
+  const step = reduce([{ type: 'mergeWindow', messages: [{ ...questionStep('call'), content: { ...questionStep('call').content, metadata: { suspendedTools: { a: { toolCallId: 'ask-1', toolName: 'ask_user', args: {}, suspendPayload: {} } } } } }] }])
+  assert.equal(failedMarks(render({ ...waitingOnAll(step), renderPrompt: card })), 0)
+})
+
+test('a call made beside a question the person ended without an answer is never drawn as failed', () => {
+  const step = reduce([{ type: 'mergeWindow', messages: [questionStep('output-denied')] }])
+  assert.equal(failedMarks(render({ entries: step.entries })), 0)
+})
+
+test('a question a restarted Hub left open, and the call beside it, are never drawn as failed', () => {
+  const step = reduce([{ type: 'mergeWindow', messages: [questionStep('call')] }])
+  const html = render({ entries: step.entries })
+  assert.equal(rows(html), 1)
+  assert.equal(failedMarks(html), 0)
+})
+
+test('an open call with no question in its step, once no run works here, is still drawn as failed', () => {
+  const cut = reduce([{ type: 'mergeWindow', messages: [assistant('step-2', [{ type: 'tool-invocation', toolInvocation: { state: 'call', toolCallId: 'sk-2', toolName: 'skill', args: { name: 'conexus-app' } } }])] }])
+  assert.equal(count(render({ entries: cut.entries }), 'Tool call failed') > 0, true)
+})
