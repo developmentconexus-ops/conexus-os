@@ -4,17 +4,22 @@ import { BaseExporter, DefaultObservabilityInstance, SensitiveDataFilter } from 
 import { AdapterFailure } from './errors.js'
 import type { AdapterFailureReason, BrokerErrorCode } from './errors.js'
 import type { ProviderAnswer, RequestTrace } from './integrator.js'
+import type { EventFields, EventLog } from '../platform/logger.js'
 
 export type SpanResult = 'OK' | 'UNEXPECTED' | 'STORE_UNAVAILABLE' | BrokerErrorCode | AdapterFailureReason
 
 /** `joined` records a request another call made and this call waited on, and that failed it. */
 export type CallTrace = RequestTrace & Readonly<{ joined(name: string, result: SpanResult): void }>
 
+/** The fields an event line may carry: what the span recorded that is a string, a number or a boolean. */
+const scalars = (record: Readonly<Record<string, unknown>>): EventFields =>
+  Object.fromEntries(Object.entries(record).filter((entry): entry is [string, string | number | boolean] => ['string', 'number', 'boolean'].includes(typeof entry[1])))
+
 class SpanLineExporter extends BaseExporter {
   override name = 'connector-span-line'
-  readonly #log: (line: string) => void
+  readonly #log: EventLog
 
-  constructor(log: (line: string) => void) {
+  constructor(log: EventLog) {
     super()
     this.#log = log
   }
@@ -22,16 +27,16 @@ class SpanLineExporter extends BaseExporter {
   protected override async _exportTracingEvent(event: TracingEvent): Promise<void> {
     if (event.type !== TracingEventType.SPAN_ENDED) return
     const { name, traceId, id, parentSpanId, startTime, endTime, metadata } = event.exportedSpan
-    this.#log(`${JSON.stringify({
-      span: name, traceId, spanId: id, parentSpanId: parentSpanId ?? null,
+    this.#log('CONNECTOR_SPAN', scalars({
+      span: name, traceId, spanId: id, parentSpanId: parentSpanId ?? '',
       startedAt: startTime.toISOString(), ms: (endTime ?? startTime).getTime() - startTime.getTime(), ...metadata,
-    })}\n`)
+    }))
   }
 }
 
 export const createConnectorObservability = ({ store, log, secretFields }: Readonly<{
   store: ObservabilityExporter
-  log: (line: string) => void
+  log: EventLog
   secretFields: readonly string[]
 }>): ObservabilityInstance => new DefaultObservabilityInstance({
   name: 'connectors',

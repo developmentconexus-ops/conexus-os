@@ -7,6 +7,7 @@ import { RequestContext } from '@mastra/core/request-context'
 import { InMemoryStore } from '@mastra/core/storage'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { hubModuleUrl } from './hub-build.mjs'
+import { takeHubLogs } from './hub-log-capture.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
 const { createControllerRunSessions, e2bConversationSandboxes } = await import(hubModuleUrl('builder/run-runtime.js'))
@@ -192,7 +193,7 @@ const sandboxCache = ({ killProvider } = {}) => {
   const built = []
   const log = []
   const cache = e2bConversationSandboxes({
-    apiKey: 'test-key', templateId: 'conexus:template', log: (line) => log.push(line),
+    apiKey: 'test-key', templateId: 'conexus:template',
     ...(killProvider ? { killProvider } : {}),
     create: (input) => {
       const sandbox = createConversationSandbox(input)
@@ -266,7 +267,8 @@ test('a killed VM is forgotten, and a Project deletion kills the VMs its convers
 
 test('#413 a Project deletion kills every VM its conversations recorded at E2B, and a kill that fails is logged without stopping the rest', async () => {
   const asked = []
-  const { killRecorded, log } = sandboxCache({
+  takeHubLogs()
+  const { killRecorded } = sandboxCache({
     killProvider: async (providerSandboxId) => {
       asked.push(providerSandboxId)
       if (providerSandboxId === 'ivm-unreachable') throw new Error('E2B_TIMEOUT')
@@ -275,6 +277,6 @@ test('#413 a Project deletion kills every VM its conversations recorded at E2B, 
   })
   await killRecorded(['ivm-paused', 'ivm-unreachable', 'ivm-gone', 'ivm-running'])
   assert.deepEqual(asked, ['ivm-paused', 'ivm-unreachable', 'ivm-gone', 'ivm-running'])
-  assert.deepEqual(log, ['BUILDER_SANDBOX_KILL_FAILED:ivm-unreachable:E2B_TIMEOUT'], 'a VM E2B no longer has is not a failure')
+  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['builder.provider_sandbox_id'], fields['exception.message']]), [['BUILDER_SANDBOX_KILL_FAILED', 'ivm-unreachable', 'E2B_TIMEOUT']], 'a VM E2B no longer has is not a failure')
   await killRecorded([])
 })

@@ -21,7 +21,7 @@ test('a row added to the table only fails naming both generated files', () => {
     'FAILURES_STALE: apps/hub/src/platform/failures.generated.ts is not generated from contracts/technical/failures.json; run node scripts/generate-failures.mjs',
     'FAILURES_STALE: apps/web/src/generated/failures.ts is not generated from contracts/technical/failures.json; run node scripts/generate-failures.mjs',
   ])
-  assert.deepEqual(failuresDrift(added, { [failureTargets.hub]: renderHubFailures(added), [failureTargets.web]: renderWebFailures(added) }), [])
+  assert.deepEqual(failuresDrift(added, { ...committed(), [failureTargets.hub]: renderHubFailures(added), [failureTargets.web]: renderWebFailures(added) }), [])
 })
 
 test('a SYSTEM row cannot ask the person to retry, and must say it was recorded', () => {
@@ -48,4 +48,13 @@ test('a row with a malformed code, a duplicate code, an unknown action or an ope
   assert.deepEqual(failureProblems(withRow(table, { code: 'NOT_FOUND' })), ['FAILURES_INVALID: NOT_FOUND appears twice'])
   assert.deepEqual(failureProblems(withRow(table, { action: 'PRAY' })), ['FAILURES_INVALID: SAMPLE_FAILURE has action PRAY'])
   assert.deepEqual(failureProblems(withRow(table, { audience: 'operator', action: undefined })), ['FAILURES_INVALID: SAMPLE_FAILURE is an operator row and has no message or action'])
+})
+
+test('an event code that is also a failure row is refused: a failure goes through logFailure', () => {
+  const table = readFailures()
+  assert.deepEqual(failureProblems({ ...table, events: [...table.events, 'NOT_FOUND'] }), ['LOG_EVENTS_INVALID: NOT_FOUND is a failure row; a failure is logged through logFailure, not as an event'])
+  assert.deepEqual(failureProblems({ ...table, events: [...table.events, 'bad_event', table.events[0]] }), [
+    'LOG_EVENTS_INVALID: bad_event is not UPPER_SNAKE',
+    `LOG_EVENTS_INVALID: ${table.events[0]} appears twice`,
+  ])
 })

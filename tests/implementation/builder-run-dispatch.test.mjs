@@ -534,7 +534,7 @@ const settleHarness = async ({ failures }) => {
   const projectId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
   const lines = []
   const originalError = logger.error
-  logger.error = (line) => lines.push(line)
+  logger.error = (fields, code) => lines.push(`${code}:${fields['builder.run_id']}:${fields['exception.message']}`)
   const written = []
   let refused = 0
   const run = { builderRunId: runId, projectId, conversationId: 'conv-build', state: 'QUEUED', baseSourceRevision: 'a'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null }
@@ -594,7 +594,7 @@ test('near the heap limit a new run is refused before any row exists and the war
   const rows = []
   const evictions = []
   const warnings = []
-  t.mock.method(logger, 'warn', (line) => { warnings.push(line) })
+  t.mock.method(logger, 'warn', (fields, code) => { warnings.push(`${code}:${fields.ratio.toFixed(3)}`) })
   let ratio = 0.86
   const runs = makeRuns({ execute: async () => ({ projectId, executionId: queued.builderRunId, sandboxId: 'vm', baseSourceRevision: queued.baseSourceRevision, summary: '', kind: 'RESPONSE_ONLY' }) })
   const service = createBuilderService({

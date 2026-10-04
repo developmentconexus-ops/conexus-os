@@ -1407,10 +1407,12 @@ test('a model call the controller is retrying reads as a retry in progress, not 
   assert.equal(await recovered.getByRole('alert').count(), 0)
 })
 
-test("a model error the controller gives up on is a notice in Conexus's words, never the provider's", async (t) => {
+test("a model error the controller gives up on adds no card to the thread, and never shows the provider's words", async (t) => {
   const page = await openLiveTurn(t, [{ type: 'error', error: { message: 'sandbox sbx-42: upstream 500 at frame 7' }, retryable: false }])
-  await page.getByRole('alert').getByText('O modelo parou com um erro. Seu pedido continua nesta conversa.', { exact: true }).waitFor()
+  await page.locator('.cx-messages').waitFor()
+  assert.equal(await page.getByRole('alert').count(), 0)
   assert.equal(await page.getByText('sbx-42', { exact: false }).count(), 0)
+  assert.equal(await page.getByText('parou com um erro', { exact: false }).count(), 0)
 })
 
 const reasoningPart = { type: 'reasoning', reasoning: 'Planning schema validation', details: [{ type: 'text', text: 'Planning schema validation' }] }

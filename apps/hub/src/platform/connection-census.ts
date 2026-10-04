@@ -1,6 +1,7 @@
 import { HUB_ROLES } from './hub-roles.generated.js'
 import { createPostgresPool, errorCode } from './postgres.js'
 import { readSecretFile } from './secrets.js'
+import type { EventLog } from './logger.js'
 
 type ConnectionCensusState = 'ok' | 'invalid' | 'unreachable' | 'unreadable' | 'unconfigured'
 
@@ -71,13 +72,13 @@ export const censusConnections = async (
   return rows
 }
 
-export const reportConnectionCensus = (rows: readonly ConnectionCensusRow[], write: (line: string) => void): void => {
+export const reportConnectionCensus = (rows: readonly ConnectionCensusRow[], write: EventLog): void => {
   const counted = (state: ConnectionCensusState) => rows.filter(row => row.state === state).length
-  write(
-    `HUB_CONNECTION_CENSUS:ok=${counted('ok')}:invalid=${counted('invalid')}:unreachable=${counted('unreachable')}:unreadable=${counted('unreadable')}:unconfigured=${counted('unconfigured')}\n`,
-  )
+  write('HUB_CONNECTION_CENSUS', {
+    ok: counted('ok'), invalid: counted('invalid'), unreachable: counted('unreachable'), unreadable: counted('unreadable'), unconfigured: counted('unconfigured'),
+  })
   for (const row of rows) {
     if (row.state === 'ok') continue
-    write(`HUB_CONNECTION_CENSUS:${row.state}:${row.role}:${row.capability}:${row.sqlstate ?? ''}\n`)
+    write('HUB_CONNECTION_CENSUS', { state: row.state, role: row.role, capability: row.capability, sqlstate: row.sqlstate ?? '' })
   }
 }

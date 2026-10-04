@@ -107,7 +107,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   conversationSandboxes?: ConversationSandboxes
 }>) => {
   assertBuilderSkillsAvailable()
-  const log = (line: string): void => logLine(line)
+  const log = logLine
   const executorPool = createPostgresPool({ ...database, user: 'hub_builder_executor', password: readSecretFile(builder.executorPasswordFile) })
   const store = createBuilderStore({
     ingressPool: createPostgresPool({ ...database, user: 'hub_builder_ingress', password: readSecretFile(builder.ingressPasswordFile) }),
@@ -186,7 +186,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   })
   const ready = controller.init()
   ready.catch(() => undefined)
-  const sessions = createConversationSessions({ controller, log })
+  const sessions = createConversationSessions({ controller })
   const conversationSession = async (resourceId: string, conversationId: string) => {
     await ready
     return sessions.open({ resourceId, conversationId, requestContext: new RequestContext() })
@@ -210,7 +210,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   // own sandboxes have no E2B machines, so no key is read and nothing is swept.
   const e2bSandboxes = () => {
     const e2bApiKey = readSecretFile(builder.e2bApiKeyFile)
-    const sandboxes = e2bConversationSandboxes({ apiKey: e2bApiKey, templateId: builder.e2bTemplateId, log })
+    const sandboxes = e2bConversationSandboxes({ apiKey: e2bApiKey, templateId: builder.e2bTemplateId })
     const idleMachineSweep = scheduleIdleMachineSweep({
       listPaused: () => listPausedConversationMachines(e2bApiKey),
       openRunConversations: store.readOpenRunConversations,
@@ -255,7 +255,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
     store, applicationArtifacts: boundApplicationArtifacts, ...(applicationServer ? { applicationServer } : {}), runs,
   })
   // Sweeps at boot: the runs a stopped Hub left in flight are settled once their heartbeat is stale.
-  const runLease = scheduleRunLease({ heartbeat: service.heartbeat, sweep: service.sweep, log })
+  const runLease = scheduleRunLease({ heartbeat: service.heartbeat, sweep: service.sweep })
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })

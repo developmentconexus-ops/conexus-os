@@ -465,18 +465,15 @@ for (const ending of [
   })
 }
 
-test('a non-retryable error is an error notice in Conexus words and never shows the provider message', () => {
+test('a non-retryable error adds nothing to the thread and never shows the provider message', () => {
   const state = event(emptyTranscript('c1'), { type: 'error', error: { message: 'model quota exhausted in sandbox sbx-42' }, retryable: false })
-  assert.equal(state.entries.length, 1)
-  assert.equal(state.entries[0].kind, 'notice')
-  assert.equal(state.entries[0].level, 'error')
-  assert.equal(state.entries[0].text, 'O modelo parou com um erro. Seu pedido continua nesta conversa.')
+  assert.deepEqual(state.entries, [])
 })
 
-test('a retryable error at its max is an error notice and the retry notice is gone', () => {
+test('a retryable error at its max removes the retry notice and adds nothing: the settled run says the rest once', () => {
   let state = event(emptyTranscript('c1'), { type: 'error', error: {}, retryable: true, retryAttempt: 9, maxRetries: 10 })
   state = event(state, { type: 'error', error: { message: 'raw' }, retryable: true, retryAttempt: 10, maxRetries: 10 })
-  assert.deepEqual(noticeFor(state).map((notice) => [notice[1], notice[2]]), [['error', 'O modelo não respondeu depois de 10 tentativas. Seu pedido continua nesta conversa.']])
+  assert.deepEqual(noticeFor(state), [])
 })
 
 const askMessage = (tool = 'ask_user') => dbMessage('assistant-ask', 'assistant', [toolPart('q1', 'call', { toolName: tool, args: { question: 'Which database?' } })], {

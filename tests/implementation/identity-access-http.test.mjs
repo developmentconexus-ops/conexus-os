@@ -322,7 +322,7 @@ test('IAM-02 still ends the Conexus session when Keycloak does not confirm, and 
     assert.deepEqual(clearedCookies(ended), ['__Host-conexus_csrf', '__Host-conexus_session'])
     assert.deepEqual(store.state.ended, ['session-1'])
     const warnings = logs.filter((record) => record.level === 40)
-    assert.deepEqual(warnings.map((record) => record.event), ['hub_sign_out_provider_logout_unconfirmed'])
+    assert.deepEqual(warnings.map((record) => record.msg), ['HUB_SIGN_OUT_PROVIDER_LOGOUT_UNCONFIRMED'])
     assert.doesNotMatch(JSON.stringify(logs), /keycloak-refresh-1|account-1/, 'the log carries neither the token nor the account')
   })
   assert.equal((await app.inject({ method: 'GET', url: '/api/control/access-context', cookies: { '__Host-conexus_session': 'session-1' } })).statusCode, 401)
@@ -387,18 +387,18 @@ test('completing a sign-in trusts an email only when email_verified is the stric
   const verified = await completeSignInWith(t, { email_verified: true, email: 'ana@example.test' })
   assert.equal(verified.signIn.emailVerified, true)
   assert.equal(verified.signIn.verifiedEmail, 'ana@example.test')
-  assert.deepEqual(verified.logs.filter((line) => line.event === 'oidc_email_verified_unexpected_type'), [])
+  assert.deepEqual(verified.logs.filter((line) => line.msg === 'OIDC_EMAIL_VERIFIED_UNEXPECTED_TYPE'), [])
 
   const unverified = await completeSignInWith(t, { email_verified: false, email: 'ana@example.test' })
   assert.equal(unverified.signIn.emailVerified, false)
   assert.equal(unverified.signIn.verifiedEmail, null)
-  assert.deepEqual(unverified.logs.filter((line) => line.event === 'oidc_email_verified_unexpected_type'), [])
+  assert.deepEqual(unverified.logs.filter((line) => line.msg === 'OIDC_EMAIL_VERIFIED_UNEXPECTED_TYPE'), [])
 
   for (const claim of ['true', 'false']) {
     const stringly = await completeSignInWith(t, { email_verified: claim, email: 'ana@example.test' })
     assert.equal(stringly.signIn.emailVerified, false)
     assert.equal(stringly.signIn.verifiedEmail, null)
-    const warned = stringly.logs.filter((line) => line.event === 'oidc_email_verified_unexpected_type')
+    const warned = stringly.logs.filter((line) => line.msg === 'OIDC_EMAIL_VERIFIED_UNEXPECTED_TYPE')
     assert.equal(warned.length, 1)
     assert.equal(warned[0].claimType, 'string')
     assert.equal(JSON.stringify(stringly.logs).includes('ana@example.test'), false)
@@ -408,7 +408,7 @@ test('completing a sign-in trusts an email only when email_verified is the stric
   const silent = await completeSignInWith(t, {})
   assert.equal(silent.signIn.emailVerified, false)
   assert.equal(silent.signIn.verifiedEmail, null)
-  assert.deepEqual(silent.logs.filter((line) => line.event === 'oidc_email_verified_unexpected_type'), [])
+  assert.deepEqual(silent.logs.filter((line) => line.msg === 'OIDC_EMAIL_VERIFIED_UNEXPECTED_TYPE'), [])
 })
 
 const PROJECT_ID = '66666666-6666-4666-8666-666666666666'
@@ -556,7 +556,7 @@ test('OIDC begin, callback failures, and missing tokens log registered error cod
     assert.equal(beginRes.body, '')
     const failure = logs.find((record) => record.msg === 'OIDC_BEGIN_FAILED')
     assert.ok(failure, 'OIDC_BEGIN_FAILED was logged')
-    assert.equal(failure.level, 50)
+    assert.equal(failure.level, 40, 'the identity provider is a third party: a warning')
     assert.equal(failure['exception.message'], 'discovery network error')
   })
 
@@ -572,7 +572,7 @@ test('OIDC begin, callback failures, and missing tokens log registered error cod
     assert.equal(cbFailRes.body, '')
     const failure = logs.find((record) => record.msg === 'OIDC_CALLBACK_FAILED')
     assert.ok(failure, 'OIDC_CALLBACK_FAILED was logged')
-    assert.equal(failure.level, 50)
+    assert.equal(failure.level, 40)
     assert.equal(failure['exception.message'], 'token endpoint timeout')
   })
 
@@ -595,8 +595,7 @@ test('OIDC begin, callback failures, and missing tokens log registered error cod
     assert.equal(noRtRes.body, '')
     const failure = logs.find((record) => record.msg === 'OIDC_REFRESH_TOKEN_MISSING')
     assert.ok(failure, 'OIDC_REFRESH_TOKEN_MISSING was logged')
-    assert.equal(failure.level, 50)
-    assert.equal(failure['exception.message'], 'OIDC provider returned no refresh token')
+    assert.equal(failure.level, 40)
   })
 
   // 4. Application sign-in without applications configured -> logs OIDC_APPLICATION_SIGN_IN_UNAVAILABLE, returns 503
@@ -623,8 +622,7 @@ test('OIDC begin, callback failures, and missing tokens log registered error cod
     const failure = logs.find((record) => record.msg === 'OIDC_APPLICATION_SIGN_IN_UNAVAILABLE')
     assert.ok(failure, 'OIDC_APPLICATION_SIGN_IN_UNAVAILABLE was logged')
     assert.equal(failure.level, 50)
-    assert.equal(failure['exception.message'], 'Applications module unavailable')
-    assert.equal(failure['conexus.project_id'], PROJECT_ID)
+    assert.equal(failure['failure.details.projectId'], PROJECT_ID)
   })
 })
 

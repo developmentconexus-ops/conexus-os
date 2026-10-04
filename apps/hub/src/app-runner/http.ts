@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance, type FastifyReply } from 'fastify'
-import { Failure, toFailure } from '../platform/failure.js'
+import { Failure, logFailure, toFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
+import type { EventLog } from '../platform/logger.js'
 import { failureProblem } from '../http/problem.js'
 import { invokeBody, prepareBody, releaseBody } from './requests.js'
 import type { InvokeInput, OnDivergence, PrepareResult, Reply, ServerFile } from './supervisor.js'
@@ -37,15 +38,16 @@ const sendInternal = (reply: FastifyReply, failure: Failure, detail?: string): F
 
 export const createApplicationRunnerApp = (input: Readonly<{
   supervisor: ApplicationRunnerSupervisor
-  log: (line: string) => void
+  log: EventLog
 }>): FastifyInstance => {
   const app = Fastify({ bodyLimit: 16 * 1024 * 1024, loggerInstance: logger, disableRequestLogging: true })
   app.get('/v1/health', async () => ({ ok: true }))
   app.post('/v1/prepare', async (request, reply) => {
     const body = prepareBody.safeParse(request.body)
     if (!body.success) {
-      input.log(JSON.stringify({ event: 'prepare_failed', code: 'RUNNER_REQUEST_REFUSED' }))
-      return sendInternal(reply, new Failure('RUNNER_REQUEST_REFUSED'))
+      const refused = new Failure('RUNNER_REQUEST_REFUSED')
+      logFailure(logger, refused)
+      return sendInternal(reply, refused)
     }
     try {
       return await input.supervisor.prepare(body.data)
@@ -56,7 +58,7 @@ export const createApplicationRunnerApp = (input: Readonly<{
       // faults are both platform text: no vendor or business data reaches this catch (prepare never
       // runs generated handler code; invoke, below, is where that boundary actually is). Safe to log
       // and to hand back to the Hub in full.
-      input.log(JSON.stringify({ event: 'prepare_failed', projectId: body.data.projectId, code: failure.id, ...(detail && detail !== failure.id ? { detail } : {}) }))
+      logFailure(logger, failure, { 'builder.project_id': body.data.projectId, ...(detail && detail !== failure.id ? { 'failure.detail': detail } : {}) })
       return sendInternal(reply, failure, detail)
     }
   })
@@ -71,10 +73,10 @@ export const createApplicationRunnerApp = (input: Readonly<{
     const error = problemOf(result.body)
     const code = typeof error?.code === 'string' ? error.code : undefined
     const detail = code && SCHEMA_REFUSALS.has(code) && typeof error?.detail === 'string' ? error.detail : undefined
-    input.log(JSON.stringify({
-      event: 'invoke', projectId: body.data.projectId, operation: body.data.operation, status: result.status,
+    input.log('RUNNER_INVOKE', {
+      projectId: body.data.projectId, operation: body.data.operation, status: result.status,
       ...(code ? { code } : {}), ...(detail ? { detail } : {}), ms: Math.round(performance.now() - started),
-    }))
+    })
     return reply.type('application/problem+json').code(result.status).send(result.body)
   })
   app.post('/v1/release', async (request, reply) => {
@@ -85,6 +87,7 @@ export const createApplicationRunnerApp = (input: Readonly<{
       return reply.code(200).send({ ok: true })
     } catch (error) {
       const failure = toFailure(error)
+      logFailure(logger, failure)
       return sendInternal(reply, failure, causeText(failure))
     }
   })

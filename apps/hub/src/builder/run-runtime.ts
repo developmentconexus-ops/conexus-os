@@ -24,7 +24,9 @@ import type { ApplicationBuildOutcome, BuilderStep, CodingWorkerResult, ParkedRe
 import { CHECKOUT_WRITER_TOOLS, createConversationSandbox, createRunWorkspace, SANDBOX_AGENT_USER, SANDBOX_CHECKOUT } from './sandbox.js'
 import type { BuilderRunPhase } from '../generated/builder-run-vocabulary.js'
 import { classifyCheck, createCandidateGate, GATE_RED_BUDGET, type CandidateGate, type CandidateVerdict } from './candidate-gate.js'
-import { Failure, toFailure } from '../platform/failure.js'
+import { Failure, logFailure, toFailure } from '../platform/failure.js'
+import { logger } from '../platform/logger.js'
+import type { EventLog } from '../platform/logger.js'
 
 /** What a run needs of its conversation's sandbox; the E2B one in production, a fake in tests. */
 type RunSandbox = Readonly<{
@@ -128,7 +130,7 @@ export type BuilderRunPorts = Readonly<{
   invokeOperation?: CandidateOperationPorts['invoke']
   /** How long a parked run keeps its session and its sandbox instance in memory for the answer. */
   warmParkedMs?: number
-  log(line: string): void
+  log: EventLog
 }>
 
 type BuilderRunInput = Readonly<{
@@ -333,10 +335,10 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
     const done = (async () => {
       await entry.paused
       await entry.session.release().catch((error: unknown) => {
-        ports.log(`BUILDER_SESSION_RELEASE_FAILED:${entry.builderRunId}:${error instanceof Error ? error.message : String(error)}`)
+        logFailure(logger, new Failure('BUILDER_SESSION_RELEASE_FAILED', { cause: error }), { 'builder.run_id': entry.builderRunId })
       })
       entry.sandbox.release()
-      ports.log(`BUILDER_PARKED_SESSION_EVICTED:${entry.builderRunId}:${reason}`)
+      ports.log('BUILDER_PARKED_SESSION_EVICTED', { run: entry.builderRunId, reason })
     })()
     lettingGo.set(conversationId, done)
     const settled = (): void => { if (lettingGo.get(conversationId) === done) lettingGo.delete(conversationId) }
@@ -396,7 +398,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
     // The leg ended on a question for the person, so the session is parked, not released.
     let parked = false
     const mirrorFailed = (error: unknown): void => {
-      ports.log(`BUILDER_MIRROR_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
+      logFailure(logger, new Failure('BUILDER_MIRROR_FAILED', { cause: error }), { 'builder.run_id': input.executionId })
     }
     let mirrorEnded: Promise<void> | undefined
     let pulled: string | null = null
@@ -448,7 +450,6 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       await input.bindPhysicalSandbox(incarnation)
       release = await sandbox.holdOpen((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error)
-        ports.log(`BUILDER_SANDBOX_KEEPALIVE_FAILED:${input.executionId}:${message}`)
         keepaliveFailure ??= new Failure('BUILDER_SANDBOX_KEEPALIVE_FAILED', { cause: { message } })
         keepaliveController.abort()
       }).catch((error: unknown) => {
@@ -478,18 +479,18 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       // Recording which hosts the sandbox reaches is evidence, never a gate: a recorder that will not
       // start is logged and the turn goes on.
       await ensureEgressLog({ asRoot, writeRootFile }).catch((error: unknown) => {
-        ports.log(`BUILDER_SANDBOX_EGRESS_START_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
+        logFailure(logger, new Failure('BUILDER_SANDBOX_EGRESS_START_FAILED', { cause: error }), { 'builder.run_id': input.executionId })
       })
 
       if (cancelled()) throw new Failure('BUILDER_RUN_CANCELLED')
       // The turn goes on from the conversation's files, with `main` brought in (spec 0002 amendment, B2).
       const turnStart = await ports.git.startTurn(input.projectId, input.conversationId, base)
       conflicted = turnStart.conflicted
-      if (conflicted.length > 0) ports.log(`BUILDER_TURN_START_CONFLICT:${input.executionId}:${turnStart.conflicted.join(',').slice(0, 2_000)}`)
+      if (conflicted.length > 0) ports.log('BUILDER_TURN_START_CONFLICT', { run: input.executionId, files: turnStart.conflicted.join(',').slice(0, 2_000) })
       // A checkout that cannot take the start, even seeded again, is one the agent broke: the VM goes.
       const checkoutStart = await startCheckout({ git: ports.git, projectId: input.projectId, turn: turnStart, sandbox: source, checkout: SANDBOX_CHECKOUT, seedFile: SEED_FILE })
         .catch((error: unknown) => { unusable = true; throw error })
-      ports.log(`BUILDER_TURN_CHECKOUT:${input.executionId}:${checkoutStart}:${incarnation}`)
+      ports.log('BUILDER_TURN_CHECKOUT', { run: input.executionId, start: checkoutStart, incarnation })
       timing.mark('seed')
       mirror = createTurnMirror({
         git: ports.git, projectId: input.projectId, conversationId: input.conversationId, turnStart: turnStart.start, head: turnStart.mirror,
@@ -542,7 +543,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       // copy that drops to the agent's user for every step that runs the app's code.
       const judge = async (revision: string): Promise<CandidateVerdict> => {
         if (cancelled()) throw new Failure('BUILDER_RUN_CANCELLED')
-        ports.log(`BUILDER_GATE_CHECKING:${input.executionId}:${revision.slice(0, 12)}`)
+        ports.log('BUILDER_GATE_CHECKING', { run: input.executionId, revision: revision.slice(0, 12) })
         gatePhase('COMPILING')
         // The tree's own limits are the app's to fix: a symlink, an oversized file or no app/index.html.
         let admitted: readonly string[]
@@ -565,10 +566,10 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         ].join(' && '))
         if (unpacked.exitCode !== 0) throw new Failure('BUILDER_CANDIDATE_UNPACK_FAILED')
         const checked = await sandbox.runCheck({ root: checkRoot, out: `${checkRoot}.dist`, collect: true, thumbnail: `${BUILD_ROOT}/${input.executionId}.png`, user: 'root' })
-        ports.log(`BUILDER_CHECK:gate:${input.executionId}:${revision.slice(0, 12)}:${checkSummary(checked.report)}`)
+        ports.log('BUILDER_CHECK', { run: input.executionId, revision: revision.slice(0, 12), summary: checkSummary(checked.report) })
         const verdict = classifyCheck(revision, checked)
         const boot = verdict.kind === 'GREEN' ? failedBootStep(checked.report) : null
-        if (boot) ports.log(`BUILDER_CHECK_BOOT_PROBLEMS:${input.executionId}:${JSON.stringify(boot.problems).slice(0, 2_000)}`)
+        if (boot) ports.log('BUILDER_CHECK_BOOT_PROBLEMS', { run: input.executionId, problems: JSON.stringify(boot.problems).slice(0, 2_000) })
         return verdict
       }
       const gate = createCandidateGate({
@@ -599,7 +600,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       await input.setPhase('AGENT')
       const turn = await (input.resume ? session.resumeTurn(input.resume, runSignal) : session.sendTurn(input.intent, runSignal))
       if (keepaliveFailure) throw keepaliveFailure
-      if (turn.reason === 'aborted') ports.log(`BUILDER_AGENT_END:aborted:${input.executionId}`)
+      if (turn.reason === 'aborted') ports.log('BUILDER_AGENT_END', { run: input.executionId, reason: 'aborted' })
       if (!turn.userMessageId) throw new Failure('BUILDER_MESSAGE_ID_UNAVAILABLE')
       await input.bindMessage(turn.userMessageId)
       // An agent that ends aborted without the person's stop failed on its own, for example a model
@@ -610,7 +611,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       if (turn.reason === 'suspended') {
         parked = true
         await endTurn().catch((error: unknown) => {
-          ports.log(`BUILDER_SESSION_CLOSE_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
+          logFailure(logger, new Failure('BUILDER_SESSION_CLOSE_FAILED', { cause: error }), { 'builder.run_id': input.executionId })
         })
         timing.mark('agent')
         return Object.freeze({
@@ -620,7 +621,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       }
       if (turn.reason !== 'complete') throw new Failure('BUILDER_MODEL_INCOMPLETE')
       await endTurn().catch((error: unknown) => {
-        ports.log(`BUILDER_SESSION_CLOSE_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
+        logFailure(logger, new Failure('BUILDER_SESSION_CLOSE_FAILED', { cause: error }), { 'builder.run_id': input.executionId })
       })
       timing.mark('agent')
 
@@ -647,7 +648,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         return Object.freeze({ ...scope, kind: 'RESPONSE_ONLY' as const })
       }
       if (cancelled()) throw new Failure('BUILDER_RUN_CANCELLED')
-      ports.log(`BUILDER_GATE_SETTLED:${input.executionId}:${verdict.kind}`)
+      ports.log('BUILDER_GATE_SETTLED', { run: input.executionId, verdict: verdict.kind })
       // Not admitted: the files stay in the conversation and `main` does not move.
       if (verdict.kind === 'RED_APP') throw new CandidateRefused(gate.gaveUp() ? 'BUILDER_APP_NOT_FIXED' : 'BUILDER_CHECK_FAILED', verdict.detail)
       const admitted = verdict.revision
@@ -672,11 +673,11 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       return Object.freeze({ ...scope, kind: 'SOURCE_ADMITTED' as const, resultSourceRevision: admitted, applicationBuild })
     } catch (error) {
       const failure = keepaliveFailure ?? error
-      // The run records only its failure code; a failure that carries command evidence says why.
-      // A failure without a cause logs only its code, never a message that may carry text or a tool result.
-      const failureCode = toFailure(failure).id
-      if (failure instanceof Error && failure.cause !== undefined) ports.log(`BUILDER_RUN_FAILED:${input.executionId}:${failure.message} ${JSON.stringify(failure.cause)}`)
-      else if (!input.signal?.aborted) ports.log(`BUILDER_RUN_FAILED:${input.executionId}:${failureCode}`)
+      // The run records only its failure code, and the one log line of the run's end is the row's:
+      // its level follows the row's category, and command evidence rides along as a field.
+      const ended = toFailure(failure)
+      const evidence = ended.cause !== undefined && !(ended.cause instanceof Error) ? { 'builder.run.evidence': JSON.stringify(ended.cause) } : {}
+      if (!input.signal?.aborted || 'builder.run.evidence' in evidence) logFailure(logger, ended, { 'builder.run_id': input.executionId, ...evidence })
       throw failure
     } finally {
       release?.()
@@ -687,7 +688,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       let live = incarnation !== undefined && !keepaliveFailure && !unusable && sandbox.sandboxId === incarnation
       if (live) {
         await sandbox.executeCommand('sh', ['-c', 'kill -KILL -1 2>/dev/null; true'], { timeout: 30_000, cwd: '/', env: {} }).catch((error: unknown) => {
-          ports.log(`BUILDER_AGENT_PROCESSES_KILL_FAILED:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
+          logFailure(logger, new Failure('BUILDER_AGENT_PROCESSES_KILL_FAILED', { cause: error }), { 'builder.run_id': input.executionId })
         })
         live = sandbox.sandboxId === incarnation
       }
@@ -704,8 +705,8 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
       }
       const mirrorSettled = live ? endMirror(null) : mirror?.abandon()
       await Promise.race([mirrorSettled, new Promise((settle) => { setTimeout(settle, FAILED_TURN_MIRROR_MS).unref?.() })])
-      const failed = (code: string) => (error: unknown): void => {
-        ports.log(`${code}:${input.executionId}:${error instanceof Error ? error.message : String(error)}`)
+      const failed = (code: 'BUILDER_SESSION_RELEASE_FAILED' | 'BUILDER_SANDBOX_PAUSE_FAILED' | 'BUILDER_SANDBOX_KILL_FAILED') => (error: unknown): void => {
+        logFailure(logger, new Failure(code, { cause: error }), { 'builder.run_id': input.executionId })
       }
       // The run owns the session it opened, whatever way it ended: Mastra frees none by itself. A
       // parked run keeps it live for the answer.
@@ -727,7 +728,7 @@ export const createBuilderRunRuntime = (ports: BuilderRunPorts): BuilderRunRunti
         warm.set(input.conversationId, { builderRunId: input.executionId, session, sandbox, paused, timer })
       }
       if (!parked) redFinishes.delete(input.conversationId)
-      ports.log(timing.line(input.executionId))
+      ports.log('BUILDER_RUN_TIMING', timing.fields(input.executionId))
     }
   }
   return Object.freeze({ discardParked, evictParked, execute })
@@ -954,13 +955,11 @@ export const e2bConversationSandboxes = ({
   templateId,
   create = createConversationSandbox,
   killProvider = (providerSandboxId) => Sandbox.kill(providerSandboxId, { apiKey, requestTimeoutMs: PROVIDER_KILL_TIMEOUT_MS }),
-  log = () => undefined,
 }: Readonly<{
   apiKey: string
   templateId: string
   create?: typeof createConversationSandbox
   killProvider?: (providerSandboxId: string) => Promise<boolean>
-  log?: (line: string) => void
 }>): Readonly<{
   open: BuilderRunPorts['openSandbox']
   /** The conversations are gone for good: their instances are dropped, and the VMs they hold are killed. */
@@ -1022,13 +1021,13 @@ export const e2bConversationSandboxes = ({
     destroy: async (conversationIds) => {
       for (const conversationId of conversationIds) {
         await kept.get(conversationId)?.sandbox.kill().catch((error: unknown) => {
-          log(`BUILDER_SANDBOX_KILL_FAILED:${conversationId}:${error instanceof Error ? error.message : String(error)}`)
+          logFailure(logger, new Failure('BUILDER_SANDBOX_KILL_FAILED', { cause: error }), { 'builder.conversation_id': conversationId })
         })
       }
     },
     killRecorded: async (providerSandboxIds) => {
       const gone = await Promise.all(providerSandboxIds.map((providerSandboxId) => killProvider(providerSandboxId).then(() => true, (error: unknown) => {
-        log(`BUILDER_SANDBOX_KILL_FAILED:${providerSandboxId}:${error instanceof Error ? error.message : String(error)}`)
+        logFailure(logger, new Failure('BUILDER_SANDBOX_KILL_FAILED', { cause: error }), { 'builder.provider_sandbox_id': providerSandboxId })
         return false
       })))
       return providerSandboxIds.filter((_, index) => gone[index])

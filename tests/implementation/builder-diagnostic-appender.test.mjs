@@ -69,7 +69,7 @@ test('a run that kept its files unadmitted leaves exactly one notice signal in i
   await appendDiagnostic(note)
   await appendDiagnostic(note)
   assert.deepEqual(await rows(), [['signal', 'notification',
-    `A execução ${runId} não terminou e nada dela foi aplicado. Os arquivos desta execução ficaram guardados nesta conversa, e a próxima execução continua deles, junto com a versão atual da fonte; a versão aplicada continua na revisão ${'d'.repeat(40)}. Leia os arquivos antes de confiar neste histórico. Diagnóstico seguro: BUILDER_MODEL_INCOMPLETE.`]])
+    `A execução ${runId} não terminou e nada dela foi aplicado. Os arquivos desta execução ficaram guardados nesta conversa, e a próxima execução continua deles, junto com a versão atual da fonte; a versão aplicada continua na revisão ${'d'.repeat(40)}. Leia os arquivos antes de confiar neste histórico. Referência: ${runId.slice(0, 8)}.`]])
 })
 
 test("a refused candidate's notice reaches the next turn's model as a notification, so it can fix it (AC-9)", async (t) => {
@@ -78,7 +78,7 @@ test("a refused candidate's notice reaches the next turn's model as a notificati
   const prompt = JSON.parse(await nextTurnPrompt())
   const userTexts = prompt.filter((message) => message.role === 'user').map((message) => message.content.map((part) => part.text).join('')).filter((text) => !text.startsWith('<system-reminder>'))
   assert.deepEqual(userTexts, [
-    `<notification source="conexus" outcome="CANDIDATE_REFUSED" run="${runId}">A execução ${runId} não foi aplicada: o Conexus recusou o resultado antes de aprová-lo. Os arquivos desta execução ficaram guardados nesta conversa, e a próxima execução continua deles, junto com a versão atual da fonte; a versão aplicada continua na revisão ${'d'.repeat(40)}. Leia os arquivos antes de confiar neste histórico. Diagnóstico seguro: BUILDER_CHECK_FAILED. Motivo: typecheck failed: app/src/a.ts:1:1 TS2304 Cannot find name b. Corrija isso na próxima execução.</notification>`,
+    `<notification source="conexus" outcome="CANDIDATE_REFUSED" run="${runId}">A execução ${runId} não foi aplicada: o Conexus recusou o resultado antes de aprová-lo. Os arquivos desta execução ficaram guardados nesta conversa, e a próxima execução continua deles, junto com a versão atual da fonte; a versão aplicada continua na revisão ${'d'.repeat(40)}. Leia os arquivos antes de confiar neste histórico. Referência: ${runId.slice(0, 8)}. Motivo: typecheck failed: app/src/a.ts:1:1 TS2304 Cannot find name b. Corrija isso na próxima execução.</notification>`,
     'continue',
   ])
 })

@@ -160,8 +160,8 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   const settleRun = async (run: Readonly<{ builderRunId: string; projectId: string; conversationId: string }>, terminal: SettleTerminal): Promise<void> => {
     try {
       await runs.runtime.discardParked({ projectId: run.projectId, conversationId: run.conversationId })
-    } catch {
-      logLine(`BUILDER_PARKED_DISCARD_FAILED:${run.builderRunId}:${terminal}`, 'warn')
+    } catch (error) {
+      logFailure(logger, new Failure('BUILDER_PARKED_DISCARD_FAILED', { cause: error }), { 'builder.run_id': run.builderRunId, 'builder.terminal': terminal })
     }
   }
   // A run's ending is written again after a short wait, as a database blip is common and the
@@ -171,7 +171,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     for (let attempt = 1; attempt <= 3; attempt++) {
       try { await write(); return } catch (error) {
         if (attempt === 3) {
-          logLine(`BUILDER_RUN_SETTLE_FAILED:${builderRunId}:${toFailure(error).id}`, 'error')
+          logFailure(logger, new Failure('BUILDER_RUN_SETTLE_FAILED', { cause: error }), { 'builder.run_id': builderRunId })
           return
         }
         await new Promise((wake) => { setTimeout(wake, runs.settleRetryMs ?? 500) })
@@ -385,7 +385,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       // not wait on the parked runs' warm sessions being let go, which waits on their VMs' pauses.
       const ratio = (runs.heapUsedRatio ?? heapUsedRatio)()
       if (ratio > HEAP_REFUSE_RATIO) {
-        logLine(`BUILDER_RUN_REFUSED_HEAP:${ratio.toFixed(3)}`, 'warn')
+        logLine('BUILDER_RUN_REFUSED_HEAP', { ratio: Number(ratio.toFixed(3)) }, 'warn')
         void runs.runtime.evictParked().catch(() => undefined)
         throw new Failure('BUILDER_CAPACITY_FULL')
       }
@@ -458,7 +458,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
         const loss = takenOver.get(run.builderRunId) ?? (run.previousOwnerId === ownerId ? 'SETTLE_LOST' : 'OWNER_GONE')
         takenOver.set(run.builderRunId, loss)
         const lostOwnEnding = loss === 'SETTLE_LOST'
-        logLine(`BUILDER_RUN_TAKEN_OVER:${run.builderRunId}:${loss}`, 'warn')
+        logLine('BUILDER_RUN_TAKEN_OVER', { run: run.builderRunId, loss }, 'warn')
         try {
           if (run.candidateRevision) await settleAdmission({ store, git: runs.git }, { ...run, candidateRevision: run.candidateRevision })
           else {
@@ -467,11 +467,11 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
           }
           takenOver.delete(run.builderRunId)
         } catch (error) {
-          logLine(`BUILDER_RUN_SWEEP_SETTLE_FAILED:${run.builderRunId}:${toFailure(error).id}`, 'error')
+          logFailure(logger, new Failure('BUILDER_RUN_SWEEP_SETTLE_FAILED', { cause: error }), { 'builder.run_id': run.builderRunId })
         }
       }
       for (const run of await store.expireParkedBuilderRuns(PARKED_RUN_IDLE_MS)) {
-        logLine(`BUILDER_RUN_PARKED_EXPIRED:${run.builderRunId}`, 'warn')
+        logFailure(logger, new Failure('BUILDER_RUN_PARKED_EXPIRED'), { 'builder.run_id': run.builderRunId })
         await publishRun(run)
         await settleRun(run, 'PARKED_EXPIRED')
       }

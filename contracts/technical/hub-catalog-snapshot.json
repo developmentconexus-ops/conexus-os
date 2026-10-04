@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0054",
+ "head": "0055",
  "catalog": {
   "schema": [
    "schema builder owner=builder_owner acl=builder_owner:CREATE:false,builder_owner:USAGE:false,hub_builder_executor:USAGE:false,hub_builder_ingress:USAGE:false,project_owner:USAGE:false,registry_owner:USAGE:false",
@@ -642,7 +642,7 @@
    "function project.complete_create_project_receipt(p_account_id uuid, p_workspace_id uuid, p_key_digest text, p_request_digest text, p_project_id uuid, p_response_status integer, p_response_digest text, p_response_body jsonb) returns void kind=f owner=project_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_project_command:EXECUTE:false,project_owner:EXECUTE:false body=a0bbf5afa982f5dd67ed4feb197ccefe",
    "function project.complete_project_deletion(p_project_id uuid) returns void kind=f owner=project_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_project_command:EXECUTE:false,project_owner:EXECUTE:false body=a56126e93e60ba569225aa398fabed31",
    "function project.create_project_with_repository(p_account_id uuid, p_workspace_id uuid, p_key_digest text, p_request_digest text, p_project_id uuid, p_name text, p_project_revision text, p_starter_revision text) returns void kind=f owner=project_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_project_command:EXECUTE:false,project_owner:EXECUTE:false body=8d62a2f6777cd85f981daa130a55c4b4",
-   "function project.get_project(p_account_id uuid, p_project_id uuid) returns TABLE(project_id uuid, workspace_id uuid, name text, project_revision text, archived boolean, deleting boolean) kind=f owner=project_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_project_read:EXECUTE:false,project_owner:EXECUTE:false body=33f8ba03cd386fc7beef98f21c116189",
+   "function project.get_project(p_account_id uuid, p_project_id uuid) returns TABLE(project_id uuid, workspace_id uuid, name text, project_revision text, archived boolean, deleting boolean) kind=f owner=project_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_project_read:EXECUTE:false,project_owner:EXECUTE:false body=435975bb4c025ce13ac27af878fa63fd",
    "function project.list_project_summaries(p_account_id uuid, p_workspace_id uuid) returns TABLE(project_id uuid, workspace_id uuid, name text, archived boolean) kind=f owner=project_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_project_read:EXECUTE:false,project_owner:EXECUTE:false body=0c0ad81352ef9896210faadcb1a51d2a",
    "function project.list_project_summaries_with_activity(p_account_id uuid, p_workspace_id uuid) returns jsonb kind=f owner=project_owner secdef=true volatility=s config=search_path=pg_catalog, pg_temp acl=hub_project_read:EXECUTE:false,project_owner:EXECUTE:false body=eaa08404a292940365296239d879e5ab",
    "function project.lock_create_project_receipt(p_account_id uuid, p_workspace_id uuid, p_key_digest text, p_request_digest text, p_project_id uuid) returns TABLE(outcome text, project_id uuid) kind=f owner=project_owner secdef=true volatility=v config=search_path=pg_catalog, pg_temp acl=hub_project_command:EXECUTE:false,project_owner:EXECUTE:false body=caf0ac1f8230a095178280b15a216627",

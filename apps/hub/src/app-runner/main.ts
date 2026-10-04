@@ -46,7 +46,7 @@ const supervisor = createSupervisor({
 
 await supervisor.checkProvisioner()
 
-const app = createApplicationRunnerApp({ supervisor, log: (line) => logLine(line) })
+const app = createApplicationRunnerApp({ supervisor, log: logLine })
 
 rmSync(socketPath, { force: true })
 await app.listen({ path: socketPath })

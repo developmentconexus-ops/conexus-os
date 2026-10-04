@@ -55,17 +55,18 @@ test('a run the driver has not seen finish has no after-agent time', () => {
   assert.equal(block.phases.hubStages, null)
 })
 
-test('the Hub timing line parses into milliseconds per stage and ignores other lines', () => {
-  assert.deepEqual(parseRunTimingLine('12:00:01 BUILDER_RUN_TIMING:run-7:sandbox=1200:seed=900:starter=3100:session=400:agent=250000:pull=800:admission=21000:compile=9000:publish=1500'), {
-    runId: 'run-7',
-    stages: { sandbox: 1200, seed: 900, starter: 3100, session: 400, agent: 250_000, pull: 800, admission: 21_000, compile: 9000, publish: 1500 },
-  })
-  assert.deepEqual(parseRunTimingLine('BUILDER_RUN_TIMING:run-8:sandbox=5:bogus=9:seed=x'), { runId: 'run-8', stages: { sandbox: 5 } })
-  assert.equal(parseRunTimingLine('BUILDER_CHECK:admission:run-7:ok'), null)
+const timingRecord = (run, stages) => JSON.stringify({ level: 30, msg: 'BUILDER_RUN_TIMING', run, ...stages })
+
+test('the Hub timing record parses into milliseconds per stage and ignores other records', () => {
+  const stages = { sandbox: 1200, seed: 900, starter: 3100, session: 400, agent: 250_000, pull: 800, admission: 21_000, compile: 9000, publish: 1500 }
+  assert.deepEqual(parseRunTimingLine(timingRecord('run-7', stages)), { runId: 'run-7', stages })
+  assert.deepEqual(parseRunTimingLine(timingRecord('run-8', { sandbox: 5, bogus: 9, seed: 'x' })), { runId: 'run-8', stages: { sandbox: 5 } })
+  assert.equal(parseRunTimingLine(JSON.stringify({ msg: 'BUILDER_CHECK', run: 'run-7' })), null)
+  assert.equal(parseRunTimingLine('not json {'), null)
 })
 
-test('the Hub log yields the last timing line of the asked run', () => {
-  const log = ['BUILDER_RUN_TIMING:run-1:sandbox=1', 'BUILDER_CHECK:preview:run-2:ok', 'BUILDER_RUN_TIMING:run-2:sandbox=2', 'BUILDER_RUN_TIMING:run-2:sandbox=3'].join('\n')
+test('the Hub log yields the last timing record of the asked run', () => {
+  const log = [timingRecord('run-1', { sandbox: 1 }), JSON.stringify({ msg: 'BUILDER_CHECK', run: 'run-2' }), timingRecord('run-2', { sandbox: 2 }), timingRecord('run-2', { sandbox: 3 })].join('\n')
   assert.deepEqual(hubTimingFromLog(log, 'run-2'), { sandbox: 3 })
   assert.equal(hubTimingFromLog(log, 'run-9'), null)
 })

@@ -2,7 +2,8 @@ import pg from 'pg'
 import type { Pool, PoolConfig } from 'pg'
 import { CAPABILITY_BY_ROLE } from './hub-roles.generated.js'
 import { fieldOf } from './field-of.js'
-import { logLine } from './logger.js'
+import { Failure, logFailure } from './failure.js'
+import { logger } from './logger.js'
 
 export type PostgresPool = Pool
 export type PostgresConnection = PoolConfig
@@ -26,10 +27,7 @@ export const errorCode = (error: unknown): string | undefined => {
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 5000
 
-export const createPostgresPool = (
-  connection: PostgresConnection,
-  write: (line: string) => void = (line) => logLine(line),
-): PostgresPool => {
+export const createPostgresPool = (connection: PostgresConnection): PostgresPool => {
   const capability = capabilityFor(connection.user)
   const pool = new pg.Pool({
     ...connection,
@@ -37,9 +35,11 @@ export const createPostgresPool = (
     max: connection.max ?? 6,
     connectionTimeoutMillis: connection.connectionTimeoutMillis ?? DEFAULT_CONNECT_TIMEOUT_MS,
   })
-  // A checked-out client and an idle one both log their drop, and neither crashes the process.
-  const logPoolError = (error: Error): void => { write(`HUB_POOL_ERROR:${capability}:${errorCode(error) ?? ''}\n`) }
-  pool.on('connect', (client) => { client.on('error', logPoolError) })
-  pool.on('error', logPoolError)
+  // The client's own listener logs a drop, whether the client is checked out or idle. The pool re-emits
+  // an idle client's error, so its handler only keeps that second emit from crashing the process.
+  pool.on('connect', (client) => {
+    client.on('error', (error) => logFailure(logger, new Failure('HUB_POOL_ERROR', { cause: error }), { 'hub.capability': capability, 'db.error_code': errorCode(error) ?? '' }))
+  })
+  pool.on('error', () => undefined)
   return pool
 }

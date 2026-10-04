@@ -5,7 +5,7 @@ import { Agent, fetch as undiciFetch } from 'undici'
 import { parseEmailAddress } from './current-session.js'
 import type { EmailAddress } from './current-session.js'
 import { Failure } from '../platform/failure.js'
-import { logger } from '../platform/logger.js'
+import { logLine } from '../platform/logger.js'
 
 export type OidcIdentity = Readonly<{ issuer: string; subject: string }>
 /**
@@ -62,8 +62,7 @@ type OidcDiscovery = typeof oidc.discovery
 // identity being provisioned.
 const isEmailVerifiedClaim = (claims: Record<string, unknown>): boolean => {
   if ('email_verified' in claims && typeof claims.email_verified !== 'boolean') {
-    const line = { event: 'oidc_email_verified_unexpected_type', claimType: typeof claims.email_verified }
-    logger.warn(line, line.event)
+    logLine('OIDC_EMAIL_VERIFIED_UNEXPECTED_TYPE', { claimType: typeof claims.email_verified }, 'warn')
   }
   return claims.email_verified === true
 }

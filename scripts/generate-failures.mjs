@@ -3,10 +3,12 @@ import { resolve } from 'node:path'
 
 const repositoryRoot = resolve(import.meta.dirname, '..')
 const sourcePath = 'contracts/technical/failures.json'
+const eventsPath = 'contracts/technical/log-events.json'
 export const failureTargets = Object.freeze({
   hub: 'apps/hub/src/platform/failures.generated.ts',
   web: 'apps/web/src/generated/failures.ts',
   app: 'apps/hub/src/generated/app-failures.ts',
+  events: 'apps/hub/src/platform/log-events.generated.ts',
 })
 
 const CATEGORIES = Object.freeze(['USER', 'SYSTEM', 'THIRD_PARTY'])
@@ -14,12 +16,23 @@ const AUDIENCES = Object.freeze(['operator', 'person', 'person+app'])
 const APP_FALLBACK = 'Não foi possível concluir a operação. A falha foi registrada.'
 const RETRY_WORDS = /tente|novamente|de novo/i
 
-export const readFailures = (root = repositoryRoot) => JSON.parse(readFileSync(resolve(root, sourcePath), 'utf8'))
+export const readFailures = (root = repositoryRoot) => {
+  const table = JSON.parse(readFileSync(resolve(root, sourcePath), 'utf8'))
+  return { ...table, events: JSON.parse(readFileSync(resolve(root, eventsPath), 'utf8')).events }
+}
 
 /** Every rule a row of the table must keep, each as one sentence naming the code. */
-export const failureProblems = ({ actions, failures }) => {
+export const failureProblems = ({ actions, failures, events = [] }) => {
   const problems = []
   const seen = new Set()
+  const rowCodes = new Set(failures.map((row) => row.code))
+  const eventSeen = new Set()
+  for (const event of events) {
+    if (!/^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/.test(event)) problems.push(`LOG_EVENTS_INVALID: ${event} is not UPPER_SNAKE`)
+    if (eventSeen.has(event)) problems.push(`LOG_EVENTS_INVALID: ${event} appears twice`)
+    eventSeen.add(event)
+    if (rowCodes.has(event)) problems.push(`LOG_EVENTS_INVALID: ${event} is a failure row; a failure is logged through logFailure, not as an event`)
+  }
   for (const row of failures) {
     const where = `FAILURES_INVALID: ${row.code}`
     if (!/^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/.test(row.code)) problems.push(`${where} is not UPPER_SNAKE`)
@@ -106,6 +119,17 @@ export const renderAppFailuresSource = ({ failures }) => [
   '',
 ].join('\n')
 
+const renderLogEvents = ({ events }) => [
+  header.replace(sourcePath, eventsPath),
+  '',
+  'const LOG_EVENTS = [',
+  ...events.map((event) => `  ${quoted(event)},`),
+  '] as const',
+  '',
+  'export type EventCode = (typeof LOG_EVENTS)[number]',
+  '',
+].join('\n')
+
 const renderAppFailures = (table) => [
   header,
   '',
@@ -116,7 +140,7 @@ const renderAppFailures = (table) => [
 /** Every problem in the table and every generated file that is not what the table renders. */
 export const failuresDrift = (table, generated) => {
   const drift = failureProblems(table)
-  const expected = { [failureTargets.hub]: renderHubFailures(table), [failureTargets.web]: renderWebFailures(table), [failureTargets.app]: renderAppFailures(table) }
+  const expected = { [failureTargets.hub]: renderHubFailures(table), [failureTargets.web]: renderWebFailures(table), [failureTargets.app]: renderAppFailures(table), [failureTargets.events]: renderLogEvents(table) }
   for (const [target, rendered] of Object.entries(expected)) {
     if (generated[target] !== rendered) drift.push(`FAILURES_STALE: ${target} is not generated from ${sourcePath}; run node scripts/generate-failures.mjs`)
   }
@@ -141,5 +165,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     writeFileSync(resolve(repositoryRoot, failureTargets.hub), renderHubFailures(table))
     writeFileSync(resolve(repositoryRoot, failureTargets.web), renderWebFailures(table))
     writeFileSync(resolve(repositoryRoot, failureTargets.app), renderAppFailures(table))
+    writeFileSync(resolve(repositoryRoot, failureTargets.events), renderLogEvents(table))
   }
 }

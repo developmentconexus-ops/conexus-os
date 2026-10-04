@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import pg from 'pg'
 import { createEmptyDatabase, testPool } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
+import { takeHubLogs } from './hub-log-capture.mjs'
 
 const built = hubModuleUrl
 const { ConexusRunSandbox, createConversationSandbox, createRunWorkspace } = await import(built('builder/sandbox.js'))
@@ -301,7 +302,7 @@ test("the retention prune at boot on a fresh installation waits for the store's 
   const { scheduleRetentionPrune } = await import(built('builder/storage.js'))
   const { pool } = await storageRole(t, 'conexus_builder_fresh_prune')
   const logs = []
-  const schedule = scheduleRetentionPrune(createBuilderStorage(pool), (line) => logs.push(line), 60_000)
+  const schedule = scheduleRetentionPrune(createBuilderStorage(pool), (code, fields) => logs.push([code, ...Object.values(fields)].join(':')), 60_000)
   await schedule.tick()
   await schedule.close()
   assert.deepEqual(logs, [
@@ -338,7 +339,7 @@ test('closing the retention schedule aborts a prune that never ends on its own a
       signal.addEventListener('abort', () => settle([{ domain: 'observability', table: 'mastra_ai_spans', deleted: 1000, done: false }]))
     }),
   }
-  const schedule = scheduleRetentionPrune(storage, (line) => logs.push(line), 60_000)
+  const schedule = scheduleRetentionPrune(storage, (code, fields) => logs.push([code, ...Object.values(fields)].join(':')), 60_000)
   await new Promise((r) => setImmediate(r))
   const started = Date.now()
   await schedule.close()
@@ -364,7 +365,7 @@ test('scheduleRetentionPrune prunes immediately at boot, logs deleted rows and e
     },
   }
 
-  const schedule = scheduleRetentionPrune(storage, (line) => logs.push(line), 60_000)
+  const schedule = scheduleRetentionPrune(storage, (code, fields) => logs.push([code, ...Object.values(fields)].join(':')), 60_000)
   // Yield microtask so the immediate boot tick runs
   await new Promise((r) => setImmediate(r))
 
@@ -387,10 +388,10 @@ test('scheduleRetentionPrune prunes immediately at boot, logs deleted rows and e
 
   // Failed prune is caught and logged
   const failing = { init: async () => undefined, prune: async () => { throw new Error('DB_DISCONNECTED') } }
-  const failLogs = []
-  const failingSchedule = scheduleRetentionPrune(failing, (line) => failLogs.push(line), 60_000)
+  takeHubLogs()
+  const failingSchedule = scheduleRetentionPrune(failing, () => undefined, 60_000)
   await new Promise((r) => setImmediate(r))
-  assert.deepEqual(failLogs, ['BUILDER_RETENTION_PRUNE_FAILED:DB_DISCONNECTED'])
+  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['exception.message']]), [['BUILDER_RETENTION_PRUNE_FAILED', 'DB_DISCONNECTED']])
 
   schedule.close()
   failingSchedule.close()

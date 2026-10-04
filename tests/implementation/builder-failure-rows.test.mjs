@@ -3,9 +3,11 @@ import test from 'node:test'
 import { failureCodeText } from '../../apps/web/src/app/failure.ts'
 import { viewRun } from '../../apps/web/src/features/builder/construir/run-state.ts'
 import { hubModuleUrl } from './hub-build.mjs'
+import { takeHubLogs } from './hub-log-capture.mjs'
 
 const { Failure, toFailure } = await import(hubModuleUrl('platform/failure.js'))
 const { FAILURES } = await import(hubModuleUrl('platform/failures.generated.js'))
+const { createCheckTool } = await import(hubModuleUrl('builder/harness/tools.js'))
 
 test('a run ends with the code of the Failure it threw, and a fault nobody named ends as the unexpected failure', () => {
   assert.equal(toFailure(new Failure('BUILDER_STARTER_ROOT_REFUSED')).id, 'BUILDER_STARTER_ROOT_REFUSED')
@@ -46,4 +48,11 @@ test('a settled run reads as stopped, discarded, moved or failed by its code, no
   assert.equal(settled('FAILED', 'BUILDER_SOURCE_BASE_MOVED').outcome, 'BASE_MOVED')
   assert.equal(settled('FAILED', 'BUILDER_MODEL_AUTH_FAILED').outcome, 'FAILED')
   assert.equal(settled('FAILED', 'BUILDER_MODEL_AUTH_FAILED', { cancellationRequested: true }).outcome, 'STOPPED')
+})
+
+test('a Conexus tool that fails through its real executor writes one Conexus line, at its row\'s level, and the model gets the code', async () => {
+  const tool = createCheckTool(async () => { throw new Failure('BUILDER_CHECK_FAILED', { cause: new Error('vendor said so') }) })
+  takeHubLogs()
+  await assert.rejects(() => tool.execute({}, {}), (error) => error.id === 'BUILDER_CHECK_FAILED')
+  assert.deepEqual(takeHubLogs().map(({ level, message, fields }) => [level, message, fields['tool.id']]), [['info', 'BUILDER_CHECK_FAILED', 'conexus_check']])
 })

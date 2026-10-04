@@ -276,7 +276,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   // somebody's request.
   reportConnectionCensus(
     await censusConnections({ host: config.database.host, port: config.database.port, database: config.database.database }),
-    line => logLine(line),
+    logLine,
   )
 
   await app.listen({ host: '127.0.0.1', port: config.port })

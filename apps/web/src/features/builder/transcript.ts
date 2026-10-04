@@ -9,7 +9,7 @@
 
 import type { AgentControllerEvent, KnownAgentControllerEvent, MastraDBMessage } from '@mastra/client-js'
 import { isKnownAgentControllerEvent } from '@mastra/client-js'
-import { modelRetryNotice, modelStoppedNotice } from './model-notices.ts'
+import { modelRetryNotice } from './model-notices.ts'
 import { SUBMIT_PLAN_TOOL } from './mastra-tool-names.ts'
 
 type MessagePart = MastraDBMessage['content']['parts'][number]
@@ -102,7 +102,6 @@ export const emptyTranscript = (conversationId: string): TranscriptState => ({ c
 export const localMessageId = (idempotencyKey: string): string => `local-${idempotencyKey}`
 
 const RETRY_NOTICE_ID = 'model-retry'
-let noticeSeq = 0
 
 export const transcriptReducer = (state: TranscriptState, action: TranscriptAction): TranscriptState => {
   switch (action.type) {
@@ -211,7 +210,8 @@ const applyEvent = (previous: TranscriptState, event: AgentControllerEvent): Tra
       if (event.retryable && (maxRetries === null || attempt < maxRetries)) {
         return upsertNotice(state, { kind: 'notice', id: RETRY_NOTICE_ID, level: 'info', text: modelRetryNotice(attempt, maxRetries) })
       }
-      return upsertNotice(withoutEntry(state, RETRY_NOTICE_ID), { kind: 'notice', id: `notice-${noticeSeq++}`, level: 'error', text: modelStoppedNotice(event.retryable ? attempt : null) })
+      // The run's own failure says the rest, once, from the failure table.
+      return withoutEntry(state, RETRY_NOTICE_ID)
     }
     default:
       return state

@@ -329,13 +329,13 @@ test('the log line of each ended span carries the stored span\'s own facts: one 
   assert.deepEqual(logged.map((line) => line.span), ['authenticate', LOAD, 'connector.fetch'], 'one line per ended span, in end order')
   const bySpan = (entries) => [...entries].sort((a, b) => a.spanId.localeCompare(b.spanId))
   const stored = exporter.getCompletedSpans().map((span) => ({
-    span: span.name, traceId: span.traceId, spanId: span.id, parentSpanId: span.parentSpanId ?? null,
+    span: span.name, traceId: span.traceId, spanId: span.id, parentSpanId: span.parentSpanId ?? '',
     startedAt: span.startTime.toISOString(), ms: span.endTime - span.startTime, ...span.metadata,
   }))
   assert.deepEqual(bySpan(logged), bySpan(stored))
   const root = logged.find((line) => line.span === 'connector.fetch')
   assert.deepEqual(logged.map((line) => [line.span, line.traceId === root.traceId, line.parentSpanId]), [
-    ['authenticate', true, root.spanId], [LOAD, true, root.spanId], ['connector.fetch', true, null],
+    ['authenticate', true, root.spanId], [LOAD, true, root.spanId], ['connector.fetch', true, ''],
   ])
 })
 

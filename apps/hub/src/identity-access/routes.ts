@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
-import { Failure } from '../platform/failure.js'
-import { recordFailure } from '../platform/logger.js'
+import { Failure, logFailure } from '../platform/failure.js'
+import { logLine } from '../platform/logger.js'
 import { IAM_GENERATED_ROUTES } from '../generated/iam-routes.js'
 import type { Iam03Body, IamOwnerId } from '../generated/iam-routes.js'
 import { parseApplicationSlug } from '../platform/application-slug.js'
@@ -58,7 +58,7 @@ export const registerIdentityAccessRoutes = async (
       await store.createOidcTransaction({ ...transaction, signInReturn })
       return reply.setCookie(OIDC_STATE_COOKIE, transaction.state, cookieOptions).redirect(transaction.location, 302)
     } catch (error) {
-      recordFailure(request.log, 'OIDC_BEGIN_FAILED', error)
+      logFailure(request.log, new Failure('OIDC_BEGIN_FAILED', { cause: error }))
       return reply.code(503).send()
     }
   })
@@ -82,9 +82,7 @@ export const registerIdentityAccessRoutes = async (
         // This branch never sets the Hub session or its CSRF cookie: the person leaves with a
         // one-use handoff for the application's own host, or with no access at all.
         if (!applications) {
-          recordFailure(request.log, 'OIDC_APPLICATION_SIGN_IN_UNAVAILABLE', new Error('Applications module unavailable'), {
-            'conexus.project_id': signInReturn.projectId,
-          })
+          logFailure(request.log, new Failure('OIDC_APPLICATION_SIGN_IN_UNAVAILABLE', { details: { projectId: signInReturn.projectId } }))
           return reply.code(503).send()
         }
         const outcome = await applications.sessions.signIn({
@@ -103,7 +101,7 @@ export const registerIdentityAccessRoutes = async (
         await store.claimInvitations({ accountId: account.accountId, verifiedEmail: identity.verifiedEmail })
         // The Hub keeps this sign-in's Keycloak refresh token, sealed, to ask Keycloak again while the session lasts.
         if (!identity.refreshToken) {
-          recordFailure(request.log, 'OIDC_REFRESH_TOKEN_MISSING', new Error('OIDC provider returned no refresh token'))
+          logFailure(request.log, new Failure('OIDC_REFRESH_TOKEN_MISSING'))
           return reply.code(503).send()
         }
         const established = await hubSessions.openHub({ accountId: account.accountId, refreshToken: identity.refreshToken })
@@ -124,7 +122,7 @@ export const registerIdentityAccessRoutes = async (
         .redirect('/setup', 303)
     } catch (error) {
       if (error instanceof Failure && error.id === 'IDENTITY_NOT_ELIGIBLE') return reply.code(403).send()
-      recordFailure(request.log, 'OIDC_CALLBACK_FAILED', error)
+      logFailure(request.log, new Failure('OIDC_CALLBACK_FAILED', { cause: error }))
       return reply.code(503).send()
     }
   })
@@ -158,7 +156,7 @@ export const registerIdentityAccessRoutes = async (
         ? await oidc.endProviderSession({ refreshToken: ended.refreshToken, signal: AbortSignal.timeout(PROVIDER_LOGOUT_TIMEOUT_MS) })
         : 'UNCONFIRMED'
       if (providerLogout !== 'ENDED') {
-        request.log.warn({ event: 'hub_sign_out_provider_logout_unconfirmed' }, 'Conexus session ended; Keycloak did not confirm the SSO session ended')
+        logLine('HUB_SIGN_OUT_PROVIDER_LOGOUT_UNCONFIRMED', {}, 'warn')
       }
       return reply
         .clearCookie(SESSION_COOKIE, clearCookieOptions)

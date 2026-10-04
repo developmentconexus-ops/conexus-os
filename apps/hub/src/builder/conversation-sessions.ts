@@ -1,5 +1,7 @@
 import type { AgentController } from '@mastra/core/agent-controller'
 import type { RequestContext } from '@mastra/core/request-context'
+import { Failure, logFailure } from '../platform/failure.js'
+import { logger } from '../platform/logger.js'
 import { conversationRunScope, deleteSessionLeavingParked } from './run-runtime.js'
 
 /**
@@ -21,12 +23,11 @@ type SessionPorts = Pick<AgentController, 'createSession' | 'deleteSession' | 'g
  * own session (`builder:<id>`) is never swept here, since a run may wait on the person longer than
  * this; the run deletes it.
  */
-export const createConversationSessions = ({ controller, idleMs = CONVERSATION_SESSION_IDLE_MS, sweepEveryMs = SWEEP_EVERY_MS, now = Date.now, log = () => undefined }: Readonly<{
+export const createConversationSessions = ({ controller, idleMs = CONVERSATION_SESSION_IDLE_MS, sweepEveryMs = SWEEP_EVERY_MS, now = Date.now }: Readonly<{
   controller: SessionPorts
   idleMs?: number
   sweepEveryMs?: number
   now?: () => number
-  log?: (line: string) => void
 }>) => {
   const uses = new Map<string, Use>()
   const key = (resourceId: string, scope: string): string => `${resourceId}\n${scope}`
@@ -37,7 +38,7 @@ export const createConversationSessions = ({ controller, idleMs = CONVERSATION_S
     uses.delete(key(resourceId, scope))
     // A conversation's session holds the call a parked run of it waits on, and deleting it must not answer it.
     await deleteSessionLeavingParked(controller, resourceId, scope).catch((error: unknown) => {
-      log(`BUILDER_SESSION_DELETE_FAILED:${scope}:${error instanceof Error ? error.message : String(error)}`)
+      logFailure(logger, new Failure('BUILDER_SESSION_DELETE_FAILED', { cause: error }), { 'builder.session_scope': scope })
     })
   }
   const sweep = async (): Promise<void> => {

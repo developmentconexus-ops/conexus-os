@@ -144,9 +144,9 @@ test('log lines and logged errors export their codes, types and frames, and none
     const result = await runWithTelemetry(`
 const P = JSON.parse(process.env.PLANT)
 const { logLine, logger, recordFailure } = await import(process.env.HUB_BUILD + '/platform/logger.js')
-logLine('BUILDER_RUN_FAILED:run-1:' + P.lineText + '\\n')
-logLine('runner said ' + P.uncodedText, 'warn')
-logLine(P.upperLine)
+logLine('BUILDER_RUN_TAKEN_OVER', { run: 'run-1', loss: P.lineText })
+logger.warn({}, 'runner said ' + P.uncodedText)
+logger.info({}, P.upperLine)
 logger.info({ code: 'PLAIN_CODE_FIELD' }, 'PROCESS_HEAP_HIGH ' + P.pinoMessage)
 recordFailure(logger, 'PROJECT_DELETION_INCOMPLETE', new Error('provider echoed ' + P.errorMessage), { 'conexus.project_id': 'project-1' })
 `, { endpoint: collector.endpoint, env: { PLANT: JSON.stringify(LOG_PLANT) } })
@@ -154,7 +154,7 @@ recordFailure(logger, 'PROJECT_DELETION_INCOMPLETE', new Error('provider echoed 
     const stdout = result.stdout
     for (const value of Object.values(LOG_PLANT)) assert.ok(stdout.includes(value), `${value} stays on stdout`)
     const logs = Buffer.concat(collector.bodies('/v1/logs'))
-    for (const expected of ['BUILDER_RUN_FAILED', 'UNCODED_LOG', 'PROCESS_HEAP_HIGH', 'PLAIN_CODE_FIELD', 'PROJECT_DELETION_INCOMPLETE', 'project-1', 'exception.type', 'exception.stacktrace', '    at ']) {
+    for (const expected of ['BUILDER_RUN_TAKEN_OVER', 'UNCODED_LOG', 'PROCESS_HEAP_HIGH', 'PLAIN_CODE_FIELD', 'PROJECT_DELETION_INCOMPLETE', 'project-1', 'exception.type', 'exception.stacktrace', '    at ']) {
       assert.ok(logs.includes(expected), `the log export holds ${JSON.stringify(expected)}`)
     }
     const exported = collector.everything()
