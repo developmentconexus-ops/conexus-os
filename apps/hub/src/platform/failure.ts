@@ -27,7 +27,7 @@ export const failureRow = (failure: Failure) => FAILURES[failure.id]
 const isFailureCode = (value: string): value is FailureCode => Object.hasOwn(FAILURES, value)
 
 /** A function in our own database that ended with `RAISE EXCEPTION 'A_ROW_CODE'`: the one vendor error that already names a row. */
-const raisedRow = (error: unknown): FailureCode | undefined =>
+export const raisedRow = (error: unknown): FailureCode | undefined =>
   error instanceof Error && 'code' in error && error.code === 'P0001' && isFailureCode(error.message) ? error.message : undefined
 
 /**

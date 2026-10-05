@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { z } from 'zod'
 import type { AccountId } from '../../../../packages/contract/dist/index.js'
-import { Failure, logFailure, type FailureCode } from './failure.js'
+import { Failure, logFailure, raisedRow, type FailureCode } from './failure.js'
 import { fieldOf } from './field-of.js'
 import { logger } from './logger.js'
 import { codeOfSql } from './sql-lexer.js'
@@ -136,7 +136,7 @@ const databaseFailure = (error: unknown): Failure | unknown => {
     ?? DATABASE_FAILURES.find((entry) => entry.sqlstate === error.code && entry.constraint === null)
   // The SQLSTATE and the names of our own constraint and table, never the message: it can carry a row's values.
   const details = Object.fromEntries(Object.entries({ sqlstate: error.code, constraint: error.constraint, table: error.table }).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
-  return new Failure(rule?.failure ?? 'INTERNAL_UNEXPECTED', { cause: error, details })
+  return new Failure(rule?.failure ?? raisedRow(error) ?? 'INTERNAL_UNEXPECTED', { cause: error, details })
 }
 
 const openPool = (connection: PoolConfig): Pool => {
