@@ -84,7 +84,7 @@ export const ROLE_BY_CALL_SITE = Object.freeze({
     'iam.grant_first_installation_administrator': 'hub_iam_runtime',
   }),
   'identity-access/admission.ts': Object.freeze({
-    'iam.is_installation_administrator': 'hub_runtime',
+    'iam.lock_administrators': 'hub_command',
   }),
   'project/deletion.ts': Object.freeze({
     'iam.purge_project': 'hub_command',
@@ -100,7 +100,6 @@ export const ROLE_BY_CALL_SITE = Object.freeze({
     'reg.get_application_by_source': 'hub_builder_executor',
     'reg.read_application_file_by_source': 'hub_builder_executor',
     'reg.retain_application_thumbnail': 'hub_builder_executor',
-    'reg.get_application_thumbnail': 'hub_builder_executor',
   }),
   'registry/served-application.ts': Object.freeze({
     'reg.get_served_application': 'hub_reader',
