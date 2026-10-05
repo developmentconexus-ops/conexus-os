@@ -2,7 +2,7 @@
 const PLACEHOLDER = '$'
 
 // One left to right pass, so a comment opener inside a literal is not a comment and a quote inside a comment is not a literal.
-const normalizeSql = (text) => text
+export const normalizeSql = (text) => text
   .replace(/'(?:[^']|'')*'|\/\*[\s\S]*?\*\/|--[^\n]*/g, (token) => (token.startsWith("'") ? "''" : ' '))
   .toLowerCase()
   .replaceAll('"', '')

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { resolve } from 'node:path'
 import test from 'node:test'
 import ts from 'typescript'
-import { compareToRecord, findings } from '../../scripts/census-boundaries.mjs'
+import { compareToRecord, findings, hardZeroBroken } from '../../scripts/census-boundaries.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const fixture = (name, options = {}) => {
@@ -65,9 +65,13 @@ test('a write whose filter is not visible in its template is found, and a write 
 test('a statement that writes an authority table outside its owning modules is found by table and verb, and a read or another verb is not', () => {
   const prefix = 'tests/fixtures/census-boundaries/authority-writes.ts#'
   assert.deepEqual(fixture('authority-writes').authorityTableWrites.sort(), [
+    ['commentedDelete', 'DELETE project.project'],
+    ['commentedVerb', 'DELETE project.project'],
     ['deletes', 'DELETE iam.workspace_membership'],
     ['inCte', 'INSERT iam.workspace_membership'],
     ['inserts', 'INSERT iam.workspace_membership'],
+    ['onlyDelete', 'DELETE project.project'],
+    ['onlyUpdate', 'UPDATE iam.workspace_membership'],
     ['projectDelete', 'DELETE project.project'],
     ['receiptDelete', 'DELETE platform.operation_receipt'],
     ['receiptMerge', 'MERGE platform.operation_receipt'],
@@ -125,4 +129,11 @@ test('the record holds sets: a finding swapped for another is both added and rem
   assert.deepEqual(compareToRecord(['a.ts#x', 'a.ts#x'], ['a.ts#x']), { added: ['a.ts#x'], removed: [] })
   assert.deepEqual(compareToRecord(['a.ts#x'], ['a.ts#x', 'a.ts#x']), { added: [], removed: ['a.ts#x'] })
   assert.deepEqual(compareToRecord(['a.ts#x'], ['a.ts#x']), { added: [], removed: [] })
+})
+
+test('the hard zero items fail whenever one finding is present, whatever the record holds', () => {
+  const clean = { pgQueryRows: ['a.ts#x'], pgImportFiles: [], webResponseJson: [], sqlWrites: [], authorityTableWrites: [], gateReferences: [] }
+  assert.deepEqual(hardZeroBroken(clean), [])
+  assert.deepEqual(hardZeroBroken({ ...clean, gateReferences: ['a.ts#x'] }), ['gateReferences'])
+  assert.deepEqual(hardZeroBroken({ ...clean, authorityTableWrites: ['a.ts#x: writes DELETE project.project'], sqlWrites: ['a.ts#y: a merge'] }), ['authorityTableWrites', 'sqlWrites'])
 })

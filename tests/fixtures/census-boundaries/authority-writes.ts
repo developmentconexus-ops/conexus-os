@@ -21,3 +21,8 @@ export const receiptDelete = sql`DELETE FROM platform.operation_receipt WHERE re
 export const receiptInsert = sql`INSERT INTO platform.operation_receipt (resource_id) VALUES (${id})`
 export const receiptUpdate = sql`UPDATE platform.operation_receipt SET state = 'done' WHERE resource_id = ${id}`
 export const receiptMerge = sql`MERGE INTO platform.operation_receipt USING iam.account AS other ON true WHEN MATCHED THEN DELETE`
+export const onlyUpdate = sql`UPDATE ONLY iam.workspace_membership SET role = 'owner' WHERE account_id = ${id}`
+export const onlyDelete = sql`DELETE FROM ONLY project.project WHERE project_id = ${id}`
+export const commentedDelete = sql`DELETE FROM /* x */ project.project WHERE project_id = ${id}`
+export const commentedVerb = sql`DELETE /* x */ FROM project.project -- y
+  WHERE project_id = ${id}`

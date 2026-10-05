@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
-import { joinTemplate, writeProblems } from './sql-write-lint.mjs'
+import { joinTemplate, normalizeSql, writeProblems } from './sql-write-lint.mjs'
 
 const repo = resolve(fileURLToPath(new URL('../', import.meta.url)))
 const recordPath = join(repo, 'contracts/technical/census-boundaries.json')
@@ -69,8 +69,8 @@ const VERBS = Object.freeze({ 'insert into': 'INSERT', update: 'UPDATE', 'delete
 
 // The writes of a template that break a rule: one entry per table and verb written outside the rule's modules.
 const writesOutside = (text, path, rules) => {
-  const normalized = text.toLowerCase().replaceAll('"', '').replace(/\s+/g, ' ')
-  return rules.flatMap((rule) => [...normalized.matchAll(new RegExp(`\\b(insert into|update|delete from|merge into) ${rule.table.replace('.', '\\.')}\\b`, 'g'))]
+  const normalized = normalizeSql(text)
+  return rules.flatMap((rule) => [...normalized.matchAll(new RegExp(`\\b(insert into|update|delete from|merge into) (?:only )?${rule.table.replace('.', '\\.')}\\b`, 'g'))]
     .map((found) => VERBS[found[1]])
     .filter((verb) => (verb === 'MERGE' || rule.verbs.includes(verb)) && !rule.modules.includes(path))
     .map((verb) => `${verb} ${rule.table}`))
@@ -137,6 +137,10 @@ export const census = () => {
   }
 }
 
+// Items that must stay empty: a record can never hold one, so --write cannot raise them.
+export const HARD_ZERO = Object.freeze(['gateReferences', 'authorityTableWrites', 'sqlWrites'])
+export const hardZeroBroken = (found) => HARD_ZERO.filter((item) => (found[item] ?? []).length > 0)
+
 const tally = (entries) => entries.reduce((counts, entry) => counts.set(entry, (counts.get(entry) ?? 0) + 1), new Map())
 
 // Entries found that the record does not hold, and entries the record holds that were not found. Each
@@ -152,6 +156,12 @@ export const compareToRecord = (found, recorded) => {
 const isEntrypoint = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 if (isEntrypoint) {
   const found = census()
+  const broken = hardZeroBroken(found)
+  if (broken.length > 0) {
+    for (const item of broken) for (const entry of found[item]) console.error(`census-boundaries: ${item} must be empty, found: ${entry}`)
+    console.error('census-boundaries: gateReferences, authorityTableWrites and sqlWrites are hard zero; the record cannot hold one and --write does not record them.')
+    process.exit(1)
+  }
   if (process.argv.includes('--write')) {
     writeFileSync(recordPath, `${JSON.stringify(Object.fromEntries(Object.entries(found).map(([item, list]) => [item, [...list].sort()])), null, 2)}\n`)
     console.log(`census-boundaries: recorded ${Object.entries(found).map(([item, list]) => `${item} ${list.length}`).join(', ')}`)
