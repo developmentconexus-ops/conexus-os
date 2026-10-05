@@ -155,6 +155,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     store.admitSourceRevision({ accountId, projectId, sourceRevision, mainRevision: await dependencies.git.readMain(projectId).catch(() => null) })
   return Object.freeze({
     sendBuilderMessage: async (input) => {
+      await store.admitBuilder(input)
       const waiting = live(input.projectId, input.conversationId)
       if (waiting) {
         if (waiting.message(input.content, input.idempotencyKey) === 'BUSY') throw new Failure('BUILDER_BUSY')

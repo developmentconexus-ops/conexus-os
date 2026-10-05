@@ -12,6 +12,8 @@ const MESSAGE_ID = /^.{1,200}$/s
 const REQUEST_TEXT_MAX = 20000
 
 export type RunStart = Readonly<{
+  /** Admits the account to build in the Project, or refuses with the row of its access; it commits, so an answer here holds before any side effect. */
+  admitBuilder(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<void>
   /** Takes the Project's locks, reads the base with readBase while holding them, and inserts the run on that base, or replays the run the same key already made. */
   createBuilderRun(input: Readonly<{ accountId: AccountId; projectId: ProjectId; conversationId: string; idempotencyKey: string; content: string; readBase(): Promise<string> }>): Promise<BuilderRunSummary>
   requestBuilderRunCancellation(input: Readonly<{ accountId: AccountId; projectId: ProjectId; builderRunId: BuilderRunIdType }>): Promise<BuilderRunSummary>
@@ -19,6 +21,9 @@ export type RunStart = Readonly<{
 }>
 
 export const createRunStart = ({ database, mintIdentity }: Readonly<{ database: Database; mintIdentity: () => string }>): RunStart => ({
+  admitBuilder: ({ accountId, projectId }) => database.transaction(accountId, async (gate) => {
+    await admitProject(gate, projectId, 'project.build')
+  }),
   createBuilderRun: ({ accountId, projectId, conversationId, idempotencyKey, content, readBase }) => database.transaction(accountId, async (gate) => {
     const project = await admitProject(gate, projectId, 'project.build')
     const conversation = conversationId.trim()

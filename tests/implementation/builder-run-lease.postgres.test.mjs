@@ -127,4 +127,23 @@ test('a run that enters the service after the pass listed its live runs comes ba
   assert.deepEqual([row.state, row.owner_id, row.failure_code], ['RUNNING', HUB, null], 'the replayed run was claimed and not interrupted by the pass')
 })
 
+test('a message to a conversation with a live run is refused to anyone who cannot build in the Project, before the run is reached', async (t) => {
+  const h = await leaseHarness(t, 'conexus_send_admission')
+  const service = h.serviceOver()
+  const projectId = await h.projectIn()
+  const { builderRun } = await h.send(service, projectId, 'conv-live')
+  await untilHeld(h)
+  await query(h.connectionString, "INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'atlas', $2)", [projectId, ID.owner])
+  await query(h.connectionString, 'INSERT INTO iam.application_grant(project_id, account_id, granted_by) VALUES ($1, $2, $3)', [projectId, ID.outsider, ID.owner])
+  await query(h.connectionString, 'DELETE FROM iam.workspace_membership WHERE account_id = $1', [ID.member])
+  const refused = []
+  for (const accountId of [ID.outsider, ID.member]) {
+    refused.push(await service.sendBuilderMessage({ accountId, projectId, conversationId: 'conv-live', idempotencyKey: randomUUID(), content: 'oi' }).then(() => 'ACCEPTED', (error) => error.id))
+  }
+  assert.deepEqual(refused, ['PROJECT_BUILD_DENIED', 'PROJECT_BUILD_DENIED'])
+  assert.deepEqual(service.pendingCalls(projectId, 'conv-live'), [])
+  assert.equal((await h.read(builderRun)).state, 'RUNNING')
+  assert.equal(h.holds.length, 1, 'the run was not touched')
+})
+
 const untilHeld = async (h) => { for (let i = 0; i < 400 && h.holds.length === 0; i++) await new Promise((wake) => { setTimeout(wake, 5) }) }
