@@ -3,7 +3,7 @@ import type { FailureCode } from './failures.generated.js'
 
 export type AccessKind = 'navigation' | 'sign-in' | 'session' | 'sign-out' | 'bootstrap' | 'host-write' | 'hub-entry'
 export type Effect = 'clear-session-cookie' | 'clear-bootstrap-cookie'
-export type Binary = Readonly<{ mediaType: 'image/png'; maxBytes: number }>
+export type Binary = Readonly<{ mediaType: 'image/png'; maxBytes: number; etag?: true }>
 export type NoContent = null
 type Part = z.ZodType | null
 export type Success =
@@ -48,7 +48,8 @@ export type Input<O extends AnyOperation> = Readonly<{
   body: Out<O['body']>
 }>
 type Statuses<O extends AnyOperation> = keyof O['success'] & number
-type BodyOf<S> = S extends z.ZodType ? z.output<S> : S extends null ? undefined : S extends Binary ? Uint8Array : never
+type BodyOf<S> = S extends z.ZodType ? z.output<S> : S extends null ? undefined
+  : S extends Binary ? (S extends { readonly etag: true } ? Readonly<{ bytes: Uint8Array; etag: string }> : Uint8Array) : never
 type StatusBody<O extends AnyOperation, S extends number> = S extends keyof O['success'] ? BodyOf<O['success'][S]> : never
 export type Reply<O extends AnyOperation> =
   [Statuses<O>] extends [200] | [201] | [204]

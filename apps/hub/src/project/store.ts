@@ -1,13 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
+import type { z } from 'zod'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
-import type {
-  Prj01Response,
-  Prj02Response,
-  Prj03Body,
-  Prj03Response,
-} from '../generated/project-routes.js'
-import type { BuilderRunResultKind, BuilderRunState } from '../generated/builder-run-vocabulary.js'
+import { ProjectCard, ProjectCreated, ProjectDetail, ProjectListItem } from '../../../../packages/contract/dist/index.js'
+import type { AccountId, Input, ProjectId, PRJ03, WorkspaceId } from '../../../../packages/contract/dist/index.js'
 import { Failure } from '../platform/failure.js'
 import { errorCode, type PostgresPool } from '../platform/db.js'
 import { createProjectDeletionOrchestrator } from './deletion.js'
@@ -21,11 +17,12 @@ export type ProjectRepositoryPort = Readonly<{
   prepare(projectId: string): Promise<string>
 }>
 
+type Prj03Response = z.output<typeof ProjectCreated>
 type CreateProjectInput = Readonly<{
-  accountId: string
-  workspaceId: string
+  accountId: AccountId
+  workspaceId: WorkspaceId
   idempotencyKey: string
-  body: Prj03Body
+  body: Input<typeof PRJ03>['body']
 }>
 
 type CreateProjectResult = Prj03Response & Readonly<{ replayed: boolean }>
@@ -48,29 +45,12 @@ type ProjectRepresentationRow = ProjectSummaryRow & Readonly<{ project_revision:
 type ProjectDetailRow = ProjectRepresentationRow & Readonly<{ deleting: boolean }>
 type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
 
-// The Projects home's card row: a Project's name and archived flag next to its latest Builder
-// activity, so the Hub answers one read instead of the browser paging one builder-session call
-// per Project.
-type ProjectLatestRunSummary = Readonly<{
-  state: BuilderRunState
-  resultKind: BuilderRunResultKind | null
-}>
-export type ProjectSummaryWithActivity = Readonly<{
-  projectId: string
-  name: string
-  archived: boolean
-  lastActivityAt: string
-  latestRun: ProjectLatestRunSummary | null
-  hasPreview: boolean
-  deleting: boolean
-}>
-
 export type ProjectStore = Readonly<{
   createProject(input: CreateProjectInput): Promise<CreateProjectResult>
-  listProjects(input: Readonly<{ accountId: string; workspaceId: string }>): Promise<Prj01Response>
-  getProject(input: Readonly<{ accountId: string; projectId: string }>): Promise<Prj02Response | null>
-  listProjectSummariesWithActivity(input: Readonly<{ accountId: string; workspaceId: string }>): Promise<readonly ProjectSummaryWithActivity[]>
-  deleteProject(input: Readonly<{ accountId: string; projectId: string; confirmName: string }>): Promise<void>
+  listProjects(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId }>): Promise<z.output<typeof ProjectListItem>[]>
+  getProject(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<ProjectDetail | null>
+  listProjectSummariesWithActivity(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId }>): Promise<ProjectCard[]>
+  deleteProject(input: Readonly<{ accountId: AccountId; projectId: ProjectId; confirmName: string }>): Promise<void>
 }>
 
 const digestText = (value: string): string => sha256(Buffer.from(value, 'utf8'))
@@ -117,9 +97,9 @@ export const createProjectStore = ({
   const deletionOrchestrator = createProjectDeletionOrchestrator({ commandPool, ports: deletion })
 
   const listProjects = async ({ accountId, workspaceId }: Readonly<{
-    accountId: string
-    workspaceId: string
-  }>): Promise<Prj01Response> => {
+    accountId: AccountId
+    workspaceId: WorkspaceId
+  }>): Promise<z.output<typeof ProjectListItem>[]> => {
     const client = await requireReadPool().connect()
     try {
       await client.query('BEGIN READ ONLY')
@@ -128,12 +108,12 @@ export const createProjectStore = ({
         FROM project.list_project_summaries($1, $2) summary
       `, [accountId, workspaceId])
       await client.query('COMMIT')
-      return result.rows.map((row) => ({
+      return ProjectListItem.array().parse(result.rows.map((row) => ({
         projectId: row.project_id,
         workspaceId: row.workspace_id,
         name: row.name,
         archived: row.archived,
-      }))
+      })))
     } catch (error) {
       await client.query('ROLLBACK')
       throw error
@@ -143,9 +123,9 @@ export const createProjectStore = ({
   }
 
   const getProject = async ({ accountId, projectId }: Readonly<{
-    accountId: string
-    projectId: string
-  }>): Promise<Prj02Response | null> => {
+    accountId: AccountId
+    projectId: ProjectId
+  }>): Promise<ProjectDetail | null> => {
     const client = await requireReadPool().connect()
     try {
       await client.query('BEGIN READ ONLY')
@@ -156,14 +136,14 @@ export const createProjectStore = ({
       `, [accountId, projectId])
       const row = result.rows[0] ?? null
       await client.query('COMMIT')
-      return row ? {
+      return row ? ProjectDetail.parse({
         projectId: row.project_id,
         workspaceId: row.workspace_id,
         name: row.name,
         projectRevision: row.project_revision,
         archived: row.archived,
         deleting: row.deleting,
-      } : null
+      }) : null
     } catch (error) {
       await client.query('ROLLBACK')
       throw error
@@ -172,17 +152,17 @@ export const createProjectStore = ({
     }
   }
   const listProjectSummariesWithActivity = async ({ accountId, workspaceId }: Readonly<{
-    accountId: string
-    workspaceId: string
-  }>): Promise<readonly ProjectSummaryWithActivity[]> => {
+    accountId: AccountId
+    workspaceId: WorkspaceId
+  }>): Promise<ProjectCard[]> => {
     const client = await requireReadPool().connect()
     try {
       await client.query('BEGIN READ ONLY')
-      const result = await client.query<JsonRow<readonly ProjectSummaryWithActivity[]>>(
+      const result = await client.query<JsonRow<readonly ProjectCard[]>>(
         'SELECT project.list_project_summaries_with_activity($1, $2) AS value', [accountId, workspaceId],
       )
       await client.query('COMMIT')
-      return result.rows[0]?.value ?? []
+      return ProjectCard.array().parse(result.rows[0]?.value ?? [])
     } catch (error) {
       await client.query('ROLLBACK')
       throw error
@@ -258,13 +238,13 @@ export const createProjectStore = ({
       }
       if (lock.outcome !== 'RESERVED') throw new Failure('OUTCOME_UNKNOWN')
 
-      const response: Prj03Response = {
+      const response = ProjectCreated.parse({
         projectId,
         workspaceId: input.workspaceId,
         name: input.body.name,
         projectRevision,
         archived: false,
-      }
+      })
       await client.query('SELECT project.create_project_with_repository($1, $2, $3, $4, $5, $6, $7, $8)', [
         input.accountId, input.workspaceId, keyDigest, requestDigest, projectId, input.body.name, projectRevision, starterRevision,
       ])

@@ -5,7 +5,7 @@ import { createRoute, Link } from '@tanstack/react-router'
 import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
 import { IntegrationsScreen } from '../features/connector/components/integrations-screen'
-import { getProject, projectQueryKey } from '../features/project/api'
+import { projectQuery } from '../features/project/api'
 import '../features/project/project-settings.css'
 import { rootRoute } from './__root'
 import { failureText, isFailure } from '../app/http'
@@ -19,7 +19,7 @@ export const projectIntegrationsRoute = createRoute({
 
 function ProjectIntegrationsRoute() {
   const { projectId } = projectIntegrationsRoute.useParams()
-  const project = useQuery({ queryKey: projectQueryKey(projectId), queryFn: () => getProject(projectId) })
+  const project = useQuery(projectQuery(projectId))
   return <AccessGate>{(context) => {
     const workspace = project.data && context.workspaces.find((candidate) => candidate.workspaceId === project.data.workspaceId)
     return <Shell context={context} scope={project.data && workspace ? { workspace, project: project.data } : undefined}>

@@ -37,7 +37,7 @@ paths:
                   projects:
                     type: array
                     items:
-                      $ref: './project-paths.yaml#/components/schemas/ProjectSummary'
+                      $ref: '#/components/schemas/ProjectSummary'
         '401':
           $ref: './openapi.yaml#/components/responses/Problem401'
 
@@ -291,6 +291,24 @@ components:
       description: Untrusted Account reference only; current identity, containment, disclosure and authority are resolved server-side.
       schema: { type: string, minLength: 1 }
   schemas:
+    ProjectSummary:
+      type: object
+      additionalProperties: false
+      required: [projectId, workspaceId, name, archived]
+      properties:
+        projectId:
+          type: string
+          minLength: 1
+        workspaceId:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+          pattern: '.*\S.*'
+          description: Human-readable Project identity; not a stable identifier, uniqueness guarantee, or authorization source.
+        archived:
+          type: boolean
     WorkspaceRole:
       type: string
       enum: [owner, member]

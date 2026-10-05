@@ -1,61 +1,26 @@
-import { hubCall } from '../../app/http'
-import type {
-  CreateProjectInput,
-  CreateProjectResponse,
-  ProjectRepresentation,
-  ProjectSummary,
-} from '../../generated/project-client'
-import { projectClient } from '../../generated/project-client'
-import type { BuilderRunResultKind, BuilderRunState } from '../../generated/builder-run-vocabulary'
+import { call, href, query } from '../../app/http'
+import { routeParam } from '../../app/route-params'
+import {
+  ProjectId, PRJ01, PRJ02, PRJ03, PRJ04, PRJ_SUMMARIES, PRJ_THUMBNAIL, WorkspaceId, type IdempotencyKey,
+} from '../../../../../packages/contract/dist/index.js'
 
-export const projectListQueryKey = (workspaceId: string) => ['projects', workspaceId] as const
-export const projectQueryKey = (projectId: string) => ['project', projectId] as const
+const noInput = { query: undefined, headers: undefined, body: undefined } as const
+const projectParams = (projectId: string) => ({ projectId: routeParam(ProjectId, projectId) })
+const workspaceParams = (workspaceId: string) => ({ workspaceId: routeParam(WorkspaceId, workspaceId) })
 
-export async function listProjects(workspaceId: string): Promise<ProjectSummary[]> {
-  const response = await hubCall(projectClient.listProjects(workspaceId))
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  return response.json() as Promise<ProjectSummary[]>
-}
+export const projectsQuery = (workspaceId: string) => query(PRJ01, { params: workspaceParams(workspaceId), ...noInput })
+export const projectQuery = (projectId: string) => query(PRJ02, { params: projectParams(projectId), ...noInput })
+export const projectSummariesQuery = (workspaceId: string) => query(PRJ_SUMMARIES, { params: workspaceParams(workspaceId), ...noInput })
 
-export type ProjectCardSummary = Readonly<{
-  projectId: string
-  name: string
-  archived: boolean
-  lastActivityAt: string
-  latestRun: Readonly<{ state: BuilderRunState; resultKind: BuilderRunResultKind | null }> | null
-  hasPreview: boolean
-  deleting: boolean
-}>
-export const projectSummariesQueryKey = (workspaceId: string) => ['project-summaries', workspaceId] as const
+export const createProject = (workspaceId: string, name: string, idempotencyKey: IdempotencyKey) => call(PRJ03, {
+  params: workspaceParams(workspaceId),
+  query: undefined,
+  headers: { 'idempotency-key': idempotencyKey },
+  body: { name, sourceBootstrap: { mode: 'NEW' } },
+})
 
-const getJson = async <T>(url: string): Promise<T> => {
-  // biome-ignore lint/style/noRestrictedGlobals: debt: owning wave
-  const response = await hubCall(fetch(url, { credentials: 'same-origin' }))
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  return response.json() as Promise<T>
-}
+export const deleteProject = (projectId: string, confirmName: string) => call(PRJ04, {
+  params: projectParams(projectId), query: { confirmName }, headers: undefined, body: undefined,
+})
 
-export const listProjectSummaries = async (workspaceId: string): Promise<readonly ProjectCardSummary[]> =>
-  (await getJson<{ projects: ProjectCardSummary[] }>(`/api/control/workspaces/${encodeURIComponent(workspaceId)}/project-summaries`)).projects
-
-export async function getProject(projectId: string): Promise<ProjectRepresentation> {
-  const response = await hubCall(projectClient.getProject(projectId))
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  return response.json() as Promise<ProjectRepresentation>
-}
-
-export async function createProject(
-  workspaceId: string,
-  input: CreateProjectInput,
-  idempotencyKey: string,
-): Promise<CreateProjectResponse> {
-  const response = await hubCall(projectClient.createProject(workspaceId, input, idempotencyKey), 201)
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  return response.json() as Promise<CreateProjectResponse>
-}
-
-export async function deleteProject(projectId: string, confirmName: string): Promise<void> {
-  await hubCall(projectClient.deleteProject(projectId, confirmName), 204)
-}
-
-export const projectThumbnailUrl = (projectId: string) => `/api/control/projects/${encodeURIComponent(projectId)}/thumbnail`
+export const projectThumbnailUrl = (projectId: string) => href(PRJ_THUMBNAIL, { params: projectParams(projectId), ...noInput })

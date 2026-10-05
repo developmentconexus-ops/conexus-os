@@ -1,76 +1,62 @@
 import type { FastifyInstance } from 'fastify'
-import { PROJECT_GENERATED_ROUTES } from '../generated/project-routes.js'
-import type {
-  Prj01Params,
-  Prj02Params,
-  Prj03Body,
-  Prj03Params,
-  Prj04Params,
-  Prj04Querystring,
-} from '../generated/project-routes.js'
+import { PRJ01, PRJ02, PRJ03, PRJ04, PRJ_SUMMARIES, PRJ_THUMBNAIL } from '../../../../packages/contract/dist/index.js'
 import { Failure } from '../platform/failure.js'
-import { errorCode } from '../platform/db.js'
 import type { ProjectStore } from './store.js'
 import { routes } from '../http/access.js'
 
-const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
-// A path id that is not a UUID reaches PostgreSQL as 22P02: no such Workspace or Project.
-const unknownIdAs = (error: unknown, code: 'WORKSPACE_NOT_FOUND' | 'PROJECT_NOT_FOUND'): never => {
-  throw errorCode(error) === '22P02' ? new Failure(code) : error
-}
+export type ProjectThumbnailReader = Readonly<{
+  readThumbnail(input: Readonly<{ accountId: string; projectId: string }>): Promise<
+    Readonly<{ artifactRevisionId: string; mediaType: 'image/png'; bytes: Uint8Array; sha256: string }> | null
+  >
+}>
 
 export const registerProjectRoutes = async (
   app: FastifyInstance,
-  dependencies: Readonly<{
-    store: ProjectStore
-  }>,
-): Promise<readonly ('PRJ-01' | 'PRJ-02' | 'PRJ-03' | 'PRJ-04')[]> => {
+  dependencies: Readonly<{ store: ProjectStore; thumbnailReader: ProjectThumbnailReader | undefined }>,
+): Promise<readonly ['PRJ-01', 'PRJ-02', 'PRJ-03', 'PRJ-04', 'PRJ-SUMMARIES', 'PRJ-THUMBNAIL']> => {
   const route = routes(app)
+  const { store, thumbnailReader } = dependencies
 
-  route.session<{ Params: Prj01Params }>({
-    ...PROJECT_GENERATED_ROUTES['PRJ-01'],
-    handler: async (request, _reply, session) => {
-      const accountId = session.account.accountId
-      return dependencies.store.listProjects({ accountId, workspaceId: request.params.workspaceId })
-        .catch((error: unknown) => unknownIdAs(error, 'WORKSPACE_NOT_FOUND'))
-    },
+  route.operation(PRJ01, (input, session) =>
+    store.listProjects({ accountId: session.account.accountId, workspaceId: input.params.workspaceId }))
+
+  route.operation(PRJ02, async (input, session) => {
+    const project = await store.getProject({ accountId: session.account.accountId, projectId: input.params.projectId })
+    if (!project) throw new Failure('PROJECT_NOT_FOUND')
+    return project
   })
 
-  route.session<{ Params: Prj02Params }>({
-    ...PROJECT_GENERATED_ROUTES['PRJ-02'],
-    handler: async (request, _reply, session) => {
-      const accountId = session.account.accountId
-      const project = await dependencies.store.getProject({ accountId, projectId: request.params.projectId })
-        .catch((error: unknown) => unknownIdAs(error, 'PROJECT_NOT_FOUND'))
-      if (!project) throw new Failure('PROJECT_NOT_FOUND')
-      return project
-    },
+  route.operation(PRJ03, async (input, session) => {
+    const { replayed: _replayed, ...created } = await store.createProject({
+      accountId: session.account.accountId,
+      workspaceId: input.params.workspaceId,
+      idempotencyKey: input.headers['idempotency-key'],
+      body: input.body,
+    })
+    return created
   })
 
-  route.session<{ Params: Prj03Params; Body: Prj03Body }>({
-    ...PROJECT_GENERATED_ROUTES['PRJ-03'],
-    handler: async (request, reply, session) => {
-      const accountId = session.account.accountId
-      const idempotencyKey = header(request.headers['idempotency-key'])
-      if (!idempotencyKey) throw new Failure('IDEMPOTENCY_KEY_REQUIRED')
-      const { replayed: _replayed, ...body } = await dependencies.store.createProject({
-        accountId,
-        workspaceId: request.params.workspaceId,
-        idempotencyKey,
-        body: request.body,
-      }).catch((error: unknown) => unknownIdAs(error, 'WORKSPACE_NOT_FOUND'))
-      return reply.code(201).send(body)
-    },
+  route.operation(PRJ04, async (input, session) => {
+    await store.deleteProject({ accountId: session.account.accountId, projectId: input.params.projectId, confirmName: input.query.confirmName })
+    return undefined
   })
 
-  route.session<{ Params: Prj04Params; Querystring: Prj04Querystring }>({
-    ...PROJECT_GENERATED_ROUTES['PRJ-04'],
-    handler: async (request, reply, session) => {
-      const accountId = session.account.accountId
-      await dependencies.store.deleteProject({ accountId, projectId: request.params.projectId, confirmName: request.query.confirmName })
-        .catch((error: unknown) => unknownIdAs(error, 'PROJECT_NOT_FOUND'))
-      return reply.code(204).send()
-    },
+  route.operation(PRJ_SUMMARIES, async (input, session) => ({
+    projects: await store.listProjectSummariesWithActivity({ accountId: session.account.accountId, workspaceId: input.params.workspaceId })
+      .catch((error: unknown) => {
+        throw new Failure('PROJECT_SUMMARIES_UNAVAILABLE', { cause: error, details: { workspaceId: input.params.workspaceId } })
+      }),
+  }))
+
+  route.operation(PRJ_THUMBNAIL, async (input, session) => {
+    if (!thumbnailReader) throw new Failure('PROJECT_THUMBNAIL_UNAVAILABLE', { details: { projectId: input.params.projectId } })
+    const thumbnail = await thumbnailReader.readThumbnail({ accountId: session.account.accountId, projectId: input.params.projectId })
+      .catch((error: unknown) => {
+        throw new Failure('PROJECT_THUMBNAIL_UNAVAILABLE', { cause: error, details: { projectId: input.params.projectId } })
+      })
+    if (!thumbnail) throw new Failure('PROJECT_THUMBNAIL_NOT_FOUND')
+    return { bytes: thumbnail.bytes, etag: thumbnail.artifactRevisionId }
   })
-  return ['PRJ-01', 'PRJ-02', 'PRJ-03', 'PRJ-04']
+
+  return ['PRJ-01', 'PRJ-02', 'PRJ-03', 'PRJ-04', 'PRJ-SUMMARIES', 'PRJ-THUMBNAIL']
 }

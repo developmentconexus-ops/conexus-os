@@ -10,7 +10,7 @@ table and requires the Product OAS to hold exactly the same set, by id and by op
 name, in both directions. The gate is `wire-bijection` in the candidate graph.
 
 ```text
-fixed Product operations = 30
+fixed Product operations = 31
 ```
 
 The number is a result, not a target. It is whatever the table below holds, and the gate
@@ -29,7 +29,9 @@ repository (`PRJ-04`). On 2026-09-28, C-030 replaced the grant per operation (`C
 with a binding of a whole Connection under a Project-local name (`CON-08` to `CON-10`), and the
 count stayed 32. It became 30 later that day, when spec 0002 gave the Builder its own controller:
 a Project's conversations are its Mastra threads, listed and opened over the Agent Controller's
-own routes, so `BLD-27` and `BLD-28` left the table.
+own routes, so `BLD-27` and `BLD-28` left the table. It became 31 on 2026-10-05, when spec 0015 declared
+the Projects home's two reads (`PRJ-SUMMARIES`, `PRJ-THUMBNAIL`) in the shared contract, where every
+operation the web calls is a row.
 
 ---
 
@@ -98,6 +100,8 @@ must agree exactly.
 | `PRJ-03` | `CreateProject` | Project | current Project creation flow; atomically establishes source and initial access | command |
 | `PRJ-02` | `GetProject` | Project | current Project disclosure/open flow | read |
 | `PRJ-04` | `DeleteProject` | Project | exact Project + repeated exact current name; installation administrator only; tears down every Hub row, its conversations (Mastra threads), its application's data and its Conexus Git repository together | narrowing command |
+| `PRJ-SUMMARIES` | `ListProjectSummaries` | Project | current Projects home: each Project of the Workspace with its latest Builder activity and whether a Preview exists to thumbnail | read |
+| `PRJ-THUMBNAIL` | `GetProjectThumbnail` | Project | exact Project the Account may see; the captured thumbnail of the served application, as an image | read |
 | `BLD-08` | `ListProjectSourceTree` | Project Git via Builder | authorized Project + exact immutable source revision | read |
 | `BLD-09` | `GetProjectSourceFile` | Project Git via Builder | authorized Project + exact immutable source revision/path | read |
 | `BLD-23` | `GetBuilderSession` | Builder projection + Mastra conversation | authorized Project + persisted Project Thread and latest BuilderRun/Preview projection | read |

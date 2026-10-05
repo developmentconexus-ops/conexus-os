@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
 import { readLastWorkspace, rememberWorkspace } from '../features/entry/entry-destination'
-import { listProjectSummaries, projectSummariesQueryKey } from '../features/project/api'
+import { projectSummariesQuery } from '../features/project/api'
 import { ProjectGrid, ProjectGridFailure, ProjectGridSkeleton, projectActivity } from '../features/project/components/project-grid'
 import { PromptBox } from '../features/project/components/prompt-box'
 import { WorkspaceUnavailable } from '../features/workspace/components/workspace-unavailable'
@@ -33,12 +33,11 @@ function ProjectsHome({ workspaceId, workspaceName }: Readonly<{ workspaceId: st
   const [returning] = useState(() => readLastWorkspace() === workspaceId)
   useEffect(() => rememberWorkspace(workspaceId), [workspaceId])
   const summaries = useQuery({
-    queryKey: projectSummariesQueryKey(workspaceId),
-    queryFn: () => listProjectSummaries(workspaceId),
+    ...projectSummariesQuery(workspaceId),
     // While any Project is building, its chip follows the run without a reload.
-    refetchInterval: (query) => query.state.data?.some((summary) => projectActivity(summary) === 'BUILDING') ? 5_000 : false,
+    refetchInterval: (query) => query.state.data?.projects.some((summary) => projectActivity(summary) === 'BUILDING') ? 5_000 : false,
   })
-  const active = summaries.data?.filter((summary) => !summary.archived) ?? []
+  const active = summaries.data?.projects.filter((summary) => !summary.archived) ?? []
   const empty = summaries.isSuccess && active.length === 0
   return <div className="cx-page cx-home" data-empty={empty || undefined}>
     <PromptBox workspaceId={workspaceId} workspaceName={workspaceName} returning={returning} />

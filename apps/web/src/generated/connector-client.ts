@@ -1,5 +1,5 @@
 // GENERATED from contracts/api/product/openapi.yaml by scripts/generate-connector-contracts.mjs. Do not edit.
-export const CONNECTOR_PRODUCT_OAS_DIGEST = "6f93b8918eaae6dfed5b71b8f9d3683066a5c78bd196748ee3dc3a2e901952d8"
+export const CONNECTOR_PRODUCT_OAS_DIGEST = "02db4e68d24035549a3b3caf472cb05c7d617358e8595d4feedc329a08217c51"
 export const CONNECTOR_ROUTE_PROJECTION_DIGEST = "3ef9015fdcacceec3e5c747a50a2404848f7dea6039b3d07093173290049f191"
 export type ConnectorConnection = { "connectionId": string; "connectorId": "sankhya"; "label": string; "createdAt": string; "disabledAt"?: string }
 export type CreateWorkspaceConnectionInput = { "connectionId": string; "connectorId": "sankhya"; "label": string; "credential": { "clientId": string; "clientSecret": string; "xToken": string } }

@@ -11,5 +11,5 @@
   "runFunctionLengthSuppressions": 0,
   "failureCodesWithoutRow": 0,
   "repeatedTimerSuppressions": 3,
-  "unsafeAssertionDebt": 93
+  "unsafeAssertionDebt": 89
 }
