@@ -37,7 +37,6 @@ export declare const FAILURE_STATUS: {
     readonly BUILDER_MESSAGE_REFUSED: 422;
     readonly BUILDER_UNAVAILABLE: 503;
     readonly BUILDER_RUN_NOT_FOUND: 404;
-    readonly BUILDER_CANCELLATION_UNAVAILABLE: 503;
     readonly BUILDER_TRACE_UNAVAILABLE: 503;
     readonly PREVIEW_UNAVAILABLE: 503;
     readonly PREVIEW_SUBJECT_NOT_FOUND: 404;
@@ -146,23 +145,13 @@ export declare const FAILURE_STATUS: {
     readonly BUILDER_RESULT_MATERIALIZATION_REFUSED: 500;
     readonly BUILDER_RUNTIME_INPUT_REFUSED: 500;
     readonly BUILDER_RUNTIME_RESULT_SCOPE_REFUSED: 500;
-    readonly BUILDER_RUN_BUILD_SETTLEMENT_REFUSED: 500;
-    readonly BUILDER_RUN_CANCELLATION_REFUSED: 500;
     readonly BUILDER_RUN_CANCELLED: 500;
-    readonly BUILDER_RUN_CANDIDATE_REFUSED: 500;
     readonly BUILDER_CONVERSATION_SESSION_REFUSED: 500;
-    readonly BUILDER_RUN_CLAIM_REFUSED: 500;
     readonly BUILDER_RUN_CREATE_FAILED: 500;
-    readonly BUILDER_RUN_FAILURE_REFUSED: 500;
     readonly BUILDER_RUN_INPUT_REFUSED: 500;
-    readonly BUILDER_RUN_INTERRUPTION_REFUSED: 500;
-    readonly BUILDER_RUN_MESSAGE_BIND_REFUSED: 500;
-    readonly BUILDER_RUN_MODEL_ACCOUNT_RECORD_REFUSED: 500;
     readonly BUILDER_RUN_NOT_ADMITTED: 500;
+    readonly BUILDER_RUN_TRANSITION_REFUSED: 500;
     readonly BUILDER_RUN_PHASE_UPDATE_REFUSED: 500;
-    readonly BUILDER_RUN_SANDBOX_BIND_REFUSED: 500;
-    readonly BUILDER_RUN_SETTLEMENT_REFUSED: 500;
-    readonly BUILDER_RUN_SOURCE_SETTLEMENT_REFUSED: 500;
     readonly BUILDER_SANDBOX_AGENT_USER_REQUIRED: 500;
     readonly BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED: 500;
     readonly BUILDER_SANDBOX_EGRESS_COLLECT_TIMEOUT: 500;
@@ -477,11 +466,6 @@ export declare const FAILURES: {
         readonly message: "Não encontramos essa execução.";
         readonly action: "NONE";
         readonly status: 404;
-    };
-    readonly BUILDER_CANCELLATION_UNAVAILABLE: {
-        readonly message: "O Conexus não conseguiu parar a execução. A falha foi registrada.";
-        readonly action: "NONE";
-        readonly status: 503;
     };
     readonly BUILDER_TRACE_UNAVAILABLE: {
         readonly message: "O Conexus não conseguiu carregar o detalhe da execução. A falha foi registrada.";
@@ -1023,23 +1007,8 @@ export declare const FAILURES: {
         readonly action: "NONE";
         readonly status: 500;
     };
-    readonly BUILDER_RUN_BUILD_SETTLEMENT_REFUSED: {
-        readonly message: "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.";
-        readonly action: "NONE";
-        readonly status: 500;
-    };
-    readonly BUILDER_RUN_CANCELLATION_REFUSED: {
-        readonly message: "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.";
-        readonly action: "NONE";
-        readonly status: 500;
-    };
     readonly BUILDER_RUN_CANCELLED: {
         readonly message: "Execução interrompida por você.";
-        readonly action: "NONE";
-        readonly status: 500;
-    };
-    readonly BUILDER_RUN_CANDIDATE_REFUSED: {
-        readonly message: "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.";
         readonly action: "NONE";
         readonly status: 500;
     };
@@ -1048,17 +1017,7 @@ export declare const FAILURES: {
         readonly action: "NONE";
         readonly status: 500;
     };
-    readonly BUILDER_RUN_CLAIM_REFUSED: {
-        readonly message: "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.";
-        readonly action: "NONE";
-        readonly status: 500;
-    };
     readonly BUILDER_RUN_CREATE_FAILED: {
-        readonly message: "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.";
-        readonly action: "NONE";
-        readonly status: 500;
-    };
-    readonly BUILDER_RUN_FAILURE_REFUSED: {
         readonly message: "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.";
         readonly action: "NONE";
         readonly status: 500;
@@ -1068,42 +1027,17 @@ export declare const FAILURES: {
         readonly action: "NONE";
         readonly status: 500;
     };
-    readonly BUILDER_RUN_INTERRUPTION_REFUSED: {
-        readonly message: "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.";
-        readonly action: "NONE";
-        readonly status: 500;
-    };
-    readonly BUILDER_RUN_MESSAGE_BIND_REFUSED: {
-        readonly message: "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.";
-        readonly action: "NONE";
-        readonly status: 500;
-    };
-    readonly BUILDER_RUN_MODEL_ACCOUNT_RECORD_REFUSED: {
-        readonly message: "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.";
-        readonly action: "NONE";
-        readonly status: 500;
-    };
     readonly BUILDER_RUN_NOT_ADMITTED: {
         readonly message: "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.";
         readonly action: "NONE";
         readonly status: 500;
     };
+    readonly BUILDER_RUN_TRANSITION_REFUSED: {
+        readonly message: "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.";
+        readonly action: "NONE";
+        readonly status: 500;
+    };
     readonly BUILDER_RUN_PHASE_UPDATE_REFUSED: {
-        readonly message: "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.";
-        readonly action: "NONE";
-        readonly status: 500;
-    };
-    readonly BUILDER_RUN_SANDBOX_BIND_REFUSED: {
-        readonly message: "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.";
-        readonly action: "NONE";
-        readonly status: 500;
-    };
-    readonly BUILDER_RUN_SETTLEMENT_REFUSED: {
-        readonly message: "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.";
-        readonly action: "NONE";
-        readonly status: 500;
-    };
-    readonly BUILDER_RUN_SOURCE_SETTLEMENT_REFUSED: {
         readonly message: "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.";
         readonly action: "NONE";
         readonly status: 500;

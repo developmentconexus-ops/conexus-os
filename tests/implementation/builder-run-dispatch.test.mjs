@@ -37,6 +37,7 @@ const makeStore = (calls, overrides = {}) => {
   const row = { builderRunId: runId, projectId, conversationId, state: 'QUEUED', phase: null, baseSourceRevision: base, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: null }
   return {
     row,
+    admitBuilder: async () => {},
     createBuilderRun: async (input) => { row.requestText = input.content; return { ...row } },
     claimBuilderRun: async () => { calls.push('claim'); return { ...Object.assign(row, { state: 'RUNNING' }) } },
     setBuilderRunPhase: async (_id, phase) => { calls.push(['phase', phase]); return { ...Object.assign(row, { phase }) } },
@@ -65,6 +66,7 @@ test('a message hands the store a base read from main in the Conexus Git', async
   const main = '9'.repeat(40)
   const reads = []
   const store = {
+    admitBuilder: async () => {},
     createBuilderRun: async (input) => ({ builderRunId: runId, projectId, conversationId, state: 'SUCCEEDED', phase: null, baseSourceRevision: await input.readBase(), resultSourceRevision: null, resultKind: 'RESPONSE_ONLY', failureCode: null }),
     close: async () => {},
   }
@@ -145,6 +147,7 @@ test('a phase the database refuses, as it does once a stop is requested, interru
 test("a conversation that is not the Project's is refused before a run exists", async () => {
   const created = []
   const store = {
+    admitBuilder: async () => {},
     createBuilderRun: async (input) => { created.push(input.conversationId); throw new Error('STOP_AFTER_CREATE') },
     close: async () => {},
   }
@@ -165,7 +168,7 @@ const settleHarness = async ({ failures }) => {
   let refused = 0
   const store = makeStore([], {
     failBuilderRun: async (_id, code) => {
-      if (refused < failures) { refused += 1; throw new Failure('BUILDER_RUN_FAILURE_REFUSED') }
+      if (refused < failures) { refused += 1; throw new Failure('BUILDER_RUN_TRANSITION_REFUSED') }
       written.push(code)
     },
     renewRunLease: async (owner, liveIds) => (liveIds.includes(runId) || written.length > 0 ? [] : [{ builderRunId: runId, projectId, conversationId, candidateRevision: null, resultSourceRevision: null, previousOwnerId: owner }]),

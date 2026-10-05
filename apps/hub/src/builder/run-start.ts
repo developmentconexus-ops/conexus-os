@@ -4,6 +4,7 @@ import { AccountId, BuilderRunId, SourceRevision, type BuilderRunId as BuilderRu
 import { admitProject } from '../identity-access/admission.js'
 import { sql, type Database } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
+import { transitionRefused } from './run-steps.js'
 import { OPEN_RUN_STATES, RUN_COLUMNS, RunRow, runSummary, type BuilderRunSummary } from './run-row.js'
 
 const Present = z.object({ present: z.literal(1) })
@@ -68,18 +69,19 @@ export const createRunStart = ({ database, mintIdentity }: Readonly<{ database: 
           cancellation_reason = COALESCE(cancellation_reason, 'USER_CANCELLED')
         WHERE builder_run_id = ${builderRunId} AND project_id = ${scope.projectId} AND state = 'RUNNING'`)
     }
-    const after = await tx.one(RunRow, sql`
-      SELECT ${RUN_COLUMNS} FROM builder.builder_run AS run WHERE run.builder_run_id = ${builderRunId} AND run.project_id = ${scope.projectId}`, 'BUILDER_RUN_CANCELLATION_REFUSED')
+    const after = await tx.maybe(RunRow, sql`
+      SELECT ${RUN_COLUMNS} FROM builder.builder_run AS run WHERE run.builder_run_id = ${builderRunId} AND run.project_id = ${scope.projectId}`)
+    if (!after) throw transitionRefused('cancellation')
     return runSummary(after)
   }),
   bindBuilderRunMessage: ({ builderRunId, projectId, accountId, messageId }) => database.transaction(accountId, async (gate) => {
     const id = messageId.trim()
-    if (!MESSAGE_ID.test(id)) throw new Failure('BUILDER_RUN_MESSAGE_BIND_REFUSED')
+    if (!MESSAGE_ID.test(id)) throw transitionRefused('message bind')
     const { tx, scope } = await admitProject(gate, projectId, 'project.build')
     await tx.maybe(Present, sql`SELECT 1 AS present FROM builder.builder_run AS run WHERE run.builder_run_id = ${builderRunId} AND run.project_id = ${scope.projectId} FOR UPDATE`)
     const bound = await tx.run(sql`
       UPDATE builder.builder_run SET trigger_message_id = ${id}
       WHERE builder_run_id = ${builderRunId} AND project_id = ${scope.projectId} AND state = ANY(${OPEN_RUN_STATES}::text[]) AND (trigger_message_id IS NULL OR trigger_message_id = ${id})`)
-    if (bound !== 1) throw new Failure('BUILDER_RUN_MESSAGE_BIND_REFUSED')
+    if (bound !== 1) throw transitionRefused('message bind')
   }),
 })

@@ -157,32 +157,32 @@ test('a run records one candidate, advances only to it, settles as a response on
   const projectId = await seedBuilderProject('Atlas')
   const builderRunId = await running(projectId)
   assert.equal((await row(builderRunId)).state, 'RUNNING')
-  await assert.rejects(store.claimBuilderRun(builderRunId), { id: 'BUILDER_RUN_CLAIM_REFUSED' })
+  await assert.rejects(store.claimBuilderRun(builderRunId), { id: 'BUILDER_RUN_NOT_ADMITTED' })
 
   await store.bindBuilderRunMessage({ builderRunId, projectId, accountId: ID.owner, messageId: 'mastra-message-1' })
   await store.bindBuilderRunMessage({ builderRunId, projectId, accountId: ID.owner, messageId: 'mastra-message-1' })
-  await assert.rejects(store.bindBuilderRunMessage({ builderRunId, projectId, accountId: ID.owner, messageId: 'other' }), { id: 'BUILDER_RUN_MESSAGE_BIND_REFUSED' })
+  await assert.rejects(store.bindBuilderRunMessage({ builderRunId, projectId, accountId: ID.owner, messageId: 'other' }), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'message bind' } })
   await store.bindBuilderRunSandbox(builderRunId, 'sandbox-1')
-  await assert.rejects(store.bindBuilderRunSandbox(builderRunId, 'sandbox-2'), { id: 'BUILDER_RUN_SANDBOX_BIND_REFUSED' })
+  await assert.rejects(store.bindBuilderRunSandbox(builderRunId, 'sandbox-2'), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'sandbox bind' } })
 
   const payer = randomUUID()
   const otherPayer = randomUUID()
   for (const modelAccountId of [payer, payer, otherPayer]) await store.recordBuilderRunModelAccount({ builderRunId, accountId: ID.owner, modelAccountId })
   assert.deepEqual((await query(connection, 'SELECT model_account_id FROM builder.builder_run_model_account WHERE builder_run_id = $1 ORDER BY model_account_id', [builderRunId])).rows.map((entry) => entry.model_account_id), [payer, otherPayer].sort())
 
-  await assert.rejects(store.advanceBuilderRunSource(builderRunId, CANDIDATE), { id: 'BUILDER_RUN_SOURCE_SETTLEMENT_REFUSED' })
-  await assert.rejects(store.recordBuilderRunCandidate({ builderRunId, accountId: ID.owner, sourceRevision: 'main' }), { id: 'BUILDER_RUN_CANDIDATE_REFUSED' })
+  await assert.rejects(store.advanceBuilderRunSource(builderRunId, CANDIDATE), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'source settlement' } })
+  await assert.rejects(store.recordBuilderRunCandidate({ builderRunId, accountId: ID.owner, sourceRevision: 'main' }), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'candidate' } })
   await store.recordBuilderRunCandidate({ builderRunId, accountId: ID.owner, sourceRevision: CANDIDATE })
   await store.recordBuilderRunCandidate({ builderRunId, accountId: ID.owner, sourceRevision: CANDIDATE })
-  await assert.rejects(store.recordBuilderRunCandidate({ builderRunId, accountId: ID.owner, sourceRevision: OTHER }), { id: 'BUILDER_RUN_CANDIDATE_REFUSED' })
-  await assert.rejects(store.settleBuilderRun(builderRunId), { id: 'BUILDER_RUN_SETTLEMENT_REFUSED' })
-  await assert.rejects(store.advanceBuilderRunSource(builderRunId, OTHER), { id: 'BUILDER_RUN_SOURCE_SETTLEMENT_REFUSED' })
+  await assert.rejects(store.recordBuilderRunCandidate({ builderRunId, accountId: ID.owner, sourceRevision: OTHER }), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'candidate' } })
+  await assert.rejects(store.settleBuilderRun(builderRunId), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'settlement' } })
+  await assert.rejects(store.advanceBuilderRunSource(builderRunId, OTHER), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'source settlement' } })
   await store.advanceBuilderRunSource(builderRunId, CANDIDATE)
   await store.advanceBuilderRunSource(builderRunId, CANDIDATE)
-  await assert.rejects(store.settleBuilderRunBuild({ kind: 'FAILED', builderRunId, sourceRevision: OTHER, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' }), { id: 'BUILDER_RUN_BUILD_SETTLEMENT_REFUSED' })
+  await assert.rejects(store.settleBuilderRunBuild({ kind: 'FAILED', builderRunId, sourceRevision: OTHER, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' }), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'build settlement' } })
   await store.settleBuilderRunBuild({ kind: 'FAILED', builderRunId, sourceRevision: CANDIDATE, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
   assert.deepEqual(await row(builderRunId), { ...(await row(builderRunId)), state: 'FAILED', trigger_message_id: 'mastra-message-1', sandbox_id: 'sandbox-1', candidate_revision: CANDIDATE, result_source_revision: CANDIDATE })
-  await assert.rejects(store.recordBuilderRunModelAccount({ builderRunId, accountId: ID.owner, modelAccountId: payer }), { id: 'BUILDER_RUN_MODEL_ACCOUNT_RECORD_REFUSED' })
+  await assert.rejects(store.recordBuilderRunModelAccount({ builderRunId, accountId: ID.owner, modelAccountId: payer }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
 })
 
 test('removing the author before the candidate refuses the write and leaves the run as it was, while the executor still settles', async (t) => {
@@ -200,12 +200,12 @@ test('removing the author before the candidate refuses the write and leaves the 
 test('a queued run ends unclaimed only while still queued and unowned, and a claim by a removed author never reaches RUNNING', async (t) => {
   const { connection, store, start, row, seedBuilderProject } = await harness(t, 'conexus_builder_unclaimed')
   const lost = await start(await seedBuilderProject('Lost'))
-  await store.endUnclaimedBuilderRun(lost.builderRunId, { kind: 'FAILED', code: 'BUILDER_RUN_CLAIM_REFUSED' })
-  assert.deepEqual(await row(lost.builderRunId), { ...(await row(lost.builderRunId)), state: 'FAILED', failure_code: 'BUILDER_RUN_CLAIM_REFUSED', phase: null })
+  await store.endUnclaimedBuilderRun(lost.builderRunId, { kind: 'FAILED', code: 'BUILDER_RUN_NOT_ADMITTED' })
+  assert.deepEqual(await row(lost.builderRunId), { ...(await row(lost.builderRunId)), state: 'FAILED', failure_code: 'BUILDER_RUN_NOT_ADMITTED', phase: null })
 
   const cancelled = await start(await seedBuilderProject('Cancelled'))
   await store.requestBuilderRunCancellation({ accountId: ID.owner, projectId: cancelled.projectId, builderRunId: cancelled.builderRunId })
-  await store.endUnclaimedBuilderRun(cancelled.builderRunId, { kind: 'FAILED', code: 'BUILDER_RUN_CLAIM_REFUSED' })
+  await store.endUnclaimedBuilderRun(cancelled.builderRunId, { kind: 'FAILED', code: 'BUILDER_RUN_NOT_ADMITTED' })
   assert.deepEqual(await row(cancelled.builderRunId), { ...(await row(cancelled.builderRunId)), state: 'INTERRUPTED', failure_code: null })
 
   const stopped = await start(await seedBuilderProject('Stopped'))
@@ -214,7 +214,7 @@ test('a queued run ends unclaimed only while still queued and unowned, and a cla
 
   const claimed = await start(await seedBuilderProject('Claimed'))
   await store.claimBuilderRun(claimed.builderRunId)
-  await store.endUnclaimedBuilderRun(claimed.builderRunId, { kind: 'FAILED', code: 'BUILDER_RUN_CLAIM_REFUSED' })
+  await store.endUnclaimedBuilderRun(claimed.builderRunId, { kind: 'FAILED', code: 'BUILDER_RUN_NOT_ADMITTED' })
   await store.endUnclaimedBuilderRun(claimed.builderRunId, { kind: 'INTERRUPTED', code: 'HUB_RESTART' })
   assert.equal((await row(claimed.builderRunId)).state, 'RUNNING', 'zero rows changed')
 
@@ -232,7 +232,7 @@ test('a claim and a cancellation race to one terminal row without a deadlock', a
       store.claimBuilderRun(created.builderRunId),
       store.requestBuilderRunCancellation({ accountId: ID.owner, projectId: created.projectId, builderRunId: created.builderRunId }),
     ])
-    assert.deepEqual(outcomes.filter((outcome) => outcome.status === 'rejected').map((outcome) => outcome.reason.id).filter((id) => id !== 'BUILDER_RUN_CLAIM_REFUSED'), [])
+    assert.deepEqual(outcomes.filter((outcome) => outcome.status === 'rejected').map((outcome) => outcome.reason.id).filter((id) => id !== 'BUILDER_RUN_NOT_ADMITTED'), [])
     const settled = await row(created.builderRunId)
     assert.ok(['INTERRUPTED', 'RUNNING'].includes(settled.state), settled.state)
     assert.equal(settled.cancellation_requested, true)
