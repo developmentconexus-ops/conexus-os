@@ -284,7 +284,7 @@ test('a create or bind whose answer was lost says so and its resubmit answers wh
   await row.getByRole('alert').filter({ hasText: 'A tela não conseguiu falar com o Conexus agora. Tente novamente mais tarde.' }).waitFor()
   await row.getByRole('button', { name: 'Vincular', exact: true }).click()
   await bindings.getByRole('button', { name: 'Desvincular' }).waitFor()
-  assert.deepEqual(bound.map(({ status }) => status), [200, 200])
+  assert.deepEqual(bound.map(({ status }) => status), [201, 200])
   assert.equal(bound[1].bindingId, bound[0].bindingId, 'the resubmitted bind answers the binding the lost answer saved')
   await page.route(`**/api/control/projects/${fixture.projectId}/connection-bindings/*`, (route) => (route.request().method() === 'DELETE'
     ? route.fulfill({ status: 500, contentType: 'application/problem+json', body: JSON.stringify({ type: 'urn:conexus:problem:INTERNAL_UNEXPECTED', title: 'INTERNAL_UNEXPECTED', status: 500, code: 'INTERNAL_UNEXPECTED' }) })
