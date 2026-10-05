@@ -20,7 +20,7 @@ const FILES = {
   'apps/web/src/features/c.ts': `${DEBT}\nconst three = 3 as number\n`,
 }
 
-const fixture = (t, { files = FILES, exemptions = [`apps/hub/src/identity-access/b.ts:2 ${REASON}`], biome } = {}) => {
+const fixture = (t, { files = FILES, exemptions = ['apps/hub/src/identity-access/b.ts:2 ' + REASON], biome } = {}) => {
   const root = mkdtempSync(join(tmpdir(), 'cx-census-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const put = (path, text) => {
@@ -55,10 +55,10 @@ test('a recorded exemption passes, and one the record lacks fails naming its fil
 })
 
 test('a recorded exemption that is gone or at another line fails', (t) => {
-  const gone = fixture(t, { exemptions: [`apps/hub/src/identity-access/b.ts:2 ${REASON}`, `apps/hub/src/identity-access/z.ts:1 ${REASON}`] }).run()
+  const gone = fixture(t, { exemptions: ['apps/hub/src/identity-access/b.ts:2 ' + REASON, 'apps/hub/src/identity-access/z.ts:1 ' + REASON] }).run()
   assert.equal(gone.status, 1)
   assert.match(gone.out, /z\.ts:1/)
-  const moved = fixture(t, { exemptions: [`apps/hub/src/identity-access/b.ts:5 ${REASON}`] }).run()
+  const moved = fixture(t, { exemptions: ['apps/hub/src/identity-access/b.ts:5 ' + REASON] }).run()
   assert.equal(moved.status, 1)
   assert.match(moved.out, /b\.ts:5/)
 })
@@ -92,17 +92,17 @@ test('--write never adds an exemption and leaves the record as it was, and it dr
   assert.match(refused.out, /identity-access\/b\.ts:2/)
   assert.equal(missing.record(), before)
 
-  const stale = fixture(t, { exemptions: [`apps/hub/src/identity-access/b.ts:2 ${REASON}`, `apps/hub/src/identity-access/z.ts:1 ${REASON}`] })
+  const stale = fixture(t, { exemptions: ['apps/hub/src/identity-access/b.ts:2 ' + REASON, 'apps/hub/src/identity-access/z.ts:1 ' + REASON] })
   assert.equal(stale.run('--write').status, 0)
-  assert.deepEqual(JSON.parse(stale.record()).unsafeAssertionExemptions, [`apps/hub/src/identity-access/b.ts:2 ${REASON}`])
+  assert.deepEqual(JSON.parse(stale.record()).unsafeAssertionExemptions, ['apps/hub/src/identity-access/b.ts:2 ' + REASON])
 })
 
 test('two exemptions in one file with one reason are two entries', (t) => {
   const twice = { ...FILES, 'apps/hub/src/identity-access/b.ts': `const first = 1\n${EXEMPT}\nconst cast = first as number\n${EXEMPT}\nconst again = first as number\n` }
-  const one = fixture(t, { files: twice, exemptions: [`apps/hub/src/identity-access/b.ts:2 ${REASON}`] }).run()
+  const one = fixture(t, { files: twice, exemptions: ['apps/hub/src/identity-access/b.ts:2 ' + REASON] }).run()
   assert.equal(one.status, 1)
   assert.match(one.out, /b\.ts:4 /)
-  assert.equal(fixture(t, { files: twice, exemptions: [`apps/hub/src/identity-access/b.ts:2 ${REASON}`, `apps/hub/src/identity-access/b.ts:4 ${REASON}`] }).run().status, 0)
+  assert.equal(fixture(t, { files: twice, exemptions: ['apps/hub/src/identity-access/b.ts:2 ' + REASON, 'apps/hub/src/identity-access/b.ts:4 ' + REASON] }).run().status, 0)
 })
 
 test('a biome override that turns the rule off, or the linter off, fails naming the override', (t) => {
