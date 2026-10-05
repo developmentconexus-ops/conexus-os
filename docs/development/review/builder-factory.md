@@ -16,19 +16,17 @@ Factory skills, and the Builder scripts and evaluation cases. [`areas.json`](are
       `apps/hub/src/builder/failure-vocabulary.ts`. An undeclared code reaches the wire as a generic
       internal error.
 - [ ] Setup steps that depend on each other keep their order, and a test fails on the old order.
-- [ ] A harness that runs in a sandbox or in parallel binds port 0 and reads the port back. A fixed
-      port fails.
 - [ ] A headless browser check in a sandbox without network intercepts subresource requests, so an
       app that links an external asset does not time out.
 - [ ] A change to Factory skills or the compiler template keeps the paved road the Builder finds
-      without the operator naming files. Owner: [Builder proof rule](../delivery.md#builder-proof-rule).
+      without the operator naming files. Owner: [Builder proof rule](../testing.md#builder-proof).
 
 ## Proof required
 
 - A test that fakes the boundary which executes generated code proves nothing about that code. The
   generated script, template or artifact is parsed or run for real.
 - A change that closes an application-architecture gate meets the
-  [Builder proof rule](../delivery.md#builder-proof-rule): a real Project, a product-language
+  [Builder proof rule](../testing.md#builder-proof): a real Project, a product-language
   request, the real model path, a Conexus build and Preview, and browser interaction.
 - A claim about model, E2B or Factory behavior has evidence from that dependency, with explicit
   authority for a live run.

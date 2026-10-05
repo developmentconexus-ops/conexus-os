@@ -275,7 +275,7 @@ the Builder uses.
 | `@mastra/mcp` 2.1.0 | The Builder's two Context7 documentation tools, through one Hub-owned adapter that allows one host | The model's memory of a library is stale. The adapter needs the internet, and no real Context7 call ran in the proof | [Task](tasks/builder-context7-qualification.md) | Hand-written HTTP to Context7 copies the MCP protocol that Mastra already maintains |
 
 Every application-architecture gate follows the
-[Builder proof rule](development/delivery.md#builder-proof-rule).
+[Builder proof rule](development/testing.md#builder-proof).
 
 ## Stage 2 lie detector
 

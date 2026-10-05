@@ -86,26 +86,12 @@ current consumer, a named limitation, the exact API and version examined, a fals
 evidence against a credible alternative. Existing repository dependencies win when sufficient; the
 roadmap records the baseline and deferred candidates. A pinned dev-only check tool (knip) is exempt.
 
-## Builder proof rule
-
-A hand-written example can prove a platform mechanism. It cannot close an application-architecture
-gate. Where a gate concerns the generated-application programming model, the deciding proof includes
-a real Project, a normal product-language request to the Builder, the current real model path, the
-Builder finding the paved-road guidance, Builder-generated or materially Builder-modified source, the
-Project's own check, a Conexus build and Preview, browser interaction, and the gate's negative proof.
-Record repair iterations and failures. The Builder must use the platform reliably without the
-operator dictating filenames or implementation.
-
 ## Proof and verification
 
 - Required CI protects objective properties that hold for every change. It does not judge
   architecture quality, UX quality or document shape.
-- A mock proves only the mocked boundary. A claim about a real provider, model, E2B, Sankhya,
-  browser, persistence or runtime needs evidence from that dependency.
-- A live provider, model, E2B or Sankhya run needs explicit authority for that proof. A green
-  repository gate never implies it.
-- Verification is the static checks plus one `node --test` per group in `scripts/conexus-verify.mjs`, each run once. A test file joins a group by its folder and its suffix (`*.postgres.test.mjs`, `*.browser.test.mjs`, `tests/live`), never by a list, and `tests/manual` holds what runs by hand. Never regenerate expected
-  output to hide drift; use the explicit generation command. Only an `opt-in:` reason may skip a test or leave it todo.
+- What counts as proof, and where a test lives, is owned by [testing](testing.md).
+- Verification is the static checks plus one `node --test` per group in `scripts/conexus-verify.mjs`, each run once.
   Before every push, after `git add` of new files, run `npm run verify:quick`: it runs the Hub and web typechecks, the repository check, the generators (CI then fails on a changed or new file), the web style check, the `knip` unused-export check, `biome ci` (a warning fails it), the log code registry
   check and the import law, with no Docker, browser or network, in about half a minute.
   The cheap static checks run first so a run fails fast, and a pull request that changes only Markdown under `docs/`,

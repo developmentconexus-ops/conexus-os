@@ -76,8 +76,7 @@ These items judge the TypeScript the diff adds or changes. Biome in `biome.json`
 
 ## Tests and secrets
 
-- [ ] Each new or changed test calls the code as its users do and asserts a literal value the code computes, never one that restates a hand-maintained constant, digest or prompt. A value an owner outside the code approved, such as a brand token in `DESIGN.md`, is not a restatement.
-- [ ] No test in tests/implementation or tests/live reads production source to assert on its text, and no test's assertions are only truthiness checks (review only).
+- [ ] The tests meet [testing](testing.md).
 - [ ] A function or file under a `biome-ignore` size line does not grow in this pull request.
 - [ ] No design was reshaped to keep a test passing. Tests whose subject is gone are deleted.
 - [ ] No secret, token or credential appears in code, fixtures, logs or the pull request body.

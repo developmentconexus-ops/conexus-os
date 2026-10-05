@@ -30,11 +30,8 @@ Applications PostgreSQL cluster. [`areas.json`](areas.json) owns the paths.
 
 - A claim about GitHub, a model provider, Google AI Pro, E2B or Sankhya has evidence from that
   provider. A mock proves only the mocked boundary. Owner:
-  [Proof and verification](../delivery.md#proof-and-verification).
-- A live provider run needs explicit authority for that proof. A green repository gate never
-  implies it.
-- A data plane change shows the refusal on the direct path (a Project role logging in without the
-  relay, a session raising its own limit), not only success on the intended path.
+  [testing](../testing.md#real-dependencies).
+- A data plane change shows the refusal on the direct path, as [testing](../testing.md#negative-proof) asks.
 
 ## Traps from history
 

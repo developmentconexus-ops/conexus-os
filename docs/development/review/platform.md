@@ -13,16 +13,9 @@ root configuration.
       composition root's allowlist names every platform module `hub.ts` imports.
       `tests/repository/import-law.test.mjs` enforces it.
 - [ ] Generated application code never runs in the Hub process.
-- [ ] Verification stays a flat graph of leaf checks in `scripts/conexus-verify.mjs`, and each leaf
-      runs once. Owner: [Proof and verification](../delivery.md#proof-and-verification).
-- [ ] A test that drives a real browser is named `*.browser.test.mjs` and one that needs
-      PostgreSQL `*.postgres.test.mjs`, so the group globs in `scripts/conexus-verify.mjs` place it.
-      A test that boots a whole Conexus of its own lives in `tests/live`. A test never has to be
-      listed anywhere to run.
+- [ ] Tests and their placement meet [testing](../testing.md).
 - [ ] A change to workflow events or concurrency shows that the required `verify` check and trigger
       coverage stay equivalent.
-- [ ] Expected output is regenerated only with the explicit generation command, never by hand to
-      hide drift.
 - [ ] A new dependency meets the [technology rule](../delivery.md#technology-rule).
 - [ ] A sandbox or runner change states which layer blocks each escape, and a test shows the escape
       refused with the other layers off.

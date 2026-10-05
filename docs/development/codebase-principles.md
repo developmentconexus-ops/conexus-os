@@ -42,10 +42,8 @@ and the shapes that must not appear are in
 8. **Operations converge.** Every step can run again after a crash and reach the same end. One runner
    for periodic jobs and one reaper for what expires.
    Enforced by: `biome:noRestrictedGlobals` (`setInterval` is banned in `apps/hub/src`, and the three timers that stay carry a reasoned `biome-ignore`), the census item `repeatedTimerSuppressions` in `scripts/census-builder-run.mjs` (it may only fall), the expiry coverage test in `tests/implementation/iam-reaper.postgres.test.mjs` (a column ending in `expires_at` that `iam.reap_expired` does not answer for fails it), and review (`docs/development/review-checklist.md`, Authority and design).
-9. **Tests of behavior.** A test calls the code the way its user does and compares with a literal
-   value. No test reads source text. Fake only what cannot run locally; a screen is proved in a browser
-   against a real Hub.
-   Enforced by: `scripts/check-test-skips.mjs`, and review (a test with no assertion, a test that reads source text).
+9. **Tests of behavior.** Owned by [testing](testing.md).
+   Enforced by: `scripts/check-test-skips.mjs`, and review.
 10. **Observable.** Structured logs with a code and a trace id. Every error a person sees leaves a log
     line.
    Enforced by: `tests/repository/hub-log-sinks.test.mjs`, `scripts/generate-log-codes.mjs`.

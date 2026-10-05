@@ -31,10 +31,7 @@ the platform builds, the realm, the sign-in theme and the administrator bootstra
 
 ## Proof required
 
-- A negative case for each refusal the change adds: another Workspace, another Project, an expired
-  or revoked session, a missing or foreign `Origin`. A test that proves only the allowed path fails.
-- A claim about Keycloak behavior (refresh, logout, token exchange) cites the documentation or
-  source at the pilot's Keycloak version, or asks for a probe.
+- The negative cases [testing](../testing.md#negative-proof) asks for.
 
 ## Traps from history
 
