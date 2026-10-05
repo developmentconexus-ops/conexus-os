@@ -105,7 +105,7 @@ test('a Failure that carries a database error reaches the Builder stream as its 
   assert.equal(outcome.settled, 'rejected')
   assert.equal(wire.includes('BUILDER_RUN_MODEL_ACCOUNT_RECORD_REFUSED'), true, 'the stream names the failure by its code')
   for (const leaked of ['builder_run_one_active', 'Key (project_id)', '23505', 'schema']) assert.equal(wire.includes(leaked), false, leaked)
-  assert.equal(JSON.stringify(new Failure('PROJECT_BUSY', { cause: database })), '{"message":"PROJECT_BUSY","domain":"MASTRA_SERVER","category":"USER","code":"PROJECT_BUSY","details":{},"cause":{"name":"Error","message":"PROJECT_BUSY"}}')
+  assert.equal(JSON.stringify(new Failure('PROJECT_BUSY', { cause: database })), '{"message":"PROJECT_BUSY","domain":"MASTRA_SERVER","category":"USER","code":"PROJECT_BUSY","details":{}}')
 })
 
 test('the web says a platform fault was the Conexus, not the model, and other internal errors keep their sentence', async () => {

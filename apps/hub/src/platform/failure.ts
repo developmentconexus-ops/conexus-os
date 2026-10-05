@@ -21,9 +21,9 @@ export class Failure extends MastraError {
     if (options.cause !== undefined && !(options.cause instanceof Error)) Object.defineProperty(this, 'cause', { value: options.cause, configurable: true, writable: true })
   }
 
-  /** What a serialized Failure carries out of the process: the row's code and our own details, never the cause, which may hold a database's table, constraint or row values; the cause slot Mastra's shape requires names the code again. */
+  /** What a serialized Failure carries out of the process: the row's code and our own details, never the cause, which may hold a database's table, constraint or row values. */
   override toJSON() {
-    return { message: this.message, domain: this.domain, category: this.category, code: this.id, details: this.details ?? {}, cause: { name: this.name, message: this.id } }
+    return { message: this.message, domain: this.domain, category: this.category, code: this.id, details: this.details ?? {} }
   }
 }
 
