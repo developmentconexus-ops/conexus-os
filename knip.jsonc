@@ -25,6 +25,7 @@
     "tests/implementation/sandbox-probe/read_secrets.mjs",
     "tests/implementation/sandbox-probe/walk_fs.mjs",
     "tests/fixtures/admission-negative.ts",
+    "tests/fixtures/builder-brands-negative.ts",
     "tests/fixtures/biome/session-setting-in-sql.ts",
     "tests/fixtures/census-boundaries/pg-rows.ts",
     "tests/fixtures/census-boundaries/web-json.ts",

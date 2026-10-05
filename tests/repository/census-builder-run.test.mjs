@@ -11,7 +11,7 @@ const DEBT = '// biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning w
 const EXEMPT = `// biome-ignore lint/nursery/noUnsafeTypeAssertion: exempt ${REASON}`
 const ZERO = {
   sqlRunWriters: 0, sqlRunWriterTriggers: 0, runSummaryLiterals: 0, parkedReferences: 0, abortUndoCalls: 0, hubSendMessageCalls: 0,
-  mastraInternalsOutsideLeftovers: 0, sessionScopes: 0, collectionsAcrossModules: 0, plainPortIds: 0, handTypedRunStates: 0, runEndWriters: 0, positionalSourceReads: 0, runFunctionLengthSuppressions: 0,
+  mastraInternalsOutsideLeftovers: 0, sessionScopes: 0, collectionsAcrossModules: 0, plainPortIds: 0, failureToDefault: 0, handTypedRunStates: 0, runEndWriters: 0, positionalSourceReads: 0, runFunctionLengthSuppressions: 0,
   failureCodesWithoutRow: 0, repeatedTimerSuppressions: 0, unsafeAssertionDebt: 3,
 }
 const FILES = {
@@ -158,4 +158,16 @@ test('a second writer of the finish time beside the one ending command fails', (
   const second = fixture(t, { files: { ...FILES, 'apps/hub/src/builder/run-lifecycle.ts': lifecycle, 'apps/hub/src/builder/other.ts': 'const x = sql`UPDATE builder.builder_run SET finished_at = now()`\n' } }).run()
   assert.equal(second.status, 1)
   assert.match(second.out, /runEndWriters 1 \(record 0\) UP\s+apps\/hub\/src\/builder\/other\.ts:1/)
+})
+
+test('a failure turned into false, null or an empty answer fails, a sandbox probe is not counted, and a runId typed as a string fails', (t) => {
+  const code = (text, path = 'apps/hub/src/builder/conexus-git.ts') => ({ ...FILES, [path]: text })
+  const old = fixture(t, { files: code("const has = git(['cat-file']).then(() => true, () => false)\n") }).run()
+  assert.equal(old.status, 1)
+  assert.match(old.out, /failureToDefault 1 \(record 0\) UP\s+apps\/hub\/src\/builder\/conexus-git\.ts:1/)
+  assert.equal(fixture(t, { files: code('const tree = await git().catch(() => null)\n') }).run().status, 1)
+  assert.equal(fixture(t, { files: code('const tree = await git().catch(() => [])\n') }).run().status, 1)
+  assert.equal(fixture(t, { files: code('const ok = await probe().catch(() => false)\n', 'apps/hub/src/builder/check/steps/boot.ts') }).run().status, 0)
+  assert.equal(fixture(t, { files: code('const void1 = await close().catch(() => undefined)\n') }).run().status, 0)
+  assert.equal(fixture(t, { files: code('export const candidateSnapshot = (runId: string) => runId\n') }).run().status, 1)
 })

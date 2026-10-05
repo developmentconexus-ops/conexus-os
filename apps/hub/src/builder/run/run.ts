@@ -417,7 +417,7 @@ const exit = async (run: Run, outcome: RunOutcome): Promise<void> => {
   run.env.ports.log('BUILDER_RUN_TIMING', run.timing.fields(run.row))
   await writeEnding(run, final)
   run.trace.end(final.kind === 'STOPPED' ? final.ending.failureCode : final.kind, final.kind === 'STOPPED' && final.ending.state === 'FAILED')
-  const latest = await run.env.store.readBuilderRun({ accountId: run.request.accountId, projectId: run.row.projectId }).catch(() => null)
+  const latest = await run.env.store.readBuilderRun({ accountId: run.request.accountId, projectId: run.row.projectId }).catch((error: unknown) => { logged(run, 'BUILDER_RUN_SETTLE_FAILED')(error); return null })
   if (latest?.builderRunId === run.row.builderRunId) await run.env.publishRun(viewOf(run, latest))
   await run.prepared?.session.release().catch(logged(run, 'BUILDER_SESSION_RELEASE_FAILED'))
 }

@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { CommandResult } from '@mastra/core/workspace'
-import { SourceRevision } from '../../../../packages/contract/dist/index.js'
+import { SourceRevision, type ExecutionId } from '../../../../packages/contract/dist/index.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
 import type { ConversationId, ProjectId } from '../../../../packages/contract/dist/index.js'
 
@@ -202,7 +202,9 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
       if (existing) return existing
       const commit = await commitStarter(projectId)
       // Create-only: a concurrent ensure that got there first wins, and this one answers its main.
-      await git(projectId, ['update-ref', MAIN, commit, NO_OBJECT]).catch(() => undefined)
+      await git(projectId, ['update-ref', MAIN, commit, NO_OBJECT]).catch(async (error: unknown) => {
+        if (!await readRef(projectId, MAIN)) throw error
+      })
       return readMain(projectId)
     },
 
@@ -297,8 +299,11 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
     fastForwardMain: async (projectId: ProjectId, { base, candidate }: Readonly<{ base: SourceRevision; candidate: SourceRevision }>): Promise<void> => {
       if (!OID.test(base) || !OID.test(candidate) || base === candidate) throw new Failure('BUILDER_RESULT_MATERIALIZATION_REFUSED')
       if (!await succeeds(git(projectId, ['merge-base', '--is-ancestor', base, candidate]))) throw new Failure('BUILDER_RESULT_MATERIALIZATION_REFUSED')
-      const moved = await git(projectId, ['update-ref', MAIN, candidate, base]).then(() => true, () => false)
-      if (!moved && await readMain(projectId) !== candidate) throw new Failure('BUILDER_SOURCE_BASE_MOVED')
+      await git(projectId, ['update-ref', MAIN, candidate, base]).catch(async (error: unknown) => {
+        const main = await readMain(projectId)
+        if (main === candidate) return
+        throw main === base ? error : new Failure('BUILDER_SOURCE_BASE_MOVED')
+      })
     },
 
     /** Whether this commit is the starter: the root commit `ensureRepository` made, which no saved version precedes. */
@@ -359,8 +364,9 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
   })
 }
 
+// Exit 1 of a quiet verify is a missing commit; any other failure is the repository's and propagates.
 const hasCommit = (git: (projectId: ProjectId, args: readonly string[]) => Promise<Buffer>, projectId: ProjectId, revision: SourceRevision): Promise<boolean> =>
-  OID.test(revision) ? git(projectId, ['cat-file', '-e', `${revision}^{commit}`]).then(() => true, () => false) : Promise.resolve(false)
+  succeeds(git(projectId, ['rev-parse', '--verify', '--quiet', `${revision}^{commit}`]))
 
 const uuidRef = (prefix: string, id: string): string => {
   if (!PROJECT_ID.test(id)) throw new Failure('CONEXUS_GIT_REF_REFUSED')
@@ -368,7 +374,7 @@ const uuidRef = (prefix: string, id: string): string => {
 }
 
 /** A run's candidate: one commit on the run's base. */
-export const candidateSnapshot = (runId: string, base: SourceRevision): Snapshot => ({ ref: uuidRef('refs/conexus/runs', runId), parent: base })
+export const candidateSnapshot = (runId: ExecutionId, base: SourceRevision): Snapshot => ({ ref: uuidRef('refs/conexus/runs', runId), parent: base })
 
 const mirrorRef = (conversationId: ConversationId): string => uuidRef('refs/conexus/conversations', conversationId)
 

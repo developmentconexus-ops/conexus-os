@@ -509,3 +509,43 @@ test('a result holding more files than the cap is refused and its staging ref is
   const exact = stage(256 - held)
   assert.equal(await git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: exact.bundle }), exact.candidate)
 })
+
+const { settleTakenOverCandidate } = await import(hubModuleUrl('builder/run/admit.js'))
+const TAKEN_RUN = '33333333-3333-4333-8333-333333333333'
+
+test('takeover settlement through the real adapter: a candidate main lacks fails the run, a repository failure makes no terminal write, a candidate on main settles', async (t) => {
+  const root = join(scratch(t), 'git')
+  const git = createConexusGit({ root, starter: STARTER })
+  const main = await git.ensureRepository(PROJECT)
+  const absent = 'e'.repeat(40)
+  const calls = []
+  const store = {
+    failBuilderRun: async ({ failureCode }) => { calls.push(['fail', failureCode]) },
+    advanceBuilderRunSource: async ({ sourceRevision }) => { calls.push(['advance', sourceRevision]) },
+    settleBuilderRunBuild: async ({ kind, failureCode }) => { calls.push(['build', kind, failureCode]) },
+  }
+  const taken = (candidateRevision) => ({ builderRunId: TAKEN_RUN, projectId: PROJECT, candidateRevision, resultSourceRevision: null })
+
+  await settleTakenOverCandidate({ store, git }, taken(absent))
+  assert.deepEqual(calls.splice(0), [['fail', 'BUILDER_SOURCE_ADMISSION_FAILED']])
+
+  await settleTakenOverCandidate({ store, git }, taken(main))
+  assert.deepEqual(calls.splice(0), [['advance', main], ['build', 'FAILED', 'BUILDER_PREVIEW_NOT_BUILT']])
+
+  const missingRepository = createConexusGit({ root: join(root, 'elsewhere'), starter: STARTER })
+  await assert.rejects(settleTakenOverCandidate({ store, git: missingRepository }, taken(absent)), { id: 'CONEXUS_GIT_FAILED' })
+  assert.deepEqual(calls, [], 'a repository failure writes nothing')
+})
+
+test('a fast forward of main moves it from its base, is repeatable, and answers BUILDER_SOURCE_BASE_MOVED once main moved on', async (t) => {
+  const root = join(scratch(t), 'git')
+  const git = createConexusGit({ root, starter: STARTER })
+  const base = await git.ensureRepository(PROJECT)
+  const other = bare(root, 'commit-tree', `${base}^{tree}`, '-p', base, '-m', 'other')
+  const candidate = bare(root, 'commit-tree', `${base}^{tree}`, '-p', base, '-m', 'candidate')
+  await git.fastForwardMain(PROJECT, { base, candidate: other })
+  assert.equal(await git.readMain(PROJECT), other, 'a fast forward from the base moves main')
+  await git.fastForwardMain(PROJECT, { base, candidate: other })
+  await assert.rejects(git.fastForwardMain(PROJECT, { base, candidate }), { id: 'BUILDER_SOURCE_BASE_MOVED' })
+  assert.equal(await git.readMain(PROJECT), other)
+})

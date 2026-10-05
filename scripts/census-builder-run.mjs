@@ -118,7 +118,7 @@ const collectionsAcrossModules = hits(builderSource, /^\s+[A-Za-z0-9_]+\??:\s*(?
 
 // An id or a source revision a Builder port or type declares as a plain string, where the contract has a brand: it lets an
 // Account id sit in a Project slot. The Application registry's own types and the OAuth vendor's account id are not ours.
-const BRANDED_FIELDS = 'projectId|accountId|builderRunId|conversationId|sourceRevision|baseSourceRevision|resultSourceRevision|modelAccountId|executionId|revision|base|candidate|turnStart|parent|expected|next|result|unchangedFrom|sameAs'
+const BRANDED_FIELDS = 'projectId|accountId|builderRunId|runId|conversationId|sourceRevision|baseSourceRevision|resultSourceRevision|modelAccountId|executionId|revision|base|candidate|turnStart|parent|expected|next|result|unchangedFrom|sameAs'
 const NOT_THE_BUILDER_PORTS = /^apps\/hub\/src\/builder\/(application-build\.ts|application-artifact-runtime\.ts|openai-codex\/credential\.ts)$/
 const plainPortIds = hits(builderSource.filter((path) => !NOT_THE_BUILDER_PORTS.test(rel(path))), new RegExp(`\\b(?:${BRANDED_FIELDS})\\??: (?:string|readonly string)\\b`))
   .filter((at) => !readFileSync(join(repo, at.split(':')[0]), 'utf8').split('\n')[Number(at.split(':')[1]) - 1].includes('readApplicationFileBySource'))
@@ -133,6 +133,13 @@ const handTypedRunStates = hits(hubSource.filter((path) => /^apps\/hub\/src\/(bu
 // The final columns of a run are written once, by `endRun`: every other writer of the finish time is a second ending.
 const finishWrites = hits(hubSource, /\bfinished_at\s*=/)
 const runEndWriters = finishWrites.filter((at, index) => !(at.startsWith('apps/hub/src/builder/run-lifecycle.ts:') && finishWrites.findIndex((other) => other.startsWith('apps/hub/src/builder/run-lifecycle.ts:')) === index))
+
+// A failure turned into a plain answer: `false`, `null`, an empty list or string where the call failed. A repository or
+// store that cannot answer must reach the caller, never read as "absent". Sandbox, vendor-login and check-step probes
+// answer about the sandbox or the vendor, not the repository, and are outside this item.
+const FAILURE_DEFAULT = /\.catch\(\(\) => (?:false|null|\[\]|'')\)|\.then\(\(\) => \w+, \(\) => (?:false|null)\)|\.then\([^()]*, \(\) => (?:false|null)\)/
+const NOT_REPOSITORY_OR_STORE = /^apps\/hub\/src\/builder\/(check\/|google-ai-pro\/|anthropic\/|openai-codex\/|harness\/|egress-log\.ts$)/
+const failureToDefault = hits(builderSource.filter((path) => !NOT_REPOSITORY_OR_STORE.test(rel(path))), FAILURE_DEFAULT)
 
 const runFiles = builderSource.filter((path) => /^apps\/hub\/src\/builder\/(run\/|service\.ts$|runtime\.ts$)/.test(rel(path)))
 const runFunctionLengthSuppressions = hits(runFiles, /biome-ignore lint\/complexity\/noExcessiveLinesPerFunction/, { comments: true })
@@ -189,6 +196,7 @@ const census = {
   sessionScopes,
   collectionsAcrossModules,
   plainPortIds,
+  failureToDefault,
   handTypedRunStates,
   runEndWriters,
   positionalSourceReads,
