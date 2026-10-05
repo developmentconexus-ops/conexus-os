@@ -29,6 +29,7 @@
     "tests/fixtures/census-boundaries/pg-rows.ts",
     "tests/fixtures/census-boundaries/web-json.ts",
     "tests/fixtures/census-boundaries/sql-writes.ts",
+    "tests/fixtures/census-boundaries/authority-writes.ts",
     // Bundled as text into the check by scripts/build-app-check.mjs, which writes it into each Project as conexus/sankhya.gen.ts.
     "apps/hub/src/builder/handler-kit/sankhya.ts",
     // The application check's bundle starts here; the Hub itself imports only its report module.
