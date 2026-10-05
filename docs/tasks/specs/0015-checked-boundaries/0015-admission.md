@@ -58,14 +58,14 @@ type Scope =
   | { readonly kind: 'workspace'; readonly accountId: AccountId; readonly workspaceId: WorkspaceId; readonly role: WorkspaceRole; readonly action: WorkspaceAction; readonly owners: readonly OwnerRow[] | null }
   | { readonly kind: 'project'; readonly accountId: AccountId; readonly workspaceId: WorkspaceId; readonly projectId: ProjectId; readonly action: ProjectAction }
   | { readonly kind: 'application'; readonly accountId: AccountId; readonly projectId: ProjectId; readonly via: 'grant' | 'membership' }
-  | { readonly kind: 'run'; readonly builderRunId: BuilderRunId; readonly accountId: AccountId; readonly owner: RunOwner }
+  | { readonly kind: 'run'; readonly builderRunId: BuilderRunId; readonly accountId: AccountId; readonly projectId: ProjectId; readonly owner: RunOwner }
   | { readonly kind: 'bootstrap'; readonly issuer: string; readonly subject: string }
   | { readonly kind: 'system'; readonly job: JobName }
 ```
 
 ```ts
 type Action = WorkspaceAction | ProjectAction | AdministratorAction
-type ReadAction = 'workspace.read' | 'project.read'   // the actions a read admission may name
+type ReadAction = 'workspace.read' | 'project.read' | 'connections.bind' | 'application.manage'   // the actions a read admission may name; the last two are owner only in ROLE_ALLOWS
 type ChangesOwnerSet = (typeof CHANGES_OWNER_SET)[number]
 type AccountScope = Extract<Scope, { kind: 'account' }>
 type ProjectScope<A extends ProjectAction = ProjectAction> = Extract<Scope, { kind: 'project' }> & { readonly action: A }
@@ -93,6 +93,19 @@ admits `workspace.read` when the actor is the member). The action lists above ar
 functions check; each part may add the actions its operations check, and a new action is a row of
 `ROLE_ALLOWS` and of `ACTION_REFUSALS`, not a change to this union's shape.
 
+**Read actions that only an owner may take** (HQ decision, revision 5.3). `ReadAction` names four
+actions: `'workspace.read'`, `'project.read'`, `'connections.bind'` (part 2, CON-08) and
+`'application.manage'` (part 6, IAM-11). The last two are owner only through `ROLE_ALLOWS`. The read
+overload of `admitProject` takes any action that is both a `ReadAction` and a `ProjectAction`. So a
+list that only an owner may read stays a `read()`: the route walk of section 10 is unchanged, and no
+part opens a command transaction just to get an owner check. The rule for the next such list is the
+same: a list that only a role may read is a read action.
+
+**The run scope carries the Project.** `RunScope` has `projectId`, read from the run row by
+`admitRun`. Part 1 adds it. Every run scoped statement then filters by `proof.scope.projectId`, as the
+scoped read rule below asks, and part 4's retention takes its Project from the proof and not from a
+second read of the run row.
+
 **Ids.** The ids of the admitted scope come only from the proof. An id the command creates or acts on
 inside that scope is an argument (`grantCreatorMembership(creator, workspaceId)`,
 `removeMember(owner, member)`). A command never takes a second id of the scope's own kind.
@@ -114,8 +127,9 @@ export function admitAccount(gate: CommandGate | AuthenticationGate): Promise<Ad
 export function admitWorkspace<A extends WorkspaceAction>(gate: CommandGate, workspaceId: WorkspaceId, action: A): Promise<Admitted<WorkspaceScope<A>>>
 export function admitWorkspace<A extends ReadAction & WorkspaceAction>(tx: ReadTx, workspaceId: WorkspaceId, action: A): Promise<Admitted<WorkspaceScope<A>, 'read'>>
 export function admitProject<A extends ProjectAction>(gate: CommandGate, projectId: ProjectId, action: A): Promise<Admitted<ProjectScope<A>>>
-export function admitProject(tx: ReadTx, projectId: ProjectId, action: 'project.read'): Promise<Admitted<ProjectScope<'project.read'>, 'read'>>
+export function admitProject<A extends ReadAction & ProjectAction>(tx: ReadTx, projectId: ProjectId, action: A): Promise<Admitted<ProjectScope<A>, 'read'>>
 export function admitInstallationAdministrator<A extends AdministratorAction>(gate: CommandGate, action: A): Promise<Admitted<AdministratorScope<A>>>
+export function isInstallationAdministrator(tx: ReadTx): Promise<boolean>   // a fact, not a proof: CON-01 and CON-03 (part 2), IAM-14 and IAM-15 (part 6)
 export function admitApplication(gate: CommandGate, projectId: ProjectId): Promise<Admitted<ApplicationScope>>   // built in part 0b
 export function admitRun(gate: CommandGate, builderRunId: BuilderRunId, owner: RunOwner): Promise<Admitted<RunScope>>   // body in part 1
 export function admitBootstrap(gate: AuthenticationGate, digest: Digest): Promise<Admitted<BootstrapScope>>   // part 6
@@ -207,7 +221,8 @@ wait on each other in a cycle and no lock is ever upgraded:
    function owned by the table's owner that runs
    `LOCK TABLE iam.installation_administrator IN SHARE ROW EXCLUSIVE MODE`, as
    `0017_installation_administrator.sql:57,83,116` and `0021_first_account_installation_administrator.sql:13` do.
-   `hub_command` holds only `UPDATE (revoked_at)` on that table, which permits a row lock but not
+   `hub_command` holds only `UPDATE (revoked_at)` on that table from part 0b (part 6 widens it to
+   `(revoked_at, revoked_by)`, section 5), which permits a row lock but not
    `LOCK TABLE`; the function is the one way to take the table lock, and `EXECUTE` on it goes to
    `hub_command` alone.
 2. The acting account, then the membership or the open administrator tenure, `FOR SHARE`. For `members.leave` the acting membership is taken `FOR UPDATE`, since the command
@@ -235,7 +250,13 @@ tenure row (`revoked_at IS NULL`) `FOR SHARE`. A revoke that commits while it wa
 fresh read and refused. Check and write share one transaction and its locks, which closes the time of
 check gap that cal.com, Documenso and Better Auth leave open (same file, item 5). The command then runs
 on `proof.tx` with the command role's full reach, which is today's reach of the definer functions it
-replaces. An administrator's lists are reads, not commands: see section 4.
+replaces. An administrator's lists are reads, not commands: see section 4. A list that answers 403 to a non
+administrator first asks the fact through `isInstallationAdministrator(tx)`, the one function in
+`admission.ts` that runs `SELECT rls.acting_installation_administrator()` on the read transaction.
+`hub_reader` may execute the helper, so the function needs no grant on
+`iam.installation_administrator`. It returns a boolean, not a proof, and takes no lock. Part 2 writes
+it for CON-01 and CON-03, and part 6 uses the same function for IAM-14 and IAM-15, so no part holds a
+second copy (HQ decision). The refusal code stays the store's own.
 
 **The project deletion's order.** The tombstone step takes, in order: the account `FOR SHARE` and
 the open tenure `FOR SHARE` (the admission), then the project `FOR UPDATE` (`deletion.ts:44` today),
@@ -264,7 +285,13 @@ not ended, as the claim and heartbeat functions do today, then does the fresh re
 predicate. Under `transaction(run.accountId, ...)` (a run's own work step) it first takes the
 account and its membership `FOR SHARE` and requires `project.build` in `ROLE_ALLOWS`, then the same
 project, run and fresh read, and requires the run's `account_id` to be the gate's account. The scope
-carries the run's account read from the row.
+carries the run's account and Project read from the row.
+
+The account steps of a run before its candidate (phase, candidate, payer record) use the second path,
+so they check the owner and the open state, which today's SQL does not. That is stricter on purpose
+(HQ decision): a stale owner after a lease takeover cannot record a candidate. A queued run has
+`owner_id IS NULL`, so `admitRun` cannot admit its claim. The claim is the two step read of section 6,
+not an `admitRun`.
 
 **The system job.** `admitSystem(gate)` takes no lock and reads the job from the gate. It exists so
 that a job's statements also wait behind an admission, and so the scope names the job.
@@ -425,7 +452,8 @@ role has `BYPASSRLS`. A helper returns facts about the acting account, never a r
    `project.project_deletion`, for the deletion in progress (`iam.visible_projects`,
    `0030_project_deletion.sql:74`, built in part 3); `connector.connection`, for CON-01 and CON-03
    (`connector.list_connections`, `0029_connector.sql:157`, part 2);
-   `iam.installation_administrator`, and the `iam.account` rows of the open tenures, both for IAM-15
+   `iam.installation_administrator`, and the `iam.account` rows of the open tenures and of the accounts
+   named by `granted_by` on them (the grantor's display name, as today), both for IAM-15
    (`iam.list_installation_administrators`, `0020_installation_administrator_list.sql:8`, part 6).
    `project.project` is not on the list: its predicate shows an administrator no row outside the
    workspaces `W` it belongs to, and `ADMIN` there only shapes `HIDDEN`
@@ -434,7 +462,11 @@ role has `BYPASSRLS`. A helper returns facts about the acting account, never a r
 5. A grantee has no reader branch. An application grantee reads the facts of the one application it
    opens on the command role, filtered by `proof.scope.projectId`, after `admitApplication` (section 6). A run reads its held
    credential on the command role after `admitRun`, filtered by the run from the proof. A credential flow reads by digest on
-   the command role (section 6).
+   the command role (section 6). The Project thumbnail (`PRJ-THUMBNAIL`, part 4) is a member read, not
+   a grantee read. It drops today's `iam.application` row condition (`iam.has_application_access`),
+   because `hub_reader` holds no grant on that table before part 6. A member of a Project with no
+   application row yet now reads its thumbnail. An account with only an application grant no longer
+   reads it through this route, since the route lists a person's own Projects (HQ decision).
 6. A table a person never lists (sessions, handoffs, previews, OIDC transactions, the bootstrap
    context, the receipt) has no reader policy and no reader grant, so `hub_reader` gets 42501 on it.
 
@@ -489,12 +521,17 @@ table, and the table register (section 7) records it:
 
 | Table | Key to add | Part |
 | --- | --- | --- |
-| `reg.artifact` | `(project_id, workspace_id)` to `project.project (project_id, workspace_id)` | 4 |
+| `reg.artifact` | none. An application artifact has `workspace_id NULL` (`artifact_kind_ownership_check`, `apps/hub/migrations/0001_baseline.sql:2122`), so a `(project_id, workspace_id)` key would check nothing, and filling the column collides with `UNIQUE (workspace_id, kind)`. The register records the existing `artifact_project_id_fkey` | 4 |
 | `reg.application_thumbnail` | `project_id` to `project.project`; the revision's project checked by its command | 4 |
 | `iam.preview` | `project_id` to `project.project` | 6 |
-| `iam.host_session` | `(preview_id, project_id)` and `(preview_id, account_id)` to `iam.preview`, and the parent session's account | 6 |
+| `iam.host_session` | `(preview_id, account_id)` to `iam.preview (preview_id, account_id)`, and `(parent_digest, account_id)` to `iam.host_session (token_digest, account_id)` | 6 |
 | `iam.handoff` | the same two as `iam.host_session` | 6 |
 | `builder.builder_run` | `account_id` to `iam.account` (a reach to a person with no constraint today) | 1 |
+
+A key `(preview_id, project_id)` is not assigned: a Preview session and a Preview handoff have
+`project_id IS NULL` (`host_session_preview_check` and `handoff_preview_check`,
+`apps/hub/migrations/0026_single_session.sql:82,123`), and a foreign key skips a row with a null
+column, so it would check nothing (HQ decision).
 
 `project.project_deletion.project_id` keeps no foreign key: the tombstone outlives the project by
 design, and the register records that with its reason. The part 6 and part 4 child specs confirm the
@@ -515,7 +552,9 @@ needs it. That is a security column on purpose, and only a command that holds th
 the owner set lock writes it. `LOCK TABLE ... SHARE ROW EXCLUSIVE` needs a
 table level `UPDATE`, `DELETE` or `TRUNCATE`, and a table level `UPDATE` on
 `iam.installation_administrator` would let any command rewrite `account_id` and mint an
-administrator. So `hub_command` keeps `UPDATE (revoked_at)` only, and the table lock goes through
+administrator. So `hub_command` gets column grants only: `UPDATE (revoked_at)` from part 0b, widened by
+part 6 to `UPDATE (revoked_at, revoked_by)`, because the table's revocation check refuses a `revoked_at`
+written without `revoked_by` (`0017_installation_administrator.sql:20`). The table lock goes through
 `iam.lock_administrators()` (section 2, step 1), a `SECURITY DEFINER` function owned by the table's
 owner (`iam_owner` now, `conexus_owner` after part 6), with `SET search_path TO pg_catalog, pg_temp`,
 whose body is the one `LOCK TABLE` statement, `EXECUTE` revoked from `PUBLIC` and granted to
@@ -557,9 +596,9 @@ the write is. Each refusal has a fixture that must be found.
 | --- | --- | --- |
 | a job of `platform/jobs.ts` (reaper, purge) | `system(job, fn)`, then `admitSystem(gate)` | `Admitted<SystemScope>` |
 | project deletion | the tombstone in the administrator's own `transaction(accountId, ...)` after `admitInstallationAdministrator(gate, 'project.delete')`, in the order of section 2; the purge and its completion in `system('project-purge', fn)` after `admitSystem`, which first takes the project `FOR UPDATE` while its row exists (a retry after the row is gone goes on), then checks the tombstone and the busy runs, then passes one `WriteTx` to every owner's purge port, so the five purges stay one transaction as today; each port deletes its rows, and the receipt rows whose `resource_id` is the project | administrator, then system |
-| the Builder executor | claims a queued run in two steps (a system read of the run's account and project, then `transaction(run.accountId)` with `admitProject` sets the owner), and renews, ends, fails and reconciles a run it owns in `system('builder-executor', fn)` with `admitRun`, which locks the project, then the run, and checks `owner_id` and that the run has not ended, as the claim and heartbeat functions do today; the run's own work (model turns, source writes) runs in `transaction(run.accountId, fn)` after `admitProject` or `admitRun`, so a run whose account lost the project fails its next work step, and the executor settles it under `system` | run |
-| the application host and the connector broker | `transaction(grantHolder, fn)` with `admitApplication(gate, projectId)` (section 2); then the served revision, its artifact and the bound connection are read on `proof.tx`, each filtered by `proof.scope.projectId` (section 1). There is no grantee list and no grantee policy | application |
-| session and sign in resolution | `authenticate(fn)`, importable only by the identity session and sign in modules; it hands an `AuthenticationGate`, whose only methods are the `lookupByDigest` family (data child, section 1): every lookup is by the digest of the presented token, never a list, and a lookup that finds an account binds it to the gate for `admitAccount` | bootstrap or account |
+| the Builder executor | claims a queued run in two steps (a system read of the run's account and project, then `transaction(run.accountId)` with `admitProject` sets the owner; a queued run has no owner, so the claim is not an `admitRun`), and renews, ends, fails and reconciles a run it owns in `system('builder-executor', fn)` with `admitRun`, which locks the project, then the run, and checks `owner_id` and that the run has not ended, as the claim and heartbeat functions do today; the run's own work (model turns, source writes) runs in `transaction(run.accountId, fn)` after `admitProject` or `admitRun`, so a run whose account lost the project fails its next work step, and the executor settles it under `system` | run |
+| the application host and the connector broker | `transaction(grantHolder, fn)` with `admitApplication(gate, projectId)` (section 2); then the served revision, its artifact and the bound connection are read on `proof.tx`, each filtered by `proof.scope.projectId` (section 1). The served pointer is the three `last_preview_*` columns of `builder.project_working_state`, read directly on the admitted Project (part 4), with no SQL function and no Builder port There is no grantee list and no grantee policy | application |
+| session and sign in resolution | `authenticate(fn)`, importable only by the identity session and sign in modules; it hands an `AuthenticationGate` with two closed families of exact steps (data child, section 1): `lookupByDigest`, every lookup by the digest of the presented token, and the typed identity steps (`lookupIdentity`, `provisionIdentity`, `lookupSlug`, `hasOpenInvitation`, `startOidc`, `mintContext`), each keyed by one exact value. Neither family lists. A lookup that finds an account, and `provisionIdentity`, bind it to the gate for `admitAccount` | bootstrap or account |
 | the operator bootstrap | `authenticate(fn)` with `admitBootstrap(gate, digest)`, which locks the bootstrap context found by that digest; the first administrator takes the table lock and checks the full tenure history, revoked rows included, in the same transaction | bootstrap |
 
 **The purge guard.** Revision 5 removed the `PURGE_REQUIRES_SYSTEM` guard of the four purge
@@ -630,7 +669,9 @@ when it has a reader policy, the register's verbs to `hub_command`. A table the 
 its part splits it gets only what the new path needs, recorded in its pending row: in part 0b,
 `iam.installation_administrator` (`hub_command` `SELECT, UPDATE (revoked_at)`), `iam.application`
 (`hub_command` `SELECT`) and `iam.application_grant` (`hub_command` `SELECT, UPDATE (revoked_at)`, the
-column a `FOR SHARE` needs), and nothing to `hub_reader`. `iam.account` and
+column a `FOR SHARE` needs), and nothing to `hub_reader`. Part 6 widens the tenure grant and the
+application grant to `UPDATE (revoked_at, revoked_by)`, since each revocation check needs both columns
+(`0017_installation_administrator.sql:20`, `0022_application_access.sql:60`). `iam.account` and
 `iam.workspace_membership` are no longer in this group: part 0b gives them reader policies (section
 4.2). `EXECUTE` on a live function goes to the role whose entry calls it, from the caller graph:
 `hub_reader` for a function a `read()` calls (until part 4, `reg.get_served_application`,
@@ -815,7 +856,7 @@ What changed from revision 5, and why. Two reviewers on different models interro
   `role`, which is a column every admission reads. Revision 5.2 replaces this match (see below).
 - **Every command read is scoped, and a test per operation proves it** (decision 2; Sonnet B2).
   Revision 5 moved exact id reads to a role with no filter and named no check. Section 1, the scoped
-  read rule, and section 10. `authenticate` hands the `lookupByDigest` family, not a `WriteTx`.
+  read rule, and section 10. `authenticate` hands two closed families of exact steps (`lookupByDigest` and the typed identity steps), not a `WriteTx`.
 - **The purge guard is back, on `conexus.job`** (decision 3; both reviewers). Revision 5 removed it
   on a false premise. Section 6. `builder.register_project_repository` gets no job guard, because its
   caller is a person's command; why it needs none is in section 6.
@@ -871,7 +912,7 @@ What changed from revision 5.1, and why. A Sonnet reviewer confirmed 29 of the 3
   `SET`, `DO` and `CALL`. Sections 4.1 and 10.
 - **The administrator reach list is literal** (decision 2; confirmation, medium). Four tables:
   `project.project_deletion`, `connector.connection`, `iam.installation_administrator` and the
-  `iam.account` rows of open tenures. `project.project` is not on it, since `ADMIN` only shapes
+  `iam.account` rows of open tenures and of their grantors. `project.project` is not on it, since `ADMIN` only shapes
   `HIDDEN` there. The administrator variant of the cross tenant test uses this list. Section 4.2,
   rule 4, and section 10.
 - **`legacy_runtime` only on `iam.account`** (decision 3; confirmation, low). Its unported reader is
@@ -887,3 +928,20 @@ What changed from revision 5.1, and why. A Sonnet reviewer confirmed 29 of the 3
 - **Citations** (decision 6; confirmation, nit). The lines for the administrator reach now name the
   policy and the function that carry it (`0064_project_owner.sql:19-25`,
   `0030_project_deletion.sql:74`), and the account columns cite `0001_baseline.sql:1926-1937`.
+
+## Revision 5.3, HQ trims of the child specs (2026-10-05)
+
+Decided by HQ on the open items of the child specs of parts 1, 2, 4, 5 and 6. Each touches this
+spec's text above.
+
+- `ReadAction` gains `'connections.bind'` and `'application.manage'`, owner only, with the read
+  overload of `admitProject` (section 1).
+- `RunScope` gains `projectId` (sections 1 and 2).
+- `isInstallationAdministrator(tx)`, one function in `admission.ts` (section 2).
+- The `AuthenticationGate` has a second closed family of typed steps (data child, section 1; section 6).
+- The administrator reach list widens `iam.account` to the grantors of open tenures (section 4.2).
+- `reg.artifact` gets no composite key, and the session keys are the account pairs (section 5).
+- The tenure and application grant updates are `(revoked_at, revoked_by)` from part 6 (section 5).
+- The thumbnail drops the application row condition, and the served pointer is read directly
+  (sections 4.2 and 6).
+- The account steps of a run before its candidate use `admitRun` (section 2).

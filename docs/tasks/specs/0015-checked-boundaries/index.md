@@ -191,7 +191,7 @@ rows the command locked.
 | `apps/hub/src/http/access.ts` | `routes(app).operation(op, handler)` on the S3 definer | each owner's `routes.ts` |
 | `apps/hub/src/platform/db.ts` | the only Hub `pg` import: `openDatabase`, `sql` (with its run time text refusal), `Tx`, `CommandGate`, `AuthenticationGate`, `openGate`, `RawToken`, `Digest`, `DATABASE_FAILURES`, the only `SET LOCAL ROLE` and `conexus.*` settings, the nested entry refusal | stores, admission, receipt, lifecycle (`openGate`: admission only) |
 | `apps/hub/src/platform/receipt.ts` | `idempotent`, `reserve`, `complete` over `platform.operation_receipt` | idempotent commands |
-| `apps/hub/src/identity-access/admission.ts` | `Admitted`, `Scope`, the `admit*` functions (with `admitInstallationAdministrator`), `ROLE_ALLOWS`, `ACTION_REFUSALS`, `grantCreatorMembership` | every store (allowed across owners) |
+| `apps/hub/src/identity-access/admission.ts` | `Admitted`, `Scope`, the `admit*` functions (with `admitInstallationAdministrator`), `isInstallationAdministrator`, `ROLE_ALLOWS`, `ACTION_REFUSALS`, `grantCreatorMembership` | every store (allowed across owners) |
 | `apps/web/src/app/http.ts` | `call`, `query`, `href` | every web feature |
 | `apps/web/src/app/foreign.ts` | `parseForeign` | the Builder feature |
 | `scripts/emit-openapi.mjs` | `contracts/api/product/openapi.json` | `contract:check`, Redocly, bijection |
@@ -208,7 +208,7 @@ Parts 1 to 7 build against these and do not change them; a needed change goes ba
 `routes(app).operation` and `Handler<O>` (contract, 3); `call`, `query`, `href`, `parseForeign` and the
 route param helper (contract, 4); `Database` (with `transaction` and `system` handing a
 `CommandGate`, and `authenticate` an `AuthenticationGate`), `ReadTx` (with `accountId`), `WriteTx`,
-`CommandGate`, `AuthenticationGate` and its `lookupByDigest` family, `openGate`, `sql` (refusing a
+`CommandGate`, `AuthenticationGate` and its two closed families (`lookupByDigest` and the six typed identity steps), `openGate`, `sql` (refusing a
 `RawToken` at compile time and any statement but `select`, `insert`, `update`, `delete` and `with`, and the words `conexus` and `set_config`, at run time), `RawToken`,
 `Digest`, `DATABASE_FAILURES`, `openFactoryPool`, the role and settings each entry sets, and the
 nested entry refusal (data, 1 and 2); `idempotent`, `reserve`, `complete` (data, 3); `Admitted`,
@@ -506,12 +506,14 @@ here. The real dependencies come from the caller graph script
    tables it splits, **AC-12** (raw tokens), **AC-13** (rule 9).
 5. **Part 1, builder** (31). Its reader policies, register rows, locks and refusal codes per
    `0015-part-builder.md`. Cut from that draft: the 15 `INSERT`, `UPDATE` and `DELETE` rows of its
-   section 4; the `S` branch of its five `SELECT` rows; the served pointer paragraph with its `iam_rls`
+   section 4; the `S` branch of its five `SELECT` rows; the reader rows of `builder.project_repository` and `builder.builder_run_model_account`, which no person lists (rule 6, decided by HQ); the served pointer paragraph with its `iam_rls`
    grant and policy on `builder.project_working_state`; every `iam.acting_applications` use; the
-   section "If the part 0 amendment is refused". It keeps the five `SELECT` rows' person branches as
-   reader policies, the bridges, its column grants without `project_id` or `account_id`, and adds the
-   `builder.builder_run.account_id` key; the executor runs as section 6 of the admission child says;
-   it builds the body of `admitRun` (project `FOR SHARE`, then the run `FOR UPDATE`, then the fresh
+   section "If the part 0 amendment is refused". It keeps the person branches of three `SELECT` rows
+   (`builder_run`, `project_working_state`, `conversation_session`) as reader policies, and gives the
+   other two tables no reader policy and no reader grant, so `hub_reader` gets 42501 on them; the
+   bridges, its column grants without `project_id` or `account_id`, and adds the
+   `builder.builder_run.account_id` key (the builder runs the `ADD FOREIGN KEY` against a copy of the local data before the pull request); the executor runs as section 6 of the admission child says, and the account steps of a run before its candidate use `admitRun`, stricter than today;
+   it builds the body of `admitRun`, with `projectId` added to `RunScope` (project `FOR SHARE`, then the run `FOR UPDATE`, then the fresh
    read with the deletion predicate, admission child, section 2) with the column grant on
    `builder.builder_run` its row lock needs, and the run's deletion race tests; a run reads its held
    credential after `admitRun`, filtered by the run from the proof. Every command read follows the
@@ -536,7 +538,10 @@ here. The real dependencies come from the caller graph script
    row allowed to `owner` only in `ROLE_ALLOWS`, with the same name as a `ProjectAction` admitted
    through `admitProject`, for listing, binding and unbinding a project's connections
    (`connectors/routes.ts:118-147`), which borrow `members.manage` through
-   `connector.admit_project_owner` today (`0029_connector.sql:134-151`). The grantee's bound
+   `connector.admit_project_owner` today (`0029_connector.sql:134-151`). `ReadAction` gains
+   `'connections.bind'` and the read overload of `admitProject` takes it, so CON-08 stays an owner only
+   `read()`, as today. CON-01 and CON-03 ask the shared `isInstallationAdministrator(tx)` of
+   `admission.ts`, which part 6 uses too. The grantee's bound
    connection is read after `admitApplication` (built in part 0b), filtered by
    `proof.scope.projectId`; the broker reads under the grant holder's account on that proof; `connector.purge_project` as a port; the message text
    checks (`connectors/model.ts`) and `generate-connector-contracts.mjs` deleted. Connector rows (8) and
@@ -546,18 +551,19 @@ here. The real dependencies come from the caller graph script
    `0015-part-registry.md`. Cut from that draft: the nine `INSERT`, `UPDATE` and `DELETE` rows; the `S`
    and `H` branches of the three `SELECT` rows; the amendment A paragraph on `iam_rls` grants over
    seven source tables; the section "If the amendment is refused". It keeps the three `SELECT` rows'
-   member branch as reader policies and adds the `reg.artifact` and `reg.application_thumbnail` keys;
+   member branch as reader policies and adds the `reg.application_thumbnail` key (`reg.artifact` gets none: its `workspace_id` is NULL for an application, so the register records `artifact_project_id_fkey`); the thumbnail read drops the `iam.application` row condition;
    `reg.purge_project` as a port; `reg.retain_application_execution` ported, under `admitRun` on the
    command role; served application reads move from `read(accountId, ...)` to reads on the command
-   role after `admitApplication` (built in part 0b), each filtered by `proof.scope.projectId`, calling
-   `builder.served_preview_revision` as SQL until part 1 lands, then the port; the three `reg` served
+   role after `admitApplication` (built in part 0b), each filtered by `proof.scope.projectId`, reading the served pointer directly from
+   `builder.project_working_state` (no SQL function and no Builder port); retention takes its Project from
+   `RunScope.projectId`; the three `reg` served
    functions, with the `p_account_id` check part 0b added, are dropped; the per operation cross
    tenant test covers the served routes. Satisfies **AC-5**, **AC-9**, **AC-11**.
 8. **Part 5, model accounts** (6). Its reader policies, register rows, locks and refusal codes per
    `0015-part-model.md`. Cut from that draft: the two `INSERT` and `UPDATE` rows, the `S` branches and
    the `HELD` branch; a run reads the credential it holds after `admitRun`, filtered by the run from
    the proof. It keeps the
-   three `SELECT` rows' person branches and the column grant `UPDATE (kind, secret, updated_at)`; the eleven model account routes (MDL-01 to MDL-11)
+   person branches of two `SELECT` rows (`model.model_account`, `model.installation_default`) and the column grant `UPDATE (kind, secret, updated_at)`; `model.model_account_sharing_history` gets no reader policy and no reader grant, since no route lists it (rule 6, decided by HQ); `take`, `hold` and `track` carry the run `{ builderRunId, accountId }` where they carried the payer; the eleven model account routes (MDL-01 to MDL-11)
    declared; the four argument call to `model.upsert_model_account` fixed in the port; a run's refresh
    of a shared credential tested with sharing withdrawn mid run. Satisfies **AC-1**, **AC-4**, **AC-5**,
    **AC-9**, **AC-11**.
@@ -570,15 +576,18 @@ here. The real dependencies come from the caller graph script
    branch `F`; `admitElevated` (IAM-13 becomes an owner command under `admitProject` with an action
    part 6 adds to `ROLE_ALLOWS`; IAM-16 and IAM-17 use `admitInstallationAdministrator` with
    `administrators.manage`); the table level `UPDATE` on the tenure table that revision 5 planned
-   (the table lock goes through `iam.lock_administrators()`, built in part 0b, and `hub_command` keeps
-   `UPDATE (revoked_at)` only); the section "If the amendment is refused". It keeps the reader
+   (the table lock goes through `iam.lock_administrators()`, built in part 0b, and `hub_command`
+   widens `UPDATE (revoked_at)` to `UPDATE (revoked_at, revoked_by)` only, as does `iam.application_grant`,
+   since each revocation check needs both columns); the section "If the amendment is refused". It keeps the reader
    `SELECT` of `iam.account`, adding to part 0b's predicate (self, co members) only grantees of owned
-   projects and `ADMIN` for open tenures; keeps part 0b's `iam.workspace_membership` policy; adds
+   projects and `ADMIN` for open tenures and for the accounts named by `granted_by` on them (IAM-15's
+   grantor name, as today); keeps part 0b's `iam.workspace_membership` policy; adds
    `iam.workspace_invitation`, `iam.installation_administrator` (`ADMIN`, with its `iam_rls` policy),
    `iam.application`, `iam.application_invitation` and `iam.application_grant`, and the
-   `iam.preview`, `iam.host_session` and `iam.handoff` keys; `authenticate` with its
-   `AuthenticationGate` and the closed list of digest kinds for `lookupByDigest`, and the body of
-   `admitBootstrap`; IAM-03 on the bootstrap authority with the first administrator under the table
+   `iam.preview` key, and the account pair keys of `iam.host_session` and `iam.handoff`; `ReadAction` gains `'application.manage'` (IAM-11 stays an owner only `read()`); IAM-14 and IAM-15 use `isInstallationAdministrator(tx)`; IAM-12 and IAM-13 take no owner set lock; the first administrator rule stays in TypeScript; `authenticate` with its
+   `AuthenticationGate`, the closed list of digest kinds for `lookupByDigest`, the six typed identity
+   steps of the gate's second family (`lookupIdentity`, `provisionIdentity`, `lookupSlug`,
+   `hasOpenInvitation`, `startOidc`, `mintContext`), and the body of `admitBootstrap`; IAM-03 on the bootstrap authority with the first administrator under the table
    lock and the full tenure history; sessions, invitations, roster (`removeMember`, `leaveWorkspace`
    with the owner set lock and the acting membership `FOR UPDATE`, and the `DELETE` grant on
    `iam.workspace_membership`), application access on the `admitApplication` part 0b built,
@@ -651,10 +660,37 @@ one step).
 - [x] `CommandGate` and `openGate` are kept; revision 5.1 makes the gate nominal and has it carry the
   actor.
 - [x] The tenure table's table level `UPDATE` is withdrawn by revision 5.1: the table lock goes
-  through `iam.lock_administrators()`, and `hub_command` keeps `UPDATE (revoked_at)` only.
+  through `iam.lock_administrators()`, and `hub_command` keeps `UPDATE (revoked_at)` only (part 6 widens it to the pair `(revoked_at, revoked_by)`, revision 5.3).
 - [x] `app-runner/data-plane.ts:100,139` and its bare `SET ROLE` are reviewed in the Applications
   cluster wave.
 - [x] Part 0b updates the stale `0015-part-project.md` in its pull request.
+
+**Decided by HQ on revision 5.3** (the trims of the child specs of parts 1, 2, 4, 5 and 6,
+2026-10-05), closed:
+- [x] Part 1: no reader row on `builder.project_repository` and `builder.builder_run_model_account`
+  (rule 6: no person lists them). `admitRun` keeps the pre candidate account steps, stricter than
+  today. The two step claim stands, and section 6 of the admission child says so. The owner check
+  stands on `readHeldCredential`. The builder runs the `ADD FOREIGN KEY` on `builder_run.account_id`
+  against a copy of the local data before the pull request.
+- [x] Part 5: no reader row on `model.model_account_sharing_history` (rule 6). `run` replaces `payer`
+  in `take`, `hold` and `track`.
+- [x] Umbrella counts are fixed by HQ, not by the children.
+- [x] The `reg.artifact` composite key is withdrawn. The register records `artifact_project_id_fkey`.
+  `iam.host_session` and `iam.handoff` take `(preview_id, account_id)` and `(parent_digest,
+  account_id)`, and `iam.preview` takes the `project_id` key.
+- [x] The tenure grant and the application grant are `UPDATE (revoked_at, revoked_by)` from part 6.
+  Part 0b keeps its one column for the row lock.
+- [x] Part 4: `PRJ-THUMBNAIL` drops the application row condition. `RunScope` gains `projectId`
+  (part 1 adds it). The served pointer is read directly from `builder.project_working_state`.
+- [x] Part 2: `ReadAction` gains `'connections.bind'` with the read overload. One shared
+  `isInstallationAdministrator(tx)` in `admission.ts` serves CON-01, CON-03 and part 6. CON-08 stays
+  owner only.
+- [x] Part 6: the `AuthenticationGate` gets a second closed family of six typed steps, each keyed by one
+  exact value. `ReadAction` gains `'application.manage'`. IAM-15's grantor name stays, by widening
+  `reader_admin` on `iam.account` to the accounts named by `granted_by` on open tenures.
+  `iam.application` has an owner only reader. IAM-12 and IAM-13 take no owner set lock, since the
+  membership `FOR SHARE` serializes with a role change. The first administrator rule stays in
+  TypeScript. The `host_session` update columns are confirmed at the build head.
 
 **Open for HQ (revision 5.1).**
 - [ ] `system` now hands a gate instead of a `WriteTx`, a frozen change beyond decision 5, so that
