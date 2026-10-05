@@ -44,7 +44,7 @@ class CandidateRefused extends Failure {
   }
 }
 
-type RunStore = Pick<BuilderStore, 'claimBuilderRun' | 'failUnclaimedBuilderRun' | 'setBuilderRunPhase' | 'recordBuilderRunCandidate' | 'bindBuilderRunMessage' | 'bindBuilderRunSandbox' |
+type RunStore = Pick<BuilderStore, 'claimBuilderRun' | 'endUnclaimedBuilderRun' | 'setBuilderRunPhase' | 'recordBuilderRunCandidate' | 'bindBuilderRunMessage' | 'bindBuilderRunSandbox' |
   'recordConversationSandbox' | 'recordConversationSession' | 'settleBuilderRun' | 'advanceBuilderRunSource' |
   'settleBuilderRunBuild' | 'failBuilderRun' | 'interruptBuilderRun' | 'readBuilderRun'>
 
@@ -376,8 +376,8 @@ const diagnose = async (run: Run, error: unknown, ended: Failure, ending: RunEnd
 const writeEnding = async (run: Run, ending: RunEnding): Promise<void> => {
   const { store, settleRetryMs } = run.env
   const id = run.row.builderRunId
-  // A run no claim reached has no owner to admit: a refused claim ends the still queued row, and a stop leaves it to the lease.
-  const write = !run.claimed ? ending.kind === 'FAILED' ? () => store.failUnclaimedBuilderRun(id, ending.code) : null
+  // A run no claim reached has no owner to admit: its own transition ends the still queued row.
+  const write = !run.claimed ? ending.kind === 'FAILED' || ending.kind === 'INTERRUPTED' ? () => store.endUnclaimedBuilderRun(id, ending) : null
     : ending.kind === 'INTERRUPTED' ? () => store.interruptBuilderRun(id, ending.code)
     : ending.kind === 'FAILED' ? () => store.failBuilderRun(id, ending.code) : null
   if (!write) return

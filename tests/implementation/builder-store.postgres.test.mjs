@@ -200,17 +200,22 @@ test('removing the author before the candidate refuses the write and leaves the 
 test('a queued run ends unclaimed only while still queued and unowned, and a claim by a removed author never reaches RUNNING', async (t) => {
   const { connection, store, start, row, seedBuilderProject } = await harness(t, 'conexus_builder_unclaimed')
   const lost = await start(await seedBuilderProject('Lost'))
-  await store.failUnclaimedBuilderRun(lost.builderRunId, 'BUILDER_RUN_CLAIM_REFUSED')
+  await store.endUnclaimedBuilderRun(lost.builderRunId, { kind: 'FAILED', code: 'BUILDER_RUN_CLAIM_REFUSED' })
   assert.deepEqual(await row(lost.builderRunId), { ...(await row(lost.builderRunId)), state: 'FAILED', failure_code: 'BUILDER_RUN_CLAIM_REFUSED', phase: null })
 
   const cancelled = await start(await seedBuilderProject('Cancelled'))
   await store.requestBuilderRunCancellation({ accountId: ID.owner, projectId: cancelled.projectId, builderRunId: cancelled.builderRunId })
-  await store.failUnclaimedBuilderRun(cancelled.builderRunId, 'BUILDER_RUN_CLAIM_REFUSED')
+  await store.endUnclaimedBuilderRun(cancelled.builderRunId, { kind: 'FAILED', code: 'BUILDER_RUN_CLAIM_REFUSED' })
   assert.deepEqual(await row(cancelled.builderRunId), { ...(await row(cancelled.builderRunId)), state: 'INTERRUPTED', failure_code: null })
+
+  const stopped = await start(await seedBuilderProject('Stopped'))
+  await store.endUnclaimedBuilderRun(stopped.builderRunId, { kind: 'INTERRUPTED', code: 'HUB_RESTART' })
+  assert.deepEqual(await row(stopped.builderRunId), { ...(await row(stopped.builderRunId)), state: 'INTERRUPTED', phase: null, failure_code: 'HUB_RESTART', cancellation_requested: true, cancellation_reason: 'HUB_RESTART' })
 
   const claimed = await start(await seedBuilderProject('Claimed'))
   await store.claimBuilderRun(claimed.builderRunId)
-  await store.failUnclaimedBuilderRun(claimed.builderRunId, 'BUILDER_RUN_CLAIM_REFUSED')
+  await store.endUnclaimedBuilderRun(claimed.builderRunId, { kind: 'FAILED', code: 'BUILDER_RUN_CLAIM_REFUSED' })
+  await store.endUnclaimedBuilderRun(claimed.builderRunId, { kind: 'INTERRUPTED', code: 'HUB_RESTART' })
   assert.equal((await row(claimed.builderRunId)).state, 'RUNNING', 'zero rows changed')
 
   const revoked = await start(await seedBuilderProject('Revoked'), { accountId: ID.member })

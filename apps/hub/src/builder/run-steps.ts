@@ -10,6 +10,9 @@ import { unlessNotAdmitted, withRun, type RunActor } from './run-access.js'
 /** How a run ends without failing: the person's stop, a Hub that stopped, or a question nobody answered. */
 export type InterruptionCode = Extract<FailureCode, 'USER_CANCELLED' | 'HUB_RESTART' | 'BUILDER_QUESTION_EXPIRED'>
 
+/** How a run no claim reached ends: a refused claim fails it, a stop interrupts it. */
+export type UnclaimedEnding = Readonly<{ kind: 'FAILED'; code: FailureCode }> | Readonly<{ kind: 'INTERRUPTED'; code: InterruptionCode }>
+
 /** What the Preview build of an admitted source came to: the artifact the registry holds, or the code the build failed with. */
 type BuildSettlement = Readonly<{ builderRunId: BuilderRunId; sourceRevision: SourceRevision }> & (
   | Readonly<{ kind: 'BUILT'; artifactRevisionId: string; artifactDigest: string }>
@@ -20,7 +23,7 @@ export type RunSteps = Readonly<{
   /** Starts a queued run under this Hub, after the Project admits its author; a refused, unclaimed row ends FAILED. */
   claimBuilderRun(builderRunId: BuilderRunId): Promise<BuilderRunSummary>
   /** Ends a run that was never claimed: only a row still queued and unowned, so a claim or a cancellation that won is left alone. */
-  failUnclaimedBuilderRun(builderRunId: BuilderRunId, failureCode: FailureCode): Promise<void>
+  endUnclaimedBuilderRun(builderRunId: BuilderRunId, ending: UnclaimedEnding): Promise<void>
   /** Answers the run as written, or null when a stop was requested first. */
   setBuilderRunPhase(builderRunId: BuilderRunId, phase: BuilderRunPhase, actor: RunActor): Promise<BuilderRunSummary | null>
   /** Enters SOURCE_ADMISSION with the candidate about to be fast forwarded onto `main`; refused once a stop is requested. */
@@ -81,8 +84,8 @@ export const createRunSteps = ({ database, ownerId }: Readonly<{ database: Datab
   }
   return {
     claimBuilderRun: claim,
-    failUnclaimedBuilderRun: (builderRunId, failureCode) => database.system('builder-executor', async (gate) => {
-      await failUnclaimed(await admitSystem(gate, 'builder-executor'), builderRunId, failureCode)
+    endUnclaimedBuilderRun: (builderRunId, ending) => database.system('builder-executor', async (gate) => {
+      await endUnclaimed(await admitSystem(gate, 'builder-executor'), builderRunId, ending)
     }),
     setBuilderRunPhase: (builderRunId, phase, actor) => act(builderRunId, actor, async (proof) => {
       const row = await proof.tx.maybe(RunRow, sql`
@@ -171,9 +174,16 @@ export const createRunSteps = ({ database, ownerId }: Readonly<{ database: Datab
   }
 }
 
-/** The one transition of a run no executor owns yet: a still queued, unowned row ends FAILED; zero rows means a claim or a cancellation won. */
-const failUnclaimed = async ({ tx }: Admitted<SystemScope<'builder-executor'>>, builderRunId: BuilderRunId, failureCode: FailureCode): Promise<void> => {
+/** The one transition of a run no executor owns yet: a still queued, unowned row ends; zero rows means a claim or a cancellation won. A stop keeps the first cancellation time and reason. */
+const endUnclaimed = async ({ tx }: Admitted<SystemScope<'builder-executor'>>, builderRunId: BuilderRunId, ending: UnclaimedEnding): Promise<void> => {
+  if (ending.kind === 'FAILED') {
+    await tx.run(sql`
+      UPDATE builder.builder_run SET state = 'FAILED', phase = NULL, failure_code = ${ending.code}, finished_at = clock_timestamp()
+      WHERE builder_run_id = ${builderRunId} AND state = 'QUEUED' AND owner_id IS NULL`)
+    return
+  }
   await tx.run(sql`
-    UPDATE builder.builder_run SET state = 'FAILED', phase = NULL, failure_code = ${failureCode}, finished_at = clock_timestamp()
+    UPDATE builder.builder_run SET state = 'INTERRUPTED', phase = NULL, failure_code = ${ending.code},
+      cancellation_requested_at = COALESCE(cancellation_requested_at, clock_timestamp()), cancellation_reason = COALESCE(cancellation_reason, ${ending.code}), finished_at = clock_timestamp()
     WHERE builder_run_id = ${builderRunId} AND state = 'QUEUED' AND owner_id IS NULL`)
 }
