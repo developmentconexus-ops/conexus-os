@@ -22,3 +22,22 @@ test('openGate is importable by admission.ts only', () => {
   }
   assert.ok(!lint('apps/hub/src/identity-access/admission.ts').includes(MESSAGE))
 })
+
+test('a pg import fires in every Hub source file except the database edge, and openGate beside it still fires', () => {
+  const PG = 'Only the database edge may import pg.'
+  const probe = (path, text) => {
+    try {
+      writeFileSync(resolve(root, path), text)
+      return lint(path)
+    } finally {
+      rmSync(resolve(root, path), { force: true })
+    }
+  }
+  const both = "import pg from 'pg'\nimport { openGate } from '../platform/db.js'\n\nexport const used = [pg, openGate]\n"
+  const output = probe('apps/hub/src/workspace/pg-import-probe.ts', both)
+  assert.ok(output.includes(PG), output)
+  assert.ok(output.includes(MESSAGE), output)
+  assert.ok(probe('apps/hub/src/identity-access/pg-import-probe.ts', "import pg from 'pg'\n\nexport const used = pg\n").includes(PG))
+  assert.ok(!probe('apps/hub/src/project/store.ts.probe.ts', "import { sql } from '../platform/db.js'\n\nexport const used = sql\n").includes(PG))
+  assert.ok(lint('apps/hub/src/platform/db.ts').includes(PG) === false)
+})
