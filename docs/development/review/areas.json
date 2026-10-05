@@ -125,7 +125,7 @@
       "tests/implementation/preview-form-policy.browser.test.mjs",
       "tests/repository/web-style.test.mjs"
     ],
-    "page": "docs/development/review/frontend.md",
+    "guides": ["V", "P"],
     "flows": []
   },
   {
