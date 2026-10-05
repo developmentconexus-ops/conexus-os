@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import { AccountId, BuilderRunId, ProjectId, SourceRevision, type ArtifactDigest, type ArtifactRevisionId, type ConversationId, type ModelAccountId } from '../../../../packages/contract/dist/index.js'
 import { admitProject, admitRun, admitSystem, type Admitted, type RunScope, type SystemScope } from '../identity-access/admission.js'
-import { OPEN_RUN_STATES, type BuilderRunPhase } from '../generated/builder-run-vocabulary.js'
+import { OPEN_RUN_STATES, type BuilderRunPhase, type BuilderRunResultKind } from '../generated/builder-run-vocabulary.js'
 import { sql, type Database, type Sql } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
 import { RUN_COLUMNS, RunRow, runSummary, type BuilderRunSummary } from './run-row.js'
@@ -21,7 +21,7 @@ export type InterruptionCode = Extract<FailureCode, 'USER_CANCELLED' | 'HUB_REST
 
 /** The one set of final columns of a run: every ending writes its state, a null phase and its finish time together. */
 type RunEnding =
-  | Readonly<{ state: 'SUCCEEDED'; resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' }>
+  | Readonly<{ state: 'SUCCEEDED'; resultKind: Exclude<BuilderRunResultKind, 'SOURCE_CHANGED_BUILD_FAILED'> }>
   | Readonly<{ state: 'FAILED'; failureCode: FailureCode; resultKind?: 'SOURCE_CHANGED_BUILD_FAILED' }>
   | Readonly<{ state: 'INTERRUPTED'; failureCode: InterruptionCode }>
 
@@ -114,7 +114,7 @@ export const createRunStart = ({ database, mintIdentity }: Readonly<{ database: 
 })
 
 /** How a run no claim reached ends: a refused claim fails it, a stop interrupts it. */
-type UnclaimedEnding = Extract<RunEnding, Readonly<{ state: 'FAILED' | 'INTERRUPTED' }>>
+type UnclaimedEnding = Exclude<RunEnding, Readonly<{ state: 'SUCCEEDED' }>>
 
 /** What the Preview build of an admitted source came to: the artifact the registry holds, or the code the build failed with. */
 type BuildSettlement = Readonly<{ builderRunId: BuilderRunId; sourceRevision: SourceRevision }> & (
