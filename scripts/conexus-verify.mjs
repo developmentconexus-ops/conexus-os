@@ -37,7 +37,8 @@ const candidateStep = (scope, command, environmentClass = 'static') => Object.fr
   graph: 'candidate',
 })
 
-const HUB_BUILD_DIRECTORY = 'node_modules/.cache/conexus-hub-build'
+// Groups run side by side on one machine each need their own directory: the build starts by emptying it.
+const HUB_BUILD_DIRECTORY = process.env.CONEXUS_VERIFY_HUB_BUILD_DIRECTORY ?? 'node_modules/.cache/conexus-hub-build'
 
 // The hub typecheck also emits, once, the compiled Hub every Hub suite imports, and the bundle of the
 // application check the Hub sends to each VM. It runs first and publishes the directory to the steps
@@ -49,14 +50,23 @@ const hubBuildStep = Object.freeze({
 
 const TEST_GROUP_GLOBS = Object.freeze({
   repository: Object.freeze(['tests/repository/!(*.browser|*.postgres).test.mjs']),
-  implementation: Object.freeze(['tests/implementation/!(*.browser|*.postgres).test.mjs', 'tests/implementation/access/*.test.mjs']),
+  implementation: Object.freeze(['tests/implementation/!(*.browser|*.postgres|conexus-backup).test.mjs', 'tests/implementation/access/*.test.mjs']),
+  backup: Object.freeze(['tests/implementation/conexus-backup.test.mjs']),
   postgres: Object.freeze(['tests/implementation/*.postgres.test.mjs']),
   browser: Object.freeze(['tests/implementation/*.browser.test.mjs']),
   live: Object.freeze(['tests/live/*.test.mjs']),
 })
 
-const testStep = (scope, group, environmentClass, flags = '') =>
-  candidateStep(scope, `node --test ${flags}${TEST_GROUP_GLOBS[group].map(glob => `'${glob}'`).join(' ')}`, environmentClass)
+const testCommand = (group, flags, shard) =>
+  `node --test ${flags}${shard ? `--test-shard=${shard} ` : ''}${TEST_GROUP_GLOBS[group].map(glob => `'${glob}'`).join(' ')}`
+
+// A shardable step can run as one slice of a group on its own machine: node splits the test files
+// by position, so a new file lands in a slice without a list to keep.
+const testStep = (scope, group, environmentClass, flags = '', { shardable = false } = {}) =>
+  Object.freeze({
+    ...candidateStep(scope, testCommand(group, flags), environmentClass),
+    ...(shardable ? { shardCommand: (shard) => testCommand(group, flags, shard) } : {}),
+  })
 
 /**
  * The candidate profile is the review-lane composition: the static checks first, so a run that is
@@ -90,7 +100,11 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('db-baseline-file', 'npm run db:baseline:check', 'postgres'),
   testStep('postgres-tests', 'postgres', 'postgres', '--test-concurrency=1 '),
 
-  testStep('browser-tests', 'browser', 'browser', '--test-concurrency=1 '),
+  testStep('browser-tests', 'browser', 'browser', '--test-concurrency=1 ', { shardable: true }),
+
+  // The backup suite boots its own PostgreSQL and Keycloak containers and runs the real backup and
+  // restore scripts, about as long as every other suite of the rest group together, so it is a group.
+  testStep('backup-tests', 'backup', 'backup'),
 
   // One Hub, one Chromium and a scripted model for the whole suite, so the flows share one boot.
   candidateStep('live-builder', 'npm run test:live', 'live'),
@@ -100,12 +114,12 @@ const GRAPH_STEPS = Object.freeze([
 
 export const CANDIDATE_GRAPH = GRAPH_STEPS
 
-// CI runs the graph as four jobs, each on its own machine with its own PostgreSQL and CPU. A step's
+// CI runs the graph as jobs, each on its own machine with its own PostgreSQL and CPU. A step's
 // group follows from its class: rest (static checks and the suites that need nothing), postgres,
-// browser, live. Two steps belong to every group: the Hub build, which publishes the compiled Hub
+// browser, live, backup. Two steps belong to every group: the Hub build, which publishes the compiled Hub
 // the suites import, and the skip check, which reads the ledger of the job it runs in.
-export const VERIFY_GROUPS = Object.freeze(['browser', 'postgres', 'rest', 'live'])
-const GROUP_OF_CLASS = Object.freeze({ browser: 'browser', postgres: 'postgres', static: 'rest', live: 'live' })
+export const VERIFY_GROUPS = Object.freeze(['browser', 'postgres', 'rest', 'live', 'backup'])
+const GROUP_OF_CLASS = Object.freeze({ browser: 'browser', postgres: 'postgres', static: 'rest', live: 'live', backup: 'backup' })
 const EVERY_GROUP = new Set([hubBuildStep.scope, 'only-opt-in-skips'])
 
 export const groupsOf = (step) => {
@@ -160,7 +174,7 @@ export function loadPackageScripts(root = repositoryRoot) {
 }
 
 export function parseArguments(argv = process.argv.slice(2)) {
-  const options = { scopes: [], list: false, dryRun: false, json: false, help: false, group: null }
+  const options = { scopes: [], list: false, dryRun: false, json: false, help: false, group: null, shard: null }
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
@@ -187,6 +201,15 @@ export function parseArguments(argv = process.argv.slice(2)) {
       const value = argument === '--group' ? argv[index] : argument.slice('--group='.length)
       if (!VERIFY_GROUPS.includes(value)) throw new VerificationCliError(`--group must be one of ${VERIFY_GROUPS.join(', ')}`)
       options.group = value
+      continue
+    }
+
+    if (argument === '--shard' || argument.startsWith('--shard=')) {
+      if (argument === '--shard') index += 1
+      const value = argument === '--shard' ? argv[index] : argument.slice('--shard='.length)
+      const [position, total] = (value ?? '').split('/').map(Number)
+      if (!/^[1-9]\d*\/[1-9]\d*$/.test(value ?? '') || position > total) throw new VerificationCliError('--shard must be <position>/<total>, for example 2/4')
+      options.shard = value
       continue
     }
 
@@ -393,6 +416,7 @@ export function runVerification({
   root = repositoryRoot,
   dryRun = false,
   group = null,
+  shard = null,
   platform = process.platform,
   runCommand = runNpmScript,
   clock = defaultClock,
@@ -402,7 +426,9 @@ export function runVerification({
   const requestedEntries = resolveScopes(scopes, scripts)
   assertExecutionEnvironment(requestedEntries, { platform, dryRun })
   const graphEntries = requestedEntries.flatMap(entry => own(GRAPHS, entry.graph ?? '') ? GRAPHS[entry.graph] : [entry])
-  const entries = group ? graphForGroup(graphEntries, group) : graphEntries
+  const grouped = group ? graphForGroup(graphEntries, group) : graphEntries
+  if (shard && !grouped.some(entry => entry.shardCommand)) throw new VerificationCliError(`--shard needs a group with a shardable step; ${group ?? 'the selected scope'} has none`)
+  const entries = shard ? grouped.map(entry => entry.shardCommand ? { ...entry, command: entry.shardCommand(shard) } : entry) : grouped
   const records = []
   const published = {}
   const testLedger = newTestLedger(root)
@@ -458,7 +484,7 @@ export function runVerification({
 
 function helpText() {
   return [
-    'Usage: node scripts/conexus-verify.mjs --scope <name[,name...]> [--group browser|postgres|rest|live] [--dry-run] [--json]',
+    'Usage: node scripts/conexus-verify.mjs --scope <name[,name...]> [--group browser|postgres|rest|live|backup] [--shard <position>/<total>] [--dry-run] [--json]',
     '       node scripts/conexus-verify.mjs --list [--json]',
     '',
     'Aliases: preflight, repository, final. Other scopes must be explicit npm scripts in package.json.',
@@ -535,6 +561,7 @@ export function main(argv = process.argv.slice(2)) {
       packageScripts,
       dryRun: options.dryRun,
       group: options.group,
+      shard: options.shard,
     })
     printResult(result, options.json)
     writeStepSummary(result)

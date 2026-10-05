@@ -16,10 +16,20 @@ permissions:
 
 jobs:
   group:
-    name: verify (${{ matrix.group }})
+    name: verify (${{ matrix.group }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }})
     strategy:
       matrix:
-        group: [browser, postgres, rest, live]
+        # The browser group is the longest, and its files stay one after another, so it is divided
+        # across machines: each runs a quarter of the files by position (node --test-shard).
+        include:
+          - { group: browser, shard: 1/4 }
+          - { group: browser, shard: 2/4 }
+          - { group: browser, shard: 3/4 }
+          - { group: browser, shard: 4/4 }
+          - { group: postgres }
+          - { group: rest }
+          - { group: live }
+          - { group: backup }
     # A draft is work in progress: its author runs the touched suites locally and pushes as often as
     # needed. CI runs once, when the pull request is marked ready for review, and on every push after.
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
@@ -114,7 +124,7 @@ jobs:
         if: steps.scope.outputs.docs_only == 'true' && matrix.group == 'rest'
         run: npm run verify:docs
       - name: Verify the ${{ matrix.group }} group
-        run: npm run conexus:verify -- --scope candidate --group ${{ matrix.group }}
+        run: npm run conexus:verify -- --scope candidate --group ${{ matrix.group }}${{ matrix.shard && format(' --shard {0}', matrix.shard) || '' }}
         if: steps.scope.outputs.docs_only != 'true'
         env:
           # The live group's evidence (screenshots, the page console, the Hub's log) is kept on failure, below.

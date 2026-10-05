@@ -107,8 +107,8 @@ own branch, never merges, and counts as gate proof only when declared so before 
   contract check, web style, `knip`, `biome ci`, import law, access owner, censuses, enforced-by; no
   Docker, browser or network) and the tests the change
   touches or that consume a changed contract, at most two groups at once. CI enforces the static checks on the head.
-- CI runs the whole graph in `scripts/conexus-verify.mjs` as the `browser`, `postgres`, `rest` and
-  `live` jobs, never locally; `verify` is the one required check. A change of only Markdown files in `docs/`,
+- CI runs the whole graph in `scripts/conexus-verify.mjs` as eight jobs (`browser` in four
+  slices, `postgres`, `rest`, `live`, `backup`), never locally; `verify` is the one required check. A change of only Markdown files in `docs/`,
   `.agents/` or the root runs `npm run verify:docs`.
 - Required CI protects objective properties of every change, never architecture taste, UX taste or
   document shape. A workflow event or concurrency change shows the rulesets stay equivalent.

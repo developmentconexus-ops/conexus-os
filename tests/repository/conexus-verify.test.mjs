@@ -34,10 +34,11 @@ const committedTests = () => execFileSync('git', ['ls-files', 'tests'], { cwd: r
   .filter(path => path.endsWith('.test.mjs') && !path.startsWith('tests/manual/'))
   .sort()
 
-const workflowGroups = () => readFileSync(resolve(repositoryRoot, '.github/workflows/verify.yml'), 'utf8')
-  .match(/group: \[([^\]]+)\]/)[1]
-  .split(',')
-  .map(name => name.trim())
+const workflowJobs = () => [...readFileSync(resolve(repositoryRoot, '.github/workflows/verify.yml'), 'utf8')
+  .matchAll(/^ {10}- \{ group: (\w+)(?:, shard: (\d+\/\d+))? \}$/gm)]
+  .map(([, group, shard]) => ({ group, shard: shard ?? null }))
+
+const workflowGroups = () => [...new Set(workflowJobs().map(job => job.group))]
 
 const testGlobsOf = (command, scripts) => {
   const expanded = command.replace(/^npm run (\S+)$/, (_, name) => scripts[name] ?? '')
@@ -61,14 +62,33 @@ const groupsRunning = (path, globsByGroup) => Object.entries(globsByGroup)
 
 const PLAYWRIGHT_IMPORT = /^[^'"\n]*\b(?:from|import)\s*\(?\s*['"](?:@playwright\/test|playwright(?:-core)?)['"]/m
 
-test('the workflow runs the four groups and each runs the tests its name places in it', () => {
-  assert.deepEqual(workflowGroups(), ['browser', 'postgres', 'rest', 'live'])
+test('the browser group runs as every position of one even division, and no other group is divided', () => {
+  const shards = workflowJobs().filter(job => job.shard).map(job => ({ group: job.group, ...Object.fromEntries(['position', 'total'].map((name, index) => [name, Number(job.shard.split('/')[index])])) }))
+  assert.ok(shards.length > 1)
+  assert.deepEqual([...new Set(shards.map(job => job.group))], ['browser'])
+  assert.deepEqual(shards.map(job => job.position), shards.map((_, index) => index + 1))
+  assert.deepEqual([...new Set(shards.map(job => job.total))], [shards.length])
+})
+
+test('a shard narrows the shardable step to its slice of the files, and no other step', () => {
+  const run = (group, shard) => runVerification({ processEnvironment: {}, scopes: ['candidate'], packageScripts, dryRun: true, group, shard })
+  const commands = run('browser', '2/4').records.map(record => record.command)
+  assert.ok(commands.includes("node --test --test-concurrency=1 --test-shard=2/4 'tests/implementation/*.browser.test.mjs'"))
+  assert.equal(commands.filter(command => command.includes('--test-shard')).length, 1)
+  assert.throws(() => run('rest', '2/4'), /--shard needs a group with a shardable step; rest has none/)
+  assert.equal(parseArguments(['--scope', 'candidate', '--group', 'browser', '--shard', '3/4']).shard, '3/4')
+  assert.throws(() => parseArguments(['--scope', 'candidate', '--shard', '5/4']), /--shard must be <position>\/<total>/)
+})
+
+test('the workflow runs the five groups and each runs the tests its name places in it', () => {
+  assert.deepEqual(workflowGroups(), ['browser', 'postgres', 'rest', 'live', 'backup'])
   const globs = globsPerGroup(workflowGroups())
   assert.deepEqual(groupsRunning('tests/implementation/a.postgres.test.mjs', globs), ['postgres'])
   assert.deepEqual(groupsRunning('tests/implementation/a.browser.test.mjs', globs), ['browser'])
   assert.deepEqual(groupsRunning('tests/implementation/a.test.mjs', globs), ['rest'])
   assert.deepEqual(groupsRunning('tests/repository/a.test.mjs', globs), ['rest'])
   assert.deepEqual(groupsRunning('tests/live/a.test.mjs', globs), ['live'])
+  assert.deepEqual(groupsRunning('tests/implementation/conexus-backup.test.mjs', globs), ['backup'])
   assert.deepEqual(groupsRunning('tests/manual/a.test.mjs', globs), [])
 })
 
@@ -147,6 +167,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'db-baseline-file',
   'postgres-tests',
   'browser-tests',
+  'backup-tests',
   'live-builder',
   'only-opt-in-skips',
 ])
@@ -183,6 +204,7 @@ test('--scope parsing supports repeated and comma-separated values without netwo
     json: true,
     help: false,
     group: null,
+    shard: null,
   })
 
   const calls = []
@@ -242,7 +264,7 @@ test('the hub build step publishes its directory to the steps after it, and only
   assert.equal(result.exitCode, 1)
   assert.deepEqual(seen.map(([scope]) => scope), ['hub-typecheck', 'web-typecheck', 'biome'])
   assert.equal(seen[0][1], null)
-  assert.equal(seen[1][1], resolve(repositoryRoot, 'node_modules/.cache/conexus-hub-build'))
+  assert.equal(seen[1][1], resolve(repositoryRoot, process.env.CONEXUS_VERIFY_HUB_BUILD_DIRECTORY ?? 'node_modules/.cache/conexus-hub-build'))
   assert.equal(seen[2][1], seen[1][1])
 
   const failedBuild = []
@@ -274,7 +296,7 @@ test('candidate graph is the static checks, then one node --test per group by gl
   assert.deepEqual(scopes, EXPECTED_CANDIDATE_SCOPES)
   const command = (scope) => CANDIDATE_GRAPH.find(entry => entry.scope === scope).command
   assert.equal(command('repository-tests'), "node --test 'tests/repository/!(*.browser|*.postgres).test.mjs'")
-  assert.equal(command('implementation-tests'), "node --test 'tests/implementation/!(*.browser|*.postgres).test.mjs' 'tests/implementation/access/*.test.mjs'")
+  assert.equal(command('implementation-tests'), "node --test 'tests/implementation/!(*.browser|*.postgres|conexus-backup).test.mjs' 'tests/implementation/access/*.test.mjs'")
   assert.equal(command('postgres-tests'), "node --test --test-concurrency=1 'tests/implementation/*.postgres.test.mjs'")
   assert.equal(command('browser-tests'), "node --test --test-concurrency=1 'tests/implementation/*.browser.test.mjs'")
   assert.equal(command('biome'), 'npx --no-install biome ci . --error-on-warnings')
@@ -300,7 +322,7 @@ test('each group sets up only what it needs', () => {
   const steps = workflowSteps('verify.yml')
   const setupOf = (name) => steps.find(step => step.includes(`name: ${name}`))
   const ifLine = (name) => setupOf(name).split('\n').find(line => line.trim().startsWith('if:'))
-  const gatedTo = (name) => ['browser', 'postgres', 'rest', 'live'].filter(group => ifLine(name).includes(`'${group}'`))
+  const gatedTo = (name) => ['browser', 'postgres', 'rest', 'live', 'backup'].filter(group => ifLine(name).includes(`'${group}'`))
   assert.deepEqual(gatedTo('Install Playwright Chromium'), ['browser', 'live'])
   assert.deepEqual(gatedTo('Start the Hub PostgreSQL'), ['browser', 'postgres'])
   assert.deepEqual(gatedTo('Start the Applications PostgreSQL test cluster'), ['postgres'])
@@ -360,7 +382,7 @@ test('a step that never exits is killed and reported by name', () => {
 
 test('candidate graph labels execution environments and passes shell argv correctly', () => {
   const classes = new Set(CANDIDATE_GRAPH.map(entry => entry.environmentClass))
-  assert.deepEqual([...classes].sort(), ['browser', 'live', 'postgres', 'static'])
+  assert.deepEqual([...classes].sort(), ['backup', 'browser', 'live', 'postgres', 'static'])
 
   const browserStep = CANDIDATE_GRAPH.find(entry => entry.scope === 'browser-tests')
   const postgresStep = CANDIDATE_GRAPH.find(entry => entry.scope === 'postgres-tests')
@@ -558,7 +580,7 @@ test('a group runs the Hub build first and the skip check last, and keeps graph 
 test('--group narrows the candidate graph and refuses an unknown group', async () => {
   assert.equal(parseArguments(['--scope', 'candidate', '--group', 'browser']).group, 'browser')
   assert.equal(parseArguments(['--scope', 'candidate', '--group=rest']).group, 'rest')
-  assert.throws(() => parseArguments(['--scope', 'candidate', '--group', 'slow']), /--group must be one of browser, postgres, rest, live/)
+  assert.throws(() => parseArguments(['--scope', 'candidate', '--group', 'slow']), /--group must be one of browser, postgres, rest, live, backup/)
   const result = runVerification({ processEnvironment: {}, scopes: ['candidate'], packageScripts, dryRun: true, group: 'postgres' })
   assert.deepEqual(result.records.map(record => record.scope), graphForGroup(CANDIDATE_GRAPH, 'postgres').map(entry => entry.scope))
 })

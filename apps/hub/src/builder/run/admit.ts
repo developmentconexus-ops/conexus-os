@@ -11,7 +11,7 @@ import type { BuilderStore, TakenOverRun } from '../store.js'
 import type { BuilderRunPhase } from '../../generated/builder-run-vocabulary.js'
 import { Failure, type FailureCode, toFailure } from '../../platform/failure.js'
 import { FAILURES } from '../../platform/failures.generated.js'
-import type { DiagnosticAppender, RunNote } from './ports.js'
+import type { DiagnosticAppender, SettledNote } from './ports.js'
 import type { ConversationId } from '../../../../../packages/contract/dist/index.js'
 
 /**
@@ -67,7 +67,7 @@ export const settleAdmittedSource = async ({ store, applicationArtifacts, applic
   finalizing(): Promise<void>
 }>, run: AdmittedRun, admitted: SourceRevision, applicationBuild: ApplicationBuildOutcome): Promise<void> => {
   await store.advanceBuilderRunSource({ builderRunId: run.builderRunId, sourceRevision: admitted })
-  const note = (code: string, outcome: RunNote['outcome'], detail?: string): Promise<void> => appendDiagnostic({
+  const note = (code: string, outcome: SettledNote['outcome'], detail?: string): Promise<void> => appendDiagnostic({
     projectId: run.projectId, conversationId: run.conversationId, builderRunId: run.builderRunId, code, outcome, sourceRevision: admitted,
     ...(detail ? { detail } : {}),
   }).catch(() => undefined)

@@ -167,8 +167,10 @@ const gateScorer = (gate: CandidateGate) => createScorer({ id: 'conexus-check', 
 
 const gateOptions = (gate: CandidateGate | undefined) => gate ? {
   // Mastra's deadline scores a slow check as red and sends that to the model, so it sits past the
-  // check's own timeout, which ends first and is labelled a Conexus fault. It stays under the turn's
-  // 10-minute silence watchdog (TURN_SILENCE_MS in run/turn.ts), which a check emits nothing to.
+  // check's own timeout, which ends first and is labelled a Conexus fault. The scorer then awaits the
+  // red note, a local store write that adds milliseconds, so the margin covers it and no timeout of
+  // its own is set. It stays under the turn's 10-minute silence watchdog (TURN_SILENCE_MS in
+  // run/turn.ts), which a check emits nothing to.
   isTaskComplete: { scorers: [gateScorer(gate)], strategy: 'all' as const, timeout: CHECK_COMMAND_TIMEOUT_MS + 120_000 },
   // Past the budget the check's feedback is still written for the person to see, and the loop stops
   // instead of going back to the model.
@@ -197,7 +199,7 @@ export type BuilderControllerDeps = Readonly<{
   skillsPath?: string
   /** Overrides how long one model call may run; only for tests. */
   modelStepTimeoutMs?: number
-  /** Overrides the wait before each retry of a transient model failure; only for tests. */
+  /** Overrides the wait before each retry of a transient model failure: tests, and `CONEXUS_BUILDER_MODEL_RETRY_DELAY_MS` when set. */
   modelRetryDelayMs?: (retryCount: number) => number
   id?: string
 }>
