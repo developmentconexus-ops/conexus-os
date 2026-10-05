@@ -32,7 +32,7 @@ export const createRunStart = ({ database, mintIdentity }: Readonly<{ database: 
     const subject = await tx.maybe(Present, sql`
       SELECT 1 AS present FROM builder.project_working_state AS working
       WHERE working.project_id = ${scope.projectId} AND EXISTS (SELECT 1 FROM builder.project_repository AS repository WHERE repository.project_id = working.project_id) FOR UPDATE`)
-    if (!subject) throw new Failure('PROJECT_BUILD_DENIED')
+    if (!subject) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'BUILDER_PROJECT_ROWS_MISSING' } })
     const base = SourceRevision.safeParse(await readBase())
     if (!base.success) throw new Failure('BUILDER_MESSAGE_REFUSED')
     const idempotencyDigest = sha256(Buffer.from(idempotencyKey, 'utf8'))

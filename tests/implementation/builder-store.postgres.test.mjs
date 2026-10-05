@@ -67,7 +67,7 @@ test('a run start refuses text and base outside their bounds, an outsider, an in
   await assert.rejects(start(projectId, { accountId: ID.administrator }), { id: 'PROJECT_BUILD_DENIED' })
   const bare = await seedProject('Bare')
   await query(connection, 'DELETE FROM builder.project_repository WHERE project_id = $1', [bare])
-  await assert.rejects(start(bare), { id: 'PROJECT_BUILD_DENIED' })
+  await assert.rejects(start(bare), (error) => error.id === 'INTERNAL_UNEXPECTED' && error.details.invariant === 'BUILDER_PROJECT_ROWS_MISSING')
   await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.member])
   await assert.rejects(start(projectId, { accountId: ID.member }), { id: 'ACCOUNT_INACTIVE' })
   assert.equal((await query(connection, 'SELECT count(*)::integer AS count FROM builder.builder_run')).rows[0].count, 0)
