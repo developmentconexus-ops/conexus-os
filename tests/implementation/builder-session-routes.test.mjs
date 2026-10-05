@@ -487,7 +487,7 @@ test('builder session, cancel, trace, and preview routes log failure codes on in
         if (failRunRead) throw new Error('RUN_READ_FAIL')
         return { builderRunId: runId, accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k', content: 'c', state: 'PENDING', resultKind: null, runSequence: 1, baseSourceRevision: '0'.repeat(40), resultSourceRevision: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
       },
-      readPreviewSubject: async () => ({ lastPreviewSourceRevision: 'a'.repeat(40), lastPreviewArtifactRevisionId: runId, lastPreviewArtifactDigest: 'd'.repeat(64) }),
+      readLaunchSubject: async () => ({ lastPreviewSourceRevision: 'a'.repeat(40), lastPreviewArtifactRevisionId: runId, lastPreviewArtifactDigest: 'd'.repeat(64) }),
     },
     service: {
       cancelBuilderRun: async () => { throw new Error('CANCEL_SERVICE_FAIL') },
@@ -622,7 +622,10 @@ for (const [label, status, type] of [['401', 401, 'authentication_error'], ['503
 }
 
 test('a message that starts a run answers 201, and one a waiting run takes answers 200 with that run', async (t) => {
-  const run = { builderRunId: '88888888-8888-4888-8888-888888888888', projectId: projectA, conversationId: conversationA, state: 'RUNNING', phase: 'WAITING' }
+  const run = {
+    builderRunId: '88888888-8888-4888-8888-888888888888', projectId: projectA, conversationId: conversationA, state: 'RUNNING', phase: 'WAITING', baseSourceRevision: '0'.repeat(40),
+    resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'altere', createdAt: '2026-10-05T12:00:00.000Z', cancellationRequested: false,
+  }
   let created = true
   const { app } = await createBuilderRoutesApp(t, { sendBuilderMessage: async () => ({ builderRun: run, created }) })
   const send = () => app.inject({ method: 'POST', url: `/api/control/projects/${projectA}/builder-session/messages`, headers: { ...authentic.headers, 'idempotency-key': 'k-1' }, cookies: authentic.cookies, payload: { content: 'altere', conversationId: conversationA } })

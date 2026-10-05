@@ -90,6 +90,24 @@ test('an auth failure from the model is not retried', async (t) => {
   assert.equal(calls.length, 1)
 })
 
+test('a Failure that carries a database error reaches the Builder stream as its code, never as the database error', async (t) => {
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
+  const database = Object.assign(new Error('duplicate key value violates unique constraint "builder_run_one_active"'), {
+    name: 'error', code: '23505', detail: `Key (project_id)=(${projectId}) already exists.`, schema: 'builder', table: 'builder_run', constraint: 'builder_run_one_active',
+  })
+  const { model } = answering(new Failure('BUILDER_RUN_MODEL_ACCOUNT_RECORD_REFUSED', { cause: database }))
+  const { run, controller } = await openRun(t, { model, failsRead: () => false })
+  const session = await controller.getSessionByResource(`project:${projectId}`, `conversation:${conversationId}`)
+  const events = []
+  session.subscribe((event) => { events.push(event) })
+  const outcome = await settle(run.takeStep({ kind: 'SEND', content: 'Faça o app.' }, new AbortController().signal))
+  const wire = JSON.stringify(events)
+  assert.equal(outcome.settled, 'rejected')
+  assert.equal(wire.includes('BUILDER_RUN_MODEL_ACCOUNT_RECORD_REFUSED'), true, 'the stream names the failure by its code')
+  for (const leaked of ['builder_run_one_active', 'Key (project_id)', '23505', 'schema']) assert.equal(wire.includes(leaked), false, leaked)
+  assert.equal(JSON.stringify(new Failure('PROJECT_BUSY', { cause: database })), '{"message":"PROJECT_BUSY","domain":"MASTRA_SERVER","category":"USER","code":"PROJECT_BUSY","details":{},"cause":{"name":"Error","message":"PROJECT_BUSY"}}')
+})
+
 test('the web says a platform fault was the Conexus, not the model, and other internal errors keep their sentence', async () => {
   const { failureCodeText } = await import('../../apps/web/src/app/failure.ts')
   assert.equal(

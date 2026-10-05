@@ -356,7 +356,7 @@ const routingOver = async ({ store, threadModel = null, defaults = {}, routes = 
     modelAccounts: store,
     conversationModel: async () => threadModel,
     readDefault: async (role) => defaults[role] ?? null,
-    record: async (builderRunId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
+    record: async (builderRunId, _accountId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
   })
   const call = (builderRunId, accountId, modelId) => {
     const requestContext = new RequestContext()

@@ -5,6 +5,10 @@ import pg from 'pg'
 import { loadHubMigrationFiles, runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
+import { setupBuilder } from './builder-fixture.mjs'
+
+const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
+const EXECUTOR_HUB = '0f000000-0000-4000-8000-000000000a01'
 
 const required = (name) => process.env[name] || (() => { throw new Error(`MISSING_TEST_CONFIG_${name}`) })()
 const admin = { host: required('CONEXUS_TEST_DB_HOST'), port: Number(required('CONEXUS_TEST_DB_PORT')), database: required('CONEXUS_TEST_DB_NAME'), user: required('CONEXUS_TEST_DB_USER'), password: required('CONEXUS_TEST_DB_PASSWORD') }
@@ -80,46 +84,15 @@ test('C-020 Registry retains execution artifacts and serves authorized source re
 
 test('C-020 source-scoped settlement composes with the executor artifact lifecycle', async (t) => {
   await refuseProtectedCluster()
-  const database = `registry_settlement_${randomUUID().replaceAll('-', '')}`
-  const owner = await connect(admin)
+  const fixture = await setupBuilder(t, 'registry_settlement')
+  const config = fixture.connection
+  const builder = createBuilderStore({ database: fixture.database, ownerId: EXECUTOR_HUB })
   let setup
   let runtime
-  await owner.query(`CREATE DATABASE "${database}"`)
-  t.after(async () => { await runtime?.end(); await setup?.end(); await owner.query(`DROP DATABASE "${database}" WITH (FORCE)`); await owner.end() })
-  const config = { ...admin, database }
-  const url = new URL('postgresql://localhost'); url.hostname = config.host; url.port = String(config.port); url.pathname = `/${database}`; url.username = config.user; url.password = config.password
-  const migrated = await runHubMigrations({ connectionString: url.toString() })
-  assert.deepEqual(migrated.versions, loadHubMigrationFiles().map(({ version }) => version))
+  fixture.onCleanup(async () => { await runtime?.end(); await setup?.end() })
   const { createApplicationArtifactStore } = await import(hubModuleUrl('registry/application-artifact-store.js'))
-  const servedReader = await servedReaderOver(() => runtime)
   setup = await connect(config)
-  assert.deepEqual((await setup.query(`SELECT
-    has_schema_privilege('builder_owner', 'reg', 'USAGE') AS builder_reg_usage,
-    has_function_privilege('builder_owner', 'reg.matches_application_artifact(uuid,text,uuid,text)', 'EXECUTE') AS builder_artifact_match,
-    has_function_privilege('builder_owner', 'reg.get_application_by_source(uuid,uuid,text)', 'EXECUTE') AS builder_source_get,
-    has_function_privilege('builder_owner', 'reg.retain_application_execution(uuid,uuid,uuid,text,jsonb)', 'EXECUTE') AS builder_execution_retain,
-    has_function_privilege('builder_owner', 'reg.read_application_file_by_source(uuid,uuid,text,uuid,text)', 'EXECUTE') AS builder_source_read,
-    has_function_privilege('hub_builder_executor', 'reg.retain_application_execution(uuid,uuid,uuid,text,jsonb)', 'EXECUTE') AS executor_execution_retain,
-    has_function_privilege('hub_builder_executor', 'reg.get_application_by_source(uuid,uuid,text)', 'EXECUTE') AS executor_source_get,
-    has_function_privilege('hub_builder_executor', 'reg.read_application_file_by_source(uuid,uuid,text,uuid,text)', 'EXECUTE') AS executor_source_read,
-    has_function_privilege('hub_builder_executor', 'reg.retain_application_thumbnail(uuid,uuid,uuid,text,uuid,text,bytea)', 'EXECUTE') AS executor_thumbnail_retain,
-    has_function_privilege('hub_builder_executor', 'reg.get_application_thumbnail(uuid,uuid)', 'EXECUTE') AS executor_thumbnail_get,
-    has_function_privilege('public', 'reg.get_application_by_source(uuid,uuid,text)', 'EXECUTE') AS public_source_get,
-    has_function_privilege('public', 'reg.read_application_file_by_source(uuid,uuid,text,uuid,text)', 'EXECUTE') AS public_source_read,
-    has_function_privilege('public', 'reg.retain_application_execution(uuid,uuid,uuid,text,jsonb)', 'EXECUTE') AS public_execution_retain,
-    has_function_privilege('public', 'reg.retain_application_thumbnail(uuid,uuid,uuid,text,uuid,text,bytea)', 'EXECUTE') AS public_thumbnail_retain,
-    has_function_privilege('public', 'reg.get_application_thumbnail(uuid,uuid)', 'EXECUTE') AS public_thumbnail_get,
-    has_table_privilege('builder_owner', 'reg.artifact', 'SELECT') AS builder_artifact_select,
-    has_table_privilege('builder_owner', 'reg.artifact_revision', 'SELECT') AS builder_revision_select,
-    pg_has_role('builder_owner', 'registry_owner', 'member') AS builder_registry_member,
-    to_regprocedure('reg.get_application_execution(uuid,uuid,uuid,text)')::text AS execution_get,
-    to_regprocedure('reg.read_application_file_execution(uuid,uuid,uuid,text,uuid,text)')::text AS execution_read`)).rows, [{
-    builder_reg_usage: true, builder_artifact_match: true, builder_source_get: false, builder_execution_retain: false, builder_source_read: false,
-    executor_execution_retain: true, executor_source_get: true, executor_source_read: true, executor_thumbnail_retain: true, executor_thumbnail_get: true,
-    public_source_get: false, public_source_read: false, public_execution_retain: false, public_thumbnail_retain: false, public_thumbnail_get: false,
-    builder_artifact_select: false, builder_revision_select: false, builder_registry_member: false,
-    execution_get: null, execution_read: null,
-  }])
+  const servedReader = await servedReaderOver(() => runtime)
   const accountId = randomUUID(); const workspaceId = randomUUID(); const projectId = randomUUID(); const builderRunId = randomUUID()
   const sourceA = 'a'.repeat(40); const sourceB = 'b'.repeat(40)
   const digest = 'e'.repeat(64)
@@ -130,10 +103,11 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   await setup.query('INSERT INTO builder.project_working_state(project_id) VALUES ($1)', [projectId])
   await setup.query(`INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, trigger_message_id, idempotency_digest, request_digest, base_source_revision, state, candidate_revision)
     VALUES ($1, $2, $3, $7, $4, $5, $5, $6, 'RUNNING', $8)`, [builderRunId, projectId, accountId, builderRunId, digest, sourceA, `conversa-${projectId}`, sourceB])
+  await setup.query('UPDATE builder.builder_run SET owner_id = $2 WHERE builder_run_id = $1', [builderRunId, EXECUTOR_HUB])
   await setup.query("ALTER ROLE hub_builder_executor PASSWORD 'registry-settlement-test'")
   runtime = await connect({ ...config, user: 'hub_builder_executor', password: 'registry-settlement-test' })
   const store = createApplicationArtifactStore()
-  assert.equal((await runtime.query('SELECT builder.advance_builder_run_source($1,$2) AS advanced', [builderRunId, sourceB])).rows[0].advanced, true)
+  await builder.advanceBuilderRunSource(builderRunId, sourceB)
   const bytes = Buffer.from('<!doctype html><title>Settlement</title>')
   const application = { projectId, executionId: builderRunId, sourceRevision: sourceB, templateRef: '537fnzf4c16x9d7oz21k:3331a697-459d-44d8-bcdd-abade6ba1e81', recipeSha256: 'ce2a48f54c08ccdd7641fac8208560963cf43ecdc16bd459a3f333786d1ed4b5', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes, sha256: createHash('sha256').update(bytes).digest('hex') }] }
   const retained = await store.retainApplication(runtime, { accountId, compiled: application })
@@ -149,7 +123,7 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   // Settlement records work the run already performed, so it does not ask for authority. A
   // refusal here would leave a run that ran and cannot say so.
   await setup.query('DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [accountId, workspaceId])
-  assert.equal((await runtime.query('SELECT builder.settle_builder_run_build($1,$2,$3,$4,$5) AS settled', [builderRunId, sourceB, retained.artifactRevisionId, retained.artifactDigest, null])).rows[0].settled, true)
+  await builder.settleBuilderRunBuild({ kind: 'BUILT', builderRunId, sourceRevision: sourceB, artifactRevisionId: retained.artifactRevisionId, artifactDigest: retained.artifactDigest })
   assert.deepEqual((await setup.query(`SELECT state, result_kind, result_source_revision FROM builder.builder_run WHERE builder_run_id = $1`, [builderRunId])).rows, [
     { state: 'SUCCEEDED', result_kind: 'SOURCE_CHANGED', result_source_revision: sourceB },
   ])
@@ -183,15 +157,12 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
 
 test('a BUILT result that carries a thumbnail settles through the real registry: the build is stored and the thumbnail is retained', async (t) => {
   await refuseProtectedCluster()
-  const database = `registry_thumbnail_${randomUUID().replaceAll('-', '')}`
-  const owner = await connect(admin)
+  const fixture = await setupBuilder(t, 'registry_thumbnail')
+  const config = fixture.connection
+  const builder = createBuilderStore({ database: fixture.database, ownerId: EXECUTOR_HUB })
   let setup
   let runtime
-  await owner.query(`CREATE DATABASE "${database}"`)
-  t.after(async () => { await runtime?.end(); await setup?.end(); await owner.query(`DROP DATABASE "${database}" WITH (FORCE)`); await owner.end() })
-  const config = { ...admin, database }
-  const url = new URL('postgresql://localhost'); url.hostname = config.host; url.port = String(config.port); url.pathname = `/${database}`; url.username = config.user; url.password = config.password
-  await runHubMigrations({ connectionString: url.toString() })
+  fixture.onCleanup(async () => { await runtime?.end(); await setup?.end() })
   const { createApplicationArtifactStore } = await import(hubModuleUrl('registry/application-artifact-store.js'))
   const { settleAdmittedSource } = await import(hubModuleUrl('builder/run/admit.js'))
   setup = await connect(config)
@@ -205,9 +176,9 @@ test('a BUILT result that carries a thumbnail settles through the real registry:
   await setup.query(`INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, trigger_message_id, idempotency_digest, request_digest, base_source_revision, state, candidate_revision)
     VALUES ($1, $2, $3, $7, $4, $5, $5, $6, 'RUNNING', $8)`, [builderRunId, projectId, accountId, builderRunId, digest, sourceA, `conversa-${projectId}`, sourceB])
   await setup.query("INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'thumbnail-app', $2)", [projectId, accountId])
+  await setup.query('UPDATE builder.builder_run SET owner_id = $2 WHERE builder_run_id = $1', [builderRunId, EXECUTOR_HUB])
   await setup.query("ALTER ROLE hub_builder_executor PASSWORD 'registry-thumbnail-test'")
   runtime = await connect({ ...config, user: 'hub_builder_executor', password: 'registry-thumbnail-test' })
-  assert.equal((await runtime.query('SELECT builder.advance_builder_run_source($1,$2) AS advanced', [builderRunId, sourceB])).rows[0].advanced, true)
 
   const store = createApplicationArtifactStore()
   const servedReader = await servedReaderOver(() => runtime)
@@ -217,10 +188,10 @@ test('a BUILT result that carries a thumbnail settles through the real registry:
   const settled = []
   await settleAdmittedSource({
     store: {
-      advanceBuilderRunSource: async () => {},
+      advanceBuilderRunSource: (id, revision) => builder.advanceBuilderRunSource(id, revision),
       settleBuilderRunBuild: async (input) => {
         settled.push(['build-settle', input.failureCode ?? null, Boolean(input.artifactRevisionId)])
-        assert.equal((await runtime.query('SELECT builder.settle_builder_run_build($1,$2,$3,$4,$5) AS settled', [input.builderRunId, input.sourceRevision, input.artifactRevisionId ?? null, input.artifactDigest ?? null, input.failureCode ?? null])).rows[0].settled, true)
+        await builder.settleBuilderRunBuild(input)
       },
     },
     applicationArtifacts: {

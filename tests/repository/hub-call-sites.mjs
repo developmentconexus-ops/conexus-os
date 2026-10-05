@@ -11,32 +11,8 @@ export const registeredRoles = new Set([...roleRegister.roles, ...roleRegister.t
 // what stops a new call being added without saying who runs it, and a row here with no call site
 // fails too, so the table cannot outlive the code it describes.
 export const ROLE_BY_CALL_SITE = Object.freeze({
-  'builder/store.ts': Object.freeze({
-    'builder.create_builder_run': 'hub_builder_ingress',
-    'builder.read_builder_run': 'hub_builder_ingress',
-    'builder.list_builder_runs': 'hub_builder_ingress',
-    'builder.read_latest_code_changing_builder_run': 'hub_builder_ingress',
-    'builder.request_builder_run_cancellation': 'hub_builder_ingress',
-    'builder.read_preview_subject': 'hub_builder_ingress',
-    'builder.admit_source_revision': 'hub_builder_ingress',
-    'builder.claim_builder_run': 'hub_builder_executor',
-    'builder.set_builder_run_phase': 'hub_builder_executor',
-    'builder.record_builder_run_candidate': 'hub_builder_executor',
-    'builder.bind_builder_run_message': 'hub_builder_executor',
-    'builder.bind_builder_run_sandbox': 'hub_builder_executor',
-    'builder.settle_builder_run': 'hub_builder_executor',
-    'builder.advance_builder_run_source': 'hub_builder_executor',
-    'builder.settle_builder_run_build': 'hub_builder_executor',
-    'builder.fail_builder_run': 'hub_builder_executor',
-    'builder.interrupt_builder_run': 'hub_builder_executor',
-    'builder.renew_run_lease': 'hub_builder_executor',
-    'builder.lock_project_for_run': 'hub_builder_ingress',
-    'builder.record_builder_run_model_account': 'hub_builder_executor',
-    'builder.record_conversation_session': 'hub_builder_executor',
-    'builder.record_conversation_sandbox': 'hub_builder_executor',
-    'builder.read_conversation_sandbox': 'hub_builder_executor',
-    'builder.read_project_sandboxes': 'hub_builder_executor',
-    'builder.read_open_run_conversations': 'hub_builder_executor',
+  'builder/run-steps.ts': Object.freeze({
+    'reg.matches_application_artifact': 'hub_command',
   }),
   'identity-access/reaper.ts': Object.freeze({
     'iam.reap_expired': 'hub_iam_runtime',
@@ -90,10 +66,6 @@ export const ROLE_BY_CALL_SITE = Object.freeze({
   'project/deletion.ts': Object.freeze({
     'iam.purge_project': 'hub_command',
     'reg.purge_project': 'hub_command',
-    'builder.purge_project': 'hub_command',
-  }),
-  'project/store.ts': Object.freeze({
-    'builder.register_project_repository': 'hub_command',
   }),
   'registry/application-artifact-store.ts': Object.freeze({
     'reg.retain_application_execution': 'hub_builder_executor',

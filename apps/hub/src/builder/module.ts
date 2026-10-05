@@ -1,23 +1,25 @@
+import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import type { ToolsInput } from '@mastra/core/agent'
 import { Mastra } from '@mastra/core/mastra'
 import { ConsoleLogger } from '@mastra/core/logger'
 import type { ObservabilityInstance } from '@mastra/core/observability'
 import type { RequestContext } from '@mastra/core/request-context'
-import { openFactoryPool, type PostgresPool } from '../platform/db.js'
+import { openFactoryPool, type Database, type PostgresPool } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import type { Job } from '../platform/jobs.js'
 import { logLine } from '../platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from '../platform/secrets.js'
+import { AccountId, BuilderRunId, ModelAccountId, type ProjectId, SourceRevision, type BuilderTraceSummary } from '../../../../packages/contract/dist/index.js'
 import { registerBuilderRoutes } from './routes.js'
 import { mountLogFilter, mountValidationFailure, registerBuilderSessionRoutes } from './mastra-session-routes.js'
 import type { ToolPayloadProjection } from './mastra-session-routes.js'
-import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
+import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot } from './routes.js'
 import { createBuilderService } from './service.js'
 import type { ApplicationServerPort, ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderStore } from './store.js'
+export { builderProjectPorts } from './project-ports.js'
 import { buildTraceSummary, UNAVAILABLE_TRACE_SUMMARY } from './trace-summary.js'
-import type { AccountId } from '../identity-access/current-session.js'
 import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig, InstallationSecretKey } from '../platform/config.js'
 import { assertBuilderSkillsAvailable } from './skills-guard.js'
 import type { BuilderRunPorts } from './run/ports.js'
@@ -87,7 +89,8 @@ const DAY_MS = 24 * HOUR_MS
 const RUN_LEASE_EVERY_MS = 10_000
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
-export const createConfiguredBuilderModule = ({ database, runtimePool, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, isInstallationAdministrator, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
+export const createConfiguredBuilderModule = ({ data, database, runtimePool, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, isInstallationAdministrator, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
+  data: Database
   database: Readonly<{ host: string; port: number; database: string }>
   runtimePool: PostgresPool
   builder: Readonly<{
@@ -113,10 +116,7 @@ export const createConfiguredBuilderModule = ({ database, runtimePool, builder, 
   assertBuilderSkillsAvailable()
   const check = loadCheckBundle()
   const log = logLine
-  const store = createBuilderStore({
-    ingressPool: runtimePool,
-    executorPool: runtimePool,
-  })
+  const store = createBuilderStore({ database: data, ownerId: randomUUID() })
   // Google AI Pro's credential lives in model.model_account (spec 0002), sealed with the same
   // envelope every Conexus secret uses.
   const modelAccounts = createModelAccountStore({
@@ -156,7 +156,9 @@ export const createConfiguredBuilderModule = ({ database, runtimePool, builder, 
     // Read when a run starts, long after the controller below exists.
     conversationModel: (projectId, conversationId) => conversationModel(projectId, conversationId),
     readDefault,
-    record: (builderRunId, modelAccountId) => store.recordBuilderRunModelAccount(builderRunId, modelAccountId),
+    record: (builderRunId, accountId, modelAccountId) => store.recordBuilderRunModelAccount({
+      builderRunId: BuilderRunId.parse(builderRunId), accountId: AccountId.parse(accountId), modelAccountId: ModelAccountId.parse(modelAccountId),
+    }),
   })
   // Built, never connected, here: the tools are listed on a run's first step, so Context7 being down never delays boot.
   const docsTools = createContext7Docs({ apiKey: builder.context7ApiKeyFile ? readSecretFile(builder.context7ApiKeyFile) : undefined })
@@ -165,8 +167,8 @@ export const createConfiguredBuilderModule = ({ database, runtimePool, builder, 
     workspace: (context) => liveConversations.workspace(context),
     runTools: ({ requestContext }) => {
       const conversationId = requestContext.getRaw(CONVERSATION_ID_KEY)
-      const runId = requestContext.getRaw(RUN_ID_KEY)
-      return typeof conversationId === 'string' && typeof runId === 'string' ? service.runTools(conversationId, runId) : undefined
+      const runId = BuilderRunId.safeParse(requestContext.getRaw(RUN_ID_KEY))
+      return typeof conversationId === 'string' && runId.success ? service.runTools(conversationId, runId.data) : undefined
     },
     model: modelRouting.resolve,
     docsTools,
@@ -261,7 +263,7 @@ export const createConfiguredBuilderModule = ({ database, runtimePool, builder, 
       if (!preview) throw new Failure('PROJECT_BUILD_DENIED')
       return Object.freeze({
         projectId,
-        workingSourceRevision: await git.readMain(projectId).catch(() => null),
+        workingSourceRevision: SourceRevision.safeParse(await git.readMain(projectId).catch(() => null)).data ?? null,
         lastPreviewSourceRevision: preview.lastPreviewSourceRevision,
         lastPreviewArtifactRevisionId: preview.lastPreviewArtifactRevisionId,
         lastPreviewArtifactDigest: preview.lastPreviewArtifactDigest,
@@ -292,7 +294,7 @@ export const createConfiguredBuilderModule = ({ database, runtimePool, builder, 
       })
     },
   })
-  const admitProject = async ({ accountId, projectId }: Readonly<{ accountId: string; projectId: string }>): Promise<boolean> =>
+  const admitProject = async ({ accountId, projectId }: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<boolean> =>
     (await store.readPreviewSubject({ accountId, projectId })) !== null
   return Object.freeze({
     jobs,
@@ -318,11 +320,11 @@ export const createConfiguredBuilderModule = ({ database, runtimePool, builder, 
       return builderOperations
     },
     // Absent without the Builder, and then no Project can be created.
-    prepareProjectRepository: (projectId: string) => git.ensureRepository(projectId),
+    prepareProjectRepository: (projectId: ProjectId) => git.ensureRepository(projectId),
     // Runs before the Project's purge, which drops the rows that name its VMs.
-    killProjectSandboxes: async (projectId: string) => { await sandboxes.killRecorded(await store.readProjectSandboxes(projectId)) },
+    killProjectSandboxes: async (projectId: ProjectId) => { await sandboxes.killRecorded(await store.readProjectSandboxes(projectId)) },
     // A deleted Project leaves neither its conversations nor its repository behind.
-    deleteProjectRepository: async (projectId: string) => {
+    deleteProjectRepository: async (projectId: ProjectId) => {
       const conversationIds = await conversations.deleteAll(projectId)
       await liveConversations.drop(projectId, conversationIds)
       await git.deleteRepository(projectId)

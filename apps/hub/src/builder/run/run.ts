@@ -1,3 +1,4 @@
+import type { AccountId, BuilderRunId, ProjectId } from '../../../../../packages/contract/dist/index.js'
 import { APPLICATION_CHECK_EXCLUDED } from '../application-starter.js'
 import type { ApplicationServerPort, BuilderApplicationArtifacts } from '../application-build.js'
 import { agentReportOf } from '../check/report.js'
@@ -9,6 +10,7 @@ import { createRunTiming } from '../run-timing.js'
 import { PROJECT_FILE_READ_LIMIT, PROJECT_INSTRUCTIONS_PATH, PROJECT_MEMORY_PATH, readProjectInstructions, readProjectMemory } from '../project-context.js'
 import type { BuilderRunSummary, BuilderRunView, BuilderStore, InterruptionCode } from '../store.js'
 import type { BuilderRunPhase } from '../../generated/builder-run-vocabulary.js'
+import type { RunActor } from '../run-access.js'
 import type { CandidateGate } from '../candidate-gate.js'
 import { Failure, type FailureCode, logFailure, toFailure } from '../../platform/failure.js'
 import { logger } from '../../platform/logger.js'
@@ -42,7 +44,7 @@ class CandidateRefused extends Failure {
   }
 }
 
-type RunStore = Pick<BuilderStore, 'claimBuilderRun' | 'setBuilderRunPhase' | 'recordBuilderRunCandidate' | 'bindBuilderRunMessage' | 'bindBuilderRunSandbox' |
+type RunStore = Pick<BuilderStore, 'claimBuilderRun' | 'failUnclaimedBuilderRun' | 'setBuilderRunPhase' | 'recordBuilderRunCandidate' | 'bindBuilderRunMessage' | 'bindBuilderRunSandbox' |
   'recordConversationSandbox' | 'recordConversationSession' | 'settleBuilderRun' | 'advanceBuilderRunSource' |
   'settleBuilderRunBuild' | 'failBuilderRun' | 'interruptBuilderRun' | 'readBuilderRun'>
 
@@ -55,8 +57,6 @@ export type RunEnvironment = Readonly<{
   appendDiagnostic: DiagnosticAppender
   /** Hands the run, as the builder-session read serves it, to a browser following its conversation; never throws. */
   publishRun(run: BuilderRunView): Promise<void>
-  /** This Hub process as the owner of the runs it works. */
-  ownerId: string
   /** How long a question waits for the person before the run ends. */
   questionWaitMs: number
   /** The wait before a failed ending write is tried again; it is tried three times. */
@@ -65,8 +65,8 @@ export type RunEnvironment = Readonly<{
 
 /** The one handle the service holds per conversation. Nothing else reaches the run's session, sandbox or row. */
 export type LiveRun = Readonly<{
-  builderRunId: string
-  projectId: string
+  builderRunId: BuilderRunId
+  projectId: ProjectId
   answer(toolCallId: string, resumeData: unknown): AnswerOutcome
   /** A message for the run: taken while it waits on the person, else the run is busy. A known key is taken once. */
   message(content: string, idempotencyKey: string): 'ACCEPTED' | 'BUSY'
@@ -79,7 +79,7 @@ export type LiveRun = Readonly<{
   done: Promise<void>
 }>
 
-type RunRequest = Readonly<{ accountId: string; content: string; idempotencyKey: string }>
+type RunRequest = Readonly<{ accountId: AccountId; content: string; idempotencyKey: string }>
 
 // Settled, left to the sweep (maybe on `main`, or ended by a takeover), or ended with a code the exit writes.
 type RunEnding =
@@ -107,6 +107,8 @@ type Run = {
   prepared: Prepared | undefined
   keepaliveFailure: Error | undefined
   source: RunSource
+  /** Set once the claim wrote this run's owner; until then only an unclaimed row's own transition ends it. */
+  claimed: boolean
   mirrorEnded: Promise<void> | undefined
 }
 
@@ -132,10 +134,13 @@ const logged = (run: Run, code: FailureCode) => (error: unknown): void => {
   logFailure(logger, new Failure(code, { cause: error }), { 'builder.run_id': run.row.builderRunId })
 }
 
+// Until the candidate is recorded a run's writes are its author's and need the access they were admitted with; after it, they are the executor's.
+const actorOf = (run: Run): RunActor => (run.source === 'CANDIDATE_RECORDED' || run.source === 'ADMITTED' ? { via: 'executor' } : { via: 'account', accountId: run.request.accountId })
+
 // A phase the database refuses means a stop was asked for; the browser following the run hears every one written.
 // `written` runs once the row holds the phase, before the browser hears of it.
 const setPhase = async (run: Run, phase: BuilderRunPhase, written?: () => void): Promise<void> => {
-  const summary = await run.env.store.setBuilderRunPhase(run.row.builderRunId, phase)
+  const summary = await run.env.store.setBuilderRunPhase(run.row.builderRunId, phase, actorOf(run))
   if (!summary) throw await phaseRefusal(run)
   run.trace.phase(phase)
   written?.()
@@ -143,7 +148,7 @@ const setPhase = async (run: Run, phase: BuilderRunPhase, written?: () => void):
 }
 
 const pendingCallsOf = (run: Run): readonly string[] => (run.inbox.waiting() ? run.prepared?.session.pendingCalls() ?? [] : [])
-const viewOf = (run: Run, summary: BuilderRunSummary): BuilderRunView => ({ ...summary, pendingCalls: pendingCallsOf(run) })
+const viewOf = (run: Run, summary: BuilderRunSummary): BuilderRunView => ({ ...summary, pendingCalls: [...pendingCallsOf(run)] })
 
 // The database refuses a phase once a stop is asked for or once the row is no longer running; the row says which.
 const phaseRefusal = async (run: Run): Promise<Failure> => {
@@ -158,7 +163,7 @@ const endMirror = (run: Run, candidate: string | null): Promise<void> => {
     const head = await run.vm.endMirror(candidate, run.prepared?.pulled() ?? null)
     if (head) {
       await run.env.store.recordConversationSession({
-        projectId: run.row.projectId, conversationId: run.row.conversationId, mirrorHead: head, syncedMain: run.row.baseSourceRevision, turnEnded: true,
+        builderRunId: run.row.builderRunId, conversationId: run.row.conversationId, mirrorHead: head, syncedMain: run.row.baseSourceRevision, turnEnded: true,
       }).catch(logged(run, 'BUILDER_MIRROR_FAILED'))
     }
   })()
@@ -201,7 +206,7 @@ const prepare = async (run: Run): Promise<Prepared> => {
   const sandbox = await ports.openSandbox(conversation)
   const vm = await run.vm.open(sandbox, async (sandboxId) => {
     await store.bindBuilderRunSandbox(builderRunId, sandboxId)
-    await store.recordConversationSandbox({ ...conversation, providerSandboxId: sandboxId })
+    await store.recordConversationSandbox({ builderRunId, conversationId, providerSandboxId: sandboxId })
   })
   if (cancelled(run)) throw new Failure('BUILDER_RUN_CANCELLED')
   const turnStart = await run.vm.startTurn({
@@ -259,7 +264,7 @@ const converse = async (run: Run, prepared: Prepared): Promise<void> => {
     if (turn.reason === 'aborted') run.env.ports.log('BUILDER_AGENT_END', { run: run.row.builderRunId, reason: 'aborted' })
     if (!bound) {
       if (!turn.userMessageId) throw new Failure('BUILDER_MESSAGE_ID_UNAVAILABLE')
-      await run.env.store.bindBuilderRunMessage(run.row.builderRunId, turn.userMessageId)
+      await run.env.store.bindBuilderRunMessage({ builderRunId: run.row.builderRunId, projectId: run.row.projectId, accountId: run.request.accountId, messageId: turn.userMessageId })
       bound = true
     }
     // An agent that ends aborted without a stop failed on its own, for example a model call it
@@ -291,7 +296,7 @@ const conclude = async (run: Run, prepared: Prepared): Promise<RunEnding> => {
   if (!verdict) {
     if (cancelled(run)) throw new Failure('BUILDER_LATE_RESULT_REFUSED')
     await setPhase(run, 'FINALIZING')
-    await env.store.settleBuilderRun({ builderRunId: row.builderRunId, resultSourceRevision: null, resultKind: 'RESPONSE_ONLY', failureCode: null })
+    await env.store.settleBuilderRun(row.builderRunId)
     return { kind: 'SETTLED' }
   }
   if (cancelled(run)) throw new Failure('BUILDER_RUN_CANCELLED')
@@ -302,7 +307,7 @@ const conclude = async (run: Run, prepared: Prepared): Promise<RunEnding> => {
     git: env.ports.git, projectId: row.projectId, executionId: row.builderRunId, base: row.baseSourceRevision, verdict, cancelled: () => cancelled(run),
     gatePhases: prepared.gatePhases(), setPhase: (phase) => setPhase(run, phase), timing: run.timing,
     recordCandidate: async (sourceRevision) => {
-      await env.store.recordBuilderRunCandidate(row.builderRunId, sourceRevision)
+      await env.store.recordBuilderRunCandidate({ builderRunId: row.builderRunId, accountId: run.request.accountId, sourceRevision })
       run.source = 'CANDIDATE_RECORDED'
     },
   })
@@ -316,7 +321,8 @@ const conclude = async (run: Run, prepared: Prepared): Promise<RunEnding> => {
 
 const work = async (run: Run): Promise<RunEnding> => {
   const { env, row } = run
-  await env.store.claimBuilderRun(row.builderRunId, env.ownerId)
+  await env.store.claimBuilderRun(row.builderRunId)
+  run.claimed = true
   await setPhase(run, 'PREPARING')
   // The start model's account is the person's own, else the installation's shared one; none
   // refuses the run before a sandbox exists, with the "connect a model" answer.
@@ -370,7 +376,9 @@ const diagnose = async (run: Run, error: unknown, ended: Failure, ending: RunEnd
 const writeEnding = async (run: Run, ending: RunEnding): Promise<void> => {
   const { store, settleRetryMs } = run.env
   const id = run.row.builderRunId
-  const write = ending.kind === 'INTERRUPTED' ? () => store.interruptBuilderRun(id, ending.code)
+  // A run no claim reached has no owner to admit: a refused claim ends the still queued row, and a stop leaves it to the lease.
+  const write = !run.claimed ? ending.kind === 'FAILED' ? () => store.failUnclaimedBuilderRun(id, ending.code) : null
+    : ending.kind === 'INTERRUPTED' ? () => store.interruptBuilderRun(id, ending.code)
     : ending.kind === 'FAILED' ? () => store.failBuilderRun(id, ending.code) : null
   if (!write) return
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -426,7 +434,7 @@ export const startRun = (env: RunEnvironment, row: BuilderRunSummary, request: R
         keepalive.abort()
       },
     }),
-    connectorRun: null, prepared: undefined, keepaliveFailure: undefined, source: 'NONE', mirrorEnded: undefined,
+    connectorRun: null, prepared: undefined, keepaliveFailure: undefined, source: 'NONE', claimed: false, mirrorEnded: undefined,
   }
   const taken = new Set([request.idempotencyKey])
   const done = (async () => {

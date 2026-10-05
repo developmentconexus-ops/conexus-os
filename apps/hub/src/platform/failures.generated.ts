@@ -155,6 +155,7 @@ export const FAILURES = {
   'BUILDER_RUN_CANCELLATION_REFUSED': { category: 'SYSTEM', status: 500 },
   'BUILDER_RUN_CANCELLED': { category: 'USER', status: 500 },
   'BUILDER_RUN_CANDIDATE_REFUSED': { category: 'SYSTEM', status: 500 },
+  'BUILDER_CONVERSATION_SESSION_REFUSED': { category: 'SYSTEM', status: 500 },
   'BUILDER_RUN_CLAIM_REFUSED': { category: 'SYSTEM', status: 500 },
   'BUILDER_RUN_CREATE_FAILED': { category: 'SYSTEM', status: 500 },
   'BUILDER_RUN_FAILURE_REFUSED': { category: 'SYSTEM', status: 500 },

@@ -5,7 +5,7 @@ import { registerProjectRoutes } from './routes.js'
 import type { ProjectThumbnailReader } from './routes.js'
 import { createProjectStore } from './store.js'
 import type { ProjectRepositoryPort } from './store.js'
-import type { ProjectDeletionPorts } from './deletion.js'
+import type { BuilderProjectPorts, ProjectDeletionPorts } from './deletion.js'
 
 export type ProjectModule = Readonly<{
   registerProjectRoutes(app: FastifyInstance): ReturnType<typeof registerProjectRoutes>
@@ -17,14 +17,16 @@ export const createConfiguredProjectModule = ({
   database,
   repository,
   deletion,
+  builder,
   thumbnailReader,
 }: Readonly<{
   database: Database
   repository: ProjectRepositoryPort
   deletion: ProjectDeletionPorts
+  builder: BuilderProjectPorts
   thumbnailReader?: ProjectThumbnailReader | undefined
 }>): ProjectModule => {
-  const store = createProjectStore({ database, repository, deletion })
+  const store = createProjectStore({ database, repository, deletion, builder })
   return Object.freeze({
     registerProjectRoutes: (app: FastifyInstance) => registerProjectRoutes(app, { store, thumbnailReader }),
     readProjectName: async (input) => (await store.getProject({ accountId: AccountId.parse(input.accountId), projectId: ProjectId.parse(input.projectId) }))?.name ?? null,

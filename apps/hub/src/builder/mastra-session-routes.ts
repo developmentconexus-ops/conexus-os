@@ -5,6 +5,7 @@ import { MastraServer } from '@mastra/fastify'
 import { HTTPException, SERVER_ROUTES } from '@mastra/server/server-adapter'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { ServerResponse } from 'node:http'
+import { ProjectId, type AccountId, type ProjectId as ProjectIdType } from '../../../../packages/contract/dist/index.js'
 import { foreignRoutes } from '../http/access.js'
 import { parseJsonBody } from '../http/app.js'
 import { failureProblem } from '../http/problem.js'
@@ -242,13 +243,13 @@ type GuardedMount = Readonly<{
   controllerId: string
   routes: ReadonlySet<string>
   /** Whether the Account may build this Project. */
-  admitProject(input: Readonly<{ accountId: string; projectId: string }>): Promise<boolean>
+  admitProject(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<boolean>
   /** Whose thread the conversation id is: this Project's, another resource's, or nobody's yet. */
   conversationOwner(input: Readonly<{ projectId: string; conversationId: string }>): Promise<'PROJECT' | 'OTHER' | 'NONE'>
   /** Whether the Project has a run queued or in flight. */
-  projectBusy(input: Readonly<{ accountId: string; projectId: string }>): Promise<boolean>
+  projectBusy(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<boolean>
   /** The person's answer to the call the conversation's run waits on, handed to the run. A second answer to the same call changes nothing. */
-  answerQuestion(input: Readonly<{ projectId: string; conversationId: string; toolCallId: string; resumeData: unknown }>): AnswerOutcome
+  answerQuestion(input: Readonly<{ projectId: ProjectIdType; conversationId: string; toolCallId: string; resumeData: unknown }>): AnswerOutcome
   toolPayloads?: ToolPayloadProjection
 }>
 
@@ -294,7 +295,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
         return undefined
       }
       // Every conversation of a Project lives under the Project's own resource.
-      const projectId = resourceId === undefined ? undefined : PROJECT_RESOURCE.exec(resourceId)?.[1]
+      const projectId = ProjectId.safeParse(resourceId === undefined ? undefined : PROJECT_RESOURCE.exec(resourceId)?.[1]).data
       if (!projectId || !await mount.admitProject({ accountId, projectId })) {
         throw new Failure('PROJECT_BUILD_DENIED')
       }

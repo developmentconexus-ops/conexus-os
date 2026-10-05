@@ -374,7 +374,7 @@ test("main that moved meanwhile merges clean into the conversation's files at th
   const merge = await run.main()
   assert.equal(run.inBare('rev-list', '--parents', '-n', '1', merge), `${merge} ${kept} ${other}`)
   assert.equal(run.mirror(), merge)
-  assert.deepEqual(run.sessions.at(-1), { projectId, conversationId, mirrorHead: merge, syncedMain: other, turnEnded: true })
+  assert.deepEqual(run.sessions.at(-1), { builderRunId: runId, conversationId, mirrorHead: merge, syncedMain: other, turnEnded: true })
   assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_START_CONFLICT:')), [])
   assert.equal(run.sessionContext.get('conexusTurnConflicts'), '')
   assert.equal(agentInstructions(run).includes('Merge conflicts'), false)
@@ -1087,7 +1087,7 @@ test('a turn the person stops keeps its file in the mirror, written at the turn 
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'])
   assert.deepEqual(run.mirrorFiles(), ['AGENTS.md', 'app/index.html', 'app/stopped.ts'])
-  assert.deepEqual(run.sessions, [{ projectId, conversationId, mirrorHead: run.mirror(), syncedMain: run.base, turnEnded: true }])
+  assert.deepEqual(run.sessions, [{ builderRunId: runId, conversationId, mirrorHead: run.mirror(), syncedMain: run.base, turnEnded: true }])
   assert.equal(await run.main(), run.base)
 })
 
@@ -1109,7 +1109,7 @@ test('an admitted turn moves the mirror to its candidate without a second bundle
   assert.equal(await run.main(), result)
   assert.equal(run.mirror(), result)
   assert.equal(run.commands().some((line) => line.includes('conexus-mirror')), false)
-  assert.deepEqual(run.sessions, [{ projectId, conversationId, mirrorHead: result, syncedMain: run.base, turnEnded: true }])
+  assert.deepEqual(run.sessions, [{ builderRunId: runId, conversationId, mirrorHead: result, syncedMain: run.base, turnEnded: true }])
 })
 
 test('a turn that changed nothing leaves the conversation without a mirror', async (t) => {

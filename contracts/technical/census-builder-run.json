@@ -1,7 +1,7 @@
 {
-  "sqlRunWriters": 9,
-  "sqlRunWriterTriggers": 1,
-  "runSummaryLiterals": 1,
+  "sqlRunWriters": 0,
+  "sqlRunWriterTriggers": 0,
+  "runSummaryLiterals": 0,
   "parkedReferences": 0,
   "abortUndoCalls": 0,
   "hubSendMessageCalls": 1,
@@ -11,7 +11,7 @@
   "runFunctionLengthSuppressions": 0,
   "failureCodesWithoutRow": 0,
   "repeatedTimerSuppressions": 3,
-  "unsafeAssertionDebt": 60,
+  "unsafeAssertionDebt": 48,
   "unsafeAssertionExemptions": [
     "apps/hub/src/identity-access/oidc.ts:106 undici fetch and openid-client CustomFetch disagree on RequestInit and Response, proven by tsc"
   ]

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
-import { BUILDER_CONTROLLER, builderState, conversation, routeBuilder, sse, userMessage } from './builder-browser-fixtures.mjs'
+import { BUILDER_CONTROLLER, builderState, conversation, routeBuilder, runOf, sse, userMessage } from './builder-browser-fixtures.mjs'
 import { startWebServer } from './web-dev-server.mjs'
 
 // A run waiting on a question, with its stream down: the open call lives in the thread message's
@@ -29,7 +29,7 @@ const openWaitingRun = async (t, { phase, messages, refusal = null, pendingCalls
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
   const state = builderState([conversation(conversationId, 'Título')], { [conversationId]: messages })
-  const run = { builderRunId: '70000000-0000-4000-8000-000000000323', projectId, conversationId, state: 'RUNNING', phase, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'Mude o título', createdAt: new Date(Date.now() - 10 * 60_000).toISOString(), pendingCalls }
+  const run = runOf({ builderRunId: '70000000-0000-4000-8000-000000000323', projectId, conversationId, state: 'RUNNING', phase, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'Mude o título', createdAt: new Date(Date.now() - 10 * 60_000).toISOString(), pendingCalls })
   const requests = { session: 0, stream: 0, answers: [], messages: [], cancels: 0, holdMessages: null, holdPublish: false }
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, state)
@@ -138,7 +138,7 @@ test('a tab that still holds an earlier question shows only the call the waiting
   const OLD = 'Qual cor usar?'
   const NEW = 'Qual fonte usar?'
   const ask = (toolCallId, question) => ({ type: 'tool_suspended', toolCallId, toolName: 'ask_user', args: { questions: [{ question }] }, suspendPayload: { questions: [{ question }] } })
-  const run = { builderRunId: '70000000-0000-4000-8000-000000000334', projectId, conversationId, state: 'RUNNING', phase: 'WAITING', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'Agora a fonte', createdAt: new Date().toISOString(), pendingCalls: ['call-new'] }
+  const run = runOf({ builderRunId: '70000000-0000-4000-8000-000000000334', projectId, conversationId, state: 'RUNNING', phase: 'WAITING', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'Agora a fonte', createdAt: new Date().toISOString(), pendingCalls: ['call-new'] })
   const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())

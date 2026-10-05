@@ -1,5 +1,6 @@
 import { type ErrorType, parseError } from '@mastra/code-sdk/utils/errors'
 import { isMastraTimeoutError } from '@mastra/core/loop'
+import { z } from 'zod'
 import type { CompiledApplication, CompiledApplicationThumbnail } from './application-artifact-runtime.js'
 import { fieldOf } from '../platform/field-of.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
@@ -72,19 +73,12 @@ export const classifyAgentFailure = (error: unknown): FailureCode | null => {
   return failureOfType(parseError(error).type, error)
 }
 
+// A signal is a user's own text when Mastra's metadata says so; any other shape of message or signal is not.
+const UserSignal = z.object({ metadata: z.object({ signal: z.object({ type: z.enum(['user', 'user-message']) }) }) })
+
 export const isUserAuthoredMessage = (message: Readonly<{ role?: string; content?: unknown }>): boolean => {
   if (message.role === 'user') return true
-  if (message.role !== 'signal' || typeof message.content !== 'object' || message.content === null) return false
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const content = message.content as Record<string, unknown>
-  const metadata = content.metadata
-  if (typeof metadata !== 'object' || metadata === null) return false
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const signal = (metadata as Record<string, unknown>).signal
-  if (typeof signal !== 'object' || signal === null) return false
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const type = (signal as Record<string, unknown>).type
-  return type === 'user' || type === 'user-message'
+  return message.role === 'signal' && UserSignal.safeParse(message.content).success
 }
 
 /**

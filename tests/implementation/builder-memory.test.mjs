@@ -61,7 +61,7 @@ const probeRouting = (script = [], onObserverPrompt = () => {}, titleDelayMs = 0
     modelAccounts: { usable: async (accountId) => ({ modelAccountId: `acct-${accountId}`, kind: 'api_key', secret: 'x' }) },
     conversationModel: async () => null,
     readDefault: async (role) => role === 'memory' ? 'probe/observer' : 'probe/main',
-    record: async (builderRunId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
+    record: async (builderRunId, _accountId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
   })
   return { routing, calls, titled, recorded, offered }
 }

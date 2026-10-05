@@ -153,6 +153,7 @@ export const FAILURE_TEXT = {
   'BUILDER_RUN_CANCELLATION_REFUSED': 'O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.',
   'BUILDER_RUN_CANCELLED': 'Execução interrompida por você.',
   'BUILDER_RUN_CANDIDATE_REFUSED': 'O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.',
+  'BUILDER_CONVERSATION_SESSION_REFUSED': 'O Conexus não conseguiu registrar o estado da conversa. A falha foi registrada.',
   'BUILDER_RUN_CLAIM_REFUSED': 'O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.',
   'BUILDER_RUN_CREATE_FAILED': 'O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.',
   'BUILDER_RUN_FAILURE_REFUSED': 'O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.',

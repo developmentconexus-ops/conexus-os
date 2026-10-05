@@ -1,3 +1,4 @@
+import { z } from 'zod'
 /**
  * The Q1 application server contract, qualification-only. A Project declares a finite set of
  * operations in `conexus/manifest.json`; each binds one static operation id to one handler export and
@@ -285,3 +286,11 @@ export const schemaViolation = (schema: ValueSchema, value: unknown, echoUndecla
     }
   }
 }
+
+// What the runner answers a prepare with, read by the Hub's client and written by the supervisor.
+export const prepareResult = z.discriminatedUnion('state', [
+  z.strictObject({ state: z.literal('READY'), reset: z.boolean(), applied: z.array(z.string()).readonly() }),
+  z.strictObject({ state: z.literal('MIGRATION_FAILED'), detail: z.string() }),
+  z.strictObject({ state: z.literal('MIGRATION_HISTORY_DIVERGED'), detail: z.string() }),
+]).readonly()
+export type PrepareResult = z.infer<typeof prepareResult>

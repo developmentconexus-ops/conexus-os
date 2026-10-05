@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import type { AccountId, BuilderRunId, ProjectId, SourceComparison, SourceFile, SourceRevision, SourceTree } from '../../../../packages/contract/dist/index.js'
 import type { ConexusGit } from './conexus-git.js'
 import type { Conversations } from './conversations.js'
 import { settleTakenOverCandidate } from './run/admit.js'
@@ -6,35 +6,35 @@ import type { RunTools } from './harness/index.js'
 import type { BuilderRunPorts, DiagnosticAppender } from './run/ports.js'
 import type { AnswerOutcome } from './run/question.js'
 import { type LiveRun, startRun } from './run/run.js'
-import type { BuilderSourceComparison, BuilderSourceFile, BuilderSourceTree, ProjectSourceReads } from './source.js'
+import type { ProjectSourceReads } from './source.js'
 import type { BuilderRunSummary, BuilderRunView, BuilderStore, TakenOverRun } from './store.js'
-import type { ApplicationArtifactMetadata, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
+import type { ApplicationArtifactMetadata, ApplicationSourceCoordinates, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
 import { Failure, logFailure, toFailure } from '../platform/failure.js'
 import { logLine, logger } from '../platform/logger.js'
 import { heapUsedRatio } from '../platform/heap.js'
 
-type SourceCoordinates = Readonly<{ accountId: string; projectId: string; sourceRevision: string }>
+type SourceCoordinates = Readonly<{ accountId: AccountId; projectId: ProjectId; sourceRevision: SourceRevision }>
 
 export type BuilderService = Readonly<{
   /**
    * The person's message in a conversation. A run of it waiting on the person takes it (`created`
    * false); with no run, it starts one. A run that is working answers BUILDER_BUSY.
    */
-  sendBuilderMessage(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string }>): Promise<Readonly<{ builderRun: BuilderRunSummary; created: boolean }>>
-  cancelBuilderRun(input: Readonly<{ accountId: string; projectId: string; builderRunId: string }>): Promise<BuilderRunSummary>
+  sendBuilderMessage(input: Readonly<{ accountId: AccountId; projectId: ProjectId; conversationId: string; idempotencyKey: string; content: string }>): Promise<Readonly<{ builderRun: BuilderRunSummary; created: boolean }>>
+  cancelBuilderRun(input: Readonly<{ accountId: AccountId; projectId: ProjectId; builderRunId: BuilderRunId }>): Promise<BuilderRunSummary>
   /** The person's answer to the question the conversation's run waits on. */
-  answerQuestion(input: Readonly<{ projectId: string; conversationId: string; toolCallId: string; resumeData: unknown }>): AnswerOutcome
+  answerQuestion(input: Readonly<{ projectId: ProjectId; conversationId: string; toolCallId: string; resumeData: unknown }>): AnswerOutcome
   /** The calls the conversation's run in this Hub waits on the person for; none when no run here waits. */
-  pendingCalls(projectId: string, conversationId: string): readonly string[]
+  pendingCalls(projectId: ProjectId, conversationId: string): readonly string[]
   /** The tools of the conversation's run, while that run is the one in this Hub. */
-  runTools(conversationId: string, builderRunId: string): RunTools | undefined
+  runTools(conversationId: string, builderRunId: BuilderRunId): RunTools | undefined
   /** Whether the conversation has a run in this Hub. */
   runOpen(conversationId: string): boolean
-  listSourceTree(input: SourceCoordinates): Promise<BuilderSourceTree>
-  getSourceFile(input: SourceCoordinates & Readonly<{ path: string }>): Promise<BuilderSourceFile>
-  compareSourceRevisions(input: Readonly<{ accountId: string; projectId: string; baseSourceRevision: string; resultSourceRevision: string }>): Promise<BuilderSourceComparison>
-  getApplicationBySource(input: SourceCoordinates): Promise<ApplicationArtifactMetadata | null>
-  readApplicationFileBySource(input: SourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
+  listSourceTree(input: SourceCoordinates): Promise<SourceTree>
+  getSourceFile(input: SourceCoordinates & Readonly<{ path: string }>): Promise<SourceFile>
+  compareSourceRevisions(input: Readonly<{ accountId: AccountId; projectId: ProjectId; baseSourceRevision: SourceRevision; resultSourceRevision: SourceRevision }>): Promise<SourceComparison>
+  getApplicationBySource(input: ApplicationSourceCoordinates): Promise<ApplicationArtifactMetadata | null>
+  readApplicationFileBySource(input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
   /**
    * One pass of the run lease: refreshes the heartbeat of every run this Hub works, and takes over
    * every other run whose owner went quiet (a crash, a restart, or an ending whose write failed),
@@ -62,8 +62,6 @@ export type BuilderRunDependencies = Readonly<{
   settleRetryMs?: number
   /** How long a run's owner may go without a heartbeat before a lease pass takes the run over. */
   staleAfterMs?: number
-  /** This Hub process as the owner of the runs it works; a new one at every start. */
-  ownerId?: string
   /** Used heap over the old-space cap, read once as a run is asked for. */
   heapUsedRatio?: () => number
 }>
@@ -90,7 +88,7 @@ const createRunLease = ({ store, git, ownerId, staleAfterMs, liveRunIds }: Reado
   git: BuilderRunDependencies['git']
   ownerId: string
   staleAfterMs: number
-  liveRunIds(): readonly string[]
+  liveRunIds(): readonly BuilderRunId[]
 }>) => {
   const takenOver = new Map<string, 'SETTLE_LOST' | 'OWNER_GONE'>()
   const settle = async (run: TakenOverRun): Promise<void> => {
@@ -121,10 +119,10 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   applicationServer?: ApplicationServerPort
   runs: BuilderRunDependencies
 }>): BuilderService => {
-  const ownerId = dependencies.ownerId ?? randomUUID()
+  const { ownerId } = store
   // The live runs by conversation: the only map of runs in the Hub.
   const runs = new Map<string, LiveRun>()
-  const liveRunIds = (): readonly string[] => [...runs.values()].map((live) => live.builderRunId)
+  const liveRunIds = (): readonly BuilderRunId[] => [...runs.values()].map((live) => live.builderRunId)
   const applicationShutdown = new AbortController()
   let serviceClosing: Promise<void> | null = null
   // A browser that misses a publish still reads the run from the builder-session poll, so a failed
@@ -136,24 +134,24 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       logFailure(logger, toFailure(error), { 'builder.run_id': run.builderRunId })
     }
   }
-  const start = (row: BuilderRunSummary, request: Readonly<{ accountId: string; content: string; idempotencyKey: string }>): void => {
+  const start = (row: BuilderRunSummary, request: Readonly<{ accountId: AccountId; content: string; idempotencyKey: string }>): void => {
     const live = startRun({
       ports: dependencies.ports, store, applicationArtifacts, applicationServer, appendDiagnostic: dependencies.appendDiagnostic, publishRun,
-      ownerId, questionWaitMs: dependencies.questionWaitMs, settleRetryMs: dependencies.settleRetryMs ?? 500,
+      questionWaitMs: dependencies.questionWaitMs, settleRetryMs: dependencies.settleRetryMs ?? 500,
     }, row, request)
     runs.set(row.conversationId, live)
     void live.done.catch((error: unknown) => {
       logFailure(logger, new Failure('BUILDER_RUN_SETTLE_FAILED', { cause: error }), { 'builder.run_id': row.builderRunId })
     }).finally(() => { if (runs.get(row.conversationId) === live) runs.delete(row.conversationId) })
   }
-  const live = (projectId: string, conversationId: string): LiveRun | undefined => {
+  const live = (projectId: ProjectId, conversationId: string): LiveRun | undefined => {
     const run = runs.get(conversationId)
     return run?.projectId === projectId ? run : undefined
   }
   const unlessClosed = <T>(read: () => Promise<T>): Promise<T> =>
     applicationShutdown.signal.aborted ? Promise.reject(new Failure('BUILDER_APPLICATION_CLOSED')) : read()
   // A revision the source view may show the caller; `main` counts as read from the Conexus Git now.
-  const admitSource = async ({ accountId, projectId }: Readonly<{ accountId: string; projectId: string }>, sourceRevision: string): Promise<boolean> =>
+  const admitSource = async ({ accountId, projectId }: Readonly<{ accountId: AccountId; projectId: ProjectId }>, sourceRevision: string): Promise<boolean> =>
     store.admitSourceRevision({ accountId, projectId, sourceRevision, mainRevision: await dependencies.git.readMain(projectId).catch(() => null) })
   return Object.freeze({
     sendBuilderMessage: async (input) => {

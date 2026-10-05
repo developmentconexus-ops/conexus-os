@@ -96,7 +96,7 @@ export const withClient = async (connectionString, body) => {
   }
 }
 
-const PURGES = { iam: 'SELECT iam.purge_project($1)', builder: 'SELECT builder.purge_project($1)' }
+const PURGES = { iam: 'SELECT iam.purge_project($1)' }
 export const purgeAsSystem = (connectionString, schema, projectId) => withClient(connectionString, async (client) => {
   await client.query("SELECT set_config('conexus.job', 'project-purge', false)")
   await client.query(PURGES[schema], [projectId])

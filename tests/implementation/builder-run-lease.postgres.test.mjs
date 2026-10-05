@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import { hubModuleUrl as built } from './hub-build.mjs'
-import { buildHubDatabase, query, testPool } from './hub-database.mjs'
+import { query } from './hub-database.mjs'
+import { setupBuilder } from './builder-fixture.mjs'
+import { ID } from './project-fixture.mjs'
 
 const { createBuilderStore } = await import(built('builder/store.js'))
 const { createBuilderService } = await import(built('builder/service.js'))
@@ -16,16 +18,9 @@ const signal = new AbortController().signal
 // A database with one Workspace, the Builder's real store and a real service owned by HUB. A run the
 // service works is held at its model check until the test lets it go, so it stays in the service's map.
 const leaseHarness = async (t, name) => {
-  const { connectionString, connection, onCleanup } = await buildHubDatabase(t, name)
-  const account = randomUUID()
-  const workspaceId = randomUUID()
-  await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://lease.test', $2, 'Owner')", [account, account])
-  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Lease')", [workspaceId])
-  await query(connectionString, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [account, workspaceId])
-  const store = createBuilderStore({
-    executorPool: testPool({ ...connection, max: 4, options: '-c role=hub_builder_executor' }),
-    ingressPool: testPool({ ...connection, max: 2, options: '-c role=hub_builder_ingress' }),
-  })
+  const { connection: connectionString, database, seedBuilderProject, onCleanup } = await setupBuilder(t, name)
+  const account = ID.owner
+  const store = createBuilderStore({ database, ownerId: HUB })
   const holds = []
   const checkModel = () => new Promise((_resolve, reject) => { holds.push(reject) })
   const release = () => { for (const reject of holds.splice(0)) reject(new Error('released')) }
@@ -47,15 +42,9 @@ const leaseHarness = async (t, name) => {
       publishRun: async () => {},
       questionWaitMs: 60_000,
       settleRetryMs: 1,
-      ownerId: HUB,
     },
   })
-  const projectIn = async () => {
-    const projectId = randomUUID()
-    await query(connectionString, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, $3, 'NEW', $4, $3)", [projectId, workspaceId, `p-${projectId.slice(0, 6)}`, BASE])
-    await query(connectionString, 'SELECT builder.register_project_repository($1)', [projectId])
-    return projectId
-  }
+  const projectIn = () => seedBuilderProject(`p-${randomUUID().slice(0, 6)}`)
   // A run row as a stopped Hub left it, its heartbeat `heartbeatAgoMs` old.
   const seedRun = async ({ state = 'RUNNING', ownerId = null, heartbeatAgoMs = null, createdAgoMs = 0 }) => {
     const projectId = await projectIn()
@@ -120,7 +109,7 @@ test('a run that enters the service after the pass listed its live runs comes ba
   // The client's retry of an old queued row: the same key returns it, and the service starts it.
   const projectId = await h.projectIn()
   const key = 'retry-key'
-  const old = await h.store.createBuilderRun({ accountId: (await query(h.connectionString, 'SELECT account_id FROM iam.account LIMIT 1')).rows[0].account_id, projectId, conversationId: 'conv-race', idempotencyKey: key, content: 'Explique o app', readBase: async () => BASE })
+  const old = await h.store.createBuilderRun({ accountId: ID.owner, projectId, conversationId: 'conv-race', idempotencyKey: key, content: 'Explique o app', readBase: async () => BASE })
   await query(h.connectionString, "UPDATE builder.builder_run SET created_at = clock_timestamp() - interval '10 minutes' WHERE builder_run_id = $1", [old.builderRunId])
   let service
   // The pass reads its live ids (none), the SQL takes the stale row, and only then does the replay start it.

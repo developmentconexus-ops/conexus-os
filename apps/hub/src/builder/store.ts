@@ -1,275 +1,33 @@
 import { randomUUID } from 'node:crypto'
-import type { QueryResultRow } from 'pg'
-import { z } from 'zod'
-import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
-import type { BuilderRunPhase, BuilderRunResultKind, BuilderRunState } from '../generated/builder-run-vocabulary.js'
-import { Failure, type FailureCode } from '../platform/failure.js'
-import { errorCode, type PostgresPool } from '../platform/db.js'
+import type { Database } from '../platform/db.js'
+import { createConversationStore, type ConversationStore } from './conversation-store.js'
+import { createRunLease, type RunLease } from './run-lease.js'
+import { createRunReads, type RunReads } from './run-reads.js'
+import { createRunStart, type RunStart } from './run-start.js'
+import { createRunSteps, type RunSteps } from './run-steps.js'
 
-export type BuilderRunSummary = Readonly<{
-  builderRunId: string
-  projectId: string
-  conversationId: string
-  state: BuilderRunState
-  phase: BuilderRunPhase | null
-  baseSourceRevision: string
-  resultSourceRevision: string | null
-  resultKind: BuilderRunResultKind | null
-  failureCode: string | null
-  requestText: string | null
-  createdAt: string
-  cancellationRequested?: boolean
-}>
-/** The run as the browser reads it: its row, and the calls its live session waits on while the run waits. */
-export type BuilderRunView = BuilderRunSummary & Readonly<{ pendingCalls: readonly string[] }>
-type BuilderCodeChangingRun = Readonly<{
-  builderRunId: string
-  projectId: string
-  conversationId: string
-  baseSourceRevision: string
-  resultSourceRevision: string
-  resultKind: Exclude<BuilderRunResultKind, 'RESPONSE_ONLY'>
-}>
-// The Preview a Project serves. `main` is not here: the Conexus Git holds it.
-type BuilderPreview = Readonly<{
-  lastPreviewSourceRevision: string | null
-  lastPreviewArtifactRevisionId: string | null
-  lastPreviewArtifactDigest: string | null
-}>
-type JsonRow<T> = QueryResultRow & Readonly<{ value: T }>
+export type { BuilderRunSummary, BuilderRunView } from './run-row.js'
+export type { TakenOverRun } from './run-lease.js'
+export type { InterruptionCode } from './run-steps.js'
 
-/** A queued or working run a lease pass took over from an owner that went quiet. */
-const takenOverRuns = z.array(z.object({
-  builderRunId: z.string(),
-  projectId: z.string(),
-  conversationId: z.string(),
-  /** Offered before `main` moved; `main` in the Conexus Git says whether it was admitted. */
-  candidateRevision: z.string().nullable(),
-  // Equal to the candidate once the advance is recorded.
-  resultSourceRevision: z.string().nullable(),
-  previousOwnerId: z.string().nullable(),
-}).readonly()).readonly()
-export type TakenOverRun = z.infer<typeof takenOverRuns>[number]
-
-/** How a run ends without failing: the person's stop, a Hub that stopped, or a question nobody answered. */
-export type InterruptionCode = Extract<FailureCode, 'USER_CANCELLED' | 'HUB_RESTART' | 'BUILDER_QUESTION_EXPIRED'>
-
-export type BuilderStore = Readonly<{
-  // Takes the Project's run lock, reads the base with readBase while holding it, and inserts the run
-  // on that base, all in one transaction.
-  createBuilderRun(input: Readonly<{ accountId: string; projectId: string; conversationId: string; idempotencyKey: string; content: string; readBase(): Promise<string> }>): Promise<BuilderRunSummary>
-  readBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderRunSummary | null>
-  listBuilderRuns(input: Readonly<{ accountId: string; projectId: string; limit?: number }>): Promise<readonly BuilderRunSummary[]>
-  readLatestCodeChangingBuilderRun(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderCodeChangingRun | null>
-  // Starts a queued run under its owner, the Hub process that works it.
-  claimBuilderRun(builderRunId: string, ownerId: string): Promise<BuilderRunSummary>
-  // Answers the run as written, or null when a stop was requested first.
-  setBuilderRunPhase(builderRunId: string, phase: BuilderRunPhase): Promise<BuilderRunSummary | null>
-  // Enters SOURCE_ADMISSION with the candidate about to be fast forwarded onto `main`; refused once a stop is requested.
-  recordBuilderRunCandidate(builderRunId: string, sourceRevision: string): Promise<void>
-  bindBuilderRunMessage(builderRunId: string, messageId: string): Promise<void>
-  bindBuilderRunSandbox(builderRunId: string, sandboxId: string): Promise<void>
-  recordBuilderRunModelAccount(builderRunId: string, modelAccountId: string): Promise<void>
-  settleBuilderRun(input: Readonly<{ builderRunId: string; resultSourceRevision: null; resultKind: 'RESPONSE_ONLY'; failureCode: null }>): Promise<void>
-  advanceBuilderRunSource(builderRunId: string, sourceRevision: string): Promise<void>
-  settleBuilderRunBuild(input: Readonly<{ builderRunId: string; sourceRevision: string; artifactRevisionId?: string; artifactDigest?: string; failureCode?: FailureCode }>): Promise<void>
-  failBuilderRun(builderRunId: string, failureCode: FailureCode): Promise<void>
-  requestBuilderRunCancellation(input: Readonly<{ accountId: string; projectId: string; builderRunId: string }>): Promise<BuilderRunSummary>
-  interruptBuilderRun(builderRunId: string, reason: InterruptionCode): Promise<void>
-  readPreviewSubject(input: Readonly<{ accountId: string; projectId: string }>): Promise<BuilderPreview | null>
-  // mainRevision is `main` as the Hub just read it from the Conexus Git.
-  admitSourceRevision(input: Readonly<{ accountId: string; projectId: string; sourceRevision: string; mainRevision: string | null }>): Promise<boolean>
-  // One call: beats every listed run of this owner, then takes over the queued and working runs that are not
-  // listed and whose owner's heartbeat is older than the limit. A listed run is never taken.
-  renewRunLease(ownerId: string, liveRunIds: readonly string[], staleAfterMs: number): Promise<readonly TakenOverRun[]>
-  // Upserts the conversation's working state outside any one turn; the Git ref stays the mirror's truth.
-  recordConversationSession(input: Readonly<{ projectId: string; conversationId: string; mirrorHead: string; syncedMain?: string; turnEnded: boolean }>): Promise<void>
-  // The E2B sandbox a conversation's turns resume, by its provider id.
-  recordConversationSandbox(input: Readonly<{ projectId: string; conversationId: string; providerSandboxId: string }>): Promise<void>
-  readConversationSandbox(input: Readonly<{ projectId: string; conversationId: string }>): Promise<string | null>
-  readProjectSandboxes(projectId: string): Promise<readonly string[]>
-  readOpenRunConversations(): Promise<ReadonlySet<string>>
+export type BuilderStore = ConversationStore & RunStart & RunSteps & RunReads & RunLease & Readonly<{
+  /** This Hub process as the owner of the runs it works. */
+  ownerId: string
 }>
 
-// The refusals `builder.create_builder_run` raises by name; anything else stays the database's own fault.
-const startRefusal = (error: unknown): unknown => {
-  const named = error instanceof Error ? error.message : ''
-  if (named === 'PROJECT_BUSY') return new Failure('PROJECT_BUSY')
-  if (named === 'IDEMPOTENCY_CONFLICT') return new Failure('IDEMPOTENCY_CONFLICT')
-  if (named === 'BUILDER_RUN_INPUT_REFUSED') return new Failure('BUILDER_MESSAGE_REFUSED')
-  return error
-}
-
-// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createBuilderStore = ({
-  ingressPool,
-  executorPool,
+  database,
+  ownerId,
   mintIdentity = randomUUID,
 }: Readonly<{
-  ingressPool: PostgresPool
-  executorPool: PostgresPool
+  database: Database
+  ownerId: string
   mintIdentity?: () => string
 }>): BuilderStore => Object.freeze({
-  createBuilderRun: async ({ accountId, projectId, conversationId, idempotencyKey, content, readBase }) => {
-    const request = { content }
-    const client = await ingressPool.connect()
-    try {
-      await client.query('BEGIN')
-      await client.query('SELECT builder.lock_project_for_run($1,$2)', [accountId, projectId])
-      const base = await readBase()
-      const result = await client.query<JsonRow<BuilderRunSummary>>(
-        'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9) AS value',
-        [accountId, projectId, conversationId, sha256(Buffer.from(idempotencyKey, 'utf8')), sha256(canonicalBytes(request)), content, null, mintIdentity(), base],
-      )
-      await client.query('COMMIT')
-      const value = result.rows[0]?.value
-      if (!value) throw new Failure('BUILDER_RUN_CREATE_FAILED')
-      return value
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => undefined)
-      throw startRefusal(error)
-    } finally {
-      client.release()
-    }
-  },
-  readBuilderRun: async ({ accountId, projectId }) => {
-    const result = await ingressPool.query<JsonRow<BuilderRunSummary | null>>(
-      'SELECT builder.read_builder_run($1,$2) AS value', [accountId, projectId],
-    )
-    return result.rows[0]?.value ?? null
-  },
-  listBuilderRuns: async ({ accountId, projectId, limit = 20 }) => {
-    const result = await ingressPool.query<JsonRow<readonly BuilderRunSummary[]>>(
-      'SELECT builder.list_builder_runs($1,$2,$3) AS value', [accountId, projectId, limit],
-    )
-    return result.rows[0]?.value ?? []
-  },
-  readLatestCodeChangingBuilderRun: async ({ accountId, projectId }) => {
-    const result = await ingressPool.query<JsonRow<BuilderCodeChangingRun | null>>(
-      'SELECT builder.read_latest_code_changing_builder_run($1,$2) AS value', [accountId, projectId],
-    )
-    return result.rows[0]?.value ?? null
-  },
-  claimBuilderRun: async (builderRunId, ownerId) => {
-    // A claim asks for authority the run's author may no longer hold. That is terminal. The outer
-    // dispatch catch fails the run, and no retry can recover an access that was taken away.
-    const result = await executorPool.query<JsonRow<BuilderRunSummary>>(
-      'SELECT builder.claim_builder_run($1,$2) AS value', [builderRunId, ownerId],
-    ).catch((error: unknown) => {
-      if (errorCode(error) === '42501') {
-        throw new Failure('BUILDER_RUN_NOT_ADMITTED')
-      }
-      throw error
-    })
-    const value = result.rows[0]?.value
-    if (!value || value.builderRunId !== builderRunId || value.state !== 'RUNNING') throw new Failure('BUILDER_RUN_CLAIM_REFUSED')
-    return value
-  },
-  setBuilderRunPhase: async (builderRunId, phase) => {
-    const result = await executorPool.query<JsonRow<BuilderRunSummary | null>>(
-      'SELECT builder.set_builder_run_phase($1,$2) AS value', [builderRunId, phase],
-    )
-    return result.rows[0]?.value ?? null
-  },
-  recordBuilderRunCandidate: async (builderRunId, sourceRevision) => {
-    const result = await executorPool.query<{ value: boolean }>(
-      'SELECT builder.record_builder_run_candidate($1,$2) AS value', [builderRunId, sourceRevision],
-    )
-    if (result.rows[0]?.value !== true) throw new Failure('BUILDER_RUN_CANDIDATE_REFUSED')
-  },
-  bindBuilderRunMessage: async (builderRunId, messageId) => {
-    const result = await executorPool.query<{ value: boolean }>(
-      'SELECT builder.bind_builder_run_message($1,$2) AS value', [builderRunId, messageId],
-    )
-    if (result.rows[0]?.value !== true) throw new Failure('BUILDER_RUN_MESSAGE_BIND_REFUSED')
-  },
-  bindBuilderRunSandbox: async (builderRunId, sandboxId) => {
-    const result = await executorPool.query<{ value: boolean }>(
-      'SELECT builder.bind_builder_run_sandbox($1,$2) AS value', [builderRunId, sandboxId],
-    )
-    if (result.rows[0]?.value !== true) throw new Failure('BUILDER_RUN_SANDBOX_BIND_REFUSED')
-  },
-  recordBuilderRunModelAccount: async (builderRunId, modelAccountId) => {
-    const result = await executorPool.query<{ value: boolean }>(
-      'SELECT builder.record_builder_run_model_account($1,$2) AS value', [builderRunId, modelAccountId],
-    )
-    if (result.rows[0]?.value !== true) throw new Failure('BUILDER_RUN_MODEL_ACCOUNT_RECORD_REFUSED')
-  },
-  settleBuilderRun: async ({ builderRunId, resultSourceRevision, resultKind, failureCode }) => {
-    const result = await executorPool.query<{ value: boolean }>(
-      'SELECT builder.settle_builder_run($1,$2,$3,$4) AS value', [builderRunId, resultSourceRevision, resultKind, failureCode],
-    )
-    if (result.rows[0]?.value !== true) throw new Failure('BUILDER_RUN_SETTLEMENT_REFUSED')
-  },
-  advanceBuilderRunSource: async (builderRunId, sourceRevision) => {
-    const result = await executorPool.query<{ value: boolean }>(
-      'SELECT builder.advance_builder_run_source($1,$2) AS value', [builderRunId, sourceRevision],
-    )
-    if (result.rows[0]?.value !== true) throw new Failure('BUILDER_RUN_SOURCE_SETTLEMENT_REFUSED')
-  },
-  settleBuilderRunBuild: async ({ builderRunId, sourceRevision, artifactRevisionId, artifactDigest, failureCode }) => {
-    const result = await executorPool.query<{ value: boolean }>(
-      'SELECT builder.settle_builder_run_build($1,$2,$3,$4,$5) AS value',
-      [builderRunId, sourceRevision, artifactRevisionId ?? null, artifactDigest ?? null, failureCode ?? null],
-    )
-    if (result.rows[0]?.value !== true) throw new Failure('BUILDER_RUN_BUILD_SETTLEMENT_REFUSED')
-  },
-  failBuilderRun: async (builderRunId, failureCode) => {
-    const result = await executorPool.query<{ value: boolean }>(
-      'SELECT builder.fail_builder_run($1,$2) AS value', [builderRunId, failureCode],
-    )
-    if (result.rows[0]?.value !== true) throw new Failure('BUILDER_RUN_FAILURE_REFUSED')
-  },
-  requestBuilderRunCancellation: async ({ accountId, projectId, builderRunId }) => {
-    const result = await ingressPool.query<JsonRow<BuilderRunSummary>>(
-      'SELECT builder.request_builder_run_cancellation($1,$2,$3) AS value', [accountId, projectId, builderRunId],
-    ).catch((error: unknown) => {
-      throw (error instanceof Error && error.message.endsWith('_NOT_FOUND')) ? new Failure('BUILDER_RUN_NOT_FOUND') : error
-    })
-    const value = result.rows[0]?.value
-    if (!value) throw new Failure('BUILDER_RUN_CANCELLATION_REFUSED')
-    return value
-  },
-  interruptBuilderRun: async (builderRunId, reason) => {
-    const result = await executorPool.query<{ value: boolean }>(
-      'SELECT builder.interrupt_builder_run($1,$2) AS value', [builderRunId, reason],
-    )
-    if (result.rows[0]?.value !== true) throw new Failure('BUILDER_RUN_INTERRUPTION_REFUSED')
-  },
-  readPreviewSubject: async ({ accountId, projectId }) => {
-    const result = await ingressPool.query<JsonRow<BuilderPreview | null>>(
-      'SELECT builder.read_preview_subject($1,$2) AS value', [accountId, projectId],
-    )
-    return result.rows[0]?.value ?? null
-  },
-  admitSourceRevision: async ({ accountId, projectId, sourceRevision, mainRevision }) => {
-    const result = await ingressPool.query<QueryResultRow & Readonly<{ admitted: boolean }>>(
-      'SELECT builder.admit_source_revision($1,$2,$3,$4) AS admitted', [accountId, projectId, sourceRevision, mainRevision],
-    )
-    return result.rows[0]?.admitted === true
-  },
-  renewRunLease: async (ownerId, liveRunIds, staleAfterMs) => {
-    const result = await executorPool.query<JsonRow<unknown>>('SELECT builder.renew_run_lease($1,$2,$3) AS value', [ownerId, liveRunIds, staleAfterMs])
-    return takenOverRuns.parse(result.rows[0]?.value ?? [])
-  },
-  recordConversationSession: async ({ projectId, conversationId, mirrorHead, syncedMain, turnEnded }) => {
-    await executorPool.query(
-      'SELECT builder.record_conversation_session($1,$2,$3,$4,$5)', [projectId, conversationId, mirrorHead, syncedMain ?? null, turnEnded],
-    )
-  },
-  recordConversationSandbox: async ({ projectId, conversationId, providerSandboxId }) => {
-    await executorPool.query('SELECT builder.record_conversation_sandbox($1,$2,$3)', [projectId, conversationId, providerSandboxId])
-  },
-  readConversationSandbox: async ({ projectId, conversationId }) => {
-    const result = await executorPool.query<Readonly<{ value: string | null }>>('SELECT builder.read_conversation_sandbox($1,$2) AS value', [projectId, conversationId])
-    return result.rows[0]?.value ?? null
-  },
-  readProjectSandboxes: async (projectId) => {
-    const result = await executorPool.query<Readonly<{ value: string[] }>>('SELECT builder.read_project_sandboxes($1) AS value', [projectId])
-    return result.rows[0]?.value ?? []
-  },
-  readOpenRunConversations: async () => {
-    const result = await executorPool.query<Readonly<{ value: string[] }>>('SELECT builder.read_open_run_conversations() AS value')
-    return new Set(result.rows[0]?.value ?? [])
-  },
+  ownerId,
+  ...createConversationStore({ database, ownerId }),
+  ...createRunStart({ database, mintIdentity }),
+  ...createRunSteps({ database, ownerId }),
+  ...createRunReads({ database }),
+  ...createRunLease({ database }),
 })

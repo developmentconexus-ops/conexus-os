@@ -8,6 +8,8 @@ import { HEAD, ID, setupProjects } from './project-fixture.mjs'
 import { waitUntilBlocked } from './race.mjs'
 
 const { admitProject, isInstallationAdministrator } = await import(hubModuleUrl('identity-access/admission.js'))
+const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
+const { builderProjectPorts } = await import(hubModuleUrl('builder/project-ports.js'))
 const digest = (character) => character.repeat(64)
 const remove = (store, accountId, projectId, confirmName = 'Atlas') => store.deleteProject({ accountId, projectId, confirmName })
 const tombstones = async (connection) => (await query(connection, 'SELECT project_id, name, requested_by, purged_at IS NOT NULL AS purged, completed_at IS NOT NULL AS completed FROM project.project_deletion')).rows
@@ -99,7 +101,7 @@ test('a deletion that fails after the purge resumes on retry, and a crash inside
   const { connection, database, seedProject } = fixture
   const { createProjectDeletion } = await import(hubModuleUrl('project/deletion.js'))
   const ports = { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => { if (failing.repository++ === 0) throw new Error('GITHUB_DOWN') } }
-  const deletion = createProjectDeletion({ database, ports })
+  const deletion = createProjectDeletion({ database, ports, builder: builderProjectPorts })
   const projectId = await seedProject('Atlas')
   const seeded = await seedEverything(connection, projectId)
 
@@ -215,31 +217,39 @@ test('a tombstone waits for an admitted writer in either order, with no deadlock
   await assert.rejects(admission, { id: 'PROJECT_BUILD_DENIED' })
 })
 
-test('a deletion and today run start serialize in both orders without a deadlock', { timeout: 30_000 }, async (t) => {
-  const { connection, store, seedProject, onCleanup } = await setupProjects(t, 'conexus_prj_runstart')
-  const lockForRun = (projectId) => query(connection, 'SELECT builder.lock_project_for_run($1, $2) AS locked', [ID.member, projectId]).then((result) => result.rows[0].locked)
+test('a deletion and a run start serialize in both orders without a deadlock', { timeout: 30_000 }, async (t) => {
+  const { connection, database, store, seedProject, onCleanup } = await setupProjects(t, 'conexus_prj_runstart')
+  const builder = createBuilderStore({ database, ownerId: randomUUID() })
+  const start = (projectId, readBase = async () => HEAD) => builder.createBuilderRun({ accountId: ID.member, projectId, conversationId: 'conversa', idempotencyKey: randomUUID(), content: 'pedido', readBase })
   const first = await seedProject('Atlas')
-  const holder = await hold(connection, onCleanup)
-  await holder.query('BEGIN')
-  await holder.query('SELECT builder.lock_project_for_run($1, $2)', [ID.member, first])
+  let release
+  const held = new Promise((resolve) => { release = resolve })
+  let entered
+  const reading = new Promise((resolve) => { entered = resolve })
+  const starting = start(first, async () => { entered(); await held; return HEAD })
+  await reading
   const racing = remove(store, ID.administrator, first)
   const racingState = pending(racing)
+  racing.catch(() => undefined)
   await waitUntilBlocked(connection)
-  assert.equal((await tombstones(connection)).length, 1, 'the tombstone commits while the run start holds the working state')
-  assert.equal(racingState.settled, false, 'the purge waits for the run start, as today')
-  await holder.query('COMMIT')
-  await racing
+  assert.equal(racingState.settled, false, 'the deletion waits for the run start that holds the Project')
+  release()
+  assert.equal((await starting).state, 'QUEUED')
+  await assert.rejects(racing, { id: 'PROJECT_BUSY' })
+  assert.deepEqual(await tombstones(connection), [], 'the refused deletion leaves no tombstone')
 
   const second = await seedProject('Atlas')
   const tombstoning = await hold(connection, onCleanup)
   await tombstoning.query('BEGIN')
   await tombstoning.query('SELECT 1 FROM project.project WHERE project_id = $1 FOR UPDATE', [second])
   await tombstoning.query(`INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Atlas', $3)`, [second, ID.workspace, ID.administrator])
-  const starting = lockForRun(second)
-  assert.equal(await starting, true, 'today the run start does not wait for an uncommitted tombstone; part 1 moves it onto admitProject')
+  const refused = start(second)
+  const refusedState = pending(refused)
+  refused.catch(() => undefined)
+  await waitUntilBlocked(connection)
+  assert.equal(refusedState.settled, false, 'the run start waits for the uncommitted tombstone')
   await tombstoning.query('COMMIT')
-  await remove(store, ID.administrator, second)
-  await assert.rejects(lockForRun(second), (error) => /NOT_ADMITTED|PROJECT_DELETING/.test(error.message))
+  await assert.rejects(refused, { id: 'PROJECT_BUILD_DENIED' })
 })
 
 test('isInstallationAdministrator is true for an active account with an open tenure and for nobody else', async (t) => {

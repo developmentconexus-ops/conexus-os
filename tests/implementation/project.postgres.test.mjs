@@ -215,7 +215,6 @@ test('a person transaction cannot run a project purge, and the rows stay', async
     iam: sql`SELECT iam.purge_project(${projectId}::uuid)`,
     connector: sql`SELECT connector.purge_project(${projectId}::uuid)`,
     reg: sql`SELECT reg.purge_project(${projectId}::uuid)`,
-    builder: sql`SELECT builder.purge_project(${projectId}::uuid)`,
   }
   for (const [schema, statement] of Object.entries(purges)) {
     await assert.rejects(database.transaction(ID.member, async (gate) => (await admitAccount(gate)).tx.run(statement)), refused, schema)

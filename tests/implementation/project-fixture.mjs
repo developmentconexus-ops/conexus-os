@@ -8,6 +8,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 const { openDatabase } = await import(hubModuleUrl('platform/db.js'))
 const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
 const { createProjectDeletion } = await import(hubModuleUrl('project/deletion.js'))
+const { builderProjectPorts } = await import(hubModuleUrl('builder/project-ports.js'))
 
 export const ID = Object.freeze({
   owner: '10000000-0000-4000-8000-000000000001',
@@ -49,13 +50,14 @@ export const setupProjects = async (t, prefix, { repository } = {}) => {
     deleteRepository: async () => { events.push('repository') },
   }
   const repositoryPort = repository ?? { prepare: async () => STARTER }
-  const store = createProjectStore({ database, repository: repositoryPort, deletion: ports })
-  const deletion = createProjectDeletion({ database, ports })
+  const store = createProjectStore({ database, repository: repositoryPort, deletion: ports, builder: builderProjectPorts })
+  const deletion = createProjectDeletion({ database, ports, builder: builderProjectPorts })
   const seedProject = async (name = 'Atlas', workspaceId = ID.workspace) => {
     const projectId = randomUUID()
     await query(connection, `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)
       VALUES ($1, $2, $3, 'NEW', $4, $5)`, [projectId, workspaceId, name, HEAD, randomUUID()])
-    await query(connection, 'SELECT builder.register_project_repository($1)', [projectId])
+    await query(connection, 'INSERT INTO builder.project_working_state(project_id) VALUES ($1)', [projectId])
+    await query(connection, 'INSERT INTO builder.project_repository(project_id) VALUES ($1)', [projectId])
     return projectId
   }
   const settleRun = (projectId, state = 'SUCCEEDED') => query(connection, `INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision, state)

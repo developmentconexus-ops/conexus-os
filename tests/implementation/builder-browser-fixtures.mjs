@@ -52,3 +52,13 @@ export const sse = (...events) => ({
   status: 200, headers: { 'content-type': 'text/event-stream; charset=utf-8' },
   body: events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''),
 })
+
+// A run as the Hub's contract writes it: the fields a fixture leaves out take the values of a run nobody has touched.
+export const runOf = (fields) => ({
+  conversationId: 'conversation-fixture',
+  requestText: null,
+  createdAt: '2026-10-05T10:00:00.000Z',
+  cancellationRequested: false,
+  pendingCalls: [],
+  ...fields,
+})

@@ -10,7 +10,7 @@ import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import { complete, reserve } from '../platform/receipt.js'
 import { createProjectDeletion } from './deletion.js'
-import type { ProjectDeletionPorts } from './deletion.js'
+import type { BuilderProjectPorts, ProjectDeletionPorts } from './deletion.js'
 
 // Gives a Project that does not exist yet its repository in the Conexus Git, with the starter on
 // `main`, and answers `main`. The same Project id always reaches the same repository, so calling it
@@ -61,11 +61,13 @@ export const createProjectStore = ({
   database,
   repository,
   deletion,
+  builder,
   mintRevision = randomUUID,
 }: Readonly<{
   database: Database
   repository: ProjectRepositoryPort
   deletion: ProjectDeletionPorts
+  builder: BuilderProjectPorts
   mintRevision?: () => string
 }>): ProjectStore => {
   const createProject = async ({ accountId, workspaceId, idempotencyKey, body }: CreateProjectInput): Promise<CreateProjectResult> => {
@@ -95,7 +97,7 @@ export const createProjectStore = ({
       await proof.tx.run(sql`
         INSERT INTO project.project (project_id, workspace_id, name, source_mode, source_revision, project_revision)
         VALUES (${projectId}, ${workspaceId}, ${body.name}, 'NEW', ${starterRevision.data}, ${projectRevision})`)
-      await proof.tx.run(sql`SELECT builder.register_project_repository(${projectId})`)
+      await builder.register(proof, projectId)
       const reply: ProjectCreated = { projectId, workspaceId, name: body.name, projectRevision, archived: false }
       await complete(proof, PRJ03, idempotencyKey, receiptInput, projectId, reply)
       return { replayed: false, reply }
@@ -152,6 +154,6 @@ export const createProjectStore = ({
             AND ${administrator}
         ) AS combined ORDER BY sort_at DESC, project_id`)).map(toProjectCard)
     }),
-    deleteProject: createProjectDeletion({ database, ports: deletion }).deleteProject,
+    deleteProject: createProjectDeletion({ database, ports: deletion, builder }).deleteProject,
   })
 }

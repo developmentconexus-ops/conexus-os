@@ -150,6 +150,7 @@ export declare const FAILURE_STATUS: {
     readonly BUILDER_RUN_CANCELLATION_REFUSED: 500;
     readonly BUILDER_RUN_CANCELLED: 500;
     readonly BUILDER_RUN_CANDIDATE_REFUSED: 500;
+    readonly BUILDER_CONVERSATION_SESSION_REFUSED: 500;
     readonly BUILDER_RUN_CLAIM_REFUSED: 500;
     readonly BUILDER_RUN_CREATE_FAILED: 500;
     readonly BUILDER_RUN_FAILURE_REFUSED: 500;
@@ -1039,6 +1040,11 @@ export declare const FAILURES: {
     };
     readonly BUILDER_RUN_CANDIDATE_REFUSED: {
         readonly message: "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.";
+        readonly action: "NONE";
+        readonly status: 500;
+    };
+    readonly BUILDER_CONVERSATION_SESSION_REFUSED: {
+        readonly message: "O Conexus não conseguiu registrar o estado da conversa. A falha foi registrada.";
         readonly action: "NONE";
         readonly status: 500;
     };

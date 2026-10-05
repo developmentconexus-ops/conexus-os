@@ -280,6 +280,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
   // The one run's row as the database holds it.
   const row = { running: true, candidate: null, result: null }
   const store = {
+    ownerId: '0f000000-0000-4000-8000-0000000000aa',
     createBuilderRun: async (input) => {
       calls.push(['create'])
       claimed.baseSourceRevision = await input.readBase()
@@ -295,12 +296,12 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
       if (reply) setTimeout(() => { void reply(context.service) }, 0)
       return { ...claimed, phase }
     },
-    recordBuilderRunCandidate: async (_id, revision) => { calls.push(['candidate', revision]); row.candidate = revision },
-    bindBuilderRunMessage: async (_id, messageId) => { calls.push(['message', messageId]) },
+    recordBuilderRunCandidate: async ({ sourceRevision }) => { calls.push(['candidate', sourceRevision]); row.candidate = sourceRevision },
+    bindBuilderRunMessage: async ({ messageId }) => { calls.push(['message', messageId]) },
     bindBuilderRunSandbox: async (_id, sandboxId) => { calls.push(['sandbox', sandboxId]) },
     readConversationSandbox: async () => recordedSandbox,
     recordConversationSandbox: async ({ providerSandboxId }) => { recordedSandbox = providerSandboxId },
-    settleBuilderRun: async (input) => { calls.push(['settle', input.resultKind]); row.running = false },
+    settleBuilderRun: async () => { calls.push(['settle', 'RESPONSE_ONLY']); row.running = false },
     advanceBuilderRunSource: async (_id, revision) => {
       if (lostAdvances-- > 0) {
         calls.push(['advanceLost', revision])
@@ -312,6 +313,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     settleBuilderRunBuild: async (input) => { calls.push(['settleBuild', input.sourceRevision, input.failureCode ?? null]); row.running = false },
     readLatestCodeChangingBuilderRun: async () => null,
     readBuilderRun: async () => (persisted ? persisted(claimed) : claimed),
+    failUnclaimedBuilderRun: async (_id, code) => { calls.push(['failUnclaimed', code]); row.running = false },
     failBuilderRun: async (_id, code) => { calls.push(['fail', code]); row.running = false },
     interruptBuilderRun: async (_id, reason) => { calls.push(['interrupt', reason]); row.running = false },
     requestBuilderRunCancellation: async () => ({ ...claimed, cancellationRequested: true }),

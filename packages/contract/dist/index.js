@@ -1,9 +1,11 @@
 export * from './ids.js';
+export * from './builder.js';
 export * from './failures.generated.js';
 export * from './operation.js';
 export * from './problem.js';
 export * from './project.js';
 export * from './workspace.js';
 import { PRJ01, PRJ02, PRJ03, PRJ04, PRJ_SUMMARIES, PRJ_THUMBNAIL } from './project.js';
+import { BLD08, BLD09, BLD23, BLD24, BLD25, BLD26, BLD29, BLD30 } from './builder.js';
 import { WS01 } from './workspace.js';
-export const OPERATIONS = Object.freeze([WS01, PRJ01, PRJ02, PRJ03, PRJ04, PRJ_SUMMARIES, PRJ_THUMBNAIL]);
+export const OPERATIONS = Object.freeze([WS01, PRJ01, PRJ02, PRJ03, PRJ04, PRJ_SUMMARIES, PRJ_THUMBNAIL, BLD08, BLD09, BLD23, BLD24, BLD25, BLD26, BLD29, BLD30]);

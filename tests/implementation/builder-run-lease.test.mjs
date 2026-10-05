@@ -12,6 +12,7 @@ test('a run this Hub took over and could not settle is taken again and settled a
   let settled = false
   const service = createBuilderService({
     store: {
+      ownerId,
       renewRunLease: async () => (settled ? [] : [{
         builderRunId: '0f000000-0000-4000-8000-0000000000bb', projectId: '0f000000-0000-4000-8000-0000000000cc', conversationId: 'conv-taken',
         candidateRevision: null, resultSourceRevision: null,
@@ -34,7 +35,6 @@ test('a run this Hub took over and could not settle is taken again and settled a
       appendDiagnostic: async () => {},
       publishRun: async () => {},
       questionWaitMs: 60_000,
-      ownerId,
     },
   })
   const signal = new AbortController().signal

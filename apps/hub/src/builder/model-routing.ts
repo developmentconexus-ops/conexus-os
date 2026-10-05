@@ -53,7 +53,8 @@ export const createModelRouting = ({ routes, modelAccounts, conversationModel, r
   /** The model in the conversation's Mastra session, or null when it has none yet. */
   conversationModel(projectId: string, conversationId: string): Promise<string | null>
   readDefault(role: ModelRole): Promise<string | null>
-  record(builderRunId: string, modelAccountId: string): Promise<void>
+  /** Records the account that paid for one call of the run; the run id and the paying account are what the run's request context carried. */
+  record(builderRunId: string, accountId: string, modelAccountId: string): Promise<void>
 }>) => {
   const accountFor = async (accountId: string, modelId: string | null) => {
     const route = modelId ? routes[providerOfModel(modelId)] : undefined
@@ -66,7 +67,7 @@ export const createModelRouting = ({ routes, modelAccounts, conversationModel, r
     const payer = requestContext.getRaw(RUN_ACCOUNT_ID_KEY)
     if (typeof runId !== 'string' || typeof payer !== 'string') throw new Failure('BUILDER_MODEL_NOT_SELECTED')
     const { route, account, modelId: selected } = await accountFor(payer, modelId)
-    await record(runId, account.modelAccountId)
+    await record(runId, payer, account.modelAccountId)
     const held = route.take(account)
     return held.model(parseModelString(selected).modelId, thinkingLevel)
   }

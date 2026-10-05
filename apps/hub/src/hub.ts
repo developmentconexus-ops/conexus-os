@@ -21,7 +21,7 @@ import { Failure } from './platform/failure.js'
 // biome-ignore lint/style/noProcessEnv: debt: owning wave
 process.env.MASTRA_TELEMETRY_DISABLED = '1'
 const { createConfiguredProjectModule } = await import('./project/module.js')
-const { createConfiguredBuilderModule } = await import('./builder/module.js')
+const { builderProjectPorts, createConfiguredBuilderModule } = await import('./builder/module.js')
 
 export type HubPorts = Pick<Parameters<typeof createConfiguredBuilderModule>[0], 'conversationSandboxes'>
 
@@ -67,6 +67,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   await connectors.sweepHandlerPorts()
   const project = createConfiguredProjectModule({
     database,
+    builder: builderProjectPorts,
     // The builder module owns the Conexus Git and is composed below; creation reaches it at request time.
     repository: {
       prepare: async (projectId) => {
@@ -161,6 +162,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   } : undefined
   let preparing: Promise<unknown> = Promise.resolve()
   builder = config.builder && config.factory ? createConfiguredBuilderModule({
+    data: database,
     database: {
       host: config.database.host,
       port: config.database.port,

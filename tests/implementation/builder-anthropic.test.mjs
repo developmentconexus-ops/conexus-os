@@ -201,7 +201,7 @@ const routingOver = ({ store, holds = createClaudeHolds({ store }) }) => {
     modelAccounts: store,
     modelOf: async () => null,
     readDefault: async () => null,
-    record: async (builderRunId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
+    record: async (builderRunId, _accountId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
   })
   const call = (builderRunId, accountId, modelId) => {
     const requestContext = new RequestContext()
