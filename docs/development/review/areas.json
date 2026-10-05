@@ -29,7 +29,7 @@
       "apps/hub/src/platform/secrets.ts",
       "scripts/confine-application-cluster.mjs"
     ],
-    "page": "docs/development/review/identity-session.md",
+    "guides": ["S"],
     "flows": [
       {
         "id": "identity.sign-out-asks-password",
@@ -109,7 +109,7 @@
       "tests/implementation/model-account-*",
       "tests/implementation/builder-conexus-git*"
     ],
-    "page": "docs/development/review/connectors.md",
+    "guides": ["S", "H"],
     "flows": []
   },
   {
@@ -205,7 +205,7 @@
       "tests/repository/wire-bijection-gate.test.mjs",
       "tests/implementation/project-disclosure.test.mjs"
     ],
-    "page": "docs/development/review/contracts.md",
+    "guides": ["H"],
     "flows": []
   },
   {
@@ -256,7 +256,7 @@
       "tests/implementation/hub-launch-flags.test.mjs",
       "docs/tasks/specs/0008-configuration-model/**"
     ],
-    "page": "docs/development/review/platform.md",
+    "guides": ["A", "T"],
     "flows": [
       {
         "id": "project.delete-wrong-name",

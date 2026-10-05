@@ -1,7 +1,7 @@
 # Conexus OS operation ledger
 
 This file owns the census of fixed Product operations. [The product contract](contract.md)
-owns product meaning, [the permission contract](permission-contract.md) owns who may do
+owns product meaning, [security](../reference/security-and-authority.md#who-may-act) owns who may do
 what, [the wire contract](wire-contract.md) owns wire shape, and
 [the roadmap](../roadmap.md) owns status.
 

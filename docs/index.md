@@ -25,7 +25,6 @@ owns status and the next action. Start there.
 | --- | --- |
 | Product meaning and journeys | [Product contract](product/contract.md) |
 | Future vision: apps, agents and AI processes sharing company capabilities (not execution authority) | [Integrated enterprise platform vision](research/integrated-enterprise-platform-vision.md) |
-| Who may do what | [Permission contract](product/permission-contract.md) |
 | The fixed operation census | [Operation ledger](product/operation-ledger.md) |
 | Wire shape and its rules | [Wire contract](product/wire-contract.md) |
 | Human context and identity | [Human-context identity](product/human-context-identity-contract.md) |
@@ -39,7 +38,7 @@ owns status and the next action. Start there.
 | Stores, database roles, where a rule lives, migrations | [Database](reference/database.md) |
 | Backing up the database and Git root, and proving a restore | [Backup and tested restore](reference/backup.md) |
 | Running the pilot Hub and runner under systemd, and what a crash looks like | [Pilot supervision](reference/pilot-supervision.md) |
-| Security and authority | [Security reference](reference/security-and-authority.md) |
+| Who may do what, sign-in, sessions, secrets and egress | [Security and authority](reference/security-and-authority.md) |
 | Who owns each concept, and where code runs | [Architecture](reference/architecture.md) |
 | Which Mastra API Conexus uses where it once reached past Mastra | [Mastra boundary](reference/mastra/boundary.md) |
 | Frontend surfaces | [Frontend reference](reference/frontend-and-product-surfaces.md) |

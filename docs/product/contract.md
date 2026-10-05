@@ -3,7 +3,7 @@
 This file owns what Conexus means: its concepts, its journeys and the rules its
 behaviour must keep. [The roadmap](../roadmap.md) owns status and the next action.
 [The operation ledger](operation-ledger.md) owns the operation census, and
-[the permission contract](permission-contract.md) owns who may do what.
+[security](../reference/security-and-authority.md#who-may-act) owns who may do what.
 
 This file carries two kinds of statement and marks which is which. Sections 1 to 11
 describe behaviour the code has today; where they and the code disagree, the code is
@@ -54,7 +54,7 @@ GitHub organization and sharing a model account with everyone in the installatio
 sets the first administrator from the shell. After that an administrator grants and revokes the
 role, and the last active administrator cannot be removed. Each grant and revocation records
 who acted and when. Being an administrator grants nothing inside any Workspace or Project.
-[The permission contract](permission-contract.md#11-installation-administration) owns the rule.
+[Security](../reference/security-and-authority.md#who-may-act) owns the rule.
 
 ---
 
