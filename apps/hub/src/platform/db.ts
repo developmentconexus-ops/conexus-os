@@ -68,15 +68,19 @@ const refuseSqlText = (statement: Sql): void => {
   }
 }
 
-export interface ReadTx {
-  readonly mode: Mode
+export interface TxQueries {
   readonly accountId: AccountId | null
   rows<S extends z.ZodType>(schema: S, query: Sql): Promise<readonly z.output<S>[]>
   one<S extends z.ZodType>(schema: S, query: Sql, missing: FailureCode): Promise<z.output<S>>
   maybe<S extends z.ZodType>(schema: S, query: Sql): Promise<z.output<S> | null>
 }
 
-export interface WriteTx extends ReadTx {
+/** A read transaction. Its mode is a literal, so a command's WriteTx is never accepted where a read admission takes one. */
+export interface ReadTx extends TxQueries {
+  readonly mode: 'read'
+}
+
+export interface WriteTx extends TxQueries {
   readonly mode: 'write'
   run(query: Sql): Promise<number>
 }
@@ -217,7 +221,7 @@ export const unportedPool = (database: Database): Pool => {
 export const openDatabase = (connection: DatabaseConnection): Database => {
   refuseOptionNamingRole(connection)
   const pool = openPool({ ...connection, password: readSecretFile(connection.passwordFile) })
-  const transact = async <T, V extends ReadTx>(entry: Entry, view: (client: PoolClient) => V & { end(): void }, fn: (tx: V) => Promise<T>): Promise<T> => {
+  const transact = async <T, V extends TxQueries>(entry: Entry, view: (client: PoolClient) => V & { end(): void }, fn: (tx: V) => Promise<T>): Promise<T> => {
     if (entered.getStore()) throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'NESTED_TRANSACTION' } })
     const client = await pool.connect()
     let discard: Error | undefined

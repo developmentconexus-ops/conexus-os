@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { WorkspaceId, type AccountId, type ProjectId as ProjectIdType } from '../../../../packages/contract/dist/index.js'
 import { BUILDER_RUN_STATES } from '../generated/builder-run-vocabulary.js'
-import { admitInstallationAdministrator, admitSystem } from '../identity-access/admission.js'
+import { admitInstallationAdministrator, admitSystem, type Admitted, type SystemScope } from '../identity-access/admission.js'
 import type { Database, WriteTx } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
@@ -57,8 +57,7 @@ export const createProjectDeletion = ({ database, ports }: Readonly<{ database: 
     return { completed: false }
   })
 
-  const purge = (projectId: ProjectIdType) => database.system('project-purge', async (gate) => {
-    const { tx } = await admitSystem(gate)
+  const removeProject = async ({ tx }: Admitted<SystemScope<'project-purge'>>, projectId: ProjectIdType) => {
     // The purge takes the project row first, like every admission that reaches it; a retry after the row is gone goes on.
     await tx.maybe(Present, sql`SELECT 1 AS present FROM project.project WHERE project_id = ${projectId} FOR UPDATE`)
     if (!(await tombstoneOf(tx, projectId))) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_DELETION_NOT_STARTED' } })
@@ -70,10 +69,12 @@ export const createProjectDeletion = ({ database, ports }: Readonly<{ database: 
     await tx.run(sql`DELETE FROM platform.operation_receipt WHERE operation_id = 'PRJ-03' AND resource_id = ${projectId}`)
     await tx.run(sql`DELETE FROM project.project WHERE project_id = ${projectId}`)
     await tx.run(sql`UPDATE project.project_deletion SET purged_at = coalesce(purged_at, now()) WHERE project_id = ${projectId}`)
-  })
+  }
+
+  const purge = (projectId: ProjectIdType) => database.system('project-purge', async (gate) => removeProject(await admitSystem(gate, 'project-purge'), projectId))
 
   const complete = (projectId: ProjectIdType) => database.system('project-purge', async (gate) => {
-    const { tx } = await admitSystem(gate)
+    const { tx } = await admitSystem(gate, 'project-purge')
     return tx.run(sql`
       UPDATE project.project_deletion SET completed_at = clock_timestamp() WHERE project_id = ${projectId} AND completed_at IS NULL`)
   })

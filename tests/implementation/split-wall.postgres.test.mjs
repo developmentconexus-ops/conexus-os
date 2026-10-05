@@ -119,8 +119,8 @@ test('the purge guard refuses a reaper and a person, and a project purge job run
   const purge = sql`SELECT iam.purge_project(${PROJECT}::uuid)`
   const refused = (error) => code(error) === '42501' && /PURGE_REQUIRES_SYSTEM/.test(error.cause?.message ?? '')
   await assert.rejects(inCommand(database, ACCOUNT, purge), refused)
-  await assert.rejects(database.system('iam-reaper', async (gate) => (await admitSystem(gate)).tx.run(purge)), refused)
-  assert.equal(await database.system('project-purge', async (gate) => (await admitSystem(gate)).tx.run(purge)), 1)
+  await assert.rejects(database.system('iam-reaper', async (gate) => (await admitSystem(gate, 'iam-reaper')).tx.run(purge)), refused)
+  assert.equal(await database.system('project-purge', async (gate) => (await admitSystem(gate, 'project-purge')).tx.run(purge)), 1)
 })
 
 test('iam.lock_administrators takes the table lock as the command role and is refused to every other', async (t) => {

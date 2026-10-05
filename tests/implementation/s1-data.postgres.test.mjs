@@ -79,7 +79,7 @@ test('every mapped database failure names a real constraint and a registered fai
   }
   await query(connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'a', 'A')", [ACCOUNT])
   const orphan = sql`INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES (${ACCOUNT}, '20000000-0000-4000-8000-000000000001', 'owner')`
-  await assert.rejects(database.system('project-purge', async (gate) => (await admitSystem(gate)).tx.run(orphan)), (error) => error.id === 'WORKSPACE_NOT_FOUND' && error.cause?.code === '23503')
+  await assert.rejects(database.system('project-purge', async (gate) => (await admitSystem(gate, 'project-purge')).tx.run(orphan)), (error) => error.id === 'WORKSPACE_NOT_FOUND' && error.cause?.code === '23503')
   await assert.rejects(database.read(ACCOUNT, (tx) => tx.rows(z.object({ value: z.number() }), sql`SELECT 1 / 0 AS value`)),
     (error) => error.id === 'INTERNAL_UNEXPECTED' && error.cause?.code === '22012')
 })

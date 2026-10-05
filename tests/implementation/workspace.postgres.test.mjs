@@ -118,8 +118,10 @@ test('an admission reads its actor from the gate and refuses a gate of another k
   const refused = (error) => error.id === 'INTERNAL_UNEXPECTED' && error.details?.invariant === 'GATE_ACTOR_REFUSED'
   await assert.rejects(database.system('project-purge', (gate) => admitAccount(gate)), refused)
   await assert.rejects(database.system('project-purge', (gate) => admitWorkspace(gate, created.reply.workspaceId, 'workspace.read')), refused)
-  await assert.rejects(database.transaction(ACCOUNT, (gate) => admitSystem(gate)), refused)
-  const proof = await database.system('project-purge', (gate) => admitSystem(gate))
+  await assert.rejects(database.transaction(ACCOUNT, (gate) => admitSystem(gate, 'project-purge')), refused)
+  await assert.rejects(database.system('iam-reaper', (gate) => admitSystem(gate, 'project-purge')),
+    (error) => error.id === 'INTERNAL_UNEXPECTED' && error.details?.invariant === 'GATE_JOB_MISMATCH')
+  const proof = await database.system('project-purge', (gate) => admitSystem(gate, 'project-purge'))
   assert.deepEqual(proof.scope, { kind: 'system', job: 'project-purge' })
   await assert.rejects(proof.tx.rows(z.object({ one: z.number() }), sql`SELECT 1 AS one`), { id: 'INTERNAL_UNEXPECTED' })
 })

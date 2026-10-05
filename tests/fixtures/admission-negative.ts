@@ -1,11 +1,15 @@
-import type { AccountId, WorkspaceId } from '../../packages/contract/dist/index.js'
-import { admitAccount, admitApplication, admitWorkspace, grantCreatorMembership } from '../../apps/hub/src/identity-access/admission.js'
-import type { Admitted, AccountScope, ProjectScope, WorkspaceScope } from '../../apps/hub/src/identity-access/admission.js'
+import type { AccountId, ProjectId, WorkspaceId } from '../../packages/contract/dist/index.js'
+import { admitAccount, admitApplication, admitProject, admitSystem, admitWorkspace, grantCreatorMembership } from '../../apps/hub/src/identity-access/admission.js'
+import type { Admitted, AccountScope, ProjectScope, SystemScope, WorkspaceScope } from '../../apps/hub/src/identity-access/admission.js'
 import type { AuthenticationGate, CommandGate, ReadTx, RawToken, WriteTx } from '../../apps/hub/src/platform/db.js'
 import { digest, sql } from '../../apps/hub/src/platform/db.js'
 
 declare const account: AccountId
 declare const workspace: WorkspaceId
+declare const project: ProjectId
+declare const builder: Admitted<ProjectScope<'project.build'>>
+declare const purge: Admitted<SystemScope<'project-purge'>>
+declare const reaper: Admitted<SystemScope<'iam-reaper'>>
 declare const owner: Admitted<WorkspaceScope<'members.manage'>>
 declare const reader: Admitted<WorkspaceScope<'workspace.read'>, 'read'>
 declare const writeReader: Admitted<WorkspaceScope<'workspace.read'>>
@@ -45,6 +49,14 @@ gate.tx
 admitWorkspace(authentication, workspace, 'workspace.read')
 // @ts-expect-error A transaction mode that writes cannot be asked of a read: run is not on a ReadTx.
 readTx.run(sql`SELECT 1`)
+// @ts-expect-error A command's own transaction is a write transaction, so it cannot take a read admission.
+admitProject(builder.tx, project, 'project.read')
+// @ts-expect-error A command's own transaction cannot take the workspace read admission either.
+admitWorkspace(builder.tx, workspace, 'workspace.read')
+// @ts-expect-error A reader's transaction mode is 'read', never 'write'.
+const writeMode: ReadTx['mode'] = 'write'
+// @ts-expect-error A job proof for one job cannot stand in for the purge job's proof.
+const wrongJob: Admitted<SystemScope<'project-purge'>> = reaper
 // @ts-expect-error The application admission takes a gate, not a read transaction.
 admitApplication(readTx, workspace)
 // @ts-expect-error The command requires an account admission proof.
@@ -59,6 +71,8 @@ const positiveAuthentication: Promise<Admitted<AccountScope>> = admitAccount(aut
 const positiveDigest = sql`SELECT ${digest(presented)}, ${'plain'}`
 const positiveOwner: Admitted<WorkspaceScope<'members.manage'>> = owner
 const positiveRead: Admitted<WorkspaceScope<'workspace.read'>, 'read'> = reader
+const positivePurge: Admitted<SystemScope<'project-purge'>> = purge
+const positiveSystem: Promise<Admitted<SystemScope<'project-purge'>>> = admitSystem(gate, 'project-purge')
 const positiveGrant: Promise<void> = grantCreatorMembership(await admitAccount(gate), workspace)
 
-void [literalGate, spreadGate, positiveAuthentication, positiveDigest, positiveOwner, positiveRead, positiveGrant, forged, copied, wrongScope, wrongAction, wrongProject, wrongMode]
+void [literalGate, spreadGate, positiveAuthentication, positiveDigest, positiveOwner, positiveRead, positiveGrant, positivePurge, positiveSystem, writeMode, wrongJob, forged, copied, wrongScope, wrongAction, wrongProject, wrongMode]

@@ -1,12 +1,14 @@
 import { z } from 'zod'
 import type { AccountId, BuilderRunId, ProjectId, WorkspaceId } from '../../../../packages/contract/dist/index.js'
 import { AccountId as AccountIdSchema, WorkspaceId as WorkspaceIdSchema } from '../../../../packages/contract/dist/index.js'
-import type { AuthenticationGate, CommandGate, Digest, JobName, Mode, ReadTx, Sql, WriteTx } from '../platform/db.js'
+import type { AuthenticationGate, CommandGate, Digest, JobName, Mode, ReadTx, Sql, TxQueries, WriteTx } from '../platform/db.js'
 import { openGate, sql } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
 
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
-export type WorkspaceRole = 'owner' | 'member'
+export const WORKSPACE_ROLES = ['owner', 'member'] as const
+/** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
+export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number]
 export type WorkspaceAction = 'workspace.read' | 'members.manage' | 'members.leave' | 'project.create' | 'project.build'
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
 export type ProjectAction = 'project.read' | 'project.build'
@@ -65,7 +67,7 @@ export type ApplicationScope = Extract<Scope, { kind: 'application' }>
 export type RunScope = Extract<Scope, { kind: 'run' }>
 export type BootstrapScope = Extract<Scope, { kind: 'bootstrap' }>
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
-export type SystemScope = Extract<Scope, { kind: 'system' }>
+export type SystemScope<J extends JobName = JobName> = Extract<Scope, { kind: 'system' }> & Readonly<{ job: J }>
 export type WorkspaceScope<A extends WorkspaceAction> = Extract<Scope, { kind: 'workspace' }> & Readonly<{
   action: A
   owners: A extends ChangesOwnerSet ? readonly OwnerRow[] : null
@@ -80,10 +82,9 @@ class Proof<S extends Scope, M extends Mode> {
 export type Admitted<S extends Scope, M extends Mode = 'write'> = Proof<S, M>
 
 const Account = z.object({ account_id: AccountIdSchema, active: z.boolean() })
-const Member = z.object({ role: z.enum(['owner', 'member']) })
+const Member = z.object({ role: z.enum(WORKSPACE_ROLES) })
 const Locked = z.object({ locked: z.number() })
-const ProjectOwner = z.object({ workspace_id: WorkspaceIdSchema })
-const Owner = z.object({ account_id: AccountIdSchema, active: z.boolean() })
+const ProjectWorkspace = z.object({ workspace_id: WorkspaceIdSchema })
 const Access = z.object({ member: z.boolean(), granted: z.boolean() })
 const Present = z.object({ present: z.literal(1) })
 
@@ -97,7 +98,7 @@ const accountGate = (gate: CommandGate): Readonly<{ tx: WriteTx; accountId: Acco
 }
 
 // A read admission takes the actor from the read's own account; it has no transaction to lock with.
-const subjectOf = (subject: CommandGate | ReadTx): Readonly<{ tx: ReadTx; writer: WriteTx | null; accountId: AccountId }> => {
+const subjectOf = (subject: CommandGate | ReadTx): Readonly<{ tx: ReadTx | WriteTx; writer: WriteTx | null; accountId: AccountId }> => {
   if ('mode' in subject) {
     if (subject.accountId === null) throw refusedActor()
     return { tx: subject, writer: null, accountId: subject.accountId }
@@ -128,7 +129,7 @@ const lockOwners = async (tx: WriteTx, workspaceId: WorkspaceId): Promise<readon
     SELECT 1 AS locked FROM iam.workspace_membership
     WHERE workspace_id = ${workspaceId} AND role = 'owner' ORDER BY account_id FOR UPDATE
   `)
-  const owners = await tx.rows(Owner, sql`
+  const owners = await tx.rows(Account, sql`
     SELECT membership.account_id, account.active FROM iam.workspace_membership AS membership
     JOIN iam.account AS account ON account.account_id = membership.account_id
     WHERE membership.workspace_id = ${workspaceId} AND membership.role = 'owner'
@@ -137,7 +138,7 @@ const lockOwners = async (tx: WriteTx, workspaceId: WorkspaceId): Promise<readon
   return owners.map((row) => ({ accountId: row.account_id, active: row.active }))
 }
 
-const memberOf = (tx: ReadTx, accountId: AccountId, workspaceId: WorkspaceId, lock: Sql) =>
+const memberOf = (tx: TxQueries, accountId: AccountId, workspaceId: WorkspaceId, lock: Sql) =>
   tx.maybe(Member, sql`SELECT role FROM iam.workspace_membership WHERE account_id = ${accountId} AND workspace_id = ${workspaceId}${lock}`)
 
 /** @public Frozen by spec 0015 section 3; the first workspace command is part 3. */
@@ -186,15 +187,15 @@ export async function admitProject(subject: CommandGate | ReadTx, projectId: Pro
   const { tx, writer, accountId } = subjectOf(subject)
   if (writer) await lockActiveAccount(writer, accountId)
   // A read leaves visibility to the reader policy, which still shows an administrator a deletion in progress.
-  const found = await tx.maybe(ProjectOwner, !writer ? sql`SELECT workspace_id FROM project.project WHERE project_id = ${projectId}` : liveProject(projectId, sql``))
+  const found = await tx.maybe(ProjectWorkspace, !writer ? sql`SELECT workspace_id FROM project.project WHERE project_id = ${projectId}` : liveProject(projectId, sql``))
   if (!found) throw new Failure(ACTION_REFUSALS[action].outsider)
   const member = await memberOf(tx, accountId, found.workspace_id, writer ? sql` FOR SHARE` : sql``)
   if (!member) throw new Failure(ACTION_REFUSALS[action].outsider)
   if (!ROLE_ALLOWS[member.role].some((allowed) => allowed === requiredAction(action))) throw new Failure(ACTION_REFUSALS[action].forbidden)
   if (writer) {
-    await writer.maybe(ProjectOwner, liveProject(projectId, sql` FOR SHARE`))
+    await writer.maybe(ProjectWorkspace, liveProject(projectId, sql` FOR SHARE`))
     // A tombstone that committed while the lock waited is invisible to the locked row, so the visibility read runs again in a new statement.
-    if (!(await writer.maybe(ProjectOwner, liveProject(projectId, sql``)))) throw new Failure(ACTION_REFUSALS[action].outsider)
+    if (!(await writer.maybe(ProjectWorkspace, liveProject(projectId, sql``)))) throw new Failure(ACTION_REFUSALS[action].outsider)
   }
   return new Proof({ kind: 'project', accountId, workspaceId: found.workspace_id, projectId, action }, tx)
 }
@@ -218,10 +219,10 @@ export const admitApplication = async (gate: CommandGate, projectId: ProjectId):
   const refused = new Failure('APPLICATION_NOT_FOUND')
   const account = await lockAccount(tx, accountId)
   if (!account?.active) throw refused
-  const found = await tx.maybe(ProjectOwner, liveProject(projectId, sql``))
+  const found = await tx.maybe(ProjectWorkspace, liveProject(projectId, sql``))
   if (!found) throw refused
   const member = await memberOf(tx, accountId, found.workspace_id, sql` FOR SHARE`)
-  await tx.maybe(ProjectOwner, liveProject(projectId, sql` FOR SHARE`))
+  await tx.maybe(ProjectWorkspace, liveProject(projectId, sql` FOR SHARE`))
   // The grant is the project's child and the purge deletes grants while it holds the project, so it is taken after the project.
   if (!member) {
     await tx.maybe(Present, sql`
@@ -251,8 +252,9 @@ export const admitBootstrap = (_gate: AuthenticationGate, _digest: Digest): Prom
   Promise.reject(new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'ADMIT_BOOTSTRAP_IS_BUILT_IN_PART_6' } }))
 
 /** @public Frozen by spec 0015 section 3; the jobs and the project purge admit through it. */
-export const admitSystem = (gate: CommandGate): Promise<Admitted<SystemScope>> => {
+export const admitSystem = <J extends JobName>(gate: CommandGate, job: J): Promise<Admitted<SystemScope<J>>> => {
   const { tx, actor } = openGate(gate)
   if (actor.kind !== 'job') return Promise.reject(refusedActor())
-  return Promise.resolve(new Proof({ kind: 'system', job: actor.job }, tx))
+  if (actor.job !== job) return Promise.reject(new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'GATE_JOB_MISMATCH' } }))
+  return Promise.resolve(new Proof({ kind: 'system', job }, tx))
 }
