@@ -27,4 +27,4 @@ The browser suites serve this app through Vite and stub the API, so they need no
 
 ## Review
 
-Review: load the pages [`areas.json`](../../docs/development/review/areas.json) maps your paths to.
+Review: load the guides [`areas.json`](../../docs/development/review/areas.json) maps your paths to.

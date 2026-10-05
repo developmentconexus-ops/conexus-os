@@ -33,6 +33,7 @@ const currentFiles = () => Object.fromEntries([
   'contracts/api/product/openapi.yaml',
 ].map(path => [path, '# fixture\n']).concat([
   ['package.json', '{"name":"conexus-os","private":true}\n'],
+  ['docs/development/review/areas.json', '[{"area":"all","paths":["**"],"guides":["A"]}]\n'],
   ['.github/workflows/verify.yml', 'on: [push]\npermissions:\n  contents: read\n'],
 ]))
 const assertPass = result => assert.equal(result.status, 0, result.stdout + result.stderr)

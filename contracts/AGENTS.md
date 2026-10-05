@@ -19,4 +19,4 @@ npm run db:catalog:check     # needs PostgreSQL
 
 ## Review
 
-Review: load the pages [`areas.json`](../docs/development/review/areas.json) maps your paths to.
+Review: load the guides [`areas.json`](../docs/development/review/areas.json) maps your paths to.

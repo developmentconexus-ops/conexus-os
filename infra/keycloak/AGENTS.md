@@ -20,4 +20,4 @@ npm run keycloak-theme:check
 
 ## Review
 
-Review: load the pages [`areas.json`](../../docs/development/review/areas.json) maps your paths to.
+Review: load the guides [`areas.json`](../../docs/development/review/areas.json) maps your paths to.

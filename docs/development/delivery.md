@@ -107,7 +107,7 @@ own branch, never merges, and counts as gate proof only when declared so before 
   `knip`, `biome ci`, log codes, import law; no Docker, browser or network) and the tests the change
   touches or that consume a changed contract, at most two groups at once. Enforced by CI on the head.
 - CI runs the whole graph in `scripts/conexus-verify.mjs` as the `browser`, `postgres`, `rest` and
-  `live` jobs; `verify` is the one required check. A Markdown-only change runs `npm run verify:docs`.
+  `live` jobs, never locally; `verify` is the one required check. A Markdown-only change runs `npm run verify:docs`.
 - Required CI protects objective properties of every change, never architecture taste, UX taste or
   document shape. A workflow event or concurrency change shows the rulesets stay equivalent.
 - A pull request is ready, not draft, as soon as the build ends, so CI and the Factory run while

@@ -121,6 +121,15 @@ export function checkWorkflows(tracked, root) {
   })
 }
 
+// Every review area names the guides that judge its paths.
+export const AREAS = 'docs/development/review/areas.json'
+export function checkAreas(text) {
+  return JSON.parse(text).flatMap(({ area, guides }) => {
+    if (!Array.isArray(guides) || guides.length === 0) return [{ where: AREAS, message: `area ${area} names no guide` }]
+    return guides.filter(id => !Object.hasOwn(GUIDES, id)).map(id => ({ where: AREAS, message: `area ${area} names ${id}, which is not a guide` }))
+  })
+}
+
 export function checkRepository(root) {
   const scripts = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).scripts ?? {}
   const tracked = [...new Set(execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: root, encoding: 'utf8' })
@@ -129,6 +138,7 @@ export function checkRepository(root) {
   const findings = [
     ...files.flatMap(path => checkFile(path, readFileSync(join(root, path), 'utf8'), { root, scripts })),
     ...checkWorkflows(tracked, root),
+    ...checkAreas(readFileSync(join(root, AREAS), 'utf8')),
   ]
   return { files: files.length, findings }
 }

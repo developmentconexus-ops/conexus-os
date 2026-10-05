@@ -15,6 +15,7 @@ const baseFiles = {
   'package.json': '{"name":"conexus-os","private":true,"scripts":{"repository:check":"node check.mjs","verify":"node verify.mjs"}}\n',
   'AGENTS.md': '# Agents\n\nTrunk is `main`.\nCI runs `npm run verify`.\n',
   [DELIVERY]: '# Delivery\n\n## Merge gate\n\nRead [AGENTS](../../AGENTS.md) and [the gate](#merge-gate).\nRun `npm run repository:check`.\n',
+  'docs/development/review/areas.json': '[{"area":"web","paths":["apps/web/**"],"guides":["V","P"]}]\n',
 }
 
 const fixture = (context, overrides = {}) => {
@@ -142,4 +143,11 @@ test('the delivery guide carries a line cap and a byte cap, and each fails on it
   const tooManyBytes = run(fixture(context, { [DELIVERY]: longLines }))
   assert.equal(tooManyBytes.status, 1)
   assert.equal(tooManyBytes.stderr, `error ${DELIVERY}: 12000 bytes exceeds the cap of 10240\n`)
+})
+
+test('an area that names no guide, or a guide that does not exist, fails', context => {
+  const areas = 'docs/development/review/areas.json'
+  const result = run(fixture(context, { [areas]: '[{"area":"web","paths":["apps/web/**"],"guides":["V","X"]},{"area":"hub","paths":["apps/hub/**"],"page":"old.md"}]\n' }))
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, `error ${areas}: area web names X, which is not a guide\nerror ${areas}: area hub names no guide\n`)
 })

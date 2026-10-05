@@ -62,7 +62,7 @@ Within that same WSL shell:
 npm run conexus:preflight
 ```
 
-In a fresh clone, run `npm ci` and `npx --no-install playwright install chromium`. A worktree with linked dependencies needs neither install. Then run the checks the change touches, such as `npm run repository:check`, one test file, or `npm run conexus:verify -- --scope <scope>` with a focused scope. Run `npm run verify:quick` before every push. A check with PostgreSQL leaves needs one complete `CONEXUS_TEST_DB_*` set or the disposable PostgreSQL service pinned in `.github/workflows/verify.yml`. A partial set fails before execution. CI runs the whole graph at the exact head SHA, and only that run decides the merge gate. A Windows result decides nothing.
+In a fresh clone, run `npm ci` and `npx --no-install playwright install chromium`. A worktree with linked dependencies needs neither install. Then run the checks [delivery](../../../../docs/development/delivery.md#proof-and-verification) asks for, for example `npm run conexus:verify -- --scope <scope>` with a focused scope. A check with PostgreSQL leaves needs one complete `CONEXUS_TEST_DB_*` set or the disposable PostgreSQL service pinned in `.github/workflows/verify.yml`. A partial set fails before execution. A Windows result decides nothing.
 
 ## Piloto
 
