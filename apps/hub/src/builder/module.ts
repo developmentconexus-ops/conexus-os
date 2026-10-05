@@ -11,11 +11,11 @@ import { gitUnavailableAs } from '../platform/git-failure.js'
 import type { Job } from '../platform/jobs.js'
 import { logLine } from '../platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from '../platform/secrets.js'
-import { AccountId, BuilderRunId, ModelAccountId, type ProjectId, SourceRevision, type BuilderTraceSummary } from '../../../../packages/contract/dist/index.js'
+import { AccountId, BuilderRunId, ModelAccountId, type ProjectId, type BuilderTraceSummary } from '../../../../packages/contract/dist/index.js'
 import { registerBuilderRoutes } from './routes.js'
 import { mountLogFilter, mountValidationFailure, registerBuilderSessionRoutes } from './mastra-session-routes.js'
 import type { ToolPayloadProjection } from './mastra-session-routes.js'
-import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot } from './routes.js'
+import type { BuilderLaunchPreviewPort, BuilderSessionPort } from './routes.js'
 import { createBuilderService } from './service.js'
 import type { ApplicationServerPort, ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderStore } from './store.js'
@@ -276,15 +276,16 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
     return buildTraceSummary({ traceId: root.traceId, spans: trace?.spans ?? [], scores: scoreRows })
   }
   const session: BuilderSessionPort = Object.freeze({
-    read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
+    read: async ({ accountId, projectId }) => {
       const preview = await store.readPreviewSubject({ accountId, projectId })
       if (!preview) throw new Failure('PROJECT_BUILD_DENIED')
       return Object.freeze({
-        projectId,
-        workingSourceRevision: SourceRevision.parse(await git.readMain(projectId).catch(gitUnavailableAs('BUILDER_SOURCE_UNAVAILABLE'))),
-        lastPreviewSourceRevision: preview.lastPreviewSourceRevision,
-        lastPreviewArtifactRevisionId: preview.lastPreviewArtifactRevisionId,
-        lastPreviewArtifactDigest: preview.lastPreviewArtifactDigest,
+        preview: Object.freeze({
+          workingSourceRevision: await git.readMain(projectId).catch(gitUnavailableAs('BUILDER_SOURCE_UNAVAILABLE')),
+          lastPreviewSourceRevision: preview.lastPreviewSourceRevision,
+          lastPreviewArtifactRevisionId: preview.lastPreviewArtifactRevisionId,
+          lastPreviewArtifactDigest: preview.lastPreviewArtifactDigest,
+        }),
         runHistory: await store.listBuilderRuns({ accountId, projectId }),
       })
     },

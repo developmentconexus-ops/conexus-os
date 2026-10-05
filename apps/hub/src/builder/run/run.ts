@@ -1,4 +1,4 @@
-import type { AccountId, BuilderRunId, ProjectId } from '../../../../../packages/contract/dist/index.js'
+import type { AccountId, BuilderRunId, ProjectId, SourceRevision } from '../../../../../packages/contract/dist/index.js'
 import { APPLICATION_CHECK_EXCLUDED } from '../application-starter.js'
 import type { ApplicationServerPort, BuilderApplicationArtifacts } from '../application-build.js'
 import { agentReportOf } from '../check/report.js'
@@ -125,7 +125,7 @@ type Prepared = Readonly<{
   vm: RunVm
   /** What `conexus_check`, `conexus_run_operation` and the finish gate run. */
   tools: RunTools
-  pulled(): string | null
+  pulled(): SourceRevision | null
 }>
 
 const cancelled = (run: Run): boolean => run.stopSignal.aborted
@@ -158,7 +158,7 @@ const phaseRefusal = async (run: Run): Promise<Failure> => {
 }
 
 // Set once the checkout holds the turn's start; the run's end mirrors it however the run ends.
-const endMirror = (run: Run, candidate: string | null): Promise<void> => {
+const endMirror = (run: Run, candidate: SourceRevision | null): Promise<void> => {
   run.mirrorEnded ??= (async () => {
     const head = await run.vm.endMirror(candidate, run.prepared?.pulled() ?? null)
     if (head) {
@@ -377,9 +377,11 @@ const writeEnding = async (run: Run, ending: RunEnding): Promise<void> => {
   const { store, settleRetryMs } = run.env
   const id = run.row.builderRunId
   // A run no claim reached has no owner to admit: its own transition ends the still queued row.
-  const write = !run.claimed ? ending.kind === 'FAILED' || ending.kind === 'INTERRUPTED' ? () => store.endUnclaimedBuilderRun(id, ending) : null
-    : ending.kind === 'INTERRUPTED' ? () => store.interruptBuilderRun(id, ending.code)
-    : ending.kind === 'FAILED' ? () => store.failBuilderRun(id, ending.code) : null
+  const write = ending.kind === 'FAILED' || ending.kind === 'INTERRUPTED'
+    ? !run.claimed
+      ? () => store.endUnclaimedBuilderRun(id, ending.kind === 'FAILED' ? { state: 'FAILED', failureCode: ending.code } : { state: 'INTERRUPTED', failureCode: ending.code })
+      : ending.kind === 'FAILED' ? () => store.failBuilderRun(id, ending.code) : () => store.interruptBuilderRun(id, ending.code)
+    : null
   if (!write) return
   for (let attempt = 1; attempt <= 3; attempt++) {
     try { await write(); return } catch (error) {

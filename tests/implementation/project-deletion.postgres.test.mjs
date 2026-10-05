@@ -16,7 +16,7 @@ const tombstones = async (connection) => (await query(connection, 'SELECT projec
 
 const seedEverything = async (connection, projectId) => {
   await query(connection, `INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, idempotency_digest, base_source_revision, state, request_digest, conversation_id)
-    VALUES ($1, $2, $3, $4, $5, 'SUCCEEDED', $6, $7)`, [randomUUID(), projectId, ID.owner, digest('1'), HEAD, digest('2'), `conexus-builder:${projectId}`])
+    VALUES ($1, $2, $3, $4, $5, 'SUCCEEDED', $6, $7)`, [randomUUID(), projectId, ID.owner, digest('1'), HEAD, digest('2'), projectId])
   await query(connection, "INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'atlas-app', $2)", [projectId, ID.owner])
   await query(connection, "INSERT INTO iam.application_invitation(invitation_id, project_id, email, invited_by, expires_at) VALUES ($1, $2, 'invitee@example.test', $3, clock_timestamp() + interval '1 day')", [randomUUID(), projectId, ID.owner])
   await query(connection, 'INSERT INTO iam.application_grant(project_id, account_id, granted_by) VALUES ($1, $2, $3)', [projectId, ID.outsider, ID.owner])

@@ -26,7 +26,7 @@ test('C-020 source inspection admits current subjects and latest code-changing r
   const insertRun = (id, projectId, revision, kind, createdAt, base) => query(connection, `INSERT INTO builder.builder_run(
     builder_run_id, project_id, account_id, conversation_id, trigger_message_id, idempotency_digest, request_digest,
     base_source_revision, state, result_source_revision, result_kind, created_at
-  ) VALUES ($1, $2, $3, $10, $4, $5, $5, $6, 'SUCCEEDED', $7, $8, $9)`, [id, projectId, account, id, id.replaceAll('-', '').padEnd(64, '0'), base, revision, kind, createdAt, `conversa-${projectId}`])
+  ) VALUES ($1, $2, $3, $10, $4, $5, $5, $6, 'SUCCEEDED', $7, $8, $9)`, [id, projectId, account, id, id.replaceAll('-', '').padEnd(64, '0'), base, revision, kind, createdAt, projectId])
   await insertRun(runOne, project, runOneResult, 'SOURCE_CHANGED', '2026-09-14T10:00:00Z', olderRunOnly)
   await insertRun(runTwo, project, working, 'SOURCE_CHANGED_BUILD_FAILED', '2026-09-14T11:00:00Z', runOneResult)
   await insertRun(responseOnly, project, null, 'RESPONSE_ONLY', '2026-09-14T12:00:00Z', working)

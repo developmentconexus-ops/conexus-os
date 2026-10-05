@@ -1,35 +1,43 @@
 import { z } from 'zod'
-import { BUILDER_RUN_PHASES, BUILDER_RUN_RESULT_KINDS, BUILDER_RUN_STATES } from './builder-run-vocabulary.js'
-import { ArtifactRevisionId, BuilderRunId, IdempotencyKey, ProjectId, SourceRevision } from './ids.js'
+import { BUILDER_RUN_PHASES } from './builder-run-vocabulary.js'
+import { FAILURE_CODES } from './failures.generated.js'
+import { fieldFailures } from './field-failures.js'
+import { ArtifactDigest, ArtifactRevisionId, BuilderRunId, ConversationId, IdempotencyKey, ProjectId, SourceRevision } from './ids.js'
 import { operation } from './operation.js'
 
-export const BuilderRunSummary = z.object({
+const RunFailureCode = z.enum(FAILURE_CODES).meta({ id: 'FailureCode' })
+
+const runBase = {
   builderRunId: BuilderRunId,
   projectId: ProjectId,
-  conversationId: z.string().min(1).max(200),
-  state: z.enum(BUILDER_RUN_STATES),
-  phase: z.enum(BUILDER_RUN_PHASES).nullable(),
+  conversationId: ConversationId,
   baseSourceRevision: SourceRevision,
-  resultSourceRevision: SourceRevision.nullable(),
-  resultKind: z.enum(BUILDER_RUN_RESULT_KINDS).nullable(),
-  failureCode: z.string().nullable(),
   requestText: z.string().max(20_000).nullable(),
   createdAt: z.iso.datetime(),
   cancellationRequested: z.boolean(),
-}).meta({ id: 'BuilderRunSummary' })
+}
+
+// Each state holds only what that state can: a phase while running, a result once settled, a failure code once it failed or was interrupted.
+const runVariants = <Extra extends z.ZodRawShape>(extra: Extra) => z.discriminatedUnion('state', [
+  z.object({ ...runBase, ...extra, state: z.literal('QUEUED'), phase: z.null(), resultSourceRevision: z.null(), resultKind: z.null(), failureCode: z.null() }),
+  z.object({ ...runBase, ...extra, state: z.literal('RUNNING'), phase: z.enum(BUILDER_RUN_PHASES).nullable(), resultSourceRevision: SourceRevision.nullable(), resultKind: z.null(), failureCode: z.null() }),
+  z.object({ ...runBase, ...extra, state: z.literal('SUCCEEDED'), phase: z.null(), resultSourceRevision: SourceRevision.nullable(), resultKind: z.enum(['RESPONSE_ONLY', 'SOURCE_CHANGED']), failureCode: z.null() }),
+  z.object({ ...runBase, ...extra, state: z.literal('FAILED'), phase: z.null(), resultSourceRevision: SourceRevision.nullable(), resultKind: z.literal('SOURCE_CHANGED_BUILD_FAILED').nullable(), failureCode: RunFailureCode }),
+  z.object({ ...runBase, ...extra, state: z.literal('INTERRUPTED'), phase: z.null(), resultSourceRevision: SourceRevision.nullable(), resultKind: z.null(), failureCode: RunFailureCode }),
+])
+
+export const BuilderRunSummary = runVariants({}).meta({ id: 'BuilderRunSummary' })
 export type BuilderRunSummary = z.output<typeof BuilderRunSummary>
 
 /** The run as the browser reads it: its row, and the calls its live session waits on while the run waits on the person. */
-export const BuilderRunView = BuilderRunSummary.extend({
-  pendingCalls: z.array(z.string().min(1).max(200)),
-}).meta({ id: 'BuilderRunView' })
+export const BuilderRunView = runVariants({ pendingCalls: z.array(z.string().min(1).max(200)) }).meta({ id: 'BuilderRunView' })
 export type BuilderRunView = z.output<typeof BuilderRunView>
 
 const BuilderPreviewSummary = z.object({
   workingSourceRevision: SourceRevision.nullable(),
-  lastGoodSourceRevision: SourceRevision.nullable(),
-  lastGoodArtifactRevisionId: ArtifactRevisionId.nullable(),
-  lastGoodArtifactDigest: z.string().regex(/^[0-9a-f]{64}$/).nullable(),
+  lastPreviewSourceRevision: SourceRevision.nullable(),
+  lastPreviewArtifactRevisionId: ArtifactRevisionId.nullable(),
+  lastPreviewArtifactDigest: ArtifactDigest.nullable(),
 }).meta({ id: 'BuilderPreviewSummary' })
 
 const LatestCodeChangingBuilderRun = z.object({
@@ -108,7 +116,7 @@ export const PreviewLaunch = z.object({
   previewUrl: z.string().min(1),
   entryGrant: z.string().min(1),
   artifactRevisionId: ArtifactRevisionId,
-  artifactDigest: z.string().regex(/^[0-9a-f]{64}$/),
+  artifactDigest: ArtifactDigest,
   expiresAt: z.iso.datetime(),
 }).meta({ id: 'PreviewLaunch' })
 export type PreviewLaunch = z.output<typeof PreviewLaunch>
@@ -143,7 +151,7 @@ export const BLD24 = operation({
   id: 'BLD-24', access: 'session', method: 'POST', path: '/api/control/projects/:projectId/builder-session/messages',
   params: projectParam, query: null,
   headers: z.looseObject({ 'idempotency-key': IdempotencyKey }),
-  body: z.object({ content: z.string().min(1).max(20_000).regex(/\S/), conversationId: z.string().min(1).max(200) }).strict(),
+  body: z.object({ content: z.string().min(1).max(20_000).regex(/\S/).register(fieldFailures, { failureCode: 'BUILDER_MESSAGE_REFUSED' }), conversationId: ConversationId }).strict(),
   success: { 201: BuilderMessageAccepted, 200: BuilderMessageAccepted },
   effects: [],
   failures: ['IDEMPOTENCY_CONFLICT', 'CONVERSATION_NOT_FOUND', 'BUILDER_CAPACITY_FULL', 'PROJECT_BUILD_DENIED', 'ACCOUNT_INACTIVE', 'BUILDER_MESSAGE_REFUSED',

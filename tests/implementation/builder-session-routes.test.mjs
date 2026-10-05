@@ -429,6 +429,10 @@ test('a message names its conversation only: mode and promptVariant are refused,
   assert.deepEqual([withMode.statusCode, withVariant.statusCode, unknown.statusCode], [400, 400, 404])
   assert.equal(unknown.json().type.endsWith('CONVERSATION_NOT_FOUND'), true)
   assert.deepEqual(received, [{ accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k-1', content: 'altere' }])
+  const blank = await send({ content: '   ', conversationId: conversationA })
+  const notUuid = await send({ content: 'altere', conversationId: 'conversa' })
+  assert.deepEqual([blank, notUuid].map((reply) => [reply.statusCode, reply.json().type]), [[422, 'urn:conexus:problem:BUILDER_MESSAGE_REFUSED'], [404, 'urn:conexus:problem:CONVERSATION_NOT_FOUND']])
+  assert.equal(received.length, 1, 'a body the contract refuses never reaches the service')
 
   failRun = new Failure('BUILDER_CAPACITY_FULL')
   const full = await send({ content: 'altere', conversationId: conversationA })
@@ -444,7 +448,7 @@ test('the session read serves the latest run with the calls its live run in this
   const waiting = { builderRunId: runId, projectId: projectA, conversationId: conversationA, state: 'RUNNING', phase: 'WAITING', baseSourceRevision: '0'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'c', createdAt: new Date().toISOString(), cancellationRequested: false }
   let held = ['call-1']
   const { app } = await createBuilderRoutesApp(t, {
-    session: { read: async () => ({ projectId: projectA, workingSourceRevision: null, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null, runHistory: [] }) },
+    session: { read: async () => ({ preview: { workingSourceRevision: null, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null }, runHistory: [] }) },
     store: { readBuilderRun: async () => waiting, readLatestCodeChangingBuilderRun: async () => null },
     service: { pendingCalls: (projectId, conversationId) => (projectId === projectA && conversationId === conversationA ? held : ['wrong']) },
   })

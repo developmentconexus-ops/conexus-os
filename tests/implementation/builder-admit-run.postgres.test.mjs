@@ -105,6 +105,6 @@ test('the wall admits a run row lock and refuses a column no grant covers', asyn
   assert.equal(await refusedCode('SELECT 1 FROM builder.builder_run WHERE builder_run_id = $1 FOR UPDATE', [builderRunId]), null)
   assert.equal(await refusedCode('SELECT 1 FROM builder.builder_run WHERE builder_run_id = $1 FOR SHARE', [builderRunId]), null)
   assert.equal(await refusedCode('UPDATE builder.project_working_state SET project_id = $1 WHERE project_id = $2', [randomUUID(), projectId]), '42501')
-  assert.equal(await refusedCode("INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision) VALUES ($1, $2, $3, 'c', $4, $5, $6)",
+  assert.equal(await refusedCode("INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision) VALUES ($1, $2, $3, gen_random_uuid(), $4, $5, $6)",
     [randomUUID(), await seedBuilderProject('Zeta'), randomUUID(), 'a'.repeat(64), 'b'.repeat(64), 'c'.repeat(40)]), '23503')
 })

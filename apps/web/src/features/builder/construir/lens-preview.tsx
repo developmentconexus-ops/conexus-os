@@ -24,12 +24,12 @@ const addressOf = (url: string): string => {
   try { return new URL(url).host } catch { return url }
 }
 
-export function LensPreview({ preview, view, wait, history, lastGoodSourceRevision, sourceAhead }: Readonly<{
+export function LensPreview({ preview, view, wait, history, lastPreviewSourceRevision, sourceAhead }: Readonly<{
   preview: Preview
   view: RunView
   wait: PreviewWait | null
   history: readonly BuilderRun[]
-  lastGoodSourceRevision: string | null
+  lastPreviewSourceRevision: string | null
   sourceAhead: boolean
 }>) {
   const frameName = `cx-preview-${useId().replaceAll(':', '')}`
@@ -51,7 +51,7 @@ export function LensPreview({ preview, view, wait, history, lastGoodSourceRevisi
     queueMicrotask(() => entryForm.current?.requestSubmit())
   }, [lease, leaseKeyId])
   const frameOpen = navigated !== null && navigated === leaseKeyId
-  const version = versionNumber(history, lastGoodSourceRevision)
+  const version = versionNumber(history, lastPreviewSourceRevision)
   const failedRun = view.kind === 'SETTLED' && (view.outcome === 'BUILD_FAILED' || view.outcome === 'FAILED') ? view.run : null
 
   if (!preview.ready && !lease) {

@@ -24,7 +24,7 @@ const pending = (promise) => {
 const harness = async (t, name) => {
   const fixture = await setupBuilder(t, name)
   const store = createBuilderStore({ database: fixture.database, ownerId: OWNER })
-  const start = (projectId, { accountId = ID.owner, key = randomUUID(), content = TEXT, conversationId = 'conversa', readBase = async () => HEAD } = {}) =>
+  const start = (projectId, { accountId = ID.owner, key = randomUUID(), content = TEXT, conversationId = '33333333-3333-4333-8333-333333333333', readBase = async () => HEAD } = {}) =>
     store.createBuilderRun({ accountId, projectId, conversationId, idempotencyKey: key, content, readBase })
   const row = async (builderRunId) => (await query(fixture.connection, `SELECT state, phase, owner_id, failure_code, result_kind, candidate_revision, result_source_revision, sandbox_id, trigger_message_id,
     cancellation_requested_at IS NOT NULL AS cancellation_requested, cancellation_reason FROM builder.builder_run WHERE builder_run_id = $1`, [builderRunId])).rows[0]
@@ -47,7 +47,7 @@ test('a run start records the base the Hub read while holding the Project, repla
   assert.equal((await query(connection, 'SELECT request_text FROM builder.builder_run WHERE builder_run_id = $1', [created.builderRunId])).rows[0].request_text, TEXT)
   assert.equal((await start(projectId, { key: 'k' })).builderRunId, created.builderRunId)
   await assert.rejects(start(projectId, { key: 'k', content: 'Outro pedido' }), { id: 'IDEMPOTENCY_CONFLICT' })
-  await assert.rejects(start(projectId, { key: 'k', conversationId: 'outra' }), { id: 'IDEMPOTENCY_CONFLICT' })
+  await assert.rejects(start(projectId, { key: 'k', conversationId: '44444444-4444-4444-8444-444444444444' }), { id: 'IDEMPOTENCY_CONFLICT' })
   await assert.rejects(start(projectId, { key: 'other' }), { id: 'PROJECT_BUSY' })
   const elsewhere = await start(await seedBuilderProject('Borealis'), { key: 'k' })
   assert.notEqual(elsewhere.builderRunId, created.builderRunId)
@@ -57,12 +57,9 @@ test('a run start records the base the Hub read while holding the Project, repla
   assert.equal((await start(projectId, { key: 'next' })).state, 'QUEUED', 'a closed run frees the Project')
 })
 
-test('a run start refuses text and base outside their bounds, an outsider, an inactive account and a Project without its Builder rows', async (t) => {
+test('a run start refuses an outsider, an inactive account and a Project without its Builder rows', async (t) => {
   const { connection, store, start, seedBuilderProject, seedProject } = await harness(t, 'conexus_builder_start_refused')
   const projectId = await seedBuilderProject('Atlas')
-  await assert.rejects(start(projectId, { content: 'x'.repeat(20_001) }), { id: 'BUILDER_MESSAGE_REFUSED' })
-  await assert.rejects(start(projectId, { content: '' }), { id: 'BUILDER_MESSAGE_REFUSED' })
-  await assert.rejects(start(projectId, { readBase: async () => 'main' }), { id: 'BUILDER_MESSAGE_REFUSED' })
   await assert.rejects(start(projectId, { accountId: ID.outsider }), { id: 'PROJECT_BUILD_DENIED' })
   await assert.rejects(start(projectId, { accountId: ID.administrator }), { id: 'PROJECT_BUILD_DENIED' })
   const bare = await seedProject('Bare')
@@ -171,7 +168,6 @@ test('a run records one candidate, advances only to it, settles as a response on
   assert.deepEqual((await query(connection, 'SELECT model_account_id FROM builder.builder_run_model_account WHERE builder_run_id = $1 ORDER BY model_account_id', [builderRunId])).rows.map((entry) => entry.model_account_id), [payer, otherPayer].sort())
 
   await assert.rejects(store.advanceBuilderRunSource(builderRunId, CANDIDATE), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'source settlement' } })
-  await assert.rejects(store.recordBuilderRunCandidate({ builderRunId, accountId: ID.owner, sourceRevision: 'main' }), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'candidate' } })
   await store.recordBuilderRunCandidate({ builderRunId, accountId: ID.owner, sourceRevision: CANDIDATE })
   await store.recordBuilderRunCandidate({ builderRunId, accountId: ID.owner, sourceRevision: CANDIDATE })
   await assert.rejects(store.recordBuilderRunCandidate({ builderRunId, accountId: ID.owner, sourceRevision: OTHER }), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'candidate' } })
@@ -200,22 +196,22 @@ test('removing the author before the candidate refuses the write and leaves the 
 test('a queued run ends unclaimed only while still queued and unowned, and a claim by a removed author never reaches RUNNING', async (t) => {
   const { connection, store, start, row, seedBuilderProject } = await harness(t, 'conexus_builder_unclaimed')
   const lost = await start(await seedBuilderProject('Lost'))
-  await store.endUnclaimedBuilderRun(lost.builderRunId, { kind: 'FAILED', code: 'BUILDER_RUN_NOT_ADMITTED' })
+  await store.endUnclaimedBuilderRun(lost.builderRunId, { state: 'FAILED', failureCode: 'BUILDER_RUN_NOT_ADMITTED' })
   assert.deepEqual(await row(lost.builderRunId), { ...(await row(lost.builderRunId)), state: 'FAILED', failure_code: 'BUILDER_RUN_NOT_ADMITTED', phase: null })
 
   const cancelled = await start(await seedBuilderProject('Cancelled'))
   await store.requestBuilderRunCancellation({ accountId: ID.owner, projectId: cancelled.projectId, builderRunId: cancelled.builderRunId })
-  await store.endUnclaimedBuilderRun(cancelled.builderRunId, { kind: 'FAILED', code: 'BUILDER_RUN_NOT_ADMITTED' })
-  assert.deepEqual(await row(cancelled.builderRunId), { ...(await row(cancelled.builderRunId)), state: 'INTERRUPTED', failure_code: null })
+  await store.endUnclaimedBuilderRun(cancelled.builderRunId, { state: 'FAILED', failureCode: 'BUILDER_RUN_NOT_ADMITTED' })
+  assert.deepEqual(await row(cancelled.builderRunId), { ...(await row(cancelled.builderRunId)), state: 'INTERRUPTED', failure_code: 'USER_CANCELLED' })
 
   const stopped = await start(await seedBuilderProject('Stopped'))
-  await store.endUnclaimedBuilderRun(stopped.builderRunId, { kind: 'INTERRUPTED', code: 'HUB_RESTART' })
+  await store.endUnclaimedBuilderRun(stopped.builderRunId, { state: 'INTERRUPTED', failureCode: 'HUB_RESTART' })
   assert.deepEqual(await row(stopped.builderRunId), { ...(await row(stopped.builderRunId)), state: 'INTERRUPTED', phase: null, failure_code: 'HUB_RESTART', cancellation_requested: true, cancellation_reason: 'HUB_RESTART' })
 
   const claimed = await start(await seedBuilderProject('Claimed'))
   await store.claimBuilderRun(claimed.builderRunId)
-  await store.endUnclaimedBuilderRun(claimed.builderRunId, { kind: 'FAILED', code: 'BUILDER_RUN_NOT_ADMITTED' })
-  await store.endUnclaimedBuilderRun(claimed.builderRunId, { kind: 'INTERRUPTED', code: 'HUB_RESTART' })
+  await store.endUnclaimedBuilderRun(claimed.builderRunId, { state: 'FAILED', failureCode: 'BUILDER_RUN_NOT_ADMITTED' })
+  await store.endUnclaimedBuilderRun(claimed.builderRunId, { state: 'INTERRUPTED', failureCode: 'HUB_RESTART' })
   assert.equal((await row(claimed.builderRunId)).state, 'RUNNING', 'zero rows changed')
 
   const revoked = await start(await seedBuilderProject('Revoked'), { accountId: ID.member })
@@ -246,13 +242,13 @@ test('the lists and reads answer a member their Project only, newest first, and 
   const otherProject = await seedBuilderProject('Borealis')
   const old = await seedRun(projectId, { state: 'SUCCEEDED', createdAgoMs: 3000, owner: null })
   const middle = await seedRun(projectId, { state: 'FAILED', accountId: ID.member, createdAgoMs: 2000, owner: null })
-  const newest = await seedRun(projectId, { state: 'RUNNING', phase: 'AGENT', createdAgoMs: 1000, conversationId: 'conversa-aberta' })
-  await seedRun(otherProject, { state: 'QUEUED', conversationId: 'conversa-fila' })
+  const newest = await seedRun(projectId, { state: 'RUNNING', phase: 'AGENT', createdAgoMs: 1000, conversationId: '55555555-5555-4555-8555-555555555555' })
+  await seedRun(otherProject, { state: 'QUEUED', conversationId: '66666666-6666-4666-8666-666666666666' })
   await seedRun(otherProject, { state: 'SUCCEEDED', createdAgoMs: 5000, owner: null })
   assert.deepEqual((await store.listBuilderRuns({ accountId: ID.owner, projectId })).map((run) => run.builderRunId), [newest, old], 'the list is the account runs only')
   assert.deepEqual((await store.listBuilderRuns({ accountId: ID.member, projectId })).map((run) => run.builderRunId), [middle])
   assert.equal((await store.readBuilderRun({ accountId: ID.member, projectId })).builderRunId, newest, 'the latest read may be another author run')
-  assert.deepEqual([...await store.readOpenRunConversations()].sort(), ['conversa-aberta', 'conversa-fila'])
+  assert.deepEqual([...await store.readOpenRunConversations()].sort(), ['55555555-5555-4555-8555-555555555555', '66666666-6666-4666-8666-666666666666'])
   for (const hidden of [ID.outsider, ID.administrator]) {
     assert.deepEqual(await store.listBuilderRuns({ accountId: hidden, projectId }), [])
     assert.equal(await store.readBuilderRun({ accountId: hidden, projectId }), null)
@@ -280,7 +276,6 @@ test('a conversation session and its sandbox belong to the run Project, and a pu
   await store.recordConversationSession({ builderRunId, conversationId, mirrorHead: OTHER, turnEnded: true })
   assert.deepEqual(await session(conversationId), [{ project_id: projectId, mirror_head: OTHER, synced_main: HEAD, provider_sandbox_id: null, ended: true }])
   await assert.rejects(store.recordConversationSession({ builderRunId, conversationId: foreign, mirrorHead: OTHER, turnEnded: true }), { id: 'BUILDER_CONVERSATION_SESSION_REFUSED' })
-  await assert.rejects(store.recordConversationSession({ builderRunId, conversationId, mirrorHead: 'main', turnEnded: true }), { id: 'BUILDER_CONVERSATION_SESSION_REFUSED' })
   assert.deepEqual(await session(foreign), [])
 
   assert.equal(await store.readConversationSandbox({ accountId: ID.owner, projectId, conversationId }), null)
@@ -381,7 +376,7 @@ test('the wall on the Builder tables: hub_runtime holds none after a commit, a r
   })
   assert.equal(READER_TABLES.length, 3)
   const inserts = {
-    'builder.builder_run': "INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision) VALUES (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'c', repeat('a', 64), repeat('b', 64), repeat('a', 40))",
+    'builder.builder_run': "INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision) VALUES (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), repeat('a', 64), repeat('b', 64), repeat('a', 40))",
     'builder.project_working_state': 'INSERT INTO builder.project_working_state(project_id) VALUES (gen_random_uuid())',
     'builder.project_repository': 'INSERT INTO builder.project_repository(project_id) VALUES (gen_random_uuid())',
     'builder.conversation_session': 'INSERT INTO builder.conversation_session(conversation_id, project_id) VALUES (gen_random_uuid(), gen_random_uuid())',

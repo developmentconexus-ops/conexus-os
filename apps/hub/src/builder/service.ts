@@ -1,4 +1,4 @@
-import type { AccountId, BuilderRunId, ProjectId, SourceComparison, SourceFile, SourceRevision, SourceTree } from '../../../../packages/contract/dist/index.js'
+import type { AccountId, BuilderRunId, ConversationId, ProjectId, SourceComparison, SourceFile, SourceRevision, SourceTree } from '../../../../packages/contract/dist/index.js'
 import type { ConexusGit } from './conexus-git.js'
 import type { Conversations } from './conversations.js'
 import { settleTakenOverCandidate } from './run/admit.js'
@@ -21,7 +21,7 @@ export type BuilderService = Readonly<{
    * The person's message in a conversation. A run of it waiting on the person takes it (`created`
    * false); with no run, it starts one. A run that is working answers BUILDER_BUSY.
    */
-  sendBuilderMessage(input: Readonly<{ accountId: AccountId; projectId: ProjectId; conversationId: string; idempotencyKey: string; content: string }>): Promise<Readonly<{ builderRun: BuilderRunSummary; created: boolean }>>
+  sendBuilderMessage(input: Readonly<{ accountId: AccountId; projectId: ProjectId; conversationId: ConversationId; idempotencyKey: string; content: string }>): Promise<Readonly<{ builderRun: BuilderRunSummary; created: boolean }>>
   cancelBuilderRun(input: Readonly<{ accountId: AccountId; projectId: ProjectId; builderRunId: BuilderRunId }>): Promise<BuilderRunSummary>
   /** The person's answer to the question the conversation's run waits on. */
   answerQuestion(input: Readonly<{ projectId: ProjectId; conversationId: string; toolCallId: string; resumeData: unknown }>): AnswerOutcome
@@ -153,7 +153,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   const unlessClosed = <T>(read: () => Promise<T>): Promise<T> =>
     applicationShutdown.signal.aborted ? Promise.reject(new Failure('BUILDER_APPLICATION_CLOSED')) : read()
   // A revision the source view may show the caller; `main` counts as read from the Conexus Git now.
-  const admitSource = async ({ accountId, projectId }: Readonly<{ accountId: AccountId; projectId: ProjectId }>, sourceRevision: string): Promise<boolean> =>
+  const admitSource = async ({ accountId, projectId }: Readonly<{ accountId: AccountId; projectId: ProjectId }>, sourceRevision: SourceRevision): Promise<boolean> =>
     store.admitSourceRevision({ accountId, projectId, sourceRevision, mainRevision: await dependencies.git.readMain(projectId).catch(unavailable) })
   return Object.freeze({
     sendBuilderMessage: async (input) => {

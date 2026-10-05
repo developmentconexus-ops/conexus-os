@@ -8,7 +8,7 @@ import { createRunSteps, type RunSteps } from './run-steps.js'
 
 export type { BuilderRunSummary, BuilderRunView } from './run-row.js'
 export type { TakenOverRun } from './run-lease.js'
-export type { InterruptionCode } from './run-steps.js'
+export type { InterruptionCode } from './run-ending.js'
 
 export type BuilderStore = ConversationStore & RunStart & RunSteps & RunReads & RunLease & Readonly<{
   /** This Hub process as the owner of the runs it works. */

@@ -1,21 +1,19 @@
 import { z } from 'zod'
-import { AccountId, ArtifactRevisionId, ProjectId, SourceRevision, type BuilderRunId, type ModelAccountId } from '../../../../packages/contract/dist/index.js'
+import { AccountId, ProjectId, SourceRevision, type ArtifactDigest, type ArtifactRevisionId, type BuilderRunId, type ModelAccountId } from '../../../../packages/contract/dist/index.js'
 import { admitProject, admitSystem, type Admitted, type RunScope, type SystemScope } from '../identity-access/admission.js'
 import { OPEN_RUN_STATES, type BuilderRunPhase } from '../generated/builder-run-vocabulary.js'
 import { sql, type Database } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
 import { RUN_COLUMNS, RunRow, runSummary, type BuilderRunSummary } from './run-row.js'
 import { unlessNotAdmitted, withRun, type RunActor } from './run-access.js'
-
-/** How a run ends without failing: the person's stop, a Hub that stopped, or a question nobody answered. */
-export type InterruptionCode = Extract<FailureCode, 'USER_CANCELLED' | 'HUB_RESTART' | 'BUILDER_QUESTION_EXPIRED'>
+import { endColumns, type InterruptionCode, type RunEnding } from './run-ending.js'
 
 /** How a run no claim reached ends: a refused claim fails it, a stop interrupts it. */
-type UnclaimedEnding = Readonly<{ kind: 'FAILED'; code: FailureCode }> | Readonly<{ kind: 'INTERRUPTED'; code: InterruptionCode }>
+type UnclaimedEnding = Extract<RunEnding, Readonly<{ state: 'FAILED' | 'INTERRUPTED' }>>
 
 /** What the Preview build of an admitted source came to: the artifact the registry holds, or the code the build failed with. */
 type BuildSettlement = Readonly<{ builderRunId: BuilderRunId; sourceRevision: SourceRevision }> & (
-  | Readonly<{ kind: 'BUILT'; artifactRevisionId: string; artifactDigest: string }>
+  | Readonly<{ kind: 'BUILT'; artifactRevisionId: ArtifactRevisionId; artifactDigest: ArtifactDigest }>
   | Readonly<{ kind: 'FAILED'; failureCode: FailureCode }>
 )
 
@@ -27,13 +25,13 @@ export type RunSteps = Readonly<{
   /** Answers the run as written, or null when a stop was requested first. */
   setBuilderRunPhase(builderRunId: BuilderRunId, phase: BuilderRunPhase, actor: RunActor): Promise<BuilderRunSummary | null>
   /** Enters SOURCE_ADMISSION with the candidate about to be fast forwarded onto `main`; refused once a stop is requested. */
-  recordBuilderRunCandidate(input: Readonly<{ builderRunId: BuilderRunId; accountId: AccountId; sourceRevision: string }>): Promise<void>
+  recordBuilderRunCandidate(input: Readonly<{ builderRunId: BuilderRunId; accountId: AccountId; sourceRevision: SourceRevision }>): Promise<void>
   bindBuilderRunSandbox(builderRunId: BuilderRunId, sandboxId: string): Promise<void>
   /** Records the model account that paid for one of the run's calls; once recorded, recording it again changes nothing. */
   recordBuilderRunModelAccount(input: Readonly<{ builderRunId: BuilderRunId; accountId: AccountId; modelAccountId: ModelAccountId }>): Promise<void>
   /** A run that changed no source ends as a response. */
   settleBuilderRun(builderRunId: BuilderRunId): Promise<void>
-  advanceBuilderRunSource(builderRunId: BuilderRunId, sourceRevision: string): Promise<void>
+  advanceBuilderRunSource(builderRunId: BuilderRunId, sourceRevision: SourceRevision): Promise<void>
   settleBuilderRunBuild(settlement: BuildSettlement): Promise<void>
   failBuilderRun(builderRunId: BuilderRunId, failureCode: FailureCode): Promise<void>
   interruptBuilderRun(builderRunId: BuilderRunId, reason: InterruptionCode): Promise<void>
@@ -95,12 +93,10 @@ export const createRunSteps = ({ database, ownerId }: Readonly<{ database: Datab
       return row ? runSummary(row) : null
     }).catch(unlessNotAdmitted(null)),
     recordBuilderRunCandidate: async ({ builderRunId, accountId, sourceRevision }) => {
-      const candidate = SourceRevision.safeParse(sourceRevision)
-      if (!candidate.success) throw transitionRefused('candidate')
       await act(builderRunId, { via: 'account', accountId }, (proof) => written(proof, sql`
-        UPDATE builder.builder_run AS run SET phase = 'SOURCE_ADMISSION', candidate_revision = ${candidate.data}
+        UPDATE builder.builder_run AS run SET phase = 'SOURCE_ADMISSION', candidate_revision = ${sourceRevision}
         WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId} AND run.state = 'RUNNING' AND run.cancellation_requested_at IS NULL
-          AND (run.candidate_revision IS NULL OR run.candidate_revision = ${candidate.data})`, 'candidate'))
+          AND (run.candidate_revision IS NULL OR run.candidate_revision = ${sourceRevision})`, 'candidate'))
     },
     bindBuilderRunSandbox: async (builderRunId, sandboxId) => {
       const id = sandboxId.trim()
@@ -118,19 +114,17 @@ export const createRunSteps = ({ database, ownerId }: Readonly<{ database: Datab
           INSERT INTO builder.builder_run_model_account (builder_run_id, model_account_id) VALUES (${proof.scope.builderRunId}, ${modelAccountId}) ON CONFLICT DO NOTHING`)
       }),
     settleBuilderRun: (builderRunId) => act(builderRunId, executor, (proof) => written(proof, sql`
-      UPDATE builder.builder_run AS run SET state = 'SUCCEEDED', phase = NULL, result_source_revision = NULL, result_kind = 'RESPONSE_ONLY', failure_code = NULL, finished_at = clock_timestamp()
+      UPDATE builder.builder_run AS run SET ${endColumns({ state: 'SUCCEEDED', resultKind: 'RESPONSE_ONLY' })}, result_source_revision = NULL
       WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId} AND run.state = 'RUNNING' AND run.candidate_revision IS NULL`, 'settlement')),
     advanceBuilderRunSource: async (builderRunId, sourceRevision) => {
-      const revision = SourceRevision.safeParse(sourceRevision)
-      if (!revision.success) throw transitionRefused('source settlement')
       await act(builderRunId, executor, async (proof) => {
         const run = await proof.tx.maybe(Candidates, sql`
           SELECT run.state, run.candidate_revision, run.result_source_revision FROM builder.builder_run AS run WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId}`)
         if (run?.state !== 'RUNNING') throw transitionRefused('source settlement')
         await lockWorking(proof, 'source settlement')
-        if (run.result_source_revision === revision.data) return
-        if (run.result_source_revision !== null || run.candidate_revision !== revision.data) throw transitionRefused('source settlement')
-        await written(proof, sql`UPDATE builder.builder_run AS run SET result_source_revision = ${revision.data} WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId}`, 'source settlement')
+        if (run.result_source_revision === sourceRevision) return
+        if (run.result_source_revision !== null || run.candidate_revision !== sourceRevision) throw transitionRefused('source settlement')
+        await written(proof, sql`UPDATE builder.builder_run AS run SET result_source_revision = ${sourceRevision} WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId}`, 'source settlement')
       })
     },
     settleBuilderRunBuild: (settlement) => act(settlement.builderRunId, executor, async (proof) => {
@@ -139,46 +133,36 @@ export const createRunSteps = ({ database, ownerId }: Readonly<{ database: Datab
       if (run?.state !== 'RUNNING' || run.result_source_revision !== settlement.sourceRevision) throw transitionRefused('build settlement')
       await lockWorking(proof, 'build settlement')
       if (settlement.kind === 'BUILT') {
-        const artifact = ArtifactRevisionId.safeParse(settlement.artifactRevisionId)
-        if (!artifact.success || !/^[0-9a-f]{64}$/.test(settlement.artifactDigest)) throw transitionRefused('build settlement')
         const matches = await proof.tx.one(Matches, sql`
-          SELECT reg.matches_application_artifact(${proof.scope.projectId}, ${settlement.sourceRevision}, ${artifact.data}, ${settlement.artifactDigest}) AS matches`, 'INTERNAL_UNEXPECTED')
+          SELECT reg.matches_application_artifact(${proof.scope.projectId}, ${settlement.sourceRevision}, ${settlement.artifactRevisionId}, ${settlement.artifactDigest}) AS matches`, 'INTERNAL_UNEXPECTED')
         if (!matches.matches) throw transitionRefused('build settlement')
         await proof.tx.run(sql`
           UPDATE builder.project_working_state SET current_state = 'PREVIEW_READY', last_preview_source_revision = ${settlement.sourceRevision},
-            last_preview_artifact_revision_id = ${artifact.data}, last_preview_artifact_digest = ${settlement.artifactDigest}, updated_at = clock_timestamp()
+            last_preview_artifact_revision_id = ${settlement.artifactRevisionId}, last_preview_artifact_digest = ${settlement.artifactDigest}, updated_at = clock_timestamp()
           WHERE project_id = ${proof.scope.projectId}`)
         await proof.tx.run(sql`
-          UPDATE builder.builder_run AS run SET state = 'SUCCEEDED', phase = NULL, result_kind = 'SOURCE_CHANGED', failure_code = NULL, finished_at = clock_timestamp()
+          UPDATE builder.builder_run AS run SET ${endColumns({ state: 'SUCCEEDED', resultKind: 'SOURCE_CHANGED' })}
           WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId}`)
         return
       }
       await proof.tx.run(sql`
         UPDATE builder.project_working_state SET current_state = 'BUILD_FAILED', updated_at = clock_timestamp() WHERE project_id = ${proof.scope.projectId}`)
       await proof.tx.run(sql`
-        UPDATE builder.builder_run AS run SET state = 'FAILED', phase = NULL, result_kind = 'SOURCE_CHANGED_BUILD_FAILED', failure_code = ${settlement.failureCode}, finished_at = clock_timestamp()
+        UPDATE builder.builder_run AS run SET ${endColumns({ state: 'FAILED', failureCode: settlement.failureCode, resultKind: 'SOURCE_CHANGED_BUILD_FAILED' })}
         WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId}`)
     }),
     failBuilderRun: (builderRunId, failureCode) => act(builderRunId, executor, (proof) => written(proof, sql`
-      UPDATE builder.builder_run AS run SET state = 'FAILED', phase = NULL, failure_code = ${failureCode}, finished_at = clock_timestamp()
+      UPDATE builder.builder_run AS run SET ${endColumns({ state: 'FAILED', failureCode })}
       WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId} AND run.state = ANY(${OPEN_RUN_STATES}::text[])`, 'failure')),
     interruptBuilderRun: (builderRunId, reason) => act(builderRunId, executor, (proof) => written(proof, sql`
-      UPDATE builder.builder_run AS run SET state = 'INTERRUPTED', phase = NULL, failure_code = ${reason},
-        cancellation_requested_at = COALESCE(run.cancellation_requested_at, clock_timestamp()), cancellation_reason = COALESCE(run.cancellation_reason, ${reason}), finished_at = clock_timestamp()
+      UPDATE builder.builder_run AS run SET ${endColumns({ state: 'INTERRUPTED', failureCode: reason })}
       WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId} AND run.state = ANY(${OPEN_RUN_STATES}::text[])`, 'interruption')),
   }
 }
 
 /** The one transition of a run no executor owns yet: a still queued, unowned row ends; zero rows means a claim or a cancellation won. A stop keeps the first cancellation time and reason. */
 const endUnclaimed = async ({ tx }: Admitted<SystemScope<'builder-executor'>>, builderRunId: BuilderRunId, ending: UnclaimedEnding): Promise<void> => {
-  if (ending.kind === 'FAILED') {
-    await tx.run(sql`
-      UPDATE builder.builder_run SET state = 'FAILED', phase = NULL, failure_code = ${ending.code}, finished_at = clock_timestamp()
-      WHERE builder_run_id = ${builderRunId} AND state = 'QUEUED' AND owner_id IS NULL`)
-    return
-  }
   await tx.run(sql`
-    UPDATE builder.builder_run SET state = 'INTERRUPTED', phase = NULL, failure_code = ${ending.code},
-      cancellation_requested_at = COALESCE(cancellation_requested_at, clock_timestamp()), cancellation_reason = COALESCE(cancellation_reason, ${ending.code}), finished_at = clock_timestamp()
-    WHERE builder_run_id = ${builderRunId} AND state = 'QUEUED' AND owner_id IS NULL`)
+    UPDATE builder.builder_run AS run SET ${endColumns(ending)}
+    WHERE run.builder_run_id = ${builderRunId} AND run.state = 'QUEUED' AND run.owner_id IS NULL`)
 }

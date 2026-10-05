@@ -61,4 +61,17 @@ GRANT SELECT, INSERT, UPDATE (provider_sandbox_id, mirror_head, synced_main, las
 GRANT SELECT, INSERT ON builder.builder_run_model_account TO hub_command;
 GRANT EXECUTE ON FUNCTION reg.matches_application_artifact(uuid, text, uuid, text) TO hub_command;
 
+DO $$
+DECLARE
+  foreign_ids bigint;
+BEGIN
+  SELECT count(*) INTO foreign_ids FROM builder.builder_run WHERE conversation_id !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+  IF foreign_ids > 0 THEN
+    RAISE EXCEPTION 'BUILDER_RUN_CONVERSATION_ID_NOT_UUID: % runs hold a conversation id that is not a uuid', foreign_ids USING ERRCODE = 'P0001';
+  END IF;
+END
+$$;
+ALTER TABLE builder.builder_run DROP CONSTRAINT builder_run_conversation_id_check;
+ALTER TABLE builder.builder_run ALTER COLUMN conversation_id TYPE uuid USING conversation_id::uuid;
+
 COMMIT;

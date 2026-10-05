@@ -1,3 +1,4 @@
+import type { SourceRevision } from '../../../../../packages/contract/dist/index.js'
 import type { Workspace } from '@mastra/core/workspace'
 import { mirrorSnapshot, pullSnapshot } from '../conexus-git.js'
 import type { ConexusGit, RunSourceSandbox } from '../conexus-git.js'
@@ -8,7 +9,7 @@ export const MIRROR_DEBOUNCE_MS = 5_000
 export type TurnMirror = Readonly<{
   schedule(): void
   /** The turn-end mirror: the candidate when the turn made one, else a snapshot of the checkout (the `pulled` candidate itself when its tree is unchanged). Answers the mirror's head. */
-  end(candidate: string | null, pulled?: string | null): Promise<string | null>
+  end(candidate: SourceRevision | null, pulled?: SourceRevision | null): Promise<SourceRevision | null>
   /** Ends the turn's mirror without a new write, for a sandbox that is gone. Settles once the write in flight has. */
   abandon(): Promise<void>
 }>
@@ -24,24 +25,24 @@ export const createTurnMirror = ({ git, projectId, conversationId, turnStart, he
   git: Pick<ConexusGit, 'acceptSnapshot' | 'moveMirror'>
   projectId: string
   conversationId: string
-  turnStart: string
-  head: string | null
+  turnStart: SourceRevision
+  head: SourceRevision | null
   source: RunSourceSandbox
   excluded: readonly string[]
   debounceMs: number
   fail(error: unknown): void
 }>): TurnMirror => {
   let expected = head
-  let written: string | null = null
+  let written: SourceRevision | null = null
   let chain: Promise<void> = Promise.resolve()
   let queued = false
   let timer: ReturnType<typeof setTimeout> | undefined
-  let ended: Promise<string | null> | undefined
+  let ended: Promise<SourceRevision | null> | undefined
   const serial = (work: () => Promise<void>): Promise<void> => {
     chain = chain.then(work).catch(fail)
     return chain
   }
-  const snapshot = async (pulled?: string | null): Promise<void> => {
+  const snapshot = async (pulled?: SourceRevision | null): Promise<void> => {
     const next = await pullSnapshot({
       git, projectId, snapshot: mirrorSnapshot(conversationId, turnStart), expected, unchangedFrom: written ?? turnStart,
       ...(pulled ? { sameAs: pulled } : {}), scratch: 'mirror', sandbox: source, checkout: SANDBOX_CHECKOUT, excluded,

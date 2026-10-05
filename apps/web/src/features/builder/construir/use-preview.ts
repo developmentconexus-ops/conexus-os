@@ -27,11 +27,11 @@ export type Preview = Readonly<{
 /** Launches the last good Preview once per artifact key and keeps the previous lease on screen. */
 export const usePreview = (projectId: string, summary: BuilderSession['preview'] | undefined): Preview => {
   const [state, setState] = useState<PreviewState>({ kind: 'IDLE', projectId, lastGood: null })
-  const key: PreviewKey | null = summary?.lastGoodSourceRevision && summary.lastGoodArtifactRevisionId && summary.lastGoodArtifactDigest ? {
+  const key: PreviewKey | null = summary?.lastPreviewSourceRevision && summary.lastPreviewArtifactRevisionId && summary.lastPreviewArtifactDigest ? {
     projectId,
-    sourceRevision: summary.lastGoodSourceRevision,
-    artifactRevisionId: summary.lastGoodArtifactRevisionId,
-    artifactDigest: summary.lastGoodArtifactDigest,
+    sourceRevision: summary.lastPreviewSourceRevision,
+    artifactRevisionId: summary.lastPreviewArtifactRevisionId,
+    artifactDigest: summary.lastPreviewArtifactDigest,
   } : null
   const keyId = key ? keyIdOf(key) : null
   const attempted = useRef(new Set<string>())

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { BuilderRunSummary as BuilderRunSummarySchema, BuilderRunId, ProjectId, SourceRevision, type BuilderRunSummary } from '../../../../packages/contract/dist/index.js'
+import { BuilderRunSummary as BuilderRunSummarySchema, BuilderRunId, ConversationId, FAILURE_CODES, ProjectId, SourceRevision, type BuilderRunSummary } from '../../../../packages/contract/dist/index.js'
 import { BUILDER_RUN_PHASES, BUILDER_RUN_RESULT_KINDS, BUILDER_RUN_STATES } from '../generated/builder-run-vocabulary.js'
 import { sql } from '../platform/db.js'
 
@@ -8,25 +8,24 @@ export type { BuilderRunSummary, BuilderRunView } from '../../../../packages/con
 /** The result kinds of a run that changed the source. */
 export const CODE_CHANGING_RESULT_KINDS = BUILDER_RUN_RESULT_KINDS.filter((kind) => kind !== 'RESPONSE_ONLY')
 
-// The columns a run summary reads, the creation time as UTC milliseconds as the wire writes it.
+// The columns a run summary reads.
 export const RUN_COLUMNS = sql`
   run.builder_run_id, run.project_id, run.conversation_id, run.state, run.phase, run.base_source_revision,
-  run.result_source_revision, run.result_kind, run.failure_code, run.request_text,
-  to_char(run.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
+  run.result_source_revision, run.result_kind, run.failure_code, run.request_text, run.created_at,
   run.cancellation_requested_at IS NOT NULL AS cancellation_requested`
 
 export const RunRow = z.object({
   builder_run_id: BuilderRunId,
   project_id: ProjectId,
-  conversation_id: z.string(),
+  conversation_id: ConversationId,
   state: z.enum(BUILDER_RUN_STATES),
   phase: z.enum(BUILDER_RUN_PHASES).nullable(),
   base_source_revision: SourceRevision,
   result_source_revision: SourceRevision.nullable(),
   result_kind: z.enum(BUILDER_RUN_RESULT_KINDS).nullable(),
-  failure_code: z.string().nullable(),
+  failure_code: z.enum(FAILURE_CODES).nullable(),
   request_text: z.string().nullable(),
-  created_at: z.string(),
+  created_at: z.date(),
   cancellation_requested: z.boolean(),
 })
 
@@ -42,6 +41,6 @@ export const runSummary = (row: z.output<typeof RunRow>): BuilderRunSummary => B
   resultKind: row.result_kind,
   failureCode: row.failure_code,
   requestText: row.request_text,
-  createdAt: row.created_at,
+  createdAt: row.created_at.toISOString(),
   cancellationRequested: row.cancellation_requested,
 })

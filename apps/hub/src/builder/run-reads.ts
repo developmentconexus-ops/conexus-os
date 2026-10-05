@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ArtifactRevisionId, BuilderRunId, ProjectId, SourceRevision, type AccountId, type BuilderRunId as BuilderRunIdType, type ProjectId as ProjectIdType } from '../../../../packages/contract/dist/index.js'
+import { ArtifactDigest, ArtifactRevisionId, BuilderRunId, ConversationId, ProjectId, SourceRevision, type AccountId, type BuilderRunId as BuilderRunIdType, type ProjectId as ProjectIdType } from '../../../../packages/contract/dist/index.js'
 import { BUILDER_RUN_RESULT_KINDS } from '../generated/builder-run-vocabulary.js'
 import { admitProject, admitSystem } from '../identity-access/admission.js'
 import { sql, type Database, type TxQueries } from '../platform/db.js'
@@ -10,7 +10,7 @@ import { CODE_CHANGING_RESULT_KINDS, RUN_COLUMNS, RunRow, runSummary, type Build
 type BuilderCodeChangingRun = Readonly<{
   builderRunId: BuilderRunIdType
   projectId: ProjectIdType
-  conversationId: string
+  conversationId: ConversationId
   baseSourceRevision: SourceRevision
   resultSourceRevision: SourceRevision
   resultKind: Exclude<(typeof BUILDER_RUN_RESULT_KINDS)[number], 'RESPONSE_ONLY'>
@@ -19,13 +19,13 @@ type BuilderCodeChangingRun = Readonly<{
 type BuilderPreview = Readonly<{
   lastPreviewSourceRevision: SourceRevision | null
   lastPreviewArtifactRevisionId: ArtifactRevisionId | null
-  lastPreviewArtifactDigest: string | null
+  lastPreviewArtifactDigest: ArtifactDigest | null
 }>
 
 const CodeChangingRow = z.object({
   builder_run_id: BuilderRunId,
   project_id: ProjectId,
-  conversation_id: z.string(),
+  conversation_id: ConversationId,
   base_source_revision: SourceRevision,
   result_source_revision: SourceRevision,
   result_kind: z.enum(BUILDER_RUN_RESULT_KINDS).exclude(['RESPONSE_ONLY']),
@@ -33,9 +33,9 @@ const CodeChangingRow = z.object({
 const PreviewRow = z.object({
   last_preview_source_revision: SourceRevision.nullable(),
   last_preview_artifact_revision_id: ArtifactRevisionId.nullable(),
-  last_preview_artifact_digest: z.string().nullable(),
+  last_preview_artifact_digest: ArtifactDigest.nullable(),
 })
-const ConversationRow = z.object({ conversation_id: z.string() })
+const ConversationRow = z.object({ conversation_id: ConversationId })
 const LIST_LIMIT = { min: 1, max: 50, default: 20 } as const
 
 export type RunReads = Readonly<{
@@ -46,7 +46,7 @@ export type RunReads = Readonly<{
   /** The Preview subject of a launch: the account is admitted to build in the Project first, so a person who cannot build gets PROJECT_BUILD_DENIED before any read. */
   readLaunchSubject(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<BuilderPreview | null>
   /** mainRevision is `main` as the Hub just read it from the Conexus Git. */
-  admitSourceRevision(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType; sourceRevision: string; mainRevision: string | null }>): Promise<boolean>
+  admitSourceRevision(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType; sourceRevision: SourceRevision; mainRevision: SourceRevision }>): Promise<boolean>
   readOpenRunConversations(): Promise<ReadonlySet<string>>
 }>
 
@@ -108,16 +108,14 @@ export const createRunReads = ({ database }: Readonly<{ database: Database }>): 
       return previewOf(tx, scope.projectId)
     }),
     admitSourceRevision: ({ accountId, projectId, sourceRevision, mainRevision }) => {
-      const revision = SourceRevision.safeParse(sourceRevision)
-      if (!revision.success) return Promise.resolve(false)
       return database.read(accountId, async (tx) => {
         const { scope } = await admitProject(tx, projectId, 'project.read')
-        if (revision.data === mainRevision) return true
+        if (sourceRevision === mainRevision) return true
         const preview = await tx.maybe(z.object({ present: z.literal(1) }), sql`
-          SELECT 1 AS present FROM builder.project_working_state WHERE project_id = ${scope.projectId} AND last_preview_source_revision = ${revision.data}`)
+          SELECT 1 AS present FROM builder.project_working_state WHERE project_id = ${scope.projectId} AND last_preview_source_revision = ${sourceRevision}`)
         if (preview) return true
         const change = await latestChange(tx, scope.projectId)
-        return change !== null && (change.base_source_revision === revision.data || change.result_source_revision === revision.data)
+        return change !== null && (change.base_source_revision === sourceRevision || change.result_source_revision === sourceRevision)
       }).catch(absentWhenHidden(false))
     },
     readOpenRunConversations: () => database.system('builder-executor', async (gate) => {

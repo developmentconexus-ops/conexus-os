@@ -113,7 +113,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
       ? { ...run, state: 'SUCCEEDED', phase: null, resultSourceRevision: requests.length >= 2 ? null : sourceRevision, resultKind: requests.length >= 2 ? 'RESPONSE_ONLY' : 'SOURCE_CHANGED' }
       : run,
     latestCodeChangingRun: buildCount > 0 ? { baseSourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED' } : null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: buildCount > 0 ? sourceRevision : null, lastGoodArtifactRevisionId: buildCount > 0 ? artifactRevisionId : null, lastGoodArtifactDigest: buildCount > 0 ? artifactDigest : null },
+    preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: buildCount > 0 ? sourceRevision : null, lastPreviewArtifactRevisionId: buildCount > 0 ? artifactRevisionId : null, lastPreviewArtifactDigest: buildCount > 0 ? artifactDigest : null },
     runHistory: [],
   })
   const state = builderState([conversation(conversationId, 'Contador')], { [conversationId]: threadMessages })
@@ -271,7 +271,7 @@ test('new Project lands directly in Build and can send its first Builder message
   const conversationId = 'conversation-new-project'
   const session = () => ({
     projectId,
-    latestBuilderRun: run, latestCodeChangingRun: null, preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    latestBuilderRun: run, latestCodeChangingRun: null, preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
     runHistory: [],
   })
   const conversationMessages = []
@@ -320,7 +320,7 @@ test('an untitled conversation shows the title the Hub announces on the run\'s s
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Counter', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: run, latestCodeChangingRun: null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
     runHistory: [],
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
@@ -366,7 +366,7 @@ test('a Project holds several conversations, and switching between them leaves t
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Conversas', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: null, latestCodeChangingRun: null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: sourceRevision, lastGoodArtifactRevisionId: artifactRevisionId, lastGoodArtifactDigest: 'f'.repeat(64) },
+    preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: sourceRevision, lastPreviewArtifactRevisionId: artifactRevisionId, lastPreviewArtifactDigest: 'f'.repeat(64) },
     runHistory: [],
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => {
@@ -444,7 +444,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
     projectId,
     latestBuilderRun: settled(latestRunId, latestBase, latestResult),
     latestCodeChangingRun: { baseSourceRevision: latestBase, resultSourceRevision: latestResult, resultKind: 'SOURCE_CHANGED' },
-    preview: { workingSourceRevision: latestResult, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    preview: { workingSourceRevision: latestResult, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
     runHistory: [settled(latestRunId, latestBase, latestResult), settled(olderRunId, olderBase, olderResult)],
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/runs/*/trace`, (route) => {
@@ -530,7 +530,7 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Idempotency', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: null, latestCodeChangingRun: null,
-    preview: { workingSourceRevision: null, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    preview: { workingSourceRevision: null, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
     runHistory: [],
   }) }))
   // The first attempt dies on the wire, so the browser never learns whether the server acted.
@@ -573,7 +573,7 @@ test('a send the Hub refused reads Não enviado and takes a fresh key on a resen
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Idempotency', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: null, latestCodeChangingRun: null,
-    preview: { workingSourceRevision: null, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    preview: { workingSourceRevision: null, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
     runHistory: [],
   }) }))
   // The Hub answers the first attempt with a refusal, so the message certainly did not take.
@@ -626,9 +626,9 @@ test('Preview launch failure is terminal for its key until explicit retry and ke
       projectId, latestBuilderRun: null, latestCodeChangingRun: null, runHistory: [],
       preview: {
         workingSourceRevision: useB ? sourceB : sourceA,
-        lastGoodSourceRevision: useB ? sourceB : sourceA,
-        lastGoodArtifactRevisionId: useB ? artifactB : artifactA,
-        lastGoodArtifactDigest: useB ? digestB : digestA,
+        lastPreviewSourceRevision: useB ? sourceB : sourceA,
+        lastPreviewArtifactRevisionId: useB ? artifactB : artifactA,
+        lastPreviewArtifactDigest: useB ? digestB : digestA,
       },
     }) })
   })
@@ -696,7 +696,7 @@ test('a run that failed before the agent still shows the request and names why i
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Pre-agent failure', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: failedRun, latestCodeChangingRun: null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
     runHistory: [failedRun],
   }) }))
   await page.goto(`${origin}/projects/${projectId}`)
@@ -745,7 +745,7 @@ test('each failed run ends its own turn with its failure said once, and the stor
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Duas execuções', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: answeredRun, latestCodeChangingRun: null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
     runHistory: [answeredRun, failedRun],
   }) }))
   await page.goto(`${origin}/projects/${projectId}`)
@@ -778,7 +778,7 @@ test('the slider and /raciocinio offer exactly the levels of the selected model,
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Níveis', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: null, latestCodeChangingRun: null,
-    preview: { workingSourceRevision: null, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    preview: { workingSourceRevision: null, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
     runHistory: [],
   }) }))
   const chosen = []
@@ -841,7 +841,7 @@ test('a run notice the Hub signalled into the thread reads as a notice, apart fr
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Agenda', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: null, latestCodeChangingRun: null,
-    preview: { workingSourceRevision: null, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    preview: { workingSourceRevision: null, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
     runHistory: [],
   }) }))
   await page.goto(`${origin}/projects/${projectId}`)
@@ -880,7 +880,7 @@ test('an agent that spoke once and then works in silence still reads as working,
     const run = { ...baseRun, cancellationRequested: cancelled }
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
       projectId, latestBuilderRun: run, latestCodeChangingRun: null,
-      preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+      preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
       runHistory: [run],
     }) })
   })
@@ -928,7 +928,7 @@ test('the Preview names the grant and the navigation, and never claims the appli
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Preview truth', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: null, latestCodeChangingRun: null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: sourceRevision, lastGoodArtifactRevisionId: artifactRevisionId, lastGoodArtifactDigest: 'd'.repeat(64) },
+    preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: sourceRevision, lastPreviewArtifactRevisionId: artifactRevisionId, lastPreviewArtifactDigest: 'd'.repeat(64) },
     runHistory: [],
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => route.fulfill({
@@ -965,7 +965,7 @@ test('the Build screen says when the current source is ahead of the last good Pr
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Source ahead', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: null, latestCodeChangingRun: null,
-    preview: { workingSourceRevision: 'e'.repeat(40), lastGoodSourceRevision: 'd'.repeat(40), lastGoodArtifactRevisionId: artifactRevisionId, lastGoodArtifactDigest: 'd'.repeat(64) },
+    preview: { workingSourceRevision: 'e'.repeat(40), lastPreviewSourceRevision: 'd'.repeat(40), lastPreviewArtifactRevisionId: artifactRevisionId, lastPreviewArtifactDigest: 'd'.repeat(64) },
     runHistory: [],
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }))
@@ -1006,9 +1006,9 @@ test('Preview ignores an older launch completion after the artifact key changes'
       projectId, latestBuilderRun: null, latestCodeChangingRun: null, runHistory: [],
       preview: {
         workingSourceRevision: useB ? sourceB : sourceA,
-        lastGoodSourceRevision: useB ? sourceB : sourceA,
-        lastGoodArtifactRevisionId: useB ? artifactB : artifactA,
-        lastGoodArtifactDigest: useB ? digestB : digestA,
+        lastPreviewSourceRevision: useB ? sourceB : sourceA,
+        lastPreviewArtifactRevisionId: useB ? artifactB : artifactA,
+        lastPreviewArtifactDigest: useB ? digestB : digestA,
       },
     }) })
   })
@@ -1075,7 +1075,7 @@ test('a Project lists its conversations as the threads of its resource, and each
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Contadores', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: run, latestCodeChangingRun: null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
     runHistory: [],
   }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions`, (route) => {
@@ -1183,7 +1183,7 @@ test('a turn the stream delivered only in part is completed from the thread, and
       failureCode: null, requestText: 'Atualize o texto em destaque', createdAt: new Date().toISOString(),
     }),
     latestCodeChangingRun: runFinished ? { baseSourceRevision: sourceRevision, resultSourceRevision: sourceRevision, resultKind: 'SOURCE_CHANGED' } : null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: runFinished ? sourceRevision : null, lastGoodArtifactRevisionId: runFinished ? '70000000-0000-4000-8000-000000000099' : null, lastGoodArtifactDigest: runFinished ? 'd'.repeat(64) : null },
+    preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: runFinished ? sourceRevision : null, lastPreviewArtifactRevisionId: runFinished ? '70000000-0000-4000-8000-000000000099' : null, lastPreviewArtifactDigest: runFinished ? 'd'.repeat(64) : null },
     runHistory: [],
   }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ entryUrl: `${origin}/preview-entry`, previewUrl: `${origin}/preview`, entryGrant: 'grant', artifactRevisionId: '70000000-0000-4000-8000-000000000099', artifactDigest: 'd'.repeat(64), expiresAt: new Date(Date.now() + 60_000).toISOString() }) }))
@@ -1248,7 +1248,7 @@ test('a page opened while the run waits shows the question card once from the th
       failureCode: null, requestText: 'Crie um controle de pedidos', createdAt: new Date().toISOString(),
     }),
     latestCodeChangingRun: null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
     runHistory: [],
   }) }))
   // The stream sends nothing on subscribe, the way Mastra's does.
@@ -1312,7 +1312,7 @@ test('a suspended ask_user with options renders the options and submits the chos
       failureCode: null, requestText: 'Destaque o título com uma cor', createdAt: new Date().toISOString(),
     }),
     latestCodeChangingRun: null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
     runHistory: [],
   }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
@@ -1388,7 +1388,7 @@ const openLiveTurn = async (t, events) => {
     projectId,
     latestBuilderRun: run,
     latestCodeChangingRun: null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
     runHistory: [],
   }) }))
   const published = waits ? [...events, { type: 'state_changed', state: { yolo: true, conexusRun: run }, changedKeys: ['conexusRun'] }] : events
@@ -1419,7 +1419,7 @@ test('the run the Hub publishes into the stream moves the status line without an
     if (reads > 1) return undefined
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
       projectId, latestBuilderRun: run, latestCodeChangingRun: null,
-      preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+      preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
       runHistory: [],
     }) })
   })
@@ -1660,7 +1660,7 @@ test('the eval driver answers every question of the real multi-question ask_user
       failureCode: null, requestText: 'Crie um painel', createdAt: new Date().toISOString(),
     }),
     latestCodeChangingRun: null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
     runHistory: [],
   }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => {
@@ -1716,7 +1716,7 @@ test('a suspended ask_user with no options renders the pt-BR free-text form', as
       failureCode: null, requestText: 'Crie um app de lista de tarefas', createdAt: new Date().toISOString(),
     }),
     latestCodeChangingRun: null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
     runHistory: [],
   }) }))
   await page.route(`${BUILDER_CONTROLLER}/sessions/*/tool-suspension*`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }))
@@ -1748,7 +1748,7 @@ const openAgenda = async (t, { accountId, projectId, conversationId, runId = nul
       failureCode: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
     }) : null,
     latestCodeChangingRun: null,
-    preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+    preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
     runHistory: [],
   }) }))
   if (runId) await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(...stream)))
@@ -2044,7 +2044,7 @@ for (const width of [1536, 1700]) {
         failureCode: null, requestText: 'Crie uma agenda', createdAt: new Date().toISOString(),
       }),
       latestCodeChangingRun: null,
-      preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+      preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
       runHistory: [],
     }) }))
     await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(
@@ -2154,7 +2154,7 @@ test('a failed read of the conversation\'s own model is said so too, and retried
   await modelsAlert(page).waitFor({ state: 'detached' })
 })
 
-const sessionOf = (projectId) => ({ projectId, latestBuilderRun: null, latestCodeChangingRun: null, preview: { workingSourceRevision: null, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null }, runHistory: [] })
+const sessionOf = (projectId) => ({ projectId, latestBuilderRun: null, latestCodeChangingRun: null, preview: { workingSourceRevision: null, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null }, runHistory: [] })
 // A refusal as the Hub sends it: problem+json that names its row by code.
 const problem = (status, code) => ({ status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${code}`, title: code, status, code }) })
 const stubSessionReads = async (page, accountId, projectId, answer) => {

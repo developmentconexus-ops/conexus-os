@@ -1,4 +1,4 @@
-import { SourceRevision as SourceRevisionSchema, type AccountId, type BuilderRunId, type ProjectId, type SourceRevision } from '../../../../../packages/contract/dist/index.js'
+import { ArtifactDigest, ArtifactRevisionId, SourceRevision as SourceRevisionSchema, type AccountId, type BuilderRunId, type ProjectId, type SourceRevision } from '../../../../../packages/contract/dist/index.js'
 import { RECIPE_SHA256, TEMPLATE_REF } from '../application-artifact-runtime.js'
 import { prepareApplicationServer, prepareBuilderRunApplicationArtifact } from '../application-build.js'
 import type { ApplicationServerPort, BuilderApplicationArtifacts } from '../application-build.js'
@@ -105,7 +105,7 @@ export const settleAdmittedSource = async ({ store, applicationArtifacts, applic
     }
     await finalizing()
     await store.settleBuilderRunBuild({ kind: 'BUILT', builderRunId: run.builderRunId, sourceRevision: admitted,
-      artifactRevisionId: artifact.artifactRevisionId, artifactDigest: artifact.artifactDigest })
+      artifactRevisionId: ArtifactRevisionId.parse(artifact.artifactRevisionId), artifactDigest: ArtifactDigest.parse(artifact.artifactDigest) })
     if (applicationBuild.bootProblems) await note('APPLICATION_BOOT_PROBLEMS', 'BOOT_PROBLEMS', applicationBuild.bootProblems)
   } catch (error) {
     const code = toFailure(error).id

@@ -1,7 +1,7 @@
 import { call } from '../../app/http'
 import { routeParam } from '../../app/route-params'
 import {
-  BLD08, BLD09, BLD23, BLD24, BLD25, BLD26, BLD29, BLD30, BuilderRunId, BuilderRunView, IdempotencyKey, ProjectId, SourceRevision,
+  BLD08, BLD09, BLD23, BLD24, BLD25, BLD26, BLD29, BLD30, BuilderRunId, ConversationId, BuilderRunView, IdempotencyKey, ProjectId, SourceRevision,
   type BuilderRunSummary, type BuilderSession, type BuilderTraceSummary, type PreviewLaunch, type SourceComparison, type SourceFile, type SourceTree,
 } from '../../../../../packages/contract/dist/index.js'
 
@@ -21,7 +21,7 @@ export const sendBuilderMessage = async (
 ): Promise<BuilderMessageAccepted> => (await call(BLD24, {
   params: projectParams(projectId), query: undefined,
   headers: { 'idempotency-key': routeParam(IdempotencyKey, idempotencyKey) },
-  body: { content, conversationId },
+  body: { content, conversationId: routeParam(ConversationId, conversationId) },
 })).body
 export const listProjectSourceTree = (projectId: string, sourceRevision: string): Promise<SourceTree> =>
   call(BLD08, { params: projectParams(projectId), query: { sourceRevision: routeParam(SourceRevision, sourceRevision) }, headers: undefined, body: undefined })

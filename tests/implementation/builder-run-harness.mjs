@@ -318,7 +318,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     settleBuilderRunBuild: async (input) => { calls.push(['settleBuild', input.sourceRevision, input.failureCode ?? null]); row.running = false },
     readLatestCodeChangingBuilderRun: async () => null,
     readBuilderRun: async () => (persisted ? persisted(claimed) : claimed),
-    endUnclaimedBuilderRun: async (_id, ending) => { calls.push(['endUnclaimed', ending.kind, ending.code]); row.running = false },
+    endUnclaimedBuilderRun: async (_id, ending) => { calls.push(['endUnclaimed', ending.state, ending.failureCode]); row.running = false },
     failBuilderRun: async (_id, code) => { calls.push(['fail', code]); row.running = false },
     interruptBuilderRun: async (_id, reason) => { calls.push(['interrupt', reason]); row.running = false },
     requestBuilderRunCancellation: async () => ({ ...claimed, cancellationRequested: true }),
@@ -334,7 +334,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     ...(applicationServer ? { applicationServer } : {}),
     applicationArtifacts: {
       retainApplication: async ({ compiled }) => ({
-        artifactRevisionId: 'artifact-1', artifactDigest: 'g'.repeat(64),
+        artifactRevisionId: '77777777-7777-4777-8777-777777777777', artifactDigest: 'a'.repeat(64),
         projectId: compiled.projectId, sourceRevision: compiled.sourceRevision,
         profile: 'REACT_VITE_V2', templateRef: compiled.templateRef, recipeSha256: compiled.recipeSha256,
         entryPath: 'index.html', files: [],

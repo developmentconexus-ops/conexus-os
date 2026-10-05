@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { CommandResult } from '@mastra/core/workspace'
+import { SourceRevision } from '../../../../packages/contract/dist/index.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
 
 /**
@@ -39,7 +40,7 @@ export type Snapshot = Readonly<{ ref: string; parent: string }>
  * `previous` its head as the last turn left it, and `conflicted` names the paths the merge left with
  * conflict markers for the agent to resolve.
  */
-export type TurnStart = Readonly<{ conversationId: string; main: string; start: string; mirror: string | null; previous: string | null; conflicted: readonly string[] }>
+export type TurnStart = Readonly<{ conversationId: string; main: SourceRevision; start: SourceRevision; mirror: SourceRevision | null; previous: SourceRevision | null; conflicted: readonly string[] }>
 
 /** How a turn's checkout came to hold its start (spec 0002 amendment, B3). */
 export type CheckoutStart = 'RESUMED' | 'SEEDED' | 'RESEEDED'
@@ -136,6 +137,8 @@ const requireOid = (value: string, code: FailureCode): string => {
   return value
 }
 
+const requireCommit = (value: string, code: FailureCode): SourceRevision => SourceRevision.parse(requireOid(value, code))
+
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createConexusGit = ({ root, starter }: Readonly<{ root: string; starter: readonly StarterFile[] }>) => {
   const repository = (projectId: string): string => {
@@ -145,15 +148,15 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
   const git = (projectId: string, args: readonly string[], options?: Parameters<typeof runGit>[1]): Promise<Buffer> =>
     runGit(['--git-dir', repository(projectId), ...args], options)
 
-  const readRef = async (projectId: string, ref: string): Promise<string | null> => {
+  const readRef = async (projectId: string, ref: string): Promise<SourceRevision | null> => {
     const value = await text(git(projectId, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])).catch((error: unknown) => {
       if (error instanceof GitCommandError && error.exitCode === 1) return ''
       throw error
     })
-    return value ? requireOid(value, 'CONEXUS_GIT_REF_REFUSED') : null
+    return value ? requireCommit(value, 'CONEXUS_GIT_REF_REFUSED') : null
   }
 
-  const commitStarter = async (projectId: string): Promise<string> => withTemporaryDirectory(async (directory) => {
+  const commitStarter = async (projectId: string): Promise<SourceRevision> => withTemporaryDirectory(async (directory) => {
     const index = { GIT_INDEX_FILE: join(directory, 'index') }
     const entries: string[] = []
     for (const file of starter) {
@@ -162,7 +165,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
     }
     await git(projectId, ['update-index', '--index-info'], { input: `${entries.join('\n')}\n`, env: index })
     const tree = requireOid(await text(git(projectId, ['write-tree'], { env: index })), 'CONEXUS_GIT_STARTER_REFUSED')
-    return requireOid(await text(git(projectId, [
+    return requireCommit(await text(git(projectId, [
       '-c', `user.name=${BUILDER_IDENTITY.name}`, '-c', `user.email=${BUILDER_IDENTITY.email}`,
       'commit-tree', tree, '-m', STARTER_MESSAGE,
     ])), 'CONEXUS_GIT_STARTER_REFUSED')
@@ -177,7 +180,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
     })
   }
 
-  const readMain = async (projectId: string): Promise<string> => {
+  const readMain = async (projectId: string): Promise<SourceRevision> => {
     const main = await readRef(projectId, MAIN).catch(() => null)
     if (!main) throw new Failure('CONEXUS_GIT_MAIN_MISSING')
     return main
@@ -189,7 +192,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
      * created and an empty one gets the starter; one that already has `main` is left as it is.
      * Answers `main`.
      */
-    ensureRepository: async (projectId: string): Promise<string> => {
+    ensureRepository: async (projectId: string): Promise<SourceRevision> => {
       const path = repository(projectId)
       await mkdir(root, { recursive: true, mode: 0o700 })
       await runGit(['init', '--quiet', '--bare', '--template=', path])
@@ -214,8 +217,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
      * snapshot to replace. Otherwise the Hub merges the two here and the mirror moves to the merge,
      * conflicts and their markers included: the agent resolves them as ordinary work.
      */
-    startTurn: async (projectId: string, conversationId: string, main: string): Promise<TurnStart> => {
-      if (!OID.test(main)) throw new Failure('BUILDER_RUNTIME_INPUT_REFUSED')
+    startTurn: async (projectId: string, conversationId: string, main: SourceRevision): Promise<TurnStart> => {
       const ref = mirrorRef(conversationId)
       const mirror = await readRef(projectId, ref)
       const isAncestor = (ancestor: string, descendant: string): Promise<boolean> => succeeds(git(projectId, ['merge-base', '--is-ancestor', ancestor, descendant]))
@@ -223,7 +225,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
       if (await isAncestor(main, mirror)) return { conversationId, main, start: mirror, mirror, previous: mirror, conflicted: [] }
       const [tree = '', ...conflicted] = (await git(projectId, ['merge-tree', '--write-tree', '--name-only', '-z', '--no-messages', mirror, main], { answers: [1] }))
         .toString('utf8').split('\0').filter(Boolean)
-      const merge = requireOid(await text(git(projectId, [
+      const merge = requireCommit(await text(git(projectId, [
         '-c', `user.name=${BUILDER_IDENTITY.name}`, '-c', `user.email=${BUILDER_IDENTITY.email}`,
         'commit-tree', requireOid(tree, 'CONEXUS_GIT_MERGE_REFUSED'), '-p', mirror, '-p', main, '-m', 'Bring main into the conversation',
       ])), 'CONEXUS_GIT_MERGE_REFUSED')
@@ -280,7 +282,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
     },
 
     /** The head of a conversation's mirror, or null when it has none yet. */
-    readMirror: (projectId: string, conversationId: string): Promise<string | null> => readRef(projectId, mirrorRef(conversationId)),
+    readMirror: (projectId: string, conversationId: string): Promise<SourceRevision | null> => readRef(projectId, mirrorRef(conversationId)),
 
     /** Moves a conversation's mirror from exactly `expected` (null: it has none) to `next`, under git's ref lock. */
     moveMirror: (projectId: string, conversationId: string, { expected, next }: Readonly<{ expected: string | null; next: string }>): Promise<void> =>
@@ -467,12 +469,12 @@ export const pullSnapshot = async ({ git, projectId, snapshot, expected, unchang
   expected?: string | null
   unchangedFrom?: string
   /** An earlier snapshot of this ref, answered again when the tree has not changed since it. */
-  sameAs?: string
+  sameAs?: SourceRevision
   scratch: 'candidate' | 'mirror'
   sandbox: RunSourceSandbox
   checkout: string
   excluded?: readonly string[]
-}>): Promise<string | null> => {
+}>): Promise<SourceRevision | null> => {
   const bundleFile = `${checkout}/.git/conexus-${scratch}.bundle`
   const { ref, parent } = snapshot
   const committed = await sandbox.direct('sh', ['-c', [
@@ -504,5 +506,5 @@ export const pullSnapshot = async ({ git, projectId, snapshot, expected, unchang
   if (size > MAX_RESULT_BUNDLE_BYTES) throw new Failure('BUILDER_RESULT_BUNDLE_TOO_LARGE')
   const accepted = await git.acceptSnapshot(projectId, { ...snapshot, bundle: await sandbox.readAgentFileStream(bundleFile), ...(expected === undefined ? {} : { expected }) })
   if (accepted !== reported) throw new Failure('BUILDER_RESULT_MATERIALIZATION_REFUSED')
-  return accepted
+  return SourceRevision.parse(accepted)
 }

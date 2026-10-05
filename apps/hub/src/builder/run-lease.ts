@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { BuilderRunId, ProjectId, SourceRevision } from '../../../../packages/contract/dist/index.js'
+import { BuilderRunId, ConversationId, ProjectId, SourceRevision } from '../../../../packages/contract/dist/index.js'
 import { admitSystem } from '../identity-access/admission.js'
 import { sql, type Database } from '../platform/db.js'
 import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
@@ -10,7 +10,7 @@ const Now = z.object({ now: z.date() })
 const TakenOver = z.object({
   builder_run_id: BuilderRunId,
   project_id: ProjectId,
-  conversation_id: z.string(),
+  conversation_id: ConversationId,
   candidate_revision: SourceRevision.nullable(),
   result_source_revision: SourceRevision.nullable(),
   previous_owner_id: z.string().nullable(),
@@ -18,7 +18,7 @@ const TakenOver = z.object({
 export type TakenOverRun = Readonly<{
   builderRunId: BuilderRunId
   projectId: ProjectId
-  conversationId: string
+  conversationId: ConversationId
   /** Offered before `main` moved; `main` in the Conexus Git says whether it was admitted. */
   candidateRevision: SourceRevision | null
   /** Equal to the candidate once the advance is recorded. */

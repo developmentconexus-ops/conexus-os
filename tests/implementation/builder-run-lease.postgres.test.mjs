@@ -68,7 +68,7 @@ test('a run the service works is never taken, however old its heartbeat; every o
   const h = await leaseHarness(t, 'conexus_lease_listed')
   const service = h.serviceOver()
   const projectId = await h.projectIn()
-  const { builderRun } = await h.send(service, projectId, 'conv-live')
+  const { builderRun } = await h.send(service, projectId, '22222222-2222-4222-8222-222222222222')
   await untilHeld(h)
   await query(h.connectionString, "UPDATE builder.builder_run SET heartbeat_at = clock_timestamp() - interval '1 hour' WHERE builder_run_id = $1", [builderRun.builderRunId])
   const foreign = await h.seedRun({ ownerId: OTHER, heartbeatAgoMs: HOUR })
@@ -109,13 +109,13 @@ test('a run that enters the service after the pass listed its live runs comes ba
   // The client's retry of an old queued row: the same key returns it, and the service starts it.
   const projectId = await h.projectIn()
   const key = 'retry-key'
-  const old = await h.store.createBuilderRun({ accountId: ID.owner, projectId, conversationId: 'conv-race', idempotencyKey: key, content: 'Explique o app', readBase: async () => BASE })
+  const old = await h.store.createBuilderRun({ accountId: ID.owner, projectId, conversationId: '11111111-1111-4111-8111-111111111111', idempotencyKey: key, content: 'Explique o app', readBase: async () => BASE })
   await query(h.connectionString, "UPDATE builder.builder_run SET created_at = clock_timestamp() - interval '10 minutes' WHERE builder_run_id = $1", [old.builderRunId])
   let service
   // The pass reads its live ids (none), the SQL takes the stale row, and only then does the replay start it.
   const store = { ...h.store, renewRunLease: async (...args) => {
     const taken = await h.store.renewRunLease(...args)
-    await h.send(service, projectId, 'conv-race', key)
+    await h.send(service, projectId, '11111111-1111-4111-8111-111111111111', key)
     return taken
   } }
   service = h.serviceOver(store)
@@ -131,17 +131,17 @@ test('a message to a conversation with a live run is refused to anyone who canno
   const h = await leaseHarness(t, 'conexus_send_admission')
   const service = h.serviceOver()
   const projectId = await h.projectIn()
-  const { builderRun } = await h.send(service, projectId, 'conv-live')
+  const { builderRun } = await h.send(service, projectId, '22222222-2222-4222-8222-222222222222')
   await untilHeld(h)
   await query(h.connectionString, "INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'atlas', $2)", [projectId, ID.owner])
   await query(h.connectionString, 'INSERT INTO iam.application_grant(project_id, account_id, granted_by) VALUES ($1, $2, $3)', [projectId, ID.outsider, ID.owner])
   await query(h.connectionString, 'DELETE FROM iam.workspace_membership WHERE account_id = $1', [ID.member])
   const refused = []
   for (const accountId of [ID.outsider, ID.member]) {
-    refused.push(await service.sendBuilderMessage({ accountId, projectId, conversationId: 'conv-live', idempotencyKey: randomUUID(), content: 'oi' }).then(() => 'ACCEPTED', (error) => error.id))
+    refused.push(await service.sendBuilderMessage({ accountId, projectId, conversationId: '22222222-2222-4222-8222-222222222222', idempotencyKey: randomUUID(), content: 'oi' }).then(() => 'ACCEPTED', (error) => error.id))
   }
   assert.deepEqual(refused, ['PROJECT_BUILD_DENIED', 'PROJECT_BUILD_DENIED'])
-  assert.deepEqual(service.pendingCalls(projectId, 'conv-live'), [])
+  assert.deepEqual(service.pendingCalls(projectId, '22222222-2222-4222-8222-222222222222'), [])
   assert.equal((await h.read(builderRun)).state, 'RUNNING')
   assert.equal(h.holds.length, 1, 'the run was not touched')
 })

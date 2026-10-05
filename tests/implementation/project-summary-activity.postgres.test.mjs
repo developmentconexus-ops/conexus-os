@@ -7,7 +7,7 @@ import { HEAD, ID, setupProjects } from './project-fixture.mjs'
 const insertProject = (connection, projectId, workspaceId, name, createdAt) => query(connection, `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision, created_at)
   VALUES ($1, $2, $3, 'NEW', $4, $5, $6)`, [projectId, workspaceId, name, HEAD, randomUUID(), createdAt])
 const insertRun = (connection, projectId, state, resultKind, createdAt) => query(connection, `INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision, state, result_kind, created_at)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, [randomUUID(), projectId, ID.owner, `conexus-builder:${projectId}`, randomUUID().replaceAll('-', '').repeat(2), '1'.repeat(64), HEAD, state, resultKind, createdAt])
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, [randomUUID(), projectId, ID.owner, projectId, randomUUID().replaceAll('-', '').repeat(2), '1'.repeat(64), HEAD, state, resultKind, createdAt])
 
 test('the project cards sort by latest activity, fall back to creation, and stay inside the workspace', async (t) => {
   const { connection, store } = await setupProjects(t, 'conexus_prj_cards')

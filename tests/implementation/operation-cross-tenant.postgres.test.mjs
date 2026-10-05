@@ -208,10 +208,10 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
     },
     'BLD-24': {
       own: async () => {
-        const run = await builder.createBuilderRun({ accountId: member, projectId: projectBuild, conversationId: 'conversa', idempotencyKey: 'own', content: 'build', readBase: async () => FOREIGN_BASE })
+        const run = await builder.createBuilderRun({ accountId: member, projectId: projectBuild, conversationId: '33333333-3333-4333-8333-333333333333', idempotencyKey: 'own', content: 'build', readBase: async () => FOREIGN_BASE })
         assert.deepEqual({ state: run.state, baseSourceRevision: run.baseSourceRevision, requestText: run.requestText }, { state: 'QUEUED', baseSourceRevision: FOREIGN_BASE, requestText: 'build' })
       },
-      cross: () => assert.rejects(builder.createBuilderRun({ accountId: member, projectId: projectB, conversationId: 'conversa', idempotencyKey: 'intruder', content: 'build', readBase: async () => FOREIGN_BASE }), { id: 'PROJECT_BUILD_DENIED' }),
+      cross: () => assert.rejects(builder.createBuilderRun({ accountId: member, projectId: projectB, conversationId: '33333333-3333-4333-8333-333333333333', idempotencyKey: 'intruder', content: 'build', readBase: async () => FOREIGN_BASE }), { id: 'PROJECT_BUILD_DENIED' }),
       child: null,
     },
     'BLD-25': {

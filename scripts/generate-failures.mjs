@@ -92,7 +92,12 @@ const renderContractFailures = ({ actions, failures }) => [
     `  ${failures.slice(index * 4, index * 4 + 4).map((row) => `${quoted(row.code)}: ${row.status ?? 500},`).join(' ')}`),
   '} as const',
   '',
-  'export type FailureCode = keyof typeof FAILURE_STATUS',
+  'export const FAILURE_CODES = [',
+  ...Array.from({ length: Math.ceil(failures.length / 4) }, (_entry, index) =>
+    `  ${failures.slice(index * 4, index * 4 + 4).map((row) => `${quoted(row.code)},`).join(' ')}`),
+  '] as const',
+  '',
+  'export type FailureCode = (typeof FAILURE_CODES)[number]',
   '',
   'export const FAILURE_ACTIONS = {',
   ...Object.entries(actions).map(([action, sentence]) => `  ${quoted(action)}: ${sentence === null ? 'null' : quoted(sentence)},`),

@@ -38,7 +38,7 @@ const openWaitingRun = async (t, { phase, messages, refusal = null, pendingCalls
     requests.session += 1
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
       projectId, latestBuilderRun: run, latestCodeChangingRun: null,
-      preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+      preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
       runHistory: [],
     }) })
   })
@@ -149,7 +149,7 @@ test('a tab that still holds an earlier question shows only the call the waiting
     await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Título', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
     await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
       projectId, latestBuilderRun: run, latestCodeChangingRun: null,
-      preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+      preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
       runHistory: [],
     }) }))
     await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(...events)))

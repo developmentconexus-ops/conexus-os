@@ -1,44 +1,29 @@
 import type { FastifyInstance } from 'fastify'
-import { BLD08, BLD09, BLD23, BLD24, BLD25, BLD26, BLD29, BLD30, type AccountId, type ArtifactRevisionId, type BuilderRunId, type BuilderTraceSummary, type ProjectId, type SourceRevision } from '../../../../packages/contract/dist/index.js'
+import { BLD08, BLD09, BLD23, BLD24, BLD25, BLD26, BLD29, BLD30, type AccountId, type ArtifactDigest, type ArtifactRevisionId, type BuilderRunId, type BuilderRunSummary, type BuilderSession, type BuilderTraceSummary, type PreviewLaunch, type ProjectId } from '../../../../packages/contract/dist/index.js'
 import { Failure } from '../platform/failure.js'
 import type { BuilderService } from './service.js'
-import type { BuilderRunSummary, BuilderStore } from './store.js'
+import type { BuilderStore } from './store.js'
 import type { ApplicationArtifactMetadata } from './application-build.js'
 import type { HubSessionDigest } from '../identity-access/current-session.js'
 import { routes } from '../http/access.js'
 
 export type BuilderOperationId = 'BLD-08' | 'BLD-09' | 'BLD-23' | 'BLD-24' | 'BLD-25' | 'BLD-26' | 'BLD-29' | 'BLD-30'
-export type BuilderSessionSnapshot = Readonly<{
-  projectId: ProjectId
-  workingSourceRevision: SourceRevision | null
-  lastPreviewSourceRevision: SourceRevision | null
-  lastPreviewArtifactRevisionId: ArtifactRevisionId | null
-  lastPreviewArtifactDigest: string | null
-  runHistory: readonly BuilderRunSummary[]
-}>
 export type BuilderSessionPort = Readonly<{
-  read(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<BuilderSessionSnapshot>
-  readTrace?(input: Readonly<{ accountId: AccountId; projectId: ProjectId; builderRunId: BuilderRunId }>): Promise<BuilderTraceSummary>
+  read(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<Readonly<{ preview: BuilderSession['preview']; runHistory: readonly BuilderRunSummary[] }>>
+  readTrace(input: Readonly<{ accountId: AccountId; projectId: ProjectId; builderRunId: BuilderRunId }>): Promise<BuilderTraceSummary>
 }>
 export type BuilderLaunchPreviewPort = (hubSessionDigest: HubSessionDigest, input: Readonly<{
   accountId: AccountId
   projectId: ProjectId
   artifactRevisionId: ArtifactRevisionId
-  artifactDigest: string
+  artifactDigest: ArtifactDigest
   artifact: ApplicationArtifactMetadata
-}> ) => Promise<Readonly<{
-  entryUrl: string
-  previewUrl: string
-  entryGrant: string
-  artifactRevisionId: ArtifactRevisionId
-  artifactDigest: string
-  expiresAt: string
-}>>
+}>) => Promise<PreviewLaunch>
 
 export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: Readonly<{
   store: BuilderStore
   service: BuilderService
-  session?: BuilderSessionPort
+  session: BuilderSessionPort
   launchPreview?: BuilderLaunchPreviewPort
 }>): Promise<readonly BuilderOperationId[]> => {
   const route = routes(app)
@@ -46,22 +31,20 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
   route.operation(BLD23, async ({ params }, session) => {
     const accountId = session.account.accountId
     const { projectId } = params
-    const port = dependencies.session
-    if (!port) throw new Failure('BUILDER_SESSION_UNAVAILABLE')
-    const snapshot = await port.read({ accountId, projectId })
+    const snapshot = await dependencies.session.read({ accountId, projectId })
     const [run, latestCodeChangingRun] = await Promise.all([
       dependencies.store.readBuilderRun({ accountId, projectId }),
       dependencies.store.readLatestCodeChangingBuilderRun({ accountId, projectId }),
     ])
     return {
-      projectId: snapshot.projectId,
+      projectId,
       latestBuilderRun: run ? { ...run, pendingCalls: [...dependencies.service.pendingCalls(projectId, run.conversationId)] } : null,
       latestCodeChangingRun: latestCodeChangingRun ? {
         baseSourceRevision: latestCodeChangingRun.baseSourceRevision,
         resultSourceRevision: latestCodeChangingRun.resultSourceRevision,
         resultKind: latestCodeChangingRun.resultKind,
       } : null,
-      preview: { workingSourceRevision: snapshot.workingSourceRevision, lastGoodSourceRevision: snapshot.lastPreviewSourceRevision, lastGoodArtifactRevisionId: snapshot.lastPreviewArtifactRevisionId, lastGoodArtifactDigest: snapshot.lastPreviewArtifactDigest },
+      preview: snapshot.preview,
       runHistory: [...snapshot.runHistory],
     }
   })
@@ -81,13 +64,11 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
 
   route.operation(BLD26, async ({ params }, session) => {
     const accountId = session.account.accountId
-    const readTrace = dependencies.session?.readTrace?.bind(dependencies.session)
-    if (!readTrace) throw new Failure('BUILDER_TRACE_UNAVAILABLE')
     const { projectId, builderRunId } = params
     if (!await dependencies.store.readPreviewSubject({ accountId, projectId })) throw new Failure('PROJECT_BUILD_DENIED')
     const run = await dependencies.store.readBuilderRun({ accountId, projectId })
     if (run?.builderRunId !== builderRunId) throw new Failure('BUILDER_RUN_NOT_FOUND')
-    return readTrace({ accountId, projectId, builderRunId })
+    return dependencies.session.readTrace({ accountId, projectId, builderRunId })
   })
 
   route.operation(BLD30, async ({ params }, session) => {
@@ -99,7 +80,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     if (!subject?.lastPreviewSourceRevision || !subject.lastPreviewArtifactRevisionId || !subject.lastPreviewArtifactDigest) throw new Failure('PREVIEW_SUBJECT_NOT_FOUND')
     const artifact = await dependencies.service.getApplicationBySource({ accountId, projectId, sourceRevision: subject.lastPreviewSourceRevision })
     if (!artifact || artifact.artifactRevisionId !== subject.lastPreviewArtifactRevisionId || artifact.artifactDigest !== subject.lastPreviewArtifactDigest) throw new Failure('PREVIEW_SUBJECT_NOT_FOUND')
-    return launchPreview(session.digest, { accountId, projectId, artifactRevisionId: subject.lastPreviewArtifactRevisionId, artifactDigest: artifact.artifactDigest, artifact })
+    return launchPreview(session.digest, { accountId, projectId, artifactRevisionId: subject.lastPreviewArtifactRevisionId, artifactDigest: subject.lastPreviewArtifactDigest, artifact })
   })
 
   route.operation(BLD08, ({ params, query }, session) =>

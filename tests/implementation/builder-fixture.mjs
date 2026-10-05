@@ -14,11 +14,12 @@ export const setupBuilder = async (t, prefix) => {
     return projectId
   }
   // A run row as it stands in a given state; `owner` and `heartbeatAgoMs` are for the executor's rows.
-  const seedRun = async (projectId, { accountId = ID.owner, state = 'RUNNING', phase = null, owner = OWNER, conversationId = `conversation-${projectId}`, createdAgoMs = 0, candidate = null, result = null } = {}) => {
+  const seedRun = async (projectId, { accountId = ID.owner, state = 'RUNNING', phase = null, owner = OWNER, conversationId = projectId, createdAgoMs = 0, candidate = null, result = null } = {}) => {
     const builderRunId = randomUUID()
     await query(connection, `INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision,
-        state, phase, owner_id, heartbeat_at, started_at, candidate_revision, result_source_revision, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), CASE WHEN $8 = 'QUEUED' THEN NULL ELSE now() END, $11, $12, clock_timestamp() - ($13 || ' milliseconds')::interval)`,
+        state, phase, owner_id, heartbeat_at, started_at, candidate_revision, result_source_revision, created_at, result_kind, failure_code)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), CASE WHEN $8 = 'QUEUED' THEN NULL ELSE now() END, $11, $12, clock_timestamp() - ($13 || ' milliseconds')::interval,
+        CASE WHEN $8 = 'SUCCEEDED' THEN 'RESPONSE_ONLY' END, CASE $8 WHEN 'FAILED' THEN 'INTERNAL_UNEXPECTED' WHEN 'INTERRUPTED' THEN 'HUB_RESTART' END)`,
     [builderRunId, projectId, accountId, conversationId, randomUUID().replaceAll('-', '').repeat(2), '1'.repeat(64), HEAD, state, phase, state === 'QUEUED' ? null : owner, candidate, result, String(createdAgoMs)])
     return builderRunId
   }

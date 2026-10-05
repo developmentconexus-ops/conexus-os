@@ -22,7 +22,7 @@ export type BuilderProjectPorts = Readonly<{
 // `main`, and answers `main`. The same Project id always reaches the same repository, so calling it
 // again converges.
 export type ProjectRepositoryPort = Readonly<{
-  prepare(projectId: ProjectId): Promise<string>
+  prepare(projectId: ProjectId): Promise<SourceRevision>
 }>
 
 type CreateProjectInput = Readonly<{
@@ -85,9 +85,7 @@ export const createProjectStore = ({
     if (reserved.kind === 'replay') return { replayed: true, reply: reserved.reply }
     const projectId = reserved.resourceId
 
-    const prepared = await repository.prepare(projectId).catch(gitUnavailableAs('PROJECT_REPOSITORY_UNAVAILABLE'))
-    const starterRevision = SourceRevision.safeParse(prepared)
-    if (!starterRevision.success) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_STARTER_REVISION_UNREADABLE' } })
+    const starterRevision = await repository.prepare(projectId).catch(gitUnavailableAs('PROJECT_REPOSITORY_UNAVAILABLE'))
 
     return database.transaction(accountId, async (gate) => {
       const proof = await admitWorkspace(gate, workspaceId, 'project.create')
@@ -96,7 +94,7 @@ export const createProjectStore = ({
       if (receipt.resourceId !== projectId) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_RECEIPT_RESOURCE_CHANGED' } })
       await proof.tx.run(sql`
         INSERT INTO project.project (project_id, workspace_id, name, source_mode, source_revision, project_revision)
-        VALUES (${projectId}, ${workspaceId}, ${body.name}, 'NEW', ${starterRevision.data}, ${projectRevision})`)
+        VALUES (${projectId}, ${workspaceId}, ${body.name}, 'NEW', ${starterRevision}, ${projectRevision})`)
       await builder.register(proof, projectId)
       const reply: ProjectCreated = { projectId, workspaceId, name: body.name, projectRevision, archived: false }
       await complete(proof, PRJ03, idempotencyKey, receiptInput, projectId, reply)
