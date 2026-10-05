@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
-import type { PostgresPool } from '../platform/postgres.js'
+import type { PostgresPool } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 
 type WorkspaceSummary = Readonly<{

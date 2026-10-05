@@ -995,7 +995,12 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
 
   await t.test('one read serves a file of the served artifact, and reads only that file', async () => {
     const { createServedApplicationReader } = await import(hubModuleUrl('registry/served-application.js'))
-    const reader = createServedApplicationReader(pool)
+    const reader = createServedApplicationReader({ read: (_account, fn) => fn({
+      maybe: async (schema, statement) => {
+        const row = (await pool.query(statement.text, [...statement.values])).rows[0]
+        return row ? schema.parse(row) : null
+      },
+    }) })
     const artifactId = randomUUID()
     const revisionId = randomUUID()
     const file = (path, mediaType, text) => ({ path, mediaType, base64: Buffer.from(text).toString('base64'), sha256: createHash('sha256').update(text).digest('hex') })

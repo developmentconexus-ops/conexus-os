@@ -27,14 +27,7 @@ const HUB_HOST = 'hub.conexus.localhost'
 const E2B_CLOSED = { E2B_API_URL: 'http://127.0.0.1:9', E2B_DOMAIN: 'e2b-disabled.invalid' }
 const PERSON = { username: 'verify-operator', firstName: 'Verify', lastName: 'Operator', email: 'verify-operator@conexus.test' }
 const ROLE_FILES = {
-  CONEXUS_DB_PASSWORD_FILE: 'hub_iam_runtime',
-  CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE: 'hub_workspace_command',
-  CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE: 'hub_workspace_read',
-  CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE: 'hub_project_command',
-  CONEXUS_DB_PROJECT_READ_PASSWORD_FILE: 'hub_project_read',
-  CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: 'hub_builder_ingress',
-  CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: 'hub_builder_executor',
-  CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: 'hub_model_account',
+  CONEXUS_DB_PASSWORD_FILE: 'hub_runtime',
   CONEXUS_DB_FACTORY_PASSWORD_FILE: 'hub_factory',
 }
 
@@ -162,7 +155,7 @@ const hubEnvironment = (state, secrets, fake, e2b) => {
     CONEXUS_DB_HOST: '127.0.0.1',
     CONEXUS_DB_PORT: String(state.ports.postgres),
     CONEXUS_DB_NAME: DATABASE,
-    CONEXUS_DB_USER: 'hub_iam_runtime',
+    CONEXUS_DB_USER: 'hub_runtime',
     CONEXUS_BUILDER_E2B_API_KEY_FILE: join(secrets, 'e2b-api-key'),
     CONEXUS_BUILDER_E2B_TEMPLATE_ID: e2b ? e2b.templateId : 'verify-e2b-disabled', CONEXUS_BUILDER_QUESTION_WAIT_MS: String(5 * 60_000),
     ...(e2b ? {} : E2B_CLOSED),

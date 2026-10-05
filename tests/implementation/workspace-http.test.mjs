@@ -31,7 +31,7 @@ const baseEnvironment = {
   CONEXUS_DB_HOST: '127.0.0.1',
   CONEXUS_DB_PORT: '5432',
   CONEXUS_DB_NAME: 'conexus',
-  CONEXUS_DB_USER: 'hub_iam',
+  CONEXUS_DB_USER: 'hub_runtime',
   CONEXUS_DB_PASSWORD_FILE: '/secrets/iam',
   CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/installation-secret-key',
   CONEXUS_OIDC_ISSUER: OPERATOR.issuer,
@@ -56,30 +56,9 @@ test('local Preview config requires complete TLS, exact Hub origin and a separat
   }
 })
 
-test('S2 database capabilities are mandatory in production and preserve the pinned S1 test boot', () => {
-  const s1Test = readHubConfig({ ...baseEnvironment, NODE_ENV: 'test' })
-  assert.equal(s1Test.database.workspace, undefined)
-  assert.throws(
-    () => readHubConfig(baseEnvironment),
-    missing('CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE'),
-  )
-  assert.throws(
-    () => readHubConfig({
-      ...baseEnvironment,
-      NODE_ENV: 'test',
-      CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE: '/secrets/command',
-    }),
-    missing('CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE'),
-  )
-  assert.deepEqual(readHubConfig({
-    ...baseEnvironment,
-    NODE_ENV: 'test',
-    CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE: '/secrets/command',
-    CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE: '/secrets/read',
-  }).database.workspace, {
-    commandPasswordFile: '/secrets/command',
-    readPasswordFile: '/secrets/read',
-  })
+test('the Hub admits only its one runtime database role', () => {
+  assert.equal(readHubConfig(baseEnvironment).database.user, 'hub_runtime')
+  assert.throws(() => readHubConfig({ ...baseEnvironment, CONEXUS_DB_USER: 'hub_workspace_read' }), invalidConfig('CONEXUS_DB_USER'))
 })
 
 const buildRoutes = async ({ current = OPERATOR, storeOverrides = {} } = {}) => {

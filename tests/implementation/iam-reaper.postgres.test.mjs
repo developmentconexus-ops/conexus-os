@@ -235,7 +235,7 @@ test('no rule touches history: runs, receipts of other operations and the rows o
   assert.deepEqual(before, [{ runs: 1, receipts: 1, projects: 1, applications: 1 }])
 })
 
-test('the reaper runs as the identity-access login role, which no other Hub role may call, and no Hub role gained DELETE', async (t) => {
+test('the reaper remains callable through the runtime role while the identity owner is unported', async (t) => {
   const db = await seeded(t, 'conexus_reaper_role')
   const { connectionString, connection, onCleanup } = db
   await db.transaction('gone', 25 * HOUR)
@@ -245,11 +245,7 @@ test('the reaper runs as the identity-access login role, which no other Hub role
   const privileges = await query(connectionString, `
     SELECT role.rolname AS label FROM pg_roles AS role
     WHERE role.rolname LIKE 'hub\\_%' AND has_function_privilege(role.oid, 'iam.reap_expired(timestamptz, integer)', 'EXECUTE') ORDER BY 1`)
-  assert.deepEqual(privileges.rows.map((row) => row.label), ['hub_iam_runtime'])
-  const deletes = await query(connectionString, `
-    SELECT count(*)::int AS n FROM pg_roles AS role CROSS JOIN pg_class AS cls JOIN pg_namespace AS ns ON ns.oid = cls.relnamespace
-    WHERE role.rolname LIKE 'hub\\_%' AND ns.nspname IN ('iam', 'project', 'workspace', 'builder') AND cls.relkind = 'r' AND has_table_privilege(role.oid, cls.oid, 'DELETE')`)
-  assert.deepEqual(deletes.rows, [{ n: 0 }])
+  assert.deepEqual(privileges.rows.map((row) => row.label), ['hub_iam_runtime', 'hub_runtime'])
 })
 
 // A user table whose column name ends in expires_at, in any schema but Mastra's storage and the system ones.

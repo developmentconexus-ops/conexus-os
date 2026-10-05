@@ -7,6 +7,7 @@ import test from 'node:test'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const register = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), 'utf8'))
+const activeRoles = register.roles.filter((row) => !row.legacy)
 const buildRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/connection-census-build-'))
 const build = spawnSync(resolve(repositoryRoot, 'node_modules/.bin/esbuild'), [
   resolve(repositoryRoot, 'apps/hub/src/platform/connection-census.ts'), `--outdir=${buildRoot}`, '--bundle', '--platform=node', '--format=esm', '--packages=external', '--log-level=error',
@@ -15,7 +16,7 @@ if (build.status !== 0) throw new Error(build.stdout || build.stderr)
 const { censusConnections, reportConnectionCensus } = await import(pathToFileURL(resolve(buildRoot, 'connection-census.js')).href)
 
 const secretRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/connection-census-secret-'))
-const secretFile = resolve(secretRoot, 'db-builder-executor')
+const secretFile = resolve(secretRoot, 'db-runtime')
 writeFileSync(secretFile, 'not-the-real-password\n')
 chmodSync(secretFile, 0o600)
 
@@ -26,7 +27,7 @@ test.after(() => {
 
 test('a Hub without the Factory configured leaves hub_factory out of the census instead of reporting it unconfigured', async () => {
   const rows = await censusConnections({ host: '127.0.0.1', port: 1, database: 'unreachable' }, {})
-  assert.deepEqual(register.roles.filter(row => row.optional).map(row => row.role), ['hub_factory'])
+  assert.deepEqual(activeRoles.filter(row => row.optional).map(row => row.role), ['hub_factory'])
   assert.equal(rows.some(row => row.role === 'hub_factory'), false)
 })
 
@@ -42,35 +43,35 @@ test('a Hub with the Factory configured censuses hub_factory like any other role
 
 test('a role with no password file is unconfigured, not invalid', async () => {
   const rows = await censusConnections({ host: '127.0.0.1', port: 1, database: 'unreachable' }, {})
-  assert.equal(rows.length, register.roles.length - 1)
+  assert.equal(rows.length, activeRoles.length - 1)
   assert.deepEqual([...new Set(rows.map(row => row.state))], ['unconfigured'])
-  assert.deepEqual(rows[0], { role: 'hub_iam_runtime', capability: 'identity-and-access', state: 'unconfigured' })
+  assert.deepEqual(rows[0], { role: 'hub_runtime', capability: 'hub-data', state: 'unconfigured' })
 })
 
 test('a configured role the cluster refuses the connection to (not the credential) is unreachable, not invalid', async () => {
   const rows = await censusConnections(
     { host: '127.0.0.1', port: 1, database: 'unreachable' },
-    { CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: secretFile },
+    { CONEXUS_DB_PASSWORD_FILE: secretFile },
   )
-  const executor = rows.find(row => row.role === 'hub_builder_executor')
+  const executor = rows.find(row => row.role === 'hub_runtime')
   assert.equal(executor.state, 'unreachable')
-  assert.equal(executor.capability, 'builder-run-execution')
+  assert.equal(executor.capability, 'hub-data')
   assert.ok(executor.sqlstate === undefined || !/^28(P01|000)$/.test(executor.sqlstate))
 })
 
 test('an unreadable password file is reported as unreadable, without aborting the census', async () => {
   const unreadableRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/connection-census-unreadable-'))
-  const emptyFile = resolve(unreadableRoot, 'db-builder-executor')
+  const emptyFile = resolve(unreadableRoot, 'db-runtime')
   writeFileSync(emptyFile, '')
   chmodSync(emptyFile, 0o600)
   try {
     const rows = await censusConnections(
       { host: '127.0.0.1', port: 1, database: 'unreachable' },
-      { CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: emptyFile },
+      { CONEXUS_DB_PASSWORD_FILE: emptyFile },
     )
-    assert.equal(rows.length, register.roles.length - 1)
-    const executor = rows.find(row => row.role === 'hub_builder_executor')
-    assert.deepEqual(executor, { role: 'hub_builder_executor', capability: 'builder-run-execution', state: 'unreadable' })
+    assert.equal(rows.length, activeRoles.length - 1)
+    const executor = rows.find(row => row.role === 'hub_runtime')
+    assert.deepEqual(executor, { role: 'hub_runtime', capability: 'hub-data', state: 'unreadable' })
   } finally {
     rmSync(unreadableRoot, { recursive: true, force: true })
   }
@@ -79,14 +80,14 @@ test('an unreadable password file is reported as unreadable, without aborting th
 test('no census row carries the password it read', async () => {
   const rows = await censusConnections(
     { host: '127.0.0.1', port: 1, database: 'unreachable' },
-    { CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: secretFile },
+    { CONEXUS_DB_PASSWORD_FILE: secretFile },
   )
   assert.doesNotMatch(JSON.stringify(rows), /not-the-real-password/)
 })
 
 test('the configured role name overrides the registered one for the main pool', async () => {
-  const rows = await censusConnections({ host: '127.0.0.1', port: 1, database: 'unreachable' }, { CONEXUS_DB_USER: 'hub_iam_runtime_renamed' })
-  assert.equal(rows[0].role, 'hub_iam_runtime_renamed')
+  const rows = await censusConnections({ host: '127.0.0.1', port: 1, database: 'unreachable' }, { CONEXUS_DB_USER: 'hub_runtime_renamed' })
+  assert.equal(rows[0].role, 'hub_runtime_renamed')
 })
 
 test('the report names every unhealthy connection and counts the rest', () => {

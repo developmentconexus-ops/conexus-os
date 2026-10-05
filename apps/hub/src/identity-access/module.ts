@@ -3,7 +3,7 @@ import type { IamOwnerId } from '../generated/iam-routes.js'
 import { applicationOrigin } from '../platform/config.js'
 import type { ApplicationAddress } from '../platform/config.js'
 import type { Job } from '../platform/jobs.js'
-import type { PostgresPool } from '../platform/postgres.js'
+import type { PostgresPool } from '../platform/db.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { createApplicationAccessStore, registerApplicationAccessRoutes } from './application-access.js'
 import type { ApplicationAccessStore } from './application-access.js'
@@ -107,7 +107,7 @@ export const createIdentityAccessModule = async ({
     withApplicationPresence: (projectId, work) => applicationAccess.withApplicationPresence(projectId, work),
     jobs: [iamReaperJob(pool)],
     close: async () => {
-      await Promise.all([oidc.close(), store.close()])
+      await oidc.close()
     },
   })
 }

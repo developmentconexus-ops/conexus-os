@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import type { BuilderRunPhase, BuilderRunResultKind, BuilderRunState } from '../generated/builder-run-vocabulary.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
-import { errorCode, type PostgresPool } from '../platform/postgres.js'
+import { errorCode, type PostgresPool } from '../platform/db.js'
 
 export type BuilderRunSummary = Readonly<{
   builderRunId: string
@@ -89,7 +89,6 @@ export type BuilderStore = Readonly<{
   readConversationSandbox(input: Readonly<{ projectId: string; conversationId: string }>): Promise<string | null>
   readProjectSandboxes(projectId: string): Promise<readonly string[]>
   readOpenRunConversations(): Promise<ReadonlySet<string>>
-  close(): Promise<void>
 }>
 
 // The refusals `builder.create_builder_run` raises by name; anything else stays the database's own fault.
@@ -273,5 +272,4 @@ export const createBuilderStore = ({
     const result = await executorPool.query<Readonly<{ value: string[] }>>('SELECT builder.read_open_run_conversations() AS value')
     return new Set(result.rows[0]?.value ?? [])
   },
-  close: async () => { await Promise.all([ingressPool.end(), executorPool.end()]) },
 })

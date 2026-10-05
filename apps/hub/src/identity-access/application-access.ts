@@ -6,7 +6,7 @@ import type { ApplicationAccessEntryParams, Iam12Body, ProjectParams, IamOwnerId
 import { z } from 'zod'
 import { Failure } from '../platform/failure.js'
 import { INVITATION_DAYS } from '../platform/lifetimes.js'
-import type { PostgresPool } from '../platform/postgres.js'
+import type { PostgresPool } from '../platform/db.js'
 import { isNotAdmitted, parseEmailAddress } from './current-session.js'
 import type { AccountId, EmailAddress } from './current-session.js'
 import { routes } from '../http/access.js'

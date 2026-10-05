@@ -234,7 +234,7 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
     assert.deepEqual(functions, [])
   })
 
-  await t.test('each new function is executable by exactly the one login role that calls it', async () => {
+  await t.test('each unported function remains callable by its old role and the Hub runtime', async () => {
     const { rows } = await query(connectionString, `
       SELECT n.nspname || '.' || p.proname AS name, array_agg(r.rolname::text ORDER BY r.rolname) AS roles
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
@@ -243,11 +243,12 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
         AND r.rolname LIKE 'hub\\_%' AND has_function_privilege(r.oid, p.oid, 'EXECUTE')
       GROUP BY 1 ORDER BY 1`)
     assert.deepEqual(rows, [
-      { name: 'builder.admit_source_revision', roles: ['hub_builder_ingress'] },
-      { name: 'builder.create_builder_run', roles: ['hub_builder_ingress'] },
-      { name: 'builder.lock_project_for_run', roles: ['hub_builder_ingress'] },
-      { name: 'builder.renew_run_lease', roles: ['hub_builder_executor'] },
-      { name: 'project.create_project_with_repository', roles: ['hub_project_command'] },
+      { name: 'builder.admit_source_revision', roles: ['hub_builder_ingress', 'hub_runtime'] },
+      { name: 'builder.create_builder_run', roles: ['hub_builder_ingress', 'hub_runtime'] },
+      { name: 'builder.lock_project_for_run', roles: ['hub_builder_ingress', 'hub_runtime'] },
+      { name: 'builder.register_project_repository', roles: ['hub_runtime'] },
+      { name: 'builder.renew_run_lease', roles: ['hub_builder_executor', 'hub_runtime'] },
+      { name: 'project.create_project_with_repository', roles: ['hub_project_command', 'hub_runtime'] },
     ])
   })
 })

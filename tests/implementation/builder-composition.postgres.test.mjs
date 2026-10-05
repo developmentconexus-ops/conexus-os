@@ -21,17 +21,12 @@ const baseEnvironment = {
   CONEXUS_DB_HOST: '127.0.0.1',
   CONEXUS_DB_PORT: '5432',
   CONEXUS_DB_NAME: 'conexus',
-  CONEXUS_DB_USER: 'hub_iam_runtime',
-  CONEXUS_DB_PASSWORD_FILE: '/secrets/iam',
+  CONEXUS_DB_USER: 'hub_runtime',
+  CONEXUS_DB_PASSWORD_FILE: '/secrets/runtime',
   CONEXUS_OIDC_ISSUER: 'https://issuer.test',
   CONEXUS_OIDC_CLIENT_ID: 'hub',
   CONEXUS_OIDC_CLIENT_SECRET_FILE: '/secrets/oidc',
   CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/installation-secret-key',
-  CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE: '/secrets/project-command',
-  CONEXUS_DB_PROJECT_READ_PASSWORD_FILE: '/secrets/project-read',
-  CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: '/secrets/ingress',
-  CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: '/secrets/executor',
-  CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: '/secrets/model-account',
   CONEXUS_BUILDER_E2B_API_KEY_FILE: '/secrets/e2b',
   CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'conexus:11111111-1111-4111-8111-111111111111',
   CONEXUS_BUILDER_QUESTION_WAIT_MS: String(5 * 60_000),
@@ -197,7 +192,7 @@ test('holdOpen stops retrying when E2B says the sandbox no longer exists', async
   release()
 })
 
-const { CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: _ingress, CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: _executor, CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: _modelAccount, CONEXUS_BUILDER_E2B_API_KEY_FILE: _e2bKey, CONEXUS_BUILDER_E2B_TEMPLATE_ID: _e2bTemplate, ...environmentWithoutBuilder } = baseEnvironment
+const { CONEXUS_BUILDER_E2B_API_KEY_FILE: _e2bKey, CONEXUS_BUILDER_E2B_TEMPLATE_ID: _e2bTemplate, ...environmentWithoutBuilder } = baseEnvironment
 
 test('with no Builder and no storage role the Hub boots, with the installation credential key', () => {
   assert.equal(readHubConfig(environmentWithoutBuilder).factory, undefined)

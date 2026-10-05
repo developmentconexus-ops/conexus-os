@@ -71,6 +71,7 @@ const iamReaperDigest = '6610e1b0533fc80561064142011b26e971bcc7dc831933471b2338e
 const invitationStateDigest = '52f15875fe72585faafb7bccab2e9b9aaebb8711db537772507caa81bcd9f874'
 const oneOwnerPerLifetimeDigest = '718c64fd896e0c04550c59d3b3fddea548737aea6256c5d5b57e8ba2bd9cd7c7'
 const dropWorkspaceGetSummaryDigest = '8a6a0d7a8674ea3b74722d7d2e458ac5bd3c38662f2ab9233e83c3728606213d'
+const runtimeDataBoundaryDigest = '7ff108386e64afd6b20e280840b2686e9703bc26e0b081db97167b74545078ac'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -134,6 +135,7 @@ const migrationDigests = new Map([
   ['0059_invitation_state.sql', invitationStateDigest],
   ['0060_one_owner_per_lifetime_no_csrf_token.sql', oneOwnerPerLifetimeDigest],
   ['0061_drop_workspace_get_summary.sql', dropWorkspaceGetSummaryDigest],
+  ['0062_runtime_data_boundary.sql', runtimeDataBoundaryDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

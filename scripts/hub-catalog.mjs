@@ -85,7 +85,7 @@ export const assertCatalog = async (client, snapshot) => {
 export const assertRoleInvariants = async (client) => {
   const elevated = (await client.query(`
     SELECT rolname FROM pg_roles
-    WHERE (rolname LIKE 'hub\\_%' OR rolname LIKE '%\\_owner')
+    WHERE (rolname LIKE 'hub\\_%' OR rolname LIKE '%\\_owner' OR rolname = 'iam_rls')
       AND (rolsuper OR rolcreaterole OR rolcreatedb OR rolreplication OR rolbypassrls)
     ORDER BY rolname
   `)).rows.map(row => row.rolname)
@@ -94,8 +94,8 @@ export const assertRoleInvariants = async (client) => {
   const memberships = (await client.query(`
     SELECT pg_get_userbyid(m.member) || ' in ' || pg_get_userbyid(m.roleid) AS membership
     FROM pg_auth_members m
-    WHERE pg_get_userbyid(m.member) LIKE 'hub\\_%' OR pg_get_userbyid(m.member) LIKE '%\\_owner'
-      OR pg_get_userbyid(m.roleid) LIKE 'hub\\_%' OR pg_get_userbyid(m.roleid) LIKE '%\\_owner'
+    WHERE pg_get_userbyid(m.member) LIKE 'hub\\_%' OR pg_get_userbyid(m.member) LIKE '%\\_owner' OR pg_get_userbyid(m.member) = 'iam_rls'
+      OR pg_get_userbyid(m.roleid) LIKE 'hub\\_%' OR pg_get_userbyid(m.roleid) LIKE '%\\_owner' OR pg_get_userbyid(m.roleid) = 'iam_rls'
     ORDER BY 1
   `)).rows.map(row => row.membership)
   if (memberships.length > 0) fail('MIGRATION_ROLE_MEMBERSHIP_REFUSED', memberships.join(','))
@@ -124,6 +124,41 @@ export const assertRoleInvariants = async (client) => {
   `)).rows.map(row => row.rolname)
   if (inheritViolations.length > 0) fail('MIGRATION_ROLE_INHERIT_REFUSED', inheritViolations.join(','))
 
+  const policyRole = (await client.query("SELECT rolcanlogin, rolinherit, rolbypassrls FROM pg_roles WHERE rolname = 'iam_rls'")).rows[0]
+  if (!policyRole || policyRole.rolcanlogin || policyRole.rolinherit || policyRole.rolbypassrls) fail('MIGRATION_POLICY_ROLE_REFUSED', 'iam_rls')
+  const roleRegister = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), 'utf8'))
+  const expectedHelpers = roleRegister.policyRoles.flatMap(row => row.role === 'iam_rls' ? row.owns : []).sort()
+  const ownedHelpers = (await client.query("SELECT n.nspname || '.' || p.proname AS name FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE p.proowner = 'iam_rls'::regrole ORDER BY 1")).rows.map(row => row.name)
+  if (JSON.stringify(ownedHelpers) !== JSON.stringify(expectedHelpers)) fail('MIGRATION_POLICY_HELPER_OWNERSHIP_REFUSED', ownedHelpers.join(','))
+  const policyGrants = (await client.query(`
+    SELECT n.nspname || '.' || c.relname || ':' || acl.privilege_type AS grant
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) acl
+    WHERE acl.grantee = 'iam_rls'::regrole AND acl.privilege_type <> 'SELECT'
+    ORDER BY 1
+  `)).rows.map(row => row.grant)
+  if (policyGrants.length > 0) fail('MIGRATION_POLICY_ROLE_GRANT_REFUSED', policyGrants.join(','))
+
+  const hubSchemas = ['iam', 'workspace', 'project', 'builder', 'reg', 'model', 'connector', 'platform']
+  const wrongOwners = (await client.query(`
+    SELECT kind || ' ' || name || ' owner=' || owner AS object FROM (
+      SELECT 'schema' AS kind, n.nspname AS name, pg_get_userbyid(n.nspowner) AS owner
+      FROM pg_namespace n WHERE n.nspname = ANY($1::text[])
+      UNION ALL
+      SELECT 'relation', n.nspname || '.' || c.relname, pg_get_userbyid(c.relowner)
+      FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = ANY($1::text[])
+      UNION ALL
+      SELECT 'function', n.nspname || '.' || p.proname, pg_get_userbyid(p.proowner)
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = ANY($1::text[])
+      UNION ALL
+      SELECT 'type', n.nspname || '.' || t.typname, pg_get_userbyid(t.typowner)
+      FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = ANY($1::text[])
+    ) AS objects
+    WHERE (kind = 'function' AND owner <> ALL($3::text[])) OR (kind <> 'function' AND owner <> ALL($2::text[]))
+    ORDER BY 1
+  `, [hubSchemas, roleRegister.ownerRoles, [...roleRegister.ownerRoles, 'iam_rls']])).rows.map(row => row.object)
+  if (wrongOwners.length > 0) fail('MIGRATION_HUB_OBJECT_OWNER_REFUSED', wrongOwners.join(','))
+
   // Nothing below the Hub route binds the account id these SECURITY DEFINER functions admit, so
   // EXECUTE is the second fence after the route. CREATE FUNCTION grants EXECUTE to PUBLIC by
   // default, so a migration that forgets one REVOKE hands that fence to every role with USAGE on
@@ -135,7 +170,7 @@ export const assertRoleInvariants = async (client) => {
     FROM pg_proc AS p
     JOIN pg_namespace AS n ON n.oid = p.pronamespace
     CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) AS entry
-    WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg', 'model')
+    WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg', 'model', 'connector', 'platform')
       AND entry.grantee = 0
       AND entry.privilege_type = 'EXECUTE'
     ORDER BY 1

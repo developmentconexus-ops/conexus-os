@@ -5,7 +5,7 @@ import { IAM_GENERATED_ROUTES } from '../generated/iam-routes.js'
 import type { Iam05Body, Iam10Body, MemberParams, RosterEntryParams, IamOwnerId, WorkspaceParams } from '../generated/iam-routes.js'
 import { Failure } from '../platform/failure.js'
 import { INVITATION_DAYS } from '../platform/lifetimes.js'
-import type { PostgresPool } from '../platform/postgres.js'
+import type { PostgresPool } from '../platform/db.js'
 import {
   accountId as brandAccountId,
   invitationId as brandInvitationId,

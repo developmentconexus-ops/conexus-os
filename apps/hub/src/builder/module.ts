@@ -4,7 +4,7 @@ import { Mastra } from '@mastra/core/mastra'
 import { ConsoleLogger } from '@mastra/core/logger'
 import type { ObservabilityInstance } from '@mastra/core/observability'
 import type { RequestContext } from '@mastra/core/request-context'
-import { createPostgresPool } from '../platform/postgres.js'
+import { openFactoryPool, type PostgresPool } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import type { Job } from '../platform/jobs.js'
 import { logLine } from '../platform/logger.js'
@@ -87,10 +87,11 @@ const DAY_MS = 24 * HOUR_MS
 const RUN_LEASE_EVERY_MS = 10_000
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
-export const createConfiguredBuilderModule = ({ database, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, isInstallationAdministrator, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
+export const createConfiguredBuilderModule = ({ database, runtimePool, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, isInstallationAdministrator, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
+  runtimePool: PostgresPool
   builder: Readonly<{
-    ingressPasswordFile: string; executorPasswordFile: string; modelAccountPasswordFile: string; e2bApiKeyFile: string
+    e2bApiKeyFile: string
     e2bTemplateId: string; gitRoot: string; context7ApiKeyFile?: string | undefined; questionWaitMs: number; sandboxIdleMs: number
   }>
   // Only its database password is still read: the Builder's Mastra storage lives in the `factory`
@@ -112,34 +113,32 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
   assertBuilderSkillsAvailable()
   const check = loadCheckBundle()
   const log = logLine
-  const executorPool = createPostgresPool({ ...database, user: 'hub_builder_executor', password: readSecretFile(builder.executorPasswordFile) })
   const store = createBuilderStore({
-    ingressPool: createPostgresPool({ ...database, user: 'hub_builder_ingress', password: readSecretFile(builder.ingressPasswordFile) }),
-    executorPool,
+    ingressPool: runtimePool,
+    executorPool: runtimePool,
   })
   // Google AI Pro's credential lives in model.model_account (spec 0002), sealed with the same
   // envelope every Conexus secret uses.
-  const modelAccountPool = createPostgresPool({ ...database, user: 'hub_model_account', password: readSecretFile(builder.modelAccountPasswordFile) })
   const modelAccounts = createModelAccountStore({
-    pool: modelAccountPool,
+    pool: runtimePool,
     envelope: createSecretEnvelope(readSecretFile(secretKey.file), secretKey.previousFiles.map(readSecretFile)),
   })
   const googleAiProAccounts = createGoogleAiProAccounts(modelAccounts)
   const readDefault = async (role: ModelRole): Promise<string | null> =>
-    (await modelAccountPool.query<{ model_id: string | null }>('SELECT model.read_installation_default($1) AS model_id', [role])).rows[0]?.model_id ?? null
+    (await runtimePool.query<{ model_id: string | null }>('SELECT model.read_installation_default($1) AS model_id', [role])).rows[0]?.model_id ?? null
   const getApplicationBySource = applicationArtifacts.getApplicationBySource
   const readApplicationFileBySource = applicationArtifacts.readApplicationFileBySource
   const retainApplicationThumbnail = applicationArtifacts.retainApplicationThumbnail
   const getApplicationThumbnail = applicationArtifacts.getApplicationThumbnail
   const boundApplicationArtifacts: BuilderApplicationArtifacts = Object.freeze({
-    ...(getApplicationBySource ? { getApplicationBySource: (input: ApplicationSourceCoordinates) => getApplicationBySource(executorPool, input) } : {}),
-    retainApplication: (input) => applicationArtifacts.retainApplication(executorPool, input),
-    ...(retainApplicationThumbnail ? { retainApplicationThumbnail: (input: Parameters<NonNullable<typeof retainApplicationThumbnail>>[1]) => retainApplicationThumbnail(executorPool, input) } : {}),
-    ...(getApplicationThumbnail ? { getApplicationThumbnail: (input: Parameters<NonNullable<typeof getApplicationThumbnail>>[1]) => getApplicationThumbnail(executorPool, input) } : {}),
-    ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(executorPool, input) } : {}),
+    ...(getApplicationBySource ? { getApplicationBySource: (input: ApplicationSourceCoordinates) => getApplicationBySource(runtimePool, input) } : {}),
+    retainApplication: (input) => applicationArtifacts.retainApplication(runtimePool, input),
+    ...(retainApplicationThumbnail ? { retainApplicationThumbnail: (input: Parameters<NonNullable<typeof retainApplicationThumbnail>>[1]) => retainApplicationThumbnail(runtimePool, input) } : {}),
+    ...(getApplicationThumbnail ? { getApplicationThumbnail: (input: Parameters<NonNullable<typeof getApplicationThumbnail>>[1]) => getApplicationThumbnail(runtimePool, input) } : {}),
+    ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(runtimePool, input) } : {}),
   })
   const git = createConexusGit({ root: builder.gitRoot, starter: [...fixedApplicationStarterFiles(), ...APPLICATION_SHAPE_FILES, ...starterProjectFiles()] })
-  const storagePool = createPostgresPool({ ...database, user: 'hub_factory', password: readSecretFile(factory.databasePasswordFile), options: '-c search_path=factory', max: 20, connectionTimeoutMillis: AGENT_STORAGE_CONNECT_TIMEOUT_MS })
+  const storagePool = openFactoryPool({ ...database, user: 'hub_factory', passwordFile: factory.databasePasswordFile, options: '-c search_path=factory', max: 20, connectionTimeoutMillis: AGENT_STORAGE_CONNECT_TIMEOUT_MS })
   const storage = createBuilderStorage(storagePool)
   const observability = createBuilderObservability('conexus-builder', connectorObservability)
   const observabilityLifecycle = createBuilderObservabilityLifecycle(observability)
@@ -346,7 +345,7 @@ export const createConfiguredBuilderModule = ({ database, builder, factory, secr
           await docsTools.close()
           await googleAiProReady.then((started) => started?.close(), () => undefined)
           await observabilityLifecycle.close()
-          await Promise.all([storagePool.end(), modelAccountPool.end()])
+          await storagePool.end()
         }
       }
     },

@@ -50,6 +50,6 @@
     "@biomejs/biome"
   ],
   // The reference screens import the generated app's own components and libraries, which this package does not install.
-  "ignoreIssues": { "builder-skills/**": ["unlisted", "unresolved"], "apps/web/src/app/http.ts": ["exports"] },
+  "ignoreIssues": { "builder-skills/**": ["unlisted", "unresolved"], "apps/web/src/app/http.ts": ["exports"], "apps/hub/src/platform/db.ts": ["exports", "types"] },
   "ignoreBinaries": ["setpriv", "pgrep"]
 }

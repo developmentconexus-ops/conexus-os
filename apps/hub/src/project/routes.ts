@@ -9,7 +9,7 @@ import type {
   Prj04Querystring,
 } from '../generated/project-routes.js'
 import { Failure } from '../platform/failure.js'
-import { errorCode } from '../platform/postgres.js'
+import { errorCode } from '../platform/db.js'
 import type { ProjectStore } from './store.js'
 import { routes } from '../http/access.js'
 

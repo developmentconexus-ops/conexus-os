@@ -1,5 +1,5 @@
 import type { QueryResultRow } from 'pg'
-import type { PostgresPool } from '../platform/postgres.js'
+import type { PostgresPool } from '../platform/db.js'
 import type { AccountId } from './current-session.js'
 
 // Installation administration authorizes installation-wide actions, such as connecting the

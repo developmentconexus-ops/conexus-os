@@ -78,6 +78,12 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   assert.deepEqual(migrated.versions, loadHubMigrationFiles().map(({ version }) => version))
   const { createApplicationArtifactStore } = await import(hubModuleUrl('registry/application-artifact-store.js'))
   const { createServedApplicationReader } = await import(hubModuleUrl('registry/served-application.js'))
+  const servedReader = createServedApplicationReader({ read: (_account, fn) => fn({
+    maybe: async (schema, statement) => {
+      const row = (await runtime.query(statement.text, [...statement.values])).rows[0]
+      return row ? schema.parse(row) : null
+    },
+  }) })
   setup = await connect(config)
   assert.deepEqual((await setup.query(`SELECT
     has_schema_privilege('builder_owner', 'reg', 'USAGE') AS builder_reg_usage,
@@ -157,10 +163,10 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   assert.equal(Buffer.from(thumbnail.bytes).toString('hex'), thumbnailBytes.toString('hex'))
   assert.equal(await store.getApplicationThumbnail(runtime, { accountId: randomUUID(), projectId }), null)
 
-  const served = await createServedApplicationReader(runtime).readThumbnail({ accountId, projectId })
+  const served = await servedReader.readThumbnail({ accountId, projectId })
   assert.equal(served?.artifactRevisionId, retained.artifactRevisionId)
   assert.equal(served?.sha256, createHash('sha256').update(thumbnailBytes).digest('hex'))
-  assert.equal(await createServedApplicationReader(runtime).readThumbnail({ accountId: randomUUID(), projectId }), null)
+  assert.equal(await servedReader.readThumbnail({ accountId: randomUUID(), projectId }), null)
 })
 
 test('a BUILT result that carries a thumbnail settles through the real registry: the build is stored and the thumbnail is retained', async (t) => {

@@ -252,7 +252,7 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/platform/jobs.ts',
           'apps/hub/src/platform/lifecycle.ts',
           'apps/hub/src/platform/logger.ts',
-          'apps/hub/src/platform/postgres.ts',
+          'apps/hub/src/platform/db.ts',
           'apps/hub/src/platform/secrets.ts',
           'apps/hub/src/project/module.ts',
           'apps/hub/src/registry/module.ts',
@@ -285,7 +285,7 @@ export function checkImportLaw(rootDirectory) {
       if (source === 'apps/hub/src/identity-access/store.ts' && isRelative) {
         const allowed = [
           'packages/canonical-json/src/index.',
-          'apps/hub/src/platform/postgres.',
+          'apps/hub/src/platform/db.',
           'apps/hub/src/identity-access/errors.',
           'apps/hub/src/identity-access/oidc.',
           'apps/hub/src/identity-access/current-session.',
@@ -314,7 +314,7 @@ export function checkImportLaw(rootDirectory) {
       if (source === 'apps/hub/src/workspace/store.ts' && isRelative) {
         const allowed = [
           'packages/canonical-json/src/index.',
-          'apps/hub/src/platform/postgres.',
+          'apps/hub/src/platform/db.',
           'apps/hub/src/platform/failure.',
         ]
         if (!allowed.some((prefix) => target.startsWith(prefix))) {
@@ -322,7 +322,7 @@ export function checkImportLaw(rootDirectory) {
         }
       }
       if (source.startsWith('apps/hub/src/platform/') && isRelative &&
-          !target.startsWith('apps/hub/src/platform/')) {
+          !target.startsWith('apps/hub/src/platform/') && !isContractEntry(target)) {
         violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'platform adapters may share platform code but cannot import application layers'))
       }
 

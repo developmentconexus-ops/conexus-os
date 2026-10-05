@@ -8,7 +8,7 @@ import { createMarModule } from './mar/module.js'
 import { startJobs } from './platform/jobs.js'
 import { readHubConfig } from './platform/config.js'
 import { censusConnections, reportConnectionCensus } from './platform/connection-census.js'
-import { createPostgresPool } from './platform/postgres.js'
+import { openDatabase, unportedPool } from './platform/db.js'
 import { assertSchemaCurrent, exitOnLostInstanceLock, takeInstanceLock } from './platform/lifecycle.js'
 import { logLine } from './platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from './platform/secrets.js'
@@ -34,23 +34,17 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     port: config.database.port,
     database: config.database.database,
     user: config.database.user,
-    password: readSecretFile(config.database.passwordFile),
+    passwordFile: config.database.passwordFile,
   }
-  const pool = createPostgresPool(mainConnection)
+  const database = openDatabase(mainConnection)
+  const pool = unportedPool(database)
   // Before anything that touches shared state (handler sockets, runs): a second Hub, or a database
   // behind this code, ends here with a named line and leaves the live Hub alone.
-  const releaseInstanceLock = await takeInstanceLock(mainConnection, exitOnLostInstanceLock())
+  const releaseInstanceLock = await takeInstanceLock(database, exitOnLostInstanceLock())
   await assertSchemaCurrent(pool, resolve(import.meta.dirname, '../migrations'))
-  const s2ReadPool = config.database.workspace ? createPostgresPool({
-    host: config.database.host,
-    port: config.database.port,
-    database: config.database.database,
-    user: 'hub_workspace_read',
-    password: readSecretFile(config.database.workspace.readPasswordFile),
-  }) : undefined
   const identityAccessDependencies = {
     pool,
-    workspaceReadPool: s2ReadPool,
+    workspaceReadPool: pool,
     origin: config.origin,
     issuer: config.oidc.issuer,
     clientId: config.oidc.clientId,
@@ -59,11 +53,8 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     // Every Hub and application session keeps its Keycloak refresh token sealed with the installation's credential key.
     envelope: createSecretEnvelope(readSecretFile(config.secretKey.file), config.secretKey.previousFiles.map(readSecretFile)),
     application: config.application ? { address: config.application } : undefined,
-  } satisfies Parameters<typeof createIdentityAccessModule>[0] & Readonly<{ workspaceReadPool: typeof s2ReadPool }>
+  } satisfies Parameters<typeof createIdentityAccessModule>[0]
   const identityAccess = await createIdentityAccessModule(identityAccessDependencies)
-  // The Connector Connection's credential is sealed with the same installation key as an application
-  // session's refresh token, so the module needs no login role of its own: connector.* functions run
-  // as hub_iam_runtime, like application-access's do.
   const connectors = createConnectorModule({
     pool,
     envelope: identityAccessDependencies.envelope,
@@ -73,23 +64,11 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   })
   // A restarted Hub leaves no orphan handler socket still answering.
   await connectors.sweepHandlerPorts()
-  const workspace = config.database.workspace && s2ReadPool ? createWorkspaceModule({
-    commandPool: createPostgresPool({
-      host: config.database.host,
-      port: config.database.port,
-      database: config.database.database,
-      user: 'hub_workspace_command',
-      password: readSecretFile(config.database.workspace.commandPasswordFile),
-    }),
-    readPool: s2ReadPool,
-  }) : undefined
-  const project = config.project ? createConfiguredProjectModule({
-    database: {
-      host: config.database.host,
-      port: config.database.port,
-      database: config.database.database,
-    },
-    project: config.project,
+  const workspace = createWorkspaceModule({
+    commandPool: pool,
+  })
+  const project = createConfiguredProjectModule({
+    pool,
     // The builder module owns the Conexus Git and is composed below; creation reaches it at request time.
     repository: {
       prepare: async (projectId) => {
@@ -123,18 +102,11 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
         return reader(input)
       },
     },
-  }) : undefined
+  })
   let builder: ReturnType<typeof createConfiguredBuilderModule> | undefined
   const applicationRunner = config.appRunner ? createApplicationRunnerClient(config.appRunner.socketPath) : undefined
   // The application host reads only the artifact an application serves, gated by access to it.
-  const servedPool = config.application && config.builder ? createPostgresPool({
-    host: config.database.host,
-    port: config.database.port,
-    database: config.database.database,
-    user: 'hub_builder_executor',
-    password: readSecretFile(config.builder.executorPasswordFile),
-  }) : undefined
-  const servedApplications = servedPool ? createServedApplicationReader(servedPool) : undefined
+  const servedApplications = config.application && config.builder ? createServedApplicationReader(database) : undefined
   const mar = config.preview ? createMarModule({
     sessions: identityAccess.hostSessions,
     exactHubOrigin: config.origin,
@@ -193,12 +165,13 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     }
   } : undefined
   let preparing: Promise<unknown> = Promise.resolve()
-  builder = config.builder && config.project && config.factory ? createConfiguredBuilderModule({
+  builder = config.builder && config.factory ? createConfiguredBuilderModule({
     database: {
       host: config.database.host,
       port: config.database.port,
       database: config.database.database,
     },
+    runtimePool: pool,
     builder: config.builder,
     factory: config.factory,
     secretKey: config.secretKey,
@@ -295,7 +268,8 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     await jobs.close()
     await Promise.all([app.close(), previewApp?.close(), applicationApp?.close()])
     await mar?.close()
-    await Promise.all([builder?.close(), project?.close(), workspace?.close(), identityAccess.close(), servedPool?.end()])
+    await Promise.all([builder?.close(), identityAccess.close()])
+    await database.close()
     await releaseInstanceLock()
   }
   return { close }

@@ -1,61 +1,98 @@
 {
-  "$comment": "Every Hub connection authenticates as one capability role. This file is the single register. apps/hub/src/platform/hub-roles.generated.ts is projected from it by scripts/generate-hub-role-register.mjs, and docs/reference/hub-database-roles.md documents the same rows for a reader. Adding a role means adding a row here and regenerating, not editing four places.",
+  "$comment": "Every Hub connection role is registered here. The runtime uses hub_runtime for Hub data and hub_factory for Mastra storage; capability roles remain only while their SQL owners are ported.",
   "roles": [
+    {
+      "role": "hub_runtime",
+      "capability": "hub-data",
+      "passwordFileVariable": "CONEXUS_DB_PASSWORD_FILE",
+      "roleVariable": "CONEXUS_DB_USER",
+      "connectsFrom": [
+        "apps/hub/src/hub.ts"
+      ]
+    },
     {
       "role": "hub_iam_runtime",
       "capability": "identity-and-access",
-      "passwordFileVariable": "CONEXUS_DB_PASSWORD_FILE",
-      "roleVariable": "CONEXUS_DB_USER",
-      "connectsFrom": ["apps/hub/src/hub.ts"]
+      "passwordFileVariable": "CONEXUS_DB_IAM_RUNTIME_PASSWORD_FILE",
+      "connectsFrom": [],
+      "legacy": true
     },
     {
       "role": "hub_workspace_read",
       "capability": "workspace-read",
       "passwordFileVariable": "CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/hub.ts"]
+      "connectsFrom": [],
+      "legacy": true
     },
     {
       "role": "hub_workspace_command",
       "capability": "workspace-command",
       "passwordFileVariable": "CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/hub.ts"]
+      "connectsFrom": [],
+      "legacy": true
     },
     {
       "role": "hub_project_read",
       "capability": "project-read",
       "passwordFileVariable": "CONEXUS_DB_PROJECT_READ_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/project/module.ts"]
+      "connectsFrom": [],
+      "legacy": true
     },
     {
       "role": "hub_project_command",
       "capability": "project-command",
       "passwordFileVariable": "CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/project/module.ts"]
+      "connectsFrom": [],
+      "legacy": true
     },
     {
       "role": "hub_builder_ingress",
       "capability": "builder-request",
       "passwordFileVariable": "CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/builder/module.ts"]
+      "connectsFrom": [],
+      "legacy": true
     },
     {
       "role": "hub_builder_executor",
       "capability": "builder-run-execution",
       "passwordFileVariable": "CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/builder/module.ts"]
+      "connectsFrom": [],
+      "legacy": true
+    },
+    {
+      "role": "hub_model_account",
+      "capability": "model-account",
+      "passwordFileVariable": "CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE",
+      "connectsFrom": [],
+      "legacy": true
     },
     {
       "role": "hub_factory",
       "capability": "factory-storage",
       "passwordFileVariable": "CONEXUS_DB_FACTORY_PASSWORD_FILE",
       "optional": true,
-      "connectsFrom": ["apps/hub/src/builder/module.ts"]
-    },
-    {
-      "role": "hub_model_account",
-      "capability": "model-account",
-      "passwordFileVariable": "CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE",
-      "connectsFrom": ["apps/hub/src/builder/module.ts"]
+      "connectsFrom": [
+        "apps/hub/src/builder/module.ts"
+      ]
     }
+  ],
+  "policyRoles": [
+    {
+      "role": "iam_rls",
+      "owns": [],
+      "privileges": [
+        "SELECT"
+      ]
+    }
+  ],
+  "ownerRoles": [
+    "iam_owner",
+    "workspace_owner",
+    "project_owner",
+    "registry_owner",
+    "builder_owner",
+    "connector_owner",
+    "model_owner",
+    "conexus_owner"
   ]
 }

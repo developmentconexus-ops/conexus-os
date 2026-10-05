@@ -5,10 +5,10 @@ import pg from 'pg'
 import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
+import { testPool } from './hub-database.mjs'
 
 const { Client } = pg
 const { createIdentityAccessStore } = await import(hubModuleUrl('identity-access/store.js'))
-const { createPostgresPool } = await import(hubModuleUrl('platform/postgres.js'))
 const { createHostSessions } = await import(hubModuleUrl('identity-access/host-sessions.js'))
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
 const required = (name) => {
@@ -32,13 +32,14 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
   await admin.connect()
   await admin.query(`CREATE DATABASE "${database}"`)
   let store
+  let storePool
   let hubPool
   // One hook, in this order, because FORCE terminates any pool still connected and the pool then
   // reports that termination as an unhandled error.
   t.after(async () => {
     try {
       try {
-        await store?.close()
+        await storePool?.end()
       } finally {
         await hubPool?.end()
       }
@@ -62,7 +63,8 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
   await admin.query(`ALTER ROLE hub_iam_runtime PASSWORD 'runtime-test-only'`)
 
   const runtimeConnection = { ...installed, user: 'hub_iam_runtime', password: 'runtime-test-only' }
-  store = createIdentityAccessStore({ pool: createPostgresPool(runtimeConnection) })
+  storePool = testPool(runtimeConnection)
+  store = createIdentityAccessStore({ pool: storePool })
   // A provisioning token rotates while it is unclaimed, and the expired one stays dead.
   // This runs first because the first-account path closes once any account exists.
   const expiredToken = await store.createProvisioningContext({
@@ -119,16 +121,17 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
     (error) => error.id === 'IDENTITY_NOT_ELIGIBLE',
   )
   const envelope = createSecretEnvelope('ab'.repeat(32))
-  hubPool = createPostgresPool(runtimeConnection)
+  hubPool = testPool(runtimeConnection)
   let hub = createHostSessions({ pool: hubPool, envelope, refresh: async () => ({ kind: 'UNAVAILABLE' }) })
   const established = await hub.openHub({ accountId: first.accountId, refreshToken: 'refresh-1' })
   const signedIn = { account: { accountId: first.accountId, displayName: 'Leandro', email: 'leandro@example.test' }, issuer: 'https://issuer.test', subject: 'subject-1' }
   const sessionDigest = createHash('sha256').update(established.sessionToken).digest()
   assert.deepEqual(await hub.resolveHub(sessionDigest), signedIn)
   assert.equal(await hub.resolveHub(createHash('sha256').update('w'.repeat(43)).digest()), null, 'a digest no session has')
-  await store.close()
+  await storePool.end()
 
-  store = createIdentityAccessStore({ pool: createPostgresPool(runtimeConnection) })
+  storePool = testPool(runtimeConnection)
+  store = createIdentityAccessStore({ pool: storePool })
   hub = createHostSessions({ pool: hubPool, envelope, refresh: async () => ({ kind: 'UNAVAILABLE' }) })
   assert.deepEqual(await hub.resolveHub(sessionDigest), signedIn, 'another Hub process reads the same session')
   assert.equal(await hub.endHub(createHash('sha256').update('w'.repeat(43)).digest()), null, 'a digest no session has ends nothing')

@@ -3,7 +3,7 @@ import type { PoolClient, QueryResultRow } from 'pg'
 import { canonicalBytes } from '../../../../packages/canonical-json/src/index.mjs'
 import { BOOTSTRAP_WINDOW_SECONDS, OIDC_TRANSACTION_SECONDS } from '../platform/lifetimes.js'
 import { digest, opaqueToken as token } from '../platform/opaque-token.js'
-import { errorCode, type PostgresPool } from '../platform/postgres.js'
+import { errorCode, type PostgresPool } from '../platform/db.js'
 import { accountId as brandAccountId } from './current-session.js'
 import type { AccountId, AccountSummary, EmailAddress } from './current-session.js'
 import { Failure } from '../platform/failure.js'
@@ -74,7 +74,6 @@ export type IdentityAccessStore = Readonly<{
   claimInvitations(input: Readonly<{ accountId: AccountId; verifiedEmail: EmailAddress | null }>): Promise<number>
   provisionBootstrap(input: Readonly<{ bootstrapToken: string; idempotencyKey: string; configuredIssuer: string; configuredSubject: string; displayName: string; email?: string; now?: Date }>): Promise<ProvisionResult>
   listAccessibleWorkspaces(accountId: string): Promise<readonly AccessibleWorkspace[]>
-  close(): Promise<void>
 }>
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
@@ -228,7 +227,6 @@ export const createIdentityAccessStore = ({
         client.release()
       }
     },
-    close: () => pool.end(),
   })
 }
 
