@@ -547,9 +547,10 @@ updates still gets `UPDATE` on one non tenant column, and never on a security co
 locks through `created_at`, a column with no rule on it (the table's columns are `account_id`,
 `issuer`, `external_subject`, `display_name`, `email`, `active` and `created_at`,
 `0001_baseline.sql:1926-1937`); revision 5.1 granted `UPDATE (active)`, which let a command
-deactivate an account. `iam.workspace_membership` keeps `UPDATE (role)` because part 6's role change
-needs it. That is a security column on purpose, and only a command that holds the matching proof and
-the owner set lock writes it. `LOCK TABLE ... SHARE ROW EXCLUSIVE` needs a
+deactivate an account. `iam.workspace_membership` locks through `created_at` too; part 6 adds
+`UPDATE (role)` with the role command, a security column that only a command holding the matching
+proof and the owner set lock writes. `hub_reader` reads `iam.account` through the columns
+`account_id`, `display_name` and `email`, so `issuer`, `external_subject` and `origin` stay unreadable. `LOCK TABLE ... SHARE ROW EXCLUSIVE` needs a
 table level `UPDATE`, `DELETE` or `TRUNCATE`, and a table level `UPDATE` on
 `iam.installation_administrator` would let any command rewrite `account_id` and mint an
 administrator. So `hub_command` gets column grants only: `UPDATE (revoked_at)` from part 0b, widened by
@@ -920,8 +921,8 @@ What changed from revision 5.1, and why. A Sonnet reviewer confirmed 29 of the 3
   bridge, and its `hub_runtime` grants go in part 0b. Section 7, sections 8 and 10, and the part 0b
   plan in the umbrella.
 - **The row lock goes through a harmless column** (decision 4; confirmation, low). `iam.account`
-  grants `UPDATE (created_at)` where 5.1 granted `UPDATE (active)`. `iam.workspace_membership` keeps
-  `UPDATE (role)` because part 6 needs it. Section 5.
+  grants `UPDATE (created_at)` where 5.1 granted `UPDATE (active)`. `iam.workspace_membership`
+  does too, and part 6 adds `UPDATE (role)`. Section 5.
 - **Reader policies have names** (decision 5; confirmation, nit). `reader`, and `reader_admin` where
   the administrator branch is separate; the register and the catalog lint use those names. Section
   4.2.

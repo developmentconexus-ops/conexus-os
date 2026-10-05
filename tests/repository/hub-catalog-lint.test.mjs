@@ -61,6 +61,24 @@ test('a reader that holds more than SELECT is named', () => {
   ])
 })
 
+test('a register row with readerColumns allows exactly that column list and refuses a table level reader grant', () => {
+  const columns = (input) => { input.catalog.column.push(column(WORKSPACE, 'name', [['hub_reader', 'SELECT']]), column(WORKSPACE, 'workspace_id', [['hub_reader', 'SELECT']])) }
+  assert.deepEqual(lint((input) => {
+    input.catalog.relation[0] = relation(WORKSPACE, [['hub_command', 'INSERT'], ['hub_command', 'SELECT']])
+    columns(input)
+    input.census.register.split[0].readerColumns = ['name', 'workspace_id']
+  }), [])
+  assert.deepEqual(lint((input) => {
+    columns(input)
+    input.census.register.split[0].readerColumns = ['name', 'workspace_id']
+  }), [`${WORKSPACE} gives hub_reader SELECT, and the reader may only SELECT(name,workspace_id)`])
+  assert.deepEqual(lint((input) => {
+    input.catalog.relation[0] = relation(WORKSPACE, [['hub_command', 'INSERT'], ['hub_command', 'SELECT']])
+    columns(input)
+    input.census.register.split[0].readerColumns = ['name']
+  }), [`${WORKSPACE} gives hub_reader SELECT(name,workspace_id), and the reader may only SELECT(name)`])
+})
+
 test('a misnamed reader policy is named', () => {
   assert.deepEqual(lint((input) => { input.catalog.policy[0] = policy(WORKSPACE, 'read', 'r', 'hub_reader') }), [
     `${WORKSPACE} must have a reader policy named reader if and only if hub_reader holds SELECT`,

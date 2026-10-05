@@ -85,6 +85,7 @@ test('an admitted command is refused every tenant column, and the login role rea
     sql`UPDATE iam.workspace_membership SET workspace_id = ${PROJECT}::uuid WHERE account_id = ${ACCOUNT}`,
     sql`UPDATE iam.installation_administrator SET account_id = ${OTHER} WHERE account_id = ${ACCOUNT}`,
     sql`UPDATE iam.account SET active = false WHERE account_id = ${ACCOUNT}`,
+    sql`UPDATE iam.workspace_membership SET role = 'owner' WHERE account_id = ${ACCOUNT}`,
     sql`UPDATE project.project SET workspace_id = ${PROJECT}::uuid WHERE project_id = ${PROJECT}`,
     sql`UPDATE workspace.workspace SET name = 'x' WHERE workspace_id = ${WORKSPACE}`,
   ]) await assert.rejects(inCommand(database, ACCOUNT, statement), (error) => code(error) === '42501', statement.text)
@@ -98,6 +99,19 @@ test('an admitted command is refused every tenant column, and the login role rea
   } finally {
     await login.end()
   }
+})
+
+test('hub_reader reads the person columns of iam.account and none of the identity columns, and hub_iam_runtime holds nothing on it', async (t) => {
+  const { connection, database } = await openRuntimeFixture(t, 'conexus_split_account_columns', { accounts: [[ACCOUNT, 'a']] })
+  const Person = z.object({ account_id: z.string(), display_name: z.string(), email: z.string().nullable() })
+  assert.deepEqual((await database.read(ACCOUNT, (tx) => tx.rows(Person, sql`SELECT account_id, display_name, email FROM iam.account`))).map((row) => row.account_id), [ACCOUNT])
+  for (const column of ['issuer', 'external_subject', 'origin', 'active']) {
+    await assert.rejects(database.read(ACCOUNT, (tx) => tx.rows(z.object({}).passthrough(), sql`SELECT ${sql.identifier(column)} FROM iam.account`)), (error) => code(error) === '42501', column)
+  }
+  await assert.rejects(database.read(ACCOUNT, (tx) => tx.rows(z.object({}).passthrough(), sql`SELECT * FROM iam.account`)), (error) => code(error) === '42501', 'select *')
+  const held = await query(connection, `SELECT has_table_privilege('hub_iam_runtime', 'iam.account', 'SELECT, INSERT, UPDATE') AS table_level,
+    has_any_column_privilege('hub_iam_runtime', 'iam.account', 'SELECT, INSERT, UPDATE') AS column_level`)
+  assert.deepEqual(held.rows, [{ table_level: false, column_level: false }])
 })
 
 test('the purge guard refuses a reaper and a person, and a project purge job runs the purge', async (t) => {

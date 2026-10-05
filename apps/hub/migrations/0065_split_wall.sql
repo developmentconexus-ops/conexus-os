@@ -259,7 +259,9 @@ REVOKE ALL ON workspace.workspace, platform.operation_receipt, project.project, 
   builder.builder_run, builder.project_working_state, iam.workspace_membership FROM hub_runtime;
 
 GRANT SELECT ON workspace.workspace, project.project, project.project_deletion, builder.builder_run,
-  builder.project_working_state, iam.workspace_membership, iam.account TO hub_reader;
+  builder.project_working_state, iam.workspace_membership TO hub_reader;
+GRANT SELECT (account_id, display_name, email) ON iam.account TO hub_reader;
+REVOKE ALL ON iam.account FROM hub_iam_runtime;
 
 GRANT SELECT, INSERT ON workspace.workspace TO hub_command;
 GRANT SELECT, INSERT, DELETE, UPDATE (state, response_status, response_body, completed_at) ON platform.operation_receipt TO hub_command;
@@ -267,7 +269,7 @@ GRANT SELECT, INSERT, DELETE, UPDATE (name) ON project.project TO hub_command;
 GRANT SELECT, INSERT, DELETE, UPDATE (purged_at, completed_at) ON project.project_deletion TO hub_command;
 GRANT SELECT ON builder.builder_run, builder.project_working_state TO hub_command;
 GRANT SELECT, UPDATE (created_at) ON iam.account TO hub_command;
-GRANT SELECT, INSERT, UPDATE (role) ON iam.workspace_membership TO hub_command;
+GRANT SELECT, INSERT, UPDATE (created_at) ON iam.workspace_membership TO hub_command;
 GRANT SELECT, UPDATE (revoked_at) ON iam.installation_administrator TO hub_command;
 GRANT SELECT ON iam.application TO hub_command;
 GRANT SELECT, UPDATE (revoked_at) ON iam.application_grant TO hub_command;

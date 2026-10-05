@@ -437,7 +437,7 @@ here. The real dependencies come from the caller graph script
      `SELECT, INSERT, DELETE` and `UPDATE (purged_at, completed_at)`; `builder.builder_run` and
      `builder.project_working_state` `SELECT`; `iam.account` `SELECT, UPDATE (created_at)` (the row lock goes through a column with no
      rule on it; `0001_baseline.sql:1926-1937`); `iam.workspace_membership` `SELECT, INSERT,
-     UPDATE (role)` (`UPDATE (role)` stays because part 6's role change needs it; `DELETE` comes with
+     UPDATE (created_at)` (part 6 adds `UPDATE (role)` with the role command; `DELETE` comes with
      the roster commands of part 6); and on the pending tables the new path reads, each recorded in its register
      row: `iam.installation_administrator` `SELECT, UPDATE (revoked_at)` (the tenure `FOR SHARE`;
      never table level, admission child, section 5), `iam.application` `SELECT`,

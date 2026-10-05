@@ -361,8 +361,9 @@ The other findings were small. The reach list of rule 4 named `project.project`,
 administrator no row outside its workspaces, so the list is now literal (four tables). Only
 `iam.account` has an unported reader, so `iam.workspace_membership` loses its `legacy_runtime` bridge
 and its `hub_runtime` grants. The row lock on `iam.account` moves from `UPDATE (active)`, which let a
-command deactivate an account, to `UPDATE (created_at)`; the membership keeps `UPDATE (role)` because
-part 6 needs it. Reader policies are named `reader` and `reader_admin`. One finding was accepted as
+command deactivate an account, to `UPDATE (created_at)`, and so does the membership; part 6 adds `UPDATE (role)` with the
+command that writes it. The reader grant on `iam.account` is the columns a person reads, `account_id`,
+`display_name` and `email`. Reader policies are named `reader` and `reader_admin`. One finding was accepted as
 it stands: `register_project_repository` can be called on any project, because its one caller is a
 person's command, and on another tenant's project its inserts change nothing (admission child,
 section 6).

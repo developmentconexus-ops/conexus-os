@@ -51,7 +51,7 @@ const KEY_COLUMN = {
 const readableTables = async (connection) => (await query(connection, `SELECT n.nspname || '.' || c.relname AS table_name FROM pg_class c
   JOIN pg_namespace n ON n.oid = c.relnamespace
   WHERE c.relkind IN ('r', 'p') AND n.nspname IN ('iam', 'workspace', 'project', 'builder', 'connector', 'reg', 'platform', 'model')
-    AND has_table_privilege('hub_reader', c.oid, 'SELECT') ORDER BY 1`)).rows.map((row) => row.table_name)
+    AND has_any_column_privilege('hub_reader', c.oid, 'SELECT') ORDER BY 1`)).rows.map((row) => row.table_name)
 
 const visibleKeys = (database, accountId, table) => {
   const [schema, name] = table.split('.')

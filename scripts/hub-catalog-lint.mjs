@@ -65,7 +65,8 @@ const lintSplitTable = ({ row, catalog, tablePolicies, problems, unported }) => 
   const readerHeld = privilegesOf(catalog, table, READER_ROLE)
   const readerPolicies = tablePolicies.filter((policy) => policy.roles.includes(READER_ROLE))
   const named = (name) => readerPolicies.filter((policy) => policy.name === name && policy.command === 'r' && policy.roles.length === 1)
-  if (readerHeld.length > 0 && !sameList(readerHeld, ['SELECT'])) problems.push(`${table} gives ${READER_ROLE} ${readerHeld.join(', ')}, and the reader may only SELECT`)
+  const readerAllowed = row.readerColumns ? [`SELECT(${[...row.readerColumns].sort().join(',')})`] : ['SELECT']
+  if (readerHeld.length > 0 && !sameList(readerHeld, readerAllowed)) problems.push(`${table} gives ${READER_ROLE} ${readerHeld.join(', ')}, and the reader may only ${readerAllowed[0]}`)
   if ((readerHeld.length > 0) !== (named('reader').length === 1)) problems.push(`${table} must have a reader policy named reader if and only if ${READER_ROLE} holds SELECT`)
   if (row.readerAdmin && !ADMINISTRATOR_REACH.includes(table)) problems.push(`${table} has reader_admin but is not on the administrator reach list`)
   if (Boolean(row.readerAdmin) !== (named('reader_admin').length === 1)) problems.push(`${table} must have a reader_admin policy if and only if its register row says readerAdmin`)

@@ -129,7 +129,7 @@ A part that ports an owner reads its functions here: a function with a caller in
 | `model.rewrite_model_account_secret` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |
 | `model.upsert_model_account` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |
 | `reg.get_application_by_source` | registry_owner | - | `apps/hub/src/registry/application-artifact-store.ts` |
-| `reg.get_application_thumbnail` | registry_owner | - | `apps/hub/src/registry/application-artifact-store.ts`, `apps/hub/src/registry/served-application.ts` |
+| `reg.get_application_thumbnail` | registry_owner | - | `apps/hub/src/registry/served-application.ts` |
 | `reg.get_served_application` | registry_owner | - | `apps/hub/src/registry/served-application.ts` |
 | `reg.matches_application_artifact` | registry_owner | `builder.settle_builder_run_build` | - |
 | `reg.purge_project` | registry_owner | - | `apps/hub/src/project/deletion.ts` |

@@ -255,6 +255,11 @@
       {
         "table": "iam.account",
         "reader": true,
+        "readerColumns": [
+          "account_id",
+          "display_name",
+          "email"
+        ],
         "command": [
           "SELECT",
           "UPDATE(created_at)"
@@ -272,7 +277,7 @@
         "command": [
           "INSERT",
           "SELECT",
-          "UPDATE(role)"
+          "UPDATE(created_at)"
         ],
         "runtime": [],
         "compositeKeys": []
