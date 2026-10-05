@@ -134,7 +134,9 @@ const databaseFailure = (error: unknown): Failure | unknown => {
   if (!(error instanceof pg.DatabaseError)) return error
   const rule = DATABASE_FAILURES.find((entry) => entry.sqlstate === error.code && entry.constraint === error.constraint)
     ?? DATABASE_FAILURES.find((entry) => entry.sqlstate === error.code && entry.constraint === null)
-  return new Failure(rule?.failure ?? 'INTERNAL_UNEXPECTED', { cause: error })
+  // The SQLSTATE and the names of our own constraint and table, never the message: it can carry a row's values.
+  const details = Object.fromEntries(Object.entries({ sqlstate: error.code, constraint: error.constraint, table: error.table }).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+  return new Failure(rule?.failure ?? 'INTERNAL_UNEXPECTED', { cause: error, details })
 }
 
 const openPool = (connection: PoolConfig): Pool => {

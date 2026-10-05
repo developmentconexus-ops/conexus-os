@@ -99,6 +99,14 @@ const ProjectWorkspace = z.object({ workspace_id: WorkspaceIdSchema })
 const Access = z.object({ member: z.boolean(), granted: z.boolean() })
 const Present = z.object({ present: z.literal(1) })
 
+type RefusalReason = 'OUTSIDER' | 'FORBIDDEN' | 'TOMBSTONE' | 'INACTIVE'
+/** An admission refusal answers its code and nothing else; the reason reaches the log only, so an outsider learns nothing from the response. */
+const refuse = (code: FailureCode, refusal: RefusalReason): Failure => new Failure(code, { details: { refusal } })
+
+// Only the refusal path asks: a project with a deletion row is a tombstone, any other refusal is an outsider.
+const missingProject = async (tx: TxQueries, projectId: ProjectId): Promise<RefusalReason> =>
+  (await tx.maybe(Present, sql`SELECT 1 AS present FROM project.project_deletion WHERE project_id = ${projectId}`)) ? 'TOMBSTONE' : 'OUTSIDER'
+
 const refusedActor = (): Failure => new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'GATE_ACTOR_REFUSED' } })
 
 // A command admission takes the actor from its gate: the account of a person's transaction.
@@ -168,8 +176,8 @@ export async function admitWorkspace(subject: CommandGate | ReadTx, workspaceId:
   // A leaving member deletes its own row, so it takes it for update; every other action reads it.
   const lock = !writer ? sql`` : action === 'members.leave' ? sql` FOR UPDATE` : sql` FOR SHARE`
   const member = await memberOf(tx, accountId, workspaceId, lock)
-  if (!member) throw new Failure(ACTION_REFUSALS[action].outsider)
-  if (!ROLE_ALLOWS[member.role].some((allowed) => allowed === action)) throw new Failure(ACTION_REFUSALS[action].forbidden)
+  if (!member) throw refuse(ACTION_REFUSALS[action].outsider, 'OUTSIDER')
+  if (!ROLE_ALLOWS[member.role].some((allowed) => allowed === action)) throw refuse(ACTION_REFUSALS[action].forbidden, 'FORBIDDEN')
   return new Proof({ kind: 'workspace', accountId, workspaceId, role: member.role, action, owners }, tx)
 }
 
@@ -199,14 +207,14 @@ export async function admitProject(subject: CommandGate | ReadTx, projectId: Pro
   if (writer) await lockActiveAccount(writer, accountId)
   // A read leaves visibility to the reader policy, which still shows an administrator a deletion in progress.
   const found = await tx.maybe(ProjectWorkspace, !writer ? sql`SELECT workspace_id FROM project.project WHERE project_id = ${projectId}` : liveProject(projectId, sql``))
-  if (!found) throw new Failure(ACTION_REFUSALS[action].outsider)
+  if (!found) throw refuse(ACTION_REFUSALS[action].outsider, await missingProject(tx, projectId))
   const member = await memberOf(tx, accountId, found.workspace_id, writer ? sql` FOR SHARE` : sql``)
-  if (!member) throw new Failure(ACTION_REFUSALS[action].outsider)
-  if (!ROLE_ALLOWS[member.role].some((allowed) => allowed === requiredAction(action))) throw new Failure(ACTION_REFUSALS[action].forbidden)
+  if (!member) throw refuse(ACTION_REFUSALS[action].outsider, 'OUTSIDER')
+  if (!ROLE_ALLOWS[member.role].some((allowed) => allowed === requiredAction(action))) throw refuse(ACTION_REFUSALS[action].forbidden, 'FORBIDDEN')
   if (writer) {
     await writer.maybe(ProjectWorkspace, liveProject(projectId, sql` FOR SHARE`))
     // A tombstone that committed while the lock waited is invisible to the locked row, so the visibility read runs again in a new statement.
-    if (!(await writer.maybe(ProjectWorkspace, liveProject(projectId, sql``)))) throw new Failure(ACTION_REFUSALS[action].outsider)
+    if (!(await writer.maybe(ProjectWorkspace, liveProject(projectId, sql``)))) throw refuse(ACTION_REFUSALS[action].outsider, 'TOMBSTONE')
   }
   return new Proof({ kind: 'project', accountId, workspaceId: found.workspace_id, projectId, action }, tx)
 }
@@ -216,11 +224,11 @@ export const admitInstallationAdministrator = async <A extends AdministratorActi
   const { tx, accountId } = accountGate(gate)
   if (action === 'administrators.manage') await tx.run(sql`SELECT iam.lock_administrators()`)
   const account = await lockAccount(tx, accountId)
-  if (!account?.active) throw new Failure(ACTION_REFUSALS[action].forbidden)
+  if (!account?.active) throw refuse(ACTION_REFUSALS[action].forbidden, 'INACTIVE')
   // A revoke that commits while this waits makes the row fail its predicate when it is read again.
   const tenure = await tx.maybe(Present, sql`
     SELECT 1 AS present FROM iam.installation_administrator WHERE account_id = ${accountId} AND revoked_at IS NULL FOR SHARE`)
-  if (!tenure) throw new Failure(ACTION_REFUSALS[action].outsider)
+  if (!tenure) throw refuse(ACTION_REFUSALS[action].outsider, 'OUTSIDER')
   return new Proof({ kind: 'installation-administrator', accountId, action }, tx)
 }
 
@@ -240,9 +248,9 @@ const applicationAccess = (accountId: AccountId, projectId: ProjectId) => sql`
 export const admitApplication = async (gate: CommandGate, projectId: ProjectId): Promise<Admitted<ApplicationScope>> => {
   const { tx, accountId } = accountGate(gate)
   const account = await lockAccount(tx, accountId)
-  if (!account?.active) throw new Failure('APPLICATION_NOT_FOUND')
+  if (!account?.active) throw refuse('APPLICATION_NOT_FOUND', 'INACTIVE')
   const found = await tx.maybe(ProjectWorkspace, liveProject(projectId, sql``))
-  if (!found) throw new Failure('APPLICATION_NOT_FOUND')
+  if (!found) throw refuse('APPLICATION_NOT_FOUND', await missingProject(tx, projectId))
   const member = await memberOf(tx, accountId, found.workspace_id, sql` FOR SHARE`)
   await tx.maybe(ProjectWorkspace, liveProject(projectId, sql` FOR SHARE`))
   // The grant is the project's child and the purge deletes grants while it holds the project, so it is taken after the project.
@@ -252,7 +260,7 @@ export const admitApplication = async (gate: CommandGate, projectId: ProjectId):
       WHERE account_id = ${accountId} AND project_id = ${projectId} AND revoked_at IS NULL FOR SHARE`)
   }
   const access = await tx.maybe(Access, applicationAccess(accountId, projectId))
-  if (!access || !(access.member || access.granted)) throw new Failure('APPLICATION_NOT_FOUND')
+  if (!access || !(access.member || access.granted)) throw refuse('APPLICATION_NOT_FOUND', await missingProject(tx, projectId))
   return new Proof({ kind: 'application', accountId, projectId, via: access.member ? 'membership' : 'grant' }, tx)
 }
 
@@ -264,7 +272,7 @@ export const admitApplication = async (gate: CommandGate, projectId: ProjectId):
 export const checkApplication = async (gate: CommandGate, projectId: ProjectId): Promise<Checked<ApplicationScope>> => {
   const { tx, accountId } = accountGate(gate)
   const access = await tx.maybe(Access, applicationAccess(accountId, projectId))
-  if (!access || !(access.member || access.granted)) throw new Failure('APPLICATION_NOT_FOUND')
+  if (!access || !(access.member || access.granted)) throw refuse('APPLICATION_NOT_FOUND', await missingProject(tx, projectId))
   return new Checked({ kind: 'application', accountId, projectId, via: access.member ? 'membership' : 'grant' }, { mode: 'read', accountId: tx.accountId, rows: tx.rows, one: tx.one, maybe: tx.maybe })
 }
 
