@@ -137,6 +137,22 @@ test('the role invariants fail on a membership option, an extra membership, a ro
   await assert.rejects(assertRoleInvariants(client), /MIGRATION_ROLE_SETTING_REFUSED:missing hub_runtime lock_timeout=5s/)
   await client.query("ALTER ROLE hub_runtime SET lock_timeout = '5s'")
   await assertRoleInvariants(client)
+  const { rows: [{ name }] } = await client.query('SELECT current_database() AS name')
+  const database = `"${name}"`
+  await client.query(`ALTER DATABASE ${database} SET work_mem = '8MB'`)
+  await client.query(`ALTER DATABASE ${database} SET timezone = 'UTC'`)
+  await assertRoleInvariants(client)
+  await client.query(`ALTER DATABASE ${database} SET role = 'hub_command'`)
+  await assert.rejects(assertRoleInvariants(client), /MIGRATION_ROLE_SETTING_REFUSED:all roles role=hub_command/)
+  await client.query(`ALTER DATABASE ${database} RESET role`)
+  await client.query(`ALTER DATABASE ${database} SET conexus.job = 'project-purge'`)
+  await assert.rejects(assertRoleInvariants(client), /MIGRATION_ROLE_SETTING_REFUSED:all roles conexus.job=project-purge/)
+  await client.query(`ALTER DATABASE ${database} RESET conexus.job`)
+  await client.query(`ALTER DATABASE ${database} SET session_authorization = 'postgres'`).then(
+    async () => assert.rejects(assertRoleInvariants(client), /MIGRATION_ROLE_SETTING_REFUSED:all roles session_authorization=/),
+    () => undefined)
+  await client.query(`ALTER DATABASE ${database} RESET ALL`)
+  await assertRoleInvariants(client)
 })
 
 test('an admitted command is refused every tenant column, and the login role reads iam.account but not the membership', async (t) => {

@@ -132,7 +132,10 @@ export const assertRoleInvariants = async (client) => {
       AND (s.setdatabase = 0 OR s.setdatabase = (SELECT oid FROM pg_database WHERE datname = current_database()))
     ORDER BY 1
   `)).rows.map(row => row.setting)
-  const unexpectedSettings = roleSettings.filter(setting => !expectedSettings.includes(setting))
+  // A database wide or all roles setting cannot override a role's timeout, so only the ones that change
+  // what every transaction is count: a role, a session authorization or a conexus.* setting.
+  const DANGEROUS_WIDE = /^all roles (?:role|session_authorization|conexus\.[^=]*)=/i
+  const unexpectedSettings = roleSettings.filter(setting => (setting.startsWith('all roles ') ? DANGEROUS_WIDE.test(setting) : !expectedSettings.includes(setting)))
   const missingSettings = expectedSettings.filter(setting => !roleSettings.includes(setting)).map(setting => `missing ${setting}`)
   if (unexpectedSettings.length > 0 || missingSettings.length > 0) fail('MIGRATION_ROLE_SETTING_REFUSED', [...unexpectedSettings, ...missingSettings].join(','))
 
