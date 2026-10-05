@@ -118,7 +118,7 @@ every administrator's Account is inactive, which is how an installation recovers
 | --- | --- | --- |
 | `workspace.read` | acting on a Workspace you belong to, where a roster change is a self-service narrowing rather than administration | `iam.remove_workspace_member` |
 | `members.manage` | administering the roster: invite, cancel an invitation, remove a member, change a role | `iam.invite_workspace_member`, `iam.cancel_workspace_invitation`, `iam.remove_workspace_member`, `iam.set_workspace_member_role` |
-| `project.create` | creating a Project in a Workspace | `project.reserve_or_replay_create_project`, `project.lock_create_project_receipt`, `project.complete_create_project_receipt` |
+| `project.create` | creating a Project in a Workspace `admitWorkspace` in `identity-access/admission.ts`, called by `project/store.ts` in both transactions of PRJ-03 |
 | `project.build` | starting, claiming and cancelling a Builder run | `builder.create_builder_run`, `builder.claim_builder_run`, `builder.request_builder_run_cancellation` |
 
 `members.manage` is the only action a member does not hold, so it is the only line
@@ -132,9 +132,9 @@ subsystem. The table above lists only the four values that gate something.
 
 ### 2.1 Reads are gated by containment, not by an action
 
-Reading a Project does not pass an action. `project.get_project` and
-`project.list_project_summaries` join `iam.visible_projects(account)`, so an account
-sees exactly the Projects in the Workspaces it belongs to. `IAM-04`, the roster read,
+Reading a Project does not pass an action. The row policies on `project.project` show an account
+exactly the Projects in the Workspaces it belongs to, and hide a Project whose deletion has begun
+from everyone but an installation administrator who is also a member. `IAM-04`, the roster read,
 needs only membership: every member may see who else is in the Workspace they belong to.
 
 This is why there is no `project.read`. Containment already answers the question.

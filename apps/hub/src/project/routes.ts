@@ -27,13 +27,13 @@ export const registerProjectRoutes = async (
   })
 
   route.operation(PRJ03, async (input, session) => {
-    const { replayed: _replayed, ...created } = await store.createProject({
+    const { reply } = await store.createProject({
       accountId: session.account.accountId,
       workspaceId: input.params.workspaceId,
       idempotencyKey: input.headers['idempotency-key'],
       body: input.body,
     })
-    return created
+    return reply
   })
 
   route.operation(PRJ04, async (input, session) => {

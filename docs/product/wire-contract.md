@@ -37,7 +37,6 @@ OpenAPI authority:
 ```text
 contracts/api/product/openapi.yaml                  canonical entrypoint and shared wire law
 contracts/api/product/identity-workspace-paths.yaml IAM and Workspace Path Items
-contracts/api/product/project-paths.yaml            Project Path Items
 contracts/api/product/builder-paths.yaml            Builder Path Items
 ```
 

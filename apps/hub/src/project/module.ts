@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { AccountId, ProjectId } from '../../../../packages/contract/dist/index.js'
-import type { PostgresPool } from '../platform/db.js'
+import type { Database } from '../platform/db.js'
 import { registerProjectRoutes } from './routes.js'
 import type { ProjectThumbnailReader } from './routes.js'
 import { createProjectStore } from './store.js'
@@ -14,17 +14,17 @@ export type ProjectModule = Readonly<{
 }>
 
 export const createConfiguredProjectModule = ({
-  pool,
+  database,
   repository,
   deletion,
   thumbnailReader,
 }: Readonly<{
-  pool: PostgresPool
+  database: Database
   repository: ProjectRepositoryPort
   deletion: ProjectDeletionPorts
   thumbnailReader?: ProjectThumbnailReader | undefined
 }>): ProjectModule => {
-  const store = createProjectStore({ commandPool: pool, readPool: pool, repository, deletion })
+  const store = createProjectStore({ database, repository, deletion })
   return Object.freeze({
     registerProjectRoutes: (app: FastifyInstance) => registerProjectRoutes(app, { store, thumbnailReader }),
     readProjectName: async (input) => (await store.getProject({ accountId: AccountId.parse(input.accountId), projectId: ProjectId.parse(input.projectId) }))?.name ?? null,

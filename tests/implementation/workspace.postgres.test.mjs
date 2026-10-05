@@ -121,15 +121,15 @@ test('a revoke waits for an admitted writer and the next admission is refused', 
   await assert.rejects(database.transaction(MEMBER, (tx) => admitWorkspace(tx, MEMBER, workspaceId, 'workspace.read')), { id: 'WORKSPACE_NOT_FOUND' })
 })
 
-test('hub_runtime cannot execute a function no old capability role could', async (t) => {
+test('hub_runtime holds EXECUTE on the four project purges and on no owner helper', async (t) => {
   const { connection } = await setup(t)
   const runtime = { ...connection, user: 'hub_runtime', password: PASSWORD }
-  await assert.rejects(query(runtime, 'SELECT iam.purge_project($1)', [randomUUID()]), { code: '42501' })
   const held = await query(connection, `SELECT proc.oid::regprocedure::text AS signature FROM pg_proc proc
     JOIN pg_namespace namespace ON namespace.oid = proc.pronamespace
     WHERE proc.proname = 'purge_project' AND namespace.nspname IN ('iam', 'builder', 'connector', 'reg')
-      AND has_function_privilege('hub_runtime', proc.oid, 'EXECUTE')`)
-  assert.deepEqual(held.rows, [])
+      AND has_function_privilege('hub_runtime', proc.oid, 'EXECUTE') ORDER BY 1`)
+  assert.deepEqual(held.rows.map((row) => row.signature), ['builder.purge_project(uuid)', 'connector.purge_project(uuid)', 'iam.purge_project(uuid)', 'reg.purge_project(uuid)'])
+  await assert.rejects(query(runtime, 'SELECT iam.visible_projects($1)', [randomUUID()]), { code: '42501' })
 })
 
 test('an admission proof for one account is refused inside the transaction of another', async (t) => {

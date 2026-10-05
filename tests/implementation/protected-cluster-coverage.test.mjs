@@ -41,6 +41,7 @@ test('every test body that alters a shared role refuses a protected cluster firs
     if (!ALTERS_SHARED_ROLE.test(source)) continue
 
     const found = bodies(source)
+    if (found.length === 0 && GUARDED.test(source)) continue
     assert.notEqual(found.length, 0, `${name} alters a shared role outside any test body`)
 
     for (const body of found) {

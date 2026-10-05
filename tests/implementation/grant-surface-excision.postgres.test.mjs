@@ -92,12 +92,9 @@ test('a member of the Workspace reads, creates and builds every Project in it', 
 
   // The member did not create this Project and holds no row naming it, yet reads it, because the
   // Workspace is the boundary.
-  assert.deepEqual((await query(connection, 'SELECT project_id FROM project.list_project_summaries($1,$2)', [member, workspaceId])).rows,
-    [{ project_id: projectId }])
-  assert.deepEqual((await query(connection, 'SELECT project_id FROM project.get_project($1,$2)', [member, projectId])).rows,
-    [{ project_id: projectId }])
-  assert.deepEqual((await query(connection, 'SELECT project_id FROM project.list_project_summaries($1,$2)', [stranger, workspaceId])).rows, [])
-  assert.deepEqual((await query(connection, 'SELECT project_id FROM project.get_project($1,$2)', [stranger, projectId])).rows, [])
+  const visible = async (accountId) => (await query(connection, 'SELECT project_id FROM iam.visible_projects($1)', [accountId])).rows
+  assert.deepEqual(await visible(member), [{ project_id: projectId }])
+  assert.deepEqual(await visible(stranger), [])
 
   const runId = randomUUID()
   const created = await createRun(connection, member, projectId, runId)
@@ -110,11 +107,6 @@ test('a member of the Workspace reads, creates and builds every Project in it', 
   assert.deepEqual((await query(connection, 'SELECT builder.read_preview_subject($1,$2) AS value', [member, projectId]))
     .rows[0].value, { lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null })
 
-  // The member may create a Project of their own: project.create is a member right.
-  const reserved = await query(connection, 'SELECT state FROM project.reserve_or_replay_create_project($1,$2,$3,$4,$5)',
-    [member, workspaceId, 'b'.repeat(64), 'c'.repeat(64), randomUUID()])
-  assert.deepEqual(reserved.rows, [{ state: 'RESERVED' }])
-
   // A non-member reads nothing and every effect refuses with the one error code.
   assert.deepEqual((await query(connection, 'SELECT builder.list_builder_runs($1,$2,$3) AS value', [stranger, projectId, 20])).rows[0].value, [])
   assert.equal((await query(connection, 'SELECT builder.admit_source_revision($1,$2,$3,$4) AS admitted', [stranger, projectId, sourceRevision, sourceRevision])).rows[0].admitted, false)
@@ -122,7 +114,6 @@ test('a member of the Workspace reads, creates and builds every Project in it', 
   for (const [sql, parameters] of [
     ['SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9)', [stranger, projectId, `conversa-${projectId}`, 'd'.repeat(64), 'e'.repeat(64), 'pedido', null, randomUUID(), sourceRevision]],
     ['SELECT builder.request_builder_run_cancellation($1,$2,$3)', [stranger, projectId, runId]],
-    ['SELECT * FROM project.reserve_or_replay_create_project($1,$2,$3,$4,$5)', [stranger, workspaceId, 'f'.repeat(64), '0'.repeat(64), randomUUID()]],
   ]) {
     assert.deepEqual(await refusal(connection, sql, parameters), { code: '42501', message: 'NOT_ADMITTED' }, sql)
   }
@@ -160,7 +151,7 @@ test('removing the member stops the next claim and still records the work alread
     [{ state: 'SUCCEEDED', result_kind: 'RESPONSE_ONLY' }])
 
   // The same DELETE closed the reads.
-  assert.deepEqual((await query(connection, 'SELECT project_id FROM project.list_project_summaries($1,$2)', [member, workspaceId])).rows, [])
+  assert.deepEqual((await query(connection, 'SELECT project_id FROM iam.visible_projects($1)', [member])).rows, [])
 })
 
 test('an inactive account is refused everywhere, including Preview and source read', async (t) => {
@@ -182,7 +173,7 @@ test('an inactive account is refused everywhere, including Preview and source re
   assert.equal((await query(connection, 'SELECT builder.admit_source_revision($1,$2,$3,$4) AS admitted', [dormant, projectId, sourceRevision, sourceRevision])).rows[0].admitted, false)
   assert.equal((await query(connection, 'SELECT builder.read_preview_subject($1,$2) AS value', [dormant, projectId])).rows[0].value, null)
   assert.equal((await query(connection, 'SELECT builder.read_builder_run($1,$2) AS value', [dormant, projectId])).rows[0].value, null)
-  assert.deepEqual((await query(connection, 'SELECT project_id FROM project.get_project($1,$2)', [dormant, projectId])).rows, [])
+  assert.deepEqual((await query(connection, 'SELECT project_id FROM iam.visible_projects($1)', [dormant])).rows, [])
   assert.deepEqual(await refusal(connection, 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9)',
     [dormant, projectId, `conversa-${projectId}`, '1'.repeat(64), '2'.repeat(64), 'pedido', null, randomUUID(), sourceRevision]), { code: '42501', message: 'NOT_ADMITTED' })
 })
@@ -197,9 +188,9 @@ test('the runner refuses a database where PUBLIC may execute a Hub function', as
   await client.connect()
   try {
     await assertRoleInvariants(client)
-    await client.query('GRANT EXECUTE ON FUNCTION project.get_project(uuid, uuid) TO PUBLIC')
+    await client.query('GRANT EXECUTE ON FUNCTION builder.register_project_repository(uuid) TO PUBLIC')
     await assert.rejects(assertRoleInvariants(client),
-      /MIGRATION_FUNCTION_PUBLIC_EXECUTE_REFUSED:project\.get_project\(p_account_id uuid, p_project_id uuid\)/)
+      /MIGRATION_FUNCTION_PUBLIC_EXECUTE_REFUSED:builder\.register_project_repository\(p_project_id uuid\)/)
   } finally {
     await client.end()
   }

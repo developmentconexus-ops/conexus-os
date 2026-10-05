@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { AccountId, BuilderRunId, ConnectionId, ProjectId, WorkspaceId } from '../../../../packages/contract/dist/index.js'
-import { AccountId as AccountIdSchema } from '../../../../packages/contract/dist/index.js'
+import { AccountId as AccountIdSchema, WorkspaceId as WorkspaceIdSchema } from '../../../../packages/contract/dist/index.js'
 import type { JobName, Mode, ReadTx, WriteTx } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
@@ -59,7 +59,8 @@ export type Scope =
   | Readonly<{ kind: 'system'; job: JobName }>
 
 export type AccountScope = Extract<Scope, { kind: 'account' }>
-export type ProjectScope = Extract<Scope, { kind: 'project' }>
+export type ProjectScope<A extends ProjectAction = ProjectAction> = Extract<Scope, { kind: 'project' }> & Readonly<{ action: A }>
+export type InstallationAdministratorScope = Extract<Scope, { kind: 'installation-administrator' }>
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
 export type ApplicationScope = Extract<Scope, { kind: 'application' }>
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
@@ -82,7 +83,9 @@ export type Admitted<S extends Scope, M extends Mode = 'write'> = Proof<S, M>
 
 const Account = z.object({ account_id: AccountIdSchema, active: z.boolean() })
 const Member = z.object({ role: z.enum(['owner', 'member']) })
+const IsAdministrator = z.object({ administrator: z.boolean() })
 const Locked = z.object({ locked: z.number() })
+const ProjectOwner = z.object({ workspace_id: WorkspaceIdSchema })
 const Owner = z.object({ account_id: AccountIdSchema, active: z.boolean() })
 
 const assertActing = (tx: ReadTx, accountId: AccountId): void => {
@@ -127,4 +130,44 @@ export async function admitWorkspace(tx: ReadTx, accountId: AccountId, workspace
 
 export const grantCreatorMembership = async (creator: Admitted<AccountScope>, workspaceId: WorkspaceId): Promise<void> => {
   await creator.tx.run(sql`INSERT INTO iam.workspace_membership (account_id, workspace_id, role) VALUES (${creator.scope.accountId}, ${workspaceId}, 'owner')`)
+}
+
+// Both roles hold project.build today (iam.role_allows), and ROLE_ALLOWS names workspace actions only, so each project
+// action is checked as the workspace action that has the same two roles.
+const MEMBERSHIP_ACTION = { 'project.read': 'workspace.read', 'project.build': 'project.create' } as const satisfies Record<Exclude<ProjectAction, 'project.delete'>, WorkspaceAction>
+
+/** @public Frozen by spec 0015 section 3; parts 1, 2 and 4 admit through it. */
+export function admitProject<A extends Exclude<ProjectAction, 'project.delete'>>(tx: WriteTx, accountId: AccountId, projectId: ProjectId, action: A): Promise<Admitted<ProjectScope<A>>>
+export function admitProject(tx: ReadTx, accountId: AccountId, projectId: ProjectId, action: 'project.read'): Promise<Admitted<ProjectScope<'project.read'>, 'read'>>
+export async function admitProject(tx: ReadTx, accountId: AccountId, projectId: ProjectId, action: Exclude<ProjectAction, 'project.delete'>): Promise<Admitted<Scope, Mode>> {
+  assertActing(tx, accountId)
+  const locked = tx.mode === 'write' ? sql` FOR SHARE` : sql``
+  if (tx.mode === 'write') {
+    const account = await tx.maybe(Account, sql`SELECT account_id, active FROM iam.account WHERE account_id = ${accountId} FOR SHARE`)
+    if (!account) throw new Failure('ACCOUNT_NOT_FOUND')
+    if (!account.active) throw new Failure('ACCOUNT_INACTIVE')
+  }
+  const found = await tx.maybe(ProjectOwner, sql`SELECT workspace_id FROM project.project WHERE project_id = ${projectId}`)
+  if (!found) throw new Failure(ACTION_REFUSALS[action].outsider)
+  const member = await tx.maybe(Member, sql`SELECT role FROM iam.workspace_membership WHERE account_id = ${accountId} AND workspace_id = ${found.workspace_id}${locked}`)
+  if (!member) throw new Failure(ACTION_REFUSALS[action].outsider)
+  if (!ROLE_ALLOWS[member.role].some((allowed) => allowed === MEMBERSHIP_ACTION[action])) throw new Failure(ACTION_REFUSALS[action].forbidden)
+  let workspaceId = found.workspace_id
+  if (tx.mode === 'write') {
+    const row = await tx.maybe(ProjectOwner, sql`SELECT workspace_id FROM project.project WHERE project_id = ${projectId} FOR SHARE`)
+    if (!row) throw new Failure(ACTION_REFUSALS[action].outsider)
+    workspaceId = row.workspace_id
+    // A tombstone that committed while the lock waited is invisible to the locked row, so the visibility read runs again on a new snapshot.
+    if (!(await tx.maybe(ProjectOwner, sql`SELECT workspace_id FROM project.project WHERE project_id = ${projectId}`))) throw new Failure(ACTION_REFUSALS[action].outsider)
+  }
+  return new Proof({ kind: 'project', accountId, workspaceId, projectId, action }, tx)
+}
+
+/** @public Frozen by spec 0015 section 3; project deletion is the only caller. */
+export const admitProjectDeletion = async (tx: WriteTx, accountId: AccountId): Promise<Admitted<InstallationAdministratorScope>> => {
+  if (tx.accountId !== null) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_DELETION_ADMITS_IN_A_SYSTEM_TRANSACTION' } })
+  await tx.maybe(Account, sql`SELECT account_id, active FROM iam.account WHERE account_id = ${accountId} FOR SHARE`)
+  const administrator = await tx.one(IsAdministrator, sql`SELECT iam.is_installation_administrator(${accountId}) AS administrator`, 'INTERNAL_UNEXPECTED')
+  if (!administrator.administrator) throw new Failure('PROJECT_DELETE_DENIED')
+  return new Proof({ kind: 'installation-administrator', accountId }, tx)
 }

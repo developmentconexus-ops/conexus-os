@@ -86,13 +86,13 @@ function About({ project }: Readonly<{ project: ProjectDetail }>) {
 }
 
 // The Hub purges project.project before the GitHub repository is gone, so a crash or a GitHub
-// failure between those two steps leaves the tombstone the only disclosable trace: get_project keeps
+// failure between those two steps leaves the tombstone the only disclosable trace: the project read keeps
 // answering with deleting true from it, for the installation administrator who started this, so this
 // screen still exists to retry from instead of the Project 404ing right when finishing it matters
 // most. The retry names the tombstone's own recorded name, never a name the administrator retypes,
 // since that recorded name is the only one this Project still has.
 //
-// projectRevision is only ever empty once get_project has fallen back to the tombstone, which only
+// projectRevision is only ever empty once the project read has fallen back to the tombstone, which only
 // happens after the Hub purge has run -- so it is the one signal this screen has for which side of
 // that purge the crash landed on. The GitHub delete itself runs after that purge and before the
 // tombstone is marked complete, so an empty revision does not tell us whether GitHub succeeded before

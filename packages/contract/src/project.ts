@@ -12,6 +12,7 @@ export const ProjectListItem = z.object({
   name: ProjectName,
   archived: z.boolean(),
 }).meta({ id: 'ProjectListItem' })
+export type ProjectListItem = z.output<typeof ProjectListItem>
 
 const ProjectLive = z.object({
   projectId: ProjectId,

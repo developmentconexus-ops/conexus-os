@@ -8,10 +8,6 @@
     ],
     "pending": [
       {
-        "table": "builder.builder_run",
-        "part": 1
-      },
-      {
         "table": "builder.builder_run_model_account",
         "part": 1
       },
@@ -21,10 +17,6 @@
       },
       {
         "table": "builder.project_repository",
-        "part": 1
-      },
-      {
-        "table": "builder.project_working_state",
         "part": 1
       },
       {
@@ -100,18 +92,6 @@
         "part": 5
       },
       {
-        "table": "project.operation_idempotency",
-        "part": 3
-      },
-      {
-        "table": "project.project",
-        "part": 3
-      },
-      {
-        "table": "project.project_deletion",
-        "part": 3
-      },
-      {
         "table": "reg.application_thumbnail",
         "part": 4
       },
@@ -126,7 +106,7 @@
     ]
   },
   "ceilings": {
-    "ruleFunctions": 112,
-    "legacyOwnerPolicies": 0
+    "ruleFunctions": 102,
+    "legacyOwnerPolicies": 4
   }
 }

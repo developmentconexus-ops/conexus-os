@@ -7,6 +7,7 @@ export declare const ProjectListItem: z.ZodObject<{
     name: z.ZodString;
     archived: z.ZodBoolean;
 }, z.core.$strip>;
+export type ProjectListItem = z.output<typeof ProjectListItem>;
 export declare const ProjectDetail: z.ZodUnion<readonly [z.ZodObject<{
     projectId: z.core.$ZodBranded<z.ZodUUID, "ProjectId", "out">;
     workspaceId: z.core.$ZodBranded<z.ZodUUID, "WorkspaceId", "out">;

@@ -19,20 +19,6 @@ A part that ports an owner reads its functions here: a function with a caller in
 - `connector.admit_installation_administrator` calls `iam.is_installation_administrator`
 - `connector.admit_project_owner` calls `iam.admit_workspace`
 - `connector.admit_project_owner` calls `iam.visible_workspaces`
-- `project.begin_project_deletion` calls `iam.is_installation_administrator`
-- `project.complete_create_project_receipt` calls `iam.admit_workspace`
-- `project.create_project_with_repository` calls `builder.register_project_repository`
-- `project.get_project` calls `iam.is_installation_administrator`
-- `project.get_project` calls `iam.visible_projects`
-- `project.list_project_summaries_with_activity` calls `iam.is_installation_administrator`
-- `project.list_project_summaries_with_activity` calls `iam.visible_projects`
-- `project.list_project_summaries` calls `iam.visible_projects`
-- `project.lock_create_project_receipt` calls `iam.admit_workspace`
-- `project.purge_project` calls `builder.purge_project`
-- `project.purge_project` calls `connector.purge_project`
-- `project.purge_project` calls `iam.purge_project`
-- `project.purge_project` calls `reg.purge_project`
-- `project.reserve_or_replay_create_project` calls `iam.admit_workspace`
 - `reg.get_application_by_source` calls `iam.visible_projects`
 - `reg.get_application_thumbnail` calls `builder.served_preview_revision`
 - `reg.get_application_thumbnail` calls `iam.has_application_access`
@@ -60,7 +46,7 @@ A part that ports an owner reads its functions here: a function with a caller in
 | `builder.interrupt_builder_run` | builder_owner | - | `apps/hub/src/builder/store.ts` |
 | `builder.list_builder_runs` | builder_owner | - | `apps/hub/src/builder/store.ts` |
 | `builder.lock_project_for_run` | builder_owner | - | `apps/hub/src/builder/store.ts` |
-| `builder.purge_project` | builder_owner | `project.purge_project` | - |
+| `builder.purge_project` | builder_owner | - | `apps/hub/src/project/deletion.ts` |
 | `builder.read_builder_run` | builder_owner | - | `apps/hub/src/builder/store.ts` |
 | `builder.read_conversation_sandbox` | builder_owner | - | `apps/hub/src/builder/store.ts` |
 | `builder.read_latest_code_changing_builder_run` | builder_owner | - | `apps/hub/src/builder/store.ts` |
@@ -71,7 +57,7 @@ A part that ports an owner reads its functions here: a function with a caller in
 | `builder.record_builder_run_model_account` | builder_owner | - | `apps/hub/src/builder/store.ts` |
 | `builder.record_conversation_sandbox` | builder_owner | - | `apps/hub/src/builder/store.ts` |
 | `builder.record_conversation_session` | builder_owner | - | `apps/hub/src/builder/store.ts` |
-| `builder.register_project_repository` | builder_owner | `project.create_project_with_repository` | - |
+| `builder.register_project_repository` | builder_owner | - | `apps/hub/src/project/store.ts` |
 | `builder.renew_run_lease` | builder_owner | - | `apps/hub/src/builder/store.ts` |
 | `builder.request_builder_run_cancellation` | builder_owner | - | `apps/hub/src/builder/store.ts` |
 | `builder.run_summary` | builder_owner | `builder.claim_builder_run`, `builder.create_builder_run`, `builder.list_builder_runs`, `builder.read_builder_run`, `builder.request_builder_run_cancellation`, `builder.set_builder_run_phase` | - |
@@ -87,18 +73,18 @@ A part that ports an owner reads its functions here: a function with a caller in
 | `connector.list_bound_connections` | connector_owner | - | `apps/hub/src/connectors/store.ts` |
 | `connector.list_connections` | connector_owner | - | `apps/hub/src/connectors/store.ts` |
 | `connector.list_project_bindings` | connector_owner | - | `apps/hub/src/connectors/store.ts` |
-| `connector.purge_project` | connector_owner | `project.purge_project` | - |
+| `connector.purge_project` | connector_owner | - | `apps/hub/src/project/deletion.ts` |
 | `connector.read_connection_credential` | connector_owner | - | `apps/hub/src/connectors/store.ts` |
 | `connector.unbind_connection` | connector_owner | - | `apps/hub/src/connectors/store.ts` |
 | `iam.account_access_scope` | iam_owner | `iam.hub_session_live`, `iam.open_hub_session`, `iam.resolve_hub_session` | - |
 | `iam.acting_account` | iam_rls | `iam.acting_applications`, `iam.acting_installation_administrator`, `iam.acting_workspaces` | - |
 | `iam.acting_applications` | iam_rls | - | - |
-| `iam.acting_installation_administrator` | iam_rls | - | - |
+| `iam.acting_installation_administrator` | iam_rls | - | `apps/hub/src/project/store.ts` |
 | `iam.acting_scope` | iam_rls | - | - |
 | `iam.acting_workspaces` | iam_rls | - | - |
 | `iam.admit_application_owner` | iam_owner | `iam.cancel_application_invitation`, `iam.grant_application_access`, `iam.list_application_access`, `iam.revoke_application_grant` | - |
 | `iam.admit_project` | iam_owner | `builder.claim_builder_run`, `builder.create_builder_run`, `builder.lock_project_for_run`, `builder.request_builder_run_cancellation` | - |
-| `iam.admit_workspace` | iam_owner | `connector.admit_project_owner`, `iam.admit_application_owner`, `iam.admit_project`, `iam.cancel_workspace_invitation`, `iam.invite_workspace_member`, `iam.remove_workspace_member`, `iam.set_workspace_member_role`, `project.complete_create_project_receipt`, `project.lock_create_project_receipt`, `project.reserve_or_replay_create_project` | - |
+| `iam.admit_workspace` | iam_owner | `connector.admit_project_owner`, `iam.admit_application_owner`, `iam.admit_project`, `iam.cancel_workspace_invitation`, `iam.invite_workspace_member`, `iam.remove_workspace_member`, `iam.set_workspace_member_role` | - |
 | `iam.application_by_slug` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
 | `iam.application_slug` | iam_owner | - | `apps/hub/src/identity-access/application-access.ts`, `apps/hub/src/identity-access/host-sessions.ts` |
 | `iam.application_slug_base` | iam_owner | `iam.grant_application_access` | - |
@@ -117,7 +103,7 @@ A part that ports an owner reads its functions here: a function with a caller in
 | `iam.has_application_access` | iam_owner | `iam.mint_application_handoff`, `iam.redeem_handoff`, `iam.resolve_application_session`, `iam.revoke_application_grant`, `reg.get_application_thumbnail`, `reg.get_served_application`, `reg.read_served_application_file` | - |
 | `iam.hub_session_live` | iam_owner | `iam.open_preview`, `iam.redeem_handoff`, `iam.resolve_preview_session` | - |
 | `iam.invite_workspace_member` | iam_owner | - | `apps/hub/src/identity-access/membership.ts` |
-| `iam.is_installation_administrator` | iam_owner | `connector.admit_installation_administrator`, `iam.admit_project`, `iam.bootstrap_installation_administrator`, `iam.grant_installation_administrator_by_email`, `iam.grant_installation_administrator`, `iam.list_installation_administrators`, `iam.revoke_installation_administrator`, `iam.visible_projects`, `project.begin_project_deletion`, `project.get_project`, `project.list_project_summaries_with_activity` | `apps/hub/src/identity-access/installation-administration.ts` |
+| `iam.is_installation_administrator` | iam_owner | `connector.admit_installation_administrator`, `iam.admit_project`, `iam.bootstrap_installation_administrator`, `iam.grant_installation_administrator_by_email`, `iam.grant_installation_administrator`, `iam.list_installation_administrators`, `iam.revoke_installation_administrator`, `iam.visible_projects` | `apps/hub/src/identity-access/admission.ts`, `apps/hub/src/identity-access/installation-administration.ts` |
 | `iam.list_application_access` | iam_owner | - | `apps/hub/src/identity-access/application-access.ts` |
 | `iam.list_installation_administrators` | iam_owner | - | `apps/hub/src/identity-access/installation-administration.ts` |
 | `iam.list_workspace_roster` | iam_owner | - | `apps/hub/src/identity-access/membership.ts` |
@@ -125,7 +111,7 @@ A part that ports an owner reads its functions here: a function with a caller in
 | `iam.open_hub_session` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
 | `iam.open_preview` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
 | `iam.provision_application_account` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
-| `iam.purge_project` | iam_owner | `project.purge_project` | - |
+| `iam.purge_project` | iam_owner | - | `apps/hub/src/project/deletion.ts` |
 | `iam.reap_expired` | iam_owner | - | `apps/hub/src/identity-access/reaper.ts` |
 | `iam.record_provider_check` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
 | `iam.redeem_handoff` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
@@ -138,7 +124,7 @@ A part that ports an owner reads its functions here: a function with a caller in
 | `iam.role_allows` | iam_owner | `iam.admit_workspace` | - |
 | `iam.session_lifetimes` | iam_owner | `iam.mint_application_handoff`, `iam.open_hub_session`, `iam.open_preview`, `iam.redeem_handoff`, `iam.resolve_application_session`, `iam.resolve_hub_session`, `iam.resolve_preview_session` | - |
 | `iam.set_workspace_member_role` | iam_owner | - | `apps/hub/src/identity-access/membership.ts` |
-| `iam.visible_projects` | iam_owner | `builder.admit_source_revision`, `builder.list_builder_runs`, `builder.read_builder_run`, `builder.read_latest_code_changing_builder_run`, `builder.read_preview_subject`, `project.get_project`, `project.list_project_summaries_with_activity`, `project.list_project_summaries`, `reg.get_application_by_source`, `reg.read_application_file_by_source` | - |
+| `iam.visible_projects` | iam_owner | `builder.admit_source_revision`, `builder.list_builder_runs`, `builder.read_builder_run`, `builder.read_latest_code_changing_builder_run`, `builder.read_preview_subject`, `reg.get_application_by_source`, `reg.read_application_file_by_source` | - |
 | `iam.visible_workspaces` | iam_owner | `connector.admit_project_owner`, `iam.admit_application_owner`, `iam.list_workspace_roster`, `iam.visible_projects` | - |
 | `model.read_installation_default` | model_owner | - | `apps/hub/src/builder/module.ts` |
 | `model.read_model_account` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |
@@ -146,21 +132,11 @@ A part that ports an owner reads its functions here: a function with a caller in
 | `model.read_shared_model_account` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |
 | `model.rewrite_model_account_secret` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |
 | `model.upsert_model_account` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |
-| `project.begin_project_deletion` | project_owner | - | `apps/hub/src/project/deletion.ts` |
-| `project.complete_create_project_receipt` | project_owner | - | `apps/hub/src/project/store.ts` |
-| `project.complete_project_deletion` | project_owner | - | `apps/hub/src/project/deletion.ts` |
-| `project.create_project_with_repository` | project_owner | - | `apps/hub/src/project/store.ts` |
-| `project.get_project` | project_owner | - | `apps/hub/src/project/store.ts` |
-| `project.list_project_summaries` | project_owner | - | `apps/hub/src/project/store.ts` |
-| `project.list_project_summaries_with_activity` | project_owner | - | `apps/hub/src/project/store.ts` |
-| `project.lock_create_project_receipt` | project_owner | - | `apps/hub/src/project/store.ts` |
-| `project.purge_project` | project_owner | - | `apps/hub/src/project/deletion.ts` |
-| `project.reserve_or_replay_create_project` | project_owner | - | `apps/hub/src/project/store.ts` |
 | `reg.get_application_by_source` | registry_owner | - | `apps/hub/src/registry/application-artifact-store.ts` |
 | `reg.get_application_thumbnail` | registry_owner | - | `apps/hub/src/registry/application-artifact-store.ts`, `apps/hub/src/registry/served-application.ts` |
 | `reg.get_served_application` | registry_owner | - | `apps/hub/src/registry/served-application.ts` |
 | `reg.matches_application_artifact` | registry_owner | `builder.settle_builder_run_build` | - |
-| `reg.purge_project` | registry_owner | `project.purge_project` | - |
+| `reg.purge_project` | registry_owner | - | `apps/hub/src/project/deletion.ts` |
 | `reg.read_application_file_by_source` | registry_owner | - | `apps/hub/src/registry/application-artifact-store.ts` |
 | `reg.read_served_application_file` | registry_owner | - | `apps/hub/src/registry/served-application.ts` |
 | `reg.retain_application_execution` | registry_owner | - | `apps/hub/src/registry/application-artifact-store.ts` |

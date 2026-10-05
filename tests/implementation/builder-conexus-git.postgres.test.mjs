@@ -6,7 +6,8 @@ import { join } from 'node:path'
 import test from 'node:test'
 import pg from 'pg'
 import { hubModuleUrl } from './hub-build.mjs'
-import { buildHubDatabase, query, testPool } from './hub-database.mjs'
+import { buildHubDatabase, query } from './hub-database.mjs'
+import { ID, setupProjects } from './project-fixture.mjs'
 
 const { createConexusGit } = await import(hubModuleUrl('builder/conexus-git.js'))
 const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
@@ -56,32 +57,18 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
   await query(connectionString, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [owner, workspaceId])
   await query(connectionString, 'SELECT iam.bootstrap_installation_administrator($1)', [owner])
 
-  await t.test('create_project_with_repository creates the Project on its starter revision and registers its repository', async () => {
-    const client = new pg.Client({ connectionString })
-    await client.connect()
-    try {
-      await client.query('SET ROLE hub_project_command')
-      const key = '1'.repeat(64)
-      const request = '2'.repeat(64)
-      await client.query('BEGIN')
-      await client.query('SELECT * FROM project.reserve_or_replay_create_project($1,$2,$3,$4,$5)', [owner, workspaceId, key, request, projectId])
-      await client.query('COMMIT')
-      await client.query('BEGIN')
-      await client.query('SELECT * FROM project.lock_create_project_receipt($1,$2,$3,$4,$5)', [owner, workspaceId, key, request, projectId])
-      await client.query('SELECT project.create_project_with_repository($1,$2,$3,$4,$5,$6,$7,$8)', [owner, workspaceId, key, request, projectId, 'Git app', 'revision-1', STARTER])
-      await client.query('COMMIT')
-    } finally {
-      await client.end()
-    }
+  await t.test('register_project_repository registers a Project on its starter revision with its repository and working state', async () => {
+    await query(connectionString, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'Git app', 'NEW', $3, 'revision-1')", [projectId, workspaceId, STARTER])
+    await query(connectionString, 'SELECT builder.register_project_repository($1)', [projectId])
     assert.deepEqual((await query(connectionString, 'SELECT source_mode, source_revision FROM project.project WHERE project_id = $1', [projectId])).rows, [{ source_mode: 'NEW', source_revision: STARTER }])
     assert.deepEqual((await query(connectionString, 'SELECT count(*)::integer AS count FROM builder.project_repository WHERE project_id = $1', [projectId])).rows, [{ count: 1 }])
     assert.deepEqual((await query(connectionString, "SELECT current_state FROM builder.project_working_state WHERE project_id = $1", [projectId])).rows, [{ current_state: 'IDLE' }])
   })
 
-  await t.test('register_project_repository converges and only the Project owner role may call it', async () => {
+  await t.test('register_project_repository converges and no old Hub role may call it', async () => {
     await query(connectionString, 'SELECT builder.register_project_repository($1)', [projectId])
     assert.deepEqual((await query(connectionString, 'SELECT count(*)::integer AS count FROM builder.project_repository WHERE project_id = $1', [projectId])).rows, [{ count: 1 }])
-    for (const role of ['hub_builder_ingress', 'hub_builder_executor', 'hub_project_command']) {
+    for (const role of ['hub_builder_ingress', 'hub_builder_executor']) {
       assert.match(await refusalAs(connectionString, role, 'SELECT builder.register_project_repository($1)', [projectId]), /permission denied/, role)
     }
     await query(connectionString, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'Unregistered', 'NEW', $3, 'u')", [unregistered, workspaceId, STARTER])
@@ -211,14 +198,11 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
     assert.deepEqual(await read(), [], 'a settled run')
   })
 
-  await t.test('deletion tombstones the Project and the purge removes its repository record with its runs', async () => {
-    const [tombstone] = await callAs(connectionString, 'hub_project_command', 'SELECT * FROM project.begin_project_deletion($1,$2,$3)', [owner, projectId, 'Git app'])
-    assert.deepEqual({ project_id: tombstone.project_id, completed_at: tombstone.completed_at }, { project_id: projectId, completed_at: null })
-    await callAs(connectionString, 'hub_project_command', 'SELECT project.purge_project($1)', [projectId])
+  await t.test('builder.purge_project removes the repository record with the runs and the working state', async () => {
+    await query(connectionString, 'SELECT builder.purge_project($1)', [projectId])
     const left = async (table) => (await query(connectionString, `SELECT count(*)::integer AS count FROM ${table} WHERE project_id = $1`, [projectId])).rows[0].count
-    assert.deepEqual({ repository: await left('builder.project_repository'), working: await left('builder.project_working_state'), runs: await left('builder.builder_run'), project: await left('project.project') },
-      { repository: 0, working: 0, runs: 0, project: 0 })
-    await callAs(connectionString, 'hub_project_command', 'SELECT project.complete_project_deletion($1)', [projectId])
+    assert.deepEqual({ repository: await left('builder.project_repository'), working: await left('builder.project_working_state'), runs: await left('builder.builder_run') },
+      { repository: 0, working: 0, runs: 0 })
   })
 
   await t.test('no Builder or Project column or function names the Factory binding or a GitHub repository', async () => {
@@ -239,7 +223,7 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
       SELECT n.nspname || '.' || p.proname AS name, array_agg(r.rolname::text ORDER BY r.rolname) AS roles
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
       CROSS JOIN pg_roles r
-      WHERE p.proname IN ('lock_project_for_run', 'create_builder_run', 'admit_source_revision', 'renew_run_lease', 'create_project_with_repository')
+      WHERE p.proname IN ('lock_project_for_run', 'create_builder_run', 'admit_source_revision', 'renew_run_lease')
         AND r.rolname LIKE 'hub\\_%' AND has_function_privilege(r.oid, p.oid, 'EXECUTE')
       GROUP BY 1 ORDER BY 1`)
     assert.deepEqual(rows, [
@@ -247,42 +231,34 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
       { name: 'builder.create_builder_run', roles: ['hub_builder_ingress', 'hub_runtime'] },
       { name: 'builder.lock_project_for_run', roles: ['hub_builder_ingress', 'hub_runtime'] },
       { name: 'builder.renew_run_lease', roles: ['hub_builder_executor', 'hub_runtime'] },
-      { name: 'project.create_project_with_repository', roles: ['hub_project_command', 'hub_runtime'] },
     ])
   })
 })
 
 test('creating a Project makes its Conexus Git repository with the starter on main, and a retry converges', async (t) => {
-  const { connectionString, connection, onCleanup } = await buildHubDatabase(t, 'conexus_git_creation')
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-creation-'))
+  const { connection, database, onCleanup } = await setupProjects(t, 'conexus_git_creation')
   onCleanup(() => rmSync(scratch, { recursive: true, force: true }))
   const git = createConexusGit({ root: join(scratch, 'git'), starter: [{ path: 'app/index.html', content: 'starter\n' }] })
-  const accountId = randomUUID()
-  const workspaceId = randomUUID()
-  await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://creation.test', $2, 'Creator')", [accountId, accountId])
-  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'Creation', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))", [workspaceId])
-  await query(connectionString, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
-  const commandPool = testPool({ ...connection, max: 2, options: '-c role=hub_project_command' })
-  onCleanup(() => commandPool.end())
   const prepared = []
-  const storeWith = (prepare) => createProjectStore({ commandPool, repository: { prepare: async (projectId) => { prepared.push(projectId); return prepare(projectId) } } })
+  const storeWith = (prepare) => createProjectStore({ database, deletion: {}, repository: { prepare: async (projectId) => { prepared.push(projectId); return prepare(projectId) } } })
   const create = (store, idempotencyKey, body = { name: 'Contador', sourceBootstrap: { mode: 'NEW' } }) =>
-    store.createProject({ accountId, workspaceId, idempotencyKey, body })
+    store.createProject({ accountId: ID.owner, workspaceId: ID.workspace, idempotencyKey, body })
 
-  const created = await create(storeWith(git.ensureRepository), 'first')
+  const { reply: created } = await create(storeWith(git.ensureRepository), 'first')
   const main = await git.readMain(created.projectId)
-  assert.deepEqual((await query(connectionString, 'SELECT source_revision FROM project.project WHERE project_id = $1', [created.projectId])).rows, [{ source_revision: main }])
-  assert.deepEqual((await query(connectionString, 'SELECT count(*)::integer AS count FROM builder.project_repository WHERE project_id = $1', [created.projectId])).rows, [{ count: 1 }])
+  assert.deepEqual((await query(connection, 'SELECT source_revision FROM project.project WHERE project_id = $1', [created.projectId])).rows, [{ source_revision: main }])
+  assert.deepEqual((await query(connection, 'SELECT count(*)::integer AS count FROM builder.project_repository WHERE project_id = $1', [created.projectId])).rows, [{ count: 1 }])
   const replayed = await create(storeWith(git.ensureRepository), 'first')
-  assert.deepEqual({ projectId: replayed.projectId, replayed: replayed.replayed }, { projectId: created.projectId, replayed: true })
+  assert.deepEqual({ projectId: replayed.reply.projectId, replayed: replayed.replayed }, { projectId: created.projectId, replayed: true })
   assert.equal(await git.readMain(created.projectId), main)
 
   const refused = await create(storeWith(async () => { throw new Error('CONEXUS_GIT_FAILED') }), 'second').catch((error) => error)
   assert.deepEqual({ id: refused.id, reason: refused.details.reason }, { id: 'PROJECT_REPOSITORY_UNAVAILABLE', reason: 'CONEXUS_GIT_FAILED' })
   // The receipt stays reserved, so the same key later reaches the same Project id and its repository.
-  const recovered = await create(storeWith(git.ensureRepository), 'second')
+  const recovered = (await create(storeWith(git.ensureRepository), 'second')).reply
   assert.equal(recovered.projectId, prepared.at(-2))
-  assert.equal((await query(connectionString, 'SELECT source_revision FROM project.project WHERE project_id = $1', [recovered.projectId])).rows[0].source_revision, await git.readMain(recovered.projectId))
+  assert.equal((await query(connection, 'SELECT source_revision FROM project.project WHERE project_id = $1', [recovered.projectId])).rows[0].source_revision, await git.readMain(recovered.projectId))
 
   const before = prepared.length
   await assert.rejects(create(storeWith(git.ensureRepository), 'import', { name: 'Imported', sourceBootstrap: { mode: 'EXISTING_GIT', repositoryLocator: 'https://example.test/app.git' } }), { id: 'PROJECT_SOURCE_REFUSED' })
