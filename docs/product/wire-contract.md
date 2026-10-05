@@ -34,8 +34,9 @@ journeys, [database](../reference/database.md) the SQL. Exact shapes live in `pa
 
 A request is parsed once at its route against the contract schema, and the handler trusts the parsed
 value. A route with an id in its path has a params schema with the id's format, so a malformed id
-answers the failure its `malformed` row names (a 404 for a Project or Workspace id) before any store
-call; the contract type requires that row for every path id. Safe methods never change state. Enforced by the route tests and
+fails before any store call. In a Zod operation it answers its `malformed` row (a 404 for a Project
+or Workspace id), which the contract type requires for every path id; a route not yet ported
+answers `REQUEST_VALIDATION_FAILED` (400). Safe methods never change state. Enforced by the route tests and
 review.
 
 ## Names and values

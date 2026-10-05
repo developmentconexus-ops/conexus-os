@@ -34,7 +34,8 @@ generated [function callers](function-callers.md).
 and no `BYPASSRLS`, and executes only the functions the older capability roles held. Each
 Product transaction switches to `hub_reader` or `hub_command` (`NOLOGIN NOINHERIT NOBYPASSRLS`)
 right after `BEGIN`; its authority is that role, the row policies and the admission proof. The
-readers not yet ported (`unportedPool`) and the instance-lock session still run as `hub_runtime`,
+stores not yet ported (`unportedPool`, readers and the application-access grant) and the
+instance-lock session still run as `hub_runtime`,
 with the grants and the `legacy_runtime` policy the census lists under its `runtimePrivileges`
 ceiling. A store reaches the
 database only through `apps/hub/src/platform/db.ts`. No Hub role is a member of another, except
