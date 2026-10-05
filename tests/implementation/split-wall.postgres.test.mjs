@@ -83,7 +83,29 @@ test('a query that resumes after the entry returned is refused before COMMIT and
   }
 })
 
-test('the role invariants fail on a membership option, an extra membership and a role setting', async (t) => {
+test('hub_runtime sessions carry the register timeouts, and a lock wait and a slow statement answer DATABASE_BUSY', async (t) => {
+  const { connection, database, onCleanup, openRuntimeDatabase } = await openRuntimeFixture(t, 'conexus_split_timeouts', { accounts: [[ACCOUNT, 'a']] })
+  const shown = await unportedPool(database).query("SELECT current_setting('lock_timeout') AS lock, current_setting('statement_timeout') AS statement, current_setting('idle_in_transaction_session_timeout') AS idle")
+  assert.deepEqual(shown.rows, [{ lock: '5s', statement: '30s', idle: '1min' }])
+  await query(connection, "ALTER ROLE hub_runtime SET lock_timeout = '300ms'")
+  onCleanup(() => query(connection, "ALTER ROLE hub_runtime SET lock_timeout = '5s'; ALTER ROLE hub_runtime SET statement_timeout = '30s'"))
+  const short = openRuntimeDatabase({ max: 1 })
+  const holder = new pg.Client(connection)
+  await holder.connect()
+  onCleanup(() => holder.end().catch(() => undefined))
+  await holder.query('BEGIN')
+  await holder.query('SELECT 1 FROM iam.account WHERE account_id = $1 FOR UPDATE', [ACCOUNT])
+  const waiting = await short.transaction(ACCOUNT, (gate) => admitAccount(gate)).catch((error) => error)
+  assert.deepEqual({ id: waiting.id, sqlstate: waiting.details.sqlstate }, { id: 'DATABASE_BUSY', sqlstate: '55P03' })
+  await holder.query('ROLLBACK')
+  await query(connection, "ALTER ROLE hub_runtime SET statement_timeout = '300ms'")
+  const slowDatabase = openRuntimeDatabase({ max: 1 })
+  const slow = await slowDatabase.transaction(ACCOUNT, async (gate) => (await admitAccount(gate)).tx.run(sql`SELECT pg_sleep(2)`)).catch((error) => error)
+  assert.deepEqual({ id: slow.id, sqlstate: slow.details.sqlstate }, { id: 'DATABASE_BUSY', sqlstate: '57014' })
+  assert.equal((await slowDatabase.read(ACCOUNT, (tx) => tx.rows(z.object({ one: z.number() }), sql`SELECT 1 AS one`)))[0].one, 1)
+})
+
+test('the role invariants fail on a membership option, an extra membership, a role setting, a conexus setting, an extra setting and a missing timeout', async (t) => {
   const { connection, onCleanup } = await buildHubDatabase(t, 'conexus_split_roles')
   const client = new pg.Client(connection)
   await client.connect()
@@ -102,6 +124,16 @@ test('the role invariants fail on a membership option, an extra membership and a
   await client.query("ALTER ROLE hub_runtime SET role = 'hub_command'")
   await assert.rejects(assertRoleInvariants(client), /MIGRATION_ROLE_SETTING_REFUSED:hub_runtime role=hub_command/)
   await client.query('ALTER ROLE hub_runtime RESET role')
+  await assertRoleInvariants(client)
+  await client.query("ALTER ROLE hub_runtime SET conexus.job = 'project-purge'")
+  await assert.rejects(assertRoleInvariants(client), /MIGRATION_ROLE_SETTING_REFUSED:hub_runtime conexus.job=project-purge/)
+  await client.query('ALTER ROLE hub_runtime RESET conexus.job')
+  await client.query("ALTER ROLE hub_runtime SET work_mem = '1GB'")
+  await assert.rejects(assertRoleInvariants(client), /MIGRATION_ROLE_SETTING_REFUSED:hub_runtime work_mem=1GB/)
+  await client.query('ALTER ROLE hub_runtime RESET work_mem')
+  await client.query('ALTER ROLE hub_runtime RESET lock_timeout')
+  await assert.rejects(assertRoleInvariants(client), /MIGRATION_ROLE_SETTING_REFUSED:missing hub_runtime lock_timeout=5s/)
+  await client.query("ALTER ROLE hub_runtime SET lock_timeout = '5s'")
   await assertRoleInvariants(client)
 })
 

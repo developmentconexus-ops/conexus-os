@@ -36,6 +36,12 @@ DO $$ BEGIN
   END IF;
 END $$;
 GRANT hub_reader, hub_command TO hub_runtime WITH INHERIT FALSE, SET TRUE;
+-- Every lock wait, statement and idle transaction of the Hub is bounded. The values sit above the longest
+-- transaction the Hub suites and the live flows observe and below the pool's patience; the role register
+-- carries them and the catalog check refuses a login role that differs.
+ALTER ROLE hub_runtime SET lock_timeout = '5s';
+ALTER ROLE hub_runtime SET statement_timeout = '30s';
+ALTER ROLE hub_runtime SET idle_in_transaction_session_timeout = '60s';
 GRANT USAGE ON SCHEMA iam, workspace, project, builder, reg, model, connector, platform TO hub_reader, hub_command;
 
 CREATE SCHEMA rls AUTHORIZATION conexus_owner;

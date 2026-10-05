@@ -15,6 +15,7 @@ export const FAILURES = {
   'IDEMPOTENCY_KEY_REQUIRED': { category: 'SYSTEM', status: 400 },
   'IDEMPOTENCY_CONFLICT': { category: 'USER', status: 409 },
   'OUTCOME_UNKNOWN': { category: 'SYSTEM', status: 409 },
+  'DATABASE_BUSY': { category: 'SYSTEM', status: 503 },
   'IDENTITY_PROVIDER_UNAVAILABLE': { category: 'THIRD_PARTY', status: 503 },
   'BOOTSTRAP_REQUIRED': { category: 'USER', status: 401 },
   'BOOTSTRAP_SEALED': { category: 'USER', status: 409 },

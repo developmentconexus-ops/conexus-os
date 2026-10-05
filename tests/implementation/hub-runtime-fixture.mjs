@@ -17,10 +17,14 @@ export const openRuntimeFixture = async (t, prefix, { max = 3, accounts = [] } =
   const passwordFile = resolve(directory, 'password')
   writeFileSync(passwordFile, PASSWORD)
   chmodSync(passwordFile, 0o600)
-  const database = openDatabase({ host: fixture.connection.host, port: fixture.connection.port, database: fixture.database, user: 'hub_runtime', passwordFile, max })
-  fixture.onCleanup(() => database.close())
+  const openRuntimeDatabase = ({ max: poolSize = max } = {}) => {
+    const opened = openDatabase({ host: fixture.connection.host, port: fixture.connection.port, database: fixture.database, user: 'hub_runtime', passwordFile, max: poolSize })
+    fixture.onCleanup(() => opened.close())
+    return opened
+  }
+  const database = openRuntimeDatabase()
   for (const [accountId, subject] of accounts) {
     await query(fixture.connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', $2, $2)", [accountId, subject])
   }
-  return { ...fixture, database, runtime: { ...fixture.connection, user: 'hub_runtime', password: PASSWORD } }
+  return { ...fixture, database, openRuntimeDatabase, runtime: { ...fixture.connection, user: 'hub_runtime', password: PASSWORD } }
 }

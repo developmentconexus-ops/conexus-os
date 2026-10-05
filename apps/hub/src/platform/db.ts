@@ -123,6 +123,9 @@ type DatabaseFailureRule = Readonly<{ sqlstate: string; constraint: string | nul
 /** @public Frozen by spec 0015 section 3; each part adds its constraints. */
 export const DATABASE_FAILURES: readonly DatabaseFailureRule[] = Object.freeze([
   { sqlstate: '23503', constraint: 'workspace_membership_workspace_id_fkey', failure: 'WORKSPACE_NOT_FOUND' },
+  // lock_timeout and statement_timeout on hub_runtime: one named 503 for a wait or a statement that ran out of time.
+  { sqlstate: '55P03', constraint: null, failure: 'DATABASE_BUSY' },
+  { sqlstate: '57014', constraint: null, failure: 'DATABASE_BUSY' },
 ])
 
 export const errorCode = (error: unknown): string | undefined => {

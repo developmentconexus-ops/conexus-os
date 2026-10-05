@@ -10,6 +10,7 @@ export declare const FAILURE_STATUS: {
     readonly IDEMPOTENCY_KEY_REQUIRED: 400;
     readonly IDEMPOTENCY_CONFLICT: 409;
     readonly OUTCOME_UNKNOWN: 409;
+    readonly DATABASE_BUSY: 503;
     readonly IDENTITY_PROVIDER_UNAVAILABLE: 503;
     readonly BOOTSTRAP_REQUIRED: 401;
     readonly BOOTSTRAP_SEALED: 409;
@@ -340,6 +341,11 @@ export declare const FAILURES: {
         readonly message: "O Conexus não conseguiu confirmar se o pedido anterior terminou. A falha foi registrada.";
         readonly action: "NONE";
         readonly status: 409;
+    };
+    readonly DATABASE_BUSY: {
+        readonly message: "O Conexus está ocupado e não terminou o pedido. A falha foi registrada.";
+        readonly action: "NONE";
+        readonly status: 503;
     };
     readonly IDENTITY_PROVIDER_UNAVAILABLE: {
         readonly message: "O serviço de login não respondeu agora. Sua sessão continua aberta.";

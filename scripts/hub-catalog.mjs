@@ -119,15 +119,22 @@ export const assertRoleInvariants = async (client) => {
     ORDER BY 1
   `)).rows.map(row => row.role)
   if (openMemberships.length > 0) fail('MIGRATION_ROLE_MEMBERSHIP_OPTION_REFUSED', openMemberships.join(','))
+  // The only settings on the login role are the ones the register names, with its values: the
+  // timeouts that bound a lock wait, a statement and an idle transaction. A role, a session
+  // authorization or a conexus.* setting there would change every transaction, and a missing
+  // timeout leaves every wait unbounded.
+  const registered = roleRegister.roles.find(row => row.role === 'hub_runtime')?.settings ?? {}
+  const expectedSettings = Object.entries(registered).map(([name, value]) => `hub_runtime ${name}=${value}`).sort()
   const roleSettings = (await client.query(`
     SELECT coalesce(pg_get_userbyid(NULLIF(s.setrole, 0)), 'all roles') || ' ' || config AS setting
     FROM pg_db_role_setting s CROSS JOIN LATERAL unnest(s.setconfig) AS config
     WHERE (s.setrole = 0 OR s.setrole = 'hub_runtime'::regrole)
       AND (s.setdatabase = 0 OR s.setdatabase = (SELECT oid FROM pg_database WHERE datname = current_database()))
-      AND (config ILIKE 'role=%' OR config ILIKE 'session\\_authorization=%')
     ORDER BY 1
   `)).rows.map(row => row.setting)
-  if (roleSettings.length > 0) fail('MIGRATION_ROLE_SETTING_REFUSED', roleSettings.join(','))
+  const unexpectedSettings = roleSettings.filter(setting => !expectedSettings.includes(setting))
+  const missingSettings = expectedSettings.filter(setting => !roleSettings.includes(setting)).map(setting => `missing ${setting}`)
+  if (unexpectedSettings.length > 0 || missingSettings.length > 0) fail('MIGRATION_ROLE_SETTING_REFUSED', [...unexpectedSettings, ...missingSettings].join(','))
 
   // Every migration creates a hub_* role LOGIN and every *_owner role NOLOGIN; a role that can
   // authenticate is not an owner of anything, and an owner role the Hub could log in as would

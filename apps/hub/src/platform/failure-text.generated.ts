@@ -13,6 +13,7 @@ export const FAILURE_TEXT = {
   'IDEMPOTENCY_KEY_REQUIRED': 'O pedido saiu sem o identificador que o Conexus exige. A falha foi registrada.',
   'IDEMPOTENCY_CONFLICT': 'Já existe um pedido igual a este, com dados diferentes.',
   'OUTCOME_UNKNOWN': 'O Conexus não conseguiu confirmar se o pedido anterior terminou. A falha foi registrada.',
+  'DATABASE_BUSY': 'O Conexus está ocupado e não terminou o pedido. A falha foi registrada.',
   'IDENTITY_PROVIDER_UNAVAILABLE': 'O serviço de login não respondeu agora. Sua sessão continua aberta. Tente novamente mais tarde.',
   'BOOTSTRAP_REQUIRED': 'A configuração inicial precisa começar pelo login. Entre na sua conta para continuar.',
   'BOOTSTRAP_SEALED': 'A configuração inicial já foi concluída.',
