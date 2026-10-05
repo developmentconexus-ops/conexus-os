@@ -27,12 +27,13 @@ customer, testimonial or metric is invented.
 
 - **Account.** One person, signed in through Keycloak with a verified email. The first Account comes
   from a preconfigured bootstrap identity; every other arrives by invitation. An application
-  invitation to one verified email creates an app-only Account that reaches that one application and
-  never a Workspace or the Hub; it expires after 14 days.
+  invitation to a verified email grants the applications it names; a person with no Account gets an
+  app-only one, with no Hub session and no Workspace, until they claim a Workspace invitation. An
+  invitation expires after 14 days.
 - **Workspace.** The isolation root, owning Projects and a roster. Roles are `owner` and `member`;
   only an owner administers the roster, and the last owner stays. Belonging to one Workspace grants
-  nothing in another. An installation administrator acts on the installation and gains nothing
-  inside a Workspace by it.
+  nothing in another. What an installation administrator may do is in
+  [security](../reference/security-and-authority.md#who-may-act).
 - **Invitation.** Names a Workspace, a verified email and a role; claimed when that person signs in
   with that address. Nothing is emailed. Removing a roster entry withdraws every right it gave.
 - **Project.** One unit of software in a Workspace, created with its source in one step.
@@ -40,24 +41,25 @@ customer, testimonial or metric is invented.
   when it failed to compile; a change advances it, and a change built on an older revision never
   overwrites later work.
 - **Builder run.** One admitted attempt to answer one request, in one conversation. A Project has at
-  most one active run. It settles `SUCCEEDED`, `FAILED` or `INTERRUPTED`, and a success is
-  `RESPONSE_ONLY`, `SOURCE_CHANGED` or `SOURCE_CHANGED_BUILD_FAILED`; a failed build still advances
-  the source. Stop cancels the real run, and cancelling twice is cancelling once.
+  most one active run. It settles `SUCCEEDED`, `FAILED` or `INTERRUPTED`; a success is
+  `RESPONSE_ONLY` or `SOURCE_CHANGED`, and a failed build settles `FAILED` with
+  `SOURCE_CHANGED_BUILD_FAILED` and still advances the source. Stop cancels the real run, and cancelling twice is
+  cancelling once.
 - **Preview.** A candidate that passed its checks, served to the people who build the Project. Each
   launch has its own route. It is a development surface: a failed candidate may leave none, and
   keeping the last good one is implementation, not a promise.
-- **Model.** Each person connects their own model accounts; an installation administrator may share
-  one with everyone. The model is chosen per conversation, and nothing is sent until one is chosen.
+- **Model.** Each person connects their own model accounts; an account shared with everyone serves a
+  person who has none for that provider, and no route shares one yet. The model is chosen per conversation, and nothing is sent until one is chosen.
 - **Names.** Workspace, Project and Connection names and an Account's display name are required,
   non-blank, for people only: never identity, routing or authority. A Keycloak user re-created with
   the same email is a new person; disable, never delete.
 
 ## 3. Journeys
 
-- **First access.** The bootstrap identity signs in, provisions its own Account and nothing else, and
-  creates the first Workspace. There is no public signup and no reusable admin credential.
+- **First access.** The bootstrap identity signs in, provisions its own Account, which becomes the
+  first installation administrator, and creates the first Workspace. There is no public signup and no reusable admin credential.
 - **Invite.** An owner invites a verified email with a role; the invitation shows in the roster
-  beside members; the person signs in with that address and becomes a member.
+  beside members; the person signs in with that address and joins with that role.
 - **Build.** A person opens a Project, writes a request in a conversation, watches real activity,
   and uses the Preview; the next request continues the same conversation and source. They may read
   the source at an exact revision, see what a run changed, and read a run's safe trace.
@@ -69,7 +71,8 @@ customer, testimonial or metric is invented.
 The app is the main area and the conversation sits beside it; both survive resizing, collapsing and
 a narrow screen. Enter sends, Shift+Enter breaks a line, input methods are safe. While a question
 waits, Enter answers it, Stop is its own control, and the screen says "Esperando a sua resposta" with
-no countdown. A model change never touches an active run. Progress shows only facts the Hub has
+no countdown. The conversation scrolls with new messages only while the reader stays at its end,
+so earlier messages stay readable during streaming. A model change never touches an active run. Progress shows only facts the Hub has
 measured. The Preview stays usable while new work runs, and an older launch never replaces a newer
 one. A failed admitted source stays current with a safe diagnostic, and there is no automatic repair
 loop. Code and Changes are read-only, and Changes compares a run's base with its result. Reload

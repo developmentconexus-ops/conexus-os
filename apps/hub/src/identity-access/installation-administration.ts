@@ -4,10 +4,10 @@ import { Failure } from '../platform/failure.js'
 import { accountId } from './current-session.js'
 import type { AccountId } from './current-session.js'
 
-// Installation administration authorizes installation-wide actions, such as connecting the
-// company GitHub organization. It lives only in Conexus IAM: a caller checks it here before
-// performing the action, and nothing else keeps a copy of who holds it. It admits nothing inside
-// a Workspace or a Project.
+// Installation administration authorizes installation-wide actions, such as managing the
+// administrator set. It lives only in Conexus IAM: a caller checks it here before
+// performing the action, and nothing else keeps a copy of who holds it. Inside a Workspace it admits
+// only the `AdministratorAction`s in admission.ts.
 export type InstallationAdministrator = Readonly<{
   accountId: AccountId
   displayName: string

@@ -20,12 +20,14 @@ the boundary. Storage is trusted and is not one credential domain. Enforced by r
   `owner` or `member`. `ROLE_ALLOWS` in `admission.ts` is the whole rule: a member does not manage
   the roster or bind Connections. A Project has no authority of its own beyond its Workspace's. A
   read is gated by containment through the row policies, not by an action. Leaving is
-  self-service; the last owner can be neither demoted nor removed.
+  self-service; the last active owner can be neither demoted nor removed.
 - An installation administrator is a fact about an Account, kept as tenures (closed ones stay as
-  the record), not a Workspace role. It grants installation-wide actions and, inside a Workspace,
-  only managing its Connections. The last one cannot be revoked; changes to the set take one lock.
-  The first is set by `npm run iam:bootstrap-installation-administrator` with the operator's
-  provisioning credential, refused while another active administrator exists.
+  the record), not a Workspace role. Its actions are `AdministratorAction` in `admission.ts`:
+  managing the administrator set, managing any Workspace's Connections, and deleting an idle Project
+  in any Workspace, which it still sees while the deletion runs; none needs membership. The last one cannot be revoked;
+  changes to the set take one lock. The bootstrap identity's Account becomes the first, only while
+  the installation has never had one; `npm run iam:bootstrap-installation-administrator` is the operator's recovery path, refused
+  while another active administrator exists.
 - An action exists only when a real call site needs the distinction, and it is necessary, never
   sufficient: each operation rechecks the exact subject and current state. No authority is inferred
   from a Keycloak role, group or claim, or from a provider, model, Mastra or E2B identity.
@@ -43,8 +45,7 @@ Enforced by: `tests/repository/admission-types.test.mjs`, `gateReferences` and
 
 Not yet enforced, and each waits for its first real call site: private conversations and
 everything they carry; continuing another person's conversation without their credentials or
-permissions; an application audience apart from Workspace membership; keeping app-only Accounts
-out of the Control Plane; what a conversation, app or automation may call for a Project;
+permissions; what a conversation, app or automation may call for a Project;
 explicit, authorized Publish; delegated work reaching source only through the Project's own
 admission. Runtime authority is rechecked at bounded request or Connector admission.
 
@@ -66,7 +67,8 @@ Enforced by the identity tests and review.
   owns every lifetime; TypeScript windows live in `platform/lifetimes.ts`. `iam.handoff` is a one-use
   proof for one host (application 60 s, bound to the sign-in binding; Preview 30 s). Enforced by
   `tests/implementation/session-lifetimes.postgres.test.mjs`.
-- Every write carries the exact `Origin` of its host; Hub API requests have `Sec-Fetch-Site`
+- Every write carries the exact `Origin` its access kind names (the Hub's for Hub routes and
+  `hub-entry`, the host's own for `host-write`); Hub API requests have `Sec-Fetch-Site`
   `same-origin` or none; there is no CSRF token. The Hub cookie is `__Host-conexus_session`. Every
   route of the three listeners declares one access kind from `http/access.ts`, its one enforcer;
   only `access.ts` and `http/cookies.ts` read headers and cookies. Enforced by
@@ -80,8 +82,9 @@ Enforced by the identity tests and review.
 - Each application has its own host. A top-level navigation without a session goes through the Hub
   sign-in and returns with a handoff; an app-only Account never gets a Hub session. Every
   application request resolves an unrevoked grant or Workspace membership again, and handlers get
-  the caller from the session, never the request. The application host sends `frame-ancestors
-  'none'` and grants no CORS.
+  the caller from the session, never the request (`iam.account_access_scope`,
+  `iam.has_application_access`, `admitApplication`). The application host sends `frame-ancestors
+  'none'` and grants no CORS. Enforced by `tests/implementation/application-access.postgres.test.mjs`.
 - A Preview launch records its immutable facts in `iam.preview`; every Preview request resolves its
   session and live Hub session again. An artifact path is never a credential.
 
@@ -104,8 +107,10 @@ Enforced by the identity tests and review.
 ## Egress
 
 Each privileged adapter has a named owner, its own credential and a destination pinned by
-configuration: Keycloak, E2B, Context7 through the Hub's own client, and `web_fetch` behind the Hub's
-guard (GET only, no credential, no query string, bounded path and host). The sandbox may reach any
+configuration: Keycloak, E2B and Context7 through the Hub's own client. `web_fetch` has no
+credential and no pinned destination: it reaches any public host through the Hub's guard (GET only,
+no query string or fragment, bounded URL, path and host), which cannot prove a URL carries no
+company data. The sandbox may reach any
 host (C-023); each turn logs the hosts it reached, and an empty list is not proof of no egress.
 There is no privileged `fetch(url, secret)` and no egress proxy. The browser leaves only for the
 Keycloak redirect and an application handoff; any other cross-origin path is a security change.
@@ -113,9 +118,10 @@ Enforced by `tests/implementation/builder-egress-log.test.mjs` and review.
 
 ## Recovery
 
-A restored membership, session or credential is historical as of the cutoff: restored sessions are
-invalid, and privileged authority is re-established through its owning module. Identity continuity
-that is unknown keeps sign-in closed. The recovery posture only denies. Review.
+Not yet implemented, the rule for the first restore: a restored membership, session or credential
+is historical as of the cutoff, restored sessions are invalid, privileged authority is
+re-established through its owning module, and unknown identity continuity keeps sign-in closed.
+Today no restore step ends sessions; `conexus-restore-check.sh` checks row counts and `git fsck`.
 
 ## Accepted risks
 
