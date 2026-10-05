@@ -3,8 +3,8 @@ import test from 'node:test'
 import { shareWebBrowser } from './web-dev-server.mjs'
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111'
-const WORKSPACE = { workspaceId: 'w1', name: 'Operações' }
-const PROJECT = { projectId: PROJECT_ID, workspaceId: WORKSPACE.workspaceId, name: 'Faturamento', projectRevision: 'r1', archived: false }
+const WORKSPACE = { workspaceId: '20000000-0000-4000-8000-000000000001', name: 'Operações' }
+const PROJECT = { projectId: PROJECT_ID, workspaceId: WORKSPACE.workspaceId, name: 'Faturamento', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }
 
 const web = shareWebBrowser()
 

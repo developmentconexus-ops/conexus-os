@@ -30,10 +30,10 @@ function hubFixture() {
     workspaces: [{ workspaceId: ids.operations, name: 'Operações' }, { workspaceId: ids.sales, name: 'Comercial' }],
     summariesStatus: 200,
     summaries: [
-      { projectId: ids.vacation, name: 'Pedidos de férias', archived: false, lastActivityAt: minutesAgo(5), latestRun: { state: 'SUCCEEDED', resultKind: 'SOURCE_CHANGED' }, hasPreview: true },
-      { projectId: ids.visits, name: 'Visitas a clientes', archived: false, lastActivityAt: minutesAgo(42), latestRun: { state: 'RUNNING', resultKind: null }, hasPreview: true },
-      { projectId: ids.checklist, name: 'Checklist de abertura da loja', archived: false, lastActivityAt: minutesAgo(60 * 26), latestRun: { state: 'FAILED', resultKind: null }, hasPreview: false },
-      { projectId: ids.stock, name: 'Estoque do almoxarifado', archived: false, lastActivityAt: minutesAgo(60 * 24 * 9), latestRun: null, hasPreview: false },
+      { projectId: ids.vacation, name: 'Pedidos de férias', archived: false, lastActivityAt: minutesAgo(5), latestRun: { state: 'SUCCEEDED', resultKind: 'SOURCE_CHANGED' }, hasPreview: true, deleting: false },
+      { projectId: ids.visits, name: 'Visitas a clientes', archived: false, lastActivityAt: minutesAgo(42), latestRun: { state: 'RUNNING', resultKind: null }, hasPreview: true, deleting: false },
+      { projectId: ids.checklist, name: 'Checklist de abertura da loja', archived: false, lastActivityAt: minutesAgo(60 * 26), latestRun: { state: 'FAILED', resultKind: null }, hasPreview: false, deleting: false },
+      { projectId: ids.stock, name: 'Estoque do almoxarifado', archived: false, lastActivityAt: minutesAgo(60 * 24 * 9), latestRun: null, hasPreview: false, deleting: false },
     ],
     roster: {
       viewerRole: 'owner',
@@ -48,7 +48,7 @@ function hubFixture() {
 }
 
 const json = (route, status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body ?? {}) })
-const projectOf = (projectId) => ({ projectId, workspaceId: ids.operations, name: projectId === ids.created ? 'Controle de pedidos de férias' : 'Pedidos de férias', projectRevision: 'revision-1', archived: false })
+const projectOf = (projectId) => ({ projectId, workspaceId: ids.operations, name: projectId === ids.created ? 'Controle de pedidos de férias' : 'Pedidos de férias', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false })
 
 async function mockHub(page, hub) {
   await page.route('**/protocol/oidc/login', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>Keycloak</title><h1>Keycloak</h1>' }))
