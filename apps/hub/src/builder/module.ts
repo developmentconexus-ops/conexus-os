@@ -55,6 +55,7 @@ import { createCodexHolds, OPENAI_MODEL_PROVIDER } from './openai-codex/credenti
 import { createOpenAICodexRoute } from './openai-codex/route.js'
 import { registerModelAccountRoutes } from './model-accounts.js'
 import type { BuilderRunDependencies } from './service.js'
+import { isOpenRunState } from '../generated/builder-run-vocabulary.js'
 
 // The agent loop reads its steps back from this pool; a 5 s wait failed a run when the host was busy
 // (the same window that timed out the observability exporter). Waiting is cheaper than a failed turn.
@@ -309,7 +310,7 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async ({ accountId, projectId }) => {
           const latest = await store.readBuilderRun({ accountId, projectId })
-          return latest?.state === 'QUEUED' || latest?.state === 'RUNNING'
+          return latest !== null && isOpenRunState(latest.state)
         },
         answerQuestion: service.answerQuestion,
         ...(connectors ? { toolPayloads: connectors.toolPayloadProjection } : {}),

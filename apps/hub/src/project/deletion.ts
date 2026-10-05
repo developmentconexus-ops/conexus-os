@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { WorkspaceId, type AccountId, type ProjectId as ProjectIdType } from '../../../../packages/contract/dist/index.js'
-import { BUILDER_RUN_STATES } from '../generated/builder-run-vocabulary.js'
+import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
 import { admitInstallationAdministrator, admitSystem, type Admitted, type SystemScope } from '../identity-access/admission.js'
 import type { Database, WriteTx } from '../platform/db.js'
 import { sql } from '../platform/db.js'
@@ -30,10 +30,8 @@ const Present = z.object({ present: z.literal(1) })
 const tombstoneOf = (tx: WriteTx, projectId: ProjectIdType) => tx.maybe(Tombstone, sql`
   SELECT name, completed_at FROM project.project_deletion WHERE project_id = ${projectId}`)
 
-const SETTLED_RUN_STATES = BUILDER_RUN_STATES.filter((state) => state !== 'QUEUED' && state !== 'RUNNING')
-
 const busy = async (tx: WriteTx, projectId: ProjectIdType): Promise<boolean> => (await tx.maybe(Present, sql`
-  SELECT 1 AS present FROM builder.builder_run WHERE project_id = ${projectId} AND state <> ALL(${SETTLED_RUN_STATES}::text[]) LIMIT 1`)) !== null
+  SELECT 1 AS present FROM builder.builder_run WHERE project_id = ${projectId} AND state = ANY(${OPEN_RUN_STATES}::text[]) LIMIT 1`)) !== null
 
 const settled = (tombstone: z.output<typeof Tombstone>, confirmName: string): Readonly<{ completed: boolean }> => {
   if (tombstone.name !== confirmName) throw new Failure('PROJECT_NAME_MISMATCH')

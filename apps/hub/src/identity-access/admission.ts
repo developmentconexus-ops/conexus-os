@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { AccountId, BuilderRunId, ProjectId, WorkspaceId } from '../../../../packages/contract/dist/index.js'
 import { AccountId as AccountIdSchema, ProjectId as ProjectIdSchema, WorkspaceId as WorkspaceIdSchema } from '../../../../packages/contract/dist/index.js'
+import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
 import type { AuthenticationGate, CommandGate, Digest, JobName, Mode, ReadTx, Sql, TxQueries, WriteTx } from '../platform/db.js'
 import { openGate, readOnlyView, sql } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
@@ -282,7 +283,7 @@ export const checkApplication = async (gate: CommandGate, projectId: ProjectId):
   return new Checked({ kind: 'application', accountId, projectId, via: access.member ? 'membership' : 'grant' }, readOnlyView(tx))
 }
 
-const RunRow = z.object({ project_id: ProjectIdSchema, account_id: AccountIdSchema, owner_id: z.string().nullable(), state: z.string() })
+const RunRow = z.object({ project_id: ProjectIdSchema, account_id: AccountIdSchema, owner_id: z.string().nullable() })
 const RunPlace = z.object({ project_id: ProjectIdSchema, account_id: AccountIdSchema, workspace_id: WorkspaceIdSchema.nullable() })
 
 const notAdmitted = (): Failure => new Failure('BUILDER_RUN_NOT_ADMITTED')
@@ -290,8 +291,8 @@ const notAdmitted = (): Failure => new Failure('BUILDER_RUN_NOT_ADMITTED')
 // A run row is locked by its own id, after the Project: the purge takes the Project first, so the order never crosses.
 const lockedRun = async (tx: WriteTx, builderRunId: BuilderRunId, projectId: ProjectId, owner: RunOwner): Promise<z.output<typeof RunRow>> => {
   await tx.maybe(ProjectWorkspace, liveProject(projectId, sql` FOR SHARE`))
-  const run = await tx.maybe(RunRow, sql`SELECT project_id, account_id, owner_id::text AS owner_id, state FROM builder.builder_run WHERE builder_run_id = ${builderRunId} FOR UPDATE`)
-  if (!run || run.project_id !== projectId || run.owner_id !== owner.ownerId || (run.state !== 'QUEUED' && run.state !== 'RUNNING')) throw notAdmitted()
+  const run = await tx.maybe(RunRow, sql`SELECT project_id, account_id, owner_id::text AS owner_id FROM builder.builder_run WHERE builder_run_id = ${builderRunId} AND state = ANY(${OPEN_RUN_STATES}::text[]) FOR UPDATE`)
+  if (!run || run.project_id !== projectId || run.owner_id !== owner.ownerId) throw notAdmitted()
   // A tombstone that committed while the locks waited is invisible to the locked rows, so the visibility read runs again in a new statement.
   if (!(await tx.maybe(ProjectWorkspace, liveProject(projectId, sql``)))) throw notAdmitted()
   return run

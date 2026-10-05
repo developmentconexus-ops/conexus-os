@@ -46,3 +46,8 @@ test('no Builder or Project source types a run state, phase or result kind list 
   assert.deepEqual(offenders, [])
   assert.equal(copyOf.phases.test("phase: 'PREPARING' | 'AGENT' | null"), true, 'the scan finds a retyped union')
 })
+
+test('the generated open-state guard admits QUEUED and RUNNING and refuses the three ended states', async () => {
+  const { isOpenRunState } = await import('../../apps/hub/src/generated/builder-run-vocabulary.ts')
+  assert.deepEqual(['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'INTERRUPTED'].map(isOpenRunState), [true, true, false, false, false])
+})

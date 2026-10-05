@@ -3,6 +3,7 @@
 export const BUILDER_RUN_STATES = ['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'INTERRUPTED'] as const
 export type BuilderRunState = (typeof BUILDER_RUN_STATES)[number]
 export const OPEN_RUN_STATES = ['QUEUED', 'RUNNING'] as const satisfies readonly BuilderRunState[]
+export const isOpenRunState = (state: BuilderRunState): boolean => (OPEN_RUN_STATES as readonly BuilderRunState[]).includes(state)
 export const BUILDER_RUN_PHASES = ['PREPARING', 'AGENT', 'WAITING', 'SOURCE_ADMISSION', 'COMPILING', 'FINALIZING'] as const
 export type BuilderRunPhase = (typeof BUILDER_RUN_PHASES)[number]
 export const BUILDER_RUN_RESULT_KINDS = ['RESPONSE_ONLY', 'SOURCE_CHANGED', 'SOURCE_CHANGED_BUILD_FAILED'] as const

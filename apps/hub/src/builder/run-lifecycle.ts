@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import { AccountId, BuilderRunId, ProjectId, SourceRevision, type ArtifactDigest, type ArtifactRevisionId, type ConversationId, type ModelAccountId } from '../../../../packages/contract/dist/index.js'
 import { admitProject, admitRun, admitSystem, type Admitted, type RunScope, type SystemScope } from '../identity-access/admission.js'
-import { OPEN_RUN_STATES, type BuilderRunPhase, type BuilderRunResultKind } from '../generated/builder-run-vocabulary.js'
+import { BUILDER_RUN_STATES, OPEN_RUN_STATES, type BuilderRunPhase, type BuilderRunResultKind } from '../generated/builder-run-vocabulary.js'
 import { sql, type Database, type Sql } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
 import { RUN_COLUMNS, RunRow, runSummary, type BuilderRunSummary } from './run-row.js'
@@ -82,7 +82,7 @@ export const createRunStart = ({ database, mintIdentity }: Readonly<{ database: 
   }),
   requestBuilderRunCancellation: ({ accountId, projectId, builderRunId }) => database.transaction(accountId, async (gate) => {
     const { tx, scope } = await admitProject(gate, projectId, 'project.build')
-    const run = await tx.maybe(z.object({ state: z.string() }), sql`
+    const run = await tx.maybe(z.object({ state: z.enum(BUILDER_RUN_STATES) }), sql`
       SELECT run.state FROM builder.builder_run AS run
       WHERE run.builder_run_id = ${builderRunId} AND run.project_id = ${scope.projectId} AND run.account_id = ${scope.accountId} FOR UPDATE`)
     if (!run) throw new Failure('BUILDER_RUN_NOT_FOUND')
@@ -144,7 +144,7 @@ export type RunSteps = Readonly<{
 
 const QueuedRun = z.object({ account_id: AccountId, project_id: ProjectId })
 const Matches = z.object({ matches: z.boolean() })
-const Candidates = z.object({ state: z.string(), candidate_revision: SourceRevision.nullable(), result_source_revision: SourceRevision.nullable() })
+const Candidates = z.object({ state: z.enum(BUILDER_RUN_STATES), candidate_revision: SourceRevision.nullable(), result_source_revision: SourceRevision.nullable() })
 type Transition = 'candidate' | 'sandbox bind' | 'model account record' | 'settlement' | 'source settlement' | 'build settlement' | 'failure' | 'interruption' | 'cancellation' | 'message bind'
 /** A guarded transition that wrote nothing: the run was not in the state it needs, or the input was not what it takes. */
 const transitionRefused = (transition: Transition): Failure => new Failure('BUILDER_RUN_TRANSITION_REFUSED', { details: { transition } })
