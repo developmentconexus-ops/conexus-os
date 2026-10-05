@@ -26,6 +26,8 @@ test('a listener does not start with a route outside the table, and names the ro
     'INTERNAL_UNEXPECTED ROUTE_ACCESS_UNDECLARED GET /x')
   assert.equal(await bootRefusal(async (app) => { routes(app).session({ method: 'POST', url: '/api/control/things', handler: async () => 'x' }); return [] }),
     'INTERNAL_UNEXPECTED ROUTE_OPERATION_UNDECLARED POST /api/control/things')
+  assert.equal(await bootRefusal(async (app) => { routes(app).session({ method: 'POST', url: '/api/control/projects/:projectId/builder-session/messages', handler: async () => 'x' }); return [] }),
+    'INTERNAL_UNEXPECTED ROUTE_OPERATION_UNDECLARED POST /api/control/projects/:projectId/builder-session/messages')
   assert.equal(await bootRefusal(async (app) => { app.route({ method: 'POST', url: '/page', config: { access: 'navigation' }, handler: async () => 'x' }); return [] }),
     'INTERNAL_UNEXPECTED ROUTE_ACCESS_METHOD POST /page')
   assert.equal(await bootRefusal(async (app) => { routes(app).bootstrap({ method: 'GET', url: '/setup-read', handler: async () => 'x' }); return [] }),
