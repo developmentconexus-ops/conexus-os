@@ -4,10 +4,11 @@ import { join } from 'node:path'
 import { Failure } from '../../platform/failure.js'
 import { encodeKey, type GoogleAiProKey, isAuthFileName } from './credential.js'
 import type { CliproxyPool, LoginInstance } from './pool.js'
+import type { AccountId } from '../../../../../packages/contract/dist/index.js'
 
 type LoginState = 'waiting' | 'succeeded' | 'failed' | 'expired'
 
-type Caller = Readonly<{ accountId: string }>
+type Caller = Readonly<{ accountId: AccountId }>
 type Attempt<C extends Caller> = {
   readonly loginId: string
   readonly caller: C

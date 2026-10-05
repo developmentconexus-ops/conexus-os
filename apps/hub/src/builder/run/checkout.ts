@@ -1,3 +1,4 @@
+import type { AccountId, ConversationId, ExecutionId, ProjectId, SourceRevision } from '../../../../../packages/contract/dist/index.js'
 import type { CommandResult, ExecuteCommandOptions } from '@mastra/core/workspace'
 import { CHECK_NODE_PATH } from '../application-check.js'
 import { checkEntryPath, installCheck } from '../check-delivery.js'
@@ -44,7 +45,7 @@ const materializeRunStarter: NonNullable<BuilderRunPorts['materializeStarter']> 
 
 const startVm = async ({ sandbox, executionId, timing, started, recorded, bindPhysicalSandbox, hold }: Readonly<{
   sandbox: RunSandbox
-  executionId: string
+  executionId: ExecutionId
   timing: RunTiming
   /** Called before the run's `start()`: from then on the instance may hold a VM this run made or resumed. */
   started(): void
@@ -96,17 +97,17 @@ const startVm = async ({ sandbox, executionId, timing, started, recorded, bindPh
 
 const startCheckoutTurn = async ({ ports, projectId, conversationId, executionId, base, vm, sandbox, markUnusable, excluded, timing, mirrorFailed }: Readonly<{
   ports: BuilderRunPorts
-  projectId: string
-  conversationId: string
-  executionId: string
-  base: string
+  projectId: ProjectId
+  conversationId: ConversationId
+  executionId: ExecutionId
+  base: SourceRevision
   vm: RunVm
   sandbox: RunSandbox
   markUnusable(): void
   excluded: readonly string[]
   timing: RunTiming
   mirrorFailed(error: unknown): void
-}>): Promise<Readonly<{ start: string; conflicted: readonly string[]; mirror: TurnMirror }>> => {
+}>): Promise<Readonly<{ start: SourceRevision; conflicted: readonly string[]; mirror: TurnMirror }>> => {
   const turnStart = await ports.git.startTurn(projectId, conversationId, base)
   if (turnStart.conflicted.length > 0) ports.log('BUILDER_TURN_START_CONFLICT', { run: executionId, files: turnStart.conflicted.join(',').slice(0, 2_000) })
   // A checkout that cannot take the start, even seeded again, is one the agent broke: the VM goes.
@@ -130,8 +131,8 @@ const startCheckoutTurn = async ({ ports, projectId, conversationId, executionId
  */
 export const installRunTools = async ({ ports, projectId, accountId, vm, sandbox, connectorRun, timing }: Readonly<{
   ports: BuilderRunPorts
-  projectId: string
-  accountId: string
+  projectId: ProjectId
+  accountId: AccountId
   vm: RunVm
   sandbox: RunSandbox
   connectorRun: ConnectorRun | null
@@ -173,8 +174,8 @@ const settleVm = async ({ sandbox, incarnation, live: usable, ports, executionId
   incarnation: string | undefined
   live: boolean
   ports: BuilderRunPorts
-  executionId: string
-  conversationId: string
+  executionId: ExecutionId
+  conversationId: ConversationId
   endMirror(): Promise<void>
   mirror: TurnMirror | undefined
 }>): Promise<boolean> => {
@@ -201,7 +202,7 @@ const settleVm = async ({ sandbox, incarnation, live: usable, ports, executionId
   return live
 }
 
-const logged = (code: FailureCode, executionId: string) => (error: unknown): void => {
+const logged = (code: FailureCode, executionId: ExecutionId) => (error: unknown): void => {
   logFailure(logger, new Failure(code, { cause: error }), { 'builder.run_id': executionId })
 }
 
@@ -212,8 +213,8 @@ const logged = (code: FailureCode, executionId: string) => (error: unknown): voi
  */
 export const createRunVm = ({ ports, executionId, conversationId, timing, lapsed }: Readonly<{
   ports: BuilderRunPorts
-  executionId: string
-  conversationId: string
+  executionId: ExecutionId
+  conversationId: ConversationId
   timing: RunTiming
   /** E2B stopped extending the VM, so it may reap it under the run. */
   lapsed(failure: Failure): void
@@ -248,13 +249,13 @@ export const createRunVm = ({ ports, executionId, conversationId, timing, lapsed
       })
       return vm
     },
-    startTurn: async (input: Readonly<{ projectId: string; base: string; vm: RunVm; sandbox: RunSandbox; excluded: readonly string[]; mirrorFailed(error: unknown): void }>) => {
+    startTurn: async (input: Readonly<{ projectId: ProjectId; base: SourceRevision; vm: RunVm; sandbox: RunSandbox; excluded: readonly string[]; mirrorFailed(error: unknown): void }>) => {
       const turn = await startCheckoutTurn({ ...input, ports, conversationId, executionId, timing, markUnusable: () => { unusable = true } })
       mirror = turn.mirror
       return { start: turn.start, conflicted: turn.conflicted }
     },
     /** The turn-end mirror, which answers its head; none before the checkout holds the turn's start. */
-    endMirror: (candidate: string | null, pulled: string | null): Promise<string | null> => (mirror ? mirror.end(candidate, pulled) : Promise.resolve(null)),
+    endMirror: (candidate: SourceRevision | null, pulled: SourceRevision | null): Promise<SourceRevision | null> => (mirror ? mirror.end(candidate, pulled) : Promise.resolve(null)),
     letGo,
     /** Checks the VM is the same one, which also resumes a paused VM, and holds it again. */
     resume: async (): Promise<void> => {

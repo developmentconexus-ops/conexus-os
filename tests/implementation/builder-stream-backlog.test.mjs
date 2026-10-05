@@ -43,7 +43,7 @@ const flood = async (t, streamBacklog) => {
       instance.addHook('onRequest', async (request, reply) => { if (request.url.includes('/stream')) responses.push(reply.raw) })
       await registerBuilderSessionRoutes(instance, {
         mastra, controllerId: 'conexus-builder', controller, conversations: sessions,
-        admitProject: async () => true,
+        mayBuild: async () => true,
         conversationOwner: async () => 'PROJECT',
         projectBusy: async () => false,
         ...(streamBacklog ? { streamBacklog } : {}),

@@ -16,7 +16,9 @@ const { createBuilderController } = await import(built('builder/harness/controll
 const { createBuilderMemory } = await import(built('builder/memory.js'))
 const { registerBuilderSessionRoutes } = await import(built('builder/mastra-session-routes.js'))
 const { createConversations } = await import(built('builder/conversations.js'))
-const { createModelRouting, RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } = await import(built('builder/model-routing.js'))
+const { createModelRouting } = await import(built('builder/model-routing.js'))
+
+import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 
 const ana = '22222222-2222-4222-8222-222222222222'
 const runId = '44444444-4444-4444-8444-444444444444'
@@ -61,7 +63,7 @@ const probeRouting = (script = [], onObserverPrompt = () => {}, titleDelayMs = 0
     modelAccounts: { usable: async (accountId) => ({ modelAccountId: `acct-${accountId}`, kind: 'api_key', secret: 'x' }) },
     conversationModel: async () => null,
     readDefault: async (role) => role === 'memory' ? 'probe/observer' : 'probe/main',
-    record: async (builderRunId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
+    record: async (builderRunId, _accountId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
   })
   return { routing, calls, titled, recorded, offered }
 }
@@ -69,8 +71,7 @@ const probeRouting = (script = [], onObserverPrompt = () => {}, titleDelayMs = 0
 // What run/run.ts binds on every turn of a run.
 const runContext = () => {
   const requestContext = new RequestContext()
-  requestContext.setRaw(RUN_ID_KEY, runId)
-  requestContext.setRaw(RUN_ACCOUNT_ID_KEY, ana)
+  bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId: runId, accountId: ana })
   return requestContext
 }
 
@@ -157,7 +158,7 @@ test('the conversation\'s own session shows the memory a run of it stored, throu
     registerRoutes: async (instance) => {
       await registerBuilderSessionRoutes(instance, {
         mastra, controllerId: 'conexus-builder', controller, conversations: testConversations(controller, () => undefined),
-        admitProject: async () => true,
+        mayBuild: async () => true,
         conversationOwner: ({ projectId: project, conversationId: conversation }) => conversations.ownerOf(project, conversation),
         projectBusy: async () => false,
       })
@@ -174,13 +175,12 @@ test('the conversation\'s own session shows the memory a run of it stored, throu
   assert.ok(observationTokens > 0)
 })
 
-test('an Observer call outside a run has no one to pay for it and is refused before any account is used', async () => {
+test('an Observer call outside a run has no one to pay for it and is refused as a broken invariant before any account is used', async () => {
   const { routing, recorded } = probeRouting()
   const noRun = new RequestContext()
-  noRun.setRaw(RUN_ACCOUNT_ID_KEY, ana)
 
-  await assert.rejects(routing.resolveMemory(noRun), { id: 'BUILDER_MODEL_NOT_SELECTED' })
-  await assert.rejects(routing.resolveMemory(new RequestContext()), { id: 'BUILDER_MODEL_NOT_SELECTED' })
+  await assert.rejects(routing.resolveMemory(noRun), { id: 'INTERNAL_UNEXPECTED' })
+  await assert.rejects(routing.resolveMemory(new RequestContext()), { id: 'INTERNAL_UNEXPECTED' })
   assert.deepEqual(recorded, [])
 })
 
@@ -189,8 +189,8 @@ test('a run refuses to start when the installation has no memory default, and no
   const unset = createModelRouting({
     routes: {}, modelAccounts: { usable: async () => null }, conversationModel: async () => 'probe/main', readDefault: async () => null, record: async () => {},
   })
-  await assert.rejects(unset.check({ accountId: ana, projectId: 'p', conversationId: 'c' }), { id: 'BUILDER_MODEL_NOT_SELECTED' })
-  await assert.doesNotReject(routing.check({ accountId: ana, projectId: 'p', conversationId: 'c' }))
+  await assert.rejects(unset.check({ accountId: ana, projectId: '33333333-3333-4333-8333-333333333333', conversationId: '44444444-4444-4444-8444-444444444444' }), { id: 'BUILDER_MODEL_NOT_SELECTED' })
+  await assert.doesNotReject(routing.check({ accountId: ana, projectId: '33333333-3333-4333-8333-333333333333', conversationId: '44444444-4444-4444-8444-444444444444' }))
 })
 
 test('a message that follows a ninety-minute gap in a conversation is preceded by a temporal-gap marker, as in Mastra Code', async (t) => {

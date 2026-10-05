@@ -1,3 +1,4 @@
+import type { AccountId, BuilderRunId, ConversationId, ProjectId, SourceRevision } from '../../../../../packages/contract/dist/index.js'
 import type { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput, Workspace } from '@mastra/core/workspace'
 import type { ApplicationCheckRun } from '../application-artifact-runtime.js'
@@ -49,14 +50,14 @@ export type RunContextBinder = (requestContext: RequestContext) => void
 
 export type BuilderRunPorts = Readonly<{
   /** The conversation's sandbox instance, the same one for each of its runs while it lives; it starts no VM until `start()`. */
-  openSandbox(ref: Readonly<{ projectId: string; conversationId: string }>): Promise<RunSandbox>
+  openSandbox(ref: Readonly<{ projectId: ProjectId; conversationId: ConversationId }>): Promise<RunSandbox>
   /** The conversation's session, on that sandbox's workspace, for the run's steps. */
-  openSession(input: Readonly<{ projectId: string; conversationId: string; builderRunId: string; bindContext: RunContextBinder }>): Promise<RunSession>
+  openSession(input: Readonly<{ projectId: ProjectId; conversationId: ConversationId; builderRunId: BuilderRunId; bindContext: RunContextBinder }>): Promise<RunSession>
   /**
    * Refuses a run before a sandbox exists when the model it starts on has no usable account. It
    * checks that one model only: the account for each later call is looked up when the call is made.
    */
-  checkModel(input: Readonly<{ builderRunId: string; accountId: string; projectId: string; conversationId: string }>): Promise<void>
+  checkModel(input: Readonly<{ builderRunId: BuilderRunId; accountId: AccountId; projectId: ProjectId; conversationId: ConversationId }>): Promise<void>
   /** The check this Hub sends to each VM, and the identity every report must carry. */
   check: CheckBundle
   git: Pick<ConexusGit, 'startTurn' | 'seedBundle' | 'acceptSnapshot' | 'moveMirror' | 'fastForwardMain' | 'isStarter' | 'listFilesLong' | 'archive' | 'readBlob'>
@@ -64,9 +65,9 @@ export type BuilderRunPorts = Readonly<{
   mirrorDebounceMs?: number
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
   /** Opens the run's connector access; the run ends it on every exit. Absent, it adds nothing to the agent's instructions. */
-  openConnectorRun?(input: Readonly<{ projectId: string; accountId: string; builderRunId: string }>): Promise<ConnectorRun>
+  openConnectorRun?(input: Readonly<{ projectId: ProjectId; accountId: AccountId; builderRunId: BuilderRunId }>): Promise<ConnectorRun>
   /** The Project's display name, read when a turn starts. */
-  readProjectName(input: Readonly<{ accountId: string; projectId: string }>): Promise<string>
+  readProjectName(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<string>
   /** The Prévia's runner, which `conexus_run_operation` invokes the candidate's operations through. */
   invokeOperation?: CandidateOperationPorts['invoke']
   log: EventLog
@@ -82,13 +83,13 @@ export type AgentTurn = Readonly<{ reason: SendableAgentEndReason; userMessageId
 
 /** A note in the run's conversation thread, keyed by run and code so a retry writes it once. */
 export type RunNote = Readonly<{
-  projectId: string
-  conversationId: string
-  builderRunId: string
+  projectId: ProjectId
+  conversationId: ConversationId
+  builderRunId: BuilderRunId
   code: string
   outcome: 'SOURCE_BASE_MOVED' | 'RUN_NOT_FINISHED' | 'CANDIDATE_REFUSED' | 'BUILD_FAILED' | 'PLATFORM_FAILED' | 'PREVIEW_DATA_RESET' | 'BOOT_PROBLEMS'
   // `main` after the run: its base when nothing was admitted, its result when admitted.
-  sourceRevision: string
+  sourceRevision: SourceRevision
   // The Project's own diagnostic, such as the database's error for its migration.
   detail?: string
 }>

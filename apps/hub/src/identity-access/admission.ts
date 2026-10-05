@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { AccountId, BuilderRunId, ProjectId, WorkspaceId } from '../../../../packages/contract/dist/index.js'
-import { AccountId as AccountIdSchema, WorkspaceId as WorkspaceIdSchema } from '../../../../packages/contract/dist/index.js'
+import { AccountId as AccountIdSchema, ProjectId as ProjectIdSchema, WorkspaceId as WorkspaceIdSchema } from '../../../../packages/contract/dist/index.js'
+import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
 import type { AuthenticationGate, CommandGate, Digest, JobName, Mode, ReadTx, Sql, TxQueries, WriteTx } from '../platform/db.js'
 import { openGate, readOnlyView, sql } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
@@ -41,7 +42,7 @@ export const ACTION_REFUSALS = {
   'members.leave': { outsider: 'WORKSPACE_NOT_FOUND', forbidden: 'WORKSPACE_NOT_FOUND' },
   'project.create': { outsider: 'PROJECT_CREATE_DENIED', forbidden: 'PROJECT_CREATE_DENIED' },
   'project.read': { outsider: 'PROJECT_NOT_FOUND', forbidden: 'PROJECT_NOT_FOUND' },
-  'project.build': { outsider: 'PROJECT_NOT_FOUND', forbidden: 'PROJECT_NOT_FOUND' },
+  'project.build': { outsider: 'PROJECT_BUILD_DENIED', forbidden: 'PROJECT_BUILD_DENIED' },
   'connections.bind': { outsider: 'PROJECT_NOT_FOUND', forbidden: 'CONNECTOR_BINDING_MANAGE_REQUIRED' },
   'project.delete': { outsider: 'PROJECT_DELETE_DENIED', forbidden: 'PROJECT_DELETE_DENIED' },
   'connection.manage': { outsider: 'INSTALLATION_ADMINISTRATOR_REQUIRED', forbidden: 'INSTALLATION_ADMINISTRATOR_REQUIRED' },
@@ -55,7 +56,7 @@ export type Scope =
   | Readonly<{ kind: 'workspace'; accountId: AccountId; workspaceId: WorkspaceId; role: WorkspaceRole; action: WorkspaceAction; owners: readonly OwnerRow[] | null }>
   | Readonly<{ kind: 'project'; accountId: AccountId; workspaceId: WorkspaceId; projectId: ProjectId; action: ProjectAction }>
   | Readonly<{ kind: 'application'; accountId: AccountId; projectId: ProjectId; via: 'grant' | 'membership' }>
-  | Readonly<{ kind: 'run'; builderRunId: BuilderRunId; accountId: AccountId; owner: RunOwner }>
+  | Readonly<{ kind: 'run'; builderRunId: BuilderRunId; accountId: AccountId; projectId: ProjectId; owner: RunOwner; via: 'account' | 'executor' }>
   | Readonly<{ kind: 'bootstrap'; issuer: string; subject: string }>
   | Readonly<{ kind: 'system'; job: JobName }>
 
@@ -282,9 +283,46 @@ export const checkApplication = async (gate: CommandGate, projectId: ProjectId):
   return new Checked({ kind: 'application', accountId, projectId, via: access.member ? 'membership' : 'grant' }, readOnlyView(tx))
 }
 
-/** @public Frozen by spec 0015 section 3; its body is built in part 1. */
-export const admitRun = (_gate: CommandGate, _builderRunId: BuilderRunId, _owner: RunOwner): Promise<Admitted<RunScope>> =>
-  Promise.reject(new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'ADMIT_RUN_IS_BUILT_IN_PART_1' } }))
+const RunRow = z.object({ project_id: ProjectIdSchema, account_id: AccountIdSchema, owner_id: z.string().nullable() })
+const RunPlace = z.object({ project_id: ProjectIdSchema, account_id: AccountIdSchema, workspace_id: WorkspaceIdSchema.nullable() })
+
+const notAdmitted = (): Failure => new Failure('BUILDER_RUN_NOT_ADMITTED')
+
+// A run row is locked by its own id, after the Project: the purge takes the Project first, so the order never crosses.
+const lockedRun = async (tx: WriteTx, builderRunId: BuilderRunId, projectId: ProjectId, owner: RunOwner): Promise<z.output<typeof RunRow>> => {
+  await tx.maybe(ProjectWorkspace, liveProject(projectId, sql` FOR SHARE`))
+  const run = await tx.maybe(RunRow, sql`SELECT project_id, account_id, owner_id::text AS owner_id FROM builder.builder_run WHERE builder_run_id = ${builderRunId} AND state = ANY(${OPEN_RUN_STATES}::text[]) FOR UPDATE`)
+  if (!run || run.project_id !== projectId || run.owner_id !== owner.ownerId) throw notAdmitted()
+  // A tombstone that committed while the locks waited is invisible to the locked rows, so the visibility read runs again in a new statement.
+  if (!(await tx.maybe(ProjectWorkspace, liveProject(projectId, sql``)))) throw notAdmitted()
+  return run
+}
+
+/**
+ * The admission of a run the executor owns. Under a person's transaction it also requires the
+ * account's build authority; under `system('builder-executor')` the run's owner is the only proof.
+ * @public Frozen by spec 0015 section 3; parts 1, 4 and 5 admit through it.
+ */
+export const admitRun = async (gate: CommandGate, builderRunId: BuilderRunId, owner: RunOwner): Promise<Admitted<RunScope>> => {
+  const { tx, actor } = openGate(gate)
+  if (actor.kind === 'authentication' || (actor.kind === 'job' && actor.job !== 'builder-executor')) throw refusedActor()
+  const place = await tx.maybe(RunPlace, sql`
+    SELECT run.project_id, run.account_id, stored.workspace_id FROM builder.builder_run AS run
+    LEFT JOIN project.project AS stored ON stored.project_id = run.project_id
+    WHERE run.builder_run_id = ${builderRunId}`)
+  if (!place) throw notAdmitted()
+  if (actor.kind === 'job') {
+    const run = await lockedRun(tx, builderRunId, place.project_id, owner)
+    return new Proof({ kind: 'run', builderRunId, accountId: run.account_id, projectId: place.project_id, owner, via: 'executor' }, tx)
+  }
+  if (place.account_id !== actor.accountId || place.workspace_id === null) throw notAdmitted()
+  await lockActiveAccount(tx, actor.accountId)
+  const member = await memberOf(tx, actor.accountId, place.workspace_id, sql` FOR SHARE`)
+  if (!member) throw refuse(ACTION_REFUSALS['project.build'].outsider, 'OUTSIDER')
+  if (!ROLE_ALLOWS[member.role].some((allowed) => allowed === 'project.build')) throw refuse(ACTION_REFUSALS['project.build'].forbidden, 'FORBIDDEN')
+  const run = await lockedRun(tx, builderRunId, place.project_id, owner)
+  return new Proof({ kind: 'run', builderRunId, accountId: run.account_id, projectId: place.project_id, owner, via: 'account' }, tx)
+}
 
 /** @public Frozen by spec 0015 section 3; its body is built in part 6. */
 export const admitBootstrap = (_gate: AuthenticationGate, _digest: Digest): Promise<Admitted<BootstrapScope>> =>

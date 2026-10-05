@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
+import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 import { hubJsonWrite, hubWrite, opaque, testListener } from './access/test-listener.mjs'
 
 const built = hubModuleUrl
@@ -12,6 +13,7 @@ const { codexModel } = await import('./codex-model.mjs')
 const SESSION_TOKEN = opaque('ana')
 const ana = '22222222-2222-4222-8222-222222222222'
 const bia = '55555555-5555-4555-8555-555555555555'
+const RUN = { 'run-ana': '66666666-6666-4666-8666-666666666661', 'run-bia': '66666666-6666-4666-8666-666666666662', 'run-1': '66666666-6666-4666-8666-666666666663' }
 const authentic = {
   headers: hubJsonWrite,
   cookies: { '__Host-conexus_session': SESSION_TOKEN },
@@ -356,22 +358,20 @@ const routingOver = async ({ store, threadModel = null, defaults = {}, routes = 
     modelAccounts: store,
     conversationModel: async () => threadModel,
     readDefault: async (role) => defaults[role] ?? null,
-    record: async (builderRunId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
+    record: async (builderRunId, _accountId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
   })
   const call = (builderRunId, accountId, modelId) => {
     const requestContext = new RequestContext()
-    requestContext.setRaw('conexusBuilderRunId', builderRunId)
-    requestContext.setRaw('conexusBuilderAccountId', accountId)
+    bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId, accountId })
     requestContext.set('controller', { session: { modelId } })
     return routing.resolve({ requestContext })
   }
   const memoryCall = (builderRunId, accountId) => {
     const requestContext = new RequestContext()
-    requestContext.setRaw('conexusBuilderRunId', builderRunId)
-    requestContext.setRaw('conexusBuilderAccountId', accountId)
+    bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId, accountId })
     return routing.resolveMemory(requestContext)
   }
-  const check = (accountId) => routing.check({ accountId, projectId: 'project-1', conversationId: 'conversation-1' })
+  const check = (accountId) => routing.check({ accountId, projectId: '33333333-3333-4333-8333-333333333333', conversationId: RUN_CONTEXT.conversationId })
   return { call, memoryCall, check, recorded }
 }
 
@@ -381,11 +381,11 @@ test("a model call pays with the caller's own account for its model's provider, 
   await store.write(bia, 'google-ai-pro', 'google_ai_pro', 'bia-google-secret')
   const { call, check } = await routingOver({ store, threadModel: 'openai/gpt-5.6-sol', defaults: { memory: 'openai/gpt-5.6-sol' } })
 
-  assert.deepEqual(await call('run-ana', ana, 'openai/gpt-5.6-sol'), { called: 'gpt-5.6-sol', with: 'ana-secret' })
+  assert.deepEqual(await call(RUN['run-ana'], ana, 'openai/gpt-5.6-sol'), { called: 'gpt-5.6-sol', with: 'ana-secret' })
   await assert.rejects(check(bia), /BUILDER_MODEL_NOT_SELECTED/, "bia's Google account does not pay for a ChatGPT model")
-  await assert.rejects(call('run-bia', bia, 'openai/gpt-5.6-sol'), /BUILDER_MODEL_NOT_SELECTED/)
+  await assert.rejects(call(RUN['run-bia'], bia, 'openai/gpt-5.6-sol'), /BUILDER_MODEL_NOT_SELECTED/)
   share(ana, 'openai-codex')
-  assert.deepEqual(await call('run-bia', bia, 'openai/gpt-5.6-sol'), { called: 'gpt-5.6-sol', with: 'ana-secret' }, 'the shared row pays when the caller has none')
+  assert.deepEqual(await call(RUN['run-bia'], bia, 'openai/gpt-5.6-sol'), { called: 'gpt-5.6-sol', with: 'ana-secret' }, 'the shared row pays when the caller has none')
   await assert.doesNotReject(check(bia))
 })
 
@@ -393,14 +393,14 @@ test('a model for a provider the Hub cannot call is refused with the connect-a-m
   const { store } = fakeStore()
   await store.write(ana, 'openai-codex', 'oauth', 'ana-secret')
   const { call } = await routingOver({ store })
-  await assert.rejects(call('run-ana', ana, 'anthropic/claude-fable-5'), /BUILDER_MODEL_NOT_SELECTED/)
+  await assert.rejects(call(RUN['run-ana'], ana, 'anthropic/claude-fable-5'), /BUILDER_MODEL_NOT_SELECTED/)
 })
 
 test("a session with no model is refused at the call; the start check falls back to the installation's Builder default and needs its memory default", async () => {
   const { store } = fakeStore()
   await store.write(bia, 'google-ai-pro', 'google_ai_pro', 'bia-google-secret')
   const { call, check } = await routingOver({ store })
-  await assert.rejects(call('run-bia', bia, ''), /BUILDER_MODEL_NOT_SELECTED/, 'the session holds no model')
+  await assert.rejects(call(RUN['run-bia'], bia, ''), /BUILDER_MODEL_NOT_SELECTED/, 'the session holds no model')
   await assert.rejects(check(bia), /BUILDER_MODEL_NOT_SELECTED/, 'no conversation model and no installation default')
   const withBuild = await routingOver({ store, defaults: { build: 'google-ai-pro/gemini-3-flash' } })
   await assert.rejects(withBuild.check(bia), /BUILDER_MODEL_NOT_SELECTED/, 'no memory default')
@@ -414,9 +414,9 @@ test("a run's Builder calls and its memory calls each pay with their own model's
   await store.write(ana, 'google-ai-pro', 'google_ai_pro', 'ana-google-secret')
   const { call, memoryCall, recorded } = await routingOver({ store, defaults: { memory: 'google-ai-pro/gemini-3-flash' } })
 
-  assert.deepEqual(await call('run-1', ana, 'openai/gpt-5.6-sol'), { called: 'gpt-5.6-sol', with: 'ana-secret' })
-  assert.deepEqual(await memoryCall('run-1', ana), { called: 'gemini-3-flash', with: 'ana-google-secret' })
-  assert.deepEqual(recorded, [['run-1', rows.get(`${ana}:openai-codex`).id], ['run-1', rows.get(`${ana}:google-ai-pro`).id]])
+  assert.deepEqual(await call(RUN['run-1'], ana, 'openai/gpt-5.6-sol'), { called: 'gpt-5.6-sol', with: 'ana-secret' })
+  assert.deepEqual(await memoryCall(RUN['run-1'], ana), { called: 'gemini-3-flash', with: 'ana-google-secret' })
+  assert.deepEqual(recorded, [[RUN['run-1'], rows.get(`${ana}:openai-codex`).id], [RUN['run-1'], rows.get(`${ana}:google-ai-pro`).id]])
 })
 
 test('a ChatGPT token refreshed on one call is written back once, and the next call reads it from the row', async () => {
@@ -429,7 +429,7 @@ test('a ChatGPT token refreshed on one call is written back once, and the next c
     refresh: async (refreshToken) => { refreshes.push(refreshToken); return tokens('new', 10_000) },
   })
   const { call } = await routingOver({ store, routes: routesOver(holds) })
-  const answers = [await call('run-1', ana, 'openai/gpt-5.6-sol'), await call('run-1', ana, 'openai/gpt-5.6-sol')]
+  const answers = [await call(RUN['run-1'], ana, 'openai/gpt-5.6-sol'), await call(RUN['run-1'], ana, 'openai/gpt-5.6-sol')]
   assert.deepEqual(answers, [{ called: 'gpt-5.6-sol', with: 'access-new' }, { called: 'gpt-5.6-sol', with: 'access-new' }])
   assert.deepEqual(refreshes, ['refresh-old'])
   assert.deepEqual(parseCodexTokens(rows.get(`${ana}:openai-codex`).secret), tokens('new', 10_000))

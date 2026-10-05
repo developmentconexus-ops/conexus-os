@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import { z } from 'zod'
 import { hubModuleUrl } from './hub-build.mjs'
@@ -13,6 +14,12 @@ const OTHER = Object.freeze({
 })
 const Key = z.object({ key: z.string() })
 
+const seedSession = async (connection, projectId) => {
+  const conversationId = randomUUID()
+  await query(connection, 'INSERT INTO builder.conversation_session(conversation_id, project_id) VALUES ($1, $2)', [conversationId, projectId])
+  return [conversationId]
+}
+
 const seed = async (fixture) => {
   const { connection, seedProject, settleRun } = fixture
   await query(connection, `INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES
@@ -25,6 +32,10 @@ const seed = async (fixture) => {
   const tombstone = (projectId, workspaceId) => query(connection, "INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Doomed', $3)", [projectId, workspaceId, ID.administrator])
   await tombstone(doomed.a, ID.workspace)
   await tombstone(doomed.b, ID.otherWorkspace)
+  const sessions = {
+    a: await seedSession(connection, projects.a),
+    b: await seedSession(connection, projects.b),
+  }
   const connections = { a: '33333333-3333-4333-8333-0000000000a1', b: '33333333-3333-4333-8333-0000000000b1' }
   const sealed = 'mastra:factory-secret:v1:seed'
   const digest = 'd'.repeat(64)
@@ -41,6 +52,7 @@ const seed = async (fixture) => {
     'project.project_deletion': { a: [doomed.a], b: [doomed.b] },
     'builder.builder_run': { a: await runs(projects.a), b: await runs(projects.b) },
     'builder.project_working_state': { a: [projects.a], b: [projects.b] },
+    'builder.conversation_session': sessions,
     'iam.workspace_membership': memberKeys,
     'iam.account': memberKeys,
     'connector.connection': { a: [connections.a], b: [connections.b] },
@@ -57,6 +69,7 @@ const KEY_COLUMN = {
   'project.project_deletion': 'project_id',
   'builder.builder_run': 'builder_run_id',
   'builder.project_working_state': 'project_id',
+  'builder.conversation_session': 'conversation_id',
   'iam.workspace_membership': 'account_id',
   'iam.account': 'account_id',
   'connector.connection': 'connection_id',

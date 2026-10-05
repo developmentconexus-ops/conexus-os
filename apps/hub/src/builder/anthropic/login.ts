@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { completeAnthropicLogin, startAnthropicLogin } from '@mastra/code-sdk/auth/providers/anthropic'
 import type { ClaudeTokens } from './credential.js'
+import type { AccountId } from '../../../../../packages/contract/dist/index.js'
 
 export type ClaudeLoginState = 'succeeded' | 'failed' | 'expired'
 
@@ -10,7 +11,7 @@ export type ClaudeAuthorization = Readonly<{
   complete(pasted: string, verifier: string): Promise<ClaudeTokens>
 }>
 
-type Caller = Readonly<{ accountId: string }>
+type Caller = Readonly<{ accountId: AccountId }>
 type Attempt<C extends Caller> = {
   readonly caller: C
   readonly verifier: string

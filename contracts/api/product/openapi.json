@@ -466,340 +466,6 @@
         }
       }
     },
-    "/api/control/projects/{projectId}/source/tree": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/ProjectId-2"
-        }
-      ],
-      "get": {
-        "summary": "ListProjectSourceTree",
-        "operationId": "ListProjectSourceTree",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SourceRevision"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Read-only Project source tree for the exact requested source revision.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SourceTree"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem404"
-          }
-        }
-      }
-    },
-    "/api/control/projects/{projectId}/source/file": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/ProjectId-2"
-        }
-      ],
-      "get": {
-        "summary": "GetProjectSourceFile",
-        "operationId": "GetProjectSourceFile",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/SourceRevision"
-          },
-          {
-            "name": "path",
-            "in": "query",
-            "required": true,
-            "description": "Exact Project-Git source path under requested immutable source revision.",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Read-only exact source-file content projection.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SourceFile"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem404"
-          }
-        }
-      }
-    },
-    "/api/control/projects/{projectId}/source/compare": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/ProjectId-2"
-        }
-      ],
-      "get": {
-        "summary": "CompareProjectSourceRevisions",
-        "operationId": "CompareProjectSourceRevisions",
-        "parameters": [
-          {
-            "name": "baseSourceRevision",
-            "in": "query",
-            "required": true,
-            "description": "Exact immutable Project-Git source revision the comparison starts from.",
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{40}$"
-            }
-          },
-          {
-            "name": "resultSourceRevision",
-            "in": "query",
-            "required": true,
-            "description": "Exact immutable Project-Git source revision the comparison ends at.",
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{40}$"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Changed paths between two admitted source revisions; file content is read separately via GetProjectSourceFile.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SourceComparison"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem404"
-          }
-        }
-      }
-    },
-    "/api/control/projects/{projectId}/builder-session": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/ProjectId-2"
-        }
-      ],
-      "get": {
-        "summary": "GetBuilderSession",
-        "operationId": "GetBuilderSession",
-        "responses": {
-          "200": {
-            "description": "Persisted Mastra Project conversation with the latest BuilderRun and last-good Preview summaries.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BuilderSession"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem404"
-          }
-        }
-      }
-    },
-    "/api/control/projects/{projectId}/builder-session/messages": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/ProjectId-2"
-        }
-      ],
-      "post": {
-        "summary": "SendBuilderMessage",
-        "operationId": "SendBuilderMessage",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/IdempotencyKey"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SendBuilderMessageRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The run waiting on the person's answer took the message, which ends its open question; the same run goes on.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BuilderMessageAccepted"
-                }
-              }
-            }
-          },
-          "201": {
-            "description": "One BuilderRun admitted against the server-resolved current Project source and Mastra Thread.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BuilderMessageAccepted"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem404"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem409"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem422"
-          },
-          "503": {
-            "$ref": "#/components/responses/Problem503"
-          }
-        }
-      }
-    },
-    "/api/control/projects/{projectId}/builder-session/runs/{builderRunId}/cancel": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/ProjectId-2"
-        },
-        {
-          "name": "builderRunId",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "format": "uuid"
-          }
-        }
-      ],
-      "post": {
-        "summary": "CancelBuilderRun",
-        "operationId": "CancelBuilderRun",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EmptyRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Idempotent authorized interruption request and current BuilderRun projection.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BuilderMessageAccepted"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem404"
-          },
-          "503": {
-            "$ref": "#/components/responses/Problem503"
-          }
-        }
-      }
-    },
-    "/api/control/projects/{projectId}/builder-session/runs/{builderRunId}/trace": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/ProjectId-2"
-        },
-        {
-          "name": "builderRunId",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "format": "uuid"
-          }
-        }
-      ],
-      "get": {
-        "summary": "GetBuilderRunTrace",
-        "operationId": "GetBuilderRunTrace",
-        "responses": {
-          "200": {
-            "description": "Authorized safe native trace projection for one BuilderRun.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BuilderTraceSummary"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem404"
-          },
-          "503": {
-            "$ref": "#/components/responses/Problem503"
-          }
-        }
-      }
-    },
     "/api/control/workspaces": {
       "post": {
         "operationId": "WS-01",
@@ -3262,6 +2928,1528 @@
           }
         }
       }
+    },
+    "/api/control/projects/{projectId}/source/tree": {
+      "get": {
+        "operationId": "BLD-08",
+        "summary": "BLD-08",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "sourceRevision",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceRevision"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceTree"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "SOURCE_REVISION_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED",
+                            "BUILDER_SOURCE_READ_REFUSED",
+                            "BUILDER_SOURCE_READ_TREE_TOO_LARGE",
+                            "BUILDER_SOURCE_READ_UNSAFE_ENTRY"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "BUILDER_SOURCE_UNAVAILABLE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/source/file": {
+      "get": {
+        "operationId": "BLD-09",
+        "summary": "BLD-09",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "sourceRevision",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceRevision"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceFile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "SOURCE_REVISION_NOT_FOUND",
+                            "SOURCE_FILE_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "BUILDER_SOURCE_UNAVAILABLE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/builder-session": {
+      "get": {
+        "operationId": "BLD-23",
+        "summary": "BLD-23",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuilderSession"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "PROJECT_BUILD_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "BUILDER_SESSION_UNAVAILABLE",
+                            "BUILDER_SOURCE_UNAVAILABLE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/builder-session/messages": {
+      "post": {
+        "operationId": "BLD-24",
+        "summary": "BLD-24",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/IdempotencyKey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20000,
+                    "pattern": "\\S"
+                  },
+                  "conversationId": {
+                    "$ref": "#/components/schemas/ConversationId"
+                  }
+                },
+                "required": [
+                  "content",
+                  "conversationId"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuilderMessageAccepted"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Success 201",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuilderMessageAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED",
+                            "IDEMPOTENCY_KEY_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "PROJECT_BUILD_DENIED",
+                            "ACCOUNT_INACTIVE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "CONVERSATION_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_CONFLICT",
+                            "BUILDER_BUSY",
+                            "PROJECT_BUSY"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "BUILDER_MESSAGE_REFUSED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED",
+                            "BUILDER_RUN_CREATE_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "BUILDER_CAPACITY_FULL",
+                            "BUILDER_SOURCE_UNAVAILABLE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/builder-session/runs/{builderRunId}/cancel": {
+      "post": {
+        "operationId": "BLD-25",
+        "summary": "BLD-25",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "builderRunId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/BuilderRunId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuilderMessageAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "PROJECT_BUILD_DENIED",
+                            "ACCOUNT_INACTIVE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "BUILDER_RUN_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/builder-session/runs/{builderRunId}/trace": {
+      "get": {
+        "operationId": "BLD-26",
+        "summary": "BLD-26",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "builderRunId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/BuilderRunId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuilderTraceSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "PROJECT_BUILD_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "BUILDER_RUN_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "BUILDER_TRACE_UNAVAILABLE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/source/compare": {
+      "get": {
+        "operationId": "BLD-29",
+        "summary": "BLD-29",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "baseSourceRevision",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceRevision"
+            }
+          },
+          {
+            "name": "resultSourceRevision",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceRevision"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceComparison"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "SOURCE_REVISION_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED",
+                            "BUILDER_SOURCE_READ_REFUSED",
+                            "BUILDER_SOURCE_READ_TREE_TOO_LARGE",
+                            "BUILDER_SOURCE_READ_UNSAFE_ENTRY"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "BUILDER_SOURCE_UNAVAILABLE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/builder-session/preview": {
+      "post": {
+        "operationId": "BLD-30",
+        "summary": "BLD-30",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success 201",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewLaunch"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "PROJECT_BUILD_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "PREVIEW_SUBJECT_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "PREVIEW_UNAVAILABLE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3572,677 +4760,6 @@
                   "$ref": "#/components/schemas/ApplicationInvitationEntry"
                 }
               ]
-            }
-          }
-        }
-      },
-      "SourceTreeEntry": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "path",
-          "kind"
-        ],
-        "properties": {
-          "path": {
-            "type": "string",
-            "minLength": 1
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "FILE",
-              "DIRECTORY"
-            ]
-          }
-        }
-      },
-      "SourceTree": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "sourceRevision",
-          "entries"
-        ],
-        "properties": {
-          "sourceRevision": {
-            "type": "string",
-            "minLength": 1
-          },
-          "entries": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SourceTreeEntry"
-            }
-          }
-        }
-      },
-      "SourceFile": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "sourceRevision",
-          "path",
-          "content"
-        ],
-        "properties": {
-          "sourceRevision": {
-            "type": "string",
-            "minLength": 1
-          },
-          "path": {
-            "type": "string",
-            "minLength": 1
-          },
-          "content": {
-            "type": "string"
-          }
-        }
-      },
-      "SourceChange": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "path",
-          "status",
-          "previousPath"
-        ],
-        "properties": {
-          "path": {
-            "type": "string",
-            "minLength": 1
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "ADDED",
-              "REMOVED",
-              "MODIFIED",
-              "RENAMED"
-            ]
-          },
-          "previousPath": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1
-          }
-        }
-      },
-      "SourceComparison": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "baseSourceRevision",
-          "resultSourceRevision",
-          "files"
-        ],
-        "properties": {
-          "baseSourceRevision": {
-            "type": "string",
-            "minLength": 1
-          },
-          "resultSourceRevision": {
-            "type": "string",
-            "minLength": 1
-          },
-          "files": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SourceChange"
-            }
-          }
-        }
-      },
-      "BuilderRunView": {
-        "description": "The run as the browser reads it. pendingCalls are the calls the run's live session waits on while the run waits on the person; a Hub with no live run for it serves none.",
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "builderRunId",
-          "projectId",
-          "conversationId",
-          "state",
-          "phase",
-          "baseSourceRevision",
-          "requestText",
-          "createdAt",
-          "cancellationRequested",
-          "pendingCalls"
-        ],
-        "properties": {
-          "builderRunId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "projectId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "conversationId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 200
-          },
-          "state": {
-            "type": "string",
-            "enum": [
-              "QUEUED",
-              "RUNNING",
-              "SUCCEEDED",
-              "FAILED",
-              "INTERRUPTED"
-            ]
-          },
-          "phase": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "PREPARING",
-              "AGENT",
-              "WAITING",
-              "SOURCE_ADMISSION",
-              "COMPILING",
-              "FINALIZING",
-              null
-            ]
-          },
-          "baseSourceRevision": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{40}$"
-          },
-          "resultSourceRevision": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "pattern": "^[0-9a-f]{40}$"
-          },
-          "resultKind": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "RESPONSE_ONLY",
-              "SOURCE_CHANGED",
-              "SOURCE_CHANGED_BUILD_FAILED",
-              null
-            ]
-          },
-          "failureCode": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "requestText": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 20000
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "cancellationRequested": {
-            "type": "boolean"
-          },
-          "pendingCalls": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            }
-          }
-        }
-      },
-      "LatestCodeChangingBuilderRun": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "baseSourceRevision",
-          "resultSourceRevision",
-          "resultKind"
-        ],
-        "properties": {
-          "baseSourceRevision": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{40}$"
-          },
-          "resultSourceRevision": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{40}$"
-          },
-          "resultKind": {
-            "type": "string",
-            "enum": [
-              "SOURCE_CHANGED",
-              "SOURCE_CHANGED_BUILD_FAILED"
-            ]
-          }
-        }
-      },
-      "BuilderPreviewSummary": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "workingSourceRevision",
-          "lastGoodSourceRevision",
-          "lastGoodArtifactRevisionId",
-          "lastGoodArtifactDigest"
-        ],
-        "properties": {
-          "workingSourceRevision": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "pattern": "^[0-9a-f]{40}$"
-          },
-          "lastGoodSourceRevision": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "pattern": "^[0-9a-f]{40}$"
-          },
-          "lastGoodArtifactRevisionId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "lastGoodArtifactDigest": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "pattern": "^[0-9a-f]{64}$"
-          }
-        }
-      },
-      "BuilderRunSummary": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "builderRunId",
-          "projectId",
-          "conversationId",
-          "state",
-          "phase",
-          "baseSourceRevision",
-          "requestText",
-          "createdAt",
-          "cancellationRequested"
-        ],
-        "properties": {
-          "builderRunId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "projectId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "conversationId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 200
-          },
-          "state": {
-            "type": "string",
-            "enum": [
-              "QUEUED",
-              "RUNNING",
-              "SUCCEEDED",
-              "FAILED",
-              "INTERRUPTED"
-            ]
-          },
-          "phase": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "PREPARING",
-              "AGENT",
-              "WAITING",
-              "SOURCE_ADMISSION",
-              "COMPILING",
-              "FINALIZING",
-              null
-            ]
-          },
-          "baseSourceRevision": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{40}$"
-          },
-          "resultSourceRevision": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "pattern": "^[0-9a-f]{40}$"
-          },
-          "resultKind": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "RESPONSE_ONLY",
-              "SOURCE_CHANGED",
-              "SOURCE_CHANGED_BUILD_FAILED",
-              null
-            ]
-          },
-          "failureCode": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "requestText": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 20000
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "cancellationRequested": {
-            "type": "boolean"
-          }
-        }
-      },
-      "BuilderSession": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "projectId",
-          "latestBuilderRun",
-          "latestCodeChangingRun",
-          "preview",
-          "runHistory"
-        ],
-        "properties": {
-          "projectId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "latestBuilderRun": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/BuilderRunView"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "latestCodeChangingRun": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/LatestCodeChangingBuilderRun"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "preview": {
-            "$ref": "#/components/schemas/BuilderPreviewSummary"
-          },
-          "runHistory": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/BuilderRunSummary"
-            }
-          }
-        }
-      },
-      "SendBuilderMessageRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "content",
-          "conversationId"
-        ],
-        "properties": {
-          "content": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 20000,
-            "pattern": ".*\\S.*"
-          },
-          "conversationId": {
-            "description": "Which of the Project's conversations this message belongs to.",
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 200
-          }
-        }
-      },
-      "BuilderMessageAccepted": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "builderRun"
-        ],
-        "properties": {
-          "builderRun": {
-            "$ref": "#/components/schemas/BuilderRunSummary"
-          }
-        }
-      },
-      "EmptyRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": []
-      },
-      "BuilderTraceUsage": {
-        "description": "Token usage rolled up from native model-generation spans. Absent means unavailable, never zero.",
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "inputTokens",
-          "outputTokens",
-          "totalTokens"
-        ],
-        "properties": {
-          "inputTokens": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "minimum": 0
-          },
-          "outputTokens": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "minimum": 0
-          },
-          "totalTokens": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "minimum": 0
-          },
-          "inputDetails": {
-            "description": "Mastra's InputTokenDetails, present only where the provider reported a breakdown (cache reads and writes, audio, image).",
-            "type": "object",
-            "additionalProperties": {
-              "type": "integer",
-              "minimum": 0
-            }
-          },
-          "outputDetails": {
-            "description": "Mastra's OutputTokenDetails, present only where the provider reported a breakdown (reasoning, text, audio, image).",
-            "type": "object",
-            "additionalProperties": {
-              "type": "integer",
-              "minimum": 0
-            }
-          }
-        }
-      },
-      "BuilderTraceSpan": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "spanId",
-          "parentSpanId",
-          "spanType",
-          "name",
-          "startedAt",
-          "durationMs",
-          "error",
-          "model",
-          "usage"
-        ],
-        "properties": {
-          "spanId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "parentSpanId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1
-          },
-          "spanType": {
-            "type": "string",
-            "minLength": 1
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1
-          },
-          "startedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "durationMs": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "minimum": 0
-          },
-          "error": {
-            "type": "boolean"
-          },
-          "model": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1
-          },
-          "usage": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/BuilderTraceUsage"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        }
-      },
-      "BuilderTraceScore": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "scorer",
-          "score",
-          "reason"
-        ],
-        "properties": {
-          "scorer": {
-            "type": "string",
-            "minLength": 1
-          },
-          "score": {
-            "type": "number"
-          },
-          "reason": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      },
-      "BuilderTraceSummary": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "available",
-          "traceId",
-          "spans",
-          "usage",
-          "modelCalls",
-          "toolCalls",
-          "scores"
-        ],
-        "properties": {
-          "available": {
-            "type": "boolean"
-          },
-          "traceId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1
-          },
-          "spans": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/BuilderTraceSpan"
-            }
-          },
-          "usage": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/BuilderTraceUsage"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "modelCalls": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "toolCalls": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "scores": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/BuilderTraceScore"
             }
           }
         }
@@ -4744,6 +5261,1652 @@
           "label"
         ],
         "additionalProperties": false
+      },
+      "SourceTree": {
+        "type": "object",
+        "properties": {
+          "sourceRevision": {
+            "$ref": "#/components/schemas/SourceRevision"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "FILE",
+                    "DIRECTORY"
+                  ]
+                }
+              },
+              "required": [
+                "path",
+                "kind"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "sourceRevision",
+          "entries"
+        ],
+        "additionalProperties": false
+      },
+      "SourceRevision": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{40}$"
+      },
+      "SourceFile": {
+        "type": "object",
+        "properties": {
+          "sourceRevision": {
+            "$ref": "#/components/schemas/SourceRevision"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sourceRevision",
+          "path",
+          "content"
+        ],
+        "additionalProperties": false
+      },
+      "BuilderSession": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "$ref": "#/components/schemas/ProjectId"
+          },
+          "latestBuilderRun": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BuilderRunView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latestCodeChangingRun": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatestCodeChangingBuilderRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preview": {
+            "$ref": "#/components/schemas/BuilderPreviewSummary"
+          },
+          "runHistory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BuilderRunSummary"
+            }
+          }
+        },
+        "required": [
+          "projectId",
+          "latestBuilderRun",
+          "latestCodeChangingRun",
+          "preview",
+          "runHistory"
+        ],
+        "additionalProperties": false
+      },
+      "BuilderRunView": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "builderRunId": {
+                "$ref": "#/components/schemas/BuilderRunId"
+              },
+              "projectId": {
+                "$ref": "#/components/schemas/ProjectId"
+              },
+              "conversationId": {
+                "$ref": "#/components/schemas/ConversationId"
+              },
+              "baseSourceRevision": {
+                "$ref": "#/components/schemas/SourceRevision"
+              },
+              "requestText": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "cancellationRequested": {
+                "type": "boolean"
+              },
+              "pendingCalls": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "state": {
+                "type": "string",
+                "const": "QUEUED"
+              },
+              "phase": {
+                "type": "null"
+              },
+              "resultSourceRevision": {
+                "type": "null"
+              },
+              "resultKind": {
+                "type": "null"
+              },
+              "failureCode": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "builderRunId",
+              "projectId",
+              "conversationId",
+              "baseSourceRevision",
+              "requestText",
+              "createdAt",
+              "cancellationRequested",
+              "pendingCalls",
+              "state",
+              "phase",
+              "resultSourceRevision",
+              "resultKind",
+              "failureCode"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "builderRunId": {
+                "$ref": "#/components/schemas/BuilderRunId"
+              },
+              "projectId": {
+                "$ref": "#/components/schemas/ProjectId"
+              },
+              "conversationId": {
+                "$ref": "#/components/schemas/ConversationId"
+              },
+              "baseSourceRevision": {
+                "$ref": "#/components/schemas/SourceRevision"
+              },
+              "requestText": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "cancellationRequested": {
+                "type": "boolean"
+              },
+              "pendingCalls": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "state": {
+                "type": "string",
+                "const": "RUNNING"
+              },
+              "phase": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "PREPARING",
+                      "AGENT",
+                      "WAITING",
+                      "SOURCE_ADMISSION",
+                      "COMPILING",
+                      "FINALIZING"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "resultSourceRevision": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SourceRevision"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "resultKind": {
+                "type": "null"
+              },
+              "failureCode": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "builderRunId",
+              "projectId",
+              "conversationId",
+              "baseSourceRevision",
+              "requestText",
+              "createdAt",
+              "cancellationRequested",
+              "pendingCalls",
+              "state",
+              "phase",
+              "resultSourceRevision",
+              "resultKind",
+              "failureCode"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "builderRunId": {
+                "$ref": "#/components/schemas/BuilderRunId"
+              },
+              "projectId": {
+                "$ref": "#/components/schemas/ProjectId"
+              },
+              "conversationId": {
+                "$ref": "#/components/schemas/ConversationId"
+              },
+              "baseSourceRevision": {
+                "$ref": "#/components/schemas/SourceRevision"
+              },
+              "requestText": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "cancellationRequested": {
+                "type": "boolean"
+              },
+              "pendingCalls": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "state": {
+                "type": "string",
+                "const": "SUCCEEDED"
+              },
+              "phase": {
+                "type": "null"
+              },
+              "resultSourceRevision": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SourceRevision"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "resultKind": {
+                "type": "string",
+                "enum": [
+                  "RESPONSE_ONLY",
+                  "SOURCE_CHANGED"
+                ]
+              },
+              "failureCode": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "builderRunId",
+              "projectId",
+              "conversationId",
+              "baseSourceRevision",
+              "requestText",
+              "createdAt",
+              "cancellationRequested",
+              "pendingCalls",
+              "state",
+              "phase",
+              "resultSourceRevision",
+              "resultKind",
+              "failureCode"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "builderRunId": {
+                "$ref": "#/components/schemas/BuilderRunId"
+              },
+              "projectId": {
+                "$ref": "#/components/schemas/ProjectId"
+              },
+              "conversationId": {
+                "$ref": "#/components/schemas/ConversationId"
+              },
+              "baseSourceRevision": {
+                "$ref": "#/components/schemas/SourceRevision"
+              },
+              "requestText": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "cancellationRequested": {
+                "type": "boolean"
+              },
+              "pendingCalls": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "state": {
+                "type": "string",
+                "const": "FAILED"
+              },
+              "phase": {
+                "type": "null"
+              },
+              "resultSourceRevision": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SourceRevision"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "resultKind": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "SOURCE_CHANGED_BUILD_FAILED"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "failureCode": {
+                "$ref": "#/components/schemas/FailureCode"
+              }
+            },
+            "required": [
+              "builderRunId",
+              "projectId",
+              "conversationId",
+              "baseSourceRevision",
+              "requestText",
+              "createdAt",
+              "cancellationRequested",
+              "pendingCalls",
+              "state",
+              "phase",
+              "resultSourceRevision",
+              "resultKind",
+              "failureCode"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "builderRunId": {
+                "$ref": "#/components/schemas/BuilderRunId"
+              },
+              "projectId": {
+                "$ref": "#/components/schemas/ProjectId"
+              },
+              "conversationId": {
+                "$ref": "#/components/schemas/ConversationId"
+              },
+              "baseSourceRevision": {
+                "$ref": "#/components/schemas/SourceRevision"
+              },
+              "requestText": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "cancellationRequested": {
+                "type": "boolean"
+              },
+              "pendingCalls": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "state": {
+                "type": "string",
+                "const": "INTERRUPTED"
+              },
+              "phase": {
+                "type": "null"
+              },
+              "resultSourceRevision": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SourceRevision"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "resultKind": {
+                "type": "null"
+              },
+              "failureCode": {
+                "$ref": "#/components/schemas/FailureCode"
+              }
+            },
+            "required": [
+              "builderRunId",
+              "projectId",
+              "conversationId",
+              "baseSourceRevision",
+              "requestText",
+              "createdAt",
+              "cancellationRequested",
+              "pendingCalls",
+              "state",
+              "phase",
+              "resultSourceRevision",
+              "resultKind",
+              "failureCode"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "BuilderRunId": {
+        "type": "string",
+        "format": "uuid",
+        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+      },
+      "ConversationId": {
+        "type": "string",
+        "format": "uuid",
+        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+      },
+      "FailureCode": {
+        "type": "string",
+        "enum": [
+          "INTERNAL_UNEXPECTED",
+          "NOT_FOUND",
+          "REQUEST_VALIDATION_FAILED",
+          "REQUEST_JSON_INVALID",
+          "REQUEST_BODY_TOO_LARGE",
+          "REQUEST_MEDIA_TYPE_UNSUPPORTED",
+          "AUTHENTICATION_REQUIRED",
+          "REQUEST_AUTHENTICITY_DENIED",
+          "IDEMPOTENCY_KEY_REQUIRED",
+          "IDEMPOTENCY_CONFLICT",
+          "OUTCOME_UNKNOWN",
+          "DATABASE_BUSY",
+          "IDENTITY_PROVIDER_UNAVAILABLE",
+          "BOOTSTRAP_REQUIRED",
+          "BOOTSTRAP_SEALED",
+          "IDENTITY_NOT_ELIGIBLE",
+          "ACCOUNT_CONFLICT",
+          "ACCOUNT_INACTIVE",
+          "OIDC_IDENTITY_MISSING",
+          "WORKSPACE_NOT_FOUND",
+          "PROJECT_NOT_FOUND",
+          "PROJECT_CREATE_DENIED",
+          "PROJECT_SOURCE_REFUSED",
+          "PROJECT_REPOSITORY_UNAVAILABLE",
+          "PROJECT_DELETE_DENIED",
+          "PROJECT_NAME_MISMATCH",
+          "PROJECT_BUSY",
+          "PROJECT_DELETION_INCOMPLETE",
+          "PROJECT_SUMMARIES_UNAVAILABLE",
+          "PROJECT_THUMBNAIL_NOT_FOUND",
+          "PROJECT_THUMBNAIL_UNAVAILABLE",
+          "BUILDER_SESSION_UNAVAILABLE",
+          "PROJECT_BUILD_DENIED",
+          "CONVERSATION_NOT_FOUND",
+          "BUILDER_CAPACITY_FULL",
+          "BUILDER_MESSAGE_REFUSED",
+          "BUILDER_UNAVAILABLE",
+          "BUILDER_RUN_NOT_FOUND",
+          "BUILDER_TRACE_UNAVAILABLE",
+          "PREVIEW_UNAVAILABLE",
+          "PREVIEW_SUBJECT_NOT_FOUND",
+          "PREVIEW_FORM_REFUSED",
+          "SOURCE_REVISION_NOT_FOUND",
+          "SOURCE_FILE_NOT_FOUND",
+          "BUILDER_SOURCE_UNAVAILABLE",
+          "REQUEST_CONTEXT_REFUSED",
+          "TOOL_ANSWER_REFUSED",
+          "SESSION_STATE_REFUSED",
+          "BUILDER_SESSION_NOT_FOUND",
+          "CONVERSATION_SESSION_REFUSED",
+          "CONVERSATION_CONFLICT",
+          "BUILDER_BUSY",
+          "BUILDER_RUN_STOP_REFUSED",
+          "TOOL_ANSWER_ALREADY_GIVEN",
+          "QUESTION_ENDED",
+          "APPLICATION_ACCESS_MANAGE_REQUIRED",
+          "INVITATION_NOT_ACCEPTABLE",
+          "APPLICATION_ACCESS_ENTRY_NOT_FOUND",
+          "MEMBERS_MANAGE_REQUIRED",
+          "ROLE_NOT_ACCEPTABLE",
+          "LAST_OWNER",
+          "ROSTER_ENTRY_NOT_FOUND",
+          "INSTALLATION_ADMINISTRATOR_REQUIRED",
+          "INSTALLATION_ADMINISTRATOR_EMAIL_INVALID",
+          "ACCOUNT_NOT_FOUND",
+          "ACCOUNT_EMAIL_AMBIGUOUS",
+          "LAST_INSTALLATION_ADMINISTRATOR",
+          "CONNECTOR_CONNECTION_NOT_AVAILABLE",
+          "CONNECTOR_BINDING_CONFLICT",
+          "CONNECTOR_BINDING_MANAGE_REQUIRED",
+          "CONNECTOR_WORKSPACE_NOT_FOUND",
+          "CONNECTOR_LABEL_REFUSED",
+          "CONNECTOR_CREDENTIAL_REFUSED",
+          "CONNECTOR_CONNECTION_CONFLICT",
+          "CONNECTOR_CONNECTION_NOT_FOUND",
+          "CONNECTOR_BINDING_NOT_FOUND",
+          "MODEL_ACCOUNT_PROVIDER_UNKNOWN",
+          "MODEL_ACCOUNT_KEY_REFUSED",
+          "MODEL_LOGIN_UNAVAILABLE",
+          "MODEL_LOGIN_BUSY",
+          "MODEL_LOGIN_CALLBACK_REFUSED",
+          "HUB_UNREACHABLE",
+          "HUB_RESPONSE_UNREADABLE",
+          "ANTHROPIC_STORED_RECORD_REFUSED",
+          "APPLICATION_ARTIFACT_INPUT_REFUSED",
+          "APPLICATION_ARTIFACT_RESPONSE_REFUSED",
+          "APPLICATION_ARTIFACT_RESPONSE_SCOPE_REFUSED",
+          "APPLICATION_CHECK_REPORT_UNREADABLE",
+          "APPLICATION_CHECK_TIMEOUT",
+          "APPLICATION_CHECK_UNREADABLE",
+          "APPLICATION_COMPILER_OUTPUT_ENTRYPOINT_REFUSED",
+          "APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED",
+          "APPLICATION_COMPILER_OUTPUT_MEDIA_TYPE_REFUSED",
+          "APPLICATION_COMPILER_OUTPUT_PATH_REFUSED",
+          "APPLICATION_COMPILER_OUTPUT_SIZE_REFUSED",
+          "APPLICATION_COMPILER_WORKSPACE_REFUSED",
+          "APPLICATION_ENTRYPOINT_REFUSED",
+          "APPLICATION_FILE_COUNT_REFUSED",
+          "APPLICATION_FILE_DUPLICATE_REFUSED",
+          "APPLICATION_FILE_ENCODING_REFUSED",
+          "APPLICATION_FILE_HASH_REFUSED",
+          "APPLICATION_FILE_ORDER_REFUSED",
+          "APPLICATION_FILE_PATH_REFUSED",
+          "APPLICATION_FILE_SHAPE_REFUSED",
+          "APPLICATION_FILE_SIZE_REFUSED",
+          "APPLICATION_MEDIA_TYPE_REFUSED",
+          "APPLICATION_MIGRATION_FAILED",
+          "APPLICATION_MIGRATION_HISTORY_DIVERGED",
+          "APPLICATION_PAYLOAD_PIN_REFUSED",
+          "APPLICATION_PAYLOAD_REFUSED",
+          "APPLICATION_RUNNER_UNAVAILABLE",
+          "APPLICATION_SERVER_REFUSED",
+          "APPLICATION_SMOKE_FAILED",
+          "APPLICATION_TOTAL_SIZE_REFUSED",
+          "BOOT_BROWSER_UNAVAILABLE",
+          "BUILDER_AGENT_COMPLETION_UNAVAILABLE",
+          "BUILDER_AGENT_PLATFORM_FAILED",
+          "BUILDER_AGENT_STALLED",
+          "BUILDER_AGENT_TRIPWIRE",
+          "BUILDER_APPLICATION_CLOSED",
+          "BUILDER_APPLICATION_REQUEST_REFUSED",
+          "BUILDER_APPLICATION_RESULT_SCOPE_REFUSED",
+          "BUILDER_APPLICATION_SOURCE_REFUSED",
+          "BUILDER_APP_NOT_FIXED",
+          "BUILDER_CANDIDATE_UNPACK_FAILED",
+          "BUILDER_CHECK_FAILED",
+          "BUILDER_CHECK_IDENTITY_MISMATCH",
+          "BUILDER_CHECK_INSTALL_REFUSED",
+          "BUILDER_CONVERSATIONS_UNAVAILABLE",
+          "BUILDER_GATEWAY_MODEL_REFUSED",
+          "BUILDER_LATE_RESULT_REFUSED",
+          "BUILDER_MESSAGE_ID_UNAVAILABLE",
+          "BUILDER_MODEL_AUTH_FAILED",
+          "BUILDER_MODEL_CONTENT_FILTERED",
+          "BUILDER_MODEL_CONTEXT_LENGTH",
+          "BUILDER_MODEL_INCOMPLETE",
+          "BUILDER_MODEL_NOT_SELECTED",
+          "BUILDER_MODEL_RATE_LIMITED",
+          "BUILDER_MODEL_STEP_TIMEOUT",
+          "BUILDER_MODEL_STREAM_FAILED",
+          "BUILDER_PREVIEW_NOT_BUILT",
+          "BUILDER_RESULT_BUNDLE_TOO_LARGE",
+          "BUILDER_RESULT_CONTENT_TOO_LARGE",
+          "BUILDER_RESULT_MATERIALIZATION_REFUSED",
+          "BUILDER_RUNTIME_INPUT_REFUSED",
+          "BUILDER_RUNTIME_RESULT_SCOPE_REFUSED",
+          "BUILDER_RUN_CANCELLED",
+          "BUILDER_CONVERSATION_SESSION_REFUSED",
+          "BUILDER_RUN_CREATE_FAILED",
+          "BUILDER_RUN_INPUT_REFUSED",
+          "BUILDER_RUN_NOT_ADMITTED",
+          "BUILDER_RUN_TRANSITION_REFUSED",
+          "BUILDER_RUN_PHASE_UPDATE_REFUSED",
+          "BUILDER_SANDBOX_AGENT_USER_REQUIRED",
+          "BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED",
+          "BUILDER_SANDBOX_EGRESS_COLLECT_TIMEOUT",
+          "BUILDER_SANDBOX_EGRESS_POLL_FAILED",
+          "BUILDER_SANDBOX_EGRESS_START_FAILED",
+          "BUILDER_SANDBOX_FILE_REFUSED",
+          "BUILDER_SANDBOX_ID_UNAVAILABLE",
+          "BUILDER_SANDBOX_INCARNATION_CHANGED",
+          "BUILDER_SANDBOX_KEEPALIVE_FAILED",
+          "BUILDER_SESSION_DELETE_FAILED",
+          "BUILDER_SOURCE_BASE_MOVED",
+          "BUILDER_SOURCE_BASE_PIN_REFUSED",
+          "BUILDER_SOURCE_READ_REFUSED",
+          "BUILDER_SOURCE_READ_TREE_TOO_LARGE",
+          "BUILDER_SOURCE_READ_UNSAFE_ENTRY",
+          "BUILDER_STARTER_ENTRY_INSPECTION_FAILED",
+          "BUILDER_STARTER_ENTRY_UNSAFE",
+          "BUILDER_STARTER_ROOT_REFUSED",
+          "CONEXUS_APP_ROOT_MISSING",
+          "CONEXUS_GIT_FAILED",
+          "CONEXUS_GIT_MAIN_MISSING",
+          "CONEXUS_GIT_MERGE_REFUSED",
+          "CONEXUS_GIT_PROJECT_REFUSED",
+          "CONEXUS_GIT_REF_MOVED",
+          "CONEXUS_GIT_REF_REFUSED",
+          "CONEXUS_GIT_STARTER_REFUSED",
+          "GOOGLE_AI_PRO_ACCOUNT_UNAVAILABLE",
+          "GOOGLE_AI_PRO_BINARY_REFUSED",
+          "GOOGLE_AI_PRO_POOL_CLOSED",
+          "GOOGLE_AI_PRO_PORT_UNAVAILABLE",
+          "GOOGLE_AI_PRO_PROXY_START_FAILED",
+          "GOOGLE_AI_PRO_RECORD_REFUSED",
+          "GOOGLE_AI_PRO_ROUTER_UNAVAILABLE",
+          "GOOGLE_AI_PRO_STORED_RECORD_REFUSED",
+          "HUB_RESTART",
+          "MANIFEST_REFUSED",
+          "MODEL_ACCOUNT_PROBE_NOT_CALLABLE",
+          "OPENAI_CODEX_MODEL_REFUSED",
+          "OPENAI_CODEX_STORED_RECORD_REFUSED",
+          "SERVER_TREE_REFUSED",
+          "USER_CANCELLED",
+          "BUILDER_QUESTION_EXPIRED",
+          "BUILDER_QUESTION_NOT_RELEASED",
+          "BUILDER_SOURCE_ADMISSION_FAILED",
+          "BUILDER_RUN_SETTLE_LOST",
+          "APPLICATION_COMPILER_OUTPUT_SYMLINK_REFUSED",
+          "APPLICATION_COMPILER_OUTPUT_NON_REGULAR_REFUSED",
+          "APPLICATION_RUNNER_RELEASE_REFUSED",
+          "RUNNER_REQUEST_REFUSED",
+          "INPUT_REFUSED",
+          "INPUT_TOO_LARGE",
+          "OPERATION_NOT_FOUND",
+          "HANDLER_TIMEOUT",
+          "RESPONSE_TOO_LARGE",
+          "DATABASE_UNAVAILABLE",
+          "APPLICATION_RUNNER_BUSY",
+          "APPLICATION_PROJECT_BUSY",
+          "SERVER_TREE_TOO_LARGE",
+          "HANDLER_FAILED",
+          "HANDLER_LOAD_FAILED",
+          "HANDLER_EXPORT_MISSING",
+          "HANDLER_OUTPUT_UNSERIALIZABLE",
+          "HANDLER_OUTPUT_REFUSED",
+          "HANDLER_CRASHED",
+          "WORKER_FAILED",
+          "WORKER_JOB_REFUSED",
+          "CONNECTOR_SOCKET_REFUSED",
+          "CONTENT_TYPE_REFUSED",
+          "APPLICATION_NOT_FOUND",
+          "MEMORY_OBSERVATION_FAILED",
+          "MEMORY_REFLECTION_FAILED",
+          "MODEL_LOGIN_OPENAI_REFUSED",
+          "MODEL_LOGIN_ANTHROPIC_REFUSED",
+          "MODEL_LOGIN_GOOGLE_REFUSED",
+          "APPLICATION_NO_ACCESS",
+          "APPLICATION_EMAIL_NOT_VERIFIED",
+          "APPLICATION_SIGN_IN_FAILED",
+          "APPLICATION_NOT_READY",
+          "APPLICATION_SIGN_IN_REQUIRED",
+          "PREVIEW_REFUSED",
+          "NOT_GRANTED",
+          "CONNECTOR_UNCONFIGURED",
+          "CREDENTIAL_REFUSED",
+          "PROVIDER_TIMEOUT",
+          "PROVIDER_UNAVAILABLE",
+          "PROVIDER_ERROR",
+          "RESPONSE_REFUSED",
+          "CALL_LIMIT",
+          "SERVICE_REFUSED",
+          "CONNECTOR_PLATFORM_FAILED",
+          "CONFIG_MISSING",
+          "CONFIG_INVALID",
+          "HUB_ALREADY_RUNNING",
+          "HUB_SCHEMA_BEHIND",
+          "BUILDER_RUN_SETTLE_FAILED",
+          "BUILDER_RUN_SWEEP_SETTLE_FAILED",
+          "BUILDER_SESSION_RELEASE_FAILED",
+          "BUILDER_MIRROR_FAILED",
+          "BUILDER_SESSION_CLOSE_FAILED",
+          "BUILDER_AGENT_PROCESSES_KILL_FAILED",
+          "BUILDER_SANDBOX_KILL_FAILED",
+          "BUILDER_SANDBOX_PAUSE_FAILED",
+          "BUILDER_SANDBOX_EGRESS_COLLECT_FAILED",
+          "JOB_FAILED",
+          "HUB_POOL_ERROR",
+          "HUB_INSTANCE_LOCK_LOST",
+          "HUB_SHUTDOWN_FORCED",
+          "HUB_SHUTDOWN_TIMEOUT",
+          "HUB_SHUTDOWN_FAILED",
+          "HUB_FATAL",
+          "OIDC_BEGIN_FAILED",
+          "OIDC_APPLICATION_SIGN_IN_UNAVAILABLE",
+          "OIDC_REFRESH_TOKEN_MISSING",
+          "OIDC_CALLBACK_FAILED"
+        ]
+      },
+      "LatestCodeChangingBuilderRun": {
+        "type": "object",
+        "properties": {
+          "baseSourceRevision": {
+            "$ref": "#/components/schemas/SourceRevision"
+          },
+          "resultSourceRevision": {
+            "$ref": "#/components/schemas/SourceRevision"
+          },
+          "resultKind": {
+            "type": "string",
+            "enum": [
+              "SOURCE_CHANGED",
+              "SOURCE_CHANGED_BUILD_FAILED"
+            ]
+          }
+        },
+        "required": [
+          "baseSourceRevision",
+          "resultSourceRevision",
+          "resultKind"
+        ],
+        "additionalProperties": false
+      },
+      "BuilderPreviewSummary": {
+        "type": "object",
+        "properties": {
+          "workingSourceRevision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceRevision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastPreviewSourceRevision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceRevision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastPreviewArtifactRevisionId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ArtifactRevisionId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastPreviewArtifactDigest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ArtifactDigest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "workingSourceRevision",
+          "lastPreviewSourceRevision",
+          "lastPreviewArtifactRevisionId",
+          "lastPreviewArtifactDigest"
+        ],
+        "additionalProperties": false
+      },
+      "ArtifactRevisionId": {
+        "type": "string",
+        "format": "uuid",
+        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+      },
+      "ArtifactDigest": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "BuilderRunSummary": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "builderRunId": {
+                "$ref": "#/components/schemas/BuilderRunId"
+              },
+              "projectId": {
+                "$ref": "#/components/schemas/ProjectId"
+              },
+              "conversationId": {
+                "$ref": "#/components/schemas/ConversationId"
+              },
+              "baseSourceRevision": {
+                "$ref": "#/components/schemas/SourceRevision"
+              },
+              "requestText": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "cancellationRequested": {
+                "type": "boolean"
+              },
+              "state": {
+                "type": "string",
+                "const": "QUEUED"
+              },
+              "phase": {
+                "type": "null"
+              },
+              "resultSourceRevision": {
+                "type": "null"
+              },
+              "resultKind": {
+                "type": "null"
+              },
+              "failureCode": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "builderRunId",
+              "projectId",
+              "conversationId",
+              "baseSourceRevision",
+              "requestText",
+              "createdAt",
+              "cancellationRequested",
+              "state",
+              "phase",
+              "resultSourceRevision",
+              "resultKind",
+              "failureCode"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "builderRunId": {
+                "$ref": "#/components/schemas/BuilderRunId"
+              },
+              "projectId": {
+                "$ref": "#/components/schemas/ProjectId"
+              },
+              "conversationId": {
+                "$ref": "#/components/schemas/ConversationId"
+              },
+              "baseSourceRevision": {
+                "$ref": "#/components/schemas/SourceRevision"
+              },
+              "requestText": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "cancellationRequested": {
+                "type": "boolean"
+              },
+              "state": {
+                "type": "string",
+                "const": "RUNNING"
+              },
+              "phase": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "PREPARING",
+                      "AGENT",
+                      "WAITING",
+                      "SOURCE_ADMISSION",
+                      "COMPILING",
+                      "FINALIZING"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "resultSourceRevision": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SourceRevision"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "resultKind": {
+                "type": "null"
+              },
+              "failureCode": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "builderRunId",
+              "projectId",
+              "conversationId",
+              "baseSourceRevision",
+              "requestText",
+              "createdAt",
+              "cancellationRequested",
+              "state",
+              "phase",
+              "resultSourceRevision",
+              "resultKind",
+              "failureCode"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "builderRunId": {
+                "$ref": "#/components/schemas/BuilderRunId"
+              },
+              "projectId": {
+                "$ref": "#/components/schemas/ProjectId"
+              },
+              "conversationId": {
+                "$ref": "#/components/schemas/ConversationId"
+              },
+              "baseSourceRevision": {
+                "$ref": "#/components/schemas/SourceRevision"
+              },
+              "requestText": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "cancellationRequested": {
+                "type": "boolean"
+              },
+              "state": {
+                "type": "string",
+                "const": "SUCCEEDED"
+              },
+              "phase": {
+                "type": "null"
+              },
+              "resultSourceRevision": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SourceRevision"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "resultKind": {
+                "type": "string",
+                "enum": [
+                  "RESPONSE_ONLY",
+                  "SOURCE_CHANGED"
+                ]
+              },
+              "failureCode": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "builderRunId",
+              "projectId",
+              "conversationId",
+              "baseSourceRevision",
+              "requestText",
+              "createdAt",
+              "cancellationRequested",
+              "state",
+              "phase",
+              "resultSourceRevision",
+              "resultKind",
+              "failureCode"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "builderRunId": {
+                "$ref": "#/components/schemas/BuilderRunId"
+              },
+              "projectId": {
+                "$ref": "#/components/schemas/ProjectId"
+              },
+              "conversationId": {
+                "$ref": "#/components/schemas/ConversationId"
+              },
+              "baseSourceRevision": {
+                "$ref": "#/components/schemas/SourceRevision"
+              },
+              "requestText": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "cancellationRequested": {
+                "type": "boolean"
+              },
+              "state": {
+                "type": "string",
+                "const": "FAILED"
+              },
+              "phase": {
+                "type": "null"
+              },
+              "resultSourceRevision": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SourceRevision"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "resultKind": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "const": "SOURCE_CHANGED_BUILD_FAILED"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "failureCode": {
+                "$ref": "#/components/schemas/FailureCode"
+              }
+            },
+            "required": [
+              "builderRunId",
+              "projectId",
+              "conversationId",
+              "baseSourceRevision",
+              "requestText",
+              "createdAt",
+              "cancellationRequested",
+              "state",
+              "phase",
+              "resultSourceRevision",
+              "resultKind",
+              "failureCode"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "builderRunId": {
+                "$ref": "#/components/schemas/BuilderRunId"
+              },
+              "projectId": {
+                "$ref": "#/components/schemas/ProjectId"
+              },
+              "conversationId": {
+                "$ref": "#/components/schemas/ConversationId"
+              },
+              "baseSourceRevision": {
+                "$ref": "#/components/schemas/SourceRevision"
+              },
+              "requestText": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "cancellationRequested": {
+                "type": "boolean"
+              },
+              "state": {
+                "type": "string",
+                "const": "INTERRUPTED"
+              },
+              "phase": {
+                "type": "null"
+              },
+              "resultSourceRevision": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SourceRevision"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "resultKind": {
+                "type": "null"
+              },
+              "failureCode": {
+                "$ref": "#/components/schemas/FailureCode"
+              }
+            },
+            "required": [
+              "builderRunId",
+              "projectId",
+              "conversationId",
+              "baseSourceRevision",
+              "requestText",
+              "createdAt",
+              "cancellationRequested",
+              "state",
+              "phase",
+              "resultSourceRevision",
+              "resultKind",
+              "failureCode"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "BuilderMessageAccepted": {
+        "type": "object",
+        "properties": {
+          "builderRun": {
+            "$ref": "#/components/schemas/BuilderRunSummary"
+          }
+        },
+        "required": [
+          "builderRun"
+        ],
+        "additionalProperties": false
+      },
+      "BuilderTraceSummary": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "traceId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "spans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BuilderTraceSpan"
+            }
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BuilderTraceUsage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "modelCalls": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "toolCalls": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "scores": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BuilderTraceScore"
+            }
+          }
+        },
+        "required": [
+          "available",
+          "traceId",
+          "spans",
+          "usage",
+          "modelCalls",
+          "toolCalls",
+          "scores"
+        ],
+        "additionalProperties": false
+      },
+      "BuilderTraceSpan": {
+        "type": "object",
+        "properties": {
+          "spanId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "parentSpanId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "spanType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "durationMs": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "type": "boolean"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BuilderTraceUsage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "spanId",
+          "parentSpanId",
+          "spanType",
+          "name",
+          "startedAt",
+          "durationMs",
+          "error",
+          "model",
+          "usage"
+        ],
+        "additionalProperties": false
+      },
+      "BuilderTraceUsage": {
+        "type": "object",
+        "properties": {
+          "inputTokens": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outputTokens": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "totalTokens": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inputDetails": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "outputDetails": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        },
+        "required": [
+          "inputTokens",
+          "outputTokens",
+          "totalTokens"
+        ],
+        "additionalProperties": false
+      },
+      "BuilderTraceScore": {
+        "type": "object",
+        "properties": {
+          "scorer": {
+            "type": "string",
+            "minLength": 1
+          },
+          "score": {
+            "type": "number"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "scorer",
+          "score",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "SourceComparison": {
+        "type": "object",
+        "properties": {
+          "baseSourceRevision": {
+            "$ref": "#/components/schemas/SourceRevision"
+          },
+          "resultSourceRevision": {
+            "$ref": "#/components/schemas/SourceRevision"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ADDED",
+                    "REMOVED",
+                    "MODIFIED",
+                    "RENAMED"
+                  ]
+                },
+                "previousPath": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "path",
+                "status",
+                "previousPath"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "baseSourceRevision",
+          "resultSourceRevision",
+          "files"
+        ],
+        "additionalProperties": false
+      },
+      "PreviewLaunch": {
+        "type": "object",
+        "properties": {
+          "entryUrl": {
+            "type": "string",
+            "minLength": 1
+          },
+          "previewUrl": {
+            "type": "string",
+            "minLength": 1
+          },
+          "entryGrant": {
+            "type": "string",
+            "minLength": 1
+          },
+          "artifactRevisionId": {
+            "$ref": "#/components/schemas/ArtifactRevisionId"
+          },
+          "artifactDigest": {
+            "$ref": "#/components/schemas/ArtifactDigest"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "entryUrl",
+          "previewUrl",
+          "entryGrant",
+          "artifactRevisionId",
+          "artifactDigest",
+          "expiresAt"
+        ],
+        "additionalProperties": false
       }
     },
     "parameters": {
@@ -4782,26 +6945,6 @@
         "in": "path",
         "required": true,
         "description": "Untrusted Project reference only; current containment and authority are resolved server-side.",
-        "schema": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "ProjectId-2": {
-        "name": "projectId",
-        "in": "path",
-        "required": true,
-        "description": "Untrusted reference only; current containment and authority are resolved server-side.",
-        "schema": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "SourceRevision": {
-        "name": "sourceRevision",
-        "in": "query",
-        "required": true,
-        "description": "Exact immutable Project-Git source revision to read; never mutable latest/head authority.",
         "schema": {
           "type": "string",
           "minLength": 1

@@ -57,7 +57,7 @@ export function LensDetails({ projectId, runs, selected, onSelect, preview }: Re
   runs: readonly BuilderRun[]
   selected: BuilderRun | null
   onSelect: (builderRunId: string) => void
-  preview: Readonly<{ workingSourceRevision: string | null; lastGoodSourceRevision: string | null }>
+  preview: Readonly<{ workingSourceRevision: string | null; lastPreviewSourceRevision: string | null }>
 }>) {
   const trace = useQuery({
     queryKey: ['builder-run-trace', projectId, selected?.builderRunId],
@@ -74,7 +74,7 @@ export function LensDetails({ projectId, runs, selected, onSelect, preview }: Re
         <div><dt>Resultado</dt><dd>{statusLine(viewRun(selected))}</dd></div>
         <div><dt>Início</dt><dd>{dateTime.format(new Date(selected.createdAt))}</dd></div>
         <div><dt>Código atual</dt><dd>{preview.workingSourceRevision ? `versão ${preview.workingSourceRevision.slice(0, 7)}` : 'Ainda não disponível'}</dd></div>
-        <div><dt>Prévia em uso</dt><dd>{preview.lastGoodSourceRevision ? `versão ${preview.lastGoodSourceRevision.slice(0, 7)}` : 'Ainda não disponível'}</dd></div>
+        <div><dt>Prévia em uso</dt><dd>{preview.lastPreviewSourceRevision ? `versão ${preview.lastPreviewSourceRevision.slice(0, 7)}` : 'Ainda não disponível'}</dd></div>
       </dl>
       <details className="cx-tech">
         <summary>Detalhes técnicos</summary>
@@ -85,7 +85,7 @@ export function LensDetails({ projectId, runs, selected, onSelect, preview }: Re
             {selected.resultSourceRevision && <Hash label="Versão resultante" value={selected.resultSourceRevision} />}
             {selected.failureCode && <tr><td>Código da falha</td><td className="cx-hash"><code>{selected.failureCode}</code></td></tr>}
             {preview.workingSourceRevision && <Hash label="Código atual" value={preview.workingSourceRevision} />}
-            {preview.lastGoodSourceRevision && <Hash label="Prévia em uso" value={preview.lastGoodSourceRevision} />}
+            {preview.lastPreviewSourceRevision && <Hash label="Prévia em uso" value={preview.lastPreviewSourceRevision} />}
           </tbody>
         </table>
         {trace.isPending && <Skeleton className="cx-skeleton" />}

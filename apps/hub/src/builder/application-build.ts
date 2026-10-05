@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { ApplicationProfile } from '../platform/application-template-pins.js'
 import type { CompiledApplication } from './application-artifact-runtime.js'
+import type { PrepareResult } from '../app-runner/server-manifest.js'
 import type { CandidateOperationPorts } from './run-operation.js'
 import { Failure } from '../platform/failure.js'
 
@@ -81,11 +82,7 @@ export type UnboundBuilderApplicationArtifacts = Readonly<{
 // operation for `conexus_run_operation`.
 export type ApplicationServerPort = Readonly<{
   invoke: CandidateOperationPorts['invoke']
-  prepare(input: Readonly<{ projectId: string; files: readonly Readonly<{ path: string; sha256: string; content: string }>[] }>): Promise<
-    | Readonly<{ state: 'READY'; reset: boolean; applied: readonly string[] }>
-    | Readonly<{ state: 'MIGRATION_FAILED'; detail: string }>
-    | Readonly<{ state: 'MIGRATION_HISTORY_DIVERGED'; detail: string }>
-  >
+  prepare(input: Readonly<{ projectId: string; files: readonly Readonly<{ path: string; sha256: string; content: string }>[] }>): Promise<PrepareResult>
 }>
 
 const SERVER_ROOT = 'conexus-server/'

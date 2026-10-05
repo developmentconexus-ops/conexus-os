@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import test from 'node:test'
 import { InMemoryStore } from '@mastra/core/storage'
 import { hubModuleUrl } from './hub-build.mjs'
+import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 import { takeHubLogs } from './hub-log-capture.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
@@ -67,7 +68,7 @@ const runner = async (t, { runOpen = () => false } = {}) => {
   const openSession = createControllerRunSessions({ controller, conversations, readDefaultModel: async () => 'anthropic/default-model' })
   const open = (conversationId, builderRunId, project = projectId) => openSession({
     projectId: project, conversationId, builderRunId,
-    bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId) },
+    bindContext: (requestContext) => bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId, conversationId }),
   })
   const live = (conversationId, resource = resourceId) => controller.getSessionByResource(resource, `conversation:${conversationId}`)
   return { controller, conversations, open, live, clock, built: sandboxes.built, recorded }

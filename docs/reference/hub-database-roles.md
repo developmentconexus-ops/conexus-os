@@ -37,7 +37,7 @@ and the Hub sets the role, with the transaction's settings, in one `SELECT set_c
 | Role | Used by | Holds |
 | --- | --- | --- |
 | `hub_reader` | `database.read` | `SELECT` on the split tables a person reads, each behind a `reader` policy; `EXECUTE` on the `rls.*` helpers and the `reg` served functions |
-| `hub_command` | `database.transaction` and `database.system` | the verbs and columns the table register lists per split table, a `USING (true)` policy named `command`, and `EXECUTE` on the purges, `builder.register_project_repository` and `iam.lock_administrators()` |
+| `hub_command` | `database.transaction` and `database.system` | the verbs and columns the table register lists per split table, a `USING (true)` policy named `command`, and `EXECUTE` on the purges and `iam.lock_administrators()` |
 
 ## Roles that never connect
 

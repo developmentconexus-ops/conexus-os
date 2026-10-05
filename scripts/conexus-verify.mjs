@@ -126,7 +126,7 @@ export const DOCS_CHECK_SCOPES = Object.freeze([
 
 export const DOCS_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => DOCS_CHECK_SCOPES.includes(step.scope)))
 
-export const QUICK_CHECK_SCOPES = Object.freeze(['web-typecheck', 'hub-typecheck', 'repository-check', 'generators', 'web-style', 'knip', 'biome', 'import-law-check', 'access-owner-check', 'census-builder-run', 'census-boundaries', 'enforced-by-check'])
+export const QUICK_CHECK_SCOPES = Object.freeze(['web-typecheck', 'hub-typecheck', 'repository-check', 'generators', 'contract-check', 'web-style', 'knip', 'biome', 'import-law-check', 'access-owner-check', 'census-builder-run', 'census-boundaries', 'enforced-by-check'])
 
 export const QUICK_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => QUICK_CHECK_SCOPES.includes(step.scope)))
 

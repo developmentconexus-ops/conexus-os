@@ -246,7 +246,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   // The run this page's own accepted send made is drawn by its local bubble until the thread shows it.
   const persisted = persistedRequestsOf((session.data?.runHistory ?? []).filter((entry) => entry.conversationId === conversationId && entry.builderRunId !== localSend?.runId), runHere?.builderRunId === localSend?.runId ? null : runHere)
   const preview_ = session.data?.preview
-  const sourceAhead = Boolean(preview_?.lastGoodSourceRevision && preview_.workingSourceRevision && preview_.workingSourceRevision !== preview_.lastGoodSourceRevision)
+  const sourceAhead = Boolean(preview_?.lastPreviewSourceRevision && preview_.workingSourceRevision && preview_.workingSourceRevision !== preview_.lastPreviewSourceRevision)
   // "Versão N" counts the Project's own code-changing runs, oldest first, regardless of which
   // conversation ran them: the version belongs to the app, not to the chat that produced it.
   const codeChangingRunsAsc = [...runs].filter(showsResultCard).sort((left, right) => left.createdAt.localeCompare(right.createdAt))
@@ -289,11 +289,11 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
       {session.isPending ? <div className="cx-preview-empty"><ConexusMark size={40} working /><p>Abrindo o Projeto…</p></div> : <>
         {/* The Preview stays mounted under the other lenses so its frame never reloads on a lens switch. */}
         <div className="cx-lens-layer" hidden={lens !== 'preview'}>
-          <LensPreview preview={preview} view={view} wait={wait} history={runs} lastGoodSourceRevision={preview_?.lastGoodSourceRevision ?? null} sourceAhead={sourceAhead} />
+          <LensPreview preview={preview} view={view} wait={wait} history={runs} lastPreviewSourceRevision={preview_?.lastPreviewSourceRevision ?? null} sourceAhead={sourceAhead} />
         </div>
         {lens === 'code' && <LensCode projectId={projectId} sourceRevision={preview_?.workingSourceRevision ?? null} />}
         {lens === 'diff' && <LensDiff projectId={projectId} basis={diffBasis} requestText={diffRun?.requestText ?? null} requestTime={diffRun ? clockLabel(diffRun.createdAt) : null} version={diffVersion} />}
-        {lens === 'details' && <LensDetails projectId={projectId} runs={runs} selected={selectedRun} onSelect={setSelectedRunId} preview={{ workingSourceRevision: preview_?.workingSourceRevision ?? null, lastGoodSourceRevision: preview_?.lastGoodSourceRevision ?? null }} />}
+        {lens === 'details' && <LensDetails projectId={projectId} runs={runs} selected={selectedRun} onSelect={setSelectedRunId} preview={{ workingSourceRevision: preview_?.workingSourceRevision ?? null, lastPreviewSourceRevision: preview_?.lastPreviewSourceRevision ?? null }} />}
       </>}
     </div>
   </section>

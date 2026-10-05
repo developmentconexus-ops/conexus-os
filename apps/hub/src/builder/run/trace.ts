@@ -1,5 +1,6 @@
 import { type Attributes, type Span, SpanStatusCode, context, trace } from '@opentelemetry/api'
 import type { BuilderRunPhase } from '../../generated/builder-run-vocabulary.js'
+import type { BuilderRunId, ConversationId, ProjectId } from '../../../../../packages/contract/dist/index.js'
 
 const tracer = trace.getTracer('conexus-builder')
 
@@ -7,7 +8,7 @@ const tracer = trace.getTracer('conexus-builder')
  * One run span from claim to last write, with a child span per phase; a wait starting is an event
  * on the run span.
  */
-export const traceRun = (identity: Readonly<{ builderRunId: string; conversationId: string; projectId: string }>) => {
+export const traceRun = (identity: Readonly<{ builderRunId: BuilderRunId; conversationId: ConversationId; projectId: ProjectId }>) => {
   const attributes: Attributes = {
     'builder.run_id': identity.builderRunId, 'builder.conversation_id': identity.conversationId, 'builder.project_id': identity.projectId,
   }

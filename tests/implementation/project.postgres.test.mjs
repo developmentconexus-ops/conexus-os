@@ -6,6 +6,7 @@ import { query } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { ID, PASSWORD, STARTER, setupProjects } from './project-fixture.mjs'
 
+const { Failure } = await import(hubModuleUrl('platform/failure.js'))
 const { sql } = await import(hubModuleUrl('platform/db.js'))
 const { admitAccount } = await import(hubModuleUrl('identity-access/admission.js'))
 
@@ -42,10 +43,10 @@ test('PRJ-03 reaches the same project id after a crash between Git and completio
   let failNext = true
   const { connection, store } = await setupProjects(t, 'conexus_prj03_crash', { repository: { prepare: async (projectId) => {
     prepared.push(projectId)
-    if (failNext) { failNext = false; throw new Error('CONEXUS_GIT_UNREACHABLE') }
+    if (failNext) { failNext = false; throw new Failure('CONEXUS_GIT_FAILED') }
     return STARTER
   } } })
-  await assert.rejects(create(store, ID.owner, 'crash'), { id: 'PROJECT_REPOSITORY_UNAVAILABLE', details: { reason: 'CONEXUS_GIT_UNREACHABLE' } })
+  await assert.rejects(create(store, ID.owner, 'crash'), { id: 'PROJECT_REPOSITORY_UNAVAILABLE', details: { reason: 'CONEXUS_GIT_FAILED' } })
   assert.deepEqual((await query(connection, 'SELECT state FROM platform.operation_receipt')).rows, [{ state: 'reserved' }])
   const retried = await create(store, ID.owner, 'crash')
   assert.equal(prepared.length, 2)
@@ -214,7 +215,6 @@ test('a person transaction cannot run a project purge, and the rows stay', async
   const purges = {
     iam: sql`SELECT iam.purge_project(${projectId}::uuid)`,
     reg: sql`SELECT reg.purge_project(${projectId}::uuid)`,
-    builder: sql`SELECT builder.purge_project(${projectId}::uuid)`,
   }
   for (const [schema, statement] of Object.entries(purges)) {
     await assert.rejects(database.transaction(ID.member, async (gate) => (await admitAccount(gate)).tx.run(statement)), refused, schema)

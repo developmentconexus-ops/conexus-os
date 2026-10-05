@@ -6,6 +6,7 @@ import test from 'node:test'
 import { InMemoryStore } from '@mastra/core/storage'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { hubModuleUrl } from './hub-build.mjs'
+import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 import { testConversations } from './builder-conversation-fixture.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
@@ -66,7 +67,7 @@ const openRun = async (t, { model, failsRead, bindExtra = () => {} }) => {
   t.after(() => conversations.close())
   const run = await createControllerRunSessions({ controller, conversations, readDefaultModel: async () => 'anthropic/default-model' })({
     projectId, conversationId, builderRunId,
-    bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId); bindExtra(requestContext) },
+    bindContext: (requestContext) => { bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId, conversationId }); bindExtra(requestContext) },
   })
   return { run, storageCalls, controller }
 }
@@ -88,6 +89,24 @@ test('an auth failure from the model is not retried', async (t) => {
   const { run } = await openRun(t, { model, failsRead: () => false })
   assert.deepEqual(await settle(run.takeStep({ kind: 'SEND', content: 'Faça o app.' }, new AbortController().signal)), { settled: 'rejected', code: 'BUILDER_MODEL_AUTH_FAILED' })
   assert.equal(calls.length, 1)
+})
+
+test('a Failure that carries a database error reaches the Builder stream as its code, never as the database error', async (t) => {
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
+  const database = Object.assign(new Error('duplicate key value violates unique constraint "builder_run_one_active"'), {
+    name: 'error', code: '23505', detail: `Key (project_id)=(${projectId}) already exists.`, schema: 'builder', table: 'builder_run', constraint: 'builder_run_one_active',
+  })
+  const { model } = answering(new Failure('BUILDER_RUN_TRANSITION_REFUSED', { cause: database }))
+  const { run, controller } = await openRun(t, { model, failsRead: () => false })
+  const session = await controller.getSessionByResource(`project:${projectId}`, `conversation:${conversationId}`)
+  const events = []
+  session.subscribe((event) => { events.push(event) })
+  const outcome = await settle(run.takeStep({ kind: 'SEND', content: 'Faça o app.' }, new AbortController().signal))
+  const wire = JSON.stringify(events)
+  assert.equal(outcome.settled, 'rejected')
+  assert.equal(wire.includes('BUILDER_RUN_TRANSITION_REFUSED'), true, 'the stream names the failure by its code')
+  for (const leaked of ['builder_run_one_active', 'Key (project_id)', '23505', 'schema']) assert.equal(wire.includes(leaked), false, leaked)
+  assert.equal(JSON.stringify(new Failure('PROJECT_BUSY', { cause: database })), '{"message":"PROJECT_BUSY","domain":"MASTRA_SERVER","category":"USER","code":"PROJECT_BUSY","details":{}}')
 })
 
 test('the web says a platform fault was the Conexus, not the model, and other internal errors keep their sentence', async () => {
@@ -144,7 +163,7 @@ const routing = createModelRouting({
   readDefault: async () => null,
   record: async () => {},
 })
-const bindAccount = (requestContext) => requestContext.setRaw('conexusBuilderAccountId', accountId)
+const bindAccount = (requestContext) => bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId, conversationId, accountId })
 
 const anthropicError = (status, type, message) => () => new Response(JSON.stringify({ type: 'error', error: { type, message } }), { status, headers: { 'content-type': 'application/json' } })
 const anthropicAnswer = () => new Response([

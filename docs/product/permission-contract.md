@@ -119,7 +119,7 @@ every administrator's Account is inactive, which is how an installation recovers
 | `workspace.read` | acting on a Workspace you belong to, where a roster change is a self-service narrowing rather than administration | `iam.remove_workspace_member` |
 | `members.manage` | administering the roster: invite, cancel an invitation, remove a member, change a role | `iam.invite_workspace_member`, `iam.cancel_workspace_invitation`, `iam.remove_workspace_member`, `iam.set_workspace_member_role` |
 | `project.create` | creating a Project in a Workspace `admitWorkspace` in `identity-access/admission.ts`, called by `project/store.ts` in both transactions of PRJ-03 |
-| `project.build` | starting, claiming and cancelling a Builder run | `builder.create_builder_run`, `builder.claim_builder_run`, `builder.request_builder_run_cancellation` |
+| `project.build` | starting, claiming and cancelling a Builder run | `admitProject` in `identity-access/admission.ts`, called by `builder/run-start.ts` and by the claim in `builder/run-steps.ts` |
 
 `members.manage` is the only action a member does not hold, so it is the only line
 that makes the two roles different.

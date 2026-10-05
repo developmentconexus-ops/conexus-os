@@ -5,6 +5,7 @@ import type { ValueSchema } from '../app-runner/server-manifest.js'
 import type { Caller } from '../platform/caller.js'
 import { problemBody } from '../http/problem.js'
 import { commandEvidence } from './application-starter.js'
+import type { ProjectId } from '../../../../packages/contract/dist/index.js'
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
@@ -113,14 +114,14 @@ const runnerRefusal = (operation: string, body: unknown): OperationRunReport => 
 }
 
 export type CandidateOperationPorts = Readonly<{
-  projectId: string
+  projectId: ProjectId
   caller: Caller
   /** Builds the candidate's server half from the checkout as it stands; `detail` is the build's own refusal. */
   buildServer(): Promise<Readonly<{ ok: true; files: readonly ServerFile[] }> | Readonly<{ ok: false; detail: string }>>
   /** One invocation's connector port on the run's own scope, or null when the Hub serves none. */
   openConnectorPort(): Promise<Readonly<{ socketPath: string; close(): Promise<void> }> | null>
   invoke(input: Readonly<{
-    projectId: string; operation: string; input: unknown; files: readonly ServerFile[]; caller: Caller; connectorSocket?: string
+    projectId: ProjectId; operation: string; input: unknown; files: readonly ServerFile[]; caller: Caller; connectorSocket?: string
   }>): Promise<Readonly<{ status: number; body: unknown }>>
 }>
 

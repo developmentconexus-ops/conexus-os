@@ -36,12 +36,18 @@ const walk = (directory) => readdirSync(directory, { withFileTypes: true }).flat
 
 test('no Builder or Project source types a run state, phase or result kind list by hand', () => {
   const vocabulary = readVocabulary()
-  const copies = Object.values(vocabulary).map((values) => {
+  const copyOf = Object.fromEntries(Object.entries(vocabulary).map(([key, values]) => {
     const one = `'(?:${values.join('|')})'`
-    return new RegExp(`${one}(?:, | \\| )${one}`)
-  })
+    return [key, new RegExp(`${one}(?:, | \\| )${one}`)]
+  }))
+  const copies = Object.values(copyOf)
   const offenders = OWNERS.flatMap((owner) => walk(join(root, owner))).flatMap((file) =>
     readFileSync(file, 'utf8').split('\n').flatMap((line, index) => copies.some((copy) => copy.test(line)) ? [`${relative(root, file)}:${index + 1}`] : []))
   assert.deepEqual(offenders, [])
-  assert.equal(copies[1].test("phase: 'PREPARING' | 'AGENT' | null"), true, 'the scan finds a retyped union')
+  assert.equal(copyOf.phases.test("phase: 'PREPARING' | 'AGENT' | null"), true, 'the scan finds a retyped union')
+})
+
+test('the generated open-state guard admits QUEUED and RUNNING and refuses the three ended states', async () => {
+  const { isOpenRunState } = await import('../../apps/hub/src/generated/builder-run-vocabulary.ts')
+  assert.deepEqual(['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'INTERRUPTED'].map(isOpenRunState), [true, true, false, false, false])
 })

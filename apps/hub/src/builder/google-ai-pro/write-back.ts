@@ -1,6 +1,7 @@
 import type { ModelAccountStore } from '../model-account-store.js'
 import type { GoogleAiProKey } from './credential.js'
 import type { PersistGoogleAiProRefresh } from './pool.js'
+import type { ModelAccountId } from '../../../../../packages/contract/dist/index.js'
 
 /**
  * Where a refreshed Google AI Pro record goes back to (spec 0002 AC-22). The proxy refreshes
@@ -10,10 +11,10 @@ import type { PersistGoogleAiProRefresh } from './pool.js'
  * everyone is rewritten in place, never copied into the caller's own.
  */
 export const createRefreshWriteBack = (store: Pick<ModelAccountStore, 'rewrite'>) => {
-  const rowOfKey = new Map<GoogleAiProKey, string>()
+  const rowOfKey = new Map<GoogleAiProKey, ModelAccountId>()
   return Object.freeze({
     /** Called for each model call with the key its row holds; one key per row, the latest. */
-    track: (key: GoogleAiProKey, modelAccountId: string): void => {
+    track: (key: GoogleAiProKey, modelAccountId: ModelAccountId): void => {
       for (const [known, id] of rowOfKey) if (id === modelAccountId) rowOfKey.delete(known)
       rowOfKey.set(key, modelAccountId)
     },

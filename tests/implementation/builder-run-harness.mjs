@@ -76,7 +76,7 @@ export const failedReport = (step, problems) => {
 // runtime names under /workspace, /var/lib or /opt lands under the harness's
 // own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run. It is the
 // conversation's one VM: every turn reaches the same directory until `loseVm` replaces it.
-export const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate = false, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0, questionWaitMs = 60_000, answers = [], session, onWaitingWrite, persisted, openSandbox } = {}) => {
+export const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate = false, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0, questionWaitMs = 60_000, answers = [], session, onWaitingWrite, persisted, openSandbox, claim, candidateRefusal, admit } = {}) => {
   endLines.splice(0)
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
@@ -280,14 +280,16 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
   // The one run's row as the database holds it.
   const row = { running: true, candidate: null, result: null }
   const store = {
+    ownerId: '0f000000-0000-4000-8000-0000000000aa',
     createBuilderRun: async (input) => {
       calls.push(['create'])
       claimed.baseSourceRevision = await input.readBase()
       return { ...claimed, state: 'QUEUED', phase: null }
     },
     admitSourceRevision: async () => true,
-    claimBuilderRun: async () => claimed,
-    setBuilderRunPhase: async (_id, phase) => {
+    admitBuilder: admit ?? (async () => {}),
+    claimBuilderRun: async () => { await claim?.(); return claimed },
+    setBuilderRunPhase: async ({ phase }) => {
       calls.push(['phase', phase])
       if (phase === 'WAITING' && onWaitingWrite && await onWaitingWrite(context.service) === 'REFUSE') return null
       // The person acts once the browser shows the question.
@@ -295,13 +297,17 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
       if (reply) setTimeout(() => { void reply(context.service) }, 0)
       return { ...claimed, phase }
     },
-    recordBuilderRunCandidate: async (_id, revision) => { calls.push(['candidate', revision]); row.candidate = revision },
-    bindBuilderRunMessage: async (_id, messageId) => { calls.push(['message', messageId]) },
-    bindBuilderRunSandbox: async (_id, sandboxId) => { calls.push(['sandbox', sandboxId]) },
+    recordBuilderRunCandidate: async ({ sourceRevision }) => {
+      if (candidateRefusal) throw candidateRefusal
+      calls.push(['candidate', sourceRevision])
+      row.candidate = sourceRevision
+    },
+    bindBuilderRunMessage: async ({ messageId }) => { calls.push(['message', messageId]) },
+    bindBuilderRunSandbox: async ({ sandboxId }) => { calls.push(['sandbox', sandboxId]) },
     readConversationSandbox: async () => recordedSandbox,
     recordConversationSandbox: async ({ providerSandboxId }) => { recordedSandbox = providerSandboxId },
-    settleBuilderRun: async (input) => { calls.push(['settle', input.resultKind]); row.running = false },
-    advanceBuilderRunSource: async (_id, revision) => {
+    settleBuilderRun: async () => { calls.push(['settle', 'RESPONSE_ONLY']); row.running = false },
+    advanceBuilderRunSource: async ({ sourceRevision: revision }) => {
       if (lostAdvances-- > 0) {
         calls.push(['advanceLost', revision])
         throw new Error('Connection terminated unexpectedly')
@@ -312,12 +318,13 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     settleBuilderRunBuild: async (input) => { calls.push(['settleBuild', input.sourceRevision, input.failureCode ?? null]); row.running = false },
     readLatestCodeChangingBuilderRun: async () => null,
     readBuilderRun: async () => (persisted ? persisted(claimed) : claimed),
-    failBuilderRun: async (_id, code) => { calls.push(['fail', code]); row.running = false },
-    interruptBuilderRun: async (_id, reason) => { calls.push(['interrupt', reason]); row.running = false },
+    endUnclaimedBuilderRun: async ({ ending }) => { calls.push(['endUnclaimed', ending.state, ending.failureCode]); row.running = false },
+    failBuilderRun: async ({ failureCode: code }) => { calls.push(['fail', code]); row.running = false },
+    interruptBuilderRun: async ({ failureCode: reason }) => { calls.push(['interrupt', reason]); row.running = false },
     requestBuilderRunCancellation: async () => ({ ...claimed, cancellationRequested: true }),
     recordConversationSession: async (input) => { sessions.push(input) },
     // A run this Hub lists as live is never taken over; one with a candidate that it does not list is stale.
-    renewRunLease: async (_owner, liveIds) => row.running && row.candidate && !liveIds.includes(runId)
+    renewRunLease: async ({ liveRunIds: liveIds }) => row.running && row.candidate && !liveIds.includes(runId)
       ? [{ builderRunId: runId, projectId, conversationId, candidateRevision: row.candidate, resultSourceRevision: row.result, previousOwnerId: null }]
       : [],
     close: async () => {},
@@ -327,7 +334,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     ...(applicationServer ? { applicationServer } : {}),
     applicationArtifacts: {
       retainApplication: async ({ compiled }) => ({
-        artifactRevisionId: 'artifact-1', artifactDigest: 'g'.repeat(64),
+        artifactRevisionId: '77777777-7777-4777-8777-777777777777', artifactDigest: 'a'.repeat(64),
         projectId: compiled.projectId, sourceRevision: compiled.sourceRevision,
         profile: 'REACT_VITE_V2', templateRef: compiled.templateRef, recipeSha256: compiled.recipeSha256,
         entryPath: 'index.html', files: [],

@@ -7,6 +7,7 @@ import { createMirrorFeed } from './run/mirror.js'
 import type { RunSandbox } from './run/ports.js'
 import { Failure, logFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
+import type { ConversationId } from '../../../../packages/contract/dist/index.js'
 
 // A deleted Project's kill waits on E2B at most this long per VM, so an unreachable provider never holds the deletion.
 const PROVIDER_KILL_TIMEOUT_MS = 15_000
@@ -34,7 +35,7 @@ export const e2bConversationSandboxes = ({
   killProvider?: (providerSandboxId: string) => Promise<boolean>
 }>): Readonly<{
   /** `retire` runs the kill with the conversation letting go of the instance first, so nothing opens on it while it dies. */
-  open(input: Readonly<{ conversationId: string; providerSandboxId: string | null; retire(kill: () => Promise<void>): Promise<void> }>): RunSandbox
+  open(input: Readonly<{ conversationId: ConversationId; providerSandboxId: string | null; retire(kill: () => Promise<void>): Promise<void> }>): RunSandbox
   /**
    * Kills the VMs by the provider ids the Hub recorded, running, paused or held by an earlier Hub
    * process. A VM E2B no longer has counts as killed; a kill that fails is logged and never throws.

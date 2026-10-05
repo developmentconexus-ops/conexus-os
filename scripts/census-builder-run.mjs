@@ -116,6 +116,45 @@ const sessionScopes = [...new Set([...hubSource, ...webSource].flatMap((path) =>
 
 const collectionsAcrossModules = hits(builderSource, /^\s+[A-Za-z0-9_]+\??:\s*(?:Map|Set|WeakMap|WeakSet)</)
 
+// An id or a source revision a Builder port or type declares as a plain string, where the contract has a brand: it lets an
+// Account id sit in a Project slot. The Application registry's own types and the OAuth vendor's account id are not ours.
+const BRANDED_FIELDS = 'projectId|accountId|builderRunId|runId|conversationId|sourceRevision|baseSourceRevision|resultSourceRevision|modelAccountId|executionId|revision|base|candidate|turnStart|parent|expected|next|result|unchangedFrom|sameAs'
+const NOT_THE_BUILDER_PORTS = /^apps\/hub\/src\/builder\/(application-build\.ts|application-artifact-runtime\.ts|openai-codex\/credential\.ts)$/
+const plainPortIds = hits(builderSource.filter((path) => !NOT_THE_BUILDER_PORTS.test(rel(path))), new RegExp(`\\b(?:${BRANDED_FIELDS})\\??: (?:string|readonly string)\\b`))
+  .filter((at) => !readFileSync(join(repo, at.split(':')[0]), 'utf8').split('\n')[Number(at.split(':')[1]) - 1].includes('readApplicationFileBySource'))
+// The source reads take one object, so a Project id and a revision cannot swap places.
+const positionalSourceReads = hits(builderSource.filter((path) => rel(path) === 'apps/hub/src/builder/source.ts'), /^\s+(?:listSourceTree|readSourceFile|compareRevisions): async \((?!\{)/)
+
+// A run state, phase or result kind list retyped by hand: two values of one vocabulary list on a line. The generated
+// vocabulary is the one owner, and an ending is one value of it, so no module spells a second list.
+const vocabulary = JSON.parse(readFileSync(join(repo, 'contracts/technical/builder-run-vocabulary.json'), 'utf8'))
+const hasTwoOfOneList = (line) => Object.values(vocabulary).some((values) => values.filter((value) => line.includes(`'${value}'`)).length > 1)
+const handTypedRunStates = hits(hubSource.filter((path) => /^apps\/hub\/src\/(builder|project|identity-access)\//.test(rel(path))), { test: hasTwoOfOneList })
+// The final columns of a run are written once, by `endRun`: every other writer of the finish time is a second ending.
+const finishWrites = hits(hubSource, /\bfinished_at\s*=/)
+const runEndWriters = finishWrites.filter((at, index) => !(at.startsWith('apps/hub/src/builder/run-lifecycle.ts:') && finishWrites.findIndex((other) => other.startsWith('apps/hub/src/builder/run-lifecycle.ts:')) === index))
+
+// A failure turned into a plain answer: `false`, `null`, an empty list or string where the call failed. A repository or
+// store that cannot answer must reach the caller, never read as "absent". Sandbox, vendor-login and check-step probes
+// answer about the sandbox or the vendor, not the repository, and are outside this item.
+const FAILURE_DEFAULT = /\.catch\(\(\) => (?:false|null|\[\]|'')\)|\.then\(\(\) => \w+, \(\) => (?:false|null)\)|\.then\([^()]*, \(\) => (?:false|null)\)/
+const NOT_REPOSITORY_OR_STORE = /^apps\/hub\/src\/builder\/(check\/|google-ai-pro\/|anthropic\/|openai-codex\/|harness\/|egress-log\.ts$)/
+// In the Git adapter any failure handler that swallows the error, or renames every failure to a domain code, is the same
+// conversion: git's exit code is not the answer, so a failed command is a named Git failure or a read-back, never a guess.
+const GIT_ADAPTER_CONVERSION = /\.catch\(\(\) =>|\.catch\((?:async )?\(\w+(?:: unknown)?\) => \{?\s*throw new Failure\(/g
+const gitAdapterConversions = builderSource.filter((path) => rel(path) === 'apps/hub/src/builder/conexus-git.ts').flatMap((path) => {
+  const text = readFileSync(path, 'utf8')
+  return [...text.matchAll(GIT_ADAPTER_CONVERSION)].map((found) => `${rel(path)}:${lineOf(text, found.index)}`)
+})
+const failureToDefault = [...hits(builderSource.filter((path) => !NOT_REPOSITORY_OR_STORE.test(rel(path))), FAILURE_DEFAULT), ...gitAdapterConversions]
+
+// The run's id, payer and conversation ride in the request context under keys only run-context.ts names: it writes them
+// from branded ids and reads them back, and a value that is not an id there is a broken invariant (INTERNAL_UNEXPECTED).
+// Another module that parses them itself, or reads them raw, decides alone what a bad value means: the earlier reader
+// turned it into "connect a model". The failureToDefault scan could not see it because nothing there is a default.
+const runContextReadsOutsideOwner = hits(builderSource.filter((path) => rel(path) !== 'apps/hub/src/builder/run-context.ts'),
+  /getRaw\(\s*(?:RUN_ID_KEY|RUN_ACCOUNT_ID_KEY|CONVERSATION_ID_KEY|['"`]conexusBuilder(?:Run|Account|Conversation)Id['"`])|safeParse\([^)]*getRaw\(/)
+
 const runFiles = builderSource.filter((path) => /^apps\/hub\/src\/builder\/(run\/|service\.ts$|runtime\.ts$)/.test(rel(path)))
 const runFunctionLengthSuppressions = hits(runFiles, /biome-ignore lint\/complexity\/noExcessiveLinesPerFunction/, { comments: true })
 
@@ -170,6 +209,12 @@ const census = {
   mastraInternalsOutsideLeftovers,
   sessionScopes,
   collectionsAcrossModules,
+  plainPortIds,
+  failureToDefault,
+  runContextReadsOutsideOwner,
+  handTypedRunStates,
+  runEndWriters,
+  positionalSourceReads,
   runFunctionLengthSuppressions,
   failureCodesWithoutRow,
   repeatedTimerSuppressions,

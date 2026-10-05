@@ -1,23 +1,26 @@
+import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import type { ToolsInput } from '@mastra/core/agent'
 import { Mastra } from '@mastra/core/mastra'
 import { ConsoleLogger } from '@mastra/core/logger'
 import type { ObservabilityInstance } from '@mastra/core/observability'
 import type { RequestContext } from '@mastra/core/request-context'
-import { openFactoryPool, type PostgresPool } from '../platform/db.js'
+import { openFactoryPool, type Database, type PostgresPool } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
+import { gitUnavailableAs } from '../platform/git-failure.js'
 import type { Job } from '../platform/jobs.js'
 import { logLine } from '../platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from '../platform/secrets.js'
+import type { AccountId, BuilderRunId, ConversationId, ProjectId, BuilderTraceSummary } from '../../../../packages/contract/dist/index.js'
 import { registerBuilderRoutes } from './routes.js'
 import { mountLogFilter, mountValidationFailure, registerBuilderSessionRoutes } from './mastra-session-routes.js'
 import type { ToolPayloadProjection } from './mastra-session-routes.js'
-import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapshot, BuilderTraceSummary } from './routes.js'
+import type { BuilderLaunchPreviewPort, BuilderSessionPort } from './routes.js'
 import { createBuilderService } from './service.js'
 import type { ApplicationServerPort, ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderStore } from './store.js'
+export { builderProjectPorts, purgeProjectBuilder } from './project-ports.js'
 import { buildTraceSummary, UNAVAILABLE_TRACE_SUMMARY } from './trace-summary.js'
-import type { AccountId } from '../identity-access/current-session.js'
 import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig, InstallationSecretKey } from '../platform/config.js'
 import { assertBuilderSkillsAvailable } from './skills-guard.js'
 import type { BuilderRunPorts } from './run/ports.js'
@@ -46,12 +49,14 @@ import { createGoogleAiProAccounts } from './google-ai-pro/store.js'
 import { ANTHROPIC_PROVIDER, createClaudeHolds } from './anthropic/credential.js'
 import { createAnthropicRoute } from './anthropic/route.js'
 import { createModelAccountStore } from './model-account-store.js'
-import { CONVERSATION_ID_KEY, createModelRouting, RUN_ID_KEY, type ModelRole, type ModelRoute } from './model-routing.js'
+import { createModelRouting, type ModelRole, type ModelRoute } from './model-routing.js'
+import { readRunContext } from './run-context.js'
 import { createBuilderMemory } from './memory.js'
 import { createCodexHolds, OPENAI_MODEL_PROVIDER } from './openai-codex/credential.js'
 import { createOpenAICodexRoute } from './openai-codex/route.js'
 import { registerModelAccountRoutes } from './model-accounts.js'
 import type { BuilderRunDependencies } from './service.js'
+import { isOpenRunState } from '../generated/builder-run-vocabulary.js'
 
 // The agent loop reads its steps back from this pool; a 5 s wait failed a run when the host was busy
 // (the same window that timed out the observability exporter). Waiting is cheaper than a failed turn.
@@ -87,7 +92,8 @@ const DAY_MS = 24 * HOUR_MS
 const RUN_LEASE_EVERY_MS = 10_000
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
-export const createConfiguredBuilderModule = ({ database, runtimePool, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, isInstallationAdministrator, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
+export const createConfiguredBuilderModule = ({ data, database, runtimePool, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, isInstallationAdministrator, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
+  data: Database
   database: Readonly<{ host: string; port: number; database: string }>
   runtimePool: PostgresPool
   builder: Readonly<{
@@ -104,7 +110,7 @@ export const createConfiguredBuilderModule = ({ database, runtimePool, builder, 
   launchPreview?: BuilderLaunchPreviewPort
   isInstallationAdministrator(account: AccountId): Promise<boolean>
   /** The Project's display name, which the Builder's prompt states. */
-  readProjectName(input: Readonly<{ accountId: string; projectId: string }>): Promise<string>
+  readProjectName(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<string>
   connectors?: BuilderConnectorPort
   connectorObservability?: ObservabilityInstance
   /** The conversations' sandboxes; absent, the Hub uses E2B. Only a test composition passes one. */
@@ -113,10 +119,7 @@ export const createConfiguredBuilderModule = ({ database, runtimePool, builder, 
   assertBuilderSkillsAvailable()
   const check = loadCheckBundle()
   const log = logLine
-  const store = createBuilderStore({
-    ingressPool: runtimePool,
-    executorPool: runtimePool,
-  })
+  const store = createBuilderStore({ database: data, ownerId: randomUUID() })
   // Google AI Pro's credential lives in model.model_account (spec 0002), sealed with the same
   // envelope every Conexus secret uses.
   const modelAccounts = createModelAccountStore({
@@ -156,7 +159,9 @@ export const createConfiguredBuilderModule = ({ database, runtimePool, builder, 
     // Read when a run starts, long after the controller below exists.
     conversationModel: (projectId, conversationId) => conversationModel(projectId, conversationId),
     readDefault,
-    record: (builderRunId, modelAccountId) => store.recordBuilderRunModelAccount(builderRunId, modelAccountId),
+    record: (builderRunId, accountId, modelAccountId) => store.recordBuilderRunModelAccount({
+      builderRunId, accountId, modelAccountId,
+    }),
   })
   // Built, never connected, here: the tools are listed on a run's first step, so Context7 being down never delays boot.
   const docsTools = createContext7Docs({ apiKey: builder.context7ApiKeyFile ? readSecretFile(builder.context7ApiKeyFile) : undefined })
@@ -164,9 +169,8 @@ export const createConfiguredBuilderModule = ({ database, runtimePool, builder, 
     id: BUILDER_CONTROLLER_ID,
     workspace: (context) => liveConversations.workspace(context),
     runTools: ({ requestContext }) => {
-      const conversationId = requestContext.getRaw(CONVERSATION_ID_KEY)
-      const runId = requestContext.getRaw(RUN_ID_KEY)
-      return typeof conversationId === 'string' && typeof runId === 'string' ? service.runTools(conversationId, runId) : undefined
+      const context = readRunContext(requestContext)
+      return context ? service.runTools(context.conversationId, context.builderRunId) : undefined
     },
     model: modelRouting.resolve,
     docsTools,
@@ -199,12 +203,12 @@ export const createConfiguredBuilderModule = ({ database, runtimePool, builder, 
   const liveConversations = createLiveConversations({
     controller, sandboxes, readSandboxId: store.readConversationSandbox, runOpen: (conversationId) => service.runOpen(conversationId),
   })
-  const conversationSession = async (ref: Readonly<{ projectId: string; conversationId: string }>) => {
+  const conversationSession = async (ref: Readonly<{ projectId: ProjectId; conversationId: ConversationId }>) => {
     await ready
     return liveConversations.open(ref)
   }
   // The conversation's model is the one in its Mastra session, never a copy of Mastra's thread keys.
-  const conversationModel = async (projectId: string, conversationId: string): Promise<string | null> => {
+  const conversationModel = async (projectId: ProjectId, conversationId: ConversationId): Promise<string | null> => {
     const session = await conversationSession({ projectId, conversationId })
     await session.thread.loadMetadata()
     return session.model.hasSelection() ? session.model.get() : null
@@ -255,56 +259,58 @@ export const createConfiguredBuilderModule = ({ database, runtimePool, builder, 
     ...(machines ? [{ name: 'idle-machines', everyMs: HOUR_MS, run: async (signal: AbortSignal) => { await sweepIdleMachines(machines, signal) } }] : []),
     ...(googleAiPro ? [{ name: 'idle-cliproxy', everyMs: MINUTE_MS, run: async (signal: AbortSignal) => { await (await googleAiProReady)?.pool.sweepIdle(signal) } }] : []),
   ]
+  const readTraceSummary = async (projectId: ProjectId, builderRunId: BuilderRunId): Promise<BuilderTraceSummary> => {
+    const mastraStorage = mastra.getStorage()
+    const observabilityStore = await mastraStorage?.getStore('observability')
+    if (!observabilityStore) return UNAVAILABLE_TRACE_SUMMARY
+    const traces = await observabilityStore.listTraces({
+      filters: { metadata: { conexusBuilderProjectId: projectId, conexusBuilderRunId: builderRunId } },
+      pagination: { page: 0, perPage: 1 },
+    })
+    const root = traces.spans.at(0)
+    if (!root) return UNAVAILABLE_TRACE_SUMMARY
+    const trace = await observabilityStore.getTrace({ traceId: root.traceId })
+    const scoresStore = await mastraStorage?.getStore('scores')
+    const scoreRows = scoresStore
+      ? (await scoresStore.listScoresBySpan({ traceId: root.traceId, spanId: root.spanId, pagination: { page: 0, perPage: 50 } })).scores
+      : []
+    return buildTraceSummary({ traceId: root.traceId, spans: trace?.spans ?? [], scores: scoreRows })
+  }
   const session: BuilderSessionPort = Object.freeze({
-    read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
+    read: async ({ accountId, projectId }) => {
       const preview = await store.readPreviewSubject({ accountId, projectId })
       if (!preview) throw new Failure('PROJECT_BUILD_DENIED')
       return Object.freeze({
-        projectId,
-        workingSourceRevision: await git.readMain(projectId).catch(() => null),
-        lastPreviewSourceRevision: preview.lastPreviewSourceRevision,
-        lastPreviewArtifactRevisionId: preview.lastPreviewArtifactRevisionId,
-        lastPreviewArtifactDigest: preview.lastPreviewArtifactDigest,
+        preview: Object.freeze({
+          workingSourceRevision: await git.readMain(projectId).catch(gitUnavailableAs('BUILDER_SOURCE_UNAVAILABLE')),
+          lastPreviewSourceRevision: preview.lastPreviewSourceRevision,
+          lastPreviewArtifactRevisionId: preview.lastPreviewArtifactRevisionId,
+          lastPreviewArtifactDigest: preview.lastPreviewArtifactDigest,
+        }),
         runHistory: await store.listBuilderRuns({ accountId, projectId }),
       })
     },
-    readTrace: async ({ accountId, projectId, builderRunId }): Promise<BuilderTraceSummary> => {
-      const preview = await store.readPreviewSubject({ accountId, projectId })
-      if (!preview) throw new Failure('PROJECT_BUILD_DENIED')
-      const mastraStorage = mastra.getStorage()
-      const observabilityStore = await mastraStorage?.getStore('observability')
-      if (!observabilityStore) return UNAVAILABLE_TRACE_SUMMARY
-      const traces = await observabilityStore.listTraces({
-        filters: { metadata: { conexusBuilderProjectId: projectId, conexusBuilderRunId: builderRunId } },
-        pagination: { page: 0, perPage: 1 },
-      })
-      const root = traces.spans.at(0)
-      if (!root) return UNAVAILABLE_TRACE_SUMMARY
-      const trace = await observabilityStore.getTrace({ traceId: root.traceId })
-      const scoresStore = await mastraStorage?.getStore('scores')
-      const scoreRows = scoresStore
-        ? (await scoresStore.listScoresBySpan({ traceId: root.traceId, spanId: root.spanId, pagination: { page: 0, perPage: 50 } })).scores
-        : []
-      return buildTraceSummary({
-        traceId: root.traceId,
-        spans: trace?.spans ?? [],
-        scores: scoreRows,
-      })
-    },
+    readTrace: ({ projectId, builderRunId }): Promise<BuilderTraceSummary> => readTraceSummary(projectId, builderRunId).catch((cause: unknown) => {
+      throw new Failure('BUILDER_TRACE_UNAVAILABLE', { cause, details: { projectId, builderRunId } })
+    }),
   })
-  const admitProject = async ({ accountId, projectId }: Readonly<{ accountId: string; projectId: string }>): Promise<boolean> =>
-    (await store.readPreviewSubject({ accountId, projectId })) !== null
+  // The mount's one check: whether the account builds in the Project, by the same admission every Builder write takes.
+  const mayBuild = (input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<boolean> =>
+    store.admitBuilder(input).then(() => true, (error: unknown) => {
+      if (error instanceof Failure && (error.id === 'PROJECT_BUILD_DENIED' || error.id === 'PROJECT_NOT_FOUND')) return false
+      throw error
+    })
   return Object.freeze({
     jobs,
     registerBuilderRoutes: async (app: FastifyInstance) => {
       const builderOperations = await registerBuilderRoutes(app, { store, service, session, ...(launchPreview ? { launchPreview } : {}) })
       await ready
       await registerBuilderSessionRoutes(app, {
-        mastra, controller, conversations: liveConversations, controllerId: BUILDER_CONTROLLER_ID, admitProject,
+        mastra, controller, conversations: liveConversations, controllerId: BUILDER_CONTROLLER_ID, mayBuild,
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async ({ accountId, projectId }) => {
           const latest = await store.readBuilderRun({ accountId, projectId })
-          return latest?.state === 'QUEUED' || latest?.state === 'RUNNING'
+          return latest !== null && isOpenRunState(latest.state)
         },
         answerQuestion: service.answerQuestion,
         ...(connectors ? { toolPayloads: connectors.toolPayloadProjection } : {}),
@@ -318,11 +324,11 @@ export const createConfiguredBuilderModule = ({ database, runtimePool, builder, 
       return builderOperations
     },
     // Absent without the Builder, and then no Project can be created.
-    prepareProjectRepository: (projectId: string) => git.ensureRepository(projectId),
+    prepareProjectRepository: (projectId: ProjectId) => git.ensureRepository(projectId),
     // Runs before the Project's purge, which drops the rows that name its VMs.
-    killProjectSandboxes: async (projectId: string) => { await sandboxes.killRecorded(await store.readProjectSandboxes(projectId)) },
+    killProjectSandboxes: async (projectId: ProjectId) => { await sandboxes.killRecorded(await store.readProjectSandboxes(projectId)) },
     // A deleted Project leaves neither its conversations nor its repository behind.
-    deleteProjectRepository: async (projectId: string) => {
+    deleteProjectRepository: async (projectId: ProjectId) => {
       const conversationIds = await conversations.deleteAll(projectId)
       await liveConversations.drop(projectId, conversationIds)
       await git.deleteRepository(projectId)

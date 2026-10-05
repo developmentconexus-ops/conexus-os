@@ -7,6 +7,7 @@ import { RequestContext } from '@mastra/core/request-context'
 import { InMemoryStore } from '@mastra/core/storage'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { hubModuleUrl } from './hub-build.mjs'
+import { bindRunContext, readRunContext, RUN_CONTEXT } from './run-context.mjs'
 import { testConversations } from './builder-conversation-fixture.mjs'
 
 const {
@@ -133,19 +134,22 @@ test('AC-7: conexus_check runs the run check and says when to run it and what it
 })
 
 test('AC-8: the controller offers conexus_check to a turn whose run has a check, and conexus_run_operation when it can run one', async () => {
-  const runs = { r1: { check: async () => PASSING, runOperation: async () => ({ ok: false, operation: 'x', code: 'NOT_USED' }) }, r3: { check: async () => PASSING } }
+  const R1 = '66666666-6666-4666-8666-666666666611'
+  const R2 = '66666666-6666-4666-8666-666666666612'
+  const R3 = '66666666-6666-4666-8666-666666666613'
+  const runs = { [R1]: { check: async () => PASSING, runOperation: async () => ({ ok: false, operation: 'x', code: 'NOT_USED' }) }, [R3]: { check: async () => PASSING } }
   const controller = createBuilderController({
     model: scriptedModel().model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills'),
-    runTools: ({ requestContext }) => runs[requestContext.getRaw('conexusBuilderRunId')],
+    runTools: ({ requestContext }) => runs[readRunContext(requestContext)?.builderRunId],
   })
   const session = await controller.createSession({ resourceId: 'project:probe-check', scope: 'probe-check' })
   const agent = controller.getCurrentAgent(session)
   const names = async (runId) => {
     const requestContext = new RequestContext()
-    if (runId) requestContext.setRaw('conexusBuilderRunId', runId)
+    if (runId) bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId: runId })
     return Object.keys(await agent.listTools({ requestContext })).filter((name) => name.startsWith('conexus_')).sort()
   }
-  assert.deepEqual([await names('r1'), await names('r3'), await names('r2'), await names()], [['conexus_check', 'conexus_run_operation'], ['conexus_check'], [], []])
+  assert.deepEqual([await names(R1), await names(R3), await names(R2), await names()], [['conexus_check', 'conexus_run_operation'], ['conexus_check'], [], []])
 })
 
 test('AC-2: the Builder has one mode, build', async () => {
@@ -388,7 +392,7 @@ test("a run's question waits on the conversation's one session, the browser's, t
   const builderRunId = '11111111-1111-4111-8111-111111111111'
   const conversationId = '44444444-4444-4444-8444-444444444444'
   const openSession = createControllerRunSessions({ controller, conversations, readDefaultModel: async () => 'anthropic/default-model' })
-  const bind = (runId) => (requestContext) => { requestContext.setRaw('conexusBuilderRunId', runId); requestContext.setRaw('conexusBuilderConversationId', conversationId) }
+  const bind = (runId) => (requestContext) => bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId: runId, conversationId })
   // The browser's session, made before the first run the way the route guard makes it.
   const conversation = await conversations.open({ projectId, conversationId })
   assert.equal(conversation.model.hasSelection(), false, 'a new conversation has no model of its own')
@@ -452,6 +456,6 @@ test('a conversation with no model and no installation default fails the run bef
   const openSession = createControllerRunSessions({ controller, conversations, readDefaultModel: async () => null })
   await assert.rejects(() => openSession({
     projectId: '22222222-2222-4222-8222-222222222222', conversationId: '44444444-4444-4444-8444-444444444444', builderRunId: '11111111-1111-4111-8111-111111111111',
-    bindContext: (requestContext) => requestContext.setRaw('conexusBuilderConversationId', '44444444-4444-4444-8444-444444444444'),
+    bindContext: (requestContext) => bindRunContext(requestContext, RUN_CONTEXT),
   }), /BUILDER_MODEL_NOT_SELECTED/)
 })

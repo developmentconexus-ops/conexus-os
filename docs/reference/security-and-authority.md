@@ -102,8 +102,7 @@ Who may act is decided in TypeScript and bounded again by the database.
   another fails with `NESTED_TRANSACTION`.
 - **Functions.** A `SECURITY DEFINER` function still holds the rules of an owner that has not been
   ported, with a pinned `search_path`. `hub_runtime` holds `EXECUTE` on the functions the older
-  capability roles held. `hub_command` holds `EXECUTE` on the four purges, on
-  `builder.register_project_repository` and on `iam.lock_administrators()`; `hub_reader` holds it on
+  capability roles held. `hub_command` holds `EXECUTE` on the three purges and on `iam.lock_administrators()`; `hub_reader` holds it on
   the three `reg` served functions (each filters by the acting account) and the three helpers. The
   register in `contracts/technical/hub-catalog-census.json` lists them and `npm run db:catalog:check`
   fails on any other. Each part ports one owner's functions into TypeScript before it splits the

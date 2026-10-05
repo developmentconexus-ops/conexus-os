@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
-import { BUILDER_CONTROLLER, builderState, conversation, routeBuilder, sse, userMessage } from './builder-browser-fixtures.mjs'
+import { BUILDER_CONTROLLER, builderState, conversation, routeBuilder, runOf, sse, userMessage, conversationIdOf } from './builder-browser-fixtures.mjs'
 import { startWebServer } from './web-dev-server.mjs'
 
 // A run waiting on a question, with its stream down: the open call lives in the thread message's
@@ -22,14 +22,14 @@ const waitingAsk = (question) => {
 const openWaitingRun = async (t, { phase, messages, refusal = null, pendingCalls = phase === 'WAITING' ? ['call_waiting'] : [] }) => {
   const accountId = '70000000-0000-4000-8000-000000000321'
   const projectId = '70000000-0000-4000-8000-000000000322'
-  const conversationId = 'conversation-waiting'
+  const conversationId = conversationIdOf('conversation-waiting')
   const sourceRevision = 'd'.repeat(40)
   const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
   const state = builderState([conversation(conversationId, 'Título')], { [conversationId]: messages })
-  const run = { builderRunId: '70000000-0000-4000-8000-000000000323', projectId, conversationId, state: 'RUNNING', phase, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'Mude o título', createdAt: new Date(Date.now() - 10 * 60_000).toISOString(), pendingCalls }
+  const run = runOf({ builderRunId: '70000000-0000-4000-8000-000000000323', projectId, conversationId, state: 'RUNNING', phase, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'Mude o título', createdAt: new Date(Date.now() - 10 * 60_000).toISOString(), pendingCalls })
   const requests = { session: 0, stream: 0, answers: [], messages: [], cancels: 0, holdMessages: null, holdPublish: false }
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, state)
@@ -38,7 +38,7 @@ const openWaitingRun = async (t, { phase, messages, refusal = null, pendingCalls
     requests.session += 1
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
       projectId, latestBuilderRun: run, latestCodeChangingRun: null,
-      preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+      preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
       runHistory: [],
     }) })
   })
@@ -133,12 +133,12 @@ test('a run still WAITING in the database with no live session in this Hub, as a
 test('a tab that still holds an earlier question shows only the call the waiting run waits on, whatever reaches it first', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000331'
   const projectId = '70000000-0000-4000-8000-000000000332'
-  const conversationId = 'conversation-two-tabs'
+  const conversationId = conversationIdOf('conversation-two-tabs')
   const sourceRevision = 'e'.repeat(40)
   const OLD = 'Qual cor usar?'
   const NEW = 'Qual fonte usar?'
   const ask = (toolCallId, question) => ({ type: 'tool_suspended', toolCallId, toolName: 'ask_user', args: { questions: [{ question }] }, suspendPayload: { questions: [{ question }] } })
-  const run = { builderRunId: '70000000-0000-4000-8000-000000000334', projectId, conversationId, state: 'RUNNING', phase: 'WAITING', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'Agora a fonte', createdAt: new Date().toISOString(), pendingCalls: ['call-new'] }
+  const run = runOf({ builderRunId: '70000000-0000-4000-8000-000000000334', projectId, conversationId, state: 'RUNNING', phase: 'WAITING', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'Agora a fonte', createdAt: new Date().toISOString(), pendingCalls: ['call-new'] })
   const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
   t.after(() => browser.close())
@@ -149,7 +149,7 @@ test('a tab that still holds an earlier question shows only the call the waiting
     await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Título', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
     await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
       projectId, latestBuilderRun: run, latestCodeChangingRun: null,
-      preview: { workingSourceRevision: sourceRevision, lastGoodSourceRevision: null, lastGoodArtifactRevisionId: null, lastGoodArtifactDigest: null },
+      preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
       runHistory: [],
     }) }))
     await page.route(`${BUILDER_CONTROLLER}/sessions/*/stream*`, (route) => route.fulfill(sse(...events)))

@@ -3,184 +3,75 @@ import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
 import { assertRoleInvariants } from '../../scripts/hub-catalog.mjs'
-import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
-import { refuseProtectedCluster } from './protected-cluster.mjs'
+import { hubModuleUrl } from './hub-build.mjs'
+import { buildHubDatabase, query } from './hub-database.mjs'
+import { setupBuilder } from './builder-fixture.mjs'
+import { ID } from './project-fixture.mjs'
 
-const required = (name) => {
-  const value = process.env[name]
-  if (!value) throw new Error(`MISSING_TEST_CONFIG_${name}`)
-  return value
-}
-const admin = {
-  host: required('CONEXUS_TEST_DB_HOST'), port: Number(required('CONEXUS_TEST_DB_PORT')),
-  database: required('CONEXUS_TEST_DB_NAME'), user: required('CONEXUS_TEST_DB_USER'),
-  password: required('CONEXUS_TEST_DB_PASSWORD'),
-}
-const query = async (connection, sql, parameters = []) => {
-  const client = new pg.Client(connection)
-  await client.connect()
-  try { return await client.query(sql, parameters) } finally { await client.end() }
-}
-const connectionStringFor = (connection) => {
-  const url = new URL('postgresql://localhost')
-  url.hostname = connection.host
-  url.port = String(connection.port)
-  url.pathname = `/${connection.database}`
-  url.username = connection.user
-  url.password = connection.password
-  return url.toString()
-}
-const freshDatabase = async (t) => {
-  await refuseProtectedCluster()
-  const database = `conexus_excision_${randomUUID().replaceAll('-', '')}`
-  await query(admin, `CREATE DATABASE "${database}"`)
-  t.after(() => query(admin, `DROP DATABASE "${database}" WITH (FORCE)`))
-  return { ...admin, database }
-}
+const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
 
-// Every refusal in the new surface is SQLSTATE 42501. Returning the code rather than asserting on
-// a message keeps these tests honest about what a caller can actually branch on.
-const refusal = async (connection, sql, parameters = []) => {
-  try {
-    await query(connection, sql, parameters)
-    return { code: null, message: null }
-  } catch (error) {
-    return { code: error.code ?? null, message: error.message ?? null }
-  }
-}
-
-const seedWorkspace = async (connection, { label }) => {
-  const workspaceId = randomUUID()
-  await query(connection, 'INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1,$2)', [workspaceId, label])
-  return workspaceId
-}
-const seedAccount = async (connection, { label, active = true }) => {
-  const accountId = randomUUID()
-  await query(connection,
-    'INSERT INTO iam.account(account_id, issuer, external_subject, display_name, active) VALUES ($1,$2,$3,$4,$5)',
-    [accountId, 'https://excision.test', accountId, label, active])
-  return accountId
-}
-const seedMember = (connection, accountId, workspaceId, role) =>
-  query(connection, 'INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,$3)',
-    [accountId, workspaceId, role])
-const seedProject = async (connection, workspaceId, label, sourceRevision) => {
-  const projectId = randomUUID()
-  await query(connection,
-    `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)
-     VALUES ($1,$2,$3,'NEW',$4,$5)`, [projectId, workspaceId, label, sourceRevision, `${label}-revision`])
-  await query(connection, 'SELECT builder.register_project_repository($1)', [projectId])
-  return projectId
-}
-const digest = () => randomUUID().replaceAll('-', '').padEnd(64, '0').slice(0, 64)
-const createRun = (connection, accountId, projectId, runId) =>
-  query(connection, 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9) AS value',
-    [accountId, projectId, `conversa-${projectId}`, digest(), digest(), 'pedido', null, runId, 'a'.repeat(40)])
+const BASE = 'a'.repeat(40)
+const send = (store, accountId, projectId, key) => store.createBuilderRun({ accountId, projectId, conversationId: projectId, idempotencyKey: key, content: 'pedido', readBase: async () => BASE })
 
 test('a member of the Workspace reads, creates and builds every Project in it', async (t) => {
-  const connection = await freshDatabase(t)
-  await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
-
-  const owner = await seedAccount(connection, { label: 'Owner' })
-  const workspaceId = await seedWorkspace(connection, { label: 'Shared' })
-  const member = await seedAccount(connection, { label: 'Member' })
-  const stranger = await seedAccount(connection, { label: 'Stranger' })
-  await seedMember(connection, owner, workspaceId, 'owner')
-  await seedMember(connection, member, workspaceId, 'member')
-  const sourceRevision = 'a'.repeat(40)
-  const projectId = await seedProject(connection, workspaceId, 'Owned', sourceRevision)
+  const { database, seedBuilderProject } = await setupBuilder(t, 'conexus_excision_member')
+  const store = createBuilderStore({ database, ownerId: randomUUID() })
+  const projectId = await seedBuilderProject('Owned')
 
   // The member did not create this Project and holds no row naming it, yet reads it, because the
   // Workspace is the boundary.
-  const visible = async (accountId) => (await query(connection, 'SELECT project_id FROM iam.visible_projects($1)', [accountId])).rows
-  assert.deepEqual(await visible(member), [{ project_id: projectId }])
-  assert.deepEqual(await visible(stranger), [])
+  const created = await send(store, ID.member, projectId, 'one')
+  assert.equal(created.state, 'QUEUED')
+  assert.deepEqual((await store.listBuilderRuns({ accountId: ID.member, projectId })).map((run) => run.builderRunId), [created.builderRunId])
+  assert.equal(await store.admitSourceRevision({ accountId: ID.member, projectId, sourceRevision: BASE, readMain: async () => BASE }), true)
+  assert.deepEqual(await store.readPreviewSubject({ accountId: ID.member, projectId }), { lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null })
 
-  const runId = randomUUID()
-  const created = await createRun(connection, member, projectId, runId)
-  assert.equal(created.rows[0].value.builderRunId, runId)
-  assert.equal(created.rows[0].value.state, 'QUEUED')
-  assert.deepEqual((await query(connection, 'SELECT builder.list_builder_runs($1,$2,$3) AS value', [member, projectId, 20]))
-    .rows[0].value.map((run) => run.builderRunId), [runId])
-  assert.equal((await query(connection, 'SELECT builder.admit_source_revision($1,$2,$3,$4) AS admitted', [member, projectId, sourceRevision, sourceRevision]))
-    .rows[0].admitted, true)
-  assert.deepEqual((await query(connection, 'SELECT builder.read_preview_subject($1,$2) AS value', [member, projectId]))
-    .rows[0].value, { lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null })
-
-  // A non-member reads nothing and every effect refuses with the one error code.
-  assert.deepEqual((await query(connection, 'SELECT builder.list_builder_runs($1,$2,$3) AS value', [stranger, projectId, 20])).rows[0].value, [])
-  assert.equal((await query(connection, 'SELECT builder.admit_source_revision($1,$2,$3,$4) AS admitted', [stranger, projectId, sourceRevision, sourceRevision])).rows[0].admitted, false)
-  assert.equal((await query(connection, 'SELECT builder.read_preview_subject($1,$2) AS value', [stranger, projectId])).rows[0].value, null)
-  for (const [sql, parameters] of [
-    ['SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9)', [stranger, projectId, `conversa-${projectId}`, 'd'.repeat(64), 'e'.repeat(64), 'pedido', null, randomUUID(), sourceRevision]],
-    ['SELECT builder.request_builder_run_cancellation($1,$2,$3)', [stranger, projectId, runId]],
-  ]) {
-    assert.deepEqual(await refusal(connection, sql, parameters), { code: '42501', message: 'NOT_ADMITTED' }, sql)
-  }
+  assert.deepEqual(await store.listBuilderRuns({ accountId: ID.outsider, projectId }), [])
+  assert.equal(await store.admitSourceRevision({ accountId: ID.outsider, projectId, sourceRevision: BASE, readMain: async () => BASE }), false)
+  assert.equal(await store.readPreviewSubject({ accountId: ID.outsider, projectId }), null)
+  await assert.rejects(send(store, ID.outsider, projectId, 'two'), { id: 'PROJECT_BUILD_DENIED' })
+  await assert.rejects(store.requestBuilderRunCancellation({ accountId: ID.outsider, projectId, builderRunId: created.builderRunId }), { id: 'PROJECT_BUILD_DENIED' })
 })
 
 test('removing the member stops the next claim and still records the work already done', async (t) => {
-  const connection = await freshDatabase(t)
-  await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
+  const { connection, database, seedBuilderProject } = await setupBuilder(t, 'conexus_excision_removal')
+  const store = createBuilderStore({ database, ownerId: randomUUID() })
+  const running = await seedBuilderProject('Running')
+  const queued = await seedBuilderProject('Queued')
+  const runningRun = await send(store, ID.member, running, 'one')
+  const queuedRun = await send(store, ID.member, queued, 'two')
+  assert.equal((await store.claimBuilderRun({ builderRunId: runningRun.builderRunId })).state, 'RUNNING')
 
-  const owner = await seedAccount(connection, { label: 'Owner' })
-  const workspaceId = await seedWorkspace(connection, { label: 'Mid-run' })
-  const member = await seedAccount(connection, { label: 'Member' })
-  await seedMember(connection, owner, workspaceId, 'owner')
-  await seedMember(connection, member, workspaceId, 'member')
-  const running = await seedProject(connection, workspaceId, 'Running', 'a'.repeat(40))
-  const queued = await seedProject(connection, workspaceId, 'Queued', 'b'.repeat(40))
+  await query(connection, 'SELECT iam.remove_workspace_member($1,$2,$3)', [ID.owner, ID.workspace, ID.member])
 
-  const runningRunId = randomUUID()
-  const queuedRunId = randomUUID()
-  await createRun(connection, member, running, runningRunId)
-  await createRun(connection, member, queued, queuedRunId)
-  assert.equal((await query(connection, 'SELECT builder.claim_builder_run($1, gen_random_uuid()) AS value',
-    [runningRunId])).rows[0].value.state, 'RUNNING')
-
-  await query(connection, 'SELECT iam.remove_workspace_member($1,$2,$3)', [owner, workspaceId, member])
-
-  // A claim asks for new authority and is refused.
-  assert.deepEqual(await refusal(connection, 'SELECT builder.claim_builder_run($1, gen_random_uuid())',
-    [queuedRunId]), { code: '42501', message: 'NOT_ADMITTED' })
+  await assert.rejects(store.claimBuilderRun({ builderRunId: queuedRun.builderRunId }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
 
   // Settlement records what the run already performed, so it does not ask.
-  assert.equal((await query(connection, 'SELECT builder.settle_builder_run($1,$2,$3,$4) AS settled',
-    [runningRunId, null, 'RESPONSE_ONLY', null])).rows[0].settled, true)
-  assert.deepEqual((await query(connection, 'SELECT state, result_kind FROM builder.builder_run WHERE builder_run_id = $1', [runningRunId])).rows,
+  await store.settleBuilderRun({ builderRunId: runningRun.builderRunId })
+  assert.deepEqual((await query(connection, 'SELECT state, result_kind FROM builder.builder_run WHERE builder_run_id = $1', [runningRun.builderRunId])).rows,
     [{ state: 'SUCCEEDED', result_kind: 'RESPONSE_ONLY' }])
 
-  // The same DELETE closed the reads.
-  assert.deepEqual((await query(connection, 'SELECT project_id FROM iam.visible_projects($1)', [member])).rows, [])
+  assert.deepEqual((await query(connection, 'SELECT project_id FROM iam.visible_projects($1)', [ID.member])).rows, [])
 })
 
 test('an inactive account is refused everywhere, including Preview and source read', async (t) => {
-  const connection = await freshDatabase(t)
-  await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
+  const { connection, database, seedBuilderProject } = await setupBuilder(t, 'conexus_excision_dormant')
+  const store = createBuilderStore({ database, ownerId: randomUUID() })
+  const projectId = await seedBuilderProject('Dormant')
+  const admits = () => store.admitSourceRevision({ accountId: ID.member, projectId, sourceRevision: BASE, readMain: async () => BASE })
 
-  const owner = await seedAccount(connection, { label: 'Owner' })
-  const workspaceId = await seedWorkspace(connection, { label: 'Deactivation' })
-  const dormant = await seedAccount(connection, { label: 'Dormant' })
-  await seedMember(connection, owner, workspaceId, 'owner')
-  await seedMember(connection, dormant, workspaceId, 'member')
-  const sourceRevision = 'c'.repeat(40)
-  const projectId = await seedProject(connection, workspaceId, 'Dormant', sourceRevision)
+  assert.equal(await admits(), true)
+  await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.member])
 
-  assert.equal((await query(connection, 'SELECT builder.admit_source_revision($1,$2,$3,$4) AS admitted', [dormant, projectId, sourceRevision, sourceRevision])).rows[0].admitted, true)
-  await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [dormant])
-
-  // The two holes 052's grounding found were here: Preview and source read never checked active.
-  assert.equal((await query(connection, 'SELECT builder.admit_source_revision($1,$2,$3,$4) AS admitted', [dormant, projectId, sourceRevision, sourceRevision])).rows[0].admitted, false)
-  assert.equal((await query(connection, 'SELECT builder.read_preview_subject($1,$2) AS value', [dormant, projectId])).rows[0].value, null)
-  assert.equal((await query(connection, 'SELECT builder.read_builder_run($1,$2) AS value', [dormant, projectId])).rows[0].value, null)
-  assert.deepEqual((await query(connection, 'SELECT project_id FROM iam.visible_projects($1)', [dormant])).rows, [])
-  assert.deepEqual(await refusal(connection, 'SELECT builder.create_builder_run($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-    [dormant, projectId, `conversa-${projectId}`, '1'.repeat(64), '2'.repeat(64), 'pedido', null, randomUUID(), sourceRevision]), { code: '42501', message: 'NOT_ADMITTED' })
+  assert.equal(await admits(), false)
+  assert.equal(await store.readPreviewSubject({ accountId: ID.member, projectId }), null)
+  assert.equal(await store.readBuilderRun({ accountId: ID.member, projectId }), null)
+  assert.deepEqual((await query(connection, 'SELECT project_id FROM iam.visible_projects($1)', [ID.member])).rows, [])
+  await assert.rejects(send(store, ID.member, projectId, 'one'), { id: 'ACCOUNT_INACTIVE' })
 })
 
 test('the runner refuses a database where PUBLIC may execute a Hub function', async (t) => {
-  const connection = await freshDatabase(t)
-  await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
+  const { connection } = await buildHubDatabase(t, 'conexus_excision_public')
 
   // Held open only for this body: the fixture's DROP DATABASE WITH (FORCE) would otherwise
   // terminate it first and report a connection failure instead of the assertion.
@@ -188,9 +79,9 @@ test('the runner refuses a database where PUBLIC may execute a Hub function', as
   await client.connect()
   try {
     await assertRoleInvariants(client)
-    await client.query('GRANT EXECUTE ON FUNCTION builder.register_project_repository(uuid) TO PUBLIC')
+    await client.query('GRANT EXECUTE ON FUNCTION iam.remove_workspace_member(uuid, uuid, uuid) TO PUBLIC')
     await assert.rejects(assertRoleInvariants(client),
-      /MIGRATION_FUNCTION_PUBLIC_EXECUTE_REFUSED:builder\.register_project_repository\(p_project_id uuid\)/)
+      /MIGRATION_FUNCTION_PUBLIC_EXECUTE_REFUSED:iam\.remove_workspace_member\(p_actor uuid, p_workspace_id uuid, p_member uuid\)/)
   } finally {
     await client.end()
   }

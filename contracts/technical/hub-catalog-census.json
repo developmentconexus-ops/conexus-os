@@ -15,33 +15,6 @@
     ],
     "pending": [
       {
-        "table": "builder.builder_run_model_account",
-        "part": 1,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": []
-        }
-      },
-      {
-        "table": "builder.conversation_session",
-        "part": 1,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": []
-        }
-      },
-      {
-        "table": "builder.project_repository",
-        "part": 1,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": []
-        }
-      },
-      {
         "table": "iam.application",
         "part": 6,
         "privileges": {
@@ -217,9 +190,9 @@
     ]
   },
   "ceilings": {
-    "ruleFunctions": 91,
+    "ruleFunctions": 62,
     "legacyOwnerPolicies": 6,
-    "runtimePrivileges": 84
+    "runtimePrivileges": 59
   },
   "register": {
     "split": [
@@ -227,10 +200,15 @@
         "table": "builder.builder_run",
         "reader": true,
         "command": [
-          "SELECT"
+          "DELETE",
+          "INSERT",
+          "SELECT",
+          "UPDATE(cancellation_reason,cancellation_requested_at,candidate_revision,failure_code,finished_at,heartbeat_at,owner_id,phase,result_kind,result_source_revision,sandbox_id,started_at,state,trigger_message_id)"
         ],
         "runtime": [],
-        "compositeKeys": [],
+        "compositeKeys": [
+          "builder_run_account_id_fkey"
+        ],
         "keyColumns": [
           "account_id",
           "builder_run_id",
@@ -238,10 +216,55 @@
         ]
       },
       {
+        "table": "builder.builder_run_model_account",
+        "reader": false,
+        "command": [
+          "INSERT",
+          "SELECT"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "builder_run_id"
+        ]
+      },
+      {
+        "table": "builder.conversation_session",
+        "reader": true,
+        "command": [
+          "INSERT",
+          "SELECT",
+          "UPDATE(last_turn_ended_at,mirror_head,provider_sandbox_id,synced_main)"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "conversation_id",
+          "project_id"
+        ]
+      },
+      {
+        "table": "builder.project_repository",
+        "reader": false,
+        "command": [
+          "DELETE",
+          "INSERT",
+          "SELECT"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "project_id"
+        ]
+      },
+      {
         "table": "builder.project_working_state",
         "reader": true,
         "command": [
-          "SELECT"
+          "DELETE",
+          "INSERT",
+          "SELECT",
+          "UPDATE(current_state,last_preview_artifact_digest,last_preview_artifact_revision_id,last_preview_source_revision,updated_at)"
         ],
         "runtime": [],
         "compositeKeys": [],
@@ -407,10 +430,9 @@
         "rls.acting_workspaces()"
       ],
       "hub_command": [
-        "builder.purge_project(p_project_id uuid)",
-        "builder.register_project_repository(p_project_id uuid)",
         "iam.lock_administrators()",
         "iam.purge_project(p_project_id uuid)",
+        "reg.matches_application_artifact(p_project_id uuid, p_source_revision text, p_artifact_revision_id uuid, p_artifact_digest text)",
         "reg.purge_project(p_project_id uuid)"
       ]
     }

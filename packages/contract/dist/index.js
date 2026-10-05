@@ -1,5 +1,6 @@
 export * from './field-failures.js';
 export * from './ids.js';
+export * from './builder.js';
 export * from './failures.generated.js';
 export * from './connectors.js';
 export * from './operation.js';
@@ -8,5 +9,6 @@ export * from './project.js';
 export * from './workspace.js';
 import { CON01, CON02, CON03, CON04, CON08, CON09, CON10 } from './connectors.js';
 import { PRJ01, PRJ02, PRJ03, PRJ04, PRJ_SUMMARIES, PRJ_THUMBNAIL } from './project.js';
+import { BLD08, BLD09, BLD23, BLD24, BLD25, BLD26, BLD29, BLD30 } from './builder.js';
 import { WS01 } from './workspace.js';
-export const OPERATIONS = Object.freeze([WS01, PRJ01, PRJ02, PRJ03, PRJ04, PRJ_SUMMARIES, PRJ_THUMBNAIL, CON01, CON02, CON03, CON04, CON08, CON09, CON10]);
+export const OPERATIONS = Object.freeze([WS01, PRJ01, PRJ02, PRJ03, PRJ04, PRJ_SUMMARIES, PRJ_THUMBNAIL, CON01, CON02, CON03, CON04, CON08, CON09, CON10, BLD08, BLD09, BLD23, BLD24, BLD25, BLD26, BLD29, BLD30]);

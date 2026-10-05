@@ -17,9 +17,8 @@ const MEMORY_LIMIT_LINES = 200
 export const PROJECT_FILE_READ_LIMIT = 1024 * 1024
 
 /** What `readBlob` answers: null when the path is not there, bytes null when the file is past the read limit. */
-type ProjectBlob = Readonly<{ type: string; size: number; bytes: Uint8Array | null }> | null
-/** A blob, or undefined when reading it failed. */
-export type ProjectFile = ProjectBlob | undefined
+/** A blob, or null when the path is not in the commit. */
+export type ProjectFile = Readonly<{ type: string; size: number; bytes: Uint8Array | null }> | null
 
 const strictUtf8 = new TextDecoder('utf-8', { fatal: true })
 const encoder = new TextEncoder()
@@ -46,7 +45,6 @@ const cutToBytes = (text: string, limit: number): string => {
 
 // Text for the prompt: the file's content, or an empty file with one line saying why.
 const read = (file: ProjectFile, name: string, cut: (text: string) => string | null, limitNote: string): string => {
-  if (file === undefined) return `[${name} could not be read; treat it as empty.]`
   if (file?.type !== 'blob') return `[${name} is missing; treat it as empty.]`
   if (!file.bytes) return `[${name} is too large to read; treat it as empty.]`
   const text = decode(file.bytes)

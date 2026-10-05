@@ -6,8 +6,11 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import { hubModuleUrl as built } from './hub-build.mjs'
-import { buildHubDatabase, query, testPool } from './hub-database.mjs'
+import { query } from './hub-database.mjs'
+import { setupBuilder } from './builder-fixture.mjs'
+import { ID } from './project-fixture.mjs'
 
+const { Failure } = await import(built('platform/failure.js'))
 const { createBuilderStore } = await import(built('builder/store.js'))
 const { createBuilderService } = await import(built('builder/service.js'))
 const { createConexusGit } = await import(built('builder/conexus-git.js'))
@@ -20,20 +23,19 @@ const run = (cwd, args) => execFileSync('git', args, {
 // A database and a Conexus Git holding one run per crash, each as a Hub stopped after its last
 // durable write. Every Project's history is starter, result, then one commit on top; each crash
 // sets `main` to one of them, and the run's candidate is always the result.
+const EXECUTOR = { via: 'executor' }
+const OWNER_OF_PLAN = '0f000000-0000-4000-8000-000000000005'
+const CRASHED = '0f000000-0000-4000-8000-000000000002'
 const SWEEPER = '0f000000-0000-4000-8000-000000000001'
 const recoveryHarness = async (t, name, crashes) => {
-  const { connectionString, connection, onCleanup } = await buildHubDatabase(t, name)
+  const { connection: connectionString, database, onCleanup } = await setupBuilder(t, name)
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-recovery-'))
   onCleanup(() => rmSync(scratch, { recursive: true, force: true }))
   const git = createConexusGit({ root: join(scratch, 'git'), starter: [{ path: 'app/index.html', content: 'starter\n' }] })
-  const owner = randomUUID()
-  const workspaceId = randomUUID()
-  await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://recovery.test', $2, 'Owner')", [owner, owner])
-  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Recovery')", [workspaceId])
-  await query(connectionString, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [owner, workspaceId])
-  const executorPool = testPool({ ...connection, max: 2, options: '-c role=hub_builder_executor' })
-  const ingressPool = testPool({ ...connection, max: 2, options: '-c role=hub_builder_ingress' })
-  const store = createBuilderStore({ ingressPool, executorPool })
+  const owner = ID.owner
+  const workspaceId = ID.workspace
+  const sweeper = createBuilderStore({ database, ownerId: SWEEPER })
+  const store = createBuilderStore({ database, ownerId: CRASHED })
   const runs = []
   for (const crash of crashes) {
     const projectId = randomUUID()
@@ -52,31 +54,32 @@ const recoveryHarness = async (t, name, crashes) => {
     run(work, ['push', '--quiet', repository, `${result}:refs/conexus/runs/${builderRunId}`, `+${main}:refs/heads/main`])
 
     await query(connectionString, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, $3, 'NEW', $4, $3)", [projectId, workspaceId, crash.name, base])
-    await query(connectionString, 'SELECT builder.register_project_repository($1)', [projectId])
+    await query(connectionString, 'INSERT INTO builder.project_working_state(project_id) VALUES ($1)', [projectId])
+    await query(connectionString, 'INSERT INTO builder.project_repository(project_id) VALUES ($1)', [projectId])
     await query(connectionString, `
       INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision, state, phase, started_at, owner_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CASE WHEN $8 = 'RUNNING' THEN clock_timestamp() END, $10)`,
     [builderRunId, projectId, owner, randomUUID(), builderRunId.replaceAll('-', '').padEnd(64, '0'), 'f'.repeat(64), base, crash.queued ? 'QUEUED' : 'RUNNING',
-      crash.queued ? null : crash.phase === 'SOURCE_ADMISSION' ? 'COMPILING' : crash.phase, crash.owner ?? null])
-    if (crash.candidate) assert.equal((await executorPool.query('SELECT builder.record_builder_run_candidate($1,$2) AS value', [builderRunId, result])).rows[0].value, true)
+      crash.queued ? null : crash.phase === 'SOURCE_ADMISSION' ? 'COMPILING' : crash.phase, crash.owner ?? (crash.queued ? null : CRASHED)])
+    if (crash.candidate) await store.recordBuilderRunCandidate({ builderRunId, accountId: owner, sourceRevision: result })
     if (crash.advanced) {
-      await store.advanceBuilderRunSource(builderRunId, result)
-      if (crash.phase === 'FINALIZING') await store.setBuilderRunPhase(builderRunId, 'FINALIZING')
+      await store.advanceBuilderRunSource({ builderRunId, sourceRevision: result })
+      if (crash.phase === 'FINALIZING') await store.setBuilderRunPhase({ builderRunId, phase: 'FINALIZING', actor: { via: 'executor' } })
     }
-    if (crash.stopped) await query(connectionString, "UPDATE builder.builder_run SET cancellation_requested_at = clock_timestamp(), cancellation_reason = 'USER_CANCELLED' WHERE builder_run_id = $1", [builderRunId])
+    if (crash.stopped) await query(connectionString, "UPDATE builder.builder_run SET phase = NULL, cancellation_requested_at = clock_timestamp(), cancellation_reason = 'USER_CANCELLED' WHERE builder_run_id = $1", [builderRunId])
     runs.push({ ...crash, projectId, builderRunId, result })
   }
 
   const outage = { active: false }
   const service = createBuilderService({
-    store,
+    store: sweeper,
     applicationArtifacts: {},
     runs: {
       ports: {},
       git: {
         readMain: git.readMain,
         mainContains: async (projectId, revision) => {
-          if (outage.active) throw new Error('CONEXUS_GIT_FAILED')
+          if (outage.active) throw new Failure('CONEXUS_GIT_FAILED')
           return git.mainContains(projectId, revision)
         },
       },
@@ -84,7 +87,6 @@ const recoveryHarness = async (t, name, crashes) => {
       appendDiagnostic: async () => { throw new Error('not reached') },
       publishRun: async () => {},
       questionWaitMs: 60_000,
-      ownerId: SWEEPER,
       staleAfterMs: 0,
     },
   })
@@ -94,7 +96,7 @@ const recoveryHarness = async (t, name, crashes) => {
     return { ...settled, result_source_revision: settled.result_source_revision === result ? 'RESULT' : settled.result_source_revision }
   }
   const rows = async () => Object.fromEntries(await Promise.all(runs.map(async (entry) => [entry.name, await row(entry)])))
-  return { service, runs, rows, outage, store, connectionString }
+  return { service, runs, rows, outage, store, database, connectionString }
 }
 
 const interrupted = { state: 'INTERRUPTED', result_kind: null, result_source_revision: null, failure_code: 'HUB_RESTART' }
@@ -137,27 +139,21 @@ test('a candidate a sweep cannot confirm while the Conexus Git fails stays runni
 })
 
 test('a run that started in Planejar and built after the plan approval records, advances and settles its source (AC-4)', async (t) => {
-  const { connectionString, connection, onCleanup } = await buildHubDatabase(t, 'conexus_plan_settlement')
-  const owner = randomUUID()
-  const workspaceId = randomUUID()
-  const projectId = randomUUID()
+  const { connection: connectionString, database, seedBuilderProject } = await setupBuilder(t, 'conexus_plan_settlement')
+  const owner = ID.owner
+  const projectId = await seedBuilderProject('Plan')
   const builderRunId = randomUUID()
   const base = 'a'.repeat(40)
   const candidate = 'b'.repeat(40)
-  await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://plan.test', $2, 'Owner')", [owner, owner])
-  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Plan')", [workspaceId])
-  await query(connectionString, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'Plan', 'NEW', $3, 'plan')", [projectId, workspaceId, base])
-  await query(connectionString, 'SELECT builder.register_project_repository($1)', [projectId])
   await query(connectionString, `
     INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision, state, phase)
     VALUES ($1, $2, $3, $4, $5, $6, $7, 'RUNNING', 'AGENT')`,
   [builderRunId, projectId, owner, randomUUID(), '1'.repeat(64), '2'.repeat(64), base])
-  const executorPool = testPool({ ...connection, max: 1, options: '-c role=hub_builder_executor' })
-  onCleanup(() => executorPool.end())
-  const store = createBuilderStore({ ingressPool: executorPool, executorPool })
+  await query(connectionString, 'UPDATE builder.builder_run SET owner_id = $2, started_at = now() WHERE builder_run_id = $1', [builderRunId, OWNER_OF_PLAN])
+  const store = createBuilderStore({ database, ownerId: OWNER_OF_PLAN })
 
-  await store.recordBuilderRunCandidate(builderRunId, candidate)
-  await store.advanceBuilderRunSource(builderRunId, candidate)
+  await store.recordBuilderRunCandidate({ builderRunId, accountId: owner, sourceRevision: candidate })
+  await store.advanceBuilderRunSource({ builderRunId, sourceRevision: candidate })
   const [admitted] = (await query(connectionString, 'SELECT builder.admit_verified_application_source($1,$2,$3,$4) AS value', [owner, projectId, builderRunId, candidate])).rows
   await store.settleBuilderRunBuild({ builderRunId, sourceRevision: candidate, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
   const [row] = (await query(connectionString, 'SELECT state, result_kind, result_source_revision, failure_code FROM builder.builder_run WHERE builder_run_id = $1', [builderRunId])).rows
@@ -171,15 +167,15 @@ test("a stop on a working or waiting run only marks the request, and the run's n
   const { runs, store, connectionString } = await recoveryHarness(t, 'conexus_run_waiting_stop', crashes)
   const [waiting] = runs
   const phase = async ({ builderRunId }) => (await query(connectionString, 'SELECT state, phase FROM builder.builder_run WHERE builder_run_id = $1', [builderRunId])).rows[0]
-  const working = await store.setBuilderRunPhase(waiting.builderRunId, 'AGENT')
+  const working = await store.setBuilderRunPhase({ builderRunId: waiting.builderRunId, phase: 'AGENT', actor: EXECUTOR })
   assert.deepEqual({ state: working.state, phase: working.phase }, { state: 'RUNNING', phase: 'AGENT' }, 'a phase write answers the run as the session read serves it')
-  await store.setBuilderRunPhase(waiting.builderRunId, 'WAITING')
+  await store.setBuilderRunPhase({ builderRunId: waiting.builderRunId, phase: 'WAITING', actor: EXECUTOR })
   const [{ account_id: accountId }] = (await query(connectionString, 'SELECT account_id FROM builder.builder_run WHERE builder_run_id = $1', [waiting.builderRunId])).rows
   const cancelled = await store.requestBuilderRunCancellation({ accountId, projectId: waiting.projectId, builderRunId: waiting.builderRunId })
   assert.deepEqual({ state: cancelled.state, cancellationRequested: cancelled.cancellationRequested }, { state: 'RUNNING', cancellationRequested: true }, 'the run writes its own end')
-  assert.equal(await store.setBuilderRunPhase(waiting.builderRunId, 'AGENT'), null)
+  assert.equal(await store.setBuilderRunPhase({ builderRunId: waiting.builderRunId, phase: 'AGENT', actor: EXECUTOR }), null)
   assert.deepEqual(await phase(waiting), { state: 'RUNNING', phase: null }, 'a requested stop clears the phase')
-  await store.interruptBuilderRun(waiting.builderRunId, 'USER_CANCELLED')
+  await store.interruptBuilderRun({ builderRunId: waiting.builderRunId, failureCode: 'USER_CANCELLED' })
   assert.deepEqual(await phase(waiting), { state: 'INTERRUPTED', phase: null })
 })
 
@@ -191,10 +187,11 @@ test('a fresh heartbeat keeps a run from every lease pass, a waiting run is take
     { name: 'quiet-b', phase: 'COMPILING', candidate: false, main: 'BASE' },
     { name: 'waiting', phase: 'WAITING', candidate: false, main: 'BASE' },
   ]
-  const { runs, store, connectionString } = await recoveryHarness(t, 'conexus_run_lease', crashes)
+  const { runs, database, connectionString } = await recoveryHarness(t, 'conexus_run_lease', crashes)
   await query(connectionString, "UPDATE builder.builder_run SET heartbeat_at = clock_timestamp() - interval '1 minute', created_at = clock_timestamp() - interval '1 minute'")
   await query(connectionString, 'UPDATE builder.builder_run SET heartbeat_at = clock_timestamp() WHERE builder_run_id = $1', [runs[0].builderRunId])
-  const [one, other] = await Promise.all([store.renewRunLease(SWEEPER, [], 30_000), store.renewRunLease('0f000000-0000-4000-8000-000000000004', [], 30_000)])
+  const sweeps = ['0f000000-0000-4000-8000-000000000001', '0f000000-0000-4000-8000-000000000004'].map((ownerId) => createBuilderStore({ database, ownerId }))
+  const [one, other] = await Promise.all(sweeps.map((sweeper) => sweeper.renewRunLease({ liveRunIds: [], staleAfterMs: 30_000 })))
   const names = new Map(runs.map(({ builderRunId, name }) => [builderRunId, name]))
   assert.deepEqual([...one, ...other].map(({ builderRunId }) => names.get(builderRunId)).sort(), ['quiet-a', 'quiet-b', 'waiting'])
 })

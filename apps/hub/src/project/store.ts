@@ -1,22 +1,28 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import {
-  ProjectCard, ProjectId, ProjectName, ProjectRevision, SourceRevision, WorkspaceId, PRJ03,
-  type AccountId, type IdempotencyKey, type Input, type ProjectCreated, type ProjectDetail, type ProjectListItem,
+  ProjectCard, ProjectId, ProjectName, ProjectRevision, WorkspaceId, PRJ03,
+  type AccountId, type SourceRevision, type IdempotencyKey, type Input, type ProjectCreated, type ProjectDetail, type ProjectListItem,
 } from '../../../../packages/contract/dist/index.js'
-import { admitWorkspace, isInstallationAdministrator } from '../identity-access/admission.js'
+import { admitWorkspace, isInstallationAdministrator, type Admitted, type WorkspaceScope } from '../identity-access/admission.js'
 import type { Database } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
+import { gitUnavailableAs } from '../platform/git-failure.js'
 import { complete, reserve } from '../platform/receipt.js'
 import { createProjectDeletion } from './deletion.js'
 import type { ProjectDeletionPorts } from './deletion.js'
+
+/** What the Builder writes on the Project's creation transaction: its proof is the check. */
+export type BuilderProjectPorts = Readonly<{
+  register(proof: Admitted<WorkspaceScope<'project.create'>>, projectId: ProjectId): Promise<void>
+}>
 
 // Gives a Project that does not exist yet its repository in the Conexus Git, with the starter on
 // `main`, and answers `main`. The same Project id always reaches the same repository, so calling it
 // again converges.
 export type ProjectRepositoryPort = Readonly<{
-  prepare(projectId: ProjectId): Promise<string>
+  prepare(projectId: ProjectId): Promise<SourceRevision>
 }>
 
 type CreateProjectInput = Readonly<{
@@ -53,19 +59,17 @@ const toProjectCard = (row: z.output<typeof CardRow>): ProjectCard => ProjectCar
   deleting: row.deleting,
 })
 
-// Conexus Git failures are named codes; only the code is kept, and anything else is a failure with no name.
-const GIT_FAILURE_NAME = /^(CONEXUS_GIT_[A-Z_]+)$/
-const gitFailureName = (error: unknown): string => GIT_FAILURE_NAME.exec(error instanceof Error ? error.message : '')?.[1] ?? 'CONEXUS_GIT_FAILED'
-
 export const createProjectStore = ({
   database,
   repository,
   deletion,
+  builder,
   mintRevision = randomUUID,
 }: Readonly<{
   database: Database
   repository: ProjectRepositoryPort
   deletion: ProjectDeletionPorts
+  builder: BuilderProjectPorts
   mintRevision?: () => string
 }>): ProjectStore => {
   const createProject = async ({ accountId, workspaceId, idempotencyKey, body }: CreateProjectInput): Promise<CreateProjectResult> => {
@@ -81,11 +85,7 @@ export const createProjectStore = ({
     if (reserved.kind === 'replay') return { replayed: true, reply: reserved.reply }
     const projectId = reserved.resourceId
 
-    const prepared = await repository.prepare(projectId).catch((error: unknown) => {
-      throw new Failure('PROJECT_REPOSITORY_UNAVAILABLE', { cause: error, details: { reason: gitFailureName(error) } })
-    })
-    const starterRevision = SourceRevision.safeParse(prepared)
-    if (!starterRevision.success) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_STARTER_REVISION_UNREADABLE' } })
+    const starterRevision = await repository.prepare(projectId).catch(gitUnavailableAs('PROJECT_REPOSITORY_UNAVAILABLE'))
 
     return database.transaction(accountId, async (gate) => {
       const proof = await admitWorkspace(gate, workspaceId, 'project.create')
@@ -94,8 +94,8 @@ export const createProjectStore = ({
       if (receipt.resourceId !== projectId) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_RECEIPT_RESOURCE_CHANGED' } })
       await proof.tx.run(sql`
         INSERT INTO project.project (project_id, workspace_id, name, source_mode, source_revision, project_revision)
-        VALUES (${projectId}, ${workspaceId}, ${body.name}, 'NEW', ${starterRevision.data}, ${projectRevision})`)
-      await proof.tx.run(sql`SELECT builder.register_project_repository(${projectId})`)
+        VALUES (${projectId}, ${workspaceId}, ${body.name}, 'NEW', ${starterRevision}, ${projectRevision})`)
+      await builder.register(proof, projectId)
       const reply: ProjectCreated = { projectId, workspaceId, name: body.name, projectRevision, archived: false }
       await complete(proof, PRJ03, idempotencyKey, receiptInput, projectId, reply)
       return { replayed: false, reply }

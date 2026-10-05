@@ -30,9 +30,8 @@ test('MEMORY.md past 200 lines is cut at 200 lines, and past 16 KB at 16 KB', ()
   assert.equal(bytes.split('\n\n')[0].length, 16 * 1024)
 })
 
-test('a missing, unreadable, oversized or non-UTF-8 file is an empty file with one line saying why', () => {
+test('a missing, oversized or non-UTF-8 file is an empty file with one line saying why', () => {
   assert.equal(readProjectMemory(null), '[.conexus/memory/MEMORY.md is missing; treat it as empty.]')
-  assert.equal(readProjectInstructions(undefined), '[AGENTS.md could not be read; treat it as empty.]')
   assert.equal(readProjectInstructions({ type: 'blob', size: 2_000_000, bytes: null }), '[AGENTS.md is too large to read; treat it as empty.]')
   assert.equal(readProjectInstructions({ type: 'blob', size: 2, bytes: new Uint8Array([0xff, 0xfe]) }), '[AGENTS.md is not UTF-8 text; treat it as empty.]')
 })

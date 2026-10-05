@@ -1,3 +1,4 @@
+import type { BuilderRunId, ConversationId, ProjectId } from '../../../../packages/contract/dist/index.js'
 /**
  * Where a Builder run's time goes outside the agent: one `BUILDER_RUN_TIMING` event per run.
  * A stage's time runs from the previous mark, so the marks partition the run and their sum is the
@@ -9,7 +10,7 @@ type RunTimingStage = (typeof RUN_TIMING_STAGES)[number]
 export type RunTiming = Readonly<{
   /** Ends `stage` now. */
   mark(stage: RunTimingStage): void
-  fields(run: Readonly<{ builderRunId: string; conversationId: string; projectId: string }>): Readonly<Record<string, string | number>>
+  fields(run: Readonly<{ builderRunId: BuilderRunId; conversationId: ConversationId; projectId: ProjectId }>): Readonly<Record<string, string | number>>
 }>
 
 export const createRunTiming = (now: () => number = Date.now): RunTiming => {

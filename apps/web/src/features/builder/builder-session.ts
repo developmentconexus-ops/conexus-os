@@ -1,5 +1,6 @@
 import { type QueryClient, useQuery } from '@tanstack/react-query'
 import { type BuilderRun, type BuilderSession, getBuilderSession } from './api'
+import type { BuilderRunView } from '../../../../../packages/contract/dist/index.js'
 import { isActive, isWaiting } from './construir/run-state'
 
 // One cache entry holds the Project's run, written by two sources: the builder-session read, and the
@@ -11,7 +12,7 @@ export const builderSessionKey = (projectId: string) => ['builder-session', proj
 // A stream write that lands while a read is in flight is newer than that read's answer, so the
 // generation the read started at tells it whether to keep the streamed run over its own.
 // Ported from the Factory's useAgentControllerSessionSync (generation and live state).
-type LiveRun = { generation: number; run: BuilderRun | null }
+type LiveRun = { generation: number; run: BuilderRunView | null }
 const liveRuns = new Map<string, LiveRun>()
 const liveRunOf = (projectId: string): LiveRun => {
   let live = liveRuns.get(projectId)
@@ -45,7 +46,7 @@ const questionAsked = (queryClient: QueryClient, projectId: string): void => {
 }
 
 /** Writes the run the stream carried, keeping when the entry was last read so the poll keeps its pace. */
-export const writeStreamedRun = (queryClient: QueryClient, projectId: string, run: BuilderRun): void => {
+export const writeStreamedRun = (queryClient: QueryClient, projectId: string, run: BuilderRunView): void => {
   const live = liveRunOf(projectId)
   live.generation += 1
   live.run = run

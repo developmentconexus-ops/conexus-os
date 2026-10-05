@@ -5,10 +5,14 @@ import { test } from 'node:test'
 
 const root = resolve(import.meta.dirname, '../..')
 const MAY_CALL_SYSTEM = [
+  'apps/hub/src/builder/conversation-store.ts',
+  'apps/hub/src/builder/run-lease.ts',
+  'apps/hub/src/builder/run-reads.ts',
+  'apps/hub/src/builder/run-lifecycle.ts',
   'apps/hub/src/project/deletion.ts',
 ]
 
-test('only the project purge opens a system transaction', () => {
+test('only the project purge and the Builder executor open a system transaction', () => {
   const callers = globSync('apps/hub/src/**/*.ts', { cwd: root })
     .filter((file) => file !== 'apps/hub/src/platform/db.ts')
     .filter((file) => /\.system\(/.test(readFileSync(resolve(root, file), 'utf8')))

@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import { hubModuleUrl as built } from './hub-build.mjs'
-import { buildHubDatabase, query, testPool } from './hub-database.mjs'
+import { query } from './hub-database.mjs'
+import { setupBuilder } from './builder-fixture.mjs'
+import { ID } from './project-fixture.mjs'
 
 const { createBuilderStore } = await import(built('builder/store.js'))
 const { createBuilderService } = await import(built('builder/service.js'))
@@ -16,16 +18,9 @@ const signal = new AbortController().signal
 // A database with one Workspace, the Builder's real store and a real service owned by HUB. A run the
 // service works is held at its model check until the test lets it go, so it stays in the service's map.
 const leaseHarness = async (t, name) => {
-  const { connectionString, connection, onCleanup } = await buildHubDatabase(t, name)
-  const account = randomUUID()
-  const workspaceId = randomUUID()
-  await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://lease.test', $2, 'Owner')", [account, account])
-  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Lease')", [workspaceId])
-  await query(connectionString, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [account, workspaceId])
-  const store = createBuilderStore({
-    executorPool: testPool({ ...connection, max: 4, options: '-c role=hub_builder_executor' }),
-    ingressPool: testPool({ ...connection, max: 2, options: '-c role=hub_builder_ingress' }),
-  })
+  const { connection: connectionString, database, seedBuilderProject, onCleanup } = await setupBuilder(t, name)
+  const account = ID.owner
+  const store = createBuilderStore({ database, ownerId: HUB })
   const holds = []
   const checkModel = () => new Promise((_resolve, reject) => { holds.push(reject) })
   const release = () => { for (const reject of holds.splice(0)) reject(new Error('released')) }
@@ -47,15 +42,9 @@ const leaseHarness = async (t, name) => {
       publishRun: async () => {},
       questionWaitMs: 60_000,
       settleRetryMs: 1,
-      ownerId: HUB,
     },
   })
-  const projectIn = async () => {
-    const projectId = randomUUID()
-    await query(connectionString, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, $3, 'NEW', $4, $3)", [projectId, workspaceId, `p-${projectId.slice(0, 6)}`, BASE])
-    await query(connectionString, 'SELECT builder.register_project_repository($1)', [projectId])
-    return projectId
-  }
+  const projectIn = () => seedBuilderProject(`p-${randomUUID().slice(0, 6)}`)
   // A run row as a stopped Hub left it, its heartbeat `heartbeatAgoMs` old.
   const seedRun = async ({ state = 'RUNNING', ownerId = null, heartbeatAgoMs = null, createdAgoMs = 0 }) => {
     const projectId = await projectIn()
@@ -79,7 +68,7 @@ test('a run the service works is never taken, however old its heartbeat; every o
   const h = await leaseHarness(t, 'conexus_lease_listed')
   const service = h.serviceOver()
   const projectId = await h.projectIn()
-  const { builderRun } = await h.send(service, projectId, 'conv-live')
+  const { builderRun } = await h.send(service, projectId, '22222222-2222-4222-8222-222222222222')
   await untilHeld(h)
   await query(h.connectionString, "UPDATE builder.builder_run SET heartbeat_at = clock_timestamp() - interval '1 hour' WHERE builder_run_id = $1", [builderRun.builderRunId])
   const foreign = await h.seedRun({ ownerId: OTHER, heartbeatAgoMs: HOUR })
@@ -109,10 +98,10 @@ test('a service with no run still takes and settles a stale run of another owner
 test('a queued run the caller lists stays queued and ownerless, however old, since no beat can touch it', async (t) => {
   const h = await leaseHarness(t, 'conexus_lease_queued')
   const queued = await h.seedRun({ state: 'QUEUED', createdAgoMs: HOUR })
-  assert.deepEqual(await h.store.renewRunLease(HUB, [queued.builderRunId], 30_000), [])
+  assert.deepEqual(await h.store.renewRunLease({ liveRunIds: [queued.builderRunId], staleAfterMs: 30_000 }), [])
   const row = await h.read(queued)
   assert.deepEqual([row.state, row.owner_id], ['QUEUED', null])
-  assert.deepEqual((await h.store.renewRunLease(HUB, [], 30_000)).map(({ builderRunId }) => builderRunId), [queued.builderRunId], 'unlisted, the same row is taken')
+  assert.deepEqual((await h.store.renewRunLease({ liveRunIds: [], staleAfterMs: 30_000 })).map(({ builderRunId }) => builderRunId), [queued.builderRunId], 'unlisted, the same row is taken')
 })
 
 test('a run that enters the service after the pass listed its live runs comes back from the SQL and is not settled', async (t) => {
@@ -120,13 +109,13 @@ test('a run that enters the service after the pass listed its live runs comes ba
   // The client's retry of an old queued row: the same key returns it, and the service starts it.
   const projectId = await h.projectIn()
   const key = 'retry-key'
-  const old = await h.store.createBuilderRun({ accountId: (await query(h.connectionString, 'SELECT account_id FROM iam.account LIMIT 1')).rows[0].account_id, projectId, conversationId: 'conv-race', idempotencyKey: key, content: 'Explique o app', readBase: async () => BASE })
+  const old = await h.store.createBuilderRun({ accountId: ID.owner, projectId, conversationId: '11111111-1111-4111-8111-111111111111', idempotencyKey: key, content: 'Explique o app', readBase: async () => BASE })
   await query(h.connectionString, "UPDATE builder.builder_run SET created_at = clock_timestamp() - interval '10 minutes' WHERE builder_run_id = $1", [old.builderRunId])
   let service
   // The pass reads its live ids (none), the SQL takes the stale row, and only then does the replay start it.
   const store = { ...h.store, renewRunLease: async (...args) => {
     const taken = await h.store.renewRunLease(...args)
-    await h.send(service, projectId, 'conv-race', key)
+    await h.send(service, projectId, '11111111-1111-4111-8111-111111111111', key)
     return taken
   } }
   service = h.serviceOver(store)
@@ -136,6 +125,58 @@ test('a run that enters the service after the pass listed its live runs comes ba
 
   const row = await h.read(old)
   assert.deepEqual([row.state, row.owner_id, row.failure_code], ['RUNNING', HUB, null], 'the replayed run was claimed and not interrupted by the pass')
+})
+
+test('a message to a conversation with a live run is refused to anyone who cannot build in the Project, before the run is reached', async (t) => {
+  const h = await leaseHarness(t, 'conexus_send_admission')
+  const service = h.serviceOver()
+  const projectId = await h.projectIn()
+  const { builderRun } = await h.send(service, projectId, '22222222-2222-4222-8222-222222222222')
+  await untilHeld(h)
+  await query(h.connectionString, "INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'atlas', $2)", [projectId, ID.owner])
+  await query(h.connectionString, 'INSERT INTO iam.application_grant(project_id, account_id, granted_by) VALUES ($1, $2, $3)', [projectId, ID.outsider, ID.owner])
+  await query(h.connectionString, 'DELETE FROM iam.workspace_membership WHERE account_id = $1', [ID.member])
+  const refused = []
+  for (const accountId of [ID.outsider, ID.member]) {
+    refused.push(await service.sendBuilderMessage({ accountId, projectId, conversationId: '22222222-2222-4222-8222-222222222222', idempotencyKey: randomUUID(), content: 'oi' }).then(() => 'ACCEPTED', (error) => error.id))
+  }
+  assert.deepEqual(refused, ['PROJECT_BUILD_DENIED', 'PROJECT_BUILD_DENIED'])
+  assert.deepEqual(service.pendingCalls(projectId, '22222222-2222-4222-8222-222222222222'), [])
+  assert.equal((await h.read(builderRun)).state, 'RUNNING')
+  assert.equal(h.holds.length, 1, 'the run was not touched')
+})
+
+test('a source read checks that the account sees the Project before it reads Git: a failing Git port answers 404 to a hidden or missing Project and the named 503 to a visible one', async (t) => {
+  const h = await leaseHarness(t, 'conexus_source_order')
+  const { Failure } = await import(built('platform/failure.js'))
+  const service = createBuilderService({
+    store: h.store,
+    applicationArtifacts: {},
+    runs: {
+      ports: {},
+      git: { readMain: async () => { throw new Failure('CONEXUS_GIT_FAILED') }, mainContains: async () => false },
+      conversations: { ownerOf: async () => 'PROJECT' },
+      source: {},
+      appendDiagnostic: async () => {},
+      publishRun: async () => {},
+      questionWaitMs: 60_000,
+    },
+  })
+  const projectId = await h.projectIn()
+  const read = (accountId, id) => service.listSourceTree({ accountId, projectId: id, sourceRevision: 'c'.repeat(40) }).then(() => 'READ', (error) => [error.id, error.details?.reason ?? null])
+  assert.deepEqual(await read(ID.owner, projectId), ['BUILDER_SOURCE_UNAVAILABLE', 'CONEXUS_GIT_FAILED'])
+  assert.deepEqual(await read(ID.outsider, projectId), ['SOURCE_REVISION_NOT_FOUND', null])
+  assert.deepEqual(await read(ID.owner, randomUUID()), ['SOURCE_REVISION_NOT_FOUND', null])
+})
+
+test('one pass beats the listed runs and takes the stale ones at one instant', async (t) => {
+  const h = await leaseHarness(t, 'conexus_lease_instant')
+  const listed = await h.seedRun({ ownerId: HUB, heartbeatAgoMs: HOUR })
+  const stale = await h.seedRun({ ownerId: OTHER, heartbeatAgoMs: HOUR })
+  const taken = await h.store.renewRunLease({ liveRunIds: [listed.builderRunId], staleAfterMs: 30_000 })
+  assert.deepEqual(taken.map(({ builderRunId }) => builderRunId), [stale.builderRunId])
+  const beats = (await query(h.connectionString, 'SELECT count(DISTINCT heartbeat_at)::integer AS instants FROM builder.builder_run WHERE builder_run_id = ANY($1)', [[listed.builderRunId, stale.builderRunId]])).rows
+  assert.deepEqual(beats, [{ instants: 1 }])
 })
 
 const untilHeld = async (h) => { for (let i = 0; i < 400 && h.holds.length === 0; i++) await new Promise((wake) => { setTimeout(wake, 5) }) }

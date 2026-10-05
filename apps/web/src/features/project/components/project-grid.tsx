@@ -12,7 +12,7 @@ export type ProjectActivity = 'BUILDING' | 'FAILED' | 'LIVE' | 'NEW'
 export function projectActivity(summary: ProjectCardSummary): ProjectActivity {
   const run = summary.latestRun
   if (run?.state === 'QUEUED' || run?.state === 'RUNNING') return 'BUILDING'
-  if (run?.state === 'FAILED' || run?.resultKind === 'SOURCE_CHANGED_BUILD_FAILED') return 'FAILED'
+  if (run?.state === 'FAILED') return 'FAILED'
   return summary.hasPreview ? 'LIVE' : 'NEW'
 }
 

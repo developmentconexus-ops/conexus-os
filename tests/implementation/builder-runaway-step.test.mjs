@@ -6,6 +6,7 @@ import test from 'node:test'
 import { InMemoryStore } from '@mastra/core/storage'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { hubModuleUrl } from './hub-build.mjs'
+import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 import { testConversations } from './builder-conversation-fixture.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
@@ -65,7 +66,7 @@ const openRun = async (t, model, modelStepTimeoutMs) => {
   t.after(() => conversations.close())
   return createControllerRunSessions({ controller, conversations, readDefaultModel: async () => 'anthropic/default-model' })({
     projectId, conversationId, builderRunId,
-    bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId) },
+    bindContext: (requestContext) => bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId, conversationId }),
   })
 }
 

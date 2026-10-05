@@ -1,3 +1,4 @@
+import type { SourceRevision } from '../../../../packages/contract/dist/index.js'
 import type { ApplicationCheckRun, CompiledApplication, CompiledApplicationThumbnail } from './application-artifact-runtime.js'
 import { failedBootStep, failedStepEvidence, refusingStep, unrenderedBootStep } from './application-check.js'
 import { Failure } from '../platform/failure.js'
@@ -15,9 +16,9 @@ type BuiltCandidate = Readonly<{ files: CompiledApplication['files']; thumbnail?
  * without a Preview.
  */
 export type CandidateVerdict =
-  | Readonly<{ kind: 'GREEN'; revision: string; build: BuiltCandidate }>
-  | Readonly<{ kind: 'UNRENDERED'; revision: string; detail: string }>
-  | Readonly<{ kind: 'RED_APP'; revision: string | null; detail: string }>
+  | Readonly<{ kind: 'GREEN'; revision: SourceRevision; build: BuiltCandidate }>
+  | Readonly<{ kind: 'UNRENDERED'; revision: SourceRevision; detail: string }>
+  | Readonly<{ kind: 'RED_APP'; revision: SourceRevision | null; detail: string }>
   | Readonly<{ kind: 'RED_PLATFORM'; error: unknown }>
 
 export type CandidateGate = Readonly<{
@@ -32,7 +33,7 @@ export type CandidateGate = Readonly<{
 const TOO_LARGE = 'O Conexus não aceita esta versão: os arquivos do projeto passam do tamanho máximo. Remova os arquivos grandes que o app não usa.'
 
 /** A check run, labelled: the report and the collected build in, the verdict out. */
-export const classifyCheck = (revision: string, run: ApplicationCheckRun): CandidateVerdict => {
+export const classifyCheck = (revision: SourceRevision, run: ApplicationCheckRun): CandidateVerdict => {
   const refused = refusingStep(run.report)
   // A step the check stopped on its clock says nothing about the app's code.
   if (refused?.code === 'STEP_TIMEOUT') return { kind: 'RED_PLATFORM', error: new Failure('APPLICATION_CHECK_TIMEOUT') }
@@ -65,15 +66,15 @@ const repairFeedback = (detail: string, redFinishes: number): string => [
  * "done", not per revision, for the whole run, the waits on the person included.
  */
 export const createCandidateGate = ({ candidate, judge, onRedFinish }: Readonly<{
-  candidate(): Promise<string | null>
-  judge(revision: string): Promise<CandidateVerdict>
+  candidate(): Promise<SourceRevision | null>
+  judge(revision: SourceRevision): Promise<CandidateVerdict>
   onRedFinish?(redFinishes: number): void
 }>): CandidateGate => {
-  const verdicts = new Map<string, CandidateVerdict>()
+  const verdicts = new Map<SourceRevision, CandidateVerdict>()
   let redFinishes = 0
   let finishing: Promise<string | null> | null = null
   const current = async (): Promise<CandidateVerdict | null> => {
-    let revision: string | null
+    let revision: SourceRevision | null
     try {
       revision = await candidate()
     } catch (error) {

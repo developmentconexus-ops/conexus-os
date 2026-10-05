@@ -7,6 +7,7 @@ import { fieldOf } from '../platform/field-of.js'
 import { Failure, logFailure } from '../platform/failure.js'
 import { AGENT_USER } from './check/agent.js'
 import { logger } from '../platform/logger.js'
+import { ConversationId } from '../../../../packages/contract/dist/index.js'
 
 // The template's own home for the agent; the conversation's checkout lives inside it.
 const SANDBOX_HOME = '/workspace'
@@ -143,7 +144,7 @@ export class ConexusRunSandbox extends E2BSandbox {
 export const createConversationSandbox = ({ apiKey, templateId, conversationId, providerSandboxId, idleMs, timeoutMs = 15 * 60_000 }: Readonly<{
   apiKey: string
   templateId: string
-  conversationId: string
+  conversationId: ConversationId
   providerSandboxId: string | null
   idleMs: number
   timeoutMs?: number
@@ -163,7 +164,7 @@ export const createConversationSandbox = ({ apiKey, templateId, conversationId, 
 })
 
 /** A paused conversation machine at E2B, and when it stopped being alive. */
-export type PausedConversationMachine = Readonly<{ providerSandboxId: string; conversationId: string; idleSince: Date }>
+export type PausedConversationMachine = Readonly<{ providerSandboxId: string; conversationId: ConversationId; idleSince: Date }>
 
 /**
  * Every paused machine E2B holds for a conversation, found by the metadata `createConversationSandbox`
@@ -176,8 +177,8 @@ export const listPausedConversationMachines = async (apiKey: string): Promise<re
   const pages = Sandbox.list({ apiKey, query: { state: ['paused'] } })
   while (pages.hasNext) {
     for (const info of await pages.nextItems()) {
-      const conversationId = info.metadata[CONVERSATION_METADATA_KEY]
-      if (conversationId) found.push({ providerSandboxId: info.sandboxId, conversationId, idleSince: info.endAt })
+      const conversationId = ConversationId.safeParse(info.metadata[CONVERSATION_METADATA_KEY])
+      if (conversationId.success) found.push({ providerSandboxId: info.sandboxId, conversationId: conversationId.data, idleSince: info.endAt })
     }
   }
   return found

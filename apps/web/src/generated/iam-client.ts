@@ -1,5 +1,5 @@
 // GENERATED from contracts/api/product/openapi.yaml by scripts/generate-iam-contracts.mjs. Do not edit.
-export const IAM_PRODUCT_OAS_DIGEST = "7e88df371396a95d1c29ef3711b8bc70050a560a90fe70261c8287298e14e2ae"
+export const IAM_PRODUCT_OAS_DIGEST = "dea1987e30e521300047f9bd5068fecf714ff4b1c5393f17296816c8f6caea7f"
 export const IAM_ROUTE_PROJECTION_DIGEST = "8f01e91fcf7730f1b8f56abc9a4d9274f87d74e5e8480a590ee35d90ad39c74d"
 export type AccountSummary = { "accountId": string; "displayName": string; "email"?: string }
 export type AccessContext = { "account": { "accountId": string; "displayName": string; "email"?: string }; "workspaces": { "workspaceId": string; "name": string }[]; "projects": { "projectId": string; "workspaceId": string; "name": string; "archived": boolean }[] }

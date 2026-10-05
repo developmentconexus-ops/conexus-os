@@ -9,6 +9,8 @@ export declare const ProjectRevision: z.core.$ZodBranded<z.ZodUUID, "ProjectRevi
 export type ProjectRevision = z.output<typeof ProjectRevision>;
 export declare const SourceRevision: z.core.$ZodBranded<z.ZodString, "SourceRevision", "out">;
 export type SourceRevision = z.output<typeof SourceRevision>;
+export declare const ArtifactDigest: z.core.$ZodBranded<z.ZodString, "ArtifactDigest", "out">;
+export type ArtifactDigest = z.output<typeof ArtifactDigest>;
 export declare const ConversationId: z.core.$ZodBranded<z.ZodUUID, "ConversationId", "out">;
 export type ConversationId = z.output<typeof ConversationId>;
 export declare const BuilderRunId: z.core.$ZodBranded<z.ZodUUID, "BuilderRunId", "out">;

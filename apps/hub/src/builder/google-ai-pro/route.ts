@@ -4,6 +4,7 @@ import type { LanguageModelMiddleware } from 'ai'
 import { wrapGatewayModel, type ModelRoute } from '../model-routing.js'
 import { GOOGLE_AI_PRO_PROVIDER, parseKey, type GoogleAiProKey } from './credential.js'
 import { Failure } from '../../platform/failure.js'
+import type { ModelAccountId } from '../../../../../packages/contract/dist/index.js'
 
 /** The provider Mastra's models.dev gateway builds Gemini's own API client for. */
 const GOOGLE_PROVIDER = 'google'
@@ -47,7 +48,7 @@ class GoogleAiProGateway extends ModelsDevGateway {
 export const createGoogleAiProRoute = ({ routerUrl, track }: Readonly<{
   routerUrl(): Promise<string | undefined>
   /** Ties the key to its row, so a refresh the proxy makes is written back (write-back.ts). */
-  track(key: GoogleAiProKey, modelAccountId: string): void
+  track(key: GoogleAiProKey, modelAccountId: ModelAccountId): void
 }>): ModelRoute => Object.freeze({
   accountProvider: GOOGLE_AI_PRO_PROVIDER,
   take: (account) => {

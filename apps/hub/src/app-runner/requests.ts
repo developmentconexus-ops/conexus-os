@@ -20,12 +20,5 @@ export const invokeBody = z.object({
   projectId: z.uuid(), operation: z.string().regex(/^[a-z][A-Za-z0-9]{0,63}$/), input: z.unknown(), files: z.array(serverFile).min(1).max(128), caller: callerSchema,
   connectorSocket: z.string().min(2).max(107).optional(),
 }).strict()
-// What the runner answers a prepare with, read by the Hub's client and written by the supervisor.
-export const prepareResult = z.discriminatedUnion('state', [
-  z.strictObject({ state: z.literal('READY'), reset: z.boolean(), applied: z.array(z.string()).readonly() }),
-  z.strictObject({ state: z.literal('MIGRATION_FAILED'), detail: z.string() }),
-  z.strictObject({ state: z.literal('MIGRATION_HISTORY_DIVERGED'), detail: z.string() }),
-]).readonly()
-export type PrepareResult = z.infer<typeof prepareResult>
 // Sent once, when the Project itself is deleted: drop its Preview schema and roles for good.
 export const releaseBody = z.object({ projectId: z.uuid() }).strict()

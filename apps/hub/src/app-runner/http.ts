@@ -4,8 +4,8 @@ import { logger } from '../platform/logger.js'
 import type { EventLog } from '../platform/logger.js'
 import { failureProblem, problemBody } from '../http/problem.js'
 import { invokeBody, prepareBody, releaseBody } from './requests.js'
+import type { PrepareResult } from './server-manifest.js'
 import type { InvokeInput, OnDivergence, Reply, ServerFile } from './supervisor.js'
-import type { PrepareResult } from './requests.js'
 
 export type ApplicationRunnerSupervisor = Readonly<{
   prepare(input: Readonly<{ projectId: string; files: readonly ServerFile[]; onDivergence: OnDivergence }>): Promise<PrepareResult>

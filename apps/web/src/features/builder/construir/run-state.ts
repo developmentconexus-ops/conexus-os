@@ -38,15 +38,11 @@ export const waitingOn = (run: BuilderRun | null | undefined): readonly string[]
 export const isWaiting = (run: BuilderRun | null | undefined): boolean => waitingOn(run).length > 0
 
 const settledOutcome = (run: BuilderRun): SettledOutcome => {
-  if (run.state === 'SUCCEEDED') {
-    if (run.resultKind === 'SOURCE_CHANGED') return 'CHANGED'
-    if (run.resultKind === 'SOURCE_CHANGED_BUILD_FAILED') return 'BUILD_FAILED'
-    return 'RESPONDED'
-  }
+  if (run.state === 'SUCCEEDED') return run.resultKind === 'SOURCE_CHANGED' ? 'CHANGED' : 'RESPONDED'
   if (run.failureCode === 'BUILDER_SOURCE_BASE_MOVED') return 'BASE_MOVED'
   if (run.failureCode === 'USER_CANCELLED' || run.failureCode === 'BUILDER_RUN_CANCELLED' || run.failureCode === 'BUILDER_LATE_RESULT_REFUSED' || run.cancellationRequested) return 'STOPPED'
   if (run.state === 'INTERRUPTED') return 'DISCARDED'
-  return 'FAILED'
+  return run.resultKind === 'SOURCE_CHANGED_BUILD_FAILED' ? 'BUILD_FAILED' : 'FAILED'
 }
 
 export const viewRun = (run: BuilderRun | null | undefined): RunView => {

@@ -1,35 +1,36 @@
 import type { SecretEnvelope } from '../platform/secrets.js'
 import type { PostgresPool } from '../platform/db.js'
+import { ModelAccountId, type AccountId } from '../../../../packages/contract/dist/index.js'
 
 export type ModelAccountKind = 'api_key' | 'oauth' | 'google_ai_pro'
 
 /** A row the Hub reads to call a model: its id (what a run records as the account that paid) and its opened secret. */
-export type HeldModelAccount = Readonly<{ modelAccountId: string; kind: ModelAccountKind; secret: string }>
+export type HeldModelAccount = Readonly<{ modelAccountId: ModelAccountId; kind: ModelAccountKind; secret: string }>
 
 export type ModelAccountStore = Readonly<{
   /** The caller's own account for the provider, else the one shared with everyone; null when neither exists. */
-  usable(accountId: string, provider: string): Promise<HeldModelAccount | null>
+  usable(accountId: AccountId, provider: string): Promise<HeldModelAccount | null>
   /** The kind of the caller's own account for the provider (null without one), and whether one is shared. */
-  connection(accountId: string, provider: string): Promise<Readonly<{ mine: ModelAccountKind | null; shared: boolean }>>
+  connection(accountId: AccountId, provider: string): Promise<Readonly<{ mine: ModelAccountKind | null; shared: boolean }>>
   /** Whether the installation shares an account for the provider, with no caller in mind. */
   hasShared(provider: string): Promise<boolean>
   /** Writes the caller's own row, sealed. A new row is `just_me`; an update keeps the row's sharing. */
-  write(accountId: string, provider: string, kind: ModelAccountKind, secret: string): Promise<void>
+  write(accountId: AccountId, provider: string, kind: ModelAccountKind, secret: string): Promise<void>
   /** The row a run holds, by id, whoever owns it; null once it is gone. */
-  readById(modelAccountId: string): Promise<HeldModelAccount | null>
+  readById(modelAccountId: ModelAccountId): Promise<HeldModelAccount | null>
   /** Replaces the secret of the row a run holds, sealed; false once the row is gone. */
-  rewrite(modelAccountId: string, secret: string): Promise<boolean>
+  rewrite(modelAccountId: ModelAccountId, secret: string): Promise<boolean>
 }>
 
 type SealedRow = Readonly<{ model_account_id: string; secret: string; kind: ModelAccountKind }>
 
 export const createModelAccountStore = ({ pool, envelope }: Readonly<{ pool: Pick<PostgresPool, 'query'>; envelope: SecretEnvelope }>): ModelAccountStore => {
-  const readOwn = async (accountId: string, provider: string): Promise<SealedRow | null> =>
+  const readOwn = async (accountId: AccountId, provider: string): Promise<SealedRow | null> =>
     (await pool.query<SealedRow>('SELECT model_account_id, secret, kind FROM model.read_model_account($1, $2)', [accountId, provider])).rows[0] ?? null
   const readShared = async (provider: string): Promise<SealedRow | null> =>
     (await pool.query<SealedRow>('SELECT model_account_id, secret, kind FROM model.read_shared_model_account($1)', [provider])).rows[0] ?? null
   const opened = async (row: SealedRow): Promise<HeldModelAccount> =>
-    Object.freeze({ modelAccountId: row.model_account_id, kind: row.kind, secret: await envelope.open(row.secret) })
+    Object.freeze({ modelAccountId: ModelAccountId.parse(row.model_account_id), kind: row.kind, secret: await envelope.open(row.secret) })
 
   return Object.freeze({
     usable: async (accountId, provider) => {

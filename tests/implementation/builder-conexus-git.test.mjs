@@ -102,15 +102,30 @@ test('an empty repository gets the starter and one that moved on keeps its main'
   assert.equal(await git.readMain(PROJECT), moved)
 })
 
-test('a missing repository has no main and deleting converges', async (t) => {
+test('a missing repository is a named Git failure, an empty one has no main, and deleting converges', async (t) => {
   const root = join(scratch(t), 'git')
   const git = createConexusGit({ root, starter: STARTER })
-  await assert.rejects(git.readMain(PROJECT), { message: 'CONEXUS_GIT_MAIN_MISSING' })
+  await assert.rejects(git.readMain(PROJECT), { id: 'CONEXUS_GIT_FAILED' })
+  mkdirSync(root, { recursive: true })
+  run(root, ['init', '--quiet', '--bare', `${PROJECT}.git`])
+  await assert.rejects(git.readMain(PROJECT), { id: 'CONEXUS_GIT_MAIN_MISSING' })
   await git.ensureRepository(PROJECT)
   await git.deleteRepository(PROJECT)
   await git.deleteRepository(PROJECT)
-  await assert.rejects(git.readMain(PROJECT), { message: 'CONEXUS_GIT_MAIN_MISSING' })
-  await assert.rejects(git.ensureRepository('../escape'), { message: 'CONEXUS_GIT_PROJECT_REFUSED' })
+  await assert.rejects(git.readMain(PROJECT), { id: 'CONEXUS_GIT_FAILED' })
+  await assert.rejects(git.ensureRepository('../escape'), { id: 'CONEXUS_GIT_PROJECT_REFUSED' })
+})
+
+test('a Git read answers its named cause as the unavailable row and lets any other fault through unnamed', async () => {
+  const { gitUnavailableAs } = await import(hubModuleUrl('platform/git-failure.js'))
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
+  const unavailable = gitUnavailableAs('BUILDER_SOURCE_UNAVAILABLE')
+  const named = await Promise.reject(new Failure('CONEXUS_GIT_MAIN_MISSING')).catch(unavailable).catch((error) => error)
+  assert.deepEqual([named.id, named.details], ['BUILDER_SOURCE_UNAVAILABLE', { reason: 'CONEXUS_GIT_MAIN_MISSING' }])
+  const fault = new TypeError('planted')
+  assert.equal(await Promise.reject(fault).catch(unavailable).catch((error) => error), fault)
+  const other = new Failure('PROJECT_NOT_FOUND')
+  assert.equal(await Promise.reject(other).catch(unavailable).catch((error) => error), other)
 })
 
 test('main fast forwards only from the run base to a descendant, and a retry converges', async (t) => {
@@ -157,10 +172,10 @@ test('a snapshot is taken only from its own ref, as one commit on its parent', a
   run(work, ['update-ref', 'refs/heads/main', candidate])
 
   const otherOnly = bundleOf(work, directory, [`refs/conexus/runs/${OTHER_RUN}`, `^${base}`])
-  await assert.rejects(git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: otherOnly }), { message: 'BUILDER_RESULT_MATERIALIZATION_REFUSED' })
+  await assert.rejects(git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: otherOnly }), { message: 'CONEXUS_GIT_FAILED' })
   const mainOnly = bundleOf(work, directory, ['refs/heads/main', `^${base}`])
-  await assert.rejects(git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: mainOnly }), { message: 'BUILDER_RESULT_MATERIALIZATION_REFUSED' })
-  await assert.rejects(git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: Buffer.from('not a bundle') }), { message: 'BUILDER_RESULT_MATERIALIZATION_REFUSED' })
+  await assert.rejects(git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: mainOnly }), { message: 'CONEXUS_GIT_FAILED' })
+  await assert.rejects(git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: Buffer.from('not a bundle') }), { message: 'CONEXUS_GIT_FAILED' })
 
   const both = bundleOf(work, directory, [`refs/conexus/runs/${RUN}`, 'refs/heads/main', `refs/conexus/runs/${OTHER_RUN}`, `^${base}`])
   assert.equal(await git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: both }), candidate)
@@ -349,7 +364,7 @@ test('the source view reads tree, file and diff from the Conexus Git in its own 
   run(work, ['push', '--quiet', 'origin', `${result}:refs/conexus/runs/${RUN}`])
   const source = createProjectSourceReads({ git })
 
-  assert.deepEqual(await source.listSourceTree(PROJECT, base), {
+  assert.deepEqual(await source.listSourceTree({ projectId: PROJECT, sourceRevision: base }), {
     sourceRevision: base,
     entries: [
       { path: 'app', kind: 'DIRECTORY' },
@@ -358,8 +373,8 @@ test('the source view reads tree, file and diff from the Conexus Git in its own 
       { path: 'conexus/check.sh', kind: 'FILE' },
     ],
   })
-  assert.deepEqual(await source.readSourceFile(PROJECT, result, 'app/index.html'), { sourceRevision: result, path: 'app/index.html', content: '<main>novo</main>\n' })
-  assert.deepEqual(await source.compareRevisions(PROJECT, base, result), {
+  assert.deepEqual(await source.readSourceFile({ projectId: PROJECT, sourceRevision: result, path: 'app/index.html' }), { sourceRevision: result, path: 'app/index.html', content: '<main>novo</main>\n' })
+  assert.deepEqual(await source.compareRevisions({ projectId: PROJECT, baseSourceRevision: base, resultSourceRevision: result }), {
     baseSourceRevision: base,
     resultSourceRevision: result,
     files: [
@@ -369,15 +384,14 @@ test('the source view reads tree, file and diff from the Conexus Git in its own 
       { path: 'conexus/verify.sh', status: 'RENAMED', previousPath: 'conexus/check.sh' },
     ],
   })
-  assert.deepEqual(await source.compareRevisions(PROJECT, result, base).then((comparison) => comparison.files.map((file) => file.status)), ['MODIFIED', 'REMOVED', 'REMOVED', 'RENAMED'])
+  assert.deepEqual(await source.compareRevisions({ projectId: PROJECT, baseSourceRevision: result, resultSourceRevision: base }).then((comparison) => comparison.files.map((file) => file.status)), ['MODIFIED', 'REMOVED', 'REMOVED', 'RENAMED'])
 
-  await assert.rejects(source.readSourceFile(PROJECT, result, 'app/logo.bin'), { id: 'SOURCE_FILE_NOT_FOUND' })
-  await assert.rejects(source.readSourceFile(PROJECT, result, 'app/missing.txt'), { id: 'SOURCE_FILE_NOT_FOUND' })
-  await assert.rejects(source.readSourceFile(PROJECT, result, 'app'), { id: 'SOURCE_FILE_NOT_FOUND' })
-  await assert.rejects(source.readSourceFile(PROJECT, result, '../etc/passwd'), { id: 'SOURCE_FILE_NOT_FOUND' })
-  await assert.rejects(source.listSourceTree(PROJECT, 'f'.repeat(40)), { id: 'SOURCE_REVISION_NOT_FOUND' })
-  await assert.rejects(source.compareRevisions(PROJECT, base, 'f'.repeat(40)), { id: 'SOURCE_REVISION_NOT_FOUND' })
-  await assert.rejects(source.listSourceTree(PROJECT, 'main'), { id: 'BUILDER_SOURCE_READ_REFUSED' })
+  await assert.rejects(source.readSourceFile({ projectId: PROJECT, sourceRevision: result, path: 'app/logo.bin' }), { id: 'SOURCE_FILE_NOT_FOUND' })
+  await assert.rejects(source.readSourceFile({ projectId: PROJECT, sourceRevision: result, path: 'app/missing.txt' }), { id: 'SOURCE_FILE_NOT_FOUND' })
+  await assert.rejects(source.readSourceFile({ projectId: PROJECT, sourceRevision: result, path: 'app' }), { id: 'SOURCE_FILE_NOT_FOUND' })
+  await assert.rejects(source.readSourceFile({ projectId: PROJECT, sourceRevision: result, path: '../etc/passwd' }), { id: 'SOURCE_FILE_NOT_FOUND' })
+  await assert.rejects(source.listSourceTree({ projectId: PROJECT, sourceRevision: 'f'.repeat(40) }), { id: 'SOURCE_REVISION_NOT_FOUND' })
+  await assert.rejects(source.compareRevisions({ projectId: PROJECT, baseSourceRevision: base, resultSourceRevision: 'f'.repeat(40) }), { id: 'SOURCE_REVISION_NOT_FOUND' })
 
   run(work, ['checkout', '--quiet', '--detach', base])
   run(work, ['rm', '--quiet', 'app/index.html'])
@@ -385,8 +399,8 @@ test('the source view reads tree, file and diff from the Conexus Git in its own 
   symlinkSync('/etc/passwd', join(work, 'app/index.html'))
   const linked = commitIn(work, {}, 'symlink')
   run(work, ['push', '--quiet', 'origin', `${linked}:refs/conexus/runs/${OTHER_RUN}`])
-  await assert.rejects(source.listSourceTree(PROJECT, linked), { id: 'BUILDER_SOURCE_READ_UNSAFE_ENTRY' })
-  await assert.rejects(source.readSourceFile(PROJECT, linked, 'app/index.html'), { id: 'SOURCE_FILE_NOT_FOUND' })
+  await assert.rejects(source.listSourceTree({ projectId: PROJECT, sourceRevision: linked }), { id: 'BUILDER_SOURCE_READ_UNSAFE_ENTRY' })
+  await assert.rejects(source.readSourceFile({ projectId: PROJECT, sourceRevision: linked, path: 'app/index.html' }), { id: 'SOURCE_FILE_NOT_FOUND' })
 })
 
 const MIB = 1024 * 1024
@@ -494,4 +508,115 @@ test('a result holding more files than the cap is refused and its staging ref is
 
   const exact = stage(256 - held)
   assert.equal(await git.acceptSnapshot(PROJECT, { ...candidateSnapshot(RUN, base), bundle: exact.bundle }), exact.candidate)
+})
+
+const { settleTakenOverCandidate } = await import(hubModuleUrl('builder/run/admit.js'))
+const TAKEN_RUN = '33333333-3333-4333-8333-333333333333'
+
+test('takeover settlement through the real adapter: a candidate main lacks fails the run, a repository failure makes no terminal write, a candidate on main settles', async (t) => {
+  const root = join(scratch(t), 'git')
+  const git = createConexusGit({ root, starter: STARTER })
+  const main = await git.ensureRepository(PROJECT)
+  const absent = 'e'.repeat(40)
+  const calls = []
+  const store = {
+    failBuilderRun: async ({ failureCode }) => { calls.push(['fail', failureCode]) },
+    advanceBuilderRunSource: async ({ sourceRevision }) => { calls.push(['advance', sourceRevision]) },
+    settleBuilderRunBuild: async ({ kind, failureCode }) => { calls.push(['build', kind, failureCode]) },
+  }
+  const taken = (candidateRevision) => ({ builderRunId: TAKEN_RUN, projectId: PROJECT, candidateRevision, resultSourceRevision: null })
+
+  await settleTakenOverCandidate({ store, git }, taken(absent))
+  assert.deepEqual(calls.splice(0), [['fail', 'BUILDER_SOURCE_ADMISSION_FAILED']])
+
+  await settleTakenOverCandidate({ store, git }, taken(main))
+  assert.deepEqual(calls.splice(0), [['advance', main], ['build', 'FAILED', 'BUILDER_PREVIEW_NOT_BUILT']])
+
+  const missingRepository = createConexusGit({ root: join(root, 'elsewhere'), starter: STARTER })
+  await assert.rejects(settleTakenOverCandidate({ store, git: missingRepository }, taken(absent)), { id: 'CONEXUS_GIT_FAILED' })
+  assert.deepEqual(calls, [], 'a repository failure writes nothing')
+})
+
+test('a fast forward of main moves it from its base, is repeatable, and answers BUILDER_SOURCE_BASE_MOVED once main moved on', async (t) => {
+  const root = join(scratch(t), 'git')
+  const git = createConexusGit({ root, starter: STARTER })
+  const base = await git.ensureRepository(PROJECT)
+  const other = bare(root, 'commit-tree', `${base}^{tree}`, '-p', base, '-m', 'other')
+  const candidate = bare(root, 'commit-tree', `${base}^{tree}`, '-p', base, '-m', 'candidate')
+  await git.fastForwardMain(PROJECT, { base, candidate: other })
+  assert.equal(await git.readMain(PROJECT), other, 'a fast forward from the base moves main')
+  await git.fastForwardMain(PROJECT, { base, candidate: other })
+  await assert.rejects(git.fastForwardMain(PROJECT, { base, candidate }), { id: 'BUILDER_SOURCE_BASE_MOVED' })
+  assert.equal(await git.readMain(PROJECT), other)
+})
+
+import { chmodSync, existsSync, utimesSync } from 'node:fs'
+
+const objectFile = (root, revision) => join(root, `${PROJECT}.git`, 'objects', revision.slice(0, 2), revision.slice(2))
+const asUnreadable = (root, revision, t) => {
+  chmodSync(objectFile(root, revision), 0o000)
+  t.after(() => { if (existsSync(objectFile(root, revision))) chmodSync(objectFile(root, revision), 0o644) })
+}
+
+test('an unreadable commit is a named Git failure and never an absent commit, through every read that asks', async (t) => {
+  const root = join(scratch(t), 'git')
+  const git = createConexusGit({ root, starter: STARTER })
+  const main = await git.ensureRepository(PROJECT)
+  const absent = 'e'.repeat(40)
+  assert.deepEqual([await git.mainContains(PROJECT, absent), await git.listTree(PROJECT, absent), await git.isStarter(PROJECT, absent)], [false, null, false])
+  assert.equal(await git.mainContains(PROJECT, main), true)
+  asUnreadable(root, main, t)
+  for (const read of [() => git.mainContains(PROJECT, main), () => git.listTree(PROJECT, main), () => git.isStarter(PROJECT, main), () => git.readMain(PROJECT)]) {
+    await assert.rejects(read(), { id: 'CONEXUS_GIT_FAILED' })
+  }
+})
+
+test('the takeover sweep over an unreadable repository leaves the run open, and over a truly absent candidate fails it', async (t) => {
+  const root = join(scratch(t), 'git')
+  const git = createConexusGit({ root, starter: STARTER })
+  const main = await git.ensureRepository(PROJECT)
+  const writes = []
+  const store = {
+    failBuilderRun: async ({ failureCode }) => { writes.push(['fail', failureCode]) },
+    advanceBuilderRunSource: async () => { writes.push(['advance']) },
+    settleBuilderRunBuild: async () => { writes.push(['build']) },
+  }
+  const taken = (candidateRevision) => ({ builderRunId: TAKEN_RUN, projectId: PROJECT, candidateRevision, resultSourceRevision: null })
+  asUnreadable(root, main, t)
+  await assert.rejects(settleTakenOverCandidate({ store, git }, taken(main)), { id: 'CONEXUS_GIT_FAILED' })
+  assert.deepEqual(writes, [])
+  await settleTakenOverCandidate({ store, git }, taken('e'.repeat(40)))
+  assert.deepEqual(writes, [['fail', 'BUILDER_SOURCE_ADMISSION_FAILED']])
+})
+
+test('a failed ref update is read back: a planted lock is the update failing, a ref already at the next head converged, and a ref elsewhere moved', async (t) => {
+  const root = join(scratch(t), 'git')
+  const git = createConexusGit({ root, starter: STARTER })
+  const base = await git.ensureRepository(PROJECT)
+  const next = bare(root, 'commit-tree', `${base}^{tree}`, '-p', base, '-m', 'next')
+  const elsewhere = bare(root, 'commit-tree', `${base}^{tree}`, '-p', base, '-m', 'elsewhere')
+  const lock = join(root, `${PROJECT}.git`, 'refs', 'heads', 'main.lock')
+  writeFileSync(lock, '')
+  await assert.rejects(git.fastForwardMain(PROJECT, { base, candidate: next }), { id: 'CONEXUS_GIT_FAILED' })
+  assert.equal(await git.readMain(PROJECT), base)
+  rmSync(lock)
+  bare(root, 'update-ref', 'refs/heads/main', elsewhere)
+  await assert.rejects(git.fastForwardMain(PROJECT, { base, candidate: next }), { id: 'BUILDER_SOURCE_BASE_MOVED' })
+})
+
+test('opening a repository removes a lock older than any command and every staging ref, and leaves a fresh lock alone', async (t) => {
+  const root = join(scratch(t), 'git')
+  const git = createConexusGit({ root, starter: STARTER })
+  const base = await git.ensureRepository(PROJECT)
+  const refs = join(root, `${PROJECT}.git`, 'refs')
+  const old = join(refs, 'heads', 'main.lock')
+  const fresh = join(refs, 'heads', 'fresh.lock')
+  writeFileSync(old, '')
+  writeFileSync(fresh, '')
+  const longAgo = new Date(Date.now() - 3_600_000)
+  utimesSync(old, longAgo, longAgo)
+  bare(root, 'update-ref', `refs/conexus/staging/${RUN}`, base)
+  assert.equal(await git.ensureRepository(PROJECT), base)
+  assert.deepEqual([existsSync(old), existsSync(fresh)], [false, true])
+  assert.equal(bare(root, 'for-each-ref', 'refs/conexus/staging'), '')
 })

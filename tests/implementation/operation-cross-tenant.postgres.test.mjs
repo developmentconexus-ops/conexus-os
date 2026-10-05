@@ -9,6 +9,8 @@ import { query } from './hub-database.mjs'
 import { ID, STARTER, setupProjects } from './project-fixture.mjs'
 
 const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
+const { builderProjectPorts, purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
+const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
 const { createConnectorStore, purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
 const { createWorkspaceStore } = await import(hubModuleUrl('workspace/store.js'))
@@ -39,6 +41,9 @@ const TENANT_B = Object.freeze({
   'project.project': 'workspace_id = $1',
   'project.project_deletion': 'workspace_id = $1',
   'builder.builder_run': 'project_id = $2',
+  'builder.builder_run_model_account': 'builder_run_id IN (SELECT builder_run_id FROM builder.builder_run WHERE project_id = $2)',
+  'builder.conversation_session': 'project_id = $2',
+  'builder.project_repository': 'project_id = $2',
   'builder.project_working_state': 'project_id = $2',
   'connector.connection': 'workspace_id = $1',
   'connector.project_binding': 'workspace_id = $1',
@@ -102,9 +107,12 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   const fixture = await setupProjects(t, 'conexus_operation_tenant')
   const { connection, seedProject, settleRun } = fixture
   const projectA = await seedProject('Atlas')
+  const projectBuild = await seedProject('Builds')
   const doomedA = await seedProject('Doomed A')
   const projectB = await seedProject('Borealis', ID.otherWorkspace)
   await settleRun(projectB)
+  await query(connection, 'INSERT INTO builder.conversation_session(conversation_id, project_id) VALUES ($1, $2)', [randomUUID(), projectB])
+  await query(connection, 'INSERT INTO builder.builder_run_model_account(builder_run_id, model_account_id) SELECT builder_run_id, $2 FROM builder.builder_run WHERE project_id = $1', [projectB, randomUUID()])
   await seedTenantB(fixture, projectB)
   for (const [table, rows] of await rowsOfB(connection, projectB)) assert.ok(rows.length > 0, `${table} has a seeded row of tenant B`)
   const thumbnailA = Buffer.from('thumbnail-of-a')
@@ -114,8 +122,11 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   await seedThumbnail(connection, projectB, Buffer.from('thumbnail-of-b'))
   const entries = []
   const database = recording(fixture.database, entries)
-  const projects = createProjectStore({ database, repository: { prepare: async () => STARTER }, deletion: { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => undefined, purgeConnectorBindings: purgeProjectBindings } })
+  const projects = createProjectStore({ database, repository: { prepare: async () => STARTER }, deletion: { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => undefined, purgeConnectorBindings: purgeProjectBindings, purgeBuilder: purgeProjectBuilder }, builder: builderProjectPorts })
   const workspaces = createWorkspaceStore(database)
+  const builder = createBuilderStore({ database, ownerId: randomUUID() })
+  const runOfB = (await query(connection, 'SELECT builder_run_id FROM builder.builder_run WHERE project_id = $1', [projectB])).rows[0].builder_run_id
+  const FOREIGN_BASE = 'c'.repeat(40)
   const connectors = createConnectorStore({ database, envelope: createSecretEnvelope('ab'.repeat(32)) })
   const served = createServedApplicationReader(database)
   const member = ID.member
@@ -123,6 +134,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   const revisionOfA = (await query(connection, 'SELECT project_revision FROM project.project WHERE project_id = $1', [projectA])).rows[0].project_revision
   const withoutActivity = (summaries) => summaries.map(({ lastActivityAt: _at, ...rest }) => rest)
   const cardA = { projectId: projectA, workspaceId: ID.workspace, name: 'Atlas', archived: false }
+  const cardBuilds = { projectId: projectBuild, workspaceId: ID.workspace, name: 'Builds', archived: false }
   const cardDoomed = { projectId: doomedA, workspaceId: ID.workspace, name: 'Doomed A', archived: false }
 
   // own: admission passes on the tenant's own ids and the answer holds the tenant's literal rows.
@@ -140,7 +152,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       child: null,
     },
     'PRJ-01': {
-      own: async () => assert.deepEqual(await projects.listProjects({ accountId: member, workspaceId: ID.workspace }), [cardA, cardDoomed]),
+      own: async () => assert.deepEqual(await projects.listProjects({ accountId: member, workspaceId: ID.workspace }), [cardA, cardBuilds, cardDoomed]),
       cross: async () => assert.deepEqual(await projects.listProjects({ accountId: member, workspaceId: ID.otherWorkspace }), []),
       child: null,
     },
@@ -168,10 +180,57 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
     'PRJ-SUMMARIES': {
       own: async () => {
         const summaries = withoutActivity(await projects.listProjectSummariesWithActivity({ accountId: member, workspaceId: ID.workspace }))
-        assert.deepEqual(summaries.map((summary) => summary.name).sort(), ['Atlas', 'Mine'])
+        assert.deepEqual(summaries.map((summary) => summary.name).sort(), ['Atlas', 'Builds', 'Mine'])
         assert.deepEqual(summaries.find((summary) => summary.name === 'Atlas'), { projectId: projectA, name: 'Atlas', archived: false, latestRun: null, hasPreview: true, deleting: false })
       },
       cross: async () => assert.deepEqual(await projects.listProjectSummariesWithActivity({ accountId: member, workspaceId: ID.otherWorkspace }), []),
+      child: null,
+    },
+    'BLD-08': {
+      own: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectA, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), true),
+      cross: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), false),
+      child: null,
+    },
+    'BLD-09': {
+      own: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectA, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), true),
+      cross: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), false),
+      child: null,
+    },
+    'BLD-29': {
+      own: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectA, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), true),
+      cross: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), false),
+      child: null,
+    },
+    'BLD-23': {
+      own: async () => assert.deepEqual(await builder.readBuilderRun({ accountId: member, projectId: projectA }), null),
+      cross: async () => assert.deepEqual(await builder.readBuilderRun({ accountId: member, projectId: projectB }), null),
+      child: null,
+    },
+    'BLD-24': {
+      own: async () => {
+        const run = await builder.createBuilderRun({ accountId: member, projectId: projectBuild, conversationId: '33333333-3333-4333-8333-333333333333', idempotencyKey: 'own', content: 'build', readBase: async () => FOREIGN_BASE })
+        assert.deepEqual({ state: run.state, baseSourceRevision: run.baseSourceRevision, requestText: run.requestText }, { state: 'QUEUED', baseSourceRevision: FOREIGN_BASE, requestText: 'build' })
+      },
+      cross: () => assert.rejects(builder.createBuilderRun({ accountId: member, projectId: projectB, conversationId: '33333333-3333-4333-8333-333333333333', idempotencyKey: 'intruder', content: 'build', readBase: async () => FOREIGN_BASE }), { id: 'PROJECT_BUILD_DENIED' }),
+      child: null,
+    },
+    'BLD-25': {
+      own: async () => {
+        const ownRun = (await query(connection, 'SELECT builder_run_id FROM builder.builder_run WHERE project_id = $1', [projectBuild])).rows[0].builder_run_id
+        const cancelled = await builder.requestBuilderRunCancellation({ accountId: member, projectId: projectBuild, builderRunId: ownRun })
+        assert.equal(cancelled.state, 'INTERRUPTED')
+      },
+      cross: () => assert.rejects(builder.requestBuilderRunCancellation({ accountId: member, projectId: projectB, builderRunId: runOfB }), { id: 'PROJECT_BUILD_DENIED' }),
+      child: () => assert.rejects(builder.requestBuilderRunCancellation({ accountId: member, projectId: projectBuild, builderRunId: runOfB }), { id: 'BUILDER_RUN_NOT_FOUND' }),
+    },
+    'BLD-26': {
+      own: async () => assert.deepEqual((await builder.listBuilderRuns({ accountId: member, projectId: projectBuild })).map((run) => run.state), ['INTERRUPTED']),
+      cross: async () => assert.equal(await builder.readBuilderRun({ accountId: member, projectId: projectB }), null),
+      child: async () => assert.notEqual((await builder.readBuilderRun({ accountId: member, projectId: projectBuild })).builderRunId, runOfB),
+    },
+    'BLD-30': {
+      own: async () => assert.deepEqual(await builder.readLaunchSubject({ accountId: member, projectId: projectA }), { lastPreviewSourceRevision: STARTER, lastPreviewArtifactRevisionId: revisionA, lastPreviewArtifactDigest: 'd'.repeat(64) }),
+      cross: () => assert.rejects(builder.readLaunchSubject({ accountId: member, projectId: projectB }), { id: 'PROJECT_BUILD_DENIED' }),
       child: null,
     },
     'PRJ-THUMBNAIL': {

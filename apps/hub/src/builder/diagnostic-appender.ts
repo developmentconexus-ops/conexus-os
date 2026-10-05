@@ -2,18 +2,19 @@ import { createHash } from 'node:crypto'
 import { FAILURE_TEXT } from '../platform/failure-text.generated.js'
 import { projectResourceId } from './conversations.js'
 import type { ControllerSession, RunNote } from './run/ports.js'
+import type { BuilderRunId, ConversationId, ProjectId, SourceRevision } from '../../../../packages/contract/dist/index.js'
 
 // Deterministic on run+code so a retried call collapses onto the same message instead of
 // appending a duplicate diagnostic.
-const diagnosticMessageId = (builderRunId: string, code: string): string =>
+const diagnosticMessageId = (builderRunId: BuilderRunId, code: string): string =>
   createHash('sha256').update(`builder-diagnostic:${builderRunId}:${code}`).digest('hex')
 
 // The person reads a run by the first eight characters of its id; the failure code stays in the log.
-const reference = (builderRunId: string): string => `Referência: ${builderRunId.slice(0, 8)}.`
+const reference = (builderRunId: BuilderRunId): string => `Referência: ${builderRunId.slice(0, 8)}.`
 
 // The next turn reads this thread, and an unadmitted run's tool calls in it describe edits that are
 // in the conversation's files but not on `main`, so the note is written for the agent as much as for the person.
-const kept = (sourceRevision: string): string =>
+const kept = (sourceRevision: SourceRevision): string =>
   `Os arquivos desta execução ficaram guardados nesta conversa, e a próxima execução continua deles, junto com a versão atual da fonte; a versão aplicada continua na revisão ${sourceRevision}. Leia os arquivos antes de confiar neste histórico.`
 
 // What the table says for the run's failure; a code the table keeps for the operator says nothing here.
@@ -52,7 +53,7 @@ const noteSignal = (note: RunNote) => ({
   attributes: { source: 'conexus', outcome: note.outcome, run: note.builderRunId },
 })
 
-export const createDiagnosticAppender = (openSession: (conversation: Readonly<{ projectId: string; conversationId: string }>) => Promise<NoteSession>) =>
+export const createDiagnosticAppender = (openSession: (conversation: Readonly<{ projectId: ProjectId; conversationId: ConversationId }>) => Promise<NoteSession>) =>
   async (note: RunNote): Promise<void> => {
     const target = { resourceId: projectResourceId(note.projectId), threadId: note.conversationId }
     await (await openSession(note)).sendSignalToThread(noteSignal(note), target).accepted

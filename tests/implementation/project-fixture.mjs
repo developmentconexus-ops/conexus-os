@@ -8,6 +8,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 const { openDatabase } = await import(hubModuleUrl('platform/db.js'))
 const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
 const { createProjectDeletion } = await import(hubModuleUrl('project/deletion.js'))
+const { builderProjectPorts, purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
 const { purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
 
 export const ID = Object.freeze({
@@ -31,8 +32,12 @@ export const setupProjects = async (t, prefix, { repository } = {}) => {
   const passwordFile = resolve(directory, 'password')
   writeFileSync(passwordFile, PASSWORD)
   chmodSync(passwordFile, 0o600)
-  const database = openDatabase({ host: fixture.connection.host, port: fixture.connection.port, database: fixture.database, user: 'hub_runtime', passwordFile, max: 6 })
-  fixture.onCleanup(() => database.close())
+  const openRuntimeDatabase = ({ max = 6 } = {}) => {
+    const opened = openDatabase({ host: fixture.connection.host, port: fixture.connection.port, database: fixture.database, user: 'hub_runtime', passwordFile, max })
+    fixture.onCleanup(() => opened.close())
+    return opened
+  }
+  const database = openRuntimeDatabase()
   const { connection } = fixture
   await query(connection, `INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES
     ($1, 'https://issuer.test', 'owner', 'Owner'), ($2, 'https://issuer.test', 'member', 'Member'),
@@ -49,18 +54,20 @@ export const setupProjects = async (t, prefix, { repository } = {}) => {
     killSandboxes: async () => { events.push('kill') },
     deleteRepository: async () => { events.push('repository') },
     purgeConnectorBindings: purgeProjectBindings,
+    purgeBuilder: purgeProjectBuilder,
   }
   const repositoryPort = repository ?? { prepare: async () => STARTER }
-  const store = createProjectStore({ database, repository: repositoryPort, deletion: ports })
+  const store = createProjectStore({ database, repository: repositoryPort, deletion: ports, builder: builderProjectPorts })
   const deletion = createProjectDeletion({ database, ports })
   const seedProject = async (name = 'Atlas', workspaceId = ID.workspace) => {
     const projectId = randomUUID()
     await query(connection, `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)
       VALUES ($1, $2, $3, 'NEW', $4, $5)`, [projectId, workspaceId, name, HEAD, randomUUID()])
-    await query(connection, 'SELECT builder.register_project_repository($1)', [projectId])
+    await query(connection, 'INSERT INTO builder.project_working_state(project_id) VALUES ($1)', [projectId])
+    await query(connection, 'INSERT INTO builder.project_repository(project_id) VALUES ($1)', [projectId])
     return projectId
   }
   const settleRun = (projectId, state = 'SUCCEEDED') => query(connection, `INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision, state)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [randomUUID(), projectId, ID.owner, `conexus-builder:${projectId}`, randomUUID().replaceAll('-', '').repeat(2), '1'.repeat(64), HEAD, state])
-  return { ...fixture, database, store, deletion, events, seedProject, settleRun }
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [randomUUID(), projectId, ID.owner, projectId, randomUUID().replaceAll('-', '').repeat(2), '1'.repeat(64), HEAD, state])
+  return { ...fixture, database, openRuntimeDatabase, store, deletion, events, seedProject, settleRun }
 }

@@ -1,3 +1,4 @@
+import type { ExecutionId, ProjectId, SourceRevision } from '../../../../../packages/contract/dist/index.js'
 import { checkSummary, failedBootStep } from '../application-check.js'
 import { classifyCheck, createCandidateGate, GATE_RED_BUDGET, type CandidateGate, type CandidateVerdict } from '../candidate-gate.js'
 import { candidateSnapshot, pullSnapshot, quoted } from '../conexus-git.js'
@@ -26,14 +27,14 @@ const APPLICATION_TREE_LIMITS = 'tree failed:\napp/ precisa de app/index.html; a
  */
 const createJudge = ({ git, projectId, executionId, log, cancelled, gatePhase, vm, sandbox }: Readonly<{
   git: Pick<ConexusGit, 'listFilesLong' | 'archive'>
-  projectId: string
-  executionId: string
+  projectId: ProjectId
+  executionId: ExecutionId
   log: EventLog
   cancelled(): boolean
   gatePhase(phase: BuilderRunPhase): void
   vm: RunVm
   sandbox: Pick<RunSandbox, 'runCheck'>
-}>) => async (revision: string): Promise<CandidateVerdict> => {
+}>) => async (revision: SourceRevision): Promise<CandidateVerdict> => {
   if (cancelled()) throw new Failure('BUILDER_RUN_CANCELLED')
   log('BUILDER_GATE_CHECKING', { run: executionId, revision: revision.slice(0, 12) })
   gatePhase('COMPILING')
@@ -67,18 +68,18 @@ const createJudge = ({ git, projectId, executionId, log, cancelled, gatePhase, v
 
 export const createRunGate = ({ git, projectId, executionId, base, turnStart, excluded, log, cancelled, gatePhase, vm, sandbox }: Readonly<{
   git: Pick<ConexusGit, 'listFilesLong' | 'archive' | 'acceptSnapshot'>
-  projectId: string
-  executionId: string
-  base: string
-  turnStart: string
+  projectId: ProjectId
+  executionId: ExecutionId
+  base: SourceRevision
+  turnStart: SourceRevision
   excluded: readonly string[]
   log: EventLog
   cancelled(): boolean
   gatePhase(phase: BuilderRunPhase): void
   vm: RunVm
   sandbox: Pick<RunSandbox, 'runCheck'>
-}>): Readonly<{ gate: CandidateGate; pulled(): string | null }> => {
-  let pulled: string | null = null
+}>): Readonly<{ gate: CandidateGate; pulled(): SourceRevision | null }> => {
+  let pulled: SourceRevision | null = null
   const gate = createCandidateGate({
     // A checkout back at the turn's start is no change; one the agent left as it was reuses the
     // revision already pulled, so its verdict is not checked again.
