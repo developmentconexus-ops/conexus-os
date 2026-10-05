@@ -148,7 +148,7 @@ const withPage = async (t, { origin, projectId, workspaceId, accountId, accounts
   }))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({
     status: 200, contentType: 'application/json',
-    body: JSON.stringify({ projectId, workspaceId, name: 'Pedidos de compra', projectRevision: 'r1', archived: false }),
+    body: JSON.stringify({ projectId, workspaceId, name: 'Pedidos de compra', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }),
   }))
   return { page, responseBodies }
 }

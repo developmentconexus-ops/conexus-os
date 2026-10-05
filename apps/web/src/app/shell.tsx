@@ -12,7 +12,7 @@ import { useRef, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 import { ConexusMark, ConexusWordmark } from '../../../../packages/brand/src/index'
 import { endCurrentSession } from '../features/identity-access/api'
-import { listProjects, projectListQueryKey } from '../features/project/api'
+import { projectsQuery } from '../features/project/api'
 import type { AccessContext } from '../generated/iam-client'
 import { ThemeToggle } from './theme-toggle'
 import './frame.css'
@@ -165,7 +165,7 @@ function WorkspaceSwitcher({ context, current, trigger }: Readonly<{ context: Ac
 function ProjectSwitcher({ workspaceId, current, trigger }: Readonly<{ workspaceId: string; current: string; trigger?: ReactNode }>) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
-  const projects = useQuery({ queryKey: projectListQueryKey(workspaceId), queryFn: () => listProjects(workspaceId), enabled: open })
+  const projects = useQuery({ ...projectsQuery(workspaceId), enabled: open })
   return <DropdownMenu open={open} onOpenChange={setOpen}>
     {trigger ?? <SwitcherTrigger label="Trocar de Projeto" />}
     <DropdownMenu.Content align="start" className="cx-menu">

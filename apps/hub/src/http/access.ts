@@ -222,12 +222,6 @@ const UNDECLARED_OPERATIONS: ReadonlySet<string> = new Set([
   'GET /api/control/installation/administrators',
   'POST /api/control/installation/administrators',
   'DELETE /api/control/installation/administrators/:accountId',
-  'GET /api/control/workspaces/:workspaceId/projects',
-  'POST /api/control/workspaces/:workspaceId/projects',
-  'GET /api/control/projects/:projectId',
-  'DELETE /api/control/projects/:projectId',
-  'GET /api/control/workspaces/:workspaceId/project-summaries',
-  'GET /api/control/projects/:projectId/thumbnail',
   'GET /api/control/projects/:projectId/builder-session',
   'POST /api/control/projects/:projectId/builder-session/messages',
   'POST /api/control/projects/:projectId/builder-session/runs/:builderRunId/cancel',
@@ -356,8 +350,15 @@ export const routes = (app: FastifyInstance) => {
         const body = statuses.length === 1 ? result : typeof result === 'object' && result !== null && 'body' in result ? result.body : undefined
         if (declared === null) return reply.code(status).send()
         if (declared && 'parse' in declared) return reply.code(status).send(declared.parse(body))
-        if (declared && body instanceof Uint8Array && body.byteLength <= declared.maxBytes) {
-          return reply.code(status).type(declared.mediaType).send(body)
+        if (declared) {
+          const revalidated = declared.cache === 'revalidate-private'
+          const bytes = revalidated ? (typeof body === 'object' && body !== null && 'bytes' in body ? body.bytes : null) : body
+          const etag = revalidated && typeof body === 'object' && body !== null && 'etag' in body && typeof body.etag === 'string' ? body.etag : null
+          if (bytes instanceof Uint8Array && bytes.byteLength <= declared.maxBytes && (!revalidated || etag !== null)) {
+            const sent = reply.code(status).type(declared.mediaType)
+            if (revalidated && etag !== null) sent.header('Cache-Control', 'private, no-cache').header('ETag', `"${etag}"`)
+            return sent.send(Buffer.from(bytes))
+          }
         }
         throw missing('OPERATION_SUCCESS_UNREADABLE')
       },

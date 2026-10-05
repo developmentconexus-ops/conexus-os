@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { loadHubMigrationFiles } from '../../scripts/run-hub-migrations.mjs'
 import { failureOf } from './failure-matchers.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
-import { buildHubDatabase, createEmptyDatabase, query, testPool } from './hub-database.mjs'
+import { buildHubDatabase, createEmptyDatabase, givePasswordToHubRuntime, query, testPool } from './hub-database.mjs'
 import { testListener } from './access/test-listener.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -21,8 +21,7 @@ const { routes } = await import(hubModuleUrl('http/access.js'))
 const latestVersion = loadHubMigrationFiles(migrationsRoot).at(-1).version
 
 const runtimeDatabase = async (connection, onCleanup) => {
-  await query(connection, "ALTER ROLE hub_runtime PASSWORD 'lifecycle-test-only'")
-  onCleanup(() => query(connection, 'ALTER ROLE hub_runtime PASSWORD NULL'))
+  await givePasswordToHubRuntime(connection, onCleanup, 'lifecycle-test-only')
   const directory = mkdtempSync(join(tmpdir(), 'conexus-lifecycle-db-'))
   const passwordFile = join(directory, 'password')
   writeFileSync(passwordFile, 'lifecycle-test-only')

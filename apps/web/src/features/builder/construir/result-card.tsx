@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Check } from 'lucide-react'
 import type { BuilderRun } from '../api'
 import { compareProjectSource } from '../api'
-import { getProject, projectQueryKey } from '../../project/api'
+import { projectQuery } from '../../project/api'
 
 // The runs that changed the app are the only ones worth a card: a response-only turn already speaks
 // for itself in the message above it, and a run still in flight has no result yet.
@@ -18,7 +18,7 @@ export function ResultCard({ projectId, run, versionNumber, onOpenPreview, onOpe
   onOpenPreview: () => void
   onOpenDiff: () => void
 }>) {
-  const project = useQuery({ queryKey: projectQueryKey(projectId), queryFn: () => getProject(projectId) })
+  const project = useQuery(projectQuery(projectId))
   const built = run.resultKind === 'SOURCE_CHANGED'
   const diff = useQuery({
     queryKey: ['builder-result-diff', projectId, run.baseSourceRevision, run.resultSourceRevision],

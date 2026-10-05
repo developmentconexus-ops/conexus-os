@@ -60,6 +60,10 @@ export const lintCatalog = ({ catalog, functions, census }) => {
       const covered = bridged.some((policy) => policy.roles.includes(fn.owner) && covers(policy, 'r'))
       if (!covered) problems.push(`${fn.name} owned by ${fn.owner} reads ${row.table}, which has no bridge policy for ${fn.owner}`)
     }
+    const readerOwners = new Set(functions.filter((fn) => reader.test(fn.body)).map((fn) => fn.owner))
+    for (const owner of new Set(bridged.flatMap((policy) => policy.roles))) {
+      if (!readerOwners.has(owner)) problems.push(`${row.table} has a bridge policy for ${owner}, which owns no function that reads it`)
+    }
   }
 
   const ruleFunctions = functions.filter((fn) => !POLICY_HELPER.test(fn.name)).length

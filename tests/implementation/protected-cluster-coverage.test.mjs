@@ -18,7 +18,8 @@ const GUARD_CALL = 'refuseProtectedCluster()'
 // A body may reach the guard through hub-database.mjs, which calls it before it creates anything.
 // Delegating beats hand-wiring, so the helpers count, and the test below keeps them honest.
 const GUARDED = /refuseProtectedCluster\(\)|buildHubDatabase\(|createEmptyDatabase\(/
-const EXEMPT = new Set()
+// hub-database.mjs holds the one ALTER ROLE helper outside any test body; the test below checks that it calls the guard first.
+const EXEMPT = new Set(['hub-database.mjs'])
 
 const bodies = (source) => {
   const starts = [...source.matchAll(/^test\(/gm)].map(match => match.index)
@@ -52,6 +53,12 @@ test('every test body that alters a shared role refuses a protected cluster firs
   }
 
   assert.deepEqual(unguarded, [], `these bodies alter a cluster-global role without refusing a protected cluster first:\n${unguarded.join('\n')}`)
+})
+
+test('the shared role helper refuses a protected cluster before it alters the role', () => {
+  const source = readFileSync(resolve(IMPLEMENTATION, 'hub-database.mjs'), 'utf8')
+  const helper = source.slice(source.indexOf('export const givePasswordToHubRuntime'))
+  assert.ok(helper.indexOf(GUARD_CALL) > -1 && helper.indexOf(GUARD_CALL) < helper.indexOf('ALTER ROLE'))
 })
 
 // The text check above passed while two guarded files could not run at all. One had the import

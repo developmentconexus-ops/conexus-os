@@ -6,6 +6,7 @@ const sourcePath = 'contracts/technical/builder-run-vocabulary.json'
 export const vocabularyTargets = Object.freeze([
   'apps/hub/src/generated/builder-run-vocabulary.ts',
   'apps/web/src/generated/builder-run-vocabulary.ts',
+  'packages/contract/src/builder-run-vocabulary.ts',
 ])
 
 // Each list the database holds, by the CHECK constraint that holds it.

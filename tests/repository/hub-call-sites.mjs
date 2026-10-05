@@ -83,19 +83,17 @@ export const ROLE_BY_CALL_SITE = Object.freeze({
     'iam.claim_invitations': 'hub_iam_runtime',
     'iam.grant_first_installation_administrator': 'hub_iam_runtime',
   }),
+  'identity-access/admission.ts': Object.freeze({
+    'iam.is_installation_administrator': 'hub_runtime',
+  }),
   'project/deletion.ts': Object.freeze({
-    'project.begin_project_deletion': 'hub_project_command',
-    'project.purge_project': 'hub_project_command',
-    'project.complete_project_deletion': 'hub_project_command',
+    'iam.purge_project': 'hub_runtime',
+    'reg.purge_project': 'hub_runtime',
+    'builder.purge_project': 'hub_runtime',
   }),
   'project/store.ts': Object.freeze({
-    'project.list_project_summaries': 'hub_project_read',
-    'project.list_project_summaries_with_activity': 'hub_project_read',
-    'project.get_project': 'hub_project_read',
-    'project.reserve_or_replay_create_project': 'hub_project_command',
-    'project.lock_create_project_receipt': 'hub_project_command',
-    'project.create_project_with_repository': 'hub_project_command',
-    'project.complete_create_project_receipt': 'hub_project_command',
+    'iam.acting_installation_administrator': 'hub_runtime',
+    'builder.register_project_repository': 'hub_runtime',
   }),
   'registry/application-artifact-store.ts': Object.freeze({
     'reg.retain_application_execution': 'hub_builder_executor',

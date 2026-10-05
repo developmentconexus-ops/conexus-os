@@ -2,16 +2,16 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRef } from 'react'
 import { sendBuilderMessage } from '../builder/api'
 import { applyThreadSettings, openConversation, type ReasoningLevel } from '../builder/mastra-session'
-import type { CreateProjectResponse } from '../../generated/project-client'
-import { createProject, projectListQueryKey, projectSummariesQueryKey } from './api'
+import { IdempotencyKey, PRJ01, PRJ_SUMMARIES, type ProjectCreated } from '../../../../../packages/contract/dist/index.js'
+import { createProject } from './api'
 import { failureText, isFailure } from '../../app/http'
 
 export type StartProjectInput = Readonly<{ name: string; description: string; modelId: string | undefined; reasoning: ReasoningLevel | null | undefined }>
-export type StartedProject = Readonly<{ project: CreateProjectResponse; firstRequest: 'SENT' | 'NONE' | 'REFUSED' }>
+export type StartedProject = Readonly<{ project: ProjectCreated; firstRequest: 'SENT' | 'NONE' | 'REFUSED' }>
 
 // Every id is chosen once per distinct input, so a retry after a lost response lands on the
 // Project, conversation and request the first attempt already made instead of making new ones.
-type Attempt = Readonly<{ fingerprint: string; projectKey: string; conversationId: string; requestKey: string }>
+type Attempt = Readonly<{ fingerprint: string; projectKey: IdempotencyKey; conversationId: string; requestKey: string }>
 
 export function useStartProject(workspaceId: string) {
   const queryClient = useQueryClient()
@@ -19,7 +19,7 @@ export function useStartProject(workspaceId: string) {
   const inFlight = useRef(false)
   const mutation = useMutation({
     mutationFn: async ({ input, current }: Readonly<{ input: StartProjectInput; current: Attempt }>): Promise<StartedProject> => {
-      const project = await createProject(workspaceId, { name: input.name, sourceBootstrap: { mode: 'NEW' } }, current.projectKey)
+      const project = await createProject(workspaceId, input.name, current.projectKey)
       if (!input.description) return { project, firstRequest: 'NONE' }
       try {
         await openConversation(project.projectId, current.conversationId)
@@ -36,8 +36,8 @@ export function useStartProject(workspaceId: string) {
     onSuccess: async () => {
       attempt.current = undefined
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: projectSummariesQueryKey(workspaceId) }),
-        queryClient.invalidateQueries({ queryKey: projectListQueryKey(workspaceId) }),
+        queryClient.invalidateQueries({ queryKey: [PRJ_SUMMARIES.id] }),
+        queryClient.invalidateQueries({ queryKey: [PRJ01.id] }),
       ])
     },
     onSettled: () => {
@@ -49,7 +49,7 @@ export function useStartProject(workspaceId: string) {
     if (inFlight.current) return
     const fingerprint = JSON.stringify(input)
     if (attempt.current?.fingerprint !== fingerprint) {
-      attempt.current = { fingerprint, projectKey: crypto.randomUUID(), conversationId: crypto.randomUUID(), requestKey: crypto.randomUUID() }
+      attempt.current = { fingerprint, projectKey: IdempotencyKey.parse(crypto.randomUUID()), conversationId: crypto.randomUUID(), requestKey: crypto.randomUUID() }
     }
     inFlight.current = true
     mutation.mutate({ input, current: attempt.current }, {

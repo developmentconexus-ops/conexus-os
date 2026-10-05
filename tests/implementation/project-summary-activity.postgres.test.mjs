@@ -1,220 +1,59 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
-import pg from 'pg'
-import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
-import { refuseProtectedCluster } from './protected-cluster.mjs'
+import { query } from './hub-database.mjs'
+import { HEAD, ID, setupProjects } from './project-fixture.mjs'
 
-const { Client } = pg
-const required = (name) => {
-  const value = process.env[name]
-  if (!value) throw new Error(`MISSING_TEST_CONFIG_${name}`)
-  return value
-}
-const adminConnection = {
-  host: required('CONEXUS_TEST_DB_HOST'),
-  port: Number(required('CONEXUS_TEST_DB_PORT')),
-  database: required('CONEXUS_TEST_DB_NAME'),
-  user: required('CONEXUS_TEST_DB_USER'),
-  password: required('CONEXUS_TEST_DB_PASSWORD'),
-}
-const quoteIdentifier = (value) => {
-  if (!/^[a-z_][a-z0-9_]*$/.test(value)) throw new Error(`UNSAFE_TEST_IDENTIFIER_${value}`)
-  return `"${value}"`
-}
-const connectionString = ({ host, port, database, user, password }) => {
-  const url = new URL('postgresql://localhost')
-  url.hostname = host
-  url.port = String(port)
-  url.pathname = `/${encodeURIComponent(database)}`
-  url.username = user
-  url.password = password
-  return url.toString()
-}
-const query = async (connection, statement, values = []) => {
-  const client = new Client(connection)
-  await client.connect()
-  try {
-    return await client.query(statement, values)
-  } finally {
-    await client.end()
-  }
-}
+const insertProject = (connection, projectId, workspaceId, name, createdAt) => query(connection, `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision, created_at)
+  VALUES ($1, $2, $3, 'NEW', $4, $5, $6)`, [projectId, workspaceId, name, HEAD, randomUUID(), createdAt])
+const insertRun = (connection, projectId, state, resultKind, createdAt) => query(connection, `INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision, state, result_kind, created_at)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, [randomUUID(), projectId, ID.owner, `conexus-builder:${projectId}`, randomUUID().replaceAll('-', '').repeat(2), '1'.repeat(64), HEAD, state, resultKind, createdAt])
 
-// This exercises project.list_project_summaries_with_activity(), the S3/R1 single query the
-// project-summaries route reads: sort by most recent activity, the lastActivityAt fallback to a
-// Project's own created_at when it has no Builder run yet, the latestRun shape, hasPreview, and
-// the Workspace authority boundary list_project_summaries already proves for its sibling reads.
-test('real PostgreSQL proves project-summaries activity ordering, fallback, and authority', async (t) => {
-  await refuseProtectedCluster()
-  const database = `conexus_project_summary_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 10)}`
-  const admin = new Client(adminConnection)
-  await admin.connect()
-  await admin.query(`CREATE DATABASE ${quoteIdentifier(database)}`)
-  await admin.end()
-  const fresh = { ...adminConnection, database }
+test('the project cards sort by latest activity, fall back to creation, and stay inside the workspace', async (t) => {
+  const { connection, store } = await setupProjects(t, 'conexus_prj_cards')
+  const [stale, running, ready, elsewhere] = [randomUUID(), randomUUID(), randomUUID(), randomUUID()]
+  await insertProject(connection, stale, ID.workspace, 'Stale Project', '2026-01-01T00:00:00Z')
+  await insertProject(connection, running, ID.workspace, 'Running Project', '2026-01-02T00:00:00Z')
+  await insertProject(connection, ready, ID.workspace, 'Ready Project', '2026-01-03T00:00:00Z')
+  await insertProject(connection, elsewhere, ID.otherWorkspace, 'Cross Workspace', '2026-01-04T00:00:00Z')
+  await query(connection, 'INSERT INTO builder.project_working_state(project_id) VALUES ($1)', [running])
+  await query(connection, 'INSERT INTO builder.project_working_state(project_id, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest) VALUES ($1, $2, $3, $4)', [ready, HEAD, randomUUID(), 'b'.repeat(64)])
+  await insertRun(connection, running, 'RUNNING', null, '2026-02-01T00:00:00Z')
+  await insertRun(connection, ready, 'SUCCEEDED', 'SOURCE_CHANGED', '2026-02-02T00:00:00Z')
+  await insertRun(connection, ready, 'FAILED', 'SOURCE_CHANGED_BUILD_FAILED', '2026-02-03T00:00:00Z')
 
-  t.after(async () => {
-    const cleanup = new Client(adminConnection)
-    await cleanup.connect()
-    try {
-      await cleanup.query('ALTER ROLE hub_project_read PASSWORD NULL').catch(() => {})
-      await cleanup.query(`DROP DATABASE ${quoteIdentifier(database)} WITH (FORCE)`)
-    } finally {
-      await cleanup.end()
-    }
-  })
-
-  await runHubMigrations({ connectionString: connectionString(fresh) })
-
-  const accountId = '10000000-0000-4000-8000-000000000091'
-  const otherAccountId = '10000000-0000-4000-8000-000000000092'
-  const workspaceId = '20000000-0000-4000-8000-000000000091'
-  const otherWorkspaceId = '20000000-0000-4000-8000-000000000092'
-  // No Builder run yet: falls back to its own created_at, older than the other two Projects'
-  // Builder activity, so it sorts last.
-  const staleProjectId = '30000000-0000-4000-8000-000000000091'
-  // A Builder run in progress and no Preview yet.
-  const runningProjectId = '30000000-0000-4000-8000-000000000092'
-  // A succeeded run with source changes and a good Preview.
-  const readyProjectId = '30000000-0000-4000-8000-000000000093'
-  const crossWorkspaceProjectId = '30000000-0000-4000-8000-000000000094'
-  const head = 'a'.repeat(40)
-
-  await query(fresh, `INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES
-    ($1, 'https://issuer.test', 'summary-reader', 'Summary Reader'),
-    ($2, 'https://issuer.test', 'summary-other', 'Summary Other')`, [accountId, otherAccountId])
-  await query(fresh, `INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES
-    ($1, 'Summary Workspace', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1)), ($2, 'Other Workspace', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))`, [workspaceId, otherWorkspaceId])
-  await query(fresh, `INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES
-    ($1, $2, 'owner'), ($3, $4, 'owner')`, [accountId, workspaceId, otherAccountId, otherWorkspaceId])
-  await query(fresh, `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision, created_at) VALUES
-    ($1, $5, 'Stale Project', 'NEW', $6, 'revision-stale', TIMESTAMPTZ '2026-01-01T00:00:00Z'),
-    ($2, $5, 'Running Project', 'NEW', $6, 'revision-running', TIMESTAMPTZ '2026-01-02T00:00:00Z'),
-    ($3, $5, 'Ready Project', 'NEW', $6, 'revision-ready', TIMESTAMPTZ '2026-01-03T00:00:00Z'),
-    ($4, $7, 'Cross Workspace', 'NEW', $6, 'revision-cross', TIMESTAMPTZ '2026-01-04T00:00:00Z')`,
-  [staleProjectId, runningProjectId, readyProjectId, crossWorkspaceProjectId, workspaceId, head, otherWorkspaceId])
-  await query(fresh, `INSERT INTO builder.project_working_state(project_id, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest) VALUES
-    ($1, NULL, NULL, NULL), ($2, $3, $4, $5)`,
-  [runningProjectId, readyProjectId, head, randomUUID(), 'b'.repeat(64)])
-  await query(fresh, `INSERT INTO builder.builder_run(
-    builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision,
-    state, result_kind, result_source_revision, created_at
-  ) VALUES
-    ($1, $4, $5, $12, $7, $10, $11, 'RUNNING', NULL, NULL, TIMESTAMPTZ '2026-02-01T00:00:00Z'),
-    ($2, $6, $5, $13, $8, $10, $11, 'SUCCEEDED', 'SOURCE_CHANGED', $11, TIMESTAMPTZ '2026-02-02T00:00:00Z'),
-    ($3, $6, $5, $13, $9, $10, $11, 'FAILED', 'SOURCE_CHANGED_BUILD_FAILED', NULL, TIMESTAMPTZ '2026-02-03T00:00:00Z')`,
-  [randomUUID(), randomUUID(), randomUUID(), runningProjectId, accountId, readyProjectId, '7'.repeat(64), '8'.repeat(64), '9'.repeat(64), 'c'.repeat(64), head,
-    `conexus-builder:${runningProjectId}`, `conexus-builder:${readyProjectId}`])
-
-  const readPassword = 'summary-activity-read-test-only'
-  await query(fresh, `ALTER ROLE hub_project_read PASSWORD '${readPassword}'`)
-  const read = new Client({ ...fresh, user: 'hub_project_read', password: readPassword })
-  await read.connect()
-  try {
-    const answer = await read.query('SELECT project.list_project_summaries_with_activity($1, $2) AS value', [accountId, workspaceId])
-    const projects = answer.rows[0].value
-    assert.deepEqual(projects.map((project) => project.projectId), [readyProjectId, runningProjectId, staleProjectId])
-    assert.deepEqual(projects.find((project) => project.projectId === readyProjectId), {
-      projectId: readyProjectId, name: 'Ready Project', archived: false,
-      lastActivityAt: '2026-02-03T00:00:00.000Z',
-      latestRun: { state: 'FAILED', resultKind: 'SOURCE_CHANGED_BUILD_FAILED' },
-      hasPreview: true, deleting: false,
-    })
-    assert.deepEqual(projects.find((project) => project.projectId === runningProjectId), {
-      projectId: runningProjectId, name: 'Running Project', archived: false,
-      lastActivityAt: '2026-02-01T00:00:00.000Z',
-      latestRun: { state: 'RUNNING', resultKind: null },
-      hasPreview: false, deleting: false,
-    })
-    // No Builder run: the Project's own created_at, and no working_state row, so no Preview.
-    assert.deepEqual(projects.find((project) => project.projectId === staleProjectId), {
-      projectId: staleProjectId, name: 'Stale Project', archived: false,
-      lastActivityAt: '2026-01-01T00:00:00.000Z',
-      latestRun: null,
-      hasPreview: false, deleting: false,
-    })
-
-    // The Workspace is the authority boundary, same as list_project_summaries: nothing from the
-    // other Workspace leaks in, and a caller with no membership sees nothing at all.
-    assert.deepEqual((await read.query('SELECT project.list_project_summaries_with_activity($1, $2) AS value', [accountId, otherWorkspaceId])).rows[0].value, [])
-    assert.deepEqual((await read.query('SELECT project.list_project_summaries_with_activity($1, $2) AS value', [otherAccountId, workspaceId])).rows[0].value, [])
-
-    await assert.rejects(read.query('SELECT * FROM builder.builder_run'), /permission denied/)
-    await assert.rejects(read.query('SELECT * FROM builder.project_working_state'), /permission denied/)
-  } finally {
-    await read.end()
-  }
+  const cards = await store.listProjectSummariesWithActivity({ accountId: ID.member, workspaceId: ID.workspace })
+  assert.deepEqual(cards, [
+    { projectId: ready, name: 'Ready Project', archived: false, lastActivityAt: '2026-02-03T00:00:00.000Z', latestRun: { state: 'FAILED', resultKind: 'SOURCE_CHANGED_BUILD_FAILED' }, hasPreview: true, deleting: false },
+    { projectId: running, name: 'Running Project', archived: false, lastActivityAt: '2026-02-01T00:00:00.000Z', latestRun: { state: 'RUNNING', resultKind: null }, hasPreview: false, deleting: false },
+    { projectId: stale, name: 'Stale Project', archived: false, lastActivityAt: '2026-01-01T00:00:00.000Z', latestRun: null, hasPreview: false, deleting: false },
+  ])
+  assert.deepEqual(await store.listProjectSummariesWithActivity({ accountId: ID.member, workspaceId: ID.otherWorkspace }), [])
+  assert.deepEqual(await store.listProjectSummariesWithActivity({ accountId: ID.outsider, workspaceId: ID.workspace }), [])
 })
 
-// A tombstone whose project.project row has already been purged mid-deletion would otherwise
-// vanish from the Projects listing entirely, taking the administrator's only way back to finish
-// it with it. This proves the UNION ALL branch: the tombstone reappears with deleting true for the
-// installation administrator who has to see it, stays absent for an ordinary member of the same
-// Workspace, and disappears once the tombstone itself is completed.
-test('real PostgreSQL surfaces a purged-but-incomplete tombstone to the installation administrator only', async (t) => {
-  await refuseProtectedCluster()
-  const database = `conexus_project_summary_tomb_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 10)}`
-  const admin = new Client(adminConnection)
-  await admin.connect()
-  await admin.query(`CREATE DATABASE ${quoteIdentifier(database)}`)
-  await admin.end()
-  const fresh = { ...adminConnection, database }
+test('a tombstoned project shows no run or preview, and a purged one reaches the administrator only until it completes', async (t) => {
+  const { connection, store, seedProject, settleRun } = await setupProjects(t, 'conexus_prj_cards_tomb')
+  const projectId = await seedProject('Atlas')
+  await settleRun(projectId)
+  await query(connection, 'UPDATE builder.project_working_state SET last_preview_source_revision = $2, last_preview_artifact_revision_id = $3, last_preview_artifact_digest = $4 WHERE project_id = $1', [projectId, HEAD, randomUUID(), 'b'.repeat(64)])
+  const cardsOf = (accountId) => store.listProjectSummariesWithActivity({ accountId, workspaceId: ID.workspace })
+  await query(connection, `INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Atlas', $3)`, [projectId, ID.workspace, ID.administrator])
+  const [tombstoned] = await cardsOf(ID.memberAdministrator)
+  assert.deepEqual({ latestRun: tombstoned.latestRun, hasPreview: tombstoned.hasPreview, deleting: tombstoned.deleting }, { latestRun: null, hasPreview: false, deleting: true })
+  assert.deepEqual(await cardsOf(ID.administrator), [])
+  assert.deepEqual(await cardsOf(ID.member), [])
 
-  t.after(async () => {
-    const cleanup = new Client(adminConnection)
-    await cleanup.connect()
-    try {
-      await cleanup.query('ALTER ROLE hub_project_read PASSWORD NULL').catch(() => {})
-      await cleanup.query(`DROP DATABASE ${quoteIdentifier(database)} WITH (FORCE)`)
-    } finally {
-      await cleanup.end()
-    }
-  })
-
-  await runHubMigrations({ connectionString: connectionString(fresh) })
-
-  const administratorId = '10000000-0000-4000-8000-000000000191'
-  const memberId = '10000000-0000-4000-8000-000000000192'
-  const workspaceId = '20000000-0000-4000-8000-000000000191'
-  const projectId = '30000000-0000-4000-8000-000000000191'
-  const head = 'a'.repeat(40)
-
-  await query(fresh, `INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES
-    ($1, 'https://issuer.test', 'tomb-admin', 'Tomb Admin'),
-    ($2, 'https://issuer.test', 'tomb-member', 'Tomb Member')`, [administratorId, memberId])
-  await query(fresh, `INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')`, [administratorId])
-  await query(fresh, `INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'Tomb Workspace', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))`, [workspaceId])
-  await query(fresh, `INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES
-    ($1, $2, 'owner'), ($3, $2, 'owner')`, [administratorId, workspaceId, memberId])
-  await query(fresh, `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES
-    ($1, $2, 'Tombstoned Project', 'NEW', $3, 'revision-tomb')`, [projectId, workspaceId, head])
-  await query(fresh, 'SELECT project.begin_project_deletion($1, $2, $3)', [administratorId, projectId, 'Tombstoned Project'])
-  await query(fresh, 'SELECT project.purge_project($1)', [projectId])
-
-  const readPassword = 'summary-activity-tomb-read-test-only'
-  await query(fresh, `ALTER ROLE hub_project_read PASSWORD '${readPassword}'`)
-  const read = new Client({ ...fresh, user: 'hub_project_read', password: readPassword })
-  await read.connect()
-  try {
-    const asAdministrator = (await read.query(
-      'SELECT project.list_project_summaries_with_activity($1, $2) AS value', [administratorId, workspaceId],
-    )).rows[0].value
-    assert.deepEqual(asAdministrator, [{
-      projectId, name: 'Tombstoned Project', archived: false,
-      lastActivityAt: asAdministrator[0].lastActivityAt,
-      latestRun: null, hasPreview: false, deleting: true,
-    }])
-
-    const asMember = (await read.query(
-      'SELECT project.list_project_summaries_with_activity($1, $2) AS value', [memberId, workspaceId],
-    )).rows[0].value
-    assert.deepEqual(asMember, [])
-  } finally {
-    await read.end()
-  }
-
-  await query(fresh, 'SELECT project.complete_project_deletion($1)', [projectId])
-  const afterCompletion = await query(fresh, 'SELECT project.list_project_summaries_with_activity($1, $2) AS value', [administratorId, workspaceId])
-  assert.deepEqual(afterCompletion.rows[0].value, [])
+  await query(connection, 'DELETE FROM builder.builder_run WHERE project_id = $1', [projectId])
+  await query(connection, 'DELETE FROM builder.project_working_state WHERE project_id = $1', [projectId])
+  await query(connection, 'DELETE FROM builder.project_repository WHERE project_id = $1', [projectId])
+  await query(connection, 'DELETE FROM project.project WHERE project_id = $1', [projectId])
+  assert.deepEqual(await cardsOf(ID.administrator), [])
+  await query(connection, 'UPDATE project.project_deletion SET purged_at = now() WHERE project_id = $1', [projectId])
+  const [purged] = await cardsOf(ID.administrator)
+  assert.deepEqual({ projectId: purged.projectId, name: purged.name, archived: purged.archived, latestRun: purged.latestRun, hasPreview: purged.hasPreview, deleting: purged.deleting },
+    { projectId, name: 'Atlas', archived: false, latestRun: null, hasPreview: false, deleting: true })
+  assert.deepEqual(await cardsOf(ID.member), [])
+  await query(connection, 'UPDATE project.project_deletion SET completed_at = clock_timestamp() WHERE project_id = $1', [projectId])
+  assert.deepEqual(await cardsOf(ID.administrator), [])
 })

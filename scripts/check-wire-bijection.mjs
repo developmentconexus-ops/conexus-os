@@ -66,7 +66,7 @@ const fixedSection = ledger.slice(sectionStart, sectionEnd);
 // suffix and skipped anything else, so a census row could be dropped without a word and the count
 // on both sides would simply agree one lower. Every data row in the census must now parse, or the
 // gate fails naming the row it could not read.
-const rowPattern = /^\| `([A-Z][A-Z0-9]*-\d+[A-Z]?)` \| `([A-Za-z][A-Za-z0-9]+)` \|/;
+const rowPattern = /^\| `([A-Z][A-Z0-9]*-(?:\d+[A-Z]?|[A-Z]{2,}))` \| `([A-Za-z][A-Za-z0-9]+)` \|/;
 const expectedById = new Map();
 for (const line of fixedSection.split('\n')) {
   if (!line.startsWith('|')) continue;

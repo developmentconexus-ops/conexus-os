@@ -1,5 +1,9 @@
-import type { QueryResultRow } from 'pg'
-import { errorCode, type PostgresPool } from '../platform/db.js'
+import { z } from 'zod'
+import { WorkspaceId, type AccountId, type ProjectId as ProjectIdType } from '../../../../packages/contract/dist/index.js'
+import { BUILDER_RUN_STATES } from '../generated/builder-run-vocabulary.js'
+import { admitProjectDeletion } from '../identity-access/admission.js'
+import type { Database, WriteTx } from '../platform/db.js'
+import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 
 // The application's Preview data, the E2B VMs of the Project's conversations and the Project's
@@ -8,97 +12,80 @@ import { Failure } from '../platform/failure.js'
 // it. The VMs are killed before the purge, which drops the rows that name them; a VM that fails to
 // die is logged, not a failed deletion.
 export type ProjectDeletionPorts = Readonly<{
-  releaseApplicationData(projectId: string): Promise<void>
-  killSandboxes(projectId: string): Promise<void>
-  deleteRepository(projectId: string): Promise<void>
+  releaseApplicationData(projectId: ProjectIdType): Promise<void>
+  killSandboxes(projectId: ProjectIdType): Promise<void>
+  deleteRepository(projectId: ProjectIdType): Promise<void>
 }>
 
-export type DeleteProjectInput = Readonly<{ accountId: string; projectId: string; confirmName: string }>
+type DeleteProjectInput = Readonly<{ accountId: AccountId; projectId: ProjectIdType; confirmName: string }>
 
-type TombstoneRow = QueryResultRow & Readonly<{
-  project_id: string
-  completed_at: string | null
-}>
+const Tombstone = z.object({ name: z.string(), completed_at: z.date().nullable() })
+const Target = z.object({ workspace_id: WorkspaceId, name: z.string() })
+const Present = z.object({ present: z.literal(1) })
 
-const errorText = (error: unknown): string => error instanceof Error ? error.message : ''
-const isNotAdmitted = (error: unknown): boolean => errorCode(error) === '42501'
+const tombstoneOf = (tx: WriteTx, projectId: ProjectIdType) => tx.maybe(Tombstone, sql`
+  SELECT name, completed_at FROM project.project_deletion WHERE project_id = ${projectId}`)
 
-export const createProjectDeletionOrchestrator = ({ commandPool, ports }: Readonly<{
-  commandPool: PostgresPool
-  ports: ProjectDeletionPorts
-}>) => {
-  const begin = async (input: DeleteProjectInput): Promise<TombstoneRow> => {
-    const client = await commandPool.connect()
-    try {
-      await client.query('BEGIN')
-      const result = await client.query<TombstoneRow>(
-        'SELECT * FROM project.begin_project_deletion($1, $2, $3)',
-        [input.accountId, input.projectId, input.confirmName],
-      )
-      const row = result.rows[0]
-      if (!row) throw new Failure('OUTCOME_UNKNOWN')
-      await client.query('COMMIT')
-      return row
-    } catch (error) {
-      await client.query('ROLLBACK')
-      if (isNotAdmitted(error)) throw new Failure('PROJECT_DELETE_DENIED')
-      const text = errorText(error)
-      if (text.startsWith('PROJECT_NOT_FOUND')) throw new Failure('PROJECT_NOT_FOUND')
-      if (text.startsWith('PROJECT_NAME_MISMATCH')) throw new Failure('PROJECT_NAME_MISMATCH')
-      if (text.startsWith('PROJECT_BUSY')) throw new Failure('PROJECT_BUSY')
-      throw error
-    } finally {
-      client.release()
-    }
-  }
+const SETTLED_RUN_STATES = BUILDER_RUN_STATES.filter((state) => state !== 'QUEUED' && state !== 'RUNNING')
 
-  const purge = async (projectId: string): Promise<void> => {
-    const client = await commandPool.connect()
-    try {
-      await client.query('BEGIN')
-      await client.query('SELECT project.purge_project($1)', [projectId])
-      await client.query('COMMIT')
-    } catch (error) {
-      await client.query('ROLLBACK')
-      if (errorText(error).startsWith('PROJECT_BUSY')) throw new Failure('PROJECT_BUSY')
-      throw error
-    } finally {
-      client.release()
-    }
-  }
+const busy = async (tx: WriteTx, projectId: ProjectIdType): Promise<boolean> => (await tx.maybe(Present, sql`
+  SELECT 1 AS present FROM builder.builder_run WHERE project_id = ${projectId} AND state <> ALL(${SETTLED_RUN_STATES}::text[]) LIMIT 1`)) !== null
 
-  const complete = async (projectId: string): Promise<void> => {
-    const client = await commandPool.connect()
-    try {
-      await client.query('BEGIN')
-      await client.query('SELECT project.complete_project_deletion($1)', [projectId])
-      await client.query('COMMIT')
-    } catch (error) {
-      await client.query('ROLLBACK')
-      throw error
-    } finally {
-      client.release()
-    }
-  }
+const settled = (tombstone: z.output<typeof Tombstone>, confirmName: string): Readonly<{ completed: boolean }> => {
+  if (tombstone.name !== confirmName) throw new Failure('PROJECT_NAME_MISMATCH')
+  return { completed: tombstone.completed_at !== null }
+}
+
+export const createProjectDeletion = ({ database, ports }: Readonly<{ database: Database; ports: ProjectDeletionPorts }>) => {
+  const begin = ({ accountId, projectId, confirmName }: DeleteProjectInput) => database.system('project-purge', async (tx) => {
+    const administrator = await admitProjectDeletion(tx, accountId)
+    const existing = await tombstoneOf(tx, projectId)
+    if (existing) return settled(existing, confirmName)
+    const target = await tx.maybe(Target, sql`SELECT workspace_id, name FROM project.project WHERE project_id = ${projectId} FOR UPDATE`)
+    const concurrent = await tombstoneOf(tx, projectId)
+    if (concurrent) return settled(concurrent, confirmName)
+    if (!target) throw new Failure('PROJECT_NOT_FOUND')
+    if (target.name !== confirmName) throw new Failure('PROJECT_NAME_MISMATCH')
+    if (await busy(tx, projectId)) throw new Failure('PROJECT_BUSY')
+    await administrator.tx.run(sql`
+      INSERT INTO project.project_deletion (project_id, workspace_id, name, requested_by)
+      VALUES (${projectId}, ${target.workspace_id}, ${target.name}, ${administrator.scope.accountId})`)
+    return { completed: false }
+  })
+
+  const purge = (projectId: ProjectIdType) => database.system('project-purge', async (tx) => {
+    if (!(await tombstoneOf(tx, projectId))) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_DELETION_NOT_STARTED' } })
+    if (await busy(tx, projectId)) throw new Failure('PROJECT_BUSY')
+    await tx.run(sql`SELECT iam.purge_project(${projectId})`)
+    await tx.run(sql`SELECT connector.purge_project(${projectId})`)
+    await tx.run(sql`SELECT reg.purge_project(${projectId})`)
+    await tx.run(sql`SELECT builder.purge_project(${projectId})`)
+    await tx.run(sql`DELETE FROM platform.operation_receipt WHERE operation_id = 'PRJ-03' AND resource_id = ${projectId}`)
+    await tx.run(sql`DELETE FROM project.project WHERE project_id = ${projectId}`)
+    await tx.run(sql`UPDATE project.project_deletion SET purged_at = coalesce(purged_at, now()) WHERE project_id = ${projectId}`)
+  })
+
+  const complete = (projectId: ProjectIdType) => database.system('project-purge', (tx) => tx.run(sql`
+    UPDATE project.project_deletion SET completed_at = clock_timestamp() WHERE project_id = ${projectId} AND completed_at IS NULL`))
 
   // The tombstone is the only step that can refuse: not admitted, not found, the wrong name, or a
   // Project still busy building. Every step after it names the tombstone's own Project id, never the
   // caller's input again, so a retry with the same confirmName resumes instead of refusing.
   const deleteProject = async (input: DeleteProjectInput): Promise<void> => {
     const tombstone = await begin(input)
-    if (tombstone.completed_at) return
+    if (tombstone.completed) return
     try {
-      await ports.releaseApplicationData(tombstone.project_id)
-      await ports.killSandboxes(tombstone.project_id)
-      await purge(tombstone.project_id)
-      await ports.deleteRepository(tombstone.project_id)
-      await complete(tombstone.project_id)
+      await ports.releaseApplicationData(input.projectId)
+      await ports.killSandboxes(input.projectId)
+      await purge(input.projectId)
+      await ports.deleteRepository(input.projectId)
+      await complete(input.projectId)
     } catch (error) {
       if (error instanceof Failure && error.id === 'PROJECT_BUSY') throw error
       // The caller only sees the row; the step that failed is the cause the exit logs.
-      throw new Failure('PROJECT_DELETION_INCOMPLETE', { cause: error, details: { projectId: tombstone.project_id } })
+      throw new Failure('PROJECT_DELETION_INCOMPLETE', { cause: error, details: { projectId: input.projectId } })
     }
   }
 
-  return Object.freeze({ deleteProject })
+  return Object.freeze({ deleteProject, purge })
 }

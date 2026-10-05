@@ -6,7 +6,7 @@ import { ConexusMark } from '../../../../packages/brand/src/index'
 import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
 import { listConversations, openConversation } from '../features/builder/mastra-session'
-import { getProject, projectQueryKey } from '../features/project/api'
+import { projectQuery } from '../features/project/api'
 import type { AccessContext } from '../generated/iam-client'
 import { rootRoute } from './__root'
 import { failureText, isFailure, isRetryable } from '../app/http'
@@ -28,7 +28,7 @@ function ProjectFrame({ projectId, children }: Readonly<{ projectId: string; chi
 }
 
 function ProjectScope({ context, projectId, children }: Readonly<{ context: AccessContext; projectId: string; children: ReactNode }>) {
-  const project = useQuery({ queryKey: projectQueryKey(projectId), queryFn: () => getProject(projectId) })
+  const project = useQuery(projectQuery(projectId))
   if (project.isError) {
     const hidden = isFailure(project.error, 'PROJECT_NOT_FOUND')
     return <Shell context={context}><Status title={hidden ? 'Projeto indisponível' : 'Não foi possível abrir o Projeto'}>

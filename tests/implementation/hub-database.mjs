@@ -72,6 +72,14 @@ export const createEmptyDatabase = async (t, prefix = 'conexus_hub') => {
   }
 }
 
+// hub_runtime has no password in the migrations; a suite that connects as it sets one, in the cluster-global role,
+// and clears it when the fixture ends.
+export const givePasswordToHubRuntime = async (connection, onCleanup, password) => {
+  await refuseProtectedCluster()
+  await query(connection, `ALTER ROLE hub_runtime PASSWORD '${password}'`)
+  onCleanup(() => query(connection, 'ALTER ROLE hub_runtime PASSWORD NULL'))
+}
+
 export const buildHubDatabase = async (t, prefix = 'conexus_hub') => {
   const fixture = await createEmptyDatabase(t, prefix)
   await runHubMigrations({ connectionString: fixture.connectionString })
@@ -87,6 +95,12 @@ export const withClient = async (connectionString, body) => {
     await client.end()
   }
 }
+
+const PURGES = { iam: 'SELECT iam.purge_project($1)', builder: 'SELECT builder.purge_project($1)' }
+export const purgeAsSystem = (connectionString, schema, projectId) => withClient(connectionString, async (client) => {
+  await client.query("SELECT set_config('conexus.scope', 'system', false)")
+  await client.query(PURGES[schema], [projectId])
+})
 
 export const catalogOf = (connectionString) => withClient(connectionString, readCatalog)
 

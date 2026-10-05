@@ -9,11 +9,9 @@ import { KeyRound } from 'lucide-react'
 import { useId, useState } from 'react'
 import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
-import {
-  deleteProject, getProject, projectQueryKey, projectSummariesQueryKey,
-} from '../features/project/api'
+import { PRJ_SUMMARIES, type ProjectDetail } from '../../../../packages/contract/dist/index.js'
+import { deleteProject, projectQuery } from '../features/project/api'
 import { useInstallation } from '../features/settings/use-installation'
-import type { ProjectRepresentation } from '../generated/project-client'
 import '../features/project/project-settings.css'
 import { rootRoute } from './__root'
 import { failureText, isFailure } from '../app/http'
@@ -27,7 +25,7 @@ export const projectSettingsRoute = createRoute({
 
 function ProjectSettingsRoute() {
   const { projectId } = projectSettingsRoute.useParams()
-  const project = useQuery({ queryKey: projectQueryKey(projectId), queryFn: () => getProject(projectId) })
+  const project = useQuery(projectQuery(projectId))
   return <AccessGate>{(context) => {
     const workspace = project.data && context.workspaces.find((candidate) => candidate.workspaceId === project.data.workspaceId)
     return <Shell context={context} scope={project.data && workspace ? { workspace, project: project.data } : undefined}>
@@ -50,7 +48,7 @@ function ProjectUnavailable({ error, onRetry }: Readonly<{ error: unknown; onRet
   </div>
 }
 
-function About({ project }: Readonly<{ project: ProjectRepresentation }>) {
+function About({ project }: Readonly<{ project: ProjectDetail }>) {
   if (project.deleting) return <DeletionRecovery project={project} />
   return <>
     <div className="cx-page-head">
@@ -88,18 +86,20 @@ function About({ project }: Readonly<{ project: ProjectRepresentation }>) {
 }
 
 // The Hub purges project.project before the GitHub repository is gone, so a crash or a GitHub
-// failure between those two steps leaves the tombstone the only disclosable trace: get_project keeps
+// failure between those two steps leaves the tombstone the only disclosable trace: the project read keeps
 // answering with deleting true from it, for the installation administrator who started this, so this
 // screen still exists to retry from instead of the Project 404ing right when finishing it matters
 // most. The retry names the tombstone's own recorded name, never a name the administrator retypes,
 // since that recorded name is the only one this Project still has.
 //
-// projectRevision is only ever empty once get_project has fallen back to the tombstone, which only
-// happens after the Hub purge has run -- so it is the one signal this screen has for which side of
-// that purge the crash landed on. The GitHub delete itself runs after that purge and before the
-// tombstone is marked complete, so an empty revision does not tell us whether GitHub succeeded before
-// the crash -- the copy below must not claim either way, only that a retry is safe and needed.
-function DeletionRecovery({ project }: Readonly<{ project: ProjectRepresentation }>) {
+// projectRevision is empty whenever the project read has fallen back to the tombstone: after the Hub purge,
+// and also, between the tombstone and the purge, for an administrator who is not a member of the workspace,
+// who never sees the project row. So an empty revision is the signal this screen has for which side of
+// that purge the crash landed on only for a member; for a non member administrator it can still read as
+// purged a moment early. The GitHub delete itself runs after that purge and before the tombstone is marked
+// complete, so an empty revision does not tell us whether GitHub succeeded before the crash -- the copy
+// below must not claim either way, only that a retry is safe and needed.
+function DeletionRecovery({ project }: Readonly<{ project: ProjectDetail }>) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [message, setMessage] = useState('')
@@ -107,7 +107,7 @@ function DeletionRecovery({ project }: Readonly<{ project: ProjectRepresentation
   const retry = useMutation({
     mutationFn: () => deleteProject(project.projectId, project.name),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: projectSummariesQueryKey(project.workspaceId) })
+      await queryClient.invalidateQueries({ queryKey: [PRJ_SUMMARIES.id] })
       await navigate({ to: '/workspaces/$workspaceId/projects', params: { workspaceId: project.workspaceId } })
     },
     onError: (error) => setMessage(failureText(error)),
@@ -127,7 +127,7 @@ function DeletionRecovery({ project }: Readonly<{ project: ProjectRepresentation
   </div>
 }
 
-function DangerZone({ project }: Readonly<{ project: ProjectRepresentation }>) {
+function DangerZone({ project }: Readonly<{ project: ProjectDetail }>) {
   const installation = useInstallation()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -138,7 +138,7 @@ function DangerZone({ project }: Readonly<{ project: ProjectRepresentation }>) {
   const remove = useMutation({
     mutationFn: () => deleteProject(project.projectId, confirmName),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: projectSummariesQueryKey(project.workspaceId) })
+      await queryClient.invalidateQueries({ queryKey: [PRJ_SUMMARIES.id] })
       await navigate({ to: '/workspaces/$workspaceId/projects', params: { workspaceId: project.workspaceId } })
     },
     onError: (error) => setMessage(failureText(error)),

@@ -1,287 +1,247 @@
 import assert from 'node:assert/strict'
-import { randomUUID, randomBytes } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
-import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
-import { refuseProtectedCluster } from './protected-cluster.mjs'
+import { query } from './hub-database.mjs'
+import { hubModuleUrl } from './hub-build.mjs'
+import { HEAD, ID, setupProjects } from './project-fixture.mjs'
 
-const { Client } = pg
-const required = (name) => {
-  const value = process.env[name]
-  if (!value) throw new Error(`MISSING_TEST_CONFIG_${name}`)
-  return value
-}
-const adminConnection = {
-  host: required('CONEXUS_TEST_DB_HOST'),
-  port: Number(required('CONEXUS_TEST_DB_PORT')),
-  database: required('CONEXUS_TEST_DB_NAME'),
-  user: required('CONEXUS_TEST_DB_USER'),
-  password: required('CONEXUS_TEST_DB_PASSWORD'),
-}
-const quoteIdentifier = (value) => {
-  if (!/^[a-z_][a-z0-9_]*$/.test(value)) throw new Error(`UNSAFE_TEST_IDENTIFIER_${value}`)
-  return `"${value}"`
-}
-const connectionString = ({ host, port, database, user, password }) => {
-  const url = new URL('postgresql://localhost')
-  url.hostname = host
-  url.port = String(port)
-  url.pathname = `/${encodeURIComponent(database)}`
-  url.username = user
-  url.password = password
-  return url.toString()
-}
+const { admitProject } = await import(hubModuleUrl('identity-access/admission.js'))
+const { sql } = await import(hubModuleUrl('platform/db.js'))
 const digest = (character) => character.repeat(64)
-const HEAD = 'a'.repeat(40)
+const remove = (store, accountId, projectId, confirmName = 'Atlas') => store.deleteProject({ accountId, projectId, confirmName })
+const tombstones = async (connection) => (await query(connection, 'SELECT project_id, name, requested_by, purged_at IS NOT NULL AS purged, completed_at IS NOT NULL AS completed FROM project.project_deletion')).rows
 
-// project.purge_project must remove exactly one row from every table across every schema that
-// names the deleted Project by a foreign key. This test seeds one real row in each such table
-// (the same set the tables in apps/hub/migrations declare with a project-scoped foreign key) and
-// proves begin_project_deletion, purge_project and complete_project_deletion carry all of them
-// away together, leaving only the tombstone.
-test('real PostgreSQL proves project.purge_project clears every project-scoped row across schemas', async (t) => {
-  await refuseProtectedCluster()
-  const database = `conexus_project_deletion_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 10)}`
-  const admin = new Client(adminConnection)
-  await admin.connect()
-  await admin.query(`CREATE DATABASE ${quoteIdentifier(database)}`)
-  await admin.end()
-  const fresh = { ...adminConnection, database }
-
-  t.after(async () => {
-    const cleanup = new Client(adminConnection)
-    await cleanup.connect()
-    try {
-      await cleanup.query(`DROP DATABASE ${quoteIdentifier(database)} WITH (FORCE)`)
-    } finally {
-      await cleanup.end()
-    }
-  })
-
-  await runHubMigrations({ connectionString: connectionString(fresh) })
-
-  const client = new Client(fresh)
-  await client.connect()
-  try {
-    const accountId = '10000000-0000-4000-8000-000000000501'
-    const otherAccountId = '10000000-0000-4000-8000-000000000502'
-    const workspaceId = '20000000-0000-4000-8000-000000000501'
-    const projectId = '30000000-0000-4000-8000-000000000501'
-
-    await client.query(
-      `INSERT INTO iam.account(account_id, issuer, external_subject, display_name)
-       VALUES ($1, 'https://issuer.test', 'deletion-subject-1', 'Deletion Admin')`,
-      [accountId],
-    )
-    await client.query(
-      `INSERT INTO iam.account(account_id, issuer, external_subject, display_name)
-       VALUES ($1, 'https://issuer.test', 'deletion-subject-2', 'Deletion Member')`,
-      [otherAccountId],
-    )
-    await client.query(`INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')`, [accountId])
-    await client.query(`INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'Deletion Workspace', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))`, [workspaceId])
-    await client.query(`INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')`, [accountId, workspaceId])
-    await client.query(`INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'member')`, [otherAccountId, workspaceId])
-
-    await client.query(
-      `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)
-       VALUES ($1, $2, 'Deletion Project', 'NEW', $3, 'project-revision-1')`,
-      [projectId, workspaceId, HEAD],
-    )
-    await client.query('SELECT builder.register_project_repository($1)', [projectId])
-
-    // builder.builder_run: settled, so it does not trip the PROJECT_BUSY guard.
-    await client.query(
-      `INSERT INTO builder.builder_run(
-         builder_run_id, project_id, account_id, idempotency_digest, base_source_revision,
-         state, request_digest, conversation_id
-       ) VALUES ($1, $2, $3, $4, $5, 'SUCCEEDED', $6, $7)`,
-      [randomUUID(), projectId, accountId, digest('1'), HEAD, digest('2'), `conexus-builder:${projectId}`],
-    )
-
-    // iam.application, its grant and its invitation.
-    await client.query(`INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'deletion-project-app', $2)`, [projectId, accountId])
-    await client.query(
-      `INSERT INTO iam.application_invitation(invitation_id, project_id, email, invited_by, expires_at)
-       VALUES ($1, $2, 'invitee@example.test', $3, clock_timestamp() + interval '1 day')`,
-      [randomUUID(), projectId, accountId],
-    )
-    await client.query(
-      `INSERT INTO iam.application_grant(project_id, account_id, granted_by) VALUES ($1, $2, $3)`,
-      [projectId, otherAccountId, accountId],
-    )
-
-    // reg.artifact (application kind) and its revision.
-    const artifactId = randomUUID()
-    const artifactRevisionId = randomUUID()
-    await client.query(
-      `INSERT INTO reg.artifact(artifact_id, kind, semantic_name, project_id) VALUES ($1, 'application', 'deletion-app', $2)`,
-      [artifactId, projectId],
-    )
-    await client.query(
-      `INSERT INTO reg.artifact_revision(artifact_revision_id, artifact_id, source_revision, digest, payload, availability)
-       VALUES ($1, $2, $3, $4, '{}'::jsonb, 'AVAILABLE')`,
-      [artifactRevisionId, artifactId, HEAD, digest('3')],
-    )
-
-    // iam.preview, opened against that revision. expires_at must equal opened_at + 15 minutes
-    // exactly, so both are derived from one JS timestamp rather than two separate clock_timestamp() calls.
-    const previewId = randomUUID()
-    const previewOpenedAt = new Date()
-    await client.query(
-      `INSERT INTO iam.preview(
-         preview_id, account_id, project_id, source_revision, artifact_revision_id, artifact_digest,
-         exact_host, manifest, opened_at, expires_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9::timestamptz + interval '15 minutes')`,
-      [
-        previewId, accountId, projectId, HEAD, artifactRevisionId, digest('3'),
-        `preview-${artifactRevisionId}.example.test`,
-        JSON.stringify({ entryPath: 'index.html', files: [] }),
-        previewOpenedAt,
-      ],
-    )
-
-    // iam.host_session: one HUB session, one PREVIEW child of it, and one APPLICATION session.
-    // absolute_expires_at must equal started_at + a fixed interval exactly, so both are derived
-    // from one JS timestamp per row rather than two separate clock_timestamp() calls.
-    const hubDigest = randomBytes(32)
-    const hubStartedAt = new Date()
-    await client.query(
-      `INSERT INTO iam.host_session(
-         token_digest, kind, account_id, started_at, absolute_expires_at,
-         provider_refresh_token, provider_checked_at, idle_expires_at
-       ) VALUES ($1, 'HUB', $2, $3, $3::timestamptz + interval '8 hours',
-         'mastra:factory-secret:v1:hub-token', $3, $3::timestamptz + interval '30 minutes')`,
-      [hubDigest, accountId, hubStartedAt],
-    )
-    const previewSessionDigest = randomBytes(32)
-    const previewSessionStartedAt = new Date()
-    await client.query(
-      `INSERT INTO iam.host_session(token_digest, kind, account_id, started_at, absolute_expires_at, preview_id, parent_digest)
-       VALUES ($1, 'PREVIEW', $2, $3, $3::timestamptz + interval '10 minutes', $4, $5)`,
-      [previewSessionDigest, accountId, previewSessionStartedAt, previewId, hubDigest],
-    )
-    const applicationSessionStartedAt = new Date()
-    await client.query(
-      `INSERT INTO iam.host_session(
-         token_digest, kind, account_id, started_at, absolute_expires_at, project_id,
-         provider_refresh_token, provider_checked_at
-       ) VALUES ($1, 'APPLICATION', $2, $3, $3::timestamptz + interval '8 hours', $4,
-         'mastra:factory-secret:v1:application-token', $3)`,
-      [randomBytes(32), otherAccountId, applicationSessionStartedAt, projectId],
-    )
-
-    // iam.handoff: a PREVIEW handoff naming the same preview and its parent Hub session.
-    await client.query(
-      `INSERT INTO iam.handoff(handoff_digest, kind, account_id, preview_id, parent_digest, minted_at, expires_at)
-       VALUES ($1, 'PREVIEW', $2, $3, $4, now(), now() + interval '30 seconds')`,
-      [randomBytes(32), accountId, previewId, hubDigest],
-    )
-
-    const connectionId = randomUUID()
-    await client.query(
-      `INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by)
-       VALUES ($1, $2, 'sankhya', 'Deletion Connection', 'mastra:factory-secret:v1:connection', $3, $4)`,
-      [connectionId, workspaceId, digest('4'), accountId],
-    )
-    await client.query(
-      `INSERT INTO connector.project_binding(workspace_id, project_id, environment, connection_id, name, bound_by)
-       VALUES ($1, $2, 'preview', $3, 'erp', $4)`,
-      [workspaceId, projectId, connectionId, accountId],
-    )
-
-    const countRows = async (statement) => (await client.query(statement, [projectId])).rows[0].count
-
-    const before = {
-      project: await countRows('SELECT count(*)::integer AS count FROM project.project WHERE project_id = $1'),
-      workingState: await countRows('SELECT count(*)::integer AS count FROM builder.project_working_state WHERE project_id = $1'),
-      projectRepository: await countRows('SELECT count(*)::integer AS count FROM builder.project_repository WHERE project_id = $1'),
-      builderRun: await countRows('SELECT count(*)::integer AS count FROM builder.builder_run WHERE project_id = $1'),
-      application: await countRows('SELECT count(*)::integer AS count FROM iam.application WHERE project_id = $1'),
-      applicationInvitation: await countRows('SELECT count(*)::integer AS count FROM iam.application_invitation WHERE project_id = $1'),
-      applicationGrant: await countRows('SELECT count(*)::integer AS count FROM iam.application_grant WHERE project_id = $1'),
-      artifact: await countRows('SELECT count(*)::integer AS count FROM reg.artifact WHERE project_id = $1'),
-      artifactRevision: await client.query('SELECT count(*)::integer AS count FROM reg.artifact_revision WHERE artifact_id = $1', [artifactId]).then((result) => result.rows[0].count),
-      preview: await countRows('SELECT count(*)::integer AS count FROM iam.preview WHERE project_id = $1'),
-      hostSession: await client.query(
-        'SELECT count(*)::integer AS count FROM iam.host_session WHERE project_id = $1 OR preview_id = $2',
-        [projectId, previewId],
-      ).then((result) => result.rows[0].count),
-      handoff: await client.query('SELECT count(*)::integer AS count FROM iam.handoff WHERE preview_id = $1', [previewId]).then((result) => result.rows[0].count),
-      projectBinding: await countRows('SELECT count(*)::integer AS count FROM connector.project_binding WHERE project_id = $1'),
-    }
-    for (const [label, count] of Object.entries(before)) assert.equal(count, label === 'artifact' || label === 'application' || label === 'projectRepository' || label === 'workingState' || label === 'project' || label === 'preview' ? 1 : count >= 1 ? count : 0, `seed row missing for ${label}`)
-    // The HUB session itself names no Project or Preview directly -- it is a Workspace-level session
-    // that merely parents the PREVIEW session -- so only the PREVIEW and APPLICATION rows match here.
-    assert.equal(before.hostSession, 2)
-    assert.equal(before.handoff, 1)
-
-    const tombstone = await client.query(
-      'SELECT * FROM project.begin_project_deletion($1, $2, $3)',
-      [accountId, projectId, 'Deletion Project'],
-    )
-    assert.equal(tombstone.rows[0].project_id, projectId)
-    assert.deepEqual(Object.keys(tombstone.rows[0]), ['project_id', 'workspace_id', 'name', 'requested_by', 'requested_at', 'completed_at'])
-    assert.equal(tombstone.rows[0].completed_at, null)
-
-    // A tombstoned Project is refused admission and dropped from visibility for anyone but the
-    // installation administrator who can resume or watch the deletion finish.
-    await assert.rejects(
-      client.query('SELECT iam.admit_project($1, $2, $3::iam.action)', [otherAccountId, projectId, 'project.build']),
-      /PROJECT_DELETING/,
-    )
-    const visibleToMember = await client.query('SELECT * FROM iam.visible_projects($1) WHERE project_id = $2', [otherAccountId, projectId])
-    assert.equal(visibleToMember.rowCount, 0)
-
-    await client.query('SELECT iam.admit_project($1, $2, $3::iam.action)', [accountId, projectId, 'project.build'])
-    const visibleToAdmin = await client.query('SELECT * FROM iam.visible_projects($1) WHERE project_id = $2', [accountId, projectId])
-    assert.equal(visibleToAdmin.rowCount, 1)
-
-    await client.query('SELECT project.purge_project($1)', [projectId])
-
-    const after = {
-      project: await countRows('SELECT count(*)::integer AS count FROM project.project WHERE project_id = $1'),
-      workingState: await countRows('SELECT count(*)::integer AS count FROM builder.project_working_state WHERE project_id = $1'),
-      projectRepository: await countRows('SELECT count(*)::integer AS count FROM builder.project_repository WHERE project_id = $1'),
-      builderRun: await countRows('SELECT count(*)::integer AS count FROM builder.builder_run WHERE project_id = $1'),
-      application: await countRows('SELECT count(*)::integer AS count FROM iam.application WHERE project_id = $1'),
-      applicationInvitation: await countRows('SELECT count(*)::integer AS count FROM iam.application_invitation WHERE project_id = $1'),
-      applicationGrant: await countRows('SELECT count(*)::integer AS count FROM iam.application_grant WHERE project_id = $1'),
-      artifact: await countRows('SELECT count(*)::integer AS count FROM reg.artifact WHERE project_id = $1'),
-      artifactRevision: await client.query('SELECT count(*)::integer AS count FROM reg.artifact_revision WHERE artifact_id = $1', [artifactId]).then((result) => result.rows[0].count),
-      preview: await countRows('SELECT count(*)::integer AS count FROM iam.preview WHERE project_id = $1'),
-      hostSession: await client.query(
-        'SELECT count(*)::integer AS count FROM iam.host_session WHERE project_id = $1 OR preview_id = $2',
-        [projectId, previewId],
-      ).then((result) => result.rows[0].count),
-      handoff: await client.query('SELECT count(*)::integer AS count FROM iam.handoff WHERE preview_id = $1', [previewId]).then((result) => result.rows[0].count),
-      projectBinding: await countRows('SELECT count(*)::integer AS count FROM connector.project_binding WHERE project_id = $1'),
-    }
-    for (const [label, count] of Object.entries(after)) assert.equal(count, 0, `row survived purge for ${label}`)
-
-    // The connector.connection itself is a Workspace resource, not Project-scoped, and survives.
-    const connectionSurvives = await client.query('SELECT count(*)::integer AS count FROM connector.connection WHERE connection_id = $1', [connectionId])
-    assert.equal(connectionSurvives.rows[0].count, 1)
-
-    // The HUB session is a Workspace-level session, not Project-scoped, and survives too.
-    const hubSessionSurvives = await client.query('SELECT count(*)::integer AS count FROM iam.host_session WHERE token_digest = $1', [hubDigest])
-    assert.equal(hubSessionSurvives.rows[0].count, 1)
-
-    await client.query('SELECT project.complete_project_deletion($1)', [projectId])
-    const completed = await client.query('SELECT completed_at FROM project.project_deletion WHERE project_id = $1', [projectId])
-    assert.notEqual(completed.rows[0].completed_at, null)
-
-    // A second purge_project on the same tombstone is a no-op, not an error: it has nothing left to
-    // touch, and the orchestrator can resume after a crash between purge and repository deletion.
-    await client.query('SELECT project.purge_project($1)', [projectId])
-    await client.query('SELECT project.complete_project_deletion($1)', [projectId])
-
-    // purge_project refuses a Project that was never tombstoned.
-    await assert.rejects(
-      client.query('SELECT project.purge_project($1)', [otherAccountId]),
-      /PROJECT_DELETION_NOT_STARTED/,
-    )
-  } finally {
-    await client.end()
+const seedEverything = async (connection, projectId) => {
+  await query(connection, `INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, idempotency_digest, base_source_revision, state, request_digest, conversation_id)
+    VALUES ($1, $2, $3, $4, $5, 'SUCCEEDED', $6, $7)`, [randomUUID(), projectId, ID.owner, digest('1'), HEAD, digest('2'), `conexus-builder:${projectId}`])
+  await query(connection, "INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'atlas-app', $2)", [projectId, ID.owner])
+  await query(connection, "INSERT INTO iam.application_invitation(invitation_id, project_id, email, invited_by, expires_at) VALUES ($1, $2, 'invitee@example.test', $3, clock_timestamp() + interval '1 day')", [randomUUID(), projectId, ID.owner])
+  await query(connection, 'INSERT INTO iam.application_grant(project_id, account_id, granted_by) VALUES ($1, $2, $3)', [projectId, ID.outsider, ID.owner])
+  const artifactId = randomUUID()
+  const revisionId = randomUUID()
+  await query(connection, "INSERT INTO reg.artifact(artifact_id, kind, semantic_name, project_id) VALUES ($1, 'application', 'atlas-app', $2)", [artifactId, projectId])
+  await query(connection, "INSERT INTO reg.artifact_revision(artifact_revision_id, artifact_id, source_revision, digest, payload, availability) VALUES ($1, $2, $3, $4, '{}'::jsonb, 'AVAILABLE')", [revisionId, artifactId, HEAD, digest('3')])
+  const previewId = randomUUID()
+  const opened = new Date()
+  await query(connection, `INSERT INTO iam.preview(preview_id, account_id, project_id, source_revision, artifact_revision_id, artifact_digest, exact_host, manifest, opened_at, expires_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9::timestamptz + interval '15 minutes')`,
+  [previewId, ID.owner, projectId, HEAD, revisionId, digest('3'), `preview-${revisionId}.example.test`, JSON.stringify({ entryPath: 'index.html', files: [] }), opened])
+  const hub = randomBytes(32)
+  await query(connection, `INSERT INTO iam.host_session(token_digest, kind, account_id, started_at, absolute_expires_at, provider_refresh_token, provider_checked_at, idle_expires_at)
+    VALUES ($1, 'HUB', $2, $3, $3::timestamptz + interval '8 hours', 'mastra:factory-secret:v1:hub-token', $3, $3::timestamptz + interval '30 minutes')`, [hub, ID.owner, opened])
+  await query(connection, "INSERT INTO iam.host_session(token_digest, kind, account_id, started_at, absolute_expires_at, preview_id, parent_digest) VALUES ($1, 'PREVIEW', $2, $3, $3::timestamptz + interval '10 minutes', $4, $5)", [randomBytes(32), ID.owner, opened, previewId, hub])
+  await query(connection, `INSERT INTO iam.host_session(token_digest, kind, account_id, started_at, absolute_expires_at, project_id, provider_refresh_token, provider_checked_at)
+    VALUES ($1, 'APPLICATION', $2, $3, $3::timestamptz + interval '8 hours', $4, 'mastra:factory-secret:v1:application-token', $3)`, [randomBytes(32), ID.outsider, opened, projectId])
+  await query(connection, "INSERT INTO iam.handoff(handoff_digest, kind, account_id, preview_id, parent_digest, minted_at, expires_at) VALUES ($1, 'PREVIEW', $2, $3, $4, now(), now() + interval '30 seconds')", [randomBytes(32), ID.owner, previewId, hub])
+  const connectionId = randomUUID()
+  await query(connection, "INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by) VALUES ($1, $2, 'sankhya', 'ERP', 'mastra:factory-secret:v1:connection', $3, $4)", [connectionId, ID.workspace, digest('4'), ID.owner])
+  await query(connection, "INSERT INTO connector.project_binding(workspace_id, project_id, environment, connection_id, name, bound_by) VALUES ($1, $2, 'preview', $3, 'erp', $4)", [ID.workspace, projectId, connectionId, ID.owner])
+  for (const accountId of [ID.owner, ID.member]) {
+    await query(connection, `INSERT INTO platform.operation_receipt(operation_id, authority, account_id, key_digest, request_digest, resource_id, state)
+      VALUES ('PRJ-03', $1, $2, $3, $3, $4, 'reserved')`, [`workspace:${ID.workspace}:account:${accountId}`, accountId, randomBytes(32), projectId])
   }
+  return { artifactId, previewId, hub, connectionId }
+}
+
+const counts = async (connection, projectId, { artifactId, previewId }) => (await query(connection, `SELECT
+  (SELECT count(*)::integer FROM project.project WHERE project_id = $1) AS project,
+  (SELECT count(*)::integer FROM builder.project_working_state WHERE project_id = $1) AS working_state,
+  (SELECT count(*)::integer FROM builder.project_repository WHERE project_id = $1) AS repository,
+  (SELECT count(*)::integer FROM builder.builder_run WHERE project_id = $1) AS run,
+  (SELECT count(*)::integer FROM iam.application WHERE project_id = $1) AS application,
+  (SELECT count(*)::integer FROM iam.application_invitation WHERE project_id = $1) AS invitation,
+  (SELECT count(*)::integer FROM iam.application_grant WHERE project_id = $1) AS grant_row,
+  (SELECT count(*)::integer FROM reg.artifact WHERE project_id = $1) AS artifact,
+  (SELECT count(*)::integer FROM reg.artifact_revision WHERE artifact_id = $2) AS revision,
+  (SELECT count(*)::integer FROM iam.preview WHERE project_id = $1) AS preview,
+  (SELECT count(*)::integer FROM iam.host_session WHERE project_id = $1 OR preview_id = $3) AS host_session,
+  (SELECT count(*)::integer FROM iam.handoff WHERE preview_id = $3) AS handoff,
+  (SELECT count(*)::integer FROM connector.project_binding WHERE project_id = $1) AS binding,
+  (SELECT count(*)::integer FROM platform.operation_receipt WHERE resource_id = $1) AS receipts`, [projectId, artifactId, previewId])).rows[0]
+
+test('deleting a project clears every row that names it across the schemas and keeps what is not the project', async (t) => {
+  const { connection, store, seedProject, events } = await setupProjects(t, 'conexus_prj_purge')
+  const projectId = await seedProject('Atlas')
+  const seeded = await seedEverything(connection, projectId)
+  const full = { project: 1, working_state: 1, repository: 1, run: 1, application: 1, invitation: 1, grant_row: 1, artifact: 1, revision: 1, preview: 1, host_session: 2, handoff: 1, binding: 1, receipts: 2 }
+  assert.deepEqual(await counts(connection, projectId, seeded), full)
+
+  await remove(store, ID.administrator, projectId)
+
+  assert.deepEqual(await counts(connection, projectId, seeded), Object.fromEntries(Object.keys(full).map((key) => [key, 0])))
+  assert.deepEqual(events, ['release', 'kill', 'repository'])
+  assert.deepEqual(await tombstones(connection), [{ project_id: projectId, name: 'Atlas', requested_by: ID.administrator, purged: true, completed: true }])
+  assert.equal((await query(connection, 'SELECT count(*)::integer AS count FROM connector.connection WHERE connection_id = $1', [seeded.connectionId])).rows[0].count, 1)
+  assert.equal((await query(connection, 'SELECT count(*)::integer AS count FROM iam.host_session WHERE token_digest = $1', [seeded.hub])).rows[0].count, 1)
+})
+
+test('only an installation administrator deletes, a non member administrator included, with the exact name and an idle project', async (t) => {
+  const { connection, store, seedProject, settleRun } = await setupProjects(t, 'conexus_prj_delete')
+  const projectId = await seedProject('Atlas')
+  await assert.rejects(remove(store, ID.owner, projectId), { id: 'PROJECT_DELETE_DENIED' })
+  await assert.rejects(remove(store, ID.outsider, projectId), { id: 'PROJECT_DELETE_DENIED' })
+  await assert.rejects(remove(store, ID.administrator, projectId, 'atlas'), { id: 'PROJECT_NAME_MISMATCH' })
+  await assert.rejects(remove(store, ID.administrator, randomUUID()), { id: 'PROJECT_NOT_FOUND' })
+  await settleRun(projectId, 'RUNNING')
+  await assert.rejects(remove(store, ID.administrator, projectId), { id: 'PROJECT_BUSY' })
+  assert.deepEqual(await tombstones(connection), [])
+  await query(connection, "UPDATE builder.builder_run SET state = 'SUCCEEDED' WHERE project_id = $1", [projectId])
+  await remove(store, ID.administrator, projectId)
+  assert.deepEqual((await tombstones(connection)).map((row) => row.completed), [true])
+  await remove(store, ID.administrator, projectId)
+  await assert.rejects(remove(store, ID.administrator, projectId, 'Other'), { id: 'PROJECT_NAME_MISMATCH' })
+})
+
+test('a deletion that fails after the purge resumes on retry, and a crash inside the purge purges nothing', async (t) => {
+  const failing = { repository: 0 }
+  const fixture = await setupProjects(t, 'conexus_prj_resume')
+  const { connection, database, seedProject } = fixture
+  const { createProjectDeletion } = await import(hubModuleUrl('project/deletion.js'))
+  const ports = { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => { if (failing.repository++ === 0) throw new Error('GITHUB_DOWN') } }
+  const deletion = createProjectDeletion({ database, ports })
+  const projectId = await seedProject('Atlas')
+  const seeded = await seedEverything(connection, projectId)
+
+  await query(connection, 'REVOKE EXECUTE ON FUNCTION reg.purge_project(uuid) FROM hub_runtime')
+  await assert.rejects(deletion.deleteProject({ accountId: ID.administrator, projectId, confirmName: 'Atlas' }), { id: 'PROJECT_DELETION_INCOMPLETE' })
+  assert.deepEqual((await counts(connection, projectId, seeded)).project, 1)
+  assert.deepEqual((await counts(connection, projectId, seeded)).application, 1)
+  assert.deepEqual((await tombstones(connection)).map((row) => [row.purged, row.completed]), [[false, false]])
+
+  await query(connection, 'GRANT EXECUTE ON FUNCTION reg.purge_project(uuid) TO hub_runtime')
+  await assert.rejects(deletion.deleteProject({ accountId: ID.administrator, projectId, confirmName: 'Atlas' }), { id: 'PROJECT_DELETION_INCOMPLETE' })
+  assert.deepEqual((await tombstones(connection)).map((row) => [row.purged, row.completed]), [[true, false]])
+  await deletion.deleteProject({ accountId: ID.administrator, projectId, confirmName: 'Atlas' })
+  assert.deepEqual((await tombstones(connection)).map((row) => [row.purged, row.completed]), [[true, true]])
+})
+
+test('the purge refuses a project that has no tombstone', async (t) => {
+  const { deletion, seedProject } = await setupProjects(t, 'conexus_prj_notstarted')
+  const projectId = await seedProject('Atlas')
+  await assert.rejects(deletion.purge(projectId), (error) => error.id === 'INTERNAL_UNEXPECTED' && error.details.invariant === 'PROJECT_DELETION_NOT_STARTED')
+})
+
+test('two concurrent deletions of one project leave one tombstone and no deadlock', async (t) => {
+  const { connection, store, seedProject } = await setupProjects(t, 'conexus_prj_twice')
+  const projectId = await seedProject('Atlas')
+  const outcomes = await Promise.allSettled([ID.administrator, ID.memberAdministrator].map((accountId) => remove(store, accountId, projectId)))
+  assert.deepEqual(outcomes.map((outcome) => outcome.status), ['fulfilled', 'fulfilled'])
+  assert.equal((await tombstones(connection)).length, 1)
+})
+
+const hold = async (connection, onCleanup) => {
+  const client = new pg.Client(connection)
+  await client.connect()
+  onCleanup(() => client.end().catch(() => undefined))
+  return client
+}
+const pending = (promise) => {
+  const state = { settled: false }
+  promise.then(() => { state.settled = true }, () => { state.settled = true })
+  return state
+}
+const pause = () => new Promise((resolve) => setTimeout(resolve, 150))
+
+test('a deactivation waits for the tombstone, or commits first and the deletion is refused', async (t) => {
+  const { connection, store, seedProject, onCleanup } = await setupProjects(t, 'conexus_prj_deactivate')
+  const first = await seedProject('Atlas')
+  const holder = await hold(connection, onCleanup)
+  await holder.query('BEGIN')
+  await holder.query('SELECT 1 FROM project.project WHERE project_id = $1 FOR UPDATE', [first])
+  const deletion = remove(store, ID.administrator, first)
+  const state = pending(deletion)
+  await pause()
+  const deactivation = query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.administrator])
+  const deactivated = pending(deactivation)
+  await pause()
+  assert.equal(state.settled, false)
+  assert.equal(deactivated.settled, false)
+  await holder.query('COMMIT')
+  await Promise.all([deletion, deactivation])
+  assert.equal((await tombstones(connection)).length, 1)
+
+  const second = await seedProject('Atlas')
+  await assert.rejects(remove(store, ID.administrator, second), { id: 'PROJECT_DELETE_DENIED' })
+})
+
+test('admitProject admits a member, refuses an outsider and a tombstoned project, and refuses a system transaction', async (t) => {
+  const { connection, database, seedProject } = await setupProjects(t, 'conexus_prj_admit')
+  const projectId = await seedProject('Atlas')
+  const admit = (accountId, action = 'project.build') => database.transaction(accountId, (tx) => admitProject(tx, accountId, projectId, action))
+  assert.equal((await admit(ID.member)).scope.workspaceId, ID.workspace)
+  assert.equal((await database.read(ID.member, (tx) => admitProject(tx, ID.member, projectId, 'project.read'))).scope.kind, 'project')
+  await assert.rejects(admit(ID.outsider), { id: 'PROJECT_NOT_FOUND' })
+  await assert.rejects(admit(ID.administrator), { id: 'PROJECT_NOT_FOUND' })
+  await assert.rejects(database.system('migration', (tx) => admitProject(tx, ID.member, projectId, 'project.build')), { id: 'INTERNAL_UNEXPECTED', details: { invariant: 'ADMITTED_ACCOUNT_IS_NOT_THE_TRANSACTION_ACCOUNT' } })
+  await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.owner])
+  await assert.rejects(admit(ID.owner), { id: 'ACCOUNT_INACTIVE' })
+  await query(connection, `INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Atlas', $3)`, [projectId, ID.workspace, ID.administrator])
+  await assert.rejects(admit(ID.member), { id: 'PROJECT_NOT_FOUND' })
+  assert.equal((await admit(ID.memberAdministrator)).scope.projectId, projectId)
+})
+
+test('a tombstone waits for an admitted writer in either order, with no deadlock', async (t) => {
+  const { connection, database, store, seedProject, onCleanup } = await setupProjects(t, 'conexus_prj_orders')
+  const projectId = await seedProject('Atlas')
+  let release
+  const held = new Promise((resolve) => { release = resolve })
+  let admitted
+  const entered = new Promise((resolve) => { admitted = resolve })
+  const writer = database.transaction(ID.member, async (tx) => {
+    await admitProject(tx, ID.member, projectId, 'project.build')
+    admitted()
+    await held
+  })
+  await entered
+  const deletion = remove(store, ID.administrator, projectId)
+  const state = pending(deletion)
+  await pause()
+  assert.equal(state.settled, false)
+  release()
+  await Promise.all([writer, deletion])
+  assert.equal((await tombstones(connection)).length, 1)
+
+  const other = await seedProject('Atlas')
+  const holder = await hold(connection, onCleanup)
+  await holder.query('BEGIN')
+  await holder.query('SELECT 1 FROM project.project WHERE project_id = $1 FOR UPDATE', [other])
+  await holder.query(`INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Atlas', $3)`, [other, ID.workspace, ID.administrator])
+  const admission = database.transaction(ID.member, (tx) => admitProject(tx, ID.member, other, 'project.build'))
+  const admissionState = pending(admission)
+  admission.catch(() => undefined)
+  await pause()
+  assert.equal(admissionState.settled, false)
+  await holder.query('COMMIT')
+  await assert.rejects(admission, { id: 'PROJECT_NOT_FOUND' })
+})
+
+test('a deletion and today run start serialize in both orders without a deadlock', async (t) => {
+  const { connection, database, store, seedProject, onCleanup } = await setupProjects(t, 'conexus_prj_runstart')
+  const lockForRun = (projectId) => database.transaction(ID.member, (tx) => tx.run(sql`SELECT builder.lock_project_for_run(${ID.member}, ${projectId})`))
+  const first = await seedProject('Atlas')
+  const holder = await hold(connection, onCleanup)
+  await holder.query('BEGIN')
+  await holder.query('SELECT builder.lock_project_for_run($1, $2)', [ID.member, first])
+  const racing = remove(store, ID.administrator, first)
+  const racingState = pending(racing)
+  await pause()
+  assert.equal((await tombstones(connection)).length, 1, 'the tombstone commits while the run start holds the working state')
+  assert.equal(racingState.settled, false, 'the purge waits for the run start, as today')
+  await holder.query('COMMIT')
+  await racing
+
+  const second = await seedProject('Atlas')
+  const tombstoning = await hold(connection, onCleanup)
+  await tombstoning.query('BEGIN')
+  await tombstoning.query('SELECT 1 FROM project.project WHERE project_id = $1 FOR UPDATE', [second])
+  await tombstoning.query(`INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Atlas', $3)`, [second, ID.workspace, ID.administrator])
+  const starting = lockForRun(second)
+  const startingState = pending(starting)
+  await pause()
+  assert.equal(startingState.settled, true, 'today the run start does not wait for an uncommitted tombstone; part 1 moves it onto admitProject')
+  assert.equal(await starting, 1)
+  await tombstoning.query('COMMIT')
+  await remove(store, ID.administrator, second)
+  await assert.rejects(lockForRun(second), (error) => error.cause?.message?.includes('NOT_ADMITTED') || error.cause?.code === '42501')
 })

@@ -13,13 +13,14 @@ test('the run vocabulary source, the SQL CHECK lists and both generated files ag
   assert.equal(committedFiles()['apps/web/src/generated/builder-run-vocabulary.ts'].includes("export const BUILDER_RUN_PHASES = ['PREPARING', 'AGENT', 'WAITING', 'SOURCE_ADMISSION', 'COMPILING', 'FINALIZING'] as const"), true)
 })
 
-test('a phase added to the source only fails naming the SQL list and both generated sets', () => {
+test('a phase added to the source only fails naming the SQL list and every generated set', () => {
   const source = readVocabulary()
   const added = { ...source, phases: [...source.phases, 'REVIEWING'] }
   assert.deepEqual(vocabularyDrift(added, catalog, committedFiles()), [
     'BUILDER_RUN_VOCABULARY_SQL_DRIFT: phases is [PREPARING, AGENT, WAITING, SOURCE_ADMISSION, COMPILING, FINALIZING, REVIEWING] in contracts/technical/builder-run-vocabulary.json and [PREPARING, AGENT, WAITING, SOURCE_ADMISSION, COMPILING, FINALIZING] in the SQL list builder.builder_run.builder_run_phase_check; add a migration and run npm run db:catalog:snapshot',
     'BUILDER_RUN_VOCABULARY_STALE: apps/hub/src/generated/builder-run-vocabulary.ts is not generated from contracts/technical/builder-run-vocabulary.json; run node scripts/generate-builder-run-vocabulary.mjs',
     'BUILDER_RUN_VOCABULARY_STALE: apps/web/src/generated/builder-run-vocabulary.ts is not generated from contracts/technical/builder-run-vocabulary.json; run node scripts/generate-builder-run-vocabulary.mjs',
+    'BUILDER_RUN_VOCABULARY_STALE: packages/contract/src/builder-run-vocabulary.ts is not generated from contracts/technical/builder-run-vocabulary.json; run node scripts/generate-builder-run-vocabulary.mjs',
   ])
   const regenerated = Object.fromEntries(vocabularyTargets.map((target) => [target, renderVocabulary(added)]))
   assert.equal(vocabularyDrift(added, catalog, regenerated).length, 1, 'regenerating leaves only the SQL list, which needs a migration')

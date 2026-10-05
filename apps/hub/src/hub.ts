@@ -66,7 +66,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   // A restarted Hub leaves no orphan handler socket still answering.
   await connectors.sweepHandlerPorts()
   const project = createConfiguredProjectModule({
-    pool,
+    database,
     // The builder module owns the Conexus Git and is composed below; creation reaches it at request time.
     repository: {
       prepare: async (projectId) => {

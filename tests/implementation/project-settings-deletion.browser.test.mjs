@@ -2,7 +2,7 @@ import test from 'node:test'
 import { shareWebBrowser } from './web-dev-server.mjs'
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111'
-const WORKSPACE = { workspaceId: 'w1', name: 'Operações' }
+const WORKSPACE = { workspaceId: '20000000-0000-4000-8000-000000000001', name: 'Operações' }
 
 const web = shareWebBrowser()
 
@@ -31,7 +31,7 @@ test('an incomplete deletion before the Hub purge does not claim any GitHub stat
   await routeAccessContext(page, { accountId: 'a1', displayName: 'Ana Beatriz Cardoso', email: 'ana@example.com' })
   await routeProject(page, {
     projectId: PROJECT_ID, workspaceId: WORKSPACE.workspaceId, name: 'Faturamento',
-    projectRevision: 'revision-1', archived: false, deleting: true,
+    projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: true,
   })
 
   await page.goto(`${origin}/projects/${PROJECT_ID}/settings`)
