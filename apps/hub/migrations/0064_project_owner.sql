@@ -58,12 +58,75 @@ CREATE POLICY working_state_select ON builder.project_working_state FOR SELECT T
   USING ((SELECT iam.acting_scope()) = 'system' OR project_id IN (SELECT visible.project_id FROM project.project AS visible));
 
 CREATE POLICY legacy_owner ON project.project TO iam_owner, connector_owner USING (true) WITH CHECK (true);
-CREATE POLICY legacy_owner ON project.project_deletion TO iam_owner, connector_owner USING (true) WITH CHECK (true);
+CREATE POLICY legacy_owner ON project.project_deletion TO iam_owner USING (true) WITH CHECK (true);
 CREATE POLICY legacy_owner ON builder.builder_run TO builder_owner USING (true) WITH CHECK (true);
 CREATE POLICY legacy_owner ON builder.project_working_state TO builder_owner USING (true) WITH CHECK (true);
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON project.project, project.project_deletion TO hub_runtime;
 GRANT SELECT ON builder.builder_run, builder.project_working_state TO hub_runtime;
+-- The purges run only in the system transaction; the guard reads the scope setting itself because these bodies run as their schema owners.
+CREATE OR REPLACE FUNCTION iam.purge_project(p_project_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+BEGIN
+  IF current_setting('conexus.scope', true) IS DISTINCT FROM 'system' THEN
+    RAISE EXCEPTION 'PURGE_REQUIRES_SYSTEM' USING ERRCODE = '42501';
+  END IF;
+  DELETE FROM iam.handoff
+  WHERE project_id = p_project_id
+     OR preview_id IN (SELECT preview_id FROM iam.preview WHERE project_id = p_project_id);
+  DELETE FROM iam.host_session
+  WHERE project_id = p_project_id
+     OR preview_id IN (SELECT preview_id FROM iam.preview WHERE project_id = p_project_id);
+  DELETE FROM iam.preview WHERE project_id = p_project_id;
+  DELETE FROM iam.application_grant WHERE project_id = p_project_id;
+  DELETE FROM iam.application_invitation WHERE project_id = p_project_id;
+  DELETE FROM iam.oidc_transaction WHERE application_project_id = p_project_id;
+  DELETE FROM iam.application WHERE project_id = p_project_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION connector.purge_project(p_project_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+BEGIN
+  IF current_setting('conexus.scope', true) IS DISTINCT FROM 'system' THEN
+    RAISE EXCEPTION 'PURGE_REQUIRES_SYSTEM' USING ERRCODE = '42501';
+  END IF;
+  DELETE FROM connector.project_binding WHERE project_id = p_project_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION reg.purge_project(p_project_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+BEGIN
+  IF current_setting('conexus.scope', true) IS DISTINCT FROM 'system' THEN
+    RAISE EXCEPTION 'PURGE_REQUIRES_SYSTEM' USING ERRCODE = '42501';
+  END IF;
+  DELETE FROM reg.artifact_revision
+  WHERE artifact_id IN (SELECT artifact_id FROM reg.artifact WHERE project_id = p_project_id);
+  DELETE FROM reg.artifact WHERE project_id = p_project_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION builder.purge_project(p_project_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog', 'pg_temp'
+    AS $$
+BEGIN
+  IF current_setting('conexus.scope', true) IS DISTINCT FROM 'system' THEN
+    RAISE EXCEPTION 'PURGE_REQUIRES_SYSTEM' USING ERRCODE = '42501';
+  END IF;
+  DELETE FROM builder.builder_run WHERE project_id = p_project_id;
+  DELETE FROM builder.project_working_state WHERE project_id = p_project_id;
+  DELETE FROM builder.project_repository WHERE project_id = p_project_id;
+END;
+$$;
+
 GRANT EXECUTE ON FUNCTION builder.register_project_repository(uuid), builder.purge_project(uuid),
   connector.purge_project(uuid), reg.purge_project(uuid), iam.purge_project(uuid) TO hub_runtime;
 
@@ -80,6 +143,8 @@ DROP FUNCTION project.complete_project_deletion(uuid);
 DROP TABLE project.operation_idempotency;
 
 REVOKE ALL ON builder.builder_run, builder.project_working_state FROM project_owner;
+REVOKE EXECUTE ON FUNCTION builder.register_project_repository(uuid), builder.purge_project(uuid),
+  connector.purge_project(uuid), reg.purge_project(uuid), iam.purge_project(uuid) FROM project_owner;
 
 DROP OWNED BY hub_project_read, hub_project_command;
 DROP ROLE hub_project_read, hub_project_command;

@@ -73,7 +73,7 @@ const oneOwnerPerLifetimeDigest = '718c64fd896e0c04550c59d3b3fddea548737aea6256c
 const dropWorkspaceGetSummaryDigest = '8a6a0d7a8674ea3b74722d7d2e458ac5bd3c38662f2ab9233e83c3728606213d'
 const runtimeDataBoundaryDigest = '954e765ed481e9c10e94ea4f34181df2ef0c1d809515e14ab20a7de2c304f1d1'
 const workspaceAdmissionDigest = '9f43118c3e057c30978f1fef5cfe6956d8f5d46c989f1751d7a072e3bbd0060b'
-const projectOwnerDigest = '1b5d0a38fa83278fa2c52fae0a74b83a9ad3678d18ad041932217aba976f38db'
+const projectOwnerDigest = '9c0efb7e558d81e5634c74d63dd953ad18fd7b82f3b2c0bc4d8030b68269df4f'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],

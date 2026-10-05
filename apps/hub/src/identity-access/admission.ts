@@ -7,7 +7,7 @@ import { Failure, type FailureCode } from '../platform/failure.js'
 
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
 export type WorkspaceRole = 'owner' | 'member'
-export type WorkspaceAction = 'workspace.read' | 'members.manage' | 'members.leave' | 'project.create'
+export type WorkspaceAction = 'workspace.read' | 'members.manage' | 'members.leave' | 'project.create' | 'project.build'
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
 export type ProjectAction = 'project.read' | 'project.build' | 'project.delete'
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
@@ -23,8 +23,8 @@ export type OwnerRow = Readonly<{ accountId: AccountId; active: boolean }>
 
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
 export const ROLE_ALLOWS = {
-  owner: ['workspace.read', 'members.manage', 'members.leave', 'project.create'],
-  member: ['workspace.read', 'members.leave', 'project.create'],
+  owner: ['workspace.read', 'members.manage', 'members.leave', 'project.create', 'project.build'],
+  member: ['workspace.read', 'members.leave', 'project.create', 'project.build'],
 } as const satisfies { readonly [R in WorkspaceRole]: readonly WorkspaceAction[] }
 
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
@@ -132,9 +132,8 @@ export const grantCreatorMembership = async (creator: Admitted<AccountScope>, wo
   await creator.tx.run(sql`INSERT INTO iam.workspace_membership (account_id, workspace_id, role) VALUES (${creator.scope.accountId}, ${workspaceId}, 'owner')`)
 }
 
-// Both roles hold project.build today (iam.role_allows), and ROLE_ALLOWS names workspace actions only, so each project
-// action is checked as the workspace action that has the same two roles.
-const MEMBERSHIP_ACTION = { 'project.read': 'workspace.read', 'project.build': 'project.create' } as const satisfies Record<Exclude<ProjectAction, 'project.delete'>, WorkspaceAction>
+// A project read is a workspace read of the owning workspace; project.build is its own row in ROLE_ALLOWS.
+const requiredAction = (action: Exclude<ProjectAction, 'project.delete'>): WorkspaceAction => (action === 'project.read' ? 'workspace.read' : action)
 
 /** @public Frozen by spec 0015 section 3; parts 1, 2 and 4 admit through it. */
 export function admitProject<A extends Exclude<ProjectAction, 'project.delete'>>(tx: WriteTx, accountId: AccountId, projectId: ProjectId, action: A): Promise<Admitted<ProjectScope<A>>>
@@ -151,7 +150,7 @@ export async function admitProject(tx: ReadTx, accountId: AccountId, projectId: 
   if (!found) throw new Failure(ACTION_REFUSALS[action].outsider)
   const member = await tx.maybe(Member, sql`SELECT role FROM iam.workspace_membership WHERE account_id = ${accountId} AND workspace_id = ${found.workspace_id}${locked}`)
   if (!member) throw new Failure(ACTION_REFUSALS[action].outsider)
-  if (!ROLE_ALLOWS[member.role].some((allowed) => allowed === MEMBERSHIP_ACTION[action])) throw new Failure(ACTION_REFUSALS[action].forbidden)
+  if (!ROLE_ALLOWS[member.role].some((allowed) => allowed === requiredAction(action))) throw new Failure(ACTION_REFUSALS[action].forbidden)
   let workspaceId = found.workspace_id
   if (tx.mode === 'write') {
     const row = await tx.maybe(ProjectOwner, sql`SELECT workspace_id FROM project.project WHERE project_id = ${projectId} FOR SHARE`)

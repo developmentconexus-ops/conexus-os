@@ -36,6 +36,15 @@ test('a bridge that omits the owner of a function that reads the table is named'
   const functions = [{ name: 'project.create_project', owner: 'project_owner', body: 'SELECT 1 FROM workspace.workspace' }]
   assert.deepEqual(lintCatalog({ catalog, functions, census: census() }).problems, [
     'project.create_project owned by project_owner reads workspace.workspace, which has no bridge policy for project_owner',
+    'workspace.workspace has a bridge policy for workspace_owner, which owns no function that reads it',
+  ])
+})
+
+test('a bridge for an owner that reads nothing of the table is named', () => {
+  const catalog = { column: [], relation: [relation('workspace.workspace')], policy: [runtimeAll('workspace.workspace'), policy('workspace.workspace', 'legacy_owner', '*', 'project_owner,connector_owner')] }
+  const functions = [{ name: 'project.create_project', owner: 'project_owner', body: 'SELECT 1 FROM workspace.workspace' }]
+  assert.deepEqual(lintCatalog({ catalog, functions, census: census() }).problems, [
+    'workspace.workspace has a bridge policy for connector_owner, which owns no function that reads it',
   ])
 })
 
