@@ -12,7 +12,7 @@ const { createOidcAdapter } = await import(built('identity-access/oidc.js'))
 const { Failure } = await import(built('platform/failure.js'))
 
 const origin = HUB_ORIGIN
-const SESSION_TOKEN = opaque('leandro')
+const SESSION_TOKEN = opaque('rita')
 const BOOTSTRAP_TOKEN = opaque('bootstrap')
 const digestOf = (token) => createHash('sha256').update(token).digest()
 const keyOf = (digest) => digest.toString('hex')
@@ -171,7 +171,7 @@ const makeStore = ({ eligible = true } = {}) => {
     async openHub({ accountId, refreshToken }) {
       state.opened.push({ accountId, refreshToken })
       const sessionToken = opaque(`session-${accountId}`)
-      state.sessions.set(keyOf(digestOf(sessionToken)), { account: { accountId, displayName: 'Leandro' }, issuer: config.bootstrapIssuer, subject: config.bootstrapSubject })
+      state.sessions.set(keyOf(digestOf(sessionToken)), { account: { accountId, displayName: 'Rita' }, issuer: config.bootstrapIssuer, subject: config.bootstrapSubject })
       return { sessionToken }
     },
     async resolveHub(digest) { return state.sessions.get(keyOf(digest)) ?? null },
@@ -217,14 +217,14 @@ test('S1 exposes only generated IAM-01..03', async (t) => {
 
 test('an existing account claims its invitations before its session starts', async (t) => {
   const store = makeStore()
-  store.state.accounts.set(`${config.bootstrapIssuer}|${config.bootstrapSubject}`, { accountId: 'account-1', displayName: 'Leandro' })
-  const app = await createHubApp({ store, oidc: makeOidc({ verifiedEmail: 'leandro@example.test', refreshToken: 'keycloak-refresh-1' }), config })
+  store.state.accounts.set(`${config.bootstrapIssuer}|${config.bootstrapSubject}`, { accountId: 'account-1', displayName: 'Rita' })
+  const app = await createHubApp({ store, oidc: makeOidc({ verifiedEmail: 'rita@example.test', refreshToken: 'keycloak-refresh-1' }), config })
   t.after(() => app.close())
   await app.inject({ method: 'GET', url: '/protocol/oidc/login' })
   const callback = await app.inject({ method: 'GET', url: '/protocol/oidc/callback?code=code-1&state=state-1', cookies: { '__Host-conexus_oidc_state': 'state-1' } })
   assert.equal(callback.statusCode, 303)
   assert.equal(callback.headers.location, '/')
-  assert.deepEqual(store.state.claimed, [{ accountId: 'account-1', verifiedEmail: 'leandro@example.test' }])
+  assert.deepEqual(store.state.claimed, [{ accountId: 'account-1', verifiedEmail: 'rita@example.test' }])
   assert.deepEqual(store.state.opened, [{ accountId: 'account-1', refreshToken: 'keycloak-refresh-1' }], 'the Hub session keeps the sign-in refresh token')
 })
 
@@ -272,22 +272,22 @@ test('bootstrap IAM-03 derives subject server-side and authenticity failures fir
   t.after(() => app.close())
   const cookies = { '__Host-conexus_bootstrap': BOOTSTRAP_TOKEN }
   const create = (headers, payload) => app.inject({ method: 'POST', url: '/api/control/accounts', headers, cookies, payload })
-  const denied = await create({ ...hubJsonWrite, origin: 'https://attacker.test', 'idempotency-key': 'key-1' }, { displayName: 'Leandro' })
+  const denied = await create({ ...hubJsonWrite, origin: 'https://attacker.test', 'idempotency-key': 'key-1' }, { displayName: 'Rita' })
   assert.deepEqual([denied.statusCode, denied.json().code], [403, 'REQUEST_AUTHENTICITY_DENIED'])
-  const crossSite = await create({ ...hubJsonWrite, 'sec-fetch-site': 'cross-site', 'idempotency-key': 'key-1' }, { displayName: 'Leandro' })
+  const crossSite = await create({ ...hubJsonWrite, 'sec-fetch-site': 'cross-site', 'idempotency-key': 'key-1' }, { displayName: 'Rita' })
   assert.equal(crossSite.statusCode, 403)
-  const absent = await create({ 'content-type': 'application/json', 'idempotency-key': 'key-absent' }, { displayName: 'Leandro' })
+  const absent = await create({ 'content-type': 'application/json', 'idempotency-key': 'key-absent' }, { displayName: 'Rita' })
   assert.equal(absent.statusCode, 403)
-  const created = await create({ ...hubJsonWrite, 'idempotency-key': 'key-1' }, { displayName: 'Leandro', email: 'leandro@example.test' })
+  const created = await create({ ...hubJsonWrite, 'idempotency-key': 'key-1' }, { displayName: 'Rita', email: 'rita@example.test' })
   assert.equal(created.statusCode, 201)
-  assert.deepEqual(created.json(), { accountId: 'account-1', displayName: 'Leandro', email: 'leandro@example.test' })
+  assert.deepEqual(created.json(), { accountId: 'account-1', displayName: 'Rita', email: 'rita@example.test' })
   const injectedSubject = await create({ ...hubJsonWrite, 'idempotency-key': 'key-2' }, { externalSubject: 'attacker', displayName: 'Attacker' })
   assert.equal(injectedSubject.statusCode, 400)
 })
 
 const signedInStore = () => {
   const store = makeStore()
-  store.state.sessions.set(keyOf(digestOf(SESSION_TOKEN)), { account: { accountId: 'account-1', displayName: 'Leandro' }, issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, refreshToken: 'keycloak-refresh-1' })
+  store.state.sessions.set(keyOf(digestOf(SESSION_TOKEN)), { account: { accountId: 'account-1', displayName: 'Rita' }, issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, refreshToken: 'keycloak-refresh-1' })
   return store
 }
 const SESSION_COOKIES = { '__Host-conexus_session': SESSION_TOKEN }
@@ -302,7 +302,7 @@ test('IAM-01 uses the current opaque session; IAM-02 ends it first, then asks Ke
   t.after(() => app.close())
   const context = await app.inject({ method: 'GET', url: '/api/control/access-context', cookies: SESSION_COOKIES })
   assert.equal(context.statusCode, 200)
-  assert.deepEqual(context.json(), { account: { accountId: 'account-1', displayName: 'Leandro' }, workspaces: [], projects: [] })
+  assert.deepEqual(context.json(), { account: { accountId: 'account-1', displayName: 'Rita' }, workspaces: [], projects: [] })
   assert.equal((await signOut(app, { ...hubWrite, origin: 'https://attacker.test' })).statusCode, 403)
   assert.equal((await signOut(app, { ...hubWrite, 'sec-fetch-site': 'cross-site' })).statusCode, 403)
   assert.equal((await signOut(app, { ...hubWrite, 'sec-fetch-mode': 'navigate' })).statusCode, 403, 'a navigation signs nobody out')

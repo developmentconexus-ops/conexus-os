@@ -12,7 +12,7 @@
    ComposerRing aims its own arc at the pointer (see its `useComposerPointerAngle`, a global
    `window` `pointermove` listener); we don't patch vendor code, so instead we out-specificity
    its background-image/animation/box-shadow with our own custom property and never reference
-   the vendor's --composer-ring-angle, leaving its writes visually inert (Leandro, 2026-09-22:
+   the vendor's --composer-ring-angle, leaving its writes visually inert (the operator, 2026-09-22:
    no cursor-following glow, ever; match the prototype exactly).
    This also removes the vendor's per-pointermove repaint of an animated conic-gradient, which
    is the likely source of the stray diagonal beam seen sweeping across chat rows while running. */

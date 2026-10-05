@@ -32,9 +32,9 @@ const makeStore = (overrides = {}) => {
   }
 }
 
-const SESSION_TOKEN = opaque('leandro')
+const SESSION_TOKEN = opaque('rita')
 const makeApp = async (store, { checkConnection = async () => 'CONNECTOR_UNCONFIGURED', currentAccountId = adminAccountId } = {}) => (await testListener({
-  sessions: { [SESSION_TOKEN]: { account: { accountId: currentAccountId, displayName: 'Leandro' }, issuer: 'https://issuer.test', subject: 'subject-1' } },
+  sessions: { [SESSION_TOKEN]: { account: { accountId: currentAccountId, displayName: 'Rita' }, issuer: 'https://issuer.test', subject: 'subject-1' } },
   registerRoutes: (app) => registerConnectorRoutes(app, { store, checkConnection }),
 })).app
 
