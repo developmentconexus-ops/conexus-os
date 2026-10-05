@@ -1,7 +1,8 @@
 import { invariant } from './failure-matchers.mjs'
 import assert from 'node:assert/strict'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
-import { chmodSync, copyFileSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:http'
 import net from 'node:net'
 import { homedir, networkInterfaces, tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -21,7 +22,7 @@ import { connectorRecord } from './connector-record.mjs'
 // through the rootless bubblewrap worker and the pinned database relay. Needs unprivileged user
 // namespaces and /usr/bin/bwrap on the host.
 const { createSupervisor } = await import(hubModuleUrl('app-runner/supervisor.js'))
-const { assertUserNamespaces, stageWorkerRuntime } = await import(hubModuleUrl('app-runner/sandbox.js'))
+const { assertUserNamespaces, runWorker, stageWorkerRuntime } = await import(hubModuleUrl('app-runner/sandbox.js'))
 const SANDBOX = { bwrap: '/usr/bin/bwrap', prlimit: '/usr/bin/prlimit', node: process.execPath, heapMb: 128, addressSpaceMb: 1792, nodePermission: true }
 const { openPgRelay, readRelayTls } = await import(hubModuleUrl('app-runner/pg-relay.js'))
 const { previewAllocation } = await import(hubModuleUrl('app-runner/data-plane.js'))
@@ -608,4 +609,53 @@ test('M3 and M4: the handler connects to the 0600 socket under its own uid and s
     env: { PWD: '/' },
   })
   assert.equal((await invoke('fetchOrder', {}, portA.socketPath)).body.text, JSON.stringify(ORDER_FETCHED))
+})
+
+// The wire between the Hub, the supervisor and the sandboxed worker, with no database behind it.
+const wireFixture = (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'conexus-wire-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  return directory
+}
+const listenOn = (server, path) => new Promise((resolve) => server.listen(path, resolve))
+const WIRE_LOGIN = { host: '/run/conexus/pg', user: 'app_00000000000000000000000000000000_preview_rt', database: 'conexus_apps' }
+const wireJob = (change = {}) => ({ kind: 'invoke', login: WIRE_LOGIN, module: '/app/handlers/wire.mjs', export: 'probe', input: {}, caller: CALLER, responseLimit: 1024 * 1024, connector: false, ...change })
+
+test('Zod and the caller schema load under the worker permission flag, and a bad job is refused there', async (t) => {
+  assertUserNamespaces()
+  const directory = wireFixture(t)
+  const database = net.createServer((socket) => socket.destroy())
+  t.after(() => database.close())
+  await listenOn(database, join(directory, 'pg.sock'))
+  const run = (job) => runWorker({ config: SANDBOX, runtimeDir: stageWorkerRuntime(join(directory, 'runtime')), databaseSocket: join(directory, 'pg.sock'), job, timeoutMs: 15_000, resultLimit: 1024 * 1024 })
+  const missing = await run(wireJob({ module: '/app/handlers/missing.mjs' }))
+  assert.equal(missing.kind, 'RESULT')
+  assert.equal(missing.result.code, 'HANDLER_LOAD_FAILED')
+  assert.deepEqual((await run(wireJob({ responseLimit: 'big' }))).result, { ok: false, code: 'WORKER_JOB_REFUSED' })
+})
+
+test('a handler receives the connector answer the Hub sent, and the unconnected refusal for any other', async (t) => {
+  assertUserNamespaces()
+  const directory = wireFixture(t)
+  const appDir = join(directory, 'app')
+  mkdirSync(join(appDir, 'handlers'), { recursive: true })
+  writeFileSync(join(appDir, 'handlers/wire.mjs'), "export const probe = async (input, { connectors }) => connectors.fetch({ connection: 'erp', method: 'POST', path: '/x' })\n")
+  const database = net.createServer((socket) => socket.destroy())
+  let answer = ''
+  const connector = createServer((_request, response) => response.end(answer))
+  t.after(() => { database.close(); connector.close() })
+  await listenOn(database, join(directory, 'pg.sock'))
+  await listenOn(connector, join(directory, 'connector.sock'))
+  const run = async (body) => {
+    answer = body
+    const outcome = await runWorker({
+      config: SANDBOX, runtimeDir: stageWorkerRuntime(join(directory, 'runtime')), appDir, databaseSocket: join(directory, 'pg.sock'),
+      connectorSocket: join(directory, 'connector.sock'), job: wireJob({ connector: true }), timeoutMs: 15_000, resultLimit: 1024 * 1024,
+    })
+    return outcome.result
+  }
+  const unconfigured = { ok: true, value: { ok: false, code: 'CONNECTOR_UNCONFIGURED' } }
+  assert.deepEqual(await run('{"ok":false}'), unconfigured)
+  assert.deepEqual(await run('{"ok":"yes"}'), unconfigured)
+  assert.deepEqual(await run('{"ok":true,"status":200,"bytes":2,"body":{}}'), { ok: true, value: { ok: true, status: 200, bytes: 2, body: {} } })
 })

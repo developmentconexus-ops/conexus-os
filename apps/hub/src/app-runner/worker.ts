@@ -2,8 +2,8 @@ import { writeSync } from 'node:fs'
 import { request } from 'node:http'
 import pg from 'pg'
 import { applyPendingMigrations } from './data-plane.js'
-import type { MigrationPlan } from './data-plane.js'
-import type { Caller } from '../platform/caller.js'
+import { connectorAnswer, workerJob } from './wire.js'
+import type { ConnectorAnswer, WorkerJob, WorkerResult } from './wire.js'
 
 /**
  * Runs inside one invocation's sandbox and nowhere else. The supervisor writes the job to stdin and
@@ -13,13 +13,6 @@ import type { Caller } from '../platform/caller.js'
  */
 // No password: the worker reaches the database only through the relay socket, which authenticates
 // upstream itself. Nothing in the sandbox holds a usable credential.
-type WorkerLogin = Readonly<{ host: string; user: string; database: string }>
-export type WorkerJob =
-  | Readonly<{ kind: 'invoke'; login: WorkerLogin; module: string; export: string; input: unknown; caller: Caller; responseLimit: number; connector: boolean }>
-  | Readonly<{ kind: 'migrate'; login: WorkerLogin; schema: string; plan: MigrationPlan['pending'] }>
-export type WorkerResult =
-  | Readonly<{ ok: true; value: unknown }>
-  | Readonly<{ ok: false; code: string; detail?: string }>
 
 const RESULT_FD = 3
 const MAX_JOB_BYTES = 8 * 1024 * 1024
@@ -28,8 +21,6 @@ const CONNECTOR_SOCKET = '/run/conexus/connector/.s.connector'
 const CONNECTOR_BODY_BYTES = 64 * 1024
 // The Hub bounds the answer to 256 KiB.
 const CONNECTOR_ANSWER_BYTES = 256 * 1024
-
-type ConnectorAnswer = Readonly<{ ok: boolean; code?: string; [field: string]: unknown }>
 
 const refusal = (code: string): ConnectorAnswer => Object.freeze({ ok: false, code })
 const unconfigured = refusal('CONNECTOR_UNCONFIGURED')
@@ -54,9 +45,8 @@ const post = (payload: Buffer): Promise<ConnectorAnswer> => new Promise((resolve
     response.on('close', () => {
       if (tooLarge) return resolve(refusal('RESPONSE_TOO_LARGE'))
       try {
-        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-        const answer = JSON.parse(Buffer.concat(chunks).toString('utf8')) as ConnectorAnswer
-        if (typeof answer.ok === 'boolean') return resolve(Object.freeze(answer))
+        const answer = connectorAnswer.safeParse(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+        if (answer.success) return resolve(Object.freeze(answer.data))
       } catch {
         // an unreadable answer is the port not being there
       }
@@ -108,11 +98,11 @@ const readJob = async (): Promise<WorkerJob> => {
     if (bytes > MAX_JOB_BYTES) finish({ ok: false, code: 'WORKER_JOB_REFUSED' })
     chunks.push(chunk)
   }
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  return JSON.parse(Buffer.concat(chunks).toString('utf8')) as WorkerJob
+  const job = workerJob.safeParse(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+  return job.success ? job.data : finish({ ok: false, code: 'WORKER_JOB_REFUSED' })
 }
 
-const connect = async (login: WorkerLogin): Promise<pg.Client> => {
+const connect = async (login: WorkerJob['login']): Promise<pg.Client> => {
   const client = new pg.Client({ ...login, connectionTimeoutMillis: 3000 })
   await client.connect()
   return client

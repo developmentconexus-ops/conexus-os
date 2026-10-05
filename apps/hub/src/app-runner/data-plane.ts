@@ -1,3 +1,4 @@
+import type { PlannedMigration } from './wire.js'
 /** A Postgres session the data plane issues statements on; pg's Client and PoolClient both fit. */
 export type Sql = Readonly<{
   query(text: string, values?: readonly unknown[]): Promise<{ rows: Record<string, unknown>[] }>
@@ -16,7 +17,7 @@ export type PreviewAllocation = Readonly<{
 
 export type MigrationSource = Readonly<{ name: string; sha256: string; sql: string }>
 export type LedgerRow = Readonly<{ position: number; name: string; sha256: string }>
-export type MigrationPlan = Readonly<{ reset: boolean; pending: readonly (MigrationSource & Readonly<{ position: number }>)[] }>
+export type MigrationPlan = Readonly<{ reset: boolean; pending: readonly PlannedMigration[] }>
 
 export const PROVISIONER_ROLE = 'app_provisioner'
 const LEDGER_TABLE = 'conexus_migration'

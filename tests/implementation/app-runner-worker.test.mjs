@@ -24,12 +24,12 @@ export async function readsDatabase(input, { db }) {
 }
 `
 
-const invoke = (t, exportName) => {
+const invoke = (t, exportName, change = (job) => job) => {
   const directory = mkdtempSync(join(tmpdir(), 'cx-worker-'))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
   const module = join(directory, 'handlers.mjs')
   writeFileSync(module, HANDLERS)
-  const job = { kind: 'invoke', login: NO_DATABASE, module, export: exportName, input: {}, caller: CALLER, responseLimit: 1024 * 1024, connector: false }
+  const job = change({ kind: 'invoke', login: NO_DATABASE, module, export: exportName, input: {}, caller: CALLER, responseLimit: 1024 * 1024, connector: false })
   return new Promise((resolve) => {
     const worker = spawn(process.execPath, [WORKER], { stdio: ['pipe', 'ignore', 'ignore', 'pipe'] })
     const chunks = []
@@ -47,4 +47,16 @@ test('a handler whose query cannot reach the database answers DATABASE_UNAVAILAB
   const result = await invoke(t, 'readsDatabase')
   assert.deepEqual({ ok: result.ok, code: result.code }, { ok: false, code: 'DATABASE_UNAVAILABLE' })
   assert.match(result.detail, /ENOENT/)
+})
+
+test('a job that does not match the wire shape is refused before any handler runs', async (t) => {
+  const refused = { ok: false, code: 'WORKER_JOB_REFUSED' }
+  const changes = {
+    'a caller id that is not a UUID': (job) => ({ ...job, caller: { ...CALLER, accountId: 'not-a-uuid' } }),
+    'no module': ({ module, ...job }) => job,
+    'a response limit that is not a number': (job) => ({ ...job, responseLimit: 'big' }),
+    'no input': ({ input, ...job }) => job,
+    'an extra key': (job) => ({ ...job, extra: 1 }),
+  }
+  for (const [label, change] of Object.entries(changes)) assert.deepEqual(await invoke(t, 'readsConexao', change), refused, label)
 })
