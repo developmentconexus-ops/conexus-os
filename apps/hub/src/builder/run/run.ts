@@ -327,7 +327,7 @@ const work = async (run: Run): Promise<RunEnding> => {
   // The start model's account is the person's own, else the installation's shared one; none
   // refuses the run before a sandbox exists, with the "connect a model" answer.
   await env.ports.checkModel({ builderRunId: row.builderRunId, accountId: run.request.accountId, projectId: row.projectId, conversationId: row.conversationId })
-  run.connectorRun = env.ports.openConnectorRun ? await env.ports.openConnectorRun({ projectId: row.projectId, builderRunId: row.builderRunId }) : null
+  run.connectorRun = env.ports.openConnectorRun ? await env.ports.openConnectorRun({ projectId: row.projectId, accountId: run.request.accountId, builderRunId: row.builderRunId }) : null
   const prepared = await prepare(run)
   run.prepared = prepared
   await converse(run, prepared)

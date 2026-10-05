@@ -1,7 +1,7 @@
 // GENERATED from contracts/api/product/openapi.yaml by scripts/generate-iam-contracts.mjs. Do not edit.
 import type { FastifySchema } from 'fastify'
 
-export const IAM_PRODUCT_OAS_DIGEST = "cfdf521979ae738c3da98ffbef74b2b669ade91a3cf9aa3ca4089235e6faec4b"
+export const IAM_PRODUCT_OAS_DIGEST = "dea1987e30e521300047f9bd5068fecf714ff4b1c5393f17296816c8f6caea7f"
 export const IAM_ROUTE_PROJECTION_DIGEST = "8f01e91fcf7730f1b8f56abc9a4d9274f87d74e5e8480a590ee35d90ad39c74d"
 export type IamOwnerId = 'IAM-01' | 'IAM-02' | 'IAM-03' | 'IAM-04' | 'IAM-05' | 'IAM-06' | 'IAM-10' | 'IAM-11' | 'IAM-12' | 'IAM-13'
 export type Iam01Response = { "account": { "accountId": string; "displayName": string; "email"?: string }; "workspaces": { "workspaceId": string; "name": string }[]; "projects": { "projectId": string; "workspaceId": string; "name": string; "archived": boolean }[] }

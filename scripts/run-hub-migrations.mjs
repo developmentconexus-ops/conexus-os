@@ -76,6 +76,7 @@ const workspaceAdmissionDigest = '9f43118c3e057c30978f1fef5cfe6956d8f5d46c989f17
 const splitWallDigest = '9bc879ed9dade286810ca8775caea87b2d381ba18da9e229f83458a17bd7bc61'
 const builderOwnerDigest = '7c214a3a96ad2dd725f0b8ff54a0f1d88b4667a961cc94f72141124b018cf712'
 const projectOwnerDigest = '9c0efb7e558d81e5634c74d63dd953ad18fd7b82f3b2c0bc4d8030b68269df4f'
+const connectorOwnerDigest = '28fb86186bd480deddcecb94e28afd611af6559eaaf326a637931154de4b051f'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -143,7 +144,8 @@ const migrationDigests = new Map([
   ['0063_workspace_admission.sql', workspaceAdmissionDigest],
   ['0064_project_owner.sql', projectOwnerDigest],
   ['0065_split_wall.sql', splitWallDigest],
-  ['0066_builder_owner.sql', builderOwnerDigest],
+  ['0066_connector_owner.sql', connectorOwnerDigest],
+  ['0067_builder_owner.sql', builderOwnerDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

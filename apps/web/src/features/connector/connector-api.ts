@@ -1,70 +1,35 @@
-import type {
-  BindProjectConnectionInput,
-  CheckWorkspaceConnectionOutcome,
-  ConnectionBinding,
-  ConnectionBindingEntry,
-  ConnectorConnection,
-  CreateWorkspaceConnectionInput,
-} from '../../generated/connector-client'
-import { connectorClient } from '../../generated/connector-client'
-import { failureText, hubCall, isFailure } from '../../app/http'
+import { call, failureText, isFailure, query } from '../../app/http'
 import { HubFailure } from '../../app/failure'
+import { routeParam } from '../../app/route-params'
+import {
+  BindingId, ConnectionId, CON01, CON02, CON03, CON04, CON08, CON09, CON10, ProjectId, WorkspaceId,
+  type ConnectionBinding, type ConnectionBindingEntry, type ConnectionCheckOutcome, type Input,
+} from '../../../../../packages/contract/dist/index.js'
 
-export const workspaceConnectionsQueryKey = (workspaceId: string) =>
-  ['connector', 'workspace-connections', workspaceId] as const
-
-export const projectConnectionBindingsQueryKey = (projectId: string) =>
-  ['connector', 'project-bindings', projectId] as const
+const noInput = { query: undefined, headers: undefined } as const
+const workspaceParams = (workspaceId: string) => ({ workspaceId: routeParam(WorkspaceId, workspaceId) })
+const projectParams = (projectId: string) => ({ projectId: routeParam(ProjectId, projectId) })
 
 export type ProjectConnectionBinding = Extract<ConnectionBindingEntry, { kind: 'binding' }>
 export type BindableConnection = Extract<ConnectionBindingEntry, { kind: 'bindable' }>
 
-export async function listWorkspaceConnections(workspaceId: string): Promise<readonly ConnectorConnection[]> {
-  const response = await hubCall(connectorClient.listWorkspaceConnections(workspaceId), 200)
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const body = (await response.json()) as { entries: ConnectorConnection[] }
-  return body.entries
-}
+export const workspaceConnectionsQuery = (workspaceId: string) => query(CON01, { params: workspaceParams(workspaceId), ...noInput, body: undefined })
+export const projectConnectionBindingsQuery = (projectId: string) => query(CON08, { params: projectParams(projectId), ...noInput, body: undefined })
 
-export async function createWorkspaceConnection(
-  workspaceId: string,
-  input: CreateWorkspaceConnectionInput,
-): Promise<ConnectorConnection> {
-  const response = await hubCall(connectorClient.createWorkspaceConnection(workspaceId, input), [200, 201])
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  return response.json() as Promise<ConnectorConnection>
-}
+export const createWorkspaceConnection = (workspaceId: string, body: Input<typeof CON02>['body']) =>
+  call(CON02, { params: workspaceParams(workspaceId), ...noInput, body })
 
-export async function checkWorkspaceConnection(
-  workspaceId: string,
-  connectionId: string,
-): Promise<CheckWorkspaceConnectionOutcome['outcome']> {
-  const response = await hubCall(connectorClient.checkWorkspaceConnection(workspaceId, connectionId), 200)
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const body = (await response.json()) as CheckWorkspaceConnectionOutcome
-  return body.outcome
-}
+export const checkWorkspaceConnection = async (workspaceId: string, connectionId: string): Promise<ConnectionCheckOutcome> =>
+  (await call(CON03, { params: { ...workspaceParams(workspaceId), connectionId: routeParam(ConnectionId, connectionId) }, ...noInput, body: undefined })).outcome
 
-export async function disableWorkspaceConnection(workspaceId: string, connectionId: string): Promise<void> {
-  await hubCall(connectorClient.disableWorkspaceConnection(workspaceId, connectionId), 204)
-}
+export const disableWorkspaceConnection = (workspaceId: string, connectionId: string) =>
+  call(CON04, { params: { ...workspaceParams(workspaceId), connectionId: routeParam(ConnectionId, connectionId) }, ...noInput, body: undefined })
 
-export async function listProjectConnectionBindings(projectId: string): Promise<readonly ConnectionBindingEntry[]> {
-  const response = await hubCall(connectorClient.listProjectConnectionBindings(projectId), 200)
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const body = (await response.json()) as { entries: ConnectionBindingEntry[] }
-  return body.entries
-}
+export const bindProjectConnection = async (projectId: string, body: Input<typeof CON09>['body']): Promise<ConnectionBinding> =>
+  (await call(CON09, { params: projectParams(projectId), ...noInput, body })).body
 
-export async function bindProjectConnection(projectId: string, input: BindProjectConnectionInput): Promise<ConnectionBinding> {
-  const response = await hubCall(connectorClient.bindProjectConnection(projectId, input), 200)
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  return response.json() as Promise<ConnectionBinding>
-}
-
-export async function unbindProjectConnection(projectId: string, bindingId: string): Promise<void> {
-  await hubCall(connectorClient.unbindProjectConnection(projectId, bindingId), 204)
-}
+export const unbindProjectConnection = (projectId: string, bindingId: string) =>
+  call(CON10, { params: { ...projectParams(projectId), bindingId: routeParam(BindingId, bindingId) }, ...noInput, body: undefined })
 
 // The viewer isn't an installation administrator; the Connections section explains that
 // instead of offering a retry.
@@ -75,6 +40,6 @@ export const isConnectorAdminRequired = (error: unknown): boolean => isFailure(e
 export const isConnectorBindingsForbidden = (error: unknown): boolean => isFailure(error, 'CONNECTOR_BINDING_MANAGE_REQUIRED', 'PROJECT_NOT_FOUND')
 
 // A refused check is a row of the failure table under the outcome's own name.
-export function checkOutcomeMessage(outcome: CheckWorkspaceConnectionOutcome['outcome']): string {
+export function checkOutcomeMessage(outcome: ConnectionCheckOutcome): string {
   return outcome === 'OK' ? 'A conexão autenticou com sucesso.' : failureText(new HubFailure(outcome, null))
 }

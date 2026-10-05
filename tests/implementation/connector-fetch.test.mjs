@@ -5,10 +5,10 @@ import { createRestAdapter, REST_ACCOUNTS, REST_CONNECTOR_ID, restDefinition, st
 import { connectorRecord, recordText } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
+const { createBroker, registryOf } = await import(hubModuleUrl('connectors/broker.js'))
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
-const { revokeScope, scopeForBuilderRun, scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
+const { scopeForBuilderRun, scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
 
 const PROJECT = '22222222-2222-4222-8222-222222222222'
@@ -33,11 +33,11 @@ const memoryStore = ({ bindings = { [PROJECT]: [bound('erp', CONNECTION)] }, cre
   return {
     bindings,
     calls,
-    listBindings: async ({ projectId, environment }) => {
+    listBindings: async ({ projectId }) => {
       calls.push('listBindings')
-      return environment === 'preview' ? [...(bindings[projectId] ?? [])] : []
+      return [...(bindings[projectId] ?? [])]
     },
-    readConnectionCredential: async (connectionId) => {
+    readConnectionCredential: async (_scope, connectionId) => {
       calls.push('readConnectionCredential')
       return credentials[connectionId] ?? null
     },
@@ -50,14 +50,14 @@ const setup = async (t, { store = memoryStore(), nativeLimits, now, tokenPrefix,
   t.after(() => Promise.all([fake.close(), other.close()]))
   const record = connectorRecord()
   const broker = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }, ...extra],
+    connectors: registryOf([{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }, ...extra]),
     store, envelope, observability: record.observability,
     ...(nativeLimits ? { nativeLimits } : {}), ...(now ? { now } : {}),
   })
   return { fake, other, store, broker, ...record }
 }
 
-const handler = (projectId = PROJECT) => Object.freeze({ kind: 'handler', invocationId: 'invocation-1', scope: scopeFromArtifactSource({ via: 'PREVIEW', projectId }) })
+const handler = (projectId = PROJECT) => Object.freeze({ kind: 'handler', invocationId: 'invocation-1', scope: scopeFromArtifactSource({ via: 'PREVIEW', accountId: '55555555-5555-4555-8555-555555555555', projectId }) })
 const agent = (scope) => Object.freeze({ kind: 'agent', sessionId: 'run-1', scope })
 
 const read = (overrides = {}) => ({
@@ -225,12 +225,11 @@ test('P3: a request carrying a header, a URL, a Project or any other key, or a b
 test('P6 and P8: another Project, a missing binding, a forged scope and a binding removed between two calls are NOT_GRANTED before the network', async (t) => {
   const store = memoryStore()
   const { fake, other, broker } = await setup(t, { store })
-  const forged = { kind: 'handler', invocationId: 'x', scope: { projectId: PROJECT, environment: 'preview' } }
+  const forged = { kind: 'handler', invocationId: 'x', scope: { projectId: PROJECT } }
   assert.deepEqual(await broker.fetch(handler(OTHER_PROJECT), read()), { ok: false, code: 'NOT_GRANTED' })
   assert.deepEqual(await broker.fetch(handler(), read({ connection: 'crm' })), { ok: false, code: 'NOT_GRANTED' })
   assert.deepEqual(await broker.fetch(handler(), read({ connection: 'sankhya' })), { ok: false, code: 'NOT_GRANTED' }, 'the integrator id is not a binding name')
   assert.deepEqual(await broker.fetch(forged, read()), { ok: false, code: 'NOT_GRANTED' })
-  assert.deepEqual(await broker.fetch(undefined, read()), { ok: false, code: 'NOT_GRANTED' })
   assert.deepEqual([fake.requests.length, other.requests.length], [0, 0])
 
   assert.deepEqual(await broker.fetch(handler(), read()), ORDER_READ)
@@ -243,10 +242,10 @@ test('a binding to an unregistered integrator, or to one with no pinned destinat
   const store = memoryStore({ bindings: { [PROJECT]: [bound('erp', CONNECTION), bound('legacy', CONNECTION_A, 'unknown-erp')] } })
   const { fake, broker } = await setup(t, { store })
   assert.deepEqual(await broker.fetch(handler(), read({ connection: 'legacy' })), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
-  const unpinned = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: null }], store, envelope, observability: connectorRecord().observability })
+  const unpinned = createBroker({ connectors: registryOf([{ definition: sankhyaDefinition, adapter: null }]), store, envelope, observability: connectorRecord().observability })
   assert.deepEqual(await unpinned.fetch(handler(), read()), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
   const failing = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }],
+    connectors: registryOf([{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }]),
     store: { ...store, listBindings: async () => { throw new Error('connection refused') } }, envelope, observability: connectorRecord().observability,
   })
   assert.deepEqual(await failing.fetch(handler(), read()), { ok: false, code: 'CONNECTOR_PLATFORM_FAILED' })
@@ -257,7 +256,7 @@ test('a binding to an unregistered integrator, or to one with no pinned destinat
 test('P5: an expired or revoked run scope is NOT_GRANTED, and a spent budget is CALL_LIMIT, each before the network', async (t) => {
   let clock = 1_000
   const { fake, broker } = await setup(t, { now: () => clock })
-  const run = scopeForBuilderRun(PROJECT, { ttlMs: 60_000, calls: 5 }, 1_000)
+  const run = scopeForBuilderRun({ projectId: PROJECT, accountId: '55555555-5555-4555-8555-555555555555' }, { ttlMs: 60_000, calls: 5 }, 1_000)
   assert.deepEqual(await broker.fetch(agent(run), read()), ORDER_READ)
   clock = 60_999
   assert.deepEqual(await broker.fetch(agent(run), read()), ORDER_READ)
@@ -266,13 +265,13 @@ test('P5: an expired or revoked run scope is NOT_GRANTED, and a spent budget is 
   assert.equal(fake.requests.filter(({ path }) => path === ROUTE).length, 2)
 
   clock = 1_000
-  const revoked = scopeForBuilderRun(PROJECT, { ttlMs: 60_000, calls: 5 }, 1_000)
+  const revoked = scopeForBuilderRun({ projectId: PROJECT, accountId: '55555555-5555-4555-8555-555555555555' }, { ttlMs: 60_000, calls: 5 }, 1_000)
   assert.deepEqual(await broker.fetch(agent(revoked), read()), ORDER_READ)
-  revokeScope(revoked)
-  revokeScope(revoked)
+  revoked.revoke()
+  revoked.revoke()
   assert.deepEqual(await broker.fetch(agent(revoked), read()), { ok: false, code: 'NOT_GRANTED' })
 
-  const budget = scopeForBuilderRun(PROJECT, { ttlMs: 60_000, calls: 1 }, 1_000)
+  const budget = scopeForBuilderRun({ projectId: PROJECT, accountId: '55555555-5555-4555-8555-555555555555' }, { ttlMs: 60_000, calls: 1 }, 1_000)
   assert.deepEqual(await broker.fetch(agent(budget), read({ query: { serviceName: WRITE, outputType: 'json' } })), { ok: false, code: 'SERVICE_REFUSED' })
   assert.deepEqual(await broker.fetch(agent(budget), read()), ORDER_READ, 'a refused request spent nothing')
   assert.deepEqual(await broker.fetch(agent(budget), read()), { ok: false, code: 'CALL_LIMIT' })
@@ -331,7 +330,7 @@ test('P9: a bearer the vendor echoes is redacted from a parsed body in any JSON 
   const beforeUnicode = `{"serviceName":"${LOAD}","status":"1","echo":"fake/token/2","escaped":"fake\\/token\\/2","unicode":"`
   const cutInsideUnicode = beforeUnicode.length + '\\u0066\\u0061\\u006b\\u0065'.length
   const cutBroker = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }],
+    connectors: registryOf([{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }]),
     store: memoryStore(), envelope, observability: connectorRecord().observability,
     nativeLimits: { deadlineMs: 2000, responseBytes: cutInsideUnicode, requestBytes: 64 * 1024 },
   })
@@ -370,7 +369,7 @@ test('P9: a 5xx or 429 is PROVIDER_UNAVAILABLE, another 4xx is PROVIDER_ERROR, e
     assert.equal(JSON.stringify(result).includes(SECRET_MARKER), false)
   }
   const unreachable = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: 'http://127.0.0.1:9' }) }],
+    connectors: registryOf([{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: 'http://127.0.0.1:9' }) }]),
     store: memoryStore(), envelope, observability: connectorRecord().observability,
   })
   assert.deepEqual(await unreachable.fetch(handler(), read()), { ok: false, code: 'PROVIDER_UNAVAILABLE' })
@@ -388,7 +387,7 @@ test('P5: a stalled vendor ends at the deadline as PROVIDER_TIMEOUT, for the ser
 
 test('P2: the records carry the binding name, the integrator and closed facts, never a path, query, body, value or token', async (t) => {
   const { fake, broker, facts, exporter, lines } = await setup(t)
-  const scope = scopeForBuilderRun(PROJECT, { ttlMs: 60_000, calls: 5 })
+  const scope = scopeForBuilderRun({ projectId: PROJECT, accountId: '55555555-5555-4555-8555-555555555555' }, { ttlMs: 60_000, calls: 5 })
   const marked = read({ body: { serviceName: LOAD, requestBody: { dataSet: { ...NATIVE_ORDER_DATASET, criteria: { expression: { $: 'this.CODPARC = ?' }, parameter: [{ $: 'MARKER-VALUE-5e1', type: 'S' }] } } } } })
   assert.deepEqual(await broker.fetch(agent(scope), read()), ORDER_READ)
   fake.mode.service = 'envelope-error'

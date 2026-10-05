@@ -1,6 +1,6 @@
 import type { z } from 'zod'
+import type { ConnectorId } from '../../../../packages/contract/dist/index.js'
 import type { BrokerErrorCode } from './errors.js'
-import type { ConnectorId } from './model.js'
 import type { ConsumerScope } from './scope.js'
 import type { IssuedToken, Redacted } from './token-cache.js'
 
@@ -48,4 +48,3 @@ export type ConnectorDefinition<Cred> = Readonly<{
 export type Consumer =
   | Readonly<{ kind: 'handler'; invocationId: string; scope: ConsumerScope }>
   | Readonly<{ kind: 'agent'; sessionId: string; scope: ConsumerScope }>
-  | Readonly<{ kind: 'integrator'; jobId: string; scope: ConsumerScope }>

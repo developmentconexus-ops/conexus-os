@@ -9,7 +9,7 @@ import { HEAD, ID } from './project-fixture.mjs'
 import { waitUntilBlocked } from './race.mjs'
 
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
-const { builderProjectPorts } = await import(hubModuleUrl('builder/project-ports.js'))
+const { purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
 const { admitSystem } = await import(hubModuleUrl('identity-access/admission.js'))
 
 const CANDIDATE = 'b'.repeat(40)
@@ -290,7 +290,7 @@ test('a conversation session and its sandbox belong to the run Project, and a pu
   assert.deepEqual(await store.readProjectSandboxes(projectId), ['ivm2second'])
 
   await store.recordBuilderRunModelAccount({ builderRunId, accountId: ID.owner, modelAccountId: randomUUID() })
-  await database.system('project-purge', async (gate) => builderProjectPorts.purge(await admitSystem(gate, 'project-purge'), projectId))
+  await database.system('project-purge', async (gate) => purgeProjectBuilder(await admitSystem(gate, 'project-purge'), projectId))
   const left = async (table) => (await query(connection, `SELECT count(*)::integer AS count FROM ${table} WHERE project_id = $1`, [projectId])).rows[0].count
   assert.deepEqual({ runs: await left('builder.builder_run'), working: await left('builder.project_working_state'), repository: await left('builder.project_repository'), sessions: await left('builder.conversation_session'), payers: (await query(connection, 'SELECT count(*)::integer AS count FROM builder.builder_run_model_account WHERE builder_run_id = $1', [builderRunId])).rows[0].count },
     { runs: 0, working: 0, repository: 0, sessions: 0, payers: 0 })

@@ -54,6 +54,8 @@ admitWorkspace(authentication, workspace, 'workspace.read')
 readTx.run(sql`SELECT 1`)
 // @ts-expect-error A command's own transaction is a write transaction, so it cannot take a read admission.
 admitProject(builder.tx, project, 'project.read')
+// @ts-expect-error A read admission of a project takes only the read actions, so a build is a command.
+admitProject(readTx, project, 'project.build')
 // @ts-expect-error A command's own transaction cannot take the workspace read admission either.
 admitWorkspace(builder.tx, workspace, 'workspace.read')
 // @ts-expect-error A reader's transaction mode is 'read', never 'write'.

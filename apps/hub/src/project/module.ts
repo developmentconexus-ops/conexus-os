@@ -4,8 +4,8 @@ import type { Database } from '../platform/db.js'
 import { registerProjectRoutes } from './routes.js'
 import type { ProjectThumbnailReader } from './routes.js'
 import { createProjectStore } from './store.js'
-import type { ProjectRepositoryPort } from './store.js'
-import type { BuilderProjectPorts, ProjectDeletionPorts } from './deletion.js'
+import type { BuilderProjectPorts, ProjectRepositoryPort } from './store.js'
+import type { ProjectDeletionPorts } from './deletion.js'
 
 export type ProjectModule = Readonly<{
   registerProjectRoutes(app: FastifyInstance): ReturnType<typeof registerProjectRoutes>

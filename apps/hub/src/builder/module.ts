@@ -18,7 +18,7 @@ import type { BuilderLaunchPreviewPort, BuilderSessionPort, BuilderSessionSnapsh
 import { createBuilderService } from './service.js'
 import type { ApplicationServerPort, ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
 import { createBuilderStore } from './store.js'
-export { builderProjectPorts } from './project-ports.js'
+export { builderProjectPorts, purgeProjectBuilder } from './project-ports.js'
 import { buildTraceSummary, UNAVAILABLE_TRACE_SUMMARY } from './trace-summary.js'
 import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig, InstallationSecretKey } from '../platform/config.js'
 import { assertBuilderSkillsAvailable } from './skills-guard.js'

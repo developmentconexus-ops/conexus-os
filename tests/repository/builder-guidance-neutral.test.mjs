@@ -60,7 +60,7 @@ const hubTexts = async () => {
   const briefs = []
   const fetchDescriptions = []
   for (const listBindings of [async () => [{ name: 'erp', connectorId: 'sankhya' }], async () => [], async () => { throw new Error('down') }]) {
-    const run = await openBuilderRun({ brief: briefWith(listBindings), projectId: '00000000-0000-4000-8000-000000000001', builderRunId: '00000000-0000-4000-8000-000000000002' })
+    const run = await openBuilderRun({ brief: briefWith(listBindings), projectId: '00000000-0000-4000-8000-000000000001', accountId: '55555555-5555-4555-8555-555555555555', builderRunId: '00000000-0000-4000-8000-000000000002' })
     briefs.push(run.brief)
     const requestContext = new RequestContext()
     run.bind(requestContext)

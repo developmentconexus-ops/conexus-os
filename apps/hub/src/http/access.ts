@@ -2,6 +2,7 @@ import type {
   FastifyInstance, onRequestHookHandler, FastifyRequest, FastifySchema, HTTPMethods, RawReplyDefaultExpression, RawRequestDefaultExpression, RawServerDefault,
   RouteGenericInterface, RouteHandlerMethod, RouteOptions,
 } from 'fastify'
+import { fieldFailures } from '../../../../packages/contract/dist/index.js'
 import type { AnyOperation, EffectsOf, Input, Out, Reply } from '../../../../packages/contract/dist/index.js'
 import type { z } from 'zod'
 import { z as zod } from 'zod'
@@ -169,7 +170,20 @@ declare module 'fastify' {
 }
 
 const missing = (invariant: string): Failure => new Failure('INTERNAL_UNEXPECTED', { details: { invariant } })
+// Only the malformed table of an operation reaches here untyped: it is read by a runtime key from an erased generic.
 const isHubFailureCode = (code: unknown): code is keyof typeof HUB_FAILURES => typeof code === 'string' && Object.hasOwn(HUB_FAILURES, code)
+
+/** The schema of one body field. A union body is read through the option its discriminator selects. */
+const shapeField = (object: zod.ZodObject, field: string): zod.ZodType | undefined => Object.entries(object.shape).find(([key]) => key === field)?.[1]
+
+const bodyField = (body: zod.ZodType | null, value: unknown, field: string): zod.ZodType | undefined => {
+  if (body instanceof zod.ZodObject) return shapeField(body, field)
+  if (!(body instanceof zod.ZodDiscriminatedUnion) || typeof value !== 'object' || value === null) return undefined
+  const discriminator = body.def.discriminator
+  const selected = Object.entries(value).find(([key]) => key === discriminator)?.[1]
+  const option = body.options.find((candidate) => candidate instanceof zod.ZodObject && shapeField(candidate, discriminator)?.safeParse(selected).success)
+  return option instanceof zod.ZodObject ? shapeField(option, field) : undefined
+}
 
 /** @public */
 export const grantOf = <Kind extends AccessKind>(request: FastifyRequest, kind: Kind): Grants[Kind] => {
@@ -241,13 +255,6 @@ const UNDECLARED_OPERATIONS: ReadonlySet<string> = new Set([
   'POST /api/control/model-accounts/google-ai-pro/login/start',
   'POST /api/control/model-accounts/google-ai-pro/login/complete',
   'POST /api/control/model-accounts/google-ai-pro/login/:loginId',
-  'GET /api/control/workspaces/:workspaceId/connections',
-  'POST /api/control/workspaces/:workspaceId/connections',
-  'POST /api/control/workspaces/:workspaceId/connections/:connectionId/authentication-check',
-  'DELETE /api/control/workspaces/:workspaceId/connections/:connectionId',
-  'GET /api/control/projects/:projectId/connection-bindings',
-  'POST /api/control/projects/:projectId/connection-bindings',
-  'DELETE /api/control/projects/:projectId/connection-bindings/:bindingId',
 ])
 
 type RouteRecord = Readonly<{ method: string | readonly string[]; url: string; config?: RouteOptions['config'] }>
@@ -326,9 +333,15 @@ export const routes = (app: FastifyInstance) => {
         }
         if (httpPart === 'headers' && op.headers instanceof zod.ZodObject) {
           const schema = op.headers.shape['idempotency-key']
-          const code = schema ? zod.globalRegistry.get(schema)?.failureCode : undefined
+          const code = schema ? fieldFailures.get(schema)?.failureCode : undefined
           const raw = typeof value === 'object' && value !== null && 'idempotency-key' in value ? value['idempotency-key'] : undefined
-          if (isHubFailureCode(code) && (raw === undefined || raw === '')) return { error: new Failure(code) }
+          if (code && (raw === undefined || raw === '')) return { error: new Failure(code) }
+        }
+        if (httpPart === 'body') {
+          const field = parsed.error.issues[0]?.path[0]
+          const schema = typeof field === 'string' ? bodyField(op.body, value, field) : undefined
+          const code = schema ? fieldFailures.get(schema)?.failureCode : undefined
+          if (code) return { error: new Failure(code) }
         }
         return { error: parsed.error }
       },

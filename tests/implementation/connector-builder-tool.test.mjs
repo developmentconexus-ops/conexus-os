@@ -16,7 +16,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { hubSessionCookie, opaque, testListener } from './access/test-listener.mjs'
 import { testConversations } from './builder-conversation-fixture.mjs'
 
-const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
+const { createBroker, registryOf } = await import(hubModuleUrl('connectors/broker.js'))
 const { createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
 const { createConnectorFetchTools, openBuilderRun } = await import(hubModuleUrl('connectors/builder-tool.js'))
 const { createToolPayloadProjection } = await import(hubModuleUrl('connectors/fetch-projection.js'))
@@ -41,22 +41,22 @@ const envelope = createSecretEnvelope('ef'.repeat(32))
 const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
 const binding = Object.freeze({ bindingId: 'binding-erp', name: 'erp', connectionId: CONNECTION, connectorId: 'sankhya' })
 const store = Object.freeze({
-  listBindings: async ({ projectId, environment }) => (projectId === PROJECT && environment === 'preview' ? [binding] : []),
-  readConnectionCredential: async (connectionId) => (connectionId === CONNECTION ? sealed : null),
+  listBindings: async ({ projectId }) => (projectId === PROJECT ? [binding] : []),
+  readConnectionCredential: async (_scope, connectionId) => (connectionId === CONNECTION ? sealed : null),
 })
 
 const connectorsOf = async (t, { now } = {}) => {
   const fake = await startFakeGateway()
   t.after(() => fake.close())
   const record = connectorRecord()
-  const connectors = [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }]
+  const connectors = registryOf([{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }])
   const broker = createBroker({ connectors, store, envelope, observability: record.observability, ...(now ? { now } : {}) })
-  const brief = createConnectorBrief({ connectors, store, observability: record.observability })
+  const brief = createConnectorBrief({ store, observability: record.observability })
   return {
     fake, record, broker,
     tools: createConnectorFetchTools(broker),
     projection: createToolPayloadProjection(new Map([['sankhya', new Set(sankhyaDefinition.native.services)]])),
-    openRun: (projectId = PROJECT) => openBuilderRun({ brief, projectId, builderRunId: RUN }),
+    openRun: (projectId = PROJECT) => openBuilderRun({ brief, projectId, accountId: '55555555-5555-4555-8555-555555555555', builderRunId: RUN }),
   }
 }
 
@@ -81,7 +81,7 @@ test('the tool is contributed only to a session whose request context carries a 
   assert.deepEqual(Object.keys(tools({ requestContext: contextOf(run) })), ['connector_fetch'])
   assert.deepEqual(tools({ requestContext: contextOf() }), {})
   const forged = new RequestContext()
-  forged.setRaw('conexusConnectorConsumer', { kind: 'agent', sessionId: RUN, scope: { projectId: PROJECT, environment: 'preview' } })
+  forged.setRaw('conexusConnectorConsumer', { kind: 'agent', sessionId: RUN, scope: { projectId: PROJECT } })
   assert.deepEqual(tools({ requestContext: forged }), {}, 'a look-alike consumer is not a run')
 })
 

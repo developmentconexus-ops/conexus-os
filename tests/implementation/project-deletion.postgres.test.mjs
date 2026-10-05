@@ -9,7 +9,7 @@ import { waitUntilBlocked } from './race.mjs'
 
 const { admitProject, isInstallationAdministrator } = await import(hubModuleUrl('identity-access/admission.js'))
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
-const { builderProjectPorts } = await import(hubModuleUrl('builder/project-ports.js'))
+const { purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
 const digest = (character) => character.repeat(64)
 const remove = (store, accountId, projectId, confirmName = 'Atlas') => store.deleteProject({ accountId, projectId, confirmName })
 const tombstones = async (connection) => (await query(connection, 'SELECT project_id, name, requested_by, purged_at IS NOT NULL AS purged, completed_at IS NOT NULL AS completed FROM project.project_deletion')).rows
@@ -100,8 +100,9 @@ test('a deletion that fails after the purge resumes on retry, and a crash inside
   const fixture = await setupProjects(t, 'conexus_prj_resume')
   const { connection, database, seedProject } = fixture
   const { createProjectDeletion } = await import(hubModuleUrl('project/deletion.js'))
-  const ports = { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => { if (failing.repository++ === 0) throw new Error('GITHUB_DOWN') } }
-  const deletion = createProjectDeletion({ database, ports, builder: builderProjectPorts })
+  const { purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
+  const ports = { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => { if (failing.repository++ === 0) throw new Error('GITHUB_DOWN') }, purgeConnectorBindings: purgeProjectBindings, purgeBuilder: purgeProjectBuilder }
+  const deletion = createProjectDeletion({ database, ports })
   const projectId = await seedProject('Atlas')
   const seeded = await seedEverything(connection, projectId)
 

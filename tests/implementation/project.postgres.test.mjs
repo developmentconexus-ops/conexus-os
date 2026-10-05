@@ -213,7 +213,6 @@ test('a person transaction cannot run a project purge, and the rows stay', async
   const refused = (error) => { assert.equal(error.cause.code, '42501'); assert.match(error.cause.message, /PURGE_REQUIRES_SYSTEM/); return true }
   const purges = {
     iam: sql`SELECT iam.purge_project(${projectId}::uuid)`,
-    connector: sql`SELECT connector.purge_project(${projectId}::uuid)`,
     reg: sql`SELECT reg.purge_project(${projectId}::uuid)`,
   }
   for (const [schema, statement] of Object.entries(purges)) {

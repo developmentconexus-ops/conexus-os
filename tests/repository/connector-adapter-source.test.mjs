@@ -25,7 +25,7 @@ const stringLiterals = (path) => {
 const SERVICE_NAME = /\b[A-Za-z]+(?:SP|ServiceProvider)\.[A-Za-z]+\b/g
 
 test('G0: the service-name literals across the Sankhya adapter are exactly the two allow-listed reads', () => {
-  assert.ok(files.length >= 4, files.join(','))
+  assert.ok(files.length >= 3, files.join(','))
   const names = new Set(files.flatMap((path) => stringLiterals(path).flatMap((text) => text.match(SERVICE_NAME) ?? [])))
   assert.deepEqual([...names], ['CRUDServiceProvider.loadRecords', 'DbExplorerSP.executeQuery'])
 })
@@ -41,7 +41,7 @@ test('G0: none of the listed write service names appears in the Sankhya adapter 
 test('G0: the gateway carries the wire vocabulary, and the Skill only the read it teaches (C-030), never the authentication path', () => {
   const terms = ['CRUDServiceProvider', 'service.sbr', '/authenticate']
   const wire = Object.fromEntries(files.map((path) => [basename(path), terms.filter((term) => stringLiterals(path).some((text) => text.includes(term)))]))
-  assert.deepEqual(wire, { 'credential.ts': [], 'definition.ts': [], 'gateway.ts': terms, 'read-only-sql.ts': [] })
+  assert.deepEqual(wire, { 'definition.ts': [], 'gateway.ts': terms, 'read-only-sql.ts': [] })
   const skill = readFileSync(resolve(import.meta.dirname, '../../builder-skills/conexus-sankhya/SKILL.md'), 'utf8')
   assert.equal(skill.includes('/authenticate'), false)
   assert.ok(skill.includes('CRUDServiceProvider') && skill.includes('service.sbr'))

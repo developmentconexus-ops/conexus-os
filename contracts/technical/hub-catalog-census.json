@@ -15,24 +15,6 @@
     ],
     "pending": [
       {
-        "table": "connector.connection",
-        "part": 2,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": []
-        }
-      },
-      {
-        "table": "connector.project_binding",
-        "part": 2,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": []
-        }
-      },
-      {
         "table": "iam.application",
         "part": 6,
         "privileges": {
@@ -208,9 +190,9 @@
     ]
   },
   "ceilings": {
-    "ruleFunctions": 102,
+    "ruleFunctions": 62,
     "legacyOwnerPolicies": 6,
-    "runtimePrivileges": 92
+    "runtimePrivileges": 59
   },
   "register": {
     "split": [
@@ -288,6 +270,53 @@
         "compositeKeys": [],
         "keyColumns": [
           "project_id"
+        ]
+      },
+      {
+        "table": "connector.connection",
+        "reader": true,
+        "readerAdmin": true,
+        "readerColumns": [
+          "connection_id",
+          "workspace_id",
+          "connector_id",
+          "label",
+          "created_by",
+          "created_at",
+          "disabled_by",
+          "disabled_at"
+        ],
+        "command": [
+          "INSERT",
+          "SELECT",
+          "UPDATE(disabled_at,disabled_by)"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "connection_id",
+          "workspace_id"
+        ]
+      },
+      {
+        "table": "connector.project_binding",
+        "reader": true,
+        "command": [
+          "DELETE",
+          "INSERT",
+          "SELECT",
+          "UPDATE(unbound_at,unbound_by)"
+        ],
+        "runtime": [],
+        "compositeKeys": [
+          "project_binding_connection_workspace_fkey",
+          "project_binding_project_workspace_fkey"
+        ],
+        "keyColumns": [
+          "binding_id",
+          "connection_id",
+          "project_id",
+          "workspace_id"
         ]
       },
       {
@@ -401,7 +430,6 @@
         "rls.acting_workspaces()"
       ],
       "hub_command": [
-        "connector.purge_project(p_project_id uuid)",
         "iam.lock_administrators()",
         "iam.purge_project(p_project_id uuid)",
         "reg.matches_application_artifact(p_project_id uuid, p_source_revision text, p_artifact_revision_id uuid, p_artifact_digest text)",

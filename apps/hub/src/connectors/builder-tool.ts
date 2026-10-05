@@ -8,7 +8,8 @@ import { BROKER_ERROR_CODES } from './errors.js'
 import { CONNECTOR_FETCH_TOOL, FAILURE_PROJECTION, projectRequest, projectResult } from './fetch-projection.js'
 import { nativeRequestSchema } from './native.js'
 import type { Consumer } from './integrator.js'
-import { revokeScope, scopeForBuilderRun } from './scope.js'
+import { scopeForBuilderRun } from './scope.js'
+import type { ConsumerScope } from './scope.js'
 
 /** A Builder run's reads: the run revokes the scope when it ends, so the lifetime only bounds a run that never ends. */
 const BUILDER_RUN_TERMS = Object.freeze({ ttlMs: 2 * 60 * 60 * 1000, calls: 50 })
@@ -17,13 +18,21 @@ const RUN_CONSUMER_KEY = 'conexusConnectorConsumer'
 
 // Only a consumer this module built reaches the tool, so nothing a request context carries
 // from elsewhere becomes one.
-const runConsumers = new WeakSet<object>()
+class RunConsumer {
+  readonly kind = 'agent'
+  readonly #scope: ConsumerScope
+  constructor(readonly sessionId: string, scope: ConsumerScope) {
+    this.#scope = scope
+  }
 
-const isRunConsumer = (value: unknown): value is Consumer => typeof value === 'object' && value !== null && runConsumers.has(value)
+  get scope(): ConsumerScope {
+    return this.#scope
+  }
+}
 
 const runConsumerOf = (requestContext: RequestContext): Consumer | null => {
   const value = requestContext.getRaw(RUN_CONSUMER_KEY)
-  return isRunConsumer(value) ? value : null
+  return value instanceof RunConsumer ? value : null
 }
 
 export type BuilderConnectorRun = Readonly<{
@@ -40,16 +49,15 @@ export type BuilderConnectorRun = Readonly<{
 }>
 
 export const openBuilderRun = async (
-  { brief, projectId, builderRunId, ports = null }: Readonly<{ brief: ConnectorBrief; projectId: string; builderRunId: string; ports?: HandlerPorts | null }>,
+  { brief, projectId, accountId, builderRunId, ports = null }: Readonly<{ brief: ConnectorBrief; projectId: string; accountId: string; builderRunId: string; ports?: HandlerPorts | null }>,
 ): Promise<BuilderConnectorRun> => {
-  const scope = scopeForBuilderRun(projectId, BUILDER_RUN_TERMS)
-  const consumer: Consumer = Object.freeze({ kind: 'agent', sessionId: builderRunId, scope })
-  runConsumers.add(consumer)
+  const scope = scopeForBuilderRun({ projectId, accountId }, BUILDER_RUN_TERMS)
+  const consumer = new RunConsumer(builderRunId, scope)
   return Object.freeze({
     brief: await brief(scope),
     bind: (requestContext: RequestContext) => requestContext.setRaw(RUN_CONSUMER_KEY, consumer),
     openHandlerPort: async () => (ports ? ports.open(scope) : null),
-    end: () => revokeScope(scope),
+    end: () => scope.revoke(),
   })
 }
 

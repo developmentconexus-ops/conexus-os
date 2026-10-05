@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { WorkspaceId, type AccountId, type ProjectId as ProjectIdType } from '../../../../packages/contract/dist/index.js'
 import { BUILDER_RUN_STATES } from '../generated/builder-run-vocabulary.js'
-import { admitInstallationAdministrator, admitSystem, type Admitted, type SystemScope, type WorkspaceScope } from '../identity-access/admission.js'
+import { admitInstallationAdministrator, admitSystem, type Admitted, type SystemScope } from '../identity-access/admission.js'
 import type { Database, WriteTx } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
@@ -11,16 +11,14 @@ import { Failure } from '../platform/failure.js'
 // by the Project id, so a retry after a crash repeats a finished step for free instead of refusing
 // it. The VMs are killed before the purge, which drops the rows that name them; a VM that fails to
 // die is logged, not a failed deletion.
-/** The Builder's two writes on the Project transactions: each takes the proof of its own job, which is its check. */
-export type BuilderProjectPorts = Readonly<{
-  register(proof: Admitted<WorkspaceScope<'project.create'>>, projectId: ProjectIdType): Promise<void>
-  purge(proof: Admitted<SystemScope<'project-purge'>>, projectId: ProjectIdType): Promise<void>
-}>
-
 export type ProjectDeletionPorts = Readonly<{
   releaseApplicationData(projectId: ProjectIdType): Promise<void>
   killSandboxes(projectId: ProjectIdType): Promise<void>
   deleteRepository(projectId: ProjectIdType): Promise<void>
+  /** Deletes the Project's Connection bindings in the purge transaction, which holds the Project row. */
+  purgeConnectorBindings(proof: Admitted<SystemScope<'project-purge'>>, projectId: ProjectIdType): Promise<void>
+  /** Deletes the Project's runs, working state and repository marker in the purge transaction, after the registry's rows. */
+  purgeBuilder(proof: Admitted<SystemScope<'project-purge'>>, projectId: ProjectIdType): Promise<void>
 }>
 
 type DeleteProjectInput = Readonly<{ accountId: AccountId; projectId: ProjectIdType; confirmName: string }>
@@ -42,7 +40,7 @@ const settled = (tombstone: z.output<typeof Tombstone>, confirmName: string): Re
   return { completed: tombstone.completed_at !== null }
 }
 
-export const createProjectDeletion = ({ database, ports, builder }: Readonly<{ database: Database; ports: ProjectDeletionPorts; builder: BuilderProjectPorts }>) => {
+export const createProjectDeletion = ({ database, ports }: Readonly<{ database: Database; ports: ProjectDeletionPorts }>) => {
   // The administrator's own transaction: account, tenure, then the project row, so a command admitted
   // on the project and this tombstone serialize on that row.
   const begin = ({ accountId, projectId, confirmName }: DeleteProjectInput) => database.transaction(accountId, async (gate) => {
@@ -70,9 +68,9 @@ export const createProjectDeletion = ({ database, ports, builder }: Readonly<{ d
     if (!(await tombstoneOf(tx, projectId))) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_DELETION_NOT_STARTED' } })
     if (await busy(tx, projectId)) throw new Failure('PROJECT_BUSY')
     await tx.run(sql`SELECT iam.purge_project(${projectId})`)
-    await tx.run(sql`SELECT connector.purge_project(${projectId})`)
+    await ports.purgeConnectorBindings(proof, projectId)
     await tx.run(sql`SELECT reg.purge_project(${projectId})`)
-    await builder.purge(proof, projectId)
+    await ports.purgeBuilder(proof, projectId)
     await tx.run(sql`DELETE FROM platform.operation_receipt WHERE operation_id = 'PRJ-03' AND resource_id = ${projectId}`)
     await tx.run(sql`DELETE FROM project.project WHERE project_id = ${projectId}`)
     await tx.run(sql`UPDATE project.project_deletion SET purged_at = coalesce(purged_at, now()) WHERE project_id = ${projectId}`)

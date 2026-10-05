@@ -62,8 +62,8 @@ type BodyOf<S> = S extends z.ZodType ? z.output<S> : S extends null ? undefined 
     etag: string;
 }> : Uint8Array) : never;
 type StatusBody<O extends AnyOperation, S extends number> = S extends keyof O['success'] ? BodyOf<O['success'][S]> : never;
-type IsUnion<T, Each = T> = T extends unknown ? ([Each] extends [T] ? false : true) : never;
-export type Reply<O extends AnyOperation> = IsUnion<Statuses<O>> extends true ? {
+type IsUnion<T, Whole = T> = T extends unknown ? ([Whole] extends [T] ? false : true) : never;
+export type Reply<O extends AnyOperation> = true extends IsUnion<Statuses<O>> ? {
     [S in Statuses<O>]: {
         status: S;
         body: StatusBody<O, S>;

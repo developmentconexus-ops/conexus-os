@@ -4,13 +4,18 @@ import {
   ProjectCard, ProjectId, ProjectName, ProjectRevision, SourceRevision, WorkspaceId, PRJ03,
   type AccountId, type IdempotencyKey, type Input, type ProjectCreated, type ProjectDetail, type ProjectListItem,
 } from '../../../../packages/contract/dist/index.js'
-import { admitWorkspace, isInstallationAdministrator } from '../identity-access/admission.js'
+import { admitWorkspace, isInstallationAdministrator, type Admitted, type WorkspaceScope } from '../identity-access/admission.js'
 import type { Database } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import { complete, reserve } from '../platform/receipt.js'
 import { createProjectDeletion } from './deletion.js'
-import type { BuilderProjectPorts, ProjectDeletionPorts } from './deletion.js'
+import type { ProjectDeletionPorts } from './deletion.js'
+
+/** What the Builder writes on the Project's creation transaction: its proof is the check. */
+export type BuilderProjectPorts = Readonly<{
+  register(proof: Admitted<WorkspaceScope<'project.create'>>, projectId: ProjectId): Promise<void>
+}>
 
 // Gives a Project that does not exist yet its repository in the Conexus Git, with the starter on
 // `main`, and answers `main`. The same Project id always reaches the same repository, so calling it
@@ -154,6 +159,6 @@ export const createProjectStore = ({
             AND ${administrator}
         ) AS combined ORDER BY sort_at DESC, project_id`)).map(toProjectCard)
     }),
-    deleteProject: createProjectDeletion({ database, ports: deletion, builder }).deleteProject,
+    deleteProject: createProjectDeletion({ database, ports: deletion }).deleteProject,
   })
 }

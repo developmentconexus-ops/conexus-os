@@ -9,7 +9,7 @@ import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createHandlerPorts } = await import(hubModuleUrl('connectors/handler-port.js'))
-const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
+const { createBroker, registryOf } = await import(hubModuleUrl('connectors/broker.js'))
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
 const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
@@ -48,16 +48,16 @@ const setup = async (t, { limits, tokenPrefix, lookupDelayMs = 0 } = {}) => {
   const envelope = createSecretEnvelope('ef'.repeat(32))
   const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
   const store = {
-    listBindings: async ({ projectId, environment }) => { await new Promise((resolve) => setTimeout(resolve, lookupDelayMs)); return environment === 'preview' && projectId === PROJECT
+    listBindings: async ({ projectId }) => { await new Promise((resolve) => setTimeout(resolve, lookupDelayMs)); return projectId === PROJECT
       ? [{ bindingId: 'b', name: 'erp', connectionId: CONNECTION, connectorId: 'sankhya' }] : [] },
     readConnectionCredential: async () => sealed,
   }
-  const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }], store, envelope, observability: connectorRecord().observability })
+  const broker = createBroker({ connectors: registryOf([{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }]), store, envelope, observability: connectorRecord().observability })
   const directory = mkdtempSync(join(tmpdir(), 'cx-fetch-'))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
   const ports = createHandlerPorts({ directory, broker, ...(limits ? { limits } : {}) })
   const open = async (projectId = PROJECT) => {
-    const port = await ports.open(scopeFromArtifactSource({ via: 'PREVIEW', projectId }))
+    const port = await ports.open(scopeFromArtifactSource({ via: 'PREVIEW', accountId: '55555555-5555-4555-8555-555555555555', projectId }))
     t.after(() => port.close())
     return port
   }
@@ -148,7 +148,7 @@ test('by default a serialized answer over 256 KiB is RESPONSE_TOO_LARGE', async 
   const directory = mkdtempSync(join(tmpdir(), 'cx-fetch-'))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
   const broker = { fetch: async () => ({ ok: true, status: 200, bytes: 0, body: 'x'.repeat(300 * 1024) }) }
-  const port = await createHandlerPorts({ directory, broker }).open(scopeFromArtifactSource({ via: 'PREVIEW', projectId: PROJECT }))
+  const port = await createHandlerPorts({ directory, broker }).open(scopeFromArtifactSource({ via: 'PREVIEW', accountId: '55555555-5555-4555-8555-555555555555', projectId: PROJECT }))
   t.after(() => port.close())
   assert.deepEqual((await post(port.socketPath, READ)).json, { ok: false, code: 'RESPONSE_TOO_LARGE' })
 })

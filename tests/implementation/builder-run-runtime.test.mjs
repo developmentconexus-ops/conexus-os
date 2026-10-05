@@ -902,7 +902,7 @@ test("the run hands its own Project's connector brief to the session context, an
   const withBrief = await harness(t, { openConnectorRun: async (input) => { opened.push(input); return briefOnly('CONNECTOR_BRIEF_MARKER')() } })
   await withBrief.start()
   await withBrief.service.close()
-  assert.deepEqual(opened, [{ projectId, builderRunId: runId }])
+  assert.deepEqual(opened, [{ projectId, accountId, builderRunId: runId }])
   assert.equal(withBrief.sessionContext.get('conexusConnectorBrief'), 'CONNECTOR_BRIEF_MARKER')
 
   const withoutBrief = await harness(t)
@@ -923,7 +923,7 @@ test("a Project with no binding is told it has no Connection and nothing about a
   const otherProjectId = '55555555-5555-4555-8555-555555555555'
   const otherBinding = { bindingId: '66666666-6666-4666-8666-666666666666', name: 'other-project-binding', connectionId: '77777777-7777-4777-8777-777777777777', connectorId: 'sankhya' }
   const openRun = await connectorRuns({ listBindings: async ({ projectId: asked }) => (asked === otherProjectId ? [otherBinding] : []) })
-  const other = await openRun({ projectId: otherProjectId, builderRunId: runId })
+  const other = await openRun({ projectId: otherProjectId, accountId, builderRunId: runId })
   assert.ok(other.brief.includes('- `other-project-binding`: sankhya (skill `conexus-sankhya`)'), 'the other Project is told its own binding')
 
   const run = await harness(t, { openConnectorRun: openRun })

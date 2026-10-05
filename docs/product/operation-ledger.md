@@ -112,7 +112,7 @@ must agree exactly.
 | `BLD-30` | `LaunchBuilderPreview` | Builder | authorized Project builder + the Project's last good Preview subject and its registry artifact | command |
 | `CON-01` | `ListWorkspaceConnections` | Connector | the Workspace's Connections, never a credential field; installation administrator only | read |
 | `CON-02` | `CreateWorkspaceConnection` | Connector | installation administrator; client-chosen Connection id, idempotent on it, and a retry with this id whose fields differ is a conflict; the credential fields are write-only and never returned | command |
-| `CON-03` | `CheckWorkspaceConnection` | Connector | installation administrator; runs only the Connector's allow-listed authentication, never a provider value in the response | read |
+| `CON-03` | `CheckWorkspaceConnection` | Connector | installation administrator; runs only the Connector's allow-listed authentication, never a provider value in the response | command |
 | `CON-04` | `DisableWorkspaceConnection` | Connector | installation administrator; narrowing, ends the Connection's open bindings, and the rows stay as the record | narrowing command |
 | `CON-08` | `ListProjectConnectionBindings` | Connector | exact Project's open bindings and the Workspace's enabled Connections it has not bound, in one projection; Owner of the Project's Workspace only | read |
 | `CON-09` | `BindProjectConnection` | Connector | exact Project + one enabled Connection of its own Workspace, under a Project-local name; Owner of the Project's Workspace only; the same Connection under the same name answers the open binding, and the Connection under another name or the name on another Connection is a conflict | command |

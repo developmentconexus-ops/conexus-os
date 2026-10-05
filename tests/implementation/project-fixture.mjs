@@ -8,7 +8,8 @@ import { hubModuleUrl } from './hub-build.mjs'
 const { openDatabase } = await import(hubModuleUrl('platform/db.js'))
 const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
 const { createProjectDeletion } = await import(hubModuleUrl('project/deletion.js'))
-const { builderProjectPorts } = await import(hubModuleUrl('builder/project-ports.js'))
+const { builderProjectPorts, purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
+const { purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
 
 export const ID = Object.freeze({
   owner: '10000000-0000-4000-8000-000000000001',
@@ -48,10 +49,12 @@ export const setupProjects = async (t, prefix, { repository } = {}) => {
     releaseApplicationData: async () => { events.push('release') },
     killSandboxes: async () => { events.push('kill') },
     deleteRepository: async () => { events.push('repository') },
+    purgeConnectorBindings: purgeProjectBindings,
+    purgeBuilder: purgeProjectBuilder,
   }
   const repositoryPort = repository ?? { prepare: async () => STARTER }
   const store = createProjectStore({ database, repository: repositoryPort, deletion: ports, builder: builderProjectPorts })
-  const deletion = createProjectDeletion({ database, ports, builder: builderProjectPorts })
+  const deletion = createProjectDeletion({ database, ports })
   const seedProject = async (name = 'Atlas', workspaceId = ID.workspace) => {
     const projectId = randomUUID()
     await query(connection, `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)

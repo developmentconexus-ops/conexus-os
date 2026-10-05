@@ -36,6 +36,14 @@ const seed = async (fixture) => {
     a: await seedSession(connection, projects.a),
     b: await seedSession(connection, projects.b),
   }
+  const connections = { a: '33333333-3333-4333-8333-0000000000a1', b: '33333333-3333-4333-8333-0000000000b1' }
+  const sealed = 'mastra:factory-secret:v1:seed'
+  const digest = 'd'.repeat(64)
+  await query(connection, `INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by) VALUES
+    ($1, $3, 'sankhya', 'ERP A', $5, $7, $4), ($2, $6, 'sankhya', 'ERP B', $5, $7, $4)`, [connections.a, connections.b, ID.workspace, ID.administrator, sealed, ID.otherWorkspace, digest])
+  const bindings = { a: '44444444-4444-4444-8444-0000000000a1', b: '44444444-4444-4444-8444-0000000000b1' }
+  await query(connection, `INSERT INTO connector.project_binding(binding_id, workspace_id, project_id, environment, connection_id, name, bound_by) VALUES
+    ($1, $3, $5, 'preview', $7, 'erp', $9), ($2, $4, $6, 'preview', $8, 'erp', $10)`, [bindings.a, bindings.b, ID.workspace, ID.otherWorkspace, projects.a, projects.b, connections.a, connections.b, ID.owner, OTHER.owner])
   const runs = async (projectId) => (await query(connection, 'SELECT builder_run_id::text AS key FROM builder.builder_run WHERE project_id = $1', [projectId])).rows.map((row) => row.key)
   const memberKeys = { a: [ID.owner, ID.member, ID.memberAdministrator], b: [OTHER.owner, OTHER.member] }
   return {
@@ -47,8 +55,13 @@ const seed = async (fixture) => {
     'builder.conversation_session': sessions,
     'iam.workspace_membership': memberKeys,
     'iam.account': memberKeys,
+    'connector.connection': { a: [connections.a], b: [connections.b] },
+    'connector.project_binding': { a: [bindings.a], b: [bindings.b] },
   }
 }
+
+const OWNER_ONLY = Object.freeze(['connector.connection', 'connector.project_binding'])
+const readerOf = (table, workspace) => (OWNER_ONLY.includes(table) ? { a: ID.owner, b: OTHER.owner }[workspace] : { a: ID.member, b: OTHER.member }[workspace])
 
 const KEY_COLUMN = {
   'workspace.workspace': 'workspace_id',
@@ -59,6 +72,8 @@ const KEY_COLUMN = {
   'builder.conversation_session': 'conversation_id',
   'iam.workspace_membership': 'account_id',
   'iam.account': 'account_id',
+  'connector.connection': 'connection_id',
+  'connector.project_binding': 'binding_id',
 }
 
 const readableTables = async (connection) => (await query(connection, `SELECT n.nspname || '.' || c.relname AS table_name FROM pg_class c
@@ -79,15 +94,16 @@ test('every table hub_reader can SELECT is seeded, and a member of one workspace
   for (const table of tables) {
     const { a, b } = seeded[table]
     assert.ok(a.length > 0 && b.length > 0, `${table} is seeded in both workspaces`)
-    assert.deepEqual(await visibleKeys(fixture.database, ID.member, table), [...a].sort(), `${table}: a member of A reads exactly A's rows`)
-    assert.deepEqual(await visibleKeys(fixture.database, OTHER.member, table), [...b].sort(), `${table}: a member of B reads exactly B's rows`)
+    assert.deepEqual(await visibleKeys(fixture.database, readerOf(table, 'a'), table), [...a].sort(), `${table}: a reader of A reads exactly A's rows`)
+    assert.deepEqual(await visibleKeys(fixture.database, readerOf(table, 'b'), table), [...b].sort(), `${table}: a reader of B reads exactly B's rows`)
+    if (OWNER_ONLY.includes(table)) assert.deepEqual(await visibleKeys(fixture.database, ID.member, table), [], `${table}: a member who is not an owner reads nothing`)
   }
 })
 
 test('an installation administrator who belongs to neither workspace reads the deletions of both and no other tenant row', async (t) => {
   const fixture = await setupProjects(t, 'conexus_cross_tenant_admin')
   const seeded = await seed(fixture)
-  const REACH = ['project.project_deletion']
+  const REACH = ['project.project_deletion', 'connector.connection']
   for (const table of await readableTables(fixture.connection)) {
     const expected = REACH.includes(table) ? [...seeded[table].a, ...seeded[table].b].sort() : table === 'iam.account' ? [ID.administrator] : []
     assert.deepEqual(await visibleKeys(fixture.database, ID.administrator, table), expected, table)
@@ -99,4 +115,9 @@ test('the reader positive control: a policy that is false for every row fails th
   const seeded = await seed(fixture)
   await query(fixture.connection, 'ALTER POLICY reader ON workspace.workspace USING (false)')
   assert.notDeepEqual(await visibleKeys(fixture.database, ID.member, 'workspace.workspace'), [...seeded['workspace.workspace'].a])
+  for (const table of OWNER_ONLY) {
+    assert.deepEqual(await visibleKeys(fixture.database, ID.owner, table), seeded[table].a, `${table} reads for its owner before the policy is broken`)
+    await query(fixture.connection, `ALTER POLICY reader ON ${table} USING (false)`)
+    assert.deepEqual(await visibleKeys(fixture.database, ID.owner, table), [], `${table} reads nothing once its reader policy is false`)
+  }
 })

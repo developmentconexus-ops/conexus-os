@@ -236,3 +236,30 @@ test('a register key column that is not a column of the table is named', () => {
     input.census.register.split[0].keyColumns = ['workspace_id', 'tenant_id']
   }), [`${WORKSPACE} register names key column tenant_id, which does not exist`])
 })
+
+const CONNECTION = 'connector.connection'
+const CONNECTION_COLUMNS = ['connection_id', 'workspace_id', 'connector_id', 'label', 'created_by', 'created_at', 'disabled_by', 'disabled_at']
+const connectorCatalog = (input, { readerColumns = CONNECTION_COLUMNS } = {}) => {
+  const commandColumns = new Set(['disabled_at', 'disabled_by'])
+  input.catalog.relation = [relation(CONNECTION, [['hub_command', 'INSERT'], ['hub_command', 'SELECT']])]
+  input.catalog.column = [...new Set([...readerColumns, ...commandColumns])].map((name) => column(CONNECTION, name, [
+    ...(readerColumns.includes(name) ? [['hub_reader', 'SELECT']] : []),
+    ...(commandColumns.has(name) ? [['hub_command', 'UPDATE']] : []),
+  ]))
+  input.catalog.policy = [
+    policy(CONNECTION, 'reader', 'r', 'hub_reader', 'rls.acting_account() IS NOT NULL'),
+    policy(CONNECTION, 'reader_admin', 'r', 'hub_reader', 'rls.acting_account() IS NOT NULL'),
+    policy(CONNECTION, 'command', '*', 'hub_command'),
+  ]
+  input.census.register.split = [{ table: CONNECTION, reader: true, readerAdmin: true, readerColumns: CONNECTION_COLUMNS, command: ['INSERT', 'SELECT', 'UPDATE(disabled_at,disabled_by)'], runtime: [], compositeKeys: [], keyColumns: ['connection_id', 'workspace_id'] }]
+}
+
+test('the Connector register row passes with a column reader grant and its two reader policies', () => {
+  assert.deepEqual(lint((input) => connectorCatalog(input)), [])
+})
+
+test('a reader grant on a credential column of connector.connection is named', () => {
+  assert.deepEqual(lint((input) => connectorCatalog(input, { readerColumns: [...CONNECTION_COLUMNS, 'credential_sealed'] })), [
+    `${CONNECTION} gives hub_reader SELECT(connection_id,connector_id,created_at,created_by,credential_sealed,disabled_at,disabled_by,label,workspace_id), and the reader may only SELECT(connection_id,connector_id,created_at,created_by,disabled_at,disabled_by,label,workspace_id)`,
+  ])
+})

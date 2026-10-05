@@ -362,7 +362,7 @@ test('connector_fetch reaches a turn whose request context carries a run the Con
     bind?.(requestContext)
     return Object.keys(await agent.listTools({ requestContext })).filter((name) => name === 'connector_fetch')
   }
-  const run = await openBuilderRun({ brief: async () => '', projectId: '22222222-2222-4222-8222-222222222222', builderRunId: '11111111-1111-4111-8111-111111111111' })
+  const run = await openBuilderRun({ brief: async () => '', accountId: '55555555-5555-4555-8555-555555555555', projectId: '22222222-2222-4222-8222-222222222222', builderRunId: '11111111-1111-4111-8111-111111111111' })
   assert.deepEqual([await toolsFor(run.bind), await toolsFor()], [['connector_fetch'], []])
 })
 
