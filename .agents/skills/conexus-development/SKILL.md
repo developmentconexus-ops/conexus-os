@@ -5,17 +5,18 @@ description: This skill should be used for any development session in the Conexu
 
 # Conexus development
 
-This skill routes Conexus OS work to the right flow and says what good code looks like here. It owns
-no delivery rule: [`delivery.md`](../../../docs/development/delivery.md) owns lanes, gates, labels,
-proof and merge, and wins any disagreement. The roadmap and GitHub own status.
+This skill routes Conexus OS work: which flow, which guides, when to stop. It holds no rule. The
+nine guides hold the rules, one subject each, and [delivery](../../../docs/development/delivery.md)
+says which method wins when the jm steps and the pstack playbooks disagree. The roadmap and GitHub
+own status.
 
 ## Start from zero
 
 1. Read the root `AGENTS.md`. Chat, handoffs and memory are orientation, never authority.
 2. Work in a WSL worktree per [`references/wsl-environment.md`](references/wsl-environment.md), then
    run `npm run conexus:preflight`.
-3. Read [`docs/roadmap.md`](../../../docs/roadmap.md) for the current work, and `delivery.md` to
-   pick the lane ([`references/work-routes.md`](references/work-routes.md)).
+3. Read [`docs/roadmap.md`](../../../docs/roadmap.md) for the current work, and
+   [delivery](../../../docs/development/delivery.md#pick-the-lane-by-risk) to pick the lane.
 4. Load Poteto Mode if the session has it, and the [`mastra`](../mastra/SKILL.md) skill before any
    claim about Mastra.
 
@@ -33,42 +34,50 @@ notes. Each step names what to do and the skill that does it when the session ha
 | A pull request to judge | Review |
 | Any web, Builder or Preview screen | Frontend, on top of the flow above |
 
+## Read the guides
+
+C, the [codebase principles](../../../docs/development/codebase-principles.md), always. P, the
+[product contract](../../../docs/product/contract.md), whenever the promise to the person is in
+play. Then by task and state:
+
+| Task | Spec | Build | Proof |
+| --- | --- | --- | --- |
+| Database | A, D, S, T, L | D, S, T | A, D, S, T, L |
+| Hub API | A, H, S, T, L | H, S, T | A, H, S, T, L |
+| Screen | P, V, A, T, L | P, V, T | P, V, A, T, L |
+| Agent or Mastra | A, S, T, L | A, S, T | A, S, T, L |
+| Infra | A, S, T, L | A, S, T | A, S, T, L |
+| Docs only | the subject's guide, and L if it changes process | the subject's guide | every guide touched, and L |
+
+A mixed task reads the union; a screen that changes a request adds H, an API change that changes
+persistence adds D, and the Agent row loads the `mastra` skill. Merge reads L and every guide the
+diff touched. The guides: [A](../../../docs/reference/architecture.md),
+[D](../../../docs/reference/database.md), [S](../../../docs/reference/security-and-authority.md),
+[H](../../../docs/product/wire-contract.md), [V](../../../DESIGN.md),
+[T](../../../docs/development/testing.md), [L](../../../docs/development/delivery.md).
+[`areas.json`](../../../docs/development/review/areas.json) maps each path to its guides.
+
 ## Before writing code
 
 1. Name the data shape and the one place that owns it.
 2. Read how Mastra's own products (Factory, Mastra Code) do the same thing, not only the API.
 3. Read the whole lifecycle you touch, not the lines around the symptom.
-4. Check the decided shapes and the never-list in [`references/shapes.md`](references/shapes.md),
-   and the [decision register](../../../docs/decisions/index.md).
+4. Check the [decision register](../../../docs/decisions/index.md).
 5. Say what the change deletes. Code stays because it is needed, never because it exists.
-6. Meet the [codebase principles](../../../docs/development/codebase-principles.md).
 
 Find the facts with [`references/evidence.md`](references/evidence.md): telemetry, Mastra's spans,
 the logs, the verify harness and the reference code. Measure before you guess.
 
 ## Stop and report when
 
-A [never-list](references/shapes.md#never) item would break, or a
-[stop condition](../../../docs/development/delivery.md#stop-then-escalate) in `delivery.md` holds.
-
-Stop means: no more code, a comment on the issue with the evidence, and the question for the
-operator.
-
-## Ship
-
-- Before every push, run `npm run verify:quick` and the checks the change touches. CI runs the full
-  `verify` at the head SHA; do not run it locally.
-- Remove worktrees only with `npm run worktree:reap`.
-- Conventional commits and a pull request against `main` that links its issue.
+A [never-list](../../../docs/development/codebase-principles.md#never) item would break, or a
+[stop condition](../../../docs/development/delivery.md#stop-then-escalate) holds. Stop means: no
+more code, a comment on the issue with the evidence, and the question for the operator.
 
 ## Delegate
 
 The session that plans the work picks who writes code and reads every delegate's diff. A delegate
-prompt loads Poteto Mode and the [`mastra`](../mastra/SKILL.md) skill, points at files, names its
-worktree and its disjoint file set, forbids merge, reset, clean, stash, force-push and
-`git worktree prune`, and says to stop on a material fork.
-
-## Keep state out of this skill
-
-Status, SHAs, dates and next actions live in `docs/roadmap.md` and GitHub. A handoff names the
-repository, branch, expected head and issue, and a fresh session still starts from zero.
+prompt loads Poteto Mode and the [`mastra`](../mastra/SKILL.md) skill, points at files and at the
+guides the table names, names its worktree and its disjoint file set, forbids merge, reset, clean,
+stash, force-push and `git worktree prune`, and says to stop on a material fork. Remove worktrees
+only with `npm run worktree:reap`.

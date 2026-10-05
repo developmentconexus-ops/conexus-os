@@ -147,7 +147,7 @@ test('a question a stopped Hub left open is denied at the next send of a new Hub
   await next.release()
 })
 
-// The removal trigger of a Mastra boundary exception (docs/reference/mastra-boundary.md, item 18).
+// The removal trigger of a Mastra boundary exception (docs/reference/mastra/boundary.md, item 18).
 // Mastra 1.71 keeps the `agentic-loop` registration and the snapshot rows of a suspended run that an
 // abort ends, and the Hub releases them in apps/hub/src/builder/mastra-leftovers.ts
 // (https://github.com/mastra-ai/mastra/issues/25903). When this fails, an upgrade fixed it: that

@@ -78,7 +78,7 @@ test('one account per person per provider, and at most one shared account per pr
   )
 
   // No Hub role reaches the table directly, only the granted functions: the invariant every
-  // schema in this catalog holds (docs/reference/hub-database-roles.md).
+  // schema in this catalog holds (contracts/technical/hub-database-roles.json).
   const direct = await refusalAs(connectionString, 'hub_model_account', 'SELECT 1 FROM model.model_account LIMIT 1')
   assert.equal(direct.code, '42501')
 })

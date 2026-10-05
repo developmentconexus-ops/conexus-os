@@ -1,12 +1,10 @@
 # contracts
 
-The wire contracts. `api/product/` is the Product HTTP API in OpenAPI, `api/technical/` the technical ingress, and `technical/` the Hub's database role register and catalog snapshot. [`wire-contract.md`](../docs/product/wire-contract.md) owns the rules these files follow.
+The wire contracts. `api/product/` is the Product HTTP API in OpenAPI, `api/technical/` the technical ingress, and `technical/` the Hub's database role register and catalog snapshot. [`wire-contract.md`](../docs/product/wire-contract.md) owns the rules these files follow, and [database](../docs/reference/database.md) the role register.
 
 ## Traps
 
 - `api/product/openapi.yaml` lists every path by an explicit `$ref`. An operation added to a `*-paths.yaml` file alone is invisible. `npm run wire:bijection` fails on it.
-- A contract change and its [`operation-ledger.md`](../docs/product/operation-ledger.md) row go in one commit.
-- The Hub routes in `apps/hub/src/generated/` and the web clients in `apps/web/src/generated/` come from `openapi.yaml`. Regenerate them in the same commit with `npm run generate`; CI fails when running it changes a tracked or new file.
 - `technical/builder-run-vocabulary.json` is the one list of Builder run states, phases and result kinds. The Hub and the web import the copies `node scripts/generate-builder-run-vocabulary.mjs` writes into their `src/generated/`; a change also needs a migration for the matching `builder_run` CHECK constraint, and `tests/repository/builder-run-vocabulary.test.mjs` names every list still behind.
 - `technical/hub-catalog-snapshot.json` is written only by `npm run db:catalog:snapshot`. `technical/hub-database-roles.json` is the one role register. After you change it, run `npm run db:roles:generate`.
 
@@ -21,4 +19,4 @@ npm run db:catalog:check     # needs PostgreSQL
 
 ## Review
 
-Review: load the pages [`areas.json`](../docs/development/review/areas.json) maps your paths to.
+Review: load the guides [`areas.json`](../docs/development/review/areas.json) maps your paths to.

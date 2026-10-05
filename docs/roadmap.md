@@ -56,7 +56,7 @@ Current delivered base includes:
 - compile, smoke and Preview;
 - source/code/change inspection surfaces.
 
-C-032 supersedes the former Factory-centered boundary in C-022. The single-owner map owns every concept shared by Conexus and Factory.
+C-032 supersedes the former Factory-centered boundary in C-022. The [architecture guide](reference/architecture.md#one-owner-per-concept) names the owner of each concept.
 
 Historical tasks and evidence remain records. They are not current execution paths.
 
@@ -64,9 +64,8 @@ Historical tasks and evidence remain records. They are not current execution pat
 
 The operator accepted the Stage 2 direction after an architecture review and an independent GPT-6 Astra challenge.
 
-C-028 records the decision. The technical target and qualification program live in:
-
-[Stage 2 managed application platform](reference/stage2-managed-application-platform.md)
+C-028 records the decision. The [architecture guide](reference/architecture.md) holds its technical
+shape; the qualification gates are below.
 
 The initial realization is deliberately a managed application platform:
 
@@ -222,7 +221,7 @@ conversation. Building it may come after Q5.
 
 ## Technology baseline
 
-A dependency enters only under the [technology rule](development/delivery.md#technology-rule).
+A dependency enters only under the [dependency rule](reference/architecture.md#dependencies).
 Current baseline and challenger state:
 
 - Fastify, Node, Zod/Ajv and pg: baseline mechanisms for Q1 where applicable;
@@ -275,7 +274,7 @@ the Builder uses.
 | `@mastra/mcp` 2.1.0 | The Builder's two Context7 documentation tools, through one Hub-owned adapter that allows one host | The model's memory of a library is stale. The adapter needs the internet, and no real Context7 call ran in the proof | [Task](tasks/builder-context7-qualification.md) | Hand-written HTTP to Context7 copies the MCP protocol that Mastra already maintains |
 
 Every application-architecture gate follows the
-[Builder proof rule](development/delivery.md#builder-proof-rule).
+[Builder proof rule](development/testing.md#builder-proof).
 
 ## Stage 2 lie detector
 
@@ -311,14 +310,13 @@ These return only through a named real consumer and their own qualification.
 Q1 to Q5 prove one thin journey end to end. They do not make Conexus a finished platform. The
 operator agreed this order on 2026-09-23 as a plan, not a commitment. Each step becomes a task only
 after the step before it has a verdict, and each technology enters only under the
-[technology rule](development/delivery.md#technology-rule), with its own consumer.
+[dependency rule](reference/architecture.md#dependencies), with its own consumer.
 
 "Code harness" here means the paved road of ready pieces the Builder assembles inside the managed
-profile. The general software-development harness of the
-[Stage 2 reference](reference/stage2-managed-application-platform.md#1-why-this-exists), a second
+profile. The general software-development harness, a second
 application profile with a backend per Project, is a different thing and stays future.
 
-| Order | Step | Candidates from the [technology queue](reference/stage2-managed-application-platform.md#7-technology-qualification-queue) | Enters when |
+| Order | Step | Candidates from the [technology baseline](#technology-baseline) | Enters when |
 | --- | --- | --- | --- |
 | 1 | Code harness: events, React UI library, auth, roles and users, audit, telemetry, an implementation guide, and a set of global Conexus skills (server, identity, connectors, frontend) | Fastify, Zod and `pg` already selected. oRPC if handlers need end-to-end typed procedures. Drizzle or Prisma only if SQL-first fails | Stage 2 closes |
 | 2 | Application templates built from the harness | None new | The harness has its first pieces |

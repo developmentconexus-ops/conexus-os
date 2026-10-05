@@ -1,10 +1,11 @@
-# Mastra Reference
+# Mastra reference
 
-Mastra is an execution aid and runtime substrate, never Conexus OS Product or architecture authority.
+Evidence about Mastra, read for the claim at hand. The rule that governs Mastra use is
+[native first](../architecture.md#native-first); the installed packages and the `mastra` skill are
+the truth for any version-specific claim.
 
-- [current-mapping.md](current-mapping.md): exact owner/mechanism mapping.
-- [framework-findings.md](framework-findings.md): accepted framework-native rebaseline and rejected assumptions.
-- [qualification-and-reopen-triggers.md](qualification-and-reopen-triggers.md): Evidence map, limits, and future triggers.
-
-For Mastra-sensitive execution, load `.agents/skills/mastra/SKILL.md`, consult current Context7 documentation, and decide version-specific claims from exact pinned source and bounded Evidence.
-
+- [boundary.md](boundary.md): each place the Hub meets Mastra beyond its plain API, with the decision,
+  the evidence and the upstream proposal.
+- [framework-findings.md](framework-findings.md) and
+  [qualification-and-reopen-triggers.md](qualification-and-reopen-triggers.md): an earlier
+  framework qualification, kept as historical evidence.

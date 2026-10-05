@@ -1,7 +1,7 @@
 import type { AgentController } from '@mastra/core/agent-controller'
 
 /**
- * A documented exception to the Mastra boundary (docs/reference/mastra-boundary.md, item 18), and the
+ * A documented exception to the Mastra boundary (docs/reference/mastra/boundary.md, item 18), and the
  * only file in the Hub that calls `__unregisterInternalWorkflow` or deletes Mastra workflow snapshots;
  * the census in scripts/census-builder-run.mjs fails on any other caller.
  *

@@ -4,7 +4,7 @@
     "paths": [
       "**"
     ],
-    "page": "docs/development/review/mastra-native.md",
+    "guides": ["A"],
     "flows": []
   },
   {
@@ -29,7 +29,7 @@
       "apps/hub/src/platform/secrets.ts",
       "scripts/confine-application-cluster.mjs"
     ],
-    "page": "docs/development/review/identity-session.md",
+    "guides": ["S"],
     "flows": [
       {
         "id": "identity.sign-out-asks-password",
@@ -44,7 +44,7 @@
     "paths": [
       "apps/hub/migrations/**"
     ],
-    "page": "docs/development/review/data-migrations.md",
+    "guides": ["D"],
     "flows": []
   },
   {
@@ -76,7 +76,7 @@
       "docs/tasks/specs/0006-people-and-sign-in/**",
       "docs/tasks/specs/0008-configuration-model/**"
     ],
-    "page": "docs/development/review/data-migrations.md",
+    "guides": ["D"],
     "flows": []
   },
   {
@@ -109,7 +109,7 @@
       "tests/implementation/model-account-*",
       "tests/implementation/builder-conexus-git*"
     ],
-    "page": "docs/development/review/connectors.md",
+    "guides": ["S", "H"],
     "flows": []
   },
   {
@@ -125,11 +125,11 @@
       "tests/implementation/preview-form-policy.browser.test.mjs",
       "tests/repository/web-style.test.mjs"
     ],
-    "page": "docs/development/review/frontend.md",
+    "guides": ["V", "P"],
     "flows": []
   },
   {
-    "area": "builder-factory",
+    "area": "builder",
     "paths": [
       "apps/hub/src/builder/**",
       "apps/hub/compiler-template/**",
@@ -139,7 +139,7 @@
       "tests/implementation/builder-*",
       "tests/implementation/builder-skills-guard.test.mjs"
     ],
-    "page": "docs/development/review/builder-factory.md",
+    "guides": ["A", "T"],
     "flows": [
       {
         "id": "builder.ask-and-answer",
@@ -205,7 +205,7 @@
       "tests/repository/wire-bijection-gate.test.mjs",
       "tests/implementation/project-disclosure.test.mjs"
     ],
-    "page": "docs/development/review/contracts.md",
+    "guides": ["H"],
     "flows": []
   },
   {
@@ -256,7 +256,7 @@
       "tests/implementation/hub-launch-flags.test.mjs",
       "docs/tasks/specs/0008-configuration-model/**"
     ],
-    "page": "docs/development/review/platform.md",
+    "guides": ["A", "T"],
     "flows": [
       {
         "id": "project.delete-wrong-name",

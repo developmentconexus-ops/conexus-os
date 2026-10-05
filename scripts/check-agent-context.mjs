@@ -7,27 +7,43 @@ const ROOT_FILES = new Set(['README.md', 'CONTRIBUTING.md', 'docs/index.md', 'do
 // The Mastra skill is the upstream skill as published; its commands address a Mastra project, not this one.
 const VENDORED = ['.agents/skills/mastra/']
 
+// Each guide is the one owner of its subject, with a byte cap on the whole file.
+export const GUIDES = Object.freeze({
+  C: { path: 'docs/development/codebase-principles.md', kib: 8 },
+  A: { path: 'docs/reference/architecture.md', kib: 8 },
+  L: { path: 'docs/development/delivery.md', kib: 10 },
+  D: { path: 'docs/reference/database.md', kib: 8 },
+  H: { path: 'docs/product/wire-contract.md', kib: 8 },
+  S: { path: 'docs/reference/security-and-authority.md', kib: 12 },
+  P: { path: 'docs/product/contract.md', kib: 12 },
+  V: { path: 'DESIGN.md', kib: 12 },
+  T: { path: 'docs/development/testing.md', kib: 6 },
+})
+const GUIDE_PATHS = new Set(Object.values(GUIDES).map(guide => guide.path))
+
 export function inScope(path) {
   if (VENDORED.some(prefix => path.startsWith(prefix))) return false
-  return ROOT_FILES.has(path) || /(^|\/)AGENTS\.md$/.test(path)
+  return ROOT_FILES.has(path) || GUIDE_PATHS.has(path) || /(^|\/)AGENTS\.md$/.test(path)
     || (/^(\.agents\/skills|docs\/development)\//.test(path) && path.endsWith('.md'))
 }
 
 const LINES = { unit: 'lines', measure: text => text.replace(/\n$/, '').split('\n').length }
 const CHARACTERS = { unit: 'characters', measure: text => text.length }
+const BYTES = { unit: 'bytes', measure: text => Buffer.byteLength(text) }
 const NEVER_ITEMS = { unit: 'never-list items', measure: text => text.split('\n').filter(line => line.startsWith('- **Never ')).length }
 
 // Mastra caps a package AGENTS.md at 500 tokens (tokenx estimateTokenCount). tokenx 2.1.0 on Mastra's and
 // our AGENTS.md files measured 0.237 to 0.270 tokens per character, so 1800 characters stays under 500.
 const NESTED_AGENTS_CHARACTERS = 1800
 
-// First match wins.
+// Every matching cap applies.
 export const SIZE_CAPS = Object.freeze([
+  ...Object.values(GUIDES).map(({ path, kib }) => ({ match: candidate => candidate === path, ...BYTES, max: kib * 1024 })),
   { match: path => path === 'AGENTS.md', ...LINES, max: 60 },
   { match: path => path.endsWith('/AGENTS.md'), ...CHARACTERS, max: NESTED_AGENTS_CHARACTERS, note: 'about 500 tokens' },
   { match: path => path.endsWith('/SKILL.md'), ...LINES, max: 90 },
-  { match: path => path === 'docs/development/delivery.md', ...LINES, max: 150 },
-  { match: path => path === '.agents/skills/conexus-development/references/shapes.md', ...NEVER_ITEMS, max: 15 },
+  { match: path => path === GUIDES.L.path, ...LINES, max: 150 },
+  { match: path => path === GUIDES.C.path, ...NEVER_ITEMS, max: 15 },
 ])
 
 // GitHub's heading anchor: lowercase, punctuation dropped, each whitespace character a hyphen.
@@ -63,10 +79,9 @@ export function checkFile(path, text, { root, scripts }) {
   const findings = []
   const report = (number, message) => findings.push({ where: number ? `${path}:${number}` : path, message })
 
-  const cap = SIZE_CAPS.find(rule => rule.match(path))
-  const size = cap?.measure(text)
-  if (cap && size > cap.max) {
-    report(0, `${size} ${cap.unit} exceeds the cap of ${cap.max}${cap.note ? ` (${cap.note})` : ''}`)
+  for (const cap of SIZE_CAPS.filter(rule => rule.match(path))) {
+    const size = cap.measure(text)
+    if (size > cap.max) report(0, `${size} ${cap.unit} exceeds the cap of ${cap.max}${cap.note ? ` (${cap.note})` : ''}`)
   }
 
   for (const { line, number, fenced } of linesOf(text)) {
@@ -106,6 +121,15 @@ export function checkWorkflows(tracked, root) {
   })
 }
 
+// Every review area names the guides that judge its paths.
+export const AREAS = 'docs/development/review/areas.json'
+export function checkAreas(text) {
+  return JSON.parse(text).flatMap(({ area, guides }) => {
+    if (!Array.isArray(guides) || guides.length === 0) return [{ where: AREAS, message: `area ${area} names no guide` }]
+    return guides.filter(id => !Object.hasOwn(GUIDES, id)).map(id => ({ where: AREAS, message: `area ${area} names ${id}, which is not a guide` }))
+  })
+}
+
 export function checkRepository(root) {
   const scripts = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).scripts ?? {}
   const tracked = [...new Set(execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: root, encoding: 'utf8' })
@@ -114,6 +138,7 @@ export function checkRepository(root) {
   const findings = [
     ...files.flatMap(path => checkFile(path, readFileSync(join(root, path), 'utf8'), { root, scripts })),
     ...checkWorkflows(tracked, root),
+    ...checkAreas(readFileSync(join(root, AREAS), 'utf8')),
   ]
   return { files: files.length, findings }
 }

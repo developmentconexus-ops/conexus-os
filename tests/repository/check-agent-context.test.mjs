@@ -15,6 +15,7 @@ const baseFiles = {
   'package.json': '{"name":"conexus-os","private":true,"scripts":{"repository:check":"node check.mjs","verify":"node verify.mjs"}}\n',
   'AGENTS.md': '# Agents\n\nTrunk is `main`.\nCI runs `npm run verify`.\n',
   [DELIVERY]: '# Delivery\n\n## Merge gate\n\nRead [AGENTS](../../AGENTS.md) and [the gate](#merge-gate).\nRun `npm run repository:check`.\n',
+  'docs/development/review/areas.json': '[{"area":"web","paths":["apps/web/**"],"guides":["V","P"]}]\n',
 }
 
 const fixture = (context, overrides = {}) => {
@@ -111,7 +112,7 @@ test('a skill over 90 lines fails, the conexus-development skill included', cont
 })
 
 test('the never-list passes at 15 items and fails at 16', context => {
-  const shapes = '.agents/skills/conexus-development/references/shapes.md'
+  const shapes = 'docs/development/codebase-principles.md'
   const items = count => `${Array.from({ length: count }, (_, index) => `- **Never do ${index}.** Instead do the other.`).join('\n')}\n`
   assert.equal(run(fixture(context, { [shapes]: items(15) })).status, 0)
   const result = run(fixture(context, { [shapes]: items(16) }))
@@ -124,4 +125,29 @@ test('the vendored Mastra skill is not checked against this package.json', conte
   const result = run(candidate)
   assert.equal(result.status, 0, result.stderr)
   assert.equal(result.stdout, 'Agent context checks passed (files=2).\n')
+})
+
+test('a guide passes at its byte cap and fails one byte over', context => {
+  const guide = 'docs/development/codebase-principles.md'
+  assert.equal(run(fixture(context, { [guide]: `${'x'.repeat(8191)}\n` })).status, 0)
+  const result = run(fixture(context, { [guide]: `${'x'.repeat(8192)}\n` }))
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, `error ${guide}: 8193 bytes exceeds the cap of 8192\n`)
+})
+
+test('the delivery guide carries a line cap and a byte cap, and each fails on its own', context => {
+  const longLines = `${Array.from({ length: 120 }, () => 'x'.repeat(99)).join('\n')}\n`
+  const tooManyLines = run(fixture(context, { [DELIVERY]: lines(151) }))
+  assert.equal(tooManyLines.status, 1)
+  assert.equal(tooManyLines.stderr, `error ${DELIVERY}: 151 lines exceeds the cap of 150\n`)
+  const tooManyBytes = run(fixture(context, { [DELIVERY]: longLines }))
+  assert.equal(tooManyBytes.status, 1)
+  assert.equal(tooManyBytes.stderr, `error ${DELIVERY}: 12000 bytes exceeds the cap of 10240\n`)
+})
+
+test('an area that names no guide, or a guide that does not exist, fails', context => {
+  const areas = 'docs/development/review/areas.json'
+  const result = run(fixture(context, { [areas]: '[{"area":"web","paths":["apps/web/**"],"guides":["V","X"]},{"area":"hub","paths":["apps/hub/**"],"page":"old.md"}]\n' }))
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, `error ${areas}: area web names X, which is not a guide\nerror ${areas}: area hub names no guide\n`)
 })

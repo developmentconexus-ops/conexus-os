@@ -1,478 +1,95 @@
-# Conexus OS wire contract
-
-This file owns the rules the machine-readable wire artifacts must follow.
-[The operation ledger](operation-ledger.md) owns the census of 18 operations that the
-wire carries, [the product contract](contract.md) owns product meaning, and
-[the roadmap](../roadmap.md) owns status.
-
-Neither this prose nor generated code may invent meaning the ledger does not admit.
-
-## 1. Representation decision
-
-The wire uses:
-
-```text
-HTTP Product wire authority = OpenAPI Specification 3.1.2
-Schema semantics             = JSON Schema Draft 2020-12 through OAS 3.1 dialect
-jsonSchemaDialect            = https://spec.openapis.org/oas/3.1/dialect/2024-11-10
-source format                = YAML 1.2-compatible OpenAPI Description
-```
-
-OAS 3.2.0 is deliberately deferred for current F1 4B. No accepted 4A property requires a 3.2-only feature and the current interoperable validation/codegen surface is stronger around 3.1. Reopen only if a current accepted operation requires a 3.2-only property or exact selected tooling makes 3.1 materially unfit.
-
-
-## 2. Canonical artifact topology
-
-### 2.1 Fixed Conexus Product wire
-
-The single canonical entry document remains:
-
-```text
-contracts/api/product/openapi.yaml
-```
-
-Method and path mapping grew large enough to split, so the description is one multi-file
-OpenAPI authority:
-
-```text
-contracts/api/product/openapi.yaml                  canonical entrypoint and shared wire law
-contracts/api/product/identity-workspace-paths.yaml IAM and Workspace Path Items
-```
-
-Rules:
-
-```text
-one canonical entrypoint
-+ deterministic local refs
-+ the validator resolves the whole graph
-+ the bundle is generated proof output, never committed
-+ the bundle and the operation census are checked against each other
-```
-
-A leaf file is a maintenance partition, never a second API. `scripts/check-wire-bijection.mjs`
-requires the bijection in both directions: every leaf path must be bundled, and every
-bundled operation must come from a leaf path. There is no category of path retained in a
-leaf file for a surface that does not exist.
-
-Generated bundles under `/tmp` are proof artifacts only.
-
-## 3. Fixed operation identity / HTTP shape law
-
-For fixed platform operations:
-
-```text
-operationId = exact accepted 4A semantic operation name
-x-conexus-4a-id = exact accepted 4A ledger ID
-```
-
-The shape is derived from the census and closes mechanically:
-
-```text
-census operations     = 18
-OAS operations        = 18
-missing               = 0
-extra                 = 0
-duplicate operationId = 0
-duplicate 4A ID       = 0
-duplicate method+path = 0
-```
-
-`npm run wire:bijection` must stay green. The checker also rejects a Product path shaped
-like unrestricted dispatch, so a path containing `{operationSlug}` or a path segment
-`execute` fails the build.
-
-Every current operation is `CONTROL_PLANE` ingress and lives under one of two roots:
-
-```text
-/api/control/...   authenticated Control Plane interaction
-/api/session       the current Conexus session
-```
-
-A path namespace never grants authority. The roots for published applications, headless
-Product Agent invocation and the Product Agent runtime were removed with those surfaces
-on 2026-09-19.
-
-## 4. Project-defined static-path generation law
-
-For Project-defined operations:
-
-```text
-operationId = exact Release-admitted Project operation identity
-```
-
-A generated application OAD must contain one **literal concrete** path for every exact finite `Ops(R)` entry. Runtime path variables that select an arbitrary operation are forbidden.
-
-Current regime roots are intentionally operation-class specific rather than universal:
-
-```text
-QUERY       → /api/projects/{projectId}/queries/<static generated operation segment>
-ACTION      → /api/projects/{projectId}/actions/<static generated operation segment>
-INTEGRATION → /api/projects/{projectId}/integrations/<static generated operation segment>
-```
-
-All three use exact typed request/response schemas. A Query may use POST when structured typed analytical input is the honest wire shape; HTTP GET aesthetics do not override semantic input shape.
-
-The literal operation segment must be generated deterministically from the exact `operationId`; it cannot be caller-selected at runtime.
-
-An exact Project operation also cannot use a semantically unconstrained payload schema. `inputSchema` and `outputSchema` must each be a JSON Schema object with an actual root constraining form (`$ref`, `$dynamicRef`, `type`, `const`, `enum`, `oneOf`, `anyOf`, `allOf` or `not`). Boolean schemas and `{}` are rejected. This does **not** force object-rooted DTOs: primitive, array, union and referenced exact schemas remain valid when they are the honest operation contract.
-
-## 5. Naming and schema law
-
-Canonical reusable schemas use stable PascalCase semantic names.
-
-Rules:
-
-```text
-wire component name != database table name by default
-wire component name != frontend component name
-wire component name != provider DTO name unless provider meaning is genuinely Product-visible
-```
-
-Request/response schemas are operation-specific where meaning differs. Reuse exists only for a repeated semantic carrier/property.
-
-Forbidden generic abstractions without a proved repeated semantic:
-
-```text
-AnyResource
-AnyCommand
-GenericResult
-GenericListResponse
-UniversalEntity
-ProviderPayload
-```
-
-Money/decimal business values must not silently inherit binary floating-point semantics merely because JSON has a number type. Exact decimal representation is decided per accepted business measure before the first real application schema freezes it.
-
-## 6. HTTP Problem contract
-
-4B adopts RFC 9457 Problem Details:
-
-```text
-media type = application/problem+json
-base schema = Problem
-machine discriminator = Problem.type URI/reference
-```
-
-Human-readable `detail` MUST NOT be parsed as machine authority.
-
-The accepted semantic outcome classes remain:
-
-```text
-401 unauthenticated
-403 authenticated + legitimately disclosable subject/surface + denied action/request-authenticity
-404 absent or intentionally non-disclosable
-409 current owner-state/uniqueness/single-flight conflict
-412 stale expected current subject/precondition
-422 admitted semantic/business-input validation failure
-503 required dependency unavailable
-```
-
-No later wire may turn a non-disclosable foreign subject into a 403 existence oracle. Owner-specific problem types are admitted only where a concrete consumer needs stable branching beyond the HTTP class.
-
-## 7. Conditional requests
-
-`If-Match` is used only when the ETag describes the current representation of the same
-HTTP target being mutated. Never reuse an ETag from one resource as `If-Match` on a
-different command or collection target.
-
-The current OAS has no operation that requires `If-Match`. Where a command needs a
-current-state precondition it carries the exact expected revision in its own payload,
-which is what `CancelBuilderRun` and `SetWorkspaceMemberRole` do.
-
-A failed representation precondition is a 412-class Problem.
-
-## 8. Idempotency contract
-
-There is no current RFC standardizing `Idempotency-Key`; 4B owns the semantics while adopting the interoperable header name:
-
-```text
-Idempotency-Key
-```
-
-Where IC3/IC4 maps to caller-supplied repeatable intake:
-
-- one key is scoped to exact operation + authority/containment subject;
-- reuse with materially different admitted payload is rejected;
-- duplicate admitted intake with the same key cannot create a second owner occurrence/effect;
-- unresolved/ambiguous downstream effect remains fenced under IC4; same key never authorizes blind replay;
-- server-generated owner/effect identity remains authority above the key;
-- expiry/retention must be exact before implementation for every operation class that uses it.
-- a project or workspace receipt is kept while its entity exists and goes with the entity; the reaper never deletes one on its own, except the `IAM-03` receipts of a bootstrap context it deletes in the same statement.
-
-Exact persistence/claim/reconciliation mechanics belong to 4D.
-
-## 9. Authentication/session carriage
-
-### 9.1 Human Product HTTP session
-
-Current F1 carriage is one Conexus-owned opaque `iam.session` cookie:
-
-```text
-cookie name = __Host-conexus_session
-Secure      = required
-HttpOnly    = required
-Path        = /
-Domain      = forbidden
-SameSite    = Lax
-```
-
-OpenAPI represents this only as a `securityScheme`; possession of the cookie is authentication/session carriage, not Product authorization.
-
-Current authority remains:
-
-```text
-Keycloak OIDC
-→ verified human identity
-→ Conexus Account
-→ opaque Conexus session
-→ current Workspace/Project/app/owner authorization on every operation
-```
-
-Keycloak bearer tokens, realm roles, groups, organizations and Authorization Services are never accepted as Product authorization substitutes.
-
-`4C-F38` kept one I&A-owned session meaning across both human surfaces. The Published-App context read (`IAM-13`) and the Published-App access-administration reads/commands (`IAM-14/15/17/21`) it named were contract for a surface never built and were removed; `IAM-02` remains:
-
-```text
-IAM-02 /api/session
-→ CONTROL_PLANE or PUBLISHED_APP
-→ end exact opaque Conexus session
-→ then ask Keycloak, bounded, to end the SSO session behind it
--X-> claim global Keycloak SSO logout
-```
-
-The Conexus session ends whatever Keycloak answers. The Hub then posts the session's sealed
-refresh token to Keycloak's `end_session_endpoint` for at most three seconds, so the next sign-in
-asks for a password. Keycloak's silence or refusal is logged
-(`hub_sign_out_provider_logout_unconfirmed`), never reported to the caller and never undoes the
-local end. Other OIDC clients of the realm learn nothing directly; their sessions follow Keycloak's.
-
-### 9.2 Non-HTTP authority
-
-An owner-internal transition is not converted into a fake human cookie or an arbitrary
-caller header merely because OAS needs a security object.
-
-The current OAS declares `nonHttpIngress: []`. Every current operation is an
-authenticated Control Plane interaction carrying the Conexus session.
-
-## 10. Browser request-authenticity contract
-
-Accepted architecture requires browser self-only/session/request-authenticity to be platform controlled and admits no credentialed cross-origin Product API in F1.
-
-Current MVP law:
-
-```text
-credentialed cross-origin Product API = DENY
-OIDC redirect/callback                 = separate allowlisted Technical Protocol
-```
-
-For browser Product API requests carrying the opaque session:
-
-```text
-Sec-Fetch-Site present
-→ only same-origin is admitted
-→ same-site / cross-site / none rejected for /api Product requests
-
-Sec-Fetch-Site absent on CP/PA browser ingress
-→ exact Origin must match the configured current Conexus origin
-→ else exact Referer origin must match
-→ neither trustworthy signal present = reject
-```
-
-`same-site` is intentionally insufficient because sibling subdomains are not Product authority peers.
-
-HEADLESS is a distinct non-browser Product ingress. Absence of Fetch Metadata does not itself deny a legitimate non-browser HEADLESS request, but if browser metadata is present then foreign/same-site-non-origin context is rejected. `agent.headless.invoke` and exact owner facts remain mandatory.
-
-Safe HTTP methods never mutate Product state.
-
-
-## 11. API surface separation
-
-Wire namespaces preserve:
-
-```text
-Control Plane Product API
-!= exact Project-defined capability wire
-!= Technical Ingress / provider protocol
-!= internal owner/runtime mechanism
-```
-
-A technical or protocol route never inflates the Product census merely because it uses
-HTTP. The technical description in `contracts/api/technical/openapi.yaml` is separate and
-has its own lint and ingress checks.
-
-Live observation of a Builder run is a Technical Ingress projection over that exact run.
-It is not a Product operation, a Mastra `runId` or `threadId` is never a Product
-identity, and the end of a stream is never the terminal truth of a run. The Hub's
-settlement is.
-
-## 13. Pagination / continuation law
-
-There is no global filter/sort/include language.
-
-Each operation exposes only accepted filters.
-
-`4C-PRE11-F04` admits one Gateway-owner filter on `GW-01`: optional exact `originatingRun { kind, ref }`, encoded as a deep-object query and applied server-side before pagination. It is not a generic filter DSL. The continuation token is bound to the exact Project, originating-run filter and deterministic `attemptedAt DESC / effectAttemptId DESC` ordering; incomplete filter shape or token/query mismatch fails with `422`.
-
-For mutable/unbounded list results, the reusable transport primitive is an **opaque continuation token**, not database offset/cursor internals. The token:
-
-```text
-continues one accepted list/query shape
-!= authorization
-!= source identity
-!= historical snapshot authority
-```
-
-Caller-controlled page size is not admitted merely by convention; a real consumer may prove it later. F1 may therefore keep page sizing server-controlled while exposing only an optional opaque `pageToken` and an optional returned `nextPageToken`.
-
-Unless an operation explicitly owns snapshot pinning:
-
-```text
-page coordinate A
-+ later page coordinate B
-→ each coordinate disclosed truthfully where material
-→ B MUST NOT masquerade as the same snapshot as A
-```
-
-## 14. Truth/provenance wire law
-
-Where 4A admits analytical/provenance truth states, wire schemas must preserve the closed distinctions rather than encode uncertainty through nullable business numbers.
-
-Current closed state vocabulary includes:
-
-```text
-SUPPORTED_CURRENT
-SUPPORTED_STALE
-PARTIAL
-UNVERIFIED
-INDETERMINATE
-UNSUPPORTED
-DEPENDENCY_UNAVAILABLE
-```
-
-A material analytical response carries an opaque **system-issued result/source coordinate** where 4A requires `as_of`/provenance. The coordinate is output/provenance; it is not arbitrary caller historical input.
-
-Rules:
-
-```text
-unknown != zero
-partial != complete
-stale != current
-read-model result != source proof
-empty supported-current result != dependency failure
-```
-
-`4C-F39/F40` close two presentation-bearing wire laws:
-
-```text
-monetary values present
-→ one required ISO 4217 currencyCode for the whole response/page
-→ every monetary value uses that unit
-→ mixed-currency aggregation without accepted conversion/grouping = no business values + applicable unsupported/indeterminate truth
-
-seller/customer member or row present
-→ stable source-qualified ID
-+ required non-empty owner-issued human name
-→ browser fallback/join is not authority
-```
-
-These are enrichments of the existing two Project Query schemas. They create no operation, Permission, caller, durable owner or generic money/directory API.
-
-Gateway effect provenance adds one separate owner-specific truth law:
-
-```text
-possible external acceptance + ambiguous response
-→ OUTCOME_UNKNOWN
-→ receipt / reconciliation Evidence
--X-> false FAILED
--X-> false SUCCESS
--X-> caller retry authority
-```
-
-`OUTCOME_UNKNOWN` is not part of the analytical truth vocabulary above; it is Gateway-owned external-effect truth.
-
-MAR's Path Items were deleted on 2026-09-18. This contract had already classified them as
-retained historical rather than current Product authority, the current Product OAS never
-referenced them, and nothing read the file except one repository assertion. The law below is
-kept as the record of the separation MAR required, not as a live surface. The Preview runtime
-under `apps/hub/src/mar/` is unrelated to this subject and is current Product.
-
-MAR added a parallel mechanism-separation law for managed occurrences:
-
-```text
-ListRunnableManagedJobs
-→ safe human job identity from exact currently served Release
--X-> JobRun history / queue / schedule / run authority
-
-JobRun owner state / exact pinned Release + job
-!= pg-boss queue / worker / redelivery state
-
-RunManagedJobNow
-→ server resolves exact currently served Release
-→ verifies admitted job/v1
-→ admits one repeatable-intake JobRun occurrence
--X-> caller Release / queue / retry / catch-up selection
-```
-
-OBS/Audit adds a separate observation-truth law:
-
-```text
-Project Activity
-→ projection-time subject label + deterministic summary
-→ optional exact admitted owner-read target
--X-> generic dispatch / current owner state / Audit replacement
-
-telemetry / trace / provider / guest observation
-→ correlation + provenance only
--X-> owner terminal/current state
--X-> authorization
-
-usage/cost MISSING
--X-> zero
-
-audit fact
-→ immutable evidence
--X-> mutable owner state
-```
-
-## 15. Exact bytes
-
-Byte transport remains subordinate to an owning Product operation:
-
-```text
-owner subject + current authorization
-→ byte retrieval/upload capability
-```
-
-Storage keys, object paths, signed provider URLs and blob identifiers never authorize by possession. No global File Manager API is admitted.
-
-## 16. Generated projections / no-parallel-DTO law
-
-Canonical machine-readable wire may generate implementation-facing artifacts, but final 4D SDK/runtime toolchain is not selected here.
-
-Binding custody law:
-
-```text
-canonical Product OAS / exact Project declaration
-→ deterministic generated projection
-→ implementation consumption
-
--X-> separately hand-owned transport DTO
--X-> generated file patched into authority
--X-> frontend/client error taxonomy that redefines the wire
-```
-
-## 17. Current executable proof
-
-`npm run verify` runs the candidate graph in `scripts/conexus-verify.mjs`. Its wire steps
-are:
-
-```text
-wire:lint             the Product OAS passes Redocly recommended
-wire:bijection        the description bundles and agrees with the census, 18 to 18, and the
-                      connector credential rules hold
-wire-bijection-gate   the gate itself is proved against planted faults
-wire:technical-lint   the technical ingress description passes Redocly recommended
-```
-
-Never run `npm run verify` locally. Run the checks your change touches, push, and let CI
-be the full run.
+# Wire contract
+
+The rules for the Hub's public boundary: where an operation is declared, how a request is parsed,
+how errors, preconditions and retries look on the wire. Owners next door: the
+[operation ledger](operation-ledger.md) holds the census, [security](../reference/security-and-authority.md)
+decides who may call and how a request proves where it comes from, [product](contract.md) owns the
+journeys, [database](../reference/database.md) the SQL. Exact shapes live in `packages/contract`.
+
+## One declaration per operation
+
+- An operation is declared once: in Zod in `OPERATIONS` of `packages/contract` (its id, access kind,
+  method, path, params, query, body, successes and failures), or, until it is ported, in the YAML
+  leaf files of `contracts/api/product/`. A new operation is declared in Zod.
+  `contracts/api/product/openapi.json` is emitted from the union; `npm run contract:check` refuses a
+  stale file or an operation declared in both.
+- Every operation has one ledger row, and a contract change and its ledger row ship together.
+  `npm run wire:bijection` counts both ways and fails when they disagree.
+- The Hub's route types and the web client derive from the contract. Generated files are never
+  edited: `npm run generate` followed by the clean tree check. A hand-written parser beside the
+  schema is a defect. Review.
+- No path selects an arbitrary operation: a `{operationSlug}` variable or an `execute` segment fails
+  `npm run wire:bijection`. Every current operation lives under `/api/control/...` or `/api/session`;
+  a path namespace grants nothing. Review.
+- A surface that is not built has no contract; it is deleted, not kept for later. Review.
+- The technical ingress (`contracts/api/technical/openapi.yaml`) is separate and never counts in the
+  Product census. Live observation of a Builder run is technical ingress: a Mastra id is never a
+  Product identity, and the end of a stream is never the run's terminal truth; the Hub's settlement
+  is. `wire:bijection` reads only the Product contract; `npm run wire:technical-lint` lints the
+  technical document; the rest is review.
+- A generated application declares one literal path per operation with exact input and output
+  schemas; `{}` and boolean schemas are refused. Enforced by the Hub's application check.
+
+## Parsing
+
+A request is parsed once at its route against the contract schema, and the handler trusts the parsed
+value. A route with an id in its path has a params schema with the id's format, so a malformed id
+fails before any store call. In a Zod operation it answers its `malformed` row (a 404 for a Project
+or Workspace id), which the contract type requires for every path id; a route not yet ported
+answers `REQUEST_VALIDATION_FAILED` (400). Safe methods never change state. Enforced by the route tests and
+review.
+
+## Names and values
+
+Reusable schemas have stable PascalCase semantic names. A wire name is not a table name, a component
+name or a provider's DTO name. No generic carriers (`AnyResource`, `GenericResult`,
+`ProviderPayload`) without a proven repeated meaning. Money never rides on binary floating point,
+and a response with money names one ISO 4217 `currencyCode`. Unknown is not zero, partial is not
+complete, and stale is not current: uncertainty is a state, never a nullable or zero business
+number. Review.
+
+## Errors
+
+A failure answers RFC 9457 Problem Details as `application/problem+json`. Its code comes from
+`failures.json` with the status that row names; `detail` is for people and is never parsed.
+
+| Status | Meaning |
+| --- | --- |
+| 400 | a malformed request |
+| 401 | not authenticated |
+| 403 | authenticated, the subject may be disclosed, and the action or the request's authenticity is refused |
+| 404 | absent, or not disclosable to this caller |
+| 409 | conflicts with current state, uniqueness or a single flight |
+| 413, 415, 429 | too large, wrong media type, a bound reached |
+| 422 | a valid request with business input the owner refuses |
+| 500 | an unexpected system failure, recorded |
+| 502, 504 | an upstream failed or timed out |
+| 503 | a required dependency is unavailable |
+
+A subject the caller may not know about answers 404, never a 403 that confirms it exists.
+`scripts/generate-failures.mjs` keeps every row's status in 400-599 (500 by default); which row
+gets which status is review.
+
+## Preconditions and retries
+
+- No operation takes `If-Match` today. A command that needs current state carries the expected
+  revision in its own payload. An operation that later takes `If-Match` carries the ETag of the
+  target it mutates, answers a stale one with 412 and adds that row to `failures.json`. Review.
+- `Idempotency-Key` is scoped to the exact operation and subject. Reusing it with a different payload
+  is refused; a duplicate never creates a second effect; an ambiguous downstream effect stays fenced
+  and the key never authorizes a blind replay. A Project or Workspace receipt lives while its entity
+  lives. Enforced by the idempotency tests and review.
+
+## Session carriage
+
+The session travels in the opaque cookie `__Host-conexus_session` (Secure, HttpOnly, Path `/`, no
+Domain, SameSite Lax), declared in OpenAPI only as a security scheme. Possession of the cookie is
+authentication, never authorization; Keycloak tokens, roles and groups are never accepted as Product
+authorization. There is no credentialed cross-origin Product API. Review.
+
+## Lists and bytes
+
+There is no global filter, sort or include language: each operation exposes its accepted filters.
+A list that can grow returns an opaque continuation token, which is not authorization, source
+identity or a snapshot, and the server controls the page size. Bytes are reached through their
+owning operation; a storage key, object path or signed URL never authorizes by possession. Review.

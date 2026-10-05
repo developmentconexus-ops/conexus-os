@@ -5,39 +5,34 @@ description: This skill should be used for any change under `apps/web`, `package
 
 # Conexus frontend
 
-How Conexus screens look, read and are proved: the web app (`apps/web`), the brand package (`packages/brand`) and the Keycloak sign-in theme (`apps/keycloak-theme`). The flow is the Frontend flow of [`conexus-development`](../conexus-development/references/flows.md#frontend) on top of Build, Fix or Redesign; this skill adds the rules below and owns no check. The code is the reference: read the nearest screen, and when `packages/brand/src/tokens.css` disagrees with any text here, the file wins.
+How to work on a Conexus screen: the web app (`apps/web`), the brand package (`packages/brand`) and
+the Keycloak sign-in theme (`apps/keycloak-theme`). The flow is the Frontend flow of
+[`conexus-development`](../conexus-development/references/flows.md#frontend) on top of Build, Fix or
+Redesign. This skill holds no rule; the guides do.
 
-## Rules no check catches
+## Read first
 
-- **pt-BR only.** Sentence case, verbs on buttons, no emoji. [voice-and-copy](references/voice-and-copy.md).
-- **One accent.** Ipê marks focus, selection, the active lens and the agent at work. It is never a button fill.
-- **Ink primary buttons.** The primary action is `--cx-ink` with `--cx-on-ink`.
-- **Color never alone.** Every status travels with a word and usually a mark.
-- **Three faces by role.** Display for headings, body for language, mono for facts only.
-- **Hairlines, not shadows.** Radius comes from the scale in `tokens.css`; regions and panes take none.
-- **Encaixe is the only authored motion.** Everything stops under `prefers-reduced-motion`.
-- **Honest states.** Show only what the server says; keep loading, empty, failed and unknown apart; never fake progress, counts or actions; mark unbuilt things "em breve".
-- **One way per need (C-031).** Conexus designs structure and page patterns. `@mastra/playground-ui` supplies parts only: basic parts and agent display parts, repainted through `apps/web/src/mastra-theme.css`; structure blocks (`AppShell`, `MainSidebar`, `ChatShell`) stay where they are and no new screen adopts one. Never fork a part. [`docs/decisions/index.md`](../../../docs/decisions/index.md) owns the decision.
+- [`DESIGN.md`](../../../DESIGN.md): color, type, shape, motion, interaction, accessibility, icons,
+  voice, and how a surface is approved.
+- [Product contract](../../../docs/product/contract.md): what the screen means, the Build surface,
+  the truths a screen keeps.
+- [Testing](../../../docs/development/testing.md#screens): how a screen is proved.
+- [Architecture](../../../docs/reference/architecture.md#the-web-app): what the web app may own.
+- The code is the reference: read the nearest screen. `packages/brand/src/tokens.css` wins over any
+  text.
 
-## What a check decides
+## Steps
 
-`npm run web:style:check` decides that every class a screen writes has a CSS rule and that the Mastra theme stays re-pointed at brand tokens. Raw colors, fonts, a native `title` and a hand-read CSRF cookie are review only. Run it and fix what it prints; do not restate or work around it.
+1. For a surface that does not exist yet, walk
+   [`references/product-surfaces.md`](references/product-surfaces.md) before any code.
+2. Build with the nearest screen's pattern and the Mastra part that already does the job.
+3. Run `npm run web:style:check` and fix what it prints; do not restate or work around it.
+4. Prove the screen with the [`verify`](../verify/SKILL.md) skill, in light and dark, with
+   `prefers-reduced-motion` emulated, by keyboard, at 390px and 200% zoom, with the console open.
+   For the sign-in theme run `npm run keycloak-theme:check` and take screenshots; never type the
+   operator's password.
 
-## Prove it
+## Where things are
 
-Do not stop at the typecheck. Prove the screen with the [`verify`](../verify/SKILL.md) skill: a disposable Hub with real PostgreSQL and Keycloak, driven in a browser. Its limit: the model and E2B are fake, so a Builder turn cannot be proved there. The browser suites in `tests/` and `npm run test:live` cover flows `verify` cannot. Then:
-
-- Light and dark, and `prefers-reduced-motion` emulated.
-- Keyboard: Tab reaches every action in reading order, the focus ring shows, Esc closes what opened, no drag without a keyboard path.
-- Names: every input has a label, every icon-only button a pt-BR `aria-label`.
-- Reflow at 390px and 200% zoom, no sideways scroll. Console without errors or CSP violations.
-- No English left by a Mastra component, `aria-label` and placeholder included.
-- Sign-in theme: `npm run keycloak-theme:check`; no browser suite exercises it. Never type the operator's password.
-
-## References
-
-- [`voice-and-copy.md`](references/voice-and-copy.md): voice, nouns, failure and agent copy.
-- [`iconography.md`](references/iconography.md): Lucide rules.
-- [`visual-foundations.md`](references/visual-foundations.md): the intent of color, type, layout and motion.
-- [`product-surfaces.md`](references/product-surfaces.md): shape a new surface before building it.
-- Owners: [`frontend-and-product-surfaces.md`](../../../docs/reference/frontend-and-product-surfaces.md) (section 33.6 owns Build), [`apps/web/AGENTS.md`](../../../apps/web/AGENTS.md) (commands), [`review/frontend.md`](../../../docs/development/review/frontend.md) (what the reviewer checks), [`verify/features`](../verify/features/README.md) (screens by feature), `PRODUCT.md` (users).
+[`apps/web/AGENTS.md`](../../../apps/web/AGENTS.md) has the commands and
+[`verify/features`](../verify/features/README.md) the screens by feature.

@@ -160,150 +160,103 @@ components:
 
 # Design System: Conexus OS
 
+How Conexus looks, moves and speaks. `packages/brand/src/tokens.css` owns every value and outranks
+the frontmatter above; the [product contract](docs/product/contract.md) owns what screens mean;
+[testing](docs/development/testing.md#screens) owns how a screen is proved. Rules marked "check" fail
+`npm run web:style:check` or a test; the rest are judged in review.
+
 ## 1. Overview
 
-**Creative North Star: "Grafite e Ipê"**
+**"Grafite e Ipê".** Graphite neutrals, flat and separated by hairlines, so the person's own app is
+the most colorful thing on screen. Ipê, a warm gold, is the one accent. Prose is sans and facts are
+mono. A full-width top bar, a scope rail that collapses to icons, and a page column; Construir splits
+into the stage, with the Preview edge to edge on white paper, and a resizable chat rail; on a phone a
+segmented switch swaps the two and both stay mounted. Regions and panes take no radius.
 
-Conexus is a governed enterprise workbench. A person describes the internal app they need in Portuguese, an agent builds it into a repository the company owns, and the app runs in the Preview. The interface is graphite: calm, flat, separated by hairlines, so that the person's own application is the most colorful thing on screen. Ipê, a warm gold, is the one accent. It marks focus, selection and the agent at work, and nothing else. PRODUCT.md owns the product truth and outranks this file on anything factual. `packages/brand/src/tokens.css` owns every value and outranks the frontmatter above if the two ever disagree.
+Conexus designs its screens, structure and page patterns. `@mastra/playground-ui` supplies parts
+only, repainted through `apps/web/src/mastra-theme.css`; its structure blocks are not adopted by new
+screens and no part is forked (C-031). One way per need: a native `title` beside `Tooltip`, a raw
+color or a raw font is a defect.
 
-Two readers share every screen: staff who are not technical, and the company's developers. The system serves both with one rule: prose in a sans face, facts in a mono face. Density comes from tight spacing, not from shrinking type.
+## 2. Color
 
-The layout is a fixed frame: a full-width top bar (3.25rem) with the lockup, the breadcrumb trail, the theme toggle and the account; a scope rail on the left that collapses to a 56px icon rail; and the content column. Pages are 72rem wide, 40rem for forms and 46rem for settings. Construir splits into the stage, where the Preview sits edge to edge, and a resizable chat rail (380px by default, 320px to 60%). On a phone the two panes switch with a segmented control. Regions and panes take no radius.
+- Every color is a `--cx-*` token; only `tokens.css` holds a raw value. Review: `web:style:check`
+  checks class names and the Mastra re-pointing, not values. A new token goes in
+  light, OS-dark and chosen-dark with the same name; `brand-tokens.test.mjs` fails when the names
+  differ and pins the ink and accent values. Check. Updating this file and `.impeccable/design.json`
+  with a token change is review.
+- **One accent.** Ipê marks focus, caret, selection, the active lens and the agent at work. It is
+  never a resting button fill, a heading or decoration; only the send button turns ipê, on hover.
+- **Ink primary.** The primary action is `--cx-ink` with `--cx-on-ink`.
+- **Never color alone.** Success, warning and danger mark status only, always with a word and
+  usually a mark; their grounds are low tints of the surface. Secondary text keeps 4.5:1 contrast.
+- **Two themes.** Light is the default, dark follows the system unless the person picks one, and
+  every change is checked in both.
+- Mastra parts follow the brand through `mastra-theme.css`, never a per-component override.
 
-The product components come from Mastra's `@mastra/playground-ui`, restyled through `apps/web/src/mastra-theme.css`. The interface is Portuguese only.
+## 3. Type
 
-**Key Characteristics:**
-- Graphite neutrals with one warm accent, ipê.
-- Light and dark are both first class.
-- Hairlines, not shadows.
-- Prose is sans, facts are mono.
-- One authored motion, "Encaixe", and everything stops under reduced motion.
+Bricolage Grotesque for headings, Hanken Grotesk for everything read as language, JetBrains Mono
+for facts only: model ids, paths, commands, times, revisions, error codes, counts. Mono is never a
+costume. Numerals are tabular; prose never goes below 12px, mono stamps and group labels not below
+11px. The fonts are self-hosted from `packages/brand/fonts`; no other family and no CDN.
 
-## 2. Colors
+## 4. Shape, elevation and layout
 
-Graphite neutrals carry the whole interface. One warm gold marks what is live.
+Hairlines, not shadows: a card at rest does not float. A shadow appears only on a hover lift, a
+popover or a menu, black at low alpha. Radius comes from the scale; spacing takes the nearest
+existing `rem` step. No glass, gradient surface, texture or imagery besides the Preview. A brand
+component sizes itself with a `cx-*` class, never a `style` attribute, so it renders under the
+sign-in theme's strict CSP. Check for the wordmark (`brand-wordmark-csp.browser.test.mjs`); review
+for the rest. A screen's own structure
+uses `cx-*` classes; Tailwind utilities only adjust a composed Mastra part.
 
-### Primary
-- **Ipê** (accent): the focus ring, the caret, text selection, the active lens underline, the slider fill and the composer glow. In dark it lightens to a brighter gold.
-- **Ipê Text** (accent-text): ipê used as text on a surface, for hover text on round tools, nav rows and links.
-- **Ipê Soft** (accent-soft): the hover ground of nav rows and round composer tools, the selection ground and the working chip.
-- **Mark Gold** (mark): the Conexus mark and the "nexus" half of the wordmark.
+## 5. Motion
 
-### Neutral
-- **Canvas** (canvas): the page ground and the scope rail.
-- **Surface** (surface): cards, panels, the top bar, inputs and the composer.
-- **Surface Three** (surface-3): hover fill, the active nav row, the user's chat bubble and neutral chips.
-- **Surface Four** (surface-4): pressed fill, the rail badge and the slider track.
-- **Hairline** (line): the 1px line that separates every region and card.
-- **Strong Line** (line-strong): hovered borders and dashed empty states.
-- **Graphite Text** (text) and **Muted Text** (text-2): body text and secondary text.
-- **Ink** (ink, on-ink): the primary button, near-black in light and near-white in dark.
-- **Preview Paper** (preview-paper) and **On Accent** (on-accent): white in both themes, for the Preview frame and the slider thumb on the ipê fill.
+**Encaixe** is the one authored motion: the mark's two pieces slide apart and fit back while the
+agent works, and fit once on the first load. Everything else is quiet. All motion stops under
+`prefers-reduced-motion`, and the end state makes sense without it. No second motif: no orb,
+shimmer or bounce.
 
-### Status
-- **Success**, **Warning** and **Danger** mark status only. Their grounds are tints of 7 to 14% on the surface.
+## 6. Interaction and accessibility
 
-### Named Rules
-**The One Accent Rule.** Ipê marks focus, selection, the active lens and the agent at work. It is never a resting button fill, a heading color or decoration. Only the composer's send button turns ipê, on hover.
+- Hover moves a surface one step up; press shows a fill and never shrinks; `:focus-visible` draws a
+  2px ipê outline, never removed without a replacement; disabled says why when it is not obvious.
+- Tab reaches every action in reading order, Esc closes what opened, and no drag lacks a keyboard
+  path. Every input has a label and every icon-only button a pt-BR `aria-label`.
+- A screen reflows at 390px and at 200% zoom with no sideways scroll, and its console shows no error
+  or CSP violation.
 
-**The Word Beside the Color Rule.** Color never carries meaning alone. Every status pairs a word with a mark, so it survives color blindness and a grayscale screenshot.
+## 7. Icons
 
-**The Two Themes Rule.** Light is the default and dark follows the operating system unless the person picks one. Neither is an afterthought: every change is checked in both.
+Lucide only, from `lucide-react`, with its defaults (outline, stroke 2, round caps) and color from
+`currentColor` set by a token on the parent. Size follows the neighbor (16px inline, 14px toolbars,
+18px rail). The stop control is the one filled icon. One icon, one meaning, never status alone. A
+decorative icon is `aria-hidden`. Provider logos appear only in model pickers. No icon font, emoji,
+glyph or second set.
 
-## 3. Typography
+## 8. Voice
 
-**Display Font:** Bricolage Grotesque (with system-ui)
-**Body Font:** Hanken Grotesk (with system-ui)
-**Mono Font:** JetBrains Mono (with ui-monospace)
+- pt-BR only, everywhere a person reads, including `aria-label` and placeholders; no English left by
+  a Mastra part (replace it in `builder-copy.ts`). Sentence case; capitals only in small group
+  labels. Buttons are verbs ("Permitir", "Ver aplicativo"), never a bare "OK".
+- Simple, calm and responsible: no exclamation, no empty apology, no emoji; the only symbols are `·`
+  and `…`. The product says **você**; in chat the agent is **Conexus** and speaks in the first
+  person; in system text it is **o agente**. Product nouns are capitalized: Workspace, Projeto,
+  Prévia, Construir, and the lenses Prévia, Código, Alterações, Sobre.
+- A failure's words come from the failure table (`failures.json`, read by `app/failure.ts`): it says what went wrong and what
+  still stands, shows the request again, and puts the internal code in mono. A Conexus failure never
+  asks to try again. What the person can fix says what to change.
+- Each tool becomes a sentence while it runs and when it ends (`tool-sentences.ts`), never its
+  technical name; three or more calls fold into one line. Reasoning shows only as "Pensando…".
+- What is not built says "em breve". Numbers use Brazilian format ("8,4 s"). Examples are real
+  company requests, never invented customers or figures.
 
-**Character:** A grotesque with some warmth for headings, a quiet and legible grotesque for everything read as language, and a mono that marks facts. All three are self-hosted from `packages/brand/fonts`.
+## 9. Approving a surface
 
-### Hierarchy
-- **Display** (600, clamp 1.6 to 2.1rem, 1.15): page titles. The home hero "O que vamos construir?" goes up to 2.6rem with -0.03em tracking.
-- **Title** (600, 1.05rem, 1.3): section titles and card titles, in Bricolage Grotesque.
-- **Body** (400, 15px, 1.55): chat and composer text. Page prose sits at 16px, 1.5.
-- **Label** (500, 13px): buttons, meta, tool rows. Navigation, crumbs and lens tabs use 14px, 500.
-- **Eyebrow** (700, 0.68rem, 0.08em, uppercase): small group labels only.
-- **Fact** (400, 11 to 12px, mono): model ids, paths, commands, times, durations, revisions, error codes and counts.
-
-### Named Rules
-**The Prose and Facts Rule.** Everything a person reads as language is sans. Everything that is a fact is mono. Mono is never a costume.
-
-**The Floor Rule.** Functional prose never goes below 12px and mono stamps never below 11px. Numerals are tabular everywhere.
-
-## 4. Elevation
-
-The system is flat. Separation is a 1px hairline, and cards do not float. A shadow appears only as a response to state or on a layer that genuinely floats.
-
-### Shadow Vocabulary
-- **Card lift** (`box-shadow: 0 .6rem 1.6rem rgb(0 0 0 / .08)`): a hovered project card, which also rises 2px.
-- **Prompt** (`box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 .5rem 1.5rem rgb(0 0 0 / .05)`): the home prompt composer.
-- **Popover** (`box-shadow: 0 .5rem 1.5rem rgb(0 0 0 / .12)`): menus and popovers.
-- **Row lift** (`box-shadow: 0 .35rem 1rem rgb(0 0 0 / .06)`): a hovered Workspace list row, which also rises 1px.
-- **Thumb** (`box-shadow: 0 1px 3px rgb(0 0 0 / .3)`): the effort slider thumb.
-
-### Named Rules
-**The Hairline Rule.** If a card needs a shadow to separate from its ground, the ground is wrong. Use the hairline.
-
-## 5. Components
-
-Production components are Mastra primitives restyled through tokens. The entries below describe the Conexus result.
-
-### Buttons
-- **Shape:** gently squared (6px).
-- **Primary:** ink fill with the on-ink label, 34px high. Hover drops to .88 opacity. Never ipê.
-- **Default and outline:** surface or transparent with a hairline; hover goes to Surface Three with the strong line.
-- **Ghost:** transparent, muted text; hover goes to Surface Three.
-- **Press:** no shrink. A pressed state shows as a fill.
-
-### Chips
-- **Style:** a 1.5rem pill in Surface Three with muted text. Status chips tint their ground and always carry a word, and a dot when live or working.
-
-### Cards / Containers
-- **Corner Style:** 10px for panels, notes and result cards; 14px for project cards.
-- **Background:** Surface, on the Canvas ground.
-- **Shadow Strategy:** none at rest. Project cards and Workspace rows lift on hover.
-- **Border:** 1px hairline.
-- **Internal Padding:** 0.8 to 1.5rem.
-
-### Inputs / Fields
-- **Style:** Surface with a hairline, 6px radius, 36px high.
-- **Focus:** an ipê border and a 3px ipê ring at 28%.
-- **Error:** a danger border and the reason in words below the field.
-
-### Navigation
-- **Top bar:** lockup, divider and a breadcrumb trail at 14px, 500; the last crumb is current. No search and no notifications.
-- **Scope rail:** 34px rows with 18px Lucide icons. Hover tints Ipê Soft; the active row is Surface Three. It collapses to a 56px icon rail.
-- **Lenses:** Prévia, Código, Alterações and Sobre as text tabs 1.5rem apart. The active lens is 600 weight with a 2px ipê underline.
-
-### Composer
-The chat input shared by the home prompt and Construir. A 16px radius, one input, the model and reasoning pill, the microphone and a round ink send button. A slow conic ipê ring turns once per 11 seconds (2.8 seconds while the agent works) with a soft blurred glow. No context chips above it.
-
-### The Mark and Encaixe
-The mark is two L pieces in Mark Gold. While the agent works, the pieces slide 2px apart on the diagonal and fit back (1.2s, `cubic-bezier(.65,0,.35,1)`). On the first page load they fit once (.9s, `cubic-bezier(.22,1,.36,1)`). Controls transition in .15s, arrivals rise 6px over .35s, and all of it stops under reduced motion.
-
-### Icons
-Lucide only, at stroke 2 with round caps, drawn at 13 to 18px in `currentColor`.
-
-## 6. Do's and Don'ts
-
-### Do:
-- **Do** reach every color through a `--cx-*` token. `npm run web:style:check` fails on a raw hex outside `tokens.css`.
-- **Do** keep ipê for focus, selection, the active lens and the agent at work.
-- **Do** make primary buttons ink.
-- **Do** set every fact in JetBrains Mono and every sentence in Hanken Grotesk.
-- **Do** give every state a mark and a word.
-- **Do** keep the Preview edge to edge on white paper, the largest thing on screen.
-- **Do** check every change in light, in dark and under reduced motion.
-- **Do** write every string in pt-BR, sentence case, with verbs on buttons.
-
-### Don't:
-- **Don't** use ipê as a resting button fill or as decoration.
-- **Don't** use any font other than Bricolage Grotesque, Hanken Grotesk and JetBrains Mono.
-- **Don't** put a shadow on a card at rest.
-- **Don't** use violet or a purple-to-cyan gradient.
-- **Don't** use glass, a pulsing orb or a second authored animation. The composer glow is the only blur.
-- **Don't** reintroduce an address bar, a status strip under the application or a context chip above the composer.
-- **Don't** use monospace as a costume.
-- **Don't** invent customers, testimonials or metrics.
-- **Don't** show branches, pull requests or pipeline steps to the person.
+Only the operator approves the structure of a new surface, from something usable: a clickable
+prototype or the real screen on stubbed data, never a static picture. The structural piece is
+approved before the pieces that inherit it. Styling may not change reading order, region priority,
+where actions sit, density, navigation or phone behavior without that approval. Values on a screen
+match the issue's literal numbers and copy. A screen the operator asked to see carries
+`needs:aprovo`.

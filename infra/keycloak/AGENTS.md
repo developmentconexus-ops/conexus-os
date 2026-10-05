@@ -1,6 +1,6 @@
 # infra/keycloak
 
-The Keycloak that authenticates the pilot: one container, one realm named `conexus`, one client `conexus-hub`. [`README.md`](README.md) explains each script and each realm setting. [`security-and-authority.md`](../../docs/reference/security-and-authority.md#4-human-authentication) owns human authentication.
+The Keycloak that authenticates the pilot: one container, one realm named `conexus`, one client `conexus-hub`. [`README.md`](README.md) explains each script and each realm setting. [`security-and-authority.md`](../../docs/reference/security-and-authority.md#sign-in) owns human authentication.
 
 ## Traps
 
@@ -20,4 +20,4 @@ npm run keycloak-theme:check
 
 ## Review
 
-Review: load the pages [`areas.json`](../../docs/development/review/areas.json) maps your paths to.
+Review: load the guides [`areas.json`](../../docs/development/review/areas.json) maps your paths to.

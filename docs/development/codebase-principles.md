@@ -1,60 +1,91 @@
 # Codebase principles
 
-What clean code means in Conexus OS. Every change, review and redesign wave is measured against these
-twelve properties. Agents write most of this code and copy what surrounds them, so the codebase is
-their prompt: a clean base is one where copying the neighbor gives the right result, and where the
-wrong way does not compile or fails CI.
+What the code itself must look like. Agents copy what surrounds them, so a clean base is one where
+copying the neighbor gives the right result and the wrong way fails to compile or fails CI. Owners
+next door: [architecture](../reference/architecture.md) for who owns what, [testing](testing.md)
+for proof, [delivery](delivery.md) for shipping. `Method:` names the pstack leaf that holds the
+general method; this file does not copy it.
 
-Copy a neighbor only when it follows these principles. A neighbor that breaks one is debt: write the new
-code the right way, leave the old one to the wave that owns it, and its census count must fall, never rise.
+Copy a neighbor only when it follows these rules. A wave that settles a shape migrates every
+instance of the old shape and deletes it, not only the lines its diff touched. Old code no open
+wave owns is counted by a census that may only fall.
 
-[`delivery.md`](delivery.md) owns how a change ships and [`engineering-method.md`](engineering-method.md)
-owns how a decision is reached. This file owns what the code itself must look like. The decided shapes
-and the shapes that must not appear are in
-[`shapes.md`](../../.agents/skills/conexus-development/references/shapes.md).
-
-1. **One fact, one owner.** Each type, state, contract, failure code and constant lives in one place.
-   Everything else is generated or derived from it, never copied by hand.
-   Enforced by: `scripts/generate-log-codes.mjs`, `scripts/generate-builder-run-vocabulary.mjs`, `scripts/generate-iam-contracts.mjs`, `scripts/generate-hub-role-register.mjs`, `scripts/generate-failures.mjs`, each run by `npm run generate` and followed by the clean tree check, `npm run contract:check` (the OpenAPI is emitted from `OPERATIONS`), `npm run db:callers:check` (the function caller graph), and review.
-2. **The domain is in the structure.** A lifecycle is a state machine. Variants are discriminated
-   unions, not a bag of booleans. A table or registry replaces branching spread across files. Ids of
-   different kinds are branded and do not mix. An illegal state cannot be written.
-   Enforced by: `biome:useExhaustiveSwitchCases`, `packages/contract/src/ids.ts` (branded ids), `tests/repository/admission-types.test.mjs` (a command without its admission proof does not compile), and review (`docs/development/review-checklist.md`, Types).
-3. **Firm boundaries.** Data from outside (HTTP, database rows, environment, model output) is parsed
-   once at the edge, with a schema, into a domain type. Inside, the type is trusted: no `as`, no
-   `any`, no second validation. Business logic is pure functions; the framework shell (Fastify,
-   React) is thin. The application manifest and server tree are the one hand validator of untrusted input: `server-manifest.ts` stops at the
-   first fault with work bounded by the bytes read, which a schema that collects every issue does not. (`schemaViolation` in the same file checks a value against a data schema, not the manifest.)
-   Enforced by: `biome:noUnsafeTypeAssertion`, `biome:noExplicitAny`, `biome:noNonNullAssertion`, `apps/hub/src/reset.d.ts` and `apps/web/src/reset.d.ts` (JSON arrives as unknown), `biome:noRestrictedImports` (`pg` is imported only by the data module and the application runners), the census items `pgQueryRows` (a database row read without a schema), `pgImportFiles`, `webResponseJson` (a response body read outside the one caller), `sqlWrites` (a write whose filter is not visible in its `sql` template, or whose `where` on a split table compares no register key column, hard zero), `authorityTableWrites` (a write of an authority table outside its owning modules, hard zero) and `gateReferences` (a reference to the `openGate` symbol outside admission.ts, hard zero) in `scripts/census-boundaries.mjs`, `unsafeAssertionDebt` (an `as` suppressed as owed to a wave) and `unsafeAssertionExemptions` (a cast that cannot go, recorded with its line and reason; the census refuses any other suppression of the rule, and a `biome.json` override that turns it off) in `scripts/census-builder-run.mjs`, and `npm run db:catalog:check` (every Hub table is in the table register of `contracts/technical/hub-catalog-census.json`: split, pending or permanent). The census record holds the findings as sets, so one fixed and one new finding no longer cancel, and it may only lose entries; an exemption is added by hand, with its reason.
-4. **Native first.** Mastra, PostgreSQL, Keycloak and E2B do what they already do. Conexus code exists
-   only where the product differs. No state beside state Mastra already holds.
-   Enforced by: review (`docs/development/review/mastra-native.md`, Proof required).
-5. **Modules by subject, not by step.** A file knows one subject. No god file, no function that runs a
-   whole lifecycle, no wrapper with one caller. A reader answers "where does this come from?" and
-   "what changes it?" in under 30 seconds.
-   Enforced by: `biome:noExcessiveLinesPerFunction`, `biome:noExcessiveLinesPerFile`, `scripts/check-import-law.mjs`.
+1. **One fact, one owner.** Each type, state, contract, failure code and constant lives in one
+   place; the rest is generated or derived. A consumer reads a fact from its owner or from an event
+   that carries it, never infers it from a phase change, a timing or message text.
+   Enforced by: `scripts/generate-log-codes.mjs`, `scripts/generate-builder-run-vocabulary.mjs`, `scripts/generate-iam-contracts.mjs`, `scripts/generate-hub-role-register.mjs` (`npm run generate`, then the clean tree check), `tests/repository/failures.test.mjs`, `npm run contract:check`, `npm run db:callers:check`, and review.
+2. **The domain is in the structure.** A lifecycle is a state machine, variants are a union on one
+   literal field, ids are branded, and no variant is told apart by a sentinel value such as `''`.
+   Method: `principle-model-the-domain`, `principle-type-system-discipline`, `typescript-best-practices`.
+   Enforced by: `biome:useExhaustiveSwitchCases`, `packages/contract/src/ids.ts`, `tests/repository/admission-types.test.mjs`, and review.
+3. **Firm boundaries.** HTTP, database rows, environment and model output are parsed once at the
+   edge with a schema; inside, the type is trusted: no `as`, no `any`, no second validation. A row
+   schema uses the contract's types; a module port takes branded ids, never `string`. The app
+   manifest is the one hand validator (`server-manifest.ts` stops at the first fault).
+   Method: `principle-boundary-discipline`.
+   Enforced by: `biome:noUnsafeTypeAssertion`, `biome:noExplicitAny`, `biome:noNonNullAssertion`, `apps/hub/src/reset.d.ts`, `apps/web/src/reset.d.ts`, `biome:noRestrictedImports`, `pgQueryRows`, `pgImportFiles`, `webResponseJson`, `sqlWrites`, `authorityTableWrites`, `gateReferences` (`scripts/census-boundaries.mjs`), `unsafeAssertionDebt`, `unsafeAssertionExemptions` (`scripts/census-builder-run.mjs`), `npm run db:catalog:check`, and review.
+4. **Native first.** Owned by [architecture](../reference/architecture.md#native-first).
+5. **Modules by subject, not by step.** A file knows one subject and hides its decisions behind a
+   small interface; no god file, no function that runs a whole lifecycle, no one-caller wrapper, and
+   nothing grows under a size `biome-ignore`. A module is a function returning a frozen object. A class only extends `Error`, `Failure` or a
+   library base, or is nominal with a `#private` field its module alone constructs (`Admitted`,
+   `CommandGate`); a value hiding a secret (`Redacted`, `AccessToken`) is a class with `#value`.
+   Method: `principle-minimize-reader-load`.
+   Enforced by: `biome:noExcessiveLinesPerFunction`, `biome:noExcessiveLinesPerFile`, `runFunctionLengthSuppressions`, `scripts/check-import-law.mjs`, and review.
 6. **One pattern per need.** One way to handle an error, run a transaction, schedule a job, call the
-   Hub from the web app, and draw each UI part. A second way to do the same thing is a defect.
-   Enforced by: `scripts/check-web-style.mjs` (a class with no CSS rule), `biome:noRestrictedGlobals` (fetch only in app/http.ts), `biome:noProcessEnv` (the environment is read only in platform/config.ts), `scripts/check-access-owner.mjs` (request headers and cookies are read only by the access owners `apps/hub/src/http/access.ts` and `apps/hub/src/http/cookies.ts`), `apps/hub/src/platform/db.ts` (the one module that imports `pg`), `apps/web/src/app/http.ts` (the one caller of the Hub), and review (`docs/development/review-checklist.md`, Authority and design; a native `title` hint, a raw color or font).
-7. **Named failures.** Every failure has a code from one table, and its category is decided where it is
-   raised. A platform failure is fixed in code, never offered to the person as "try again".
-   Enforced by: `scripts/generate-log-codes.mjs`, `scripts/generate-builder-run-vocabulary.mjs`, `biome:noEmptyBlockStatements`, `biome/plugins/no-error-code.grit`, `DATABASE_FAILURES` (a database error maps by SQLSTATE and constraint, never by its message), and review (`docs/development/review-checklist.md`, Authority and design).
-8. **Operations converge.** Every step can run again after a crash and reach the same end. One runner
-   for periodic jobs and one reaper for what expires.
-   Enforced by: `biome:noRestrictedGlobals` (`setInterval` is banned in `apps/hub/src`, and the three timers that stay carry a reasoned `biome-ignore`), the census item `repeatedTimerSuppressions` in `scripts/census-builder-run.mjs` (it may only fall), the expiry coverage test in `tests/implementation/iam-reaper.postgres.test.mjs` (a column ending in `expires_at` that `iam.reap_expired` does not answer for fails it), and review (`docs/development/review-checklist.md`, Authority and design).
-9. **Tests of behavior.** A test calls the code the way its user does and compares with a literal
-   value. No test reads source text. Fake only what cannot run locally; a screen is proved in a browser
-   against a real Hub.
-   Enforced by: `scripts/check-test-skips.mjs`, and review (a test with no assertion, a test that reads source text).
-10. **Observable.** Structured logs with a code and a trace id. Every error a person sees leaves a log
-    line.
-   Enforced by: `tests/repository/hub-log-sinks.test.mjs`, `scripts/generate-log-codes.mjs`.
-11. **Nothing dead.** No unused code, no compatibility layer for old shapes, no guard for a failure
-    never seen, no comment that narrates the obvious. Each wave leaves the code smaller.
+   Hub from the web and draw each UI part. A refusal its caller branches on is a result union on
+   `ok`; every other failure throws `Failure`. A second way is a defect.
+   Enforced by: `scripts/check-web-style.mjs`, `biome:noRestrictedGlobals`, `biome:noProcessEnv`, `scripts/check-access-owner.mjs`, `apps/hub/src/platform/db.ts`, `apps/web/src/app/http.ts`, and review.
+7. **Named failures.** Every failure has a code from one table, its category decided where it is
+   raised. An error from a library or service maps by a field it carries, never its message text.
+   A `catch` rethrows, maps at a vendor boundary, or logs. A platform failure is fixed in code,
+   never offered as "try again".
+   Enforced by: `tests/repository/failures.test.mjs`, `biome:noEmptyBlockStatements`, `biome/plugins/no-error-code.grit`, `DATABASE_FAILURES`, and review.
+8. **Operations converge.** Every step can run again after a crash and reach the same end. One
+   runner for periodic jobs, one reaper for what expires. What is published after a write is read
+   from the committed row; a race is closed in the design, never covered by a poll or a retry.
+   Method: `principle-make-operations-idempotent`, `principle-separate-before-serializing-shared-state`.
+   Enforced by: `biome:noRestrictedGlobals` (`setInterval`), `repeatedTimerSuppressions` (`scripts/census-builder-run.mjs`), `tests/implementation/iam-reaper.postgres.test.mjs`, and review.
+9. **Tests of behavior.** Owned by [testing](testing.md).
+10. **Observable.** Structured logs with a code and a trace id; every error a person sees leaves a
+    log line.
+   Enforced by: `tests/repository/hub-log-sinks.test.mjs` (no raw console), and review.
+11. **Nothing dead.** No unused code, no layer for old shapes, no guard for a failure never seen,
+    no comment that narrates. Each wave leaves the code smaller. Method: `principle-laziness-protocol`.
    Enforced by: `knip.jsonc`, `biome:noUnusedImports`, `biome:noUnusedVariables`.
-12. **Lessons become structure.** A rule that has to be repeated becomes a check that fails: a type,
-    a lint rule, a CI check. Text is ignored; a failing check is not.
-   Enforced by: `scripts/check-agent-context.mjs` (links, size caps and the two workflow security guards), `scripts/check-web-style.mjs`, `scripts/check-enforced-by.mjs` (a name on an "Enforced by" line that does not exist fails), and the Biome rules above.
+12. **Lessons become structure.** A rule repeated becomes a failing check; a rule has one home,
+    and status lives in the roadmap and GitHub. Method: `principle-encode-lessons-in-structure`.
+   Enforced by: `scripts/check-agent-context.mjs`, `scripts/check-enforced-by.mjs`, and review.
 
-A finding against one of these names the property by number, the file and line, and the owner that
-fixes it: the change under review, or the roadmap wave that owns the shape.
+A finding names the principle by number, the file and line, and who fixes it: the change or the
+wave owning the shape.
+
+## Never
+
+Each item happened here; review judges it. An item a check comes to fail leaves the list.
+
+- **Never keep state beside what Mastra, E2B or PostgreSQL holds.** A Hub map kept parked runs next
+  to Mastra's `pendingSuspensions`. Read the Mastra session. Principle 4.
+- **Never create and delete a long-lived resource on every run.** #380 paused the sandbox each run.
+  The conversation owns one sandbox and session. Principle 1.
+- **Never keep patching one premise.** Eight pull requests kept "an answer is a new run" alive.
+  [Delivery](delivery.md#review-loop) says when a fix goes back to its spec. Principle 12.
+- **Never encode a lifecycle in booleans or a sentinel.** `parked`, `answered`, `parking`;
+  `projectRevision: ''` in `ProjectPurged`. Write a union with one owner. Principle 2.
+- **Never connect two flows through mutable module state.** `fedMirrors`; the web's `liveRuns`.
+  Pass the value or give it an owner; a write-once registry keyed by a token its module mints
+  (`opened` in `platform/db.ts`) is an owner. Principle 5.
+- **Never add a retry, timeout or fallback for an unseen failure.** #486 deleted one such guard.
+  Reproduce, then guard what you measured. Principle 11.
+- **Never edit a test so an old shape keeps passing.** Tests kept `fedMirrors` alive. Fix tests
+  of behavior, delete tests whose subject is gone. Principle 9.
+- **Never assert on production source text.** #486 and #493 removed them. Principle 9.
+- **Never keep code because it exists.** #486 deleted 24 scripts, 21 failure codes. A fix adding far
+  more than it deletes stops and reports. Principle 11.
+- **Never ship a second way for one need.** A native `title` beside `Tooltip`. Replace the old way
+  everywhere, or count it in a falling census until a wave settles it. Principle 6.
+- **Never infer a fact its producer can carry.** The web reads the check verdict from a phase change;
+  `gitFailureName` reads `error.message`. Carry it in the event, row or error. Principle 1.
+- **Never cover a race with a poll.** A browser poll repairs a failed run publish. Principle 8.
+- **Never write a rule in a second place.** Three never-lists drifted. Link the one home or make
+  it a check. Principle 12.
