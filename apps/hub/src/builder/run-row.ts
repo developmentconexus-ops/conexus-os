@@ -5,8 +5,6 @@ import { sql } from '../platform/db.js'
 
 export type { BuilderRunSummary, BuilderRunView } from '../../../../packages/contract/dist/index.js'
 
-/** The states in which a run still holds its Project: queued or working. */
-export const OPEN_RUN_STATES = BUILDER_RUN_STATES.filter((state) => state === 'QUEUED' || state === 'RUNNING')
 /** The result kinds of a run that changed the source. */
 export const CODE_CHANGING_RESULT_KINDS = BUILDER_RUN_RESULT_KINDS.filter((kind) => kind !== 'RESPONSE_ONLY')
 

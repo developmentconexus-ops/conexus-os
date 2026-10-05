@@ -4,7 +4,8 @@ import { BUILDER_RUN_RESULT_KINDS } from '../generated/builder-run-vocabulary.js
 import { admitProject, admitSystem } from '../identity-access/admission.js'
 import { sql, type Database, type TxQueries } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
-import { CODE_CHANGING_RESULT_KINDS, OPEN_RUN_STATES, RUN_COLUMNS, RunRow, runSummary, type BuilderRunSummary } from './run-row.js'
+import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
+import { CODE_CHANGING_RESULT_KINDS, RUN_COLUMNS, RunRow, runSummary, type BuilderRunSummary } from './run-row.js'
 
 type BuilderCodeChangingRun = Readonly<{
   builderRunId: BuilderRunIdType

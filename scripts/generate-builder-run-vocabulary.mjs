@@ -25,6 +25,7 @@ export const renderVocabulary = (vocabulary) => [
   '',
   `export const BUILDER_RUN_STATES = [${literals(vocabulary.states)}] as const`,
   'export type BuilderRunState = (typeof BUILDER_RUN_STATES)[number]',
+  `export const OPEN_RUN_STATES = [${literals(vocabulary.openStates)}] as const satisfies readonly BuilderRunState[]`,
   `export const BUILDER_RUN_PHASES = [${literals(vocabulary.phases)}] as const`,
   'export type BuilderRunPhase = (typeof BUILDER_RUN_PHASES)[number]',
   `export const BUILDER_RUN_RESULT_KINDS = [${literals(vocabulary.resultKinds)}] as const`,

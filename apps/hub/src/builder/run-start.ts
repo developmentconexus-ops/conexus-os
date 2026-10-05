@@ -5,7 +5,8 @@ import { admitProject } from '../identity-access/admission.js'
 import { sql, type Database } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import { transitionRefused } from './run-steps.js'
-import { OPEN_RUN_STATES, RUN_COLUMNS, RunRow, runSummary, type BuilderRunSummary } from './run-row.js'
+import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
+import { RUN_COLUMNS, RunRow, runSummary, type BuilderRunSummary } from './run-row.js'
 
 const Present = z.object({ present: z.literal(1) })
 const Replay = RunRow.extend({ account_id: AccountId, request_digest: z.string() })

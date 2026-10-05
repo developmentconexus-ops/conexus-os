@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { BuilderRunId, ProjectId, SourceRevision } from '../../../../packages/contract/dist/index.js'
 import { admitSystem } from '../identity-access/admission.js'
 import { sql, type Database } from '../platform/db.js'
-import { OPEN_RUN_STATES } from './run-row.js'
+import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
 
 const Now = z.object({ now: z.date() })
 

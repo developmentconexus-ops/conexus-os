@@ -1,10 +1,10 @@
 import { z } from 'zod'
 import { AccountId, ArtifactRevisionId, ProjectId, SourceRevision, type BuilderRunId, type ModelAccountId } from '../../../../packages/contract/dist/index.js'
 import { admitProject, admitSystem, type Admitted, type RunScope, type SystemScope } from '../identity-access/admission.js'
-import type { BuilderRunPhase } from '../generated/builder-run-vocabulary.js'
+import { OPEN_RUN_STATES, type BuilderRunPhase } from '../generated/builder-run-vocabulary.js'
 import { sql, type Database } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
-import { OPEN_RUN_STATES, RUN_COLUMNS, RunRow, runSummary, type BuilderRunSummary } from './run-row.js'
+import { RUN_COLUMNS, RunRow, runSummary, type BuilderRunSummary } from './run-row.js'
 import { unlessNotAdmitted, withRun, type RunActor } from './run-access.js'
 
 /** How a run ends without failing: the person's stop, a Hub that stopped, or a question nobody answered. */
