@@ -54,7 +54,8 @@ hand to hide drift. Enforced by the clean tree check after `npm run generate`, a
 A screen is proved in a real browser against a real Hub with the `verify` skill, in light and dark,
 against the accessibility rules of [`DESIGN.md`](../../DESIGN.md). The `verify` model and E2B are
 fake, so it cannot prove a Builder turn; the browser suites and `npm run test:live` cover what it
-cannot. Every `verify` run executes the browser leaves; a skipped browser leaf is a failure. The
+cannot. CI runs the `browser` group; a browser test skipped without an `opt-in:` reason fails
+`scripts/check-test-skips.mjs`. The
 sign-in theme has no browser suite: its proof is `npm run keycloak-theme:check` output and
 screenshots. Enforced by the `browser` group, `npm run web:style:check`, and review.
 

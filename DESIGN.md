@@ -180,9 +180,11 @@ color or a raw font is a defect.
 
 ## 2. Color
 
-- Every color is a `--cx-*` token; only `tokens.css` holds a raw value. Check. A new token goes in
-  light, OS-dark and chosen-dark with the same name, and a token change updates this file,
-  `.impeccable/design.json` and `tests/implementation/brand-tokens.test.mjs` together. Check.
+- Every color is a `--cx-*` token; only `tokens.css` holds a raw value. Review: `web:style:check`
+  checks class names and the Mastra re-pointing, not values. A new token goes in
+  light, OS-dark and chosen-dark with the same name; `brand-tokens.test.mjs` fails when the names
+  differ and pins the ink and accent values. Check. Updating this file and `.impeccable/design.json`
+  with a token change is review.
 - **One accent.** Ipê marks focus, caret, selection, the active lens and the agent at work. It is
   never a resting button fill, a heading or decoration; only the send button turns ipê, on hover.
 - **Ink primary.** The primary action is `--cx-ink` with `--cx-on-ink`.
@@ -205,7 +207,8 @@ Hairlines, not shadows: a card at rest does not float. A shadow appears only on 
 popover or a menu, black at low alpha. Radius comes from the scale; spacing takes the nearest
 existing `rem` step. No glass, gradient surface, texture or imagery besides the Preview. A brand
 component sizes itself with a `cx-*` class, never a `style` attribute, so it renders under the
-sign-in theme's strict CSP. Check: `brand-wordmark-csp.browser.test.mjs`. A screen's own structure
+sign-in theme's strict CSP. Check for the wordmark (`brand-wordmark-csp.browser.test.mjs`); review
+for the rest. A screen's own structure
 uses `cx-*` classes; Tailwind utilities only adjust a composed Mastra part.
 
 ## 5. Motion
