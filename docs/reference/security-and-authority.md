@@ -97,9 +97,10 @@ Who may act is decided in TypeScript and bounded again by the database.
 - **Grants that outlive the split.** Until part 6, `hub_runtime` itself can insert into and update
   `iam.account`, `iam.bootstrap_context` and `iam.oidc_transaction`, and read `iam.account` through
   the `legacy_runtime` policy, because unported TypeScript still reads them. `iam.workspace_membership`
-  has no such bridge. `grantCreatorMembership` is the only statement in the Hub that inserts a
-  membership, and it inserts only into a Workspace that has none
-  (`tests/repository/workspace-membership-writer.test.mjs`).
+  has no such bridge. A repository rule names the only modules that may insert, update or delete a
+  row of each authority table, and `iam.workspace_membership` belongs to `admission.ts` alone, whose
+  `grantCreatorMembership` inserts only into a Workspace that has none
+  (`tests/repository/authority-table-writers.test.mjs`). Part 6 adds its own tables to the rule.
 
 What this guards is an accidental broad query, a forgotten check and a revoke racing a write. A
 compromised Hub process can set any account, as it could hold any capability role before.
