@@ -81,6 +81,17 @@ class Proof<S extends Scope, M extends Mode> {
 }
 export type Admitted<S extends Scope, M extends Mode = 'write'> = Proof<S, M>
 
+/**
+ * The proof of a read that changes nothing. A separate class from Proof, so no port that needs an
+ * Admitted accepts it, and its transaction is a ReadTx, so it has no way to write. It holds no row lock.
+ */
+class Checked<S extends Scope> {
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: type identity is the use
+  readonly #checked = true
+  constructor(readonly scope: S, readonly tx: ReadTx) {}
+}
+export type { Checked }
+
 const Account = z.object({ account_id: AccountIdSchema, active: z.boolean() })
 const Member = z.object({ role: z.enum(WORKSPACE_ROLES) })
 const Locked = z.object({ locked: z.number() })
@@ -213,14 +224,25 @@ export const admitInstallationAdministrator = async <A extends AdministratorActi
   return new Proof({ kind: 'installation-administrator', accountId, action }, tx)
 }
 
+const applicationAccess = (accountId: AccountId, projectId: ProjectId) => sql`
+  SELECT
+    EXISTS (SELECT 1 FROM iam.workspace_membership AS membership
+      WHERE membership.account_id = ${accountId} AND membership.workspace_id = stored.workspace_id) AS member,
+    EXISTS (SELECT 1 FROM iam.application_grant AS access_grant
+      WHERE access_grant.account_id = ${accountId} AND access_grant.project_id = stored.project_id AND access_grant.revoked_at IS NULL) AS granted
+  FROM project.project AS stored
+  WHERE stored.project_id = ${projectId} AND NOT stored.archived
+    AND EXISTS (SELECT 1 FROM iam.account AS account WHERE account.account_id = ${accountId} AND account.active)
+    AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = stored.project_id)
+    AND EXISTS (SELECT 1 FROM iam.application AS application WHERE application.project_id = stored.project_id)`
+
 /** @public Frozen by spec 0015 section 3; the application host and the connector broker admit through it. */
 export const admitApplication = async (gate: CommandGate, projectId: ProjectId): Promise<Admitted<ApplicationScope>> => {
   const { tx, accountId } = accountGate(gate)
-  const refused = new Failure('APPLICATION_NOT_FOUND')
   const account = await lockAccount(tx, accountId)
-  if (!account?.active) throw refused
+  if (!account?.active) throw new Failure('APPLICATION_NOT_FOUND')
   const found = await tx.maybe(ProjectWorkspace, liveProject(projectId, sql``))
-  if (!found) throw refused
+  if (!found) throw new Failure('APPLICATION_NOT_FOUND')
   const member = await memberOf(tx, accountId, found.workspace_id, sql` FOR SHARE`)
   await tx.maybe(ProjectWorkspace, liveProject(projectId, sql` FOR SHARE`))
   // The grant is the project's child and the purge deletes grants while it holds the project, so it is taken after the project.
@@ -229,18 +251,21 @@ export const admitApplication = async (gate: CommandGate, projectId: ProjectId):
       SELECT 1 AS present FROM iam.application_grant
       WHERE account_id = ${accountId} AND project_id = ${projectId} AND revoked_at IS NULL FOR SHARE`)
   }
-  const access = await tx.maybe(Access, sql`
-    SELECT
-      EXISTS (SELECT 1 FROM iam.workspace_membership AS membership
-        WHERE membership.account_id = ${accountId} AND membership.workspace_id = stored.workspace_id) AS member,
-      EXISTS (SELECT 1 FROM iam.application_grant AS access_grant
-        WHERE access_grant.account_id = ${accountId} AND access_grant.project_id = stored.project_id AND access_grant.revoked_at IS NULL) AS granted
-    FROM project.project AS stored
-    WHERE stored.project_id = ${projectId} AND NOT stored.archived
-      AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = stored.project_id)
-      AND EXISTS (SELECT 1 FROM iam.application AS application WHERE application.project_id = stored.project_id)`)
-  if (!access || !(access.member || access.granted)) throw refused
+  const access = await tx.maybe(Access, applicationAccess(accountId, projectId))
+  if (!access || !(access.member || access.granted)) throw new Failure('APPLICATION_NOT_FOUND')
   return new Proof({ kind: 'application', accountId, projectId, via: access.member ? 'membership' : 'grant' }, tx)
+}
+
+/**
+ * The same access and deletion rule as admitApplication, in one statement that locks no row, for a
+ * served read that changes nothing. A command that writes in its transaction admits instead.
+ * @public Frozen by spec 0015 section 3; the served application reads and the connector broker use it.
+ */
+export const checkApplication = async (gate: CommandGate, projectId: ProjectId): Promise<Checked<ApplicationScope>> => {
+  const { tx, accountId } = accountGate(gate)
+  const access = await tx.maybe(Access, applicationAccess(accountId, projectId))
+  if (!access || !(access.member || access.granted)) throw new Failure('APPLICATION_NOT_FOUND')
+  return new Checked({ kind: 'application', accountId, projectId, via: access.member ? 'membership' : 'grant' }, { mode: 'read', accountId: tx.accountId, rows: tx.rows, one: tx.one, maybe: tx.maybe })
 }
 
 /** @public Frozen by spec 0015 section 3; its body is built in part 1. */
