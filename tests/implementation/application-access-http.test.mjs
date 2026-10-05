@@ -5,7 +5,7 @@ import { hubJsonWrite, hubWrite, opaque, testListener } from './access/test-list
 
 const { registerApplicationAccessRoutes } = await import(hubModuleUrl('identity-access/application-access.js'))
 
-const SESSION_TOKEN = opaque('leandro')
+const SESSION_TOKEN = opaque('rita')
 const projectId = '11111111-1111-4111-8111-111111111111'
 const ownerAccountId = '22222222-2222-4222-8222-222222222222'
 const grantId = '33333333-3333-4333-8333-333333333333'
@@ -30,7 +30,7 @@ const makeStore = (overrides = {}) => {
 }
 
 const createHubApp = async (store, { applicationPort = 3445 } = {}) => (await testListener({
-  sessions: { [SESSION_TOKEN]: { account: { accountId: ownerAccountId, displayName: 'Leandro' }, issuer: 'https://issuer.test', subject: 'subject-1' } },
+  sessions: { [SESSION_TOKEN]: { account: { accountId: ownerAccountId, displayName: 'Rita' }, issuer: 'https://issuer.test', subject: 'subject-1' } },
   registerRoutes: (app) => registerApplicationAccessRoutes(app, {
     store,
     config: { applicationAddress: (slug) => applicationPort ? `https://${slug}.conexus.localhost:${applicationPort}` : null },

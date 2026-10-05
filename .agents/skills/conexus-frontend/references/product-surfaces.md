@@ -28,7 +28,7 @@ A surface is ready to build when every material question has an answer. If one i
 
 ## Use references as evidence
 
-Study mature products when the job is unfamiliar or the choice is consequential, and compare them by task pattern (hierarchy, actions, collection shape, search and filter, disclosure, failure states, phone behavior, density), not by fashion. Keep what you observed apart from what you infer and from what you decide, and give each capability that matters a verdict: irrelevant, already owned, rejected or deferred for a product reason, or a finding for the owner. `docs/research/functional-references/` holds the references already studied. Compare two or three structures only when the choice is real.
+Study mature products when the job is unfamiliar or the choice is consequential, and compare them by task pattern (hierarchy, actions, collection shape, search and filter, disclosure, failure states, phone behavior, density), not by fashion. Keep what you observed apart from what you infer and from what you decide, and give each capability that matters a verdict: irrelevant, already owned, rejected or deferred for a product reason, or a finding for the owner. Compare two or three structures only when the choice is real.
 
 ## Accessibility, responsive behavior and density are structure
 

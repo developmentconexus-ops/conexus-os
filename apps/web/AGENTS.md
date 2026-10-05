@@ -19,11 +19,10 @@ The browser suites serve this app through Vite and stub the API, so they need no
 
 ## Invariants
 
-- Every color is a `var(--cx-*)` token from `packages/brand/src/tokens.css`. Every font is a `--cx-font-*` token.
+- Colors, fonts and the rest of the visual rules are in [`DESIGN.md`](../../DESIGN.md).
 - `src/main.tsx` loads `@mastra/playground-ui/style.css`, then the brand tokens, then `src/styles.css`. Keep that order.
 - Mastra's palette changes only in `src/mastra-theme.css`, by re-pointing its custom properties at tokens. Size and layout go in a `cx-*` class next to the screen.
-- A hover hint is the playground-ui `Tooltip`, never a native `title`. Review enforces it.
-- The client shows server truth. It never decides authorization or invents a state the server did not report.
+- What the web app may own is in [architecture](../../docs/reference/architecture.md#the-web-app).
 
 ## Review
 

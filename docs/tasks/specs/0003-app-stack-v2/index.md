@@ -2,7 +2,7 @@
 
 **Date**: 2026-09-29
 **Status**: In Progress
-**Amends**: [0002](../0002-builder-own-harness/index.md) AC-6, AC-10, AC-14 and the Tool contract; the REACT_VITE_V1 profile of C-028.
+**Amends**: spec 0002 (built, in Git history) AC-6, AC-10, AC-14 and the Tool contract; the REACT_VITE_V1 profile of C-028.
 
 ## Summary
 

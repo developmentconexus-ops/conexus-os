@@ -672,7 +672,7 @@ Records to amend, each needing the operator's approval before this spec is Accep
 - [ ] Replace the decisions line "Multi-account lands at the minimum that is correct" (an invited person
       must already exist in the identity provider): people are created from the Pessoas screen.
 - [ ] Reopen the non-goal "no Keycloak admin credential in the Hub"
-      ([single session qualification](../../single-session-qualification.md) section 9), which its STOP
+      (the single session qualification, section 9, in Git history), which its STOP
       law sends back to the planner: approved by the operator on 2026-10-01.
 - [ ] Security reference: section 3 lists the second privileged adapter (I&A Keycloak admin adapter →
       the configured issuer's realm admin API, client `conexus-hub-provisioner`, with its residual
