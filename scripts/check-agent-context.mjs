@@ -10,6 +10,7 @@ const VENDORED = ['.agents/skills/mastra/']
 // Each guide is the one owner of its subject, with a byte cap on the whole file.
 export const GUIDES = Object.freeze({
   C: { path: 'docs/development/codebase-principles.md', kib: 8 },
+  A: { path: 'docs/reference/architecture.md', kib: 8 },
   T: { path: 'docs/development/testing.md', kib: 6 },
 })
 const GUIDE_PATHS = new Set(Object.values(GUIDES).map(guide => guide.path))
@@ -36,7 +37,7 @@ export const SIZE_CAPS = Object.freeze([
   { match: path => path.endsWith('/AGENTS.md'), ...CHARACTERS, max: NESTED_AGENTS_CHARACTERS, note: 'about 500 tokens' },
   { match: path => path.endsWith('/SKILL.md'), ...LINES, max: 90 },
   { match: path => path === 'docs/development/delivery.md', ...LINES, max: 150 },
-  { match: path => path === '.agents/skills/conexus-development/references/shapes.md', ...NEVER_ITEMS, max: 15 },
+  { match: path => path === GUIDES.C.path, ...NEVER_ITEMS, max: 15 },
 ])
 
 // GitHub's heading anchor: lowercase, punctuation dropped, each whitespace character a hyphen.

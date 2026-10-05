@@ -16,7 +16,7 @@ checks that bind contracts to routes and to the operation ledger. [`areas.json`]
 - [ ] A route with an id in its path has a `params` schema with the id's format, so a malformed id
       answers 400 before any store call.
 - [ ] The route's TypeScript types derive from the contract. A hand-written parser beside the
-      schema fails the [Mastra native](mastra-native.md) census.
+      schema fails the [native first](../../reference/architecture.md#native-first) census.
 - [ ] A contract file with no gate does not exist. A surface that is not built is deleted, not
       kept for later.
 

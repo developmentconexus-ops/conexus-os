@@ -25,7 +25,7 @@ Poteto's pstack, `/jm-*` from the jm suite). Without the skill, do the step by h
 
 1. The issue or spec names the result, the non-goals and "done when". A missing decision goes back
    to the operator; never invent product meaning in code.
-2. Take the native census in [Mastra native](../../../../docs/development/review/mastra-native.md#proof-required)
+2. Take the native census ([native first](../../../../docs/reference/architecture.md#native-first))
    before adding any mechanism.
 3. Build it with `/jm-develop`, failing tests first, under `/pstack:typescript-best-practices`.
 4. Prove each "done when" item: `/jm-check verify` on the real surface, then `/jm-test`.
@@ -49,7 +49,7 @@ spec. Here you build it.
 1. Review the pushed head against its issue or spec and the current owners, not the author's
    summary. Load the pages the [review checklist](../../../../docs/development/review-checklist.md#load-the-pages)
    names from `origin/main` and give its verdict.
-2. Check the change against [shapes.md](shapes.md) and the stop signals in the skill. A fix that
+2. Check the change against the [never-list](../../../../docs/development/codebase-principles.md#never) and the stop signals in the skill. A fix that
    adds far more than it deletes, or keeps a premise alive, is a finding.
 3. A second opinion: `/jm-check review` or `/pstack:interrogate`. A bot finding is evidence, not
    a requirement: fix, dismiss with a reason, or ask.

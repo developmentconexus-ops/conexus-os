@@ -33,7 +33,7 @@ Chat and handoffs are orientation only. **Global coverage does not require globa
 - Trunk is `main`. Open pull requests against `main`.
 - One writer per worktree. Work in an Ubuntu WSL2 worktree on the Linux filesystem.
 - Stop on the conditions in [`delivery.md`](docs/development/delivery.md#stop-then-escalate).
-- Before you write code, read the [never-list](.agents/skills/conexus-development/references/shapes.md#never).
+- Before you write code, read the [never-list](docs/development/codebase-principles.md#never).
 - Preserve state you do not own. Never reset, clean, stash, force-push or discard work you did not create.
 - Never merge unless [`delivery.md`](docs/development/delivery.md) names you as the one who merges. It owns the lanes and the merge gate.
 - An approved increment includes its routine reversible implementation and checks. Do not seek approval for each mechanical step.

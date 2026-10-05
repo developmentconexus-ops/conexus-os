@@ -4,7 +4,7 @@
     "paths": [
       "**"
     ],
-    "page": "docs/development/review/mastra-native.md",
+    "guides": ["A"],
     "flows": []
   },
   {
@@ -129,7 +129,7 @@
     "flows": []
   },
   {
-    "area": "builder-factory",
+    "area": "builder",
     "paths": [
       "apps/hub/src/builder/**",
       "apps/hub/compiler-template/**",
@@ -139,7 +139,7 @@
       "tests/implementation/builder-*",
       "tests/implementation/builder-skills-guard.test.mjs"
     ],
-    "page": "docs/development/review/builder-factory.md",
+    "guides": ["A", "T"],
     "flows": [
       {
         "id": "builder.ask-and-answer",

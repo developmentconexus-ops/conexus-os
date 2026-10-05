@@ -10,7 +10,7 @@ type Tripwire = Readonly<{ processorId: string | undefined; reason: string }>
 
 // A processor that aborts (observational memory does when it cannot reach its store) ends the run
 // with a lone `tripwire` chunk that Mastra's AgentController has no case for, so sendMessage
-// never settles (docs/reference/mastra-boundary.md, U6).
+// never settles (docs/reference/mastra/boundary.md, U6).
 const watchTripwire = async (session: ControllerSession, onTripwire: (tripwire: Tripwire) => void): Promise<() => void> => {
   const subscription = await session.machinery.subscribeToThread({
     resourceId: session.identity.getResourceId(),

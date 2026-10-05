@@ -1,9 +1,8 @@
 # Mastra boundary
 
-Conexus uses Mastra core, Mastra memory, the Mastra Code SDK and the Mastra Factory as they ship. Mastra owns
-what Mastra owns. Conexus never forks, patches or reaches into Mastra internals, and it never writes
-Mastra tables or replaces a method on a Mastra object. This page records, for each place where the Hub
-crossed that line, what the installed Mastra offers and what Conexus does instead.
+Evidence for [native first](../architecture.md#native-first): each place where the Hub crossed the
+line between Conexus and Mastra, what the installed Mastra offers, and what Conexus does instead. The
+rule lives in the architecture guide; this page is the evidence a reviewer checks it against.
 
 Each item ends in one decision.
 
@@ -11,23 +10,14 @@ Each item ends in one decision.
 - **B.** No public API exists. The item becomes an upstream proposal for `mastra-ai/mastra`. Conexus
   keeps the smallest honest seam, with a comment that names the proposal, or drops the feature.
 
-The installed versions are `@mastra/factory` 0.17.2, `@mastra/code-sdk` 1.8.3, `@mastra/core` 1.71.0
-and `@mastra/memory` 1.32.1. Mastra paths below are relative to `node_modules/@mastra/`. Conexus paths
-are relative to the repository root, at trunk `c004fbea`.
-
-`@mastra/factory` exports every file under `dist/` through its `./*` export, so an import path alone
-does not make something public. Here a surface counts as public when Mastra documents it for hosts: a
-type in a declared contract, a method whose doc comment invites hosts to call or override it, or an
-embedded doc page.
+The versions each item was read at are named in the item. Mastra paths below are relative to
+`node_modules/@mastra/`. Items 1 to 4 and proposals U1, U3, U4 and the first U10 concerned the Mastra
+Factory, which left the Hub under C-032; Git history keeps them.
 
 ## Summary
 
 | # | Item | Decision | Status |
 | --- | --- | --- | --- |
-| 1 | Moving repositories to a new GitHub App installation | A | Implemented |
-| 2 | Keeping GitHub tokens out of the sandbox | A | Implemented |
-| 3 | Serving the Factory's credential routes | A, after the operator's amendment | Superseded by C-032 |
-| 4 | Creating a conversation | A for creation, B for visibility | Superseded by C-032 |
 | 5 | Conversation titles in Portuguese | A | Implemented |
 | 6a | Classifying model errors | A | Implemented |
 | 6b | Writing run diagnostics into a conversation | A, experimental API | Implemented |
@@ -43,148 +33,6 @@ embedded doc page.
 | 16 | MainSidebar's row and icon sizing | Deliberate override, C-031 | Implemented |
 | 17 | Retrying a model's transient failures | A for the processor, B for Mastra Code's policy | Implemented; waits on U10 |
 | 18 | Releasing what Mastra keeps of an ended question | Exception, until mastra-ai/mastra#25903 | Implemented; contained in one module |
-
-## 1. Moving repositories to a new GitHub App installation
-
-**Current code.** `apps/hub/src/builder/factory-provisioning.ts:43-54` defines `reattachRepository`.
-It writes the Factory tables `source_control_repositories`, `factory_project_repositories` and
-`factory_project_source_control_connections` directly, in its own transaction.
-`connectFactoryInstallation` calls it at line 192, and `boundRepository` calls it on every provision
-at line 262.
-
-**Why Conexus needs it.** The operator can uninstall and reinstall the GitHub App on the same
-organization. GitHub then gives the organization a new installation id. `connectFactoryInstallation`
-records the new installation and removes the old one, and every repository row of the old
-installation must move to the new one, because the Project's binding names the repository row by id.
-The need is real. The two extra cases `reattachRepository` handles are not.
-
-- A repository row whose installation is already gone. Only the Factory's `GET /web/github/repos`
-  route prunes an installation (`factory/dist/integrations/github/routes.js:380`), and the Hub does not
-  mount it. In Conexus only `connectFactoryInstallation` removes an installation, so it can move the
-  rows first.
-- A second row for the same GitHub repository under the new installation. No Conexus path writes one:
-  a Project is provisioned only while exactly one installation is recorded.
-
-**What Mastra offers.** `SourceControlStorageHandle.repositories.migrateInstallation({ orgId, id,
-newInstallationId })` (`factory/dist/storage/domains/source-control/base.d.ts:183`). Its contract
-reads "Used when a GitHub App is reinstalled with a new installation ID on the same account." It moves
-the repository row and the connections of the old installation
-(`factory/dist/storage/domains/source-control/base.js:421`). The Factory's own Platform integration
-calls it for the same event (`factory/dist/integrations/platform/github/integration.js:306`). The Hub
-reaches the handle through `GithubIntegration.sourceControlStorage`.
-
-**Decision.** A.
-
-**Plan.** `connectFactoryInstallation` calls `migrateInstallation` for each repository of a gone
-installation before it removes that installation. When the target already holds a row for the same
-repository, `migrateInstallation` answers that row instead of the one it was asked to move
-(`factory/dist/storage/domains/source-control/base.js:443-450`). Before `@mastra/pg` 1.26 the update
-threw a raw unique-constraint error first. `connect` compares the ids and stops with
-`FACTORY_INSTALLATION_REPOSITORY_CONFLICT`, and the old installation and its rows stay. `reattachRepository` and its table writes are deleted,
-and provisioning no longer moves rows. A repository row whose installation was removed outside
-`connect` is unreachable through the Factory's storage API, and provisioning refuses it with
-`FACTORY_REPOSITORY_MISSING`.
-
-## 2. Keeping GitHub tokens out of the sandbox
-
-**Current code.** `apps/hub/src/builder/factory.ts:250-254` assigns a new function to
-`integration.versionControl.getRepositoryAccess` on a live `GithubIntegration`. The replacement answers
-with the credential `conexus-no-credential`, so the Factory hands the sandbox a credential that opens
-nothing on GitHub. The Hub's root git fetches with its own App token and gives the agent a bundle
-(`factory.ts:61-105`).
-
-**What Mastra offers.** `GithubIntegration` documents subclassing as its extension point: a custom
-integration "can subclass this and override individual methods"
-(`factory/dist/integrations/github/integration.d.ts:22`). Its `getRepositoryAccess` gets its token from
-`this.mintInstallationToken(installationId)` (`factory/dist/integrations/github/integration.js:216`),
-a public method (`integration.d.ts:161`). No other Factory code calls `mintInstallationToken`. Every
-Factory reader of a repository credential (the sandbox start, `GH_TOKEN`, token refresh, the commit
-helper) goes through `getRepositoryAccess`. The Factory's own GitHub API calls use
-`getInstallationOctokit`, which does not call `mintInstallationToken`. The Hub starts no Factory
-worker and mounts no Factory GitHub route, so it makes none of those calls.
-
-**Decision.** A, with no named hook in the Factory
-([mastra-ai/mastra#24690](https://github.com/mastra-ai/mastra/issues/24690)). Mastra's docs
-assistant confirmed on 2026-09-22 that no official hook exists and recommended overriding
-`getRepositoryAccess` in a subclass rather than `mintInstallationToken`. That is the narrower
-override: only the repository-credential path changes, and a future caller of
-`mintInstallationToken` still gets a real token.
-
-**Implemented.** `ConexusGithubIntegration extends GithubIntegration` overrides its `versionControl`
-field, a class field in 0.17.2 (`factory/dist/integrations/github/integration.js:156`). The field
-keeps every parent member and replaces only `getRepositoryAccess`. That method answers the repository's
-real clone URL with the credential `conexus-no-credential`. `mintInstallationToken` is untouched.
-`tests/implementation/builder-factory-composition.test.mjs` checks both behaviors. The sandbox's
-repository access carries the placeholder, and `mintInstallationToken` still answers the token GitHub
-returns.
-
-**Since 0.16.** The Factory clones from the repository's plain URL and passes the credential as a
-one-process `http.<url>.extraHeader` in the git environment
-(`factory/dist/integrations/github/sandbox.js:166-176`, `:223`), where 0.15 put it in the remote URL. The
-Hub's seed points that plain URL at its bundle with a system `insteadOf` rule, so the Factory's clone
-and fetch still read the bundle. Root's token-bearing git sets `GIT_CONFIG_NOSYSTEM`, so the same rule
-never sends the Hub's own fetch or push to the bundle.
-
-## 3. Serving the Factory's credential routes
-
-**Current code.** `apps/hub/src/builder/model-accounts.ts:49-61` declares a slice of Hono's `Context`.
-Lines 112-120 construct the Factory's `ConfigRoutes` and `OAuthRoutes`, find handlers by method and
-path, and cast each with `as unknown as FactoryHandler`. Lines 148-165 build a fake context per
-request. `apps/hub/src/builder/factory.ts:273` registers the Factory's tenant credential resolver by
-hand.
-
-**What Mastra offers.** Two public pieces, which together replace the fake context.
-
-- `MastraFactoryConfig.auth` takes any `IMastraAuthProvider`
-  (`factory/dist/factory.d.ts:50`). With a provider, every Factory route resolves the caller through
-  `ensureFactoryAuthUser` (`factory/dist/auth.js:260`), which calls the provider's
-  `authenticateToken` with the raw request. So routes work without the Factory's Hono auth gate, which
-  a Fastify host cannot run (`server/dist/server/server-adapter/index.d.ts:353`). The Factory then
-  registers its tenant credential resolver itself (`factory/dist/factory.js:289`). Administration
-  checks go to the provider's organizations capability.
-- `prepare()` returns every Factory route as Mastra `apiRoutes` (`factory/dist/factory.js:610`). The
-  Hub already runs `MastraServer` from `@mastra/fastify`, whose `registerCustomApiRoutes()`
-  (`fastify/dist/index.d.ts:38`) registers them as Fastify routes. A scope `preHandler` can allow only
-  the credential routes, the way `mastra-session-routes.ts` allows only its browser routes.
-
-**Decision.** A. The single-owner map recorded that the Factory runs with `auth: null` behind the Hub.
-A Hub-session provider is not a second sign-in door: it validates the existing Hub session and has no
-login, callback or credential capability. The operator approved the amendment on 2026-09-22, and the
-single-owner map and the decision register record it.
-
-**Superseded (C-032).** The Factory left the Hub, so neither the auth provider nor the Factory's
-credential routes exist. Model accounts are the Hub's own: `apps/hub/src/builder/model-account-store.ts`
-keeps each person's or the installation's shared account, sealed with the installation key, and
-`registerModelAccountRoutes` (`apps/hub/src/builder/model-accounts.ts`) serves them under
-`/api/control/model-accounts`, every route of the `session` access kind (`apps/hub/src/http/access.ts`).
-
-## 4. Creating a conversation
-
-**Current code.** `apps/hub/src/builder/factory-routes.ts:94-128` repeats the Factory's session route.
-It carries its own DTO, branch name (`conexus/<id>`), idempotency on a client-chosen id, and storage
-write. It writes `visibility: 'org'` at line 124.
-
-**What Mastra offers.** The Factory's `POST /web/github/projects/:id/sessions`
-(`factory/dist/integrations/github/routes.js:899`) accepts `sessionId`, `title`, `branch` and
-`baseBranch`. It normalizes the title and handles a retried id. It needs a signed-in Factory tenant,
-which the Hub can provide only after item 3. It writes `visibility: "org"` itself (`routes.js:950`) and
-accepts no visibility. The storage handle's `sessions.create` does accept one
-(`factory/dist/storage/domains/source-control/base.d.ts:133`), and the Slack integration sets it
-(`factory/dist/integrations/slack/slack.js:224`).
-
-**Decision.** A for creation. B for visibility
-([mastra-ai/mastra#24689](https://github.com/mastra-ai/mastra/issues/24689)). No public way makes a
-session private through the Factory. Its route takes no visibility, no `MastraFactory` option sets
-one, and session storage has no way to change visibility after creation. On 2026-09-22 the operator
-chose creation through the Factory's own route. The preferred default is private ("só quem criou"),
-and `org` is the interim value until the issue lands. Conexus enforces Project authority on every read
-meanwhile.
-
-**Superseded (C-032).** The Factory's session route and `/api/control/projects/:projectId/conversations`
-are gone. A conversation is a session of the Builder's own `AgentController`, opened through its
-Mastra mount (`registerBuilderSessionRoutes`, `apps/hub/src/builder/mastra-session-routes.ts`), whose
-routes are of the `session` access kind and pass one guard that requires the Account to build the
-Project named by the session's resource before any session work.
 
 ## 5. Conversation titles in Portuguese
 
@@ -492,24 +340,8 @@ fixes #25903. Then the module, its caller, the census item and that test go.
 
 ## Upstream proposals
 
-U1 to U4 are the texts of the issues opened on `mastra-ai/mastra` on 2026-09-22. U6 and U7 are drafts
-that are not opened yet. Each names the installed version it was checked against.
-
-### U1 ([mastra-ai/mastra#24687](https://github.com/mastra-ai/mastra/issues/24687)). Throw `ProviderAuthRequiredError` when no credential is configured
-
-**Package.** `@mastra/code-sdk` 1.7.2, `dist/agents/model.js:86`.
-
-**Status.** Fixed in `@mastra/code-sdk` 1.8.1.
-
-When a signed-in Factory account has no usable credential for the selected model's provider,
-`resolveModel` throws a plain `Error` with the message "No usable <provider> credential is configured
-for this signed-in Factory account". Mastra Code already defines `ProviderAuthRequiredError` for a
-missing or unusable provider credential and documents its `name` as the wire-stable value hosts match
-on. `parseError` maps that name to `auth`. The plain `Error` falls through to `unknown`, so a host can
-only recognize this failure by its message text.
-
-Proposal: throw `ProviderAuthRequiredError` at this site, with the same message. Hosts and `parseError`
-then classify it as `auth` with no text matching.
+U2 is the text of an issue opened on `mastra-ai/mastra` on 2026-09-22. The others are drafts that
+are not opened yet. Each names the installed version it was checked against.
 
 ### U2 ([mastra-ai/mastra#24688](https://github.com/mastra-ai/mastra/issues/24688)). Let hosts give title instructions, and name the language by default
 
@@ -537,34 +369,6 @@ Proposal, two parts.
    replaces any differing title (`dist/src-Dt8oPiQN.js:24598`). Seed the hint from the thread's title,
    and leave a title set by an explicit rename alone. Fixed in `@mastra/memory` 1.31.0, where a rename
    pins the title.
-
-### U3 ([mastra-ai/mastra#24689](https://github.com/mastra-ai/mastra/issues/24689)). Accept `visibility` when a host creates a Factory session
-
-**Package.** `@mastra/factory` 0.17.2.
-
-`POST /web/github/projects/:id/sessions` (`dist/integrations/github/routes.js:899`) and
-`ensureFactorySourceSession` (`dist/session/factory-session.js:177`) always write `visibility: "org"`.
-The storage contract accepts `'org' | 'private'`, and the Slack integration already chooses per thread.
-A host that owns its own visibility policy must either accept `org` for every session or write the
-session row itself, which duplicates the route.
-
-Proposal: accept an optional `visibility` of `'org' | 'private'` in the route's body, defaulting to
-`org`. Include it in the id-conflict comparison, so a retry that asks for a different visibility is
-answered with 409.
-
-### U4 ([mastra-ai/mastra#24690](https://github.com/mastra-ai/mastra/issues/24690)). A named option for the sandbox repository credential
-
-**Package.** `@mastra/factory` 0.17.2.
-
-A host that keeps GitHub tokens out of the agent's sandbox (and fetches source with its own
-credential) must override `GithubIntegration.mintInstallationToken`. The override is correct today only
-because `getRepositoryAccess` is that method's only caller, and a future caller that needs a real
-installation token would silently receive the host's placeholder.
-
-Proposal: a `GithubIntegrationConfig` option, for example `repositoryAccess?: (input: { orgId;
-repositoryId; defaultAccess }) => Promise<RepositoryAccess>`, which the integration's
-`getRepositoryAccess` calls when it is set. `mintInstallationToken` then keeps meaning "a real
-installation token".
 
 ### U6 (not opened yet). Settle `sendMessage` when a processor stops the run
 
@@ -612,20 +416,6 @@ result into the model's context, and any reader of the stored messages sees it.
 Proposal: persist the `transcript` projection in the stored message and keep the raw payload only in
 the current turn's model context, or document that the stored message is raw and the projection is a
 serving concern.
-
-### U10 (not opened yet). Let a Factory host pass `hostInstructions`
-
-**Status.** Not needed by the Builder. Its prompt is the agent's own `instructions` (item 13). The
-proposal matters only to a host that runs the Factory's Mastra Code agent.
-
-**Package.** `@mastra/factory` 0.17.2, `dist/factory.js:483` and `dist/factory.d.ts:50-164`.
-
-The Factory passes its own `hostInstructions` to Mastra Code and offers hosts no option for theirs,
-so a host's platform rules can only travel as `pluginInstructions`, which rank below the checkout's
-`AGENTS.md`.
-
-Proposal: accept `hostInstructions` (a string or a function of the request context) in the
-`MastraFactory` config and compose it with the Factory's own.
 
 ### U10. Export Mastra Code's transient-error policy
 

@@ -38,8 +38,8 @@ notes. Each step names what to do and the skill that does it when the session ha
 1. Name the data shape and the one place that owns it.
 2. Read how Mastra's own products (Factory, Mastra Code) do the same thing, not only the API.
 3. Read the whole lifecycle you touch, not the lines around the symptom.
-4. Check the decided shapes and the never-list in [`references/shapes.md`](references/shapes.md),
-   and the [decision register](../../../docs/decisions/index.md).
+4. Check the owners in [architecture](../../../docs/reference/architecture.md) and the
+   [decision register](../../../docs/decisions/index.md).
 5. Say what the change deletes. Code stays because it is needed, never because it exists.
 6. Meet the [codebase principles](../../../docs/development/codebase-principles.md).
 
@@ -48,7 +48,7 @@ the logs, the verify harness and the reference code. Measure before you guess.
 
 ## Stop and report when
 
-A [never-list](references/shapes.md#never) item would break, or a
+A [never-list](../../../docs/development/codebase-principles.md#never) item would break, or a
 [stop condition](../../../docs/development/delivery.md#stop-then-escalate) in `delivery.md` holds.
 
 Stop means: no more code, a comment on the issue with the evidence, and the question for the

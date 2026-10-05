@@ -127,16 +127,7 @@ When ownership matters, state who owns meaning and lifecycle, what remains exter
 
 A material dependency/reuse choice must deliberately preserve ownership: differentiated semantics must not become commodity by accident; commodity machinery must not become authority by convenience.
 
-**Before proposing a Conexus-owned mechanism**, the need has to be concrete: a named
-requirement, the API and version actually examined, the limitation proven rather than
-assumed, and a smaller configuration, composition or integration considered and rejected
-for a stated reason. A gap does not authorize a fork or a parallel engine; it goes back
-to the planner as a material decision. Owning an enterprise rule does not oblige Conexus
-to own the engine that runs it.
-
-Binding an authorization to a native id is allowed. Mirroring the framework's messages,
-states and lifecycles is not, and neither is a universal wrapper whose purpose is to
-hide it.
+A Conexus-owned mechanism follows [native first](../reference/architecture.md#native-first).
 
 ### Enforcement
 

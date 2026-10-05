@@ -43,8 +43,8 @@ owns status and the next action. Start there.
 | Backing up the database and Git root, and proving a restore | [Backup and tested restore](reference/backup.md) |
 | Running the pilot Hub and runner under systemd, and what a crash looks like | [Pilot supervision](reference/pilot-supervision.md) |
 | Security and authority | [Security reference](reference/security-and-authority.md) |
-| Which side owns a concept Conexus and the Factory share | [Single-owner map](reference/single-owner-map.md) |
-| Which Mastra API Conexus uses where it once reached past Mastra | [Mastra boundary](reference/mastra-boundary.md) |
+| Who owns each concept, and where code runs | [Architecture](reference/architecture.md) |
+| Which Mastra API Conexus uses where it once reached past Mastra | [Mastra boundary](reference/mastra/boundary.md) |
 | Frontend surfaces | [Frontend reference](reference/frontend-and-product-surfaces.md) |
 | Exact Mastra lookup | [Mastra reference](reference/mastra/index.md) and the repository Mastra skill |
 | How Mitra builds apps, and what Conexus took from it | [Mitra research](research/mitra/index.md), reference evidence only |

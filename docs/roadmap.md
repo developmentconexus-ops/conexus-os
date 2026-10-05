@@ -56,7 +56,7 @@ Current delivered base includes:
 - compile, smoke and Preview;
 - source/code/change inspection surfaces.
 
-C-032 supersedes the former Factory-centered boundary in C-022. The single-owner map owns every concept shared by Conexus and Factory.
+C-032 supersedes the former Factory-centered boundary in C-022. The [architecture guide](reference/architecture.md#one-owner-per-concept) names the owner of each concept.
 
 Historical tasks and evidence remain records. They are not current execution paths.
 
@@ -222,7 +222,7 @@ conversation. Building it may come after Q5.
 
 ## Technology baseline
 
-A dependency enters only under the [technology rule](development/delivery.md#technology-rule).
+A dependency enters only under the [dependency rule](reference/architecture.md#dependencies).
 Current baseline and challenger state:
 
 - Fastify, Node, Zod/Ajv and pg: baseline mechanisms for Q1 where applicable;
@@ -311,7 +311,7 @@ These return only through a named real consumer and their own qualification.
 Q1 to Q5 prove one thin journey end to end. They do not make Conexus a finished platform. The
 operator agreed this order on 2026-09-23 as a plan, not a commitment. Each step becomes a task only
 after the step before it has a verdict, and each technology enters only under the
-[technology rule](development/delivery.md#technology-rule), with its own consumer.
+[dependency rule](reference/architecture.md#dependencies), with its own consumer.
 
 "Code harness" here means the paved road of ready pieces the Builder assembles inside the managed
 profile. The general software-development harness of the

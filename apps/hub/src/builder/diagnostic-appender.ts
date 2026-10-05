@@ -41,7 +41,7 @@ type NoteSession = Pick<ControllerSession, 'sendSignalToThread'>
 
 /**
  * A `notification` signal is Mastra's system notice for a thread (`sendSignalToThread`, planned as
- * 6b in docs/reference/mastra-boundary.md): the next turn's model reads it as
+ * 6b in docs/reference/mastra/boundary.md): the next turn's model reads it as
  * `<notification source="conexus" ...>` context, and the thread stores it as a `signal` row the
  * browser renders as a notice, never as the Builder speaking. Its id is deterministic, so a retry
  * writes it once.

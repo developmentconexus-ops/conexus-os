@@ -111,7 +111,7 @@ test('a skill over 90 lines fails, the conexus-development skill included', cont
 })
 
 test('the never-list passes at 15 items and fails at 16', context => {
-  const shapes = '.agents/skills/conexus-development/references/shapes.md'
+  const shapes = 'docs/development/codebase-principles.md'
   const items = count => `${Array.from({ length: count }, (_, index) => `- **Never do ${index}.** Instead do the other.`).join('\n')}\n`
   assert.equal(run(fixture(context, { [shapes]: items(15) })).status, 0)
   const result = run(fixture(context, { [shapes]: items(16) }))

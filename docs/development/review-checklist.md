@@ -22,17 +22,16 @@ compared with the pull request's base.
    exact path, `dir/**` for every path under `dir` (dotfiles included), and `*` for any run of
    characters inside one segment. A test maps to the area of the code it proves.
 4. Load every matched page with `git show origin/main:<page>`, and always
-   [`mastra-native.md`](review/mastra-native.md) and [`codebase-principles.md`](codebase-principles.md).
+   [architecture](../reference/architecture.md) and [`codebase-principles.md`](codebase-principles.md).
    A finding against a principle names it by number.
 5. A changed path is not covered when no area other than a universal one matches it in the map
    on `origin/main`. `mastra-native`, whose paths are `["**"]`, does not count. Judge such a path
    by the page the pull request's own map assigns, loaded from the head, and name it in the
    review: `new area path: <path>, page <page>, loaded from the head`.
 
-The pages are [mastra-native](review/mastra-native.md), [identity-session](review/identity-session.md),
+The pages are [identity-session](review/identity-session.md),
 [data-migrations](review/data-migrations.md), [connectors](review/connectors.md),
-[frontend](review/frontend.md), [builder-factory](review/builder-factory.md),
-[contracts](review/contracts.md) and [platform](review/platform.md).
+[frontend](review/frontend.md), [contracts](review/contracts.md) and [platform](review/platform.md).
 
 ## Scope and lane
 

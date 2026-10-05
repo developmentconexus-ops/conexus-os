@@ -61,7 +61,7 @@ export class ConexusRunSandbox extends E2BSandbox {
   }
 
   // E2B counts the sandbox timeout from creation and command activity never moves it, so a run
-  // holds the sandbox open by calling this (docs/reference/mastra-boundary.md, U7).
+  // holds the sandbox open by calling this (docs/reference/mastra/boundary.md, U7).
   async holdOpen(onLapse: (error: unknown) => void): Promise<() => void> {
     await this.#extend()
     let failures = 0

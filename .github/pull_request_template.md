@@ -4,7 +4,7 @@
 
 ## Native census
 
-<!-- Only when the change adds a mechanism. See docs/development/review/mastra-native.md, "Proof required". The reviewer redoes it. -->
+<!-- Only when the change adds a mechanism. See docs/reference/architecture.md, "Native first". The reviewer redoes it. -->
 
 ## Proof
 

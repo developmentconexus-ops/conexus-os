@@ -212,12 +212,12 @@ Publish.
 ## Decided on 2026-09-22
 
 The operator decided these on 2026-09-22, after an independent review of the study on sign-in,
-tenancy and model accounts. The [single-owner map](../reference/single-owner-map.md) applies them
-concept by concept.
+tenancy and model accounts. The [architecture guide](../reference/architecture.md#one-owner-per-concept) applies
+them concept by concept.
 
 | Decision | Consequence |
 | --- | --- |
-| Every concept that Conexus and the Mastra Factory both touch has exactly one owner. | The other side holds only an explicit link to the owner's record, never a parallel copy. The single-owner map names the owner of each shared concept. |
+| Every concept that Conexus and the Mastra Factory both touch has exactly one owner. | The other side holds only an explicit link to the owner's record, never a parallel copy. The architecture guide names the owner of each concept. |
 | Keycloak is the only sign-in door. | The Factory runs behind the Hub with an auth provider that only reads the existing Hub session, as the operator approved later on 2026-09-22 in place of `auth: null`. The provider signs nobody in, so it is not a second door. The Factory's own routes then name the caller themselves, and the Hub stops reimplementing their request context. Conexus links identity by issuer plus subject. Keycloak says who a person is, and Conexus IAM says what they may do, so no Keycloak role or group authorizes anything. The sign-in pages get a Conexus theme later, with Keycloakify. This keeps C-015. |
 | One installation is one Factory organization. | Workspaces, membership, roles and invitations are Conexus IAM only. The Factory holds no roster. **Superseded by C-032 on 2026-09-29:** the Factory leaves the Hub. Workspaces, membership, roles and invitations stay Conexus IAM only. |
 | Conexus IAM gains an installation administrator role, distinct from Workspace owner. | The role authorizes installation-wide actions, such as connecting the company's GitHub organization and sharing a model account with everyone. It does not grant access to every Project. This amends C-024, which said a Workspace owner connects GitHub. |

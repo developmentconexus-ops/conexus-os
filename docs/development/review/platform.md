@@ -9,16 +9,9 @@ root configuration.
 
 ## What to check
 
-- [ ] Platform code does not import an application layer, and the
-      composition root's allowlist names every platform module `hub.ts` imports.
-      `tests/repository/import-law.test.mjs` enforces it.
-- [ ] Generated application code never runs in the Hub process.
 - [ ] Tests and their placement meet [testing](../testing.md).
 - [ ] A change to workflow events or concurrency shows that the required `verify` check and trigger
       coverage stay equivalent.
-- [ ] A new dependency meets the [technology rule](../delivery.md#technology-rule).
-- [ ] A sandbox or runner change states which layer blocks each escape, and a test shows the escape
-      refused with the other layers off.
 - [ ] Telemetry exports only what spec 0007's *Redaction* table allows: allowlisted attributes, a
       log body reduced to its code, an error as its type and frames. A new exported field or
       body source comes with a planted-string case in the `telemetry-redaction` suite.

@@ -16,7 +16,7 @@ A change is in the qualification lane when any Q trigger is true:
   database or service boundary, or has an external effect that is hard to undo.
 - **Q-c.** Its proof must outlive the pull request: a real Builder run as evidence, a pilot run,
   or files in `docs/evidence`.
-- **Q-d.** A new dependency or framework enters, under the [technology rule](#technology-rule).
+- **Q-d.** A new dependency or framework enters, under the [dependency rule](../reference/architecture.md#dependencies).
 
 | Lane | Entry: all must hold | Path | Gates | Merge |
 | --- | --- | --- | --- | --- |
@@ -67,9 +67,6 @@ most 5 open pull requests.
 ## Working rules
 
 - **Lean delivery.** The operator does not test pull requests on the pilot. For a [phase 2 wave](../roadmap.md#order-of-work-to-q5), the operator tests the pull request on the local Conexus. CI runs once per ready head.
-- **Mastra first.** Prefer a Mastra, Keycloak or PostgreSQL primitive over a Conexus-built
-  mechanism. The reviewer redoes the [native census](review/mastra-native.md#proof-required). Every
-  subagent prompt for Conexus work loads [the Mastra skill](../../.agents/skills/mastra/SKILL.md).
 - **Best evidence over past decisions.** Code that exists is not a reason to keep it. When you see a
   better alternative than what is implemented or decided, bring it to the operator with evidence.
   Reopen the owner. Do not work around it.
@@ -78,13 +75,6 @@ most 5 open pull requests.
 - **The Factory targets `main`.** Factory pull requests use `main` as their base.
 - **Codex never authors.**
 - **CodeRabbit is off** for this repository.
-
-## Technology rule
-
-Research does not select a dependency. A dependency or framework enters the stack only with a
-current consumer, a named limitation, the exact API and version examined, a falsifiable probe, and
-evidence against a credible alternative. Existing repository dependencies win when sufficient; the
-roadmap records the baseline and deferred candidates. A pinned dev-only check tool (knip) is exempt.
 
 ## Proof and verification
 
