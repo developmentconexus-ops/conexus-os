@@ -247,6 +247,7 @@ const optionSettings = (options: string): readonly string[] | null => {
 // pg reads PGOPTIONS when the config leaves options unset, so the options checked are the ones the
 // pool is given explicitly: the environment's value goes through the allow list like the config's.
 const checkedConnection = (connection: DatabaseConnection): DatabaseConnection => {
+  // biome-ignore lint/style/noProcessEnv: pg reads PGOPTIONS itself, so the pool must check the same variable.
   const options = connection.options ?? process.env.PGOPTIONS
   if (options === undefined) return connection
   const names = optionSettings(options)
