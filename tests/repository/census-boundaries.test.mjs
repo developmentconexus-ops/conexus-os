@@ -50,6 +50,7 @@ test('a write whose filter is not visible in its template is found, and a write 
     ['constantTrue', 'a delete with a where whose predicate is a constant'],
     ['deleteAll', 'a delete with no where outside parentheses'],
     ['inCte', 'a delete with no where outside parentheses'],
+    ['literalHidesDisjunct', 'a delete with a where whose predicate is a constant'],
     ['merge', 'a merge'],
     ['noWhere', 'an update with no where outside parentheses'],
     ['spaced', 'a delete with no where outside parentheses'],

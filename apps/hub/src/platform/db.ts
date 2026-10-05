@@ -7,6 +7,7 @@ import type { AccountId } from '../../../../packages/contract/dist/index.js'
 import { Failure, logFailure, type FailureCode } from './failure.js'
 import { fieldOf } from './field-of.js'
 import { logger } from './logger.js'
+import { codeOfSql } from './sql-lexer.js'
 import { readSecretFile } from './secrets.js'
 import { CAPABILITY_BY_ROLE } from './hub-roles.generated.js'
 
@@ -55,15 +56,14 @@ export const sql = Object.assign(<V extends readonly unknown[]>(strings: Templat
 const ALLOWED_FIRST_KEYWORD = /^(?:select|insert|update|delete|with)\b/
 const REFUSED_WORDS = /\bconexus\b|session_authorization|u&|set_config|current_setting/
 
-const normalizedText = (text: string): string => text.toLowerCase()
-  .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ')
-  .replaceAll('"', '').replace(/\s+/g, ' ').trim()
+const lowered = (code: string): string => code.toLowerCase().replace(/\s+/g, ' ').trim()
 
 /** The composed text of every executed statement may only select, insert, update, delete or run a CTE; see spec 0015, admission section 4.1. */
 const refuseSqlText = (statement: Sql): void => {
-  const text = normalizedText(statement.text)
-  const statements = text.split(';').map((part) => part.trim()).filter((part) => part !== '')
-  if (statements.length === 0 || statements.some((part) => !ALLOWED_FIRST_KEYWORD.test(part)) || REFUSED_WORDS.test(text)) {
+  const code = codeOfSql(statement.text)
+  const text = code === null ? null : lowered(code)
+  const statements = text === null ? [] : text.split(';').map((part) => part.trim()).filter((part) => part !== '')
+  if (text === null || statements.length === 0 || statements.some((part) => !ALLOWED_FIRST_KEYWORD.test(part)) || REFUSED_WORDS.test(text)) {
     throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'SQL_TEXT_REFUSED' } })
   }
 }
@@ -207,9 +207,25 @@ const entrySettings = (entry: Entry): Readonly<{ text: string; values: readonly 
 }
 
 const entered = new AsyncLocalStorage<true>()
-const refuseOptionNamingRole = (connection: DatabaseConnection): void => {
-  if (connection.options !== undefined && /\b(?:role|session_authorization)\b/i.test(connection.options)) {
-    throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'POOL_OPTION_NAMES_ROLE' } })
+// Connection options name settings the server applies to every session. Only these are allowed; a
+// role, a session authorization or a conexus.* setting would change what every transaction is.
+const ALLOWED_OPTION_SETTINGS: readonly string[] = ['search_path']
+const optionSettings = (options: string): readonly string[] | null => {
+  const names: string[] = []
+  const tokens = options.trim().split(/\s+/).filter((token) => token !== '')
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index] ?? ''
+    const setting = token === '-c' ? tokens[++index] : token.startsWith('-c') ? token.slice(2) : token.startsWith('--') ? token.slice(2) : undefined
+    if (setting === undefined) return null
+    names.push((setting.split('=')[0] ?? '').toLowerCase().replaceAll('-', '_'))
+  }
+  return names
+}
+const refuseConnectionOptions = (connection: DatabaseConnection): void => {
+  if (connection.options === undefined) return
+  const names = optionSettings(connection.options)
+  if (names === null || names.some((name) => !ALLOWED_OPTION_SETTINGS.includes(name))) {
+    throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'POOL_OPTION_REFUSED' } })
   }
 }
 
@@ -221,7 +237,7 @@ export const unportedPool = (database: Database): Pool => {
 }
 
 export const openDatabase = (connection: DatabaseConnection): Database => {
-  refuseOptionNamingRole(connection)
+  refuseConnectionOptions(connection)
   const pool = openPool({ ...connection, password: readSecretFile(connection.passwordFile) })
   const transact = async <T, V extends TxQueries>(entry: Entry, view: (client: PoolClient) => V & { end(): void }, fn: (tx: V) => Promise<T>): Promise<T> => {
     if (entered.getStore()) throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'NESTED_TRANSACTION' } })
@@ -275,7 +291,7 @@ export const openDatabase = (connection: DatabaseConnection): Database => {
 }
 
 export const openFactoryPool = (connection: DatabaseConnection): FactoryPool => {
-  refuseOptionNamingRole(connection)
+  refuseConnectionOptions(connection)
   return Object.assign(openPool({ ...connection, password: readSecretFile(connection.passwordFile) }), { [factoryBrand]: true as const })
 }
 

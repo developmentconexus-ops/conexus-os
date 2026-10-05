@@ -1,10 +1,9 @@
 // The write lint of spec 0015 (admission, section 5): the filter of a write is visible in the template that writes.
 const PLACEHOLDER = '$'
 
+// One left to right pass, so a comment opener inside a literal is not a comment and a quote inside a comment is not a literal.
 const normalizeSql = (text) => text
-  .replace(/\/\*[\s\S]*?\*\//g, ' ')
-  .replace(/--[^\n]*/g, ' ')
-  .replace(/'(?:[^']|'')*'/g, "''")
+  .replace(/'(?:[^']|'')*'|\/\*[\s\S]*?\*\/|--[^\n]*/g, (token) => (token.startsWith("'") ? "''" : ' '))
   .toLowerCase()
   .replace(/\s+/g, ' ')
   .trim()

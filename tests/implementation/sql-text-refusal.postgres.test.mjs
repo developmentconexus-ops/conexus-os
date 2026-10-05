@@ -29,6 +29,13 @@ const REFUSED = [
   ['a read of a conexus setting', "select current_setting('conexus.job')"],
   ['a read of a plain setting', "select current_setting('search_path')"],
   ['a session_authorization word', 'select session_authorization'],
+  ['a switch after a literal that looks like a line comment', "select 1 as value where 'x' = '--'; set local role hub_command"],
+  ['a switch after a literal that opens a block comment', "select 1 as value where 'x' = '/*'; set local role hub_command; select '*/'"],
+  ['a switch after a dollar quoted literal that looks like a comment', "select $$--$$; set local role hub_command"],
+  ['a switch after an escape string that ends in a quote', "select E'it\\'s --'; set local role hub_command"],
+  ['an unterminated literal', "select 'x"],
+  ['an unterminated block comment', 'select 1 /* x'],
+  ['an unterminated quoted identifier', 'select "x'],
 ]
 
 test('the sql tag refuses at run time every text whose first keyword is not select, insert, update, delete or with, and the named words', async (t) => {
@@ -79,11 +86,30 @@ test('an entry opened inside another throws NESTED_TRANSACTION', async (t) => {
   assert.equal(await database.read(ACCOUNT, async () => 1), 1)
 })
 
-test('openDatabase refuses a connection whose options set a role and keeps a search_path option', async (t) => {
+test('openDatabase allows only a search_path option, and refuses a role, an authorization, a conexus setting and any other', async (t) => {
   const { connection } = await openRuntimeFixture(t, 'conexus_options')
   const base = { host: connection.host, port: connection.port, database: connection.database, user: 'hub_runtime', passwordFile: '/nonexistent' }
-  for (const options of ['-c role=hub_command', '-c search_path=iam -c ROLE=hub_command', '-c session_authorization=postgres']) {
-    assert.throws(() => openDatabase({ ...base, options }), (error) => error.id === 'INTERNAL_UNEXPECTED' && error.details?.reason === 'POOL_OPTION_NAMES_ROLE', options)
+  for (const options of ['-c role=hub_command', '-c search_path=iam -c ROLE=hub_command', '-c session_authorization=postgres', '-crole=hub_command', '-c conexus.job=project-purge', '--role=hub_command', '-c work_mem=1GB', 'role=hub_command']) {
+    assert.throws(() => openDatabase({ ...base, options }), (error) => error.id === 'INTERNAL_UNEXPECTED' && error.details?.reason === 'POOL_OPTION_REFUSED', options)
   }
   assert.throws(() => openDatabase({ ...base, options: '-c search_path=iam' }), { code: 'ENOENT' })
+})
+
+test('a literal or a comment that holds a semicolon, a conexus word, a comment opener or a switch is not refused', async (t) => {
+  const { database } = await openRuntimeFixture(t, 'conexus_sql_text_literals', { accounts: [[ACCOUNT, 'a']] })
+  const Text = z.object({ value: z.string() })
+  for (const [label, text, expected] of [
+    ['a semicolon', "select 'a;b' as value", 'a;b'],
+    ['the product name', "select 'Conexus' as value", 'Conexus'],
+    ['a line comment opener', "select '--' as value", '--'],
+    ['a block comment opener', "select '/*' as value", '/*'],
+    ['a switch sentence', "select 'set local role hub_command' as value", 'set local role hub_command'],
+    ['a dollar quoted switch', "select $$set local role x; --$$ as value", 'set local role x; --'],
+    ['an escape string with an escaped quote', "select E'it\\'s;x' as value", "it's;x"],
+    ['a nested block comment', "select 'ok' as value /* a /* b */ ; set local role hub_command */", 'ok'],
+    ['a doubled quote', "select 'it''s;' as value", "it's;"],
+  ]) {
+    const statement = sql(Object.assign([text], { raw: [text] }))
+    assert.deepEqual(await database.read(ACCOUNT, (tx) => tx.rows(Text, statement)), [{ value: expected }], label)
+  }
 })

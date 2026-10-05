@@ -28,3 +28,4 @@ export const merge = sql`MERGE INTO iam.account USING iam.account AS other ON tr
 export const upsertWithoutWhere = sql`INSERT INTO iam.account (account_id) VALUES (${id}) ON CONFLICT (account_id) DO UPDATE SET active = true`
 export const afterSemicolon = sql`SELECT 1; DELETE FROM project.project`
 export const commentedWhere = sql`DELETE FROM project.project /* where project_id = 1 */`
+export const literalHidesDisjunct = sql`DELETE FROM project.project WHERE name = '--' OR true`
