@@ -11,7 +11,7 @@ const DEBT = '// biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning w
 const EXEMPT = `// biome-ignore lint/nursery/noUnsafeTypeAssertion: exempt ${REASON}`
 const ZERO = {
   sqlRunWriters: 0, sqlRunWriterTriggers: 0, runSummaryLiterals: 0, parkedReferences: 0, abortUndoCalls: 0, hubSendMessageCalls: 0,
-  mastraInternalsOutsideLeftovers: 0, sessionScopes: 0, collectionsAcrossModules: 0, plainPortIds: 0, positionalSourceReads: 0, runFunctionLengthSuppressions: 0,
+  mastraInternalsOutsideLeftovers: 0, sessionScopes: 0, collectionsAcrossModules: 0, plainPortIds: 0, handTypedRunStates: 0, runEndWriters: 0, positionalSourceReads: 0, runFunctionLengthSuppressions: 0,
   failureCodesWithoutRow: 0, repeatedTimerSuppressions: 0, unsafeAssertionDebt: 3,
 }
 const FILES = {
@@ -31,6 +31,7 @@ const fixture = (t, { files = FILES, exemptions = ['apps/hub/src/identity-access
   copyFileSync(script, join(root, 'scripts/census-builder-run.mjs'))
   mkdirSync(join(root, 'apps/hub/migrations'), { recursive: true })
   put('contracts/technical/failures.json', '{"failures":[]}')
+  put('contracts/technical/builder-run-vocabulary.json', JSON.stringify({ states: ['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'INTERRUPTED'], openStates: ['QUEUED', 'RUNNING'], phases: ['PREPARING', 'AGENT'], resultKinds: ['RESPONSE_ONLY', 'SOURCE_CHANGED'] }))
   put('contracts/technical/census-builder-run.json', `${JSON.stringify({ ...ZERO, unsafeAssertionExemptions: exemptions }, null, 2)}\n`)
   for (const [path, text] of Object.entries(files)) put(path, text)
   if (biome) put('biome.json', JSON.stringify(biome))
@@ -139,4 +140,22 @@ test('a source read that takes positional arguments fails', (t) => {
   const read = (head) => ({ ...FILES, 'apps/hub/src/builder/source.ts': `export const reads = {\n  listSourceTree: async ${head} => {},\n}\n` })
   assert.equal(fixture(t, { files: read('(projectId, sourceRevision)') }).run().status, 1)
   assert.equal(fixture(t, { files: read('({ projectId, sourceRevision })') }).run().status, 0)
+})
+
+test('a run state list retyped by hand in the Builder, Project or access code fails naming its line, and one value is no list', (t) => {
+  const code = (text) => ({ ...FILES, 'apps/hub/src/identity-access/f.ts': text })
+  const typed = fixture(t, { files: code("const open = (state: string) => state === 'QUEUED' || state === 'RUNNING'\n") }).run()
+  assert.equal(typed.status, 1)
+  assert.match(typed.out, /handTypedRunStates 1 \(record 0\) UP\s+apps\/hub\/src\/identity-access\/f\.ts:1/)
+  assert.equal(fixture(t, { files: code("const sql = \"state = 'QUEUED' AND phase = 'AGENT'\"\n") }).run().status, 0)
+  assert.equal(fixture(t, { files: code("const phases = ['PREPARING', 'AGENT']\n") }).run().status, 1)
+  assert.equal(fixture(t, { files: { ...FILES, 'apps/hub/src/generated/v.ts': "export const S = ['QUEUED', 'RUNNING']\n" } }).run().status, 0)
+})
+
+test('a second writer of the finish time beside the one ending command fails', (t) => {
+  const lifecycle = 'const end = sql`UPDATE builder.builder_run SET finished_at = clock_timestamp()`\n'
+  assert.equal(fixture(t, { files: { ...FILES, 'apps/hub/src/builder/run-lifecycle.ts': lifecycle } }).run().status, 0)
+  const second = fixture(t, { files: { ...FILES, 'apps/hub/src/builder/run-lifecycle.ts': lifecycle, 'apps/hub/src/builder/other.ts': 'const x = sql`UPDATE builder.builder_run SET finished_at = now()`\n' } }).run()
+  assert.equal(second.status, 1)
+  assert.match(second.out, /runEndWriters 1 \(record 0\) UP\s+apps\/hub\/src\/builder\/other\.ts:1/)
 })

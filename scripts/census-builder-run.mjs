@@ -125,6 +125,15 @@ const plainPortIds = hits(builderSource.filter((path) => !NOT_THE_BUILDER_PORTS.
 // The source reads take one object, so a Project id and a revision cannot swap places.
 const positionalSourceReads = hits(builderSource.filter((path) => rel(path) === 'apps/hub/src/builder/source.ts'), /^\s+(?:listSourceTree|readSourceFile|compareRevisions): async \((?!\{)/)
 
+// A run state, phase or result kind list retyped by hand: two values of one vocabulary list on a line. The generated
+// vocabulary is the one owner, and an ending is one value of it, so no module spells a second list.
+const vocabulary = JSON.parse(readFileSync(join(repo, 'contracts/technical/builder-run-vocabulary.json'), 'utf8'))
+const hasTwoOfOneList = (line) => Object.values(vocabulary).some((values) => values.filter((value) => line.includes(`'${value}'`)).length > 1)
+const handTypedRunStates = hits(hubSource.filter((path) => /^apps\/hub\/src\/(builder|project|identity-access)\//.test(rel(path))), { test: hasTwoOfOneList })
+// The final columns of a run are written once, by `endRun`: every other writer of the finish time is a second ending.
+const finishWrites = hits(hubSource, /\bfinished_at\s*=/)
+const runEndWriters = finishWrites.filter((at, index) => !(at.startsWith('apps/hub/src/builder/run-lifecycle.ts:') && finishWrites.findIndex((other) => other.startsWith('apps/hub/src/builder/run-lifecycle.ts:')) === index))
+
 const runFiles = builderSource.filter((path) => /^apps\/hub\/src\/builder\/(run\/|service\.ts$|runtime\.ts$)/.test(rel(path)))
 const runFunctionLengthSuppressions = hits(runFiles, /biome-ignore lint\/complexity\/noExcessiveLinesPerFunction/, { comments: true })
 
@@ -180,6 +189,8 @@ const census = {
   sessionScopes,
   collectionsAcrossModules,
   plainPortIds,
+  handTypedRunStates,
+  runEndWriters,
   positionalSourceReads,
   runFunctionLengthSuppressions,
   failureCodesWithoutRow,

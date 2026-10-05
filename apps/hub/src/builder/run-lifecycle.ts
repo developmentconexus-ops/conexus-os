@@ -1,9 +1,9 @@
 import { z } from 'zod'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import { AccountId, BuilderRunId, ProjectId, SourceRevision, type ArtifactDigest, type ArtifactRevisionId, type ConversationId, type ModelAccountId } from '../../../../packages/contract/dist/index.js'
-import { admitProject, admitRun, admitSystem, type Admitted, type RunScope, type SystemScope } from '../identity-access/admission.js'
-import { BUILDER_RUN_STATES, OPEN_RUN_STATES, type BuilderRunPhase, type BuilderRunResultKind } from '../generated/builder-run-vocabulary.js'
-import { sql, type Database, type Sql } from '../platform/db.js'
+import { admitProject, admitRun, admitSystem, type Admitted, type ProjectScope, type RunScope, type SystemScope } from '../identity-access/admission.js'
+import { BUILDER_RUN_STATES, OPEN_RUN_STATES, type OpenRunState, type BuilderRunPhase, } from '../generated/builder-run-vocabulary.js'
+import { sql, type Database, } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
 import { RUN_COLUMNS, RunRow, runSummary, type BuilderRunSummary } from './run-row.js'
 
@@ -19,25 +19,26 @@ export const withRun = <T>(database: Database, ownerId: string, builderRunId: Bu
 /** How a run stops holding its Project: the person's stop, a Hub that stopped, or a question nobody answered. */
 export type InterruptionCode = Extract<FailureCode, 'USER_CANCELLED' | 'HUB_RESTART' | 'BUILDER_QUESTION_EXPIRED'>
 
-/** The one set of final columns of a run: every ending writes its state, a null phase and its finish time together. */
-type RunEnding =
-  | Readonly<{ state: 'SUCCEEDED'; resultKind: Exclude<BuilderRunResultKind, 'SOURCE_CHANGED_BUILD_FAILED'> }>
-  | Readonly<{ state: 'FAILED'; failureCode: FailureCode; resultKind?: 'SOURCE_CHANGED_BUILD_FAILED' }>
-  | Readonly<{ state: 'INTERRUPTED'; failureCode: InterruptionCode }>
+type Ended = Exclude<BuilderRunSummary, Readonly<{ state: OpenRunState }>>
+type EndingOf<Variant> = Variant extends Ended ? Readonly<Pick<Variant, 'state' | 'resultKind' | 'failureCode'>> : never
+/** What an ending stores, one variant per ended state of the contract's run union; a stop is one of the three interruption codes. */
+type RunEnding = Exclude<EndingOf<Ended>, Readonly<{ state: 'INTERRUPTED' }>> | (EndingOf<Extract<Ended, { state: 'INTERRUPTED' }>> & Readonly<{ failureCode: InterruptionCode }>)
 
-/** The SET of an UPDATE of `builder.builder_run AS run` that ends the run; a stop keeps the first cancellation time and reason. */
-const endColumns = (ending: RunEnding): Sql => {
-  switch (ending.state) {
-    case 'SUCCEEDED':
-      return sql`state = 'SUCCEEDED', phase = NULL, result_kind = ${ending.resultKind}, failure_code = NULL, finished_at = clock_timestamp()`
-    case 'FAILED':
-      return sql`state = 'FAILED', phase = NULL, failure_code = ${ending.failureCode}, result_kind = ${ending.resultKind ?? null}, finished_at = clock_timestamp()`
-    case 'INTERRUPTED':
-      return sql`state = 'INTERRUPTED', phase = NULL, failure_code = ${ending.failureCode},
-        cancellation_requested_at = COALESCE(run.cancellation_requested_at, clock_timestamp()), cancellation_reason = COALESCE(run.cancellation_reason, ${ending.failureCode}),
-        finished_at = clock_timestamp()`
-  }
-}
+/** The rows an ending may write over: the guard each transition needs beside the run's own key. */
+const ENDS_FROM = {
+  open: sql`run.state = ANY(${OPEN_RUN_STATES}::text[])`,
+  queued: sql`run.state = 'QUEUED'`,
+  unclaimed: sql`run.state = 'QUEUED' AND run.owner_id IS NULL`,
+  running: sql`run.state = 'RUNNING'`,
+  withoutCandidate: sql`run.state = 'RUNNING' AND run.candidate_revision IS NULL`,
+} as const
+
+/** The only writer of a run's final columns: the state, a null phase, the result and the failure the ending names, and the finish time. A stop keeps the first cancellation time and reason. */
+const endRun = ({ tx }: Admitted<ProjectScope> | Admitted<RunScope> | Admitted<SystemScope<'builder-executor'>>, { builderRunId, projectId, ending, from }: Readonly<{ builderRunId: BuilderRunId; projectId: ProjectId; ending: RunEnding; from: keyof typeof ENDS_FROM }>): Promise<number> =>
+  tx.run(sql`
+    UPDATE builder.builder_run AS run SET state = ${ending.state}, phase = NULL, result_kind = ${ending.resultKind}, failure_code = ${ending.failureCode}, finished_at = clock_timestamp()
+      ${ending.state === 'INTERRUPTED' ? sql`, cancellation_requested_at = COALESCE(run.cancellation_requested_at, clock_timestamp()), cancellation_reason = COALESCE(run.cancellation_reason, ${ending.failureCode})` : sql``}
+    WHERE run.builder_run_id = ${builderRunId} AND run.project_id = ${projectId} AND ${ENDS_FROM[from]}`)
 
 const Present = z.object({ present: z.literal(1) })
 const Replay = RunRow.extend({ account_id: AccountId, request_digest: z.string() })
@@ -81,15 +82,14 @@ export const createRunStart = ({ database, mintIdentity }: Readonly<{ database: 
     return runSummary(created)
   }),
   requestBuilderRunCancellation: ({ accountId, projectId, builderRunId }) => database.transaction(accountId, async (gate) => {
-    const { tx, scope } = await admitProject(gate, projectId, 'project.build')
+    const project = await admitProject(gate, projectId, 'project.build')
+    const { tx, scope } = project
     const run = await tx.maybe(z.object({ state: z.enum(BUILDER_RUN_STATES) }), sql`
       SELECT run.state FROM builder.builder_run AS run
       WHERE run.builder_run_id = ${builderRunId} AND run.project_id = ${scope.projectId} AND run.account_id = ${scope.accountId} FOR UPDATE`)
     if (!run) throw new Failure('BUILDER_RUN_NOT_FOUND')
     if (run.state === 'QUEUED') {
-      await tx.run(sql`
-        UPDATE builder.builder_run AS run SET ${endColumns({ state: 'INTERRUPTED', failureCode: 'USER_CANCELLED' })}
-        WHERE run.builder_run_id = ${builderRunId} AND run.project_id = ${scope.projectId} AND run.state = 'QUEUED'`)
+      await endRun(project, { builderRunId, projectId: scope.projectId, ending: { state: 'INTERRUPTED', resultKind: null, failureCode: 'USER_CANCELLED' }, from: 'queued' })
     } else if (run.state === 'RUNNING') {
       await tx.run(sql`
         UPDATE builder.builder_run SET phase = NULL, cancellation_requested_at = COALESCE(cancellation_requested_at, clock_timestamp()),
@@ -113,8 +113,8 @@ export const createRunStart = ({ database, mintIdentity }: Readonly<{ database: 
   }),
 })
 
-/** How a run no claim reached ends: a refused claim fails it, a stop interrupts it. */
-type UnclaimedEnding = Exclude<RunEnding, Readonly<{ state: 'SUCCEEDED' }>>
+/** An ending without a result: the run failed, or a stop interrupted it. */
+export type StoppedEnding = Exclude<RunEnding, Readonly<{ state: 'SUCCEEDED' }>>
 
 /** What the Preview build of an admitted source came to: the artifact the registry holds, or the code the build failed with. */
 type BuildSettlement = Readonly<{ builderRunId: BuilderRunId; sourceRevision: SourceRevision }> & (
@@ -126,7 +126,7 @@ export type RunSteps = Readonly<{
   /** Starts a queued run under this Hub, after the Project admits its author; a refused, unclaimed row ends FAILED. */
   claimBuilderRun(input: Readonly<{ builderRunId: BuilderRunId }>): Promise<BuilderRunSummary>
   /** Ends a run that was never claimed: only a row still queued and unowned, so a claim or a cancellation that won is left alone. */
-  endUnclaimedBuilderRun(input: Readonly<{ builderRunId: BuilderRunId; ending: UnclaimedEnding }>): Promise<void>
+  endUnclaimedBuilderRun(input: Readonly<{ builderRunId: BuilderRunId; projectId: ProjectId; ending: StoppedEnding }>): Promise<void>
   /** Answers the run as written, or null when a stop was requested first. */
   setBuilderRunPhase(input: Readonly<{ builderRunId: BuilderRunId; phase: BuilderRunPhase; actor: RunActor }>): Promise<BuilderRunSummary | null>
   /** Enters SOURCE_ADMISSION with the candidate about to be fast forwarded onto `main`; refused once a stop is requested. */
@@ -152,7 +152,6 @@ const transitionRefused = (transition: Transition): Failure => new Failure('BUIL
 const SANDBOX_ID = /^.{1,200}$/s
 const ADMISSION_REFUSALS: ReadonlySet<string> = new Set(['BUILDER_RUN_NOT_ADMITTED', 'PROJECT_BUILD_DENIED', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'])
 
-// Every transition that leaves RUNNING or asks for a stop writes a null phase: the CHECK allows a phase only on a running, uncancelled run.
 // The run row is locked first, then the Project's working state: the order every settlement takes.
 const lockWorking = async ({ tx, scope }: Admitted<RunScope>, transition: Transition): Promise<void> => {
   if (!await tx.maybe(Present, sql`SELECT 1 AS present FROM builder.project_working_state WHERE project_id = ${scope.projectId} FOR UPDATE`)) throw transitionRefused(transition)
@@ -185,8 +184,8 @@ export const createRunSteps = ({ database, ownerId }: Readonly<{ database: Datab
   }
   return {
     claimBuilderRun: claim,
-    endUnclaimedBuilderRun: ({ builderRunId, ending }) => database.system('builder-executor', async (gate) => {
-      await endUnclaimed(await admitSystem(gate, 'builder-executor'), builderRunId, ending)
+    endUnclaimedBuilderRun: ({ builderRunId, projectId, ending }) => database.system('builder-executor', async (gate) => {
+      await endRun(await admitSystem(gate, 'builder-executor'), { builderRunId, projectId, ending, from: 'unclaimed' })
     }),
     setBuilderRunPhase: ({ builderRunId, phase, actor }) => withRun(database, ownerId, builderRunId, actor, async (proof) => {
       const row = await proof.tx.maybe(RunRow, sql`
@@ -219,9 +218,9 @@ export const createRunSteps = ({ database, ownerId }: Readonly<{ database: Datab
         await proof.tx.run(sql`
           INSERT INTO builder.builder_run_model_account (builder_run_id, model_account_id) VALUES (${proof.scope.builderRunId}, ${modelAccountId}) ON CONFLICT DO NOTHING`)
       }),
-    settleBuilderRun: ({ builderRunId }) => withRun(database, ownerId, builderRunId, executor, (proof) => written(proof, sql`
-      UPDATE builder.builder_run AS run SET ${endColumns({ state: 'SUCCEEDED', resultKind: 'RESPONSE_ONLY' })}, result_source_revision = NULL
-      WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId} AND run.state = 'RUNNING' AND run.candidate_revision IS NULL`, 'settlement')),
+    settleBuilderRun: ({ builderRunId }) => withRun(database, ownerId, builderRunId, executor, async (proof) => {
+      if (await endRun(proof, { ...proof.scope, ending: { state: 'SUCCEEDED', resultKind: 'RESPONSE_ONLY', failureCode: null }, from: 'withoutCandidate' }) !== 1) throw transitionRefused('settlement')
+    }),
     advanceBuilderRunSource: async ({ builderRunId, sourceRevision }) => {
       await withRun(database, ownerId, builderRunId, executor, async (proof) => {
         const run = await proof.tx.maybe(Candidates, sql`
@@ -246,29 +245,18 @@ export const createRunSteps = ({ database, ownerId }: Readonly<{ database: Datab
           UPDATE builder.project_working_state SET current_state = 'PREVIEW_READY', last_preview_source_revision = ${settlement.sourceRevision},
             last_preview_artifact_revision_id = ${settlement.artifactRevisionId}, last_preview_artifact_digest = ${settlement.artifactDigest}, updated_at = clock_timestamp()
           WHERE project_id = ${proof.scope.projectId}`)
-        await proof.tx.run(sql`
-          UPDATE builder.builder_run AS run SET ${endColumns({ state: 'SUCCEEDED', resultKind: 'SOURCE_CHANGED' })}
-          WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId}`)
+        await endRun(proof, { ...proof.scope, ending: { state: 'SUCCEEDED', resultKind: 'SOURCE_CHANGED', failureCode: null }, from: 'running' })
         return
       }
       await proof.tx.run(sql`
         UPDATE builder.project_working_state SET current_state = 'BUILD_FAILED', updated_at = clock_timestamp() WHERE project_id = ${proof.scope.projectId}`)
-      await proof.tx.run(sql`
-        UPDATE builder.builder_run AS run SET ${endColumns({ state: 'FAILED', failureCode: settlement.failureCode, resultKind: 'SOURCE_CHANGED_BUILD_FAILED' })}
-        WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId}`)
+      await endRun(proof, { ...proof.scope, ending: { state: 'FAILED', resultKind: 'SOURCE_CHANGED_BUILD_FAILED', failureCode: settlement.failureCode }, from: 'running' })
     }),
-    failBuilderRun: ({ builderRunId, failureCode }) => withRun(database, ownerId, builderRunId, executor, (proof) => written(proof, sql`
-      UPDATE builder.builder_run AS run SET ${endColumns({ state: 'FAILED', failureCode })}
-      WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId} AND run.state = ANY(${OPEN_RUN_STATES}::text[])`, 'failure')),
-    interruptBuilderRun: ({ builderRunId, failureCode }) => withRun(database, ownerId, builderRunId, executor, (proof) => written(proof, sql`
-      UPDATE builder.builder_run AS run SET ${endColumns({ state: 'INTERRUPTED', failureCode })}
-      WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId} AND run.state = ANY(${OPEN_RUN_STATES}::text[])`, 'interruption')),
+    failBuilderRun: ({ builderRunId, failureCode }) => withRun(database, ownerId, builderRunId, executor, async (proof) => {
+      if (await endRun(proof, { ...proof.scope, ending: { state: 'FAILED', resultKind: null, failureCode }, from: 'open' }) !== 1) throw transitionRefused('failure')
+    }),
+    interruptBuilderRun: ({ builderRunId, failureCode }) => withRun(database, ownerId, builderRunId, executor, async (proof) => {
+      if (await endRun(proof, { ...proof.scope, ending: { state: 'INTERRUPTED', resultKind: null, failureCode }, from: 'open' }) !== 1) throw transitionRefused('interruption')
+    }),
   }
-}
-
-/** The one transition of a run no executor owns yet: a still queued, unowned row ends; zero rows means a claim or a cancellation won. A stop keeps the first cancellation time and reason. */
-const endUnclaimed = async ({ tx }: Admitted<SystemScope<'builder-executor'>>, builderRunId: BuilderRunId, ending: UnclaimedEnding): Promise<void> => {
-  await tx.run(sql`
-    UPDATE builder.builder_run AS run SET ${endColumns(ending)}
-    WHERE run.builder_run_id = ${builderRunId} AND run.state = 'QUEUED' AND run.owner_id IS NULL`)
 }
