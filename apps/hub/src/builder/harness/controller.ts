@@ -199,7 +199,7 @@ export type BuilderControllerDeps = Readonly<{
   skillsPath?: string
   /** Overrides how long one model call may run; only for tests. */
   modelStepTimeoutMs?: number
-  /** Overrides the wait before each retry of a transient model failure; only for tests. */
+  /** Overrides the wait before each retry of a transient model failure: tests, and `CONEXUS_BUILDER_MODEL_RETRY_DELAY_MS` when set. */
   modelRetryDelayMs?: (retryCount: number) => number
   id?: string
 }>
