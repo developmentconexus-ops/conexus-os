@@ -23,7 +23,7 @@ export const setupConnectors = async (t, prefix) => {
     await store.createConnection({ accountId, workspaceId, body: { connectionId, connectorId, label, credential } })
     return connectionId
   }
-  const bind = (projectId, connectionId, name, accountId = ID.owner) => store.bindConnection({ accountId, projectId, body: { connectionId, name } })
+  const bind = async (projectId, connectionId, name, accountId = ID.owner) => (await store.bindConnection({ accountId, projectId, body: { connectionId, name } })).binding
   const unbind = (projectId, bindingId, accountId = ID.owner) => store.unbindConnection({ accountId, projectId, bindingId })
   const disable = (connectionId, workspaceId = ID.workspace, accountId = ID.administrator) => store.disableConnection({ accountId, workspaceId, connectionId })
   const archive = (projectId, archived) => query(superuser, 'UPDATE project.project SET archived = $2 WHERE project_id = $1', [projectId, archived])

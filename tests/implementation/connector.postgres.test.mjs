@@ -11,7 +11,7 @@ import { query } from './hub-database.mjs'
 import { ID } from './project-fixture.mjs'
 import { waitUntilBlocked } from './race.mjs'
 
-const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
+const { createBroker, registryOf } = await import(hubModuleUrl('connectors/broker.js'))
 const { createBrokerStore, purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
@@ -182,7 +182,8 @@ test('CON-08, CON-09 and CON-10: owner only, ordered entries, conflicts, a forei
   const binding = await bind(projectId, erp, 'erp')
   assert.deepEqual({ ...binding, boundAt: typeof binding.boundAt }, { kind: 'binding', bindingId: binding.bindingId, name: 'erp', connectionId: erp, connectorId: 'sankhya', label: 'ERP', boundAt: 'string' })
   assert.deepEqual((await list()).map((entry) => [entry.kind, entry.name ?? null, entry.label]), [['binding', 'erp', 'ERP'], ['bindable', null, 'Filial']])
-  assert.equal((await bind(projectId, erp, 'erp')).bindingId, binding.bindingId, 'an exact retry returns the same binding')
+  const retried = await store.bindConnection({ accountId: ID.owner, projectId, body: { connectionId: erp, name: 'erp' } })
+  assert.deepEqual([retried.created, retried.binding.bindingId], [false, binding.bindingId], 'an exact retry returns the same binding and creates none')
   await assert.rejects(bind(projectId, filial, 'erp'), { id: 'CONNECTOR_BINDING_CONFLICT' })
   await assert.rejects(bind(projectId, erp, 'other'), { id: 'CONNECTOR_BINDING_CONFLICT' })
   await assert.rejects(bind(projectId, foreign, 'foreign'), { id: 'CONNECTOR_CONNECTION_NOT_AVAILABLE' })
@@ -216,7 +217,7 @@ test('CON-08, CON-09 and CON-10: owner only, ordered entries, conflicts, a forei
 })
 
 test('reader and command walls on both Connector tables', { skip }, async (t) => {
-  const { connection, database, addConnection, bind, seedProject } = await setupConnectors(t, 'connector_walls')
+  const { connection, database, addConnection, bind, disable, seedProject } = await setupConnectors(t, 'connector_walls')
   await query(connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'other-owner', 'Other owner')", [OTHER_OWNER])
   await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [OTHER_OWNER, ID.otherWorkspace])
   const projectId = await seedProject('Atlas')
@@ -268,13 +269,16 @@ test('reader and command walls on both Connector tables', { skip }, async (t) =>
   }
   assert.equal((await reader('SELECT count(*)::integer FROM connector.connection')).code, null, 'the connection reader policy does not recurse')
   assert.equal((await reader('SELECT count(*)::integer FROM connector.project_binding')).code, null, 'the binding reader policy does not recurse')
+
+  await disable(erp)
+  assert.equal(await count(connection, 'SELECT count(*)::integer AS n FROM connector.project_binding AS bound JOIN connector.connection AS stored USING (connection_id) WHERE bound.unbound_at IS NULL AND stored.disabled_at IS NOT NULL'), 0, 'no open binding stays on a disabled Connection')
 })
 
 const connectorBroker = async (t, fixture, store = fixture.brokerStore, gateway) => {
   const fake = gateway ?? await startFakeGateway()
   if (!gateway) t.after(() => fake.close())
   const broker = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }],
+    connectors: registryOf([{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }]),
     store, envelope: fixture.envelope, observability: connectorRecord().observability,
   })
   const fetchAs = (scope) => broker.fetch({ kind: 'handler', invocationId: randomUUID(), scope }, NATIVE_READ)
@@ -332,7 +336,7 @@ test('broker refusals are NOT_GRANTED and a store fault is CONNECTOR_PLATFORM_FA
 
 test('CON-09 against CON-04, CON-10 and the Project purge in both lock orders, with no deadlock', { skip }, async (t) => {
   const { connection, database, store, addConnection, bind, disable, seedProject, onCleanup } = await setupConnectors(t, 'connector_locks')
-  const bindIn = (projectId, connectionId, name) => store.bindConnection({ accountId: ID.owner, projectId, body: { connectionId, name } })
+  const bindIn = async (projectId, connectionId, name) => (await store.bindConnection({ accountId: ID.owner, projectId, body: { connectionId, name } })).binding
 
   const atlas = await seedProject('Atlas')
   const erp = await addConnection('sankhya', 'ERP', CREDENTIAL)

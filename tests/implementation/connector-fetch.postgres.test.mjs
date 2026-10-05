@@ -8,7 +8,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { setupConnectors, skip } from './connector-fixture.mjs'
 
 
-const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
+const { createBroker, registryOf } = await import(hubModuleUrl('connectors/broker.js'))
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
 
@@ -37,10 +37,10 @@ const setup = async (t) => {
   const rest = await startFakeRest()
   t.after(() => Promise.all([fake.close(), other.close(), rest.close()]))
   const broker = createBroker({
-    connectors: [
+    connectors: registryOf([
       { definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) },
       { definition: restDefinition, adapter: createRestAdapter({ origin: rest.origin }) },
-    ],
+    ]),
     store: brokerStore, envelope, observability: connectorRecord().observability,
   })
   const fetchAs = (projectId, request) => broker.fetch({ kind: 'handler', invocationId: randomUUID(), scope: scopeOf(projectId) }, request)

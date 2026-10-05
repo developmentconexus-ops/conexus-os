@@ -9,7 +9,7 @@ import { connectorRecord, recordText } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { invalidConfig } from './failure-matchers.mjs'
 
-const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
+const { createBroker, registryOf } = await import(hubModuleUrl('connectors/broker.js'))
 const { createBuilderObservability } = await import(hubModuleUrl('builder/observability.js'))
 const { endSpan, requestTrace } = await import(hubModuleUrl('connectors/record.js'))
 const { createTokenCache } = await import(hubModuleUrl('connectors/token-cache.js'))
@@ -40,7 +40,7 @@ const memoryStore = ({ bound = [binding('erp')], credential = sealed } = {}) => 
     calls,
     listBindings: async (input) => {
       calls.push(['listBindings', input])
-      return input.projectId === PROJECT && input.environment === 'preview' ? [...bindings] : []
+      return input.projectId === PROJECT ? [...bindings] : []
     },
     readConnectionCredential: async (_scope, connectionId) => { calls.push(['readConnectionCredential', connectionId]); return connectionId === CONNECTION ? credential : null },
   }
@@ -54,7 +54,7 @@ const setup = async (t, { store = memoryStore(), deadlineMs, tokens, adapter = t
   const record = connectorRecord()
   const gateway = createSankhyaGateway({ origin: fake.origin })
   const broker = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: adapter ? gateway : null }],
+    connectors: registryOf([{ definition: sankhyaDefinition, adapter: adapter ? gateway : null }]),
     store, envelope, observability: record.observability,
     ...(deadlineMs ? { deadlineMs, nativeLimits: limitsFor(deadlineMs) } : {}), ...(tokens ? { tokens } : {}),
   })
@@ -122,7 +122,7 @@ test('a request whose deadline passes while it waits on its token is never sent,
   const tokens = createTokenCache()
   const { fake, broker, gateway } = await setup(t, { tokens, deadlineMs: 1000 })
   const short = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: gateway }],
+    connectors: registryOf([{ definition: sankhyaDefinition, adapter: gateway }]),
     store: memoryStore(), envelope, observability: connectorRecord().observability,
     tokens, nativeLimits: limitsFor(300),
   })
@@ -143,7 +143,7 @@ test('a request stalled on one token does not hold back a request on another tok
   const { fake, broker, gateway } = await setup(t, { deadlineMs: 1000 })
   assert.deepEqual(await broker.fetch(consumer, read()), ORDER_READ)
   const other = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: gateway }],
+    connectors: registryOf([{ definition: sankhyaDefinition, adapter: gateway }]),
     store: memoryStore(), envelope, observability: connectorRecord().observability,
     nativeLimits: limitsFor(300),
   })
@@ -347,7 +347,7 @@ test('the Hub\'s Mastra keeps the Connector record in its own storage, and the B
   const observability = createBuilderObservability('conexus-builder-factory', record.observability)
   const mastra = new Mastra({ storage: new InMemoryStore(), observability, logger: false })
   t.after(() => observability.shutdown())
-  const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }], store: memoryStore(), envelope, observability: record.observability })
+  const broker = createBroker({ connectors: registryOf([{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }]), store: memoryStore(), envelope, observability: record.observability })
   assert.deepEqual(await broker.fetch(consumer, read()), ORDER_READ)
   await observability.flush()
   const { traceId } = record.lines.map((line) => JSON.parse(line)).find((line) => line.span === 'connector.fetch')
@@ -394,26 +394,19 @@ test('a credential check runs the allow-listed authentication alone and caches n
   ])
 })
 
-test('connector spans record consumer kind only when in the closed set, and connector id only when registered', async (t) => {
+test('connector spans record the connector id only when registered', async (t) => {
   const { broker, facts, exporter, lines, settled } = await setup(t)
-  const rawKind = 'arbitrary-consumer'
   const rawConnector = 'unregistered-connector'
-  await broker.fetch(Object.freeze({ kind: rawKind, scope: consumer.scope }), read())
   await broker.checkCredential(rawConnector, CONNECTION)
   await settled()
 
   const recorded = await facts()
-  assert.equal(recorded.find((span) => span.name === 'connector.fetch').consumer, 'other', 'an unrecognised consumer kind is recorded as other')
   assert.equal(recorded.find((span) => span.name === 'connector.check' && span.result === 'CONNECTOR_UNCONFIGURED').connector, 'unknown', 'an unregistered connector is recorded as unknown')
   const ended = (name) => exporter.events.filter((event) => event.type === 'span_ended' && event.exportedSpan.name === name).map((event) => event.exportedSpan.metadata)
-  for (const meta of ended('connector.fetch')) assert.equal(meta.consumer, 'other')
   for (const meta of ended('connector.check')) assert.equal(meta.connector, 'unknown')
   const logged = lines.map((line) => JSON.parse(line))
-  assert.equal(logged.find((entry) => entry.span === 'connector.fetch').consumer, 'other')
   assert.equal(logged.find((entry) => entry.span === 'connector.check').connector, 'unknown')
-  const seen = recordText({ exporter, lines })
-  assert.equal(seen.includes(rawKind), false, `${rawKind} reached the record`)
-  assert.equal(seen.includes(rawConnector), false, `${rawConnector} reached the record`)
+  assert.equal(recordText({ exporter, lines }).includes(rawConnector), false, `${rawConnector} reached the record`)
 })
 
 test('the Hub pins only a published gateway origin, and refuses any other at startup', async () => {

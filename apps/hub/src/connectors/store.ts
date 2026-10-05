@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import {
   BindingId, BindingName, ConnectionId, ConnectorIdText, type ProjectId,
-  type AccountId, type CON02, type CON09, type ConnectionBinding, type ConnectionBindingEntry, type ConnectorConnection, type Input, type WorkspaceId,
+  type AccountId, type CON02, type FailureCode, type CON09, type ConnectionBinding, type ConnectionBindingEntry, type ConnectorConnection, type Input, type WorkspaceId,
 } from '../../../../packages/contract/dist/index.js'
 import {
   admitInstallationAdministrator, admitProject, checkApplication, isInstallationAdministrator,
@@ -11,7 +11,6 @@ import type { Database, TxQueries } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
-import type { BoundConnection } from './model.js'
 import type { ConsumerScope } from './scope.js'
 
 const ConnectionRow = z.object({
@@ -29,7 +28,10 @@ const Present = z.object({ present: z.literal(1) })
 const BindingIdRow = z.object({ binding_id: BindingId })
 const CredentialRow = z.object({ connector_id: ConnectorIdText, credential_sealed: z.string() })
 const SealedRow = z.object({ credential_sealed: z.string() })
-const BoundRow = z.object({ binding_id: BindingId, name: BindingName, connection_id: ConnectionId, connector_id: z.string() })
+const BoundRow = z.object({ binding_id: BindingId, name: BindingName, connection_id: ConnectionId, connector_id: ConnectorIdText })
+
+/** Preview and the application host both read the one environment the column accepts. */
+const ENVIRONMENT = 'preview'
 
 const toConnection = (row: z.output<typeof ConnectionRow>): ConnectorConnection => ({
   connectionId: row.connection_id,
@@ -69,7 +71,7 @@ export type ConnectorStore = Readonly<{
   readCredentialForCheck(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId; connectionId: ConnectionId }>): Promise<Readonly<{ connectorId: string; sealed: string }>>
   disableConnection(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId; connectionId: ConnectionId }>): Promise<void>
   listProjectBindings(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<ConnectionBindingEntry[]>
-  bindConnection(input: Readonly<{ accountId: AccountId; projectId: ProjectId; body: Input<typeof CON09>['body'] }>): Promise<ConnectionBinding>
+  bindConnection(input: Readonly<{ accountId: AccountId; projectId: ProjectId; body: Input<typeof CON09>['body'] }>): Promise<Readonly<{ binding: ConnectionBinding; created: boolean }>>
   unbindConnection(input: Readonly<{ accountId: AccountId; projectId: ProjectId; bindingId: BindingId }>): Promise<void>
 }>
 
@@ -139,14 +141,14 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
         SELECT 'binding'::text AS kind, bound.binding_id, bound.name, stored.connection_id, stored.connector_id, stored.label, bound.bound_at
         FROM connector.project_binding AS bound
         JOIN connector.connection AS stored ON stored.connection_id = bound.connection_id
-        WHERE bound.project_id = ${scopedProject} AND bound.environment = 'preview' AND bound.unbound_at IS NULL AND stored.disabled_at IS NULL
+        WHERE bound.project_id = ${scopedProject} AND bound.environment = ${ENVIRONMENT} AND bound.unbound_at IS NULL AND stored.disabled_at IS NULL
         UNION ALL
         SELECT 'bindable'::text, NULL::uuid, NULL::text, stored.connection_id, stored.connector_id, stored.label, NULL::timestamptz
         FROM connector.connection AS stored
         WHERE stored.workspace_id = ${workspaceId} AND stored.disabled_at IS NULL
           AND NOT EXISTS (
             SELECT 1 FROM connector.project_binding AS bound
-            WHERE bound.project_id = ${scopedProject} AND bound.environment = 'preview'
+            WHERE bound.project_id = ${scopedProject} AND bound.environment = ${ENVIRONMENT}
               AND bound.connection_id = stored.connection_id AND bound.unbound_at IS NULL)
       ) AS entry
       ORDER BY entry.kind = 'binding' DESC, entry.name, entry.label, entry.connection_id`)).map(toEntry)
@@ -162,18 +164,19 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
     if (!available) throw new Failure('CONNECTOR_CONNECTION_NOT_AVAILABLE')
     const inserted = await proof.tx.maybe(BindingIdRow, sql`
       INSERT INTO connector.project_binding (workspace_id, project_id, environment, connection_id, name, bound_by)
-      VALUES (${workspaceId}, ${scopedProject}, 'preview', ${body.connectionId}, ${body.name}, ${proof.scope.accountId})
+      VALUES (${workspaceId}, ${scopedProject}, ${ENVIRONMENT}, ${body.connectionId}, ${body.name}, ${proof.scope.accountId})
       ON CONFLICT DO NOTHING RETURNING binding_id`)
     const settled = inserted ?? await proof.tx.maybe(BindingIdRow, sql`
       SELECT binding_id FROM connector.project_binding
-      WHERE project_id = ${scopedProject} AND environment = 'preview' AND connection_id = ${body.connectionId}
+      WHERE project_id = ${scopedProject} AND environment = ${ENVIRONMENT} AND connection_id = ${body.connectionId}
         AND name = ${body.name} AND unbound_at IS NULL`)
     if (!settled) throw new Failure('CONNECTOR_BINDING_CONFLICT')
-    return toBinding(await proof.tx.one(BindingRow, sql`
+    const binding = toBinding(await proof.tx.one(BindingRow, sql`
       SELECT bound.binding_id, bound.name, stored.connection_id, stored.connector_id, stored.label, bound.bound_at
       FROM connector.project_binding AS bound
       JOIN connector.connection AS stored ON stored.connection_id = bound.connection_id
       WHERE bound.binding_id = ${settled.binding_id} AND bound.project_id = ${scopedProject}`, 'INTERNAL_UNEXPECTED'))
+    return { binding, created: inserted !== null }
   }),
 
   unbindConnection: ({ accountId, projectId, bindingId }) => database.transaction(accountId, async (gate) => {
@@ -191,7 +194,10 @@ export const purgeProjectBindings = async ({ tx }: Admitted<SystemScope<'project
 }
 
 // A refusal of the consumer's admission is an answer, not a fault: the consumer holds no binding.
-const ADMISSION_REFUSALS: ReadonlySet<string> = new Set(['PROJECT_NOT_FOUND', 'APPLICATION_NOT_FOUND', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'])
+const ADMISSION_REFUSALS: ReadonlySet<FailureCode> = new Set(['PROJECT_NOT_FOUND', 'APPLICATION_NOT_FOUND', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'])
+
+/** What the broker reads per call. `connectorId` is the stored text: the registry decides whether it names a registered connector. */
+export type BoundConnection = Readonly<{ bindingId: BindingId; name: BindingName; connectionId: ConnectionId; connectorId: string }>
 
 export type BrokerStore = Readonly<{
   /** The Project's open bindings on enabled Connections, for a Project that is not archived; none when the consumer's account is refused. */
@@ -220,7 +226,7 @@ export const createBrokerStore = (database: Database): BrokerStore => {
         FROM connector.project_binding AS bound
         JOIN connector.connection AS stored ON stored.connection_id = bound.connection_id
         JOIN project.project AS bound_project ON bound_project.project_id = bound.project_id
-        WHERE bound.project_id = ${projectId} AND bound.environment = ${scope.environment}
+        WHERE bound.project_id = ${projectId} AND bound.environment = ${ENVIRONMENT}
           AND bound.unbound_at IS NULL AND stored.disabled_at IS NULL AND NOT bound_project.archived
         ORDER BY bound.name`)).map((row) => ({ bindingId: row.binding_id, name: row.name, connectionId: row.connection_id, connectorId: row.connector_id }))),
     readConnectionCredential: (scope, connectionId) => asConsumer<string | null>(scope, null, async (tx, projectId) =>

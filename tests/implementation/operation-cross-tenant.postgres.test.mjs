@@ -221,9 +221,9 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
     },
     'CON-09': {
       own: async () => {
-        const bound = await connectors.bindConnection({ accountId: ID.owner, projectId: projectA, body: { connectionId: CONNECTION.a, name: 'erp' } })
+        const { binding: bound, created } = await connectors.bindConnection({ accountId: ID.owner, projectId: projectA, body: { connectionId: CONNECTION.a, name: 'erp' } })
         bindingOfA = bound.bindingId
-        assert.deepEqual({ name: bound.name, connectionId: bound.connectionId, connectorId: bound.connectorId }, { name: 'erp', connectionId: CONNECTION.a, connectorId: 'sankhya' })
+        assert.deepEqual({ created, name: bound.name, connectionId: bound.connectionId, connectorId: bound.connectorId }, { created: true, name: 'erp', connectionId: CONNECTION.a, connectorId: 'sankhya' })
       },
       cross: async () => {
         await assert.rejects(connectors.bindConnection({ accountId: ID.owner, projectId: projectB, body: { connectionId: CONNECTION.b, name: 'erp' } }), { id: 'PROJECT_NOT_FOUND' })

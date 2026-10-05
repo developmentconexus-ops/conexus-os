@@ -9,7 +9,7 @@ import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { setupConnectors, skip } from './connector-fixture.mjs'
 
-const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
+const { createBroker, registryOf } = await import(hubModuleUrl('connectors/broker.js'))
 const { createHandlerPorts } = await import(hubModuleUrl('connectors/handler-port.js'))
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
@@ -41,7 +41,7 @@ const setup = async (t) => {
   const fake = await startFakeGateway()
   t.after(() => fake.close())
   const broker = createBroker({
-    connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }],
+    connectors: registryOf([{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }]),
     store: brokerStore, envelope, observability: connectorRecord().observability,
   })
   const directory = mkdtempSync(join(tmpdir(), 'cx-broker-pg-'))
