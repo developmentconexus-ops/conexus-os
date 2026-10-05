@@ -71,9 +71,8 @@ const iamReaperDigest = '6610e1b0533fc80561064142011b26e971bcc7dc831933471b2338e
 const invitationStateDigest = '52f15875fe72585faafb7bccab2e9b9aaebb8711db537772507caa81bcd9f874'
 const oneOwnerPerLifetimeDigest = '718c64fd896e0c04550c59d3b3fddea548737aea6256c5d5b57e8ba2bd9cd7c7'
 const dropWorkspaceGetSummaryDigest = '8a6a0d7a8674ea3b74722d7d2e458ac5bd3c38662f2ab9233e83c3728606213d'
-const runtimeDataBoundaryDigest = '7ff108386e64afd6b20e280840b2686e9703bc26e0b081db97167b74545078ac'
-const workspaceAdmissionDigest = '0e183f999860ccf267ed01dc99c014b8b929dcd90c1887e232ac7e5aee830fec'
-const policyCommandsDigest = '48e55025492b71dbbfe77e7eac7c274322656a2cb1855b2fc334ee4df8d3867a'
+const runtimeDataBoundaryDigest = '954e765ed481e9c10e94ea4f34181df2ef0c1d809515e14ab20a7de2c304f1d1'
+const workspaceAdmissionDigest = '9f43118c3e057c30978f1fef5cfe6956d8f5d46c989f1751d7a072e3bbd0060b'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -139,7 +138,6 @@ const migrationDigests = new Map([
   ['0061_drop_workspace_get_summary.sql', dropWorkspaceGetSummaryDigest],
   ['0062_runtime_data_boundary.sql', runtimeDataBoundaryDigest],
   ['0063_workspace_admission.sql', workspaceAdmissionDigest],
-  ['0064_policy_commands.sql', policyCommandsDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

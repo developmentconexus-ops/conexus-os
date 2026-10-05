@@ -2,10 +2,22 @@ const RUNTIME_ROLE = 'hub_runtime'
 const PRIVILEGE_OF = { r: 'SELECT', a: 'INSERT', w: 'UPDATE', d: 'DELETE' }
 const POLICY_HELPER = /^iam\.acting_/
 
-const relations = (catalog) => catalog.relation.flatMap((line) => {
-  const found = /^relation (\S+) kind=([rp]) owner=(\S+) rls=(\w+) forcerls=(\w+) .*acl=(\S*)$/.exec(line)
-  return found ? [{ table: found[1], owner: found[3], rls: found[4] === 'true', force: found[5] === 'true', acl: found[6].split(',') }] : []
-})
+const columnAcls = (catalog) => {
+  const byTable = new Map()
+  for (const line of catalog.column) {
+    const found = /^column (\w+\.\w+)\.\w+ .* acl=(\S*)$/.exec(line)
+    if (found?.[2]) byTable.set(found[1], [...(byTable.get(found[1]) ?? []), ...found[2].split(',')])
+  }
+  return byTable
+}
+
+const relations = (catalog) => {
+  const columns = columnAcls(catalog)
+  return catalog.relation.flatMap((line) => {
+    const found = /^relation (\S+) kind=([rp]) owner=(\S+) rls=(\w+) forcerls=(\w+) .*acl=(\S*)$/.exec(line)
+    return found ? [{ table: found[1], owner: found[3], rls: found[4] === 'true', force: found[5] === 'true', acl: [...found[6].split(','), ...(columns.get(found[1]) ?? [])] }] : []
+  })
+}
 
 const policies = (catalog) => catalog.policy.flatMap((line) => {
   const found = /^policy (\S+)\.(\S+) cmd=(\S) permissive=\w+ roles=(\S*) using=/.exec(line)

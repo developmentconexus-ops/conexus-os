@@ -21,7 +21,9 @@ defect in this table. Adding a role means adding a row to the register and regen
 | `hub_factory` | `factory-storage` | `builder/module.ts` | `CONEXUS_DB_FACTORY_PASSWORD_FILE` |
 
 `hub_runtime` holds data manipulation on the tables the Hub's TypeScript reads or writes, and
-`EXECUTE` on every live function in the Hub schemas. It is refused 42501 on any DDL, on `SET ROLE` and
+`EXECUTE` only on the functions the older capability roles held, copied by `0062_runtime_data_boundary.sql`.
+No default privilege grants it a function created later, so a new function is callable only after a
+migration grants it. It is refused 42501 on any DDL, on `SET ROLE` and
 on the `factory` schema. Its authority comes from the proof an admission function makes and from the row
 policies on the tables a part has policed, not from the role (see
 [security and authority](security-and-authority.md#2-database-roles)).
@@ -34,6 +36,7 @@ policies on the tables a part has policed, not from the role (see
 | `iam_rls` | the `iam.acting_*` helper functions the policies call | holds `SELECT` on the few tables the helpers read and nothing else; `NOLOGIN`, no `BYPASSRLS` |
 | `iam_owner`, `workspace_owner`, `project_owner`, `registry_owner`, `builder_owner`, `connector_owner`, `model_owner` | the schemas and functions of an owner whose rules are still in SQL | `NOLOGIN`; each is dropped, with its objects moved to `conexus_owner`, when its part ports the owner |
 | `hub_iam_runtime` and the other capability roles marked `legacy` in the register | nothing the Hub uses | their grants stay until the last owner is ported, and no Hub module connects as them |
+| `hub_workspace_read`, `hub_workspace_command` | retired | `0063_workspace_admission.sql` drops them with the last functions they could execute |
 
 `assertRoleInvariants` in `scripts/hub-catalog.mjs` reads `pg_roles` and refuses a role of the Hub that
 holds `SUPERUSER`, `CREATEROLE`, `CREATEDB`, `REPLICATION` or `BYPASSRLS`, any membership between Hub or

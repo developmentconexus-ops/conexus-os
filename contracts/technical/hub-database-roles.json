@@ -18,20 +18,6 @@
       "legacy": true
     },
     {
-      "role": "hub_workspace_read",
-      "capability": "workspace-read",
-      "passwordFileVariable": "CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE",
-      "connectsFrom": [],
-      "legacy": true
-    },
-    {
-      "role": "hub_workspace_command",
-      "capability": "workspace-command",
-      "passwordFileVariable": "CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE",
-      "connectsFrom": [],
-      "legacy": true
-    },
-    {
       "role": "hub_project_read",
       "capability": "project-read",
       "passwordFileVariable": "CONEXUS_DB_PROJECT_READ_PASSWORD_FILE",

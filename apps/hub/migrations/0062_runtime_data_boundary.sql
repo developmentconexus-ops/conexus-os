@@ -43,8 +43,19 @@ BEGIN
     WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg', 'model', 'connector')
   LOOP
     EXECUTE format('GRANT USAGE ON SCHEMA %I TO hub_runtime', item.schema_name);
-    EXECUTE format('GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA %I TO hub_runtime', item.schema_name);
-    EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT EXECUTE ON FUNCTIONS TO hub_runtime', item.schema_name);
+  END LOOP;
+
+  FOR item IN
+    SELECT DISTINCT p.oid::regprocedure AS signature
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    CROSS JOIN LATERAL aclexplode(p.proacl) acl
+    JOIN pg_roles r ON r.oid = acl.grantee
+    WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg', 'model', 'connector')
+      AND r.rolname LIKE 'hub\_%' ESCAPE '\'
+      AND acl.privilege_type = 'EXECUTE'
+  LOOP
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO hub_runtime', item.signature);
   END LOOP;
 
   FOR item IN
@@ -63,5 +74,4 @@ BEGIN
     EXECUTE format('GRANT %s ON %I.%I TO hub_runtime', item.privileges, item.schema_name, item.object_name);
   END LOOP;
 END $$;
-GRANT UPDATE (active) ON iam.account TO hub_runtime;
 COMMIT;

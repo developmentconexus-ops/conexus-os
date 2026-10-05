@@ -76,18 +76,18 @@ The role lives only in Conexus IAM. The Factory never holds a copy of the admini
 The Hub calls `isInstallationAdministrator` on the identity-access module before it performs a
 Factory administration change or a Connection administration change on the actor's behalf.
 
-| Function | Who may call it | Effect |
+| Function | Role that may call it | Effect |
 | --- | --- | --- |
-| `iam.is_installation_administrator(account)` | `hub_iam_runtime` | true while the Account is active and holds an open tenure |
-| `iam.grant_installation_administrator(actor, account)` | `hub_iam_runtime` | the actor must be an administrator and the Account must be active; granting a current administrator changes nothing |
-| `iam.revoke_installation_administrator(actor, account)` | `hub_iam_runtime` | the actor must be an administrator; revoking somebody who is not one changes nothing |
+| `iam.is_installation_administrator(account)` | `hub_runtime` | true while the Account is active and holds an open tenure |
+| `iam.grant_installation_administrator(actor, account)` | `hub_runtime` | the actor must be an administrator and the Account must be active; granting a current administrator changes nothing |
+| `iam.revoke_installation_administrator(actor, account)` | `hub_runtime` | the actor must be an administrator; revoking somebody who is not one changes nothing |
 | `iam.bootstrap_installation_administrator(account)` | no Hub role | the operator shell sets the first administrator |
-| `connector.list_connections(actor, workspace_id)` | `hub_iam_runtime` | lists the Workspace's Connections; actor must be an administrator (`connector.admit_installation_administrator`) |
-| `connector.create_connection(actor, connection_id, workspace_id, ...)` | `hub_iam_runtime` | creates a Connection for the Workspace; actor must be an administrator (`connector.admit_installation_administrator`) |
-| `connector.disable_connection(actor, workspace_id, connection_id)` | `hub_iam_runtime` | disables the Connection and ends its open Project bindings; actor must be an administrator (`connector.admit_installation_administrator`) |
-| `connector.list_project_bindings(actor, project_id)` | `hub_iam_runtime` | lists the Project's open bindings and the Workspace's enabled Connections it has not bound; actor must be an Owner of the Project's Workspace (`connector.admit_project_owner`) |
-| `connector.bind_connection(actor, project_id, connection_id, name)` | `hub_iam_runtime` | binds an enabled Connection of the Project's own Workspace under a Project-local name; actor must be an Owner of the Project's Workspace (`connector.admit_project_owner`) |
-| `connector.unbind_connection(actor, project_id, binding_id)` | `hub_iam_runtime` | ends one open binding of the named Project and keeps its row as the record; actor must be an Owner of the Project's Workspace (`connector.admit_project_owner`) |
+| `connector.list_connections(actor, workspace_id)` | `hub_runtime` | lists the Workspace's Connections; actor must be an administrator (`connector.admit_installation_administrator`) |
+| `connector.create_connection(actor, connection_id, workspace_id, ...)` | `hub_runtime` | creates a Connection for the Workspace; actor must be an administrator (`connector.admit_installation_administrator`) |
+| `connector.disable_connection(actor, workspace_id, connection_id)` | `hub_runtime` | disables the Connection and ends its open Project bindings; actor must be an administrator (`connector.admit_installation_administrator`) |
+| `connector.list_project_bindings(actor, project_id)` | `hub_runtime` | lists the Project's open bindings and the Workspace's enabled Connections it has not bound; actor must be an Owner of the Project's Workspace (`connector.admit_project_owner`) |
+| `connector.bind_connection(actor, project_id, connection_id, name)` | `hub_runtime` | binds an enabled Connection of the Project's own Workspace under a Project-local name; actor must be an Owner of the Project's Workspace (`connector.admit_project_owner`) |
+| `connector.unbind_connection(actor, project_id, binding_id)` | `hub_runtime` | ends one open binding of the named Project and keeps its row as the record; actor must be an Owner of the Project's Workspace (`connector.admit_project_owner`) |
 
 Each row of the table is one tenure. It records how it was granted (`OPERATOR_BOOTSTRAP` or
 `ADMINISTRATOR`), who granted it and when, and, once closed, who revoked it and when. Closed

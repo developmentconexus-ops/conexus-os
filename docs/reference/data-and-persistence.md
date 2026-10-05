@@ -54,7 +54,7 @@ Sessions are one model in `iam` (migration `0026_single_session.sql`, the single
   exact host, manifest), removed with its sessions at a later launch once it has ended.
 
 `iam.session`, `iam.application_session` and `iam.application_handoff` no longer exist. No table is written except
-through `SECURITY DEFINER` functions granted to `hub_iam_runtime`.
+through `SECURITY DEFINER` functions that `hub_runtime`, the one role the Hub connects as, may execute.
 
 Exact table/column spellings belong post-C-018 derived Realization Planning. Logical owner schemas/capabilities remain explicit.
 
@@ -68,7 +68,9 @@ That lineage is one baseline file plus the forward migrations added after it.
 `0001_baseline.sql` creates the catalog, the capability roles and the owner
 roles, and the forward migrations change it from there.
 `0009_remove_model_connections.sql` dropped the `model_connection` schema and
-its two roles. The runner pins
+its two roles. `0062_runtime_data_boundary.sql` adds the one runtime role
+`hub_runtime`, and `0063_workspace_admission.sql` retires `hub_workspace_read`
+and `hub_workspace_command`. The runner pins
 each file by SHA-256, records it in `iam.schema_migration`, and refuses any
 database whose catalog is not the one the committed snapshot
 `contracts/technical/hub-catalog-snapshot.json` records. The one installation
@@ -199,16 +201,24 @@ Q0 deciding probe minor = PostgreSQL 17.10
 
 PG17 is current architecture. The 17.10 minor is deciding Evidence identity, not a permanent ban on later supported 17.x under accepted repin/requalification.
 
-## 6.2 Owner-scoped Hub capabilities
+## 6.2 The runtime role and the owner roles
 
-Normal owner persistence must satisfy the negative property:
+The Hub reads and writes its data as one role, `hub_runtime`. It holds data manipulation on the Hub
+tables and `EXECUTE` on the functions the older capability roles held, and nothing that owns an
+object. The owner roles stay `NOLOGIN`. The negative property is about the runtime role:
 
 ```text
-owner A arbitrary SQL
--X-> owner B schema
--X-> SET ROLE into unrelated owner authority
--X-> object-owner / superuser / BYPASSRLS authority
+hub_runtime
+-X-> DDL in any schema
+-X-> SET ROLE into an owner role
+-X-> the factory schema
+-X-> BYPASSRLS authority
+-X-> EXECUTE on a function no older capability role held
 ```
+
+Row policies bound what `hub_runtime` sees on the tables a part has policed
+(see [security and authority](security-and-authority.md#2-database-roles)); the other tables are listed
+in `contracts/technical/hub-catalog-census.json` until their part polices them.
 
 The F1 cross-owner domain atomicity set is closed:
 
@@ -224,7 +234,7 @@ Migration/provisioning/backup credentials with broader operational power remain 
 ## 6.3 Physical-store capability matrix
 
 ```text
-hub owner credential
+hub_runtime
 -X-> mastra_builder
 -X-> Project DB by default
 -X-> Keycloak provider persistence

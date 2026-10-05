@@ -58,22 +58,31 @@ GRANT EXECUTE ON FUNCTION iam.acting_account(), iam.acting_scope(), iam.acting_w
 
 ALTER TABLE workspace.workspace ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace.workspace FORCE ROW LEVEL SECURITY;
-CREATE POLICY workspace_runtime ON workspace.workspace FOR ALL TO hub_runtime
-  USING ((SELECT iam.acting_scope()) = 'system' OR workspace_id IN (SELECT iam.acting_workspaces()))
+CREATE POLICY workspace_select ON workspace.workspace FOR SELECT TO hub_runtime
+  USING ((SELECT iam.acting_scope()) = 'system' OR workspace_id IN (SELECT iam.acting_workspaces()));
+CREATE POLICY workspace_insert ON workspace.workspace FOR INSERT TO hub_runtime
   WITH CHECK ((SELECT iam.acting_scope()) = 'system'
-    OR workspace_id IN (SELECT iam.acting_workspaces())
     OR ((SELECT iam.acting_account()) IS NOT NULL AND created_by = (SELECT iam.acting_account())));
-CREATE POLICY legacy_owner ON workspace.workspace FOR ALL TO workspace_owner
-  USING (true) WITH CHECK (true);
-GRANT SELECT, INSERT, UPDATE, DELETE ON workspace.workspace TO hub_runtime;
+CREATE POLICY workspace_delete ON workspace.workspace FOR DELETE TO hub_runtime
+  USING ((SELECT iam.acting_scope()) = 'system');
+REVOKE UPDATE ON workspace.workspace FROM hub_runtime;
+GRANT SELECT, INSERT, DELETE ON workspace.workspace TO hub_runtime;
 
 ALTER TABLE platform.operation_receipt ENABLE ROW LEVEL SECURITY;
 ALTER TABLE platform.operation_receipt FORCE ROW LEVEL SECURITY;
-CREATE POLICY receipt_runtime ON platform.operation_receipt FOR ALL TO hub_runtime
+CREATE POLICY receipt_select ON platform.operation_receipt FOR SELECT TO hub_runtime
+  USING ((SELECT iam.acting_scope()) = 'system'
+    OR ((SELECT iam.acting_account()) IS NOT NULL AND account_id = (SELECT iam.acting_account())));
+CREATE POLICY receipt_insert ON platform.operation_receipt FOR INSERT TO hub_runtime
+  WITH CHECK ((SELECT iam.acting_scope()) = 'system'
+    OR ((SELECT iam.acting_account()) IS NOT NULL AND account_id = (SELECT iam.acting_account())));
+CREATE POLICY receipt_update ON platform.operation_receipt FOR UPDATE TO hub_runtime
   USING ((SELECT iam.acting_scope()) = 'system'
     OR ((SELECT iam.acting_account()) IS NOT NULL AND account_id = (SELECT iam.acting_account())))
   WITH CHECK ((SELECT iam.acting_scope()) = 'system'
     OR ((SELECT iam.acting_account()) IS NOT NULL AND account_id = (SELECT iam.acting_account())));
+CREATE POLICY receipt_delete ON platform.operation_receipt FOR DELETE TO hub_runtime
+  USING ((SELECT iam.acting_scope()) = 'system');
 
 GRANT SELECT, INSERT, UPDATE (role) ON iam.workspace_membership TO hub_runtime;
 GRANT SELECT ON iam.account TO hub_runtime;
@@ -84,5 +93,8 @@ DROP FUNCTION workspace.create_workspace(uuid, text, uuid);
 DROP FUNCTION workspace.list_visible_workspace_summaries(uuid);
 DROP FUNCTION iam.establish_workspace_creator_access(uuid, uuid);
 DROP TABLE workspace.operation_idempotency;
+
+DROP OWNED BY hub_workspace_read, hub_workspace_command;
+DROP ROLE hub_workspace_read, hub_workspace_command;
 
 COMMIT;
