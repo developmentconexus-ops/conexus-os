@@ -4,7 +4,7 @@ import { lintCatalog } from '../../scripts/hub-catalog-lint.mjs'
 
 const relation = (table, acl = [], { rls = true } = {}) => `relation ${table} kind=r owner=conexus_owner rls=${rls} forcerls=${rls} disabled_triggers=0 acl=${acl.map(([role, privilege]) => `${role}:${privilege}:false`).join(',')}`
 const column = (table, name, acl) => `column ${table}.${name} text notnull=false default= acl=${acl.map(([role, privilege]) => `${role}:${privilege}:false`).join(',')}`
-const policy = (table, name, command, roles, using = 'true', check = 'true') => `policy ${table}.${name} cmd=${command} permissive=true roles=${roles} using=${using} check=${check}`
+const policy = (table, name, command, roles, using = roles === 'hub_reader' ? 'rls.acting_account() IS NOT NULL' : 'true', check = 'true') => `policy ${table}.${name} cmd=${command} permissive=true roles=${roles} using=${using} check=${check}`
 const fn = (name, args, acl) => `function ${name}(${args}) returns void acl=${acl.map((role) => `${role}:EXECUTE:false`).join(',')} body=SELECT 1`
 
 const WORKSPACE = 'workspace.workspace'
@@ -208,4 +208,26 @@ test('a bridge that omits the owner of a function that reads the table is named'
 
 test('a register row for a table that does not exist is named', () => {
   assert.deepEqual(lint((input) => { input.census.register.split.push(row('gone.table')) }), ['the register names gone.table, which is not a table of the catalog'])
+})
+
+test('a reader policy that does not call rls.acting_account() is named', () => {
+  assert.deepEqual(lint((input) => { input.catalog.policy[0] = policy(WORKSPACE, 'reader', 'r', 'hub_reader', 'true') }), [
+    `${WORKSPACE} reader policy reader must call rls.acting_account()`,
+  ])
+})
+
+test('a Hub role grant on a permanent table is named, and a permanent table with none passes', () => {
+  const permanent = (input, acl) => {
+    input.catalog.relation.push(relation('iam.schema_migration', acl, { rls: false }))
+    input.census.unscoped.permanent.push({ table: 'iam.schema_migration', reason: 'Migration bookkeeping.' })
+  }
+  assert.deepEqual(lint((input) => permanent(input, [])), [])
+  assert.deepEqual(lint((input) => permanent(input, [['hub_reader', 'SELECT']])), ['iam.schema_migration is permanent but gives hub_reader SELECT'])
+})
+
+test('a register key column that is not a column of the table is named', () => {
+  assert.deepEqual(lint((input) => {
+    input.catalog.column.push(column(WORKSPACE, 'workspace_id', []))
+    input.census.register.split[0].keyColumns = ['workspace_id', 'tenant_id']
+  }), [`${WORKSPACE} register names key column tenant_id, which does not exist`])
 })

@@ -83,6 +83,8 @@ const lintSplitTable = ({ row, catalog, tablePolicies, problems, unported }) => 
   if (!sameList(held, row.command)) problems.push(`${table} gives ${COMMAND_ROLE} ${show(held)}, and its register row says ${show(row.command)}`)
   const runtime = privilegesOf(catalog, table, RUNTIME_ROLE)
   if (!sameList(runtime, row.runtime ?? [])) problems.push(`${table} gives ${RUNTIME_ROLE} ${show(runtime)}, and its register row says ${show(row.runtime ?? [])}`)
+  for (const column of row.keyColumns ?? []) if (!catalog.column.some((line) => line.startsWith(`column ${table}.${column} `))) problems.push(`${table} register names key column ${column}, which does not exist`)
+  for (const policy of readerPolicies) if (!policy.using.includes('rls.acting_account()')) problems.push(`${table} reader policy ${policy.name} must call rls.acting_account()`)
   for (const key of row.compositeKeys ?? []) if (!catalog.constraint.some((line) => line.startsWith(`constraint ${table}.${key} `))) problems.push(`${table} register names composite key ${key}, which does not exist`)
 }
 
@@ -146,7 +148,12 @@ export const lintCatalog = ({ catalog, functions, census, unported = new Map() }
     const tablePolicies = allPolicies.filter((policy) => policy.table === row.table)
     if (split.has(row.table)) lintSplitTable({ row: split.get(row.table), catalog, tablePolicies, problems, unported })
     else if (pending.has(row.table)) lintPendingTable({ entry: pending.get(row.table), catalog, tablePolicies, problems })
-    else if (!permanent.has(row.table)) problems.push(`${row.table} is in no list of the register: it is not split, pending or permanent`)
+    else if (permanent.has(row.table)) {
+      for (const role of GRANTEES) {
+        const held = privilegesOf(catalog, row.table, role)
+        if (held.length > 0) problems.push(`${row.table} is permanent but gives ${role} ${held.join(', ')}`)
+      }
+    } else problems.push(`${row.table} is in no list of the register: it is not split, pending or permanent`)
   }
 
   lintBridges({ tables, allPolicies, functions, problems })

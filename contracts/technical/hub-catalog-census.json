@@ -241,7 +241,12 @@
           "SELECT"
         ],
         "runtime": [],
-        "compositeKeys": []
+        "compositeKeys": [],
+        "keyColumns": [
+          "account_id",
+          "builder_run_id",
+          "project_id"
+        ]
       },
       {
         "table": "builder.project_working_state",
@@ -250,7 +255,10 @@
           "SELECT"
         ],
         "runtime": [],
-        "compositeKeys": []
+        "compositeKeys": [],
+        "keyColumns": [
+          "project_id"
+        ]
       },
       {
         "table": "iam.account",
@@ -269,7 +277,10 @@
           "SELECT",
           "UPDATE"
         ],
-        "compositeKeys": []
+        "compositeKeys": [],
+        "keyColumns": [
+          "account_id"
+        ]
       },
       {
         "table": "iam.workspace_membership",
@@ -280,7 +291,11 @@
           "UPDATE(created_at)"
         ],
         "runtime": [],
-        "compositeKeys": []
+        "compositeKeys": [],
+        "keyColumns": [
+          "account_id",
+          "workspace_id"
+        ]
       },
       {
         "table": "platform.operation_receipt",
@@ -292,7 +307,12 @@
           "UPDATE(completed_at,response_body,response_status,state)"
         ],
         "runtime": [],
-        "compositeKeys": []
+        "compositeKeys": [],
+        "keyColumns": [
+          "account_id",
+          "key_digest",
+          "resource_id"
+        ]
       },
       {
         "table": "project.project",
@@ -304,7 +324,11 @@
           "UPDATE(name)"
         ],
         "runtime": [],
-        "compositeKeys": []
+        "compositeKeys": [],
+        "keyColumns": [
+          "project_id",
+          "workspace_id"
+        ]
       },
       {
         "table": "project.project_deletion",
@@ -317,7 +341,11 @@
           "UPDATE(completed_at,purged_at)"
         ],
         "runtime": [],
-        "compositeKeys": []
+        "compositeKeys": [],
+        "keyColumns": [
+          "project_id",
+          "workspace_id"
+        ]
       },
       {
         "table": "workspace.workspace",
@@ -327,7 +355,10 @@
           "SELECT"
         ],
         "runtime": [],
-        "compositeKeys": []
+        "compositeKeys": [],
+        "keyColumns": [
+          "workspace_id"
+        ]
       }
     ],
     "functions": {
