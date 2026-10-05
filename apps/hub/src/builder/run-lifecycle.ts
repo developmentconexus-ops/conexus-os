@@ -20,13 +20,13 @@ export const withRun = <T>(database: Database, ownerId: string, builderRunId: Bu
 export type InterruptionCode = Extract<FailureCode, 'USER_CANCELLED' | 'HUB_RESTART' | 'BUILDER_QUESTION_EXPIRED'>
 
 /** The one set of final columns of a run: every ending writes its state, a null phase and its finish time together. */
-export type RunEnding =
+type RunEnding =
   | Readonly<{ state: 'SUCCEEDED'; resultKind: 'RESPONSE_ONLY' | 'SOURCE_CHANGED' }>
   | Readonly<{ state: 'FAILED'; failureCode: FailureCode; resultKind?: 'SOURCE_CHANGED_BUILD_FAILED' }>
   | Readonly<{ state: 'INTERRUPTED'; failureCode: InterruptionCode }>
 
 /** The SET of an UPDATE of `builder.builder_run AS run` that ends the run; a stop keeps the first cancellation time and reason. */
-export const endColumns = (ending: RunEnding): Sql => {
+const endColumns = (ending: RunEnding): Sql => {
   switch (ending.state) {
     case 'SUCCEEDED':
       return sql`state = 'SUCCEEDED', phase = NULL, result_kind = ${ending.resultKind}, failure_code = NULL, finished_at = clock_timestamp()`
