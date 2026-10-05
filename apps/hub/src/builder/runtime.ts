@@ -26,7 +26,7 @@ const NO_MODEL_ACCOUNT = 'BUILDER_MODEL_NOT_SELECTED' satisfies FailureCode
 
 // The resolver throws this when the model being called has no account; Mastra may wrap the throw.
 const namesNoModelAccount = (error: unknown): boolean =>
-  error instanceof Error && (error.message === NO_MODEL_ACCOUNT || namesNoModelAccount(error.cause))
+  error instanceof Failure ? error.id === NO_MODEL_ACCOUNT || namesNoModelAccount(error.cause) : error instanceof Error && namesNoModelAccount(error.cause)
 
 const namesStepTimeout = (error: unknown): boolean =>
   isMastraTimeoutError(error) ? error.timeoutType === 'step' : error instanceof Error && error.cause !== undefined && namesStepTimeout(error.cause)

@@ -172,9 +172,11 @@ export declare const FAILURE_STATUS: {
     readonly BUILDER_STARTER_ROOT_REFUSED: 500;
     readonly CONEXUS_APP_ROOT_MISSING: 500;
     readonly CONEXUS_GIT_MAIN_MISSING: 500;
+    readonly CONEXUS_GIT_MERGE_REFUSED: 500;
     readonly CONEXUS_GIT_PROJECT_REFUSED: 500;
     readonly CONEXUS_GIT_REF_MOVED: 500;
     readonly CONEXUS_GIT_REF_REFUSED: 500;
+    readonly CONEXUS_GIT_STARTER_REFUSED: 500;
     readonly GOOGLE_AI_PRO_ACCOUNT_UNAVAILABLE: 500;
     readonly GOOGLE_AI_PRO_BINARY_REFUSED: 500;
     readonly GOOGLE_AI_PRO_POOL_CLOSED: 500;
@@ -1142,6 +1144,11 @@ export declare const FAILURES: {
         readonly action: "NONE";
         readonly status: 500;
     };
+    readonly CONEXUS_GIT_MERGE_REFUSED: {
+        readonly message: "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.";
+        readonly action: "NONE";
+        readonly status: 500;
+    };
     readonly CONEXUS_GIT_PROJECT_REFUSED: {
         readonly message: "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.";
         readonly action: "NONE";
@@ -1153,6 +1160,11 @@ export declare const FAILURES: {
         readonly status: 500;
     };
     readonly CONEXUS_GIT_REF_REFUSED: {
+        readonly message: "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.";
+        readonly action: "NONE";
+        readonly status: 500;
+    };
+    readonly CONEXUS_GIT_STARTER_REFUSED: {
         readonly message: "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.";
         readonly action: "NONE";
         readonly status: 500;

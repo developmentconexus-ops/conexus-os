@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { relative, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
@@ -18,7 +18,8 @@ const bundle = (relativeSourcePath) => {
   return import(pathToFileURL(outfile).href)
 }
 
-const { driveStep } = await bundle('apps/hub/src/builder/run/send.ts')
+await writeFile(resolve(buildRoot, 'entry.ts'), `export { driveStep } from '${resolve(repositoryRoot, 'apps/hub/src/builder/run/send.ts')}'\nexport { Failure } from '${resolve(repositoryRoot, 'apps/hub/src/platform/failure.ts')}'\n`)
+const { driveStep, Failure } = await bundle(relative(repositoryRoot, resolve(buildRoot, 'entry.ts')))
 const { RequestContext } = await import('@mastra/core/request-context')
 // The Hub's one send: a message with no question open, so there is nothing to end first.
 const sendBuilderSessionMessage = (session, { content }, requestContext = new RequestContext()) => driveStep(session, { kind: 'SEND', content }, requestContext, async () => {})
@@ -101,7 +102,7 @@ test('the Hub send propagates a model-selection refusal unchanged, with no agent
   const session = {
     subscribe: () => () => {},
     ...fakeThreadFields,
-    sendMessage: async () => { throw new Error('BUILDER_MODEL_NOT_SELECTED') },
+    sendMessage: async () => { throw new Failure('BUILDER_MODEL_NOT_SELECTED') },
   }
   await assert.rejects(() => sendBuilderSessionMessage(session, { content: 'hi' }), (error) => {
     assert.equal(error.message, 'BUILDER_MODEL_NOT_SELECTED')
@@ -110,7 +111,7 @@ test('the Hub send propagates a model-selection refusal unchanged, with no agent
 })
 
 test('a model without an account reads as connect-a-model even when it surfaces mid-run as an agent error, wrapped or not', async () => {
-  for (const error of [new Error('BUILDER_MODEL_NOT_SELECTED'), new Error('stream failed', { cause: new Error('BUILDER_MODEL_NOT_SELECTED') })]) {
+  for (const error of [new Failure('BUILDER_MODEL_NOT_SELECTED'), new Error('stream failed', { cause: new Failure('BUILDER_MODEL_NOT_SELECTED') })]) {
     let listener
     const session = {
       subscribe: (callback) => { listener = callback; return () => {} },

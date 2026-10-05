@@ -3,6 +3,7 @@ import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { createBuilderService } = await import(hubModuleUrl('builder/service.js'))
+const { Failure } = await import(hubModuleUrl('platform/failure.js'))
 
 test('a run this Hub took over and could not settle is taken again and settled as first classed, not as an ending of its own it lost', async () => {
   const ownerId = '0f000000-0000-4000-8000-0000000000aa'
@@ -59,7 +60,7 @@ test('a Conexus Git that cannot answer `main` fails the source reads and the run
     applicationArtifacts: {},
     runs: {
       ports: {},
-      git: { readMain: async () => { throw new Error('CONEXUS_GIT_TIMEOUT') }, mainContains: async () => false },
+      git: { readMain: async () => { throw new Failure('CONEXUS_GIT_REF_REFUSED') }, mainContains: async () => false },
       conversations: { ownerOf: async () => 'PROJECT' },
       source: {},
       appendDiagnostic: async () => {},
@@ -68,7 +69,7 @@ test('a Conexus Git that cannot answer `main` fails the source reads and the run
       heapUsedRatio: () => 0,
     },
   })
-  const named = (error) => error.id === 'BUILDER_SOURCE_UNAVAILABLE' && error.details.reason === 'CONEXUS_GIT_TIMEOUT'
+  const named = (error) => error.id === 'BUILDER_SOURCE_UNAVAILABLE' && error.details.reason === 'CONEXUS_GIT_REF_REFUSED'
   await assert.rejects(service.listSourceTree({ accountId, projectId, sourceRevision: 'a'.repeat(40) }), named)
   await assert.rejects(service.sendBuilderMessage({ accountId, projectId, conversationId: 'conv', idempotencyKey: 'k', content: 'oi' }), named)
   assert.deepEqual(reached, [])

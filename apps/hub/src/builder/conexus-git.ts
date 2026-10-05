@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { CommandResult } from '@mastra/core/workspace'
-import { Failure } from '../platform/failure.js'
+import { Failure, type FailureCode } from '../platform/failure.js'
 
 /**
  * The Conexus Git: one bare repository per Project on the Hub's own disk, `<root>/<projectId>.git`.
@@ -131,8 +131,8 @@ const limitBytes = (limit: number): Transform => {
   })
 }
 
-const requireOid = (value: string, code: string): string => {
-  if (!OID.test(value)) throw new Error(code)
+const requireOid = (value: string, code: FailureCode): string => {
+  if (!OID.test(value)) throw new Failure(code)
   return value
 }
 
