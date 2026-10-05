@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { fieldFailures } from './field-failures.js'
 import { BindingId, ConnectionId, ProjectId, WorkspaceId } from './ids.js'
 import { operation } from './operation.js'
 
@@ -9,13 +10,13 @@ export const ConnectorIdText = z.string().regex(CONNECTOR_ID_PATTERN).meta({ id:
 export const BindingName = z.string().regex(CONNECTOR_ID_PATTERN).meta({ id: 'BindingName' })
 export type BindingName = z.output<typeof BindingName>
 
-export const ConnectionLabel = z.string().trim().min(1).max(200).meta({ failureCode: 'CONNECTOR_LABEL_REFUSED' })
+export const ConnectionLabel = z.string().trim().min(1).max(200).register(fieldFailures, { failureCode: 'CONNECTOR_LABEL_REFUSED' })
 
 export const SankhyaCredential = z.strictObject({
   clientId: z.string().min(1).max(200).meta({ writeOnly: true }),
   clientSecret: z.string().min(1).max(500).meta({ writeOnly: true }),
   xToken: z.string().min(1).max(500).meta({ writeOnly: true }),
-}).meta({ id: 'SankhyaCredential', failureCode: 'CONNECTOR_CREDENTIAL_REFUSED' })
+}).meta({ id: 'SankhyaCredential' }).register(fieldFailures, { failureCode: 'CONNECTOR_CREDENTIAL_REFUSED' })
 export type SankhyaCredential = z.output<typeof SankhyaCredential>
 
 export const ConnectorConnection = z.object({

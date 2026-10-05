@@ -2,6 +2,7 @@ import type {
   FastifyInstance, onRequestHookHandler, FastifyRequest, FastifySchema, HTTPMethods, RawReplyDefaultExpression, RawRequestDefaultExpression, RawServerDefault,
   RouteGenericInterface, RouteHandlerMethod, RouteOptions,
 } from 'fastify'
+import { fieldFailures } from '../../../../packages/contract/dist/index.js'
 import type { AnyOperation, EffectsOf, Input, Out, Reply } from '../../../../packages/contract/dist/index.js'
 import type { z } from 'zod'
 import { z as zod } from 'zod'
@@ -169,6 +170,7 @@ declare module 'fastify' {
 }
 
 const missing = (invariant: string): Failure => new Failure('INTERNAL_UNEXPECTED', { details: { invariant } })
+// Only the malformed table of an operation reaches here untyped: it is read by a runtime key from an erased generic.
 const isHubFailureCode = (code: unknown): code is keyof typeof HUB_FAILURES => typeof code === 'string' && Object.hasOwn(HUB_FAILURES, code)
 
 /** @public */
@@ -319,15 +321,15 @@ export const routes = (app: FastifyInstance) => {
         }
         if (httpPart === 'headers' && op.headers instanceof zod.ZodObject) {
           const schema = op.headers.shape['idempotency-key']
-          const code = schema ? zod.globalRegistry.get(schema)?.failureCode : undefined
+          const code = schema ? fieldFailures.get(schema)?.failureCode : undefined
           const raw = typeof value === 'object' && value !== null && 'idempotency-key' in value ? value['idempotency-key'] : undefined
-          if (isHubFailureCode(code) && (raw === undefined || raw === '')) return { error: new Failure(code) }
+          if (code && (raw === undefined || raw === '')) return { error: new Failure(code) }
         }
         if (httpPart === 'body' && op.body instanceof zod.ZodObject) {
           const field = parsed.error.issues[0]?.path[0]
           const schema = typeof field === 'string' ? op.body.shape[field] : undefined
-          const code = schema ? zod.globalRegistry.get(schema)?.failureCode : undefined
-          if (isHubFailureCode(code)) return { error: new Failure(code) }
+          const code = schema ? fieldFailures.get(schema)?.failureCode : undefined
+          if (code) return { error: new Failure(code) }
         }
         return { error: parsed.error }
       },

@@ -1,16 +1,17 @@
 import { z } from 'zod';
+import { fieldFailures } from './field-failures.js';
 import { BindingId, ConnectionId, ProjectId, WorkspaceId } from './ids.js';
 import { operation } from './operation.js';
 const CONNECTOR_ID_PATTERN = /^[a-z][a-z0-9-]{0,39}$/;
 /** The stored text of a connector id: the column accepts any value of this shape since migration 0031. */
 export const ConnectorIdText = z.string().regex(CONNECTOR_ID_PATTERN).meta({ id: 'ConnectorIdText' });
 export const BindingName = z.string().regex(CONNECTOR_ID_PATTERN).meta({ id: 'BindingName' });
-export const ConnectionLabel = z.string().trim().min(1).max(200).meta({ failureCode: 'CONNECTOR_LABEL_REFUSED' });
+export const ConnectionLabel = z.string().trim().min(1).max(200).register(fieldFailures, { failureCode: 'CONNECTOR_LABEL_REFUSED' });
 export const SankhyaCredential = z.strictObject({
     clientId: z.string().min(1).max(200).meta({ writeOnly: true }),
     clientSecret: z.string().min(1).max(500).meta({ writeOnly: true }),
     xToken: z.string().min(1).max(500).meta({ writeOnly: true }),
-}).meta({ id: 'SankhyaCredential', failureCode: 'CONNECTOR_CREDENTIAL_REFUSED' });
+}).meta({ id: 'SankhyaCredential' }).register(fieldFailures, { failureCode: 'CONNECTOR_CREDENTIAL_REFUSED' });
 export const ConnectorConnection = z.object({
     connectionId: ConnectionId,
     connectorId: ConnectorIdText,

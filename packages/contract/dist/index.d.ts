@@ -1,3 +1,4 @@
+export * from './field-failures.js';
 export * from './ids.js';
 export * from './failures.generated.js';
 export * from './connector.js';
