@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
+import { z } from 'zod'
 import { hubModuleUrl } from './hub-build.mjs'
 import { query } from './hub-database.mjs'
 import { OWNER, setupBuilder } from './builder-fixture.mjs'
@@ -10,7 +11,8 @@ import { waitUntilBlocked } from './race.mjs'
 
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
 const { purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
-const { admitSystem } = await import(hubModuleUrl('identity-access/admission.js'))
+const { admitAccount, admitSystem } = await import(hubModuleUrl('identity-access/admission.js'))
+const { sql } = await import(hubModuleUrl('platform/db.js'))
 
 const CANDIDATE = 'b'.repeat(40)
 const OTHER = 'c'.repeat(40)
@@ -343,36 +345,50 @@ test('the wall on the Builder tables: hub_runtime holds none after a commit, a r
   const single = openRuntimeDatabase({ max: 1 })
   const { unportedPool } = await import(hubModuleUrl('platform/db.js'))
   const pool = unportedPool(single)
+  const backendInTransaction = async (gate) => (await backendOf((await admitAccount(gate)).tx)).pid
+  const backendOf = (tx) => tx.one(z.object({ pid: z.number() }), sql`SELECT pg_backend_pid()::integer AS pid`, 'INTERNAL_UNEXPECTED')
+  const backends = []
+  // Every probe runs on one client taken out of the pool and handed back whole, so a refusal is the privilege of the
+  // connection the transactions ran on and never of a replacement.
   const refusedOnEveryTable = async (when) => {
-    for (const table of BUILDER_TABLES) await assert.rejects(pool.query(`SELECT count(*) FROM ${table}`), { code: '42501' }, `${table} ${when}`)
-    assert.deepEqual((await pool.query('SELECT current_user AS who')).rows, [{ who: 'hub_runtime' }], when)
+    const client = await pool.connect()
+    try {
+      backends.push((await client.query('SELECT pg_backend_pid()::integer AS pid')).rows[0].pid)
+      for (const table of BUILDER_TABLES) await assert.rejects(client.query(`SELECT count(*) FROM ${table}`), { code: '42501' }, `${table} ${when}`)
+      assert.deepEqual((await client.query('SELECT current_user AS who')).rows, [{ who: 'hub_runtime' }], when)
+    } finally {
+      client.release()
+    }
   }
   await refusedOnEveryTable('before any transaction')
-  await single.transaction(ID.owner, async () => undefined)
+  backends.push(await single.transaction(ID.owner, backendInTransaction))
   await refusedOnEveryTable('after a commit')
-  await assert.rejects(single.transaction(ID.owner, async () => { throw new Error('rolled back') }), { message: 'rolled back' })
+  await assert.rejects(single.transaction(ID.owner, async (gate) => { backends.push(await backendInTransaction(gate)); throw new Error('rolled back') }), { message: 'rolled back' })
   await refusedOnEveryTable('after a throw')
-  await single.read(ID.owner, async () => undefined)
+  backends.push((await single.read(ID.owner, backendOf)).pid)
   await refusedOnEveryTable('after a read')
+  assert.equal(new Set(backends).size, 1, 'one backend served every transaction and every probe')
+  assert.equal(backends.length, 7)
 
   const where = (table) => `WHERE ${WALL[table].key} = $1`
   const verbs = (table) => ({
     select: { text: `SELECT 1 FROM ${table} ${where(table)}`, values: [keys[table]] },
     share: { text: `SELECT 1 FROM ${table} ${where(table)} FOR SHARE`, values: [keys[table]] },
+    lock: { text: `SELECT 1 FROM ${table} ${where(table)} FOR UPDATE`, values: [keys[table]] },
     update: { text: `UPDATE ${table} SET ${WALL[table].touch} = ${WALL[table].touch} ${where(table)}`, values: [keys[table]] },
     delete: { text: `DELETE FROM ${table} ${where(table)}`, values: [keys[table]] },
   })
   const reader = {}
   for (const table of BUILDER_TABLES) {
     const v = verbs(table)
-    reader[table] = await inRole(connection, 'hub_reader', [v.select, v.share, v.update, v.delete])
+    reader[table] = await inRole(connection, 'hub_reader', [v.select, v.share, v.lock, v.update, v.delete])
   }
   assert.deepEqual(reader, {
-    'builder.builder_run': [null, '42501', '42501', '42501'],
-    'builder.project_working_state': [null, '42501', '42501', '42501'],
-    'builder.project_repository': ['42501', '42501', '42501', '42501'],
-    'builder.conversation_session': [null, '42501', '42501', '42501'],
-    'builder.builder_run_model_account': ['42501', '42501', '42501', '42501'],
+    'builder.builder_run': [null, '42501', '42501', '42501', '42501'],
+    'builder.project_working_state': [null, '42501', '42501', '42501', '42501'],
+    'builder.project_repository': ['42501', '42501', '42501', '42501', '42501'],
+    'builder.conversation_session': [null, '42501', '42501', '42501', '42501'],
+    'builder.builder_run_model_account': ['42501', '42501', '42501', '42501', '42501'],
   })
   assert.equal(READER_TABLES.length, 3)
   const inserts = {
@@ -387,14 +403,14 @@ test('the wall on the Builder tables: hub_runtime holds none after a commit, a r
   const command = {}
   for (const table of BUILDER_TABLES) {
     const v = verbs(table)
-    command[table] = await inRole(connection, 'hub_command', [v.select, v.share, v.update, v.delete])
+    command[table] = await inRole(connection, 'hub_command', [v.select, v.share, v.lock, v.update, v.delete])
   }
   assert.deepEqual(command, {
-    'builder.builder_run': [null, null, null, null],
-    'builder.project_working_state': [null, null, null, null],
-    'builder.project_repository': [null, '42501', '42501', null],
-    'builder.conversation_session': [null, null, null, '42501'],
-    'builder.builder_run_model_account': [null, '42501', '42501', '42501'],
+    'builder.builder_run': [null, null, null, null, null],
+    'builder.project_working_state': [null, null, null, null, null],
+    'builder.project_repository': [null, '42501', '42501', '42501', null],
+    'builder.conversation_session': [null, null, null, null, '42501'],
+    'builder.builder_run_model_account': [null, '42501', '42501', '42501', '42501'],
   })
   const moved = await inRole(connection, 'hub_command', [
     { text: 'UPDATE builder.builder_run SET project_id = $1 WHERE builder_run_id = $2', values: [randomUUID(), builderRunId] },
