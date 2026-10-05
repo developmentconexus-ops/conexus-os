@@ -37,7 +37,7 @@ test('parseReasoningSuffix reads the level suffix Google AI Pro ids carry, and n
   assert.equal(parseReasoningSuffix('gemini-pro-agent'), null)
 })
 
-import { BUILDER_CONTROLLER, BUILDER_MODELS, SELECTED_MODEL, assistantMessage, builderState, conversation, conversationOf, routeBuilder, runOf, sse, userMessage } from './builder-browser-fixtures.mjs'
+import { BUILDER_CONTROLLER, BUILDER_MODELS, SELECTED_MODEL, assistantMessage, builderState, conversation, conversationOf, routeBuilder, runOf, sse, userMessage, conversationIdOf } from './builder-browser-fixtures.mjs'
 
 // Two Google AI Pro models as the Hub offers them: Flash honors three levels, Pro Agent none.
 const GOOGLE_AI_PRO_MODELS = [
@@ -94,7 +94,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   const accountId = '70000000-0000-4000-8000-000000000001'
   const projectId = '70000000-0000-4000-8000-000000000002'
   const runId = '70000000-0000-4000-8000-000000000003'
-  const conversationId = 'conversation-counter'
+  const conversationId = conversationIdOf('conversation-counter')
   const baseSourceRevision = 'a'.repeat(40)
   const sourceRevision = 'b'.repeat(40)
   const artifactRevisionId = '70000000-0000-4000-8000-000000000004'
@@ -268,7 +268,7 @@ test('new Project lands directly in Build and can send its first Builder message
   let run = null
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const legacyRequests = trackLegacyRequests(page)
-  const conversationId = 'conversation-new-project'
+  const conversationId = conversationIdOf('conversation-new-project')
   const session = () => ({
     projectId,
     latestBuilderRun: run, latestCodeChangingRun: null, preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
@@ -349,8 +349,8 @@ test('a Project holds several conversations, and switching between them leaves t
   const projectId = '70000000-0000-4000-8000-000000000082'
   const sourceRevision = '8'.repeat(40)
   const artifactRevisionId = '70000000-0000-4000-8000-000000000083'
-  const counter = conversation('conversation-counter', 'Contador')
-  const clock = conversation('conversation-clock', 'Relógio')
+  const counter = conversation(conversationIdOf('conversation-counter'), 'Contador')
+  const clock = conversation(conversationIdOf('conversation-clock'), 'Relógio')
   // The session arrives with no model chosen, which is the state a Project that has never built is in.
   const state = builderState([counter, clock], {
     [counter.id]: [userMessage('counter-1', 'Crie um contador'), assistantMessage('counter-2', 'Contador pronto')],
@@ -429,7 +429,7 @@ test('selecting a past run moves Details and Diff onto that run, and the compose
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
   const legacyRequests = trackLegacyRequests(page)
 
-  const conversationId = 'conversation-history'
+  const conversationId = conversationIdOf('conversation-history')
   const settled = (builderRunId, baseSourceRevision, resultSourceRevision) => runOf({
     builderRunId, projectId, conversationId, state: 'SUCCEEDED', phase: null,
     baseSourceRevision, resultSourceRevision, resultKind: 'SOURCE_CHANGED', failureCode: null,
@@ -526,7 +526,7 @@ test('a send whose outcome is unknown reuses its idempotency key on an identical
 
   const keys = []
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilder(page, builderState([conversation('conversation-idempotency', 'Conversa')]))
+  await routeBuilder(page, builderState([conversation(conversationIdOf('conversation-idempotency'), 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Idempotency', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: null, latestCodeChangingRun: null,
@@ -569,7 +569,7 @@ test('a send the Hub refused reads Não enviado and takes a fresh key on a resen
 
   const keys = []
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilder(page, builderState([conversation('conversation-refused', 'Conversa')]))
+  await routeBuilder(page, builderState([conversation(conversationIdOf('conversation-refused'), 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Idempotency', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: null, latestCodeChangingRun: null,
@@ -618,7 +618,7 @@ test('Preview launch failure is terminal for its key until explicit retry and ke
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const legacyRequests = trackLegacyRequests(page)
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilder(page, builderState([conversation('conversation-preview-continuity', 'Conversa')]))
+  await routeBuilder(page, builderState([conversation(conversationIdOf('conversation-preview-continuity'), 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Preview continuity', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => {
     const useB = phase === 'B'
@@ -684,7 +684,7 @@ test('a run that failed before the agent still shows the request and names why i
   const legacyRequests = trackLegacyRequests(page)
   // Nothing reached Mastra: the run failed while the sandbox was being prepared, so the thread is
   // empty and the row is the only record of what the operator asked for.
-  const conversationId = 'conversation-pre-agent-failure'
+  const conversationId = conversationIdOf('conversation-pre-agent-failure')
   const failedRun = runOf({
     builderRunId: runId, projectId, conversationId, state: 'FAILED', phase: null,
     baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
@@ -716,7 +716,7 @@ test('a run that failed before the agent still shows the request and names why i
 test('each failed run ends its own turn with its failure said once, and the stored error part and the Hub notices say nothing of it', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000051'
   const projectId = '70000000-0000-4000-8000-000000000052'
-  const conversationId = 'conversation-two-runs'
+  const conversationId = conversationIdOf('conversation-two-runs')
   const sourceRevision = '8'.repeat(40)
   const failure = 'O provedor do modelo recusou ou interrompeu o pedido. Escolha outro modelo.'
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
@@ -766,7 +766,7 @@ test('each failed run ends its own turn with its failure said once, and the stor
 test('the slider and /raciocinio offer exactly the levels of the selected model, named in Portuguese', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000091'
   const projectId = '70000000-0000-4000-8000-000000000092'
-  const conversationId = 'conversation-levels'
+  const conversationId = conversationIdOf('conversation-levels')
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const models = [
     { id: 'anthropic/claude-opus-5-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-opus-5-5', thinkingLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'], hasApiKey: true },
@@ -829,7 +829,7 @@ test('the slider and /raciocinio offer exactly the levels of the selected model,
 test('a run notice the Hub signalled into the thread reads as a notice, apart from the Builder\'s own turn', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000081'
   const projectId = '70000000-0000-4000-8000-000000000082'
-  const conversationId = 'conversation-run-notice'
+  const conversationId = conversationIdOf('conversation-run-notice')
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const notice = {
     id: 'notice-1', role: 'signal', createdAt: new Date().toISOString(),
@@ -861,8 +861,8 @@ test('an agent that spoke once and then works in silence still reads as working,
   const sourceRevision = '7'.repeat(40)
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const legacyRequests = trackLegacyRequests(page)
-  const working = 'conversation-working'
-  const other = 'conversation-other'
+  const working = conversationIdOf('conversation-working')
+  const other = conversationIdOf('conversation-other')
   const baseRun = runOf({
     builderRunId: runId, projectId, conversationId: working, state: 'RUNNING', phase: 'AGENT',
     baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null,
@@ -924,7 +924,7 @@ test('the Preview names the grant and the navigation, and never claims the appli
   let releaseEntry
   const entryHeld = new Promise((resolve) => { releaseEntry = resolve })
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilder(page, builderState([conversation('conversation-preview-truth', 'Conversa')]))
+  await routeBuilder(page, builderState([conversation(conversationIdOf('conversation-preview-truth'), 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Preview truth', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: null, latestCodeChangingRun: null,
@@ -961,7 +961,7 @@ test('the Build screen says when the current source is ahead of the last good Pr
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const legacyRequests = trackLegacyRequests(page)
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilder(page, builderState([conversation('conversation-source-ahead', 'Conversa')]))
+  await routeBuilder(page, builderState([conversation(conversationIdOf('conversation-source-ahead'), 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Source ahead', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
     projectId, latestBuilderRun: null, latestCodeChangingRun: null,
@@ -998,7 +998,7 @@ test('Preview ignores an older launch completion after the artifact key changes'
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const legacyRequests = trackLegacyRequests(page)
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilder(page, builderState([conversation('conversation-preview-race', 'Conversa')]))
+  await routeBuilder(page, builderState([conversation(conversationIdOf('conversation-preview-race'), 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Preview race', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => {
     const useB = phase === 'B'
@@ -1152,7 +1152,7 @@ test('a turn the stream delivered only in part is completed from the thread, and
   const accountId = '70000000-0000-4000-8000-000000000101'
   const projectId = '70000000-0000-4000-8000-000000000102'
   const runId = '70000000-0000-4000-8000-000000000103'
-  const conversationId = 'conversation-dedup'
+  const conversationId = conversationIdOf('conversation-dedup')
   const sourceRevision = 'e'.repeat(40)
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
   const legacyRequests = trackLegacyRequests(page)
@@ -1223,7 +1223,7 @@ test('a page opened while the run waits shows the question card once from the th
   const accountId = '70000000-0000-4000-8000-000000000301'
   const projectId = '70000000-0000-4000-8000-000000000302'
   const runId = '70000000-0000-4000-8000-000000000303'
-  const conversationId = 'conversation-waiting-reload'
+  const conversationId = conversationIdOf('conversation-waiting-reload')
   const sourceRevision = 'a'.repeat(40)
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
 
@@ -1284,7 +1284,7 @@ test('a suspended ask_user with options renders the options and submits the chos
   const accountId = '70000000-0000-4000-8000-000000000201'
   const projectId = '70000000-0000-4000-8000-000000000202'
   const runId = '70000000-0000-4000-8000-000000000203'
-  const conversationId = 'conversation-ask-user'
+  const conversationId = conversationIdOf('conversation-ask-user')
   const sourceRevision = 'f'.repeat(40)
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
 
@@ -1366,7 +1366,7 @@ const openLiveTurn = async (t, events) => {
   const accountId = '70000000-0000-4000-8000-000000000221'
   const projectId = '70000000-0000-4000-8000-000000000222'
   const runId = '70000000-0000-4000-8000-000000000223'
-  const conversationId = 'conversation-live-deltas'
+  const conversationId = conversationIdOf('conversation-live-deltas')
   const sourceRevision = 'c'.repeat(40)
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
 
@@ -1401,7 +1401,7 @@ test('the run the Hub publishes into the stream moves the status line without an
   const accountId = '70000000-0000-4000-8000-000000000311'
   const projectId = '70000000-0000-4000-8000-000000000312'
   const runId = '70000000-0000-4000-8000-000000000313'
-  const conversationId = 'conversation-streamed-phase'
+  const conversationId = conversationIdOf('conversation-streamed-phase')
   const sourceRevision = 'b'.repeat(40)
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
   const run = runOf({
@@ -1637,7 +1637,7 @@ test('the eval driver answers every question of the real multi-question ask_user
   const accountId = '70000000-0000-4000-8000-000000000231'
   const projectId = '70000000-0000-4000-8000-000000000232'
   const runId = '70000000-0000-4000-8000-000000000233'
-  const conversationId = 'conversation-ask-user-many'
+  const conversationId = conversationIdOf('conversation-ask-user-many')
   const sourceRevision = 'd'.repeat(40)
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
 
@@ -1698,7 +1698,7 @@ test('a suspended ask_user with no options renders the pt-BR free-text form', as
   const accountId = '70000000-0000-4000-8000-000000000211'
   const projectId = '70000000-0000-4000-8000-000000000212'
   const runId = '70000000-0000-4000-8000-000000000213'
-  const conversationId = 'conversation-ask-user-freetext'
+  const conversationId = conversationIdOf('conversation-ask-user-freetext')
   const sourceRevision = 'e'.repeat(40)
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 900 } })
 
@@ -1764,7 +1764,7 @@ const OM_IDLE = {
 
 test('the memory rings under the composer read the conversation\'s memory, then the run\'s live one', async (t) => {
   const meters = async (page) => page.locator('.cx-memory-status [role="meter"]').evaluateAll((nodes) => nodes.map((node) => [node.getAttribute('aria-label'), node.getAttribute('aria-valuetext')]))
-  const idle = await openAgenda(t, { accountId: '70000000-0000-4000-8000-000000000227', projectId: '70000000-0000-4000-8000-000000000228', conversationId: 'conversation-memory', omProgress: OM_IDLE })
+  const idle = await openAgenda(t, { accountId: '70000000-0000-4000-8000-000000000227', projectId: '70000000-0000-4000-8000-000000000228', conversationId: conversationIdOf('conversation-memory'), omProgress: OM_IDLE })
   const trigger = idle.page.getByRole('button', { name: /^Memória da conversa/ })
   await trigger.waitFor()
   assert.equal(await trigger.getAttribute('aria-label'), 'Memória da conversa: Mensagens até a próxima observação, 12,4 de 30 mil tokens. Observações até a próxima reflexão, 3,1 de 40 mil tokens')
@@ -1773,7 +1773,7 @@ test('the memory rings under the composer read the conversation\'s memory, then 
   await idle.page.getByText('Quando encher, o Builder resume a conversa para lembrar do que importa', { exact: true }).waitFor()
 
   const live = await openAgenda(t, {
-    accountId: '70000000-0000-4000-8000-000000000229', projectId: '70000000-0000-4000-8000-00000000022a', conversationId: 'conversation-memory-live',
+    accountId: '70000000-0000-4000-8000-000000000229', projectId: '70000000-0000-4000-8000-00000000022a', conversationId: conversationIdOf('conversation-memory-live'),
     runId: '70000000-0000-4000-8000-00000000022b', omProgress: OM_IDLE,
     stream: [{ type: 'display_state_changed', displayState: { activeTools: {}, tasks: [], omProgress: { ...OM_IDLE, status: 'observing', pendingTokens: 29_000, observationTokens: 0 }, bufferingMessages: false, bufferingObservations: false } }],
   })
@@ -1785,7 +1785,7 @@ test('the memory rings under the composer read the conversation\'s memory, then 
 
 test('a soon button shows the design system Tooltip, never a native title', async (t) => {
   const { page } = await openAgenda(t, {
-    accountId: '70000000-0000-4000-8000-00000000023c', projectId: '70000000-0000-4000-8000-00000000023d', conversationId: 'conversation-tooltip',
+    accountId: '70000000-0000-4000-8000-00000000023c', projectId: '70000000-0000-4000-8000-00000000023d', conversationId: conversationIdOf('conversation-tooltip'),
     omProgress: OM_IDLE, viewport: { width: 1440, height: 900 },
   })
   const attach = page.getByRole('button', { name: 'Anexar arquivo', exact: true })
@@ -1796,7 +1796,7 @@ test('a soon button shows the design system Tooltip, never a native title', asyn
 
 test('while a run works the model control is disabled, so the model never changes during a turn', async (t) => {
   const { page, state } = await openAgenda(t, {
-    accountId: '70000000-0000-4000-8000-000000000224', projectId: '70000000-0000-4000-8000-000000000225', conversationId: 'conversation-model-running',
+    accountId: '70000000-0000-4000-8000-000000000224', projectId: '70000000-0000-4000-8000-000000000225', conversationId: conversationIdOf('conversation-model-running'),
     runId: '70000000-0000-4000-8000-000000000226',
   })
   await openModelPicker(page)
@@ -2019,7 +2019,7 @@ for (const width of [1536, 1700]) {
     const accountId = '70000000-0000-4000-8000-000000000251'
     const projectId = '70000000-0000-4000-8000-000000000252'
     const runId = '70000000-0000-4000-8000-000000000253'
-    const conversationId = 'conversation-chat-width'
+    const conversationId = conversationIdOf('conversation-chat-width')
     const sourceRevision = 'c'.repeat(40)
     const { page, origin } = await web.openPage(t, { viewport: { width, height: 900 } })
 
@@ -2079,7 +2079,7 @@ const sendButton = (page) => page.getByRole('button', { name: 'Enviar', exact: t
 
 test('the composer says models are loading, and keeps Send off until they arrive', async (t) => {
   const { page } = await openAgenda(t, {
-    accountId: '70000000-0000-4000-8000-000000000230', projectId: '70000000-0000-4000-8000-000000000231', conversationId: 'conversation-models-loading',
+    accountId: '70000000-0000-4000-8000-000000000230', projectId: '70000000-0000-4000-8000-000000000231', conversationId: conversationIdOf('conversation-models-loading'),
   })
   let release
   const gate = new Promise((resolve) => { release = resolve })
@@ -2100,7 +2100,7 @@ test('the composer says models are loading, and keeps Send off until they arrive
 
 test('a list with no usable model stays "choose a model", with no failure alert and no retry', async (t) => {
   const { page } = await openAgenda(t, {
-    accountId: '70000000-0000-4000-8000-000000000232', projectId: '70000000-0000-4000-8000-000000000233', conversationId: 'conversation-models-empty',
+    accountId: '70000000-0000-4000-8000-000000000232', projectId: '70000000-0000-4000-8000-000000000233', conversationId: conversationIdOf('conversation-models-empty'),
   })
   await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: [BUILDER_MODELS[2]], defaultThinkingLevel: 'medium' }) }))
   await page.reload()
@@ -2114,7 +2114,7 @@ test('a list with no usable model stays "choose a model", with no failure alert 
 
 test('a failed model list is said so and retried on request, then Send works', async (t) => {
   const { page } = await openAgenda(t, {
-    accountId: '70000000-0000-4000-8000-000000000234', projectId: '70000000-0000-4000-8000-000000000235', conversationId: 'conversation-models-failing',
+    accountId: '70000000-0000-4000-8000-000000000234', projectId: '70000000-0000-4000-8000-000000000235', conversationId: conversationIdOf('conversation-models-failing'),
   })
   let failing = true
   let reads = 0
@@ -2140,12 +2140,12 @@ test('a failed model list is said so and retried on request, then Send works', a
 
 test('a failed read of the conversation\'s own model is said so too, and retried', async (t) => {
   const { page } = await openAgenda(t, {
-    accountId: '70000000-0000-4000-8000-000000000236', projectId: '70000000-0000-4000-8000-000000000237', conversationId: 'conversation-session-model-failing',
+    accountId: '70000000-0000-4000-8000-000000000236', projectId: '70000000-0000-4000-8000-000000000237', conversationId: conversationIdOf('conversation-session-model-failing'),
   })
   let failing = true
   await page.route(`${BUILDER_CONTROLLER}/sessions/*`, (route) => failing
     ? route.fulfill({ status: 503, contentType: 'application/json', body: '{}' })
-    : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: SELECTED_MODEL, threadId: 'conversation-session-model-failing' }) }))
+    : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ modelId: SELECTED_MODEL, threadId: conversationIdOf('conversation-session-model-failing') }) }))
   await page.reload()
   await messageBox(page).waitFor()
   await modelsAlert(page).waitFor({ timeout: 30_000 })
@@ -2159,7 +2159,7 @@ const sessionOf = (projectId) => ({ projectId, latestBuilderRun: null, latestCod
 const problem = (status, code) => ({ status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${code}`, title: code, status, code }) })
 const stubSessionReads = async (page, accountId, projectId, answer) => {
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
-  await routeBuilder(page, builderState([conversation('conversation-poll', 'Conversa')]))
+  await routeBuilder(page, builderState([conversation(conversationIdOf('conversation-poll'), 'Conversa')]))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Poll', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))
   let answered
   const firstRead = new Promise((resolve) => { answered = resolve })

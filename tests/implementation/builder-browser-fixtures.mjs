@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+import { BuilderRunView } from '../../packages/contract/dist/index.js'
 // What the browser suites share: the Builder controller's routes stubbed for a page, and the thread messages they serve.
 export const BUILDER_CONTROLLER = '**/api/builder/agent-controller/conexus-builder'
 // The model and a conversation's own state are the controller's, so the screen reads
@@ -54,8 +56,16 @@ export const sse = (...events) => ({
 })
 
 // A run as the Hub's contract writes it: the fields a fixture leaves out take the values of a run nobody has touched.
-export const runOf = (fields) => ({
-  conversationId: 'conversation-fixture',
+// A conversation id as the contract names it: a UUID, derived from a readable name so a fixture keeps its label.
+export const conversationIdOf = (name) => {
+  const hex = createHash('sha256').update(name).digest('hex')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`
+}
+
+// Every run a fixture serves passes through the contract, so a value the Hub could not send throws here, naming its field,
+// and never shows up as a page that waits for a screen that cannot render.
+export const runOf = (fields) => BuilderRunView.parse({
+  conversationId: conversationIdOf('conversation-fixture'),
   requestText: null,
   createdAt: '2026-10-05T10:00:00.000Z',
   cancellationRequested: false,

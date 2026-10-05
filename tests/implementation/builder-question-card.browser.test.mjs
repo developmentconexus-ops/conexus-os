@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
-import { BUILDER_CONTROLLER, builderState, conversation, routeBuilder, runOf, sse, userMessage } from './builder-browser-fixtures.mjs'
+import { BUILDER_CONTROLLER, builderState, conversation, routeBuilder, runOf, sse, userMessage, conversationIdOf } from './builder-browser-fixtures.mjs'
 import { startWebServer } from './web-dev-server.mjs'
 
 // A run waiting on a question, with its stream down: the open call lives in the thread message's
@@ -22,7 +22,7 @@ const waitingAsk = (question) => {
 const openWaitingRun = async (t, { phase, messages, refusal = null, pendingCalls = phase === 'WAITING' ? ['call_waiting'] : [] }) => {
   const accountId = '70000000-0000-4000-8000-000000000321'
   const projectId = '70000000-0000-4000-8000-000000000322'
-  const conversationId = 'conversation-waiting'
+  const conversationId = conversationIdOf('conversation-waiting')
   const sourceRevision = 'd'.repeat(40)
   const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
@@ -133,7 +133,7 @@ test('a run still WAITING in the database with no live session in this Hub, as a
 test('a tab that still holds an earlier question shows only the call the waiting run waits on, whatever reaches it first', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000331'
   const projectId = '70000000-0000-4000-8000-000000000332'
-  const conversationId = 'conversation-two-tabs'
+  const conversationId = conversationIdOf('conversation-two-tabs')
   const sourceRevision = 'e'.repeat(40)
   const OLD = 'Qual cor usar?'
   const NEW = 'Qual fonte usar?'
