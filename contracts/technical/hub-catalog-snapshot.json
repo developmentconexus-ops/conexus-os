@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0063",
+ "head": "0064",
  "catalog": {
   "schema": [
    "schema builder owner=builder_owner acl=builder_owner:CREATE:false,builder_owner:USAGE:false,hub_builder_executor:USAGE:false,hub_builder_ingress:USAGE:false,hub_runtime:USAGE:false,project_owner:USAGE:false,registry_owner:USAGE:false",
@@ -46,7 +46,7 @@
    "relation reg.application_thumbnail kind=r owner=registry_owner rls=false forcerls=false disabled_triggers=0 acl=registry_owner:DELETE:false,registry_owner:INSERT:false,registry_owner:MAINTAIN:false,registry_owner:REFERENCES:false,registry_owner:SELECT:false,registry_owner:TRIGGER:false,registry_owner:TRUNCATE:false,registry_owner:UPDATE:false",
    "relation reg.artifact kind=r owner=registry_owner rls=false forcerls=false disabled_triggers=0 acl=registry_owner:DELETE:false,registry_owner:INSERT:false,registry_owner:MAINTAIN:false,registry_owner:REFERENCES:false,registry_owner:SELECT:false,registry_owner:TRIGGER:false,registry_owner:TRUNCATE:false,registry_owner:UPDATE:false",
    "relation reg.artifact_revision kind=r owner=registry_owner rls=false forcerls=false disabled_triggers=0 acl=registry_owner:DELETE:false,registry_owner:INSERT:false,registry_owner:MAINTAIN:false,registry_owner:REFERENCES:false,registry_owner:SELECT:false,registry_owner:TRIGGER:false,registry_owner:TRUNCATE:false,registry_owner:UPDATE:false",
-   "relation workspace.workspace kind=r owner=workspace_owner rls=true forcerls=true disabled_triggers=0 acl=connector_owner:REFERENCES:false,hub_runtime:DELETE:false,hub_runtime:INSERT:false,hub_runtime:SELECT:false,hub_runtime:UPDATE:false,iam_owner:REFERENCES:false,project_owner:REFERENCES:false,registry_owner:REFERENCES:false,workspace_owner:DELETE:false,workspace_owner:INSERT:false,workspace_owner:MAINTAIN:false,workspace_owner:REFERENCES:false,workspace_owner:SELECT:false,workspace_owner:TRIGGER:false,workspace_owner:TRUNCATE:false,workspace_owner:UPDATE:false"
+   "relation workspace.workspace kind=r owner=workspace_owner rls=true forcerls=true disabled_triggers=0 acl=connector_owner:REFERENCES:false,hub_runtime:DELETE:false,hub_runtime:INSERT:false,hub_runtime:SELECT:false,iam_owner:REFERENCES:false,project_owner:REFERENCES:false,registry_owner:REFERENCES:false,workspace_owner:DELETE:false,workspace_owner:INSERT:false,workspace_owner:MAINTAIN:false,workspace_owner:REFERENCES:false,workspace_owner:SELECT:false,workspace_owner:TRIGGER:false,workspace_owner:TRUNCATE:false,workspace_owner:UPDATE:false"
   ],
   "column": [
    "column builder.builder_run.account_id uuid notnull=true default= acl=",
@@ -666,9 +666,14 @@
   ],
   "rule": [],
   "policy": [
-   "policy platform.operation_receipt.receipt_runtime cmd=* permissive=true roles=hub_runtime using=((( SELECT iam.acting_scope() AS acting_scope) = 'system'::text) OR ((( SELECT iam.acting_account() AS acting_account) IS NOT NULL) AND (account_id = ( SELECT iam.acting_account() AS acting_account)))) check=((( SELECT iam.acting_scope() AS acting_scope) = 'system'::text) OR ((( SELECT iam.acting_account() AS acting_account) IS NOT NULL) AND (account_id = ( SELECT iam.acting_account() AS acting_account))))",
+   "policy platform.operation_receipt.receipt_delete cmd=d permissive=true roles=hub_runtime using=(( SELECT iam.acting_scope() AS acting_scope) = 'system'::text) check=",
+   "policy platform.operation_receipt.receipt_insert cmd=a permissive=true roles=hub_runtime using= check=((( SELECT iam.acting_scope() AS acting_scope) = 'system'::text) OR ((( SELECT iam.acting_account() AS acting_account) IS NOT NULL) AND (account_id = ( SELECT iam.acting_account() AS acting_account))))",
+   "policy platform.operation_receipt.receipt_select cmd=r permissive=true roles=hub_runtime using=((( SELECT iam.acting_scope() AS acting_scope) = 'system'::text) OR ((( SELECT iam.acting_account() AS acting_account) IS NOT NULL) AND (account_id = ( SELECT iam.acting_account() AS acting_account)))) check=",
+   "policy platform.operation_receipt.receipt_update cmd=w permissive=true roles=hub_runtime using=((( SELECT iam.acting_scope() AS acting_scope) = 'system'::text) OR ((( SELECT iam.acting_account() AS acting_account) IS NOT NULL) AND (account_id = ( SELECT iam.acting_account() AS acting_account)))) check=((( SELECT iam.acting_scope() AS acting_scope) = 'system'::text) OR ((( SELECT iam.acting_account() AS acting_account) IS NOT NULL) AND (account_id = ( SELECT iam.acting_account() AS acting_account))))",
    "policy workspace.workspace.legacy_owner cmd=* permissive=true roles=workspace_owner using=true check=true",
-   "policy workspace.workspace.workspace_runtime cmd=* permissive=true roles=hub_runtime using=((( SELECT iam.acting_scope() AS acting_scope) = 'system'::text) OR (workspace_id IN ( SELECT iam.acting_workspaces() AS acting_workspaces))) check=((( SELECT iam.acting_scope() AS acting_scope) = 'system'::text) OR (workspace_id IN ( SELECT iam.acting_workspaces() AS acting_workspaces)) OR ((( SELECT iam.acting_account() AS acting_account) IS NOT NULL) AND (created_by = ( SELECT iam.acting_account() AS acting_account))))"
+   "policy workspace.workspace.workspace_delete cmd=d permissive=true roles=hub_runtime using=(( SELECT iam.acting_scope() AS acting_scope) = 'system'::text) check=",
+   "policy workspace.workspace.workspace_insert cmd=a permissive=true roles=hub_runtime using= check=((( SELECT iam.acting_scope() AS acting_scope) = 'system'::text) OR ((( SELECT iam.acting_account() AS acting_account) IS NOT NULL) AND (created_by = ( SELECT iam.acting_account() AS acting_account))))",
+   "policy workspace.workspace.workspace_select cmd=r permissive=true roles=hub_runtime using=((( SELECT iam.acting_scope() AS acting_scope) = 'system'::text) OR (workspace_id IN ( SELECT iam.acting_workspaces() AS acting_workspaces))) check="
   ],
   "type": [
    "type iam.action kind=e owner=iam_owner labels=workspace.read,members.manage,project.create,project.build",

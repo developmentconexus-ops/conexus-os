@@ -1,5 +1,7 @@
 import type { QueryResultRow } from 'pg'
 import type { PostgresPool } from '../platform/db.js'
+import { Failure } from '../platform/failure.js'
+import { accountId } from './current-session.js'
 import type { AccountId } from './current-session.js'
 
 // Installation administration authorizes installation-wide actions, such as connecting the
@@ -65,7 +67,8 @@ export const createInstallationAdministration = ({ pool }: Readonly<{ pool: Post
   async grantByEmail({ actor, email }) {
     const result = await pool.query<QueryResultRow & { account_id: string }>(
       'SELECT iam.grant_installation_administrator_by_email($1, $2) AS account_id', [actor, email])
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    return result.rows[0]?.account_id as AccountId
+    const granted = result.rows[0]
+    if (!granted) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'INSTALLATION_ADMINISTRATOR_GRANT_RETURNED_NO_ACCOUNT' } })
+    return accountId(granted.account_id)
   },
 })

@@ -7,7 +7,6 @@
     "scripts/census-builder-run.mjs",
     "scripts/census-boundaries.mjs",
     "scripts/check-enforced-by.mjs",
-    "scripts/function-callers.mjs",
     "scripts/codemods/error-code-to-failure.mjs",
     "scripts/keycloak-refresh-probe.mjs",
     "scripts/builder-eval/plan-bench.mjs",
@@ -56,6 +55,16 @@
     "@biomejs/biome"
   ],
   // The reference screens import the generated app's own components and libraries, which this package does not install.
-  "ignoreIssues": { "builder-skills/**": ["unlisted", "unresolved"], "apps/web/src/app/http.ts": ["exports"], "apps/hub/src/platform/db.ts": ["exports", "types"], "apps/hub/src/identity-access/admission.ts": ["exports", "types"], "apps/hub/src/platform/receipt.ts": ["exports", "types"] },
+  "ignoreIssues": {
+    "builder-skills/**": ["unlisted", "unresolved"],
+    // Frozen by spec 0015 section 3: the web caller's query and href are first used by the parts that declare GET operations.
+    "apps/web/src/app/http.ts": ["exports"],
+    // Frozen by spec 0015 section 3: the table each part extends with its own constraints, read by the data test on the built Hub.
+    "apps/hub/src/platform/db.ts": ["exports"],
+    // Frozen by spec 0015 section 3: reserve and complete are first called by project creation in part 3.
+    "apps/hub/src/platform/receipt.ts": ["exports", "types"],
+    // Frozen by spec 0015 section 3: the scope, action and role tables that parts 3 to 6 admit through.
+    "apps/hub/src/identity-access/admission.ts": ["exports", "types"]
+  },
   "ignoreBinaries": ["setpriv", "pgrep"]
 }

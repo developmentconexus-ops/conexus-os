@@ -2,7 +2,8 @@ import { z } from 'zod'
 import { AccountId, WorkspaceId } from './ids.js'
 import { operation } from './operation.js'
 
-export const IdempotencyKey = z.string().min(1).meta({ id: 'IdempotencyKey', failureCode: 'IDEMPOTENCY_KEY_REQUIRED' })
+export const IdempotencyKey = z.string().min(1).brand<'IdempotencyKey'>().meta({ id: 'IdempotencyKey', failureCode: 'IDEMPOTENCY_KEY_REQUIRED' })
+export type IdempotencyKey = z.output<typeof IdempotencyKey>
 export const WorkspaceName = z.string().min(1).regex(/\S/).meta({ id: 'WorkspaceName' })
 export const WorkspaceCreated = z.object({
   workspaceId: WorkspaceId,

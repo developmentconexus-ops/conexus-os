@@ -15,19 +15,30 @@ stores that issue SQL, and the scripts that generate or apply them. [`areas.json
       The reviewer diffs the old body against the new one, not only the signature.
 - [ ] A migration that touches real data carries `needs:aprovo`. Owner:
       [Ask for "Aprovo"](../delivery.md#ask-for-aprovo-on-three-kinds-of-change).
-- [ ] A store connects as the capability role the
-      [Hub database role register](../../reference/hub-database-roles.md) names for its module. A
-      new role is a row in `contracts/technical/hub-database-roles.json`, and the projection is
-      regenerated. `npm run db:roles:check` refuses drift.
-- [ ] A rule PostgreSQL enforces (CHECK, `SECURITY DEFINER` function, partial index) is not
-      repeated in TypeScript beyond boundary parsing.
+- [ ] A store reaches the database only through `platform/db.ts`, as `hub_runtime`. A new role is a
+      row in `contracts/technical/hub-database-roles.json` with the projection regenerated, and
+      `npm run db:roles:check` refuses drift. No migration gives `hub_runtime` DDL, `BYPASSRLS` or a
+      grant on `factory`.
+- [ ] Integrity stays in PostgreSQL (keys, CHECK, partial indexes, row policies); a business rule is a
+      pure TypeScript function over rows the command locked, behind an admission proof. A new
+      `SECURITY DEFINER` function that holds a rule is refused: `ruleFunctions` in
+      `contracts/technical/hub-catalog-census.json` may only fall.
+- [ ] A migration that polices a table adds `FORCE ROW LEVEL SECURITY`, one policy per command
+      `TO hub_runtime` where read and write authority differ (a `WITH CHECK` is never `true`, and a
+      `DELETE` or `UPDATE` is gated by `USING`), a `legacy_owner` policy for the owner role of every
+      function that still reads the table, and the grants the policies allow and no more. It removes
+      the table's row from `UNSCOPED_TABLES`. A command `hub_runtime` holds no grant for needs no policy. `npm run db:catalog:check` derives the bridge owners from
+      the function bodies and fails on any table that is neither policed nor listed.
+- [ ] A migration that drops a function names its exact signature, without `CASCADE`, and
+      `npm run db:callers:check` shows no caller left in another function's body or in the SQL text of
+      `apps/hub/src`. The regenerated `docs/reference/function-callers.md` is in the same commit.
 - [ ] A change to the output of `packages/canonical-json` is a data change: the idempotency tables
       store `request_digest`, the SHA-256 of those bytes, so a retry of a request made before the
       deploy fails with `IDEMPOTENCY_CONFLICT`. See [its AGENTS.md](../../../packages/canonical-json/AGENTS.md).
 
 ## Proof required
 
-- `db-catalog-snapshot`, `db-baseline-file` and `db-role-register` passed at the head.
+- `db-catalog-snapshot` (which includes the catalog lint), `function-callers`, `db-baseline-file` and `db-role-register` passed at the head.
 
 ## Traps from history
 
@@ -48,7 +59,8 @@ stores that issue SQL, and the scripts that generate or apply them. [`areas.json
 
 - **Make Operations Idempotent.** A migration and a provisioning script converge from any partial
   prior run.
-- **Model the Domain.** The database owns the invariant. TypeScript parses input and calls the
-  function that enforces it.
-- **Boundary Discipline.** A row is external data until the store parses it into the typed model.
+- **Model the Domain.** The database keeps integrity; the rule is a pure function over rows the command
+  locked, and only an admission function makes the proof the command needs.
+- **Boundary Discipline.** A row is external data until the data module parses it with a schema into
+  the typed model.
 - **Fix Root Causes.** A failing install is reproduced against a fresh database before it is fixed.

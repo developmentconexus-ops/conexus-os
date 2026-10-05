@@ -1,10 +1,10 @@
 const RUNTIME_ROLE = 'hub_runtime'
-const COMMANDS = ['r', 'a', 'w', 'd']
+const PRIVILEGE_OF = { r: 'SELECT', a: 'INSERT', w: 'UPDATE', d: 'DELETE' }
 const POLICY_HELPER = /^iam\.acting_/
 
 const relations = (catalog) => catalog.relation.flatMap((line) => {
-  const found = /^relation (\S+) kind=([rp]) owner=(\S+) rls=(\w+) forcerls=(\w+)/.exec(line)
-  return found ? [{ table: found[1], owner: found[3], rls: found[4] === 'true', force: found[5] === 'true' }] : []
+  const found = /^relation (\S+) kind=([rp]) owner=(\S+) rls=(\w+) forcerls=(\w+) .*acl=(\S*)$/.exec(line)
+  return found ? [{ table: found[1], owner: found[3], rls: found[4] === 'true', force: found[5] === 'true', acl: found[6].split(',') }] : []
 })
 
 const policies = (catalog) => catalog.policy.flatMap((line) => {
@@ -30,13 +30,14 @@ export const lintCatalog = ({ catalog, functions, census }) => {
 
   for (const row of tables) {
     const own = allPolicies.filter((policy) => policy.table === row.table && policy.roles.includes(RUNTIME_ROLE))
-    const covered = row.rls && row.force && COMMANDS.every((command) => own.some((policy) => covers(policy, command)))
+    const granted = (command) => row.acl.includes(`${RUNTIME_ROLE}:${PRIVILEGE_OF[command]}:false`)
+    const covered = row.rls && row.force && Object.keys(PRIVILEGE_OF).every((command) => !granted(command) || own.some((policy) => covers(policy, command)))
     if (permanent.has(row.table)) continue
     if (pending.has(row.table)) {
       if (covered) problems.push(`${row.table} is policed but still listed as pending`)
       continue
     }
-    if (!covered) problems.push(`${row.table} has no FORCE row level security with ${RUNTIME_ROLE} policies for select, insert, update and delete, and is not in UNSCOPED_TABLES`)
+    if (!covered) problems.push(`${row.table} has no FORCE row level security with ${RUNTIME_ROLE} policies for each command it grants ${RUNTIME_ROLE}, and is not in UNSCOPED_TABLES`)
   }
 
   for (const row of tables.filter((candidate) => candidate.rls)) {

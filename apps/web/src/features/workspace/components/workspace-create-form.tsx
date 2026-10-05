@@ -5,11 +5,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
-import { WS01, type WorkspaceCreated } from '../../../../../../packages/contract/dist/index.js'
+import { IdempotencyKey, WS01, type WorkspaceCreated } from '../../../../../../packages/contract/dist/index.js'
 import { accessContextQueryKey } from '../../identity-access/api'
 import { call, failureText } from '../../../app/http'
 
-type Attempt = { name: string; idempotencyKey: string }
+type Attempt = { name: string; idempotencyKey: IdempotencyKey }
 
 export function WorkspaceCreateForm({
   currentAccountId,
@@ -58,7 +58,7 @@ export function WorkspaceCreateForm({
       nameInput.current?.focus()
       return
     }
-    if (attempt.current?.name !== name) attempt.current = { name, idempotencyKey: crypto.randomUUID() }
+    if (attempt.current?.name !== name) attempt.current = { name, idempotencyKey: IdempotencyKey.parse(crypto.randomUUID()) }
     setMessage('')
     createInFlight.current = true
     mutation.mutate(attempt.current)

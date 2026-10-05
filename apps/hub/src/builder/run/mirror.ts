@@ -84,19 +84,12 @@ export const createTurnMirror = ({ git, projectId, conversationId, turnStart, he
   })
 }
 
-// The turn whose mirror each conversation workspace feeds. The hook goes on once, at the workspace's
-// first turn, so a kept workspace never stacks one per turn.
-const fedMirrors = new WeakMap<Workspace, { current: TurnMirror }>()
+/** The turn whose mirror a conversation's workspace feeds; the sandbox record owns it, and each turn's start points it at that turn's mirror. */
+export type MirrorFeed = { current: TurnMirror | null }
 
-/** Makes every checkout-changing workspace tool schedule this turn's mirror, keeping the hooks the workspace already has. */
-export const mirrorAfterEdits = (workspace: Workspace, mirror: TurnMirror): void => {
-  const fed = fedMirrors.get(workspace)
-  if (fed) {
-    fed.current = mirror
-    return
-  }
-  const slot = { current: mirror }
-  fedMirrors.set(workspace, slot)
+/** Makes every checkout-changing workspace tool schedule the current turn's mirror, keeping the hooks the workspace already has. */
+export const createMirrorFeed = (workspace: Workspace): MirrorFeed => {
+  const feed: MirrorFeed = { current: null }
   const existing = workspace.getToolsConfig() ?? {}
   const priorAfterToolCall = existing.hooks?.afterToolCall
   workspace.setToolsConfig({
@@ -104,9 +97,10 @@ export const mirrorAfterEdits = (workspace: Workspace, mirror: TurnMirror): void
     hooks: {
       ...existing.hooks,
       afterToolCall: async (hookContext) => {
-        if (CHECKOUT_WRITER_TOOLS.has(hookContext.workspaceToolName)) slot.current.schedule()
+        if (CHECKOUT_WRITER_TOOLS.has(hookContext.workspaceToolName)) feed.current?.schedule()
         await priorAfterToolCall?.(hookContext)
       },
     },
   })
+  return feed
 }

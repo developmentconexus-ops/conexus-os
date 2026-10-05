@@ -1,5 +1,5 @@
 import pg from 'pg'
-import type { Pool, PoolClient, PoolConfig, QueryResultRow } from 'pg'
+import type { Pool, PoolClient, PoolConfig } from 'pg'
 import type { z } from 'zod'
 import type { AccountId } from '../../../../packages/contract/dist/index.js'
 import { Failure, logFailure, type FailureCode } from './failure.js'
@@ -11,14 +11,13 @@ import { CAPABILITY_BY_ROLE } from './hub-roles.generated.js'
 const sqlBrand: unique symbol = Symbol('sql')
 const factoryBrand: unique symbol = Symbol('factory-pool')
 
-export type Mode = 'read' | 'write'
+type Mode = 'read' | 'write'
 export type Sql = Readonly<{ [sqlBrand]: true; text: string; values: readonly unknown[] }>
 export type DatabaseConnection = Readonly<{ host: string; port: number; database: string; user: 'hub_runtime' | 'hub_factory'; passwordFile: string; max?: number; connectionTimeoutMillis?: number; options?: string }>
 export type JobName = 'iam-reaper' | 'project-purge' | 'builder-executor' | 'migration'
 export type FactoryPool = Pool & Readonly<{ [factoryBrand]: true }>
 export type PostgresPool = Pool
 export type PostgresConnection = PoolConfig
-export type { PoolClient, QueryResultRow }
 
 const identifier = (name: string): Sql => ({ [sqlBrand]: true, text: `"${name.replaceAll('"', '""')}"`, values: [] })
 const isSql = (value: unknown): value is Sql => typeof value === 'object' && value !== null && sqlBrand in value && value[sqlBrand] === true
@@ -51,7 +50,7 @@ export interface WriteTx extends ReadTx {
   run(query: Sql): Promise<number>
 }
 
-export type SessionLock = Readonly<{ tryAdvisoryLock(key: bigint): Promise<boolean> }>
+type SessionLock = Readonly<{ tryAdvisoryLock(key: bigint): Promise<boolean> }>
 export interface Database {
   transaction<T>(accountId: AccountId, fn: (tx: WriteTx) => Promise<T>): Promise<T>
   read<T>(accountId: AccountId, fn: (tx: ReadTx) => Promise<T>): Promise<T>
@@ -60,7 +59,7 @@ export interface Database {
   close(): Promise<void>
 }
 
-export type DatabaseFailureRule = Readonly<{ sqlstate: string; constraint: string | null; failure: FailureCode }>
+type DatabaseFailureRule = Readonly<{ sqlstate: string; constraint: string | null; failure: FailureCode }>
 export const DATABASE_FAILURES: readonly DatabaseFailureRule[] = Object.freeze([
   { sqlstate: '23503', constraint: 'workspace_membership_workspace_id_fkey', failure: 'WORKSPACE_NOT_FOUND' },
   { sqlstate: '23505', constraint: 'operation_receipt_pkey', failure: 'IDEMPOTENCY_CONFLICT' },

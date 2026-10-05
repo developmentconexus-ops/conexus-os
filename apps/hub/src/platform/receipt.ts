@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { canonicalBytes } from '../../../../packages/canonical-json/src/index.mjs'
-import type { Input, JsonOperation, Reply } from '../../../../packages/contract/dist/index.js'
+import type { IdempotencyKey, Input, JsonOperation, Reply } from '../../../../packages/contract/dist/index.js'
 import type { Admitted, AccountScope, BootstrapScope, ProjectScope, WorkspaceAction, WorkspaceScope } from '../identity-access/admission.js'
 import { sql } from './db.js'
 import { Failure } from './failure.js'
@@ -53,7 +53,7 @@ const replayReply = <O extends JsonOperation>(op: O, status: number | null, body
   return reply
 }
 
-const receiptKey = <O extends JsonOperation>(proof: Admitted<ReceiptScope>, op: O, key: string, input: DigestInput<O>) => ({
+const receiptKey = <O extends JsonOperation>(proof: Admitted<ReceiptScope>, op: O, key: IdempotencyKey, input: DigestInput<O>) => ({
   operationId: op.id,
   authority: authorityOf(proof.scope),
   accountId: 'accountId' in proof.scope ? proof.scope.accountId : null,
@@ -62,7 +62,7 @@ const receiptKey = <O extends JsonOperation>(proof: Admitted<ReceiptScope>, op: 
 })
 
 export const reserve = async <O extends JsonOperation, I extends z.ZodType>(
-  proof: Admitted<ReceiptScope>, op: O, key: string, input: DigestInput<O>, id: I,
+  proof: Admitted<ReceiptScope>, op: O, key: IdempotencyKey, input: DigestInput<O>, id: I,
 ): Promise<Receipt<z.output<I>, Reply<O>>> => {
   const receipt = receiptKey(proof, op, key, input)
   const candidate = id.parse(randomUUID())
@@ -84,7 +84,7 @@ export const reserve = async <O extends JsonOperation, I extends z.ZodType>(
 }
 
 export const complete = async <O extends JsonOperation>(
-  proof: Admitted<ReceiptScope>, op: O, key: string, input: DigestInput<O>, resourceId: unknown, reply: Reply<O>,
+  proof: Admitted<ReceiptScope>, op: O, key: IdempotencyKey, input: DigestInput<O>, resourceId: unknown, reply: Reply<O>,
 ): Promise<void> => {
   const receipt = receiptKey(proof, op, key, input)
   const changed = await proof.tx.run(sql`
@@ -97,7 +97,7 @@ export const complete = async <O extends JsonOperation>(
 }
 
 export const idempotent = async <O extends JsonOperation, I extends z.ZodType>(
-  proof: Admitted<ReceiptScope>, op: O, key: string, input: DigestInput<O>, id: I,
+  proof: Admitted<ReceiptScope>, op: O, key: IdempotencyKey, input: DigestInput<O>, id: I,
   run: (resourceId: z.output<I>) => Promise<Reply<O>>,
 ): Promise<Readonly<{ replayed: boolean; reply: Reply<O> }>> => {
   const receipt = await reserve(proof, op, key, input, id)

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { AccountId, BuilderRunId, ConnectionId, ProjectId, WorkspaceId } from '../../../../packages/contract/dist/index.js'
 import { AccountId as AccountIdSchema } from '../../../../packages/contract/dist/index.js'
-import type { ReadTx, WriteTx } from '../platform/db.js'
+import type { JobName, ReadTx, WriteTx } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
 
@@ -11,7 +11,6 @@ export type ProjectAction = 'project.read' | 'project.build' | 'project.delete'
 export type ConnectionAction = 'connection.read' | 'connection.manage' | 'connection.use'
 export type Action = WorkspaceAction | ProjectAction | ConnectionAction
 export type ReadAction = 'workspace.read' | 'project.read' | 'connection.read'
-export type JobName = 'iam-reaper' | 'project-purge' | 'builder-executor' | 'migration'
 export type RunOwner = Readonly<{ ownerId: string }>
 export type OwnerRow = Readonly<{ accountId: AccountId; active: boolean }>
 

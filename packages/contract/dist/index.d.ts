@@ -11,7 +11,7 @@ export declare const OPERATIONS: readonly {
     readonly params: null;
     readonly query: null;
     readonly headers: import("zod").ZodObject<{
-        'idempotency-key': import("zod").ZodString;
+        'idempotency-key': import("zod/v4/core").$ZodBranded<import("zod").ZodString, "IdempotencyKey", "out">;
     }, import("zod/v4/core").$loose>;
     readonly body: import("zod").ZodObject<{
         name: import("zod").ZodString;

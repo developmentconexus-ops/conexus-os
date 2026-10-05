@@ -1,14 +1,13 @@
 # Hub database role register
 
-Every Hub connection authenticates as a capability role, named for the capability it holds rather
-than for the program phase that introduced it. This
-register maps each one to its capability, the module that connects as it, and the configuration
-that supplies its password.
+The Hub connects as one runtime role for its data and one for Mastra's storage. This register maps
+each role to its capability, the module that connects as it, and the configuration that supplies its
+password.
 
-The capability labels are not prose. The register is
+The register is
 [`contracts/technical/hub-database-roles.json`](../../contracts/technical/hub-database-roles.json),
 and `scripts/generate-hub-role-register.mjs` projects it into
-`apps/hub/src/platform/hub-roles.generated.ts`, from which `createPostgresPool` writes the capability
+`apps/hub/src/platform/hub-roles.generated.ts`, from which `platform/db.ts` writes the capability
 into `application_name` on every connection. So `pg_stat_activity` and the server log show
 the capability beside the role. `npm run db:roles:check` refuses a projection that drifts and
 runs inside `npm run verify`, so a label in this table that disagrees with the register is a
@@ -18,56 +17,38 @@ defect in this table. Adding a role means adding a row to the register and regen
 
 | Role | Capability | Connects from | Password configuration |
 | --- | --- | --- | --- |
-| `hub_iam_runtime` | `identity-and-access` | `server.ts` main pool | `CONEXUS_DB_PASSWORD_FILE` |
-| `hub_workspace_read` | `workspace-read` | `server.ts` | `CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE` |
-| `hub_workspace_command` | `workspace-command` | `server.ts` | `CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE` |
-| `hub_project_read` | `project-read` | `project/module.ts` | `CONEXUS_DB_PROJECT_READ_PASSWORD_FILE` |
-| `hub_project_command` | `project-command` | `project/module.ts` | `CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE` |
-| `hub_builder_ingress` | `builder-request` | `builder/module.ts` | `CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE` |
-| `hub_builder_executor` | `builder-run-execution` | `builder/module.ts` | `CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE` |
+| `hub_runtime` | `hub-data` | `hub.ts`, one pool for every owner | `CONEXUS_DB_PASSWORD_FILE` |
 | `hub_factory` | `factory-storage` | `builder/module.ts` | `CONEXUS_DB_FACTORY_PASSWORD_FILE` |
-| `hub_model_account` | `model-account` | `builder/module.ts` | `CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE` |
 
-These nine and the seven owner roles `iam_owner`, `workspace_owner`, `project_owner`,
-`registry_owner`, `builder_owner`, `connector_owner` and `model_owner` are every role the product
-has. A cluster built from `apps/hub/migrations/` holds exactly those sixteen. `0009_remove_model_connections.sql`
-dropped `hub_model_connection` and `model_connection_owner` with the model connection subsystem, and
-leaves either one in place while another database on the cluster still grants to it.
-`connector_owner`, added by `0029_connector.sql`, is `NOLOGIN` like every owner role: it owns the
-`connector` schema and its functions are reached only through `hub_iam_runtime`, the same shape as
-Stage 2 Q3's `iam.application_grant` functions. It holds no register row above because it never
-connects to the database on its own.
+`hub_runtime` holds data manipulation on the tables the Hub's TypeScript reads or writes, and
+`EXECUTE` on every live function in the Hub schemas. It is refused 42501 on any DDL, on `SET ROLE` and
+on the `factory` schema. Its authority comes from the proof an admission function makes and from the row
+policies on the tables a part has policed, not from the role (see
+[security and authority](security-and-authority.md#2-database-roles)).
 
-## The Builder split, which is load-bearing
+## Roles that never connect
 
-`hub_builder_ingress` and `hub_builder_executor` are not two names for one thing. `builder/store.ts`
-routes eight read and admit calls through the ingress pool and seventeen claim and
-state-changing calls through the executor pool. HTTP handlers reach only the ingress side;
-the background execution loop reaches the executor side. A request path holding
-`hub_builder_ingress` has no grant to claim, settle, fail or interrupt a BuilderRun.
+| Role | Owns or does | Why it never logs in |
+| --- | --- | --- |
+| `conexus_owner` | schema `platform` and its tables | the owner of what `hub_runtime` uses; `NOLOGIN` |
+| `iam_rls` | the `iam.acting_*` helper functions the policies call | holds `SELECT` on the few tables the helpers read and nothing else; `NOLOGIN`, no `BYPASSRLS` |
+| `iam_owner`, `workspace_owner`, `project_owner`, `registry_owner`, `builder_owner`, `connector_owner`, `model_owner` | the schemas and functions of an owner whose rules are still in SQL | `NOLOGIN`; each is dropped, with its objects moved to `conexus_owner`, when its part ports the owner |
+| `hub_iam_runtime` and the other capability roles marked `legacy` in the register | nothing the Hub uses | their grants stay until the last owner is ported, and no Hub module connects as them |
 
-The separation bounds a logic bug, not an attacker. Both pools live in the same process,
-declared three lines apart, so code execution in the Hub reaches either one. The property
-that does hold against a wider class of failure is that no Hub role has table grants at
-all: 115 of the 117 functions are `SECURITY DEFINER` (the other two, `builder.run_summary` and
-`iam.application_slug_base`, are helpers no Hub role may execute) and `REVOKE ALL ON ALL TABLES` is applied.
-`hub_iam_runtime` is the exception, holding direct `SELECT`, `INSERT` and `UPDATE` on the
-`iam` tables. `iam.installation_administrator` is not among them: `hub_iam_runtime` reaches it
-only through the installation administration functions (`iam.is_installation_administrator`,
-`iam.grant_installation_administrator`, `iam.revoke_installation_administrator`,
-`iam.list_installation_administrators`, `iam.grant_installation_administrator_by_email`), and no
-Hub role may execute `iam.bootstrap_installation_administrator`. The operator runs that one with
-the provisioning credential described below.
+`assertRoleInvariants` in `scripts/hub-catalog.mjs` reads `pg_roles` and refuses a role of the Hub that
+holds `SUPERUSER`, `CREATEROLE`, `CREATEDB`, `REPLICATION` or `BYPASSRLS`, any membership between Hub or
+owner roles, an owner role that can log in, a Hub role that inherits, an object in a Hub schema owned by
+a role the register does not list, and any function executable by `PUBLIC`. It also checks that
+`iam_rls` owns exactly the helpers the register names and holds nothing but `SELECT`.
 
 ## `hub_factory`, the one role that owns its schema
 
 `0011_factory_binding.sql` creates `hub_factory` and the schema `factory`, owned by it. This is
-the one exception to the rule that an owner role holds each schema and login roles reach it only
-through granted functions. The Mastra Factory keeps its storage in `factory` through `@mastra/pg`'s
+the one login role that owns a schema and runs DDL; `hub_runtime` holds data manipulation only. The Mastra Factory keeps its storage in `factory` through `@mastra/pg`'s
 `PgFactoryStorage`, which creates and migrates its own tables at runtime. So the role that connects
 for it must be able to run DDL there, and no Hub migration describes what it creates.
 
-The exception is bounded in both directions:
+The ownership is bounded in both directions:
 
 - `hub_factory` holds `CREATE` and `USAGE` on `factory`, as its owner, and no grant on any other
   schema, table or Hub function. Like every role, it can name `public`, which is empty.
@@ -101,7 +82,7 @@ hub_s2_read            hub_s3_read              hub_s4_baseline_command
 hub_s4_baseline_read   hub_s6_inception_command hub_ws01_command
 ```
 
-Eight of them were the phase-named predecessors of the capability roles above, and the rest held
+Eight of them were the phase-named predecessors of the capability roles, and the rest held
 surfaces that were dropped with the Brain, the bindings, Baseline, Inception and the Sankhya
 connections. `0001_baseline.sql` names none of them, so a cluster built from it never has them, and
 `tests/implementation/hub-baseline.postgres.test.mjs` fails if one reappears in the file.

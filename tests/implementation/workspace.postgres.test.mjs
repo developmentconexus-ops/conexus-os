@@ -69,6 +69,22 @@ test('workspace and receipt policies hide rows without an account and refuse an 
   assert.deepEqual((await query(runtime, 'SELECT count(*)::integer AS count FROM platform.operation_receipt')).rows, [{ count: 0 }])
 })
 
+test('a member cannot update or delete a workspace row and no account can delete a receipt', async (t) => {
+  const { connection, database, store } = await setup(t)
+  const created = await store.createWorkspace({ accountId: ACCOUNT, idempotencyKey: 'commands', body: { name: 'Operations' } })
+  const workspaceId = created.reply.workspaceId
+  await query(connection, "INSERT INTO iam.workspace_membership (workspace_id, account_id, role) VALUES ($1, $2, 'member')", [workspaceId, MEMBER])
+  const named = () => query(connection, 'SELECT name FROM workspace.workspace').then((result) => result.rows)
+  assert.equal(await database.transaction(MEMBER, (tx) => tx.run(sql`DELETE FROM workspace.workspace WHERE workspace_id = ${workspaceId}`)), 0)
+  assert.equal(await database.transaction(ACCOUNT, (tx) => tx.run(sql`DELETE FROM workspace.workspace WHERE workspace_id = ${workspaceId}`)), 0)
+  await assert.rejects(database.transaction(MEMBER, (tx) => tx.run(sql`UPDATE workspace.workspace SET name = 'Taken' WHERE workspace_id = ${workspaceId}`)), { id: 'INTERNAL_UNEXPECTED' })
+  assert.deepEqual(await named(), [{ name: 'Operations' }])
+  assert.equal(await database.transaction(ACCOUNT, (tx) => tx.run(sql`DELETE FROM platform.operation_receipt`)), 0)
+  assert.equal(await database.transaction(OUTSIDER, (tx) => tx.run(sql`UPDATE platform.operation_receipt SET state = 'reserved'`)), 0)
+  assert.equal(await database.transaction(ACCOUNT, (tx) => tx.run(sql`UPDATE platform.operation_receipt SET state = 'completed'`)), 1)
+  assert.equal(await database.system('project-purge', (tx) => tx.run(sql`DELETE FROM platform.operation_receipt`)), 1)
+})
+
 test('a revoke waits for an admitted writer and the next admission is refused', async (t) => {
   const { connection, database, store } = await setup(t)
   const created = await store.createWorkspace({ accountId: ACCOUNT, idempotencyKey: 'revoke', body: { name: 'Operations' } })

@@ -1,5 +1,6 @@
 import { z } from 'zod';
-export declare const IdempotencyKey: z.ZodString;
+export declare const IdempotencyKey: z.core.$ZodBranded<z.ZodString, "IdempotencyKey", "out">;
+export type IdempotencyKey = z.output<typeof IdempotencyKey>;
 export declare const WorkspaceName: z.ZodString;
 export declare const WorkspaceCreated: z.ZodObject<{
     workspaceId: z.core.$ZodBranded<z.ZodUUID, "WorkspaceId", "out">;
@@ -16,7 +17,7 @@ export declare const WS01: {
     readonly params: null;
     readonly query: null;
     readonly headers: z.ZodObject<{
-        'idempotency-key': z.ZodString;
+        'idempotency-key': z.core.$ZodBranded<z.ZodString, "IdempotencyKey", "out">;
     }, z.core.$loose>;
     readonly body: z.ZodObject<{
         name: z.ZodString;

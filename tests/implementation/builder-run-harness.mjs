@@ -21,6 +21,7 @@ for (const level of ['info', 'warn', 'error']) {
 
 const built = hubModuleUrl
 const { createBuilderService } = await import(built('builder/service.js'))
+const { createMirrorFeed } = await import(built('builder/run/mirror.js'))
 export const { sweepIdleMachines } = await import(built('builder/idle-machine-sweep.js'))
 const { createConexusGit } = await import(built('builder/conexus-git.js'))
 const { loadCheckBundle } = await import(built('builder/check-delivery.js'))
@@ -154,9 +155,11 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
   // What the service recorded of the conversation's session.
   const sessions = []
   const checkout = join(vm, 'workspace/repo')
+  const workspace = new Workspace({ id: 'run-workspace', filesystem: new LocalFilesystem({ basePath: checkout }) })
   const sandbox = {
     sandboxId: 'sbx-1',
-    workspace: new Workspace({ id: 'run-workspace', filesystem: new LocalFilesystem({ basePath: checkout }) }),
+    workspace,
+    mirrorFeed: createMirrorFeed(workspace),
     idle: async () => { events.push('idle'); idled.push(sandbox.sandboxId) },
     kill: async () => { events.push('kill'); killed.push(sandbox.sandboxId) },
     holdOpen: async (onLapse) => { events.push('hold-open'); await onHoldOpen?.(onLapse); return () => { events.push('release') } },
