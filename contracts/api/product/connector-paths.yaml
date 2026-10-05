@@ -10,8 +10,6 @@ paths:
       summary: ListWorkspaceConnections
       operationId: ListWorkspaceConnections
       x-conexus-4a-id: CON-01
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
@@ -33,8 +31,6 @@ paths:
       summary: CreateWorkspaceConnection
       operationId: CreateWorkspaceConnection
       x-conexus-4a-id: CON-02
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       requestBody:
         required: true
@@ -73,8 +69,6 @@ paths:
       summary: CheckWorkspaceConnection
       operationId: CheckWorkspaceConnection
       x-conexus-4a-id: CON-03
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       description: >-
         Runs only the Connector's allow-listed authentication, and only after the read allow-list
@@ -109,8 +103,6 @@ paths:
       summary: DisableWorkspaceConnection
       operationId: DisableWorkspaceConnection
       x-conexus-4a-id: CON-04
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: OWNER_CURRENT
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '204': { description: "The Connection is disabled and every open binding of it ends. The rows stay as the record, and every Project's next call through it is refused." }
@@ -126,8 +118,6 @@ paths:
       summary: ListProjectConnectionBindings
       operationId: ListProjectConnectionBindings
       x-conexus-4a-id: CON-08
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
@@ -150,8 +140,6 @@ paths:
       summary: BindProjectConnection
       operationId: BindProjectConnection
       x-conexus-4a-id: CON-09
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: OWNER_CURRENT
       x-conexus-contract-state: SCHEMA_CLOSED
       description: The server fixes the environment to preview; Q5 admits a second environment.
       requestBody:
@@ -196,8 +184,6 @@ paths:
       summary: UnbindProjectConnection
       operationId: UnbindProjectConnection
       x-conexus-4a-id: CON-10
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: OWNER_CURRENT
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '204': { description: "The binding ends and its row stays as the record. The next call through it, from a handler or an agent tool, is refused." }

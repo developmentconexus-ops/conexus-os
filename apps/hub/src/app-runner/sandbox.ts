@@ -1,9 +1,15 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { Readable } from 'node:stream'
+import { z } from 'zod'
 import { dirname, join } from 'node:path'
 import type { WorkerJob, WorkerResult } from './worker.js'
 import { Failure } from '../platform/failure.js'
+
+const WORKER_RESULT = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), value: z.unknown() }),
+  z.object({ ok: z.literal(false), code: z.string(), detail: z.string().exactOptional() }),
+]) satisfies z.ZodType<WorkerResult>
 
 /**
  * The per-invocation boundary: a rootless bubblewrap sandbox with unprivileged user, pid, network,
@@ -172,9 +178,8 @@ export const runWorker = (input: Readonly<{
       if (verdict) return resolve({ kind: verdict, ms, logs })
       const line = result.toString('utf8').split('\n', 1)[0] ?? ''
       try {
-        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-        const parsed = JSON.parse(line) as WorkerResult
-        if (parsed?.ok === true || (parsed?.ok === false && typeof parsed.code === 'string')) return resolve({ kind: 'RESULT', result: parsed, ms, logs })
+        const parsed = WORKER_RESULT.safeParse(JSON.parse(line))
+        if (parsed.success) return resolve({ kind: 'RESULT', result: parsed.data, ms, logs })
       } catch {
         // no result line: the worker died first
       }

@@ -84,8 +84,8 @@ test('real PostgreSQL proves project-summaries activity ordering, fallback, and 
   await query(fresh, `INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES
     ($1, 'https://issuer.test', 'summary-reader', 'Summary Reader'),
     ($2, 'https://issuer.test', 'summary-other', 'Summary Other')`, [accountId, otherAccountId])
-  await query(fresh, `INSERT INTO workspace.workspace(workspace_id, name) VALUES
-    ($1, 'Summary Workspace'), ($2, 'Other Workspace')`, [workspaceId, otherWorkspaceId])
+  await query(fresh, `INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES
+    ($1, 'Summary Workspace', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1)), ($2, 'Other Workspace', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))`, [workspaceId, otherWorkspaceId])
   await query(fresh, `INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES
     ($1, $2, 'owner'), ($3, $4, 'owner')`, [accountId, workspaceId, otherAccountId, otherWorkspaceId])
   await query(fresh, `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision, created_at) VALUES
@@ -184,7 +184,7 @@ test('real PostgreSQL surfaces a purged-but-incomplete tombstone to the installa
     ($1, 'https://issuer.test', 'tomb-admin', 'Tomb Admin'),
     ($2, 'https://issuer.test', 'tomb-member', 'Tomb Member')`, [administratorId, memberId])
   await query(fresh, `INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')`, [administratorId])
-  await query(fresh, `INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Tomb Workspace')`, [workspaceId])
+  await query(fresh, `INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'Tomb Workspace', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))`, [workspaceId])
   await query(fresh, `INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES
     ($1, $2, 'owner'), ($3, $2, 'owner')`, [administratorId, workspaceId, memberId])
   await query(fresh, `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES

@@ -1,7 +1,7 @@
 import type { MastraCompositeStore, RetentionConfig } from '@mastra/core/storage'
 import { PostgresStore } from '@mastra/pg'
 import type { EventLog } from '../platform/logger.js'
-import type { PostgresPool } from '../platform/postgres.js'
+import type { FactoryPool } from '../platform/db.js'
 
 // Spans hold prompts, tool I/O and source text. Bounding their age is the only retention: Builder
 // evidence lives in the threads' messages, so memory is never a retention key here.
@@ -12,7 +12,7 @@ const OBSERVABILITY_SPAN_RETENTION: RetentionConfig = { observability: { spans: 
  * restart. It lives in the `factory` schema through the `hub_factory` role until slice 7 moves it
  * to schema `mastra`.
  */
-export const createBuilderStorage = (pool: PostgresPool): PostgresStore =>
+export const createBuilderStorage = (pool: FactoryPool): PostgresStore =>
   new PostgresStore({ id: 'conexus-builder', pool, schemaName: 'factory', retention: OBSERVABILITY_SPAN_RETENTION })
 
 /**

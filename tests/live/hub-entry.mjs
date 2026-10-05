@@ -16,8 +16,9 @@ const { startHub } = await built('hub.js')
 const { createConversationSandbox, createRunWorkspace } = await built('builder/sandbox.js')
 const workspaceTools = createRunWorkspace(createConversationSandbox({ apiKey: 'unused', templateId: 'unused', conversationId: '00000000-0000-4000-8000-000000000001', providerSandboxId: null, idleMs: 300_000 })).getToolsConfig()
 const { readCheckReport } = await built('builder/application-check.js')
+const { createMirrorFeed } = await built('builder/run/mirror.js')
 const { checkEntryPath, loadCheckBundle } = await built('builder/check-delivery.js')
 const { CURRENT_TEMPLATE_PIN } = await built('platform/application-template-pins.js')
 // A manual proof on real E2B passes `e2b` as the third argument: the Hub then opens its own sandboxes.
 const realE2B = process.argv[4] === 'e2b'
-exitOnSignals((await startHub(realE2B ? {} : { conversationSandboxes: localConversationSandboxes(sandboxRoot, workspaceTools, { check: loadCheckBundle(), readCheckReport, checkEntryPath, templateRef: CURRENT_TEMPLATE_PIN.templateRef }) })).close)
+exitOnSignals((await startHub(realE2B ? {} : { conversationSandboxes: localConversationSandboxes(sandboxRoot, workspaceTools, { check: loadCheckBundle(), readCheckReport, checkEntryPath, createMirrorFeed, templateRef: CURRENT_TEMPLATE_PIN.templateRef }) })).close)

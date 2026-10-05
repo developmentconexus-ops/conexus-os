@@ -46,7 +46,7 @@ test('C-020 source inspection admits current subjects and latest code-changing r
     try { return await client.query(statement, values) } finally { await client.end() }
   }
   await query('INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, $2, $3, $4), ($5, $2, $6, $7)', [account, 'https://source-inspection.test', account, 'Source Reader', unauthorized, unauthorized, 'Unauthorized'])
-  await query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspace, 'Source Inspection'])
+  await query('INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, $2, (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))', [workspace, 'Source Inspection'])
   await query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [account, workspace])
   await query(`INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)
     VALUES ($1, $2, 'Project P', 'NEW', $3, 'p-revision'), ($4, $2, 'Project Q', 'NEW', $5, 'q-revision')`, [project, workspace, baseline, otherProject, qWorking])

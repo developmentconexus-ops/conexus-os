@@ -1,0 +1,3006 @@
+{
+  "openapi": "3.1.2",
+  "info": {
+    "title": "Conexus Product API",
+    "version": "4b-candidate",
+    "description": "Canonical machine-readable HTTP wire for accepted Conexus Product operations. Product semantics remain owned by accepted 4A authority; this description may not invent operations, permissions, owners, or trust boundaries."
+  },
+  "jsonSchemaDialect": "https://spec.openapis.org/oas/3.1/dialect/2024-11-10",
+  "servers": [
+    {
+      "url": "/",
+      "description": "Relative Product API root; deployment origin remains outside 4B."
+    }
+  ],
+  "security": [
+    {
+      "ConexusSession": []
+    }
+  ],
+  "paths": {
+    "/api/control/access-context": {
+      "get": {
+        "summary": "GetControlPlaneAccessContext",
+        "operationId": "GetControlPlaneAccessContext",
+        "responses": {
+          "200": {
+            "description": "Current disclosable Control Plane access context resolved from server-owned authority.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "account",
+                    "workspaces",
+                    "projects"
+                  ],
+                  "properties": {
+                    "account": {
+                      "$ref": "#/components/schemas/AccountSummary"
+                    },
+                    "workspaces": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "workspaceId",
+                          "name"
+                        ],
+                        "properties": {
+                          "workspaceId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": ".*\\S.*",
+                            "description": "Human-readable Workspace identity; presentation-only and never authorization."
+                          }
+                        }
+                      }
+                    },
+                    "projects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProjectSummary"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          }
+        }
+      }
+    },
+    "/api/session": {
+      "delete": {
+        "summary": "EndSession",
+        "operationId": "EndSession",
+        "responses": {
+          "204": {
+            "description": "Current opaque Conexus session ended. Keycloak is then asked, bounded, to end the SSO session behind it; its answer is not reported, and this does not claim global Keycloak SSO logout."
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          }
+        }
+      }
+    },
+    "/api/control/accounts": {
+      "post": {
+        "summary": "ProvisionAccount",
+        "operationId": "ProvisionAccount",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BootstrapProvisionAccountRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Conexus Account provisioned or the same admitted intake resolved to its already-created Account; Account presentation is returned without exposing provider authorization state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        }
+      }
+    },
+    "/api/control/workspaces/{workspaceId}/members": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkspaceId"
+        }
+      ],
+      "get": {
+        "summary": "ListWorkspaceMembers",
+        "operationId": "ListWorkspaceMembers",
+        "responses": {
+          "200": {
+            "description": "Current Workspace roster. Members and invitations with their state are one server-resolved projection, and the caller's own role is stated so the browser can hide controls the server would refuse anyway.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceRoster"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        }
+      }
+    },
+    "/api/control/workspaces/{workspaceId}/members/{accountId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkspaceId"
+        },
+        {
+          "$ref": "#/components/parameters/AccountId"
+        }
+      ],
+      "put": {
+        "summary": "SetWorkspaceMemberRole",
+        "operationId": "SetWorkspaceMemberRole",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "role"
+                ],
+                "properties": {
+                  "role": {
+                    "$ref": "#/components/schemas/WorkspaceRole"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "The member now holds this role. Setting the same role again is the same answer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        }
+      }
+    },
+    "/api/control/workspaces/{workspaceId}/invitations": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkspaceId"
+        }
+      ],
+      "post": {
+        "summary": "InviteWorkspaceMember",
+        "operationId": "InviteWorkspaceMember",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "email",
+                  "role"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "minLength": 3,
+                    "description": "Verified-email address the invited person must sign in with. It is the natural key of the invitation and never Account identity or authorization."
+                  },
+                  "role": {
+                    "$ref": "#/components/schemas/WorkspaceRole"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Current invitation for this exact Workspace and email. The pair is the natural key, so repeating the same request answers the same invitation rather than creating a second one.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceInvitationEntry"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        }
+      }
+    },
+    "/api/control/workspaces/{workspaceId}/roster/{entryKind}/{entryId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkspaceId"
+        },
+        {
+          "name": "entryKind",
+          "in": "path",
+          "required": true,
+          "description": "Which kind of roster entry this request withdraws.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "member",
+              "invitation"
+            ]
+          }
+        },
+        {
+          "name": "entryId",
+          "in": "path",
+          "required": true,
+          "description": "Untrusted reference to the exact roster entry; containment and authority are resolved server-side.",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "delete": {
+        "summary": "RemoveWorkspaceRosterEntry",
+        "operationId": "RemoveWorkspaceRosterEntry",
+        "responses": {
+          "204": {
+            "description": "The roster entry is gone. Removing a member withdraws every right that derived from that membership row."
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/application-access": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ProjectId"
+        }
+      ],
+      "get": {
+        "summary": "ListApplicationAccess",
+        "operationId": "ListApplicationAccess",
+        "responses": {
+          "200": {
+            "description": "Who may use the Project's application besides the members of its Workspace. Open grants and invitations with their state are one server-resolved projection. Only an Owner of the Project's Workspace reads it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationAccess"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        }
+      },
+      "post": {
+        "summary": "GrantApplicationAccess",
+        "operationId": "GrantApplicationAccess",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "email"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "minLength": 3,
+                    "description": "Verified-email address the person must sign in with. With the Project it is the natural key of the invitation, and it is never Account identity or authorization."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Current access for this exact Project and email. A person who already holds an open grant keeps it, and the answer is that grant; nothing new is opened. Otherwise the answer is the application invitation, and repeating the request answers the same invitation. The first grant also fixes the application's address, derived from the Project name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ApplicationGrantEntry"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApplicationInvitationEntry"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/application-access/{entryKind}/{entryId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ProjectId"
+        },
+        {
+          "name": "entryKind",
+          "in": "path",
+          "required": true,
+          "description": "Which kind of application access entry this request withdraws.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "grant",
+              "invitation"
+            ]
+          }
+        },
+        {
+          "name": "entryId",
+          "in": "path",
+          "required": true,
+          "description": "Untrusted reference to the exact access entry; containment and authority are resolved server-side.",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "delete": {
+        "summary": "RevokeApplicationAccessEntry",
+        "operationId": "RevokeApplicationAccessEntry",
+        "responses": {
+          "204": {
+            "description": "The access entry is gone. A revoked grant stops the person at their next request to the application."
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        }
+      }
+    },
+    "/api/control/workspaces/{workspaceId}/projects": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkspaceId-2"
+        }
+      ],
+      "get": {
+        "summary": "ListProjects",
+        "operationId": "ListProjects",
+        "responses": {
+          "200": {
+            "description": "Projects currently disclosable to the caller in the Workspace. The normal project.read route follows ordinary Project disclosure; the workspace.access.manage route is access-administration summary disclosure only and returns exact contained ProjectSummary identities without granting Project content/source/data/build authority.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectSummary"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        }
+      },
+      "post": {
+        "summary": "CreateProject",
+        "operationId": "CreateProject",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "sourceBootstrap"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": ".*\\S.*",
+                    "description": "Required human-readable Project identity fixed at F1 creation; not a grant, unique key, or rename authority."
+                  },
+                  "sourceBootstrap": {
+                    "$ref": "#/components/schemas/ProjectSourceBootstrap"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Source-complete Project established in the exact Workspace with the admitted initial operator grant, human-readable identity and exactly one canonical Project Git source.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRepresentation"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ProjectId-2"
+        }
+      ],
+      "get": {
+        "summary": "GetProject",
+        "operationId": "GetProject",
+        "responses": {
+          "200": {
+            "description": "Exact current disclosable Project identity and owner state without sibling data-plane facts. While an installation administrator's deletion of this Project is recorded but unfinished, this stays disclosable to that administrator alone, with deleting true, so a reload after a crash still shows the retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        }
+      },
+      "delete": {
+        "summary": "DeleteProject",
+        "operationId": "DeleteProject",
+        "description": "Installation-administrator only. The caller must repeat the Project's exact current name to confirm; every Hub row naming the Project, its Mastra Factory state, its application's preview data and its GitHub repository are torn down together. A 503 means the request is durably recorded and safe to repeat unchanged; the Project stays gone from every disclosure meanwhile.",
+        "parameters": [
+          {
+            "name": "confirmName",
+            "in": "query",
+            "required": true,
+            "description": "Must equal the Project's exact current name; any other value refuses the request unchanged.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The Project, its data and its GitHub repository are gone."
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/source/tree": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ProjectId-2"
+        }
+      ],
+      "get": {
+        "summary": "ListProjectSourceTree",
+        "operationId": "ListProjectSourceTree",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SourceRevision"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read-only Project source tree for the exact requested source revision.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceTree"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/source/file": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ProjectId-2"
+        }
+      ],
+      "get": {
+        "summary": "GetProjectSourceFile",
+        "operationId": "GetProjectSourceFile",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SourceRevision"
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "description": "Exact Project-Git source path under requested immutable source revision.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read-only exact source-file content projection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceFile"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/source/compare": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ProjectId-2"
+        }
+      ],
+      "get": {
+        "summary": "CompareProjectSourceRevisions",
+        "operationId": "CompareProjectSourceRevisions",
+        "parameters": [
+          {
+            "name": "baseSourceRevision",
+            "in": "query",
+            "required": true,
+            "description": "Exact immutable Project-Git source revision the comparison starts from.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            }
+          },
+          {
+            "name": "resultSourceRevision",
+            "in": "query",
+            "required": true,
+            "description": "Exact immutable Project-Git source revision the comparison ends at.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Changed paths between two admitted source revisions; file content is read separately via GetProjectSourceFile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceComparison"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/builder-session": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ProjectId-2"
+        }
+      ],
+      "get": {
+        "summary": "GetBuilderSession",
+        "operationId": "GetBuilderSession",
+        "responses": {
+          "200": {
+            "description": "Persisted Mastra Project conversation with the latest BuilderRun and last-good Preview summaries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuilderSession"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/builder-session/messages": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ProjectId-2"
+        }
+      ],
+      "post": {
+        "summary": "SendBuilderMessage",
+        "operationId": "SendBuilderMessage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendBuilderMessageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The run waiting on the person's answer took the message, which ends its open question; the same run goes on.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuilderMessageAccepted"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "One BuilderRun admitted against the server-resolved current Project source and Mastra Thread.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuilderMessageAccepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/builder-session/runs/{builderRunId}/cancel": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ProjectId-2"
+        },
+        {
+          "name": "builderRunId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "summary": "CancelBuilderRun",
+        "operationId": "CancelBuilderRun",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent authorized interruption request and current BuilderRun projection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuilderMessageAccepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/builder-session/runs/{builderRunId}/trace": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ProjectId-2"
+        },
+        {
+          "name": "builderRunId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "summary": "GetBuilderRunTrace",
+        "operationId": "GetBuilderRunTrace",
+        "responses": {
+          "200": {
+            "description": "Authorized safe native trace projection for one BuilderRun.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuilderTraceSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem503"
+          }
+        }
+      }
+    },
+    "/api/control/workspaces/{workspaceId}/connections": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkspaceId"
+        }
+      ],
+      "get": {
+        "summary": "ListWorkspaceConnections",
+        "operationId": "ListWorkspaceConnections",
+        "responses": {
+          "200": {
+            "description": "The Workspace's Connections. Never a credential field, sealed or otherwise.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "entries"
+                  ],
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ConnectorConnection"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          }
+        }
+      },
+      "post": {
+        "summary": "CreateWorkspaceConnection",
+        "operationId": "CreateWorkspaceConnection",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkspaceConnectionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The Connection a previous request with the same client-chosen id already created. Never a credential field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorConnection"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "One new Connection of the Workspace, under the id the client chose. Never a credential field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorConnection"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422"
+          }
+        }
+      }
+    },
+    "/api/control/workspaces/{workspaceId}/connections/{connectionId}/authentication-check": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkspaceId"
+        },
+        {
+          "name": "connectionId",
+          "in": "path",
+          "required": true,
+          "description": "Untrusted reference only; current containment and authority are resolved server-side.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "summary": "CheckWorkspaceConnection",
+        "operationId": "CheckWorkspaceConnection",
+        "description": "Runs only the Connector's allow-listed authentication, and only after the read allow-list gate the connector's evidence records. Never a credential or provider value in the response.",
+        "responses": {
+          "200": {
+            "description": "The outcome of one allow-listed authentication attempt against the Connection's own gateway. A refused credential is a normal outcome, not a wire error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "outcome"
+                  ],
+                  "properties": {
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "OK",
+                        "CREDENTIAL_REFUSED",
+                        "CONNECTOR_UNCONFIGURED",
+                        "PROVIDER_UNAVAILABLE",
+                        "PROVIDER_TIMEOUT",
+                        "PROVIDER_ERROR"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        }
+      }
+    },
+    "/api/control/workspaces/{workspaceId}/connections/{connectionId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WorkspaceId"
+        },
+        {
+          "name": "connectionId",
+          "in": "path",
+          "required": true,
+          "description": "Untrusted reference only; current containment and authority are resolved server-side.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "delete": {
+        "summary": "DisableWorkspaceConnection",
+        "operationId": "DisableWorkspaceConnection",
+        "responses": {
+          "204": {
+            "description": "The Connection is disabled and every open binding of it ends. The rows stay as the record, and every Project's next call through it is refused."
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/connection-bindings": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ProjectId"
+        }
+      ],
+      "get": {
+        "summary": "ListProjectConnectionBindings",
+        "operationId": "ListProjectConnectionBindings",
+        "responses": {
+          "200": {
+            "description": "The Project's open bindings, and beside them the Workspace's enabled Connections it has not bound.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "entries"
+                  ],
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ConnectionBindingEntry"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        }
+      },
+      "post": {
+        "summary": "BindProjectConnection",
+        "operationId": "BindProjectConnection",
+        "description": "The server fixes the environment to preview; Q5 admits a second environment.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "connectionId",
+                  "name"
+                ],
+                "properties": {
+                  "connectionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Untrusted reference to a Connection of this Project's own Workspace; resolved and checked server-side."
+                  },
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                    "description": "The Project-local name the Project's consumers use for this Connection, such as erp."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The Project's open binding of this Connection under this name. A repeated request answers the binding that already exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionBinding"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem409"
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/connection-bindings/{bindingId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ProjectId"
+        },
+        {
+          "name": "bindingId",
+          "in": "path",
+          "required": true,
+          "description": "Untrusted reference only; current containment and authority are resolved server-side.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "delete": {
+        "summary": "UnbindProjectConnection",
+        "operationId": "UnbindProjectConnection",
+        "responses": {
+          "204": {
+            "description": "The binding ends and its row stays as the record. The next call through it, from a handler or an agent tool, is refused."
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem400"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem404"
+          }
+        }
+      }
+    },
+    "/api/control/workspaces": {
+      "post": {
+        "operationId": "WS-01",
+        "summary": "WS-01",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/IdempotencyKey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "$ref": "#/components/schemas/WorkspaceName"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success 201",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED",
+                            "IDEMPOTENCY_KEY_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "ACCOUNT_INACTIVE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "ACCOUNT_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_CONFLICT"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ConexusSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-conexus_session",
+        "description": "Opaque server-owned Conexus iam.session carriage. Keycloak tokens, roles, groups, and organizations are not accepted as Product authorization. The server-issued cookie MUST be Secure, HttpOnly, SameSite=Lax, Path=/, and MUST NOT include a Domain attribute."
+      }
+    },
+    "schemas": {
+      "AccountSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "accountId",
+          "displayName"
+        ],
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Stable Conexus Account identity; presentation values never replace this identity."
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*\\S.*",
+            "description": "I&A-owned human presentation; never authentication or authorization."
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Optional presentation/contact data; never Account identity or authorization."
+          }
+        }
+      },
+      "ProjectSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "projectId",
+          "workspaceId",
+          "name",
+          "archived"
+        ],
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*\\S.*",
+            "description": "Human-readable Project identity; not a stable identifier, uniqueness guarantee, or authorization source."
+          },
+          "archived": {
+            "type": "boolean"
+          }
+        }
+      },
+      "BootstrapProvisionAccountRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "displayName"
+        ],
+        "description": "One-shot self-provisioning intake. The external subject is resolved from the exact trusted provisioning context and is never accepted from browser input, and an invited Account's email comes from the verified provider claim rather than from this body.",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*\\S.*",
+            "description": "Required Conexus-owned human presentation for the exact provisioning subject."
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Optional human presentation/contact value; never Account identity or authorization."
+          }
+        }
+      },
+      "WorkspaceRole": {
+        "type": "string",
+        "enum": [
+          "owner",
+          "member"
+        ],
+        "description": "The whole of what a membership row confers. An owner may also administer the roster; a member may not."
+      },
+      "WorkspaceMemberEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "accountId",
+          "displayName",
+          "role",
+          "since"
+        ],
+        "properties": {
+          "kind": {
+            "const": "member"
+          },
+          "accountId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*\\S.*",
+            "description": "I&A-owned human presentation; never authentication or authorization."
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Optional presentation/contact data; never Account identity or authorization."
+          },
+          "role": {
+            "$ref": "#/components/schemas/WorkspaceRole"
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "WorkspaceInvitationEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "invitationId",
+          "email",
+          "role",
+          "invitedAt",
+          "expiresAt",
+          "state"
+        ],
+        "properties": {
+          "kind": {
+            "const": "invitation"
+          },
+          "invitationId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Address the invited person must sign in with, verified by the identity provider. It is never Account identity or authorization."
+          },
+          "role": {
+            "$ref": "#/components/schemas/WorkspaceRole"
+          },
+          "invitedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "EXPIRED"
+            ],
+            "description": "Decided by the database clock when the list is read, never by the browser. An expired invitation stays listed for 30 days so the person can be invited again."
+          }
+        }
+      },
+      "WorkspaceRoster": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "viewerRole",
+          "entries"
+        ],
+        "properties": {
+          "viewerRole": {
+            "$ref": "#/components/schemas/WorkspaceRole"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/WorkspaceMemberEntry"
+                },
+                {
+                  "$ref": "#/components/schemas/WorkspaceInvitationEntry"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "ApplicationGrantEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "grantId",
+          "accountId",
+          "displayName",
+          "grantedAt"
+        ],
+        "properties": {
+          "kind": {
+            "const": "grant"
+          },
+          "grantId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "accountId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*\\S.*",
+            "description": "I&A-owned human presentation; never authentication or authorization."
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Optional presentation/contact data; never Account identity or authorization."
+          },
+          "grantedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ApplicationInvitationEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "invitationId",
+          "email",
+          "invitedAt",
+          "expiresAt",
+          "state"
+        ],
+        "properties": {
+          "kind": {
+            "const": "invitation"
+          },
+          "invitationId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Address the person must sign in with, verified by the identity provider. It is never Account identity or authorization."
+          },
+          "invitedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "EXPIRED"
+            ],
+            "description": "Decided by the database clock when the list is read, never by the browser. An expired invitation stays listed for 30 days so the person can be invited again."
+          }
+        }
+      },
+      "ApplicationAccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "entries"
+        ],
+        "properties": {
+          "address": {
+            "type": "string",
+            "format": "uri",
+            "description": "The application's own address. Absent until the first grant fixes it."
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ApplicationGrantEntry"
+                },
+                {
+                  "$ref": "#/components/schemas/ApplicationInvitationEntry"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "ProjectSourceBootstrap": {
+        "description": "Creation-time establishment of exactly one canonical Project Git source; mechanism/provider credentials remain server-side and post-create source switching is not admitted.",
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "mode"
+            ],
+            "properties": {
+              "mode": {
+                "type": "string",
+                "const": "NEW"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "mode",
+              "repositoryLocator"
+            ],
+            "properties": {
+              "mode": {
+                "type": "string",
+                "const": "EXISTING_GIT"
+              },
+              "repositoryLocator": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": ".*\\S.*",
+                "description": "Untrusted provider-neutral Git repository locator only. It carries no credential/secret and grants no generic fetch, network, Workspace or Project authority; server-side GitInfra/policy validates admission."
+              }
+            }
+          }
+        ]
+      },
+      "ProjectRepresentation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "projectId",
+          "workspaceId",
+          "name",
+          "projectRevision",
+          "archived"
+        ],
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*\\S.*",
+            "description": "Human-readable Project identity fixed for F1 after creation; rename is not admitted by this schema."
+          },
+          "projectRevision": {
+            "type": "string",
+            "minLength": 1
+          },
+          "archived": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ProjectDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "projectId",
+          "workspaceId",
+          "name",
+          "projectRevision",
+          "archived",
+          "deleting"
+        ],
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": ".*\\S.*",
+            "description": "Human-readable Project identity fixed for F1 after creation; rename is not admitted by this schema."
+          },
+          "projectRevision": {
+            "type": "string",
+            "description": "Empty once an installation administrator's deletion has purged the underlying record; deleting is true whenever this happens."
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "deleting": {
+            "type": "boolean",
+            "description": "True while an installation administrator's deletion of this Project has been recorded but not finished. Every other property may already reflect a purged database record kept disclosable only by the deletion tombstone."
+          }
+        }
+      },
+      "SourceTreeEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "kind"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "FILE",
+              "DIRECTORY"
+            ]
+          }
+        }
+      },
+      "SourceTree": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sourceRevision",
+          "entries"
+        ],
+        "properties": {
+          "sourceRevision": {
+            "type": "string",
+            "minLength": 1
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceTreeEntry"
+            }
+          }
+        }
+      },
+      "SourceFile": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sourceRevision",
+          "path",
+          "content"
+        ],
+        "properties": {
+          "sourceRevision": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "content": {
+            "type": "string"
+          }
+        }
+      },
+      "SourceChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "status",
+          "previousPath"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ADDED",
+              "REMOVED",
+              "MODIFIED",
+              "RENAMED"
+            ]
+          },
+          "previousPath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          }
+        }
+      },
+      "SourceComparison": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "baseSourceRevision",
+          "resultSourceRevision",
+          "files"
+        ],
+        "properties": {
+          "baseSourceRevision": {
+            "type": "string",
+            "minLength": 1
+          },
+          "resultSourceRevision": {
+            "type": "string",
+            "minLength": 1
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SourceChange"
+            }
+          }
+        }
+      },
+      "BuilderRunView": {
+        "description": "The run as the browser reads it. pendingCalls are the calls the run's live session waits on while the run waits on the person; a Hub with no live run for it serves none.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "builderRunId",
+          "projectId",
+          "conversationId",
+          "state",
+          "phase",
+          "baseSourceRevision",
+          "requestText",
+          "createdAt",
+          "cancellationRequested",
+          "pendingCalls"
+        ],
+        "properties": {
+          "builderRunId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "conversationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "QUEUED",
+              "RUNNING",
+              "SUCCEEDED",
+              "FAILED",
+              "INTERRUPTED"
+            ]
+          },
+          "phase": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "PREPARING",
+              "AGENT",
+              "WAITING",
+              "SOURCE_ADMISSION",
+              "COMPILING",
+              "FINALIZING",
+              null
+            ]
+          },
+          "baseSourceRevision": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "resultSourceRevision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "resultKind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "RESPONSE_ONLY",
+              "SOURCE_CHANGED",
+              "SOURCE_CHANGED_BUILD_FAILED",
+              null
+            ]
+          },
+          "failureCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requestText": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 20000
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cancellationRequested": {
+            "type": "boolean"
+          },
+          "pendingCalls": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        }
+      },
+      "LatestCodeChangingBuilderRun": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "baseSourceRevision",
+          "resultSourceRevision",
+          "resultKind"
+        ],
+        "properties": {
+          "baseSourceRevision": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "resultSourceRevision": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "resultKind": {
+            "type": "string",
+            "enum": [
+              "SOURCE_CHANGED",
+              "SOURCE_CHANGED_BUILD_FAILED"
+            ]
+          }
+        }
+      },
+      "BuilderPreviewSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "workingSourceRevision",
+          "lastGoodSourceRevision",
+          "lastGoodArtifactRevisionId",
+          "lastGoodArtifactDigest"
+        ],
+        "properties": {
+          "workingSourceRevision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "lastGoodSourceRevision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "lastGoodArtifactRevisionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "lastGoodArtifactDigest": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "BuilderRunSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "builderRunId",
+          "projectId",
+          "conversationId",
+          "state",
+          "phase",
+          "baseSourceRevision",
+          "requestText",
+          "createdAt",
+          "cancellationRequested"
+        ],
+        "properties": {
+          "builderRunId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "conversationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "QUEUED",
+              "RUNNING",
+              "SUCCEEDED",
+              "FAILED",
+              "INTERRUPTED"
+            ]
+          },
+          "phase": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "PREPARING",
+              "AGENT",
+              "WAITING",
+              "SOURCE_ADMISSION",
+              "COMPILING",
+              "FINALIZING",
+              null
+            ]
+          },
+          "baseSourceRevision": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "resultSourceRevision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "resultKind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "RESPONSE_ONLY",
+              "SOURCE_CHANGED",
+              "SOURCE_CHANGED_BUILD_FAILED",
+              null
+            ]
+          },
+          "failureCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requestText": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 20000
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cancellationRequested": {
+            "type": "boolean"
+          }
+        }
+      },
+      "BuilderSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "projectId",
+          "latestBuilderRun",
+          "latestCodeChangingRun",
+          "preview",
+          "runHistory"
+        ],
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "latestBuilderRun": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BuilderRunView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latestCodeChangingRun": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LatestCodeChangingBuilderRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preview": {
+            "$ref": "#/components/schemas/BuilderPreviewSummary"
+          },
+          "runHistory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BuilderRunSummary"
+            }
+          }
+        }
+      },
+      "SendBuilderMessageRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "content",
+          "conversationId"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000,
+            "pattern": ".*\\S.*"
+          },
+          "conversationId": {
+            "description": "Which of the Project's conversations this message belongs to.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        }
+      },
+      "BuilderMessageAccepted": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "builderRun"
+        ],
+        "properties": {
+          "builderRun": {
+            "$ref": "#/components/schemas/BuilderRunSummary"
+          }
+        }
+      },
+      "EmptyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": []
+      },
+      "BuilderTraceUsage": {
+        "description": "Token usage rolled up from native model-generation spans. Absent means unavailable, never zero.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "inputTokens",
+          "outputTokens",
+          "totalTokens"
+        ],
+        "properties": {
+          "inputTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "outputTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "totalTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "inputDetails": {
+            "description": "Mastra's InputTokenDetails, present only where the provider reported a breakdown (cache reads and writes, audio, image).",
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "outputDetails": {
+            "description": "Mastra's OutputTokenDetails, present only where the provider reported a breakdown (reasoning, text, audio, image).",
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "BuilderTraceSpan": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "spanId",
+          "parentSpanId",
+          "spanType",
+          "name",
+          "startedAt",
+          "durationMs",
+          "error",
+          "model",
+          "usage"
+        ],
+        "properties": {
+          "spanId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "parentSpanId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "spanType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "durationMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "error": {
+            "type": "boolean"
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "usage": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BuilderTraceUsage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "BuilderTraceScore": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scorer",
+          "score",
+          "reason"
+        ],
+        "properties": {
+          "scorer": {
+            "type": "string",
+            "minLength": 1
+          },
+          "score": {
+            "type": "number"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "BuilderTraceSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "available",
+          "traceId",
+          "spans",
+          "usage",
+          "modelCalls",
+          "toolCalls",
+          "scores"
+        ],
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "traceId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "spans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BuilderTraceSpan"
+            }
+          },
+          "usage": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BuilderTraceUsage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "modelCalls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "toolCalls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "scores": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BuilderTraceScore"
+            }
+          }
+        }
+      },
+      "ConnectorConnection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "connectionId",
+          "connectorId",
+          "label",
+          "createdAt"
+        ],
+        "description": "Never a credential field, sealed or otherwise; CON-02 is the only operation that accepts one, and it is writeOnly there.",
+        "properties": {
+          "connectionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "connectorId": {
+            "type": "string",
+            "enum": [
+              "sankhya"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "disabledAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SankhyaCredential": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "clientId",
+          "clientSecret",
+          "xToken"
+        ],
+        "description": "The Sankhya gateway API credential. No MGE user or password field exists here, and none is ever accepted. Every field is writeOnly; no response schema in this file ever carries one.",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "writeOnly": true
+          },
+          "clientSecret": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "writeOnly": true
+          },
+          "xToken": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "writeOnly": true
+          }
+        }
+      },
+      "CreateWorkspaceConnectionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "connectionId",
+          "connectorId",
+          "label",
+          "credential"
+        ],
+        "properties": {
+          "connectionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Client-chosen identity of the Connection. A retry with this same id and the same fields answers the same row; a retry with different fields is a conflict."
+          },
+          "connectorId": {
+            "type": "string",
+            "enum": [
+              "sankhya"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Installation-administrator-chosen human label; never authorization."
+          },
+          "credential": {
+            "$ref": "#/components/schemas/SankhyaCredential"
+          }
+        }
+      },
+      "ConnectionBinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "bindingId",
+          "name",
+          "connectionId",
+          "connectorId",
+          "label",
+          "boundAt"
+        ],
+        "properties": {
+          "kind": {
+            "const": "binding"
+          },
+          "bindingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,39}$"
+          },
+          "connectionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "connectorId": {
+            "type": "string",
+            "enum": [
+              "sankhya"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "boundAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "BindableConnection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "connectionId",
+          "connectorId",
+          "label"
+        ],
+        "description": "An enabled Connection of the Project's Workspace that this Project has not bound.",
+        "properties": {
+          "kind": {
+            "const": "bindable"
+          },
+          "connectionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "connectorId": {
+            "type": "string",
+            "enum": [
+              "sankhya"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "ConnectionBindingEntry": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ConnectionBinding"
+          },
+          {
+            "$ref": "#/components/schemas/BindableConnection"
+          }
+        ]
+      },
+      "Problem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599
+          },
+          "code": {
+            "type": "string"
+          },
+          "traceId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code"
+        ],
+        "additionalProperties": {}
+      },
+      "WorkspaceCreated": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "$ref": "#/components/schemas/WorkspaceId"
+          },
+          "name": {
+            "$ref": "#/components/schemas/WorkspaceName"
+          },
+          "creatorAccountId": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "initialAccessEstablished": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "workspaceId",
+          "name",
+          "creatorAccountId",
+          "initialAccessEstablished"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceId": {
+        "type": "string",
+        "format": "uuid",
+        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+      },
+      "WorkspaceName": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      },
+      "AccountId": {
+        "type": "string",
+        "format": "uuid",
+        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+      },
+      "IdempotencyKey": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "description": "Conexus-owned repeatable-intake identity for operations whose accepted IC3/IC4 wire mapping requires a caller-supplied retry identity. The header value never replaces owner/effect identity or authorizes replay of an unresolved external effect.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "WorkspaceId": {
+        "name": "workspaceId",
+        "in": "path",
+        "required": true,
+        "description": "Untrusted Workspace reference only; current containment, disclosure and authority are resolved server-side.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "AccountId": {
+        "name": "accountId",
+        "in": "path",
+        "required": true,
+        "description": "Untrusted Account reference only; current identity, containment, disclosure and authority are resolved server-side.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "ProjectId": {
+        "name": "projectId",
+        "in": "path",
+        "required": true,
+        "description": "Untrusted Project reference only; current containment and authority are resolved server-side.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "WorkspaceId-2": {
+        "name": "workspaceId",
+        "in": "path",
+        "required": true,
+        "description": "Untrusted reference only; current containment and authority are resolved server-side.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "ProjectId-2": {
+        "name": "projectId",
+        "in": "path",
+        "required": true,
+        "description": "Untrusted reference only; current containment and authority are resolved server-side.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "SourceRevision": {
+        "name": "sourceRevision",
+        "in": "query",
+        "required": true,
+        "description": "Exact immutable Project-Git source revision to read; never mutable latest/head authority.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "headers": {
+      "ETag": {
+        "description": "Strong representation validator where an accepted current-state contract requires it.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "responses": {
+      "Problem400": {
+        "description": "The request does not match the operation's schema, for example an identifier that is not a UUID.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Problem401": {
+        "description": "No valid current Conexus principal/session for the protected human surface.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Problem403": {
+        "description": "Subject is legitimately disclosable to the current caller, but required action authority is denied.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Problem404": {
+        "description": "Subject is absent or current disclosure policy intentionally does not reveal its existence.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Problem409": {
+        "description": "Current owner-state, uniqueness, single-flight, or equivalent admitted conflict.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Problem422": {
+        "description": "Authorized request violates the operation's admitted semantic or business-input contract.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Problem503": {
+        "description": "Required current provider, source, or runtime dependency is unavailable.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      }
+    }
+  }
+}

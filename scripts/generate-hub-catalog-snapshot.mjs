@@ -3,7 +3,8 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 import pg from 'pg'
-import { catalogDigest, catalogSnapshotPath, describeCatalogDrift, readCatalog } from './hub-catalog.mjs'
+import { catalogDigest, catalogSnapshotPath, describeCatalogDrift, readCatalog, readFunctions } from './hub-catalog.mjs'
+import { lintCatalog } from './hub-catalog-lint.mjs'
 import { baselineVersion, runHubMigrations } from './run-hub-migrations.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '..')
@@ -40,7 +41,7 @@ const connectionStringFor = (admin, database) => {
   return url.toString()
 }
 
-export const buildSnapshot = async (admin = readAdmin()) => {
+export const buildReplay = async (admin = readAdmin()) => {
   const owner = new pg.Client(admin)
   await owner.connect()
   const database = `conexus_catalog_snapshot_${process.pid}_${randomUUID().replaceAll('-', '').slice(0, 8)}`
@@ -52,7 +53,7 @@ export const buildSnapshot = async (admin = readAdmin()) => {
     const client = new pg.Client({ connectionString })
     await client.connect()
     try {
-      return { format: 2, head: versions.at(-1) ?? baselineVersion, catalog: await readCatalog(client) }
+      return { snapshot: { format: 2, head: versions.at(-1) ?? baselineVersion, catalog: await readCatalog(client) }, functions: await readFunctions(client) }
     } finally {
       await client.end()
     }
@@ -62,17 +63,24 @@ export const buildSnapshot = async (admin = readAdmin()) => {
   }
 }
 
+export const buildSnapshot = async (admin = readAdmin()) => (await buildReplay(admin)).snapshot
+
+const censusPath = resolve(repositoryRoot, 'contracts/technical/hub-catalog-census.json')
+const readCensus = () => JSON.parse(readFileSync(censusPath, 'utf8'))
+
 export const renderSnapshot = (snapshot) => `${JSON.stringify(snapshot, null, 1)}\n`
 
 const isEntrypoint = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 if (isEntrypoint) {
   const target = resolve(repositoryRoot, catalogSnapshotPath)
-  const snapshot = await buildSnapshot()
+  const { snapshot, functions } = await buildReplay()
   if (process.argv.includes('--check')) {
     const committed = JSON.parse(readFileSync(target, 'utf8'))
     if (committed.head !== snapshot.head) fail('CATALOG_SNAPSHOT_HEAD_DRIFT', `${committed.head} committed, ${snapshot.head} built`)
     if (catalogDigest(committed.catalog) !== catalogDigest(snapshot.catalog)) fail('CATALOG_SNAPSHOT_DIGEST_DRIFT', describeCatalogDrift(snapshot.catalog, committed.catalog))
-    process.stdout.write(`${JSON.stringify({ verdict: 'CURRENT', head: snapshot.head, digest: catalogDigest(snapshot.catalog) })}\n`)
+    const { problems, counts } = lintCatalog({ catalog: snapshot.catalog, functions, census: readCensus() })
+    if (problems.length > 0) fail('CATALOG_LINT_FAILED', problems.join('; '))
+    process.stdout.write(`${JSON.stringify({ verdict: 'CURRENT', lint: counts, head: snapshot.head, digest: catalogDigest(snapshot.catalog) })}\n`)
   } else {
     writeFileSync(target, renderSnapshot(snapshot))
     process.stdout.write(`${JSON.stringify({ verdict: 'WRITTEN', head: snapshot.head, digest: catalogDigest(snapshot.catalog) })}\n`)

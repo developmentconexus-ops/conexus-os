@@ -1,5 +1,5 @@
 import { HUB_ROLES } from './hub-roles.generated.js'
-import { createPostgresPool, errorCode } from './postgres.js'
+import { probeConnection, errorCode } from './db.js'
 import { readSecretFile } from './secrets.js'
 import type { EventLog } from './logger.js'
 
@@ -59,14 +59,11 @@ export const censusConnections = async (
       rows.push({ role, capability: registered.capability, state: 'unreadable' })
       continue
     }
-    const pool = createPostgresPool({ ...database, user: role, password })
     try {
-      await pool.query('select 1')
+      await probeConnection({ ...database, user: role, password })
       rows.push({ role, capability: registered.capability, state: 'ok' })
     } catch (error) {
       rows.push({ role, capability: registered.capability, ...censusStateFor(error) })
-    } finally {
-      await pool.end()
     }
   }
   return rows

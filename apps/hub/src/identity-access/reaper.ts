@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { Job } from '../platform/jobs.js'
 import { logLine } from '../platform/logger.js'
-import type { PostgresPool } from '../platform/postgres.js'
+import type { PostgresPool } from '../platform/db.js'
 
 const REAP_EVERY_MS = 5 * 60_000
 /** Root rows one rule takes in one call; a backlog drains over later passes. */

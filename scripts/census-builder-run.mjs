@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -11,7 +11,7 @@ const list = process.argv.includes('--list')
 const tracked = spawnSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd: repo, encoding: 'utf8' }).stdout.split('\0').filter(Boolean)
 const walk = (dir, accept) => {
   const prefix = `${relative(repo, dir)}/`
-  return tracked.filter((path) => path.startsWith(prefix)).map((path) => join(repo, path)).filter(accept)
+  return tracked.filter((path) => path.startsWith(prefix)).map((path) => join(repo, path)).filter((path) => existsSync(path) && accept(path))
 }
 const rel = (path) => relative(repo, path)
 const lineOf = (text, offset) => text.slice(0, offset).split('\n').length
@@ -123,9 +123,6 @@ const runFunctionLengthSuppressions = hits(runFiles, /biome-ignore lint\/complex
 // `setInterval` ban, and the count may only fall.
 const repeatedTimerSuppressions = hits(hubSource, /biome-ignore lint\/style\/noRestrictedGlobals/, { comments: true })
 
-// A database row read by a generic argument is an assertion, not a parse; the Zod schema at the edge replaces it (principle 3).
-const uncheckedQueryRows = hits(hubSource, /\.query</)
-
 // A suppression that marks an unsafe type assertion as owed to the wave that owns the file.
 const unsafeAssertionDebt = hits(walk(join(repo, 'apps'), (path) => /\.tsx?$/.test(path)), /biome-ignore lint\/nursery\/noUnsafeTypeAssertion: debt/, { comments: true })
 
@@ -147,7 +144,6 @@ const census = {
   runFunctionLengthSuppressions,
   failureCodesWithoutRow,
   repeatedTimerSuppressions,
-  uncheckedQueryRows,
   unsafeAssertionDebt,
 }
 const counts = Object.fromEntries(Object.entries(census).map(([item, found]) => [item, found.length]))

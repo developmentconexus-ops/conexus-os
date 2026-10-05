@@ -4,7 +4,7 @@ import type { RequestContext } from '@mastra/core/request-context'
 import { MastraStorageExporter } from '@mastra/observability'
 import type { FastifyInstance } from 'fastify'
 import type { AccountId } from '../identity-access/current-session.js'
-import type { PostgresPool } from '../platform/postgres.js'
+import type { PostgresPool } from '../platform/db.js'
 import { logLine } from '../platform/logger.js'
 import type { EventLog } from '../platform/logger.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
@@ -66,8 +66,6 @@ export const createConnectorModule = ({
   socketDirectory,
   log = logLine,
 }: Readonly<{
-  /** The `hub_iam_runtime` pool the Hub already opens: the Connector functions are executable by it,
-   * exactly as the application-access functions are (no new login role, no new pilot secret). */
   pool: PostgresPool
   envelope: SecretEnvelope
   isInstallationAdministrator(account: AccountId): Promise<boolean>

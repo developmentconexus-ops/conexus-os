@@ -3,6 +3,7 @@ import { Sandbox } from 'e2b'
 import { checkApplicationInSandbox } from './application-artifact-runtime.js'
 import type { CheckBundle } from './check-delivery.js'
 import { createConversationSandbox, createRunWorkspace } from './sandbox.js'
+import { createMirrorFeed } from './run/mirror.js'
 import type { RunSandbox } from './run/ports.js'
 import { Failure, logFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
@@ -43,9 +44,11 @@ export const e2bConversationSandboxes = ({
 }> => Object.freeze({
   open: ({ conversationId, providerSandboxId, retire }) => {
     const sandbox = create({ apiKey, templateId, conversationId, providerSandboxId, idleMs })
+    const workspace = createRunWorkspace(sandbox)
     return Object.freeze({
       get sandboxId() { return sandbox.sandboxId },
-      workspace: createRunWorkspace(sandbox),
+      workspace,
+      mirrorFeed: createMirrorFeed(workspace),
       start: async () => { await sandbox.start() },
       executeCommand: (command: string, args: string[] = [], options: ExecuteCommandOptions = {}) => sandbox.runCommand(command, args, options),
       writeFiles: (files: SandboxFileInput[]) => sandbox.writeFiles(files),

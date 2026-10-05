@@ -43,19 +43,51 @@ and a capability granted to a Project never becomes the secret behind it.
 
 ## 2. Database roles
 
-The Hub connects as roles named for what they may do, never as one superuser.
-`docs/reference/hub-database-roles.md` is the generated register.
+The Hub reaches its database as one runtime role, `hub_runtime`, and Mastra's storage as `hub_factory`.
+`docs/reference/hub-database-roles.md` is the register.
 
-```text
-hub_iam_runtime        hub_workspace_read      hub_workspace_command
-hub_project_read       hub_project_command     hub_builder_ingress
-hub_builder_executor
-```
+`hub_runtime` holds data manipulation only. It cannot run DDL, cannot `SET ROLE`, and cannot read the
+`factory` schema; PostgreSQL refuses each with 42501. `hub_factory` owns `factory` and holds nothing
+else. Two further roles never log in. `conexus_owner` owns the objects of schema `platform` (the
+operation receipt), and `iam_rls` owns the `iam.acting_*` helper functions that the row policies call.
+The schemas are `iam`, `workspace`, `project`, `builder`, `reg`, `model`, `connector` and `platform`.
 
-The schemas are `iam`, `workspace`, `project`, `builder` and `reg`.
-Each schema has an owner role, and the Hub's connection roles hold only the privileges
-their capability needs. Authority functions are `SECURITY DEFINER` with a pinned
-`search_path`, so a caller cannot reach them through a shadowed schema.
+Who may act is decided in TypeScript and bounded again by the database.
+
+- **The proof.** A command takes an `Admitted<Scope>` as its first parameter and writes only on the
+  transaction inside it. Only an admission function in `identity-access/admission.ts` makes one. It
+  locks the rows it read in the same transaction, in the order the old SQL functions locked them, and
+  decides over `ROLE_ALLOWS`. A command without a proof, or with a proof of another scope or action,
+  does not compile (`tests/fixtures/admission-negative.ts`, run by `tests/repository/admission-types.test.mjs`).
+- **The acting account.** Every transaction opens through `platform/db.ts` and sets both
+  `conexus.account_id` and `conexus.scope` first, local to the transaction, the one the entry does not
+  use set to the empty string. A setting a session carries from its role or its connection never
+  survives into a transaction. The account comes from the signed session the access enforcer parsed
+  (spec 0014), never from a request body, and an admission function refuses an account other than the
+  one its transaction opened for.
+- **Row policies.** A policed table has `FORCE ROW LEVEL SECURITY` and one policy per command
+  `TO hub_runtime`, so a list that forgets its `WHERE` still returns only the acting account's rows, and
+  a transaction with no account set sees nothing. Today `workspace.workspace` and
+  `platform.operation_receipt` are policed. A member can read a workspace and cannot update or delete
+  it; only `system` deletes. Every other table is listed in `contracts/technical/hub-catalog-census.json`
+  with the part that will police it, and `npm run db:catalog:check` fails on a table that is in neither
+  state.
+- **Functions.** A `SECURITY DEFINER` function still holds the rules of an owner that has not been
+  ported, with a pinned `search_path`. `hub_runtime` holds `EXECUTE` on the functions the older
+  capability roles held and on nothing else. No function reads a table that is policed today, so no
+  policy bridges a function owner and `legacyOwnerPolicies` is 0. Each part ports one owner's functions
+  into TypeScript before it polices the tables they read, the ceilings fall in
+  `hub-catalog-census.json`, and `docs/reference/function-callers.md` shows which function still calls
+  which.
+- **Grants that outlive the policies.** Until part 6, `hub_runtime` can insert into
+  `iam.workspace_membership` and update its `role` column, and insert into and update `iam.account`,
+  `iam.bootstrap_context` and `iam.oidc_transaction`, with no row policy on any of them.
+  `grantCreatorMembership` is the only statement in the Hub that inserts a membership
+  (`tests/repository/workspace-membership-writer.test.mjs`), and the catalog lint reads column grants
+  as well as table grants, so a policed table cannot keep a grant it has no policy for.
+
+What this guards is an accidental broad query, a forgotten check and a revoke racing a write. A
+compromised Hub process can set any account, as it could hold any capability role before.
 
 ## 3. Egress
 

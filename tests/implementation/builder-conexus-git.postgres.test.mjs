@@ -52,7 +52,7 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
   for (const [accountId, name] of [[owner, 'Owner'], [outsider, 'Outsider']]) {
     await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://git.test', $3, $2)", [accountId, name, accountId])
   }
-  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Git')", [workspaceId])
+  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'Git', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))", [workspaceId])
   await query(connectionString, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [owner, workspaceId])
   await query(connectionString, 'SELECT iam.bootstrap_installation_administrator($1)', [owner])
 
@@ -234,20 +234,20 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
     assert.deepEqual(functions, [])
   })
 
-  await t.test('each new function is executable by exactly the one login role that calls it', async () => {
+  await t.test('each unported function a Hub role could call remains callable by its old role and the Hub runtime', async () => {
     const { rows } = await query(connectionString, `
       SELECT n.nspname || '.' || p.proname AS name, array_agg(r.rolname::text ORDER BY r.rolname) AS roles
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
       CROSS JOIN pg_roles r
-      WHERE p.proname IN ('lock_project_for_run', 'create_builder_run', 'admit_source_revision', 'renew_run_lease', 'create_project_with_repository', 'register_project_repository')
+      WHERE p.proname IN ('lock_project_for_run', 'create_builder_run', 'admit_source_revision', 'renew_run_lease', 'create_project_with_repository')
         AND r.rolname LIKE 'hub\\_%' AND has_function_privilege(r.oid, p.oid, 'EXECUTE')
       GROUP BY 1 ORDER BY 1`)
     assert.deepEqual(rows, [
-      { name: 'builder.admit_source_revision', roles: ['hub_builder_ingress'] },
-      { name: 'builder.create_builder_run', roles: ['hub_builder_ingress'] },
-      { name: 'builder.lock_project_for_run', roles: ['hub_builder_ingress'] },
-      { name: 'builder.renew_run_lease', roles: ['hub_builder_executor'] },
-      { name: 'project.create_project_with_repository', roles: ['hub_project_command'] },
+      { name: 'builder.admit_source_revision', roles: ['hub_builder_ingress', 'hub_runtime'] },
+      { name: 'builder.create_builder_run', roles: ['hub_builder_ingress', 'hub_runtime'] },
+      { name: 'builder.lock_project_for_run', roles: ['hub_builder_ingress', 'hub_runtime'] },
+      { name: 'builder.renew_run_lease', roles: ['hub_builder_executor', 'hub_runtime'] },
+      { name: 'project.create_project_with_repository', roles: ['hub_project_command', 'hub_runtime'] },
     ])
   })
 })
@@ -260,7 +260,7 @@ test('creating a Project makes its Conexus Git repository with the starter on ma
   const accountId = randomUUID()
   const workspaceId = randomUUID()
   await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://creation.test', $2, 'Creator')", [accountId, accountId])
-  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Creation')", [workspaceId])
+  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'Creation', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))", [workspaceId])
   await query(connectionString, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   const commandPool = testPool({ ...connection, max: 2, options: '-c role=hub_project_command' })
   onCleanup(() => commandPool.end())

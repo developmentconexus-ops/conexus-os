@@ -1,7 +1,8 @@
 // What a refusal is on the page: one failure with a code, and the words the failure table gives it.
 // The Hub names the code in its problem body; nothing else about a refusal is read.
 
-import { FAILURE_ACTIONS, FAILURES, type FailureCode } from '../generated/failures.ts'
+import { FAILURE_ACTIONS, FAILURE_STATUS, FAILURES, type FailureCode } from '../../../../packages/contract/dist/failures.generated.js'
+import { Problem } from '../../../../packages/contract/dist/index.js'
 
 /** A refusal the Hub, or the road to it, gave. Its words come from the failure table, never from here. */
 export class HubFailure extends Error {
@@ -17,7 +18,7 @@ export class HubFailure extends Error {
   }
 }
 
-const isFailureCode = (value: unknown): value is FailureCode => typeof value === 'string' && Object.hasOwn(FAILURES, value)
+const isFailureCode = (value: unknown): value is FailureCode => typeof value === 'string' && Object.hasOwn(FAILURE_STATUS, value)
 
 /**
  * Reads a refused response's problem body. A body with no code is not the Hub's; a code the table
@@ -25,10 +26,10 @@ const isFailureCode = (value: unknown): value is FailureCode => typeof value ===
  */
 export async function readFailure(response: Response): Promise<HubFailure> {
   const body: unknown = await response.json().catch(() => null)
-  const code = typeof body === 'object' && body !== null && 'code' in body ? body.code : undefined
-  const traceId = typeof body === 'object' && body !== null && 'traceId' in body && typeof body.traceId === 'string' ? body.traceId : null
-  if (isFailureCode(code)) return new HubFailure(code, response.status, traceId)
-  return new HubFailure(typeof code === 'string' ? 'INTERNAL_UNEXPECTED' : 'HUB_RESPONSE_UNREADABLE', response.status, traceId)
+  const parsed = Problem.safeParse(body)
+  if (!parsed.success) return new HubFailure('HUB_RESPONSE_UNREADABLE', response.status)
+  const { code, traceId } = parsed.data
+  return new HubFailure(isFailureCode(code) ? code : 'HUB_RESPONSE_UNREADABLE', response.status, traceId ?? null)
 }
 
 /** Whether an error is the Hub's failure with one of these codes, or any code when none is named. */
@@ -36,7 +37,7 @@ export const isFailure = (error: unknown, ...codes: readonly FailureCode[]): boo
   error instanceof HubFailure && (codes.length === 0 || codes.includes(error.code))
 
 const sentence = (code: FailureCode): string => {
-  const row = FAILURES[code]
+  const row = Object.entries(FAILURES).find(([key]) => key === code)?.[1] ?? FAILURES.INTERNAL_UNEXPECTED
   const action = FAILURE_ACTIONS[row.action]
   return action === null ? row.message : `${row.message} ${action}`
 }
@@ -55,4 +56,4 @@ export const failureCodeText = (code: string | null | undefined): string => sent
 
 /** Whether the row tells the person to try again later: only a failure outside the Conexus code can. */
 export const isRetryable = (error: unknown): boolean =>
-  FAILURES[error instanceof HubFailure ? error.code : 'HUB_RESPONSE_UNREADABLE'].action === 'RETRY_LATER'
+  (Object.entries(FAILURES).find(([key]) => key === (error instanceof HubFailure ? error.code : 'HUB_RESPONSE_UNREADABLE'))?.[1] ?? FAILURES.INTERNAL_UNEXPECTED).action === 'RETRY_LATER'

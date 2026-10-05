@@ -130,7 +130,10 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'import-law-check',
   'access-owner-check',
   'census-builder-run',
+  'census-boundaries',
+  'enforced-by-check',
   'generators',
+  'contract-check',
   'e2b-template-check',
   'web-style',
   'wire-openapi-lint',
@@ -140,6 +143,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'repository-tests',
   'implementation-tests',
   'db-catalog-snapshot',
+  'function-callers',
   'db-baseline-file',
   'postgres-tests',
   'browser-tests',
@@ -546,7 +550,7 @@ test('a group runs the Hub build first and the skip check last, and keeps graph 
     assert.equal(scopes.at(-1), 'only-opt-in-skips', group)
   }
   assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'browser').map(entry => entry.scope), ['hub-typecheck', 'browser-tests', 'only-opt-in-skips'])
-  assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'postgres').map(entry => entry.scope), ['hub-typecheck', 'db-catalog-snapshot', 'db-baseline-file', 'postgres-tests', 'only-opt-in-skips'])
+  assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'postgres').map(entry => entry.scope), ['hub-typecheck', 'db-catalog-snapshot', 'function-callers', 'db-baseline-file', 'postgres-tests', 'only-opt-in-skips'])
   assert.equal(graphForGroup(CANDIDATE_GRAPH, 'rest').every(entry => entry.environmentClass === 'static'), true)
   assert.deepEqual(graphForGroup(CANDIDATE_GRAPH, 'live').map(entry => entry.scope), ['hub-typecheck', 'live-builder', 'only-opt-in-skips'])
 })

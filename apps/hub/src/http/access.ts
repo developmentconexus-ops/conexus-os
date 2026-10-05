@@ -2,9 +2,14 @@ import type {
   FastifyInstance, onRequestHookHandler, FastifyRequest, FastifySchema, HTTPMethods, RawReplyDefaultExpression, RawRequestDefaultExpression, RawServerDefault,
   RouteGenericInterface, RouteHandlerMethod, RouteOptions,
 } from 'fastify'
+import type { AnyOperation, EffectsOf, Input, Out, Reply } from '../../../../packages/contract/dist/index.js'
+import type { z } from 'zod'
+import { z as zod } from 'zod'
+import { clearCookie } from './cookies.js'
 import { bootstrapToken, hubSessionDigest } from '../identity-access/current-session.js'
 import type { BootstrapToken, CurrentSession, HubSession, HubSessionDigest } from '../identity-access/current-session.js'
 import { Failure } from '../platform/failure.js'
+import { FAILURE_STATUS as HUB_FAILURES } from '../../../../packages/contract/dist/failures.generated.js'
 import { parseOpaqueToken } from '../platform/opaque-token.js'
 import { readCredentialCookie } from './cookies.js'
 
@@ -155,6 +160,8 @@ declare module 'fastify' {
   interface FastifyContextConfig {
     access?: AccessKind
     accessConflict?: AccessKind
+    operation?: string
+    foreignOperation?: true
   }
   interface FastifyRequest {
     [SLOT]: AccessState | null
@@ -162,6 +169,7 @@ declare module 'fastify' {
 }
 
 const missing = (invariant: string): Failure => new Failure('INTERNAL_UNEXPECTED', { details: { invariant } })
+const isHubFailureCode = (code: unknown): code is keyof typeof HUB_FAILURES => typeof code === 'string' && Object.hasOwn(HUB_FAILURES, code)
 
 /** @public */
 export const grantOf = <Kind extends AccessKind>(request: FastifyRequest, kind: Kind): Grants[Kind] => {
@@ -200,6 +208,54 @@ const credentialOf = async (rule: AccessRow['credential'], request: FastifyReque
   }
 }
 
+const UNDECLARED_OPERATIONS: ReadonlySet<string> = new Set([
+  'GET /api/control/access-context',
+  'POST /api/control/accounts',
+  'GET /api/control/workspaces/:workspaceId/members',
+  'POST /api/control/workspaces/:workspaceId/invitations',
+  'PUT /api/control/workspaces/:workspaceId/members/:accountId',
+  'DELETE /api/control/workspaces/:workspaceId/roster/:entryKind/:entryId',
+  'GET /api/control/projects/:projectId/application-access',
+  'POST /api/control/projects/:projectId/application-access',
+  'DELETE /api/control/projects/:projectId/application-access/:entryKind/:entryId',
+  'GET /api/control/installation',
+  'GET /api/control/installation/administrators',
+  'POST /api/control/installation/administrators',
+  'DELETE /api/control/installation/administrators/:accountId',
+  'GET /api/control/workspaces/:workspaceId/projects',
+  'POST /api/control/workspaces/:workspaceId/projects',
+  'GET /api/control/projects/:projectId',
+  'DELETE /api/control/projects/:projectId',
+  'GET /api/control/workspaces/:workspaceId/project-summaries',
+  'GET /api/control/projects/:projectId/thumbnail',
+  'GET /api/control/projects/:projectId/builder-session',
+  'POST /api/control/projects/:projectId/builder-session/messages',
+  'POST /api/control/projects/:projectId/builder-session/runs/:builderRunId/cancel',
+  'GET /api/control/projects/:projectId/builder-session/runs/:builderRunId/trace',
+  'POST /api/control/projects/:projectId/builder-session/preview',
+  'GET /api/control/projects/:projectId/source/tree',
+  'GET /api/control/projects/:projectId/source/file',
+  'GET /api/control/projects/:projectId/source/compare',
+  'GET /api/control/model-accounts/models',
+  'GET /api/control/model-accounts',
+  'PUT /api/control/model-accounts/:provider/api-key',
+  'POST /api/control/model-accounts/anthropic/oauth/start',
+  'POST /api/control/model-accounts/anthropic/oauth/complete',
+  'POST /api/control/model-accounts/openai-codex/oauth/start',
+  'POST /api/control/model-accounts/openai-codex/oauth/poll',
+  'GET /api/control/model-accounts/google-ai-pro/connection',
+  'POST /api/control/model-accounts/google-ai-pro/login/start',
+  'POST /api/control/model-accounts/google-ai-pro/login/complete',
+  'POST /api/control/model-accounts/google-ai-pro/login/:loginId',
+  'GET /api/control/workspaces/:workspaceId/connections',
+  'POST /api/control/workspaces/:workspaceId/connections',
+  'POST /api/control/workspaces/:workspaceId/connections/:connectionId/authentication-check',
+  'DELETE /api/control/workspaces/:workspaceId/connections/:connectionId',
+  'GET /api/control/projects/:projectId/connection-bindings',
+  'POST /api/control/projects/:projectId/connection-bindings',
+  'DELETE /api/control/projects/:projectId/connection-bindings/:bindingId',
+])
+
 type RouteRecord = Readonly<{ method: string | readonly string[]; url: string; config?: RouteOptions['config'] }>
 
 const bootRefusal = (record: RouteRecord, listener: Listener): string | null => {
@@ -208,6 +264,9 @@ const bootRefusal = (record: RouteRecord, listener: Listener): string | null => 
   if (record.config?.accessConflict !== undefined) return 'ROUTE_ACCESS_CONFLICT'
   if (!LISTENER_KINDS[listener].has(kind)) return 'ROUTE_ACCESS_FOREIGN'
   const methods = typeof record.method === 'string' ? [record.method] : record.method
+  if (listener === 'hub' && (record.url.startsWith('/api/control') || record.url.startsWith('/api/builder')) &&
+      record.config?.operation === undefined && record.config?.foreignOperation !== true &&
+      !methods.every((method) => UNDECLARED_OPERATIONS.has(`${method} ${record.url}`))) return 'ROUTE_OPERATION_UNDECLARED'
   return methods.every((method) => METHODS[ACCESS[kind].methods].has(method)) ? null : 'ROUTE_ACCESS_METHOD'
 }
 
@@ -237,17 +296,73 @@ export const installAccess = (app: FastifyInstance, policy: ListenerPolicy): voi
 }
 
 type NativeHandler<Generic extends RouteGenericInterface> = RouteHandlerMethod<RawServerDefault, RawRequestDefaultExpression, RawReplyDefaultExpression, Generic>
-type Handler<Generic extends RouteGenericInterface, Kind extends AccessKind> =
+export type Handler<O extends AnyOperation> = (request: Input<O>, grant: Grants[O['access']], effects: EffectsOf<O['effects']>) => Promise<Reply<O>>
+function parsedPart<P extends z.ZodType | null>(schema: P, value: unknown): Out<P>
+function parsedPart(schema: z.ZodType | null, value: unknown): unknown {
+  return schema === null ? undefined : schema.parse(value)
+}
+type NativeDeclaredHandler<Generic extends RouteGenericInterface, Kind extends AccessKind> =
   (request: Parameters<NativeHandler<Generic>>[0], reply: Parameters<NativeHandler<Generic>>[1], grant: Grants[Kind]) => ReturnType<NativeHandler<Generic>>
 type Declared<Generic extends RouteGenericInterface, Kind extends AccessKind> = Readonly<{
   url: string
   schema?: FastifySchema
   bodyLimit?: number
-  handler: Handler<Generic, Kind>
+  handler: NativeDeclaredHandler<Generic, Kind>
 }>
 type WithMethod<Generic extends RouteGenericInterface, Kind extends AccessKind> = Declared<Generic, Kind> & Readonly<{ method: HTTPMethods }>
 
 export const routes = (app: FastifyInstance) => {
+  const declaredOperation = <const O extends AnyOperation>(op: O, handler: Handler<O>): void => {
+    const parts = { params: op.params, querystring: op.query, headers: op.headers, body: op.body }
+    const schema = Object.fromEntries(Object.entries(parts).filter(([, part]) => part !== null).map(([name]) => [name, {}]))
+    app.route<{ Params: Input<O>['params']; Querystring: Input<O>['query']; Headers: Input<O>['headers']; Body: Input<O>['body'] }>({
+      method: op.method,
+      url: op.path,
+      config: { access: op.access, operation: op.id },
+      schema,
+      validatorCompiler: ({ httpPart }) => (value) => {
+        const part = httpPart === 'querystring' ? op.query : httpPart === 'params' ? op.params : httpPart === 'headers' ? op.headers : op.body
+        if (part === null) return { value }
+        const parsed = part.safeParse(value)
+        if (parsed.success) return { value: parsed.data }
+        if (httpPart === 'params') {
+          const name = parsed.error.issues[0]?.path[0]
+          const code = typeof name === 'string' && op.malformed ? Object.entries(op.malformed).find(([key]) => key === name)?.[1] : undefined
+          if (isHubFailureCode(code)) return { error: new Failure(code) }
+        }
+        if (httpPart === 'headers' && op.headers instanceof zod.ZodObject) {
+          const schema = op.headers.shape['idempotency-key']
+          const code = schema ? zod.globalRegistry.get(schema)?.failureCode : undefined
+          const raw = typeof value === 'object' && value !== null && 'idempotency-key' in value ? value['idempotency-key'] : undefined
+          if (isHubFailureCode(code) && (raw === undefined || raw === '')) return { error: new Failure(code) }
+        }
+        return { error: parsed.error }
+      },
+      handler: async (request, reply) => {
+        const effects = {
+          'clear-session-cookie': () => { clearCookie(reply, 'hubSession') },
+          'clear-bootstrap-cookie': () => { clearCookie(reply, 'bootstrap') },
+        }
+        const result = await handler({
+          params: parsedPart<O['params']>(op.params, request.params),
+          query: parsedPart<O['query']>(op.query, request.query),
+          headers: parsedPart<O['headers']>(op.headers, request.headers),
+          body: parsedPart<O['body']>(op.body, request.body),
+        }, grantOf<O['access']>(request, op.access), effects)
+        const statuses = Object.entries(op.success)
+        const status = statuses.length === 1 ? Number(statuses[0]?.[0]) : typeof result === 'object' && result !== null && 'status' in result ? result.status : undefined
+        if (typeof status !== 'number') throw missing('OPERATION_SUCCESS_STATUS')
+        const declared = statuses.find(([code]) => Number(code) === status)?.[1]
+        const body = statuses.length === 1 ? result : typeof result === 'object' && result !== null && 'body' in result ? result.body : undefined
+        if (declared === null) return reply.code(status).send()
+        if (declared && 'parse' in declared) return reply.code(status).send(declared.parse(body))
+        if (declared && body instanceof Uint8Array && body.byteLength <= declared.maxBytes) {
+          return reply.code(status).type(declared.mediaType).send(body)
+        }
+        throw missing('OPERATION_SUCCESS_UNREADABLE')
+      },
+    })
+  }
   const declare = <Generic extends RouteGenericInterface, Kind extends AccessKind>(
     kind: Kind, method: HTTPMethods, { handler, ...route }: Declared<Generic, Kind>, exposeHeadRoute = false,
   ): void => {
@@ -260,6 +375,7 @@ export const routes = (app: FastifyInstance) => {
     })
   }
   return Object.freeze({
+    operation: declaredOperation,
     navigation: <Generic extends RouteGenericInterface = RouteGenericInterface>(route: Declared<Generic, 'navigation'>) => declare('navigation', 'GET', route, true),
     'sign-in': <Generic extends RouteGenericInterface = RouteGenericInterface>(route: Declared<Generic, 'sign-in'>) => declare('sign-in', 'GET', route),
     session: <Generic extends RouteGenericInterface = RouteGenericInterface>(route: WithMethod<Generic, 'session'>) => declare('session', route.method, route),
@@ -278,7 +394,7 @@ export const foreignRoutes = async <Kind extends AccessKind>(
   await app.register(async (scope) => {
     scope.addHook('onRoute', (route) => {
       const declared = route.config?.access
-      route.config = { ...route.config, access: kind, ...(declared !== undefined && declared !== kind ? { accessConflict: declared } : {}) }
+      route.config = { ...route.config, access: kind, foreignOperation: true, ...(declared !== undefined && declared !== kind ? { accessConflict: declared } : {}) }
     })
     await register(scope, (request) => grantOf(request, kind))
   })

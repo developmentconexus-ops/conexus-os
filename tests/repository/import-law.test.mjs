@@ -60,27 +60,27 @@ test('every import-law RED control fires its named rule', async (suite) => {
       'apps/hub/src/identity-access/store.ts': '',
     }],
     ['IMPORT_LAYER_MATRIX http branch', {
-      'apps/hub/src/http/app.ts': 'import "../platform/postgres.js"',
-      'apps/hub/src/platform/postgres.ts': '',
+      'apps/hub/src/http/app.ts': 'import "../platform/db.js"',
+      'apps/hub/src/platform/db.ts': '',
     }],
     ['IMPORT_LAYER_MATRIX routes branch', {
-      'apps/hub/src/identity-access/routes.ts': 'import "../platform/postgres.js"',
-      'apps/hub/src/platform/postgres.ts': '',
+      'apps/hub/src/identity-access/routes.ts': 'import "../platform/db.js"',
+      'apps/hub/src/platform/db.ts': '',
     }],
     ['IMPORT_LAYER_MATRIX store branch', {
       'apps/hub/src/identity-access/store.ts': 'import "../http/problem.js"',
       'apps/hub/src/http/problem.ts': '',
     }],
     ['IMPORT_LAYER_MATRIX workspace routes branch', {
-      'apps/hub/src/workspace/routes.ts': 'import "../platform/postgres.js"',
-      'apps/hub/src/platform/postgres.ts': '',
+      'apps/hub/src/workspace/routes.ts': 'import "../platform/db.js"',
+      'apps/hub/src/platform/db.ts': '',
     }],
     ['IMPORT_LAYER_MATRIX workspace store branch', {
       'apps/hub/src/workspace/store.ts': 'import "../http/problem.js"',
       'apps/hub/src/http/problem.ts': '',
     }],
     ['IMPORT_LAYER_MATRIX platform branch', {
-      'apps/hub/src/platform/postgres.ts': 'import "../http/problem.js"',
+      'apps/hub/src/platform/db.ts': 'import "../http/problem.js"',
       'apps/hub/src/http/problem.ts': '',
     }],
     ['IMPORT_CYCLE', {

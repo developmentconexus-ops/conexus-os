@@ -12,7 +12,7 @@ import type { createRunTiming } from '../run-timing.js'
 import { SANDBOX_AGENT_USER, SANDBOX_CHECKOUT } from '../sandbox.js'
 import { Failure, type FailureCode, logFailure } from '../../platform/failure.js'
 import { logger } from '../../platform/logger.js'
-import { createTurnMirror, MIRROR_DEBOUNCE_MS, mirrorAfterEdits } from './mirror.js'
+import { createTurnMirror, MIRROR_DEBOUNCE_MS } from './mirror.js'
 import type { TurnMirror } from './mirror.js'
 import type { BuilderRunPorts, ConnectorRun, RunSandbox } from './ports.js'
 
@@ -118,7 +118,7 @@ const startCheckoutTurn = async ({ ports, projectId, conversationId, executionId
     git: ports.git, projectId, conversationId, turnStart: turnStart.start, head: turnStart.mirror,
     source: vm.source, excluded, debounceMs: ports.mirrorDebounceMs ?? MIRROR_DEBOUNCE_MS, fail: mirrorFailed,
   })
-  mirrorAfterEdits(sandbox.workspace, mirror)
+  sandbox.mirrorFeed.current = mirror
   return { start: turnStart.start, conflicted: turnStart.conflicted, mirror }
 }
 

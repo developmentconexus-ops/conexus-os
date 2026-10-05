@@ -6,6 +6,7 @@ import type { Caller } from '../check/command.js'
 import type { ConexusGit } from '../conexus-git.js'
 import type { CandidateOperationPorts } from '../run-operation.js'
 import type { EventLog } from '../../platform/logger.js'
+import type { MirrorFeed } from './mirror.js'
 import type { AgentController, AgentControllerEvent } from '@mastra/core/agent-controller'
 
 /** What a run needs of its conversation's sandbox; the E2B one in production, a fake in tests. */
@@ -29,6 +30,8 @@ export type RunSandbox = Readonly<{
   idle(): Promise<void>
   /** The agent's workspace on this sandbox. */
   workspace: Workspace
+  /** Where the workspace's edit hook finds the mirror of the turn in progress. */
+  mirrorFeed: MirrorFeed
   /** A broken VM: it is killed, and the conversation gets a new instance and session. */
   kill(): Promise<void>
 }>

@@ -53,7 +53,7 @@
       "contracts/technical/**",
       "apps/hub/src/*/store.ts",
       "apps/hub/src/registry/application-artifact-store.ts",
-      "apps/hub/src/platform/postgres.ts",
+      "apps/hub/src/platform/db.ts",
       "apps/hub/src/platform/hub-roles.generated.ts",
       "apps/hub/src/platform/connection-census.ts",
       "scripts/run-hub-migrations.mjs",

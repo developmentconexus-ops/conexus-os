@@ -8,7 +8,6 @@ const built = hubModuleUrl
 const { readHubConfig } = await import(built('platform/config.js'))
 const { registerWorkspaceRoutes } = await import(built('workspace/routes.js'))
 const { Failure } = await import(built('platform/failure.js'))
-const { createWorkspaceStore } = await import(built('workspace/store.js'))
 
 const missing = (name) => (error) => error.id === 'CONFIG_MISSING' && error.details?.name === name
 
@@ -31,7 +30,7 @@ const baseEnvironment = {
   CONEXUS_DB_HOST: '127.0.0.1',
   CONEXUS_DB_PORT: '5432',
   CONEXUS_DB_NAME: 'conexus',
-  CONEXUS_DB_USER: 'hub_iam',
+  CONEXUS_DB_USER: 'hub_runtime',
   CONEXUS_DB_PASSWORD_FILE: '/secrets/iam',
   CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/installation-secret-key',
   CONEXUS_OIDC_ISSUER: OPERATOR.issuer,
@@ -56,30 +55,9 @@ test('local Preview config requires complete TLS, exact Hub origin and a separat
   }
 })
 
-test('S2 database capabilities are mandatory in production and preserve the pinned S1 test boot', () => {
-  const s1Test = readHubConfig({ ...baseEnvironment, NODE_ENV: 'test' })
-  assert.equal(s1Test.database.workspace, undefined)
-  assert.throws(
-    () => readHubConfig(baseEnvironment),
-    missing('CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE'),
-  )
-  assert.throws(
-    () => readHubConfig({
-      ...baseEnvironment,
-      NODE_ENV: 'test',
-      CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE: '/secrets/command',
-    }),
-    missing('CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE'),
-  )
-  assert.deepEqual(readHubConfig({
-    ...baseEnvironment,
-    NODE_ENV: 'test',
-    CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE: '/secrets/command',
-    CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE: '/secrets/read',
-  }).database.workspace, {
-    commandPasswordFile: '/secrets/command',
-    readPasswordFile: '/secrets/read',
-  })
+test('the Hub admits only its one runtime database role', () => {
+  assert.equal(readHubConfig(baseEnvironment).database.user, 'hub_runtime')
+  assert.throws(() => readHubConfig({ ...baseEnvironment, CONEXUS_DB_USER: 'hub_workspace_read' }), invalidConfig('CONEXUS_DB_USER'))
 })
 
 const buildRoutes = async ({ current = OPERATOR, storeOverrides = {} } = {}) => {
@@ -87,19 +65,12 @@ const buildRoutes = async ({ current = OPERATOR, storeOverrides = {} } = {}) => 
   const store = {
     async createWorkspace(input) {
       calls.push(['createWorkspace', input])
-      return {
+      return { replayed: false, reply: {
         workspaceId: '33333333-3333-4333-8333-333333333333',
-        name: input.name,
+        name: input.body.name,
         creatorAccountId: input.accountId,
         initialAccessEstablished: true,
-        replayed: false,
-      }
-    },
-    async getWorkspace(input) {
-      calls.push(['getWorkspace', input])
-      return input.workspaceId === '33333333-3333-4333-8333-333333333333'
-        ? { workspaceId: input.workspaceId, name: 'Operations' }
-        : null
+      } }
     },
     ...storeOverrides,
   }
@@ -111,10 +82,10 @@ const buildRoutes = async ({ current = OPERATOR, storeOverrides = {} } = {}) => 
   return { app, calls }
 }
 
-test('generated WS-01/02 routes enforce operator creation and membership-shaped disclosure', async (t) => {
+test('WS-01 declares and checks workspace creation', async (t) => {
   const { app, calls } = await buildRoutes()
   t.after(() => app.close())
-  assert.deepEqual(app.routeCensus(), ['WS-01', 'WS-02'])
+  assert.deepEqual(app.routeCensus(), ['WS-01'])
 
   const created = await app.inject({ method: 'POST', url: '/api/control/workspaces', headers: authenticHeaders, payload: { name: 'Operations' } })
   assert.equal(created.statusCode, 201)
@@ -127,16 +98,10 @@ test('generated WS-01/02 routes enforce operator creation and membership-shaped 
   assert.deepEqual(calls[0], ['createWorkspace', {
     accountId: OPERATOR.account.accountId,
     idempotencyKey: 'workspace-key',
-    name: 'Operations',
+    body: { name: 'Operations' },
   }])
 
-  const found = await app.inject({ method: 'GET', url: '/api/control/workspaces/33333333-3333-4333-8333-333333333333', headers: signedIn })
-  assert.equal(found.statusCode, 200)
-  assert.deepEqual(found.json(), { workspaceId: '33333333-3333-4333-8333-333333333333', name: 'Operations' })
-  assert.deepEqual(calls[1], ['getWorkspace', { accountId: OPERATOR.account.accountId, workspaceId: '33333333-3333-4333-8333-333333333333' }])
 
-  const hidden = await app.inject({ method: 'GET', url: '/api/control/workspaces/44444444-4444-4444-8444-444444444444', headers: signedIn })
-  assert.equal(hidden.statusCode, 404)
 })
 
 test('WS-01 refuses unauthenticated, authenticity failures and caller-selected authority', async (t) => {
@@ -154,6 +119,20 @@ test('WS-01 refuses unauthenticated, authenticity failures and caller-selected a
   assert.equal(operator.calls.length, 0)
 })
 
+test('WS-01 names a missing or empty idempotency key', async (t) => {
+  const { app, calls } = await buildRoutes()
+  t.after(() => app.close())
+  for (const headers of [
+    { ...hubJsonWrite, origin: ORIGIN, ...signedIn },
+    { ...hubJsonWrite, origin: ORIGIN, ...signedIn, 'idempotency-key': '' },
+  ]) {
+    const response = await app.inject({ method: 'POST', url: '/api/control/workspaces', headers, payload: { name: 'Operations' } })
+    assert.equal(response.statusCode, 400)
+    assert.equal(response.json().code, 'IDEMPOTENCY_KEY_REQUIRED')
+  }
+  assert.deepEqual(calls, [])
+})
+
 test('WS-01 admits any authenticated Account, who becomes the Workspace owner', async (t) => {
   const member = await buildRoutes({ current: MEMBER })
   t.after(() => member.app.close())
@@ -162,53 +141,17 @@ test('WS-01 admits any authenticated Account, who becomes the Workspace owner', 
   assert.equal(member.calls[0][1].accountId, MEMBER.account.accountId)
 })
 
-test('WS-01 maps changed-request/outcome conflicts to 409 without leaking internals', async (t) => {
-  for (const code of ['IDEMPOTENCY_CONFLICT', 'OUTCOME_UNKNOWN']) {
+test('WS-01 maps the failures its store declares to their status without leaking internals', async (t) => {
+  for (const [code, status] of [['IDEMPOTENCY_CONFLICT', 409], ['ACCOUNT_INACTIVE', 403], ['ACCOUNT_NOT_FOUND', 404]]) {
     const { app } = await buildRoutes({ storeOverrides: { createWorkspace: async () => { throw new Failure(code) } } })
     t.after(() => app.close())
     const response = await app.inject({ method: 'POST', url: '/api/control/workspaces', headers: authenticHeaders, payload: { name: 'Operations' } })
-    assert.equal(response.statusCode, 409)
-    assert.equal(response.json().status, 409)
+    assert.equal(response.statusCode, status)
+    assert.equal(response.json().code, code)
   }
 })
 
-test('WS-01/02 hide malformed identifiers and unexpected store/driver failures', async (t) => {
-  const malformed = await buildRoutes({
-    storeOverrides: {
-      getWorkspace: async () => {
-        const error = new Error('invalid input syntax for type uuid: secret-driver-detail')
-        error.code = '22P02'
-        throw error
-      },
-    },
-  })
-  t.after(() => malformed.app.close())
-  const hidden = await malformed.app.inject({ method: 'GET', url: '/api/control/workspaces/not-a-uuid', headers: signedIn })
-  assert.equal(hidden.statusCode, 404)
-  assert.equal(hidden.headers['content-type'].startsWith('application/problem+json'), true)
-  assert.deepEqual(hidden.json(), {
-    type: 'urn:conexus:problem:WORKSPACE_NOT_FOUND',
-    title: 'WORKSPACE_NOT_FOUND',
-    status: 404,
-    code: 'WORKSPACE_NOT_FOUND',
-  })
-  assert.equal(hidden.body.includes('secret-driver-detail'), false)
-
-  const unexpectedRead = await buildRoutes({
-    storeOverrides: { getWorkspace: async () => { throw new Error('read-driver-secret') } },
-  })
-  t.after(() => unexpectedRead.app.close())
-  const readFailure = await unexpectedRead.app.inject({ method: 'GET', url: '/api/control/workspaces/33333333-3333-4333-8333-333333333333', headers: signedIn })
-  assert.equal(readFailure.statusCode, 500)
-  assert.equal(readFailure.headers['content-type'].startsWith('application/problem+json'), true)
-  assert.deepEqual(readFailure.json(), {
-    type: 'urn:conexus:problem:INTERNAL_UNEXPECTED',
-    title: 'INTERNAL_UNEXPECTED',
-    status: 500,
-    code: 'INTERNAL_UNEXPECTED',
-  })
-  assert.equal(readFailure.body.includes('read-driver-secret'), false)
-
+test('WS-01 hides unexpected store failures', async (t) => {
   const unexpectedCreate = await buildRoutes({
     storeOverrides: { createWorkspace: async () => { throw new Error('create-driver-secret') } },
   })
@@ -223,79 +166,4 @@ test('WS-01/02 hide malformed identifiers and unexpected store/driver failures',
     code: 'INTERNAL_UNEXPECTED',
   })
   assert.equal(createFailure.body.includes('create-driver-secret'), false)
-})
-
-const fakePool = (respond) => {
-  const calls = []
-  const client = {
-    async query(text, values) {
-      calls.push({ text: String(text).trim(), values })
-      return respond(String(text), values, calls.length)
-    },
-    release() { calls.push({ text: 'RELEASE' }) },
-  }
-  return { calls, pool: { connect: async () => client } }
-}
-
-test('workspace store composes exact WS-01 functions atomically and short-circuits replay', async () => {
-  const command = fakePool((sql, values) => {
-    if (sql.includes('reserve_or_replay_create_workspace')) return { rows: [{ state: 'RESERVED', workspace_id: values[3], response_status: null, response_body: null }] }
-    return { rows: [], rowCount: 1 }
-  })
-  const read = fakePool(() => ({ rows: [] }))
-  const store = createWorkspaceStore({ commandPool: command.pool, readPool: read.pool })
-  const result = await store.createWorkspace({ accountId: OPERATOR.account.accountId, idempotencyKey: 'key', name: 'Operations' })
-  assert.equal(result.initialAccessEstablished, true)
-  const sql = command.calls.map(({ text }) => text)
-  assert.equal(sql[0], 'BEGIN')
-  assert.match(sql[1], /reserve_or_replay_create_workspace/)
-  // Creating the Workspace and establishing its owner is one call now: the Hub no longer reaches
-  // into iam to finish a workspace it just created.
-  assert.match(sql[2], /workspace\.create_workspace/)
-  assert.equal(sql.some((text) => /iam\./.test(text)), false)
-  assert.match(sql[3], /complete_create_workspace_receipt/)
-  assert.equal(sql[4], 'COMMIT')
-  assert.equal(sql[5], 'RELEASE')
-
-  const replayCommand = fakePool((_sql, _values, index) => index === 2
-    ? { rows: [{ state: 'REPLAY', workspace_id: result.workspaceId, response_status: 201, response_body: {
-      workspaceId: result.workspaceId,
-      name: result.name,
-      creatorAccountId: result.creatorAccountId,
-      initialAccessEstablished: true,
-    } }] }
-    : { rows: [] })
-  const replayStore = createWorkspaceStore({ commandPool: replayCommand.pool, readPool: read.pool })
-  await replayStore.createWorkspace({ accountId: OPERATOR.account.accountId, idempotencyKey: 'key', name: 'Operations' })
-  assert.equal(replayCommand.calls.filter(({ text }) => /create_workspace|complete_create/.test(text)).length, 1)
-})
-
-test('workspace store rolls back every failed boundary and WS-02 is one read-only statement', async () => {
-  for (const failingFunction of ['reserve_or_replay_create_workspace', 'workspace.create_workspace', 'complete_create_workspace_receipt']) {
-    const command = fakePool((sql, values) => {
-      if (sql.includes(failingFunction)) throw new Error('boundary failure')
-      if (sql.includes('reserve_or_replay_create_workspace')) return { rows: [{ state: 'RESERVED', workspace_id: values[3] }] }
-      return { rows: [] }
-    })
-    const read = fakePool(() => ({ rows: [] }))
-    const store = createWorkspaceStore({ commandPool: command.pool, readPool: read.pool })
-    await assert.rejects(store.createWorkspace({ accountId: OPERATOR.account.accountId, idempotencyKey: 'key', name: 'Operations' }), /boundary failure/)
-    assert.ok(command.calls.some(({ text }) => text === 'ROLLBACK'))
-    assert.equal(command.calls.at(-1).text, 'RELEASE')
-  }
-
-  const command = fakePool(() => ({ rows: [] }))
-  const read = fakePool((sql) => sql.includes('get_workspace_summary')
-    ? { rows: [{ workspace_id: '33333333-3333-4333-8333-333333333333', name: 'Operations' }] }
-    : { rows: [] })
-  const store = createWorkspaceStore({ commandPool: command.pool, readPool: read.pool })
-  assert.deepEqual(await store.getWorkspace({ accountId: OPERATOR.account.accountId, workspaceId: '33333333-3333-4333-8333-333333333333' }), {
-    workspaceId: '33333333-3333-4333-8333-333333333333', name: 'Operations',
-  })
-  const sql = read.calls.map(({ text }) => text)
-  assert.deepEqual([sql[0], sql.at(-2), sql.at(-1)], ['BEGIN READ ONLY', 'COMMIT', 'RELEASE'])
-  assert.equal(sql.filter((text) => text.startsWith('SELECT')).length, 1)
-  assert.match(sql[1], /workspace\.get_workspace_summary\(\$1, \$2\)/)
-  assert.doesNotMatch(sql[1], /iam\./)
-  assert.deepEqual(read.calls[1].values, [OPERATOR.account.accountId, '33333333-3333-4333-8333-333333333333'])
 })

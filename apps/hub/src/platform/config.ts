@@ -1,11 +1,6 @@
 import { Failure } from './failure.js'
 import { parseApplicationSlug } from './application-slug.js'
 
-export type ProjectRuntimeConfig = Readonly<{
-  commandPasswordFile: string
-  readPasswordFile: string
-}>
-
 export type HubConfig = Readonly<{
   origin: string
   port: number
@@ -18,18 +13,10 @@ export type HubConfig = Readonly<{
     host: string
     port: number
     database: string
-    user: string
+    user: 'hub_runtime'
     passwordFile: string
-    workspace: Readonly<{
-      commandPasswordFile: string
-      readPasswordFile: string
-    }> | undefined
   }>
-  project: ProjectRuntimeConfig | undefined
   builder: Readonly<{
-    ingressPasswordFile: string
-    executorPasswordFile: string
-    modelAccountPasswordFile: string
     e2bApiKeyFile: string
     e2bTemplateId: string
     /** CONEXUS_GIT_ROOT: the Conexus Git on the Hub's own disk, one bare repository per Project. */
@@ -102,6 +89,11 @@ const required = (environment: NodeJS.ProcessEnv, name: string): string => {
   return value
 }
 
+const runtimeUser = (environment: NodeJS.ProcessEnv): 'hub_runtime' => {
+  if (required(environment, 'CONEXUS_DB_USER') !== 'hub_runtime') throw configInvalid('CONEXUS_DB_USER')
+  return 'hub_runtime'
+}
+
 const DEFAULT_QUESTION_WAIT_MS = 30 * 60_000
 const DEFAULT_SANDBOX_IDLE_MS = 5 * 60_000
 
@@ -119,39 +111,6 @@ const port = (value: string, name: string): number => {
   return parsed
 }
 
-const workspaceDatabase = (environment: NodeJS.ProcessEnv): HubConfig['database']['workspace'] => {
-  const commandPasswordFile = environment.CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE
-  const readPasswordFile = environment.CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE
-  if (commandPasswordFile && readPasswordFile) return { commandPasswordFile, readPasswordFile }
-  if (commandPasswordFile || readPasswordFile || environment.NODE_ENV !== 'test') {
-    if (!commandPasswordFile) throw configMissing('CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE')
-    throw configMissing('CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE')
-  }
-  return undefined
-}
-
-const projectRuntime = (environment: NodeJS.ProcessEnv): HubConfig['project'] => {
-  const ordinaryValues = {
-    commandPasswordFile: environment.CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE,
-    readPasswordFile: environment.CONEXUS_DB_PROJECT_READ_PASSWORD_FILE,
-  }
-  const hasOrdinaryValues = Object.values(ordinaryValues).some(Boolean)
-  const ordinaryComplete = Object.values(ordinaryValues).every(Boolean)
-
-  if (hasOrdinaryValues && !ordinaryComplete) {
-    for (const [name, value] of Object.entries({
-      CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE: ordinaryValues.commandPasswordFile,
-      CONEXUS_DB_PROJECT_READ_PASSWORD_FILE: ordinaryValues.readPasswordFile,
-    })) if (!value) throw configMissing(name)
-  }
-  if (!ordinaryComplete) return undefined
-  const ordinary: ProjectRuntimeConfig = {
-    commandPasswordFile: required(environment, 'CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE'),
-    readPasswordFile: required(environment, 'CONEXUS_DB_PROJECT_READ_PASSWORD_FILE'),
-  }
-  return ordinary
-}
-
 const DEFAULT_GIT_ROOT = '/var/lib/conexus/git'
 
 const gitRoot = (environment: NodeJS.ProcessEnv): string => {
@@ -162,16 +121,10 @@ const gitRoot = (environment: NodeJS.ProcessEnv): string => {
 
 const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] => {
   const values = {
-    ingressPasswordFile: environment.CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE,
-    executorPasswordFile: environment.CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE,
-    modelAccountPasswordFile: environment.CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE,
     e2bApiKeyFile: environment.CONEXUS_BUILDER_E2B_API_KEY_FILE,
     e2bTemplateId: environment.CONEXUS_BUILDER_E2B_TEMPLATE_ID,
   }
   if (Object.values(values).every(Boolean)) return {
-    ingressPasswordFile: required(environment, 'CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE'),
-    executorPasswordFile: required(environment, 'CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE'),
-    modelAccountPasswordFile: required(environment, 'CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE'),
     e2bApiKeyFile: required(environment, 'CONEXUS_BUILDER_E2B_API_KEY_FILE'),
     e2bTemplateId: required(environment, 'CONEXUS_BUILDER_E2B_TEMPLATE_ID'),
     gitRoot: gitRoot(environment),
@@ -181,9 +134,6 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
   }
   if (Object.values(values).some(Boolean)) {
     for (const [name, value] of Object.entries({
-      CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: values.ingressPasswordFile,
-      CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: values.executorPasswordFile,
-      CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: values.modelAccountPasswordFile,
       CONEXUS_BUILDER_E2B_API_KEY_FILE: values.e2bApiKeyFile,
       CONEXUS_BUILDER_E2B_TEMPLATE_ID: values.e2bTemplateId,
     })) if (!value) throw configMissing(name)
@@ -268,11 +218,9 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
       host: required(environment, 'CONEXUS_DB_HOST'),
       port: port(required(environment, 'CONEXUS_DB_PORT'), 'CONEXUS_DB_PORT'),
       database: required(environment, 'CONEXUS_DB_NAME'),
-      user: required(environment, 'CONEXUS_DB_USER'),
+      user: runtimeUser(environment),
       passwordFile: required(environment, 'CONEXUS_DB_PASSWORD_FILE'),
-      workspace: workspaceDatabase(environment),
     },
-    project: projectRuntime(environment),
     builder: builderRuntime(environment),
     factory: factoryRuntime(environment),
     googleAiPro: googleAiProRuntime(environment),
@@ -284,10 +232,8 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
       clientSecretFile: required(environment, 'CONEXUS_OIDC_CLIENT_SECRET_FILE'),
     },
   }
-  if (config.builder && !config.project) throw configInvalid('BUILDER_PROJECT_RUNTIME_REQUIRED')
   if (config.factory && !config.builder) throw configInvalid('FACTORY_BUILDER_RUNTIME_REQUIRED')
   if (config.googleAiPro && !config.factory) throw configInvalid('GOOGLE_AI_PRO_FACTORY_RUNTIME_REQUIRED')
-  // The application host reads what it serves as the Builder executor; without it the listener never starts.
   if (config.application && !config.builder) throw configInvalid('APPLICATION_BUILDER_RUNTIME_REQUIRED')
   // The Builder's threads, traces and memory live in the Mastra storage this role reaches.
   if (config.builder && !config.factory) throw configInvalid('BUILDER_FACTORY_RUNTIME_REQUIRED')

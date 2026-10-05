@@ -5,12 +5,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
-import type { CreateWorkspaceResponse } from '../../../generated/workspace-client'
+import { IdempotencyKey, WS01, type WorkspaceCreated } from '../../../../../../packages/contract/dist/index.js'
 import { accessContextQueryKey } from '../../identity-access/api'
-import { createWorkspace } from '../api'
-import { failureText } from '../../../app/http'
+import { call, failureText } from '../../../app/http'
 
-type Attempt = { name: string; idempotencyKey: string }
+type Attempt = { name: string; idempotencyKey: IdempotencyKey }
 
 export function WorkspaceCreateForm({
   currentAccountId,
@@ -19,7 +18,7 @@ export function WorkspaceCreateForm({
 }: {
   currentAccountId: string
   firstWorkspace: boolean
-  onCreated: (workspace: CreateWorkspaceResponse) => void
+  onCreated: (workspace: WorkspaceCreated) => void
 }) {
   const nameId = useId()
   const hintId = useId()
@@ -29,7 +28,12 @@ export function WorkspaceCreateForm({
   const nameInput = useRef<HTMLInputElement>(null)
   const [message, setMessage] = useState('')
   const mutation = useMutation({
-    mutationFn: ({ name, idempotencyKey }: Attempt) => createWorkspace({ name }, idempotencyKey),
+    mutationFn: ({ name, idempotencyKey }: Attempt) => call(WS01, {
+      params: undefined,
+      query: undefined,
+      headers: { 'idempotency-key': idempotencyKey },
+      body: { name },
+    }),
     onSuccess: async (workspace) => {
       if (workspace.initialAccessEstablished !== true || workspace.creatorAccountId !== currentAccountId) {
         setMessage('O Workspace foi criado, mas o servidor não confirmou seu acesso a ele. Recarregue a página.')
@@ -54,7 +58,7 @@ export function WorkspaceCreateForm({
       nameInput.current?.focus()
       return
     }
-    if (attempt.current?.name !== name) attempt.current = { name, idempotencyKey: crypto.randomUUID() }
+    if (attempt.current?.name !== name) attempt.current = { name, idempotencyKey: IdempotencyKey.parse(crypto.randomUUID()) }
     setMessage('')
     createInFlight.current = true
     mutation.mutate(attempt.current)

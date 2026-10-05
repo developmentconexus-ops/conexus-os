@@ -79,7 +79,7 @@ test('real PostgreSQL proves project.purge_project clears every project-scoped r
       [otherAccountId],
     )
     await client.query(`INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')`, [accountId])
-    await client.query(`INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Deletion Workspace')`, [workspaceId])
+    await client.query(`INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'Deletion Workspace', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))`, [workspaceId])
     await client.query(`INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')`, [accountId, workspaceId])
     await client.query(`INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'member')`, [otherAccountId, workspaceId])
 

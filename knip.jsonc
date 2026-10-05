@@ -5,6 +5,8 @@
     // package.json scripts are already roots, and a directory glob would hide orphaned scripts.
     "scripts/check-test-skips.mjs",
     "scripts/census-builder-run.mjs",
+    "scripts/census-boundaries.mjs",
+    "scripts/check-enforced-by.mjs",
     "scripts/codemods/error-code-to-failure.mjs",
     "scripts/keycloak-refresh-probe.mjs",
     "scripts/builder-eval/plan-bench.mjs",
@@ -22,6 +24,10 @@
     "tests/implementation/sandbox-probe/read_proc.mjs",
     "tests/implementation/sandbox-probe/read_secrets.mjs",
     "tests/implementation/sandbox-probe/walk_fs.mjs",
+    "tests/fixtures/admission-negative.ts",
+    "tests/fixtures/biome/session-setting-in-sql.ts",
+    "tests/fixtures/census-boundaries/pg-rows.ts",
+    "tests/fixtures/census-boundaries/web-json.ts",
     // Bundled as text into the check by scripts/build-app-check.mjs, which writes it into each Project as conexus/sankhya.gen.ts.
     "apps/hub/src/builder/handler-kit/sankhya.ts",
     // The application check's bundle starts here; the Hub itself imports only its report module.
@@ -30,6 +36,10 @@
     "apps/hub/src/app-runner/main.ts",
     "apps/hub/src/telemetry/register.ts",
     "apps/web/src/main.tsx",
+    // Frozen by spec 0015 section 3 and first called by later parts: the Builder feature for parseForeign, the first operation with path params for routeParam.
+    "apps/web/src/app/foreign.ts",
+    "apps/web/src/app/route-params.ts",
+    "packages/contract/src/index.ts",
     "apps/hub/compiler-template/**",
     // The Builder skills' reference screens are read as text and copied into each Project.
     "builder-skills/**/*.tsx",
@@ -47,6 +57,8 @@
     "@biomejs/biome"
   ],
   // The reference screens import the generated app's own components and libraries, which this package does not install.
-  "ignoreIssues": { "builder-skills/**": ["unlisted", "unresolved"] },
+  "ignoreIssues": {
+    "builder-skills/**": ["unlisted", "unresolved"]
+  },
   "ignoreBinaries": ["setpriv", "pgrep"]
 }

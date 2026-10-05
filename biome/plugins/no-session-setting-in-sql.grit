@@ -1,0 +1,10 @@
+language js
+
+JsTemplateExpression() as $query where {
+    $query <: r"(?s)^sql`.*(?:set_config|conexus[.]).*`$",
+    register_diagnostic(
+        span = $query,
+        message = "The acting account and scope are set once per transaction by platform/db.ts. A sql template outside it never sets or names a conexus.* setting.",
+        severity = "error"
+    )
+}

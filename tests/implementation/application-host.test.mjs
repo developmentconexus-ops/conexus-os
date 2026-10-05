@@ -114,13 +114,9 @@ const configEnvironment = {
   CONEXUS_DB_HOST: '127.0.0.1',
   CONEXUS_DB_PORT: '5433',
   CONEXUS_DB_NAME: 'conexus_s7',
-  CONEXUS_DB_USER: 'hub_bootstrap',
+  CONEXUS_DB_USER: 'hub_runtime',
   CONEXUS_DB_PASSWORD_FILE: '/secrets/db',
   CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/factory-key',
-  CONEXUS_DB_WORKSPACE_COMMAND_PASSWORD_FILE: '/secrets/ws-command',
-  CONEXUS_DB_WORKSPACE_READ_PASSWORD_FILE: '/secrets/ws-read',
-  CONEXUS_DB_PROJECT_COMMAND_PASSWORD_FILE: '/secrets/project-command',
-  CONEXUS_DB_PROJECT_READ_PASSWORD_FILE: '/secrets/project-read',
   CONEXUS_OIDC_ISSUER: 'https://issuer.conexus.localhost',
   CONEXUS_OIDC_CLIENT_ID: 'conexus-hub',
   CONEXUS_OIDC_CLIENT_SECRET_FILE: '/secrets/oidc',
@@ -129,9 +125,6 @@ const configEnvironment = {
   CONEXUS_PREVIEW_KEY_FILE: '/tls/key.pem',
 }
 const builderEnvironment = {
-  CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: '/secrets/builder-ingress',
-  CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: '/secrets/builder-executor',
-  CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE: '/secrets/model-account',
   CONEXUS_BUILDER_E2B_API_KEY_FILE: '/secrets/e2b',
   CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'conexusbuilder:0f9a1c2d-3e4b-4a5c-8d9e-0f1a2b3c4d5e',
   CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/factory-key',
@@ -148,7 +141,7 @@ test('the application host is configured by port and domain together, and only w
     assert.throws(() => readHubConfig({ ...configEnvironment, ...builderEnvironment, ...application, CONEXUS_APPLICATION_DOMAIN: domain }), invalidConfig('CONEXUS_APPLICATION_DOMAIN'), domain)
   }
   assert.throws(() => readHubConfig({ ...configEnvironment, ...application }), invalidConfig('APPLICATION_BUILDER_RUNTIME_REQUIRED'),
-    'the application host reads the served artifact as the Builder executor, so it refuses to start without it')
+    'the application host needs the Builder module to read its served artifact')
 })
 
 test('the application host is a standalone top-level site: no Preview sandbox, never framed, no CORS, and Preview keeps its own policy', async (t) => {

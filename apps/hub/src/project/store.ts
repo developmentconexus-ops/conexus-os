@@ -9,7 +9,7 @@ import type {
 } from '../generated/project-routes.js'
 import type { BuilderRunResultKind, BuilderRunState } from '../generated/builder-run-vocabulary.js'
 import { Failure } from '../platform/failure.js'
-import { errorCode, type PostgresPool } from '../platform/postgres.js'
+import { errorCode, type PostgresPool } from '../platform/db.js'
 import { createProjectDeletionOrchestrator } from './deletion.js'
 import type { ProjectDeletionPorts } from './deletion.js'
 import { isProjectIdentity } from './identity.js'

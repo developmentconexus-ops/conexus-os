@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { request } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -15,9 +15,24 @@ import { testListener } from './access/test-listener.mjs'
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const migrationsRoot = resolve(repositoryRoot, 'apps/hub/migrations')
 const { assertSchemaCurrent, exitOnLostInstanceLock, takeInstanceLock } = await import(hubModuleUrl('platform/lifecycle.js'))
+const { openDatabase } = await import(hubModuleUrl('platform/db.js'))
 const { routes } = await import(hubModuleUrl('http/access.js'))
 
 const latestVersion = loadHubMigrationFiles(migrationsRoot).at(-1).version
+
+const runtimeDatabase = async (connection, onCleanup) => {
+  await query(connection, "ALTER ROLE hub_runtime PASSWORD 'lifecycle-test-only'")
+  onCleanup(() => query(connection, 'ALTER ROLE hub_runtime PASSWORD NULL'))
+  const directory = mkdtempSync(join(tmpdir(), 'conexus-lifecycle-db-'))
+  const passwordFile = join(directory, 'password')
+  writeFileSync(passwordFile, 'lifecycle-test-only')
+  chmodSync(passwordFile, 0o600)
+  onCleanup(() => rmSync(directory, { recursive: true, force: true }))
+  const config = { host: connection.host, port: connection.port, database: connection.database, user: 'hub_runtime', passwordFile }
+  const database = openDatabase(config)
+  onCleanup(() => database.close())
+  return { database, config }
+}
 
 test('a database one migration behind the code refuses to serve and names the missing version', async (t) => {
   const { connection, connectionString, onCleanup } = await buildHubDatabase(t, 'conexus_lifecycle_behind')
@@ -37,25 +52,33 @@ test('a database with no ledger at all is behind by every migration', async (t) 
 
 test('a second Hub on the same database is refused until the first lets go', async (t) => {
   const { connection, onCleanup } = await buildHubDatabase(t, 'conexus_lifecycle_lock')
+  const { database } = await runtimeDatabase(connection, onCleanup)
   const lost = []
-  const release = await takeInstanceLock(connection, (cause) => { lost.push(cause) })
+  const release = await takeInstanceLock(database, (cause) => { lost.push(cause) })
   onCleanup(() => release().catch(() => undefined))
-  await assert.rejects(takeInstanceLock(connection, () => undefined), failureOf('HUB_ALREADY_RUNNING'))
+  await assert.rejects(takeInstanceLock(database, () => undefined), failureOf('HUB_ALREADY_RUNNING'))
   await release()
-  const releaseSecond = await takeInstanceLock(connection, (cause) => { lost.push(cause) })
+  const releaseSecond = await takeInstanceLock(database, (cause) => { lost.push(cause) })
   await releaseSecond()
   assert.deepEqual(lost, [], 'a lock the Hub lets go of itself is not lost')
 })
 
+test('a connection failure before taking the instance lock fails startup without reporting a lost lock', async () => {
+  const lost = []
+  await assert.rejects(takeInstanceLock({ session: async () => { throw new Error('connect failed') } }, (cause) => { lost.push(cause) }), /connect failed/)
+  assert.deepEqual(lost, [])
+})
+
 test('a Hub whose instance lock connection drops is told once, and logs HUB_INSTANCE_LOCK_LOST and exits 1 (AC-12)', async (t) => {
-  const { connection, connectionString } = await buildHubDatabase(t, 'conexus_lifecycle_lock_lost')
+  const { connection, connectionString, onCleanup } = await buildHubDatabase(t, 'conexus_lifecycle_lock_lost')
+  const { database } = await runtimeDatabase(connection, onCleanup)
   const exits = []
-  const release = await takeInstanceLock(connection, exitOnLostInstanceLock((code) => { exits.push(code) }))
+  const release = await takeInstanceLock(database, exitOnLostInstanceLock((code) => { exits.push(code) }))
   t.after(() => release().catch(() => undefined))
   await query(connectionString, "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = 'conexus-hub:instance-lock' AND datname = current_database()")
   for (let waited = 0; exits.length === 0 && waited < 5_000; waited += 20) await new Promise((settle) => { setTimeout(settle, 20) })
   assert.deepEqual(exits, [1])
-  const next = await takeInstanceLock(connection, () => undefined)
+  const next = await takeInstanceLock(database, () => undefined)
   await next()
 })
 
@@ -196,16 +219,19 @@ process.exitCode = await runForwarding(process.execPath, [${JSON.stringify(child
 })
 
 test('SIGTERM with the real instance lock and pool ends the close and exits 0 well under the deadline', async (t) => {
-  const { connection } = await buildHubDatabase(t, 'conexus_lifecycle_shutdown')
+  const { connection, onCleanup } = await buildHubDatabase(t, 'conexus_lifecycle_shutdown')
+  const { config } = await runtimeDatabase(connection, onCleanup)
   const started = Date.now()
   const { status, output } = await runFixture('real-close', `
-const connection = ${JSON.stringify(connection)}
-const pool = (await import(${JSON.stringify(hubModuleUrl('platform/postgres.js'))})).createPostgresPool(connection)
-const releaseInstanceLock = await lifecycle.takeInstanceLock(connection, () => undefined)
+const config = ${JSON.stringify(config)}
+const { openDatabase, unportedPool } = await import(${JSON.stringify(hubModuleUrl('platform/db.js'))})
+const database = openDatabase(config)
+const pool = unportedPool(database)
+const releaseInstanceLock = await lifecycle.takeInstanceLock(database, () => undefined)
 await pool.query('SELECT 1')
 lifecycle.exitOnSignals(async () => {
-  await pool.end()
   await releaseInstanceLock()
+  await database.close()
 })
 process.stdout.write('READY\\n')
 setInterval(() => {}, 1000)

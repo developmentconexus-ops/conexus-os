@@ -1,5 +1,5 @@
 import type { SecretEnvelope } from '../platform/secrets.js'
-import type { PostgresPool } from '../platform/postgres.js'
+import type { PostgresPool } from '../platform/db.js'
 
 export type ModelAccountKind = 'api_key' | 'oauth' | 'google_ai_pro'
 
@@ -23,11 +23,6 @@ export type ModelAccountStore = Readonly<{
 
 type SealedRow = Readonly<{ model_account_id: string; secret: string; kind: ModelAccountKind }>
 
-/**
- * `model.model_account` through the functions `hub_model_account` is granted (spec 0002, Data
- * model). Every secret is sealed with the envelope every Conexus secret uses before it is written,
- * and opened only here, in the Hub.
- */
 export const createModelAccountStore = ({ pool, envelope }: Readonly<{ pool: Pick<PostgresPool, 'query'>; envelope: SecretEnvelope }>): ModelAccountStore => {
   const readOwn = async (accountId: string, provider: string): Promise<SealedRow | null> =>
     (await pool.query<SealedRow>('SELECT model_account_id, secret, kind FROM model.read_model_account($1, $2)', [accountId, provider])).rows[0] ?? null

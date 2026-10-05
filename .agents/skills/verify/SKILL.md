@@ -22,7 +22,7 @@ C=".agents/skills/verify/scripts/control.mjs"
 node $C launch    # 3 to 5 minutes; prints runId, origin and the evidence directory
 ```
 
-Launch starts a throwaway CA, PostgreSQL 17 with the migrations and the nine Hub roles, Keycloak with the repository realm and one test person, then the Hub and Chromium. It is ready when it prints JSON. On failure, read `hub.log` in the evidence directory and run cleanup. Run one launch per worktree, because the Hub build writes `apps/hub/public`. `node $C list` shows every run and its state.
+Launch starts a throwaway CA, PostgreSQL 17 with the migrations and the two provisioned Hub logins, Keycloak with the repository realm and one test person, then the Hub and Chromium. It is ready when it prints JSON. On failure, read `hub.log` in the evidence directory and run cleanup. Run one launch per worktree, because the Hub build writes `apps/hub/public`. `node $C list` shows every run and its state.
 
 `tests/live/` drives this same launch with a scripted model and a local sandbox in place of the two boundaries above, so a flow can stream a turn end to end. Run it with `npm run test:live`; the CLI here still cannot reach `stream`.
 

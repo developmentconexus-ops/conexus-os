@@ -79,7 +79,7 @@ const setupFixture = async (t) => {
   await owner.query("INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')", [bothAccountId])
 
   const workspaceId = randomUUID()
-  await owner.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1,$2)', [workspaceId, 'Metal Nobre'])
+  await owner.query('INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1,$2,$3)', [workspaceId, 'Metal Nobre', ownerAccountId])
   await owner.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,'owner')", [ownerAccountId, workspaceId])
   await owner.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,'owner')", [bothAccountId, workspaceId])
   await owner.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,'member')", [adminAccountId, workspaceId])

@@ -30,15 +30,15 @@ const secretFile = (root, name, value) => {
 }
 
 test('a missing password file is reported without a write', async () => {
-  const roles = readRegister(repositoryRoot).filter(row => row.role === 'hub_builder_executor')
+  const roles = readRegister(repositoryRoot).filter(row => row.role === 'hub_runtime')
   const rows = await censusRoles({ host: '127.0.0.1', port: 1, database: 'unreachable' }, {}, roles)
-  assert.deepEqual(rows, [{ role: 'hub_builder_executor', capability: 'builder-run-execution', state: 'unconfigured' }])
+  assert.deepEqual(rows, [{ role: 'hub_runtime', capability: 'hub-data', state: 'unconfigured' }])
 })
 
 test('the register every provisioning run reads is the one the Hub projects', () => {
   const roles = readRegister(repositoryRoot)
   const registerJson = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), 'utf8'))
-  assert.equal(roles.length, registerJson.roles.length)
+  assert.equal(roles.length, registerJson.roles.filter((row) => !row.legacy).length)
   assert.ok(roles.every(row => row.role.startsWith('hub_') && row.passwordFileVariable.startsWith('CONEXUS_DB_')))
 })
 
@@ -54,6 +54,7 @@ test('provisioning repairs a role with no password and then writes nothing', { s
   t.after(async () => {
     rmSync(secretRoot, { recursive: true, force: true })
     await ownerClient.query(`DROP DATABASE "${database}" WITH (FORCE)`)
+    await ownerClient.query('ALTER ROLE hub_runtime PASSWORD NULL')
     await ownerClient.end()
   })
 
@@ -65,39 +66,36 @@ test('provisioning repairs a role with no password and then writes nothing', { s
   connectionString.password = admin.password
   await runHubMigrations({ connectionString: connectionString.toString() })
 
-  const executorPassword = `provision-executor-${randomUUID().slice(0, 8)}`
-  const ingressPassword = `provision-ingress-${randomUUID().slice(0, 8)}`
+  const runtimePassword = `provision-runtime-${randomUUID().slice(0, 8)}`
   const environment = {
     CONEXUS_DB_HOST: admin.host,
     CONEXUS_DB_PORT: String(admin.port),
     CONEXUS_DB_NAME: database,
     CONEXUS_PROVISION_USER: admin.user,
     CONEXUS_PROVISION_PASSWORD_FILE: secretFile(secretRoot, 'provision-admin', admin.password),
-    CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: secretFile(secretRoot, 'db-builder-executor', executorPassword),
-    CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE: secretFile(secretRoot, 'db-builder-ingress', ingressPassword),
+    CONEXUS_DB_PASSWORD_FILE: secretFile(secretRoot, 'db-runtime', runtimePassword),
   }
-  const roles = readRegister(repositoryRoot).filter(row => row.role === 'hub_builder_executor' || row.role === 'hub_builder_ingress')
+  const roles = readRegister(repositoryRoot).filter(row => row.role === 'hub_runtime')
   const target = { host: admin.host, port: admin.port, database }
 
   const before = await censusRoles(target, environment, roles)
   assert.deepEqual(before.map(row => [row.role, row.state, row.sqlstate]), [
-    ['hub_builder_ingress', 'invalid', '28P01'],
-    ['hub_builder_executor', 'invalid', '28P01'],
+    ['hub_runtime', 'invalid', '28P01'],
   ])
 
   const first = await provisionRoles(target, environment, roles)
   assert.equal(first.verdict, 'REPAIRED')
-  assert.deepEqual([...first.repaired].sort(), ['hub_builder_executor', 'hub_builder_ingress'])
+  assert.deepEqual(first.repaired, ['hub_runtime'])
   assert.deepEqual(first.invalid, [])
 
   const second = await provisionRoles(target, environment, roles)
-  assert.deepEqual(second, { verdict: 'CURRENT', checked: 2, repaired: [], invalid: [], unconfigured: [], errors: [] })
+  assert.deepEqual(second, { verdict: 'CURRENT', checked: 1, repaired: [], invalid: [], unconfigured: [], errors: [] })
 
-  const executorClient = new pg.Client({ ...target, user: 'hub_builder_executor', password: executorPassword })
-  await executorClient.connect()
-  const { rows } = await executorClient.query('select current_user')
-  assert.equal(rows[0].current_user, 'hub_builder_executor')
-  await executorClient.end()
+  const runtimeClient = new pg.Client({ ...target, user: 'hub_runtime', password: runtimePassword })
+  await runtimeClient.connect()
+  const { rows } = await runtimeClient.query('select current_user')
+  assert.equal(rows[0].current_user, 'hub_runtime')
+  await runtimeClient.end()
 
   // A real wrong password against a role that exists and connects fine over the network:
   // the census must call this invalid, not unreachable, and the connection-census module
@@ -108,10 +106,10 @@ test('provisioning repairs a role with no password and then writes nothing', { s
   const wrongPasswordRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/provision-wrong-password-'))
   t.after(() => rmSync(wrongPasswordRoot, { recursive: true, force: true }))
   const wrongPasswordEnvironment = {
-    CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: secretFile(wrongPasswordRoot, 'db-builder-executor', `${executorPassword}-wrong`),
+    CONEXUS_DB_PASSWORD_FILE: secretFile(wrongPasswordRoot, 'db-runtime', `${runtimePassword}-wrong`),
   }
   const censusRows = await censusConnections(target, wrongPasswordEnvironment)
-  const wrongPasswordRow = censusRows.find(row => row.role === 'hub_builder_executor')
+  const wrongPasswordRow = censusRows.find(row => row.role === 'hub_runtime')
   assert.equal(wrongPasswordRow.state, 'invalid')
   assert.equal(wrongPasswordRow.sqlstate, '28P01')
 })
@@ -119,12 +117,12 @@ test('provisioning repairs a role with no password and then writes nothing', { s
 test('a password file with loose permissions is refused', async (t) => {
   const secretRoot = mkdtempSync(resolve(repositoryRoot, 'apps/hub/provision-loose-'))
   t.after(() => rmSync(secretRoot, { recursive: true, force: true }))
-  const path = resolve(secretRoot, 'db-builder-executor')
+  const path = resolve(secretRoot, 'db-runtime')
   writeFileSync(path, 'world-readable\n')
   chmodSync(path, 0o644)
-  const roles = readRegister(repositoryRoot).filter(row => row.role === 'hub_builder_executor')
+  const roles = readRegister(repositoryRoot).filter(row => row.role === 'hub_runtime')
   await assert.rejects(
-    censusRoles({ host: '127.0.0.1', port: 1, database: 'unreachable' }, { CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE: path }, roles),
+    censusRoles({ host: '127.0.0.1', port: 1, database: 'unreachable' }, { CONEXUS_DB_PASSWORD_FILE: path }, roles),
     /SECRET_FILE_PERMISSIONS/,
   )
 })

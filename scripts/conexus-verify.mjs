@@ -72,7 +72,10 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('import-law-check', 'node scripts/check-import-law.mjs'),
   candidateStep('access-owner-check', 'node scripts/check-access-owner.mjs'),
   candidateStep('census-builder-run', 'node scripts/census-builder-run.mjs'),
+  candidateStep('census-boundaries', 'node scripts/census-boundaries.mjs'),
+  candidateStep('enforced-by-check', 'node scripts/check-enforced-by.mjs'),
   candidateStep('generators', 'npm run generate'),
+  candidateStep('contract-check', 'npm run contract:check'),
   candidateStep('e2b-template-check', 'node scripts/builder-e2b-template.mjs --check'),
   candidateStep('web-style', 'node scripts/check-web-style.mjs'),
   candidateStep('wire-openapi-lint', 'npm run wire:lint'),
@@ -83,6 +86,7 @@ const GRAPH_STEPS = Object.freeze([
   testStep('implementation-tests', 'implementation', 'static'),
 
   candidateStep('db-catalog-snapshot', 'npm run db:catalog:check', 'postgres'),
+  candidateStep('function-callers', 'npm run db:callers:check', 'postgres'),
   candidateStep('db-baseline-file', 'npm run db:baseline:check', 'postgres'),
   testStep('postgres-tests', 'postgres', 'postgres', '--test-concurrency=1 '),
 
@@ -122,7 +126,7 @@ export const DOCS_CHECK_SCOPES = Object.freeze([
 
 export const DOCS_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => DOCS_CHECK_SCOPES.includes(step.scope)))
 
-export const QUICK_CHECK_SCOPES = Object.freeze(['web-typecheck', 'hub-typecheck', 'repository-check', 'generators', 'web-style', 'knip', 'biome', 'import-law-check', 'access-owner-check', 'census-builder-run'])
+export const QUICK_CHECK_SCOPES = Object.freeze(['web-typecheck', 'hub-typecheck', 'repository-check', 'generators', 'web-style', 'knip', 'biome', 'import-law-check', 'access-owner-check', 'census-builder-run', 'census-boundaries', 'enforced-by-check'])
 
 export const QUICK_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => QUICK_CHECK_SCOPES.includes(step.scope)))
 

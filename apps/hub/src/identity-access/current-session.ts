@@ -1,8 +1,10 @@
+import { AccountId as AccountIdSchema } from '../../../../packages/contract/dist/index.js'
+import type { AccountId as ContractAccountId } from '../../../../packages/contract/dist/index.js'
 import { Failure } from '../platform/failure.js'
 import { digest, parseOpaqueToken } from '../platform/opaque-token.js'
 import type { OpaqueToken } from '../platform/opaque-token.js'
 
-export type AccountId = string & { readonly __brand: 'AccountId' }
+export type AccountId = ContractAccountId
 export type WorkspaceId = string & { readonly __brand: 'WorkspaceId' }
 export type InvitationId = string & { readonly __brand: 'InvitationId' }
 export type EmailAddress = string & { readonly __brand: 'EmailAddress' }
@@ -26,8 +28,7 @@ export const hubSessionDigest = (token: OpaqueToken): HubSessionDigest => {
 
 export const bootstrapToken = (value: unknown): BootstrapToken | null => isBootstrapToken(value) ? value : null
 
-// biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-export const accountId = (value: string): AccountId => value as AccountId
+export const accountId = (value: string): AccountId => AccountIdSchema.parse(value)
 // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
 export const workspaceId = (value: string): WorkspaceId => value as WorkspaceId
 // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave

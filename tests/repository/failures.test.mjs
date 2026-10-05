@@ -12,13 +12,13 @@ const withRow = (table, overrides) => ({ ...table, failures: [...table.failures,
 test('the failure table and both generated files agree', () => {
   assert.deepEqual(failuresDrift(readFailures(), committed()), [])
   assert.equal(committed()[failureTargets.hub].includes("'NOT_FOUND': { category: 'USER', status: 404 },"), true)
-  assert.equal(committed()[failureTargets.web].includes("'NOT_FOUND': { message: 'Não encontramos o que você procurou.', action: 'NONE' },"), true)
+  assert.equal(committed()[failureTargets.contract].includes("'NOT_FOUND': { message: 'Não encontramos o que você procurou.', action: 'NONE', status: 404 },"), true)
 })
 
 test('a row added to the table fails naming every generated file it reaches, until they are regenerated', () => {
   const added = withRow(readFailures(), {})
   const stale = (target) => `FAILURES_STALE: ${target} is not generated from contracts/technical/failures.json; run node scripts/generate-failures.mjs`
-  assert.deepEqual(failuresDrift(added, committed()), [stale(failureTargets.hub), stale(failureTargets.web), stale(failureTargets.text)])
+  assert.deepEqual(failuresDrift(added, committed()), [stale(failureTargets.hub), stale(failureTargets.contract), stale(failureTargets.text)])
   assert.deepEqual(failuresDrift(added, renderFailureTargets(added)), [])
 })
 

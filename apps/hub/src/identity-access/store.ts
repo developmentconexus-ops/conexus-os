@@ -3,15 +3,15 @@ import type { PoolClient, QueryResultRow } from 'pg'
 import { canonicalBytes } from '../../../../packages/canonical-json/src/index.mjs'
 import { BOOTSTRAP_WINDOW_SECONDS, OIDC_TRANSACTION_SECONDS } from '../platform/lifetimes.js'
 import { digest, opaqueToken as token } from '../platform/opaque-token.js'
-import { errorCode, type PostgresPool } from '../platform/postgres.js'
+import { errorCode, type PostgresPool } from '../platform/db.js'
 import { accountId as brandAccountId } from './current-session.js'
 import type { AccountId, AccountSummary, EmailAddress } from './current-session.js'
 import { Failure } from '../platform/failure.js'
 import type { OidcIdentity, OidcTransaction, VerifiedIdentity } from './oidc.js'
 
-
 type ProvisionResult = AccountSummary & Readonly<{ replayed: boolean }>
 type AccessibleWorkspace = Readonly<{ workspaceId: string; name: string }>
+export type WorkspaceReader = Readonly<{ listAccessibleWorkspaces(accountId: AccountId): Promise<readonly AccessibleWorkspace[]> }>
 
 type AccountRow = QueryResultRow & {
   account_id: string
@@ -50,11 +50,6 @@ type IdempotencyRow = QueryResultRow & {
   response_body: AccountSummary
 }
 
-type WorkspaceSummaryRow = QueryResultRow & {
-  workspace_id: string
-  name: string
-}
-
 // A second account for the same identity is the database's unique violation.
 const translatePostgresError = (error: unknown): never => {
   throw errorCode(error) === '23505' ? new Failure('ACCOUNT_CONFLICT') : error
@@ -73,17 +68,16 @@ export type IdentityAccessStore = Readonly<{
   createProvisioningContext(input: VerifiedIdentity & Readonly<{ configuredIssuer: string; configuredSubject: string; now?: Date }>): Promise<string>
   claimInvitations(input: Readonly<{ accountId: AccountId; verifiedEmail: EmailAddress | null }>): Promise<number>
   provisionBootstrap(input: Readonly<{ bootstrapToken: string; idempotencyKey: string; configuredIssuer: string; configuredSubject: string; displayName: string; email?: string; now?: Date }>): Promise<ProvisionResult>
-  listAccessibleWorkspaces(accountId: string): Promise<readonly AccessibleWorkspace[]>
-  close(): Promise<void>
+  listAccessibleWorkspaces(accountId: AccountId): Promise<readonly AccessibleWorkspace[]>
 }>
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createIdentityAccessStore = ({
   pool,
-  workspaceReadPool,
+  workspaceReader,
 }: Readonly<{
   pool: PostgresPool
-  workspaceReadPool?: PostgresPool
+  workspaceReader?: WorkspaceReader
 }>): IdentityAccessStore => {
   const transaction = async <Result>(work: (client: PoolClient) => Promise<Result>): Promise<Result> => {
     const client = await pool.connect()
@@ -210,25 +204,8 @@ export const createIdentityAccessStore = ({
       })
     },
     async listAccessibleWorkspaces(accountId) {
-      if (!workspaceReadPool) return []
-      const client = await workspaceReadPool.connect()
-      try {
-        await client.query('BEGIN READ ONLY')
-        const result = await client.query<WorkspaceSummaryRow>(`
-          SELECT s.workspace_id, s.name
-          FROM workspace.list_visible_workspace_summaries($1) s
-          ORDER BY s.name, s.workspace_id
-        `, [accountId])
-        await client.query('COMMIT')
-        return result.rows.map((row) => ({ workspaceId: row.workspace_id, name: row.name }))
-      } catch (error) {
-        await client.query('ROLLBACK')
-        throw error
-      } finally {
-        client.release()
-      }
+      return workspaceReader ? workspaceReader.listAccessibleWorkspaces(accountId) : []
     },
-    close: () => pool.end(),
   })
 }
 

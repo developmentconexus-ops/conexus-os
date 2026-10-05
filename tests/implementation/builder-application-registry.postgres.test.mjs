@@ -27,7 +27,7 @@ test('C-020 Registry retains execution artifacts and serves authorized source re
   const accountId = randomUUID(); const workspaceId = randomUUID(); const projectId = randomUUID(); const builderRunId = randomUUID()
   const sourceRevision = 'b'.repeat(40); const digest = 'd'.repeat(64)
   await setup.query("INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://registry.c020', $2, 'C020')", [accountId, accountId])
-  await setup.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'C020 Registry'])
+  await setup.query('INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, $2, (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))', [workspaceId, 'C020 Registry'])
   await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   await setup.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'C020 app', 'NEW', $3, 'revision')", [projectId, workspaceId, sourceRevision])
   await setup.query('INSERT INTO builder.project_working_state(project_id) VALUES ($1)', [projectId])
@@ -78,6 +78,12 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   assert.deepEqual(migrated.versions, loadHubMigrationFiles().map(({ version }) => version))
   const { createApplicationArtifactStore } = await import(hubModuleUrl('registry/application-artifact-store.js'))
   const { createServedApplicationReader } = await import(hubModuleUrl('registry/served-application.js'))
+  const servedReader = createServedApplicationReader({ read: (_account, fn) => fn({
+    maybe: async (schema, statement) => {
+      const row = (await runtime.query(statement.text, [...statement.values])).rows[0]
+      return row ? schema.parse(row) : null
+    },
+  }) })
   setup = await connect(config)
   assert.deepEqual((await setup.query(`SELECT
     has_schema_privilege('builder_owner', 'reg', 'USAGE') AS builder_reg_usage,
@@ -110,7 +116,7 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   const sourceA = 'a'.repeat(40); const sourceB = 'b'.repeat(40)
   const digest = 'e'.repeat(64)
   await setup.query("INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://registry.settlement', $2, 'Settlement')", [accountId, accountId])
-  await setup.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'Settlement Registry'])
+  await setup.query('INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, $2, (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))', [workspaceId, 'Settlement Registry'])
   await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   await setup.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'Settlement app', 'NEW', $3, 'revision')", [projectId, workspaceId, sourceA])
   await setup.query('INSERT INTO builder.project_working_state(project_id) VALUES ($1)', [projectId])
@@ -157,10 +163,10 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   assert.equal(Buffer.from(thumbnail.bytes).toString('hex'), thumbnailBytes.toString('hex'))
   assert.equal(await store.getApplicationThumbnail(runtime, { accountId: randomUUID(), projectId }), null)
 
-  const served = await createServedApplicationReader(runtime).readThumbnail({ accountId, projectId })
+  const served = await servedReader.readThumbnail({ accountId, projectId })
   assert.equal(served?.artifactRevisionId, retained.artifactRevisionId)
   assert.equal(served?.sha256, createHash('sha256').update(thumbnailBytes).digest('hex'))
-  assert.equal(await createServedApplicationReader(runtime).readThumbnail({ accountId: randomUUID(), projectId }), null)
+  assert.equal(await servedReader.readThumbnail({ accountId: randomUUID(), projectId }), null)
 })
 
 test('a BUILT result that carries a thumbnail settles through the real registry: the build is stored and the thumbnail is retained', async (t) => {
@@ -180,7 +186,7 @@ test('a BUILT result that carries a thumbnail settles through the real registry:
   const accountId = randomUUID(); const workspaceId = randomUUID(); const projectId = randomUUID(); const builderRunId = randomUUID()
   const sourceA = 'a'.repeat(40); const sourceB = 'b'.repeat(40); const digest = 'f'.repeat(64)
   await setup.query("INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://registry.thumbnail', $2, 'Thumbnail')", [accountId, accountId])
-  await setup.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'Thumbnail Registry'])
+  await setup.query('INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, $2, (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))', [workspaceId, 'Thumbnail Registry'])
   await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   await setup.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'Thumbnail app', 'NEW', $3, 'revision')", [projectId, workspaceId, sourceA])
   await setup.query('INSERT INTO builder.project_working_state(project_id) VALUES ($1)', [projectId])

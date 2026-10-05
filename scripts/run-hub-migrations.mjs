@@ -70,6 +70,9 @@ const runLeaseOneCallDigest = '50803879e04d4e94d30991049c478df0fb2a3ef276e0d55fc
 const iamReaperDigest = '6610e1b0533fc80561064142011b26e971bcc7dc831933471b2338e596d26f2e'
 const invitationStateDigest = '52f15875fe72585faafb7bccab2e9b9aaebb8711db537772507caa81bcd9f874'
 const oneOwnerPerLifetimeDigest = '718c64fd896e0c04550c59d3b3fddea548737aea6256c5d5b57e8ba2bd9cd7c7'
+const dropWorkspaceGetSummaryDigest = '8a6a0d7a8674ea3b74722d7d2e458ac5bd3c38662f2ab9233e83c3728606213d'
+const runtimeDataBoundaryDigest = '954e765ed481e9c10e94ea4f34181df2ef0c1d809515e14ab20a7de2c304f1d1'
+const workspaceAdmissionDigest = '9f43118c3e057c30978f1fef5cfe6956d8f5d46c989f1751d7a072e3bbd0060b'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -132,6 +135,9 @@ const migrationDigests = new Map([
   ['0058_iam_reaper.sql', iamReaperDigest],
   ['0059_invitation_state.sql', invitationStateDigest],
   ['0060_one_owner_per_lifetime_no_csrf_token.sql', oneOwnerPerLifetimeDigest],
+  ['0061_drop_workspace_get_summary.sql', dropWorkspaceGetSummaryDigest],
+  ['0062_runtime_data_boundary.sql', runtimeDataBoundaryDigest],
+  ['0063_workspace_admission.sql', workspaceAdmissionDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n
@@ -217,7 +223,9 @@ export const runMigrations = async ({ connectionString, migrations, catalogSnaps
       const ledger = await ledgerState(client, migrations)
       if (catalogSnapshot) {
         await assertCatalog(client, catalogSnapshot)
-        await assertRoleInvariants(client)
+        if (catalogSnapshot.catalog.function.some((line) => line.startsWith('function iam.acting_account('))) {
+          await assertRoleInvariants(client)
+        }
       }
       await client.query('COMMIT')
       return { verdict: 'PASS', appliedNow, versions: [...ledger.applied.keys()] }

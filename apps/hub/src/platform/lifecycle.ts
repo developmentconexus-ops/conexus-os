@@ -1,8 +1,7 @@
 import { readdirSync } from 'node:fs'
 import { Failure, logFailure, toFailure } from './failure.js'
 import { logLine, logger } from './logger.js'
-import pg from 'pg'
-import type { PostgresConnection, PostgresPool } from './postgres.js'
+import type { Database, PostgresPool } from './db.js'
 
 const SHUTDOWN_DEADLINE_MS = 15_000
 
@@ -52,32 +51,36 @@ export const assertSchemaCurrent = async (pool: Pick<PostgresPool, 'query'>, mig
  * lives only as long as that connection: once it drops, another Hub may take the lock and the runs,
  * so `onLost` is told, once, unless the Hub let go of the lock itself.
  */
-export const takeInstanceLock = async (connection: PostgresConnection, onLost: (cause: unknown) => void): Promise<() => Promise<void>> => {
-  const client = new pg.Client({ ...connection, application_name: 'conexus-hub:instance-lock' })
+const deferred = () => {
+  let resolve: () => void = () => undefined
+  let reject: (error: unknown) => void = () => undefined
+  const promise = new Promise<void>((opened, failed) => { resolve = opened; reject = failed })
+  return { promise, resolve, reject }
+}
+
+export const takeInstanceLock = async (database: Database, onLost: (cause: unknown) => void): Promise<() => Promise<void>> => {
   let releasing = false
-  let lost = false
-  const lose = (cause: unknown): void => {
-    if (releasing || lost) return
-    lost = true
-    onLost(cause)
-  }
-  client.on('error', (error) => {
-    logFailure(logger, new Failure('HUB_POOL_ERROR', { cause: error }), { 'hub.capability': 'instance-lock' })
-    lose(error)
+  let lockAcquired = false
+  const acquired = deferred()
+  const release = deferred()
+  const held = database.session(async (lock) => {
+    if (!await lock.tryAdvisoryLock(1_538_775_160n)) throw new Failure('HUB_ALREADY_RUNNING')
+    lockAcquired = true
+    acquired.resolve()
+    await release.promise
   })
-  client.on('end', () => { lose(new Error('the instance lock connection ended')) })
-  await client.connect()
-  try {
-    const { rows } = await client.query<{ taken: boolean }>("SELECT pg_try_advisory_lock(hashtext('conexus.hub.instance')) AS taken")
-    if (rows[0]?.taken !== true) throw new Failure('HUB_ALREADY_RUNNING')
-  } catch (error) {
+  held.catch((error: unknown) => {
+    acquired.reject(error)
+    if (lockAcquired && !releasing) {
+      logFailure(logger, new Failure('HUB_POOL_ERROR', { cause: error }), { 'hub.capability': 'instance-lock' })
+      onLost(error)
+    }
+  })
+  await acquired.promise
+  return async () => {
     releasing = true
-    await client.end()
-    throw error
-  }
-  return () => {
-    releasing = true
-    return client.end()
+    release.resolve()
+    await held
   }
 }
 

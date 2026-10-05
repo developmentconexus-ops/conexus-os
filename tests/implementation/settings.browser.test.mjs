@@ -25,7 +25,7 @@ const routeInstallation = (page, administrator) =>
   }))
 
 const notFound = { status: 404, contentType: 'application/problem+json', body: JSON.stringify({ type: 'urn:conexus:problem:NOT_FOUND', title: 'NOT_FOUND', status: 404, code: 'NOT_FOUND' }) }
-const problem = (code) => ({ status: 409, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${code}`, title: code, status: 409, code }) })
+const problem = (code, status = 409) => ({ status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${code}`, title: code, status, code }) })
 
 test('/settings redirects to Minha conta, and a member sees no Instalação group and is refused an installation route', async (t) => {
   const { page, origin } = await withServer(t)
@@ -111,18 +111,18 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
     const request = route.request()
     const path = new URL(request.url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
     const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
-    if (!enabled) return json(404, { code: 'NOT_FOUND' })
+    if (!enabled) return route.fulfill(notFound)
     writes.push([request.method(), path, request.postDataJSON?.() ?? null])
     if (path === '/connection') return json(200, { mine: connected, shared: false, administrator: false })
     // Held open briefly so the test can observe the "Preparando…" label before the tab navigates.
     if (path === '/login/start') { await new Promise((resolve) => setTimeout(resolve, 200)); return json(200, { loginId, url: signIn }) }
     if (path === '/login/complete') {
-      if (!request.postDataJSON().callbackUrl.includes('state=issued-state')) return json(400, { code: 'MODEL_LOGIN_CALLBACK_REFUSED' })
+      if (!request.postDataJSON().callbackUrl.includes('state=issued-state')) return route.fulfill(problem('MODEL_LOGIN_CALLBACK_REFUSED', 400))
       connected = true
       return json(200, { state: 'succeeded' })
     }
     if (path === `/login/${loginId}`) return json(200, { state: 'waiting' })
-    return json(404, { code: 'NOT_FOUND' })
+    return route.fulfill(notFound)
   })
   // The popup navigates the real Google URL; answer it instead of letting the test hit the network.
   await page.context().route('https://accounts.google.com/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<html></html>' }))
@@ -171,7 +171,7 @@ test('Minhas contas de modelo falls back to the primary sign-in link when the po
     if (path === '/connection') return json(200, { mine: false, shared: false, administrator: false })
     if (path === '/login/start') return json(200, { loginId, url: signIn })
     if (path === `/login/${loginId}`) return json(200, { state: 'waiting' })
-    return json(404, { code: 'NOT_FOUND' })
+    return route.fulfill(notFound)
   })
   // Simulates a browser popup blocker: window.open runs but returns no handle.
   await page.addInitScript(() => { window.open = () => null })

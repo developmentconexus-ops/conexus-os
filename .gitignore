@@ -4,6 +4,7 @@ node_modules/
 node_modules
 apps/hub/public/
 dist/
+!packages/contract/dist/
 coverage/
 *.log
 .env

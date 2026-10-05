@@ -51,7 +51,7 @@ const setup = async (t) => {
     [admin, 'https://connector-fetch.test', admin, 'admin', 'admin@connector-fetch.test'])
   await owner.query("INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')", [admin])
   const workspaceId = randomUUID()
-  await owner.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1,$2)', [workspaceId, 'purchasing'])
+  await owner.query('INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1,$2, (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))', [workspaceId, 'purchasing'])
   await owner.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,'owner')", [admin, workspaceId])
   const project = async (name) => {
     const projectId = randomUUID()

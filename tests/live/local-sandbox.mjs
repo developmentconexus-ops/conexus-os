@@ -56,7 +56,7 @@ const execute = (command, args, { cwd, env }) => new Promise((settle) => {
 /**
  * @param {string} root the host directory that holds one directory per conversation
  * @param {object} workspaceTools the `tools` option of the agent's workspace (the built Hub's `createRunWorkspace(...).getToolsConfig()`)
- * @param {{ check: { sha256: string }, readCheckReport: (stdout: string) => object, checkEntryPath: (sha256: string) => string, templateRef: string }} hub the Hub's check bundle, its reader of the report, the path a bundle runs from, and the template pin
+ * @param {{ check: { sha256: string }, readCheckReport: (stdout: string) => object, checkEntryPath: (sha256: string) => string, createMirrorFeed: (workspace: Workspace) => object, templateRef: string }} hub the Hub's check bundle, its reader of the report, the path a bundle runs from, the Hub's workspace edit hook, and the template pin
  */
 export const localConversationSandboxes = (root, workspaceTools, hub) => {
   const base = resolve(root)
@@ -84,15 +84,17 @@ export const localConversationSandboxes = (root, workspaceTools, hub) => {
     }
     const shell = (script, cwd) => execute('sh', ['-c', local(script)], { cwd, env: environment })
 
+    const workspace = new Workspace({
+      id: `conexus-run-workspace-local-${conversationId}`,
+      name: 'Conexus Builder run',
+      filesystem: new LocalFilesystem({ basePath: checkout }),
+      sandbox: new LocalSandbox({ workingDirectory: checkout, env: environment }),
+      tools: workspaceTools,
+    })
     const instance = Object.freeze({
       sandboxId: `local-${conversationId}`,
-      workspace: new Workspace({
-        id: `conexus-run-workspace-local-${conversationId}`,
-        name: 'Conexus Builder run',
-        filesystem: new LocalFilesystem({ basePath: checkout }),
-        sandbox: new LocalSandbox({ workingDirectory: checkout, env: environment }),
-        tools: workspaceTools,
-      }),
+      workspace,
+      mirrorFeed: hub.createMirrorFeed(workspace),
       start: async () => {
         for (const folder of ['workspace', 'opt/conexus', 'var/lib', 'tmp', 'home']) mkdirSync(join(vm, folder), { recursive: true })
       },

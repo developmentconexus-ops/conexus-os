@@ -210,7 +210,6 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       serviceClosing ??= (async () => {
         applicationShutdown.abort()
         await Promise.all([...runs.values()].map((run) => run.done.catch(() => undefined)))
-        await store.close()
       })()
       return serviceClosing
     },

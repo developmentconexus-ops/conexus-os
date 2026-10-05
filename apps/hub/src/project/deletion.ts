@@ -1,5 +1,5 @@
 import type { QueryResultRow } from 'pg'
-import { errorCode, type PostgresPool } from '../platform/postgres.js'
+import { errorCode, type PostgresPool } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 
 // The application's Preview data, the E2B VMs of the Project's conversations and the Project's

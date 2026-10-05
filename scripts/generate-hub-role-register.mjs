@@ -16,7 +16,7 @@ const readSource = () => {
   const digest = createHash('sha256').update(text).digest('hex')
   const parsed = JSON.parse(text)
   if (!Array.isArray(parsed.roles) || parsed.roles.length === 0) fail('ROLE_REGISTER_EMPTY', sourcePath)
-  return { digest, roles: parsed.roles }
+  return { digest, roles: parsed.roles, policyRoles: parsed.policyRoles ?? [] }
 }
 
 const refuseDuplicates = (roles) => {
@@ -38,8 +38,9 @@ const refuseIncompleteRow = (roles) => {
     if (!row.role?.startsWith('hub_')) fail('ROLE_REGISTER_ROLE_NAME_REFUSED', String(row.role))
     if (!row.capability) fail('ROLE_REGISTER_CAPABILITY_MISSING', row.role)
     if (!row.passwordFileVariable?.startsWith('CONEXUS_DB_')) fail('ROLE_REGISTER_PASSWORD_FILE_REFUSED', row.role)
-    if (!Array.isArray(row.connectsFrom) || row.connectsFrom.length === 0) fail('ROLE_REGISTER_CONNECTS_FROM_MISSING', row.role)
+    if (!Array.isArray(row.connectsFrom) || (!row.legacy && row.connectsFrom.length === 0)) fail('ROLE_REGISTER_CONNECTS_FROM_MISSING', row.role)
     if (row.optional !== undefined && row.optional !== true) fail('ROLE_REGISTER_OPTIONAL_REFUSED', row.role)
+    if (row.legacy !== undefined && row.legacy !== true) fail('ROLE_REGISTER_LEGACY_REFUSED', row.role)
   }
 }
 
@@ -55,10 +56,11 @@ const renderRow = (row) => {
   return `  Object.freeze({ ${members.join(', ')} }),`
 }
 
-export const renderRegister = ({ digest, roles }) => {
+export const renderRegister = ({ digest, roles, policyRoles = [] }) => {
   refuseIncompleteRow(roles)
   refuseDuplicates(roles)
-  const capabilities = roles.map((row) => `  ${row.role}: ${JSON.stringify(row.capability)},`).join('\n')
+  const activeRoles = roles.filter((row) => !row.legacy)
+  const capabilities = activeRoles.map((row) => `  ${row.role}: ${JSON.stringify(row.capability)},`).join('\n')
   return [
     `// GENERATED from ${sourcePath} by scripts/generate-hub-role-register.mjs. Do not edit.`,
     '',
@@ -75,12 +77,14 @@ export const renderRegister = ({ digest, roles }) => {
     '}>',
     '',
     'export const HUB_ROLES: readonly HubRoleRow[] = Object.freeze([',
-    ...roles.map(renderRow),
+    ...activeRoles.map(renderRow),
     '])',
     '',
     'export const CAPABILITY_BY_ROLE: Readonly<Record<string, string>> = Object.freeze({',
     capabilities,
     '})',
+    '',
+    `export const POLICY_ROLES = ${JSON.stringify(policyRoles)} as const`,
     '',
   ].join('\n')
 }

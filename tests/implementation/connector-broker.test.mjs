@@ -434,7 +434,7 @@ test('the Hub pins only a published gateway origin, and refuses any other at sta
   const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
   const base = {
     NODE_ENV: 'test', CONEXUS_ORIGIN: 'https://hub.test', CONEXUS_PORT: '3000', CONEXUS_BOOTSTRAP_SUBJECT: 'subject', CONEXUS_DB_HOST: '127.0.0.1', CONEXUS_DB_PORT: '5432',
-    CONEXUS_DB_NAME: 'conexus', CONEXUS_DB_USER: 'hub', CONEXUS_DB_PASSWORD_FILE: '/run/hub-password', CONEXUS_OIDC_ISSUER: 'https://issuer.test',
+    CONEXUS_DB_NAME: 'conexus', CONEXUS_DB_USER: 'hub_runtime', CONEXUS_DB_PASSWORD_FILE: '/run/hub-password', CONEXUS_OIDC_ISSUER: 'https://issuer.test',
     CONEXUS_OIDC_CLIENT_ID: 'hub', CONEXUS_OIDC_CLIENT_SECRET_FILE: '/run/oidc-secret', CONEXUS_FACTORY_SECRET_KEY_FILE: '/run/secret-key',
   }
   assert.deepEqual(readHubConfig(base).connectors, { gatewayOrigin: undefined, socketDirectory: undefined })

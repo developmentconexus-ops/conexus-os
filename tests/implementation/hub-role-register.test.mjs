@@ -13,42 +13,26 @@ const register = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/tech
 
 const buildRoot = await mkdtemp(resolve(repositoryRoot, 'apps/hub/hub-role-register-build-'))
 const result = spawnSync(resolve(repositoryRoot, 'node_modules/.bin/esbuild'), [
-  resolve(repositoryRoot, 'apps/hub/src/platform/postgres.ts'), resolve(repositoryRoot, 'apps/hub/src/platform/config.ts'), `--outdir=${buildRoot}`, '--bundle', '--platform=node', '--format=esm', '--packages=external', '--log-level=error',
+  resolve(repositoryRoot, 'apps/hub/src/platform/config.ts'), `--outdir=${buildRoot}`, '--bundle', '--platform=node', '--format=esm', '--packages=external', '--log-level=error',
 ], { cwd: repositoryRoot, encoding: 'utf8' })
 if (result.status !== 0) throw new Error(result.stdout || result.stderr)
-const { createPostgresPool } = await import(pathToFileURL(resolve(buildRoot, 'postgres.js')).href)
 const { readHubConfig } = await import(pathToFileURL(resolve(buildRoot, 'config.js')).href)
 
 test.after(() => rm(buildRoot, { recursive: true, force: true }))
 
 test('the register holds every role the Hub connects as, with the capability an operator reads', () => {
-  assert.deepEqual(register.roles.map((row) => [row.role, row.capability]), [
-    ['hub_iam_runtime', 'identity-and-access'],
-    ['hub_workspace_read', 'workspace-read'],
-    ['hub_workspace_command', 'workspace-command'],
-    ['hub_project_read', 'project-read'],
-    ['hub_project_command', 'project-command'],
-    ['hub_builder_ingress', 'builder-request'],
-    ['hub_builder_executor', 'builder-run-execution'],
+  assert.deepEqual(register.roles.filter((row) => !row.legacy).map((row) => [row.role, row.capability]), [
+    ['hub_runtime', 'hub-data'],
     ['hub_factory', 'factory-storage'],
-    ['hub_model_account', 'model-account'],
   ])
-})
-
-test('a connection labels itself with the capability the register gives its role', async () => {
-  const labels = []
-  for (const role of ['hub_builder_ingress', 'hub_project_command', 'hub_workspace_read', 'postgres', undefined]) {
-    const pool = createPostgresPool({ host: '127.0.0.1', port: 1, database: 'unreachable', user: role, password: 'unused' })
-    labels.push(pool.options.application_name)
-    await pool.end()
-  }
-  assert.deepEqual(labels, ['conexus-hub:builder-request', 'conexus-hub:project-command', 'conexus-hub:workspace-read', 'conexus-hub:postgres', 'conexus-hub:unlabelled'])
-})
-
-test('every pool carries its capability into application_name', async () => {
-  const pool = createPostgresPool({ host: '127.0.0.1', port: 1, database: 'unreachable', user: 'hub_builder_executor', password: 'unused' })
-  assert.equal(pool.options.application_name, 'conexus-hub:builder-run-execution')
-  await pool.end()
+  assert.deepEqual(register.policyRoles, [{
+    role: 'iam_rls',
+    owns: [
+      'iam.acting_account', 'iam.acting_applications', 'iam.acting_installation_administrator',
+      'iam.acting_scope', 'iam.acting_workspaces',
+    ],
+    privileges: ['SELECT'],
+  }])
 })
 
 test('the Hub config reads the password file and the role of every registered role from its variable', () => {
@@ -60,7 +44,7 @@ test('the Hub config reads the password file and the role of every registered ro
     CONEXUS_DB_HOST: 'db.internal',
     CONEXUS_DB_PORT: '5432',
     CONEXUS_DB_NAME: 'hub',
-    CONEXUS_DB_USER: 'hub_iam_runtime',
+    CONEXUS_DB_USER: 'hub_runtime',
     CONEXUS_BUILDER_E2B_API_KEY_FILE: '/secrets/e2b',
     CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'template',
     CONEXUS_OIDC_ISSUER: 'https://issuer.example',
@@ -69,12 +53,10 @@ test('the Hub config reads the password file and the role of every registered ro
     ...Object.fromEntries(register.roles.map((row) => [row.passwordFileVariable, `/secrets/${row.role}`])),
   }
   const config = readHubConfig(environment)
-  assert.equal(config.database.user, 'hub_iam_runtime')
+  assert.equal(config.database.user, 'hub_runtime')
   assert.deepEqual(
-    [config.database.passwordFile, config.database.workspace.readPasswordFile, config.database.workspace.commandPasswordFile,
-      config.project.readPasswordFile, config.project.commandPasswordFile, config.builder.ingressPasswordFile,
-      config.builder.executorPasswordFile, config.factory.databasePasswordFile, config.builder.modelAccountPasswordFile],
-    register.roles.map((row) => `/secrets/${row.role}`),
+    [config.database.passwordFile, config.factory.databasePasswordFile],
+    register.roles.filter((row) => !row.legacy).map((row) => `/secrets/${row.role}`),
   )
 })
 
@@ -108,7 +90,7 @@ test('--check on a register edited after generation names the role that drifted,
     await writeFile(generatedPath, generateRegister())
 
     const staged = JSON.parse(readFileSync(registerPath, 'utf8'))
-    const target = staged.roles.find((row) => row.role === 'hub_builder_executor')
+    const target = staged.roles.find((row) => row.role === 'hub_runtime')
     target.capability = 'builder-run-exec-DRIFT'
     await writeFile(registerPath, JSON.stringify(staged, null, 2))
 
@@ -117,7 +99,7 @@ test('--check on a register edited after generation names the role that drifted,
       encoding: 'utf8',
     })
     assert.notEqual(checkResult.status, 0)
-    assert.match(checkResult.stderr, /hub_builder_executor/)
+    assert.match(checkResult.stderr, /hub_runtime/)
     assert.doesNotMatch(checkResult.stderr, /line 3\b/)
   } finally {
     await rm(stageRoot, { recursive: true, force: true })

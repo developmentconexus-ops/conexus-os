@@ -8,8 +8,6 @@ paths:
       summary: GetControlPlaneAccessContext
       operationId: GetControlPlaneAccessContext
       x-conexus-4a-id: IAM-01
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
@@ -48,8 +46,6 @@ paths:
       summary: EndSession
       operationId: EndSession
       x-conexus-4a-id: IAM-02
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: OWNER_CURRENT
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '204':
@@ -62,9 +58,6 @@ paths:
       summary: ProvisionAccount
       operationId: ProvisionAccount
       x-conexus-4a-id: IAM-03
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-authority-routes: [trusted_provisioning_context]
-      x-conexus-current-state-carrier: IDEMPOTENCY_KEY
       x-conexus-contract-state: SCHEMA_CLOSED
       parameters:
         - $ref: './openapi.yaml#/components/parameters/IdempotencyKey'
@@ -97,8 +90,6 @@ paths:
       summary: ListWorkspaceMembers
       operationId: ListWorkspaceMembers
       x-conexus-4a-id: IAM-04
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
@@ -119,8 +110,6 @@ paths:
       summary: InviteWorkspaceMember
       operationId: InviteWorkspaceMember
       x-conexus-4a-id: IAM-05
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: OWNER_CURRENT
       x-conexus-contract-state: SCHEMA_CLOSED
       requestBody:
         required: true
@@ -169,8 +158,6 @@ paths:
       summary: RemoveWorkspaceRosterEntry
       operationId: RemoveWorkspaceRosterEntry
       x-conexus-4a-id: IAM-06
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: OWNER_CURRENT
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '204': { description: The roster entry is gone. Removing a member withdraws every right that derived from that membership row. }
@@ -187,8 +174,6 @@ paths:
       summary: SetWorkspaceMemberRole
       operationId: SetWorkspaceMemberRole
       x-conexus-4a-id: IAM-10
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: OWNER_CURRENT
       x-conexus-contract-state: SCHEMA_CLOSED
       requestBody:
         required: true
@@ -208,86 +193,6 @@ paths:
         '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
         '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
 
-  /api/control/workspaces:
-    post:
-      summary: CreateWorkspace
-      operationId: CreateWorkspace
-      x-conexus-4a-id: WS-01
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: IDEMPOTENCY_KEY
-      x-conexus-contract-state: SCHEMA_CLOSED
-      parameters:
-        - $ref: './openapi.yaml#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [name]
-              properties:
-                name:
-                  type: string
-                  minLength: 1
-                  pattern: '.*\S.*'
-                  description: Required human-readable Workspace identity fixed at F1 creation; not a grant, unique key, or rename authority.
-      responses:
-        '201':
-          description: Workspace created from the admitted trusted-operator intake with its human-readable identity and exact initial current-Account access established; success never leaves an undisclosable orphan Workspace.
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                required: [workspaceId, name, creatorAccountId, initialAccessEstablished]
-                properties:
-                  workspaceId: { type: string, minLength: 1 }
-                  name:
-                    type: string
-                    minLength: 1
-                    pattern: '.*\S.*'
-                  creatorAccountId:
-                    type: string
-                    minLength: 1
-                    description: Exact current Conexus Account for which initial Workspace access was established; never caller-selected authorization.
-                  initialAccessEstablished:
-                    type: boolean
-                    const: true
-                    description: Owner success fact that the creator can enter the new Workspace; not a generic role/grant payload.
-        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
-        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-        '409': { $ref: './openapi.yaml#/components/responses/Problem409' }
-
-  /api/control/workspaces/{workspaceId}:
-    parameters:
-      - $ref: '#/components/parameters/WorkspaceId'
-    get:
-      summary: GetWorkspace
-      operationId: GetWorkspace
-      x-conexus-4a-id: WS-02
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
-      x-conexus-contract-state: SCHEMA_CLOSED
-      responses:
-        '200':
-          description: Current disclosable Workspace stable identity plus human-readable presentation identity.
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                required: [workspaceId, name]
-                properties:
-                  workspaceId: { type: string, minLength: 1 }
-                  name:
-                    type: string
-                    minLength: 1
-                    pattern: '.*\S.*'
-        '401': { $ref: './openapi.yaml#/components/responses/Problem401' }
-        '403': { $ref: './openapi.yaml#/components/responses/Problem403' }
-        '404': { $ref: './openapi.yaml#/components/responses/Problem404' }
-
   /api/control/projects/{projectId}/application-access:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
@@ -295,8 +200,6 @@ paths:
       summary: ListApplicationAccess
       operationId: ListApplicationAccess
       x-conexus-4a-id: IAM-11
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
@@ -312,8 +215,6 @@ paths:
       summary: GrantApplicationAccess
       operationId: GrantApplicationAccess
       x-conexus-4a-id: IAM-12
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: OWNER_CURRENT
       x-conexus-contract-state: SCHEMA_CLOSED
       requestBody:
         required: true
@@ -362,8 +263,6 @@ paths:
       summary: RevokeApplicationAccessEntry
       operationId: RevokeApplicationAccessEntry
       x-conexus-4a-id: IAM-13
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: OWNER_CURRENT
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '204': { description: The access entry is gone. A revoked grant stops the person at their next request to the application. }

@@ -1,6 +1,6 @@
 import type { QueryResultRow } from 'pg'
 import type { AccountId } from '../identity-access/current-session.js'
-import type { PostgresPool } from '../platform/postgres.js'
+import type { PostgresPool } from '../platform/db.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import type { BindingId, BindingName, BoundConnection, Connection, ConnectionId, ConnectorId, Environment, ProjectBinding, ProjectBindingEntry } from './model.js'
 import { bindingId as toBindingId, bindingName as toBindingName, connectionId as toConnectionId } from './model.js'

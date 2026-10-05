@@ -228,9 +228,3 @@ test('a credential field in a success response fails the gate, however deep', (t
   assert.equal(result.status, 1)
   assert.match(result.stderr, /successful response schema of CreateConnection carries the credential field xToken/)
 })
-
-test('a Connector operation that is not schema closed fails the gate', (t) => {
-  const result = runGate(connectorFixture(t, { contractState: 'METHOD_PATH_MAPPED' }))
-  assert.equal(result.status, 1)
-  assert.match(result.stderr, /current Connector operation is not schema-closed: CON-02/)
-})

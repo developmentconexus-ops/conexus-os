@@ -1,6 +1,6 @@
-import type { QueryResultRow } from 'pg'
 import { z } from 'zod'
-import type { PostgresPool } from '../platform/postgres.js'
+import { AccountId } from '../../../../packages/contract/dist/index.js'
+import { sql, type Database } from '../platform/db.js'
 
 /** The artifact an application host serves, as its manifest: the paths and their media types. */
 type ServedApplication = Readonly<{
@@ -49,7 +49,6 @@ const fileRow = z.union([
     sha256: z.string().regex(/^[a-f0-9]{64}$/),
   }).strict(),
 ])
-const READ_FILE_SQL = 'SELECT artifact_revision_id, path, media_type, bytes, sha256 FROM reg.read_served_application_file($1, $2, $3, $4)'
 const thumbnailRow = z.object({
   artifact_revision_id: uuid,
   media_type: z.literal('image/png'),
@@ -57,39 +56,38 @@ const thumbnailRow = z.object({
   byte_length: z.number().int().positive().max(512000),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
 }).strict()
-const READ_THUMBNAIL_SQL = 'SELECT artifact_revision_id, media_type, bytes, byte_length, sha256 FROM reg.get_application_thumbnail($1, $2)'
-
-// Both reads are gated in the database by the Account's access to the application (a grant or a
-// membership), not by Project visibility, and they read only the artifact the application serves.
-export const createServedApplicationReader = (pool: PostgresPool): ServedApplicationReader => Object.freeze({
+export const createServedApplicationReader = (database: Pick<Database, 'read'>): ServedApplicationReader => Object.freeze({
   async served({ accountId, projectId }) {
-    if (!uuid.safeParse(accountId).success || !uuid.safeParse(projectId).success) return null
-    const result = await pool.query<QueryResultRow>(
-      'SELECT artifact_revision_id, files FROM reg.get_served_application($1, $2)', [accountId, projectId])
-    if (!result.rows[0]) return null
-    const row = servedRow.parse(result.rows[0])
+    const account = AccountId.safeParse(accountId)
+    if (!account.success || !uuid.safeParse(projectId).success) return null
+    const row = await database.read(account.data, (tx) => tx.maybe(servedRow,
+      sql`SELECT artifact_revision_id, files FROM reg.get_served_application(${accountId}, ${projectId})`))
+    if (!row) return null
     return { artifactRevisionId: row.artifact_revision_id, files: row.files }
   },
   async readServedFile({ accountId, projectId, path }) {
-    if (!uuid.safeParse(accountId).success || !uuid.safeParse(projectId).success) return { kind: 'NOT_SERVED' }
-    const result = await pool.query<QueryResultRow>(READ_FILE_SQL, [accountId, projectId, null, path])
-    if (!result.rows[0]) return { kind: 'NOT_SERVED' }
-    const row = fileRow.parse(result.rows[0])
+    const account = AccountId.safeParse(accountId)
+    if (!account.success || !uuid.safeParse(projectId).success) return { kind: 'NOT_SERVED' }
+    const row = await database.read(account.data, (tx) => tx.maybe(fileRow,
+      sql`SELECT artifact_revision_id, path, media_type, bytes, sha256 FROM reg.read_served_application_file(${accountId}, ${projectId}, ${null}, ${path})`))
+    if (!row) return { kind: 'NOT_SERVED' }
     if (row.path === null) return { kind: 'NOT_FOUND', artifactRevisionId: row.artifact_revision_id }
     return { kind: 'FILE', artifactRevisionId: row.artifact_revision_id, file: { path: row.path, mediaType: row.media_type, bytes: row.bytes, sha256: row.sha256 } }
   },
   async readFile({ accountId, projectId, artifactRevisionId, path }) {
-    if (!uuid.safeParse(accountId).success || !uuid.safeParse(projectId).success || !uuid.safeParse(artifactRevisionId).success) return null
-    const result = await pool.query<QueryResultRow>(READ_FILE_SQL, [accountId, projectId, artifactRevisionId, path])
-    if (!result.rows[0]) return null
-    const row = fileRow.parse(result.rows[0])
+    const account = AccountId.safeParse(accountId)
+    if (!account.success || !uuid.safeParse(projectId).success || !uuid.safeParse(artifactRevisionId).success) return null
+    const row = await database.read(account.data, (tx) => tx.maybe(fileRow,
+      sql`SELECT artifact_revision_id, path, media_type, bytes, sha256 FROM reg.read_served_application_file(${accountId}, ${projectId}, ${artifactRevisionId}, ${path})`))
+    if (!row) return null
     return row.path === null ? null : { path: row.path, mediaType: row.media_type, bytes: row.bytes, sha256: row.sha256 }
   },
   async readThumbnail({ accountId, projectId }) {
-    if (!uuid.safeParse(accountId).success || !uuid.safeParse(projectId).success) return null
-    const result = await pool.query<QueryResultRow>(READ_THUMBNAIL_SQL, [accountId, projectId])
-    if (!result.rows[0]) return null
-    const row = thumbnailRow.parse(result.rows[0])
+    const account = AccountId.safeParse(accountId)
+    if (!account.success || !uuid.safeParse(projectId).success) return null
+    const row = await database.read(account.data, (tx) => tx.maybe(thumbnailRow,
+      sql`SELECT artifact_revision_id, media_type, bytes, byte_length, sha256 FROM reg.get_application_thumbnail(${accountId}, ${projectId})`))
+    if (!row) return null
     return {
       artifactRevisionId: row.artifact_revision_id,
       mediaType: row.media_type,
