@@ -195,14 +195,16 @@ const gateFor = (tx: WriteTx, actor: Actor): CommandGate => {
   return gate
 }
 
-// The role is the first statement after BEGIN and LOCAL ends it with the transaction, so a client
-// goes back to the pool as the login role, which holds nothing on a split table. These two
-// constants are the only role switch in the Hub; a bare SET ROLE survives a ROLLBACK.
-const SWITCH_TO_READER = 'SET LOCAL ROLE hub_reader'
-const SWITCH_TO_COMMAND = 'SET LOCAL ROLE hub_command'
-
-type Entry = Readonly<{ begin: string; role: string; setting: Readonly<{ name: string; value: string }> | null }>
+// The role and the entry's settings are set in one statement right after BEGIN, all with is_local
+// true, so they end with the transaction and a client goes back to the pool as the login role, which
+// holds nothing on a split table. This is the only role switch in the Hub; a bare SET ROLE survives a ROLLBACK.
+type Entry = Readonly<{ begin: string; role: 'hub_reader' | 'hub_command'; settings: readonly (readonly [string, string])[] }>
 const READ_ENTRY = 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY'
+
+const entrySettings = (entry: Entry): Readonly<{ text: string; values: readonly string[] }> => {
+  const pairs: readonly (readonly [string, string])[] = [['role', entry.role], ...entry.settings]
+  return { text: `SELECT ${pairs.map((_pair, index) => `set_config($${index * 2 + 1}, $${index * 2 + 2}, true)`).join(', ')}`, values: pairs.flat() }
+}
 
 const entered = new AsyncLocalStorage<true>()
 const refuseOptionNamingRole = (connection: DatabaseConnection): void => {
@@ -230,8 +232,8 @@ export const openDatabase = (connection: DatabaseConnection): Database => {
     try {
       await client.query(entry.begin)
       started = true
-      await client.query(entry.role)
-      if (entry.setting) await client.query('SELECT set_config($1, $2, true)', [entry.setting.name, entry.setting.value])
+      const settings = entrySettings(entry)
+      await client.query(settings.text, [...settings.values])
       const value = await entered.run(true, () => fn(tx))
       tx.end()
       await client.query('COMMIT')
@@ -248,10 +250,10 @@ export const openDatabase = (connection: DatabaseConnection): Database => {
     }
   }
   const database: Database = {
-    transaction: (accountId, fn) => transact({ begin: 'BEGIN', role: SWITCH_TO_COMMAND, setting: null }, (client) => writeView(client, accountId),
+    transaction: (accountId, fn) => transact({ begin: 'BEGIN', role: 'hub_command', settings: [] }, (client) => writeView(client, accountId),
       (tx) => fn(gateFor(tx, { kind: 'account', accountId }))),
-    read: (accountId, fn) => transact({ begin: READ_ENTRY, role: SWITCH_TO_READER, setting: { name: 'conexus.account_id', value: accountId } }, (client) => readView(client, accountId), fn),
-    system: (job, fn) => transact({ begin: 'BEGIN', role: SWITCH_TO_COMMAND, setting: { name: 'conexus.job', value: job } }, (client) => writeView(client, null),
+    read: (accountId, fn) => transact({ begin: READ_ENTRY, role: 'hub_reader', settings: [['conexus.account_id', accountId]] }, (client) => readView(client, accountId), fn),
+    system: (job, fn) => transact({ begin: 'BEGIN', role: 'hub_command', settings: [['conexus.job', job]] }, (client) => writeView(client, null),
       (tx) => fn(gateFor(tx, { kind: 'job', job }))),
     session: async (fn) => {
       const client = new pg.Client({ ...connection, password: readSecretFile(connection.passwordFile), application_name: 'conexus-hub:instance-lock' })

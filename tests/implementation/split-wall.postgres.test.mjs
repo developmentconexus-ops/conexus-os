@@ -52,6 +52,20 @@ test('a pooled client is hub_runtime after a commit, a rollback and a throw, and
   assert.deepEqual(mode, { isolation: 'repeatable read', read_only: 'on' })
 })
 
+test('an entry sends BEGIN, one set_config statement for the role and the settings, its queries and COMMIT', async (t) => {
+  const { database } = await openRuntimeFixture(t, 'conexus_split_round_trips', { max: 1, accounts: [[ACCOUNT, 'a']] })
+  const sent = []
+  unportedPool(database).on('connect', (client) => {
+    const original = client.query.bind(client)
+    client.query = (config, ...rest) => { sent.push(typeof config === 'string' ? config : config.text); return original(config, ...rest) }
+  })
+  await database.read(ACCOUNT, (tx) => tx.rows(z.object({ one: z.number() }), sql`SELECT 1 AS one`))
+  assert.deepEqual(sent, ['BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY', 'SELECT set_config($1, $2, true), set_config($3, $4, true)', 'SELECT 1 AS one', 'COMMIT'])
+  sent.length = 0
+  await database.transaction(ACCOUNT, (gate) => admitAccount(gate))
+  assert.deepEqual(sent, ['BEGIN', 'SELECT set_config($1, $2, true)', 'SELECT account_id, active FROM iam.account WHERE account_id = $1 FOR SHARE', 'COMMIT'])
+})
+
 test('a query that resumes after the entry returned is refused before COMMIT and leaves no row', async (t) => {
   const { connection, database } = await openRuntimeFixture(t, 'conexus_split_ended', { max: 1, accounts: [[ACCOUNT, 'a']] })
   const insert = sql`INSERT INTO workspace.workspace(workspace_id, name) VALUES (gen_random_uuid(), 'floating')`
