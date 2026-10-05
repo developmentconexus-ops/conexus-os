@@ -16,7 +16,7 @@ github.com/shadcn-ui/ui at `db2db46` (2026-09-28), MIT (`SHADCN/LICENSE.md:1-3`)
 Marks: **[measured]** means I ran it in the probe. **[read]** means I read it in code or docs.
 **[unproven]** means nobody has run it yet in the real E2B template or the Hub.
 
-## Resumo para o Leandro
+## Resumo para o operador
 
 - A base continua React 19 + Vite + TypeScript. TanStack Router e Query rodam em cima do React.
   O que muda é o que vem instalado junto. Quase tudo já é o que o próprio Hub usa.
@@ -390,7 +390,7 @@ it (Sequence Work into Verifiable Units).
 | 3. Deep links | SPA fallback in `preview-routes.ts`, `application-host-routes.ts` and the smoke | A Preview deep link returns the app (browser test) |
 | 4. Compiler v2 | Compiler `package.json`, lockfile, `vite.config.mjs`, platform `tsconfig.json`, E2B template build, constants, migration `0037`, `REACT_VITE_V2`, and the manifest-to-client generator | `rb:e2b:template:check` passes. The probe app, as a Project, passes the check in E2B. Measure the check time and sandbox start |
 | 5. Starter v2 | `main.tsx`, `router.tsx`, `styles.css` tokens, curated `components/ui` with the CSP-safe chart, AGENTS.md line | A new Project's starter passes `conexus_check` with zero problems |
-| 6. Knowledge | `conexus-app-ui` skill with examples, `conexus-server` browser section, prompt v2 stack facts | The AC-1 printout shows the facts. Leandro reads it (AC-30) |
+| 6. Knowledge | `conexus-app-ui` skill with examples, `conexus-server` browser section, prompt v2 stack facts | The AC-1 printout shows the facts. The operator reads it (AC-30) |
 | 7. Proof | Recreate test Projects, then run AC-27's three cases and AC-28 in the browser | The gate passes |
 
 Slices 1 to 3 do not depend on the new packages and could land before the template work. Slices 4

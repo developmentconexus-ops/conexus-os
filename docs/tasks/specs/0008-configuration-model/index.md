@@ -294,7 +294,7 @@ Fresh install (slice 1)
 settings registry, one Postgres row per explicit value, one audited write path, and a reconciler per
 external enforcer, enforced going forward and proved first on the session limit.
 
-Leandro decided on 2026-10-01, and this spec records:
+The operator decided on 2026-10-01, and this spec records:
 1. Security settings (sign-in source, session lifetime, email sender, anything that can lock the
    company out) are changed only by the Conexus operator, through the operator tool, with a required
    reason. The company administrator will see them read-only on a later page.

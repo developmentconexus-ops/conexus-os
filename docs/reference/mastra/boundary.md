@@ -248,7 +248,7 @@ own `@property --cx-glow-angle` and `cx-glow-spin` animation, left isolated from
 `--composer-ring-angle` custom property.
 
 **Why Conexus needs it.** The operator asked for the ring to carry a continuous ipê glow on focus and
-while the composer is busy, matching a prototype exactly ("no cursor-following glow, ever", Leandro,
+while the composer is busy, matching a prototype exactly ("no cursor-following glow, ever", the operator,
 2026-09-22). Re-pointing a Mastra-read custom property in `mastra-theme.css`, the ordinary repaint
 path, cannot change what triggers the animation or its timing; only overriding the ring's own
 animation does.
@@ -324,7 +324,7 @@ run that an abort ends and that never resumes (mastra-ai/mastra#25903). There is
 Without the release, every question ended without an answer stays in the Hub process's heap and in
 storage.
 
-**Evidence.** Spike S-8 of spec 0011 (`docs/tasks/specs/0011-builder-run-one-state-machine/rationale.md`):
+**Evidence.** Spike S-8 of spec 0011 (#501, in Git history):
 abort, release and snapshot delete keep the heap at the control level and leave no rows; a skip resume
 costs an extra model call. The heap test `tests/manual/builder-question-heap.test.mjs` measures it
 through real runs.
