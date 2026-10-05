@@ -278,7 +278,7 @@ test('candidate graph is the static checks, then one node --test per group by gl
   assert.equal(command('repository-tests'), "node --test 'tests/repository/!(*.browser|*.postgres).test.mjs'")
   assert.equal(command('implementation-tests'), "node --test 'tests/implementation/!(*.browser|*.postgres|conexus-backup).test.mjs' 'tests/implementation/access/*.test.mjs'")
   assert.equal(command('postgres-tests'), "node --test --test-concurrency=1 'tests/implementation/*.postgres.test.mjs'")
-  assert.equal(command('browser-tests'), "node --test 'tests/implementation/*.browser.test.mjs'")
+  assert.equal(command('browser-tests'), "node --test --test-concurrency=1 'tests/implementation/*.browser.test.mjs'")
   assert.equal(command('biome'), 'npx --no-install biome ci . --error-on-warnings')
   const commands = CANDIDATE_GRAPH.map(entry => entry.command)
   assert.equal(commands.some(text => /\.test\.mjs(?!')/.test(text)), false, 'no step names a test file; the globs do')

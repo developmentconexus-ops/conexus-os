@@ -91,7 +91,7 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('db-baseline-file', 'npm run db:baseline:check', 'postgres'),
   testStep('postgres-tests', 'postgres', 'postgres', '--test-concurrency=1 '),
 
-  testStep('browser-tests', 'browser', 'browser'),
+  testStep('browser-tests', 'browser', 'browser', '--test-concurrency=1 '),
 
   // The backup suite boots its own PostgreSQL and Keycloak containers and runs the real backup and
   // restore scripts, about as long as every other suite of the rest group together, so it is a group.
