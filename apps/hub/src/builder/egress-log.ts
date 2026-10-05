@@ -2,6 +2,7 @@ import type { CommandResult } from '@mastra/core/workspace'
 import { Failure, logFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
 import type { EventLog } from '../platform/logger.js'
+import type { ConversationId, ExecutionId } from '../../../../packages/contract/dist/index.js'
 
 /**
  * The hosts a conversation's sandbox reaches (issue #418). Sandbox egress stays open (C-023); this is
@@ -38,6 +39,7 @@ type Offsets = Readonly<{ dns: number; tcp: number }>
 
 const dnsForwarderSource = (): string => `import dgram from 'node:dgram'
 import { appendFileSync, writeFileSync } from 'node:fs'
+import type { ConversationId, ExecutionId } from '../../../../packages/contract/dist/index.js'
 const LOG = '${DNS_LOG_PATH}'
 const UPSTREAM = process.argv[2]
 let written = 0
@@ -244,8 +246,8 @@ export type EgressCollectPorts = Readonly<EgressRoot & {
   /** Null when the file is not there; any other failure rejects. */
   readAgentFile(path: string): Promise<Uint8Array | null>
   log: EventLog
-  executionId: string
-  conversationId: string
+  executionId: ExecutionId
+  conversationId: ConversationId
   timeoutMs?: number
 }>
 

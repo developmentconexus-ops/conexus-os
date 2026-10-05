@@ -12,6 +12,7 @@ import type { BuilderRunPhase } from '../../generated/builder-run-vocabulary.js'
 import { Failure, type FailureCode, toFailure } from '../../platform/failure.js'
 import { FAILURES } from '../../platform/failures.generated.js'
 import type { DiagnosticAppender, RunNote } from './ports.js'
+import type { ConversationId } from '../../../../../packages/contract/dist/index.js'
 
 /**
  * The last step a stop can prevent. The candidate is recorded before `main` moves, so a restart
@@ -22,7 +23,7 @@ export const admitCandidate = async ({ git, projectId, executionId, base, verdic
   git: Pick<ConexusGit, 'fastForwardMain'>
   projectId: ProjectId
   executionId: BuilderRunId
-  base: string
+  base: SourceRevision
   verdict: Extract<CandidateVerdict, { kind: 'GREEN' | 'UNRENDERED' }>
   cancelled(): boolean
   gatePhases: Promise<void>
@@ -49,7 +50,7 @@ export const admitCandidate = async ({ git, projectId, executionId, base, verdic
   return { admitted, applicationBuild }
 }
 
-type AdmittedRun = Readonly<{ accountId: AccountId; projectId: ProjectId; conversationId: string; builderRunId: BuilderRunId }>
+type AdmittedRun = Readonly<{ accountId: AccountId; projectId: ProjectId; conversationId: ConversationId; builderRunId: BuilderRunId }>
 
 const THUMBNAIL_LIMIT_BYTES = 512_000
 

@@ -24,13 +24,13 @@ export type BuilderService = Readonly<{
   sendBuilderMessage(input: Readonly<{ accountId: AccountId; projectId: ProjectId; conversationId: ConversationId; idempotencyKey: string; content: string }>): Promise<Readonly<{ builderRun: BuilderRunSummary; created: boolean }>>
   cancelBuilderRun(input: Readonly<{ accountId: AccountId; projectId: ProjectId; builderRunId: BuilderRunId }>): Promise<BuilderRunSummary>
   /** The person's answer to the question the conversation's run waits on. */
-  answerQuestion(input: Readonly<{ projectId: ProjectId; conversationId: string; toolCallId: string; resumeData: unknown }>): AnswerOutcome
+  answerQuestion(input: Readonly<{ projectId: ProjectId; conversationId: ConversationId; toolCallId: string; resumeData: unknown }>): AnswerOutcome
   /** The calls the conversation's run in this Hub waits on the person for; none when no run here waits. */
-  pendingCalls(projectId: ProjectId, conversationId: string): readonly string[]
+  pendingCalls(projectId: ProjectId, conversationId: ConversationId): readonly string[]
   /** The tools of the conversation's run, while that run is the one in this Hub. */
-  runTools(conversationId: string, builderRunId: BuilderRunId): RunTools | undefined
+  runTools(conversationId: ConversationId, builderRunId: BuilderRunId): RunTools | undefined
   /** Whether the conversation has a run in this Hub. */
-  runOpen(conversationId: string): boolean
+  runOpen(conversationId: ConversationId): boolean
   listSourceTree(input: SourceCoordinates): Promise<SourceTree>
   getSourceFile(input: SourceCoordinates & Readonly<{ path: string }>): Promise<SourceFile>
   compareSourceRevisions(input: Readonly<{ accountId: AccountId; projectId: ProjectId; baseSourceRevision: SourceRevision; resultSourceRevision: SourceRevision }>): Promise<SourceComparison>
@@ -146,7 +146,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       logFailure(logger, new Failure('BUILDER_RUN_SETTLE_FAILED', { cause: error }), { 'builder.run_id': row.builderRunId })
     }).finally(() => { if (runs.get(row.conversationId) === live) runs.delete(row.conversationId) })
   }
-  const live = (projectId: ProjectId, conversationId: string): LiveRun | undefined => {
+  const live = (projectId: ProjectId, conversationId: ConversationId): LiveRun | undefined => {
     const run = runs.get(conversationId)
     return run?.projectId === projectId ? run : undefined
   }
@@ -192,16 +192,16 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     runOpen: (conversationId) => runs.has(conversationId),
     listSourceTree: async (input) => {
       if (!await admitSource(input, input.sourceRevision)) throw new Failure('SOURCE_REVISION_NOT_FOUND')
-      return dependencies.source.listSourceTree(input.projectId, input.sourceRevision)
+      return dependencies.source.listSourceTree(input)
     },
     getSourceFile: async (input) => {
       if (!await admitSource(input, input.sourceRevision)) throw new Failure('SOURCE_REVISION_NOT_FOUND')
-      return dependencies.source.readSourceFile(input.projectId, input.sourceRevision, input.path)
+      return dependencies.source.readSourceFile(input)
     },
     compareSourceRevisions: async (input) => {
       const admitted = await Promise.all([admitSource(input, input.baseSourceRevision), admitSource(input, input.resultSourceRevision)])
       if (!admitted[0] || !admitted[1]) throw new Failure('SOURCE_REVISION_NOT_FOUND')
-      return dependencies.source.compareRevisions(input.projectId, input.baseSourceRevision, input.resultSourceRevision)
+      return dependencies.source.compareRevisions(input)
     },
     getApplicationBySource: (input) => unlessClosed(async () => (applicationArtifacts.getApplicationBySource ? applicationArtifacts.getApplicationBySource(input) : null)),
     readApplicationFileBySource: (input) => unlessClosed(async () => (applicationArtifacts.readApplicationFileBySource ? applicationArtifacts.readApplicationFileBySource(input) : null)),

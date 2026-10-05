@@ -1,4 +1,4 @@
-import type { SourceRevision } from '../../../../../packages/contract/dist/index.js'
+import type { ConversationId, ProjectId, SourceRevision } from '../../../../../packages/contract/dist/index.js'
 import type { Workspace } from '@mastra/core/workspace'
 import { mirrorSnapshot, pullSnapshot } from '../conexus-git.js'
 import type { ConexusGit, RunSourceSandbox } from '../conexus-git.js'
@@ -23,8 +23,8 @@ export type TurnMirror = Readonly<{
  */
 export const createTurnMirror = ({ git, projectId, conversationId, turnStart, head, source, excluded, debounceMs, fail }: Readonly<{
   git: Pick<ConexusGit, 'acceptSnapshot' | 'moveMirror'>
-  projectId: string
-  conversationId: string
+  projectId: ProjectId
+  conversationId: ConversationId
   turnStart: SourceRevision
   head: SourceRevision | null
   source: RunSourceSandbox

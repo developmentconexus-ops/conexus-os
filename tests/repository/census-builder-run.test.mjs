@@ -11,7 +11,7 @@ const DEBT = '// biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning w
 const EXEMPT = `// biome-ignore lint/nursery/noUnsafeTypeAssertion: exempt ${REASON}`
 const ZERO = {
   sqlRunWriters: 0, sqlRunWriterTriggers: 0, runSummaryLiterals: 0, parkedReferences: 0, abortUndoCalls: 0, hubSendMessageCalls: 0,
-  mastraInternalsOutsideLeftovers: 0, sessionScopes: 0, collectionsAcrossModules: 0, runFunctionLengthSuppressions: 0,
+  mastraInternalsOutsideLeftovers: 0, sessionScopes: 0, collectionsAcrossModules: 0, plainPortIds: 0, positionalSourceReads: 0, runFunctionLengthSuppressions: 0,
   failureCodesWithoutRow: 0, repeatedTimerSuppressions: 0, unsafeAssertionDebt: 3,
 }
 const FILES = {
@@ -122,4 +122,21 @@ test('suppressions in .mts and .cts files are read like those in .ts files', (t)
     assert.equal(ran.status, 1, name)
     assert.match(ran.out, new RegExp(`identity-access/${name.replace('.', '\\.')}:2`), name)
   }
+})
+
+test('a Builder port that declares an id or a revision as a plain string fails naming its line, and the registry and vendor files are not ours', (t) => {
+  const port = (text) => ({ ...FILES, 'apps/hub/src/builder/run/ports.ts': text })
+  const plain = fixture(t, { files: port('export type Ref = Readonly<{\n  projectId: string\n}>\n') }).run()
+  assert.equal(plain.status, 1)
+  assert.match(plain.out, /plainPortIds 1 \(record 0\) UP\s+apps\/hub\/src\/builder\/run\/ports\.ts:2/)
+  assert.equal(fixture(t, { files: port('moveRef(next: string): void\n') }).run().status, 1)
+  assert.equal(fixture(t, { files: port('export type Ref = Readonly<{ projectId: ProjectId; next: SourceRevision }>\n') }).run().status, 0)
+  const elsewhere = { ...FILES, 'apps/hub/src/builder/application-build.ts': 'accountId: string\n', 'apps/hub/src/builder/openai-codex/credential.ts': 'accountId: string\n' }
+  assert.equal(fixture(t, { files: elsewhere }).run().status, 0)
+})
+
+test('a source read that takes positional arguments fails', (t) => {
+  const read = (head) => ({ ...FILES, 'apps/hub/src/builder/source.ts': `export const reads = {\n  listSourceTree: async ${head} => {},\n}\n` })
+  assert.equal(fixture(t, { files: read('(projectId, sourceRevision)') }).run().status, 1)
+  assert.equal(fixture(t, { files: read('({ projectId, sourceRevision })') }).run().status, 0)
 })

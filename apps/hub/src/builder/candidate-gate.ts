@@ -66,15 +66,15 @@ const repairFeedback = (detail: string, redFinishes: number): string => [
  * "done", not per revision, for the whole run, the waits on the person included.
  */
 export const createCandidateGate = ({ candidate, judge, onRedFinish }: Readonly<{
-  candidate(): Promise<string | null>
-  judge(revision: string): Promise<CandidateVerdict>
+  candidate(): Promise<SourceRevision | null>
+  judge(revision: SourceRevision): Promise<CandidateVerdict>
   onRedFinish?(redFinishes: number): void
 }>): CandidateGate => {
-  const verdicts = new Map<string, CandidateVerdict>()
+  const verdicts = new Map<SourceRevision, CandidateVerdict>()
   let redFinishes = 0
   let finishing: Promise<string | null> | null = null
   const current = async (): Promise<CandidateVerdict | null> => {
-    let revision: string | null
+    let revision: SourceRevision | null
     try {
       revision = await candidate()
     } catch (error) {

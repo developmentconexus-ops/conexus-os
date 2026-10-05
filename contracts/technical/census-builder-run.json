@@ -8,6 +8,8 @@
   "mastraInternalsOutsideLeftovers": 0,
   "sessionScopes": 1,
   "collectionsAcrossModules": 0,
+  "plainPortIds": 0,
+  "positionalSourceReads": 0,
   "runFunctionLengthSuppressions": 0,
   "failureCodesWithoutRow": 0,
   "repeatedTimerSuppressions": 3,

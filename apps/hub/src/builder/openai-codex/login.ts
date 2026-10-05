@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { pollCodexDeviceLogin, startCodexDeviceLogin, type CodexDeviceLoginPending, type CodexDevicePollResult } from '@mastra/code-sdk/auth/providers/openai-codex'
 import { toCodexTokens, type CodexTokens } from './credential.js'
+import type { AccountId } from '../../../../../packages/contract/dist/index.js'
 
 export type LoginState = 'waiting' | 'succeeded' | 'failed' | 'expired'
 
@@ -12,7 +13,7 @@ export type CodexDevice = Readonly<{
 
 export type CodexLoginHandoff = Readonly<{ loginId: string; url: string; userCode: string; intervalMs: number; expiresAt: number }>
 
-type Caller = Readonly<{ accountId: string }>
+type Caller = Readonly<{ accountId: AccountId }>
 type Attempt<C extends Caller> = {
   readonly caller: C
   readonly pending: CodexDeviceLoginPending

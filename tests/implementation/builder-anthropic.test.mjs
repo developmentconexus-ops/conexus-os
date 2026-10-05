@@ -13,6 +13,8 @@ const { createAnthropicRoute } = await import(built('builder/anthropic/route.js'
 const SESSION_TOKEN = opaque('ana')
 const ana = '22222222-2222-4222-8222-222222222222'
 const bia = '55555555-5555-4555-8555-555555555555'
+const RUN_1 = '66666666-6666-4666-8666-666666666661'
+const RUN_2 = '66666666-6666-4666-8666-666666666662'
 const authentic = {
   headers: hubJsonWrite,
   cookies: { '__Host-conexus_session': SESSION_TOKEN },
@@ -248,11 +250,11 @@ test('an Anthropic key pays on the Messages endpoint with the caller\'s key, and
   await store.write(ana, 'anthropic', 'api_key', fakeKey)
   const seen = recordKeyUpstream(t)
   const { call, recorded } = routingOver({ store })
-  await assert.rejects((await call('run-1', ana, 'anthropic/claude-sonnet-5')).doStream({ prompt }))
-  assert.deepEqual(recorded, [['run-1', rows.get(`${ana}:anthropic`).id]])
-  await assert.rejects(call('run-2', bia, 'anthropic/claude-sonnet-5'), /BUILDER_MODEL_NOT_SELECTED/, 'a person without an Anthropic account is told to connect one')
+  await assert.rejects((await call(RUN_1, ana, 'anthropic/claude-sonnet-5')).doStream({ prompt }))
+  assert.deepEqual(recorded, [[RUN_1, rows.get(`${ana}:anthropic`).id]])
+  await assert.rejects(call(RUN_2, bia, 'anthropic/claude-sonnet-5'), /BUILDER_MODEL_NOT_SELECTED/, 'a person without an Anthropic account is told to connect one')
   share(ana, 'anthropic')
-  await assert.rejects((await call('run-2', bia, 'anthropic/claude-haiku-4-5')).doStream({ prompt }))
+  await assert.rejects((await call(RUN_2, bia, 'anthropic/claude-haiku-4-5')).doStream({ prompt }))
   assert.deepEqual(seen, [
     { url: 'https://api.anthropic.com/v1/messages', apiKey: fakeKey, model: 'claude-sonnet-5' },
     { url: 'https://api.anthropic.com/v1/messages', apiKey: fakeKey, model: 'claude-haiku-4-5' },
@@ -264,7 +266,7 @@ test('a Claude subscription pays with its bearer on the Messages endpoint, with 
   await store.write(ana, 'anthropic', 'oauth', serializeClaudeTokens(tokens('live', 9_999_999_999_999)))
   const seen = recordUpstream(t)
   const { call } = routingOver({ store })
-  const model = await call('run-1', ana, 'anthropic/claude-opus-5-5')
+  const model = await call(RUN_1, ana, 'anthropic/claude-opus-5-5')
   assert.equal(model.provider, 'anthropic.messages')
   await assert.rejects(model.doStream({ prompt }))
   assert.equal(seen.length, 1)
@@ -283,7 +285,7 @@ test('an expired Claude token is refreshed once, written back to the row, and th
   const holds = createClaudeHolds({ store, now: () => 2_000, refresh: async (refreshToken) => { refreshes.push(refreshToken); return tokens('new', 10_000) } })
   const seen = recordUpstream(t)
   const { call } = routingOver({ store, holds })
-  const model = await call('run-1', ana, 'anthropic/claude-sonnet-5')
+  const model = await call(RUN_1, ana, 'anthropic/claude-sonnet-5')
   await assert.rejects(model.doStream({ prompt }))
   await assert.rejects(model.doStream({ prompt }))
   assert.deepEqual(refreshes, ['refresh-old'])
@@ -295,5 +297,5 @@ test('an Anthropic row of a kind neither route knows is refused', async () => {
   const { store } = fakeStore()
   await store.write(ana, 'anthropic', 'google_ai_pro', 'not-anthropic')
   const { call } = routingOver({ store })
-  await assert.rejects(call('run-1', ana, 'anthropic/claude-sonnet-5'), /ANTHROPIC_STORED_RECORD_REFUSED/)
+  await assert.rejects(call(RUN_1, ana, 'anthropic/claude-sonnet-5'), /ANTHROPIC_STORED_RECORD_REFUSED/)
 })

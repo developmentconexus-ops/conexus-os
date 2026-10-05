@@ -1,5 +1,5 @@
 import type { ConexusGit } from './conexus-git.js'
-import type { SourceComparison, SourceFile, SourceRevision, SourceTree } from '../../../../packages/contract/dist/index.js'
+import type { ProjectId, SourceComparison, SourceFile, SourceRevision, SourceTree } from '../../../../packages/contract/dist/index.js'
 import { Failure } from '../platform/failure.js'
 import { gitUnavailableAs } from '../platform/git-failure.js'
 
@@ -21,7 +21,7 @@ const safePath = (path: unknown): path is string => typeof path === 'string' && 
   !path.startsWith('/') && !path.includes('\\') && !path.includes('\0') && path.split('/').every((part) => part !== '' && part !== '.' && part !== '..')
 
 export const createProjectSourceReads = ({ git }: Readonly<{ git: Pick<ConexusGit, 'listTree' | 'readBlob' | 'diff'> }>) => Object.freeze({
-  listSourceTree: async (projectId: string, sourceRevision: SourceRevision): Promise<SourceTree> => {
+  listSourceTree: async ({ projectId, sourceRevision }: Readonly<{ projectId: ProjectId; sourceRevision: SourceRevision }>): Promise<SourceTree> => {
     const tree = await git.listTree(projectId, sourceRevision).catch(unavailable)
     if (!tree) throw new Failure('SOURCE_REVISION_NOT_FOUND')
     if (tree.length > MAX_ENTRIES) throw new Failure('BUILDER_SOURCE_READ_TREE_TOO_LARGE')
@@ -34,7 +34,7 @@ export const createProjectSourceReads = ({ git }: Readonly<{ git: Pick<ConexusGi
     entries.sort((left, right) => left.path.localeCompare(right.path) || left.kind.localeCompare(right.kind))
     return { sourceRevision, entries }
   },
-  readSourceFile: async (projectId: string, sourceRevision: SourceRevision, path: string): Promise<SourceFile> => {
+  readSourceFile: async ({ projectId, sourceRevision, path }: Readonly<{ projectId: ProjectId; sourceRevision: SourceRevision; path: string }>): Promise<SourceFile> => {
     if (!safePath(path)) throw new Failure('SOURCE_FILE_NOT_FOUND')
     const blob = await git.readBlob(projectId, sourceRevision, path, MAX_FILE_BYTES).catch(unavailable)
     if (blob?.type !== 'blob') throw new Failure('SOURCE_FILE_NOT_FOUND')
@@ -46,7 +46,7 @@ export const createProjectSourceReads = ({ git }: Readonly<{ git: Pick<ConexusGi
     }
     return { sourceRevision, path, content }
   },
-  compareRevisions: async (projectId: string, baseSourceRevision: SourceRevision, resultSourceRevision: SourceRevision): Promise<SourceComparison> => {
+  compareRevisions: async ({ projectId, baseSourceRevision, resultSourceRevision }: Readonly<{ projectId: ProjectId; baseSourceRevision: SourceRevision; resultSourceRevision: SourceRevision }>): Promise<SourceComparison> => {
     const changes = await git.diff(projectId, baseSourceRevision, resultSourceRevision).catch(unavailable)
     if (!changes) throw new Failure('SOURCE_REVISION_NOT_FOUND')
     if (changes.length > MAX_COMPARE_FILES) throw new Failure('BUILDER_SOURCE_READ_TREE_TOO_LARGE')

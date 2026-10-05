@@ -1,11 +1,12 @@
 import type { ModelAccountStore } from '../model-account-store.js'
 import { GOOGLE_AI_PRO_PROVIDER, type GoogleAiProKey } from './credential.js'
+import type { AccountId } from '../../../../../packages/contract/dist/index.js'
 
 export type GoogleAiProAccounts = Readonly<{
   /** The caller's own connection state, for the Settings card. */
-  connection(accountId: string): Promise<Readonly<{ mine: boolean; shared: boolean }>>
+  connection(accountId: AccountId): Promise<Readonly<{ mine: boolean; shared: boolean }>>
   /** Writes the caller's own row, sealed. An update keeps the row's existing sharing level. */
-  write(accountId: string, key: GoogleAiProKey): Promise<void>
+  write(accountId: AccountId, key: GoogleAiProKey): Promise<void>
 }>
 
 /**

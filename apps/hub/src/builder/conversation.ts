@@ -6,6 +6,7 @@ import { logger } from '../platform/logger.js'
 import type { ConversationSandboxes } from './conversation-sandboxes.js'
 import { projectResourceId } from './conversations.js'
 import type { ControllerSession, RunSandbox } from './run/ports.js'
+import type { ConversationId, ProjectId } from '../../../../packages/contract/dist/index.js'
 
 type SessionPorts = Pick<AgentController, 'createSession' | 'deleteSession' | 'getSessionByResource'>
 
@@ -17,7 +18,7 @@ type SessionPorts = Pick<AgentController, 'createSession' | 'deleteSession' | 'g
 const CONVERSATION_IDLE_MS = 10 * 60_000
 
 /** The one session scope of a conversation, which the browser and its runs share. */
-export const conversationScope = (conversationId: string): string => `conversation:${conversationId}`
+export const conversationScope = (conversationId: ConversationId): string => `conversation:${conversationId}`
 
 // Mastra puts the session's scope on every request context it builds for that session.
 const scopeOf = (requestContext: RequestContext): string | undefined => {
@@ -25,7 +26,7 @@ const scopeOf = (requestContext: RequestContext): string | undefined => {
   return typeof controller === 'object' && controller !== null && 'scope' in controller && typeof controller.scope === 'string' ? controller.scope : undefined
 }
 
-export type ConversationRef = Readonly<{ projectId: string; conversationId: string }>
+export type ConversationRef = Readonly<{ projectId: ProjectId; conversationId: ConversationId }>
 
 type Live = Readonly<{ ref: ConversationRef; sandbox: RunSandbox }>
 
@@ -42,7 +43,7 @@ export const createLiveConversations = ({ controller, sandboxes, readSandboxId, 
   /** The provider id of the VM the conversation last had, so its instance resumes that VM. */
   readSandboxId(ref: ConversationRef): Promise<string | null>
   /** Whether the conversation has a run in this Hub. */
-  runOpen(conversationId: string): boolean
+  runOpen(conversationId: ConversationId): boolean
   idleMs?: number
   now?: () => number
 }>) => {
@@ -114,7 +115,7 @@ export const createLiveConversations = ({ controller, sandboxes, readSandboxId, 
       return session
     },
     /** Notes that the conversation was used now, so the idle window starts again. */
-    touch: (conversationId: string): void => {
+    touch: (conversationId: ConversationId): void => {
       if (conversations.has(conversationScope(conversationId))) use(conversationScope(conversationId))
     },
     /** A turn that stalled holds the session; it goes, and the next request opens it again on the same sandbox. */
@@ -122,7 +123,7 @@ export const createLiveConversations = ({ controller, sandboxes, readSandboxId, 
     /** One pass of the `idle-conversations` job: lets go of the conversations idle past the window. */
     sweep,
     /** A Project's conversations are gone: their sessions go, and the VMs their instances hold are killed. */
-    drop: async (projectId: string, conversationIds: readonly string[]): Promise<void> => {
+    drop: async (projectId: ProjectId, conversationIds: readonly ConversationId[]): Promise<void> => {
       for (const conversationId of conversationIds) {
         const entry = await conversations.get(conversationScope(conversationId))?.catch(() => undefined)
         if (!entry) {

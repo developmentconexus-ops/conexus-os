@@ -1,4 +1,4 @@
-import type { AccountId, BuilderRunId, ProjectId, SourceRevision } from '../../../../../packages/contract/dist/index.js'
+import { ExecutionId, type AccountId, type BuilderRunId, type ProjectId, type SourceRevision } from '../../../../../packages/contract/dist/index.js'
 import { APPLICATION_CHECK_EXCLUDED } from '../application-starter.js'
 import type { ApplicationServerPort, BuilderApplicationArtifacts } from '../application-build.js'
 import { agentReportOf } from '../check/report.js'
@@ -214,7 +214,7 @@ const prepare = async (run: Run): Promise<Prepared> => {
   const runOperation = await installRunTools({ ports, projectId, accountId: run.request.accountId, vm, sandbox, connectorRun: run.connectorRun, timing: run.timing })
   const gatePhases = createGatePhases((phase) => setPhase(run, phase))
   const { gate, pulled } = createRunGate({
-    git: ports.git, projectId, executionId: builderRunId, base: baseSourceRevision, turnStart: turnStart.start, excluded: APPLICATION_CHECK_EXCLUDED,
+    git: ports.git, projectId, executionId: ExecutionId.parse(builderRunId), base: baseSourceRevision, turnStart: turnStart.start, excluded: APPLICATION_CHECK_EXCLUDED,
     log: ports.log, cancelled: () => cancelled(run), gatePhase: gatePhases.enter, vm, sandbox,
   })
   const tools: RunTools = {
@@ -429,7 +429,7 @@ export const startRun = (env: RunEnvironment, row: BuilderRunSummary, request: R
     trace: traceRun(row),
     inbox: createInbox((toolCallId) => run.prepared?.session.pendingCalls().includes(toolCallId) === true, (signal) => (signal.reason === 'HUB_STOPPING' ? 'HUB_STOPPING' : 'USER_CANCELLED')),
     vm: createRunVm({
-      ports: env.ports, executionId: row.builderRunId, conversationId: row.conversationId, timing,
+      ports: env.ports, executionId: ExecutionId.parse(row.builderRunId), conversationId: row.conversationId, timing,
       lapsed: (failure) => {
         run.keepaliveFailure ??= failure
         keepalive.abort()

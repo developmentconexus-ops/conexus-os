@@ -199,6 +199,16 @@ test('a scope other than a conversation\'s is not served, never a fresh empty se
   assert.equal(await controller.getSessionByResource(`project:${projectA}`, `builder:${conversationA}`), undefined)
 })
 
+test('a conversation scope whose id is not a UUID is refused when a session opens and when one is read, and no session exists for it', async (t) => {
+  const { app, controller } = await createBuilderApp(t)
+  const opened = await app.inject({ method: 'POST', url: `${PREFIX}/sessions`, ...authentic, payload: { resourceId: `project:${projectA}`, sessionScope: 'conversation:not-a-uuid', threadId: 'not-a-uuid' } })
+  const read = await app.inject({ method: 'GET', url: `${sessionBase()}/stream?sessionScope=conversation:not-a-uuid`, ...authentic })
+  assert.deepEqual([opened.statusCode, opened.json().type, read.statusCode, read.json().type], [
+    400, 'urn:conexus:problem:CONVERSATION_SESSION_REFUSED', 404, 'urn:conexus:problem:BUILDER_SESSION_NOT_FOUND',
+  ])
+  assert.equal(await controller.getSessionByResource(`project:${projectA}`, 'conversation:not-a-uuid'), undefined)
+})
+
 test('a conversation takes no message, steer or follow-up through Mastra; a message goes through the Hub', async (t) => {
   const { app } = await createBuilderApp(t)
   const answered = []

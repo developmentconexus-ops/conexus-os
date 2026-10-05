@@ -5,6 +5,7 @@ import { wrapLanguageModel, type LanguageModelMiddleware } from 'ai'
 import { readSessionModelId, readSessionThinkingLevel } from './harness/request-context.js'
 import type { HeldModelAccount, ModelAccountStore } from './model-account-store.js'
 import { Failure } from '../platform/failure.js'
+import { AccountId, BuilderRunId, type ConversationId, type ModelAccountId, type ProjectId } from '../../../../packages/contract/dist/index.js'
 
 /**
  * How a model call pays for and reaches one provider's models: the `model.model_account` provider,
@@ -51,29 +52,29 @@ export const createModelRouting = ({ routes, modelAccounts, conversationModel, r
   routes: Readonly<Record<string, ModelRoute>>
   modelAccounts: Pick<ModelAccountStore, 'usable'>
   /** The model in the conversation's Mastra session, or null when it has none yet. */
-  conversationModel(projectId: string, conversationId: string): Promise<string | null>
+  conversationModel(projectId: ProjectId, conversationId: ConversationId): Promise<string | null>
   readDefault(role: ModelRole): Promise<string | null>
   /** Records the account that paid for one call of the run; the run id and the paying account are what the run's request context carried. */
-  record(builderRunId: string, accountId: string, modelAccountId: string): Promise<void>
+  record(builderRunId: BuilderRunId, accountId: AccountId, modelAccountId: ModelAccountId): Promise<void>
 }>) => {
-  const accountFor = async (accountId: string, modelId: string | null) => {
+  const accountFor = async (accountId: AccountId, modelId: string | null) => {
     const route = modelId ? routes[providerOfModel(modelId)] : undefined
     const account = route ? await modelAccounts.usable(accountId, route.accountProvider) : null
     if (!modelId || !route || !account) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
     return { route, account, modelId }
   }
   const call = async (requestContext: RequestContext, modelId: string | null, thinkingLevel?: ThinkingLevelSetting): Promise<MastraModelConfig> => {
-    const runId = requestContext.getRaw(RUN_ID_KEY)
-    const payer = requestContext.getRaw(RUN_ACCOUNT_ID_KEY)
-    if (typeof runId !== 'string' || typeof payer !== 'string') throw new Failure('BUILDER_MODEL_NOT_SELECTED')
-    const { route, account, modelId: selected } = await accountFor(payer, modelId)
-    await record(runId, payer, account.modelAccountId)
+    const runId = BuilderRunId.safeParse(requestContext.getRaw(RUN_ID_KEY))
+    const payer = AccountId.safeParse(requestContext.getRaw(RUN_ACCOUNT_ID_KEY))
+    if (!runId.success || !payer.success) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
+    const { route, account, modelId: selected } = await accountFor(payer.data, modelId)
+    await record(runId.data, payer.data, account.modelAccountId)
     const held = route.take(account)
     return held.model(parseModelString(selected).modelId, thinkingLevel)
   }
   return Object.freeze({
     /** Refuses a run before it starts when the model it starts on, or the memory's, has no usable account. */
-    check: async ({ accountId, projectId, conversationId }: Readonly<{ accountId: string; projectId: string; conversationId: string }>): Promise<void> => {
+    check: async ({ accountId, projectId, conversationId }: Readonly<{ accountId: AccountId; projectId: ProjectId; conversationId: ConversationId }>): Promise<void> => {
       await accountFor(accountId, await conversationModel(projectId, conversationId) ?? await readDefault('build'))
       await accountFor(accountId, await readDefault('memory'))
     },

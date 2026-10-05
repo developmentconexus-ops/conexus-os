@@ -364,7 +364,7 @@ test('the source view reads tree, file and diff from the Conexus Git in its own 
   run(work, ['push', '--quiet', 'origin', `${result}:refs/conexus/runs/${RUN}`])
   const source = createProjectSourceReads({ git })
 
-  assert.deepEqual(await source.listSourceTree(PROJECT, base), {
+  assert.deepEqual(await source.listSourceTree({ projectId: PROJECT, sourceRevision: base }), {
     sourceRevision: base,
     entries: [
       { path: 'app', kind: 'DIRECTORY' },
@@ -373,8 +373,8 @@ test('the source view reads tree, file and diff from the Conexus Git in its own 
       { path: 'conexus/check.sh', kind: 'FILE' },
     ],
   })
-  assert.deepEqual(await source.readSourceFile(PROJECT, result, 'app/index.html'), { sourceRevision: result, path: 'app/index.html', content: '<main>novo</main>\n' })
-  assert.deepEqual(await source.compareRevisions(PROJECT, base, result), {
+  assert.deepEqual(await source.readSourceFile({ projectId: PROJECT, sourceRevision: result, path: 'app/index.html' }), { sourceRevision: result, path: 'app/index.html', content: '<main>novo</main>\n' })
+  assert.deepEqual(await source.compareRevisions({ projectId: PROJECT, baseSourceRevision: base, resultSourceRevision: result }), {
     baseSourceRevision: base,
     resultSourceRevision: result,
     files: [
@@ -384,14 +384,14 @@ test('the source view reads tree, file and diff from the Conexus Git in its own 
       { path: 'conexus/verify.sh', status: 'RENAMED', previousPath: 'conexus/check.sh' },
     ],
   })
-  assert.deepEqual(await source.compareRevisions(PROJECT, result, base).then((comparison) => comparison.files.map((file) => file.status)), ['MODIFIED', 'REMOVED', 'REMOVED', 'RENAMED'])
+  assert.deepEqual(await source.compareRevisions({ projectId: PROJECT, baseSourceRevision: result, resultSourceRevision: base }).then((comparison) => comparison.files.map((file) => file.status)), ['MODIFIED', 'REMOVED', 'REMOVED', 'RENAMED'])
 
-  await assert.rejects(source.readSourceFile(PROJECT, result, 'app/logo.bin'), { id: 'SOURCE_FILE_NOT_FOUND' })
-  await assert.rejects(source.readSourceFile(PROJECT, result, 'app/missing.txt'), { id: 'SOURCE_FILE_NOT_FOUND' })
-  await assert.rejects(source.readSourceFile(PROJECT, result, 'app'), { id: 'SOURCE_FILE_NOT_FOUND' })
-  await assert.rejects(source.readSourceFile(PROJECT, result, '../etc/passwd'), { id: 'SOURCE_FILE_NOT_FOUND' })
-  await assert.rejects(source.listSourceTree(PROJECT, 'f'.repeat(40)), { id: 'SOURCE_REVISION_NOT_FOUND' })
-  await assert.rejects(source.compareRevisions(PROJECT, base, 'f'.repeat(40)), { id: 'SOURCE_REVISION_NOT_FOUND' })
+  await assert.rejects(source.readSourceFile({ projectId: PROJECT, sourceRevision: result, path: 'app/logo.bin' }), { id: 'SOURCE_FILE_NOT_FOUND' })
+  await assert.rejects(source.readSourceFile({ projectId: PROJECT, sourceRevision: result, path: 'app/missing.txt' }), { id: 'SOURCE_FILE_NOT_FOUND' })
+  await assert.rejects(source.readSourceFile({ projectId: PROJECT, sourceRevision: result, path: 'app' }), { id: 'SOURCE_FILE_NOT_FOUND' })
+  await assert.rejects(source.readSourceFile({ projectId: PROJECT, sourceRevision: result, path: '../etc/passwd' }), { id: 'SOURCE_FILE_NOT_FOUND' })
+  await assert.rejects(source.listSourceTree({ projectId: PROJECT, sourceRevision: 'f'.repeat(40) }), { id: 'SOURCE_REVISION_NOT_FOUND' })
+  await assert.rejects(source.compareRevisions({ projectId: PROJECT, baseSourceRevision: base, resultSourceRevision: 'f'.repeat(40) }), { id: 'SOURCE_REVISION_NOT_FOUND' })
 
   run(work, ['checkout', '--quiet', '--detach', base])
   run(work, ['rm', '--quiet', 'app/index.html'])
@@ -399,8 +399,8 @@ test('the source view reads tree, file and diff from the Conexus Git in its own 
   symlinkSync('/etc/passwd', join(work, 'app/index.html'))
   const linked = commitIn(work, {}, 'symlink')
   run(work, ['push', '--quiet', 'origin', `${linked}:refs/conexus/runs/${OTHER_RUN}`])
-  await assert.rejects(source.listSourceTree(PROJECT, linked), { id: 'BUILDER_SOURCE_READ_UNSAFE_ENTRY' })
-  await assert.rejects(source.readSourceFile(PROJECT, linked, 'app/index.html'), { id: 'SOURCE_FILE_NOT_FOUND' })
+  await assert.rejects(source.listSourceTree({ projectId: PROJECT, sourceRevision: linked }), { id: 'BUILDER_SOURCE_READ_UNSAFE_ENTRY' })
+  await assert.rejects(source.readSourceFile({ projectId: PROJECT, sourceRevision: linked, path: 'app/index.html' }), { id: 'SOURCE_FILE_NOT_FOUND' })
 })
 
 const MIB = 1024 * 1024

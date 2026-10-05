@@ -11,7 +11,7 @@ import { gitUnavailableAs } from '../platform/git-failure.js'
 import type { Job } from '../platform/jobs.js'
 import { logLine } from '../platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from '../platform/secrets.js'
-import { AccountId, BuilderRunId, ModelAccountId, type ProjectId, type BuilderTraceSummary } from '../../../../packages/contract/dist/index.js'
+import { type AccountId, BuilderRunId, ConversationId, type ProjectId, type BuilderTraceSummary } from '../../../../packages/contract/dist/index.js'
 import { registerBuilderRoutes } from './routes.js'
 import { mountLogFilter, mountValidationFailure, registerBuilderSessionRoutes } from './mastra-session-routes.js'
 import type { ToolPayloadProjection } from './mastra-session-routes.js'
@@ -159,7 +159,7 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
     conversationModel: (projectId, conversationId) => conversationModel(projectId, conversationId),
     readDefault,
     record: (builderRunId, accountId, modelAccountId) => store.recordBuilderRunModelAccount({
-      builderRunId: BuilderRunId.parse(builderRunId), accountId: AccountId.parse(accountId), modelAccountId: ModelAccountId.parse(modelAccountId),
+      builderRunId, accountId, modelAccountId,
     }),
   })
   // Built, never connected, here: the tools are listed on a run's first step, so Context7 being down never delays boot.
@@ -168,9 +168,9 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
     id: BUILDER_CONTROLLER_ID,
     workspace: (context) => liveConversations.workspace(context),
     runTools: ({ requestContext }) => {
-      const conversationId = requestContext.getRaw(CONVERSATION_ID_KEY)
+      const conversationId = ConversationId.safeParse(requestContext.getRaw(CONVERSATION_ID_KEY))
       const runId = BuilderRunId.safeParse(requestContext.getRaw(RUN_ID_KEY))
-      return typeof conversationId === 'string' && runId.success ? service.runTools(conversationId, runId.data) : undefined
+      return conversationId.success && runId.success ? service.runTools(conversationId.data, runId.data) : undefined
     },
     model: modelRouting.resolve,
     docsTools,
@@ -203,12 +203,12 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
   const liveConversations = createLiveConversations({
     controller, sandboxes, readSandboxId: store.readConversationSandbox, runOpen: (conversationId) => service.runOpen(conversationId),
   })
-  const conversationSession = async (ref: Readonly<{ projectId: string; conversationId: string }>) => {
+  const conversationSession = async (ref: Readonly<{ projectId: ProjectId; conversationId: ConversationId }>) => {
     await ready
     return liveConversations.open(ref)
   }
   // The conversation's model is the one in its Mastra session, never a copy of Mastra's thread keys.
-  const conversationModel = async (projectId: string, conversationId: string): Promise<string | null> => {
+  const conversationModel = async (projectId: ProjectId, conversationId: ConversationId): Promise<string | null> => {
     const session = await conversationSession({ projectId, conversationId })
     await session.thread.loadMetadata()
     return session.model.hasSelection() ? session.model.get() : null
