@@ -43,7 +43,6 @@ export type ConnectorModule = Readonly<{
   builderTools(context: Readonly<{ requestContext: RequestContext }>): ToolsInput
   /** The route-level projection of `connector_fetch` payloads the Builder's session routes serve. */
   toolPayloadProjection: ToolPayloadProjection
-  /** The Project purge's step for this owner: it deletes the Project's bindings in the purge transaction. */
   purgeProjectBindings: typeof purgeProjectBindings
   broker: Broker
   observability: ObservabilityInstance

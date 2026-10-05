@@ -17,7 +17,7 @@ import type { ConsumerScope } from './scope.js'
 const ConnectionRow = z.object({
   connection_id: ConnectionId, connector_id: ConnectorIdText, label: z.string(), created_at: z.date(), disabled_at: z.date().nullable(),
 })
-const StoredConnection = ConnectionRow.extend({ connector_id: ConnectorIdText, credential_digest: z.string() })
+const StoredConnection = ConnectionRow.extend({ credential_digest: z.string() })
 const BindingRow = z.object({
   binding_id: BindingId, name: BindingName, connection_id: ConnectionId, connector_id: ConnectorIdText, label: z.string(), bound_at: z.date(),
 })
@@ -54,7 +54,7 @@ const toEntry = (row: z.output<typeof EntryRow>): ConnectionBindingEntry => row.
   : { kind: 'bindable', connectionId: row.connection_id, connectorId: row.connector_id, label: row.label }
 
 // An archived Project refuses every binding operation, as one in deletion does through its admission.
-const liveProject = async (tx: TxQueries, projectId: ProjectId): Promise<void> => {
+const requireOpenProject = async (tx: TxQueries, projectId: ProjectId): Promise<void> => {
   const found = await tx.maybe(Present, sql`
     SELECT 1 AS present FROM project.project AS stored
     WHERE stored.project_id = ${projectId} AND NOT stored.archived
@@ -85,11 +85,12 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
     const sealed = await envelope.seal(JSON.stringify(body.credential))
     // Sorted keys, so a retry that sends the same fields in another order has the same digest.
     const digests = envelope.fingerprints(JSON.stringify(body.credential, Object.keys(body.credential).sort()))
+    const [current] = digests
     return database.transaction(accountId, async (gate) => {
       const proof = await admitInstallationAdministrator(gate, 'connection.manage')
       const inserted = await proof.tx.run(sql`
         INSERT INTO connector.connection (connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by)
-        VALUES (${body.connectionId}, ${workspaceId}, ${body.connectorId}, ${body.label}, ${sealed}, ${digests[0] ?? ''}, ${proof.scope.accountId})
+        VALUES (${body.connectionId}, ${workspaceId}, ${body.connectorId}, ${body.label}, ${sealed}, ${current}, ${proof.scope.accountId})
         ON CONFLICT DO NOTHING`)
       const stored = await proof.tx.maybe(StoredConnection, sql`
         SELECT connection_id, connector_id, label, created_at, disabled_at, credential_digest FROM connector.connection
@@ -130,7 +131,7 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
 
   listProjectBindings: ({ accountId, projectId }) => database.read(accountId, async (tx) => {
     const proof = await admitProject(tx, projectId, 'connections.bind')
-    await liveProject(tx, proof.scope.projectId)
+    await requireOpenProject(tx, proof.scope.projectId)
     const { projectId: scopedProject, workspaceId } = proof.scope
     return (await tx.rows(EntryRow, sql`
       SELECT entry.kind, entry.binding_id, entry.name, entry.connection_id, entry.connector_id, entry.label, entry.bound_at
@@ -154,7 +155,7 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
   bindConnection: ({ accountId, projectId, body }) => database.transaction(accountId, async (gate) => {
     const proof = await admitProject(gate, projectId, 'connections.bind')
     const { projectId: scopedProject, workspaceId } = proof.scope
-    await liveProject(proof.tx, scopedProject)
+    await requireOpenProject(proof.tx, scopedProject)
     const available = await proof.tx.maybe(Present, sql`
       SELECT 1 AS present FROM connector.connection
       WHERE connection_id = ${body.connectionId} AND workspace_id = ${workspaceId} AND disabled_at IS NULL FOR SHARE`)
@@ -177,7 +178,7 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
 
   unbindConnection: ({ accountId, projectId, bindingId }) => database.transaction(accountId, async (gate) => {
     const proof = await admitProject(gate, projectId, 'connections.bind')
-    await liveProject(proof.tx, proof.scope.projectId)
+    await requireOpenProject(proof.tx, proof.scope.projectId)
     const unbound = await proof.tx.run(sql`
       UPDATE connector.project_binding SET unbound_at = clock_timestamp(), unbound_by = ${proof.scope.accountId}
       WHERE binding_id = ${bindingId} AND project_id = ${proof.scope.projectId} AND unbound_at IS NULL`)
@@ -185,7 +186,6 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
   }),
 })
 
-/** The Project purge deletes the Project's bindings in its own transaction. */
 export const purgeProjectBindings = async ({ tx }: Admitted<SystemScope<'project-purge'>>, projectId: ProjectId): Promise<void> => {
   await tx.run(sql`DELETE FROM connector.project_binding WHERE project_id = ${projectId}`)
 }
