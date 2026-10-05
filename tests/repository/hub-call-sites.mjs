@@ -85,6 +85,7 @@ export const ROLE_BY_CALL_SITE = Object.freeze({
   }),
   'identity-access/admission.ts': Object.freeze({
     'iam.lock_administrators': 'hub_command',
+    'rls.acting_installation_administrator': 'hub_reader',
   }),
   'project/deletion.ts': Object.freeze({
     'iam.purge_project': 'hub_command',
@@ -92,7 +93,6 @@ export const ROLE_BY_CALL_SITE = Object.freeze({
     'builder.purge_project': 'hub_command',
   }),
   'project/store.ts': Object.freeze({
-    'rls.acting_installation_administrator': 'hub_reader',
     'builder.register_project_repository': 'hub_command',
   }),
   'registry/application-artifact-store.ts': Object.freeze({
