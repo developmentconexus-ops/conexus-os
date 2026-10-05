@@ -26,7 +26,7 @@ const makeStore = (overrides = {}) => {
     async createConnection(input) { calls.push({ name: 'createConnection', input }); return { connection: connectionEntry, created: true } },
     async disableConnection(input) { calls.push({ name: 'disableConnection', input }) },
     async listProjectBindings(input) { calls.push({ name: 'listProjectBindings', input }); return [binding, bindable] },
-    async bindConnection(input) { calls.push({ name: 'bindConnection', input }); return binding },
+    async bindConnection(input) { calls.push({ name: 'bindConnection', input }); return { binding, created: true } },
     async unbindConnection(input) { calls.push({ name: 'unbindConnection', input }) },
     ...overrides,
   }
@@ -216,9 +216,15 @@ test('an Owner lists, binds and unbinds a Project Connection binding', async (t)
   assert.deepEqual(store.calls.at(-1), { name: 'listProjectBindings', input: { accountId: memberAccountId, projectId } })
 
   const bound = await app.inject({ method: 'POST', url: `/api/control/projects/${projectId}/connection-bindings`, ...authentic, payload: { connectionId, name: 'erp' } })
-  assert.equal(bound.statusCode, 200)
+  assert.equal(bound.statusCode, 201)
   assert.deepEqual(bound.json(), { kind: 'binding', bindingId, name: 'erp', connectionId, connectorId: 'sankhya', label: 'ERP principal', boundAt: '2026-09-24T11:00:00.000Z' })
   assert.deepEqual(store.calls.at(-1), { name: 'bindConnection', input: { accountId: memberAccountId, projectId, body: { connectionId, name: 'erp' } } })
+
+  const retried = makeStore({ async bindConnection() { return { binding, created: false } } })
+  const retryApp = await makeApp(retried, { currentAccountId: memberAccountId })
+  t.after(() => retryApp.close())
+  const retry = await retryApp.inject({ method: 'POST', url: `/api/control/projects/${projectId}/connection-bindings`, ...authentic, payload: { connectionId, name: 'erp' } })
+  assert.equal(retry.statusCode, 200)
 
   const unbound = await app.inject({ method: 'DELETE', url: `/api/control/projects/${projectId}/connection-bindings/${bindingId}`, ...authenticDelete })
   assert.equal(unbound.statusCode, 204)

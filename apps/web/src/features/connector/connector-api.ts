@@ -25,8 +25,8 @@ export const checkWorkspaceConnection = async (workspaceId: string, connectionId
 export const disableWorkspaceConnection = (workspaceId: string, connectionId: string) =>
   call(CON04, { params: { ...workspaceParams(workspaceId), connectionId: routeParam(ConnectionId, connectionId) }, ...noInput, body: undefined })
 
-export const bindProjectConnection = (projectId: string, body: Input<typeof CON09>['body']): Promise<ConnectionBinding> =>
-  call(CON09, { params: projectParams(projectId), ...noInput, body })
+export const bindProjectConnection = async (projectId: string, body: Input<typeof CON09>['body']): Promise<ConnectionBinding> =>
+  (await call(CON09, { params: projectParams(projectId), ...noInput, body })).body
 
 export const unbindProjectConnection = (projectId: string, bindingId: string) =>
   call(CON10, { params: { ...projectParams(projectId), bindingId: routeParam(BindingId, bindingId) }, ...noInput, body: undefined })

@@ -1,13 +1,13 @@
 export * from './field-failures.js'
 export * from './ids.js'
 export * from './failures.generated.js'
-export * from './connector.js'
+export * from './connectors.js'
 export * from './operation.js'
 export * from './problem.js'
 export * from './project.js'
 export * from './workspace.js'
 
-import { CON01, CON02, CON03, CON04, CON08, CON09, CON10 } from './connector.js'
+import { CON01, CON02, CON03, CON04, CON08, CON09, CON10 } from './connectors.js'
 import { PRJ01, PRJ02, PRJ03, PRJ04, PRJ_SUMMARIES, PRJ_THUMBNAIL } from './project.js'
 import { WS01 } from './workspace.js'
 export const OPERATIONS = Object.freeze([WS01, PRJ01, PRJ02, PRJ03, PRJ04, PRJ_SUMMARIES, PRJ_THUMBNAIL, CON01, CON02, CON03, CON04, CON08, CON09, CON10])

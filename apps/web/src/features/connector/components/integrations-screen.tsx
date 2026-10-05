@@ -273,7 +273,7 @@ function BindableRow({ projectId, connection, onChanged }: Readonly<{ projectId:
   const nameId = useId()
   const [message, setMessage] = useState('')
   const bind = useMutation({
-    mutationFn: (name: string) => bindProjectConnection(projectId, { connectionId: connection.connectionId, name }),
+    mutationFn: (name: BindingName) => bindProjectConnection(projectId, { connectionId: connection.connectionId, name }),
     onSuccess: () => onChanged(),
     onError: (error) => setMessage(failureText(error)),
   })
@@ -282,12 +282,13 @@ function BindableRow({ projectId, connection, onChanged }: Readonly<{ projectId:
     event.preventDefault()
     if (bind.isPending) return
     const name = String(new FormData(event.currentTarget).get('name') ?? '').trim()
-    if (!BindingName.safeParse(name).success) {
+    const parsed = BindingName.safeParse(name)
+    if (!parsed.success) {
       setMessage('Use letras minúsculas, números e hífen, começando por uma letra.')
       return
     }
     setMessage('')
-    bind.mutate(name)
+    bind.mutate(parsed.data)
   }
 
   return <li className="cx-connection">

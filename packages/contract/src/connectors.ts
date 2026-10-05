@@ -1,13 +1,19 @@
 import { z } from 'zod'
+import type { FailureCode } from './failures.generated.js'
 import { fieldFailures } from './field-failures.js'
 import { BindingId, ConnectionId, ProjectId, WorkspaceId } from './ids.js'
 import { operation } from './operation.js'
 
 const CONNECTOR_ID_PATTERN = /^[a-z][a-z0-9-]{0,39}$/
+const BINDING_NAME_PATTERN = /^[a-z][a-z0-9-]{0,39}$/
 
-/** The stored text of a connector id: the column accepts any value of this shape since migration 0031. */
+/** The connectors this Hub registers, the one list of them. */
+export const ConnectorId = z.enum(['sankhya']).meta({ id: 'ConnectorId' })
+export type ConnectorId = z.output<typeof ConnectorId>
+
+/** The stored text of a connector id: the column accepts any value of this shape since migration 0031, and the registry decides which of them this Hub knows. */
 export const ConnectorIdText = z.string().regex(CONNECTOR_ID_PATTERN).meta({ id: 'ConnectorIdText' })
-export const BindingName = z.string().regex(CONNECTOR_ID_PATTERN).meta({ id: 'BindingName' })
+export const BindingName = z.string().regex(BINDING_NAME_PATTERN).brand<'BindingName'>().meta({ id: 'BindingName' })
 export type BindingName = z.output<typeof BindingName>
 
 export const ConnectionLabel = z.string().trim().min(1).max(200).register(fieldFailures, { failureCode: 'CONNECTOR_LABEL_REFUSED' })
@@ -19,10 +25,13 @@ export const SankhyaCredential = z.strictObject({
 }).meta({ id: 'SankhyaCredential' }).register(fieldFailures, { failureCode: 'CONNECTOR_CREDENTIAL_REFUSED' })
 export type SankhyaCredential = z.output<typeof SankhyaCredential>
 
+/** The credential schema of each registered connector. */
+export const CONNECTOR_CREDENTIALS = { sankhya: SankhyaCredential } as const satisfies Record<ConnectorId, z.ZodType>
+
 export const ConnectorConnection = z.object({
   connectionId: ConnectionId,
   connectorId: ConnectorIdText,
-  label: z.string().min(1),
+  label: ConnectionLabel,
   createdAt: z.iso.datetime(),
   disabledAt: z.iso.datetime().optional(),
 }).meta({ id: 'ConnectorConnection' })
@@ -34,7 +43,7 @@ export const ConnectionBinding = z.object({
   name: BindingName,
   connectionId: ConnectionId,
   connectorId: ConnectorIdText,
-  label: z.string().min(1),
+  label: ConnectionLabel,
   boundAt: z.iso.datetime(),
 }).meta({ id: 'ConnectionBinding' })
 export type ConnectionBinding = z.output<typeof ConnectionBinding>
@@ -43,13 +52,13 @@ export const BindableConnection = z.object({
   kind: z.literal('bindable'),
   connectionId: ConnectionId,
   connectorId: ConnectorIdText,
-  label: z.string().min(1),
+  label: ConnectionLabel,
 }).meta({ id: 'BindableConnection' })
 
-export const ConnectionBindingEntry = z.union([ConnectionBinding, BindableConnection]).meta({ id: 'ConnectionBindingEntry' })
+export const ConnectionBindingEntry = z.discriminatedUnion('kind', [ConnectionBinding, BindableConnection]).meta({ id: 'ConnectionBindingEntry' })
 export type ConnectionBindingEntry = z.output<typeof ConnectionBindingEntry>
 
-export const CONNECTION_CHECK_OUTCOMES = ['OK', 'CREDENTIAL_REFUSED', 'CONNECTOR_UNCONFIGURED', 'PROVIDER_UNAVAILABLE', 'PROVIDER_TIMEOUT', 'PROVIDER_ERROR'] as const
+export const CONNECTION_CHECK_OUTCOMES = ['OK', 'CREDENTIAL_REFUSED', 'CONNECTOR_UNCONFIGURED', 'PROVIDER_UNAVAILABLE', 'PROVIDER_TIMEOUT', 'PROVIDER_ERROR'] as const satisfies readonly (FailureCode | 'OK')[]
 export const ConnectionCheckOutcome = z.enum(CONNECTION_CHECK_OUTCOMES).meta({ id: 'ConnectionCheckOutcome' })
 export type ConnectionCheckOutcome = z.output<typeof ConnectionCheckOutcome>
 
@@ -68,7 +77,9 @@ export const CON01 = operation({
 export const CON02 = operation({
   id: 'CON-02', access: 'session', method: 'POST', path: '/api/control/workspaces/:workspaceId/connections',
   params: workspaceParam, query: null, headers: null,
-  body: z.object({ connectionId: ConnectionId, connectorId: z.enum(['sankhya']), label: ConnectionLabel, credential: SankhyaCredential }).strict(),
+  body: z.discriminatedUnion('connectorId', [
+    z.strictObject({ connectionId: ConnectionId, connectorId: z.literal(ConnectorId.enum.sankhya), label: ConnectionLabel, credential: CONNECTOR_CREDENTIALS.sankhya }),
+  ]),
   success: { 201: ConnectorConnection, 200: ConnectorConnection },
   effects: [],
   failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED', 'CONNECTOR_WORKSPACE_NOT_FOUND', 'CONNECTOR_LABEL_REFUSED', 'CONNECTOR_CREDENTIAL_REFUSED', 'CONNECTOR_CONNECTION_CONFLICT'],
@@ -79,7 +90,7 @@ export const CON03 = operation({
   id: 'CON-03', access: 'session', method: 'POST', path: '/api/control/workspaces/:workspaceId/connections/:connectionId/authentication-check',
   params: workspaceConnectionParams, query: null, headers: null, body: null,
   success: { 200: z.object({ outcome: ConnectionCheckOutcome }) },
-  effects: [], failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED', 'CONNECTOR_CONNECTION_NOT_FOUND'],
+  effects: [], failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED', 'CONNECTOR_CONNECTION_NOT_FOUND', 'CONNECTOR_PLATFORM_FAILED'],
   malformed: { workspaceId: 'CONNECTOR_CONNECTION_NOT_FOUND', connectionId: 'CONNECTOR_CONNECTION_NOT_FOUND' },
 })
 
@@ -103,7 +114,7 @@ export const CON09 = operation({
   id: 'CON-09', access: 'session', method: 'POST', path: '/api/control/projects/:projectId/connection-bindings',
   params: projectParam, query: null, headers: null,
   body: z.object({ connectionId: ConnectionId, name: BindingName }).strict(),
-  success: { 200: ConnectionBinding },
+  success: { 201: ConnectionBinding, 200: ConnectionBinding },
   effects: [],
   failures: ['PROJECT_NOT_FOUND', 'CONNECTOR_BINDING_MANAGE_REQUIRED', 'CONNECTOR_CONNECTION_NOT_AVAILABLE', 'CONNECTOR_BINDING_CONFLICT', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
   malformed: { projectId: 'PROJECT_NOT_FOUND' },

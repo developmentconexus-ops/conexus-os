@@ -2221,33 +2221,35 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "connectionId": {
-                    "$ref": "#/components/schemas/ConnectionId"
-                  },
-                  "connectorId": {
-                    "type": "string",
-                    "enum": [
-                      "sankhya"
-                    ]
-                  },
-                  "label": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  },
-                  "credential": {
-                    "$ref": "#/components/schemas/SankhyaCredential"
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "connectionId": {
+                        "$ref": "#/components/schemas/ConnectionId"
+                      },
+                      "connectorId": {
+                        "type": "string",
+                        "const": "sankhya"
+                      },
+                      "label": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "credential": {
+                        "$ref": "#/components/schemas/SankhyaCredential"
+                      }
+                    },
+                    "required": [
+                      "connectionId",
+                      "connectorId",
+                      "label",
+                      "credential"
+                    ],
+                    "additionalProperties": false
                   }
-                },
-                "required": [
-                  "connectionId",
-                  "connectorId",
-                  "label",
-                  "credential"
-                ],
-                "additionalProperties": false
+                ]
               }
             }
           }
@@ -2576,7 +2578,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "INTERNAL_UNEXPECTED"
+                            "INTERNAL_UNEXPECTED",
+                            "CONNECTOR_PLATFORM_FAILED"
                           ]
                         }
                       }
@@ -2938,6 +2941,16 @@
         "responses": {
           "200": {
             "description": "Success 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionBinding"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Success 201",
             "content": {
               "application/json": {
                 "schema": {
@@ -4574,7 +4587,8 @@
           },
           "label": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 200
           },
           "createdAt": {
             "type": "string",
@@ -4645,7 +4659,7 @@
         ]
       },
       "ConnectionBindingEntry": {
-        "anyOf": [
+        "oneOf": [
           {
             "$ref": "#/components/schemas/ConnectionBinding"
           },
@@ -4675,7 +4689,8 @@
           },
           "label": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 200
           },
           "boundAt": {
             "type": "string",
@@ -4718,7 +4733,8 @@
           },
           "label": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 200
           }
         },
         "required": [

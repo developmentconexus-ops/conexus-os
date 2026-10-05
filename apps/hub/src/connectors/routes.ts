@@ -36,8 +36,10 @@ export const registerConnectorRoutes = async (
     entries: await store.listProjectBindings({ accountId: session.account.accountId, projectId: input.params.projectId }),
   }))
 
-  route.operation(CON09, (input, session) =>
-    store.bindConnection({ accountId: session.account.accountId, projectId: input.params.projectId, body: input.body }))
+  route.operation(CON09, async (input, session): Promise<Reply<typeof CON09>> => {
+    const { binding, created } = await store.bindConnection({ accountId: session.account.accountId, projectId: input.params.projectId, body: input.body })
+    return created ? { status: 201, body: binding } : { status: 200, body: binding }
+  })
 
   route.operation(CON10, async (input, session) => {
     await store.unbindConnection({ accountId: session.account.accountId, projectId: input.params.projectId, bindingId: input.params.bindingId })

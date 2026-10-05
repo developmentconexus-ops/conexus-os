@@ -173,6 +173,18 @@ const missing = (invariant: string): Failure => new Failure('INTERNAL_UNEXPECTED
 // Only the malformed table of an operation reaches here untyped: it is read by a runtime key from an erased generic.
 const isHubFailureCode = (code: unknown): code is keyof typeof HUB_FAILURES => typeof code === 'string' && Object.hasOwn(HUB_FAILURES, code)
 
+/** The schema of one body field. A union body is read through the option its discriminator selects. */
+const shapeField = (object: zod.ZodObject, field: string): zod.ZodType | undefined => Object.entries(object.shape).find(([key]) => key === field)?.[1]
+
+const bodyField = (body: zod.ZodType | null, value: unknown, field: string): zod.ZodType | undefined => {
+  if (body instanceof zod.ZodObject) return shapeField(body, field)
+  if (!(body instanceof zod.ZodDiscriminatedUnion) || typeof value !== 'object' || value === null) return undefined
+  const discriminator = body.def.discriminator
+  const selected = Object.entries(value).find(([key]) => key === discriminator)?.[1]
+  const option = body.options.find((candidate) => candidate instanceof zod.ZodObject && shapeField(candidate, discriminator)?.safeParse(selected).success)
+  return option instanceof zod.ZodObject ? shapeField(option, field) : undefined
+}
+
 /** @public */
 export const grantOf = <Kind extends AccessKind>(request: FastifyRequest, kind: Kind): Grants[Kind] => {
   const state = request[SLOT]
@@ -325,9 +337,9 @@ export const routes = (app: FastifyInstance) => {
           const raw = typeof value === 'object' && value !== null && 'idempotency-key' in value ? value['idempotency-key'] : undefined
           if (code && (raw === undefined || raw === '')) return { error: new Failure(code) }
         }
-        if (httpPart === 'body' && op.body instanceof zod.ZodObject) {
+        if (httpPart === 'body') {
           const field = parsed.error.issues[0]?.path[0]
-          const schema = typeof field === 'string' ? op.body.shape[field] : undefined
+          const schema = typeof field === 'string' ? bodyField(op.body, value, field) : undefined
           const code = schema ? fieldFailures.get(schema)?.failureCode : undefined
           if (code) return { error: new Failure(code) }
         }

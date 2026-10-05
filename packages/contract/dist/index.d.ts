@@ -1,7 +1,7 @@
 export * from './field-failures.js';
 export * from './ids.js';
 export * from './failures.generated.js';
-export * from './connector.js';
+export * from './connectors.js';
 export * from './operation.js';
 export * from './problem.js';
 export * from './project.js';
@@ -43,18 +43,16 @@ export declare const OPERATIONS: readonly ({
     }, import("zod/v4/core").$strip>;
     readonly query: null;
     readonly headers: null;
-    readonly body: import("zod").ZodObject<{
+    readonly body: import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
         connectionId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ConnectionId", "out">;
-        connectorId: import("zod").ZodEnum<{
-            sankhya: "sankhya";
-        }>;
+        connectorId: import("zod").ZodLiteral<"sankhya">;
         label: import("zod").ZodString;
         credential: import("zod").ZodObject<{
             clientId: import("zod").ZodString;
             clientSecret: import("zod").ZodString;
             xToken: import("zod").ZodString;
         }, import("zod/v4/core").$strict>;
-    }, import("zod/v4/core").$strict>;
+    }, import("zod/v4/core").$strict>], "connectorId">;
     readonly success: {
         readonly 201: import("zod").ZodObject<{
             connectionId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ConnectionId", "out">;
@@ -101,7 +99,7 @@ export declare const OPERATIONS: readonly ({
         }, import("zod/v4/core").$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "CONNECTOR_CONNECTION_NOT_FOUND"];
+    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "CONNECTOR_CONNECTION_NOT_FOUND", "CONNECTOR_PLATFORM_FAILED"];
     readonly malformed: {
         readonly workspaceId: "CONNECTOR_CONNECTION_NOT_FOUND";
         readonly connectionId: "CONNECTOR_CONNECTION_NOT_FOUND";
@@ -140,10 +138,10 @@ export declare const OPERATIONS: readonly ({
     readonly body: null;
     readonly success: {
         readonly 200: import("zod").ZodObject<{
-            entries: import("zod").ZodArray<import("zod").ZodUnion<readonly [import("zod").ZodObject<{
+            entries: import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
                 kind: import("zod").ZodLiteral<"binding">;
                 bindingId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "BindingId", "out">;
-                name: import("zod").ZodString;
+                name: import("zod/v4/core").$ZodBranded<import("zod").ZodString, "BindingName", "out">;
                 connectionId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ConnectionId", "out">;
                 connectorId: import("zod").ZodString;
                 label: import("zod").ZodString;
@@ -153,7 +151,7 @@ export declare const OPERATIONS: readonly ({
                 connectionId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ConnectionId", "out">;
                 connectorId: import("zod").ZodString;
                 label: import("zod").ZodString;
-            }, import("zod/v4/core").$strip>]>>;
+            }, import("zod/v4/core").$strip>], "kind">>;
         }, import("zod/v4/core").$strip>;
     };
     readonly effects: readonly [];
@@ -173,13 +171,22 @@ export declare const OPERATIONS: readonly ({
     readonly headers: null;
     readonly body: import("zod").ZodObject<{
         connectionId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ConnectionId", "out">;
-        name: import("zod").ZodString;
+        name: import("zod/v4/core").$ZodBranded<import("zod").ZodString, "BindingName", "out">;
     }, import("zod/v4/core").$strict>;
     readonly success: {
+        readonly 201: import("zod").ZodObject<{
+            kind: import("zod").ZodLiteral<"binding">;
+            bindingId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "BindingId", "out">;
+            name: import("zod/v4/core").$ZodBranded<import("zod").ZodString, "BindingName", "out">;
+            connectionId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ConnectionId", "out">;
+            connectorId: import("zod").ZodString;
+            label: import("zod").ZodString;
+            boundAt: import("zod").ZodISODateTime;
+        }, import("zod/v4/core").$strip>;
         readonly 200: import("zod").ZodObject<{
             kind: import("zod").ZodLiteral<"binding">;
             bindingId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "BindingId", "out">;
-            name: import("zod").ZodString;
+            name: import("zod/v4/core").$ZodBranded<import("zod").ZodString, "BindingName", "out">;
             connectionId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ConnectionId", "out">;
             connectorId: import("zod").ZodString;
             label: import("zod").ZodString;
