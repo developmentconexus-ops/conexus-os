@@ -3,7 +3,6 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { z } from 'zod'
-import { dropFailureCode } from './openapi-failure-code.mjs'
 import { OPERATIONS, Problem } from '../packages/contract/dist/index.js'
 import { FAILURE_STATUS } from '../packages/contract/dist/failures.generated.js'
 
@@ -32,16 +31,22 @@ const noExtensions = (value) => {
     .map(([key, entry]) => [key, noExtensions(entry)]))
 }
 
+const withoutFailureCode = (value) => {
+  if (Array.isArray(value)) return value.map(withoutFailureCode)
+  if (value === null || typeof value !== 'object') return value
+  return Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'failureCode').map(([key, entry]) => [key, withoutFailureCode(entry)]))
+}
+
 const asComponent = (schema, components, io) => {
-  const json = z.toJSONSchema(schema, { io, override: dropFailureCode })
+  const json = z.toJSONSchema(schema, { io })
   for (const [name, definition] of Object.entries(json.$defs ?? {})) {
-    const normalized = JSON.parse(JSON.stringify(definition).replaceAll('#/$defs/', '#/components/schemas/'))
+    const normalized = withoutFailureCode(JSON.parse(JSON.stringify(definition).replaceAll('#/$defs/', '#/components/schemas/')))
     if (components[name] && JSON.stringify(components[name]) !== JSON.stringify(normalized)) throw new Error(`OPENAPI_SCHEMA_COLLISION: ${name}`)
     components[name] = normalized
   }
   delete json.$schema
   delete json.$defs
-  return JSON.parse(JSON.stringify(json).replaceAll('#/$defs/', '#/components/schemas/'))
+  return withoutFailureCode(JSON.parse(JSON.stringify(json).replaceAll('#/$defs/', '#/components/schemas/')))
 }
 
 const parameters = (part, location, components) => {
