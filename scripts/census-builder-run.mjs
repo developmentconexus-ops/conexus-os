@@ -139,7 +139,14 @@ const runEndWriters = finishWrites.filter((at, index) => !(at.startsWith('apps/h
 // answer about the sandbox or the vendor, not the repository, and are outside this item.
 const FAILURE_DEFAULT = /\.catch\(\(\) => (?:false|null|\[\]|'')\)|\.then\(\(\) => \w+, \(\) => (?:false|null)\)|\.then\([^()]*, \(\) => (?:false|null)\)/
 const NOT_REPOSITORY_OR_STORE = /^apps\/hub\/src\/builder\/(check\/|google-ai-pro\/|anthropic\/|openai-codex\/|harness\/|egress-log\.ts$)/
-const failureToDefault = hits(builderSource.filter((path) => !NOT_REPOSITORY_OR_STORE.test(rel(path))), FAILURE_DEFAULT)
+// In the Git adapter any failure handler that swallows the error, or renames every failure to a domain code, is the same
+// conversion: git's exit code is not the answer, so a failed command is a named Git failure or a read-back, never a guess.
+const GIT_ADAPTER_CONVERSION = /\.catch\(\(\) =>|\.catch\((?:async )?\(\w+(?:: unknown)?\) => \{?\s*throw new Failure\(/g
+const gitAdapterConversions = builderSource.filter((path) => rel(path) === 'apps/hub/src/builder/conexus-git.ts').flatMap((path) => {
+  const text = readFileSync(path, 'utf8')
+  return [...text.matchAll(GIT_ADAPTER_CONVERSION)].map((found) => `${rel(path)}:${lineOf(text, found.index)}`)
+})
+const failureToDefault = [...hits(builderSource.filter((path) => !NOT_REPOSITORY_OR_STORE.test(rel(path))), FAILURE_DEFAULT), ...gitAdapterConversions]
 
 const runFiles = builderSource.filter((path) => /^apps\/hub\/src\/builder\/(run\/|service\.ts$|runtime\.ts$)/.test(rel(path)))
 const runFunctionLengthSuppressions = hits(runFiles, /biome-ignore lint\/complexity\/noExcessiveLinesPerFunction/, { comments: true })

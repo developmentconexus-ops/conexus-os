@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
@@ -9,6 +9,7 @@ import { pipeline } from 'node:stream/promises'
 import type { CommandResult } from '@mastra/core/workspace'
 import { SourceRevision, type ExecutionId } from '../../../../packages/contract/dist/index.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
+import { logLine } from '../platform/logger.js'
 import type { ConversationId, ProjectId } from '../../../../packages/contract/dist/index.js'
 
 /**
@@ -51,6 +52,8 @@ const UUID_PATTERN = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 const PROJECT_ID = new RegExp(`^${UUID_PATTERN}$`)
 const SNAPSHOT_REF = new RegExp(`^refs/conexus/(runs|conversations)/${UUID_PATTERN}$`)
 const MAIN = 'refs/heads/main'
+/** Longer than any git command the Hub runs, so a lock this old belongs to a process that died. */
+const STALE_LOCK_MS = 5 * 60_000
 const NO_OBJECT = '0'.repeat(40)
 const STARTER_MESSAGE = 'Start the Conexus application'
 const BUILDER_IDENTITY = { name: 'Conexus Builder', email: 'builder@conexus.invalid' } as const
@@ -81,9 +84,13 @@ const gitEnvironment = (extra: Readonly<Record<string, string>> = {}): NodeJS.Pr
   ...extra,
 })
 
-// `answers` names the exit codes besides 0 that are an answer rather than a failure, as 1 is for a
-// merge with conflicts.
-const runGit = (args: readonly string[], options: Readonly<{ input?: Uint8Array | string; env?: Readonly<Record<string, string>>; answers?: readonly number[] }> = {}): Promise<Buffer> =>
+type GitOptions = Readonly<{ input?: Uint8Array | string; env?: Readonly<Record<string, string>>; answers?: readonly number[] }>
+type GitRun = Readonly<{ code: number; stdout: Buffer }>
+
+// `answers` names the exit codes besides 0 that can be an answer rather than a failure, as 1 is for a
+// merge with conflicts. Git exits with the same code for "no" and for "I could not read", and only
+// the answer leaves stderr empty, so a code in `answers` counts as one only with an empty stderr.
+const execGit = (args: readonly string[], options: GitOptions = {}): Promise<GitRun> =>
   new Promise((resolve, reject) => {
     const child = spawn('git', ['-c', 'core.hooksPath=/dev/null', ...args], { env: gitEnvironment(options.env), stdio: ['pipe', 'pipe', 'pipe'] })
     const stdout: Buffer[] = []
@@ -97,20 +104,19 @@ const runGit = (args: readonly string[], options: Readonly<{ input?: Uint8Array 
     child.stderr.on('data', (chunk: Buffer) => { stderr.push(chunk) })
     child.on('error', reject)
     child.on('close', (code) => {
-      if ((code === 0 || options.answers?.includes(code ?? -1)) && size <= MAX_OUTPUT_BYTES) resolve(Buffer.concat(stdout))
-      else reject(new GitCommandError(code ?? -1, Buffer.concat(stderr).toString('utf8')))
+      const errors = Buffer.concat(stderr).toString('utf8')
+      const answered = code === 0 || (options.answers?.includes(code ?? -1) === true && errors === '')
+      if (answered && size <= MAX_OUTPUT_BYTES) resolve({ code: code ?? 0, stdout: Buffer.concat(stdout) })
+      else reject(new GitCommandError(code ?? -1, errors))
     })
     child.stdin.on('error', () => undefined)
     child.stdin.end(options.input ?? '')
   })
 
+const runGit = async (args: readonly string[], options: GitOptions = {}): Promise<Buffer> => (await execGit(args, options)).stdout
+
 const text = async (output: Promise<Buffer>): Promise<string> => (await output).toString('utf8').trim()
 
-/** Answers false instead of throwing when git's exit code is the answer, as for --is-ancestor. */
-const succeeds = (output: Promise<Buffer>): Promise<boolean> => output.then(() => true, (error: unknown) => {
-  if (error instanceof GitCommandError && error.exitCode === 1) return false
-  throw error
-})
 
 const withTemporaryDirectory = async <T>(work: (directory: string) => Promise<T>): Promise<T> => {
   const directory = await mkdtemp(join(tmpdir(), 'conexus-git-'))
@@ -149,12 +155,17 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
   const git = (projectId: ProjectId, args: readonly string[], options?: Parameters<typeof runGit>[1]): Promise<Buffer> =>
     runGit(['--git-dir', repository(projectId), ...args], options)
 
+  // The query's output, or null for git's answer "no" (exit 1 with an empty stderr); any other outcome is a failure.
+  const ask = async (projectId: ProjectId, args: readonly string[]): Promise<Buffer | null> => {
+    const run = await execGit(['--git-dir', repository(projectId), ...args], { answers: [1] })
+    return run.code === 0 ? run.stdout : null
+  }
+  const succeeds = async (projectId: ProjectId, args: readonly string[]): Promise<boolean> => await ask(projectId, args) !== null
+  const hasCommit = (projectId: ProjectId, revision: SourceRevision): Promise<boolean> => succeeds(projectId, ['rev-parse', '--verify', '--quiet', `${revision}^{commit}`])
+
   const readRef = async (projectId: ProjectId, ref: string): Promise<SourceRevision | null> => {
-    const value = await text(git(projectId, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])).catch((error: unknown) => {
-      if (error instanceof GitCommandError && error.exitCode === 1) return ''
-      throw error
-    })
-    return value ? requireCommit(value, 'CONEXUS_GIT_REF_REFUSED') : null
+    const found = await ask(projectId, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])
+    return found === null ? null : requireCommit(found.toString('utf8').trim(), 'CONEXUS_GIT_REF_REFUSED')
   }
 
   const commitStarter = async (projectId: ProjectId): Promise<SourceRevision> => withTemporaryDirectory(async (directory) => {
@@ -176,9 +187,28 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
   const moveRef = async (projectId: ProjectId, ref: string, next: SourceRevision, expected?: SourceRevision | null): Promise<void> => {
     if (!OID.test(next)) throw new Failure('CONEXUS_GIT_REF_REFUSED')
     const from = expected === undefined ? [] : [expected ?? NO_OBJECT]
-    await git(projectId, ['update-ref', ref, next, ...from]).catch((error: unknown) => {
+    // A failed update is read back: the ref at `next` converged, still at `expected` the update itself failed
+    // (a stale lock, the disk) and is that failure, and anywhere else it moved.
+    await git(projectId, ['update-ref', ref, next, ...from]).catch(async (error: unknown) => {
+      const now = await readRef(projectId, ref)
+      if (now === next) return
+      if (expected === undefined || now === expected) throw error
       throw new Failure('CONEXUS_GIT_REF_MOVED', { cause: error instanceof GitCommandError ? error.cause : undefined })
     })
+  }
+
+  // What a crashed process leaves: a ref lock older than any command can run, and staging refs, which never outlive a process.
+  const reconcileOpen = async (projectId: ProjectId): Promise<void> => {
+    const refs = join(repository(projectId), 'refs')
+    for (const entry of await readdir(refs, { recursive: true })) {
+      if (!entry.endsWith('.lock')) continue
+      const lock = join(refs, entry)
+      if (Date.now() - (await stat(lock)).mtimeMs < STALE_LOCK_MS) continue
+      await rm(lock, { force: true })
+      logLine('CONEXUS_GIT_STALE_LOCK_REMOVED', { 'git.ref': entry }, 'warn')
+    }
+    const staging = (await text(git(projectId, ['for-each-ref', '--format=%(refname)', 'refs/conexus/staging/']))).split('\n').filter(Boolean)
+    for (const ref of staging) await git(projectId, ['update-ref', '-d', ref])
   }
 
   const readMain = async (projectId: ProjectId): Promise<SourceRevision> => {
@@ -198,6 +228,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
       await mkdir(root, { recursive: true, mode: 0o700 })
       await runGit(['init', '--quiet', '--bare', '--template=', path])
       await git(projectId, ['symbolic-ref', 'HEAD', MAIN])
+      await reconcileOpen(projectId)
       const existing = await readRef(projectId, MAIN)
       if (existing) return existing
       const commit = await commitStarter(projectId)
@@ -223,7 +254,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
     startTurn: async (projectId: ProjectId, conversationId: ConversationId, main: SourceRevision): Promise<TurnStart> => {
       const ref = mirrorRef(conversationId)
       const mirror = await readRef(projectId, ref)
-      const isAncestor = (ancestor: SourceRevision, descendant: SourceRevision): Promise<boolean> => succeeds(git(projectId, ['merge-base', '--is-ancestor', ancestor, descendant]))
+      const isAncestor = (ancestor: SourceRevision, descendant: SourceRevision): Promise<boolean> => succeeds(projectId, ['merge-base', '--is-ancestor', ancestor, descendant])
       if (!mirror || await isAncestor(mirror, main)) return { conversationId, main, start: main, mirror, previous: mirror, conflicted: [] }
       if (await isAncestor(main, mirror)) return { conversationId, main, start: mirror, mirror, previous: mirror, conflicted: [] }
       const [tree = '', ...conflicted] = (await git(projectId, ['merge-tree', '--write-tree', '--name-only', '-z', '--no-messages', mirror, main], { answers: [1] }))
@@ -268,9 +299,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
           await git(projectId, [
             '-c', 'transfer.fsckObjects=true', '-c', 'fetch.fsckObjects=true',
             'fetch', '--quiet', '--no-tags', '--no-write-fetch-head', file, `+${ref}:${staging}`,
-          ]).catch((error: unknown) => {
-            throw new Failure('BUILDER_RESULT_MATERIALIZATION_REFUSED', { cause: error instanceof GitCommandError ? error.cause : undefined })
-          })
+          ])
         })
         const [commitText, ...parents] = (await text(git(projectId, ['rev-list', '--parents', '-n', '1', staging]))).split(' ')
         const commit = SourceRevision.safeParse(commitText)
@@ -281,7 +310,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
         await moveRef(projectId, ref, commit.data, expected)
         return commit.data
       } finally {
-        await git(projectId, ['update-ref', '-d', staging]).catch(() => undefined)
+        await git(projectId, ['update-ref', '-d', staging])
       }
     },
 
@@ -298,28 +327,26 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
      */
     fastForwardMain: async (projectId: ProjectId, { base, candidate }: Readonly<{ base: SourceRevision; candidate: SourceRevision }>): Promise<void> => {
       if (!OID.test(base) || !OID.test(candidate) || base === candidate) throw new Failure('BUILDER_RESULT_MATERIALIZATION_REFUSED')
-      if (!await succeeds(git(projectId, ['merge-base', '--is-ancestor', base, candidate]))) throw new Failure('BUILDER_RESULT_MATERIALIZATION_REFUSED')
-      await git(projectId, ['update-ref', MAIN, candidate, base]).catch(async (error: unknown) => {
-        const main = await readMain(projectId)
-        if (main === candidate) return
-        throw main === base ? error : new Failure('BUILDER_SOURCE_BASE_MOVED')
+      if (!await succeeds(projectId, ['merge-base', '--is-ancestor', base, candidate])) throw new Failure('BUILDER_RESULT_MATERIALIZATION_REFUSED')
+      await moveRef(projectId, MAIN, candidate, base).catch((error: unknown) => {
+        throw error instanceof Failure && error.id === 'CONEXUS_GIT_REF_MOVED' ? new Failure('BUILDER_SOURCE_BASE_MOVED') : error
       })
     },
 
     /** Whether this commit is the starter: the root commit `ensureRepository` made, which no saved version precedes. */
     isStarter: async (projectId: ProjectId, revision: SourceRevision): Promise<boolean> =>
-      await hasCommit(git, projectId, revision) && (await text(git(projectId, ['rev-list', '--parents', '-n', '1', revision]))).split(' ').length === 1,
+      await hasCommit(projectId, revision) && (await text(git(projectId, ['rev-list', '--parents', '-n', '1', revision]))).split(' ').length === 1,
 
     /** Whether `main` holds this commit in its history, which is how a restart learns a run was admitted. */
     mainContains: async (projectId: ProjectId, revision: SourceRevision): Promise<boolean> => {
-      if (!await hasCommit(git, projectId, revision)) return false
+      if (!await hasCommit(projectId, revision)) return false
       const main = await readMain(projectId)
-      return succeeds(git(projectId, ['merge-base', '--is-ancestor', revision, main]))
+      return succeeds(projectId, ['merge-base', '--is-ancestor', revision, main])
     },
 
     /** Every entry of a commit's tree, directories included, or null when the commit is not here. */
     listTree: async (projectId: ProjectId, revision: SourceRevision): Promise<readonly GitTreeEntry[] | null> => {
-      if (!await hasCommit(git, projectId, revision)) return null
+      if (!await hasCommit(projectId, revision)) return null
       const output = await git(projectId, ['ls-tree', '-r', '-t', '-z', '--full-tree', revision])
       return output.toString('utf8').split('\0').filter(Boolean).map((line) => {
         const tab = line.indexOf('\t')
@@ -330,7 +357,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
 
     /** One path's blob at a commit with its mode and size, or null when the commit or path is not there. */
     readBlob: async (projectId: ProjectId, revision: SourceRevision, path: string, maxBytes: number): Promise<Readonly<{ mode: string; type: string; size: number; bytes: Buffer | null }> | null> => {
-      if (!await hasCommit(git, projectId, revision)) return null
+      if (!await hasCommit(projectId, revision)) return null
       const listed = (await git(projectId, ['ls-tree', '-l', '-z', '--full-tree', revision, '--', path])).toString('utf8').split('\0').filter(Boolean)
       const line = listed.find((entry) => entry.slice(entry.indexOf('\t') + 1) === path)
       if (!line) return null
@@ -341,7 +368,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
 
     /** The paths that differ between two commits, renames found, or null when either is not here. */
     diff: async (projectId: ProjectId, base: SourceRevision, result: SourceRevision): Promise<readonly GitChange[] | null> => {
-      if (!await hasCommit(git, projectId, base) || !await hasCommit(git, projectId, result)) return null
+      if (!await hasCommit(projectId, base) || !await hasCommit(projectId, result)) return null
       const fields = (await git(projectId, ['diff-tree', '-r', '-z', '-M', '--no-commit-id', '--name-status', base, result])).toString('utf8').split('\0')
       const changes: GitChange[] = []
       for (let at = 0, status = fields[at]; status; status = fields[at]) {
@@ -363,10 +390,6 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
       git(projectId, ['archive', '--format=tar', revision, '--', ...paths]),
   })
 }
-
-// Exit 1 of a quiet verify is a missing commit; any other failure is the repository's and propagates.
-const hasCommit = (git: (projectId: ProjectId, args: readonly string[]) => Promise<Buffer>, projectId: ProjectId, revision: SourceRevision): Promise<boolean> =>
-  succeeds(git(projectId, ['rev-parse', '--verify', '--quiet', `${revision}^{commit}`]))
 
 const uuidRef = (prefix: string, id: string): string => {
   if (!PROJECT_ID.test(id)) throw new Failure('CONEXUS_GIT_REF_REFUSED')
@@ -505,7 +528,7 @@ export const pullSnapshot = async ({ git, projectId, snapshot, expected, unchang
   const lines = committed.stdout.trim().split('\n')
   const reported = lines.pop() ?? ''
   if (committed.exitCode !== 0 || (reported !== 'UNCHANGED' && reported !== 'SAME' && !OID.test(reported))) {
-    throw new Failure('BUILDER_RESULT_MATERIALIZATION_REFUSED', { cause: { exitCode: committed.exitCode, stderr: evidence(committed.stderr) } })
+    throw new Failure('CONEXUS_GIT_FAILED', { cause: { exitCode: committed.exitCode, stderr: evidence(committed.stderr) } })
   }
   if (reported === 'UNCHANGED') return null
   if (reported === 'SAME' && sameAs) return sameAs

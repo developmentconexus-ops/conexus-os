@@ -176,7 +176,7 @@ const readRunContext = async (run: Run): Promise<(conflicted: readonly string[])
   const { projectId, conversationId, builderRunId, baseSourceRevision } = run.row
   const { connectorRun } = run
   // The Project's instructions and memory are read by the Hub from the base in the Conexus Git, never from the sandbox (AC-9).
-  const readProjectFile = (path: string) => ports.git.readBlob(projectId, baseSourceRevision, path, PROJECT_FILE_READ_LIMIT).catch(() => undefined)
+  const readProjectFile = (path: string) => ports.git.readBlob(projectId, baseSourceRevision, path, PROJECT_FILE_READ_LIMIT)
   const instructions = readProjectInstructions(await readProjectFile(PROJECT_INSTRUCTIONS_PATH))
   const memory = readProjectMemory(await readProjectFile(PROJECT_MEMORY_PATH))
   const projectName = await ports.readProjectName({ accountId: run.request.accountId, projectId })

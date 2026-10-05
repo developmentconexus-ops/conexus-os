@@ -168,6 +168,15 @@ test('a failure turned into false, null or an empty answer fails, a sandbox prob
   assert.equal(fixture(t, { files: code('const tree = await git().catch(() => null)\n') }).run().status, 1)
   assert.equal(fixture(t, { files: code('const tree = await git().catch(() => [])\n') }).run().status, 1)
   assert.equal(fixture(t, { files: code('const ok = await probe().catch(() => false)\n', 'apps/hub/src/builder/check/steps/boot.ts') }).run().status, 0)
-  assert.equal(fixture(t, { files: code('const void1 = await close().catch(() => undefined)\n') }).run().status, 0)
+  assert.equal(fixture(t, { files: code('const void1 = await close().catch(() => undefined)\n', 'apps/hub/src/builder/run/admit.ts') }).run().status, 0)
   assert.equal(fixture(t, { files: code('export const candidateSnapshot = (runId: string) => runId\n') }).run().status, 1)
+})
+
+test('in the Git adapter a swallowing catch and a catch that renames every failure to a domain code are counted', (t) => {
+  const adapter = (text) => ({ ...FILES, 'apps/hub/src/builder/conexus-git.ts': text })
+  assert.equal(fixture(t, { files: adapter('await git().catch(() => undefined)\n') }).run().status, 1)
+  const renamed = fixture(t, { files: adapter('await git().catch((error: unknown) => {\n  throw new Failure(\'X\', { cause: error })\n})\n') }).run()
+  assert.equal(renamed.status, 1)
+  assert.match(renamed.out, /failureToDefault 1 \(record 0\) UP\s+apps\/hub\/src\/builder\/conexus-git\.ts:1/)
+  assert.equal(fixture(t, { files: adapter('await git().catch(async (error: unknown) => {\n  if (await read() === null) throw error\n})\n') }).run().status, 0)
 })
