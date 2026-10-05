@@ -4,6 +4,8 @@ import { admitSystem } from '../identity-access/admission.js'
 import { sql, type Database } from '../platform/db.js'
 import { OPEN_RUN_STATES } from './run-row.js'
 
+const Now = z.object({ now: z.date() })
+
 /** A queued or working run a lease pass took over from an owner that went quiet. */
 const TakenOver = z.object({
   builder_run_id: BuilderRunId,
@@ -33,17 +35,18 @@ export const createRunLease = ({ database }: Readonly<{ database: Database }>): 
   renewRunLease: (ownerId, liveRunIds, staleAfterMs) => database.system('builder-executor', async (gate) => {
     const { tx } = await admitSystem(gate, 'builder-executor')
     const live = [...liveRunIds]
+    const { now } = await tx.one(Now, sql`SELECT clock_timestamp() AS now`, 'INTERNAL_UNEXPECTED')
     await tx.run(sql`
-      UPDATE builder.builder_run SET heartbeat_at = clock_timestamp()
+      UPDATE builder.builder_run SET heartbeat_at = ${now}
       WHERE builder_run_id = ANY(${live}::uuid[]) AND owner_id = ${ownerId}::uuid AND state = ANY(${OPEN_RUN_STATES}::text[])`)
     const taken = await tx.rows(TakenOver, sql`
       WITH stale AS (
         SELECT builder_run_id, owner_id AS previous_owner_id FROM builder.builder_run
         WHERE state = ANY(${OPEN_RUN_STATES}::text[]) AND builder_run_id <> ALL(${live}::uuid[])
-          AND COALESCE(heartbeat_at, created_at) < clock_timestamp() - make_interval(secs => ${staleAfterMs}::integer / 1000.0)
+          AND COALESCE(heartbeat_at, created_at) < ${now}::timestamptz - make_interval(secs => ${staleAfterMs}::integer / 1000.0)
         FOR UPDATE SKIP LOCKED
       ), updated AS (
-        UPDATE builder.builder_run AS run SET owner_id = ${ownerId}::uuid, heartbeat_at = clock_timestamp()
+        UPDATE builder.builder_run AS run SET owner_id = ${ownerId}::uuid, heartbeat_at = ${now}
         WHERE run.builder_run_id IN (SELECT stale.builder_run_id FROM stale)
         RETURNING run.builder_run_id, run.project_id, run.conversation_id, run.candidate_revision, run.result_source_revision, run.created_at
       )

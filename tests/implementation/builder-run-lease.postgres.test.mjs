@@ -146,4 +146,14 @@ test('a message to a conversation with a live run is refused to anyone who canno
   assert.equal(h.holds.length, 1, 'the run was not touched')
 })
 
+test('one pass beats the listed runs and takes the stale ones at one instant', async (t) => {
+  const h = await leaseHarness(t, 'conexus_lease_instant')
+  const listed = await h.seedRun({ ownerId: HUB, heartbeatAgoMs: HOUR })
+  const stale = await h.seedRun({ ownerId: OTHER, heartbeatAgoMs: HOUR })
+  const taken = await h.store.renewRunLease(HUB, [listed.builderRunId], 30_000)
+  assert.deepEqual(taken.map(({ builderRunId }) => builderRunId), [stale.builderRunId])
+  const beats = (await query(h.connectionString, 'SELECT count(DISTINCT heartbeat_at)::integer AS instants FROM builder.builder_run WHERE builder_run_id = ANY($1)', [[listed.builderRunId, stale.builderRunId]])).rows
+  assert.deepEqual(beats, [{ instants: 1 }])
+})
+
 const untilHeld = async (h) => { for (let i = 0; i < 400 && h.holds.length === 0; i++) await new Promise((wake) => { setTimeout(wake, 5) }) }
