@@ -233,9 +233,11 @@ export const openDatabase = (connection: DatabaseConnection): Database => {
       await client.query(entry.role)
       if (entry.setting) await client.query('SELECT set_config($1, $2, true)', [entry.setting.name, entry.setting.value])
       const value = await entered.run(true, () => fn(tx))
+      tx.end()
       await client.query('COMMIT')
       return value
     } catch (error) {
+      tx.end()
       if (started) await client.query('ROLLBACK').catch((rollbackError: unknown) => {
         discard = rollbackError instanceof Error ? rollbackError : new Error('ROLLBACK failed')
       })

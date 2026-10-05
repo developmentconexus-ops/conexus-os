@@ -52,6 +52,23 @@ test('a pooled client is hub_runtime after a commit, a rollback and a throw, and
   assert.deepEqual(mode, { isolation: 'repeatable read', read_only: 'on' })
 })
 
+test('a query that resumes after the entry returned is refused before COMMIT and leaves no row', async (t) => {
+  const { connection, database } = await openRuntimeFixture(t, 'conexus_split_ended', { max: 1, accounts: [[ACCOUNT, 'a']] })
+  const insert = sql`INSERT INTO workspace.workspace(workspace_id, name) VALUES (gen_random_uuid(), 'floating')`
+  for (const outcome of ['commit', 'rollback']) {
+    let floating
+    const entry = database.transaction(ACCOUNT, async (gate) => {
+      const { tx } = await admitAccount(gate)
+      floating = (async () => { await tx.run(sql`SELECT 1`); await tx.run(insert) })()
+      floating.catch(() => undefined)
+      if (outcome === 'rollback') throw new Error('rolled back')
+    })
+    await (outcome === 'commit' ? entry : assert.rejects(entry, { message: 'rolled back' }))
+    await assert.rejects(floating, (error) => error.id === 'INTERNAL_UNEXPECTED' && error.details?.reason === 'TRANSACTION_ENDED', outcome)
+    assert.deepEqual((await query(connection, 'SELECT count(*)::integer AS rows FROM workspace.workspace')).rows, [{ rows: 0 }], outcome)
+  }
+})
+
 test('the role invariants fail on a membership option, an extra membership and a role setting', async (t) => {
   const { connection, onCleanup } = await buildHubDatabase(t, 'conexus_split_roles')
   const client = new pg.Client(connection)
