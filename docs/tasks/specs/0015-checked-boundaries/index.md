@@ -515,7 +515,7 @@ here. The real dependencies come from the caller graph script
    read with the deletion predicate, admission child, section 2) with the column grant on
    `builder.builder_run` its row lock needs, and the run's deletion race tests; a run reads its held
    credential after `admitRun`, filtered by the run from the proof. Every command read follows the
-   scoped read rule, proven by the per operation cross tenant test for the BLD operations. Declares the seven BLD operations and the Mastra mount schemas; deletes the
+   scoped read rule, proven by the per operation cross tenant test for the BLD operations. Declares the eight BLD operations (with BLD-30, Preview) and the Mastra mount schemas; deletes the
    hand written BLD types on both sides (`builder/routes.ts`, `features/builder/api.ts`) and
    `JsonRow<T>` (`builder/store.ts`); parses the Mastra output the Hub and the web read
    (`mastra-session-routes.ts`, `transcript.ts`, `pending-card.tsx`, `mastra-session.ts`); keeps the
@@ -557,7 +557,7 @@ here. The real dependencies come from the caller graph script
    `0015-part-model.md`. Cut from that draft: the two `INSERT` and `UPDATE` rows, the `S` branches and
    the `HELD` branch; a run reads the credential it holds after `admitRun`, filtered by the run from
    the proof. It keeps the
-   three `SELECT` rows' person branches and the column grant `UPDATE (kind, secret, updated_at)`; the ten model account routes
+   three `SELECT` rows' person branches and the column grant `UPDATE (kind, secret, updated_at)`; the eleven model account routes (MDL-01 to MDL-11)
    declared; the four argument call to `model.upsert_model_account` fixed in the port; a run's refresh
    of a shared credential tested with sharing withdrawn mid run. Satisfies **AC-1**, **AC-4**, **AC-5**,
    **AC-9**, **AC-11**.
