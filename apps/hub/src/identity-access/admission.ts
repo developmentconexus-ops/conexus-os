@@ -9,15 +9,15 @@ import { Failure, type FailureCode } from '../platform/failure.js'
 export const WORKSPACE_ROLES = ['owner', 'member'] as const
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
 export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number]
-export type WorkspaceAction = 'workspace.read' | 'members.manage' | 'members.leave' | 'project.create' | 'project.build'
+export type WorkspaceAction = 'workspace.read' | 'members.manage' | 'members.leave' | 'project.create' | 'project.build' | 'connections.bind'
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
-export type ProjectAction = 'project.read' | 'project.build'
+export type ProjectAction = 'project.read' | 'project.build' | 'connections.bind'
 /** The commands an installation administrator runs across Workspaces. */
 export type AdministratorAction = 'project.delete' | 'connection.manage' | 'administrators.manage'
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
 export type Action = WorkspaceAction | ProjectAction | AdministratorAction
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
-export type ReadAction = 'workspace.read' | 'project.read'
+export type ReadAction = 'workspace.read' | 'project.read' | 'connections.bind'
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
 export type RunOwner = Readonly<{ ownerId: string }>
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
@@ -25,7 +25,7 @@ export type OwnerRow = Readonly<{ accountId: AccountId; active: boolean }>
 
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
 export const ROLE_ALLOWS = {
-  owner: ['workspace.read', 'members.manage', 'members.leave', 'project.create', 'project.build'],
+  owner: ['workspace.read', 'members.manage', 'members.leave', 'project.create', 'project.build', 'connections.bind'],
   member: ['workspace.read', 'members.leave', 'project.create', 'project.build'],
 } as const satisfies { readonly [R in WorkspaceRole]: readonly WorkspaceAction[] }
 
@@ -42,6 +42,7 @@ export const ACTION_REFUSALS = {
   'project.create': { outsider: 'PROJECT_CREATE_DENIED', forbidden: 'PROJECT_CREATE_DENIED' },
   'project.read': { outsider: 'PROJECT_NOT_FOUND', forbidden: 'PROJECT_NOT_FOUND' },
   'project.build': { outsider: 'PROJECT_NOT_FOUND', forbidden: 'PROJECT_NOT_FOUND' },
+  'connections.bind': { outsider: 'PROJECT_NOT_FOUND', forbidden: 'CONNECTOR_BINDING_MANAGE_REQUIRED' },
   'project.delete': { outsider: 'PROJECT_DELETE_DENIED', forbidden: 'PROJECT_DELETE_DENIED' },
   'connection.manage': { outsider: 'INSTALLATION_ADMINISTRATOR_REQUIRED', forbidden: 'INSTALLATION_ADMINISTRATOR_REQUIRED' },
   'administrators.manage': { outsider: 'INSTALLATION_ADMINISTRATOR_REQUIRED', forbidden: 'INSTALLATION_ADMINISTRATOR_REQUIRED' },
@@ -202,7 +203,7 @@ const liveProject = (projectId: ProjectId, lock: Sql) => sql`
 
 /** @public Frozen by spec 0015 section 3; parts 1, 2 and 4 admit through it. */
 export function admitProject<A extends ProjectAction>(gate: CommandGate, projectId: ProjectId, action: A): Promise<Admitted<ProjectScope<A>>>
-export function admitProject(tx: ReadTx, projectId: ProjectId, action: 'project.read'): Promise<Admitted<ProjectScope<'project.read'>, 'read'>>
+export function admitProject<A extends ReadAction & ProjectAction>(tx: ReadTx, projectId: ProjectId, action: A): Promise<Admitted<ProjectScope<A>, 'read'>>
 export async function admitProject(subject: CommandGate | ReadTx, projectId: ProjectId, action: ProjectAction): Promise<Admitted<Scope, Mode>> {
   const { tx, writer, accountId } = subjectOf(subject)
   if (writer) await lockActiveAccount(writer, accountId)
