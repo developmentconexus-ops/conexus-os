@@ -18,3 +18,9 @@ test('only the job executor, the Builder executor module and the project purge o
   const unexpected = callers.filter((file) => !MAY_CALL_SYSTEM.includes(file))
   assert.deepEqual(unexpected, [])
 })
+
+test('the project purge functions are named only by the project deletion', () => {
+  const files = globSync('apps/hub/src/**/*.ts', { cwd: root })
+    .filter((file) => /purge_project/.test(readFileSync(resolve(root, file), 'utf8')))
+  assert.deepEqual(files, ['apps/hub/src/project/deletion.ts'])
+})

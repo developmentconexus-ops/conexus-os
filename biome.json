@@ -55,7 +55,7 @@
       "plugins": ["./biome/plugins/no-error-code.grit"]
     },
     {
-      "includes": ["apps/hub/src/**", "!apps/hub/src/platform/db.ts"],
+      "includes": ["apps/hub/src/**", "!apps/hub/src/platform/db.ts", "!apps/hub/src/app-runner/data-plane.ts"],
       "plugins": ["./biome/plugins/no-session-setting-in-sql.grit"]
     },
     {
@@ -162,8 +162,34 @@
     {
       "includes": [
         "apps/*/src/**",
-        "packages/*/src/**"
+        "packages/*/src/**",
+        "!apps/hub/src/identity-access/admission.ts"
       ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/tests/**", "**/scripts/**"],
+                    "message": "Production code cannot import tests or scripts."
+                  },
+                  {
+                    "group": ["**/platform/db", "**/platform/db.js"],
+                    "importNamePattern": "openGate",
+                    "message": "A gate is opened only by identity-access/admission.ts."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/hub/src/identity-access/admission.ts"],
       "linter": {
         "rules": {
           "style": {
