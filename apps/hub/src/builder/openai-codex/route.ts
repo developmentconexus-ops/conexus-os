@@ -26,8 +26,15 @@ const builderCodexOptions: LanguageModelMiddleware = {
 
 type LanguageModelV3 = Parameters<typeof wrapLanguageModel>[0]['model']
 
+const isRecord = (value: unknown): value is object => typeof value === 'object' && value !== null
+
 const isLanguageModel = (model: object): model is LanguageModelV3 =>
-  'specificationVersion' in model && model.specificationVersion === 'v3' && 'doStream' in model && typeof model.doStream === 'function'
+  'specificationVersion' in model && model.specificationVersion === 'v3'
+  && 'provider' in model && typeof model.provider === 'string'
+  && 'modelId' in model && typeof model.modelId === 'string'
+  && 'supportedUrls' in model && isRecord(model.supportedUrls)
+  && 'doGenerate' in model && typeof model.doGenerate === 'function'
+  && 'doStream' in model && typeof model.doStream === 'function'
 
 /**
  * Mastra's Codex provider is typed as a model config but builds an AI SDK model; a config would be a bug there.

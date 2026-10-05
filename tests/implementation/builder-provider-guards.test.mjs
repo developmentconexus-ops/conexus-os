@@ -27,3 +27,15 @@ test('the real Codex provider model passes, and a model of another specification
   assert.equal(languageModelOf(real), real)
   assert.throws(() => languageModelOf({ specificationVersion: 'v2', doStream() {} }), failureOf('OPENAI_CODEX_MODEL_REFUSED'))
 })
+
+test('a model missing any member of the AI SDK language model contract is refused', () => {
+  const whole = { specificationVersion: 'v3', provider: 'p', modelId: 'm', supportedUrls: {}, doGenerate() {}, doStream() {} }
+  assert.equal(languageModelOf(whole), whole)
+  assert.throws(() => languageModelOf({ specificationVersion: 'v3', doStream() {} }), failureOf('OPENAI_CODEX_MODEL_REFUSED'))
+  for (const member of Object.keys(whole)) {
+    const { [member]: _removed, ...partial } = whole
+    assert.throws(() => languageModelOf(partial), failureOf('OPENAI_CODEX_MODEL_REFUSED'), member)
+  }
+  assert.throws(() => languageModelOf({ ...whole, supportedUrls: null }), failureOf('OPENAI_CODEX_MODEL_REFUSED'))
+  assert.throws(() => languageModelOf({ ...whole, provider: 1 }), failureOf('OPENAI_CODEX_MODEL_REFUSED'))
+})

@@ -129,7 +129,7 @@ export function admitWorkspace<A extends ReadAction & WorkspaceAction>(tx: ReadT
 export function admitProject<A extends ProjectAction>(gate: CommandGate, projectId: ProjectId, action: A): Promise<Admitted<ProjectScope<A>>>
 export function admitProject<A extends ReadAction & ProjectAction>(tx: ReadTx, projectId: ProjectId, action: A): Promise<Admitted<ProjectScope<A>, 'read'>>
 export function admitInstallationAdministrator<A extends AdministratorAction>(gate: CommandGate, action: A): Promise<Admitted<AdministratorScope<A>>>
-export function isInstallationAdministrator(tx: ReadTx): Promise<boolean>   // a fact, not a proof: CON-01 and CON-03 (part 2), IAM-14 and IAM-15 (part 6)
+export function isInstallationAdministrator(tx: ReadTx): Promise<boolean>   // a fact, not a proof: CON-01 (part 2), IAM-14 and IAM-15 (part 6)
 export function admitApplication(gate: CommandGate, projectId: ProjectId): Promise<Admitted<ApplicationScope>>   // built in part 0b
 export function admitRun(gate: CommandGate, builderRunId: BuilderRunId, owner: RunOwner): Promise<Admitted<RunScope>>   // body in part 1
 export function admitBootstrap(gate: AuthenticationGate, digest: Digest): Promise<Admitted<BootstrapScope>>   // part 6
@@ -598,7 +598,7 @@ the write is. Each refusal has a fixture that must be found.
 | project deletion | the tombstone in the administrator's own `transaction(accountId, ...)` after `admitInstallationAdministrator(gate, 'project.delete')`, in the order of section 2; the purge and its completion in `system('project-purge', fn)` after `admitSystem`, which first takes the project `FOR UPDATE` while its row exists (a retry after the row is gone goes on), then checks the tombstone and the busy runs, then passes one `WriteTx` to every owner's purge port, so the five purges stay one transaction as today; each port deletes its rows, and the receipt rows whose `resource_id` is the project | administrator, then system |
 | the Builder executor | claims a queued run in two steps (a system read of the run's account and project, then `transaction(run.accountId)` with `admitProject` sets the owner; a queued run has no owner, so the claim is not an `admitRun`), and renews, ends, fails and reconciles a run it owns in `system('builder-executor', fn)` with `admitRun`, which locks the project, then the run, and checks `owner_id` and that the run has not ended, as the claim and heartbeat functions do today; the run's own work (model turns, source writes) runs in `transaction(run.accountId, fn)` after `admitProject` or `admitRun`, so a run whose account lost the project fails its next work step, and the executor settles it under `system` | run |
 | the application host and the connector broker | `transaction(grantHolder, fn)` with `admitApplication(gate, projectId)` (section 2); then the served revision, its artifact and the bound connection are read on `proof.tx`, each filtered by `proof.scope.projectId` (section 1). The served pointer is the three `last_preview_*` columns of `builder.project_working_state`, read directly on the admitted Project (part 4), with no SQL function and no Builder port There is no grantee list and no grantee policy | application |
-| session and sign in resolution | `authenticate(fn)`, importable only by the identity session and sign in modules; it hands an `AuthenticationGate` with two closed families of exact steps (data child, section 1): `lookupByDigest`, every lookup by the digest of the presented token, and the typed identity steps (`lookupIdentity`, `provisionIdentity`, `lookupSlug`, `hasOpenInvitation`, `startOidc`, `mintContext`), each keyed by one exact value. Neither family lists. A lookup that finds an account, and `provisionIdentity`, bind it to the gate for `admitAccount` | bootstrap or account |
+| session and sign in resolution | `authenticate(fn)`, importable only by the identity session and sign in modules; it hands an `AuthenticationGate` with two closed families of exact steps (data child, section 1): `lookupByDigest`, every lookup by the digest of the presented token, and the typed steps: the identity steps (`lookupIdentity`, `provisionIdentity`, `lookupSlug`, `hasOpenInvitation`, `startOidc`, `mintContext`), each keyed by one exact value, and `consumeOidcState()` and `endCredential(reason)`, which act only on the row the gate's lookup bound, take no digest argument and need no active account. Neither family lists. A lookup that finds an account, and `provisionIdentity`, bind it to the gate for `admitAccount`. `consumeOidcState()` consumes the bound `oidc-state` row once; `endCredential(reason)` ends the bound session or handoff with today's predicates (part 6) | bootstrap or account |
 | the operator bootstrap | `authenticate(fn)` with `admitBootstrap(gate, digest)`, which locks the bootstrap context found by that digest; the first administrator takes the table lock and checks the full tenure history, revoked rows included, in the same transaction | bootstrap |
 
 **The purge guard.** Revision 5 removed the `PURGE_REQUIRES_SYSTEM` guard of the four purge
@@ -856,7 +856,7 @@ What changed from revision 5, and why. Two reviewers on different models interro
   `role`, which is a column every admission reads. Revision 5.2 replaces this match (see below).
 - **Every command read is scoped, and a test per operation proves it** (decision 2; Sonnet B2).
   Revision 5 moved exact id reads to a role with no filter and named no check. Section 1, the scoped
-  read rule, and section 10. `authenticate` hands two closed families of exact steps (`lookupByDigest` and the typed identity steps), not a `WriteTx`.
+  read rule, and section 10. `authenticate` hands two closed families of exact steps (`lookupByDigest(key)` and the eight typed steps), not a `WriteTx`.
 - **The purge guard is back, on `conexus.job`** (decision 3; both reviewers). Revision 5 removed it
   on a false premise. Section 6. `builder.register_project_repository` gets no job guard, because its
   caller is a person's command; why it needs none is in section 6.
@@ -939,6 +939,10 @@ spec's text above.
 - `RunScope` gains `projectId` (sections 1 and 2).
 - `isInstallationAdministrator(tx)`, one function in `admission.ts` (section 2).
 - The `AuthenticationGate` has a second closed family of typed steps (data child, section 1; section 6).
+  It also holds `consumeOidcState()` and `endCredential(reason)`, which act only on the row the
+  gate's lookup bound and need no active account (section 6; part 6). The family is eight steps.
+  `lookupByDigest(key)` takes a closed `key` union per kind, not `(kind, digest)`, because the
+  handoff kind is keyed by more than the digest (data child, section 1).
 - The administrator reach list widens `iam.account` to the grantors of open tenures (section 4.2).
 - `reg.artifact` gets no composite key, and the session keys are the account pairs (section 5).
 - The tenure and application grant updates are `(revoked_at, revoked_by)` from part 6 (section 5).

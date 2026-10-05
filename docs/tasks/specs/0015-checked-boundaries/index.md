@@ -208,7 +208,7 @@ Parts 1 to 7 build against these and do not change them; a needed change goes ba
 `routes(app).operation` and `Handler<O>` (contract, 3); `call`, `query`, `href`, `parseForeign` and the
 route param helper (contract, 4); `Database` (with `transaction` and `system` handing a
 `CommandGate`, and `authenticate` an `AuthenticationGate`), `ReadTx` (with `accountId`), `WriteTx`,
-`CommandGate`, `AuthenticationGate` and its two closed families (`lookupByDigest` and the six typed identity steps), `openGate`, `sql` (refusing a
+`CommandGate`, `AuthenticationGate` and its two closed families (`lookupByDigest(key)`, a closed `key` union per kind, and the eight typed steps: six identity steps, `consumeOidcState()` and `endCredential(reason)`), `openGate`, `sql` (refusing a
 `RawToken` at compile time and any statement but `select`, `insert`, `update`, `delete` and `with`, and the words `conexus` and `set_config`, at run time), `RawToken`,
 `Digest`, `DATABASE_FAILURES`, `openFactoryPool`, the role and settings each entry sets, and the
 nested entry refusal (data, 1 and 2); `idempotent`, `reserve`, `complete` (data, 3); `Admitted`,
@@ -533,15 +533,16 @@ here. The real dependencies come from the caller graph script
    grants; `admitElevated` (CON-02 and CON-04 become `admitInstallationAdministrator` with
    `connection.manage` in the person's transaction); `admitConnection`; the section "If the amendment
    is refused". It keeps the connection `SELECT` (with `ADMIN`) and the binding `SELECT` as reader
-   policies, restated so neither reads the other table under its policy; a fourth helper comes back
-   here. The workspace owner's connection action is named: `connections.bind`, a `WorkspaceAction`
+   policies, restated so neither reads the other table under its policy. They use the three `rls`
+   helpers, and no fourth. The workspace owner's connection action is named: `connections.bind`, a `WorkspaceAction`
    row allowed to `owner` only in `ROLE_ALLOWS`, with the same name as a `ProjectAction` admitted
    through `admitProject`, for listing, binding and unbinding a project's connections
    (`connectors/routes.ts:118-147`), which borrow `members.manage` through
    `connector.admit_project_owner` today (`0029_connector.sql:134-151`). `ReadAction` gains
    `'connections.bind'` and the read overload of `admitProject` takes it, so CON-08 stays an owner only
-   `read()`, as today. CON-01 and CON-03 ask the shared `isInstallationAdministrator(tx)` of
-   `admission.ts`, which part 6 uses too. The grantee's bound
+   `read()`, as today. CON-01 asks the shared `isInstallationAdministrator(tx)` of
+   `admission.ts`, which part 6 uses too. CON-03 is a command after `admitInstallationAdministrator`
+   with `connection.manage`, and `hub_reader` gets no credential column. The grantee's bound
    connection is read after `admitApplication` (built in part 0b), filtered by
    `proof.scope.projectId`; the broker reads under the grant holder's account on that proof; `connector.purge_project` as a port; the message text
    checks (`connectors/model.ts`) and `generate-connector-contracts.mjs` deleted. Connector rows (8) and
@@ -585,9 +586,9 @@ here. The real dependencies come from the caller graph script
    `iam.workspace_invitation`, `iam.installation_administrator` (`ADMIN`, with its `iam_rls` policy),
    `iam.application`, `iam.application_invitation` and `iam.application_grant`, and the
    `iam.preview` key, and the account pair keys of `iam.host_session` and `iam.handoff`; `ReadAction` gains `'application.manage'` (IAM-11 stays an owner only `read()`); IAM-14 and IAM-15 use `isInstallationAdministrator(tx)`; IAM-12 and IAM-13 take no owner set lock; the first administrator rule stays in TypeScript; `authenticate` with its
-   `AuthenticationGate`, the closed list of digest kinds for `lookupByDigest`, the six typed identity
+   `AuthenticationGate`, the closed `key` union of digest kinds for `lookupByDigest(key)`, the eight typed
    steps of the gate's second family (`lookupIdentity`, `provisionIdentity`, `lookupSlug`,
-   `hasOpenInvitation`, `startOidc`, `mintContext`), and the body of `admitBootstrap`; IAM-03 on the bootstrap authority with the first administrator under the table
+   `hasOpenInvitation`, `startOidc`, `mintContext`, `consumeOidcState`, `endCredential`), and the body of `admitBootstrap`; IAM-03 on the bootstrap authority with the first administrator under the table
    lock and the full tenure history; sessions, invitations, roster (`removeMember`, `leaveWorkspace`
    with the owner set lock and the acting membership `FOR UPDATE`, and the `DELETE` grant on
    `iam.workspace_membership`), application access on the `admitApplication` part 0b built,
@@ -685,8 +686,8 @@ one step).
 - [x] Part 2: `ReadAction` gains `'connections.bind'` with the read overload. One shared
   `isInstallationAdministrator(tx)` in `admission.ts` serves CON-01, CON-03 and part 6. CON-08 stays
   owner only.
-- [x] Part 6: the `AuthenticationGate` gets a second closed family of six typed steps, each keyed by one
-  exact value. `ReadAction` gains `'application.manage'`. IAM-15's grantor name stays, by widening
+- [x] Part 6: the `AuthenticationGate` gets a second closed family of eight typed steps (six keyed by one
+  exact value, and `consumeOidcState()` and `endCredential(reason)` on the row a lookup bound). `ReadAction` gains `'application.manage'`. IAM-15's grantor name stays, by widening
   `reader_admin` on `iam.account` to the accounts named by `granted_by` on open tenures.
   `iam.application` has an owner only reader. IAM-12 and IAM-13 take no owner set lock, since the
   membership `FOR SHARE` serializes with a role change. The first administrator rule stays in
