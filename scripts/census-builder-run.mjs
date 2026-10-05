@@ -123,8 +123,36 @@ const runFunctionLengthSuppressions = hits(runFiles, /biome-ignore lint\/complex
 // `setInterval` ban, and the count may only fall.
 const repeatedTimerSuppressions = hits(hubSource, /biome-ignore lint\/style\/noRestrictedGlobals/, { comments: true })
 
-// A suppression that marks an unsafe type assertion as owed to the wave that owns the file.
-const unsafeAssertionDebt = hits(walk(join(repo, 'apps'), (path) => /\.tsx?$/.test(path)), /biome-ignore lint\/nursery\/noUnsafeTypeAssertion: debt/, { comments: true })
+// Every line that names the rule is one of three things. `debt` is owed to the wave that owns the file and the
+// count may only fall. `exempt <reason>` is a cast that cannot be removed and must be in the record, with its line.
+// Anything else, a suppression under packages/, or a suppression that silences the rule without naming it, fails.
+const DEBT = /^\s*\/\/ biome-ignore lint\/nursery\/noUnsafeTypeAssertion: debt\b/
+const EXEMPT = /^\s*\/\/ biome-ignore lint\/nursery\/noUnsafeTypeAssertion: exempt (\S.*)$/
+const UNNAMED = /biome-ignore(?:-all|-start)?\s+lint(?:\/[A-Za-z]+)?(?![/A-Za-z])/
+const SOURCE = /\.[cm]?tsx?$/
+const sourceLines = (paths) => paths.flatMap((path) => readFileSync(path, 'utf8').split('\n').map((line, i) => ({ at: `${rel(path)}:${i + 1}`, line })))
+const appLines = sourceLines(walk(join(repo, 'apps'), (path) => SOURCE.test(path)))
+const packageLines = sourceLines(tracked.filter((path) => /^packages\/[^/]+\/src\//.test(path) && SOURCE.test(path)).map((path) => join(repo, path)).filter((path) => existsSync(path)))
+const unsafeAssertionDebt = appLines.filter(({ line }) => DEBT.test(line)).map(({ at }) => at)
+const exemptions = appLines.flatMap(({ at, line }) => (EXEMPT.test(line) ? [`${at} ${EXEMPT.exec(line)[1].trim()}`] : []))
+const refusedSuppressions = [
+  ...appLines.filter(({ line }) => line.includes('noUnsafeTypeAssertion') && !DEBT.test(line) && !EXEMPT.test(line)),
+  ...packageLines.filter(({ line }) => line.includes('noUnsafeTypeAssertion')),
+  ...appLines.concat(packageLines).filter(({ line }) => UNNAMED.test(line)),
+].map(({ at }) => at)
+const biomePath = join(repo, 'biome.json')
+const biomeOverrides = existsSync(biomePath) ? (JSON.parse(readFileSync(biomePath, 'utf8')).overrides ?? []) : []
+const rulesOff = biomeOverrides.flatMap((override, index) => {
+  const ruleLevel = override.linter?.rules?.nursery?.noUnsafeTypeAssertion
+  const off = override.linter?.enabled === false || (ruleLevel !== undefined && ruleLevel !== 'error')
+  return off ? [`biome.json overrides[${index}]`] : []
+})
+const sourceOf = (at) => /^apps\/[^/]+\/src\/([^/:]+)\//.exec(at)?.[1] ?? '(root)'
+const bySource = () => {
+  const tally = new Map()
+  for (const at of unsafeAssertionDebt) tally.set(sourceOf(at), (tally.get(sourceOf(at)) ?? 0) + 1)
+  return [...tally].sort(([a, x], [b, y]) => y - x || a.localeCompare(b)).map(([name, count]) => `${name} ${count}`).join(', ')
+}
 
 const tableCodes = new Set(JSON.parse(readFileSync(join(repo, 'contracts/technical/failures.json'), 'utf8')).failures.map((row) => row.code))
 const failureCodesWithoutRow = hubSource.flatMap((path) => [...readFileSync(path, 'utf8')
@@ -148,12 +176,25 @@ const census = {
 }
 const counts = Object.fromEntries(Object.entries(census).map(([item, found]) => [item, found.length]))
 
+const record = existsSync(recordPath) ? JSON.parse(readFileSync(recordPath, 'utf8')) : {}
+const recordedExemptions = record.unsafeAssertionExemptions ?? []
+const unrecorded = exemptions.filter((entry) => !recordedExemptions.includes(entry))
+const gone = recordedExemptions.filter((entry) => !exemptions.includes(entry))
+const refusals = [
+  ...rulesOff.map((at) => `${at} turns noUnsafeTypeAssertion off`),
+  ...refusedSuppressions.map((at) => `${at} names noUnsafeTypeAssertion, or silences it without naming it, and is neither debt nor a recorded exemption`),
+  ...unrecorded.map((entry) => `exemption not in the record: add "${entry}" to unsafeAssertionExemptions by hand`),
+]
+
 if (write) {
-  writeFileSync(recordPath, `${JSON.stringify(counts, null, 2)}\n`)
-  console.log(`census-builder-run: recorded ${JSON.stringify(counts)}`)
+  if (refusals.length > 0) {
+    for (const message of refusals) console.error(`census-builder-run: ${message}`)
+    process.exit(1)
+  }
+  writeFileSync(recordPath, `${JSON.stringify({ ...counts, unsafeAssertionExemptions: exemptions }, null, 2)}\n`)
+  console.log(`census-builder-run: recorded ${JSON.stringify(counts)}, exemptions ${exemptions.length}`)
   process.exit(0)
 }
-const record = JSON.parse(readFileSync(recordPath, 'utf8'))
 let failed = false
 for (const [item, count] of Object.entries(counts)) {
   const recorded = record[item]
@@ -161,8 +202,17 @@ for (const [item, count] of Object.entries(counts)) {
   if (verdict === 'UP' || verdict === 'NOT RECORDED') failed = true
   console.log(`census-builder-run: ${item} ${count} (record ${recorded ?? 'none'}) ${verdict}`)
   if (list || verdict === 'UP') for (const found of census[item]) console.log(`    ${found}`)
+  if (list && item === 'unsafeAssertionDebt') console.log(`    by source: ${bySource()}`)
+}
+if (record.unsafeAssertionExemptions === undefined) {
+  failed = true
+  console.error('census-builder-run: unsafeAssertionExemptions is not recorded')
+}
+for (const message of [...refusals, ...gone.map((entry) => `recorded exemption is gone or moved: "${entry}"`)]) {
+  failed = true
+  console.error(`census-builder-run: ${message}`)
 }
 if (failed) {
-  console.error('census-builder-run: a count went up. Remove what came back, or record a lower number with --write when the change lowers it.')
+  console.error('census-builder-run: a count went up or an exemption does not match the record. Remove what came back, record a lower number with --write when the change lowers it, and edit the exemption list by hand.')
   process.exit(1)
 }

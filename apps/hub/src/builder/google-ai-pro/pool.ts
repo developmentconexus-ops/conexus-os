@@ -6,6 +6,7 @@ import { createServer } from 'node:net'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
+import { z } from 'zod'
 import { decodeKey, encodeKey, type GoogleAiProKey, type InstanceId, instanceIdOf, isAuthFileName } from './credential.js'
 import { Failure } from '../../platform/failure.js'
 
@@ -44,6 +45,8 @@ export type CliproxyPool = Readonly<{
 }>
 
 const START_ATTEMPTS = 3
+// The proxy's management answer for its stored sign-ins; one that does not match reads as not available yet.
+const authFilesListing = z.looseObject({ files: z.array(z.looseObject({ unavailable: z.boolean().exactOptional() })) })
 const STOP_GRACE_MS = 5_000
 // Enough for the proxy to refresh an expired access token over the network.
 const AUTH_READY_TIMEOUT_MS = 15_000
@@ -166,9 +169,8 @@ export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, rea
       try {
         const answer = await fetch(`${url}/v0/management/auth-files`, { headers: { 'x-management-key': managementKey }, signal: AbortSignal.timeout(1_000) })
         const parsed: unknown = answer.ok ? await answer.json() : await answer.body?.cancel().then(() => null)
-        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-        const files = (parsed as { files?: readonly { unavailable?: unknown }[] } | null)?.files
-        if (files !== undefined && files.length > 0 && files.every((file) => file.unavailable === false)) return true
+        const listing = authFilesListing.safeParse(parsed)
+        if (listing.success && listing.data.files.length > 0 && listing.data.files.every((file) => file.unavailable === false)) return true
       } catch {
         // Not answering yet.
       }

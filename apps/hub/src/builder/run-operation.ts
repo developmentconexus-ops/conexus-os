@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { admitManifest } from '../app-runner/server-manifest.js'
 import type { ValueSchema } from '../app-runner/server-manifest.js'
 import type { Caller } from '../platform/caller.js'
+import { problemBody } from '../http/problem.js'
 import { commandEvidence } from './application-starter.js'
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
@@ -80,19 +81,21 @@ const operationShape = (schema: ValueSchema, value: unknown): OperationShape => 
   }
 }
 
-// What a runner refusal may show the model. The runner writes the schema, export, signal and load
-// details itself; a handler's thrown message is the handler's own text and can carry a company value,
-// so only a database error's SQLSTATE survives it.
+// What a runner refusal may show the model. The runner writes the schema, export and signal details
+// itself. The worker's own detail is text the handler can choose, because the handler can write the
+// worker's result line: a thrown message or an import error can carry a company value, so only a
+// database error's SQLSTATE survives it.
+const sqlstateOnly = (detail: string): string | undefined => {
+  const sqlstate = /^([0-9A-Z]{5}) /.exec(detail)?.[1]
+  return sqlstate ? `SQLSTATE ${sqlstate}` : undefined
+}
 const DETAIL_SHOWN: Readonly<Record<string, (detail: string) => string | undefined>> = Object.freeze({
   INPUT_REFUSED: (detail) => detail,
   HANDLER_OUTPUT_REFUSED: (detail) => detail,
   HANDLER_EXPORT_MISSING: (detail) => detail,
   HANDLER_CRASHED: (detail) => detail,
-  HANDLER_LOAD_FAILED: (detail) => detail,
-  HANDLER_FAILED: (detail) => {
-    const sqlstate = /^([0-9A-Z]{5}) /.exec(detail)?.[1]
-    return sqlstate ? `SQLSTATE ${sqlstate}` : undefined
-  },
+  HANDLER_LOAD_FAILED: sqlstateOnly,
+  HANDLER_FAILED: sqlstateOnly,
 })
 const DETAIL_CHARS = 300
 const CODE = /^[A-Z][A-Z0-9_]{0,63}$/
@@ -101,10 +104,11 @@ const refused = (operation: string, code: string, detail?: string): OperationRun
   detail ? { ok: false, operation, code, detail: detail.slice(0, DETAIL_CHARS) } : { ok: false, operation, code }
 
 const runnerRefusal = (operation: string, body: unknown): OperationRunReport => {
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const error = (body as Readonly<{ error?: Readonly<{ code?: unknown; detail?: unknown }> }> | null)?.error
-  const code = typeof error?.code === 'string' && CODE.test(error.code) ? error.code : 'RUNNER_REFUSED'
-  const shown = typeof error?.detail === 'string' ? DETAIL_SHOWN[code]?.(error.detail) : undefined
+  const problem = problemBody.safeParse(body)
+  const reported = problem.success ? problem.data.code : undefined
+  const code = reported !== undefined && CODE.test(reported) ? reported : 'RUNNER_REFUSED'
+  const detail = problem.success ? problem.data.detail : undefined
+  const shown = detail === undefined ? undefined : DETAIL_SHOWN[code]?.(detail)
   return refused(operation, code, shown)
 }
 

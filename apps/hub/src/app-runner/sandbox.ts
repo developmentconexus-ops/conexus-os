@@ -3,13 +3,9 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } fr
 import { Readable } from 'node:stream'
 import { z } from 'zod'
 import { dirname, join } from 'node:path'
-import type { WorkerJob, WorkerResult } from './worker.js'
+import { workerResult } from './wire.js'
+import type { WorkerJob, WorkerResult } from './wire.js'
 import { Failure } from '../platform/failure.js'
-
-const WORKER_RESULT = z.discriminatedUnion('ok', [
-  z.object({ ok: z.literal(true), value: z.unknown() }),
-  z.object({ ok: z.literal(false), code: z.string(), detail: z.string().exactOptional() }),
-]) satisfies z.ZodType<WorkerResult>
 
 /**
  * The per-invocation boundary: a rootless bubblewrap sandbox with unprivileged user, pid, network,
@@ -84,11 +80,16 @@ export const assertUserNamespaces = (config: SandboxConfig = DEFAULT_SANDBOX): v
   if (!(maxNamespaces > 0) || !cloneAllowed || probe.status !== 0) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'RUNNER_USER_NAMESPACES_UNAVAILABLE' } })
 }
 
-// pg and everything it depends on, found through each package.json; the sandbox receives a copy.
-const dependencyClosure = (entry: string): ReadonlyMap<string, string> => {
+const packageDependencies = z.looseObject({
+  dependencies: z.record(z.string(), z.string()).exactOptional(),
+  optionalDependencies: z.record(z.string(), z.string()).exactOptional(),
+})
+
+/** @public An entry package and everything it depends on, found through each package.json from `from`; the sandbox receives a copy. Tests start it from a temp tree. */
+export const dependencyClosure = (entry: string, from: string = import.meta.dirname): ReadonlyMap<string, string> => {
   const found = new Map<string, string>()
-  const locate = (name: string, from: string): string | null => {
-    for (let directory = from; ; directory = dirname(directory)) {
+  const locate = (name: string, start: string): string | null => {
+    for (let directory = start; ; directory = dirname(directory)) {
       const candidate = join(directory, 'node_modules', name)
       if (existsSync(join(candidate, 'package.json'))) return candidate
       if (dirname(directory) === directory) return null
@@ -102,25 +103,33 @@ const dependencyClosure = (entry: string): ReadonlyMap<string, string> => {
       throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'RUNNER_DEPENDENCY_MISSING', name } })
     }
     found.set(name, directory)
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')) as { dependencies?: Record<string, string>; optionalDependencies?: Record<string, string> }
-    for (const dependency of Object.keys(manifest.dependencies ?? {})) visit(dependency, directory, false)
-    for (const dependency of Object.keys(manifest.optionalDependencies ?? {})) visit(dependency, directory, true)
+    const manifest = packageDependencies.safeParse(JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')))
+    if (!manifest.success) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'RUNNER_PACKAGE_JSON_INVALID', name } })
+    for (const dependency of Object.keys(manifest.data.dependencies ?? {})) visit(dependency, directory, false)
+    for (const dependency of Object.keys(manifest.data.optionalDependencies ?? {})) visit(dependency, directory, true)
   }
-  visit(entry, import.meta.dirname, false)
+  visit(entry, from, false)
   return found
 }
 
+const STAGED_FILES = ['app-runner/worker.js', 'app-runner/wire.js', 'app-runner/data-plane.js', 'platform/caller.js']
+const STAGED_PACKAGES = ['pg', 'zod']
+
 /**
- * Builds the read-only tree mounted at /runner: the worker, the one runner module it imports, and a
- * copy of pg's dependency closure. Nothing else from the Hub's tree or the operator's home is in it.
+ * Builds the read-only tree mounted at /runner: the worker, the runner modules it imports, and a
+ * copy of each package's dependency closure. Nothing else from the Hub's tree or the operator's home is in it.
  */
 export const stageWorkerRuntime = (runtimeDir: string): string => {
   rmSync(runtimeDir, { recursive: true, force: true })
   mkdirSync(join(runtimeDir, 'node_modules'), { recursive: true, mode: 0o700 })
   writeFileSync(join(runtimeDir, 'package.json'), '{"type":"module"}\n')
-  for (const file of ['worker.js', 'data-plane.js']) cpSync(join(import.meta.dirname, file), join(runtimeDir, file))
-  for (const [name, directory] of dependencyClosure('pg')) cpSync(directory, join(runtimeDir, 'node_modules', name), { recursive: true, dereference: true })
+  for (const file of STAGED_FILES) {
+    mkdirSync(dirname(join(runtimeDir, file)), { recursive: true, mode: 0o700 })
+    cpSync(join(import.meta.dirname, '..', file), join(runtimeDir, file))
+  }
+  for (const entry of STAGED_PACKAGES) {
+    for (const [name, directory] of dependencyClosure(entry)) cpSync(directory, join(runtimeDir, 'node_modules', name), { recursive: true, dereference: true })
+  }
   return runtimeDir
 }
 
@@ -144,7 +153,7 @@ export const runWorker = (input: Readonly<{
     ...(input.appDir ? ['--ro-bind', input.appDir, '/app'] : []),
     '--dir', SANDBOX_DATABASE_HOST, '--bind', input.databaseSocket, SANDBOX_SOCKET,
     ...(input.connectorSocket && input.job.kind === 'invoke' ? ['--dir', SANDBOX_CONNECTOR_DIR, '--bind', input.connectorSocket, SANDBOX_CONNECTOR_SOCKET] : []),
-    '/runtime/node', ...permission, `--max-old-space-size=${config.heapMb}`, '/runner/worker.js',
+    '/runtime/node', ...permission, `--max-old-space-size=${config.heapMb}`, '/runner/app-runner/worker.js',
   ]
   return new Promise((resolve) => {
     const child = spawn(config.prlimit, args, { env: {}, stdio: ['pipe', 'pipe', 'pipe', 'pipe'] })
@@ -178,7 +187,7 @@ export const runWorker = (input: Readonly<{
       if (verdict) return resolve({ kind: verdict, ms, logs })
       const line = result.toString('utf8').split('\n', 1)[0] ?? ''
       try {
-        const parsed = WORKER_RESULT.safeParse(JSON.parse(line))
+        const parsed = workerResult.safeParse(JSON.parse(line))
         if (parsed.success) return resolve({ kind: 'RESULT', result: parsed.data, ms, logs })
       } catch {
         // no result line: the worker died first

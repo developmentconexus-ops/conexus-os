@@ -1,7 +1,8 @@
 import { lstatSync, readFileSync, realpathSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { extname, join, sep } from 'node:path'
-import { z } from 'zod'
+import { admitManifest } from '../../../app-runner/server-manifest.js'
+import type { ServerManifest, ValueSchema } from '../../../app-runner/server-manifest.js'
 import { previewContentSecurityPolicy } from '../../../platform/application-csp.js'
 import { classifyAppPath } from '../../../platform/application-path.js'
 
@@ -15,29 +16,22 @@ const MEDIA_TYPES: Readonly<Record<string, string>> = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
 }
 
-type Schema = Readonly<{ type?: string | undefined; minLength?: number | undefined; minimum?: number | undefined; required?: readonly string[] | undefined; properties?: Readonly<Record<string, Schema>> | undefined }>
-const schemaSchema: z.ZodType<Schema> = z.lazy(() => z.object({
-  type: z.string().optional(), minLength: z.number().optional(), minimum: z.number().optional(),
-  required: z.array(z.string()).optional(), properties: z.record(z.string(), schemaSchema).optional(),
-}))
-const serverManifestSchema = z.object({ operations: z.record(z.string(), z.object({ output: schemaSchema.optional() })) })
-
 // The app may call its own API while it mounts. The check has no database, so each declared
 // operation answers the value its output schema names first.
-const stubValue = (schema: Schema | undefined): unknown => {
+const stubValue = (schema: ValueSchema | undefined): unknown => {
   switch (schema?.type) {
     case 'string': return 'x'.repeat(schema.minLength ?? 0)
     case 'integer': case 'number': return schema.minimum ?? 0
     case 'boolean': return false
     case 'array': return []
-    case 'object': return Object.fromEntries((schema.required ?? []).map((key) => [key, stubValue(schema.properties?.[key])]))
+    case 'object': return Object.fromEntries((schema.required ?? []).map((key) => [key, stubValue(schema.properties[key])]))
     default: return null
   }
 }
 
-const declaredOperations = (out: string): z.infer<typeof serverManifestSchema>['operations'] => {
+const declaredOperations = (out: string): ServerManifest['operations'] => {
   try {
-    return serverManifestSchema.parse(JSON.parse(readFileSync(join(out, 'conexus-server', 'manifest.json'), 'utf8'))).operations
+    return admitManifest(JSON.parse(readFileSync(join(out, 'conexus-server', 'manifest.json'), 'utf8')), 'server').operations
   } catch {
     return {}
   }

@@ -326,7 +326,7 @@ here. The real dependencies come from the caller graph script
    **AC-9**, **AC-11**.
 7. **Part 7, the other JSON input.** The suppressions on JSON that is neither HTTP, a row nor Mastra
    output: the app manifest (`app-runner/server-manifest.ts`) and the runner IPC (`worker.ts`,
-   `module.ts`), parsed with schemas in their own module. Satisfies **AC-13**.
+   `module.ts`), parsed with schemas in their own module (the manifest keeps a first fault validator with type guards, `0015-part-json-input.md` section 2.1). Satisfies **AC-13**.
 8. **Part 6, identity and access, last** (46). Its policies, locks and refusal codes per
    `0015-part-iam.md`; `authenticate`, IAM-03 on the
    bootstrap authority, `iam.acting_founds()` and the claim branch; sessions, invitations, roster

@@ -83,8 +83,7 @@ const send = async (fetchImpl: typeof fetch, url: string, init: RequestInit, sig
     throw transportFailure(signal)
   }
   try {
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'))
   } catch {
     throw new AdapterFailure('RESPONSE_REFUSED')
   }

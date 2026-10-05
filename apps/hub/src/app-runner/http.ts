@@ -2,18 +2,16 @@ import Fastify, { type FastifyInstance, type FastifyReply } from 'fastify'
 import { Failure, logFailure, toFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
 import type { EventLog } from '../platform/logger.js'
-import { failureProblem } from '../http/problem.js'
+import { failureProblem, problemBody } from '../http/problem.js'
 import { invokeBody, prepareBody, releaseBody } from './requests.js'
-import type { InvokeInput, OnDivergence, PrepareResult, Reply, ServerFile } from './supervisor.js'
+import type { InvokeInput, OnDivergence, Reply, ServerFile } from './supervisor.js'
+import type { PrepareResult } from './requests.js'
 
 export type ApplicationRunnerSupervisor = Readonly<{
   prepare(input: Readonly<{ projectId: string; files: readonly ServerFile[]; onDivergence: OnDivergence }>): Promise<PrepareResult>
   invoke(input: InvokeInput): Promise<Reply>
   release(input: Readonly<{ projectId: string }>): Promise<void>
 }>
-
-const problemOf = (body: unknown): Readonly<{ code?: unknown; detail?: unknown }> | undefined =>
-  typeof body === 'object' && body !== null ? body : undefined
 
 // The supervisor writes these two details itself, from the manifest's schema: a JSON pointer and
 // the rule it broke, never a value the handler returned.
@@ -70,9 +68,9 @@ export const createApplicationRunnerApp = (input: Readonly<{
     // Only the error code is logged, never the reply body: a handler's own thrown message can carry
     // a value straight from the external system it just called (an ERP field, a customer name), and
     // that must never land in a platform log. A schema refusal's detail is the runner's own text.
-    const error = problemOf(result.body)
-    const code = typeof error?.code === 'string' ? error.code : undefined
-    const detail = code && SCHEMA_REFUSALS.has(code) && typeof error?.detail === 'string' ? error.detail : undefined
+    const problem = problemBody.safeParse(result.body).data
+    const code = problem?.code
+    const detail = code && SCHEMA_REFUSALS.has(code) ? problem?.detail : undefined
     input.log('RUNNER_INVOKE', {
       projectId: body.data.projectId, operation: body.data.operation, status: result.status,
       ...(code ? { code } : {}), ...(detail ? { detail } : {}), ms: Math.round(performance.now() - started),

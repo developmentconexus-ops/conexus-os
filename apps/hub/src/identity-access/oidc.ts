@@ -103,7 +103,7 @@ export const createOidcAdapter = async ({
   const localIssuerFetch: CustomFetch | undefined = localIssuerTransport ? (url, init) => undiciFetch(url, {
       ...init,
       dispatcher: localIssuerTransport,
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
+    // biome-ignore lint/nursery/noUnsafeTypeAssertion: exempt undici fetch and openid-client CustomFetch disagree on RequestInit and Response, proven by tsc
     } as never) as unknown as Promise<Response> : undefined
   if (localIssuerFetch) options[oidc.customFetch] = localIssuerFetch
   let configuration: Awaited<ReturnType<OidcDiscovery>>

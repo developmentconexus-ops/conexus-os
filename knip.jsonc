@@ -34,6 +34,8 @@
     "apps/hub/src/builder/check/main.ts",
     "apps/hub/src/server.ts",
     "apps/hub/src/app-runner/main.ts",
+    // Staged into the runner's sandbox and run there; nothing imports it.
+    "apps/hub/src/app-runner/worker.ts",
     "apps/hub/src/telemetry/register.ts",
     "apps/web/src/main.tsx",
     // Frozen by spec 0015 section 3 and first called by later parts: the Builder feature for parseForeign, the first operation with path params for routeParam.
