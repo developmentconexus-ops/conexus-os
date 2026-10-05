@@ -26,11 +26,16 @@ const builderCodexOptions: LanguageModelMiddleware = {
 
 type LanguageModelV3 = Parameters<typeof wrapLanguageModel>[0]['model']
 
-/** Mastra's Codex provider is typed as a model config but builds an AI SDK model; a config would be a bug there. */
-const languageModelOf = (model: MastraModelConfig): LanguageModelV3 => {
-  if (typeof model !== 'object' || !('doStream' in model)) throw new Failure('OPENAI_CODEX_MODEL_REFUSED')
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  return model as LanguageModelV3
+const isLanguageModel = (model: object): model is LanguageModelV3 =>
+  'specificationVersion' in model && model.specificationVersion === 'v3' && 'doStream' in model && typeof model.doStream === 'function'
+
+/**
+ * Mastra's Codex provider is typed as a model config but builds an AI SDK model; a config would be a bug there.
+ * @public Tests call it through the built Hub.
+ */
+export const languageModelOf = (model: MastraModelConfig): LanguageModelV3 => {
+  if (typeof model !== 'object' || !isLanguageModel(model)) throw new Failure('OPENAI_CODEX_MODEL_REFUSED')
+  return model
 }
 
 /**

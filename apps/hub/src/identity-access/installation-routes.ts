@@ -1,12 +1,12 @@
 import type { FastifyInstance } from 'fastify'
 import { Failure } from '../platform/failure.js'
-import type { AccountId, HubSession } from './current-session.js'
+import { AccountId } from '../../../../packages/contract/dist/index.js'
+import type { HubSession } from './current-session.js'
 import { isAccountEmailAmbiguous, isAccountNotFound, isLastInstallationAdministrator } from './current-session.js'
 import type { InstallationAdministration, InstallationAdministrator } from './installation-administration.js'
 import { routes } from '../http/access.js'
 
 const EMAIL = /^.{1,320}$/
-const ACCOUNT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const administratorJson = (administrator: InstallationAdministrator) => ({
   accountId: administrator.accountId,
@@ -53,10 +53,9 @@ export const registerInstallationRoutes = async (app: FastifyInstance, { install
 
   route.session<{ Params: { accountId: string } }>({ method: 'DELETE', url: '/api/control/installation/administrators/:accountId', handler: async (request, reply, session) => {
     const caller = await admitAdministrator(session)
-    const { accountId } = request.params
-    if (!ACCOUNT_ID.test(accountId)) throw new Failure('ACCOUNT_NOT_FOUND')
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    await installationAdministration.revoke({ actor: caller.accountId, account: accountId as AccountId }).catch((error: unknown) => {
+    const account = AccountId.safeParse(request.params.accountId)
+    if (!account.success) throw new Failure('ACCOUNT_NOT_FOUND')
+    await installationAdministration.revoke({ actor: caller.accountId, account: account.data }).catch((error: unknown) => {
       if (isLastInstallationAdministrator(error)) throw new Failure('LAST_INSTALLATION_ADMINISTRATOR')
       throw error
     })

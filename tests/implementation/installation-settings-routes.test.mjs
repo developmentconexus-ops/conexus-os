@@ -14,9 +14,11 @@ const plain = '22222222-2222-4222-8222-222222222222'
 const createFakeAdministration = (initial = [admin]) => {
   const open = new Map(initial.map((accountId) => [accountId, { grantedVia: 'OPERATOR_BOOTSTRAP', grantedBy: null, grantedAt: new Date('2026-09-20T00:00:00.000Z') }]))
   const byEmail = new Map()
+  const revoked = []
   const refuse = (code, message) => { const error = new Error(message); error.code = code; throw error }
   return {
     accounts: byEmail,
+    revoked,
     isInstallationAdministrator: async (accountId) => open.has(accountId),
     list: async (actor) => {
       if (!open.has(actor)) refuse('42501', 'NOT_ADMITTED')
@@ -32,6 +34,7 @@ const createFakeAdministration = (initial = [admin]) => {
       return accountId
     },
     revoke: async ({ actor, account }) => {
+      revoked.push(account)
       if (!open.has(actor)) refuse('42501', 'NOT_ADMITTED')
       if (open.has(account) && open.size === 1) refuse('42501', 'LAST_INSTALLATION_ADMINISTRATOR')
       open.delete(account)
@@ -129,4 +132,15 @@ test('an administrator lists, grants by email, and revokes, and the last one can
   const lastAdministrator = await asAdmin('DELETE', `/api/control/installation/administrators/${admin}`)
   assert.equal(lastAdministrator.status, 409)
   assert.equal(lastAdministrator.body.type.endsWith('LAST_INSTALLATION_ADMINISTRATOR'), true)
+})
+
+test('an administrator id is checked as the contract does: an uppercase id reaches revoke as sent, one with a wrong version digit is not found', async (t) => {
+  const { as, administration } = await buildApp(t)
+  const asAdmin = as(admin)
+  const upper = plain.toUpperCase()
+  assert.equal((await asAdmin('DELETE', `/api/control/installation/administrators/${upper}`)).status, 204)
+  assert.deepEqual(administration.revoked, [upper])
+  const notAUuid = '0b3f6a2e-1c4d-0e8a-9f10-2a3b4c5d6e7f'
+  assert.deepEqual(await asAdmin('DELETE', `/api/control/installation/administrators/${notAUuid}`), { status: 404, body: { type: 'urn:conexus:problem:ACCOUNT_NOT_FOUND', title: 'ACCOUNT_NOT_FOUND', status: 404, code: 'ACCOUNT_NOT_FOUND' } })
+  assert.deepEqual(administration.revoked, [upper])
 })

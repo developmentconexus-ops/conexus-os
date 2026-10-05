@@ -12,7 +12,8 @@ import type { DynamicArgument } from '@mastra/core/types'
 import type { Workspace } from '@mastra/core/workspace'
 import { builderErrorProcessors, BUILDER_MAX_PROCESSOR_RETRIES } from './error-processors.js'
 import { conexusInstructions } from './prompt.js'
-import { createTool, webSearchTool } from '@mastra/core/tools'
+import { createTool, isProviderDefinedTool, webSearchTool } from '@mastra/core/tools'
+import { Failure } from '../../platform/failure.js'
 import { guardedWebFetchTool } from './web-fetch.js'
 import { z } from 'zod'
 import { createAnthropic } from '@ai-sdk/anthropic'
@@ -57,6 +58,15 @@ const resolveModelProviderId = (model: MastraModelConfig): string | undefined =>
 const WEB_SEARCH_DESCRIPTION = 'Searches the web for one query and returns what it found, with the address of each source. Call it once per question.'
 
 /**
+ * A provider tool of an `@ai-sdk/*` package as Mastra's tool set takes it, which its own type does not promise.
+ * @public Tests call it through the built Hub.
+ */
+export const providerTool = (tool: object): ToolsInput[string] => {
+  if (!isProviderDefinedTool(tool)) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROVIDER_TOOL_SHAPE_REFUSED' } })
+  return tool
+}
+
+/**
  * `web_search` for a model on Gemini's own API, which Google AI Pro reaches through Antigravity:
  * Antigravity answers 400 to `googleSearch` beside function tools, so Google's search never sits in
  * the Builder's own tool set. The Builder's `web_search` asks an agent on the same model whose only
@@ -68,8 +78,7 @@ const searchOnlyWebSearch = (model: BuilderControllerDeps['model']): ToolsInput[
     name: 'Conexus web search',
     instructions: 'Search the web for the query and answer it from what you find. Keep each fact next to the source it came from.',
     model,
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    tools: { google_search: createGoogleGenerativeAI({}).tools.googleSearch({}) as ToolsInput[string] },
+    tools: { google_search: providerTool(createGoogleGenerativeAI({}).tools.googleSearch({})) },
   })
   return createTool({
     id: 'web_search',
@@ -102,10 +111,8 @@ const searchOnlyWebSearch = (model: BuilderControllerDeps['model']): ToolsInput[
  */
 const PROVIDER_WEB_SEARCH: Readonly<Record<string, (model: MastraModelConfig, searchOnly: () => ToolsInput[string]) => ToolsInput[string]>> = Object.freeze({
   // Mastra takes an AI SDK `Tool` (Mastra Code passes these two as they are), but `ToolsInput` does not accept its optional `type` under `exactOptionalPropertyTypes`.
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  'openai.responses': () => createOpenAI({}).tools.webSearch() as ToolsInput[string],
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  'anthropic.messages': () => createAnthropic({}).tools.webSearch_20250305() as ToolsInput[string],
+  'openai.responses': () => providerTool(createOpenAI({}).tools.webSearch()),
+  'anthropic.messages': () => providerTool(createAnthropic({}).tools.webSearch_20250305()),
   'google.generative-ai': (_model, searchOnly) => searchOnly(),
 })
 
