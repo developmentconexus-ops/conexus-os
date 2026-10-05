@@ -32,7 +32,7 @@ has split and the proof an admission function makes (see
 
 `hub_reader` and `hub_command` are `NOLOGIN NOINHERIT NOBYPASSRLS` and are listed under
 `transactionRoles` in the register. `hub_runtime` is a member of each `WITH INHERIT FALSE, SET TRUE`,
-and the Hub runs `SET LOCAL ROLE` as the first statement of every transaction.
+and the Hub sets the role, with the transaction's settings, in one `SELECT set_config(...)` right after `BEGIN`.
 
 | Role | Used by | Holds |
 | --- | --- | --- |
@@ -52,7 +52,7 @@ and the Hub runs `SET LOCAL ROLE` as the first statement of every transaction.
 `assertRoleInvariants` in `scripts/hub-catalog.mjs` reads `pg_roles` and refuses a role of the Hub that
 holds `SUPERUSER`, `CREATEROLE`, `CREATEDB`, `REPLICATION` or `BYPASSRLS`, any membership between Hub or
 owner roles other than `hub_runtime` in `hub_reader` and in `hub_command`, either of those two with
-`INHERIT` or `ADMIN`, a `role` or `session_authorization` setting on `hub_runtime` or the database, an owner role that can log in, a Hub role that inherits, an object in a Hub schema owned by
+`INHERIT` or `ADMIN`, a setting on `hub_runtime` or the database other than the three timeouts the register names (`lock_timeout`, `statement_timeout`, `idle_in_transaction_session_timeout`), which a `role`, `session_authorization` or `conexus.*` setting is not, an owner role that can log in, a Hub role that inherits, an object in a Hub schema owned by
 a role the register does not list, and any function executable by `PUBLIC`. It also checks that
 `iam_rls` owns exactly the helpers the register names and holds nothing but `SELECT`.
 

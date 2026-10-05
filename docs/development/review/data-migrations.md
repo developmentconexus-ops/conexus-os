@@ -33,8 +33,15 @@ stores that issue SQL, and the scripts that generate or apply them. [`areas.json
       bodies and fails on any table in no list, any grant the register does not name and any
       `EXECUTE` it does not list.
 - [ ] A SQL text that writes keeps its filter in the template: `update` and `delete` have a top level
-      `where` with a column comparison, no `merge`, and an upsert's `do update` has its own `where`.
-      `scripts/census-boundaries.mjs` counts `sqlWrites` and its ceiling is zero.
+      `where`, no `merge`, an upsert's `do update` has its own `where`, and the `where` of a write on a
+      split table compares a key or tenant column its register row names (`keyColumns`).
+      `scripts/census-boundaries.mjs` records `sqlWrites` as a set and its record is empty.
+- [ ] A ceiling in a census record only falls. The lint compares the number in the JSON to the catalog
+      but cannot tell a raised ceiling from a legitimate one, so the reviewer reads the diff of
+      `contracts/technical/hub-catalog-census.json` for a number that went up.
+- [ ] A rollback is forward only: a migration that has reached a database is undone by a new migration,
+      never by reverting the file or the merge commit. A part that drops a function or a table says in
+      its pull request what the new migration would restore.
 - [ ] A role is created in an idempotent `DO` block, because roles are cluster-global: a test database
       that creates one wrongly leaves it in every other database of the cluster.
 - [ ] A migration that drops a function names its exact signature, without `CASCADE`, and
