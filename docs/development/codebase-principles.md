@@ -72,9 +72,9 @@ Each item happened here; review judges it. An item a check comes to fail leaves 
   Stop after the second fix. Principle 12.
 - **Never encode a lifecycle in booleans or a sentinel.** `parked`, `answered`, `parking`;
   `projectRevision: ''` in `ProjectPurged`. Write a union with one owner. Principle 2.
-- **Never connect two flows through mutable module state.** `fedMirrors`; the web's `liveRuns`
-  arbitrating stream and poll. Pass the value or give it an owner; a write-once registry keyed by a
-  token its module mints (`opened` in `platform/db.ts`) is an owner. Principle 5.
+- **Never connect two flows through mutable module state.** `fedMirrors`; the web's `liveRuns`.
+  Pass the value or give it an owner; a write-once registry keyed by a token its module mints
+  (`opened` in `platform/db.ts`) is an owner. Principle 5.
 - **Never add a retry, timeout or fallback for an unseen failure.** #486 deleted one such guard.
   Reproduce, then guard what you measured. Principle 11.
 - **Never offer "try again" for a Conexus failure.** #481 removed it. Principle 7.
@@ -84,9 +84,9 @@ Each item happened here; review judges it. An item a check comes to fail leaves 
 - **Never keep code because it exists.** #486 deleted 24 scripts, 21 failure codes. A fix adding far
   more than it deletes stops and reports. Principle 11.
 - **Never ship a second way for one need.** A native `title` beside `Tooltip`. Replace the old way
-  everywhere, or count it in a falling census while no wave has settled its replacement. Principle 6.
-- **Never infer a fact its producer can carry.** The web reads the check verdict from a phase change
-  and a regex; `gitFailureName` reads `error.message`. Carry it in the event, row or error. Principle 1.
+  everywhere, or count it in a falling census until a wave settles it. Principle 6.
+- **Never infer a fact its producer can carry.** The web reads the check verdict from a phase change;
+  `gitFailureName` reads `error.message`. Carry it in the event, row or error. Principle 1.
 - **Never cover a race with a poll.** A browser poll repairs a failed run publish. Principle 8.
 - **Never write a rule in a second place.** Three never-lists drifted. Link the one home or make
   it a check. Principle 12.
