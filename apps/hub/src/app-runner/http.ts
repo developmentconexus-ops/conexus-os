@@ -4,7 +4,8 @@ import { logger } from '../platform/logger.js'
 import type { EventLog } from '../platform/logger.js'
 import { failureProblem, problemBody } from '../http/problem.js'
 import { invokeBody, prepareBody, releaseBody } from './requests.js'
-import type { InvokeInput, OnDivergence, PrepareResult, Reply, ServerFile } from './supervisor.js'
+import type { InvokeInput, OnDivergence, Reply, ServerFile } from './supervisor.js'
+import type { PrepareResult } from './requests.js'
 
 export type ApplicationRunnerSupervisor = Readonly<{
   prepare(input: Readonly<{ projectId: string; files: readonly ServerFile[]; onDivergence: OnDivergence }>): Promise<PrepareResult>
@@ -67,9 +68,9 @@ export const createApplicationRunnerApp = (input: Readonly<{
     // Only the error code is logged, never the reply body: a handler's own thrown message can carry
     // a value straight from the external system it just called (an ERP field, a customer name), and
     // that must never land in a platform log. A schema refusal's detail is the runner's own text.
-    const problem = problemBody.safeParse(result.body)
-    const code = problem.success ? problem.data.code : undefined
-    const detail = code && SCHEMA_REFUSALS.has(code) && problem.success ? problem.data.detail : undefined
+    const problem = problemBody.safeParse(result.body).data
+    const code = problem?.code
+    const detail = code && SCHEMA_REFUSALS.has(code) ? problem?.detail : undefined
     input.log('RUNNER_INVOKE', {
       projectId: body.data.projectId, operation: body.data.operation, status: result.status,
       ...(code ? { code } : {}), ...(detail ? { detail } : {}), ms: Math.round(performance.now() - started),

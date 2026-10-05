@@ -241,9 +241,11 @@ const UNDECLARED_KEY_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/
 
 /**
  * The first place `value` breaks `schema`, as `<json pointer>: <why>`, or null when it conforms. The
- * text names only schema facts and array positions, so the runner may log it.
+ * text names only schema facts and array positions, so the runner may log it. An undeclared key is
+ * named only when `echoUndeclared` is true: the caller's input may be told its own key, but an
+ * output key is the handler's choice and never reaches the model.
  */
-export const schemaViolation = (schema: ValueSchema, value: unknown, where = ''): string | null => {
+export const schemaViolation = (schema: ValueSchema, value: unknown, echoUndeclared: boolean, where = ''): string | null => {
   const at = where || '/'
   switch (schema.type) {
     case 'string':
@@ -264,7 +266,7 @@ export const schemaViolation = (schema: ValueSchema, value: unknown, where = '')
       if (!Array.isArray(value)) return `${at}: expected array`
       if (schema.maxItems !== undefined && value.length > schema.maxItems) return `${at}: more than ${schema.maxItems} items`
       for (const [index, item] of value.entries()) {
-        const violation = schemaViolation(schema.items, item, `${where}/${index}`)
+        const violation = schemaViolation(schema.items, item, echoUndeclared, `${where}/${index}`)
         if (violation) return violation
       }
       return null
@@ -272,11 +274,11 @@ export const schemaViolation = (schema: ValueSchema, value: unknown, where = '')
     case 'object': {
       if (!isRecord(value)) return `${at}: expected object`
       // The key comes from the value, so one that is not a property name is not repeated.
-      for (const key of Object.keys(value)) if (!Object.hasOwn(schema.properties, key)) return `${where}/${UNDECLARED_KEY_NAME.test(key) ? key : '(key)'}: not declared`
+      for (const key of Object.keys(value)) if (!Object.hasOwn(schema.properties, key)) return `${where}/${echoUndeclared && UNDECLARED_KEY_NAME.test(key) ? key : '(key)'}: not declared`
       for (const key of schema.required ?? []) if (!Object.hasOwn(value, key)) return `${where}/${key}: required`
       for (const [key, property] of Object.entries(schema.properties)) {
         if (!Object.hasOwn(value, key)) continue
-        const violation = schemaViolation(property, value[key], `${where}/${key}`)
+        const violation = schemaViolation(property, value[key], echoUndeclared, `${where}/${key}`)
         if (violation) return violation
       }
       return null

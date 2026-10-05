@@ -100,7 +100,7 @@ const fakeRunner = (t) => {
     } catch (error) {
       return { status: 500, body: problemBody('HANDLER_FAILED', 500, error.message) }
     }
-    const violation = schemaViolation(declared.output, value)
+    const violation = schemaViolation(declared.output, value, false)
     return violation ? { status: 502, body: problemBody('HANDLER_OUTPUT_REFUSED', 502, violation) } : { status: 200, body: value }
   }
   return { invoke, invocations }

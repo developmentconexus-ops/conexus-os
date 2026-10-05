@@ -6,6 +6,8 @@ import { callerSchema } from '../platform/caller.js'
  * result line it writes to fd 3, and the Hub's answer on the connector socket. The worker is staged
  * into the sandbox with this module, so it imports nothing the sandbox does not mount.
  */
+// No password: the worker reaches the database only through the relay socket, which authenticates
+// upstream itself. Nothing in the sandbox holds a usable credential.
 const login = z.strictObject({ host: z.string().min(1).max(107), user: z.string().min(1).max(63), database: z.string().min(1).max(63) }).readonly()
 
 const plannedMigration = z.strictObject({

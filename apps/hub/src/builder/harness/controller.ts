@@ -110,7 +110,6 @@ const searchOnlyWebSearch = (model: BuilderControllerDeps['model']): ToolsInput[
  * live run.
  */
 const PROVIDER_WEB_SEARCH: Readonly<Record<string, (model: MastraModelConfig, searchOnly: () => ToolsInput[string]) => ToolsInput[string]>> = Object.freeze({
-  // Mastra takes an AI SDK `Tool` (Mastra Code passes these two as they are), but `ToolsInput` does not accept its optional `type` under `exactOptionalPropertyTypes`.
   'openai.responses': () => providerTool(createOpenAI({}).tools.webSearch()),
   'anthropic.messages': () => providerTool(createAnthropic({}).tools.webSearch_20250305()),
   'google.generative-ai': (_model, searchOnly) => searchOnly(),

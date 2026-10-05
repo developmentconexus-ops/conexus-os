@@ -9,10 +9,10 @@ import type { ConnectorAnswer, WorkerJob, WorkerResult } from './wire.js'
  * Runs inside one invocation's sandbox and nowhere else. The supervisor writes the job to stdin and
  * reads one result line from fd 3; stdout and stderr are the handler's own logs. The job names the
  * admitted module and export, the validated input and the database login the platform chose; nothing
- * the generated code does can change any of them before this process is gone.
+ * the generated code does can change any of them before this process is gone. The handler runs in this
+ * process and can write fd 3 itself, so the result line is handler-controlled text until the supervisor
+ * checks it.
  */
-// No password: the worker reaches the database only through the relay socket, which authenticates
-// upstream itself. Nothing in the sandbox holds a usable credential.
 
 const RESULT_FD = 3
 const MAX_JOB_BYTES = 8 * 1024 * 1024

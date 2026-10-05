@@ -40,12 +40,18 @@ test('enum stays refused on every type but string, and pattern stays refused', (
 
 test('schemaViolation refuses a string outside the enum at its pointer', () => {
   const schema = { type: 'object', properties: { status: { type: 'string', enum: ['open', 'closed'] } }, required: ['status'], additionalProperties: false }
-  assert.equal(schemaViolation(schema, { status: 'open' }), null)
-  assert.equal(schemaViolation(schema, { status: 'done' }), '/status: not one of "open", "closed"')
+  assert.equal(schemaViolation(schema, { status: 'open' }, true), null)
+  assert.equal(schemaViolation(schema, { status: 'done' }, true), '/status: not one of "open", "closed"')
 })
 
 test('schemaViolation names an undeclared key only when it is a property name, never a value used as a key', () => {
   const schema = { type: 'object', properties: { items: { type: 'array', items: { type: 'object', properties: { code: { type: 'string' } }, additionalProperties: false } } }, additionalProperties: false }
-  assert.equal(schemaViolation(schema, { items: [{ code: 'A' }, { code: 'B', price: '1' }] }), '/items/1/price: not declared')
-  assert.equal(schemaViolation(schema, { items: [{ 'ACME Ltda 12.345.678/0001-90': 1 }] }), '/items/0/(key): not declared')
+  assert.equal(schemaViolation(schema, { items: [{ code: 'A' }, { code: 'B', price: '1' }] }, true), '/items/1/price: not declared')
+  assert.equal(schemaViolation(schema, { items: [{ 'ACME Ltda 12.345.678/0001-90': 1 }] }, true), '/items/0/(key): not declared')
+})
+
+test('schemaViolation hides an undeclared key on the output path even when it is a property name', () => {
+  const schema = { type: 'object', properties: {}, additionalProperties: false }
+  assert.equal(schemaViolation(schema, { Maria_Silva_CPF_12345678900: 1 }, false), '/(key): not declared')
+  assert.equal(schemaViolation(schema, { Maria_Silva_CPF_12345678900: 1 }, true), '/Maria_Silva_CPF_12345678900: not declared')
 })

@@ -88,8 +88,8 @@ const packageDependencies = z.looseObject({
 /** @public An entry package and everything it depends on, found through each package.json from `from`; the sandbox receives a copy. Tests start it from a temp tree. */
 export const dependencyClosure = (entry: string, from: string = import.meta.dirname): ReadonlyMap<string, string> => {
   const found = new Map<string, string>()
-  const locate = (name: string, from: string): string | null => {
-    for (let directory = from; ; directory = dirname(directory)) {
+  const locate = (name: string, start: string): string | null => {
+    for (let directory = start; ; directory = dirname(directory)) {
       const candidate = join(directory, 'node_modules', name)
       if (existsSync(join(candidate, 'package.json'))) return candidate
       if (dirname(directory) === directory) return null

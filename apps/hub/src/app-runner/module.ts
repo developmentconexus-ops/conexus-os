@@ -1,6 +1,7 @@
 import { request } from 'node:http'
 import { prepareResult, RESET_STATEMENT_TIMEOUT_MS } from './requests.js'
-import type { InvokeInput, OnDivergence, PrepareResult, Reply, ServerFile } from './supervisor.js'
+import type { InvokeInput, OnDivergence, Reply, ServerFile } from './supervisor.js'
+import type { PrepareResult } from './requests.js'
 import { Failure } from '../platform/failure.js'
 import { problemBody } from '../http/problem.js'
 

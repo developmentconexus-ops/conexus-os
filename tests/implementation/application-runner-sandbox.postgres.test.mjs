@@ -675,3 +675,19 @@ test('a handler that writes the first line of the result channel cannot choose t
   const reply = await supervisor.invoke({ projectId: randomUUID(), operation: 'leak', input: {}, files, caller: CALLER })
   assert.deepEqual(reply, { status: 500, body: problem('HANDLER_EXPORT_MISSING', 500, 'leak') })
 })
+
+test('a handler that answers with an undeclared key named after a value gets no echo of it in the refusal', async (t) => {
+  assertUserNamespaces()
+  const stateDir = mkdtempSync(join(tmpdir(), 'conexus-outkey-'))
+  t.after(() => rmSync(stateDir, { recursive: true, force: true }))
+  const supervisor = createSupervisor({
+    stateDir, runtimeDir: stageWorkerRuntime(join(stateDir, 'runtime')), cluster: { host: '127.0.0.1', port: 9 },
+    database: 'conexus_apps', provisionerPassword: 'unused', relayTls: { ca: '', cert: '', key: '' }, sandbox: SANDBOX,
+  })
+  t.after(() => supervisor.close())
+  const handler = 'export const smuggle = async () => ({ Maria_Silva_CPF_12345678900: 1 })\n'
+  const manifest = { version: 1, operations: { smuggle: { module: 'handlers/smuggle.mjs', export: 'smuggle', input: empty, output: empty } }, migrations: [] }
+  const files = [file('manifest.json', JSON.stringify(manifest)), file('handlers/smuggle.mjs', handler)]
+  const reply = await supervisor.invoke({ projectId: randomUUID(), operation: 'smuggle', input: {}, files, caller: CALLER })
+  assert.deepEqual(reply, { status: 502, body: problem('HANDLER_OUTPUT_REFUSED', 502, '/(key): not declared') })
+})
