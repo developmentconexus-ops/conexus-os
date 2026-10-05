@@ -4,7 +4,7 @@ import {
   ProjectCard, ProjectId, ProjectName, ProjectRevision, SourceRevision, WorkspaceId, PRJ03,
   type AccountId, type IdempotencyKey, type Input, type ProjectCreated, type ProjectDetail, type ProjectListItem,
 } from '../../../../packages/contract/dist/index.js'
-import { admitWorkspace } from '../identity-access/admission.js'
+import { admitWorkspace, isInstallationAdministrator } from '../identity-access/admission.js'
 import type { Database } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
@@ -118,13 +118,15 @@ export const createProjectStore = ({
       if (live) {
         return { projectId: live.project_id, workspaceId: live.workspace_id, name: live.name, projectRevision: live.project_revision, archived: live.archived, deleting: live.deleting }
       }
+      const administrator = await isInstallationAdministrator(tx)
       const purged = await tx.maybe(TombstoneRow, sql`
         SELECT project_id, workspace_id, name FROM project.project_deletion
-        WHERE project_id = ${projectId} AND completed_at IS NULL AND (SELECT rls.acting_installation_administrator())`)
+        WHERE project_id = ${projectId} AND completed_at IS NULL AND ${administrator}`)
       return purged ? { projectId: purged.project_id, workspaceId: purged.workspace_id, name: purged.name, projectRevision: '', archived: false, deleting: true } : null
     }),
-    listProjectSummariesWithActivity: ({ accountId, workspaceId }) => database.read(accountId, async (tx) =>
-      (await tx.rows(CardRow, sql`
+    listProjectSummariesWithActivity: ({ accountId, workspaceId }) => database.read(accountId, async (tx) => {
+      const administrator = await isInstallationAdministrator(tx)
+      return (await tx.rows(CardRow, sql`
         SELECT * FROM (
           SELECT stored.project_id, stored.name, stored.archived,
             to_char(coalesce(latest.created_at, stored.created_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS last_activity_at,
@@ -147,8 +149,9 @@ export const createProjectStore = ({
             tombstone.requested_at, NULL, NULL, false, true
           FROM project.project_deletion AS tombstone
           WHERE tombstone.workspace_id = ${workspaceId} AND tombstone.completed_at IS NULL AND tombstone.purged_at IS NOT NULL
-            AND (SELECT rls.acting_installation_administrator())
-        ) AS combined ORDER BY sort_at DESC, project_id`)).map(toProjectCard)),
+            AND ${administrator}
+        ) AS combined ORDER BY sort_at DESC, project_id`)).map(toProjectCard)
+    }),
     deleteProject: createProjectDeletion({ database, ports: deletion }).deleteProject,
   })
 }

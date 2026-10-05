@@ -219,6 +219,10 @@ export async function admitProject(subject: CommandGate | ReadTx, projectId: Pro
   return new Proof({ kind: 'project', accountId, workspaceId: found.workspace_id, projectId, action }, tx)
 }
 
+/** Whether the acting account of a read holds an open tenure and is active: the one owner of that fact for a read, which the reader policies answer through rls.acting_installation_administrator(). */
+export const isInstallationAdministrator = async (tx: ReadTx): Promise<boolean> =>
+  (await tx.one(z.object({ administrator: z.boolean() }), sql`SELECT rls.acting_installation_administrator() AS administrator`, 'INTERNAL_UNEXPECTED')).administrator
+
 /** @public Frozen by spec 0015 section 3; project deletion and the connection commands admit through it. */
 export const admitInstallationAdministrator = async <A extends AdministratorAction>(gate: CommandGate, action: A): Promise<Admitted<AdministratorScope<A>>> => {
   const { tx, accountId } = accountGate(gate)

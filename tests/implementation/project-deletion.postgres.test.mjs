@@ -7,7 +7,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { HEAD, ID, setupProjects } from './project-fixture.mjs'
 import { waitUntilBlocked } from './race.mjs'
 
-const { admitProject } = await import(hubModuleUrl('identity-access/admission.js'))
+const { admitProject, isInstallationAdministrator } = await import(hubModuleUrl('identity-access/admission.js'))
 const digest = (character) => character.repeat(64)
 const remove = (store, accountId, projectId, confirmName = 'Atlas') => store.deleteProject({ accountId, projectId, confirmName })
 const tombstones = async (connection) => (await query(connection, 'SELECT project_id, name, requested_by, purged_at IS NOT NULL AS purged, completed_at IS NOT NULL AS completed FROM project.project_deletion')).rows
@@ -240,4 +240,14 @@ test('a deletion and today run start serialize in both orders without a deadlock
   await tombstoning.query('COMMIT')
   await remove(store, ID.administrator, second)
   await assert.rejects(lockForRun(second), (error) => /NOT_ADMITTED|PROJECT_DELETING/.test(error.message))
+})
+
+test('isInstallationAdministrator is true for an active account with an open tenure and for nobody else', async (t) => {
+  const { connection, database } = await setupProjects(t, 'conexus_is_administrator')
+  const answers = async () => Object.fromEntries(await Promise.all([['administrator', ID.administrator], ['memberAdministrator', ID.memberAdministrator], ['member', ID.member], ['outsider', ID.outsider]]
+    .map(async ([name, accountId]) => [name, await database.read(accountId, (tx) => isInstallationAdministrator(tx))])))
+  assert.deepEqual(await answers(), { administrator: true, memberAdministrator: true, member: false, outsider: false })
+  await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.administrator])
+  await query(connection, 'UPDATE iam.installation_administrator SET revoked_at = now(), revoked_by = $2 WHERE account_id = $1', [ID.memberAdministrator, ID.administrator])
+  assert.deepEqual(await answers(), { administrator: false, memberAdministrator: false, member: false, outsider: false })
 })
