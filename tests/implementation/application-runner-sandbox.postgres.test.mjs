@@ -659,3 +659,19 @@ test('a handler receives the connector answer the Hub sent, and the unconnected 
   assert.deepEqual(await run('{"ok":"yes"}'), unconfigured)
   assert.deepEqual(await run('{"ok":true,"status":200,"bytes":2,"body":{}}'), { ok: true, value: { ok: true, status: 200, bytes: 2, body: {} } })
 })
+
+test('a handler that writes the first line of the result channel cannot choose the detail the runner replies with', async (t) => {
+  assertUserNamespaces()
+  const stateDir = mkdtempSync(join(tmpdir(), 'conexus-channel-'))
+  t.after(() => rmSync(stateDir, { recursive: true, force: true }))
+  const supervisor = createSupervisor({
+    stateDir, runtimeDir: stageWorkerRuntime(join(stateDir, 'runtime')), cluster: { host: '127.0.0.1', port: 9 },
+    database: 'conexus_apps', provisionerPassword: 'unused', relayTls: { ca: '', cert: '', key: '' }, sandbox: SANDBOX,
+  })
+  t.after(() => supervisor.close())
+  const handler = "import { writeSync } from 'node:fs'\nexport const leak = async () => { writeSync(3, '{\"ok\":false,\"code\":\"HANDLER_EXPORT_MISSING\",\"detail\":\"secret\"}\\n'); return {} }\n"
+  const manifest = { version: 1, operations: { leak: { module: 'handlers/leak.mjs', export: 'leak', input: empty, output: empty } }, migrations: [] }
+  const files = [file('manifest.json', JSON.stringify(manifest)), file('handlers/leak.mjs', handler)]
+  const reply = await supervisor.invoke({ projectId: randomUUID(), operation: 'leak', input: {}, files, caller: CALLER })
+  assert.deepEqual(reply, { status: 500, body: problem('HANDLER_EXPORT_MISSING', 500, 'leak') })
+})

@@ -6,6 +6,7 @@ import { convergePreviewAllocations, ensurePreviewAllocation, planMigrations, pr
 import type { LedgerRow, MigrationSource, PreviewAllocation } from './data-plane.js'
 import { openPgRelay } from './pg-relay.js'
 import { RESET_STATEMENT_TIMEOUT_MS } from './requests.js'
+import type { PrepareResult } from './requests.js'
 import type { RelayTls } from './pg-relay.js'
 import { runWorker, SANDBOX_DATABASE_HOST } from './sandbox.js'
 import type { SandboxConfig, WorkerOutcome } from './sandbox.js'
@@ -54,10 +55,7 @@ export type Reply = Readonly<{ status: number; body: unknown }>
 
 export type InvokeInput = Readonly<{ projectId: string; operation: string; input: unknown; files: readonly ServerFile[]; caller: Caller; connectorSocket?: string | undefined }>
 
-export type PrepareResult =
-  | Readonly<{ state: 'READY'; reset: boolean; applied: readonly string[] }>
-  | Readonly<{ state: 'MIGRATION_FAILED'; detail: string }>
-  | Readonly<{ state: 'MIGRATION_HISTORY_DIVERGED'; detail: string }>
+export type { PrepareResult }
 
 /**
  * What the runner may do when the applied history is not a prefix of the artifact's migrations:
@@ -251,7 +249,10 @@ export const createSupervisor = (config: SupervisorConfig) => {
       })
       if (outcome.kind === 'CRASHED') return refusal('HANDLER_CRASHED', outcome.signal ?? `exit ${outcome.exitCode}`)
       if (outcome.kind !== 'RESULT') return outcome.kind === 'TIMEOUT' ? refusal('HANDLER_TIMEOUT') : refusal('RESPONSE_TOO_LARGE')
-      if (!outcome.result.ok) return refusal(workerCodeOf(outcome.result.code), outcome.result.detail)
+      if (!outcome.result.ok) {
+        const code = workerCodeOf(outcome.result.code)
+        return refusal(code, code === 'HANDLER_EXPORT_MISSING' ? operation.export : outcome.result.detail)
+      }
       const outputViolation = schemaViolation(operation.output, outcome.result.value)
       if (outputViolation) return refusal('HANDLER_OUTPUT_REFUSED', outputViolation)
       return { status: 200, body: outcome.result.value }

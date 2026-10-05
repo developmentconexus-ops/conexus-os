@@ -1,7 +1,8 @@
 import { request } from 'node:http'
-import { RESET_STATEMENT_TIMEOUT_MS } from './requests.js'
+import { prepareResult, RESET_STATEMENT_TIMEOUT_MS } from './requests.js'
 import type { InvokeInput, OnDivergence, PrepareResult, Reply, ServerFile } from './supervisor.js'
 import { Failure } from '../platform/failure.js'
+import { problemBody } from '../http/problem.js'
 
 /** The Hub's only way to the application runner: HTTP over its owner-only unix socket. */
 export type ApplicationRunnerClient = Readonly<{
@@ -36,8 +37,7 @@ const call = (socketPath: string, path: string, body: unknown, timeoutMs: number
     response.on('data', (chunk: Buffer) => chunks.push(chunk))
     response.on('end', () => {
       try {
-        // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-        resolve({ status: response.statusCode ?? 502, body: JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown })
+        resolve({ status: response.statusCode ?? 502, body: JSON.parse(Buffer.concat(chunks).toString('utf8')) })
       } catch (cause) {
         reject(new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause }))
       }
@@ -53,11 +53,14 @@ export const createApplicationRunnerClient = (socketPath: string): ApplicationRu
   prepare: async (input) => {
     const onDivergence: OnDivergence = input.onDivergence === 'RESET' ? { resetBefore: Date.now() + RESET_WINDOW_MS } : 'REFUSE'
     const reply = await call(socketPath, '/v1/prepare', { ...input, onDivergence }, PREPARE_TIMEOUT_MS)
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    if (reply.status === 200) return reply.body as PrepareResult
-    const problem = typeof reply.body === 'object' && reply.body !== null ? reply.body : {}
-    const runnerCode = 'code' in problem && typeof problem.code === 'string' ? problem.code : undefined
-    const detail = 'detail' in problem && typeof problem.detail === 'string' ? problem.detail : undefined
+    if (reply.status === 200) {
+      const result = prepareResult.safeParse(reply.body)
+      if (!result.success) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: result.error })
+      return result.data
+    }
+    const problem = problemBody.safeParse(reply.body)
+    const runnerCode = problem.success ? problem.data.code : undefined
+    const detail = problem.success ? problem.data.detail : undefined
     const code = runnerCode === 'SERVER_TREE_REFUSED' || runnerCode === 'MANIFEST_REFUSED' ? runnerCode : 'APPLICATION_SERVER_REFUSED'
     throw new Failure(code, { cause: detail ?? runnerCode ?? code })
   },

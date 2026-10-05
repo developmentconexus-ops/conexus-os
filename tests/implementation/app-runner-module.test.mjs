@@ -74,6 +74,19 @@ test('a 200 reply resolves normally, refusal-shaping never runs', async (t) => {
   assert.deepEqual(await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), { state: 'READY', reset: false, applied: [] })
 })
 
+test('a 200 reply that is not a prepare result is the runner being unavailable', async (t) => {
+  for (const body of [{ state: 'READY', reset: 'no', applied: [] }, { state: 'OTHER' }]) {
+    const error = await refused(t, { status: 200, body })
+    assert.equal(error.id, 'APPLICATION_RUNNER_UNAVAILABLE')
+  }
+})
+
+test('a prepare result of the declared shape is returned as sent', async (t) => {
+  const body = { state: 'READY', reset: false, applied: ['001_a.sql'] }
+  const client = await fakeRunner(t, { status: 200, body })
+  assert.deepEqual(await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), body)
+})
+
 test('call rejections preserve underlying causes', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'conexus-app-runner-causes-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
