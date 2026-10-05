@@ -245,10 +245,15 @@
         "table": "builder.builder_run",
         "reader": true,
         "command": [
-          "SELECT"
+          "DELETE",
+          "INSERT",
+          "SELECT",
+          "UPDATE(cancellation_reason,cancellation_requested_at,candidate_revision,failure_code,finished_at,heartbeat_at,owner_id,phase,result_kind,result_source_revision,sandbox_id,started_at,state,trigger_message_id)"
         ],
         "runtime": [],
-        "compositeKeys": [],
+        "compositeKeys": [
+          "builder_run_account_id_fkey"
+        ],
         "keyColumns": [
           "account_id",
           "builder_run_id",
@@ -259,7 +264,10 @@
         "table": "builder.project_working_state",
         "reader": true,
         "command": [
-          "SELECT"
+          "DELETE",
+          "INSERT",
+          "SELECT",
+          "UPDATE(current_state,last_preview_artifact_digest,last_preview_artifact_revision_id,last_preview_source_revision,updated_at)"
         ],
         "runtime": [],
         "compositeKeys": [],

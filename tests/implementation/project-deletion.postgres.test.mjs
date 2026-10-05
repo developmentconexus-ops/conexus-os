@@ -170,14 +170,14 @@ test('admitProject admits a member, refuses an outsider and a tombstoned project
   const admit = (accountId, action = 'project.build') => database.transaction(accountId, (gate) => admitProject(gate, projectId, action))
   assert.equal((await admit(ID.member)).scope.workspaceId, ID.workspace)
   assert.equal((await database.read(ID.member, (tx) => admitProject(tx, projectId, 'project.read'))).scope.kind, 'project')
-  await assert.rejects(admit(ID.outsider), { id: 'PROJECT_NOT_FOUND' })
-  await assert.rejects(admit(ID.administrator), { id: 'PROJECT_NOT_FOUND' })
+  await assert.rejects(admit(ID.outsider), { id: 'PROJECT_BUILD_DENIED' })
+  await assert.rejects(admit(ID.administrator), { id: 'PROJECT_BUILD_DENIED' })
   await assert.rejects(database.system('project-purge', (gate) => admitProject(gate, projectId, 'project.build')), { id: 'INTERNAL_UNEXPECTED', details: { invariant: 'GATE_ACTOR_REFUSED' } })
   await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.owner])
   await assert.rejects(admit(ID.owner), { id: 'ACCOUNT_INACTIVE' })
   await query(connection, `INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Atlas', $3)`, [projectId, ID.workspace, ID.administrator])
-  await assert.rejects(admit(ID.member), { id: 'PROJECT_NOT_FOUND' })
-  await assert.rejects(admit(ID.memberAdministrator), { id: 'PROJECT_NOT_FOUND' })
+  await assert.rejects(admit(ID.member), { id: 'PROJECT_BUILD_DENIED' })
+  await assert.rejects(admit(ID.memberAdministrator), { id: 'PROJECT_BUILD_DENIED' })
 })
 
 test('a tombstone waits for an admitted writer in either order, with no deadlock', async (t) => {
@@ -212,7 +212,7 @@ test('a tombstone waits for an admitted writer in either order, with no deadlock
   await waitUntilBlocked(connection)
   assert.equal(admissionState.settled, false)
   await holder.query('COMMIT')
-  await assert.rejects(admission, { id: 'PROJECT_NOT_FOUND' })
+  await assert.rejects(admission, { id: 'PROJECT_BUILD_DENIED' })
 })
 
 test('a deletion and today run start serialize in both orders without a deadlock', { timeout: 30_000 }, async (t) => {
