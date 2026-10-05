@@ -23,11 +23,11 @@ test('a member of the Workspace reads, creates and builds every Project in it', 
   const created = await send(store, ID.member, projectId, 'one')
   assert.equal(created.state, 'QUEUED')
   assert.deepEqual((await store.listBuilderRuns({ accountId: ID.member, projectId })).map((run) => run.builderRunId), [created.builderRunId])
-  assert.equal(await store.admitSourceRevision({ accountId: ID.member, projectId, sourceRevision: BASE, mainRevision: BASE }), true)
+  assert.equal(await store.admitSourceRevision({ accountId: ID.member, projectId, sourceRevision: BASE, readMain: async () => BASE }), true)
   assert.deepEqual(await store.readPreviewSubject({ accountId: ID.member, projectId }), { lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null })
 
   assert.deepEqual(await store.listBuilderRuns({ accountId: ID.outsider, projectId }), [])
-  assert.equal(await store.admitSourceRevision({ accountId: ID.outsider, projectId, sourceRevision: BASE, mainRevision: BASE }), false)
+  assert.equal(await store.admitSourceRevision({ accountId: ID.outsider, projectId, sourceRevision: BASE, readMain: async () => BASE }), false)
   assert.equal(await store.readPreviewSubject({ accountId: ID.outsider, projectId }), null)
   await assert.rejects(send(store, ID.outsider, projectId, 'two'), { id: 'PROJECT_BUILD_DENIED' })
   await assert.rejects(store.requestBuilderRunCancellation({ accountId: ID.outsider, projectId, builderRunId: created.builderRunId }), { id: 'PROJECT_BUILD_DENIED' })
@@ -58,7 +58,7 @@ test('an inactive account is refused everywhere, including Preview and source re
   const { connection, database, seedBuilderProject } = await setupBuilder(t, 'conexus_excision_dormant')
   const store = createBuilderStore({ database, ownerId: randomUUID() })
   const projectId = await seedBuilderProject('Dormant')
-  const admits = () => store.admitSourceRevision({ accountId: ID.member, projectId, sourceRevision: BASE, mainRevision: BASE })
+  const admits = () => store.admitSourceRevision({ accountId: ID.member, projectId, sourceRevision: BASE, readMain: async () => BASE })
 
   assert.equal(await admits(), true)
   await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.member])

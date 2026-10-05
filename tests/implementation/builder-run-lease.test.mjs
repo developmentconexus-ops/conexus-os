@@ -54,7 +54,7 @@ test('a Conexus Git that cannot answer `main` fails the source reads and the run
     store: {
       ownerId: '0f000000-0000-4000-8000-0000000000aa',
       admitBuilder: async () => {},
-      admitSourceRevision: async () => { reached.push('admit'); return true },
+      admitSourceRevision: async ({ readMain }) => { await readMain(); reached.push('admit'); return true },
       createBuilderRun: async (input) => { await input.readBase(); reached.push('create') },
     },
     applicationArtifacts: {},

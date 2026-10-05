@@ -146,6 +146,29 @@ test('a message to a conversation with a live run is refused to anyone who canno
   assert.equal(h.holds.length, 1, 'the run was not touched')
 })
 
+test('a source read checks that the account sees the Project before it reads Git: a failing Git port answers 404 to a hidden or missing Project and the named 503 to a visible one', async (t) => {
+  const h = await leaseHarness(t, 'conexus_source_order')
+  const { Failure } = await import(built('platform/failure.js'))
+  const service = createBuilderService({
+    store: h.store,
+    applicationArtifacts: {},
+    runs: {
+      ports: {},
+      git: { readMain: async () => { throw new Failure('CONEXUS_GIT_FAILED') }, mainContains: async () => false },
+      conversations: { ownerOf: async () => 'PROJECT' },
+      source: {},
+      appendDiagnostic: async () => {},
+      publishRun: async () => {},
+      questionWaitMs: 60_000,
+    },
+  })
+  const projectId = await h.projectIn()
+  const read = (accountId, id) => service.listSourceTree({ accountId, projectId: id, sourceRevision: 'c'.repeat(40) }).then(() => 'READ', (error) => [error.id, error.details?.reason ?? null])
+  assert.deepEqual(await read(ID.owner, projectId), ['BUILDER_SOURCE_UNAVAILABLE', 'CONEXUS_GIT_FAILED'])
+  assert.deepEqual(await read(ID.outsider, projectId), ['SOURCE_REVISION_NOT_FOUND', null])
+  assert.deepEqual(await read(ID.owner, randomUUID()), ['SOURCE_REVISION_NOT_FOUND', null])
+})
+
 test('one pass beats the listed runs and takes the stale ones at one instant', async (t) => {
   const h = await leaseHarness(t, 'conexus_lease_instant')
   const listed = await h.seedRun({ ownerId: HUB, heartbeatAgoMs: HOUR })

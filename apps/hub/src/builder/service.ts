@@ -153,8 +153,8 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   const unlessClosed = <T>(read: () => Promise<T>): Promise<T> =>
     applicationShutdown.signal.aborted ? Promise.reject(new Failure('BUILDER_APPLICATION_CLOSED')) : read()
   // A revision the source view may show the caller; `main` counts as read from the Conexus Git now.
-  const admitSource = async ({ accountId, projectId }: Readonly<{ accountId: AccountId; projectId: ProjectId }>, sourceRevision: SourceRevision): Promise<boolean> =>
-    store.admitSourceRevision({ accountId, projectId, sourceRevision, mainRevision: await dependencies.git.readMain(projectId).catch(unavailable) })
+  const admitSource = ({ accountId, projectId }: Readonly<{ accountId: AccountId; projectId: ProjectId }>, sourceRevision: SourceRevision): Promise<boolean> =>
+    store.admitSourceRevision({ accountId, projectId, sourceRevision, readMain: () => dependencies.git.readMain(projectId).catch(unavailable) })
   return Object.freeze({
     sendBuilderMessage: async (input) => {
       await store.admitBuilder(input)

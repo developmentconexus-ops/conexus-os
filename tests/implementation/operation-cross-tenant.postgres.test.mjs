@@ -187,18 +187,18 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       child: null,
     },
     'BLD-08': {
-      own: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectA, sourceRevision: FOREIGN_BASE, mainRevision: FOREIGN_BASE }), true),
-      cross: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, mainRevision: FOREIGN_BASE }), false),
+      own: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectA, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), true),
+      cross: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), false),
       child: null,
     },
     'BLD-09': {
-      own: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectA, sourceRevision: FOREIGN_BASE, mainRevision: FOREIGN_BASE }), true),
-      cross: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, mainRevision: FOREIGN_BASE }), false),
+      own: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectA, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), true),
+      cross: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), false),
       child: null,
     },
     'BLD-29': {
-      own: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectA, sourceRevision: FOREIGN_BASE, mainRevision: FOREIGN_BASE }), true),
-      cross: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, mainRevision: FOREIGN_BASE }), false),
+      own: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectA, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), true),
+      cross: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), false),
       child: null,
     },
     'BLD-23': {

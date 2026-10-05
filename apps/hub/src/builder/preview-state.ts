@@ -40,8 +40,8 @@ export type PreviewState = Readonly<{
   readPreviewSubject(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<BuilderPreview | null>
   /** The Preview subject of a launch: the account is admitted to build in the Project first, so a person who cannot build gets PROJECT_BUILD_DENIED before any read. */
   readLaunchSubject(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<BuilderPreview | null>
-  /** mainRevision is `main` as the Hub just read it from the Conexus Git. */
-  admitSourceRevision(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType; sourceRevision: SourceRevision; mainRevision: SourceRevision }>): Promise<boolean>
+  /** `readMain` reads `main` from the Conexus Git, and runs only once the account is known to see the Project. */
+  admitSourceRevision(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType; sourceRevision: SourceRevision; readMain(): Promise<SourceRevision> }>): Promise<boolean>
 }>
 
 const previewOf = async (tx: TxQueries, projectId: ProjectIdType): Promise<BuilderPreview | null> => {
@@ -78,10 +78,10 @@ export const createPreviewState = ({ database }: Readonly<{ database: Database }
       const { tx, scope } = await admitProject(gate, projectId, 'project.build')
       return previewOf(tx, scope.projectId)
     }),
-    admitSourceRevision: ({ accountId, projectId, sourceRevision, mainRevision }) =>
+    admitSourceRevision: ({ accountId, projectId, sourceRevision, readMain }) =>
       database.read(accountId, async (tx) => {
         const { scope } = await admitProject(tx, projectId, 'project.read')
-        if (sourceRevision === mainRevision) return true
+        if (sourceRevision === await readMain()) return true
         const preview = await tx.maybe(z.object({ present: z.literal(1) }), sql`
           SELECT 1 AS present FROM builder.project_working_state WHERE project_id = ${scope.projectId} AND last_preview_source_revision = ${sourceRevision}`)
         if (preview) return true

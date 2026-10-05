@@ -31,7 +31,7 @@ test('C-020 source inspection admits current subjects and latest code-changing r
   await insertRun(runTwo, project, working, 'SOURCE_CHANGED_BUILD_FAILED', '2026-09-14T11:00:00Z', runOneResult)
   await insertRun(responseOnly, project, null, 'RESPONSE_ONLY', '2026-09-14T12:00:00Z', working)
   await insertRun(otherRun, otherProject, otherResult, 'SOURCE_CHANGED', '2026-09-14T10:00:00Z', source('f'))
-  const admit = (revision, subject = project, actor = account, main = working) => store.admitSourceRevision({ accountId: actor, projectId: subject, sourceRevision: revision, mainRevision: main })
+  const admit = (revision, subject = project, actor = account, main = working) => store.admitSourceRevision({ accountId: actor, projectId: subject, sourceRevision: revision, readMain: async () => main })
   for (const revision of [working, preview, runOneResult]) assert.equal(await admit(revision), true, revision)
   for (const revision of [baseline, olderRunOnly, unrelated, otherResult]) assert.equal(await admit(revision), false, revision)
   assert.equal(await admit(baseline, project, account, baseline), true)
