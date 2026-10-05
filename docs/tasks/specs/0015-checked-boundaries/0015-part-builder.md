@@ -132,8 +132,9 @@ last good Preview artifact. It is a command. The umbrella count becomes eight BL
 403 `PROJECT_BUILD_DENIED` or `ACCOUNT_INACTIVE`, where the current route can wrap the refusal as
 503 `BUILDER_UNAVAILABLE`. BLD-25 makes the same change from 503
 `BUILDER_CANCELLATION_UNAVAILABLE`. Under a held Project proof, a missing working state or
-repository marker now answers `PROJECT_BUILD_DENIED`; today's unmapped
-`BUILDER_SUBJECT_NOT_FOUND` becomes 503. A hidden Project (tombstoned or no longer visible) answers BLD-25 with 403
+repository marker is an invariant breach: it answers `INTERNAL_UNEXPECTED` (500) with
+`details.invariant` `BUILDER_PROJECT_ROWS_MISSING`, because a refusal names a person's access and this is not
+about access; `BUILDER_SUBJECT_NOT_FOUND` no longer exists. A hidden Project (tombstoned or no longer visible) answers BLD-25 with 403
 `PROJECT_BUILD_DENIED` from the shared admission, as for an outsider; HQ dropped the 404 promise of
 its decision 3, because part 3's step 5 refuses before any run lookup. Preserve the named 503 failures for other unavailable causes
 (`apps/hub/src/builder/routes.ts:118`, `apps/hub/src/builder/routes.ts:128`,
@@ -312,7 +313,7 @@ two. `hub_command` holds:
 | `builder.builder_run_model_account` | `SELECT`, `INSERT`. No `UPDATE` and no `DELETE`: the run cascade removes it on purge. | `builder_run_id` to `builder.builder_run`, as today |
 
 No grant covers `builder_run_id`, `project_id`, `account_id`, `conversation_id`, the digests or the
-request columns of `builder_run`, nor `working_source_revision` or `working_version`, nor
+request columns of `builder_run`, nor `working_source_revision`, nor
 `project_id` or `conversation_id` of `conversation_session`. `owner_id` is the executor instance's id,
 not a tenant column, and the claim and the lease must write it. `hub_command` also lacks the legacy
 `model_*` columns of `builder_run`. The row lock for `FOR UPDATE` and `FOR SHARE` on `builder_run`
@@ -326,7 +327,7 @@ FOREIGN KEY (account_id) REFERENCES iam.account (account_id) ON DELETE RESTRICT`
 reaches a person with no constraint. The migration validates it against existing rows, and the build
 runs the `ADD FOREIGN KEY` itself against a copy of the local Conexus data before the pull request
 (HQ decision), so a run row whose account is gone shows up before the merge. A command that inserts a run for an
-account that does not exist fails 23503, mapped by `DATABASE_FAILURES`. No other composite key is
+account that does not exist fails 23503 and answers `INTERNAL_UNEXPECTED`: admission makes it unreachable. No other composite key is
 assigned to this part (admission child, section 5).
 
 **Bridges.** Part 3 and part 0b installed `legacy_owner TO builder_owner` on run and working state,
@@ -429,7 +430,7 @@ already supplies repository preparation and sandbox deletion (`apps/hub/src/hub.
 rows go with the repository and run deletes by their foreign key cascades.
 
 **Registry and the served pointer.** At the part 1 merge head, TypeScript settlement calls
-`reg.matches_application_artifact` as SQL through the grant from part 0. Part 4 ports the matcher. This
+`reg.matches_application_artifact` as SQL through the `EXECUTE` grant this part's migration adds to `hub_command` (part 0 does not). Part 4 ports the matcher. This
 part builds no port for the served pointer (HQ decision). Part 4 reads the three last Preview columns
 directly from `builder.project_working_state` on the command role, `WHERE project_id =
 proof.scope.projectId` after `checkApplication` (built in part 0b), so a grantee never reads working
@@ -556,7 +557,7 @@ its held lookup (`apps/hub/src/builder/module.ts:162`, `builder-bodies.sql:355`,
 9. The wall, on one pooled client. After a commit, a rollback and a throw, `hub_runtime` with no role
    set gets 42501 on each of the five tables. `hub_reader` gets 42501 on `FOR SHARE`, `FOR UPDATE`,
    `INSERT`, `UPDATE` and `DELETE` on each. As `hub_command`, an `UPDATE` of `project_id` or
-   `account_id` of `builder_run`, of `project_id` of `conversation_session`, and of `working_version`
+   `account_id` of `builder_run`, of `project_id` of `conversation_session`, and of `project_id`
    of `project_working_state` each get 42501; `FOR UPDATE` and `FOR SHARE` on a run and on a working
    row run; a direct `DELETE` on `conversation_session` gets 42501 while the repository delete cascades
    it. A `builder_run` insert for an account that does not exist fails 23503. A command that runs the
