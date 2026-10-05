@@ -59,7 +59,7 @@ test('a red finish goes back to the agent with the check in its words, counted a
 
 test('the budget counts each red finish, an unchanged revision included, and the last one stops the loop', async () => {
   const counts = []
-  const { gate, judged } = gateOver([RED], { onRedFinish: (count) => counts.push(count) })
+  const { gate, judged } = gateOver([RED], { onRedFinish: async (count) => { counts.push(count) } })
   assert.match(await gate.finish(), /\(1 de 3\)/)
   assert.equal(gate.gaveUp(), false)
   assert.match(await gate.finish(), /\(2 de 3\)/)
@@ -70,6 +70,19 @@ test('the budget counts each red finish, an unchanged revision included, and the
   assert.deepEqual(counts, [1, 2, 3])
   assert.deepEqual(judged, [REVISION], 'one revision is checked once')
   assert.deepEqual(await gate.settle(), { kind: 'RED_APP', revision: REVISION, detail: RED.detail })
+})
+
+test('the red finish waits for its note, so the feedback reaches the model after the person can read it', async () => {
+  const order = []
+  let release
+  const held = new Promise((resolve) => { release = resolve })
+  const { gate } = gateOver([RED], { onRedFinish: async (count, feedback) => { order.push(`note ${count}`); await held; order.push(`stored ${feedback.split('\n')[0]}`) } })
+  const finishing = gate.finish().then((feedback) => { order.push('feedback returned'); return feedback })
+  await new Promise((wake) => { setTimeout(wake, 20) })
+  assert.deepEqual(order, ['note 1'], 'the feedback is held while the note is being stored')
+  release()
+  assert.match(await finishing, /^Verificação do Conexus: o app não passou \(1 de 3\)\./)
+  assert.deepEqual(order, ['note 1', 'stored Verificação do Conexus: o app não passou (1 de 3).', 'feedback returned'])
 })
 
 test('a green finish ends the turn, and the verdict it judged is the one the run settles on', async () => {

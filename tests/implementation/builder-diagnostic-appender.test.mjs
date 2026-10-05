@@ -89,3 +89,15 @@ test('boot problems in an admitted app are stored as a notice and say that the P
   assert.deepEqual(await rows(), [['signal', 'notification',
     `A execução ${runId} foi aplicada e a Prévia está no ar, mas ao abrir o app o Conexus viu problemas. Detalhe: boot failed:\nBOOT_CONSOLE_ERROR Failed to load notes Resolva isso na próxima execução.`]])
 })
+
+test('a red check writes its own feedback as a notice signal, one per attempt, and a retried attempt does not add a second', async (t) => {
+  const { appendDiagnostic, rows } = await conversationThread(t)
+  const note = (redFinishes, feedback) => ({ projectId, conversationId, builderRunId: runId, outcome: 'CHECK_RED', redFinishes, feedback })
+  await appendDiagnostic(note(1, 'Verificação do Conexus: o app não passou (1 de 3).\ntypecheck failed:\nTS2322'))
+  await appendDiagnostic(note(1, 'Verificação do Conexus: o app não passou (1 de 3).\ntypecheck failed:\nTS2322'))
+  await appendDiagnostic(note(2, 'Verificação do Conexus: o app não passou (2 de 3).\ntypecheck failed:\nTS2322'))
+  assert.deepEqual(await rows(), [
+    ['signal', 'notification', 'Verificação do Conexus: o app não passou (1 de 3).\ntypecheck failed:\nTS2322'],
+    ['signal', 'notification', 'Verificação do Conexus: o app não passou (2 de 3).\ntypecheck failed:\nTS2322'],
+  ])
+})

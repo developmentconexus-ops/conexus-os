@@ -216,6 +216,7 @@ const prepare = async (run: Run): Promise<Prepared> => {
   const { gate, pulled } = createRunGate({
     git: ports.git, projectId, executionId: ExecutionId.parse(builderRunId), base: baseSourceRevision, turnStart: turnStart.start, excluded: APPLICATION_CHECK_EXCLUDED,
     log: ports.log, cancelled: () => cancelled(run), gatePhase: gatePhases.enter, vm, sandbox,
+    noteRed: (redFinishes, feedback) => run.env.appendDiagnostic({ outcome: 'CHECK_RED', projectId, conversationId, builderRunId, redFinishes, feedback }),
   })
   const tools: RunTools = {
     check: async () => agentReportOf((await sandbox.runCheck({ caller: 'tool', root: SANDBOX_CHECKOUT, out: AGENT_CHECK_OUT, collect: false })).report),

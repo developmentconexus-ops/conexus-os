@@ -98,7 +98,7 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
   runtimePool: PostgresPool
   builder: Readonly<{
     e2bApiKeyFile: string
-    e2bTemplateId: string; gitRoot: string; context7ApiKeyFile?: string | undefined; questionWaitMs: number; sandboxIdleMs: number
+    e2bTemplateId: string; gitRoot: string; context7ApiKeyFile?: string | undefined; questionWaitMs: number; modelRetryDelayMs: number | undefined; sandboxIdleMs: number
   }>
   // Only its database password is still read: the Builder's Mastra storage lives in the `factory`
   // schema through the `hub_factory` role until slice 7 moves it to schema `mastra`.
@@ -165,6 +165,7 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
   })
   // Built, never connected, here: the tools are listed on a run's first step, so Context7 being down never delays boot.
   const docsTools = createContext7Docs({ apiKey: builder.context7ApiKeyFile ? readSecretFile(builder.context7ApiKeyFile) : undefined })
+  const retryDelayMs = builder.modelRetryDelayMs
   const controller = createBuilderController({
     id: BUILDER_CONTROLLER_ID,
     workspace: (context) => liveConversations.workspace(context),
@@ -175,6 +176,7 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
     model: modelRouting.resolve,
     docsTools,
     memory: createBuilderMemory({ storage, memoryModel: modelRouting.resolveMemory }),
+    ...(retryDelayMs === undefined ? {} : { modelRetryDelayMs: () => retryDelayMs }),
     ...(connectors ? { connectorFetch: connectors.tools } : {}),
   })
   const mastra = new Mastra({

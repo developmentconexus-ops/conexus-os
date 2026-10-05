@@ -68,7 +68,7 @@ Each item happened here; review judges it. An item a check comes to fail leaves 
   to Mastra's `pendingSuspensions`. Read the Mastra session. Principle 4.
 - **Never create and delete a long-lived resource on every run.** #380 paused the sandbox each run.
   The conversation owns one sandbox and session. Principle 1.
-- **Never fix one premise a third time.** Eight pull requests kept "an answer is a new run" alive.
+- **Never keep patching one premise.** Eight pull requests kept "an answer is a new run" alive.
   [Delivery](delivery.md#review-loop) says when a fix goes back to its spec. Principle 12.
 - **Never encode a lifecycle in booleans or a sentinel.** `parked`, `answered`, `parking`;
   `projectRevision: ''` in `ProjectPurged`. Write a union with one owner. Principle 2.

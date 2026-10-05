@@ -82,7 +82,7 @@ export type SendableAgentEndReason = Exclude<Extract<AgentControllerEvent, { typ
 export type AgentTurn = Readonly<{ reason: SendableAgentEndReason; userMessageId: string | undefined }>
 
 /** A note in the run's conversation thread, keyed by run and code so a retry writes it once. */
-export type RunNote = Readonly<{
+export type SettledNote = Readonly<{
   projectId: ProjectId
   conversationId: ConversationId
   builderRunId: BuilderRunId
@@ -93,6 +93,18 @@ export type RunNote = Readonly<{
   // The Project's own diagnostic, such as the database's error for its migration.
   detail?: string
 }>
+
+/** The check's feedback on a red finish, keyed by run and attempt: the person reads it while the agent repairs. */
+type CheckRedNote = Readonly<{
+  projectId: ProjectId
+  conversationId: ConversationId
+  builderRunId: BuilderRunId
+  outcome: 'CHECK_RED'
+  redFinishes: number
+  feedback: string
+}>
+
+export type RunNote = SettledNote | CheckRedNote
 
 export type DiagnosticAppender = (note: RunNote) => Promise<void>
 

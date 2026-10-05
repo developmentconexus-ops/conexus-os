@@ -29,7 +29,7 @@ const streamOf = (parts) => new ReadableStream({ start(controller) {
   controller.close()
 } })
 const TITLE = 'Agenda semanal da equipe'
-const asksForTitle = (options) => JSON.stringify(options.prompt ?? []).includes('Gere um título')
+const asksForTitle = (options) => JSON.stringify(options.prompt ?? []).includes('transcrição para resumir')
 const textParts = (text) => [{ type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: text }, { type: 'text-end', id: 't' }]
 
 // The Hub's routing over one provider whose accounts are "acct-<person>". Each call names the model
