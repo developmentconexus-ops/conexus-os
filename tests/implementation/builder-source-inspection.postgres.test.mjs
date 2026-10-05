@@ -40,7 +40,7 @@ test('C-020 source inspection admits current subjects and latest code-changing r
   assert.equal(await admit(working, project, unauthorized), false)
 
   assert.deepEqual(await store.readLatestCodeChangingBuilderRun({ accountId: account, projectId: project }), {
-    builderRunId: runTwo, projectId: project, conversationId: `conversa-${project}`, baseSourceRevision: runOneResult, resultSourceRevision: working, resultKind: 'SOURCE_CHANGED_BUILD_FAILED',
+    builderRunId: runTwo, projectId: project, conversationId: project, baseSourceRevision: runOneResult, resultSourceRevision: working, resultKind: 'SOURCE_CHANGED_BUILD_FAILED',
   })
   assert.equal(await store.readLatestCodeChangingBuilderRun({ accountId: unauthorized, projectId: project }), null)
   assert.equal((await store.readLatestCodeChangingBuilderRun({ accountId: account, projectId: otherProject })).builderRunId, otherRun)

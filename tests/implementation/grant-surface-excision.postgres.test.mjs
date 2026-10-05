@@ -11,7 +11,7 @@ import { ID } from './project-fixture.mjs'
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
 
 const BASE = 'a'.repeat(40)
-const send = (store, accountId, projectId, key) => store.createBuilderRun({ accountId, projectId, conversationId: `conversa-${projectId}`, idempotencyKey: key, content: 'pedido', readBase: async () => BASE })
+const send = (store, accountId, projectId, key) => store.createBuilderRun({ accountId, projectId, conversationId: projectId, idempotencyKey: key, content: 'pedido', readBase: async () => BASE })
 
 test('a member of the Workspace reads, creates and builds every Project in it', async (t) => {
   const { database, seedBuilderProject } = await setupBuilder(t, 'conexus_excision_member')

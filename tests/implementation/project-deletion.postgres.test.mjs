@@ -221,7 +221,7 @@ test('a tombstone waits for an admitted writer in either order, with no deadlock
 test('a deletion and a run start serialize in both orders without a deadlock', { timeout: 30_000 }, async (t) => {
   const { connection, database, store, seedProject, onCleanup } = await setupProjects(t, 'conexus_prj_runstart')
   const builder = createBuilderStore({ database, ownerId: randomUUID() })
-  const start = (projectId, readBase = async () => HEAD) => builder.createBuilderRun({ accountId: ID.member, projectId, conversationId: 'conversa', idempotencyKey: randomUUID(), content: 'pedido', readBase })
+  const start = (projectId, readBase = async () => HEAD) => builder.createBuilderRun({ accountId: ID.member, projectId, conversationId: '33333333-3333-4333-8333-333333333333', idempotencyKey: randomUUID(), content: 'pedido', readBase })
   const first = await seedProject('Atlas')
   let release
   const held = new Promise((resolve) => { release = resolve })
