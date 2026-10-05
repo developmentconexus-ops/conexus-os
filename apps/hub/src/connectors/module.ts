@@ -5,11 +5,12 @@ import { MastraStorageExporter } from '@mastra/observability'
 import type { FastifyInstance } from 'fastify'
 import type { ConnectionCheckOutcome } from '../../../../packages/contract/dist/index.js'
 import type { Database } from '../platform/db.js'
+import { Failure } from '../platform/failure.js'
 import { logLine } from '../platform/logger.js'
 import type { EventLog } from '../platform/logger.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
-import { createBroker } from './broker.js'
-import type { Broker, RegisteredConnector } from './broker.js'
+import { createBroker, registryOf } from './broker.js'
+import type { Broker } from './broker.js'
 import { createConnectorBrief } from './builder-brief.js'
 import { createConnectorFetchTools, openBuilderRun } from './builder-tool.js'
 import type { BuilderConnectorRun } from './builder-tool.js'
@@ -48,25 +49,34 @@ export type ConnectorModule = Readonly<{
   observability: ObservabilityInstance
 }>
 
-const CHECK_OUTCOME: Readonly<Partial<Record<BrokerErrorCode, ConnectionCheckOutcome>>> = Object.freeze({
+/** What an administrator sees of a refused check. `null` is a code that is no provider outcome, so a fault of the platform. */
+const CHECK_OUTCOME: Readonly<Record<BrokerErrorCode, ConnectionCheckOutcome | null>> = Object.freeze({
   CREDENTIAL_REFUSED: 'CREDENTIAL_REFUSED',
   CONNECTOR_UNCONFIGURED: 'CONNECTOR_UNCONFIGURED',
   PROVIDER_TIMEOUT: 'PROVIDER_TIMEOUT',
   PROVIDER_UNAVAILABLE: 'PROVIDER_UNAVAILABLE',
   PROVIDER_ERROR: 'PROVIDER_ERROR',
   RESPONSE_REFUSED: 'PROVIDER_ERROR',
+  INPUT_REFUSED: null,
+  NOT_GRANTED: null,
+  RESPONSE_TOO_LARGE: null,
+  CALL_LIMIT: null,
+  SERVICE_REFUSED: null,
+  CONNECTOR_PLATFORM_FAILED: null,
 })
 
 /**
  * The store's transaction ends with the credential read, so the provider call never holds the administrator's locks.
  * @public The pinned gateway origin refuses a fake one, so the check test builds this with its own broker.
  */
-export const createConnectionCheck = ({ store, broker, configured }: Readonly<{ store: ConnectorStore; broker: Broker; configured: boolean }>): CheckConnection =>
+export const createConnectionCheck = ({ store, broker }: Readonly<{ store: ConnectorStore; broker: Pick<Broker, 'checkCredential'> }>): CheckConnection =>
   async ({ accountId, workspaceId, connectionId }) => {
     const { connectorId, sealed } = await store.readCredentialForCheck({ accountId, workspaceId, connectionId })
-    if (!configured) return 'CONNECTOR_UNCONFIGURED'
     const result = await broker.checkCredential(connectorId, sealed)
-    return result.ok ? 'OK' : CHECK_OUTCOME[result.code] ?? 'PROVIDER_UNAVAILABLE'
+    if (result.ok) return 'OK'
+    const outcome = CHECK_OUTCOME[result.code]
+    if (outcome === null) throw new Failure('CONNECTOR_PLATFORM_FAILED', { details: { code: result.code } })
+    return outcome
   }
 
 export const createConnectorModule = ({
@@ -85,15 +95,15 @@ export const createConnectorModule = ({
 }>): ConnectorModule => {
   const store = createConnectorStore({ database, envelope })
   const brokerStore = createBrokerStore(database)
-  const registeredConnectors: readonly RegisteredConnector[] = [
+  const registry = registryOf([
     { definition: sankhyaDefinition, adapter: gatewayOrigin ? createSankhyaGateway({ origin: pinnedGatewayOrigin(gatewayOrigin) }) : null },
-  ]
+  ])
   const observability = createConnectorObservability({
     store: new MastraStorageExporter(),
     log,
-    secretFields: registeredConnectors.flatMap(({ definition }) => definition.secretFields),
+    secretFields: [...registry.values()].flatMap(({ definition }) => definition.secretFields),
   })
-  const broker = createBroker({ connectors: registeredConnectors, store: brokerStore, envelope, observability })
+  const broker = createBroker({ connectors: registry, store: brokerStore, envelope, observability })
   const connectorBrief = createConnectorBrief({ store: brokerStore, observability })
   const ports = socketDirectory ? createHandlerPorts({ directory: socketDirectory, broker }) : null
 
@@ -109,14 +119,14 @@ export const createConnectorModule = ({
   return Object.freeze({
     registerConnectorRoutes: (app: FastifyInstance) => registerConnectorRoutes(app, {
       store: administeredStore,
-      checkConnection: createConnectionCheck({ store, broker, configured: Boolean(gatewayOrigin) }),
+      checkConnection: createConnectionCheck({ store, broker }),
     }),
     openHandlerPort: async (source) => (ports ? ports.open(scopeFromArtifactSource(source)) : null),
     sweepHandlerPorts: async () => { await ports?.sweep() },
     openBuilderRun: ({ projectId, accountId, builderRunId }) => openBuilderRun({ brief: connectorBrief, projectId, accountId, builderRunId, ports }),
     purgeProjectBindings,
     builderTools: createConnectorFetchTools(broker),
-    toolPayloadProjection: createToolPayloadProjection(new Map(registeredConnectors.map(({ definition }) => [definition.id, new Set(definition.native.services)]))),
+    toolPayloadProjection: createToolPayloadProjection(new Map([...registry.values()].map(({ definition }) => [definition.id, new Set(definition.native.services)]))),
     broker,
     observability,
   })
