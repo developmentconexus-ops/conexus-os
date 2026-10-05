@@ -611,7 +611,7 @@ test("a red check goes back to the agent in the same turn with the failed step's
   assert.equal(await run.main(), result)
   assert.equal(run.inBare('show', `${result}:app/index.html`), '<h1>repaired</h1>')
   assert.deepEqual(admissionCalls(run), [['candidate', result], ['advance', result], ['settleBuild', result, null]])
-  assert.deepEqual(run.diagnostics, [])
+  assert.deepEqual(run.diagnostics.map(({ outcome, redFinishes, feedback }) => [outcome, redFinishes, feedback]), [['CHECK_RED', 1, run.feedbacks[0]]], 'the person reads the one red check in the thread')
   assert.equal(run.commands().some((line) => line.includes('check.sh')), false, 'no command runs a script of the candidate')
   assert.ok(run.checks[0].files.includes('conexus/check.sh'), 'the candidate file is only data in the tree the Hub checks')
   assert.equal(run.checks.every(({ main }) => main === run.base), true, 'main stays at the base until the check is green')
@@ -634,7 +634,17 @@ test('the third red finish ends the run refused with BUILDER_APP_NOT_FIXED, file
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_APP_NOT_FIXED'])
   assert.equal(await run.main(), run.base)
   assert.equal(run.inBare('show', `${run.MIRROR}:app/index.html`), '<h1>third</h1>')
-  assert.deepEqual(run.diagnostics, [], 'the last feedback already told the person why')
+  assert.deepEqual(run.diagnostics.map(({ outcome, redFinishes, feedback }) => [outcome, redFinishes, feedback]), [1, 2, 3].map((count) => ['CHECK_RED', count, run.feedbacks[count - 1]]), 'each red finish writes its note, the last included, and no second note repeats it')
+})
+
+test('a red check whose note cannot be stored is logged, and the agent still gets the feedback and repairs', async (t) => {
+  const run = await harness(t, { report: redThenGreen, turn: ({ checkout }) => { writeFileSync(join(checkout, 'app/index.html'), '<h1>UNIT1</h1>\n'); return completed() }, repairs: [writeIndex('<h1>repaired</h1>\n')], noteFails: true })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.diagnostics, [])
+  assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_CHECK_NOTE_FAILED:')), [`BUILDER_CHECK_NOTE_FAILED:${runId}:1:thread storage down`])
+  assert.equal(run.feedbacks.length, 1)
+  assert.equal(run.inBare('show', `${await run.main()}:app/index.html`), '<h1>repaired</h1>')
 })
 
 test('a done on a red revision the agent did not change spends a finish and does not check again', async (t) => {

@@ -76,7 +76,7 @@ export const failedReport = (step, problems) => {
 // runtime names under /workspace, /var/lib or /opt lands under the harness's
 // own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run. It is the
 // conversation's one VM: every turn reaches the same directory until `loseVm` replaces it.
-export const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate = false, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0, questionWaitMs = 60_000, answers = [], session, onWaitingWrite, persisted, openSandbox, claim, candidateRefusal, admit } = {}) => {
+export const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate = false, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0, questionWaitMs = 60_000, answers = [], session, onWaitingWrite, persisted, openSandbox, claim, candidateRefusal, admit, noteFails = false } = {}) => {
   endLines.splice(0)
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
@@ -347,7 +347,10 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
         ownerOf: async () => 'PROJECT',
       },
       source: createProjectSourceReads({ git }),
-      appendDiagnostic: async (input) => { diagnostics.push({ ...input, from: 'service' }) },
+      appendDiagnostic: async (input) => {
+        if (noteFails && input.outcome === 'CHECK_RED') throw new Error('thread storage down')
+        diagnostics.push({ ...input, from: 'service' })
+      },
       publishRun: async (published) => { publishedRuns.push(published) },
       questionWaitMs,
     },

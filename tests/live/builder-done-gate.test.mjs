@@ -19,6 +19,13 @@ const checksOf = (hub, runId) => readFileSync(join(hub.evidenceDir, 'hub.log'), 
 }).length
 const said = (call) => JSON.stringify(call.contents)
 const notices = (page) => page.getByRole('log').getByRole('note')
+// The visible order of the conversation: what the agent said, then the check's notice, then the repair.
+const inOrder = async (page, ...texts) => {
+  for (const text of texts) await expect(page.getByRole('log')).toContainText(text)
+  const log = await page.getByRole('log').innerText()
+  const at = texts.map((text) => log.indexOf(text))
+  assert.deepEqual(at, [...at].sort((a, b) => a - b), `the log reads in the order ${JSON.stringify(texts)}`)
+}
 const shot = async (page, hub, name) => {
   await page.screenshot({ path: join(hub.evidenceDir, 'live', `${name}.png`), fullPage: true })
   writeFileSync(join(hub.evidenceDir, 'live', `${name}.aria.txt`), await page.locator('body').ariaSnapshot())
@@ -50,6 +57,7 @@ liveFlow({ id: 'builder.done-gate-repairs', nome: 'Um erro do app volta para o a
   await settled(hub, REQUEST)
   await expect(page.getByRole('log')).toContainText('Corrigi o erro de tipo.')
   await expect(page.getByText('versão 1 · Build passou')).toBeVisible({ timeout: 60_000 })
+  await inOrder(page, 'Pronto, terminei.', CHECK_NOTICE, 'Corrigi o erro de tipo.')
   await shot(page, hub, 'repairs-2-green')
   const run = await runOf(hub, REQUEST)
   assert.deepEqual([run.state, run.result_kind], ['SUCCEEDED', 'SOURCE_CHANGED'])
@@ -60,6 +68,7 @@ liveFlow({ id: 'builder.done-gate-repairs', nome: 'Um erro do app volta para o a
   await expect(notices(page).filter({ hasText: CHECK_NOTICE })).toHaveCount(1, { timeout: 60_000 })
   await expect(page.getByRole('log')).toContainText('Corrigi o erro de tipo.')
   await expect(page.getByRole('log')).toContainText('Pronto, terminei.')
+  await inOrder(page, 'Pronto, terminei.', CHECK_NOTICE, 'Corrigi o erro de tipo.')
 })
 
 liveFlow({ id: 'builder.done-gate-waiting', nome: 'Uma pergunta do agente não dispara a verificação; ela roda uma vez depois da resposta' }, async ({ page, model, hub }) => {
