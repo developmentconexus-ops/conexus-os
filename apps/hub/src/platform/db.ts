@@ -1,6 +1,8 @@
 import pg from 'pg'
 import type { Pool, PoolClient, PoolConfig } from 'pg'
-import type { z } from 'zod'
+import { createHash } from 'node:crypto'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { z } from 'zod'
 import type { AccountId } from '../../../../packages/contract/dist/index.js'
 import { Failure, logFailure, type FailureCode } from './failure.js'
 import { fieldOf } from './field-of.js'
@@ -14,17 +16,29 @@ const factoryBrand: unique symbol = Symbol('factory-pool')
 export type Mode = 'read' | 'write'
 export type Sql = Readonly<{ [sqlBrand]: true; text: string; values: readonly unknown[] }>
 export type DatabaseConnection = Readonly<{ host: string; port: number; database: string; user: 'hub_runtime' | 'hub_factory'; passwordFile: string; max?: number; connectionTimeoutMillis?: number; options?: string }>
-export type JobName = 'iam-reaper' | 'project-purge' | 'builder-executor' | 'migration'
+export type JobName = 'iam-reaper' | 'project-purge' | 'builder-executor'
 export type FactoryPool = Pool & Readonly<{ [factoryBrand]: true }>
 export type PostgresPool = Pool
 export type PostgresConnection = PoolConfig
 
 const identifier = (name: string): Sql => ({ [sqlBrand]: true, text: `"${name.replaceAll('"', '""')}"`, values: [] })
 const isSql = (value: unknown): value is Sql => typeof value === 'object' && value !== null && sqlBrand in value && value[sqlBrand] === true
-export const sql = Object.assign((strings: TemplateStringsArray, ...interpolations: unknown[]): Sql => {
+/** @public Frozen by spec 0015 section 3; the HTTP edge makes one, only a Digest reaches a token lookup. */
+export const RawToken = z.string().min(1).brand<'RawToken'>()
+/** @public Frozen by spec 0015 section 3. */
+export type RawToken = z.output<typeof RawToken>
+const DigestBytes = z.instanceof(Buffer).brand<'Digest'>()
+/** @public Frozen by spec 0015 section 3. */
+export type Digest = z.output<typeof DigestBytes>
+/** @public Frozen by spec 0015 section 3; the one way to a Digest. */
+export const digest = (raw: RawToken): Digest => DigestBytes.parse(createHash('sha256').update(raw).digest())
+type NoRawToken<V extends readonly unknown[]> = { readonly [K in keyof V]: V[K] extends RawToken ? never : V[K] }
+
+export const sql = Object.assign(<V extends readonly unknown[]>(strings: TemplateStringsArray, ...interpolations: V & NoRawToken<V>): Sql => {
   const values: unknown[] = []
   let text = strings[0] ?? ''
-  for (const [index, value] of interpolations.entries()) {
+  const given: readonly unknown[] = interpolations
+  for (const [index, value] of given.entries()) {
     if (isSql(value)) {
       const offset = values.length
       text += value.text.replace(/\$(\d+)/g, (_match, position: string) => `$${Number(position) + offset}`)
@@ -37,6 +51,22 @@ export const sql = Object.assign((strings: TemplateStringsArray, ...interpolatio
   }
   return { [sqlBrand]: true, text, values }
 }, { identifier })
+
+const ALLOWED_FIRST_KEYWORD = /^(?:select|insert|update|delete|with)\b/
+const REFUSED_WORDS = /\bconexus\b|session_authorization|u&|set_config|current_setting/
+
+const normalizedText = (text: string): string => text.toLowerCase()
+  .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ')
+  .replaceAll('"', '').replace(/\s+/g, ' ').trim()
+
+/** The composed text of every executed statement may only select, insert, update, delete or run a CTE; see spec 0015, admission section 4.1. */
+const refuseSqlText = (statement: Sql): void => {
+  const text = normalizedText(statement.text)
+  const statements = text.split(';').map((part) => part.trim()).filter((part) => part !== '')
+  if (statements.length === 0 || statements.some((part) => !ALLOWED_FIRST_KEYWORD.test(part)) || REFUSED_WORDS.test(text)) {
+    throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'SQL_TEXT_REFUSED' } })
+  }
+}
 
 export interface ReadTx {
   readonly mode: Mode
@@ -92,6 +122,7 @@ const transactionView = (client: PoolClient) => {
   let active = true
   const query = async (statement: Sql) => {
     if (!active) throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'TRANSACTION_ENDED' } })
+    refuseSqlText(statement)
     try { return await client.query(statement.text, [...statement.values]) }
     catch (error) { throw databaseFailure(error) }
   }
@@ -126,6 +157,13 @@ const writeView = (client: PoolClient, acting: Acting) => {
   return { mode: 'write' as const, accountId: acting.accountId, rows, one, maybe, run: execute, end }
 }
 
+const entered = new AsyncLocalStorage<true>()
+const refuseOptionNamingRole = (connection: DatabaseConnection): void => {
+  if (connection.options !== undefined && /\b(?:role|session_authorization)\b/i.test(connection.options)) {
+    throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'POOL_OPTION_NAMES_ROLE' } })
+  }
+}
+
 const pools = new WeakMap<Database, Pool>()
 export const unportedPool = (database: Database): Pool => {
   const pool = pools.get(database)
@@ -134,8 +172,10 @@ export const unportedPool = (database: Database): Pool => {
 }
 
 export const openDatabase = (connection: DatabaseConnection): Database => {
+  refuseOptionNamingRole(connection)
   const pool = openPool({ ...connection, password: readSecretFile(connection.passwordFile) })
   const transact = async <T, V extends ReadTx>(begin: string, acting: Acting, view: (client: PoolClient, acting: Acting) => V & { end(): void }, fn: (tx: V) => Promise<T>): Promise<T> => {
+    if (entered.getStore()) throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'NESTED_TRANSACTION' } })
     const client = await pool.connect()
     let discard: Error | undefined
     let started = false
@@ -144,7 +184,7 @@ export const openDatabase = (connection: DatabaseConnection): Database => {
       await client.query(begin)
       started = true
       await client.query("SELECT set_config('conexus.account_id', $1, true), set_config('conexus.scope', $2, true)", [acting.accountId ?? '', acting.scope])
-      const value = await fn(tx)
+      const value = await entered.run(true, () => fn(tx))
       await client.query('COMMIT')
       return value
     } catch (error) {
@@ -181,6 +221,7 @@ export const openDatabase = (connection: DatabaseConnection): Database => {
 }
 
 export const openFactoryPool = (connection: DatabaseConnection): FactoryPool => {
+  refuseOptionNamingRole(connection)
   return Object.assign(openPool({ ...connection, password: readSecretFile(connection.passwordFile) }), { [factoryBrand]: true as const })
 }
 

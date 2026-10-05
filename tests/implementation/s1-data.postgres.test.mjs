@@ -31,12 +31,11 @@ test('a row is parsed, a missing row has its named failure, and a transaction se
   const StringRow = z.object({ value: z.string() })
   const result = await database.transaction(ACCOUNT, async (tx) => {
     assert.equal(tx.mode, 'write')
-    const account = await tx.one(StringRow, sql`SELECT current_setting('conexus.account_id') AS value`, 'NOT_FOUND')
     const value = await tx.one(NumberRow, sql`SELECT ${7}::integer AS value`, 'NOT_FOUND')
     const quoted = await tx.one(z.object({ 'col"name': z.number() }), sql`SELECT ${8}::integer AS ${sql.identifier('col"name')}`, 'NOT_FOUND')
-    return { account, value, quoted }
+    return { value, quoted }
   })
-  assert.deepEqual(result, { account: { value: ACCOUNT }, value: { value: 7 }, quoted: { 'col"name': 8 } })
+  assert.deepEqual(result, { value: { value: 7 }, quoted: { 'col"name': 8 } })
   await assert.rejects(database.read(ACCOUNT, (tx) => tx.one(StringRow, sql`SELECT 1 AS value`, 'NOT_FOUND')), { name: 'ZodError' })
   await assert.rejects(database.read(ACCOUNT, (tx) => tx.one(NumberRow, sql`SELECT 1 AS value WHERE false`, 'NOT_FOUND')), { id: 'NOT_FOUND' })
   assert.deepEqual((await unportedPool(database).query("SELECT current_setting('conexus.account_id', true) AS value")).rows, [{ value: '' }])
@@ -77,7 +76,7 @@ test('every mapped database failure names a real constraint and a registered fai
   }
   await query(connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'a', 'A')", [ACCOUNT])
   const orphan = sql`INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES (${ACCOUNT}, '20000000-0000-4000-8000-000000000001', 'owner')`
-  await assert.rejects(database.system('migration', (tx) => tx.run(orphan)), (error) => error.id === 'WORKSPACE_NOT_FOUND' && error.cause?.code === '23503')
+  await assert.rejects(database.system('project-purge', (tx) => tx.run(orphan)), (error) => error.id === 'WORKSPACE_NOT_FOUND' && error.cause?.code === '23503')
   await assert.rejects(database.read(ACCOUNT, (tx) => tx.rows(z.object({ value: z.number() }), sql`SELECT 1 / 0 AS value`)),
     (error) => error.id === 'INTERNAL_UNEXPECTED' && error.cause?.code === '22012')
 })

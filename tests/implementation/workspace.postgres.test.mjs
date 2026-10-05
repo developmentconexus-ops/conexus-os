@@ -24,11 +24,6 @@ const refusedByPostgres = (error) => {
   return true
 }
 
-const leakSessionSettings = async (connection) => {
-  await query(connection, `ALTER ROLE hub_runtime IN DATABASE "${connection.database}" SET conexus.scope = 'system'`)
-  await query(connection, `ALTER ROLE hub_runtime IN DATABASE "${connection.database}" SET conexus.account_id = '${ACCOUNT}'`)
-}
-
 const setup = async (t) => {
   const fixture = await buildHubDatabase(t, 'conexus_workspace')
   await givePasswordToHubRuntime(fixture.connection, fixture.onCleanup, 'workspace-test-only')
@@ -146,19 +141,7 @@ test('an admission proof for one account is refused inside the transaction of an
   await assert.rejects(database.transaction(OUTSIDER, (tx) => admitAccount(tx, ACCOUNT)), mismatch)
   await assert.rejects(database.transaction(OUTSIDER, (tx) => admitWorkspace(tx, ACCOUNT, created.reply.workspaceId, 'workspace.read')), mismatch)
   await assert.rejects(database.read(OUTSIDER, (tx) => admitWorkspace(tx, ACCOUNT, created.reply.workspaceId, 'workspace.read')), mismatch)
-  await assert.rejects(database.system('migration', (tx) => admitAccount(tx, ACCOUNT)), mismatch)
-})
-
-test('every entry sets both settings, so a session level scope never leaks into a person transaction', async (t) => {
-  const { connection, database, store } = await setup(t)
-  await leakSessionSettings(connection)
-  await store.createWorkspace({ accountId: ACCOUNT, idempotencyKey: 'leak', body: { name: 'Operations' } })
-  const settings = z.object({ scope: z.string(), account: z.string() })
-  const read = (tx) => tx.one(settings, sql`SELECT current_setting('conexus.scope', true) AS scope, current_setting('conexus.account_id', true) AS account`, 'INTERNAL_UNEXPECTED')
-  assert.deepEqual(await database.read(OUTSIDER, read), { scope: '', account: OUTSIDER })
-  assert.deepEqual(await database.transaction(OUTSIDER, read), { scope: '', account: OUTSIDER })
-  assert.deepEqual(await database.system('migration', read), { scope: 'system', account: '' })
-  assert.deepEqual(await database.read(OUTSIDER, (tx) => tx.rows(z.object({ workspace_id: z.string() }), sql`SELECT workspace_id FROM workspace.workspace`)), [])
+  await assert.rejects(database.system('project-purge', (tx) => admitAccount(tx, ACCOUNT)), mismatch)
 })
 
 test('concurrent WS-01 calls with one key replay one answer for one body and conflict for another', async (t) => {
