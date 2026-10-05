@@ -279,6 +279,12 @@ model (`DETAIL_SHOWN`, `run-operation.ts:86-96`). That would let a handler send 
 - `HANDLER_LOAD_FAILED`. `DETAIL_SHOWN` filters it like `HANDLER_FAILED`: only a database SQLSTATE survives. The import
   error text no longer reaches the Builder. This costs the Builder a diagnostic, and it is the price of closing the
   channel.
+- `HANDLER_OUTPUT_REFUSED`. The supervisor writes it, but the text it writes can hold a handler chosen string: the
+  handler picks the keys of its own answer, and an undeclared key that looks like a property name would be echoed to the
+  model (`/Maria_Silva_CPF_12345678900: not declared`). `schemaViolation` takes `echoUndeclared`. The input path passes
+  `true`, because the caller already holds its own keys, and the output path (`supervisor.ts`, the check of
+  `operation.output`) passes `false`, so an undeclared output key reads `/(key): not declared`. Every other output text
+  names only schema facts and array positions.
 - Every other worker code is either not shown (`DETAIL_SHOWN` has no entry) or written by the supervisor
   (`INPUT_REFUSED`, `HANDLER_OUTPUT_REFUSED`, `HANDLER_CRASHED`). A worker line with another code becomes
   `HANDLER_FAILED` (`workerCodeOf`).
@@ -381,7 +387,8 @@ The reason in the record equals the comment's `exempt <reason>` text verbatim. T
 (`biome.json:89-91` applies the rule there), and it fails on any `biome-ignore`, `biome-ignore-all` or
 `biome-ignore-start` whose rule path stops at `lint` or `lint/<group>` without naming a rule, because that silences
 this rule without naming it. Test 9 has a fixture for each: a suppression under `packages/`, `lint/nursery: ...` and
-`lint: ...`.
+`lint: ...`. It also reads `biome.json`: an `overrides` entry that turns `noUnsafeTypeAssertion` to anything but
+`error`, or disables the linter, fails and names the entry. It walks `.mts` and `.cts` beside `.ts` and `.tsx`.
 
 The census fails when a found exemption is not in the record, and when a recorded one is gone or has moved. A move
 costs one hand edit of the record, and the failure message prints the entry to copy. `--write` records the counts. It
@@ -520,9 +527,12 @@ and `ValueSchema` types stay, because they are the types the guards assert.
   `INPUT_REFUSED` with an issue path, and the fix makes that line true for the first time.
 - **A detail the worker writes is handler controlled text.** The handler can write the first line of fd 3, so any
   detail a worker line carries is a string the handler chose, and it may hold a company value. The platform therefore
-  shows the Builder only details it wrote itself, or a SQLSTATE (section 2.7). The five SQLSTATE characters and the
-  `HANDLER_CRASHED` exit code can still be chosen by the handler: a few bits per call, the same order as the shape
-  counts the success path returns by design (`run-operation.ts:203`). The Builder no longer sees the import
+  shows the Builder only details it wrote itself, or a SQLSTATE (section 2.7). Through `error.code` the handler can
+  choose any five character code of `[0-9A-Z]`, which `sqlstateOnly` shows as `SQLSTATE <code>` (the worker prefixes
+  `error.code` to the detail, `worker.ts:78-82`, so `throw {code: 'MARIA'}` shows `SQLSTATE MARIA`): about 26 bits per
+  call, without fd 3. `HANDLER_CRASHED` carries an exit code the handler can also choose. HQ accepts this. It takes
+  handler code written on purpose to leak, and the sandbox is the boundary. No narrowing now. The output keys are not a
+  channel: an undeclared one is hidden (section 2.7). The Builder no longer sees the import
   error text of `HANDLER_LOAD_FAILED`.
 - **`connectorAnswer` is a union on `ok`.** `{ok:false}` with no `code` is now refused as `CONNECTOR_UNCONFIGURED`. The
   Hub never sends it.

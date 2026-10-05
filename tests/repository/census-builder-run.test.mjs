@@ -20,7 +20,7 @@ const FILES = {
   'apps/web/src/features/c.ts': `${DEBT}\nconst three = 3 as number\n`,
 }
 
-const fixture = (t, { files = FILES, exemptions = ['apps/hub/src/identity-access/b.ts:2 ' + REASON] } = {}) => {
+const fixture = (t, { files = FILES, exemptions = ['apps/hub/src/identity-access/b.ts:2 ' + REASON], biome } = {}) => {
   const root = mkdtempSync(join(tmpdir(), 'cx-census-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const put = (path, text) => {
@@ -33,6 +33,7 @@ const fixture = (t, { files = FILES, exemptions = ['apps/hub/src/identity-access
   put('contracts/technical/failures.json', '{"failures":[]}')
   put('contracts/technical/census-builder-run.json', `${JSON.stringify({ ...ZERO, unsafeAssertionExemptions: exemptions }, null, 2)}\n`)
   for (const [path, text] of Object.entries(files)) put(path, text)
+  if (biome) put('biome.json', JSON.stringify(biome))
   spawnSync('git', ['init', '-q'], { cwd: root })
   const run = (...args) => {
     const ran = spawnSync(process.execPath, ['scripts/census-builder-run.mjs', ...args], { cwd: root, encoding: 'utf8' })
@@ -102,4 +103,23 @@ test('two exemptions in one file with one reason are two entries', (t) => {
   assert.equal(one.status, 1)
   assert.match(one.out, /b\.ts:4 /)
   assert.equal(fixture(t, { files: twice, exemptions: ['apps/hub/src/identity-access/b.ts:2 ' + REASON, 'apps/hub/src/identity-access/b.ts:4 ' + REASON] }).run().status, 0)
+})
+
+test('a biome override that turns the rule off, or the linter off, fails naming the override', (t) => {
+  const off = { overrides: [{ includes: ['apps/*/src/**'], linter: { rules: { nursery: { noUnsafeTypeAssertion: 'error' } } } }, { includes: ['apps/hub/src/**'], linter: { rules: { nursery: { noUnsafeTypeAssertion: 'off' } } } }] }
+  const ran = fixture(t, { biome: off }).run()
+  assert.equal(ran.status, 1)
+  assert.match(ran.out, /biome\.json overrides\[1\] turns noUnsafeTypeAssertion off/)
+  const disabled = fixture(t, { biome: { overrides: [{ includes: ['apps/**'], linter: { enabled: false } }] } }).run()
+  assert.equal(disabled.status, 1)
+  assert.match(disabled.out, /overrides\[0\]/)
+  assert.equal(fixture(t, { biome: { overrides: [off.overrides[0]] } }).run().status, 0)
+})
+
+test('suppressions in .mts and .cts files are read like those in .ts files', (t) => {
+  for (const name of ['d.mts', 'd.cts']) {
+    const ran = fixture(t, { files: { ...FILES, [`apps/hub/src/identity-access/${name}`]: `const x = 1\n// biome-ignore lint/nursery/noUnsafeTypeAssertion: it works\n` } }).run()
+    assert.equal(ran.status, 1, name)
+    assert.match(ran.out, new RegExp(`identity-access/${name.replace('.', '\\.')}:2`), name)
+  }
 })

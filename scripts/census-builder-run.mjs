@@ -129,9 +129,10 @@ const repeatedTimerSuppressions = hits(hubSource, /biome-ignore lint\/style\/noR
 const DEBT = /^\s*\/\/ biome-ignore lint\/nursery\/noUnsafeTypeAssertion: debt\b/
 const EXEMPT = /^\s*\/\/ biome-ignore lint\/nursery\/noUnsafeTypeAssertion: exempt (\S.*)$/
 const UNNAMED = /biome-ignore(?:-all|-start)?\s+lint(?:\/[A-Za-z]+)?(?![/A-Za-z])/
+const SOURCE = /\.[cm]?tsx?$/
 const sourceLines = (paths) => paths.flatMap((path) => readFileSync(path, 'utf8').split('\n').map((line, i) => ({ at: `${rel(path)}:${i + 1}`, line })))
-const appLines = sourceLines(walk(join(repo, 'apps'), (path) => /\.tsx?$/.test(path)))
-const packageLines = sourceLines(tracked.filter((path) => /^packages\/[^/]+\/src\/.*\.tsx?$/.test(path)).map((path) => join(repo, path)).filter((path) => existsSync(path)))
+const appLines = sourceLines(walk(join(repo, 'apps'), (path) => SOURCE.test(path)))
+const packageLines = sourceLines(tracked.filter((path) => /^packages\/[^/]+\/src\//.test(path) && SOURCE.test(path)).map((path) => join(repo, path)).filter((path) => existsSync(path)))
 const unsafeAssertionDebt = appLines.filter(({ line }) => DEBT.test(line)).map(({ at }) => at)
 const exemptions = appLines.flatMap(({ at, line }) => (EXEMPT.test(line) ? [`${at} ${EXEMPT.exec(line)[1].trim()}`] : []))
 const refusedSuppressions = [
@@ -139,6 +140,13 @@ const refusedSuppressions = [
   ...packageLines.filter(({ line }) => line.includes('noUnsafeTypeAssertion')),
   ...appLines.concat(packageLines).filter(({ line }) => UNNAMED.test(line)),
 ].map(({ at }) => at)
+const biomePath = join(repo, 'biome.json')
+const biomeOverrides = existsSync(biomePath) ? (JSON.parse(readFileSync(biomePath, 'utf8')).overrides ?? []) : []
+const rulesOff = biomeOverrides.flatMap((override, index) => {
+  const ruleLevel = override.linter?.rules?.nursery?.noUnsafeTypeAssertion
+  const off = override.linter?.enabled === false || (ruleLevel !== undefined && ruleLevel !== 'error')
+  return off ? [`biome.json overrides[${index}]`] : []
+})
 const sourceOf = (at) => /^apps\/[^/]+\/src\/([^/:]+)\//.exec(at)?.[1] ?? '(root)'
 const bySource = () => {
   const tally = new Map()
@@ -173,6 +181,7 @@ const recordedExemptions = record.unsafeAssertionExemptions ?? []
 const unrecorded = exemptions.filter((entry) => !recordedExemptions.includes(entry))
 const gone = recordedExemptions.filter((entry) => !exemptions.includes(entry))
 const refusals = [
+  ...rulesOff.map((at) => `${at} turns noUnsafeTypeAssertion off`),
   ...refusedSuppressions.map((at) => `${at} names noUnsafeTypeAssertion, or silences it without naming it, and is neither debt nor a recorded exemption`),
   ...unrecorded.map((entry) => `exemption not in the record: add "${entry}" to unsafeAssertionExemptions by hand`),
 ]
