@@ -6,6 +6,7 @@ import { assertRoleInvariants } from '../../scripts/hub-catalog.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { buildHubDatabase, query } from './hub-database.mjs'
 import { openRuntimeFixture } from './hub-runtime-fixture.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const { sql, unportedPool } = await import(hubModuleUrl('platform/db.js'))
 const { admitAccount, admitSystem } = await import(hubModuleUrl('identity-access/admission.js'))
@@ -84,6 +85,7 @@ test('a query that resumes after the entry returned is refused before COMMIT and
 })
 
 test('hub_runtime sessions carry the register timeouts, and a lock wait and a slow statement answer DATABASE_BUSY', async (t) => {
+  await refuseProtectedCluster()
   const { connection, database, onCleanup, openRuntimeDatabase } = await openRuntimeFixture(t, 'conexus_split_timeouts', { accounts: [[ACCOUNT, 'a']] })
   const shown = await unportedPool(database).query("SELECT current_setting('lock_timeout') AS lock, current_setting('statement_timeout') AS statement, current_setting('idle_in_transaction_session_timeout') AS idle")
   assert.deepEqual(shown.rows, [{ lock: '5s', statement: '30s', idle: '1min' }])
