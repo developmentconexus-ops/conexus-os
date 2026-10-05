@@ -97,11 +97,13 @@ export const ensurePreviewAllocation = async (
   // Default privileges for the migration role's objects are set as that role. The provisioner holds
   // SET without INHERIT on it, so it never exercises that role's grants by accident.
   await provisioner.query(`GRANT ${migration} TO ${identifier(PROVISIONER_ROLE)} WITH INHERIT FALSE, SET TRUE`)
+  // biome-ignore lint/plugin: the provisioner switches roles on the Applications cluster, not the Hub database, which platform/db.ts guards
   await provisioner.query(`SET ROLE ${migration}`)
   try {
     await provisioner.query(`ALTER DEFAULT PRIVILEGES IN SCHEMA ${schema} GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${runtime}`)
     await provisioner.query(`ALTER DEFAULT PRIVILEGES IN SCHEMA ${schema} GRANT USAGE, SELECT ON SEQUENCES TO ${runtime}`)
   } finally {
+    // biome-ignore lint/plugin: the provisioner switches roles on the Applications cluster, not the Hub database, which platform/db.ts guards
     await provisioner.query('RESET ROLE')
   }
   await provisioner.query(`CREATE TABLE IF NOT EXISTS ${schema}.${LEDGER_TABLE} (
@@ -136,6 +138,7 @@ export const restoreRuntimePrivileges = async (provisioner: Sql, allocation: Pre
     WHERE n.nspname = $1 AND c.relowner = $2::regrole AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')`, [allocation.schema, allocation.migrationRole])
   const tables = rows.filter((row) => row.sequence !== true).map((row) => String(row.name)).join(', ')
   const sequences = rows.filter((row) => row.sequence === true).map((row) => String(row.name)).join(', ')
+  // biome-ignore lint/plugin: the provisioner switches roles on the Applications cluster, not the Hub database, which platform/db.ts guards
   await provisioner.query(`SET ROLE ${identifier(allocation.migrationRole)}`)
   try {
     if (tables) {
@@ -148,6 +151,7 @@ export const restoreRuntimePrivileges = async (provisioner: Sql, allocation: Pre
     }
     await provisioner.query(`REVOKE ALL ON ALL ROUTINES IN SCHEMA ${schema} FROM PUBLIC, ${runtime} CASCADE`)
   } finally {
+    // biome-ignore lint/plugin: the provisioner switches roles on the Applications cluster, not the Hub database, which platform/db.ts guards
     await provisioner.query('RESET ROLE')
   }
 }
