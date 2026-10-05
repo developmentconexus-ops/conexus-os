@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import pg from 'pg'
 import { hubModuleUrl } from './hub-build.mjs'
-import { buildHubDatabase, query } from './hub-database.mjs'
+import { buildHubDatabase, purgeAsSystem, query } from './hub-database.mjs'
 import { ID, setupProjects } from './project-fixture.mjs'
 
 const { createConexusGit } = await import(hubModuleUrl('builder/conexus-git.js'))
@@ -199,7 +199,7 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
   })
 
   await t.test('builder.purge_project removes the repository record with the runs and the working state', async () => {
-    await query(connectionString, 'SELECT builder.purge_project($1)', [projectId])
+    await purgeAsSystem(connectionString, 'builder', projectId)
     const left = async (table) => (await query(connectionString, `SELECT count(*)::integer AS count FROM ${table} WHERE project_id = $1`, [projectId])).rows[0].count
     assert.deepEqual({ repository: await left('builder.project_repository'), working: await left('builder.project_working_state'), runs: await left('builder.builder_run') },
       { repository: 0, working: 0, runs: 0 })

@@ -96,6 +96,12 @@ export const withClient = async (connectionString, body) => {
   }
 }
 
+const PURGES = { iam: 'SELECT iam.purge_project($1)', builder: 'SELECT builder.purge_project($1)' }
+export const purgeAsSystem = (connectionString, schema, projectId) => withClient(connectionString, async (client) => {
+  await client.query("SELECT set_config('conexus.scope', 'system', false)")
+  await client.query(PURGES[schema], [projectId])
+})
+
 export const catalogOf = (connectionString) => withClient(connectionString, readCatalog)
 
 // node-postgres requires every Pool to carry an 'error' listener: a client the pool already

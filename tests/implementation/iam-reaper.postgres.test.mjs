@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash, randomUUID } from 'node:crypto'
 import test from 'node:test'
-import { buildHubDatabase, query, testPool } from './hub-database.mjs'
+import { buildHubDatabase, purgeAsSystem, query, testPool } from './hub-database.mjs'
 
 const sha = (text) => createHash('sha256').update(text).digest()
 // The database stamps `ended_at` with its own clock, so the pass's time is the real one: rows are seeded around it.
@@ -78,7 +78,7 @@ const seeded = async (t, name) => {
 test('purging a Project succeeds while a sign-in into its application is still on record', async (t) => {
   const { connectionString, projectId } = await seeded(t, 'conexus_reaper_purge')
   await query(connectionString, "INSERT INTO iam.oidc_transaction(state_digest, pkce_verifier, nonce, expires_at, application_project_id, sign_in_binding_digest) VALUES ($1, 'v', 'n', $2, $3, $4)", [sha('sign-in'), new Date(Date.now() + 10 * MINUTE), projectId, sha('binding')])
-  await query(connectionString, 'SELECT iam.purge_project($1)', [projectId])
+  await purgeAsSystem(connectionString, 'iam', projectId)
   assert.deepEqual((await query(connectionString, 'SELECT (SELECT count(*)::int FROM iam.application) AS applications, (SELECT count(*)::int FROM iam.oidc_transaction) AS transactions')).rows, [{ applications: 0, transactions: 0 }])
 })
 
