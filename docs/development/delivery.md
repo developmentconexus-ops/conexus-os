@@ -27,7 +27,7 @@ A change is in the qualification lane when any Q trigger is true:
 Decision D1 (2026-09-25): the manager merges a `lane:fast` pull request of `effort:low` or
 `effort:medium`, without `needs:aprovo`, once the Factory approved it, `verify` is green at its head
 and the merge gate passes. The operator merges everything else. The Factory never merges. Enforced
-by the `main` ruleset and review.
+by review; the `main` ruleset requires only a pull request, squash merge and `verify`.
 
 ## Waves
 
@@ -81,8 +81,8 @@ review.
 
 `needs:aprovo` is orthogonal to the lanes. Add it to a migration, a change under an area marked
 `"gate": "aprovo"` in [`areas.json`](review/areas.json), and a screen the operator asked to see. The
-`aprovo-gate` workflow fails a change under a gated area until the label is set, and the label blocks
-auto-merge. `needs:operator` marks an issue waiting on the operator for a fact or an action.
+`aprovo-gate` workflow fails a change under a gated area until the label is set; the label tells the
+merger to wait for the operator. `needs:operator` marks an issue waiting on the operator for a fact or an action.
 
 ## Stop, then escalate
 
@@ -103,11 +103,13 @@ own branch, never merges, and counts as gate proof only when declared so before 
 
 ## Proof and verification
 
-- Before each commit run `npm run verify:quick` (typechecks, repository check, generators, style,
-  `knip`, `biome ci`, log codes, import law; no Docker, browser or network) and the tests the change
-  touches or that consume a changed contract, at most two groups at once. Enforced by CI on the head.
+- Before each commit run `npm run verify:quick` (typechecks, repository check, generators and
+  contract check, web style, `knip`, `biome ci`, import law, access owner, censuses, enforced-by; no
+  Docker, browser or network) and the tests the change
+  touches or that consume a changed contract, at most two groups at once. CI enforces the static checks on the head.
 - CI runs the whole graph in `scripts/conexus-verify.mjs` as the `browser`, `postgres`, `rest` and
-  `live` jobs, never locally; `verify` is the one required check. A Markdown-only change runs `npm run verify:docs`.
+  `live` jobs, never locally; `verify` is the one required check. A change of only `docs/`, `.agents/` or root
+  Markdown runs `npm run verify:docs`.
 - Required CI protects objective properties of every change, never architecture taste, UX taste or
   document shape. A workflow event or concurrency change shows the rulesets stay equivalent.
 - A pull request is ready, not draft, as soon as the build ends, so CI and the Factory run while
@@ -122,7 +124,8 @@ A pull request is ready when these hold at its exact head SHA, plus the lane's g
 
 - CI `verify` is green. GitHub skips the workflow silently when a pull request conflicts with its
   base; with no run at your head, merge `main` and push again.
-- The Factory reviews every pull request; its `approve` is the required review. On a pull request
+- The Factory reviews every pull request; the merger waits for its `approve`;
+  GitHub itself requires only `verify`. On a pull request
   the Factory did not build, a finding that is not a leak or a security gap goes to the author once
   and does not block, and the operator may dismiss that review for that head.
 - A wave's verification and review passed on this head, each naming the head it judged.
@@ -141,6 +144,6 @@ A pull request is ready when these hold at its exact head SHA, plus the lane's g
 - A pull request links its issue, says what changes and for whom, and does only what the issue
   asks. Use conventional commits.
 - Migrations follow [database](../reference/database.md#migrations).
-- A contract change and its [operation ledger](../product/operation-ledger.md) change go in one commit. `npm run wire:bijection` gates on an exact count.
+- Contract changes follow the [wire contract](../product/wire-contract.md#one-declaration-per-operation).
 - `scripts/check-agent-context.mjs` (`npm run repository:check`) checks cited scripts, links, size
   caps and the two workflow guards.

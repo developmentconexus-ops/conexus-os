@@ -8,23 +8,25 @@ journeys, [database](../reference/database.md) the SQL. Exact shapes live in `pa
 
 ## One declaration per operation
 
-- An operation is declared once, in Zod, in `OPERATIONS` of `packages/contract`: its id, access
-  kind, method, path, params, query, body, successes and failures. `contracts/api/product/openapi.json`
-  is emitted from it, the YAML description in `contracts/api/product/` must equal it, and every
-  operation has one ledger row. A contract change and its ledger row go in one commit. Enforced by
-  `npm run contract:check` and `npm run wire:bijection`, which counts both ways and must match
-  exactly.
-- The Hub's route types and the web client derive from the contract; generated files are never
-  edited, and a hand-written parser beside the schema is a defect. Enforced by `npm run generate`
-  followed by the clean tree check.
-- No path selects an arbitrary operation: a `{operationSlug}` variable or an `execute` segment fails.
-  Every current operation lives under `/api/control/...` or `/api/session`; a path namespace grants
-  nothing. Enforced by `npm run wire:bijection`.
+- An operation is declared once: in Zod in `OPERATIONS` of `packages/contract` (its id, access kind,
+  method, path, params, query, body, successes and failures), or, until it is ported, in the YAML
+  leaf files of `contracts/api/product/`. A new operation is declared in Zod.
+  `contracts/api/product/openapi.json` is emitted from the union; `npm run contract:check` refuses a
+  stale file or an operation declared in both.
+- Every operation has one ledger row, and a contract change and its ledger row ship together.
+  `npm run wire:bijection` counts both ways and fails when they disagree.
+- The Hub's route types and the web client derive from the contract. Generated files are never
+  edited: `npm run generate` followed by the clean tree check. A hand-written parser beside the
+  schema is a defect. Review.
+- No path selects an arbitrary operation: a `{operationSlug}` variable or an `execute` segment fails
+  `npm run wire:bijection`. Every current operation lives under `/api/control/...` or `/api/session`;
+  a path namespace grants nothing. Review.
 - A surface that is not built has no contract; it is deleted, not kept for later. Review.
 - The technical ingress (`contracts/api/technical/openapi.yaml`) is separate and never counts in the
   Product census. Live observation of a Builder run is technical ingress: a Mastra id is never a
   Product identity, and the end of a stream is never the run's terminal truth; the Hub's settlement
-  is. Enforced by `npm run wire:technical-lint` and review.
+  is. `wire:bijection` reads only the Product contract; `npm run wire:technical-lint` lints the
+  technical document; the rest is review.
 - A generated application declares one literal path per operation with exact input and output
   schemas; `{}` and boolean schemas are refused. Enforced by the Hub's application check.
 
@@ -32,7 +34,8 @@ journeys, [database](../reference/database.md) the SQL. Exact shapes live in `pa
 
 A request is parsed once at its route against the contract schema, and the handler trusts the parsed
 value. A route with an id in its path has a params schema with the id's format, so a malformed id
-answers 400 before any store call. Safe methods never change state. Enforced by the route tests and
+answers the failure its `malformed` row names (a 404 for a Project or Workspace id) before any store
+call; the contract type requires that row for every path id. Safe methods never change state. Enforced by the route tests and
 review.
 
 ## Names and values
@@ -51,21 +54,26 @@ A failure answers RFC 9457 Problem Details as `application/problem+json`. Its co
 
 | Status | Meaning |
 | --- | --- |
+| 400 | a malformed request |
 | 401 | not authenticated |
 | 403 | authenticated, the subject may be disclosed, and the action or the request's authenticity is refused |
 | 404 | absent, or not disclosable to this caller |
 | 409 | conflicts with current state, uniqueness or a single flight |
-| 412 | a stale expected revision |
+| 413, 415, 429 | too large, wrong media type, a bound reached |
 | 422 | a valid request with business input the owner refuses |
+| 500 | an unexpected system failure, recorded |
+| 502, 504 | an upstream failed or timed out |
 | 503 | a required dependency is unavailable |
 
-A subject the caller may not know about answers 404, never a 403 that confirms it exists. Enforced
-by `scripts/generate-failures.mjs`, `FAILURE_STATUS` and review.
+A subject the caller may not know about answers 404, never a 403 that confirms it exists.
+`scripts/generate-failures.mjs` keeps every row's status in 400-599 (500 by default); which row
+gets which status is review.
 
 ## Preconditions and retries
 
-- `If-Match` only carries the ETag of the same target it mutates. A command that needs current state
-  carries the expected revision in its own payload. A failed precondition is a 412. Review.
+- No operation takes `If-Match` today. A command that needs current state carries the expected
+  revision in its own payload. An operation that later takes `If-Match` carries the ETag of the
+  target it mutates, answers a stale one with 412 and adds that row to `failures.json`. Review.
 - `Idempotency-Key` is scoped to the exact operation and subject. Reusing it with a different payload
   is refused; a duplicate never creates a second effect; an ambiguous downstream effect stays fenced
   and the key never authorizes a blind replay. A Project or Workspace receipt lives while its entity
