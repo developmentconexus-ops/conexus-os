@@ -175,6 +175,10 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   assert.equal(served?.artifactRevisionId, retained.artifactRevisionId)
   assert.equal(served?.sha256, createHash('sha256').update(thumbnailBytes).digest('hex'))
   assert.equal(await servedReader.readThumbnail({ accountId: randomUUID(), projectId }), null)
+  await runtime.query("SELECT set_config('conexus.account_id', $1, false)", [accountId])
+  assert.equal((await runtime.query('SELECT 1 FROM reg.get_application_thumbnail($1, $2)', [accountId, projectId])).rowCount, 1)
+  assert.equal((await runtime.query('SELECT 1 FROM reg.get_application_thumbnail($1, $2)', [randomUUID(), projectId])).rowCount, 0)
+  assert.equal((await runtime.query('SELECT 1 FROM reg.get_served_application($1, $2)', [randomUUID(), projectId])).rowCount, 0)
 })
 
 test('a BUILT result that carries a thumbnail settles through the real registry: the build is stored and the thumbnail is retained', async (t) => {
