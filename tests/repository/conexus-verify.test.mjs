@@ -34,10 +34,11 @@ const committedTests = () => execFileSync('git', ['ls-files', 'tests'], { cwd: r
   .filter(path => path.endsWith('.test.mjs') && !path.startsWith('tests/manual/'))
   .sort()
 
-const workflowGroups = () => readFileSync(resolve(repositoryRoot, '.github/workflows/verify.yml'), 'utf8')
-  .match(/group: \[([^\]]+)\]/)[1]
-  .split(',')
-  .map(name => name.trim())
+const workflowJobs = () => [...readFileSync(resolve(repositoryRoot, '.github/workflows/verify.yml'), 'utf8')
+  .matchAll(/^ {10}- \{ group: (\w+)(?:, shard: (\d+\/\d+))? \}$/gm)]
+  .map(([, group, shard]) => ({ group, shard: shard ?? null }))
+
+const workflowGroups = () => [...new Set(workflowJobs().map(job => job.group))]
 
 const testGlobsOf = (command, scripts) => {
   const expanded = command.replace(/^npm run (\S+)$/, (_, name) => scripts[name] ?? '')
@@ -60,6 +61,24 @@ const groupsRunning = (path, globsByGroup) => Object.entries(globsByGroup)
   .map(([group]) => group)
 
 const PLAYWRIGHT_IMPORT = /^[^'"\n]*\b(?:from|import)\s*\(?\s*['"](?:@playwright\/test|playwright(?:-core)?)['"]/m
+
+test('the browser group runs as every position of one even division, and no other group is divided', () => {
+  const shards = workflowJobs().filter(job => job.shard).map(job => ({ group: job.group, ...Object.fromEntries(['position', 'total'].map((name, index) => [name, Number(job.shard.split('/')[index])])) }))
+  assert.ok(shards.length > 1)
+  assert.deepEqual([...new Set(shards.map(job => job.group))], ['browser'])
+  assert.deepEqual(shards.map(job => job.position), shards.map((_, index) => index + 1))
+  assert.deepEqual([...new Set(shards.map(job => job.total))], [shards.length])
+})
+
+test('a shard narrows the shardable step to its slice of the files, and no other step', () => {
+  const run = (group, shard) => runVerification({ processEnvironment: {}, scopes: ['candidate'], packageScripts, dryRun: true, group, shard })
+  const commands = run('browser', '2/4').records.map(record => record.command)
+  assert.ok(commands.includes("node --test --test-concurrency=1 --test-shard=2/4 'tests/implementation/*.browser.test.mjs'"))
+  assert.equal(commands.filter(command => command.includes('--test-shard')).length, 1)
+  assert.throws(() => run('rest', '2/4'), /--shard needs a group with a shardable step; rest has none/)
+  assert.equal(parseArguments(['--scope', 'candidate', '--group', 'browser', '--shard', '3/4']).shard, '3/4')
+  assert.throws(() => parseArguments(['--scope', 'candidate', '--shard', '5/4']), /--shard must be <position>\/<total>/)
+})
 
 test('the workflow runs the five groups and each runs the tests its name places in it', () => {
   assert.deepEqual(workflowGroups(), ['browser', 'postgres', 'rest', 'live', 'backup'])
@@ -185,6 +204,7 @@ test('--scope parsing supports repeated and comma-separated values without netwo
     json: true,
     help: false,
     group: null,
+    shard: null,
   })
 
   const calls = []
