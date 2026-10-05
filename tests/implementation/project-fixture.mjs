@@ -32,8 +32,12 @@ export const setupProjects = async (t, prefix, { repository } = {}) => {
   const passwordFile = resolve(directory, 'password')
   writeFileSync(passwordFile, PASSWORD)
   chmodSync(passwordFile, 0o600)
-  const database = openDatabase({ host: fixture.connection.host, port: fixture.connection.port, database: fixture.database, user: 'hub_runtime', passwordFile, max: 6 })
-  fixture.onCleanup(() => database.close())
+  const openRuntimeDatabase = ({ max = 6 } = {}) => {
+    const opened = openDatabase({ host: fixture.connection.host, port: fixture.connection.port, database: fixture.database, user: 'hub_runtime', passwordFile, max })
+    fixture.onCleanup(() => opened.close())
+    return opened
+  }
+  const database = openRuntimeDatabase()
   const { connection } = fixture
   await query(connection, `INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES
     ($1, 'https://issuer.test', 'owner', 'Owner'), ($2, 'https://issuer.test', 'member', 'Member'),
@@ -65,5 +69,5 @@ export const setupProjects = async (t, prefix, { repository } = {}) => {
   }
   const settleRun = (projectId, state = 'SUCCEEDED') => query(connection, `INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision, state)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [randomUUID(), projectId, ID.owner, `conexus-builder:${projectId}`, randomUUID().replaceAll('-', '').repeat(2), '1'.repeat(64), HEAD, state])
-  return { ...fixture, database, store, deletion, events, seedProject, settleRun }
+  return { ...fixture, database, openRuntimeDatabase, store, deletion, events, seedProject, settleRun }
 }
