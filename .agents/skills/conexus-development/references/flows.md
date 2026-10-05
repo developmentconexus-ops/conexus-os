@@ -14,7 +14,8 @@ The poteto-mode Investigation playbook, with one Conexus step: read the evidence
 ## Fix
 
 The poteto-mode Bug fix playbook. Reproduce on the surface where it was seen, with telemetry on.
-Two earlier fixes on the same premise turn the fix into a Redesign.
+The [review loop](../../../../docs/development/delivery.md#review-loop) says when a fix goes back
+to its spec.
 
 ## Build
 
