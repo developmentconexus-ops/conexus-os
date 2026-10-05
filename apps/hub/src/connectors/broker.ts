@@ -5,7 +5,8 @@ import { logger } from '../platform/logger.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { AdapterFailure, brokerCodeOf, refused } from './errors.js'
 import type { BrokerErrorCode, BrokerResult } from './errors.js'
-import type { BoundConnection, ConnectionId, ConnectorId } from './model.js'
+import type { ConnectionId } from '../../../../packages/contract/dist/index.js'
+import type { BoundConnection, ConnectorId } from './model.js'
 import { DEFAULT_NATIVE_LIMITS, parseNativeRequest, pinnedUrl, sendNative } from './native.js'
 import type { FetchResult, NativeLimits, ParsedNativeRequest } from './native.js'
 import type { Adapter, ConnectorDefinition, Consumer, ProviderAnswer, RequestTrace } from './integrator.js'
@@ -47,7 +48,7 @@ export type Broker = Readonly<{
   /** The integrator and service `fetch` would send the request to, with no network and no call spent. Never throws. */
   describe(consumer: Consumer, request: unknown): Promise<FetchDescription>
   /** The allow-listed authentication alone, with no cache: whether the Connection's credential authenticates now. Never throws. */
-  checkCredential(connectorId: ConnectorId, connectionId: ConnectionId): Promise<BrokerResult<null>>
+  checkCredential(connectorId: string, connectionId: ConnectionId): Promise<BrokerResult<null>>
   forget(connectionId: ConnectionId): void
 }>
 
@@ -121,7 +122,7 @@ export const createBroker = ({
   nativeLimits?: NativeLimits
   now?: () => number
 }>): Broker => {
-  const adapterOf = (connectorId: ConnectorId): RegisteredConnector | undefined => connectors.find((connector) => connector.definition.id === connectorId)
+  const adapterOf = (connectorId: string): RegisteredConnector | undefined => connectors.find((connector) => connector.definition.id === connectorId)
 
   // Only this function opens the credential envelope.
   const authenticate = async (connector: RegisteredConnector, adapter: AnyAdapter, connectionId: ConnectionId, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken> => {
@@ -256,7 +257,7 @@ export const createBroker = ({
       endSpan(span, result.ok ? 'OK' : result.code)
       return result
     },
-    async checkCredential(connectorId: ConnectorId, connectionId: ConnectionId): Promise<BrokerResult<null>> {
+    async checkCredential(connectorId: string, connectionId: ConnectionId): Promise<BrokerResult<null>> {
       const connector = adapterOf(connectorId)
       const adapter = connector?.adapter
       const span = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.check', metadata: {

@@ -1,6 +1,6 @@
 import { inspect } from 'node:util'
 import { AdapterFailure } from './errors.js'
-import type { ConnectionId } from './model.js'
+import type { ConnectionId } from '../../../../packages/contract/dist/index.js'
 
 const REDACTED = '[redacted]'
 

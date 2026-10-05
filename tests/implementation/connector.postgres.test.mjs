@@ -422,7 +422,7 @@ test('the Hub store tells an identical retry from a changed credential without o
   const { fixture, client, account, workspace, project, administrator } = await connectorDatabase(t)
   const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
   const { createConnectorStore } = await import(hubModuleUrl('connectors/store.js'))
-  const { isConnectorConnectionConflict } = await import(hubModuleUrl('connectors/model.js'))
+  const conflicted = (error) => error?.id === 'CONNECTOR_CONNECTION_CONFLICT'
   const pool = new pg.Pool({ connectionString: fixture.connectionString, options: '-c role=hub_iam_runtime', max: 10 })
   pool.on('error', () => {})
   fixture.onCleanup(() => pool.end())
@@ -433,7 +433,7 @@ test('the Hub store tells an identical retry from a changed credential without o
   await administrator(admin)
   const workspaceId = await workspace('purchasing-store', [[admin, 'owner']])
   const credential = { clientId: 'client-a', clientSecret: 'super-secret-value', xToken: 'x-token-value' }
-  const create = (connectionId, fields = {}) => store.createConnection({ actor: admin, connectionId, workspaceId, connectorId: 'sankhya', label: 'ERP principal', credential, ...fields })
+  const create = (connectionId, fields = {}) => store.createConnection({ accountId: admin, workspaceId, body: { connectionId, connectorId: 'sankhya', label: 'ERP principal', credential, ...fields } })
   const summary = ({ connection, created }) => ({ connectionId: connection.connectionId, created })
 
   const connectionId = randomUUID()
@@ -441,7 +441,7 @@ test('the Hub store tells an identical retry from a changed credential without o
   assert.deepEqual(summary(await create(connectionId, { credential: { xToken: 'x-token-value', clientSecret: 'super-secret-value', clientId: 'client-a' } })),
     { connectionId, created: false }, 'the same credential in another key order is the same retry')
   const changed = await create(connectionId, { credential: { ...credential, xToken: 'another-x-token' } }).then(() => null, (error) => error)
-  assert.equal(isConnectorConnectionConflict(changed), true, 'a retry that changes the credential is a conflict')
+  assert.equal(conflicted(changed), true, 'a retry that changes the credential is a conflict')
 
   assert.equal((await refusal(() => pool.query('SELECT credential_digest FROM connector.connection'))).code, '42501', 'hub_iam_runtime only calls the functions')
   const digest = (await client.query('SELECT credential_digest FROM connector.connection WHERE connection_id = $1', [connectionId])).rows[0].credential_digest
@@ -451,28 +451,28 @@ test('the Hub store tells an identical retry from a changed credential without o
 
   // The installation key rotates, and the old one stays configured to open what it sealed.
   const rotated = createConnectorStore({ pool, envelope: createSecretEnvelope('cd'.repeat(32), ['ab'.repeat(32)]) })
-  const createRotated = (fields = {}) => rotated.createConnection({ actor: admin, connectionId, workspaceId, connectorId: 'sankhya', label: 'ERP principal', credential, ...fields })
+  const createRotated = (fields = {}) => rotated.createConnection({ accountId: admin, workspaceId, body: { connectionId, connectorId: 'sankhya', label: 'ERP principal', credential, ...fields } })
   assert.deepEqual(summary(await createRotated()), { connectionId, created: false }, 'an identical retry after the rotation still replays')
   const changedAfterRotation = await createRotated({ credential: { ...credential, xToken: 'another-x-token' } }).then(() => null, (error) => error)
-  assert.equal(isConnectorConnectionConflict(changedAfterRotation), true, 'a changed credential is still a conflict after the rotation')
+  assert.equal(conflicted(changedAfterRotation), true, 'a changed credential is still a conflict after the rotation')
   const forgotten = createConnectorStore({ pool, envelope: createSecretEnvelope('cd'.repeat(32)) })
-  const afterRetirement = await forgotten.createConnection({ actor: admin, connectionId, workspaceId, connectorId: 'sankhya', label: 'ERP principal', credential }).then(() => null, (error) => error)
-  assert.equal(isConnectorConnectionConflict(afterRetirement), true, 'once the old key is no longer configured, the stored digest cannot be matched')
+  const afterRetirement = await forgotten.createConnection({ accountId: admin, workspaceId, body: { connectionId, connectorId: 'sankhya', label: 'ERP principal', credential } }).then(() => null, (error) => error)
+  assert.equal(conflicted(afterRetirement), true, 'once the old key is no longer configured, the stored digest cannot be matched')
 
   // A client that times out and retries while its first request is still in flight.
   const racedId = randomUUID()
   const other = await workspace('purchasing-race', [[admin, 'owner']])
-  const raced = await Promise.all(Array.from({ length: 8 }, () => store.createConnection({ actor: admin, connectionId: racedId, workspaceId: other, connectorId: 'sankhya', label: 'ERP', credential })))
+  const raced = await Promise.all(Array.from({ length: 8 }, () => store.createConnection({ accountId: admin, workspaceId: other, body: { connectionId: racedId, connectorId: 'sankhya', label: 'ERP', credential } })))
   assert.deepEqual(raced.map(summary).filter(({ created }) => created), [{ connectionId: racedId, created: true }])
   assert.equal(raced.every(({ connection }) => connection.connectionId === racedId), true)
 
   const projectId = await project(other, 'race')
-  const bindings = await Promise.all(Array.from({ length: 8 }, () => store.bindConnection({ actor: admin, projectId, connectionId: racedId, name: 'erp' })))
+  const bindings = await Promise.all(Array.from({ length: 8 }, () => store.bindConnection({ accountId: admin, projectId, body: { connectionId: racedId, name: 'erp' } })))
   assert.equal(new Set(bindings.map((binding) => binding.bindingId)).size, 1)
   const { bindingId: _settled, boundAt: _at, ...settled } = bindings[0]
   assert.deepEqual(settled, { kind: 'binding', name: 'erp', connectionId: racedId, connectorId: 'sankhya', label: 'ERP' })
   const open = await client.query('SELECT count(*)::int AS open FROM connector.project_binding WHERE project_id = $1 AND unbound_at IS NULL', [projectId])
   assert.deepEqual(open.rows, [{ open: 1 }])
-  const listed = await store.listProjectBindings({ actor: admin, projectId })
+  const listed = await store.listProjectBindings({ accountId: admin, projectId })
   assert.deepEqual(listed, [bindings[0]])
 })

@@ -241,13 +241,6 @@ const UNDECLARED_OPERATIONS: ReadonlySet<string> = new Set([
   'POST /api/control/model-accounts/google-ai-pro/login/start',
   'POST /api/control/model-accounts/google-ai-pro/login/complete',
   'POST /api/control/model-accounts/google-ai-pro/login/:loginId',
-  'GET /api/control/workspaces/:workspaceId/connections',
-  'POST /api/control/workspaces/:workspaceId/connections',
-  'POST /api/control/workspaces/:workspaceId/connections/:connectionId/authentication-check',
-  'DELETE /api/control/workspaces/:workspaceId/connections/:connectionId',
-  'GET /api/control/projects/:projectId/connection-bindings',
-  'POST /api/control/projects/:projectId/connection-bindings',
-  'DELETE /api/control/projects/:projectId/connection-bindings/:bindingId',
 ])
 
 type RouteRecord = Readonly<{ method: string | readonly string[]; url: string; config?: RouteOptions['config'] }>

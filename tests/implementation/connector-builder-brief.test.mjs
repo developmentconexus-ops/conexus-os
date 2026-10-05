@@ -105,7 +105,6 @@ test('the module opens no Builder run, and reads no binding, for a Project id it
   const module = createConnectorModule({
     pool: { query: async () => { throw new Error('the store must not be reached') } },
     envelope: { seal: async () => '', open: async () => '', fingerprints: () => [''] },
-    isInstallationAdministrator: async () => false,
     log: () => {},
   })
   await assert.rejects(module.openBuilderRun({ projectId: 'not-a-uuid', builderRunId: '11111111-1111-4111-8111-111111111111' }), invariant('CONNECTOR_SCOPE_REFUSED'))

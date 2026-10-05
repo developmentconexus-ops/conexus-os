@@ -51,10 +51,11 @@ type Statuses<O extends AnyOperation> = keyof O['success'] & number
 type BodyOf<S> = S extends z.ZodType ? z.output<S> : S extends null ? undefined
   : S extends Binary ? (S extends { readonly cache: 'revalidate-private' } ? Readonly<{ bytes: Uint8Array; etag: string }> : Uint8Array) : never
 type StatusBody<O extends AnyOperation, S extends number> = S extends keyof O['success'] ? BodyOf<O['success'][S]> : never
+type IsUnion<T, Whole = T> = T extends unknown ? ([Whole] extends [T] ? false : true) : never
 export type Reply<O extends AnyOperation> =
-  [Statuses<O>] extends [200] | [201] | [204]
-    ? StatusBody<O, Statuses<O>>
-    : { [S in Statuses<O>]: { status: S; body: StatusBody<O, S> } }[Statuses<O>]
+  true extends IsUnion<Statuses<O>>
+    ? { [S in Statuses<O>]: { status: S; body: StatusBody<O, S> } }[Statuses<O>]
+    : StatusBody<O, Statuses<O>>
 export type Result<O extends AnyOperation> = Reply<O>
 export type EffectsOf<E extends readonly Effect[]> = { readonly [K in E[number]]: () => void }
 

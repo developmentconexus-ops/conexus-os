@@ -2840,8 +2840,7 @@
                         "code": {
                           "enum": [
                             "REQUEST_AUTHENTICITY_DENIED",
-                            "CONNECTOR_BINDING_MANAGE_REQUIRED",
-                            "ACCOUNT_INACTIVE"
+                            "CONNECTOR_BINDING_MANAGE_REQUIRED"
                           ]
                         }
                       }
@@ -2865,8 +2864,7 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "PROJECT_NOT_FOUND",
-                            "ACCOUNT_NOT_FOUND"
+                            "PROJECT_NOT_FOUND"
                           ]
                         }
                       }

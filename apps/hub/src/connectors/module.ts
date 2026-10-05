@@ -3,12 +3,12 @@ import type { ToolsInput } from '@mastra/core/agent'
 import type { RequestContext } from '@mastra/core/request-context'
 import { MastraStorageExporter } from '@mastra/observability'
 import type { FastifyInstance } from 'fastify'
-import type { AccountId } from '../identity-access/current-session.js'
+import type { ConnectionCheckOutcome } from '../../../../packages/contract/dist/index.js'
+import { Failure } from '../platform/failure.js'
 import type { PostgresPool } from '../platform/db.js'
 import { logLine } from '../platform/logger.js'
 import type { EventLog } from '../platform/logger.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
-import type { ConnectorOwnerId } from '../generated/connector-routes.js'
 import { createBroker } from './broker.js'
 import type { Broker, RegisteredConnector } from './broker.js'
 import { createConnectorBrief } from './builder-brief.js'
@@ -20,7 +20,7 @@ import type { BrokerErrorCode } from './errors.js'
 import { createHandlerPorts } from './handler-port.js'
 import type { HandlerPort } from './handler-port.js'
 import { createConnectorObservability } from './record.js'
-import type { CheckConnection, CheckConnectionOutcome } from './routes.js'
+import type { CheckConnection } from './routes.js'
 import { registerConnectorRoutes } from './routes.js'
 import { sankhyaDefinition } from './sankhya/definition.js'
 import { createSankhyaGateway, pinnedGatewayOrigin } from './sankhya/gateway.js'
@@ -28,7 +28,7 @@ import { scopeFromArtifactSource } from './scope.js'
 import { createBrokerStore, createConnectorStore } from './store.js'
 
 export type ConnectorModule = Readonly<{
-  registerConnectorRoutes(app: FastifyInstance): Promise<readonly ConnectorOwnerId[]>
+  registerConnectorRoutes(app: FastifyInstance): ReturnType<typeof registerConnectorRoutes>
   /**
    * One invocation's port, closed over the scope minted here from the artifact source. Null when no
    * socket directory is configured: the handler's calls then answer CONNECTOR_UNCONFIGURED.
@@ -47,28 +47,24 @@ export type ConnectorModule = Readonly<{
   observability: ObservabilityInstance
 }>
 
-const CHECK_OUTCOME: Readonly<Partial<Record<BrokerErrorCode, CheckConnectionOutcome | 'NOT_FOUND'>>> = Object.freeze({
+const CHECK_OUTCOME: Readonly<Partial<Record<BrokerErrorCode, ConnectionCheckOutcome>>> = Object.freeze({
   CREDENTIAL_REFUSED: 'CREDENTIAL_REFUSED',
   CONNECTOR_UNCONFIGURED: 'CONNECTOR_UNCONFIGURED',
   PROVIDER_TIMEOUT: 'PROVIDER_TIMEOUT',
   PROVIDER_UNAVAILABLE: 'PROVIDER_UNAVAILABLE',
   PROVIDER_ERROR: 'PROVIDER_ERROR',
   RESPONSE_REFUSED: 'PROVIDER_ERROR',
-  // The Connection was disabled between the listing and the credential read.
-  NOT_GRANTED: 'NOT_FOUND',
 })
 
 export const createConnectorModule = ({
   pool,
   envelope,
-  isInstallationAdministrator,
   gatewayOrigin,
   socketDirectory,
   log = logLine,
 }: Readonly<{
   pool: PostgresPool
   envelope: SecretEnvelope
-  isInstallationAdministrator(account: AccountId): Promise<boolean>
   /** The pinned Sankhya gateway origin; absent, every call and check answers CONNECTOR_UNCONFIGURED with no network. */
   gatewayOrigin?: string | undefined
   socketDirectory?: string | undefined
@@ -88,31 +84,30 @@ export const createConnectorModule = ({
   const connectorBrief = createConnectorBrief({ store: brokerStore, observability })
   const ports = socketDirectory ? createHandlerPorts({ directory: socketDirectory, broker }) : null
 
-  const checkConnection: CheckConnection = async ({ actor, workspaceId, connectionId }) => {
-    const connection = (await store.listConnections({ actor, workspaceId }))
-      .find((candidate) => candidate.connectionId === connectionId && candidate.disabledAt === null)
-    if (!connection) return 'NOT_FOUND'
+  const checkConnection: CheckConnection = async ({ accountId, workspaceId, connectionId }) => {
+    const connection = (await store.listConnections({ accountId, workspaceId }))
+      .find((candidate) => candidate.connectionId === connectionId && candidate.disabledAt === undefined)
+    if (!connection) throw new Failure('CONNECTOR_CONNECTION_NOT_FOUND')
     if (!gatewayOrigin) return 'CONNECTOR_UNCONFIGURED'
     const result = await broker.checkCredential(connection.connectorId, connection.connectionId)
-    return result.ok ? 'OK' : CHECK_OUTCOME[result.code] ?? 'PROVIDER_UNAVAILABLE'
+    if (result.ok) return 'OK'
+    if (result.code === 'NOT_GRANTED') throw new Failure('CONNECTOR_CONNECTION_NOT_FOUND')
+    return CHECK_OUTCOME[result.code] ?? 'PROVIDER_UNAVAILABLE'
   }
 
   // Disable is terminal, so the cached token of that Connection goes with it.
   const administeredStore = Object.freeze({
     ...store,
     async disableConnection(input: Parameters<typeof store.disableConnection>[0]) {
-      const found = await store.disableConnection(input)
-      if (found) broker.forget(input.connectionId)
-      return found
+      await store.disableConnection(input)
+      broker.forget(input.connectionId)
     },
   })
 
   return Object.freeze({
     registerConnectorRoutes: (app: FastifyInstance) => registerConnectorRoutes(app, {
       store: administeredStore,
-      isInstallationAdministrator,
       checkConnection,
-      credentialSchemas: { sankhya: sankhyaDefinition.credential },
     }),
     openHandlerPort: async (source) => (ports ? ports.open(scopeFromArtifactSource(source)) : null),
     sweepHandlerPorts: async () => { await ports?.sweep() },

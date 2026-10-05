@@ -214,7 +214,7 @@ export declare const CON08: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_NOT_FOUND", "CONNECTOR_BINDING_MANAGE_REQUIRED", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly failures: readonly ["PROJECT_NOT_FOUND", "CONNECTOR_BINDING_MANAGE_REQUIRED"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };

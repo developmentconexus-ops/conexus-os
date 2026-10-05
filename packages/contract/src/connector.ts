@@ -94,7 +94,7 @@ export const CON08 = operation({
   id: 'CON-08', access: 'session', method: 'GET', path: '/api/control/projects/:projectId/connection-bindings',
   params: projectParam, query: null, headers: null, body: null,
   success: { 200: z.object({ entries: z.array(ConnectionBindingEntry) }) },
-  effects: [], failures: ['PROJECT_NOT_FOUND', 'CONNECTOR_BINDING_MANAGE_REQUIRED', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
+  effects: [], failures: ['PROJECT_NOT_FOUND', 'CONNECTOR_BINDING_MANAGE_REQUIRED'],
   malformed: { projectId: 'PROJECT_NOT_FOUND' },
 })
 

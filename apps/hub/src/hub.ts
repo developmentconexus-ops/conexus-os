@@ -59,7 +59,6 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   const connectors = createConnectorModule({
     pool,
     envelope: identityAccessDependencies.envelope,
-    isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
     gatewayOrigin: config.connectors.gatewayOrigin,
     socketDirectory: config.connectors.socketDirectory,
   })

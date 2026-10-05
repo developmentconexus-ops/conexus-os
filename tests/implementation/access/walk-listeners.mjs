@@ -129,8 +129,8 @@ export const walkListeners = async () => {
         googleAiProAccounts: spy('googleAiProAccounts', calls),
       })
       await registerConnectorRoutes(server, {
-        store: spy('connectors', calls), isInstallationAdministrator: async () => { calls.push('isInstallationAdministrator'); return false },
-        checkConnection: async () => { calls.push('checkConnection'); throw new Error('stub checkConnection') }, credentialSchemas: {},
+        store: spy('connectors', calls),
+        checkConnection: async () => { calls.push('checkConnection'); throw new Error('stub checkConnection') },
       })
       return []
     },
