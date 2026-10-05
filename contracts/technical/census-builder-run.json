@@ -11,5 +11,8 @@
   "runFunctionLengthSuppressions": 0,
   "failureCodesWithoutRow": 0,
   "repeatedTimerSuppressions": 3,
-  "unsafeAssertionDebt": 89
+  "unsafeAssertionDebt": 60,
+  "unsafeAssertionExemptions": [
+    "apps/hub/src/identity-access/oidc.ts:106 undici fetch and openid-client CustomFetch disagree on RequestInit and Response, proven by tsc"
+  ]
 }
