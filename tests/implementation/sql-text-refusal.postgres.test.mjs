@@ -48,6 +48,14 @@ test('the sql tag refuses a role switch split across two composed fragments', as
   await assert.rejects(database.read(ACCOUNT, (tx) => tx.rows(Value, sql`${left}${sql`le hub_command`}`)), refused)
 })
 
+test('a text of two statements that passes the text guard is refused by the server itself', async (t) => {
+  const { database } = await openRuntimeFixture(t, 'conexus_sql_text', { accounts: [[ACCOUNT, 'a']] })
+  const two = sql`select 1 as value; select 2 as value`
+  const serverRefusal = (error) => error.id === 'INTERNAL_UNEXPECTED' && error.cause?.code === '42601'
+  await assert.rejects(database.read(ACCOUNT, (tx) => tx.rows(Value, two)), serverRefusal)
+  await assert.rejects(database.transaction(ACCOUNT, async (gate) => (await admitAccount(gate)).tx.run(two)), serverRefusal)
+})
+
 test('select, insert, update, delete and with run, and a query that names the role column runs', async (t) => {
   const { database } = await openRuntimeFixture(t, 'conexus_sql_text', { accounts: [[ACCOUNT, 'a']] })
   assert.deepEqual(await database.read(ACCOUNT, (tx) => tx.rows(Value, sql`select 1 as value`)), [{ value: 1 }])

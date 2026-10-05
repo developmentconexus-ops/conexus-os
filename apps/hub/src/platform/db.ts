@@ -1,5 +1,5 @@
 import pg from 'pg'
-import type { Pool, PoolClient, PoolConfig } from 'pg'
+import type { Pool, PoolClient, PoolConfig, QueryConfig } from 'pg'
 import { createHash } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { z } from 'zod'
@@ -143,12 +143,17 @@ const openPool = (connection: PoolConfig): Pool => {
   return pool
 }
 
+// pg sends a query with no values on the simple protocol, which accepts several statements.
+// queryMode is supported by pg 8 but missing from its types, so the config is typed here.
+const extendedQuery = (statement: Sql): QueryConfig & { readonly queryMode: 'extended' } =>
+  ({ text: statement.text, values: [...statement.values], queryMode: 'extended' })
+
 const transactionView = (client: PoolClient) => {
   let active = true
   const query = async (statement: Sql) => {
     if (!active) throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'TRANSACTION_ENDED' } })
     refuseSqlText(statement)
-    try { return await client.query(statement.text, [...statement.values]) }
+    try { return await client.query(extendedQuery(statement)) }
     catch (error) { throw databaseFailure(error) }
   }
   const rows: ReadTx['rows'] = async (schema, statement) => (await query(statement)).rows.map((row: unknown) => schema.parse(row))
