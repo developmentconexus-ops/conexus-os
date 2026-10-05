@@ -1434,6 +1434,14 @@ test('a reply sent before the row says WAITING is refused, so a WAITING write th
   assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'], 'a refused phase write is a stop that won')
 })
 
+test('an author who lost the Project before the candidate keeps PROJECT_BUILD_DENIED, records no candidate and leaves main at the base', async (t) => {
+  const run = await harness(t, { candidateRefusal: new Failure('PROJECT_BUILD_DENIED') })
+  await run.start()
+  await run.service.close()
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'candidate' || kind === 'fail' || kind === 'interrupt'), [['fail', 'PROJECT_BUILD_DENIED']])
+  assert.equal(await run.main(), run.base)
+})
+
 test('a Hub that stops while the claim fails ends the unclaimed row at once, as interrupted, with no lease pass', async (t) => {
   let run
   run = await harness(t, { claim: async () => { await new Promise((wake) => { setTimeout(wake, 0) }); run.service.stopRuns(); throw new Error('claim down') } })

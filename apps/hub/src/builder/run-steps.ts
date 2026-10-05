@@ -47,7 +47,7 @@ const SANDBOX_ID = /^.{1,200}$/s
 const ADMISSION_REFUSALS: ReadonlySet<string> = new Set(['BUILDER_RUN_NOT_ADMITTED', 'PROJECT_BUILD_DENIED', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'])
 
 const refusedWith = (code: FailureCode) => (error: unknown): never => {
-  throw error instanceof Failure && ADMISSION_REFUSALS.has(error.id) ? new Failure(code, { cause: error }) : error
+  throw error instanceof Failure && error.id === 'BUILDER_RUN_NOT_ADMITTED' ? new Failure(code, { cause: error }) : error
 }
 
 // Every transition that leaves RUNNING or asks for a stop writes a null phase: the CHECK allows a phase only on a running, uncancelled run.

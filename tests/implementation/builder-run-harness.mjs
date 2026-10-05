@@ -76,7 +76,7 @@ export const failedReport = (step, problems) => {
 // runtime names under /workspace, /var/lib or /opt lands under the harness's
 // own `vm` directory, and the agent user's `kill -KILL -1` is recorded, never run. It is the
 // conversation's one VM: every turn reaches the same directory until `loseVm` replaces it.
-export const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate = false, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0, questionWaitMs = 60_000, answers = [], session, onWaitingWrite, persisted, openSandbox, claim } = {}) => {
+export const harness = async (t, { turn, build, report, onCheck, repairs = [], skipGate = false, starter, agentUser = 'conexus-agent', onStart, onCommand, lostAdvances = 0, close, applicationServer, openConnectorRun, openError, onHoldOpen, corruptSeed = false, beforeFastForward, afterFastForward, beforeAcceptSnapshot, modelAccount = MODEL_ACCOUNT, starterFiles = STARTER, mirrorDebounceMs = 0, questionWaitMs = 60_000, answers = [], session, onWaitingWrite, persisted, openSandbox, claim, candidateRefusal } = {}) => {
   endLines.splice(0)
   const scratch = mkdtempSync(join(tmpdir(), 'conexus-runtime-'))
   t.after(() => rmSync(scratch, { recursive: true, force: true }))
@@ -297,7 +297,11 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
       if (reply) setTimeout(() => { void reply(context.service) }, 0)
       return { ...claimed, phase }
     },
-    recordBuilderRunCandidate: async ({ sourceRevision }) => { calls.push(['candidate', sourceRevision]); row.candidate = sourceRevision },
+    recordBuilderRunCandidate: async ({ sourceRevision }) => {
+      if (candidateRefusal) throw candidateRefusal
+      calls.push(['candidate', sourceRevision])
+      row.candidate = sourceRevision
+    },
     bindBuilderRunMessage: async ({ messageId }) => { calls.push(['message', messageId]) },
     bindBuilderRunSandbox: async (_id, sandboxId) => { calls.push(['sandbox', sandboxId]) },
     readConversationSandbox: async () => recordedSandbox,

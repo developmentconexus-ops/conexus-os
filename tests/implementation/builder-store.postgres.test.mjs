@@ -191,7 +191,7 @@ test('removing the author before the candidate refuses the write and leaves the 
   const builderRunId = await running(projectId, { accountId: ID.member })
   await query(connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1', [ID.member])
   const before = await row(builderRunId)
-  await assert.rejects(store.recordBuilderRunCandidate({ builderRunId, accountId: ID.member, sourceRevision: CANDIDATE }), { id: 'BUILDER_RUN_CANDIDATE_REFUSED' })
+  await assert.rejects(store.recordBuilderRunCandidate({ builderRunId, accountId: ID.member, sourceRevision: CANDIDATE }), { id: 'PROJECT_BUILD_DENIED' })
   assert.deepEqual(await row(builderRunId), before)
   await store.settleBuilderRun(builderRunId)
   assert.equal((await row(builderRunId)).state, 'SUCCEEDED')
