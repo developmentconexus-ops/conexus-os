@@ -90,7 +90,7 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('db-baseline-file', 'npm run db:baseline:check', 'postgres'),
   testStep('postgres-tests', 'postgres', 'postgres', '--test-concurrency=1 '),
 
-  testStep('browser-tests', 'browser', 'browser', '--test-concurrency=1 '),
+  testStep('browser-tests', 'browser', 'browser'),
 
   // One Hub, one Chromium and a scripted model for the whole suite, so the flows share one boot.
   candidateStep('live-builder', 'npm run test:live', 'live'),
