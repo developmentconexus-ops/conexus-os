@@ -65,7 +65,7 @@ export const settleAdmittedSource = async ({ store, applicationArtifacts, applic
   /** The database refuses a phase once a stop is requested; an admitted run still settles. */
   finalizing(): Promise<void>
 }>, run: AdmittedRun, admitted: SourceRevision, applicationBuild: ApplicationBuildOutcome): Promise<void> => {
-  await store.advanceBuilderRunSource(run.builderRunId, admitted)
+  await store.advanceBuilderRunSource({ builderRunId: run.builderRunId, sourceRevision: admitted })
   const note = (code: string, outcome: RunNote['outcome'], detail?: string): Promise<void> => appendDiagnostic({
     projectId: run.projectId, conversationId: run.conversationId, builderRunId: run.builderRunId, code, outcome, sourceRevision: admitted,
     ...(detail ? { detail } : {}),
@@ -129,9 +129,9 @@ export const settleTakenOverCandidate = async ({ store, git }: Readonly<{
 }>, run: TakenOverRun & Readonly<{ candidateRevision: SourceRevision }>): Promise<void> => {
   const candidate = run.candidateRevision
   if (run.resultSourceRevision !== candidate && !await git.mainContains(run.projectId, candidate)) {
-    await store.failBuilderRun(run.builderRunId, 'BUILDER_SOURCE_ADMISSION_FAILED')
+    await store.failBuilderRun({ builderRunId: run.builderRunId, failureCode: 'BUILDER_SOURCE_ADMISSION_FAILED' })
     return
   }
-  await store.advanceBuilderRunSource(run.builderRunId, candidate)
+  await store.advanceBuilderRunSource({ builderRunId: run.builderRunId, sourceRevision: candidate })
   await store.settleBuilderRunBuild({ kind: 'FAILED', builderRunId: run.builderRunId, sourceRevision: candidate, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
 }

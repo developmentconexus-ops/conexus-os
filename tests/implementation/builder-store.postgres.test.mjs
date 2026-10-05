@@ -32,7 +32,7 @@ const harness = async (t, name) => {
     FROM builder.project_working_state WHERE project_id = $1`, [projectId])).rows[0]
   const running = async (projectId, options) => {
     const created = await start(projectId, options)
-    await store.claimBuilderRun(created.builderRunId)
+    await store.claimBuilderRun({ builderRunId: created.builderRunId })
     return created.builderRunId
   }
   return { ...fixture, store, start, row, working, running }
@@ -104,14 +104,14 @@ test('cancelling a queued run closes it, cancelling a running run marks it, and 
 
   const projectId = await seedBuilderProject('Running')
   const builderRunId = await running(projectId)
-  await store.setBuilderRunPhase(builderRunId, 'AGENT', { via: 'executor' })
+  await store.setBuilderRunPhase({ builderRunId, phase: 'AGENT', actor: { via: 'executor' } })
   const mark = await store.requestBuilderRunCancellation({ accountId: ID.owner, projectId, builderRunId })
   assert.deepEqual({ state: mark.state, phase: mark.phase, cancellationRequested: mark.cancellationRequested }, { state: 'RUNNING', phase: null, cancellationRequested: true })
   const stamp = async () => (await query(connection, 'SELECT cancellation_requested_at::text AS stamped, cancellation_reason FROM builder.builder_run WHERE builder_run_id = $1', [builderRunId])).rows[0]
   const first = await stamp()
   await store.requestBuilderRunCancellation({ accountId: ID.owner, projectId, builderRunId })
   assert.deepEqual(await stamp(), { stamped: first.stamped, cancellation_reason: 'USER_CANCELLED' }, 'the first mark stays')
-  assert.equal(await store.setBuilderRunPhase(builderRunId, 'AGENT', { via: 'executor' }), null, 'a requested stop refuses the next phase')
+  assert.equal(await store.setBuilderRunPhase({ builderRunId, phase: 'AGENT', actor: { via: 'executor' } }), null, 'a requested stop refuses the next phase')
 
   await assert.rejects(store.requestBuilderRunCancellation({ accountId: ID.member, projectId, builderRunId }), { id: 'BUILDER_RUN_NOT_FOUND' })
   await assert.rejects(store.requestBuilderRunCancellation({ accountId: ID.owner, projectId, builderRunId: randomUUID() }), { id: 'BUILDER_RUN_NOT_FOUND' })
@@ -122,19 +122,19 @@ test('every exit from RUNNING leaves a null phase, a response ends as RESPONSE_O
   const { connection, store, running, row, working, seedBuilderProject } = await harness(t, 'conexus_builder_phase')
   const executor = { via: 'executor' }
   const failing = await running(await seedBuilderProject('Failing'))
-  assert.equal((await store.setBuilderRunPhase(failing, 'AGENT', executor)).phase, 'AGENT')
+  assert.equal((await store.setBuilderRunPhase({ builderRunId: failing, phase: 'AGENT', actor: executor })).phase, 'AGENT')
   assert.equal((await row(failing)).phase, 'AGENT')
-  await store.failBuilderRun(failing, 'BUILDER_SOURCE_ADMISSION_FAILED')
+  await store.failBuilderRun({ builderRunId: failing, failureCode: 'BUILDER_SOURCE_ADMISSION_FAILED' })
   assert.deepEqual(await row(failing), { ...(await row(failing)), state: 'FAILED', phase: null, failure_code: 'BUILDER_SOURCE_ADMISSION_FAILED' })
 
   const interrupted = await running(await seedBuilderProject('Interrupted'))
-  await store.setBuilderRunPhase(interrupted, 'WAITING', executor)
-  await store.interruptBuilderRun(interrupted, 'BUILDER_QUESTION_EXPIRED')
+  await store.setBuilderRunPhase({ builderRunId: interrupted, phase: 'WAITING', actor: executor })
+  await store.interruptBuilderRun({ builderRunId: interrupted, failureCode: 'BUILDER_QUESTION_EXPIRED' })
   assert.deepEqual(await row(interrupted), { ...(await row(interrupted)), state: 'INTERRUPTED', phase: null, failure_code: 'BUILDER_QUESTION_EXPIRED', cancellation_reason: 'BUILDER_QUESTION_EXPIRED' })
 
   const responseOnly = await running(await seedBuilderProject('Response'))
-  await store.setBuilderRunPhase(responseOnly, 'AGENT', executor)
-  await store.settleBuilderRun(responseOnly)
+  await store.setBuilderRunPhase({ builderRunId: responseOnly, phase: 'AGENT', actor: executor })
+  await store.settleBuilderRun({ builderRunId: responseOnly })
   assert.deepEqual(await row(responseOnly), { ...(await row(responseOnly)), state: 'SUCCEEDED', phase: null, result_kind: 'RESPONSE_ONLY', result_source_revision: null })
 
   const projectId = await seedBuilderProject('Built')
@@ -143,7 +143,7 @@ test('every exit from RUNNING leaves a null phase, a response ends as RESPONSE_O
   const built = await running(projectId)
   await store.recordBuilderRunCandidate({ builderRunId: built, accountId: ID.owner, sourceRevision: CANDIDATE })
   assert.equal((await row(built)).phase, 'SOURCE_ADMISSION')
-  await store.advanceBuilderRunSource(built, CANDIDATE)
+  await store.advanceBuilderRunSource({ builderRunId: built, sourceRevision: CANDIDATE })
   await store.settleBuilderRunBuild({ kind: 'FAILED', builderRunId: built, sourceRevision: CANDIDATE, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
   assert.deepEqual(await row(built), { ...(await row(built)), state: 'FAILED', phase: null, result_kind: 'SOURCE_CHANGED_BUILD_FAILED', result_source_revision: CANDIDATE, failure_code: 'BUILDER_PREVIEW_NOT_BUILT' })
   assert.deepEqual(await working(projectId), { current_state: 'BUILD_FAILED', last_preview_source_revision: HEAD, last_preview_artifact_revision_id: preview.revision, last_preview_artifact_digest: preview.digest })
@@ -154,27 +154,27 @@ test('a run records one candidate, advances only to it, settles as a response on
   const projectId = await seedBuilderProject('Atlas')
   const builderRunId = await running(projectId)
   assert.equal((await row(builderRunId)).state, 'RUNNING')
-  await assert.rejects(store.claimBuilderRun(builderRunId), { id: 'BUILDER_RUN_NOT_ADMITTED' })
+  await assert.rejects(store.claimBuilderRun({ builderRunId }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
 
   await store.bindBuilderRunMessage({ builderRunId, projectId, accountId: ID.owner, messageId: 'mastra-message-1' })
   await store.bindBuilderRunMessage({ builderRunId, projectId, accountId: ID.owner, messageId: 'mastra-message-1' })
   await assert.rejects(store.bindBuilderRunMessage({ builderRunId, projectId, accountId: ID.owner, messageId: 'other' }), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'message bind' } })
-  await store.bindBuilderRunSandbox(builderRunId, 'sandbox-1')
-  await assert.rejects(store.bindBuilderRunSandbox(builderRunId, 'sandbox-2'), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'sandbox bind' } })
+  await store.bindBuilderRunSandbox({ builderRunId, sandboxId: 'sandbox-1' })
+  await assert.rejects(store.bindBuilderRunSandbox({ builderRunId, sandboxId: 'sandbox-2' }), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'sandbox bind' } })
 
   const payer = randomUUID()
   const otherPayer = randomUUID()
   for (const modelAccountId of [payer, payer, otherPayer]) await store.recordBuilderRunModelAccount({ builderRunId, accountId: ID.owner, modelAccountId })
   assert.deepEqual((await query(connection, 'SELECT model_account_id FROM builder.builder_run_model_account WHERE builder_run_id = $1 ORDER BY model_account_id', [builderRunId])).rows.map((entry) => entry.model_account_id), [payer, otherPayer].sort())
 
-  await assert.rejects(store.advanceBuilderRunSource(builderRunId, CANDIDATE), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'source settlement' } })
+  await assert.rejects(store.advanceBuilderRunSource({ builderRunId, sourceRevision: CANDIDATE }), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'source settlement' } })
   await store.recordBuilderRunCandidate({ builderRunId, accountId: ID.owner, sourceRevision: CANDIDATE })
   await store.recordBuilderRunCandidate({ builderRunId, accountId: ID.owner, sourceRevision: CANDIDATE })
   await assert.rejects(store.recordBuilderRunCandidate({ builderRunId, accountId: ID.owner, sourceRevision: OTHER }), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'candidate' } })
-  await assert.rejects(store.settleBuilderRun(builderRunId), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'settlement' } })
-  await assert.rejects(store.advanceBuilderRunSource(builderRunId, OTHER), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'source settlement' } })
-  await store.advanceBuilderRunSource(builderRunId, CANDIDATE)
-  await store.advanceBuilderRunSource(builderRunId, CANDIDATE)
+  await assert.rejects(store.settleBuilderRun({ builderRunId }), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'settlement' } })
+  await assert.rejects(store.advanceBuilderRunSource({ builderRunId, sourceRevision: OTHER }), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'source settlement' } })
+  await store.advanceBuilderRunSource({ builderRunId, sourceRevision: CANDIDATE })
+  await store.advanceBuilderRunSource({ builderRunId, sourceRevision: CANDIDATE })
   await assert.rejects(store.settleBuilderRunBuild({ kind: 'FAILED', builderRunId, sourceRevision: OTHER, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' }), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'build settlement' } })
   await store.settleBuilderRunBuild({ kind: 'FAILED', builderRunId, sourceRevision: CANDIDATE, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
   assert.deepEqual(await row(builderRunId), { ...(await row(builderRunId)), state: 'FAILED', trigger_message_id: 'mastra-message-1', sandbox_id: 'sandbox-1', candidate_revision: CANDIDATE, result_source_revision: CANDIDATE })
@@ -189,34 +189,34 @@ test('removing the author before the candidate refuses the write and leaves the 
   const before = await row(builderRunId)
   await assert.rejects(store.recordBuilderRunCandidate({ builderRunId, accountId: ID.member, sourceRevision: CANDIDATE }), { id: 'PROJECT_BUILD_DENIED' })
   assert.deepEqual(await row(builderRunId), before)
-  await store.settleBuilderRun(builderRunId)
+  await store.settleBuilderRun({ builderRunId })
   assert.equal((await row(builderRunId)).state, 'SUCCEEDED')
 })
 
 test('a queued run ends unclaimed only while still queued and unowned, and a claim by a removed author never reaches RUNNING', async (t) => {
   const { connection, store, start, row, seedBuilderProject } = await harness(t, 'conexus_builder_unclaimed')
   const lost = await start(await seedBuilderProject('Lost'))
-  await store.endUnclaimedBuilderRun(lost.builderRunId, { state: 'FAILED', failureCode: 'BUILDER_RUN_NOT_ADMITTED' })
+  await store.endUnclaimedBuilderRun({ builderRunId: lost.builderRunId, ending: { state: 'FAILED', failureCode: 'BUILDER_RUN_NOT_ADMITTED' } })
   assert.deepEqual(await row(lost.builderRunId), { ...(await row(lost.builderRunId)), state: 'FAILED', failure_code: 'BUILDER_RUN_NOT_ADMITTED', phase: null })
 
   const cancelled = await start(await seedBuilderProject('Cancelled'))
   await store.requestBuilderRunCancellation({ accountId: ID.owner, projectId: cancelled.projectId, builderRunId: cancelled.builderRunId })
-  await store.endUnclaimedBuilderRun(cancelled.builderRunId, { state: 'FAILED', failureCode: 'BUILDER_RUN_NOT_ADMITTED' })
+  await store.endUnclaimedBuilderRun({ builderRunId: cancelled.builderRunId, ending: { state: 'FAILED', failureCode: 'BUILDER_RUN_NOT_ADMITTED' } })
   assert.deepEqual(await row(cancelled.builderRunId), { ...(await row(cancelled.builderRunId)), state: 'INTERRUPTED', failure_code: 'USER_CANCELLED' })
 
   const stopped = await start(await seedBuilderProject('Stopped'))
-  await store.endUnclaimedBuilderRun(stopped.builderRunId, { state: 'INTERRUPTED', failureCode: 'HUB_RESTART' })
+  await store.endUnclaimedBuilderRun({ builderRunId: stopped.builderRunId, ending: { state: 'INTERRUPTED', failureCode: 'HUB_RESTART' } })
   assert.deepEqual(await row(stopped.builderRunId), { ...(await row(stopped.builderRunId)), state: 'INTERRUPTED', phase: null, failure_code: 'HUB_RESTART', cancellation_requested: true, cancellation_reason: 'HUB_RESTART' })
 
   const claimed = await start(await seedBuilderProject('Claimed'))
-  await store.claimBuilderRun(claimed.builderRunId)
-  await store.endUnclaimedBuilderRun(claimed.builderRunId, { state: 'FAILED', failureCode: 'BUILDER_RUN_NOT_ADMITTED' })
-  await store.endUnclaimedBuilderRun(claimed.builderRunId, { state: 'INTERRUPTED', failureCode: 'HUB_RESTART' })
+  await store.claimBuilderRun({ builderRunId: claimed.builderRunId })
+  await store.endUnclaimedBuilderRun({ builderRunId: claimed.builderRunId, ending: { state: 'FAILED', failureCode: 'BUILDER_RUN_NOT_ADMITTED' } })
+  await store.endUnclaimedBuilderRun({ builderRunId: claimed.builderRunId, ending: { state: 'INTERRUPTED', failureCode: 'HUB_RESTART' } })
   assert.equal((await row(claimed.builderRunId)).state, 'RUNNING', 'zero rows changed')
 
   const revoked = await start(await seedBuilderProject('Revoked'), { accountId: ID.member })
   await query(connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1', [ID.member])
-  await assert.rejects(store.claimBuilderRun(revoked.builderRunId), { id: 'BUILDER_RUN_NOT_ADMITTED' })
+  await assert.rejects(store.claimBuilderRun({ builderRunId: revoked.builderRunId }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
   assert.equal((await row(revoked.builderRunId)).state, 'QUEUED')
 })
 
@@ -225,7 +225,7 @@ test('a claim and a cancellation race to one terminal row without a deadlock', a
   for (const name of ['One', 'Two', 'Three']) {
     const created = await start(await seedBuilderProject(name))
     const outcomes = await Promise.allSettled([
-      store.claimBuilderRun(created.builderRunId),
+      store.claimBuilderRun({ builderRunId: created.builderRunId }),
       store.requestBuilderRunCancellation({ accountId: ID.owner, projectId: created.projectId, builderRunId: created.builderRunId }),
     ])
     assert.deepEqual(outcomes.filter((outcome) => outcome.status === 'rejected').map((outcome) => outcome.reason.id).filter((id) => id !== 'BUILDER_RUN_NOT_ADMITTED'), [])

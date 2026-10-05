@@ -98,10 +98,10 @@ test('a service with no run still takes and settles a stale run of another owner
 test('a queued run the caller lists stays queued and ownerless, however old, since no beat can touch it', async (t) => {
   const h = await leaseHarness(t, 'conexus_lease_queued')
   const queued = await h.seedRun({ state: 'QUEUED', createdAgoMs: HOUR })
-  assert.deepEqual(await h.store.renewRunLease(HUB, [queued.builderRunId], 30_000), [])
+  assert.deepEqual(await h.store.renewRunLease({ liveRunIds: [queued.builderRunId], staleAfterMs: 30_000 }), [])
   const row = await h.read(queued)
   assert.deepEqual([row.state, row.owner_id], ['QUEUED', null])
-  assert.deepEqual((await h.store.renewRunLease(HUB, [], 30_000)).map(({ builderRunId }) => builderRunId), [queued.builderRunId], 'unlisted, the same row is taken')
+  assert.deepEqual((await h.store.renewRunLease({ liveRunIds: [], staleAfterMs: 30_000 })).map(({ builderRunId }) => builderRunId), [queued.builderRunId], 'unlisted, the same row is taken')
 })
 
 test('a run that enters the service after the pass listed its live runs comes back from the SQL and is not settled', async (t) => {
@@ -150,7 +150,7 @@ test('one pass beats the listed runs and takes the stale ones at one instant', a
   const h = await leaseHarness(t, 'conexus_lease_instant')
   const listed = await h.seedRun({ ownerId: HUB, heartbeatAgoMs: HOUR })
   const stale = await h.seedRun({ ownerId: OTHER, heartbeatAgoMs: HOUR })
-  const taken = await h.store.renewRunLease(HUB, [listed.builderRunId], 30_000)
+  const taken = await h.store.renewRunLease({ liveRunIds: [listed.builderRunId], staleAfterMs: 30_000 })
   assert.deepEqual(taken.map(({ builderRunId }) => builderRunId), [stale.builderRunId])
   const beats = (await query(h.connectionString, 'SELECT count(DISTINCT heartbeat_at)::integer AS instants FROM builder.builder_run WHERE builder_run_id = ANY($1)', [[listed.builderRunId, stale.builderRunId]])).rows
   assert.deepEqual(beats, [{ instants: 1 }])

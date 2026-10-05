@@ -40,14 +40,14 @@ test('removing the member stops the next claim and still records the work alread
   const queued = await seedBuilderProject('Queued')
   const runningRun = await send(store, ID.member, running, 'one')
   const queuedRun = await send(store, ID.member, queued, 'two')
-  assert.equal((await store.claimBuilderRun(runningRun.builderRunId)).state, 'RUNNING')
+  assert.equal((await store.claimBuilderRun({ builderRunId: runningRun.builderRunId })).state, 'RUNNING')
 
   await query(connection, 'SELECT iam.remove_workspace_member($1,$2,$3)', [ID.owner, ID.workspace, ID.member])
 
-  await assert.rejects(store.claimBuilderRun(queuedRun.builderRunId), { id: 'BUILDER_RUN_NOT_ADMITTED' })
+  await assert.rejects(store.claimBuilderRun({ builderRunId: queuedRun.builderRunId }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
 
   // Settlement records what the run already performed, so it does not ask.
-  await store.settleBuilderRun(runningRun.builderRunId)
+  await store.settleBuilderRun({ builderRunId: runningRun.builderRunId })
   assert.deepEqual((await query(connection, 'SELECT state, result_kind FROM builder.builder_run WHERE builder_run_id = $1', [runningRun.builderRunId])).rows,
     [{ state: 'SUCCEEDED', result_kind: 'RESPONSE_ONLY' }])
 

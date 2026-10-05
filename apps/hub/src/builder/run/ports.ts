@@ -1,3 +1,4 @@
+import type { AccountId, ProjectId } from '../../../../../packages/contract/dist/index.js'
 import type { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput, Workspace } from '@mastra/core/workspace'
 import type { ApplicationCheckRun } from '../application-artifact-runtime.js'
@@ -66,7 +67,7 @@ export type BuilderRunPorts = Readonly<{
   /** Opens the run's connector access; the run ends it on every exit. Absent, it adds nothing to the agent's instructions. */
   openConnectorRun?(input: Readonly<{ projectId: string; accountId: string; builderRunId: string }>): Promise<ConnectorRun>
   /** The Project's display name, read when a turn starts. */
-  readProjectName(input: Readonly<{ accountId: string; projectId: string }>): Promise<string>
+  readProjectName(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<string>
   /** The Prévia's runner, which `conexus_run_operation` invokes the candidate's operations through. */
   invokeOperation?: CandidateOperationPorts['invoke']
   log: EventLog

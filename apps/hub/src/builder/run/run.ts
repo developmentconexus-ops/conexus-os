@@ -10,7 +10,7 @@ import { createRunTiming } from '../run-timing.js'
 import { PROJECT_FILE_READ_LIMIT, PROJECT_INSTRUCTIONS_PATH, PROJECT_MEMORY_PATH, readProjectInstructions, readProjectMemory } from '../project-context.js'
 import type { BuilderRunSummary, BuilderRunView, BuilderStore, InterruptionCode } from '../store.js'
 import type { BuilderRunPhase } from '../../generated/builder-run-vocabulary.js'
-import type { RunActor } from '../run-access.js'
+import type { RunActor } from '../run-lifecycle.js'
 import type { CandidateGate } from '../candidate-gate.js'
 import { Failure, type FailureCode, logFailure, toFailure } from '../../platform/failure.js'
 import { logger } from '../../platform/logger.js'
@@ -106,9 +106,8 @@ type Run = {
   /** Set once the session opens on a ready checkout. */
   prepared: Prepared | undefined
   keepaliveFailure: Error | undefined
-  source: RunSource
-  /** Set once the claim wrote this run's owner; until then only an unclaimed row's own transition ends it. */
-  claimed: boolean
+  /** Where the run is in its own life; until the claim wrote its owner only an unclaimed row's own transition ends it, and the account acts until the candidate is recorded. */
+  stage: RunStage
   mirrorEnded: Promise<void> | undefined
 }
 
@@ -116,7 +115,7 @@ type Run = {
  * How far the run's source got. Once the agent ran, nothing of it admitted yet, a failure leaves the
  * thread a note; once a candidate is recorded its source may be on `main`.
  */
-type RunSource = 'NONE' | 'AGENT_UNADMITTED' | 'CANDIDATE_RECORDED' | 'ADMITTED'
+type RunStage = 'UNCLAIMED' | 'CLAIMED' | 'AGENT_UNADMITTED' | 'CANDIDATE_RECORDED' | 'ADMITTED'
 
 type Prepared = Readonly<{
   gate: CandidateGate
@@ -135,12 +134,12 @@ const logged = (run: Run, code: FailureCode) => (error: unknown): void => {
 }
 
 // Until the candidate is recorded a run's writes are its author's and need the access they were admitted with; after it, they are the executor's.
-const actorOf = (run: Run): RunActor => (run.source === 'CANDIDATE_RECORDED' || run.source === 'ADMITTED' ? { via: 'executor' } : { via: 'account', accountId: run.request.accountId })
+const actorOf = (run: Run): RunActor => (run.stage === 'CANDIDATE_RECORDED' || run.stage === 'ADMITTED' ? { via: 'executor' } : { via: 'account', accountId: run.request.accountId })
 
 // A phase the database refuses means a stop was asked for; the browser following the run hears every one written.
 // `written` runs once the row holds the phase, before the browser hears of it.
 const setPhase = async (run: Run, phase: BuilderRunPhase, written?: () => void): Promise<void> => {
-  const summary = await run.env.store.setBuilderRunPhase(run.row.builderRunId, phase, actorOf(run))
+  const summary = await run.env.store.setBuilderRunPhase({ builderRunId: run.row.builderRunId, phase, actor: actorOf(run) })
   if (!summary) throw await phaseRefusal(run)
   run.trace.phase(phase)
   written?.()
@@ -205,7 +204,7 @@ const prepare = async (run: Run): Promise<Prepared> => {
   const bindContextFor = await readRunContext(run)
   const sandbox = await ports.openSandbox(conversation)
   const vm = await run.vm.open(sandbox, async (sandboxId) => {
-    await store.bindBuilderRunSandbox(builderRunId, sandboxId)
+    await store.bindBuilderRunSandbox({ builderRunId, sandboxId })
     await store.recordConversationSandbox({ builderRunId, conversationId, providerSandboxId: sandboxId })
   })
   if (cancelled(run)) throw new Failure('BUILDER_RUN_CANCELLED')
@@ -258,7 +257,7 @@ const converse = async (run: Run, prepared: Prepared): Promise<void> => {
   let bound = false
   for (;;) {
     await setPhase(run, 'AGENT')
-    run.source = 'AGENT_UNADMITTED'
+    run.stage = 'AGENT_UNADMITTED'
     const turn = await prepared.session.takeStep(step, run.signal)
     if (run.keepaliveFailure) throw run.keepaliveFailure
     if (turn.reason === 'aborted') run.env.ports.log('BUILDER_AGENT_END', { run: run.row.builderRunId, reason: 'aborted' })
@@ -296,7 +295,7 @@ const conclude = async (run: Run, prepared: Prepared): Promise<RunEnding> => {
   if (!verdict) {
     if (cancelled(run)) throw new Failure('BUILDER_LATE_RESULT_REFUSED')
     await setPhase(run, 'FINALIZING')
-    await env.store.settleBuilderRun(row.builderRunId)
+    await env.store.settleBuilderRun({ builderRunId: row.builderRunId })
     return { kind: 'SETTLED' }
   }
   if (cancelled(run)) throw new Failure('BUILDER_RUN_CANCELLED')
@@ -308,10 +307,10 @@ const conclude = async (run: Run, prepared: Prepared): Promise<RunEnding> => {
     gatePhases: prepared.gatePhases(), setPhase: (phase) => setPhase(run, phase), timing: run.timing,
     recordCandidate: async (sourceRevision) => {
       await env.store.recordBuilderRunCandidate({ builderRunId: row.builderRunId, accountId: run.request.accountId, sourceRevision })
-      run.source = 'CANDIDATE_RECORDED'
+      run.stage = 'CANDIDATE_RECORDED'
     },
   })
-  run.source = 'ADMITTED'
+  run.stage = 'ADMITTED'
   await settleAdmittedSource({
     store: env.store, applicationArtifacts: env.applicationArtifacts, applicationServer: env.applicationServer, appendDiagnostic: env.appendDiagnostic,
     finalizing: () => setPhase(run, 'FINALIZING').catch(() => undefined),
@@ -321,8 +320,8 @@ const conclude = async (run: Run, prepared: Prepared): Promise<RunEnding> => {
 
 const work = async (run: Run): Promise<RunEnding> => {
   const { env, row } = run
-  await env.store.claimBuilderRun(row.builderRunId)
-  run.claimed = true
+  await env.store.claimBuilderRun({ builderRunId: row.builderRunId })
+  run.stage = 'CLAIMED'
   await setPhase(run, 'PREPARING')
   // The start model's account is the person's own, else the installation's shared one; none
   // refuses the run before a sandbox exists, with the "connect a model" answer.
@@ -343,7 +342,7 @@ const endingOf = (run: Run, error: unknown, ended: Failure): RunEnding => {
   // Its source may be on main: the run stays running with its candidate until a sweep, once its
   // heartbeat has lapsed, reads `main` and settles it.
   if (error instanceof RowEnded) return { kind: 'LEFT' }
-  if ((run.source === 'CANDIDATE_RECORDED' || run.source === 'ADMITTED') && !NOT_ADMITTED.has(code)) return { kind: 'LEFT' }
+  if ((run.stage === 'CANDIDATE_RECORDED' || run.stage === 'ADMITTED') && !NOT_ADMITTED.has(code)) return { kind: 'LEFT' }
   if (run.stopSignal.reason === 'HUB_STOPPING') return { kind: 'INTERRUPTED', code: 'HUB_RESTART' }
   if (code === 'BUILDER_QUESTION_EXPIRED') return { kind: 'INTERRUPTED', code }
   if (cancelled(run) || STOP_CODES.has(code)) return { kind: 'INTERRUPTED', code: 'USER_CANCELLED' }
@@ -360,7 +359,7 @@ const diagnose = async (run: Run, error: unknown, ended: Failure, ending: RunEnd
   const code = ended.id
   // A run that spent its repair budget already told the person why, in the check's last notice.
   if (ending.kind === 'LEFT' || code === 'BUILDER_APP_NOT_FIXED') return
-  if (run.source !== 'AGENT_UNADMITTED' && run.source !== 'CANDIDATE_RECORDED') return
+  if (run.stage !== 'AGENT_UNADMITTED' && run.stage !== 'CANDIDATE_RECORDED') return
   // A refused candidate says why, so the next turn in this conversation can fix it.
   const refused = error instanceof CandidateRefused ? error : null
   await run.env.appendDiagnostic({
@@ -378,9 +377,9 @@ const writeEnding = async (run: Run, ending: RunEnding): Promise<void> => {
   const id = run.row.builderRunId
   // A run no claim reached has no owner to admit: its own transition ends the still queued row.
   const write = ending.kind === 'FAILED' || ending.kind === 'INTERRUPTED'
-    ? !run.claimed
-      ? () => store.endUnclaimedBuilderRun(id, ending.kind === 'FAILED' ? { state: 'FAILED', failureCode: ending.code } : { state: 'INTERRUPTED', failureCode: ending.code })
-      : ending.kind === 'FAILED' ? () => store.failBuilderRun(id, ending.code) : () => store.interruptBuilderRun(id, ending.code)
+    ? run.stage === 'UNCLAIMED'
+      ? () => store.endUnclaimedBuilderRun({ builderRunId: id, ending: ending.kind === 'FAILED' ? { state: 'FAILED', failureCode: ending.code } : { state: 'INTERRUPTED', failureCode: ending.code } })
+      : ending.kind === 'FAILED' ? () => store.failBuilderRun({ builderRunId: id, failureCode: ending.code }) : () => store.interruptBuilderRun({ builderRunId: id, failureCode: ending.code })
     : null
   if (!write) return
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -436,7 +435,7 @@ export const startRun = (env: RunEnvironment, row: BuilderRunSummary, request: R
         keepalive.abort()
       },
     }),
-    connectorRun: null, prepared: undefined, keepaliveFailure: undefined, source: 'NONE', claimed: false, mirrorEnded: undefined,
+    connectorRun: null, prepared: undefined, keepaliveFailure: undefined, stage: 'UNCLAIMED', mirrorEnded: undefined,
   }
   const taken = new Set([request.idempotencyKey])
   const done = (async () => {

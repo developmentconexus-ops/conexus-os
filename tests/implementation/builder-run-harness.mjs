@@ -289,7 +289,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     admitSourceRevision: async () => true,
     admitBuilder: async () => {},
     claimBuilderRun: async () => { await claim?.(); return claimed },
-    setBuilderRunPhase: async (_id, phase) => {
+    setBuilderRunPhase: async ({ phase }) => {
       calls.push(['phase', phase])
       if (phase === 'WAITING' && onWaitingWrite && await onWaitingWrite(context.service) === 'REFUSE') return null
       // The person acts once the browser shows the question.
@@ -303,11 +303,11 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
       row.candidate = sourceRevision
     },
     bindBuilderRunMessage: async ({ messageId }) => { calls.push(['message', messageId]) },
-    bindBuilderRunSandbox: async (_id, sandboxId) => { calls.push(['sandbox', sandboxId]) },
+    bindBuilderRunSandbox: async ({ sandboxId }) => { calls.push(['sandbox', sandboxId]) },
     readConversationSandbox: async () => recordedSandbox,
     recordConversationSandbox: async ({ providerSandboxId }) => { recordedSandbox = providerSandboxId },
     settleBuilderRun: async () => { calls.push(['settle', 'RESPONSE_ONLY']); row.running = false },
-    advanceBuilderRunSource: async (_id, revision) => {
+    advanceBuilderRunSource: async ({ sourceRevision: revision }) => {
       if (lostAdvances-- > 0) {
         calls.push(['advanceLost', revision])
         throw new Error('Connection terminated unexpectedly')
@@ -318,13 +318,13 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
     settleBuilderRunBuild: async (input) => { calls.push(['settleBuild', input.sourceRevision, input.failureCode ?? null]); row.running = false },
     readLatestCodeChangingBuilderRun: async () => null,
     readBuilderRun: async () => (persisted ? persisted(claimed) : claimed),
-    endUnclaimedBuilderRun: async (_id, ending) => { calls.push(['endUnclaimed', ending.state, ending.failureCode]); row.running = false },
-    failBuilderRun: async (_id, code) => { calls.push(['fail', code]); row.running = false },
-    interruptBuilderRun: async (_id, reason) => { calls.push(['interrupt', reason]); row.running = false },
+    endUnclaimedBuilderRun: async ({ ending }) => { calls.push(['endUnclaimed', ending.state, ending.failureCode]); row.running = false },
+    failBuilderRun: async ({ failureCode: code }) => { calls.push(['fail', code]); row.running = false },
+    interruptBuilderRun: async ({ failureCode: reason }) => { calls.push(['interrupt', reason]); row.running = false },
     requestBuilderRunCancellation: async () => ({ ...claimed, cancellationRequested: true }),
     recordConversationSession: async (input) => { sessions.push(input) },
     // A run this Hub lists as live is never taken over; one with a candidate that it does not list is stale.
-    renewRunLease: async (_owner, liveIds) => row.running && row.candidate && !liveIds.includes(runId)
+    renewRunLease: async ({ liveRunIds: liveIds }) => row.running && row.candidate && !liveIds.includes(runId)
       ? [{ builderRunId: runId, projectId, conversationId, candidateRevision: row.candidate, resultSourceRevision: row.result, previousOwnerId: null }]
       : [],
     close: async () => {},

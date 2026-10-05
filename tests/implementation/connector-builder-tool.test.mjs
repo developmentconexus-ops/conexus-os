@@ -228,7 +228,7 @@ test('a Builder turn reads through the tool; the model receives the vendor body,
     registerRoutes: async (instance) => {
       await registerBuilderSessionRoutes(instance, {
         mastra, controllerId: 'code', controller, conversations: testConversations(controller, () => undefined),
-        admitProject: async ({ projectId }) => projectId === PROJECT,
+        mayBuild: async ({ projectId }) => projectId === PROJECT,
         conversationOwner: async () => 'PROJECT',
         projectBusy: async () => false,
         toolPayloads: projection,

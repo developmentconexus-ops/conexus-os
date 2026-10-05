@@ -99,7 +99,7 @@ const createRunLease = ({ store, git, ownerId, staleAfterMs, liveRunIds }: Reado
     logLine('BUILDER_RUN_TAKEN_OVER', { run: run.builderRunId, loss }, 'warn')
     try {
       if (run.candidateRevision) await settleTakenOverCandidate({ store, git }, { ...run, candidateRevision: run.candidateRevision })
-      else await (loss === 'SETTLE_LOST' ? store.failBuilderRun(run.builderRunId, 'BUILDER_RUN_SETTLE_LOST') : store.interruptBuilderRun(run.builderRunId, 'HUB_RESTART'))
+      else await (loss === 'SETTLE_LOST' ? store.failBuilderRun({ builderRunId: run.builderRunId, failureCode: 'BUILDER_RUN_SETTLE_LOST' }) : store.interruptBuilderRun({ builderRunId: run.builderRunId, failureCode: 'HUB_RESTART' }))
       takenOver.delete(run.builderRunId)
     } catch (error) {
       logFailure(logger, new Failure('BUILDER_RUN_SWEEP_SETTLE_FAILED', { cause: error }), { 'builder.run_id': run.builderRunId })
@@ -107,7 +107,7 @@ const createRunLease = ({ store, git, ownerId, staleAfterMs, liveRunIds }: Reado
   }
   return async (signal: AbortSignal): Promise<void> => {
     if (signal.aborted) return
-    for (const run of await store.renewRunLease(ownerId, liveRunIds(), staleAfterMs)) {
+    for (const run of await store.renewRunLease({ liveRunIds: liveRunIds(), staleAfterMs })) {
       if (signal.aborted) return
       if (!liveRunIds().includes(run.builderRunId)) await settle(run)
     }

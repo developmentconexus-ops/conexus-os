@@ -19,12 +19,12 @@ test('a run this Hub took over and could not settle is taken again and settled a
         candidateRevision: null, resultSourceRevision: null,
         previousOwnerId: takes++ === 0 ? '0f000000-0000-4000-8000-0000000000dd' : ownerId,
       }]),
-      interruptBuilderRun: async (_id, reason) => {
+      interruptBuilderRun: async ({ failureCode: reason }) => {
         calls.push(['interrupt', reason])
         if (interrupts++ === 0) throw new Error('DATABASE_DOWN')
         settled = true
       },
-      failBuilderRun: async (_id, code) => { calls.push(['fail', code]); settled = true },
+      failBuilderRun: async ({ failureCode: code }) => { calls.push(['fail', code]); settled = true },
       close: async () => {},
     },
     applicationArtifacts: {},

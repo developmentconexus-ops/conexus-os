@@ -62,8 +62,8 @@ const recoveryHarness = async (t, name, crashes) => {
       crash.queued ? null : crash.phase === 'SOURCE_ADMISSION' ? 'COMPILING' : crash.phase, crash.owner ?? (crash.queued ? null : CRASHED)])
     if (crash.candidate) await store.recordBuilderRunCandidate({ builderRunId, accountId: owner, sourceRevision: result })
     if (crash.advanced) {
-      await store.advanceBuilderRunSource(builderRunId, result)
-      if (crash.phase === 'FINALIZING') await store.setBuilderRunPhase(builderRunId, 'FINALIZING', { via: 'executor' })
+      await store.advanceBuilderRunSource({ builderRunId, sourceRevision: result })
+      if (crash.phase === 'FINALIZING') await store.setBuilderRunPhase({ builderRunId, phase: 'FINALIZING', actor: { via: 'executor' } })
     }
     if (crash.stopped) await query(connectionString, "UPDATE builder.builder_run SET phase = NULL, cancellation_requested_at = clock_timestamp(), cancellation_reason = 'USER_CANCELLED' WHERE builder_run_id = $1", [builderRunId])
     runs.push({ ...crash, projectId, builderRunId, result })
@@ -95,7 +95,7 @@ const recoveryHarness = async (t, name, crashes) => {
     return { ...settled, result_source_revision: settled.result_source_revision === result ? 'RESULT' : settled.result_source_revision }
   }
   const rows = async () => Object.fromEntries(await Promise.all(runs.map(async (entry) => [entry.name, await row(entry)])))
-  return { service, runs, rows, outage, store, connectionString }
+  return { service, runs, rows, outage, store, database, connectionString }
 }
 
 const interrupted = { state: 'INTERRUPTED', result_kind: null, result_source_revision: null, failure_code: 'HUB_RESTART' }
@@ -152,7 +152,7 @@ test('a run that started in Planejar and built after the plan approval records, 
   const store = createBuilderStore({ database, ownerId: OWNER_OF_PLAN })
 
   await store.recordBuilderRunCandidate({ builderRunId, accountId: owner, sourceRevision: candidate })
-  await store.advanceBuilderRunSource(builderRunId, candidate)
+  await store.advanceBuilderRunSource({ builderRunId, sourceRevision: candidate })
   const [admitted] = (await query(connectionString, 'SELECT builder.admit_verified_application_source($1,$2,$3,$4) AS value', [owner, projectId, builderRunId, candidate])).rows
   await store.settleBuilderRunBuild({ builderRunId, sourceRevision: candidate, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
   const [row] = (await query(connectionString, 'SELECT state, result_kind, result_source_revision, failure_code FROM builder.builder_run WHERE builder_run_id = $1', [builderRunId])).rows
@@ -166,15 +166,15 @@ test("a stop on a working or waiting run only marks the request, and the run's n
   const { runs, store, connectionString } = await recoveryHarness(t, 'conexus_run_waiting_stop', crashes)
   const [waiting] = runs
   const phase = async ({ builderRunId }) => (await query(connectionString, 'SELECT state, phase FROM builder.builder_run WHERE builder_run_id = $1', [builderRunId])).rows[0]
-  const working = await store.setBuilderRunPhase(waiting.builderRunId, 'AGENT', EXECUTOR)
+  const working = await store.setBuilderRunPhase({ builderRunId: waiting.builderRunId, phase: 'AGENT', actor: EXECUTOR })
   assert.deepEqual({ state: working.state, phase: working.phase }, { state: 'RUNNING', phase: 'AGENT' }, 'a phase write answers the run as the session read serves it')
-  await store.setBuilderRunPhase(waiting.builderRunId, 'WAITING', EXECUTOR)
+  await store.setBuilderRunPhase({ builderRunId: waiting.builderRunId, phase: 'WAITING', actor: EXECUTOR })
   const [{ account_id: accountId }] = (await query(connectionString, 'SELECT account_id FROM builder.builder_run WHERE builder_run_id = $1', [waiting.builderRunId])).rows
   const cancelled = await store.requestBuilderRunCancellation({ accountId, projectId: waiting.projectId, builderRunId: waiting.builderRunId })
   assert.deepEqual({ state: cancelled.state, cancellationRequested: cancelled.cancellationRequested }, { state: 'RUNNING', cancellationRequested: true }, 'the run writes its own end')
-  assert.equal(await store.setBuilderRunPhase(waiting.builderRunId, 'AGENT', EXECUTOR), null)
+  assert.equal(await store.setBuilderRunPhase({ builderRunId: waiting.builderRunId, phase: 'AGENT', actor: EXECUTOR }), null)
   assert.deepEqual(await phase(waiting), { state: 'RUNNING', phase: null }, 'a requested stop clears the phase')
-  await store.interruptBuilderRun(waiting.builderRunId, 'USER_CANCELLED')
+  await store.interruptBuilderRun({ builderRunId: waiting.builderRunId, failureCode: 'USER_CANCELLED' })
   assert.deepEqual(await phase(waiting), { state: 'INTERRUPTED', phase: null })
 })
 
@@ -186,10 +186,11 @@ test('a fresh heartbeat keeps a run from every lease pass, a waiting run is take
     { name: 'quiet-b', phase: 'COMPILING', candidate: false, main: 'BASE' },
     { name: 'waiting', phase: 'WAITING', candidate: false, main: 'BASE' },
   ]
-  const { runs, store, connectionString } = await recoveryHarness(t, 'conexus_run_lease', crashes)
+  const { runs, database, connectionString } = await recoveryHarness(t, 'conexus_run_lease', crashes)
   await query(connectionString, "UPDATE builder.builder_run SET heartbeat_at = clock_timestamp() - interval '1 minute', created_at = clock_timestamp() - interval '1 minute'")
   await query(connectionString, 'UPDATE builder.builder_run SET heartbeat_at = clock_timestamp() WHERE builder_run_id = $1', [runs[0].builderRunId])
-  const [one, other] = await Promise.all([store.renewRunLease(SWEEPER, [], 30_000), store.renewRunLease('0f000000-0000-4000-8000-000000000004', [], 30_000)])
+  const sweeps = ['0f000000-0000-4000-8000-000000000001', '0f000000-0000-4000-8000-000000000004'].map((ownerId) => createBuilderStore({ database, ownerId }))
+  const [one, other] = await Promise.all(sweeps.map((sweeper) => sweeper.renewRunLease({ liveRunIds: [], staleAfterMs: 30_000 })))
   const names = new Map(runs.map(({ builderRunId, name }) => [builderRunId, name]))
   assert.deepEqual([...one, ...other].map(({ builderRunId }) => names.get(builderRunId)).sort(), ['quiet-a', 'quiet-b', 'waiting'])
 })

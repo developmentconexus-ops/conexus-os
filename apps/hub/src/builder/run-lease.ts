@@ -28,11 +28,11 @@ export type TakenOverRun = Readonly<{
 
 export type RunLease = Readonly<{
   /** One call: beats every listed run of this owner, then takes over the queued and working runs that are not listed and whose owner's heartbeat is older than the limit. A listed run is never taken. */
-  renewRunLease(ownerId: string, liveRunIds: readonly BuilderRunId[], staleAfterMs: number): Promise<readonly TakenOverRun[]>
+  renewRunLease(input: Readonly<{ liveRunIds: readonly BuilderRunId[]; staleAfterMs: number }>): Promise<readonly TakenOverRun[]>
 }>
 
-export const createRunLease = ({ database }: Readonly<{ database: Database }>): RunLease => ({
-  renewRunLease: (ownerId, liveRunIds, staleAfterMs) => database.system('builder-executor', async (gate) => {
+export const createRunLease = ({ database, ownerId }: Readonly<{ database: Database; ownerId: string }>): RunLease => ({
+  renewRunLease: ({ liveRunIds, staleAfterMs }) => database.system('builder-executor', async (gate) => {
     const { tx } = await admitSystem(gate, 'builder-executor')
     const live = [...liveRunIds]
     const { now } = await tx.one(Now, sql`SELECT clock_timestamp() AS now`, 'INTERNAL_UNEXPECTED')

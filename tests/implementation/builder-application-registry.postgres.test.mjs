@@ -107,7 +107,7 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   await setup.query("ALTER ROLE hub_builder_executor PASSWORD 'registry-settlement-test'")
   runtime = await connect({ ...config, user: 'hub_builder_executor', password: 'registry-settlement-test' })
   const store = createApplicationArtifactStore()
-  await builder.advanceBuilderRunSource(builderRunId, sourceB)
+  await builder.advanceBuilderRunSource({ builderRunId, sourceRevision: sourceB })
   const bytes = Buffer.from('<!doctype html><title>Settlement</title>')
   const application = { projectId, executionId: builderRunId, sourceRevision: sourceB, templateRef: '537fnzf4c16x9d7oz21k:3331a697-459d-44d8-bcdd-abade6ba1e81', recipeSha256: 'ce2a48f54c08ccdd7641fac8208560963cf43ecdc16bd459a3f333786d1ed4b5', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes, sha256: createHash('sha256').update(bytes).digest('hex') }] }
   const retained = await store.retainApplication(runtime, { accountId, compiled: application })
@@ -188,7 +188,7 @@ test('a BUILT result that carries a thumbnail settles through the real registry:
   const settled = []
   await settleAdmittedSource({
     store: {
-      advanceBuilderRunSource: (id, revision) => builder.advanceBuilderRunSource(id, revision),
+      advanceBuilderRunSource: (id, revision) => builder.advanceBuilderRunSource({ builderRunId: id, sourceRevision: revision }),
       settleBuilderRunBuild: async (input) => {
         settled.push(['build-settle', input.failureCode ?? null, Boolean(input.artifactRevisionId)])
         await builder.settleBuilderRunBuild(input)

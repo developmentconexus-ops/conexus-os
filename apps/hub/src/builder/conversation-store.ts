@@ -3,7 +3,7 @@ import type { AccountId, BuilderRunId, ConversationId, ProjectId, SourceRevision
 import { admitSystem } from '../identity-access/admission.js'
 import { sql, type Database } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
-import { withRun } from './run-access.js'
+import { withRun } from './run-lifecycle.js'
 
 const PROVIDER_SANDBOX_ID = /^[A-Za-z0-9_-]{1,128}$/
 const SandboxRow = z.object({ provider_sandbox_id: z.string().nullable() })

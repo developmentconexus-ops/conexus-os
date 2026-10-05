@@ -243,7 +243,7 @@ type GuardedMount = Readonly<{
   controllerId: string
   routes: ReadonlySet<string>
   /** Whether the Account may build this Project. */
-  admitProject(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<boolean>
+  mayBuild(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<boolean>
   /** Whose thread the conversation id is: this Project's, another resource's, or nobody's yet. */
   conversationOwner(input: Readonly<{ projectId: string; conversationId: string }>): Promise<'PROJECT' | 'OTHER' | 'NONE'>
   /** Whether the Project has a run queued or in flight. */
@@ -296,7 +296,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       }
       // Every conversation of a Project lives under the Project's own resource.
       const projectId = ProjectId.safeParse(resourceId === undefined ? undefined : PROJECT_RESOURCE.exec(resourceId)?.[1]).data
-      if (!projectId || !await mount.admitProject({ accountId, projectId })) {
+      if (!projectId || !await mount.mayBuild({ accountId, projectId })) {
         throw new Failure('PROJECT_BUILD_DENIED')
       }
       const sessionScope = creating
@@ -375,12 +375,12 @@ const bindConversationSession = async (controller: AgentController, conversation
  * browser needs to list and open a Project's conversations, follow a run, answer it, and set a
  * conversation's model, each behind the Hub session and the Project the resource names.
  */
-export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, conversations, admitProject, conversationOwner, projectBusy, answerQuestion, toolPayloads, streamBacklog }: Readonly<{
+export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, conversations, mayBuild, conversationOwner, projectBusy, answerQuestion, toolPayloads, streamBacklog }: Readonly<{
   mastra: Mastra
   controllerId: string
   controller: AgentController
   conversations: GuardedMount['conversations']
-  admitProject: GuardedMount['admitProject']
+  mayBuild: GuardedMount['mayBuild']
   conversationOwner: GuardedMount['conversationOwner']
   projectBusy: GuardedMount['projectBusy']
   answerQuestion: GuardedMount['answerQuestion']
@@ -389,7 +389,7 @@ export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastr
   /** The unsent bytes a stream may hold, and how often they are checked; tests set it small. */
   streamBacklog?: StreamBacklog
 }>): Promise<void> => registerGuardedMastraMount(app, {
-  mastra, controller, conversations, controllerId, admitProject, conversationOwner, projectBusy, answerQuestion,
+  mastra, controller, conversations, controllerId, mayBuild, conversationOwner, projectBusy, answerQuestion,
   ...(toolPayloads ? { toolPayloads } : {}),
   ...(streamBacklog ? { streamBacklog } : {}),
   prefix: BUILDER_PREFIX,

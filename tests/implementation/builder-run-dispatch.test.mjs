@@ -40,10 +40,10 @@ const makeStore = (calls, overrides = {}) => {
     admitBuilder: async () => {},
     createBuilderRun: async (input) => { row.requestText = input.content; return { ...row } },
     claimBuilderRun: async () => { calls.push('claim'); return { ...Object.assign(row, { state: 'RUNNING' }) } },
-    setBuilderRunPhase: async (_id, phase) => { calls.push(['phase', phase]); return { ...Object.assign(row, { phase }) } },
+    setBuilderRunPhase: async ({ phase }) => { calls.push(['phase', phase]); return { ...Object.assign(row, { phase }) } },
     readBuilderRun: async () => ({ ...row }),
-    failBuilderRun: async (_id, code) => { calls.push(['fail', code]); Object.assign(row, { state: 'FAILED', phase: null, failureCode: code }) },
-    interruptBuilderRun: async (_id, code) => { calls.push(['interrupt', code]); Object.assign(row, { state: 'INTERRUPTED', phase: null, failureCode: code }) },
+    failBuilderRun: async ({ failureCode: code }) => { calls.push(['fail', code]); Object.assign(row, { state: 'FAILED', phase: null, failureCode: code }) },
+    interruptBuilderRun: async ({ failureCode: code }) => { calls.push(['interrupt', code]); Object.assign(row, { state: 'INTERRUPTED', phase: null, failureCode: code }) },
     requestBuilderRunCancellation: async () => { calls.push('request-cancellation'); return { ...Object.assign(row, { cancellationRequested: true }) } },
     close: async () => {},
     ...overrides,
@@ -137,7 +137,7 @@ test('a browser following the conversation is handed the run as the builder-sess
 
 test('a phase the database refuses, as it does once a stop is requested, interrupts the run instead of failing it', async () => {
   const calls = []
-  const store = makeStore(calls, { setBuilderRunPhase: async (_id, phase) => { calls.push(['phase', phase]); return null }, readBuilderRun: async () => ({ builderRunId: runId, projectId, conversationId, state: 'RUNNING', cancellationRequested: true }) })
+  const store = makeStore(calls, { setBuilderRunPhase: async ({ phase }) => { calls.push(['phase', phase]); return null }, readBuilderRun: async () => ({ builderRunId: runId, projectId, conversationId, state: 'RUNNING', cancellationRequested: true }) })
   const service = createBuilderService({ store, runs: makeRuns(), applicationArtifacts: {} })
   await send(service)
   await service.close()
@@ -167,11 +167,11 @@ const settleHarness = async ({ failures }) => {
   const written = []
   let refused = 0
   const store = makeStore([], {
-    failBuilderRun: async (_id, code) => {
+    failBuilderRun: async ({ failureCode: code }) => {
       if (refused < failures) { refused += 1; throw new Failure('BUILDER_RUN_TRANSITION_REFUSED') }
       written.push(code)
     },
-    renewRunLease: async (owner, liveIds) => (liveIds.includes(runId) || written.length > 0 ? [] : [{ builderRunId: runId, projectId, conversationId, candidateRevision: null, resultSourceRevision: null, previousOwnerId: owner }]),
+    renewRunLease: async ({ liveRunIds: liveIds }) => (liveIds.includes(runId) || written.length > 0 ? [] : [{ builderRunId: runId, projectId, conversationId, candidateRevision: null, resultSourceRevision: null, previousOwnerId: owner }]),
   })
   const service = createBuilderService({
     store, runs: makeRuns({ checkModel: async () => { throw new Failure('BUILDER_MODEL_INCOMPLETE') } }), applicationArtifacts: {},
@@ -230,7 +230,7 @@ const admittedRun = { accountId, projectId, conversationId, builderRunId: runId 
 const settle = async ({ applicationBuild, applicationArtifacts = {}, applicationServer }) => {
   const calls = []
   const store = {
-    advanceBuilderRunSource: async (_id, revision) => calls.push(['advance', revision]),
+    advanceBuilderRunSource: async ({ sourceRevision: revision }) => calls.push(['advance', revision]),
     settleBuilderRunBuild: async (input) => calls.push(['build-settle', input.failureCode ?? null, input.artifactRevisionId ?? null]),
   }
   const outcome = await settleAdmittedSource({

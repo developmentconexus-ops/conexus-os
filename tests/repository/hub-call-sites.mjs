@@ -11,7 +11,7 @@ export const registeredRoles = new Set([...roleRegister.roles, ...roleRegister.t
 // what stops a new call being added without saying who runs it, and a row here with no call site
 // fails too, so the table cannot outlive the code it describes.
 export const ROLE_BY_CALL_SITE = Object.freeze({
-  'builder/run-steps.ts': Object.freeze({
+  'builder/run-lifecycle.ts': Object.freeze({
     'reg.matches_application_artifact': 'hub_command',
   }),
   'identity-access/reaper.ts': Object.freeze({

@@ -6,10 +6,9 @@ import { test } from 'node:test'
 const root = resolve(import.meta.dirname, '../..')
 const MAY_CALL_SYSTEM = [
   'apps/hub/src/builder/conversation-store.ts',
-  'apps/hub/src/builder/run-access.ts',
   'apps/hub/src/builder/run-lease.ts',
   'apps/hub/src/builder/run-reads.ts',
-  'apps/hub/src/builder/run-steps.ts',
+  'apps/hub/src/builder/run-lifecycle.ts',
   'apps/hub/src/project/deletion.ts',
 ]
 

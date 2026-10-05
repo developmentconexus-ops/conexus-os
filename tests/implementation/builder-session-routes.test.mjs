@@ -67,7 +67,7 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
       })
       await registerBuilderSessionRoutes(instance, {
         mastra, controllerId: 'conexus-builder', controller, conversations: sessions,
-        admitProject: async ({ accountId: caller, projectId }) => admittedProjects[caller]?.includes(projectId) ?? false,
+        mayBuild: async ({ accountId: caller, projectId }) => admittedProjects[caller]?.includes(projectId) ?? false,
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async () => busy,
         answerQuestion: (input) => { answered.push(input); return answerOutcome(input) },
