@@ -222,7 +222,12 @@ test('a Hub role grant on a permanent table is named, and a permanent table with
     input.census.unscoped.permanent.push({ table: 'iam.schema_migration', reason: 'Migration bookkeeping.' })
   }
   assert.deepEqual(lint((input) => permanent(input, [])), [])
-  assert.deepEqual(lint((input) => permanent(input, [['hub_reader', 'SELECT']])), ['iam.schema_migration is permanent but gives hub_reader SELECT'])
+  assert.deepEqual(lint((input) => permanent(input, [['hub_reader', 'SELECT']])), ['iam.schema_migration is permanent but gives hub_reader SELECT, and its register row says nothing'])
+  assert.deepEqual(lint((input) => {
+    permanent(input, [['hub_runtime', 'SELECT']])
+    input.census.unscoped.permanent[0].privileges = { hub_runtime: ['SELECT'] }
+    input.census.ceilings.runtimePrivileges = 1
+  }), [])
 })
 
 test('a register key column that is not a column of the table is named', () => {

@@ -138,5 +138,5 @@ A part that ports an owner reads its functions here: a function with a caller in
 | `reg.retain_application_execution` | registry_owner | - | `apps/hub/src/registry/application-artifact-store.ts` |
 | `reg.retain_application_thumbnail` | registry_owner | - | `apps/hub/src/registry/application-artifact-store.ts` |
 | `rls.acting_account` | iam_rls | `rls.acting_installation_administrator`, `rls.acting_workspaces` | - |
-| `rls.acting_installation_administrator` | iam_rls | - | `apps/hub/src/project/store.ts` |
+| `rls.acting_installation_administrator` | iam_rls | - | `apps/hub/src/identity-access/admission.ts` |
 | `rls.acting_workspaces` | iam_rls | - | - |

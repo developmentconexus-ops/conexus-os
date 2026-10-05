@@ -3,7 +3,14 @@
     "permanent": [
       {
         "table": "iam.schema_migration",
-        "reason": "Migration bookkeeping with no tenant data; only the migration runner touches it."
+        "reason": "Migration bookkeeping with no tenant data; the migration runner writes it and the Hub reads it once at boot (platform/lifecycle.ts) as hub_runtime.",
+        "privileges": {
+          "hub_runtime": [
+            "SELECT"
+          ],
+          "hub_reader": [],
+          "hub_command": []
+        }
       }
     ],
     "pending": [

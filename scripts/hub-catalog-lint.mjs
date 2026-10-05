@@ -149,9 +149,10 @@ export const lintCatalog = ({ catalog, functions, census, unported = new Map() }
     if (split.has(row.table)) lintSplitTable({ row: split.get(row.table), catalog, tablePolicies, problems, unported })
     else if (pending.has(row.table)) lintPendingTable({ entry: pending.get(row.table), catalog, tablePolicies, problems })
     else if (permanent.has(row.table)) {
+      const named = census.unscoped.permanent.find((entry) => entry.table === row.table)?.privileges ?? {}
       for (const role of GRANTEES) {
         const held = privilegesOf(catalog, row.table, role)
-        if (held.length > 0) problems.push(`${row.table} is permanent but gives ${role} ${held.join(', ')}`)
+        if (!sameList(held, named[role] ?? [])) problems.push(`${row.table} is permanent but gives ${role} ${show(held)}, and its register row says ${show(named[role] ?? [])}`)
       }
     } else problems.push(`${row.table} is in no list of the register: it is not split, pending or permanent`)
   }
