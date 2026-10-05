@@ -171,7 +171,7 @@ const settleHarness = async ({ failures }) => {
       if (refused < failures) { refused += 1; throw new Failure('BUILDER_RUN_TRANSITION_REFUSED') }
       written.push(code)
     },
-    renewRunLease: async ({ liveRunIds: liveIds }) => (liveIds.includes(runId) || written.length > 0 ? [] : [{ builderRunId: runId, projectId, conversationId, candidateRevision: null, resultSourceRevision: null, previousOwnerId: owner }]),
+    renewRunLease: async ({ liveRunIds: liveIds }) => (liveIds.includes(runId) || written.length > 0 ? [] : [{ builderRunId: runId, projectId, conversationId, candidateRevision: null, resultSourceRevision: null, previousOwnerId: store.ownerId }]),
   })
   const service = createBuilderService({
     store, runs: makeRuns({ checkModel: async () => { throw new Failure('BUILDER_MODEL_INCOMPLETE') } }), applicationArtifacts: {},

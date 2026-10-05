@@ -78,7 +78,7 @@ A part that ports an owner reads its functions here: a function with a caller in
 | `reg.get_application_by_source` | registry_owner | - | `apps/hub/src/registry/application-artifact-store.ts` |
 | `reg.get_application_thumbnail` | registry_owner | - | `apps/hub/src/registry/served-application.ts` |
 | `reg.get_served_application` | registry_owner | - | `apps/hub/src/registry/served-application.ts` |
-| `reg.matches_application_artifact` | registry_owner | - | `apps/hub/src/builder/run-steps.ts` |
+| `reg.matches_application_artifact` | registry_owner | - | `apps/hub/src/builder/run-lifecycle.ts` |
 | `reg.purge_project` | registry_owner | - | `apps/hub/src/project/deletion.ts` |
 | `reg.read_application_file_by_source` | registry_owner | - | `apps/hub/src/registry/application-artifact-store.ts` |
 | `reg.read_served_application_file` | registry_owner | - | `apps/hub/src/registry/served-application.ts` |

@@ -246,7 +246,7 @@ conflicts with no existing lock. Claim takes the Project proof before its run lo
 row is first read without a lock in its own transaction. Lease heartbeat and takeover take run rows
 and never seek the Project row, and the purge refuses a queued or running row before it deletes a run
 (`builder-bodies.sql:422`, `builder-bodies.sql:542`, `apps/hub/migrations/0030_project_deletion.sql:267`).
-Part 4 retention takes the run `FOR SHARE` after `admitRun`, so it follows the same direction.
+Part 4 retention takes the run `FOR UPDATE` through `lockedRun` after `admitRun`, so it follows the same direction.
 
 The remaining `iam` functions lock account and membership, not Builder rows
 (`apps/hub/migrations/0009_remove_model_connections.sql:70`,
@@ -625,7 +625,7 @@ remain until part 6, as the data child requires.
   section 4. The purge already leads with the Project `FOR UPDATE` (part 0b), and part 1 proves it
   with the test of section 7, item 3.
 - Part 4: refusal after a run loses Project access is `PROJECT_BUILD_DENIED` (403). Part 4's retention
-  locks `builder_run` `FOR SHARE` after `admitRun`; the `UPDATE` column grant of section 4 provides
+  locks `builder_run` `FOR UPDATE` through `lockedRun` after `admitRun`; the `UPDATE` column grant of section 4 provides
   that row lock, and no policy is needed. Its retention takes the Project from `RunScope.projectId`
   (section 3). Part 4 builds after part 1, reads the served pointer directly and drops the two kept
   functions in its own migration.

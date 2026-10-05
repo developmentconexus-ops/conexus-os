@@ -188,7 +188,7 @@ test('a BUILT result that carries a thumbnail settles through the real registry:
   const settled = []
   await settleAdmittedSource({
     store: {
-      advanceBuilderRunSource: (id, revision) => builder.advanceBuilderRunSource({ builderRunId: id, sourceRevision: revision }),
+      advanceBuilderRunSource: (input) => builder.advanceBuilderRunSource(input),
       settleBuilderRunBuild: async (input) => {
         settled.push(['build-settle', input.failureCode ?? null, Boolean(input.artifactRevisionId)])
         await builder.settleBuilderRunBuild(input)

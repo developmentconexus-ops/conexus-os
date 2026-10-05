@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import {
-  ProjectCard, ProjectId, ProjectName, ProjectRevision, SourceRevision, WorkspaceId, PRJ03,
-  type AccountId, type IdempotencyKey, type Input, type ProjectCreated, type ProjectDetail, type ProjectListItem,
+  ProjectCard, ProjectId, ProjectName, ProjectRevision, WorkspaceId, PRJ03,
+  type AccountId, type SourceRevision, type IdempotencyKey, type Input, type ProjectCreated, type ProjectDetail, type ProjectListItem,
 } from '../../../../packages/contract/dist/index.js'
 import { admitWorkspace, isInstallationAdministrator, type Admitted, type WorkspaceScope } from '../identity-access/admission.js'
 import type { Database } from '../platform/db.js'
