@@ -15,6 +15,8 @@ export type ProjectDeletionPorts = Readonly<{
   releaseApplicationData(projectId: ProjectIdType): Promise<void>
   killSandboxes(projectId: ProjectIdType): Promise<void>
   deleteRepository(projectId: ProjectIdType): Promise<void>
+  /** Deletes the Project's Connection bindings in the purge transaction, which holds the Project row. */
+  purgeConnectorBindings(proof: Admitted<SystemScope<'project-purge'>>, projectId: ProjectIdType): Promise<void>
 }>
 
 type DeleteProjectInput = Readonly<{ accountId: AccountId; projectId: ProjectIdType; confirmName: string }>
@@ -57,13 +59,14 @@ export const createProjectDeletion = ({ database, ports }: Readonly<{ database: 
     return { completed: false }
   })
 
-  const removeProject = async ({ tx }: Admitted<SystemScope<'project-purge'>>, projectId: ProjectIdType) => {
+  const removeProject = async (proof: Admitted<SystemScope<'project-purge'>>, projectId: ProjectIdType) => {
+    const { tx } = proof
     // The purge takes the project row first, like every admission that reaches it; a retry after the row is gone goes on.
     await tx.maybe(Present, sql`SELECT 1 AS present FROM project.project WHERE project_id = ${projectId} FOR UPDATE`)
     if (!(await tombstoneOf(tx, projectId))) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_DELETION_NOT_STARTED' } })
     if (await busy(tx, projectId)) throw new Failure('PROJECT_BUSY')
     await tx.run(sql`SELECT iam.purge_project(${projectId})`)
-    await tx.run(sql`SELECT connector.purge_project(${projectId})`)
+    await ports.purgeConnectorBindings(proof, projectId)
     await tx.run(sql`SELECT reg.purge_project(${projectId})`)
     await tx.run(sql`SELECT builder.purge_project(${projectId})`)
     await tx.run(sql`DELETE FROM platform.operation_receipt WHERE operation_id = 'PRJ-03' AND resource_id = ${projectId}`)

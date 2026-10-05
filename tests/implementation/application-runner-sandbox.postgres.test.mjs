@@ -26,7 +26,7 @@ const { assertUserNamespaces, runWorker, stageWorkerRuntime } = await import(hub
 const SANDBOX = { bwrap: '/usr/bin/bwrap', prlimit: '/usr/bin/prlimit', node: process.execPath, heapMb: 128, addressSpaceMb: 1792, nodePermission: true }
 const { openPgRelay, readRelayTls } = await import(hubModuleUrl('app-runner/pg-relay.js'))
 const { previewAllocation } = await import(hubModuleUrl('app-runner/data-plane.js'))
-const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
+const { createBroker, registryOf } = await import(hubModuleUrl('connectors/broker.js'))
 const { createHandlerPorts } = await import(hubModuleUrl('connectors/handler-port.js'))
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
@@ -476,11 +476,11 @@ const connectorSetup = async (t, sandbox) => {
     listBindings: async (input) => (input.projectId === project ? [{ bindingId: 'binding', name: 'erp', connectionId: '33333333-3333-4333-8333-333333333333', connectorId: 'sankhya' }] : []),
     readConnectionCredential: async () => sealed,
   }
-  const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }], store, envelope, observability: connectorRecord().observability })
+  const broker = createBroker({ connectors: registryOf([{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }]), store, envelope, observability: connectorRecord().observability })
   const ports = createHandlerPorts({ directory: socketDir, broker })
   await ports.sweep()
   const open = async (projectId) => {
-    const port = await ports.open(scopeFromArtifactSource({ via: 'PREVIEW', projectId }))
+    const port = await ports.open(scopeFromArtifactSource({ via: 'PREVIEW', accountId: '55555555-5555-4555-8555-555555555555', projectId }))
     t.after(() => port.close())
     return port
   }

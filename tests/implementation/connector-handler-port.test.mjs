@@ -10,7 +10,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { invariant } from './failure-matchers.mjs'
 
 const { createHandlerPorts } = await import(hubModuleUrl('connectors/handler-port.js'))
-const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
+const { createBroker, registryOf } = await import(hubModuleUrl('connectors/broker.js'))
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
 const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
@@ -25,7 +25,7 @@ const READ = Object.freeze({
   query: { serviceName: LOAD, outputType: 'json' },
   body: { serviceName: LOAD, requestBody: { dataSet: NATIVE_ORDER_DATASET } },
 })
-const scope = scopeFromArtifactSource({ via: 'PREVIEW', projectId: PROJECT })
+const scope = scopeFromArtifactSource({ via: 'PREVIEW', accountId: '55555555-5555-4555-8555-555555555555', projectId: PROJECT })
 
 /** One raw POST over a unix socket; resolves the parsed answer or the connection error's code. */
 const post = (socketPath, body, path = '/v1/fetch') => new Promise((resolve) => {
@@ -124,7 +124,7 @@ test('P6: another Project, scope, environment or Connection in the body never ch
     },
     readConnectionCredential: async () => sealed,
   }
-  const broker = createBroker({ connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }], store, envelope, observability: connectorRecord().observability })
+  const broker = createBroker({ connectors: registryOf([{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }]), store, envelope, observability: connectorRecord().observability })
   const port = await createHandlerPorts({ directory: socketDirectory(t), broker }).open(scope)
   t.after(() => port.close())
 

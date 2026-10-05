@@ -57,9 +57,8 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   } satisfies Parameters<typeof createIdentityAccessModule>[0]
   const identityAccess = await createIdentityAccessModule(identityAccessDependencies)
   const connectors = createConnectorModule({
-    pool,
+    database,
     envelope: identityAccessDependencies.envelope,
-    isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
     gatewayOrigin: config.connectors.gatewayOrigin,
     socketDirectory: config.connectors.socketDirectory,
   })
@@ -89,6 +88,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
         if (!builder) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'CONEXUS_GIT_NOT_CONFIGURED' } })
         return builder.deleteProjectRepository(projectId)
       },
+      purgeConnectorBindings: connectors.purgeProjectBindings,
     },
     thumbnailReader: {
       readThumbnail: async (input) => {

@@ -6,8 +6,7 @@ import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
-import type { CheckWorkspaceConnectionOutcome, ConnectorConnection } from '../../../generated/connector-client'
-import { BINDING_NAME_PATTERN } from '../../../generated/connector-client'
+import { BindingName, CON01, CON08, ConnectionId, type ConnectionCheckOutcome, type ConnectorConnection } from '../../../../../../packages/contract/dist/index.js'
 import {
   type BindableConnection,
   bindProjectConnection,
@@ -17,12 +16,10 @@ import {
   disableWorkspaceConnection,
   isConnectorAdminRequired,
   isConnectorBindingsForbidden,
-  listProjectConnectionBindings,
-  listWorkspaceConnections,
   type ProjectConnectionBinding,
-  projectConnectionBindingsQueryKey,
+  projectConnectionBindingsQuery,
   unbindProjectConnection,
-  workspaceConnectionsQueryKey,
+  workspaceConnectionsQuery,
 } from '../connector-api'
 import '../connector.css'
 import { failureText } from '../../../app/http'
@@ -40,9 +37,8 @@ export function IntegrationsScreen({ workspaceId, projectId }: Readonly<{ worksp
 
 function ConnectionsSection({ workspaceId }: Readonly<{ workspaceId: string }>) {
   const queryClient = useQueryClient()
-  const queryKey = workspaceConnectionsQueryKey(workspaceId)
-  const connections = useQuery({ queryKey, queryFn: () => listWorkspaceConnections(workspaceId) })
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ['connector'] })
+  const connections = useQuery(workspaceConnectionsQuery(workspaceId))
+  const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: [CON01.id] }), queryClient.invalidateQueries({ queryKey: [CON08.id] })])
 
   if (connections.isPending) {
     return <section aria-labelledby="connector-connections" className="cx-connector-section" aria-busy="true">
@@ -63,17 +59,17 @@ function ConnectionsSection({ workspaceId }: Readonly<{ workspaceId: string }>) 
   }
 
   return <section aria-labelledby="connector-connections" className="cx-connector-section">
-    <h2 id="connector-connections" className="cx-section-title">Conexões do Workspace <span className="cx-count">{connections.data.length}</span></h2>
-    {connections.data.length === 0 ? (
+    <h2 id="connector-connections" className="cx-section-title">Conexões do Workspace <span className="cx-count">{connections.data.entries.length}</span></h2>
+    {connections.data.entries.length === 0 ? (
       <p className="cx-connector-empty">Nenhuma conexão criada ainda.</p>
     ) : (
       <ul className="cx-connection-list">
-        {connections.data.map((connection) => (
+        {connections.data.entries.map((connection) => (
           <ConnectionRow key={connection.connectionId} workspaceId={workspaceId} connection={connection} onChanged={refresh} />
         ))}
       </ul>
     )}
-    {connections.data.some((connection) => !connection.disabledAt) && (
+    {connections.data.entries.some((connection) => !connection.disabledAt) && (
       <p className="cx-field-hint">Para trocar a credencial de uma conexão, desative-a e adicione outra.</p>
     )}
     <CreateConnectionForm workspaceId={workspaceId} onCreated={refresh} />
@@ -85,7 +81,7 @@ function ConnectionRow({ workspaceId, connection, onChanged }: Readonly<{ worksp
   const [confirmingDisable, setConfirmingDisable] = useState(false)
   const check = useMutation({
     mutationFn: () => checkWorkspaceConnection(workspaceId, connection.connectionId),
-    onSuccess: (outcome: CheckWorkspaceConnectionOutcome['outcome']) => setOutcomeMessage(checkOutcomeMessage(outcome)),
+    onSuccess: (outcome: ConnectionCheckOutcome) => setOutcomeMessage(checkOutcomeMessage(outcome)),
     onError: (error) => setOutcomeMessage(failureText(error)),
   })
   const disable = useMutation({
@@ -93,7 +89,7 @@ function ConnectionRow({ workspaceId, connection, onChanged }: Readonly<{ worksp
     onSuccess: () => { setConfirmingDisable(false); onChanged() },
     onError: (error) => { setConfirmingDisable(false); setOutcomeMessage(failureText(error)) },
   })
-  const disabled = Boolean(connection.disabledAt)
+  const disabled = connection.disabledAt !== undefined
 
   return <li className="cx-connection">
     <div className="cx-connection-main">
@@ -135,10 +131,9 @@ function CreateConnectionForm({ workspaceId, onCreated }: Readonly<{ workspaceId
   const [created, setCreated] = useState(false)
   // One id per Connection the administrator is adding, kept across a failed submit: if the server
   // committed but the answer was lost, the resubmit is the same request and answers 200.
-  const pendingConnectionId = useRef<string | null>(null)
+  const pendingConnectionId = useRef<ConnectionId | null>(null)
   const create = useMutation({
-    mutationFn: (input: Readonly<{ connectionId: string; connectorId: 'sankhya'; label: string; credential: Readonly<{ clientId: string; clientSecret: string; xToken: string }> }>) =>
-      createWorkspaceConnection(workspaceId, input),
+    mutationFn: (input: Parameters<typeof createWorkspaceConnection>[1]) => createWorkspaceConnection(workspaceId, input),
     onSuccess: () => { pendingConnectionId.current = null; setMessage(''); setCreated(true); onCreated() },
     onError: (error) => { setCreated(false); setMessage(failureText(error)) },
   })
@@ -157,7 +152,7 @@ function CreateConnectionForm({ workspaceId, onCreated }: Readonly<{ workspaceId
       return
     }
     setCreated(false)
-    pendingConnectionId.current ??= crypto.randomUUID()
+    pendingConnectionId.current ??= ConnectionId.parse(crypto.randomUUID())
     create.mutate(
       { connectionId: pendingConnectionId.current, connectorId: 'sankhya', label, credential: { clientId, clientSecret, xToken } },
       // reset() also drops the mutation's cached variables, which hold the credential.
@@ -194,9 +189,8 @@ function CreateConnectionForm({ workspaceId, onCreated }: Readonly<{ workspaceId
 
 function BindingsSection({ projectId }: Readonly<{ projectId: string }>) {
   const queryClient = useQueryClient()
-  const queryKey = projectConnectionBindingsQueryKey(projectId)
-  const bindings = useQuery({ queryKey, queryFn: () => listProjectConnectionBindings(projectId) })
-  const refresh = () => queryClient.invalidateQueries({ queryKey })
+  const bindings = useQuery(projectConnectionBindingsQuery(projectId))
+  const refresh = () => queryClient.invalidateQueries({ queryKey: [CON08.id] })
 
   if (bindings.isPending) {
     return <section aria-labelledby="connector-bindings" className="cx-connector-section" aria-busy="true">
@@ -216,8 +210,8 @@ function BindingsSection({ projectId }: Readonly<{ projectId: string }>) {
     </section>
   }
 
-  const bound = bindings.data.filter((entry): entry is ProjectConnectionBinding => entry.kind === 'binding')
-  const bindable = bindings.data.filter((entry): entry is BindableConnection => entry.kind === 'bindable')
+  const bound = bindings.data.entries.filter((entry): entry is ProjectConnectionBinding => entry.kind === 'binding')
+  const bindable = bindings.data.entries.filter((entry): entry is BindableConnection => entry.kind === 'bindable')
 
   return <section aria-labelledby="connector-bindings" className="cx-connector-section">
     <h2 id="connector-bindings" className="cx-section-title">Integrações deste Projeto</h2>
@@ -279,7 +273,7 @@ function BindableRow({ projectId, connection, onChanged }: Readonly<{ projectId:
   const nameId = useId()
   const [message, setMessage] = useState('')
   const bind = useMutation({
-    mutationFn: (name: string) => bindProjectConnection(projectId, { connectionId: connection.connectionId, name }),
+    mutationFn: (name: BindingName) => bindProjectConnection(projectId, { connectionId: connection.connectionId, name }),
     onSuccess: () => onChanged(),
     onError: (error) => setMessage(failureText(error)),
   })
@@ -288,12 +282,13 @@ function BindableRow({ projectId, connection, onChanged }: Readonly<{ projectId:
     event.preventDefault()
     if (bind.isPending) return
     const name = String(new FormData(event.currentTarget).get('name') ?? '').trim()
-    if (!BINDING_NAME_PATTERN.test(name)) {
+    const parsed = BindingName.safeParse(name)
+    if (!parsed.success) {
       setMessage('Use letras minúsculas, números e hífen, começando por uma letra.')
       return
     }
     setMessage('')
-    bind.mutate(name)
+    bind.mutate(parsed.data)
   }
 
   return <li className="cx-connection">

@@ -5,15 +5,15 @@ import { logger } from '../platform/logger.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { AdapterFailure, brokerCodeOf, refused } from './errors.js'
 import type { BrokerErrorCode, BrokerResult } from './errors.js'
-import type { BoundConnection, ConnectionId, ConnectorId } from './model.js'
+import type { ConnectionId, ConnectorId } from '../../../../packages/contract/dist/index.js'
 import { DEFAULT_NATIVE_LIMITS, parseNativeRequest, pinnedUrl, sendNative } from './native.js'
 import type { FetchResult, NativeLimits, ParsedNativeRequest } from './native.js'
 import type { Adapter, ConnectorDefinition, Consumer, ProviderAnswer, RequestTrace } from './integrator.js'
 import { endSpan, requestTrace } from './record.js'
 import type { SpanResult } from './record.js'
-import { isMintedScope, spendCall } from './scope.js'
+import { isMintedScope } from './scope.js'
 import type { ConsumerScope } from './scope.js'
-import type { BrokerStore } from './store.js'
+import type { BoundConnection, BrokerStore } from './store.js'
 import { createTokenCache, inLane, Redacted } from './token-cache.js'
 import type { AccessToken, IssuedToken, TokenCache } from './token-cache.js'
 
@@ -24,7 +24,7 @@ type AnyAdapter = Adapter<unknown>
 export type RegisteredConnector = Readonly<{ definition: AnyDefinition; adapter: AnyAdapter | null }>
 
 type NativeTarget = Readonly<{
-  connector: RegisteredConnector; adapter: AnyAdapter; connectionId: ConnectionId
+  connector: RegisteredConnector; adapter: AnyAdapter; scope: ConsumerScope; connectionId: ConnectionId
   service: string; method: string; url: URL; body: ParsedNativeRequest['body']
 }>
 
@@ -46,8 +46,8 @@ export type Broker = Readonly<{
   fetch(consumer: Consumer, request: unknown, options?: FetchOptions): Promise<FetchResult>
   /** The integrator and service `fetch` would send the request to, with no network and no call spent. Never throws. */
   describe(consumer: Consumer, request: unknown): Promise<FetchDescription>
-  /** The allow-listed authentication alone, with no cache: whether the Connection's credential authenticates now. Never throws. */
-  checkCredential(connectorId: ConnectorId, connectionId: ConnectionId): Promise<BrokerResult<null>>
+  /** The allow-listed authentication alone, with no cache: whether the sealed credential, read by the caller under its own admission, authenticates now. Never throws. */
+  checkCredential(connectorId: string, sealed: string): Promise<BrokerResult<null>>
   forget(connectionId: ConnectionId): void
 }>
 
@@ -68,12 +68,6 @@ const platformFault = (error: unknown): BrokerErrorCode => {
   return 'CONNECTOR_PLATFORM_FAILED'
 }
 
-const RECORDED_CONSUMER_KINDS = {
-  handler: true,
-  agent: true,
-  integrator: true,
-} satisfies Record<Consumer['kind'], true>
-
 const untilDeadline = <T>(signal: AbortSignal, work: Promise<T>): Promise<T> => {
   if (signal.aborted) return Promise.reject(new AdapterFailure('TIMEOUT'))
   let onAbort = (): void => undefined
@@ -85,9 +79,6 @@ const untilDeadline = <T>(signal: AbortSignal, work: Promise<T>): Promise<T> => 
 }
 
 const fetchResultOf = (result: FetchResult): 'OK' | BrokerErrorCode => (result.ok ? 'OK' : result.code)
-
-const recordedKind = (consumer: Consumer): string =>
-  typeof consumer?.kind === 'string' && Object.hasOwn(RECORDED_CONSUMER_KINDS, consumer.kind) ? consumer.kind : 'other'
 
 const resultOf = (error: unknown): SpanResult => {
   if (error instanceof AdapterFailure) return error.reason
@@ -101,7 +92,84 @@ const codeOf = (error: unknown, signal: AbortSignal): BrokerErrorCode => {
   return signal.aborted ? 'PROVIDER_TIMEOUT' : 'RESPONSE_REFUSED'
 }
 
-// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
+type Dependencies = Readonly<{ store: BrokerStore; envelope: SecretEnvelope; tokens: TokenCache; nativeLimits: NativeLimits }>
+
+/** The registered connectors by id, built once by the module. */
+export const registryOf = (connectors: readonly RegisteredConnector[]): ReadonlyMap<ConnectorId, RegisteredConnector> =>
+  new Map(connectors.map((connector) => [connector.definition.id, connector]))
+
+// Only this function opens the credential envelope.
+const issueToken = async ({ envelope }: Pick<Dependencies, 'envelope'>, connector: RegisteredConnector, adapter: AnyAdapter, sealed: string, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken> => {
+  let opened: string
+  try {
+    opened = await envelope.open(sealed)
+  } catch (error) {
+    throw new BrokerRefusal(platformFault(error))
+  }
+  let plain: unknown
+  try {
+    plain = JSON.parse(opened)
+  } catch {
+    throw new BrokerRefusal('CREDENTIAL_REFUSED')
+  }
+  const credential = connector.definition.credential.safeParse(plain)
+  if (!credential.success) throw new BrokerRefusal('CREDENTIAL_REFUSED')
+  return adapter.authenticate(new Redacted(credential.data), signal, trace)
+}
+
+const authenticate = async ({ envelope, store }: Pick<Dependencies, 'envelope' | 'store'>, connector: RegisteredConnector, adapter: AnyAdapter, scope: ConsumerScope, connectionId: ConnectionId, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken> => {
+  let sealed: string | null
+  try {
+    sealed = await store.readConnectionCredential(scope, connectionId)
+  } catch (error) {
+    throw new BrokerRefusal(platformFault(error))
+  }
+  if (sealed === null) throw new BrokerRefusal('NOT_GRANTED')
+  return issueToken({ envelope }, connector, adapter, sealed, signal, trace)
+}
+
+/** The admitted request on the Connection's token, under one deadline for authentication and request. */
+const sendOnToken = async (deps: Dependencies, { connector, adapter, scope, connectionId, service, method, url, body }: NativeTarget, span: AnySpan, signal: AbortSignal): Promise<FetchResult> => {
+  const { tokens, nativeLimits } = deps
+  const protocol = connector.definition.native
+  let attempt = 0
+  let issued = 0
+  let answered: ProviderAnswer = {}
+  const trace = requestTrace(span, () => attempt, signal)
+  try {
+    return await untilDeadline(signal, tokens.withToken(
+      connectionId,
+      () => {
+        issued += 1
+        return authenticate(deps, connector, adapter, scope, connectionId, signal, trace)
+      },
+      async (lease) => {
+        attempt += 1
+        const before = issued
+        let token: AccessToken
+        try {
+          token = await lease()
+        } catch (error) {
+          // A lease that fails while this call issued nothing failed on another call's authentication.
+          if (issued === before) trace.joined('authenticate', resultOf(error))
+          throw error
+        }
+        const request = () => trace.request(service, (answer) => {
+          answered = answer
+          return sendNative({ method, url, body, token, signal, responseBytes: nativeLimits.responseBytes, protocol }, answer)
+        }, fetchResultOf)
+        return protocol.oneRequestPerToken ? inLane(token, request) : request()
+      },
+    ))
+  } catch (error) {
+    const code = codeOf(error, signal)
+    // A token refused twice is the vendor's answer to the service request, so its status is the consumer's to see.
+    const status = error instanceof AdapterFailure && error.reason === 'TOKEN_REFUSED' ? answered.httpStatus : undefined
+    return status === undefined ? refused(code) : Object.freeze({ ok: false, code, status })
+  }
+}
+
+
 export const createBroker = ({
   connectors,
   store,
@@ -112,7 +180,8 @@ export const createBroker = ({
   nativeLimits = DEFAULT_NATIVE_LIMITS,
   now = () => Date.now(),
 }: Readonly<{
-  connectors: readonly RegisteredConnector[]
+  /** Looked up by the stored connector text, so a row that names a connector this Hub does not register finds none. */
+  connectors: ReadonlyMap<string, RegisteredConnector>
   store: BrokerStore
   envelope: SecretEnvelope
   observability: ObservabilityInstance
@@ -121,98 +190,32 @@ export const createBroker = ({
   nativeLimits?: NativeLimits
   now?: () => number
 }>): Broker => {
-  const adapterOf = (connectorId: ConnectorId): RegisteredConnector | undefined => connectors.find((connector) => connector.definition.id === connectorId)
-
-  // Only this function opens the credential envelope.
-  const authenticate = async (connector: RegisteredConnector, adapter: AnyAdapter, connectionId: ConnectionId, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken> => {
-    let sealed: string | null
-    try {
-      sealed = await store.readConnectionCredential(connectionId)
-    } catch (error) {
-      throw new BrokerRefusal(platformFault(error))
-    }
-    if (sealed === null) throw new BrokerRefusal('NOT_GRANTED')
-    let opened: string
-    try {
-      opened = await envelope.open(sealed)
-    } catch (error) {
-      throw new BrokerRefusal(platformFault(error))
-    }
-    let plain: unknown
-    try {
-      plain = JSON.parse(opened)
-    } catch {
-      throw new BrokerRefusal('CREDENTIAL_REFUSED')
-    }
-    const credential = connector.definition.credential.safeParse(plain)
-    if (!credential.success) throw new BrokerRefusal('CREDENTIAL_REFUSED')
-    return adapter.authenticate(new Redacted(credential.data), signal, trace)
-  }
-
-  /** The admitted request on the Connection's token, under one deadline for authentication and request. */
-  const sendOnToken = async ({ connector, adapter, connectionId, service, method, url, body }: NativeTarget, span: AnySpan, signal: AbortSignal): Promise<FetchResult> => {
-    const protocol = connector.definition.native
-    let attempt = 0
-    let issued = 0
-    let answered: ProviderAnswer = {}
-    const trace = requestTrace(span, () => attempt, signal)
-    try {
-      return await untilDeadline(signal, tokens.withToken(
-        connectionId,
-        () => {
-          issued += 1
-          return authenticate(connector, adapter, connectionId, signal, trace)
-        },
-        async (lease) => {
-          attempt += 1
-          const before = issued
-          let token: AccessToken
-          try {
-            token = await lease()
-          } catch (error) {
-            // A lease that fails while this call issued nothing failed on another call's authentication.
-            if (issued === before) trace.joined('authenticate', resultOf(error))
-            throw error
-          }
-          const request = () => trace.request(service, (answer) => {
-            answered = answer
-            return sendNative({ method, url, body, token, signal, responseBytes: nativeLimits.responseBytes, protocol }, answer)
-          }, fetchResultOf)
-          return protocol.oneRequestPerToken ? inLane(token, request) : request()
-        },
-      ))
-    } catch (error) {
-      const code = codeOf(error, signal)
-      // A token refused twice is the vendor's answer to the service request, so its status is the consumer's to see.
-      const status = error instanceof AdapterFailure && error.reason === 'TOKEN_REFUSED' ? answered.httpStatus : undefined
-      return status === undefined ? refused(code) : Object.freeze({ ok: false, code, status })
-    }
-  }
+  const dependencies: Dependencies = { store, envelope, tokens, nativeLimits }
 
   /** The request admitted for one of the consumer's bindings, or its refusal: no network, no budget spent. */
   const admitFetch = async (consumer: Consumer, request: unknown, at: number, signal?: AbortSignal): Promise<Admission> => {
     const parsed = parseNativeRequest(request, nativeLimits)
     if (!parsed.ok) return { ok: false, refusal: refused('INPUT_REFUSED', parsed.issues), binding: null, connector: null }
     const { connection, method, path, query, body } = parsed.request
-    const scope = consumer?.scope
+    const { scope } = consumer
     if (!isMintedScope(scope, at)) return { ok: false, refusal: refused('NOT_GRANTED'), binding: null, connector: null }
     let bindings: readonly BoundConnection[]
     try {
-      const lookup = store.listBindings({ projectId: scope.projectId, environment: scope.environment })
+      const lookup = store.listBindings(scope)
       bindings = await (signal ? untilDeadline(signal, lookup) : lookup)
     } catch (error) {
       return { ok: false, refusal: refused(signal?.aborted ? 'PROVIDER_TIMEOUT' : platformFault(error)), binding: null, connector: null }
     }
     const binding = bindings.find((candidate) => candidate.name === connection)
     if (!binding) return { ok: false, refusal: refused('NOT_GRANTED'), binding: null, connector: null }
-    const connector = connectors.find((candidate) => candidate.definition.id === binding.connectorId) ?? null
+    const connector = connectors.get(binding.connectorId) ?? null
     const adapter = connector?.adapter
     if (!connector || !adapter) return { ok: false, refusal: refused('CONNECTOR_UNCONFIGURED'), binding, connector }
     const url = pinnedUrl(path, query, adapter.origin)
     if (!url) return { ok: false, refusal: refused('INPUT_REFUSED', ['/path']), binding, connector }
     const admitted = connector.definition.native.admit({ method, url, body: body?.plain })
     if (!admitted.ok) return { ok: false, refusal: refused(admitted.code, admitted.issues), binding, connector }
-    return { ok: true, scope, binding, target: { connector, adapter, connectionId: binding.connectionId, service: admitted.service, method, url, body } }
+    return { ok: true, scope, binding, target: { connector, adapter, scope, connectionId: binding.connectionId, service: admitted.service, method, url, body } }
   }
 
   const executeFetch = async (consumer: Consumer, request: unknown, at: number, span: AnySpan, signal: AbortSignal): Promise<FetchResult> => {
@@ -222,8 +225,8 @@ export const createBroker = ({
     }
     if (!admission.ok) return admission.refusal
     if (signal.aborted) return refused('PROVIDER_TIMEOUT')
-    if (!spendCall(admission.scope)) return refused('CALL_LIMIT')
-    return sendOnToken(admission.target, span, signal)
+    if (!admission.scope.spend()) return refused('CALL_LIMIT')
+    return sendOnToken(dependencies, admission.target, span, signal)
   }
 
   return Object.freeze({
@@ -242,8 +245,8 @@ export const createBroker = ({
       // One deadline from entry, over the binding lookup, authentication and the vendor request alike.
       const signal = AbortSignal.timeout(Math.min(nativeLimits.deadlineMs, options.deadlineMs ?? Infinity))
       const span = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.fetch', metadata: {
-        consumer: recordedKind(consumer),
-        projectId: isMintedScope(consumer?.scope, at) ? consumer.scope.projectId : null,
+        consumer: consumer.kind,
+        projectId: isMintedScope(consumer.scope, at) ? consumer.scope.projectId : null,
         connection: null,
         connector: null,
       } })
@@ -256,8 +259,8 @@ export const createBroker = ({
       endSpan(span, result.ok ? 'OK' : result.code)
       return result
     },
-    async checkCredential(connectorId: ConnectorId, connectionId: ConnectionId): Promise<BrokerResult<null>> {
-      const connector = adapterOf(connectorId)
+    async checkCredential(connectorId: string, sealed: string): Promise<BrokerResult<null>> {
+      const connector = connectors.get(connectorId)
       const adapter = connector?.adapter
       const span = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.check', metadata: {
         connector: connector ? connectorId : 'unknown',
@@ -268,7 +271,7 @@ export const createBroker = ({
       } else {
         const signal = AbortSignal.timeout(deadlineMs)
         try {
-          await untilDeadline(signal, authenticate(connector, adapter, connectionId, signal, requestTrace(span, () => 1, signal)))
+          await untilDeadline(signal, issueToken(dependencies, connector, adapter, sealed, signal, requestTrace(span, () => 1, signal)))
           result = Object.freeze({ ok: true, value: null })
         } catch (error) {
           result = refused(codeOf(error, signal))

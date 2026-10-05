@@ -1,22 +1,16 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import test from 'node:test'
-import pg from 'pg'
 import { EXPECTED_NATIVE_ORDER, FAKE_CREDENTIAL, NATIVE_ORDER_DATASET, startFakeGateway } from './connector-fake-gateway.mjs'
 import { createRestAdapter, REST_ACCOUNTS, REST_CONNECTOR_ID, restDefinition, startFakeRest } from './connector-fake-rest.mjs'
 import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
-import { buildHubDatabase } from './hub-database.mjs'
+import { setupConnectors, skip } from './connector-fixture.mjs'
 
-const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD'].every((name) => process.env[name])
-const skip = configured ? false : 'real PostgreSQL configuration not supplied'
 
-const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
-const { createBrokerStore, createConnectorStore } = await import(hubModuleUrl('connectors/store.js'))
+const { createBroker, registryOf } = await import(hubModuleUrl('connectors/broker.js'))
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
-const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
-const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
 
 const LOAD = 'CRUDServiceProvider.loadRecords'
 const ROUTE = '/gateway/v1/mge/service.sbr'
@@ -35,67 +29,33 @@ const read = (connection, overrides = {}) => ({
 })
 const records = (connection) => ({ connection, method: 'GET', path: '/v1/records' })
 
-// broker.fetch over the Hub's real schema: hub_iam_runtime runs the broker's functions, the Workspace
-// owner binds through connector.bind_connection, and the Project's bindings are read on every fetch.
 const setup = async (t) => {
-  const fixture = await buildHubDatabase(t, 'connector_fetch')
-  const owner = new pg.Client({ connectionString: fixture.connectionString })
-  await owner.connect()
-  const runtimePool = new pg.Pool({ connectionString: fixture.connectionString, options: '-c role=hub_iam_runtime', max: 4 })
-  runtimePool.on('error', () => {})
-  fixture.onCleanup(() => owner.end())
-  fixture.onCleanup(() => runtimePool.end())
-
-  const admin = randomUUID()
-  await owner.query('INSERT INTO iam.account(account_id, issuer, external_subject, display_name, email, active) VALUES ($1,$2,$3,$4,$5,true)',
-    [admin, 'https://connector-fetch.test', admin, 'admin', 'admin@connector-fetch.test'])
-  await owner.query("INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')", [admin])
-  const workspaceId = randomUUID()
-  await owner.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1,$2)', [workspaceId, 'purchasing'])
-  await owner.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,'owner')", [admin, workspaceId])
-  const project = async (name) => {
-    const projectId = randomUUID()
-    await owner.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1,$2,$3,'NEW',$4,$5)",
-      [projectId, workspaceId, name, 'a'.repeat(40), name])
-    return projectId
-  }
-  const archive = (projectId, archived) => owner.query('UPDATE project.project SET archived = $2 WHERE project_id = $1', [projectId, archived])
-
-  const envelope = createSecretEnvelope('ab'.repeat(32))
-  const store = createConnectorStore({ pool: runtimePool, envelope })
-  const connection = async (connectorId, label, credential) => {
-    const connectionId = randomUUID()
-    await store.createConnection({ actor: admin, connectionId, workspaceId, connectorId, label, credential })
-    return connectionId
-  }
-  const bind = (projectId, connectionId, name) => store.bindConnection({ actor: admin, projectId, connectionId, name })
-  const unbind = (projectId, bindingId) => store.unbindConnection({ actor: admin, projectId, bindingId })
-  const disable = (connectionId) => store.disableConnection({ actor: admin, workspaceId, connectionId })
-
+  const fixture = await setupConnectors(t, 'connector_fetch')
+  const { database, envelope, brokerStore, addConnection, bind, unbind, disable, archive, scopeOf, seedProject } = fixture
   const fake = await startFakeGateway()
   const other = await startFakeGateway()
   const rest = await startFakeRest()
   t.after(() => Promise.all([fake.close(), other.close(), rest.close()]))
   const broker = createBroker({
-    connectors: [
+    connectors: registryOf([
       { definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) },
       { definition: restDefinition, adapter: createRestAdapter({ origin: rest.origin }) },
-    ],
-    store: createBrokerStore(runtimePool), envelope, observability: connectorRecord().observability,
+    ]),
+    store: brokerStore, envelope, observability: connectorRecord().observability,
   })
-  const fetchAs = (projectId, request) => broker.fetch({ kind: 'handler', invocationId: randomUUID(), scope: scopeFromArtifactSource({ via: 'PREVIEW', projectId }) }, request)
+  const fetchAs = (projectId, request) => broker.fetch({ kind: 'handler', invocationId: randomUUID(), scope: scopeOf(projectId) }, request)
   const sent = () => fake.requests.length + other.requests.length + rest.requests.length
   const assertPinned = () => {
     assert.deepEqual([...new Set(fake.requests.map(({ origin }) => origin))], fake.requests.length ? [fake.origin] : [])
     assert.deepEqual([...new Set(rest.requests.map(({ origin }) => origin))], rest.requests.length ? [rest.origin] : [])
     assert.deepEqual(other.requests, [])
   }
-  return { project, archive, connection, bind, unbind, disable, fetchAs, sent, assertPinned, fake, rest }
+  return { database, project: seedProject, archive, addConnection, bind, unbind, disable, fetchAs, sent, assertPinned, fake, rest }
 }
 
 test('P6: a Project with no binding of that name, and a request naming another Project, read nothing', { skip }, async (t) => {
-  const { project, connection, bind, fetchAs, sent, assertPinned } = await setup(t)
-  const erp = await connection('sankhya', 'ERP', FAKE_CREDENTIAL)
+  const { project, addConnection, bind, fetchAs, sent, assertPinned } = await setup(t)
+  const erp = await addConnection('sankhya', 'ERP', FAKE_CREDENTIAL)
   const projectA = await project('a')
   const projectB = await project('b')
   await bind(projectA, erp, 'erp')
@@ -112,14 +72,14 @@ test('P6: a Project with no binding of that name, and a request naming another P
 })
 
 test('P8: unbinding refuses the next fetch, an archived Project reads nothing, and disabling the Connection refuses every Project bound to it', { skip }, async (t) => {
-  const { project, archive, connection, bind, unbind, disable, fetchAs, sent, assertPinned } = await setup(t)
-  const erp = await connection('sankhya', 'ERP', FAKE_CREDENTIAL)
+  const { project, archive, addConnection, bind, unbind, disable, fetchAs, sent, assertPinned } = await setup(t)
+  const erp = await addConnection('sankhya', 'ERP', FAKE_CREDENTIAL)
   const [unbound, archived, first, second] = [await project('unbound'), await project('archived'), await project('first'), await project('second')]
   const bindingOf = {}
   for (const projectId of [unbound, archived, first, second]) bindingOf[projectId] = (await bind(projectId, erp, 'erp')).bindingId
   for (const projectId of [unbound, archived, first, second]) assert.deepEqual(await fetchAs(projectId, read('erp')), ORDER_READ)
 
-  assert.equal(await unbind(unbound, bindingOf[unbound]), true)
+  await unbind(unbound, bindingOf[unbound])
   let before = sent()
   assert.deepEqual(await fetchAs(unbound, read('erp')), NOT_GRANTED)
   assert.equal(sent(), before, 'the removed binding sent nothing')
@@ -131,7 +91,7 @@ test('P8: unbinding refuses the next fetch, an archived Project reads nothing, a
   await archive(archived, false)
   assert.deepEqual(await fetchAs(archived, read('erp')), ORDER_READ)
 
-  assert.equal(await disable(erp), true)
+  await disable(erp)
   before = sent()
   for (const projectId of [archived, first, second]) assert.deepEqual(await fetchAs(projectId, read('erp')), NOT_GRANTED)
   assert.equal(sent(), before, 'refused before the network, although the token is still cached')
@@ -139,12 +99,12 @@ test('P8: unbinding refuses the next fetch, an archived Project reads nothing, a
 })
 
 test('several Connections of one integrator: two Sankhya accounts bound to one Project under two names each authenticate with their own credential and token', { skip }, async (t) => {
-  const { project, connection, bind, fetchAs, fake, assertPinned } = await setup(t)
+  const { project, addConnection, bind, fetchAs, fake, assertPinned } = await setup(t)
   const matriz = { clientId: 'client-matriz', clientSecret: 'secret-matriz-1a7e', xToken: 'x-token-matriz' }
   const filial = { clientId: 'client-filial', clientSecret: 'secret-filial-9c3b', xToken: 'x-token-filial' }
   const projectId = await project('compras')
-  await bind(projectId, await connection('sankhya', 'ERP matriz', matriz), 'erp')
-  await bind(projectId, await connection('sankhya', 'ERP filial', filial), 'filial')
+  await bind(projectId, await addConnection('sankhya', 'ERP matriz', matriz), 'erp')
+  await bind(projectId, await addConnection('sankhya', 'ERP filial', filial), 'filial')
 
   assert.deepEqual(await fetchAs(projectId, read('erp')), ORDER_READ)
   assert.deepEqual(await fetchAs(projectId, read('filial')), ORDER_READ)
@@ -160,10 +120,10 @@ test('several Connections of one integrator: two Sankhya accounts bound to one P
 })
 
 test('the generic seam on stored rows: two Connections of the synthetic REST integrator bound as crm-a and crm-b each reach only their own account', { skip }, async (t) => {
-  const { project, connection, bind, fetchAs, sent, rest, fake, assertPinned } = await setup(t)
+  const { project, addConnection, bind, fetchAs, sent, rest, fake, assertPinned } = await setup(t)
   const credentialOf = (account) => ({ clientId: REST_ACCOUNTS[account].clientId, clientSecret: REST_ACCOUNTS[account].clientSecret })
-  const crmA = await connection(REST_CONNECTOR_ID, 'CRM A', credentialOf('account-a'))
-  const crmB = await connection(REST_CONNECTOR_ID, 'CRM B', credentialOf('account-b'))
+  const crmA = await addConnection(REST_CONNECTOR_ID, 'CRM A', credentialOf('account-a'))
+  const crmB = await addConnection(REST_CONNECTOR_ID, 'CRM B', credentialOf('account-b'))
   const both = await project('both')
   const onlyA = await project('only-a')
   await bind(both, crmA, 'crm-a')

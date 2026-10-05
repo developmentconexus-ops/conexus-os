@@ -9,6 +9,8 @@ import { query } from './hub-database.mjs'
 import { ID, STARTER, setupProjects } from './project-fixture.mjs'
 
 const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
+const { createConnectorStore, purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
+const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
 const { createWorkspaceStore } = await import(hubModuleUrl('workspace/store.js'))
 const { createServedApplicationReader } = await import(hubModuleUrl('registry/served-application.js'))
 
@@ -23,6 +25,11 @@ const recording = (database, entries) => new Proxy(database, {
 const CENSUS = JSON.parse(readFileSync(resolve(import.meta.dirname, '../../contracts/technical/hub-catalog-census.json'), 'utf8'))
 
 const OTHER = Object.freeze({ owner: '10000000-0000-4000-8000-0000000000b1', member: '10000000-0000-4000-8000-0000000000b2' })
+const CONNECTION = Object.freeze({
+  a: '33333333-3333-4333-8333-0000000000a1', spare: '33333333-3333-4333-8333-0000000000a2', created: '33333333-3333-4333-8333-0000000000a3', b: '33333333-3333-4333-8333-0000000000b1',
+})
+const BINDING_B = '44444444-4444-4444-8444-0000000000b1'
+const SEALED = 'mastra:factory-secret:v1:seed'
 
 // How each split table reaches tenant B: $1 is B's Workspace, $2 is B's Project. A split table in the
 // register without an entry here, or without a seeded row of B, fails the test below.
@@ -33,6 +40,8 @@ const TENANT_B = Object.freeze({
   'project.project_deletion': 'workspace_id = $1',
   'builder.builder_run': 'project_id = $2',
   'builder.project_working_state': 'project_id = $2',
+  'connector.connection': 'workspace_id = $1',
+  'connector.project_binding': 'workspace_id = $1',
   'iam.account': 'account_id IN (SELECT account_id FROM iam.workspace_membership WHERE workspace_id = $1)',
   'iam.workspace_membership': 'workspace_id = $1',
 })
@@ -57,6 +66,10 @@ const seedTenantB = async ({ connection, seedProject }, projectId) => {
   await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $3, 'owner'), ($2, $3, 'member')", [OTHER.owner, OTHER.member, ID.otherWorkspace])
   const doomed = await seedProject('Doomed', ID.otherWorkspace)
   await query(connection, "INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Doomed', $3)", [doomed, ID.otherWorkspace, OTHER.owner])
+  await query(connection, `INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by) VALUES
+    ($1, $2, 'sankhya', 'ERP B', $3, $4, $5)`, [CONNECTION.b, ID.otherWorkspace, SEALED, 'd'.repeat(64), ID.administrator])
+  await query(connection, `INSERT INTO connector.project_binding(binding_id, workspace_id, project_id, environment, connection_id, name, bound_by) VALUES
+    ($1, $2, $3, 'preview', $4, 'erp', $5)`, [BINDING_B, ID.otherWorkspace, projectId, CONNECTION.b, OTHER.owner])
   await query(connection, `INSERT INTO platform.operation_receipt(operation_id, authority, account_id, key_digest, request_digest, resource_id, state)
     VALUES ('PRJ-03', 'account:b', $1, $2, $3, $4, 'reserved')`, [OTHER.owner, Buffer.from('k'), Buffer.from('r'), projectId])
 }
@@ -95,12 +108,15 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   await seedTenantB(fixture, projectB)
   for (const [table, rows] of await rowsOfB(connection, projectB)) assert.ok(rows.length > 0, `${table} has a seeded row of tenant B`)
   const thumbnailA = Buffer.from('thumbnail-of-a')
+  await query(connection, `INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by) VALUES
+    ($1, $3, 'sankhya', 'ERP', $5, $6, $4), ($2, $3, 'sankhya', 'Spare', $5, $6, $4)`, [CONNECTION.a, CONNECTION.spare, ID.workspace, ID.administrator, SEALED, 'd'.repeat(64)])
   const revisionA = await seedThumbnail(connection, projectA, thumbnailA)
   await seedThumbnail(connection, projectB, Buffer.from('thumbnail-of-b'))
   const entries = []
   const database = recording(fixture.database, entries)
-  const projects = createProjectStore({ database, repository: { prepare: async () => STARTER }, deletion: { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => undefined } })
+  const projects = createProjectStore({ database, repository: { prepare: async () => STARTER }, deletion: { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => undefined, purgeConnectorBindings: purgeProjectBindings } })
   const workspaces = createWorkspaceStore(database)
+  const connectors = createConnectorStore({ database, envelope: createSecretEnvelope('ab'.repeat(32)) })
   const served = createServedApplicationReader(database)
   const member = ID.member
   const before = await digestOfB(connection, projectB)
@@ -112,6 +128,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   // own: admission passes on the tenant's own ids and the answer holds the tenant's literal rows.
   // cross: the same call with the ids of tenant B answers its refusal and nothing of B.
   // child: null while no operation takes a child id of a tenant.
+  let bindingOfA
   const attempts = {
     'WS-01': {
       own: async () => {
@@ -164,6 +181,63 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       },
       cross: async () => assert.equal(await served.readThumbnail({ accountId: member, projectId: projectB }), null),
       child: null,
+    },
+    'CON-01': {
+      own: async () => assert.deepEqual(await connectors.listConnections({ accountId: ID.administrator, workspaceId: ID.workspace }), [
+        { connectionId: CONNECTION.a, connectorId: 'sankhya', label: 'ERP', createdAt: (await query(connection, 'SELECT created_at FROM connector.connection WHERE connection_id = $1', [CONNECTION.a])).rows[0].created_at.toISOString() },
+        { connectionId: CONNECTION.spare, connectorId: 'sankhya', label: 'Spare', createdAt: (await query(connection, 'SELECT created_at FROM connector.connection WHERE connection_id = $1', [CONNECTION.spare])).rows[0].created_at.toISOString() },
+      ]),
+      cross: () => assert.rejects(connectors.listConnections({ accountId: member, workspaceId: ID.otherWorkspace }), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' }),
+      child: null,
+    },
+    'CON-02': {
+      own: async () => {
+        const created = await connectors.createConnection({ accountId: ID.administrator, workspaceId: ID.workspace, body: { connectionId: CONNECTION.created, connectorId: 'sankhya', label: 'Mine', credential: { clientId: 'c', clientSecret: 's', xToken: 'x' } } })
+        assert.deepEqual({ created: created.created, label: created.connection.label, connectionId: created.connection.connectionId }, { created: true, label: 'Mine', connectionId: CONNECTION.created })
+      },
+      cross: () => assert.rejects(connectors.createConnection({ accountId: member, workspaceId: ID.otherWorkspace, body: { connectionId: randomUUID(), connectorId: 'sankhya', label: 'Intruder', credential: { clientId: 'c', clientSecret: 's', xToken: 'x' } } }), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' }),
+      child: null,
+    },
+    'CON-03': {
+      own: async () => assert.deepEqual(await connectors.readCredentialForCheck({ accountId: ID.administrator, workspaceId: ID.workspace, connectionId: CONNECTION.a }), { connectorId: 'sankhya', sealed: SEALED }),
+      cross: () => assert.rejects(connectors.readCredentialForCheck({ accountId: member, workspaceId: ID.otherWorkspace, connectionId: CONNECTION.b }), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' }),
+      child: () => assert.rejects(connectors.readCredentialForCheck({ accountId: ID.administrator, workspaceId: ID.workspace, connectionId: CONNECTION.b }), { id: 'CONNECTOR_CONNECTION_NOT_FOUND' }),
+    },
+    'CON-04': {
+      own: async () => {
+        await connectors.disableConnection({ accountId: ID.administrator, workspaceId: ID.workspace, connectionId: CONNECTION.spare })
+        assert.deepEqual((await query(connection, 'SELECT disabled_at IS NOT NULL AS disabled FROM connector.connection WHERE connection_id = $1', [CONNECTION.spare])).rows, [{ disabled: true }])
+      },
+      cross: () => assert.rejects(connectors.disableConnection({ accountId: member, workspaceId: ID.otherWorkspace, connectionId: CONNECTION.b }), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' }),
+      child: () => assert.rejects(connectors.disableConnection({ accountId: ID.administrator, workspaceId: ID.workspace, connectionId: CONNECTION.b }), { id: 'CONNECTOR_CONNECTION_NOT_FOUND' }),
+    },
+    'CON-08': {
+      own: async () => assert.deepEqual(await connectors.listProjectBindings({ accountId: ID.owner, projectId: projectA }), [
+        { kind: 'bindable', connectionId: CONNECTION.a, connectorId: 'sankhya', label: 'ERP' },
+        { kind: 'bindable', connectionId: CONNECTION.created, connectorId: 'sankhya', label: 'Mine' },
+      ]),
+      cross: () => assert.rejects(connectors.listProjectBindings({ accountId: ID.owner, projectId: projectB }), { id: 'PROJECT_NOT_FOUND' }),
+      child: null,
+    },
+    'CON-09': {
+      own: async () => {
+        const { binding: bound, created } = await connectors.bindConnection({ accountId: ID.owner, projectId: projectA, body: { connectionId: CONNECTION.a, name: 'erp' } })
+        bindingOfA = bound.bindingId
+        assert.deepEqual({ created, name: bound.name, connectionId: bound.connectionId, connectorId: bound.connectorId }, { created: true, name: 'erp', connectionId: CONNECTION.a, connectorId: 'sankhya' })
+      },
+      cross: async () => {
+        await assert.rejects(connectors.bindConnection({ accountId: ID.owner, projectId: projectB, body: { connectionId: CONNECTION.b, name: 'erp' } }), { id: 'PROJECT_NOT_FOUND' })
+        await assert.rejects(connectors.bindConnection({ accountId: ID.owner, projectId: projectA, body: { connectionId: CONNECTION.b, name: 'intruder' } }), { id: 'CONNECTOR_CONNECTION_NOT_AVAILABLE' })
+      },
+      child: null,
+    },
+    'CON-10': {
+      own: async () => {
+        await connectors.unbindConnection({ accountId: ID.owner, projectId: projectA, bindingId: bindingOfA })
+        assert.deepEqual((await query(connection, 'SELECT unbound_at IS NOT NULL AS unbound FROM connector.project_binding WHERE binding_id = $1', [bindingOfA])).rows, [{ unbound: true }])
+      },
+      cross: () => assert.rejects(connectors.unbindConnection({ accountId: ID.owner, projectId: projectB, bindingId: BINDING_B }), { id: 'PROJECT_NOT_FOUND' }),
+      child: () => assert.rejects(connectors.unbindConnection({ accountId: ID.owner, projectId: projectA, bindingId: BINDING_B }), { id: 'CONNECTOR_BINDING_NOT_FOUND' }),
     },
   }
   assert.deepEqual(Object.keys(attempts).sort(), OPERATIONS.map((operation) => operation.id).sort(), 'every operation of the contract has its attempts')

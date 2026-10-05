@@ -35,13 +35,11 @@ const asComponent = (schema, components, io) => {
   const json = z.toJSONSchema(schema, { io })
   for (const [name, definition] of Object.entries(json.$defs ?? {})) {
     const normalized = JSON.parse(JSON.stringify(definition).replaceAll('#/$defs/', '#/components/schemas/'))
-    delete normalized.failureCode
     if (components[name] && JSON.stringify(components[name]) !== JSON.stringify(normalized)) throw new Error(`OPENAPI_SCHEMA_COLLISION: ${name}`)
     components[name] = normalized
   }
   delete json.$schema
   delete json.$defs
-  delete json.failureCode
   return JSON.parse(JSON.stringify(json).replaceAll('#/$defs/', '#/components/schemas/'))
 }
 
