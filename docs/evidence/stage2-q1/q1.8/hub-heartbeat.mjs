@@ -14,9 +14,7 @@ try {
   await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' })
   const call = (method, path, body) => page.evaluate(async ([m, p, b]) => {
     const started = performance.now()
-    // A mutation carries the session's CSRF cookie back as a header, as the Hub's own client does.
-    const csrf = document.cookie.split('; ').find((entry) => entry.startsWith('__Host-conexus_csrf='))?.split('=')[1]
-    const headers = { ...(b ? { 'content-type': 'application/json' } : {}), ...(m !== 'GET' && csrf ? { 'x-conexus-csrf': csrf } : {}) }
+    const headers = b ? { 'content-type': 'application/json' } : {}
     const response = await fetch(p, { method: m, credentials: 'same-origin', headers, body: b ? JSON.stringify(b) : undefined })
     const text = await response.text()
     let json = null

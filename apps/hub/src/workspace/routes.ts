@@ -1,12 +1,10 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify'
-import type { ResolveCurrentSession } from '../identity-access/current-session.js'
+import type { FastifyInstance } from 'fastify'
 import { WORKSPACE_GENERATED_ROUTES } from '../generated/workspace-routes.js'
 import type { WorkspaceOwnerId, Ws01Body, Ws02Params } from '../generated/workspace-routes.js'
 import { Failure } from '../platform/failure.js'
 import type { WorkspaceStore } from './store.js'
-import { isExactOrigin } from '../platform/origin.js'
+import { routes } from '../http/access.js'
 
-const CSRF_COOKIE = '__Host-conexus_csrf'
 const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 // A path id that is not a UUID reaches PostgreSQL as 22P02: no such Workspace.
 const unknownWorkspace = (error: unknown): never => {
@@ -15,29 +13,18 @@ const unknownWorkspace = (error: unknown): never => {
 
 export type WorkspaceRouteDependencies = Readonly<{
   store: WorkspaceStore
-  resolveCurrentSession: ResolveCurrentSession
-  config: Readonly<{ origin: string }>
 }>
 
 export const registerWorkspaceRoutes = async (
   app: FastifyInstance,
-  { store, resolveCurrentSession, config }: WorkspaceRouteDependencies,
+  { store }: WorkspaceRouteDependencies,
 ): Promise<readonly WorkspaceOwnerId[]> => {
-  const authentic = (request: FastifyRequest): void => {
-    const requestCsrf = header(request.headers['x-conexus-csrf'])
-    if (!isExactOrigin(request.headers.origin, config.origin) || !requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) throw new Failure('REQUEST_AUTHENTICITY_DENIED')
-  }
-  const signedIn = async (request: FastifyRequest, write = false): Promise<string> => {
-    const current = await resolveCurrentSession(request, write)
-    if (!current) throw new Failure('AUTHENTICATION_REQUIRED')
-    return current.account.accountId
-  }
+  const route = routes(app)
 
-  app.route<{ Body: Ws01Body }>({
+  route.session<{ Body: Ws01Body }>({
     ...WORKSPACE_GENERATED_ROUTES['WS-01'],
-    handler: async (request, reply) => {
-      authentic(request)
-      const accountId = await signedIn(request, true)
+    handler: async (request, reply, session) => {
+      const accountId = session.account.accountId
       const idempotencyKey = header(request.headers['idempotency-key'])
       if (!idempotencyKey) throw new Failure('IDEMPOTENCY_KEY_REQUIRED')
       const { replayed: _replayed, ...body } = await store.createWorkspace({ accountId, idempotencyKey, name: request.body.name })
@@ -45,10 +32,10 @@ export const registerWorkspaceRoutes = async (
     },
   })
 
-  app.route<{ Params: Ws02Params }>({
+  route.session<{ Params: Ws02Params }>({
     ...WORKSPACE_GENERATED_ROUTES['WS-02'],
-    handler: async (request) => {
-      const accountId = await signedIn(request)
+    handler: async (request, _reply, session) => {
+      const accountId = session.account.accountId
       const workspace = await store.getWorkspace({ accountId, workspaceId: request.params.workspaceId }).catch(unknownWorkspace)
       if (!workspace) throw new Failure('WORKSPACE_NOT_FOUND')
       return workspace

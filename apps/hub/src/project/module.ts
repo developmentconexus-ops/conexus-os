@@ -8,7 +8,6 @@ import { registerProjectSummaryRoutes } from './summary-routes.js'
 import type { ProjectSummaryOperationId } from './summary-routes.js'
 import { registerProjectThumbnailRoutes } from './thumbnail-routes.js'
 import type { ProjectThumbnailOperationId, ProjectThumbnailReader } from './thumbnail-routes.js'
-import type { ResolveCurrentSession } from '../identity-access/current-session.js'
 import { createProjectStore } from './store.js'
 import type { ProjectRepositoryPort } from './store.js'
 import type { ProjectDeletionPorts } from './deletion.js'
@@ -25,24 +24,20 @@ const createProjectModule = ({
   readPool,
   repository,
   deletion,
-  origin,
-  resolveCurrentSession,
   thumbnailReader,
 }: Readonly<{
   commandPool: PostgresPool
   readPool: PostgresPool
   repository: ProjectRepositoryPort
   deletion: ProjectDeletionPorts
-  origin: string
-  resolveCurrentSession: ResolveCurrentSession
   thumbnailReader?: ProjectThumbnailReader | undefined
 }>): ProjectModule => {
   const store = createProjectStore({ commandPool, readPool, repository, deletion })
   return Object.freeze({
     registerProjectRoutes: async (app: FastifyInstance) => [
-      ...await registerProjectRoutes(app, { store, resolveCurrentSession, origin }),
-      ...await registerProjectSummaryRoutes(app, { store, resolveCurrentSession }),
-      ...(thumbnailReader ? await registerProjectThumbnailRoutes(app, { reader: thumbnailReader, resolveCurrentSession }) : []),
+      ...await registerProjectRoutes(app, { store }),
+      ...await registerProjectSummaryRoutes(app, { store }),
+      ...(thumbnailReader ? await registerProjectThumbnailRoutes(app, { reader: thumbnailReader }) : []),
     ],
     readProjectName: async (input) => (await store.getProject(input))?.name ?? null,
     close: async () => {
@@ -56,16 +51,12 @@ export const createConfiguredProjectModule = ({
   project,
   repository,
   deletion,
-  origin,
-  resolveCurrentSession,
   thumbnailReader,
 }: Readonly<{
   database: Readonly<{ host: string; port: number; database: string }>
   project: ProjectRuntimeConfig
   repository: ProjectRepositoryPort
   deletion: ProjectDeletionPorts
-  origin: string
-  resolveCurrentSession: ResolveCurrentSession
   thumbnailReader?: ProjectThumbnailReader | undefined
 }>): ProjectModule => createProjectModule({
   commandPool: createPostgresPool({
@@ -80,7 +71,5 @@ export const createConfiguredProjectModule = ({
   }),
   repository,
   deletion,
-  origin,
-  resolveCurrentSession,
   ...(thumbnailReader ? { thumbnailReader } : {}),
 })

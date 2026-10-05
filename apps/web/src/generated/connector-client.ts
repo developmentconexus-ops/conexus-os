@@ -1,5 +1,5 @@
 // GENERATED from contracts/api/product/openapi.yaml by scripts/generate-connector-contracts.mjs. Do not edit.
-export const CONNECTOR_PRODUCT_OAS_DIGEST = "ee4a506205e3cd08549d3cdbebf5a25c1162c8a5cf10cd76abb6d99d044aa1e4"
+export const CONNECTOR_PRODUCT_OAS_DIGEST = "f4b9c6939bbe81986098965a89ef7d158f12ba703999d0e37a31111d6d2b55c8"
 export const CONNECTOR_ROUTE_PROJECTION_DIGEST = "3ef9015fdcacceec3e5c747a50a2404848f7dea6039b3d07093173290049f191"
 export type ConnectorConnection = { "connectionId": string; "connectorId": "sankhya"; "label": string; "createdAt": string; "disabledAt"?: string }
 export type CreateWorkspaceConnectionInput = { "connectionId": string; "connectorId": "sankhya"; "label": string; "credential": { "clientId": string; "clientSecret": string; "xToken": string } }
@@ -8,8 +8,7 @@ export type ConnectionBindingEntry = { "kind": "binding"; "bindingId": string; "
 export type BindProjectConnectionInput = { "connectionId": string; "name": string }
 export type ConnectionBinding = { "kind": "binding"; "bindingId": string; "name": string; "connectionId": string; "connectorId": "sankhya"; "label": string; "boundAt": string }
 export const BINDING_NAME_PATTERN = new RegExp("^[a-z][a-z0-9-]{0,39}$")
-const csrf = () => document.cookie.split('; ').find((item) => item.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')
-const request = async (url: string, init: RequestInit = {}) => fetch(url, { ...init, credentials: 'same-origin', headers: { ...(init.headers ?? {}), ...(init.method && init.method !== 'GET' ? { 'x-conexus-csrf': decodeURIComponent(csrf() ?? '') } : {}) } })
+const request = async (url: string, init: RequestInit = {}) => fetch(url, { ...init, credentials: 'same-origin' })
 export const connectorClient = Object.freeze({
   listWorkspaceConnections: (workspaceId: string) => request(`/api/control/workspaces/${encodeURIComponent(workspaceId)}/connections`),
   createWorkspaceConnection: (workspaceId: string, body: CreateWorkspaceConnectionInput) => request(`/api/control/workspaces/${encodeURIComponent(workspaceId)}/connections`, { method: "POST", headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),

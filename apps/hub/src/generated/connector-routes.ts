@@ -1,7 +1,7 @@
 // GENERATED from contracts/api/product/openapi.yaml by scripts/generate-connector-contracts.mjs. Do not edit.
 import type { FastifySchema } from 'fastify'
 
-export const CONNECTOR_PRODUCT_OAS_DIGEST = "ee4a506205e3cd08549d3cdbebf5a25c1162c8a5cf10cd76abb6d99d044aa1e4"
+export const CONNECTOR_PRODUCT_OAS_DIGEST = "f4b9c6939bbe81986098965a89ef7d158f12ba703999d0e37a31111d6d2b55c8"
 export const CONNECTOR_ROUTE_PROJECTION_DIGEST = "3ef9015fdcacceec3e5c747a50a2404848f7dea6039b3d07093173290049f191"
 export type ConnectorOwnerId = 'CON-01' | 'CON-02' | 'CON-03' | 'CON-04' | 'CON-08' | 'CON-09' | 'CON-10'
 export type ConnectorConnectionModel = { "connectionId": string; "connectorId": "sankhya"; "label": string; "createdAt": string; "disabledAt"?: string }

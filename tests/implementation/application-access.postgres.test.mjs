@@ -6,6 +6,8 @@ import { loadHubMigrationFiles, runHubMigrations, runMigrations } from '../../sc
 import { hubModuleUrl } from './hub-build.mjs'
 import { testPool } from './hub-database.mjs'
 
+const digestOf = (token) => createHash('sha256').update(token).digest()
+
 const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD'].every((name) => process.env[name])
 const connect = async (connection) => { const client = new pg.Client(connection); await client.connect(); return client }
 
@@ -386,7 +388,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.deepEqual(await sessions.applicationAuthority({ sessionToken: long, projectId, now: at(8 * 60 * 60 * 1000) }), { kind: 'SIGN_IN_REQUIRED' })
     assert.deepEqual((await client.query("SELECT ended_reason, provider_refresh_token FROM iam.host_session WHERE ended_reason = 'EXPIRED'")).rows,
       [{ ended_reason: 'EXPIRED', provider_refresh_token: null }])
-    assert.deepEqual(await refusal(() => client.query("UPDATE iam.host_session SET absolute_expires_at = absolute_expires_at + interval '1 minute'")),
+    assert.deepEqual(await refusal(() => client.query("UPDATE iam.host_session SET absolute_expires_at = started_at")),
       { code: '23514', message: 'new row for relation "host_session" violates check constraint "host_session_application_check"' })
   })
 
@@ -502,7 +504,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal(await outcomeOf(hub.applicationAuthority({ sessionToken, projectId, now: checkDue })), 'SIGN_IN_REQUIRED')
   })
 
-  await t.test('a Hub session keeps the sealed refresh token, slides its thirty-minute idle limit inside eight hours, and checks CSRF', async () => {
+  await t.test('a Hub session keeps the sealed refresh token, slides its thirty-minute idle limit inside eight hours', async () => {
     const hub = await sessions.openHub({ accountId: owner, refreshToken: 'refresh-hub-owner', now: T0 })
     const row = async () => (await client.query('SELECT provider_refresh_token, idle_expires_at, absolute_expires_at, ended_reason FROM iam.host_session WHERE token_digest = $1',
       [createHash('sha256').update(hub.sessionToken).digest()])).rows[0]
@@ -512,18 +514,18 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.equal(opened.idle_expires_at.getTime(), at(30 * 60 * 1000).getTime())
     assert.equal(opened.absolute_expires_at.getTime(), at(8 * 60 * 60 * 1000).getTime())
 
-    assert.equal(await sessions.resolveHub({ sessionToken: hub.sessionToken, csrfToken: 'w'.repeat(43), now: at(60_000) }), null, 'a wrong CSRF token')
+    assert.equal(await sessions.resolveHub(digestOf('w'.repeat(43)), at(60_000)), null, 'a digest no session has')
     assert.equal((await row()).idle_expires_at.getTime(), at(30 * 60 * 1000).getTime(), 'a refused request does not slide the idle limit')
-    const current = await sessions.resolveHub({ sessionToken: hub.sessionToken, csrfToken: hub.csrfToken, now: at(20 * 60 * 1000) })
+    const current = await sessions.resolveHub(digestOf(hub.sessionToken), at(20 * 60 * 1000))
     assert.deepEqual(current.account.accountId, owner)
     assert.equal((await row()).idle_expires_at.getTime(), at(50 * 60 * 1000).getTime(), 'a request slides the idle limit')
-    for (let minute = 45; minute < 8 * 60; minute += 25) assert.equal((await sessions.resolveHub({ sessionToken: hub.sessionToken, now: at(minute * 60 * 1000) }))?.account.accountId, owner, `minute ${minute}`)
-    assert.equal(await sessions.resolveHub({ sessionToken: hub.sessionToken, now: at(8 * 60 * 60 * 1000) }), null, 'eight hours, however active')
+    for (let minute = 45; minute < 8 * 60; minute += 25) assert.equal((await sessions.resolveHub(digestOf(hub.sessionToken), at(minute * 60 * 1000)))?.account.accountId, owner, `minute ${minute}`)
+    assert.equal(await sessions.resolveHub(digestOf(hub.sessionToken), at(8 * 60 * 60 * 1000)), null, 'eight hours, however active')
     assert.deepEqual({ ...(await row()), idle_expires_at: undefined, absolute_expires_at: undefined },
       { provider_refresh_token: null, ended_reason: 'EXPIRED', idle_expires_at: undefined, absolute_expires_at: undefined })
 
     const idle = await sessions.openHub({ accountId: owner, refreshToken: 'refresh-hub-idle', now: T0 })
-    assert.equal(await sessions.resolveHub({ sessionToken: idle.sessionToken, now: at(30 * 60 * 1000) }), null, 'thirty minutes without a request')
+    assert.equal(await sessions.resolveHub(digestOf(idle.sessionToken), at(30 * 60 * 1000)), null, 'thirty minutes without a request')
     assert.deepEqual(await refusal(() => client.query("UPDATE iam.host_session SET idle_expires_at = absolute_expires_at + interval '1 second' WHERE kind = 'HUB'")),
       { code: '23514', message: 'new row for relation "host_session" violates check constraint "host_session_hub_check"' })
   })
@@ -537,7 +539,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     const openWithPreview = async (refreshToken) => {
       const hub = await sessions.openHub({ accountId: owner, refreshToken, now: T0 })
       const launch = launchFor()
-      const { entryGrant } = await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch, now: T0 })
+      const { entryGrant } = await sessions.openPreview({ hubSessionDigest: digestOf(hub.sessionToken), launch, now: T0 })
       const preview = await sessions.redeem({ handoff: entryGrant, target: { kind: 'PREVIEW', exactHost: launch.exactHost }, now: at(1_000) })
       return { hub, preview, exactHost: launch.exactHost }
     }
@@ -548,23 +550,23 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     refreshes.length = 0
     providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-hub-2' }
     const active = await openWithPreview('refresh-hub-1')
-    assert.equal((await sessions.resolveHub({ sessionToken: active.hub.sessionToken, now: at(4 * 60 * 1000) }))?.account.accountId, owner)
+    assert.equal((await sessions.resolveHub(digestOf(active.hub.sessionToken), at(4 * 60 * 1000)))?.account.accountId, owner)
     assert.deepEqual(refreshes, [], 'not due before five minutes')
-    assert.equal((await sessions.resolveHub({ sessionToken: active.hub.sessionToken, now: due }))?.account.accountId, owner)
+    assert.equal((await sessions.resolveHub(digestOf(active.hub.sessionToken), due))?.account.accountId, owner)
     assert.deepEqual(refreshes, [{ refreshToken: 'refresh-hub-1', expectedSubject: owner }], 'due at five minutes, with the Hub session token')
     assert.equal(await envelope.open((await client.query('SELECT provider_refresh_token FROM iam.host_session WHERE token_digest = $1',
       [createHash('sha256').update(active.hub.sessionToken).digest()])).rows[0].provider_refresh_token), 'refresh-hub-2')
 
     refreshes.length = 0
     const concurrent = await openWithPreview('refresh-hub-3')
-    const answers = await Promise.all([1, 2, 3, 4].map(() => sessions.resolveHub({ sessionToken: concurrent.hub.sessionToken, now: due })))
+    const answers = await Promise.all([1, 2, 3, 4].map(() => sessions.resolveHub(digestOf(concurrent.hub.sessionToken), due)))
     assert.deepEqual(answers.map((answer) => answer?.account.accountId), [owner, owner, owner, owner], 'four concurrent Hub requests with the check due are all served')
     assert.ok(refreshes.length >= 1 && refreshes.length <= 4, `Keycloak was asked ${refreshes.length} times`)
 
     for (const [reason, endedReason] of [['USER_DISABLED', 'PROVIDER_USER_DISABLED'], ['SESSION_ENDED', 'PROVIDER_SESSION_ENDED']]) {
       const refused = await openWithPreview(`refresh-${reason}`)
       providerAnswer = { kind: 'REFUSED', reason }
-      assert.equal(await sessions.resolveHub({ sessionToken: refused.hub.sessionToken, now: due }), null, `${reason}: the Hub session ends`)
+      assert.equal(await sessions.resolveHub(digestOf(refused.hub.sessionToken), due), null, `${reason}: the Hub session ends`)
       assert.deepEqual(await ended(refused.hub.sessionToken), { ended_reason: endedReason, provider_refresh_token: null })
       assert.deepEqual(await ended(refused.preview.sessionToken), { ended_reason: 'PARENT_ENDED', provider_refresh_token: null }, `${reason}: its Preview ends with it`)
       assert.deepEqual(await sessions.previewAuthority({ sessionToken: refused.preview.sessionToken, exactHost: refused.exactHost, now: due }), { kind: 'SIGN_IN_REQUIRED' })
@@ -580,18 +582,18 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
 
     const unreachable = await openWithPreview('refresh-unreachable')
     providerAnswer = { kind: 'UNAVAILABLE' }
-    await assert.rejects(sessions.resolveHub({ sessionToken: unreachable.hub.sessionToken, now: due }), (error) => error.id === 'IDENTITY_PROVIDER_UNAVAILABLE')
+    await assert.rejects(sessions.resolveHub(digestOf(unreachable.hub.sessionToken), due), (error) => error.id === 'IDENTITY_PROVIDER_UNAVAILABLE')
     assert.deepEqual(await sessions.previewAuthority({ sessionToken: unreachable.preview.sessionToken, exactHost: unreachable.exactHost, now: due }), { kind: 'PROVIDER_UNAVAILABLE' })
     providerAnswer = { kind: 'ACTIVE', refreshToken: 'refresh-reachable' }
-    assert.equal((await sessions.resolveHub({ sessionToken: unreachable.hub.sessionToken, now: due }))?.account.accountId, owner, 'the session was kept and Keycloak is asked again')
+    assert.equal((await sessions.resolveHub(digestOf(unreachable.hub.sessionToken), due))?.account.accountId, owner, 'the session was kept and Keycloak is asked again')
 
     const signingOut = await openWithPreview('refresh-signing-out')
     providerAnswer = { kind: 'UNAVAILABLE' }
     refreshes.length = 0
-    assert.deepEqual(await sessions.endHub({ sessionToken: signingOut.hub.sessionToken, csrfToken: signingOut.hub.csrfToken }), { refreshToken: 'refresh-signing-out' },
+    assert.deepEqual(await sessions.endHub(digestOf(signingOut.hub.sessionToken)), { refreshToken: 'refresh-signing-out' },
       'a sign-out while Keycloak is down still ends the session, and hands back the refresh token once so Keycloak can be asked to end its SSO session')
     assert.deepEqual(refreshes, [], 'and never refreshes it')
-    assert.equal(await sessions.endHub({ sessionToken: signingOut.hub.sessionToken, csrfToken: signingOut.hub.csrfToken }), null, 'a second sign-out ends nothing and hands back nothing')
+    assert.equal(await sessions.endHub(digestOf(signingOut.hub.sessionToken)), null, 'a second sign-out ends nothing and hands back nothing')
     assert.deepEqual(await ended(signingOut.hub.sessionToken), { ended_reason: 'SIGNED_OUT', provider_refresh_token: null })
     assert.deepEqual(await ended(signingOut.preview.sessionToken), { ended_reason: 'PARENT_ENDED', provider_refresh_token: null })
   })
@@ -605,9 +607,9 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     }
     const hub = await sessions.openHub({ accountId: owner, refreshToken: 'refresh-owner', now: T0 })
     const other = await sessions.openHub({ accountId: control, refreshToken: 'refresh-control', now: T0 })
-    assert.equal(await sessions.openPreview({ hubSessionToken: other.sessionToken, launch, now: T0 }), null, 'a Hub session opens Previews only for its own Account')
+    assert.equal(await sessions.openPreview({ hubSessionDigest: digestOf(other.sessionToken), launch, now: T0 }), null, 'a Hub session opens Previews only for its own Account')
 
-    const opened = await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch, now: T0 })
+    const opened = await sessions.openPreview({ hubSessionDigest: digestOf(hub.sessionToken), launch, now: T0 })
     assert.equal(opened.expiresAt, T0.getTime() + 15 * 60 * 1000, 'the answer is when the Preview ends')
     assert.deepEqual((await client.query('SELECT expires_at - minted_at AS lifetime FROM iam.handoff WHERE handoff_digest = $1', [createHash('sha256').update(opened.entryGrant).digest()])).rows.map((row) => row.lifetime.seconds), [30],
       'the entry handoff lives thirty seconds')
@@ -629,14 +631,14 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     assert.deepEqual(await restarted.previewAuthority({ sessionToken: entered.sessionToken, exactHost, now: at(15 * 60 * 1000 + 1_000) }),
       { kind: 'SIGN_IN_REQUIRED' }, 'fifteen minutes after launch')
 
-    const second = await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch, now: at(3_000) })
+    const second = await sessions.openPreview({ hubSessionDigest: digestOf(hub.sessionToken), launch, now: at(3_000) })
     const secondEntry = await sessions.redeem({ handoff: second.entryGrant, target: { kind: 'PREVIEW', exactHost }, now: at(4_000) })
     assert.equal((await sessions.previewAuthority({ sessionToken: secondEntry.sessionToken, exactHost, now: at(5_000) })).kind, 'SIGNED_IN')
-    assert.deepEqual(await sessions.endHub({ sessionToken: hub.sessionToken, csrfToken: hub.csrfToken }), { refreshToken: 'refresh-owner' })
+    assert.deepEqual(await sessions.endHub(digestOf(hub.sessionToken)), { refreshToken: 'refresh-owner' })
     assert.deepEqual(await sessions.previewAuthority({ sessionToken: secondEntry.sessionToken, exactHost, now: at(7_000) }), { kind: 'SIGN_IN_REQUIRED' }, 'the Hub sign-out ended the Preview')
     assert.deepEqual((await client.query('SELECT ended_reason FROM iam.host_session WHERE token_digest = $1', [createHash('sha256').update(secondEntry.sessionToken).digest()])).rows,
       [{ ended_reason: 'PARENT_ENDED' }])
-    assert.equal(await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch, now: at(8_000) }), null, 'an ended Hub session opens nothing')
+    assert.equal(await sessions.openPreview({ hubSessionDigest: digestOf(hub.sessionToken), launch, now: at(8_000) }), null, 'an ended Hub session opens nothing')
   })
 
   await t.test('nothing of a Preview is kept after it ends: the reaper removes it and its sessions, and a launch removes nothing', async () => {
@@ -647,7 +649,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     }
     const hub = await sessions.openHub({ accountId: owner, refreshToken: 'refresh-retention', now: new Date() })
     const first = launch()
-    const old = await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch: first, now: new Date() })
+    const old = await sessions.openPreview({ hubSessionDigest: digestOf(hub.sessionToken), launch: first, now: new Date() })
     const entered = await sessions.redeem({ handoff: old.entryGrant, target: { kind: 'PREVIEW', exactHost: first.exactHost }, now: new Date() })
     assert.match(entered.sessionToken, /^[A-Za-z0-9_-]{43}$/)
     await client.query("UPDATE iam.preview SET opened_at = opened_at - interval '16 minutes', expires_at = expires_at - interval '16 minutes' WHERE artifact_revision_id = $1", [first.artifactRevisionId])
@@ -655,7 +657,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
       [createHash('sha256').update(entered.sessionToken).digest()])
     const remains = async () => (await client.query('SELECT (SELECT count(*) FROM iam.preview WHERE artifact_revision_id = $1)::int AS previews, (SELECT count(*) FROM iam.host_session WHERE token_digest = $2)::int AS sessions',
       [first.artifactRevisionId, createHash('sha256').update(entered.sessionToken).digest()])).rows
-    assert.deepEqual(Object.keys(await sessions.openPreview({ hubSessionToken: hub.sessionToken, launch: launch(), now: new Date() })).sort(), ['entryGrant', 'expiresAt'])
+    assert.deepEqual(Object.keys(await sessions.openPreview({ hubSessionDigest: digestOf(hub.sessionToken), launch: launch(), now: new Date() })).sort(), ['entryGrant', 'expiresAt'])
     assert.deepEqual(await remains(), [{ previews: 1, sessions: 1 }], 'a launch no longer removes what expired')
     await client.query('SELECT * FROM iam.reap_expired(clock_timestamp(), 500)')
     assert.deepEqual(await remains(), [{ previews: 0, sessions: 0 }])
@@ -967,9 +969,9 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     await client.query('INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,$3)', [employeeId, workspaceId, 'member'])
     assert.equal((await client.query('SELECT iam.account_access_scope($1) AS scope', [employeeId])).rows[0].scope, 'CONTROL_PLANE')
     const hubSession = await sessions.openHub({ accountId: employeeId, refreshToken: 'refresh-member' })
-    assert.equal((await sessions.resolveHub({ sessionToken: hubSession.sessionToken }))?.account.accountId, employeeId)
+    assert.equal((await sessions.resolveHub(digestOf(hubSession.sessionToken)))?.account.accountId, employeeId)
     await client.query('DELETE FROM iam.workspace_membership WHERE account_id = $1', [employeeId])
-    assert.equal(await sessions.resolveHub({ sessionToken: hubSession.sessionToken }), null, 'removed again, the Hub session no longer resolves')
+    assert.equal(await sessions.resolveHub(digestOf(hubSession.sessionToken)), null, 'removed again, the Hub session no longer resolves')
   })
 
   await t.test('resolving a session takes no row lock: a request is not held behind another that locks the session', async () => {

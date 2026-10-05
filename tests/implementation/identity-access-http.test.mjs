@@ -4,14 +4,18 @@ import { createServer } from 'node:http'
 import { test } from 'node:test'
 import * as openidClient from 'openid-client'
 import { hubModuleUrl } from './hub-build.mjs'
+import { HUB_ORIGIN, hubJsonWrite, hubWrite, opaque, testListener } from './access/test-listener.mjs'
 
 const built = hubModuleUrl
-const { createHttpApp } = await import(built('http/app.js'))
 const { registerIdentityAccessRoutes } = await import(built('identity-access/routes.js'))
 const { createOidcAdapter } = await import(built('identity-access/oidc.js'))
 const { Failure } = await import(built('platform/failure.js'))
 
-const origin = 'https://conexus.test'
+const origin = HUB_ORIGIN
+const SESSION_TOKEN = opaque('leandro')
+const BOOTSTRAP_TOKEN = opaque('bootstrap')
+const digestOf = (token) => createHash('sha256').update(token).digest()
+const keyOf = (digest) => digest.toString('hex')
 const config = { origin, bootstrapIssuer: 'https://issuer.test/realms/r1', bootstrapSubject: 'bootstrap-subject' }
 
 test('S1 applies only the admitted openid-client execution hooks', async () => {
@@ -155,9 +159,8 @@ const makeStore = ({ eligible = true } = {}) => {
     async resolveIdentity(identity) { return state.accounts.get(`${identity.issuer}|${identity.subject}`) ?? null },
     async createProvisioningContext(identity) {
       if (!eligible) throw new Failure('IDENTITY_NOT_ELIGIBLE')
-      const value = 'bootstrap-token'
-      state.bootstrap.set(value, identity)
-      return value
+      state.bootstrap.set(BOOTSTRAP_TOKEN, identity)
+      return BOOTSTRAP_TOKEN
     },
     async claimInvitations(input) { state.claimed.push(input); return 1 },
     async provisionBootstrap({ bootstrapToken, displayName, email }) {
@@ -165,12 +168,17 @@ const makeStore = ({ eligible = true } = {}) => {
       state.bootstrap.delete(bootstrapToken)
       return { accountId: 'account-1', displayName, ...(email ? { email } : {}), replayed: false }
     },
-    async openHub({ accountId, refreshToken }) { state.opened.push({ accountId, refreshToken }); const value = { sessionToken: `session-${accountId}`, csrfToken: 'csrf-token' }; state.sessions.set(value.sessionToken, { account: { accountId, displayName: 'Leandro' }, issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, csrfToken: value.csrfToken }); return value },
-    async resolveHub({ sessionToken, csrfToken, requireCsrf }) { const value = state.sessions.get(sessionToken); return value && (!requireCsrf || csrfToken === value.csrfToken) ? value : null },
-    async endHub({ sessionToken, csrfToken }) {
-      const value = state.sessions.get(sessionToken)
-      if (!value || value.csrfToken !== csrfToken) return false
-      state.sessions.delete(sessionToken); state.ended.push(sessionToken); return { refreshToken: value.refreshToken ?? null }
+    async openHub({ accountId, refreshToken }) {
+      state.opened.push({ accountId, refreshToken })
+      const sessionToken = opaque(`session-${accountId}`)
+      state.sessions.set(keyOf(digestOf(sessionToken)), { account: { accountId, displayName: 'Leandro' }, issuer: config.bootstrapIssuer, subject: config.bootstrapSubject })
+      return { sessionToken }
+    },
+    async resolveHub(digest) { return state.sessions.get(keyOf(digest)) ?? null },
+    async endHub(digest) {
+      const value = state.sessions.get(keyOf(digest))
+      if (!value) return null
+      state.sessions.delete(keyOf(digest)); state.ended.push(keyOf(digest)); return { refreshToken: value.refreshToken ?? null }
     },
   }
 }
@@ -182,23 +190,17 @@ const makeOidc = (identity = {}, { providerLogout = async () => 'ENDED', calls =
   async complete() { return { issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, verifiedEmail: null, refreshToken: 'keycloak-refresh', ...identity } },
 })
 
-const createHubApp = ({ store, oidc, config, staticRoot = null, applications }) => createHttpApp({
+const createHubApp = async ({ store, oidc, config, staticRoot = null, applications, resolve = (digest) => store.resolveHub(digest) }) => (await testListener({
+  sessions: { [SESSION_TOKEN]: () => resolve(digestOf(SESSION_TOKEN)) },
+  staticRoot,
   registerRoutes: (app) => registerIdentityAccessRoutes(app, {
     store,
     oidc,
     config,
     hubSessions: store,
     ...(applications ? { applications } : {}),
-    resolveCurrentSession: async (request, requireCsrf = false) => {
-      const sessionToken = request.cookies['__Host-conexus_session']
-      if (!sessionToken) return null
-      const value = request.headers['x-conexus-csrf']
-      const csrfToken = Array.isArray(value) ? value[0] : value
-      return store.resolveHub({ sessionToken, csrfToken, requireCsrf })
-    },
   }),
-  staticRoot,
-})
+})).app
 
 test('production OIDC configuration refuses an insecure issuer', async () => {
   await assert.rejects(
@@ -242,7 +244,7 @@ test('an unverified address reaches provisioning carrying no claimable email', a
   await app.inject({ method: 'GET', url: '/protocol/oidc/login' })
   const callback = await app.inject({ method: 'GET', url: '/protocol/oidc/callback?code=code-1&state=state-1', cookies: { '__Host-conexus_oidc_state': 'state-1' } })
   assert.equal(callback.statusCode, 303)
-  assert.equal(store.state.bootstrap.get('bootstrap-token').verifiedEmail, null)
+  assert.equal(store.state.bootstrap.get(BOOTSTRAP_TOKEN).verifiedEmail, null)
 })
 
 test('technical OIDC ingress binds server state and produces one-shot bootstrap context', async (t) => {
@@ -265,26 +267,31 @@ test('technical OIDC ingress binds server state and produces one-shot bootstrap 
 
 test('bootstrap IAM-03 derives subject server-side and authenticity failures fire', async (t) => {
   const store = makeStore()
-  store.state.bootstrap.set('bootstrap-token', { issuer: config.bootstrapIssuer, subject: config.bootstrapSubject })
+  store.state.bootstrap.set(BOOTSTRAP_TOKEN, { issuer: config.bootstrapIssuer, subject: config.bootstrapSubject })
   const app = await createHubApp({ store, oidc: makeOidc(), config })
   t.after(() => app.close())
-  const denied = await app.inject({ method: 'POST', url: '/api/control/accounts', headers: { origin, 'idempotency-key': 'key-1', 'content-type': 'application/json' }, cookies: { '__Host-conexus_bootstrap': 'bootstrap-token', '__Host-conexus_csrf': 'csrf-1' }, payload: { displayName: 'Leandro' } })
-  assert.equal(denied.statusCode, 403)
-  const absent = await app.inject({ method: 'POST', url: '/api/control/accounts', headers: { origin, 'idempotency-key': 'key-absent', 'content-type': 'application/json' }, cookies: { '__Host-conexus_bootstrap': 'bootstrap-token' }, payload: { displayName: 'Leandro' } })
+  const cookies = { '__Host-conexus_bootstrap': BOOTSTRAP_TOKEN }
+  const create = (headers, payload) => app.inject({ method: 'POST', url: '/api/control/accounts', headers, cookies, payload })
+  const denied = await create({ ...hubJsonWrite, origin: 'https://attacker.test', 'idempotency-key': 'key-1' }, { displayName: 'Leandro' })
+  assert.deepEqual([denied.statusCode, denied.json().code], [403, 'REQUEST_AUTHENTICITY_DENIED'])
+  const crossSite = await create({ ...hubJsonWrite, 'sec-fetch-site': 'cross-site', 'idempotency-key': 'key-1' }, { displayName: 'Leandro' })
+  assert.equal(crossSite.statusCode, 403)
+  const absent = await create({ 'content-type': 'application/json', 'idempotency-key': 'key-absent' }, { displayName: 'Leandro' })
   assert.equal(absent.statusCode, 403)
-  const created = await app.inject({ method: 'POST', url: '/api/control/accounts', headers: { origin, 'idempotency-key': 'key-1', 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' }, cookies: { '__Host-conexus_bootstrap': 'bootstrap-token', '__Host-conexus_csrf': 'csrf-1' }, payload: { displayName: 'Leandro', email: 'leandro@example.test' } })
+  const created = await create({ ...hubJsonWrite, 'idempotency-key': 'key-1' }, { displayName: 'Leandro', email: 'leandro@example.test' })
   assert.equal(created.statusCode, 201)
   assert.deepEqual(created.json(), { accountId: 'account-1', displayName: 'Leandro', email: 'leandro@example.test' })
-  const injectedSubject = await app.inject({ method: 'POST', url: '/api/control/accounts', headers: { origin, 'idempotency-key': 'key-2', 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' }, cookies: { '__Host-conexus_bootstrap': 'bootstrap-token', '__Host-conexus_csrf': 'csrf-1' }, payload: { externalSubject: 'attacker', displayName: 'Attacker' } })
+  const injectedSubject = await create({ ...hubJsonWrite, 'idempotency-key': 'key-2' }, { externalSubject: 'attacker', displayName: 'Attacker' })
   assert.equal(injectedSubject.statusCode, 400)
 })
 
 const signedInStore = () => {
   const store = makeStore()
-  store.state.sessions.set('session-1', { account: { accountId: 'account-1', displayName: 'Leandro' }, issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, csrfToken: 'csrf-1', refreshToken: 'keycloak-refresh-1' })
+  store.state.sessions.set(keyOf(digestOf(SESSION_TOKEN)), { account: { accountId: 'account-1', displayName: 'Leandro' }, issuer: config.bootstrapIssuer, subject: config.bootstrapSubject, refreshToken: 'keycloak-refresh-1' })
   return store
 }
-const signOut = (app, csrf = 'csrf-1', requestOrigin = origin) => app.inject({ method: 'DELETE', url: '/api/session', headers: { origin: requestOrigin, 'x-conexus-csrf': csrf }, cookies: { '__Host-conexus_session': 'session-1', '__Host-conexus_csrf': 'csrf-1' } })
+const SESSION_COOKIES = { '__Host-conexus_session': SESSION_TOKEN }
+const signOut = (app, headers = hubWrite) => app.inject({ method: 'DELETE', url: '/api/session', headers, cookies: SESSION_COOKIES })
 const clearedCookies = (response) => [response.headers['set-cookie']].flat().filter((cookie) => /Max-Age=0|Expires=Thu, 01 Jan 1970/.test(cookie)).map((cookie) => cookie.split('=')[0]).sort()
 
 test('IAM-01 uses the current opaque session; IAM-02 ends it first, then asks Keycloak to end the SSO session behind it', async (t) => {
@@ -293,20 +300,22 @@ test('IAM-01 uses the current opaque session; IAM-02 ends it first, then asks Ke
   const oidc = makeOidc({}, { providerLogout: async () => { order.push(`keycloak after ${JSON.stringify(store.state.ended)}`); return 'ENDED' } })
   const app = await createHubApp({ store, oidc, config })
   t.after(() => app.close())
-  const context = await app.inject({ method: 'GET', url: '/api/control/access-context', cookies: { '__Host-conexus_session': 'session-1' } })
+  const context = await app.inject({ method: 'GET', url: '/api/control/access-context', cookies: SESSION_COOKIES })
   assert.equal(context.statusCode, 200)
   assert.deepEqual(context.json(), { account: { accountId: 'account-1', displayName: 'Leandro' }, workspaces: [], projects: [] })
-  assert.equal((await signOut(app, 'csrf-1', 'https://attacker.test')).statusCode, 403)
-  assert.equal((await signOut(app, 'wrong')).statusCode, 403)
+  assert.equal((await signOut(app, { ...hubWrite, origin: 'https://attacker.test' })).statusCode, 403)
+  assert.equal((await signOut(app, { ...hubWrite, 'sec-fetch-site': 'cross-site' })).statusCode, 403)
+  assert.equal((await signOut(app, { ...hubWrite, 'sec-fetch-mode': 'navigate' })).statusCode, 403, 'a navigation signs nobody out')
+  assert.equal((await signOut(app, {})).statusCode, 403, 'a write with no Origin signs nobody out')
   assert.deepEqual(oidc.calls, [], 'a refused sign-out never reaches Keycloak')
   const ended = await signOut(app)
   assert.equal(ended.statusCode, 204)
   assert.equal(ended.body, '', 'the answer says the Conexus session ended, nothing about Keycloak')
-  assert.deepEqual(store.state.ended, ['session-1'])
+  assert.deepEqual(store.state.ended, [keyOf(digestOf(SESSION_TOKEN))])
   assert.deepEqual(oidc.calls.map(({ refreshToken, signal }) => ({ refreshToken, bounded: signal instanceof AbortSignal })), [{ refreshToken: 'keycloak-refresh-1', bounded: true }],
     'Keycloak is asked once, with that sign-in\'s refresh token and a deadline')
-  assert.deepEqual(order, ['keycloak after ["session-1"]'], 'only after the Conexus session ended')
-  const after = await app.inject({ method: 'GET', url: '/api/control/access-context', cookies: { '__Host-conexus_session': 'session-1' } })
+  assert.deepEqual(order, [`keycloak after ["${keyOf(digestOf(SESSION_TOKEN))}"]`], 'only after the Conexus session ended')
+  const after = await app.inject({ method: 'GET', url: '/api/control/access-context', cookies: SESSION_COOKIES })
   assert.equal(after.statusCode, 401)
   assert.equal((await signOut(app)).statusCode, 401, 'signing out again ends nothing')
   assert.equal(oidc.calls.length, 1, 'and asks Keycloak nothing')
@@ -319,13 +328,13 @@ test('IAM-02 still ends the Conexus session when Keycloak does not confirm, and 
   await capturePinoLogs(async (logs) => {
     const ended = await signOut(app)
     assert.equal(ended.statusCode, 204)
-    assert.deepEqual(clearedCookies(ended), ['__Host-conexus_csrf', '__Host-conexus_session'])
-    assert.deepEqual(store.state.ended, ['session-1'])
+    assert.deepEqual(clearedCookies(ended), ['__Host-conexus_session'])
+    assert.deepEqual(store.state.ended, [keyOf(digestOf(SESSION_TOKEN))])
     const warnings = logs.filter((record) => record.level === 40)
     assert.deepEqual(warnings.map((record) => record.msg), ['HUB_SIGN_OUT_PROVIDER_LOGOUT_UNCONFIRMED'])
     assert.doesNotMatch(JSON.stringify(logs), /keycloak-refresh-1|account-1/, 'the log carries neither the token nor the account')
   })
-  assert.equal((await app.inject({ method: 'GET', url: '/api/control/access-context', cookies: { '__Host-conexus_session': 'session-1' } })).statusCode, 401)
+  assert.equal((await app.inject({ method: 'GET', url: '/api/control/access-context', cookies: SESSION_COOKIES })).statusCode, 401)
 })
 
 test('IAM-02 waits on a silent Keycloak only until its deadline', async (t) => {
@@ -338,13 +347,13 @@ test('IAM-02 waits on a silent Keycloak only until its deadline', async (t) => {
   const waited = Date.now() - started
   assert.equal(ended.statusCode, 204)
   assert.ok(waited >= 2_900 && waited < 4_500, `waited ${waited} ms`)
-  assert.deepEqual(store.state.ended, ['session-1'])
+  assert.deepEqual(store.state.ended, [keyOf(digestOf(SESSION_TOKEN))])
 })
 
 test('malformed IAM-03 body fires the generated schema before owner code', async (t) => {
   const app = await createHubApp({ store: makeStore(), oidc: makeOidc(), config })
   t.after(() => app.close())
-  const response = await app.inject({ method: 'POST', url: '/api/control/accounts', headers: { origin, 'idempotency-key': 'key-1', 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' }, cookies: { '__Host-conexus_bootstrap': 'bootstrap-token', '__Host-conexus_csrf': 'csrf-1' }, payload: { displayName: '   ', externalSubject: 'x', extra: true } })
+  const response = await app.inject({ method: 'POST', url: '/api/control/accounts', headers: { ...hubJsonWrite, 'idempotency-key': 'key-1' }, cookies: { '__Host-conexus_bootstrap': BOOTSTRAP_TOKEN }, payload: { displayName: '   ', externalSubject: 'x', extra: true } })
   assert.equal(response.statusCode, 400)
 })
 
@@ -515,7 +524,7 @@ test('an app-only Account signing in at the Hub is refused with no session cooki
   await app.inject({ method: 'GET', url: '/protocol/oidc/login' })
   const callback = await app.inject({ method: 'GET', url: '/protocol/oidc/callback?code=code-1&state=state-1', cookies: { '__Host-conexus_oidc_state': 'state-1' } })
   assert.equal(callback.statusCode, 403)
-  assert.equal(callback.cookies.some((item) => item.name === '__Host-conexus_session' || item.name === '__Host-conexus_csrf'), false)
+  assert.equal(callback.cookies.some((item) => item.name === '__Host-conexus_session'), false)
 })
 
 test('a Hub request whose Keycloak check Keycloak cannot answer is refused with 503, not signed out', async (t) => {
@@ -525,15 +534,9 @@ test('a Hub request whose Keycloak check Keycloak cannot answer is refused with 
     refresh: async () => ({ kind: 'UNAVAILABLE' }),
     envelope: { open: async () => 'refresh-token', seal: async (value) => value },
   })
-  const app = await createHttpApp({
-    registerRoutes: (server) => registerIdentityAccessRoutes(server, {
-      store: makeStore(), workspaceReader: makeStore(), oidc: makeOidc(), config, hubSessions: makeStore(),
-      resolveCurrentSession: (request) => keycloakDown.resolveHub({ sessionToken: request.cookies['__Host-conexus_session'] }),
-    }),
-    staticRoot: null,
-  })
+  const app = await createHubApp({ store: makeStore(), oidc: makeOidc(), config, resolve: (digest) => keycloakDown.resolveHub(digest) })
   t.after(() => app.close())
-  const answer = await app.inject({ method: 'GET', url: '/api/control/access-context', cookies: { '__Host-conexus_session': 's'.repeat(43) } })
+  const answer = await app.inject({ method: 'GET', url: '/api/control/access-context', cookies: SESSION_COOKIES })
   assert.equal(answer.statusCode, 503)
   assert.equal(answer.json().type.endsWith('IDENTITY_PROVIDER_UNAVAILABLE'), true)
   assert.equal(answer.headers['set-cookie'], undefined, 'no cookie is cleared')

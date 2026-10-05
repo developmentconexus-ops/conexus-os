@@ -112,7 +112,7 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
     const path = new URL(request.url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
     const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
     if (!enabled) return json(404, { code: 'NOT_FOUND' })
-    writes.push([request.method(), path, 'x-conexus-csrf' in request.headers(), request.postDataJSON?.() ?? null])
+    writes.push([request.method(), path, request.postDataJSON?.() ?? null])
     if (path === '/connection') return json(200, { mine: connected, shared: false, administrator: false })
     // Held open briefly so the test can observe the "Preparando…" label before the tab navigates.
     if (path === '/login/start') { await new Promise((resolve) => setTimeout(resolve, 200)); return json(200, { loginId, url: signIn }) }
@@ -147,10 +147,10 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
   await page.getByRole('button', { name: 'Concluir' }).click()
   await page.getByText('Google AI Pro conectado.').waitFor()
   await page.getByText('Conectado com a sua conta Google.').waitFor()
-  assert.deepEqual(writes.filter(([method]) => method === 'POST'), [
-    ['POST', '/login/start', true, {}],
-    ['POST', '/login/complete', true, { loginId, callbackUrl: 'http://localhost:51121/oauth-callback?state=other&code=x' }],
-    ['POST', '/login/complete', true, { loginId, callbackUrl: 'http://localhost:51121/oauth-callback?state=issued-state&code=good' }],
+  assert.deepEqual(writes.filter(([method, path]) => method === 'POST' && path !== `/login/${loginId}`), [
+    ['POST', '/login/start', {}],
+    ['POST', '/login/complete', { loginId, callbackUrl: 'http://localhost:51121/oauth-callback?state=other&code=x' }],
+    ['POST', '/login/complete', { loginId, callbackUrl: 'http://localhost:51121/oauth-callback?state=issued-state&code=good' }],
   ])
 
   enabled = false
@@ -202,7 +202,7 @@ test('Minhas contas de modelo signs a person in to ChatGPT with a device code, a
     const request = route.request()
     const url = new URL(request.url())
     const json = (body) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
-    calls.push([request.method(), url.pathname.replace('/api/control/model-accounts/openai-codex/oauth', ''), 'x-conexus-csrf' in request.headers()])
+    calls.push([request.method(), url.pathname.replace('/api/control/model-accounts/openai-codex/oauth', '')])
     if (url.pathname.endsWith('/start')) return json({ loginId, url: deviceUrl, userCode: 'ABCD-1234', intervalMs: 0, expiresAt: new Date(Date.now() + 15 * 60_000).toISOString() })
     if (url.pathname.endsWith('/poll')) {
       assert.equal(url.searchParams.get('loginId'), loginId)
@@ -228,7 +228,7 @@ test('Minhas contas de modelo signs a person in to ChatGPT with a device code, a
   await popup.waitForURL(deviceUrl)
   await page.getByText('ChatGPT conectado.').waitFor()
   await page.getByText('Conectado com a sua conta do ChatGPT.').waitFor()
-  assert.deepEqual(calls.filter(([method]) => method === 'POST'), [['POST', '/start', true]])
+  assert.deepEqual(calls, [['POST', '/start'], ['POST', '/poll'], ['POST', '/poll']], 'the poll is a POST with no body')
   assert.equal(await page.evaluate(() => document.body.innerText.includes('access')), false)
 })
 
@@ -251,7 +251,7 @@ test('Minhas contas de modelo saves an Anthropic key and signs in with a Claude 
     const request = route.request()
     const path = new URL(request.url()).pathname.replace('/api/control/model-accounts/anthropic', '')
     const body = request.postDataJSON()
-    calls.push([request.method(), path, 'x-conexus-csrf' in request.headers(), body])
+    calls.push([request.method(), path, body])
     const json = (value) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(value) })
     if (path === '/api-key') { kind = 'api_key'; return route.fulfill({ status: 204 }) }
     if (path === '/oauth/start') return json({ loginId, url: authorizeUrl, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString() })
@@ -284,10 +284,10 @@ test('Minhas contas de modelo saves an Anthropic key and signs in with a Claude 
   await page.getByText('Conectado com a sua assinatura Claude.').waitFor()
 
   assert.deepEqual(calls, [
-    ['PUT', '/api-key', true, { key: fakeKey }],
-    ['POST', '/oauth/start', true, {}],
-    ['POST', '/oauth/complete', true, { loginId, code: 'typo#verifier-1' }],
-    ['POST', '/oauth/complete', true, { loginId, code: 'good#verifier-1' }],
+    ['PUT', '/api-key', { key: fakeKey }],
+    ['POST', '/oauth/start', {}],
+    ['POST', '/oauth/complete', { loginId, code: 'typo#verifier-1' }],
+    ['POST', '/oauth/complete', { loginId, code: 'good#verifier-1' }],
   ])
   assert.equal(await page.evaluate(() => document.body.innerText.includes('sk-ant-')), false)
 })

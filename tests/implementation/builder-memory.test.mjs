@@ -8,10 +8,10 @@ import { Mastra } from '@mastra/core/mastra'
 import { RequestContext } from '@mastra/core/request-context'
 import { LibSQLStore } from '@mastra/libsql'
 import { hubModuleUrl } from './hub-build.mjs'
+import { hubJsonWrite, opaque, testListener } from './access/test-listener.mjs'
 import { testConversations } from './builder-conversation-fixture.mjs'
 
 const built = hubModuleUrl
-const { createHttpApp } = await import(built('http/app.js'))
 const { createBuilderController } = await import(built('builder/harness/controller.js'))
 const { createBuilderMemory } = await import(built('builder/memory.js'))
 const { registerBuilderSessionRoutes } = await import(built('builder/mastra-session-routes.js'))
@@ -140,10 +140,10 @@ test('recall lists the conversations of the Project and never those of another P
   assert.doesNotMatch(listed, /thread-other/)
 })
 
-const origin = 'https://conexus.test'
+const SESSION_TOKEN = opaque('ana')
 const authentic = {
-  headers: { origin, 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' },
-  cookies: { '__Host-conexus_session': 'session-1', '__Host-conexus_csrf': 'csrf-1' },
+  headers: hubJsonWrite,
+  cookies: { '__Host-conexus_session': SESSION_TOKEN },
 }
 const projectId = '33333333-3333-4333-8333-333333333333'
 const conversationId = '77777777-7777-4777-8777-777777777777'
@@ -152,18 +152,17 @@ test('the conversation\'s own session shows the memory a run of it stored, throu
   const { controller, storage } = await builderWithMemory(t)
   const mastra = new Mastra({ storage, agentControllers: { 'conexus-builder': controller }, logger: false })
   const conversations = createConversations(async () => storage.getStore('memory'))
-  const app = await createHttpApp({
+  const { app } = await testListener({
+    sessions: { [SESSION_TOKEN]: { account: { accountId: ana, displayName: 'Ana' }, issuer: 'https://issuer.test', subject: 'ana' } },
     registerRoutes: async (instance) => {
       await registerBuilderSessionRoutes(instance, {
-        mastra, controllerId: 'conexus-builder', controller, conversations: testConversations(controller, () => undefined), origin,
-        resolveCurrentSession: async () => ({ account: { accountId: ana, displayName: 'Ana' }, issuer: 'https://issuer.test', subject: 'ana' }),
+        mastra, controllerId: 'conexus-builder', controller, conversations: testConversations(controller, () => undefined),
         admitProject: async () => true,
         conversationOwner: ({ projectId: project, conversationId: conversation }) => conversations.ownerOf(project, conversation),
         projectBusy: async () => false,
       })
       return []
     },
-    staticRoot: null,
   })
   t.after(() => app.close())
 

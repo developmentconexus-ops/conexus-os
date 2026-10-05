@@ -61,8 +61,7 @@ export type ApplicationAddress = Readonly<{ port: number; domain: string }>
 
 const DOMAIN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/
 
-// A browser leaves the default port out of both Host and Origin.
-const authority = ({ port, domain }: ApplicationAddress, slug: string): string => port === 443 ? `${slug}.${domain}` : `${slug}.${domain}:${port}`
+export const authority = ({ port, domain }: ApplicationAddress, slug: string): string => port === 443 ? `${slug}.${domain}` : `${slug}.${domain}:${port}`
 
 /** The one origin of an application: its sign-in return, its address in the Hub and its API's only admitted Origin. */
 export const applicationOrigin = (address: ApplicationAddress, slug: string): string => `https://${authority(address, slug)}`

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test } from 'node:test'
@@ -9,9 +9,9 @@ import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
 import { hubModuleUrl } from './hub-build.mjs'
 import { testConversations } from './builder-conversation-fixture.mjs'
+import { hubJsonWrite, hubSessionCookie, opaque, testListener } from './access/test-listener.mjs'
 
 const built = hubModuleUrl
-const { createHttpApp } = await import(built('http/app.js'))
 const { Failure } = await import(built('platform/failure.js'))
 const { registerBuilderSessionRoutes } = await import(built('builder/mastra-session-routes.js'))
 const { registerBuilderRoutes } = await import(built('builder/routes.js'))
@@ -19,7 +19,7 @@ const { createBuilderController } = await import(built('builder/harness/controll
 const { createConversations } = await import(built('builder/conversations.js'))
 
 const CONVERSATION_SESSION_IDLE_MS = 10 * 60_000
-const origin = 'https://conexus.test'
+const SESSION_TOKEN = opaque('operator')
 const accountA = '22222222-2222-4222-8222-222222222222'
 const accountB = '55555555-5555-4555-8555-555555555555'
 const projectA = '33333333-3333-4333-8333-333333333333'
@@ -58,19 +58,15 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
     refresh: async () => ({ kind: 'UNAVAILABLE' }),
     envelope: { open: async () => 'refresh-token', seal: async (value) => value },
   })
-  const resolveCurrentSession = async (request) => {
-    if (providerDown) return keycloakDown.resolveHub({ sessionToken: 's'.repeat(43) })
-    return request.cookies['__Host-conexus_session']
-      ? { account: { accountId, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' }
-      : null
-  }
-  const app = await createHttpApp({
+  const operator = { account: { accountId, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' }
+  const { app } = await testListener({
+    sessions: { [SESSION_TOKEN]: providerDown ? () => keycloakDown.resolveHub(createHash('sha256').update(SESSION_TOKEN).digest()) : operator },
     registerRoutes: async (instance) => {
       instance.addHook('onResponse', async (request) => {
         if (request.requestContext) reachedContexts.push({ url: request.url, user: request.requestContext.get('user') })
       })
       await registerBuilderSessionRoutes(instance, {
-        mastra, controllerId: 'conexus-builder', controller, conversations: sessions, origin, resolveCurrentSession,
+        mastra, controllerId: 'conexus-builder', controller, conversations: sessions,
         admitProject: async ({ accountId: caller, projectId }) => admittedProjects[caller]?.includes(projectId) ?? false,
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async () => busy,
@@ -78,7 +74,6 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
       })
       return []
     },
-    staticRoot: null,
   })
   t.after(async () => {
     await sessions.close()
@@ -91,8 +86,8 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
 }
 
 const authentic = {
-  headers: { origin, 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' },
-  cookies: { '__Host-conexus_session': 'session-1', '__Host-conexus_csrf': 'csrf-1' },
+  headers: hubJsonWrite,
+  cookies: { '__Host-conexus_session': SESSION_TOKEN },
 }
 const PREFIX = '/api/builder/agent-controller/conexus-builder'
 const sessionBase = (projectId = projectA) => `${PREFIX}/sessions/project:${projectId}`
@@ -241,11 +236,34 @@ test('each outcome of an answer has its own HTTP status and problem type, which 
   ])
 })
 
-test('a state-changing request without CSRF is refused on the mount', async (t) => {
+test('a state-changing request that is not the Hub page writing is refused on the mount before the session is read', async (t) => {
   const { app } = await createBuilderApp(t)
-  const withoutCsrf = { headers: { origin, 'content-type': 'application/json' }, cookies: { '__Host-conexus_session': 'session-1' } }
-  assert.equal((await app.inject({ method: 'POST', url: `${sessionBase()}/abort?${inConversation()}`, ...withoutCsrf, payload: {} })).statusCode, 403)
-  assert.equal((await app.inject({ method: 'POST', url: `${PREFIX}/sessions`, ...withoutCsrf, payload: { resourceId: `project:${projectA}`, sessionScope: `conversation:${conversationA}`, threadId: conversationA } })).statusCode, 403)
+  const forgeries = [
+    { origin: 'https://evil.test' },
+    { 'sec-fetch-site': 'cross-site' },
+    { 'sec-fetch-site': 'same-site' },
+    { 'sec-fetch-mode': 'navigate' },
+    { 'content-type': 'application/x-www-form-urlencoded' },
+  ]
+  for (const forgery of forgeries) {
+    const headers = { ...authentic.headers, ...forgery }
+    const open = { resourceId: `project:${projectA}`, sessionScope: `conversation:${conversationA}`, threadId: conversationA }
+    for (const [url, payload] of [[`${sessionBase()}/abort?${inConversation()}`, {}], [`${PREFIX}/sessions`, open]]) {
+      const refused = await app.inject({ method: 'POST', url, headers, cookies: authentic.cookies, payload })
+      assert.deepEqual([refused.statusCode, refused.json().code], [403, 'REQUEST_AUTHENTICITY_DENIED'], JSON.stringify(forgery))
+    }
+  }
+})
+
+test('the mount checks the request before its body and its body before the session', async (t) => {
+  const { app } = await createBuilderApp(t)
+  const url = `${sessionBase()}/abort?${inConversation()}`
+  const malformed = await app.inject({ method: 'POST', url, headers: { ...hubJsonWrite, origin: 'https://evil.test' }, payload: '{bad' })
+  assert.deepEqual([malformed.statusCode, malformed.json().code], [403, 'REQUEST_AUTHENTICITY_DENIED'])
+  const unparsable = await app.inject({ method: 'POST', url, headers: hubJsonWrite, payload: '{bad' })
+  assert.deepEqual([unparsable.statusCode, unparsable.json().code], [400, 'REQUEST_JSON_INVALID'])
+  const anonymous = await app.inject({ method: 'POST', url, headers: hubJsonWrite, payload: {} })
+  assert.deepEqual([anonymous.statusCode, anonymous.json().code], [401, 'AUTHENTICATION_REQUIRED'])
 })
 
 test('the browser sets its own reasoning level through the session state route, and nothing else', async (t) => {
@@ -316,21 +334,16 @@ test("a conversation's session the browser stops using is deleted by the idle sw
 })
 
 const createBuilderRoutesApp = async (t, { compareSourceRevisions, sendBuilderMessage, store, session, service: customService, launchPreview } = {}) => {
-  const resolveCurrentSession = async (request) => request.cookies['__Host-conexus_session']
-    ? { account: { accountId: accountA, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' }
-    : null
   const unused = async () => { throw new Error('unused in this test') }
   const service = customService ?? { compareSourceRevisions: compareSourceRevisions ?? unused, sendBuilderMessage: sendBuilderMessage ?? unused }
-  const app = await createHttpApp({
+  const { app } = await testListener({
+    sessions: { [SESSION_TOKEN]: { account: { accountId: accountA, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' } },
     registerRoutes: (instance) => registerBuilderRoutes(instance, {
       store: store ?? {},
       service,
       session,
-      resolveCurrentSession,
-      origin,
       launchPreview,
     }),
-    staticRoot: null,
   })
   t.after(() => app.close())
   return { app }
@@ -585,7 +598,7 @@ for (const [label, status, type] of [['401', 401, 'authentication_error'], ['503
     const { app, controller } = await createBuilderApp(t, { model: (context) => routing.resolve(context) })
     const address = await app.listen({ port: 0, host: '127.0.0.1' })
     const closing = new AbortController()
-    const response = await original(`${address}${sessionBase()}/stream?${inConversation()}`, { headers: { cookie: '__Host-conexus_session=session-1; __Host-conexus_csrf=csrf-1' }, signal: closing.signal })
+    const response = await original(`${address}${sessionBase()}/stream?${inConversation()}`, { headers: { cookie: hubSessionCookie(SESSION_TOKEN) }, signal: closing.signal })
     const frames = []
     const reading = (async () => { for await (const chunk of response.body) frames.push(Buffer.from(chunk).toString()) })().catch(() => undefined)
     const session = await controller.getSessionByResource(`project:${projectA}`, `conversation:${conversationA}`)

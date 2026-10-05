@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import test from 'node:test'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
+import { hubJsonWrite, hubSessionCookie, opaque, testListener } from './access/test-listener.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const identityPath = resolve(repositoryRoot, 'apps/hub/src/project/identity.ts')
@@ -120,7 +121,6 @@ test('S3-P5 command failure matrix never reaches a false terminal receipt', asyn
 })
 
 test('S3-P5 generated HTTP route enforces authenticity/session and returns only terminal representation', async (t) => {
-  const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
   const { registerProjectRoutes } = await import(hubModuleUrl('project/routes.js'))
   const { Failure } = await import(hubModuleUrl('platform/failure.js'))
   const { logger } = await import(hubModuleUrl('platform/logger.js'))
@@ -143,11 +143,10 @@ test('S3-P5 generated HTTP route enforces authenticity/session and returns only 
   }
   let authenticated = true
   let refusal = null
-  const app = await createHttpApp({
-    staticRoot: null,
+  const token = opaque('project-author')
+  const { app } = await testListener({
+    sessions: { [token]: () => authenticated ? { account: { accountId: 'account-63' } } : null },
     registerRoutes: (server) => registerProjectRoutes(server, {
-      origin: 'https://conexus.test',
-      resolveCurrentSession: async () => authenticated ? { account: { accountId: 'account-63' } } : null,
       store: { createProject: async () => { if (refusal) throw refusal; return response } },
     }),
   })
@@ -156,11 +155,9 @@ test('S3-P5 generated HTTP route enforces authenticity/session and returns only 
     method: 'POST',
     url: '/api/control/workspaces/20000000-0000-4000-8000-000000000063/projects',
     headers: {
-      origin: 'https://conexus.test',
-      cookie: '__Host-conexus_csrf=token',
-      'x-conexus-csrf': 'token',
+      ...hubJsonWrite,
+      cookie: hubSessionCookie(token),
       'idempotency-key': 'http-key',
-      'content-type': 'application/json',
       ...overrides.headers,
     },
     payload: overrides.payload ?? { name: 'HTTP Project', sourceBootstrap: { mode: 'NEW' } },
@@ -170,6 +167,8 @@ test('S3-P5 generated HTTP route enforces authenticity/session and returns only 
   assert.deepEqual(success.json(), Object.fromEntries(Object.entries(response).filter(([key]) => key !== 'replayed')))
   const forged = await request({ headers: { origin: 'https://forged.test' } })
   assert.equal(forged.statusCode, 403)
+  const crossSite = await request({ headers: { 'sec-fetch-site': 'cross-site' } })
+  assert.equal(crossSite.statusCode, 403)
   authenticated = false
   const anonymous = await request()
   assert.equal(anonymous.statusCode, 401)

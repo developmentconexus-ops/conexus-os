@@ -1,17 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import type { PoolClient, QueryResultRow } from 'pg'
 import { canonicalBytes } from '../../../../packages/canonical-json/src/index.mjs'
+import { BOOTSTRAP_WINDOW_SECONDS, OIDC_TRANSACTION_SECONDS } from '../platform/lifetimes.js'
 import { digest, opaqueToken as token } from '../platform/opaque-token.js'
 import { errorCode, type PostgresPool } from '../platform/postgres.js'
 import { accountId as brandAccountId } from './current-session.js'
-import type { AccountId, AccountSummary, CurrentSession, EmailAddress } from './current-session.js'
+import type { AccountId, AccountSummary, EmailAddress } from './current-session.js'
 import { Failure } from '../platform/failure.js'
 import type { OidcIdentity, OidcTransaction, VerifiedIdentity } from './oidc.js'
 
-export type { CurrentSession }
-
-const BOOTSTRAP_MS = 10 * 60 * 1000
-const OIDC_MS = 10 * 60 * 1000
 
 type ProvisionResult = AccountSummary & Readonly<{ replayed: boolean }>
 type AccessibleWorkspace = Readonly<{ workspaceId: string; name: string }>
@@ -118,7 +115,7 @@ export const createIdentityAccessStore = ({
       await pool.query(`
         INSERT INTO iam.oidc_transaction(state_digest, pkce_verifier, nonce, expires_at, application_project_id, sign_in_binding_digest)
         VALUES ($1, $2, $3, $4, $5, $6)
-      `, [digest(state), pkceVerifier, nonce, new Date(now.getTime() + OIDC_MS), application?.projectId ?? null, application?.bindingDigest ?? null])
+      `, [digest(state), pkceVerifier, nonce, new Date(now.getTime() + OIDC_TRANSACTION_SECONDS * 1000), application?.projectId ?? null, application?.bindingDigest ?? null])
     },
     consumeOidcTransaction({ state, now = new Date() }) {
       return transaction(async (client) => {
@@ -164,7 +161,7 @@ export const createIdentityAccessStore = ({
           SET token_digest = EXCLUDED.token_digest, verified_email = EXCLUDED.verified_email, expires_at = EXCLUDED.expires_at
           WHERE iam.bootstrap_context.consumed_at IS NULL AND iam.bootstrap_context.expires_at <= $6
           RETURNING token_digest
-        `, [digest(raw), issuer, subject, verifiedEmail, new Date(now.getTime() + BOOTSTRAP_MS), now])
+        `, [digest(raw), issuer, subject, verifiedEmail, new Date(now.getTime() + BOOTSTRAP_WINDOW_SECONDS * 1000), now])
         if (inserted.rowCount !== 1) throw new Failure('BOOTSTRAP_SEALED')
         return raw
       })

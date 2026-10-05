@@ -157,10 +157,51 @@ it does not claim a global Keycloak SSO logout.
 
 One session model serves the Hub, every application host and every Preview host:
 `iam.host_session`, one row per cookie, of kind `HUB`, `APPLICATION` or `PREVIEW`, with one CHECK
-per kind. A Hub session has its CSRF digest and a 30-minute idle limit inside an absolute 8 hours.
-An application session lasts 8 hours from sign-in. A Preview session lasts at most 15 minutes
-from its launch and only while the Hub session that opened it is live. One handoff primitive,
-`iam.handoff`, carries a sign-in to exactly one host (section 4.3, section 6).
+per kind. A Hub session has a 30-minute idle limit inside an absolute 8 hours. An application
+session lasts 8 hours from sign-in. A Preview session lasts at most 15 minutes from its launch and
+only while the Hub session that opened it is live. One handoff primitive, `iam.handoff`, carries a
+sign-in to exactly one host (section 4.3, section 6).
+
+Every session lifetime has one owner, `iam.session_lifetimes()`, and only the `iam_owner` functions
+that write the rows read it; the table checks hold shape only. The oracle tests in
+`tests/implementation/session-lifetimes.postgres.test.mjs` hold every writer to it. The windows the
+Hub writes from TypeScript (the OIDC transaction, the application sign-in cookie, the bootstrap
+window, invitations) live in `apps/hub/src/platform/lifetimes.ts`. The relations between them and
+the Keycloak realm are tests in the same file, not prose: the sign-in cookie outlives the OIDC
+transaction plus the application handoff (AC-18), and the realm's SSO idle limit, maximum lifespan
+and access token lifespan outlast the sessions they back (AC-19).
+
+### 4.2.1 Request authenticity
+
+The browser proves where a request comes from, and the session cookie proves who sends it. There is
+no CSRF token. Every write carries the exact `Origin` of the host it is meant for and is refused
+without it; every Hub API request has `Sec-Fetch-Site` `same-origin` or none; a Hub API write is
+neither a navigation nor a form body. The Hub session cookie is `__Host-conexus_session`, which only
+the Hub host can set or read, so a sibling application on the same site can neither read it nor
+pass the exact Origin. An HTML form injected into a Hub page is refused by its mode or media type.
+
+Each route of the three listeners (Hub, Preview, application host) declares one access kind from the
+closed table in `apps/hub/src/http/access.ts`, which also owns the one enforcer: authenticity runs
+before the body is read, the credential after. A route with no kind, a kind foreign to its
+listener, or a method its kind does not allow stops the Hub from starting. Cookie names and options
+have one owner, `apps/hub/src/http/cookies.ts`, and only `access.ts` reads the session and
+bootstrap cookies; `scripts/check-access-owner.mjs` keeps every header and cookie read inside these
+two files.
+
+Four rules hold this together:
+
+1. **A read changes nothing, and HEAD is opt in.** Only page reads answer HEAD. The routes that run
+   a transaction on GET (the OIDC pair and the application sign-in completion) are GET only.
+2. **The routes are a ledger.** `tests/implementation/access/route-ledger.mjs` lists every route
+   with its kind and the answers it must give; the walk in `route-walk.test.mjs` fails on any route
+   the ledger does not name.
+3. **One owner per fact.** One body parser, one Preview host parser, one header policy per
+   listener, one session shape.
+4. **No temporary security model.** The token left in the same change that brought the enforcer.
+
+Residual cases: a browser older than March 2023 sends no `Sec-Fetch-Site`, so the Builder mount's
+GETs stay open to a cross-site link in it (cost on the person's own conversation, not authority);
+XSS on the Hub origin defeats any of these. Authorization stays in the SQL functions.
 
 Hub and application sessions keep the Keycloak refresh token of their sign-in server side,
 sealed at rest with the installation's credential key (`CONEXUS_FACTORY_SECRET_KEY_FILE`, the
@@ -227,7 +268,7 @@ document navigation at the application host, without an application session
 → the host sets its own opaque, host-only, Secure, HttpOnly, SameSite=Lax session cookie
 ```
 
-The binding cookie lives ten minutes and redemption leaves it in place, so every handoff of
+The binding cookie lives twelve minutes, longer than the OIDC transaction plus the handoff, and redemption leaves it in place, so every handoff of
 sign-ins that share it redeems.
 
 An invitation claims nothing for an Account whose grant on that application was revoked at or
@@ -248,7 +289,7 @@ sources, `frame-ancestors 'none'` and no `sandbox` directive, and it grants no C
 
 Every application request resolves authority again: an unrevoked grant for that Account and
 application, or current membership in the Project's Workspace. Every state-changing request
-must carry the application host's exact `Origin`. SameSite does not separate sibling
+must carry the application host's exact `Origin` (the `host-write` kind of section 4.2.1). SameSite does not separate sibling
 application hosts, which share one site. Handlers receive the caller from the resolved session,
 never from the request.
 

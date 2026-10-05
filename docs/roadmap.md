@@ -182,8 +182,8 @@ and the sandbox tools, and widened S1; the operator approved that order.
    native egress control.
 6. **S4.** One runner for every periodic job, and one reaper for everything that expires, on the
    lifetimes S2 sets.
-7. **S3.** One owner for each security and policy rule: the Origin, CSRF and session checks, and
-   the session lifetimes.
+7. **S3.** One owner for each security and policy rule: the access rule for every route (Origin and
+   Fetch Metadata, the CSRF token removed), the session checks, and the session lifetimes.
 8. **S1.** One generated contract between the web app and the Hub for every route the web app
    calls, parsed at the edge into domain types, with branded ids.
 9. **S5.** The Builder screen holds one record of the conversation; browser tests run against a
@@ -194,6 +194,14 @@ and the sandbox tools, and widened S1; the operator approved that order.
 Beside the waves, each when its area is touched: one idempotent command and one transaction helper
 in the Hub, with a project started by one command; typed tests, after a design pass; and one
 migration baseline after S2.
+
+A known defect waits for its own fix, found on 2026-10-04 while verifying S3: when the Builder
+cannot open its sandbox (E2B unreachable), the turn ends as `INTERNAL_UNEXPECTED`, and the person
+reads that Conexus failed in a way it did not expect. The code `BUILDER_PREPARATION_FAILED` left the
+failure table and nothing replaced it. A sandbox that cannot start is an expected platform failure:
+it needs its own row in the failure table with its person-facing text, and the verify skill's
+Construir recipe, which still names the old code, changes with it. It is fixed before the Builder
+screen check.
 
 Every wave is built the same way:
 

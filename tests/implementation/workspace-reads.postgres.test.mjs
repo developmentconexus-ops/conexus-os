@@ -5,15 +5,17 @@ import pg from 'pg'
 import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
+import { hubSessionCookie, opaque, testListener } from './access/test-listener.mjs'
 
 const built = hubModuleUrl
-const { createHttpApp } = await import(built('http/app.js'))
 const { registerIdentityAccessRoutes } = await import(built('identity-access/routes.js'))
 const { createIdentityAccessStore } = await import(built('identity-access/store.js'))
 const { createWorkspaceStore } = await import(built('workspace/store.js'))
 
 const ACCOUNT_ID = '11111111-1111-4111-8111-111111111111'
 const WORKSPACE_ID = '33333333-3333-4333-8333-333333333333'
+const TOKEN = opaque('operator')
+const signedIn = { cookie: hubSessionCookie(TOKEN) }
 const CURRENT = Object.freeze({
   account: { accountId: ACCOUNT_ID, displayName: 'Operator' },
   issuer: 'https://issuer.test',
@@ -158,18 +160,18 @@ test('IAM-01 returns the real membership-derived Workspace projection on creator
     ? { rows: [{ workspace_id: WORKSPACE_ID, name: 'Operations' }] }
     : { rows: [] })
   const store = createIdentityAccessStore({ pool: identityPool.pool, workspaceReadPool: readPool.pool })
-  const app = await createHttpApp({
+  const { app } = await testListener({
+    sessions: { [TOKEN]: CURRENT },
     registerRoutes: (server) => registerIdentityAccessRoutes(server, {
       store,
       workspaceReader: store,
       oidc,
       config: { origin: 'https://conexus.test', bootstrapIssuer: CURRENT.issuer, bootstrapSubject: CURRENT.subject },
-      resolveCurrentSession: async () => CURRENT,
     }),
   })
   t.after(() => app.close())
 
-  const response = await app.inject({ method: 'GET', url: '/api/control/access-context' })
+  const response = await app.inject({ method: 'GET', url: '/api/control/access-context', headers: signedIn })
   assert.equal(response.statusCode, 200)
   assert.deepEqual(response.json(), {
     account: CURRENT.account,
@@ -186,28 +188,28 @@ test('IAM-01 discloses neither absent nor revoked membership and never reads bef
   const identityPool = fakePool()
   const readPool = fakePool()
   const store = createIdentityAccessStore({ pool: identityPool.pool, workspaceReadPool: readPool.pool })
-  const authenticated = await createHttpApp({
+  const { app: authenticated } = await testListener({
+    sessions: { [TOKEN]: CURRENT },
     registerRoutes: (server) => registerIdentityAccessRoutes(server, {
       store, workspaceReader: store, oidc,
       config: { origin: 'https://conexus.test', bootstrapIssuer: CURRENT.issuer, bootstrapSubject: CURRENT.subject },
-      resolveCurrentSession: async () => CURRENT,
     }),
   })
   t.after(() => authenticated.close())
-  const hidden = await authenticated.inject({ method: 'GET', url: '/api/control/access-context' })
+  const hidden = await authenticated.inject({ method: 'GET', url: '/api/control/access-context', headers: signedIn })
   assert.equal(hidden.statusCode, 200)
   assert.deepEqual(hidden.json().workspaces, [])
 
   const callsAfterAuthenticatedRead = readPool.calls.length
-  const unauthenticated = await createHttpApp({
+  const { app: unauthenticated } = await testListener({
+    sessions: { [TOKEN]: null },
     registerRoutes: (server) => registerIdentityAccessRoutes(server, {
       store, workspaceReader: store, oidc,
       config: { origin: 'https://conexus.test', bootstrapIssuer: CURRENT.issuer, bootstrapSubject: CURRENT.subject },
-      resolveCurrentSession: async () => null,
     }),
   })
   t.after(() => unauthenticated.close())
-  const denied = await unauthenticated.inject({ method: 'GET', url: '/api/control/access-context' })
+  const denied = await unauthenticated.inject({ method: 'GET', url: '/api/control/access-context', headers: signedIn })
   assert.equal(denied.statusCode, 401)
   assert.equal(readPool.calls.length, callsAfterAuthenticatedRead)
 })

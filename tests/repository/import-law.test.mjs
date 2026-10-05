@@ -95,6 +95,46 @@ test('every import-law RED control fires its named rule', async (suite) => {
   }
 })
 
+function layerViolations(files) {
+  const root = fixture(files)
+  try {
+    return checkImportLaw(root).filter((item) => item.id === 'IMPORT_LAYER_MATRIX').map((item) => `${item.source} -> ${item.specifier}`)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}
+
+test('the access edges: HTTP reads the session contract, the token and the lifetimes; routes read access and cookies', () => {
+  assert.deepEqual(layerViolations({
+    'apps/hub/src/http/access.ts': 'import "../identity-access/current-session.js"; import "../platform/opaque-token.js"; import "../platform/lifetimes.js"',
+    'apps/hub/src/identity-access/current-session.ts': '',
+    'apps/hub/src/platform/opaque-token.ts': '',
+    'apps/hub/src/platform/lifetimes.ts': '',
+    'apps/hub/src/identity-access/routes.ts': 'import "../http/access.js"; import "../http/cookies.js"',
+    'apps/hub/src/workspace/routes.ts': 'import "../http/access.js"; import "../http/cookies.js"',
+    'apps/hub/src/http/cookies.ts': '',
+    'apps/hub/src/identity-access/store.ts': 'import "../platform/lifetimes.js"',
+  }), [])
+  assert.deepEqual(layerViolations({
+    'apps/hub/src/http/app.ts': 'import "../mar/module.js"; import "../platform/application-csp.js"',
+    'apps/hub/src/http/access.ts': 'import "../identity-access/store.js"',
+    'apps/hub/src/hub.ts': 'import "./http/access.js"',
+    'apps/hub/src/identity-access/routes.ts': 'import "../platform/origin.js"',
+    'apps/hub/src/workspace/routes.ts': 'import "../platform/origin.js"',
+    'apps/hub/src/mar/module.ts': '',
+    'apps/hub/src/platform/application-csp.ts': '',
+    'apps/hub/src/identity-access/store.ts': '',
+    'apps/hub/src/platform/origin.ts': '',
+  }).sort(), [
+    'apps/hub/src/http/access.ts -> ../identity-access/store.js',
+    'apps/hub/src/http/app.ts -> ../mar/module.js',
+    'apps/hub/src/http/app.ts -> ../platform/application-csp.js',
+    'apps/hub/src/hub.ts -> ./http/access.js',
+    'apps/hub/src/identity-access/routes.ts -> ../platform/origin.js',
+    'apps/hub/src/workspace/routes.ts -> ../platform/origin.js',
+  ])
+})
+
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 
 const biomeFindings = (path, source) => {

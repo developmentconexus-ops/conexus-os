@@ -34,7 +34,7 @@ and the shapes that must not appear are in
    Enforced by: `biome:noExcessiveLinesPerFunction`, `biome:noExcessiveLinesPerFile`, `scripts/check-import-law.mjs`.
 6. **One pattern per need.** One way to handle an error, run a transaction, schedule a job, call the
    Hub from the web app, and draw each UI part. A second way to do the same thing is a defect.
-   Enforced by: `scripts/check-web-style.mjs` (a class with no CSS rule), `biome:noRestrictedGlobals` (fetch only in app/http.ts), `biome:noProcessEnv` (the environment is read only in platform/config.ts), and review (`docs/development/review-checklist.md`, Authority and design; a native `title` hint, a hand-read CSRF cookie, a raw color or font).
+   Enforced by: `scripts/check-web-style.mjs` (a class with no CSS rule), `biome:noRestrictedGlobals` (fetch only in app/http.ts), `biome:noProcessEnv` (the environment is read only in platform/config.ts), `scripts/check-access-owner.mjs` (request headers and cookies are read only by the access owners `http/access.ts` and `http/cookies.ts`), and review (`docs/development/review-checklist.md`, Authority and design; a native `title` hint, a raw color or font).
 7. **Named failures.** Every failure has a code from one table, and its category is decided where it is
    raised. A platform failure is fixed in code, never offered to the person as "try again".
    Enforced by: `scripts/generate-log-codes.mjs`, `scripts/generate-builder-run-vocabulary.mjs`, `biome:noEmptyBlockStatements`, and review (`docs/development/review-checklist.md`, Authority and design).

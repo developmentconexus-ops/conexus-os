@@ -38,7 +38,7 @@ function DeviceCode({ login, onDone, onCancel }: Readonly<{ login: Login; onDone
   useEffect(() => {
     let stopped = false
     const timer = setInterval(async () => {
-      const { state } = await call<{ state: LoginState }>('GET', `${base}/poll?loginId=${encodeURIComponent(login.loginId)}`).catch(() => ({ state: 'waiting' as const }))
+      const { state } = await call<{ state: LoginState }>('POST', `${base}/poll?loginId=${encodeURIComponent(login.loginId)}`).catch(() => ({ state: 'waiting' as const }))
       if (!stopped && state !== 'waiting') { stopped = true; clearInterval(timer); finish.current(state) }
     }, Math.max(login.intervalMs, 2000))
     return () => { stopped = true; clearInterval(timer) }
@@ -72,7 +72,7 @@ export function ChatGptAccount() {
     queryClient.invalidateQueries({ queryKey: ['builder-models'] }),
   ])
   const start = useMutation({
-    mutationFn: () => call<Login>('POST', `${base}/start`),
+    mutationFn: () => call<Login>('POST', `${base}/start`, {}),
     onSuccess: (started) => { setMessage(null); setLogin(started) },
     onError: () => setMessage({ text: 'Não foi possível iniciar a entrada com o ChatGPT agora.', failed: true }),
   })

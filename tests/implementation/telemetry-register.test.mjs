@@ -8,7 +8,9 @@ import { runWithTelemetry, startCollector } from './telemetry-harness.mjs'
 
 const SERVE_ONE_REQUEST = `
 const { createHttpApp } = await import(process.env.HUB_BUILD + '/http/app.js')
-const app = await createHttpApp({ registerRoutes: async (server) => { server.get('/ping', async () => ({ ok: true })); return ['ping'] } })
+const { routes } = await import(process.env.HUB_BUILD + '/http/access.js')
+const policy = { listener: 'hub', hubOrigin: 'https://hub.test', resolveHubSession: async () => null }
+const app = await createHttpApp({ policy, registerRoutes: async (server) => { routes(server).navigation({ url: '/ping', handler: async () => ({ ok: true }) }); return ['ping'] } })
 await app.listen({ host: '127.0.0.1', port: 0 })
 const answer = await fetch('http://127.0.0.1:' + app.server.address().port + '/ping')
 console.log(JSON.stringify({ status: answer.status }))
@@ -73,7 +75,9 @@ test('the runner entry names itself conexus-runner', async () => {
 
 const LOAD = `
 const { createHttpApp } = await import(process.env.HUB_BUILD + '/http/app.js')
-const app = await createHttpApp({ registerRoutes: async (server) => { server.get('/ping', async () => ({ ok: true })); return ['ping'] } })
+const { routes } = await import(process.env.HUB_BUILD + '/http/access.js')
+const policy = { listener: 'hub', hubOrigin: 'https://hub.test', resolveHubSession: async () => null }
+const app = await createHttpApp({ policy, registerRoutes: async (server) => { routes(server).navigation({ url: '/ping', handler: async () => ({ ok: true }) }); return ['ping'] } })
 await app.listen({ host: '127.0.0.1', port: 0 })
 const url = 'http://127.0.0.1:' + app.server.address().port + '/ping'
 for (let i = 0; i < 50; i++) await fetch(url)

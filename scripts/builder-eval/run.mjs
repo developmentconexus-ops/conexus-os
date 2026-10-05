@@ -141,10 +141,9 @@ const readUsableModels = (page) => page.evaluate(async () => {
 /** Mints the same Preview grant the "Recarregar prévia" button mints, only to read back the
  * previewUrl for the record; the browser already holds an equivalent lease from opening the tab. */
 const readPreviewUrl = (page, projectId) => page.evaluate(async (id) => {
-  const csrf = document.cookie.split('; ').find((entry) => entry.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')
   const response = await fetch(`/api/control/projects/${id}/builder-session/preview`, {
     method: 'POST', credentials: 'same-origin',
-    headers: { 'content-type': 'application/json', 'x-conexus-csrf': decodeURIComponent(csrf ?? '') },
+    headers: { 'content-type': 'application/json' },
     body: '{}',
   })
   return response.ok ? (await response.json()).previewUrl ?? null : null
@@ -254,9 +253,8 @@ export function createCards({ person = null, adjust = null, readMessages = async
 }
 
 const cancelRun = (page, projectId, builderRunId) => page.evaluate(async ({ id, run }) => {
-  const csrf = document.cookie.split('; ').find((entry) => entry.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=')
   const response = await fetch(`/api/control/projects/${id}/builder-session/runs/${run}/cancel`, {
-    method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json', 'x-conexus-csrf': decodeURIComponent(csrf ?? '') }, body: '{}',
+    method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: '{}',
   })
   return response.ok ? 'cancelled' : `cancel-failed-${response.status}`
 }, { id: projectId, run: builderRunId })

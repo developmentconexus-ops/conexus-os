@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
+import { hubJsonWrite, hubWrite, opaque, testListener } from './access/test-listener.mjs'
 
-const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { registerConnectorRoutes } = await import(hubModuleUrl('connectors/routes.js'))
 const { sankhyaCredentialSchema } = await import(hubModuleUrl('connectors/sankhya/credential.js'))
 
-const origin = 'https://conexus.test'
 const workspaceId = '11111111-1111-4111-8111-111111111111'
 const projectId = '22222222-2222-4222-8222-222222222222'
 const connectionId = '33333333-3333-4333-8333-333333333333'
@@ -38,26 +37,20 @@ const makeStore = (overrides = {}) => {
   }
 }
 
-const makeApp = (store, { isAdmin = true, checkConnection = async () => 'CONNECTOR_UNCONFIGURED', currentAccountId = adminAccountId, credentialSchemas = { sankhya: sankhyaCredentialSchema } } = {}) => createHttpApp({
+const SESSION_TOKEN = opaque('leandro')
+const makeApp = async (store, { isAdmin = true, checkConnection = async () => 'CONNECTOR_UNCONFIGURED', currentAccountId = adminAccountId, credentialSchemas = { sankhya: sankhyaCredentialSchema } } = {}) => (await testListener({
+  sessions: { [SESSION_TOKEN]: { account: { accountId: currentAccountId, displayName: 'Leandro' }, issuer: 'https://issuer.test', subject: 'subject-1' } },
   registerRoutes: (app) => registerConnectorRoutes(app, {
     store,
-    resolveCurrentSession: async (request, requireCsrf = false) => {
-      if (!request.cookies['__Host-conexus_session']) return null
-      const value = request.headers['x-conexus-csrf']
-      if (requireCsrf && (Array.isArray(value) ? value[0] : value) !== 'csrf-1') return null
-      return { account: { accountId: currentAccountId, displayName: 'Leandro' }, issuer: 'https://issuer.test', subject: 'subject-1' }
-    },
     isInstallationAdministrator: async () => isAdmin,
     checkConnection,
     credentialSchemas,
-    config: { origin },
   }),
-  staticRoot: null,
-})
+})).app
 
-const session = { '__Host-conexus_session': 'session-1', '__Host-conexus_csrf': 'csrf-1' }
-const authentic = { headers: { origin, 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' }, cookies: session }
-const authenticDelete = { headers: { origin, 'x-conexus-csrf': 'csrf-1' }, cookies: session }
+const session = { '__Host-conexus_session': SESSION_TOKEN }
+const authentic = { headers: hubJsonWrite, cookies: session }
+const authenticDelete = { headers: hubWrite, cookies: session }
 const credential = { clientId: 'client-a', clientSecret: 'super-secret-value', xToken: 'x-token-value' }
 const CREDENTIAL_VALUES = Object.values(credential)
 const CREDENTIAL_FIELD_NAMES = ['clientSecret', 'xToken', 'credential', 'credentialSealed']
@@ -272,14 +265,17 @@ test('a non-member is not told the Project exists, and a Connection outside the 
   assert.deepEqual({ status: denied.statusCode, type: denied.json().type }, { status: 403, type: 'urn:conexus:problem:CONNECTOR_BINDING_MANAGE_REQUIRED' })
 })
 
-test('a state change without the exact Origin or the CSRF token is refused before the store', async (t) => {
+test('a state change that is not the Hub page writing is refused before the store', async (t) => {
   const store = makeStore()
   const app = await makeApp(store)
   t.after(() => app.close())
   const cases = [
     { headers: { ...authentic.headers, origin: 'https://elsewhere.test' } },
-    { headers: { 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' } },
-    { headers: { ...authentic.headers, 'x-conexus-csrf': 'other' } },
+    { headers: { 'content-type': 'application/json' } },
+    { headers: { ...authentic.headers, 'sec-fetch-site': 'cross-site' } },
+    { headers: { ...authentic.headers, 'sec-fetch-site': 'same-site' } },
+    { headers: { ...authentic.headers, 'sec-fetch-mode': 'navigate' } },
+    { headers: { ...authentic.headers, 'content-type': 'application/x-www-form-urlencoded' } },
   ]
   for (const { headers } of cases) {
     const response = await app.inject({ method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, headers, cookies: session, payload: { connectionId, connectorId: 'sankhya', label: 'x', credential } })
@@ -296,6 +292,6 @@ test('without a session every operation answers 401', async (t) => {
   assert.equal((await app.inject({ method: 'GET', url: `/api/control/projects/${projectId}/connection-bindings` })).statusCode, 401)
   assert.equal((await app.inject({
     method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`,
-    headers: authentic.headers, cookies: { '__Host-conexus_csrf': 'csrf-1' }, payload: { connectionId, connectorId: 'sankhya', label: 'x', credential },
+    headers: authentic.headers, payload: { connectionId, connectorId: 'sankhya', label: 'x', credential },
   })).statusCode, 401)
 })

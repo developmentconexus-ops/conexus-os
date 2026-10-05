@@ -1,11 +1,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import type { Caller } from '../platform/caller.js'
-import { applicationOrigin, applicationSlugOfHost } from '../platform/config.js'
+import { applicationSlugOfHost } from '../platform/config.js'
 import type { ApplicationAddress } from '../platform/config.js'
 import type { ApplicationInvoker } from './application-invoker.js'
 import { digest, opaqueToken, parseOpaqueToken } from '../platform/opaque-token.js'
-import { isExactOrigin } from '../platform/origin.js'
-import { applicationHostContentSecurityPolicy } from '../platform/application-csp.js'
+import { routes } from '../http/access.js'
+import { clearCookie, readCookie, setCookie } from '../http/cookies.js'
 import { Failure } from '../platform/failure.js'
 import { FAILURE_TEXT } from '../platform/failure-text.generated.js'
 import { sendFailure } from '../http/problem.js'
@@ -13,9 +13,6 @@ import { classifyAppPath, SERVER_ROOT } from '../platform/application-path.js'
 import { API_BODY_LIMIT, callerLeft, OPERATION } from './preview-routes.js'
 
 const ENTRY_PATH = 'index.html'
-const SESSION_COOKIE = '__Host-conexus_app'
-const SIGN_IN_COOKIE = '__Host-conexus_app_signin'
-const SIGN_IN_SECONDS = 600
 
 type Authority =
   | Readonly<{ kind: 'SIGNED_IN'; caller: Caller }>
@@ -66,15 +63,7 @@ export const registerApplicationHostRoutes = async (
   dependencies: ApplicationHostDependencies,
 ): Promise<readonly ['MAR-Application']> => {
   const now = dependencies.now ?? (() => new Date())
-  const cookieOptions = { path: '/', secure: true, httpOnly: true, sameSite: 'lax' as const }
-
-  // Every answer: never framed, never cached, no referrer, and no CORS grant to anyone.
-  app.addHook('onRequest', async (_request, reply) => {
-    reply.header('content-security-policy', applicationHostContentSecurityPolicy)
-    reply.header('referrer-policy', 'no-referrer')
-    reply.header('cache-control', 'no-store')
-    reply.header('x-frame-options', 'DENY')
-  })
+  const route = routes(app)
 
   type Resolved = Readonly<{ slug: string; projectId: string }>
   const application = async (request: FastifyRequest): Promise<Resolved | null> => {
@@ -90,62 +79,51 @@ export const registerApplicationHostRoutes = async (
   // sign-in already in progress keeps its binding, so parallel navigations share it and every handoff
   // they bring back redeems.
   const startSignIn = (request: FastifyRequest, reply: FastifyReply, slug: string): unknown => {
-    const held = request.cookies[SIGN_IN_COOKIE]
-    const binding = parseOpaqueToken(held) ?? opaqueToken()
+    const binding = parseOpaqueToken(readCookie(request, 'applicationSignIn')) ?? opaqueToken()
     const login = new URL('/protocol/oidc/login', dependencies.exactHubOrigin)
     login.searchParams.set('application', slug)
     login.searchParams.set('binding', digest(binding).toString('base64url'))
-    return reply
-      .setCookie(SIGN_IN_COOKIE, binding, { ...cookieOptions, maxAge: SIGN_IN_SECONDS })
-      .clearCookie(SESSION_COOKIE, { path: '/', secure: true, sameSite: 'lax' })
-      .code(303).header('location', login.href).send()
+    setCookie(reply, 'applicationSignIn', binding)
+    return clearCookie(reply, 'applicationSession').code(303).header('location', login.href).send()
   }
 
-  app.get<{ Querystring: Record<string, unknown> }>('/__conexus/sign-in/complete', async (request, reply) => {
+  route['sign-in']<{ Querystring: Record<string, unknown> }>({ url: '/__conexus/sign-in/complete', handler: async (request, reply) => {
     const target = await application(request)
     if (!target) return reply.code(404).send()
     const handoff = parseOpaqueToken(request.query.handoff)
-    const binding = request.cookies[SIGN_IN_COOKIE]
+    const binding = readCookie(request, 'applicationSignIn')
     if (!handoff || !binding) return html(reply, 403, SIGN_IN_FAILED)
     // A handoff that fails here (another host, no binding, expired) is not consumed. The binding cookie is
     // left to expire: other navigations may still be bringing handoffs back.
     const redeemed = await dependencies.sessions.redeem({ handoff, target: { kind: 'APPLICATION', projectId: target.projectId, binding }, now: now() })
     if (!redeemed) return html(reply, 403, SIGN_IN_FAILED)
-    return reply
-      .setCookie(SESSION_COOKIE, redeemed.sessionToken, { ...cookieOptions, maxAge: redeemed.maxAgeSeconds })
-      .code(303).header('location', '/').send()
-  })
+    return setCookie(reply, 'applicationSession', redeemed.sessionToken, redeemed.maxAgeSeconds).code(303).header('location', '/').send()
+  } })
 
-  app.get<{ Querystring: Record<string, unknown> }>('/__conexus/no-access', async (request, reply) => {
+  route.navigation<{ Querystring: Record<string, unknown> }>({ url: '/__conexus/no-access', handler: async (request, reply) => {
     if (!applicationSlugOfHost(dependencies.application, request.headers.host)) return reply.code(404).send()
     // Only a fixed, known reason selects distinct copy: a query parameter is user-controlled, and every
     // other value falls back to the generic page.
     const body = request.query.reason === 'EMAIL_NOT_VERIFIED' ? EMAIL_NOT_VERIFIED : NO_ACCESS
     return html(reply, 403, body)
-  })
+  } })
 
-  app.post('/__conexus/sign-out', async (request, reply) => {
+  route['host-write']({ method: 'POST', url: '/__conexus/sign-out', handler: async (request, reply) => {
     const target = await application(request)
     if (!target) return reply.code(404).send()
-    if (!isExactOrigin(request.headers.origin, applicationOrigin(dependencies.application, target.slug))) throw new Failure('ORIGIN_REFUSED')
-    const sessionToken = request.cookies[SESSION_COOKIE]
+    const sessionToken = readCookie(request, 'applicationSession')
     if (sessionToken) await dependencies.sessions.signOut(sessionToken)
     // A sign-in that started before this sign-out must not redeem afterward: its binding cookie
     // goes with the session, or a handoff still in flight would sign the person back in.
-    return reply
-      .clearCookie(SESSION_COOKIE, { path: '/', secure: true, sameSite: 'lax' })
-      .clearCookie(SIGN_IN_COOKIE, { path: '/', secure: true, sameSite: 'lax' })
-      .code(204).send()
-  })
+    clearCookie(reply, 'applicationSession')
+    return clearCookie(reply, 'applicationSignIn').code(204).send()
+  } })
 
-  app.post<{ Params: { operation: string }; Body: unknown }>('/__conexus/api/:operation', { bodyLimit: API_BODY_LIMIT }, async (request, reply) => {
+  route['host-write']<{ Params: { operation: string }; Body: unknown }>({ method: 'POST', url: '/__conexus/api/:operation', bodyLimit: API_BODY_LIMIT, handler: async (request, reply) => {
     const target = await application(request)
     if (!target) throw new Failure('APPLICATION_NOT_FOUND')
-    // Every application host under the domain is one site, so SameSite does not stop a sibling
-    // application's POST. The exact Origin of this application's own host is the only admission.
-    if (!isExactOrigin(request.headers.origin, applicationOrigin(dependencies.application, target.slug))) throw new Failure('ORIGIN_REFUSED')
     if (request.headers['content-type']?.split(';', 1)[0]?.trim() !== 'application/json') throw new Failure('CONTENT_TYPE_REFUSED')
-    const authority = await dependencies.sessions.applicationAuthority({ sessionToken: request.cookies[SESSION_COOKIE], projectId: target.projectId, now: now() })
+    const authority = await dependencies.sessions.applicationAuthority({ sessionToken: readCookie(request, 'applicationSession'), projectId: target.projectId, now: now() })
     if (authority.kind === 'PROVIDER_UNAVAILABLE') throw new Failure('IDENTITY_PROVIDER_UNAVAILABLE')
     if (authority.kind === 'SIGN_IN_REQUIRED') throw new Failure('APPLICATION_SIGN_IN_REQUIRED')
     const served = await dependencies.reader.served({ accountId: authority.caller.accountId, projectId: target.projectId })
@@ -167,24 +145,19 @@ export const registerApplicationHostRoutes = async (
       throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: error, details: { project: target.projectId, operation: request.params.operation } })
     }
     return reply.code(result.status).type('application/problem+json').send(JSON.stringify(result.body))
-  })
+  } })
 
-  const serve = async (request: FastifyRequest, reply: FastifyReply): Promise<unknown> => {
+  const serve = async (request: FastifyRequest, reply: FastifyReply, { document }: Readonly<{ document: boolean }>): Promise<unknown> => {
+    const pathname = request.url.split('?', 1)[0] ?? ''
+    let served = classifyAppPath(request.method, pathname, () => true)
+    if (served.kind === 'not-found') throw new Failure('NOT_FOUND')
     const target = await application(request)
     if (!target) return reply.code(404).send()
-    const authority = await dependencies.sessions.applicationAuthority({ sessionToken: request.cookies[SESSION_COOKIE], projectId: target.projectId, now: now() })
+    const authority = await dependencies.sessions.applicationAuthority({ sessionToken: readCookie(request, 'applicationSession'), projectId: target.projectId, now: now() })
     if (authority.kind === 'PROVIDER_UNAVAILABLE') return html(reply, 503, UNAVAILABLE)
     if (authority.kind === 'SIGN_IN_REQUIRED') {
-      // Only the page itself goes to sign in. A script, image or fetch without a session is refused,
-      // so it neither follows a redirect to the Hub nor replaces the binding of a sign-in in progress.
-      const navigation = request.headers['sec-fetch-mode'] === 'navigate' && request.headers['sec-fetch-dest'] === 'document'
-      return navigation ? startSignIn(request, reply, target.slug) : sendFailure(reply, new Failure('APPLICATION_SIGN_IN_REQUIRED'))
+      return document ? startSignIn(request, reply, target.slug) : sendFailure(reply, new Failure('APPLICATION_SIGN_IN_REQUIRED'))
     }
-    const pathname = request.url.split('?', 1)[0] ?? ''
-    // The host cannot list the files without a second read, so it asks the classifier as if the path were
-    // declared and, when the read finds nothing, as if it were not.
-    let served = classifyAppPath(request.method, pathname, () => true)
-    if (served.kind === 'not-found') return reply.code(404).send()
     let requested = served.kind === 'file' ? served.path : ENTRY_PATH
     let read = await dependencies.reader.readServedFile({ accountId: authority.caller.accountId, projectId: target.projectId, path: requested })
     if (read.kind === 'NOT_FOUND' && served.kind === 'file') {
@@ -197,7 +170,7 @@ export const registerApplicationHostRoutes = async (
     if (read.kind === 'NOT_FOUND' || read.file.path !== requested || digest(read.file.bytes).toString('hex') !== read.file.sha256) return reply.code(404).send()
     return reply.type(read.file.mediaType).send(Buffer.from(read.file.bytes))
   }
-  app.get('/', serve)
-  app.get('/*', serve)
+  route.navigation({ url: '/', handler: serve })
+  route.navigation({ url: '/*', handler: serve })
   return ['MAR-Application']
 }

@@ -20,6 +20,13 @@ const ADMITTED_HANDLER_LOADER = 'apps/hub/src/app-runner/worker.ts'
 const CHECK_COMPILER_LOADER = 'apps/hub/src/builder/check/compiler.ts'
 // What a Failure is has one definition too: every layer throws it, and the HTTP handler answers it.
 const FAILURE_CONTRACT = 'apps/hub/src/platform/failure.ts'
+const HTTP_TARGETS = new Set([
+  'apps/hub/src/platform/logger.ts',
+  FAILURE_CONTRACT,
+  SESSION_CONTRACT,
+  'apps/hub/src/platform/opaque-token.ts',
+  'apps/hub/src/platform/lifetimes.ts',
+])
 
 function normalize(path) {
   return path.split(sep).join('/')
@@ -252,7 +259,7 @@ export function checkImportLaw(rootDirectory) {
         }
       }
       if (source.startsWith('apps/hub/src/http/') && isRelative &&
-          !target.startsWith('apps/hub/src/http/') && target !== 'apps/hub/src/platform/logger.ts' && target !== FAILURE_CONTRACT) {
+          !target.startsWith('apps/hub/src/http/') && !HTTP_TARGETS.has(target)) {
         violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'HTTP mechanics cannot import semantic owners, generated contracts, or platform internals'))
       }
       if (source === 'apps/hub/src/identity-access/routes.ts' && isRelative) {
@@ -264,10 +271,11 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/platform/application-slug.',
           'apps/hub/src/platform/logger.',
           'apps/hub/src/platform/opaque-token.',
-          'apps/hub/src/platform/origin.',
+          'apps/hub/src/http/access.',
+          'apps/hub/src/http/cookies.',
         ]
         if (!allowed.some((prefix) => target.startsWith(prefix))) {
-          violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'identity routes may use only their owner, HTTP problem, owned generated routes and the platform token, Origin and slug helpers'))
+          violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'identity routes may use only their owner, HTTP problem, access and cookies, owned generated routes and the platform token and slug helpers'))
         }
       }
       if (source === 'apps/hub/src/identity-access/store.ts' && isRelative) {
@@ -279,9 +287,10 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/identity-access/current-session.',
           'apps/hub/src/platform/failure.',
           'apps/hub/src/platform/opaque-token.',
+          'apps/hub/src/platform/lifetimes.',
         ]
         if (!allowed.some((prefix) => target.startsWith(prefix))) {
-          violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'identity store may use only owner errors/types, PostgreSQL types, canonical JSON and the platform token helper'))
+          violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'identity store may use only owner errors/types, PostgreSQL types, canonical JSON and the platform token and lifetime helpers'))
         }
       }
       if (source === 'apps/hub/src/workspace/routes.ts' && isRelative) {
@@ -291,10 +300,11 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/generated/workspace-routes.',
           'apps/hub/src/workspace/',
           'apps/hub/src/identity-access/current-session.',
-          'apps/hub/src/platform/origin.',
+          'apps/hub/src/http/access.',
+          'apps/hub/src/http/cookies.',
         ]
         if (!allowed.some((prefix) => target.startsWith(prefix))) {
-          violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'workspace routes may use only their owner, HTTP problem, owned generated routes and the platform Origin helper'))
+          violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'workspace routes may use only their owner, HTTP problem, access and cookies, and owned generated routes'))
         }
       }
       if (source === 'apps/hub/src/workspace/store.ts' && isRelative) {

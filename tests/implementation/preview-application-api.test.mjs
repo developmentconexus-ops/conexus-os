@@ -4,8 +4,9 @@ import { request } from 'node:http'
 import test from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import { hubModuleUrl } from './hub-build.mjs'
+import { testListener } from './access/test-listener.mjs'
 
-const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
+const { createMarModule, previewHostOf } = await import(hubModuleUrl('mar/module.js'))
 const { registerPreviewRoutes } = await import(hubModuleUrl('mar/preview-routes.js'))
 
 const PORT = 3444
@@ -26,18 +27,23 @@ const binding = Object.freeze({
 
 const preview = async (t, invokeApplication) => {
   const calls = []
-  const app = await createHttpApp({ staticRoot: null, registerRoutes: (server) => registerPreviewRoutes(server, {
-    sessions: {
-      redeem: async () => null,
-      previewAuthority: async ({ sessionToken, exactHost }) => (sessionToken === 'valid' && exactHost === HOST ? { kind: 'SIGNED_IN', binding } : { kind: 'SIGN_IN_REQUIRED' }),
-    },
-    registryReader: async ({ path }) => ({ path, mediaType: binding.manifest.files.find((file) => file.path === path)?.mediaType, bytes: new Uint8Array(), sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' }),
-    ...(invokeApplication === undefined ? {} : { invokeApplication: async (input) => { const { callerLeft: _callerLeft, ...recorded } = input; calls.push(recorded); return invokeApplication(input) } }),
-    exactHubOrigin: 'https://hub.conexus.localhost:3443',
-    previewPort: PORT,
-    pendingRequests: new Set(),
-    isClosed: () => false,
-  }) })
+  const sessions = {
+    redeem: async () => null,
+    previewAuthority: async ({ sessionToken, exactHost }) => (sessionToken === 'valid' && exactHost === HOST ? { kind: 'SIGNED_IN', binding } : { kind: 'SIGN_IN_REQUIRED' }),
+  }
+  const registryReader = async ({ path }) => ({ path, mediaType: binding.manifest.files.find((file) => file.path === path)?.mediaType, bytes: new Uint8Array(), sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' })
+  const mar = createMarModule({ sessions, registryReader, exactHubOrigin: 'https://hub.conexus.localhost:3443', previewPort: PORT })
+  const { app } = await testListener({
+    policy: mar.previewPolicy,
+    registerRoutes: (server) => registerPreviewRoutes(server, {
+      sessions,
+      registryReader,
+      ...(invokeApplication === undefined ? {} : { invokeApplication: async (input) => { const { callerLeft: _callerLeft, ...recorded } = input; calls.push(recorded); return invokeApplication(input) } }),
+      previewHostOf: (host) => previewHostOf(host, PORT),
+      pendingRequests: new Set(),
+      isClosed: () => false,
+    }),
+  })
   t.after(() => app.close())
   const call = (operation, overrides = {}) => app.inject({
     method: 'POST', url: `/__conexus/api/${operation}`,
@@ -73,8 +79,8 @@ test('the Preview API refuses another origin, a missing cookie, a non-JSON body 
     const answer = await call(operation, { headers })
     assert.deepEqual([answer.statusCode, answer.json()], [status, problem(code, status)])
   }
-  await refused('listNotes', { origin: 'https://preview-other.conexus.localhost:3444' }, 403, 'ORIGIN_REFUSED')
-  await refused('listNotes', { origin: 'https://hub.conexus.localhost:3443' }, 403, 'ORIGIN_REFUSED')
+  await refused('listNotes', { origin: 'https://preview-other.conexus.localhost:3444' }, 403, 'REQUEST_AUTHENTICITY_DENIED')
+  await refused('listNotes', { origin: 'https://hub.conexus.localhost:3443' }, 403, 'REQUEST_AUTHENTICITY_DENIED')
   await refused('listNotes', { cookie: '' }, 403, 'PREVIEW_REFUSED')
   await refused('listNotes', { cookie: '__Host-conexus_preview=forged' }, 403, 'PREVIEW_REFUSED')
   await refused('listNotes', { 'content-type': 'text/plain' }, 415, 'CONTENT_TYPE_REFUSED')
@@ -135,4 +141,18 @@ test('the Preview answers a deep link with the app index and the same CSP, and a
   for (const url of ['/x.js', '/x.js/', '/conexus-server/nope', '/conexus-server', '/__conexus/other']) {
     assert.equal((await app.inject({ method: 'GET', url, headers })).statusCode, 404, url)
   }
+})
+
+test('the Preview grants the Hub page the same CORS answer on GET and HEAD, and varies on nothing', async (t) => {
+  const { app } = await preview(t, async () => ({ status: 200, body: {} }))
+  const headers = { host: `${HOST}:${PORT}`, cookie: '__Host-conexus_preview=valid' }
+  for (const method of ['GET', 'HEAD']) {
+    const answer = await app.inject({ method, url: '/index.html', headers })
+    assert.equal(answer.statusCode, 200, method)
+    assert.equal(answer.headers['access-control-allow-origin'], 'https://hub.conexus.localhost:3443', method)
+    assert.equal(answer.headers['access-control-allow-credentials'], 'true', method)
+    assert.equal(answer.headers.vary, undefined, method)
+  }
+  const write = await app.inject({ method: 'POST', url: '/__conexus/api/listNotes', headers: { ...headers, origin: ORIGIN, 'content-type': 'application/json' }, payload: '{}' })
+  assert.equal(write.headers['access-control-allow-origin'], undefined, 'a write carries no grant')
 })

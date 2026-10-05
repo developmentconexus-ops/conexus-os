@@ -128,6 +128,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'knip',
   'repository-check',
   'import-law-check',
+  'access-owner-check',
   'census-builder-run',
   'generators',
   'e2b-template-check',
@@ -269,7 +270,7 @@ test('candidate graph is the static checks, then one node --test per group by gl
   assert.deepEqual(scopes, EXPECTED_CANDIDATE_SCOPES)
   const command = (scope) => CANDIDATE_GRAPH.find(entry => entry.scope === scope).command
   assert.equal(command('repository-tests'), "node --test 'tests/repository/!(*.browser|*.postgres).test.mjs'")
-  assert.equal(command('implementation-tests'), "node --test 'tests/implementation/!(*.browser|*.postgres).test.mjs'")
+  assert.equal(command('implementation-tests'), "node --test 'tests/implementation/!(*.browser|*.postgres).test.mjs' 'tests/implementation/access/*.test.mjs'")
   assert.equal(command('postgres-tests'), "node --test --test-concurrency=1 'tests/implementation/*.postgres.test.mjs'")
   assert.equal(command('browser-tests'), "node --test --test-concurrency=1 'tests/implementation/*.browser.test.mjs'")
   assert.equal(command('biome'), 'npx --no-install biome ci . --error-on-warnings')

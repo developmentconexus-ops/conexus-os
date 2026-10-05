@@ -7,7 +7,7 @@ import type { Caller } from '../platform/caller.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { accountId as brandAccountId } from './current-session.js'
-import type { CurrentSession } from './current-session.js'
+import type { CurrentSession, HubSessionDigest } from './current-session.js'
 import { Failure } from '../platform/failure.js'
 import type { CompletedSignIn, ProviderCheck, ProviderRefusal } from './oidc.js'
 
@@ -52,27 +52,22 @@ type HandoffTarget =
 
 const secondsUntil = (end: Date, now: Date): number => Math.max(1, Math.floor((end.getTime() - now.getTime()) / 1000))
 
-type HubSessionTokens = Readonly<{ sessionToken: string; csrfToken: string }>
-
 export type HostSessions = Readonly<{
   /** Opens a Hub session for an active Control Plane Account, keeping the sign-in's Keycloak refresh token sealed. */
-  openHub(input: Readonly<{ accountId: string; refreshToken: string; now?: Date }>): Promise<HubSessionTokens>
+  openHub(input: Readonly<{ accountId: string; refreshToken: string; now?: Date }>): Promise<Readonly<{ sessionToken: string }>>
+  /** A Hub request's session. Slides the idle limit. */
+  resolveHub(digest: HubSessionDigest, now?: Date): Promise<CurrentSession | null>
   /**
-   * A Hub request's session. A csrfToken means the request changes state and must carry the session's own
-   * token; a read passes none. Slides the idle limit.
-   */
-  resolveHub(input: Readonly<{ sessionToken: string; csrfToken?: string; now?: Date }>): Promise<CurrentSession | null>
-  /**
-   * Signs out of the Hub with the session's own CSRF token, and ends the Previews it opened. Never asks Keycloak.
+   * Signs out of the Hub and ends the Previews the session opened. Never asks Keycloak.
    * Null: no open Hub session ended. Otherwise the session's Keycloak refresh token, handed out once so the caller
    * can end the SSO session behind it; null when it no longer opens under this installation's key.
    */
-  endHub(input: Readonly<{ sessionToken: string; csrfToken: string }>): Promise<Readonly<{ refreshToken: string | null }> | null>
+  endHub(digest: HubSessionDigest): Promise<Readonly<{ refreshToken: string | null }> | null>
   applicationBySlug(slug: string): Promise<string | null>
   /** The TI-02 branch for a sign-in that began at an application host. Never touches the Hub session. */
   signIn(input: Readonly<{ identity: CompletedSignIn; existingAccountId: string | null; projectId: string; bindingDigest: Buffer; now?: Date }>): Promise<ApplicationSignIn>
   /** Opens a Preview for the developer behind a live Hub session: the entry handoff the Hub page posts to the Preview host, and when the Preview ends. */
-  openPreview(input: Readonly<{ hubSessionToken: string; launch: PreviewLaunch; now?: Date }>): Promise<Readonly<{ entryGrant: string; expiresAt: number }> | null>
+  openPreview(input: Readonly<{ hubSessionDigest: HubSessionDigest; launch: PreviewLaunch; now?: Date }>): Promise<Readonly<{ entryGrant: string; expiresAt: number }> | null>
   redeem(input: Readonly<{ handoff: string; target: HandoffTarget; now?: Date }>): Promise<Readonly<{ sessionToken: string; maxAgeSeconds: number }> | null>
   applicationAuthority(input: Readonly<{ sessionToken: string | undefined; projectId: string; now?: Date }>): Promise<ApplicationAuthority>
   previewAuthority(input: Readonly<{ sessionToken: string | undefined; exactHost: string; now?: Date }>): Promise<HostAuthority<{ binding: PreviewBinding }>>
@@ -189,22 +184,18 @@ export const createHostSessions = ({
   return Object.freeze({
     async openHub({ accountId, refreshToken, now = new Date() }) {
       const sessionToken = opaque()
-      const csrfToken = opaque()
-      const opened = await pool.query<QueryResultRow & { outcome: string }>('SELECT iam.open_hub_session($1, $2, $3, $4, $5) AS outcome',
-        [digest(sessionToken), digest(csrfToken), accountId, await envelope.seal(refreshToken), now])
+      const opened = await pool.query<QueryResultRow & { outcome: string }>('SELECT iam.open_hub_session($1, $2, $3, $4) AS outcome',
+        [digest(sessionToken), accountId, await envelope.seal(refreshToken), now])
       const outcome = opened.rows[0]?.outcome
       if (outcome === 'ACCOUNT_INACTIVE' || outcome === 'IDENTITY_NOT_ELIGIBLE') throw new Failure(outcome)
       if (outcome !== 'OPENED') throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'HUB_SESSION_NOT_OPENED' } })
-      return { sessionToken, csrfToken }
+      return { sessionToken }
     },
 
-    async resolveHub({ sessionToken, csrfToken, now = new Date() }) {
-      if (!parseOpaqueToken(sessionToken)) return null
-      if (csrfToken !== undefined && !parseOpaqueToken(csrfToken)) return null
-      const sessionDigest = digest(sessionToken)
+    async resolveHub(sessionDigest, now = new Date()) {
       const resolved = await pool.query<HubRow>(
-        'SELECT account_id, issuer, subject, display_name, email, provider_checked_at, due_provider_refresh_token FROM iam.resolve_hub_session($1, $2, $3)',
-        [sessionDigest, csrfToken === undefined ? null : digest(csrfToken), now])
+        'SELECT account_id, issuer, subject, display_name, email, provider_checked_at, due_provider_refresh_token FROM iam.resolve_hub_session($1, $2)',
+        [sessionDigest, now])
       const row = resolved.rows[0]
       if (!row) return null
       if (row.due_provider_refresh_token) {
@@ -219,9 +210,8 @@ export const createHostSessions = ({
       }
     },
 
-    async endHub({ sessionToken, csrfToken }) {
-      if (!parseOpaqueToken(sessionToken) || !parseOpaqueToken(csrfToken)) return null
-      const ended = await pool.query<QueryResultRow & { sealed: string | null }>('SELECT iam.end_hub_session($1, $2) AS sealed', [digest(sessionToken), digest(csrfToken)])
+    async endHub(sessionDigest) {
+      const ended = await pool.query<QueryResultRow & { sealed: string | null }>('SELECT iam.end_hub_session($1) AS sealed', [sessionDigest])
       const sealed = ended.rows[0]?.sealed
       if (!sealed) return null
       try {
@@ -266,12 +256,11 @@ export const createHostSessions = ({
       return minted.rows[0]?.minted ? { kind: 'HANDOFF', slug, handoff } : { kind: 'NO_ACCESS', slug, reason }
     },
 
-    async openPreview({ hubSessionToken, launch, now = new Date() }) {
-      if (!parseOpaqueToken(hubSessionToken)) return null
+    async openPreview({ hubSessionDigest, launch, now = new Date() }) {
       const entryGrant = opaque()
       const opened = await pool.query<QueryResultRow & { expires_at: Date | null }>(
         'SELECT iam.open_preview($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) AS expires_at',
-        [digest(hubSessionToken), launch.accountId, launch.projectId, launch.sourceRevision, launch.artifactRevisionId,
+        [hubSessionDigest, launch.accountId, launch.projectId, launch.sourceRevision, launch.artifactRevisionId,
           launch.artifactDigest, launch.exactHost, JSON.stringify(launch.manifest), digest(entryGrant), now])
       const expiresAt = opened.rows[0]?.expires_at
       return expiresAt ? { entryGrant, expiresAt: expiresAt.getTime() } : null

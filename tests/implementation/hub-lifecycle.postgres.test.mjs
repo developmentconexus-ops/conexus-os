@@ -10,11 +10,12 @@ import { loadHubMigrationFiles } from '../../scripts/run-hub-migrations.mjs'
 import { failureOf } from './failure-matchers.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { buildHubDatabase, createEmptyDatabase, query, testPool } from './hub-database.mjs'
+import { testListener } from './access/test-listener.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const migrationsRoot = resolve(repositoryRoot, 'apps/hub/migrations')
 const { assertSchemaCurrent, exitOnLostInstanceLock, takeInstanceLock } = await import(hubModuleUrl('platform/lifecycle.js'))
-const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
+const { routes } = await import(hubModuleUrl('http/access.js'))
 
 const latestVersion = loadHubMigrationFiles(migrationsRoot).at(-1).version
 
@@ -59,12 +60,15 @@ test('a Hub whose instance lock connection drops is told once, and logs HUB_INST
 })
 
 test('shutdown with an open stream ends the close and does not wait for the browser', async () => {
-  const app = await createHttpApp({
+  const { app } = await testListener({
     registerRoutes: async (server) => {
-      server.get('/stream', (_request, reply) => {
-        reply.raw.writeHead(200, { 'content-type': 'text/event-stream' })
-        reply.raw.write('data: open\n\n')
-        reply.hijack()
+      routes(server).navigation({
+        url: '/stream',
+        handler: (_request, reply) => {
+          reply.raw.writeHead(200, { 'content-type': 'text/event-stream' })
+          reply.raw.write('data: open\n\n')
+          reply.hijack()
+        },
       })
       return ['GET /stream']
     },

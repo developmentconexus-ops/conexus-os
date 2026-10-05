@@ -1,7 +1,7 @@
 // GENERATED from contracts/api/product/openapi.yaml by scripts/generate-project-contracts.mjs. Do not edit.
 import type { FastifySchema } from 'fastify'
 
-export const PROJECT_PRODUCT_OAS_DIGEST = "ee4a506205e3cd08549d3cdbebf5a25c1162c8a5cf10cd76abb6d99d044aa1e4"
+export const PROJECT_PRODUCT_OAS_DIGEST = "f4b9c6939bbe81986098965a89ef7d158f12ba703999d0e37a31111d6d2b55c8"
 export const PROJECT_ROUTE_PROJECTION_DIGEST = "03ea40d35942361fa1ef53b9a5febf705d7147db06f23b6450710ec7e293843c"
 export type ProjectOwnerId = 'PRJ-01' | 'PRJ-02' | 'PRJ-03' | 'PRJ-04'
 export type Prj01Params = { "workspaceId": string }

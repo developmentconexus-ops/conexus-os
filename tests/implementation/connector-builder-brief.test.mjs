@@ -105,8 +105,6 @@ test('the module opens no Builder run, and reads no binding, for a Project id it
   const module = createConnectorModule({
     pool: { query: async () => { throw new Error('the store must not be reached') } },
     envelope: { seal: async () => '', open: async () => '', fingerprints: () => [''] },
-    origin: 'https://conexus.test',
-    resolveCurrentSession: async () => null,
     isInstallationAdministrator: async () => false,
     log: () => {},
   })

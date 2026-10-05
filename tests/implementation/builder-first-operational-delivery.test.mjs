@@ -25,8 +25,6 @@ test('Project composition registers exactly the four surviving Project routes', 
   const routes = []
   const registered = await registerProjectRoutes({ route: (definition) => routes.push(definition) }, {
     store: {},
-    resolveCurrentSession: async () => null,
-    origin: 'https://control.example.test',
   })
   assert.deepEqual(registered, ['PRJ-01', 'PRJ-02', 'PRJ-03', 'PRJ-04'])
   assert.equal(routes.length, 4)

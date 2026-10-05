@@ -10,6 +10,7 @@ import pg from 'pg'
 import { build } from 'vite'
 import { hubModuleUrl } from './hub-build.mjs'
 import { buildHubDatabase } from './hub-database.mjs'
+import { opaque, testListener } from './access/test-listener.mjs'
 
 // Real Fastify + real PostgreSQL, driven by a real Chromium, exactly as the Hub runs: only the
 // session/administrator lookup is a test double (a real sign-in needs Keycloak, which this suite
@@ -20,7 +21,6 @@ const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TES
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 
-const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { createConnectorModule } = await import(hubModuleUrl('connectors/module.js'))
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
 
@@ -49,8 +49,6 @@ const CREDENTIAL = Object.freeze({
 const CREDENTIAL_VALUES = Object.values(CREDENTIAL)
 
 const SESSION_COOKIE = '__Host-conexus_session'
-const CSRF_COOKIE = '__Host-conexus_csrf'
-const CSRF_TOKEN = 'connector-integrations-csrf-1'
 
 const findFreePort = () => new Promise((settle, reject) => {
   const probe = createServer()
@@ -97,17 +95,7 @@ const setupFixture = async (t) => {
   fixture.onCleanup(() => runtimePool.end())
 
   const logLines = []
-  const resolveCurrentSession = async (request, requireCsrf = false) => {
-    const sessionCookie = request.cookies[SESSION_COOKIE]
-    if (!sessionCookie || !(sessionCookie in accounts)) return null
-    if (requireCsrf) {
-      const value = request.headers['x-conexus-csrf']
-      if ((Array.isArray(value) ? value[0] : value) !== CSRF_TOKEN) return null
-    }
-    return { account: { accountId: sessionCookie, displayName: accounts[sessionCookie] }, issuer: 'https://connector-integrations.test', subject: sessionCookie }
-  }
-  // Real authority, read from the same table the production function reads (iam.is_installation_administrator):
-  // only resolveCurrentSession is a test double, since a real one needs Keycloak.
+  const sessions = Object.fromEntries(Object.entries(accounts).map(([id, displayName]) => [opaque(id), { account: { accountId: id, displayName }, issuer: 'https://connector-integrations.test', subject: id }]))
   const isInstallationAdministrator = async (accountId) => {
     const result = await owner.query('SELECT 1 FROM iam.installation_administrator WHERE account_id = $1 AND revoked_at IS NULL', [accountId])
     return result.rowCount > 0
@@ -116,9 +104,11 @@ const setupFixture = async (t) => {
   const port = await findFreePort()
   const origin = `http://127.0.0.1:${port}`
   const envelope = createSecretEnvelope('cd'.repeat(32))
-  const connectors = createConnectorModule({ pool: runtimePool, envelope, origin, resolveCurrentSession, isInstallationAdministrator })
+  const connectors = createConnectorModule({ pool: runtimePool, envelope, isInstallationAdministrator })
 
-  const app = await createHttpApp({
+  const { app } = await testListener({
+    hubOrigin: origin,
+    sessions,
     staticRoot,
     registerRoutes: async (fastify) => {
       // The Hub's own record of every request and response this server answers: the same shape a
@@ -144,8 +134,7 @@ const withPage = async (t, { origin, projectId, workspaceId, accountId, accounts
   // accepts, and it still sends them on every request to this origin (127.0.0.1 is a trustworthy
   // origin, so a Secure cookie travels over this plain-HTTP test server).
   await context.addCookies([
-    { name: SESSION_COOKIE, value: accountId, domain: '127.0.0.1', path: '/', secure: true },
-    { name: CSRF_COOKIE, value: CSRF_TOKEN, domain: '127.0.0.1', path: '/', secure: true },
+    { name: SESSION_COOKIE, value: opaque(accountId), domain: '127.0.0.1', path: '/', secure: true },
   ])
   const page = await context.newPage()
   const responseBodies = []
@@ -337,7 +326,7 @@ test('a create or bind whose answer was lost says so and its resubmit answers wh
 
   const check = await fetch(`${fixture.origin}/api/control/workspaces/${fixture.workspaceId}/connections/${randomUUID()}/authentication-check`, {
     method: 'POST',
-    headers: { origin: fixture.origin, 'x-conexus-csrf': CSRF_TOKEN, cookie: `${SESSION_COOKIE}=${fixture.bothAccountId}; ${CSRF_COOKIE}=${CSRF_TOKEN}` },
+    headers: { origin: fixture.origin, 'sec-fetch-site': 'same-origin', cookie: `${SESSION_COOKIE}=${opaque(fixture.bothAccountId)}` },
   })
   assert.equal(check.status, 404, 'no gateway configured, and still no outcome for a Connection that does not exist')
 })

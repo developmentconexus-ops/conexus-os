@@ -20,6 +20,7 @@ owner document decides, and the disagreement is a finding.
 | Every concept has one owner, Conexus or Factory | [single-owner map](../../../../docs/reference/single-owner-map.md) |
 | Periodic work is a `Job` run by the one executor; whatever expires is removed by `iam.reap_expired` | [spec 0013](../../../../docs/tasks/specs/0013-one-job-executor-one-reaper/index.md) |
 | A module is a function returning a frozen object with private state; a class only extends `Error`, `Failure` or a library base class | [spec 0013](../../../../docs/tasks/specs/0013-one-job-executor-one-reaper/index.md) |
+| Every route of the three listeners declares one access kind; one enforcer checks where a request comes from (Fetch Metadata, the exact `Origin`) and who sends it (a `__Host-` cookie), with no CSRF token; each session lifetime has one owner in SQL and each cookie one owner in TypeScript | [spec 0014](../../../../docs/tasks/specs/0014-one-access-rule/index.md), enforced by `scripts/check-access-owner.mjs` |
 
 ## Never
 

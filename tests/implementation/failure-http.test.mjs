@@ -12,6 +12,7 @@ import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
 const build = process.env.HUB_BUILD
 const { createHttpApp } = await import(build + '/http/app.js')
+const { foreignRoutes, routes } = await import(build + '/http/access.js')
 const { Failure } = await import(build + '/platform/failure.js')
 const { logger } = await import(build + '/platform/logger.js')
 const { mountLogFilter, mountValidationFailure, registerBuilderSessionRoutes } = await import(build + '/builder/mastra-session-routes.js')
@@ -37,23 +38,30 @@ const MODEL = '/api/builder/agent-controller/conexus-builder/sessions/project:' 
 let threadsThrow = () => { throw new Error('unset') }
 controller.queryThreads = async () => threadsThrow()
 
-const app = await createHttpApp({ registerRoutes: async (server) => {
-  server.get('/root-async', async () => { throw new Failure('INTERNAL_UNEXPECTED', { details: { project: 'p1' } }) })
-  server.get('/root-sync', () => { throw new Failure('NOT_FOUND') })
-  server.get('/vendor', async () => { throw new Error('PLANTED_VENDOR_TEXT') })
-  server.post('/validated', { schema: { body: { type: 'object', required: ['a'], properties: { a: { type: 'string' } } } } }, async () => 'ok')
-  await server.register(async (scope) => {
+const HUB = 'https://conexus.test'
+const policy = {
+  listener: 'hub', hubOrigin: HUB,
+  resolveHubSession: async () => ({ account: { accountId: '22222222-2222-4222-8222-222222222222', displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 's' }),
+}
+const app = await createHttpApp({ policy, registerRoutes: async (server) => {
+  const route = routes(server)
+  route.navigation({ url: '/root-async', handler: async () => { throw new Failure('INTERNAL_UNEXPECTED', { details: { project: 'p1' } }) } })
+  route.navigation({ url: '/root-sync', handler: () => { throw new Failure('NOT_FOUND') } })
+  route.navigation({ url: '/vendor', handler: async () => { throw new Error('PLANTED_VENDOR_TEXT') } })
+  route.session({ method: 'POST', url: '/validated', schema: { body: { type: 'object', required: ['a'], properties: { a: { type: 'string' } } } }, handler: async () => 'ok' })
+  await foreignRoutes(server, 'navigation', async (scope) => {
     scope.addHook('onRequest', async (request) => { if (request.url === '/scoped/hook') throw new Failure('NOT_FOUND') })
     scope.get('/scoped/route', async () => { throw new Failure('NOT_FOUND') })
     scope.get('/scoped/hook', async () => 'x')
   })
   await registerBuilderSessionRoutes(server, {
-    mastra, controllerId: 'conexus-builder', controller, conversations: sessions, origin: 'https://conexus.test',
-    resolveCurrentSession: async () => ({ account: { accountId: '22222222-2222-4222-8222-222222222222', displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 's' }),
+    mastra, controllerId: 'conexus-builder', controller, conversations: sessions,
     admitProject: async () => true, conversationOwner: async () => 'PROJECT', projectBusy: async () => false, answerQuestion: () => 'ACCEPTED',
   })
   return []
 } })
+const write = { origin: HUB, 'content-type': 'application/json' }
+const signedIn = { '__Host-conexus_session': 's'.repeat(43) }
 const cases = [
   ['root async Failure', { url: '/root-async' }],
   ['root sync Failure', { url: '/root-sync' }],
@@ -61,11 +69,11 @@ const cases = [
   ['scoped route', { url: '/scoped/route' }],
   ['onRequest hook', { url: '/scoped/hook' }],
   ['unknown route', { url: '/nowhere' }],
-  ['invalid body', { method: 'POST', url: '/validated', payload: { b: 1 } }],
-  ['malformed JSON', { method: 'POST', url: '/validated', payload: '{bad', headers: { 'content-type': 'application/json' } }],
-  ['unsupported media type', { method: 'POST', url: '/validated', payload: '<a/>', headers: { 'content-type': 'application/xml' } }],
-  ['mount invalid body', { method: 'POST', url: MODEL, cookies: { '__Host-conexus_session': 's', '__Host-conexus_csrf': 'c' }, headers: { origin: 'https://conexus.test', 'x-conexus-csrf': 'c', 'content-type': 'application/json' }, payload: { nope: 1 } }],
-  ['mount plain Error', { url: THREADS, cookies: { '__Host-conexus_session': 's' }, before: () => { threadsThrow = () => { throw new Error('PLANTED_VENDOR_TEXT') } } }],
+  ['invalid body', { method: 'POST', url: '/validated', payload: { b: 1 }, headers: write }],
+  ['malformed JSON', { method: 'POST', url: '/validated', payload: '{bad', headers: write }],
+  ['unsupported media type', { method: 'POST', url: '/validated', payload: '<a/>', headers: { origin: HUB, 'content-type': 'application/xml' } }],
+  ['mount invalid body', { method: 'POST', url: MODEL, cookies: signedIn, headers: write, payload: { nope: 1 } }],
+  ['mount plain Error', { url: THREADS, cookies: signedIn, before: () => { threadsThrow = () => { throw new Error('PLANTED_VENDOR_TEXT') } } }],
 ]
 const report = {}
 for (const [name, { before, ...request }] of cases) {

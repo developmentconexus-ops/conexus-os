@@ -6,8 +6,9 @@ import { test } from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import { hubModuleUrl } from './hub-build.mjs'
 import { invalidConfig } from './failure-matchers.mjs'
+import { testListener } from './access/test-listener.mjs'
 
-const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
+const { createMarModule } = await import(hubModuleUrl('mar/module.js'))
 const { registerApplicationHostRoutes } = await import(hubModuleUrl('mar/application-host-routes.js'))
 const { applicationOrigin, applicationSlugOfHost, readHubConfig } = await import(hubModuleUrl('platform/config.js'))
 
@@ -39,42 +40,47 @@ const harness = async (t, { authorityFor, application = APPLICATION, invokeAppli
   const reads = []
   const sessions = new Map([[TOKEN_A, PROJECT_A]])
   const handoffs = new Map([[HANDOFF, { projectId: PROJECT_A, binding: 'binding-1' }], [SECOND_HANDOFF, { projectId: PROJECT_A, binding: 'binding-1' }]])
-  const app = await createHttpApp({
-    staticRoot: null,
+  const hostSessions = {
+    async applicationBySlug(slug) { return { 'caderno-de-compras': PROJECT_A, 'outro-app': PROJECT_B }[slug] ?? null },
+    async applicationAuthority({ sessionToken, projectId }) {
+      if (authorityFor) return authorityFor({ sessionToken, projectId })
+      return sessionToken && sessions.get(sessionToken) === projectId ? { kind: 'SIGNED_IN', caller: EMPLOYEE } : { kind: 'SIGN_IN_REQUIRED' }
+    },
+    async redeem({ handoff, target: { projectId, binding } }) {
+      const found = handoffs.get(handoff)
+      if (!found || found.projectId !== projectId || found.binding !== binding) return null
+      handoffs.delete(handoff)
+      sessions.set('n'.repeat(43), projectId)
+      return { sessionToken: 'n'.repeat(43), maxAgeSeconds: 28_800 }
+    },
+    async signOut(sessionToken) { calls.push({ name: 'signOut', sessionToken }); sessions.delete(sessionToken) },
+  }
+  const reader = {
+    async served({ projectId }) {
+      reads.push('served')
+      return projectId === PROJECT_A ? { artifactRevisionId: ARTIFACT, files: Object.entries(files).map(([path, file]) => ({ path, mediaType: file.mediaType })) } : null
+    },
+    async readServedFile({ projectId, path }) {
+      reads.push(`readServedFile ${path}`)
+      if (projectId !== PROJECT_A) return { kind: 'NOT_SERVED' }
+      const file = files[path]
+      return file
+        ? { kind: 'FILE', artifactRevisionId: ARTIFACT, file: { path, mediaType: file.mediaType, bytes: Buffer.from(file.text), sha256: sha(file.text).toString('hex') } }
+        : { kind: 'NOT_FOUND', artifactRevisionId: ARTIFACT }
+    },
+  }
+  const recordInvocation = async ({ callerLeft: _callerLeft, ...input }) => { calls.push({ name: 'invoke', input }); return { status: 200, body: { ok: true } } }
+  const mar = createMarModule({
+    sessions: { redeem: async () => null, previewAuthority: async () => ({ kind: 'SIGN_IN_REQUIRED' }) },
+    registryReader: async () => null,
+    exactHubOrigin: HUB,
+    previewPort: 3444,
+    applicationHost: { sessions: hostSessions, reader, application },
+  })
+  const { app } = await testListener({
+    policy: mar.applicationHost.policy,
     registerRoutes: (server) => registerApplicationHostRoutes(server, {
-      exactHubOrigin: HUB,
-      application,
-      sessions: {
-        async applicationBySlug(slug) { return { 'caderno-de-compras': PROJECT_A, 'outro-app': PROJECT_B }[slug] ?? null },
-        async applicationAuthority({ sessionToken, projectId }) {
-          if (authorityFor) return authorityFor({ sessionToken, projectId })
-          return sessionToken && sessions.get(sessionToken) === projectId ? { kind: 'SIGNED_IN', caller: EMPLOYEE } : { kind: 'SIGN_IN_REQUIRED' }
-        },
-        // As iam.redeem_handoff: every check passes before the handoff is consumed.
-        async redeem({ handoff, target: { projectId, binding } }) {
-          const found = handoffs.get(handoff)
-          if (!found || found.projectId !== projectId || found.binding !== binding) return null
-          handoffs.delete(handoff)
-          sessions.set('n'.repeat(43), projectId)
-          return { sessionToken: 'n'.repeat(43), maxAgeSeconds: 28_800 }
-        },
-        async signOut(sessionToken) { calls.push({ name: 'signOut', sessionToken }); sessions.delete(sessionToken) },
-      },
-      reader: {
-        async served({ projectId }) {
-          reads.push('served')
-          return projectId === PROJECT_A ? { artifactRevisionId: ARTIFACT, files: Object.entries(files).map(([path, file]) => ({ path, mediaType: file.mediaType })) } : null
-        },
-        async readServedFile({ projectId, path }) {
-          reads.push(`readServedFile ${path}`)
-          if (projectId !== PROJECT_A) return { kind: 'NOT_SERVED' }
-          const file = files[path]
-          return file
-            ? { kind: 'FILE', artifactRevisionId: ARTIFACT, file: { path, mediaType: file.mediaType, bytes: Buffer.from(file.text), sha256: sha(file.text).toString('hex') } }
-            : { kind: 'NOT_FOUND', artifactRevisionId: ARTIFACT }
-        },
-      },
-      invokeApplication: invokeApplication ?? (async ({ callerLeft: _callerLeft, ...input }) => { calls.push({ name: 'invoke', input }); return { status: 200, body: { ok: true } } }),
+      exactHubOrigin: HUB, application, sessions: hostSessions, reader, invokeApplication: invokeApplication ?? recordInvocation,
     }),
   })
   t.after(() => app.close())
@@ -166,7 +172,7 @@ test('the application host answers on its configured domain, and its API admits 
   assert.equal((await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A }, ...signedIn })).statusCode, 404)
   assert.equal((await app.inject(api('listNotes', { host, origin: `https://${host}` }))).statusCode, 200)
   const foreign = await app.inject(api('listNotes', { host, origin: ORIGIN_A }))
-  assert.deepEqual([foreign.statusCode, foreign.json().code], [403, 'ORIGIN_REFUSED'])
+  assert.deepEqual([foreign.statusCode, foreign.json().code], [403, 'REQUEST_AUTHENTICITY_DENIED'])
 })
 
 test('a browser without a session is sent to the Hub sign-in with the application and a binding only it holds', async (t) => {
@@ -197,6 +203,8 @@ test('only a document navigation starts a sign-in; any other request without a s
     assert.deepEqual([response.statusCode, response.json(), response.headers['set-cookie']], [401, { type: 'urn:conexus:problem:APPLICATION_SIGN_IN_REQUIRED', title: 'APPLICATION_SIGN_IN_REQUIRED', status: 401, code: 'APPLICATION_SIGN_IN_REQUIRED' }, undefined], JSON.stringify(headers))
   }
   assert.equal((await app.inject({ method: 'GET', url: '/assets/app.js', headers: { host: HOST_A, ...NAVIGATION } })).statusCode, 303)
+  const head = await app.inject({ method: 'HEAD', url: '/', headers: { host: HOST_A, ...NAVIGATION } })
+  assert.deepEqual([head.statusCode, head.headers['set-cookie']], [401, undefined], 'a HEAD is never a document navigation')
 })
 
 test('parallel navigations share one binding, and every handoff they bring back redeems, even after one fails', async (t) => {
@@ -221,7 +229,7 @@ test('a sign-in in progress keeps its binding', async (t) => {
   assert.equal(response.statusCode, 303)
   assert.equal(new URL(response.headers.location).searchParams.get('binding'), sha(held).toString('base64url'))
   const binding = response.cookies.find((cookie) => cookie.name === '__Host-conexus_app_signin')
-  assert.deepEqual([binding.value, binding.maxAge], [held, 600], 'the same value, with its lifetime renewed')
+  assert.deepEqual([binding.value, binding.maxAge], [held, 720], 'the same value, with its lifetime renewed')
   const malformed = await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A, ...NAVIGATION }, cookies: { '__Host-conexus_app_signin': 'short' } })
   assert.notEqual(malformed.cookies.find((cookie) => cookie.name === '__Host-conexus_app_signin').value, 'short')
 })
@@ -287,7 +295,7 @@ test('a session for one application is no session on another application host', 
 
 test('the Hub session cookie alone is no application session', async (t) => {
   const { app } = await harness(t)
-  const response = await app.inject(api('addNote', { cookies: { '__Host-conexus_session': TOKEN_A, '__Host-conexus_csrf': 'c' } }))
+  const response = await app.inject(api('addNote', { cookies: { '__Host-conexus_session': TOKEN_A } }))
   assert.equal(response.statusCode, 401)
   assert.deepEqual(response.json(), { type: 'urn:conexus:problem:APPLICATION_SIGN_IN_REQUIRED', title: 'APPLICATION_SIGN_IN_REQUIRED', status: 401, code: 'APPLICATION_SIGN_IN_REQUIRED' })
 })

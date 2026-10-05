@@ -26,8 +26,8 @@ embedded doc page.
 | --- | --- | --- | --- |
 | 1 | Moving repositories to a new GitHub App installation | A | Implemented |
 | 2 | Keeping GitHub tokens out of the sandbox | A | Implemented |
-| 3 | Serving the Factory's credential routes | A, after the operator's amendment | Implemented |
-| 4 | Creating a conversation | A for creation, B for visibility | Implemented; visibility waits on mastra-ai/mastra#24689 |
+| 3 | Serving the Factory's credential routes | A, after the operator's amendment | Superseded by C-032 |
+| 4 | Creating a conversation | A for creation, B for visibility | Superseded by C-032 |
 | 5 | Conversation titles in Portuguese | A | Implemented |
 | 6a | Classifying model errors | A | Implemented |
 | 6b | Writing run diagnostics into a conversation | A, experimental API | Implemented |
@@ -152,33 +152,11 @@ A Hub-session provider is not a second sign-in door: it validates the existing H
 login, callback or credential capability. The operator approved the amendment on 2026-09-22, and the
 single-owner map and the decision register record it.
 
-**Implemented.**
-
-1. `HubSessionAuthProvider` (`apps/hub/src/builder/hub-session-auth.ts`) extends core's
-   `MastraAuthProvider` and implements `IOrganizationsProvider`. `authenticateToken` reads the Hub
-   session cookie from the request through the same resolver the Hub's routes use and answers
-   `{ id: accountId, organizationId: orgId }`. `isOrganizationAdmin` answers from
-   `isInstallationAdministrator`.
-2. `composeFactory` passes it as `MastraFactory({ auth })`. The manual
-   `registerTenantCredentialResolver` call is deleted, because the Factory now registers its own. The
-   installation's custom providers, Google AI Pro among them, live under the installation's
-   organization id instead of the `local` sentinel.
-3. `registerFactoryApiRoutes` (`apps/hub/src/builder/mastra-session-routes.ts`) gives a
-   `MastraServer` only the Factory's credential routes through its `customApiRoutes` constructor
-   option, then calls `registerCustomApiRoutes()`. A scope `preHandler` requires the Hub session and,
-   on a write, origin plus CSRF. The browser calls the routes at their own paths
-   (`/web/config/providers…`), and no other Factory route is reachable. The fake context, the handler
-   lookup and the casts are deleted.
-4. The Hub keeps only what the Factory does not own: sharing with everyone, Google AI Pro (C-027),
-   model defaults and the memory model. `/api/control/model-accounts/models` reads the Factory's
-   `/web/config/models` through the Hub's own HTTP surface (optionally filtered by `?scope=installation` to
-   reflect shared account coverage). It then adds Google AI Pro's models from the
-   Hub's own list when the router runs and the caller has the credential. A Google AI Pro sign-in
-   writes the person's row through the Factory's credential storage, because it settles on a later
-   poll that carries no write's CSRF.
-
-**Still to verify on the pilot.** A person connects a provider, the installation administrator shares
-it, and a run uses it.
+**Superseded (C-032).** The Factory left the Hub, so neither the auth provider nor the Factory's
+credential routes exist. Model accounts are the Hub's own: `apps/hub/src/builder/model-account-store.ts`
+keeps each person's or the installation's shared account, sealed with the installation key, and
+`registerModelAccountRoutes` (`apps/hub/src/builder/model-accounts.ts`) serves them under
+`/api/control/model-accounts`, every route of the `session` access kind (`apps/hub/src/http/access.ts`).
 
 ## 4. Creating a conversation
 
@@ -202,17 +180,11 @@ chose creation through the Factory's own route. The preferred default is private
 and `org` is the interim value until the issue lands. Conexus enforces Project authority on every read
 meanwhile.
 
-**Implemented.**
-
-1. The Hub mounts the Factory's session route with `registerFactoryApiRoutes`. Its guard also requires
-   the Account to build the Project bound to the route's project repository, so the route cannot open
-   a session on a Project the person may not build.
-2. `POST /api/control/projects/:projectId/conversations` keeps Conexus admission: the session, CSRF and
-   the Project binding. It then calls the Factory's route with the conversation id and the Conexus
-   branch, and opens the conversation's thread with the person's model defaults. The Factory decides
-   idempotency and writes the row. The Hub's DTO and storage write are deleted. The Hub reads the row
-   first only to tell a retry (200) from a creation (201).
-3. When the issue lands, the Hub passes `private`, the value the operator's policy derives.
+**Superseded (C-032).** The Factory's session route and `/api/control/projects/:projectId/conversations`
+are gone. A conversation is a session of the Builder's own `AgentController`, opened through its
+Mastra mount (`registerBuilderSessionRoutes`, `apps/hub/src/builder/mastra-session-routes.ts`), whose
+routes are of the `session` access kind and pass one guard that requires the Account to build the
+Project named by the session's resource before any session work.
 
 ## 5. Conversation titles in Portuguese
 

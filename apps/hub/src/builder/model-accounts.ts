@@ -4,12 +4,12 @@ import { getEffectiveThinkingLevel, THINKING_LEVEL_TO_REASONING_EFFORT } from '@
 import { getAvailableThinkingLevelsForModel, THINKING_LEVEL_VALUES, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import type { AvailableModel } from '@mastra/core/agent-controller'
 import { getProviderConfig } from '@mastra/core/llm'
-import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 import { DEFAULT_THINKING_LEVEL } from './harness/request-context.js'
 import { Failure } from '../platform/failure.js'
 import { ANTHROPIC_KEY_SHAPE, ANTHROPIC_PROVIDER, serializeClaudeTokens } from './anthropic/credential.js'
 import { createClaudeLogin, type ClaudeAuthorization } from './anthropic/login.js'
-import type { AccountId, ResolveCurrentSession } from '../identity-access/current-session.js'
+import type { AccountId } from '../identity-access/current-session.js'
 import { GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
 import { createGoogleAiProLogin } from './google-ai-pro/login.js'
 import type { CliproxyPool } from './google-ai-pro/pool.js'
@@ -17,10 +17,8 @@ import type { GoogleAiProAccounts } from './google-ai-pro/store.js'
 import type { ModelAccountKind, ModelAccountStore } from './model-account-store.js'
 import { OPENAI_CODEX_PROVIDER, OPENAI_MODEL_PROVIDER, serializeCodexTokens } from './openai-codex/credential.js'
 import { createCodexLogin, type CodexDevice } from './openai-codex/login.js'
-import { isExactOrigin } from '../platform/origin.js'
+import { routes } from '../http/access.js'
 
-const CSRF_COOKIE = '__Host-conexus_csrf'
-const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 const LOGIN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 type Caller = Readonly<{ accountId: AccountId }>
@@ -121,9 +119,7 @@ type Connection = Readonly<{ provider: string; providerName: string; mine: boole
  * slice 5.
  */
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
-export const registerModelAccountRoutes = async (app: FastifyInstance, { origin, resolveCurrentSession, isInstallationAdministrator, modelAccounts, openaiCodexDevice, claudeAuthorization, googleAiPro, googleAiProAccounts }: Readonly<{
-  origin: string
-  resolveCurrentSession: ResolveCurrentSession
+export const registerModelAccountRoutes = async (app: FastifyInstance, { isInstallationAdministrator, modelAccounts, openaiCodexDevice, claudeAuthorization, googleAiPro, googleAiProAccounts }: Readonly<{
   isInstallationAdministrator(account: AccountId): Promise<boolean>
   modelAccounts: ModelAccountStore
   // OpenAI's device-code endpoints; only tests replace them.
@@ -135,15 +131,7 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
   // The Google AI Pro credential's home, `model.model_account`: present exactly when googleAiPro is.
   googleAiProAccounts?: GoogleAiProAccounts
 }>): Promise<void> => {
-  const admit = async (request: FastifyRequest): Promise<Caller> => {
-    if (request.method !== 'GET') {
-      const csrf = header(request.headers['x-conexus-csrf'])
-      if (!isExactOrigin(request.headers.origin, origin) || !csrf || csrf !== request.cookies[CSRF_COOKIE]) throw new Failure('REQUEST_AUTHENTICITY_DENIED')
-    }
-    const session = await resolveCurrentSession(request, request.method !== 'GET')
-    if (!session) throw new Failure('AUTHENTICATION_REQUIRED')
-    return { accountId: session.account.accountId }
-  }
+  const route = routes(app)
   // Offered only to a caller who can use it, own or shared, since a model whose first turn fails is
   // worse than one not offered. With scope=installation, whether the installation shares one.
   const offeredModels = async (accountId: AccountId, scope?: 'installation'): Promise<readonly Omit<OfferedModel, 'hasApiKey'>[]> => {
@@ -157,16 +145,14 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
     ]
     return (await Promise.all(offers.map(async ([provider, offer]) => await usable(provider) ? await offer() : []))).flat()
   }
-  app.get<{ Querystring: { scope?: 'installation' } }>('/api/control/model-accounts/models', {
-    schema: { querystring: { type: 'object', additionalProperties: false, properties: { scope: { type: 'string', enum: ['installation'] } } } },
-  }, async (request) => {
-    const caller = await admit(request)
+  route.session<{ Querystring: { scope?: 'installation' } }>({ method: 'GET', url: '/api/control/model-accounts/models', schema: { querystring: { type: 'object', additionalProperties: false, properties: { scope: { type: 'string', enum: ['installation'] } } } }, handler: async (request, _reply, session) => {
+    const caller = session.account
     return { models: (await offeredModels(caller.accountId, request.query.scope)).map((model) => ({ ...model, hasApiKey: true })), defaultThinkingLevel: DEFAULT_THINKING_LEVEL }
-  })
+  } })
 
   // The caller's accounts for the providers this Hub signs in to, never their secrets.
-  app.get('/api/control/model-accounts', async (request) => {
-    const caller = await admit(request)
+  route.session({ method: 'GET', url: '/api/control/model-accounts', handler: async (_request, _reply, session) => {
+    const caller = session.account
     const [administrator, accounts] = await Promise.all([
       isInstallationAdministrator(caller.accountId),
       Promise.all(LISTED_PROVIDERS.map(async (provider): Promise<Connection> => {
@@ -175,100 +161,90 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { origin,
       })),
     ])
     return { administrator, accounts }
-  })
+  } })
 
   // A key the person pastes becomes their own `api_key` row, sealed. The key is never sent back.
-  app.put<{ Params: { provider: string }; Body: { key: string } }>('/api/control/model-accounts/:provider/api-key', {
-    schema: { body: { type: 'object', additionalProperties: false, required: ['key'], properties: { key: { type: 'string', maxLength: 512 } } } },
-  }, async (request, reply) => {
-    const caller = await admit(request)
+  route.session<{ Params: { provider: string }; Body: { key: string } }>({ method: 'PUT', url: '/api/control/model-accounts/:provider/api-key', schema: { body: { type: 'object', additionalProperties: false, required: ['key'], properties: { key: { type: 'string', maxLength: 512 } } } }, handler: async (request, reply, session) => {
+    const caller = session.account
     const shape = Object.hasOwn(API_KEY_SHAPES, request.params.provider) ? API_KEY_SHAPES[request.params.provider] : undefined
     if (!shape) throw new Failure('MODEL_ACCOUNT_PROVIDER_UNKNOWN')
     const key = request.body.key.trim()
     if (!shape.test(key)) throw new Failure('MODEL_ACCOUNT_KEY_REFUSED')
     await modelAccounts.write(caller.accountId, request.params.provider, 'api_key', key)
     return reply.code(204).send()
-  })
+  } })
 
   const claudeLogin = createClaudeLogin<Caller>({
     writeCredential: ({ accountId }, tokens) => modelAccounts.write(accountId, ANTHROPIC_PROVIDER, 'oauth', serializeClaudeTokens(tokens)),
     ...(claudeAuthorization ? { authorization: claudeAuthorization } : {}),
   })
   const claudeBase = `/api/control/model-accounts/${ANTHROPIC_PROVIDER}/oauth`
-  app.post(`${claudeBase}/start`, async (request) => {
-    const caller = await admit(request)
+  route.session({ method: 'POST', url: `${claudeBase}/start`, handler: async (_request, _reply, session) => {
+    const caller = session.account
     return claudeLogin.start(caller).then(
       ({ expiresAt, ...handoff }) => ({ ...handoff, expiresAt: new Date(expiresAt).toISOString() }),
       (error: unknown) => { throw new Failure('MODEL_LOGIN_UNAVAILABLE', { cause: error }) },
     )
-  })
-  app.post<{ Body: { loginId: string; code: string } }>(`${claudeBase}/complete`, {
-    schema: {
+  } })
+  route.session<{ Body: { loginId: string; code: string } }>({ method: 'POST', url: `${claudeBase}/complete`, schema: {
       body: {
         type: 'object', additionalProperties: false, required: ['loginId', 'code'],
         properties: { loginId: { type: 'string', pattern: LOGIN_ID.source }, code: { type: 'string', minLength: 1, maxLength: 4096 } },
       },
-    },
-  }, async (request) => {
-    const caller = await admit(request)
+    }, handler: async (request, _reply, session) => {
+    const caller = session.account
     return { state: await claudeLogin.complete(caller, request.body.loginId, request.body.code) }
-  })
+  } })
 
   const codexLogin = createCodexLogin<Caller>({
     writeCredential: ({ accountId }, tokens) => modelAccounts.write(accountId, OPENAI_CODEX_PROVIDER, 'oauth', serializeCodexTokens(tokens)),
     ...(openaiCodexDevice ? { device: openaiCodexDevice } : {}),
   })
   const codexBase = `/api/control/model-accounts/${OPENAI_CODEX_PROVIDER}/oauth`
-  app.post(`${codexBase}/start`, async (request) => {
-    const caller = await admit(request)
+  route.session({ method: 'POST', url: `${codexBase}/start`, handler: async (_request, _reply, session) => {
+    const caller = session.account
     return codexLogin.start(caller).then(
       ({ expiresAt, ...handoff }) => ({ ...handoff, expiresAt: new Date(expiresAt).toISOString() }),
       (error: unknown) => { throw new Failure('MODEL_LOGIN_UNAVAILABLE', { cause: error }) },
     )
-  })
-  app.get<{ Querystring: { loginId?: string } }>(`${codexBase}/poll`, {
-    schema: { querystring: { type: 'object', additionalProperties: false, properties: { loginId: { type: 'string', maxLength: 64 } } } },
-  }, async (request) => {
-    const caller = await admit(request)
+  } })
+  route.session<{ Querystring: { loginId?: string } }>({ method: 'POST', url: `${codexBase}/poll`, schema: { querystring: { type: 'object', additionalProperties: false, properties: { loginId: { type: 'string', maxLength: 64 } } } }, handler: async (request, _reply, session) => {
+    const caller = session.account
     return { state: await codexLogin.poll(caller, request.query.loginId ?? '') }
-  })
+  } })
 
   if (googleAiPro && googleAiProAccounts) {
     const login = createGoogleAiProLogin<Caller>({
       pool: googleAiPro,
-      // The person's own row in model.model_account, sealed. The sign-in settles on a later
-      // poll, which carries no write's CSRF, so the Hub writes here.
       writeCredential: ({ accountId }, key) => googleAiProAccounts.write(accountId, key),
     })
     // The Settings card reads the person's own connection and whether one is shared.
-    app.get(`/api/control/model-accounts/${GOOGLE_AI_PRO_PROVIDER}/connection`, async (request) => {
-      const caller = await admit(request)
+    route.session({ method: 'GET', url: `/api/control/model-accounts/${GOOGLE_AI_PRO_PROVIDER}/connection`, handler: async (_request, _reply, session) => {
+      const caller = session.account
       const [{ mine, shared }, administrator] = await Promise.all([
         googleAiProAccounts.connection(caller.accountId),
         isInstallationAdministrator(caller.accountId),
       ])
       return { mine, shared, administrator }
-    })
+    } })
     const base = `/api/control/model-accounts/${GOOGLE_AI_PRO_PROVIDER}/login`
-    app.post(`${base}/start`, async (request) => {
-      const caller = await admit(request)
+    route.session({ method: 'POST', url: `${base}/start`, handler: async (_request, _reply, session) => {
+      const caller = session.account
       return login.start(caller)
-    })
-    app.post<{ Body: { loginId: string; callbackUrl: string } }>(`${base}/complete`, {
-      schema: {
+    } })
+    route.session<{ Body: { loginId: string; callbackUrl: string } }>({ method: 'POST', url: `${base}/complete`, schema: {
         body: {
           type: 'object', additionalProperties: false, required: ['loginId', 'callbackUrl'],
           properties: { loginId: { type: 'string', pattern: LOGIN_ID.source }, callbackUrl: { type: 'string', maxLength: 4096 } },
         },
-      },
-    }, async (request) => {
-      const caller = await admit(request)
+      }, handler: async (request, _reply, session) => {
+      const caller = session.account
       return { state: await login.complete(caller, request.body.loginId, request.body.callbackUrl) }
-    })
-    app.get<{ Params: { loginId: string } }>(`${base}/:loginId`, async (request) => {
-      const caller = await admit(request)
+    } })
+    route.session<{ Params: { loginId: string } }>({ method: 'POST', url: `${base}/:loginId`, handler: async (request, _reply, session) => {
+      const caller = session.account
       if (!LOGIN_ID.test(request.params.loginId)) return { state: 'expired' }
       return { state: await login.status(caller, request.params.loginId) }
-    })
+    } })
   }
 }

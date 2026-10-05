@@ -2,20 +2,20 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { RequestContext } from '@mastra/core/request-context'
 import { hubModuleUrl } from './hub-build.mjs'
+import { hubJsonWrite, opaque, testListener } from './access/test-listener.mjs'
 
 const built = hubModuleUrl
-const { createHttpApp } = await import(built('http/app.js'))
 const { registerModelAccountRoutes } = await import(built('builder/model-accounts.js'))
 const { createModelRouting } = await import(built('builder/model-routing.js'))
 const { createClaudeHolds, parseClaudeTokens, serializeClaudeTokens } = await import(built('builder/anthropic/credential.js'))
 const { createAnthropicRoute } = await import(built('builder/anthropic/route.js'))
 
-const origin = 'https://conexus.test'
+const SESSION_TOKEN = opaque('ana')
 const ana = '22222222-2222-4222-8222-222222222222'
 const bia = '55555555-5555-4555-8555-555555555555'
 const authentic = {
-  headers: { origin, 'x-conexus-csrf': 'csrf-1', 'content-type': 'application/json' },
-  cookies: { '__Host-conexus_session': 'session-1', '__Host-conexus_csrf': 'csrf-1' },
+  headers: hubJsonWrite,
+  cookies: { '__Host-conexus_session': SESSION_TOKEN },
 }
 // Shaped like a Console key, and no key at all.
 const fakeKey = `sk-ant-api03-${'x'.repeat(40)}`
@@ -72,18 +72,16 @@ const createApp = async (t) => {
   const { store, rows, share } = fakeStore()
   const { authorization, exchanged } = fakeAuthorization()
   let caller = ana
-  const app = await createHttpApp({
+  const { app } = await testListener({
+    sessions: { [SESSION_TOKEN]: () => ({ account: { accountId: caller } }) },
     registerRoutes: async (instance) => {
       await registerModelAccountRoutes(instance, {
-        origin,
-        resolveCurrentSession: async (request) => request.cookies['__Host-conexus_session'] ? { account: { accountId: caller } } : null,
         isInstallationAdministrator: async () => false,
         modelAccounts: store,
         claudeAuthorization: authorization,
       })
       return []
     },
-    staticRoot: null,
   })
   t.after(() => app.close())
   return { app, store, rows, share, exchanged, as: (accountId) => { caller = accountId } }
@@ -113,9 +111,9 @@ test('a pasted Anthropic key becomes the person\'s own api_key row, and no answe
   assert.doesNotMatch(listed.body, /sk-ant-/)
 })
 
-test('the key endpoint refuses a forged write, a key of the wrong shape and a provider with no API key accounts, and echoes none of them', async (t) => {
+test('the key endpoint refuses a write from another origin, a key of the wrong shape and a provider with no API key accounts, and echoes none of them', async (t) => {
   const { app, rows } = await createApp(t)
-  const forged = await putKey(app, fakeKey, { headers: { origin, 'content-type': 'application/json' } })
+  const forged = await putKey(app, fakeKey, { headers: { ...hubJsonWrite, origin: 'https://evil.test' } })
   const misshapen = await putKey(app, 'sk-proj-not-an-anthropic-key-0123456789')
   const unknown = await putKey(app, fakeKey, { provider: 'mistral' })
   const inherited = await putKey(app, fakeKey, { provider: 'constructor' })
@@ -146,7 +144,7 @@ test('signing in with a Claude subscription takes the pasted code, stores the to
   assert.doesNotMatch(listed.body, /access-|refresh-/)
 })
 
-test('a Claude sign-in belongs to the person who started it, and needs the CSRF pair', async (t) => {
+test('a Claude sign-in belongs to the person who started it, and is completed only by a write from the Hub page', async (t) => {
   const { app, rows, as } = await createApp(t)
   const started = await startClaude(app)
   as(bia)
@@ -154,7 +152,7 @@ test('a Claude sign-in belongs to the person who started it, and needs the CSRF 
   assert.equal(rows.size, 0)
   as(ana)
   const forged = await app.inject({
-    method: 'POST', url: `${claudeBase}/complete`, headers: { origin, 'content-type': 'application/json' }, cookies: authentic.cookies,
+    method: 'POST', url: `${claudeBase}/complete`, headers: { ...hubJsonWrite, origin: 'https://evil.test' }, cookies: authentic.cookies,
     payload: { loginId: started.loginId, code: 'good#verifier-1' },
   })
   assert.equal(forged.statusCode, 403)

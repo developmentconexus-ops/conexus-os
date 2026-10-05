@@ -71,8 +71,7 @@ async function hubPage(options) {
 
 /** Creates a Project through the Hub API, the signed-in browser's own session, and binds the ERP when asked. */
 const createProject = (page, { workspace, name, erp }) => page.evaluate(async ({ workspace, name, erp }) => {
-  const csrf = decodeURIComponent(document.cookie.split('; ').find((entry) => entry.startsWith('__Host-conexus_csrf='))?.split('=').slice(1).join('=') ?? '')
-  const headers = { 'content-type': 'application/json', 'x-conexus-csrf': csrf }
+  const headers = { 'content-type': 'application/json' }
   const created = await fetch(`/api/control/workspaces/${workspace}/projects`, { method: 'POST', credentials: 'same-origin', headers: { ...headers, 'idempotency-key': crypto.randomUUID() }, body: JSON.stringify({ name, sourceBootstrap: { mode: 'NEW' } }) })
   const body = await created.json().catch(() => ({}))
   const projectId = body.projectId ?? body.project?.projectId ?? body.id ?? null

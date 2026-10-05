@@ -3,7 +3,8 @@ import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
 import { FAILURES } from '../../../generated/failures.ts'
-import { failureText, hubCall, hubFetch, isFailure } from '../../../app/http'
+import { failureText, isFailure } from '../../../app/http'
+import { callModelAccounts as call } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
 
 type Connection = Readonly<{ mine: boolean; shared: boolean; administrator: boolean }>
@@ -20,16 +21,6 @@ const OUTCOME: Readonly<Record<Exclude<LoginState, 'waiting'>, string>> = {
   expired: 'A entrada expirou.',
 }
 
-const call = async <T,>(method: 'GET' | 'POST', url: string, body?: unknown): Promise<T> => {
-  const response = await hubCall(hubFetch(url, {
-    method,
-    headers: method === 'GET' ? {} : { 'content-type': 'application/json' },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  }))
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  return await response.json() as T
-}
-
 function SignIn({ login, autoOpened, onDone }: Readonly<{ login: Login; autoOpened: boolean; onDone: (state: Exclude<LoginState, 'waiting'>) => void }>) {
   const [pasted, setPasted] = useState('')
   const [refusal, setRefusal] = useState<unknown>(null)
@@ -41,7 +32,7 @@ function SignIn({ login, autoOpened, onDone }: Readonly<{ login: Login; autoOpen
   useEffect(() => {
     let stopped = false
     const timer = setInterval(async () => {
-      const { state } = await call<{ state: LoginState }>('GET', `${base}/login/${login.loginId}`).catch(() => ({ state: 'waiting' as const }))
+      const { state } = await call<{ state: LoginState }>('POST', `${base}/login/${login.loginId}`).catch(() => ({ state: 'waiting' as const }))
       if (!stopped && state !== 'waiting') { stopped = true; clearInterval(timer); finish.current(state) }
     }, 2000)
     return () => { stopped = true; clearInterval(timer) }

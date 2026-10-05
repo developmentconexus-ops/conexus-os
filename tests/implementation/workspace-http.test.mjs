@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 import { invalidConfig } from './failure-matchers.mjs'
+import { hubJsonWrite, hubSessionCookie, opaque, testListener } from './access/test-listener.mjs'
 
 const built = hubModuleUrl
-const { createHttpApp } = await import(built('http/app.js'))
 const { readHubConfig } = await import(built('platform/config.js'))
 const { registerWorkspaceRoutes } = await import(built('workspace/routes.js'))
 const { Failure } = await import(built('platform/failure.js'))
@@ -15,12 +15,13 @@ const missing = (name) => (error) => error.id === 'CONFIG_MISSING' && error.deta
 const ORIGIN = 'https://conexus.test'
 const OPERATOR = Object.freeze({ account: { accountId: '11111111-1111-4111-8111-111111111111' }, issuer: 'https://issuer.test', subject: 'bootstrap' })
 const MEMBER = Object.freeze({ account: { accountId: '22222222-2222-4222-8222-222222222222' }, issuer: 'https://issuer.test', subject: 'member' })
+const TOKEN = opaque('operator')
+const signedIn = { cookie: hubSessionCookie(TOKEN) }
 const authenticHeaders = {
+  ...hubJsonWrite,
   origin: ORIGIN,
-  cookie: '__Host-conexus_csrf=csrf',
-  'x-conexus-csrf': 'csrf',
+  ...signedIn,
   'idempotency-key': 'workspace-key',
-  'content-type': 'application/json',
 }
 
 const baseEnvironment = {
@@ -102,12 +103,10 @@ const buildRoutes = async ({ current = OPERATOR, storeOverrides = {} } = {}) => 
     },
     ...storeOverrides,
   }
-  const app = await createHttpApp({
-    registerRoutes: (server) => registerWorkspaceRoutes(server, {
-      store,
-      resolveCurrentSession: async () => current,
-      config: { origin: ORIGIN, operatorIssuer: OPERATOR.issuer, operatorSubject: OPERATOR.subject },
-    }),
+  const { app } = await testListener({
+    hubOrigin: ORIGIN,
+    sessions: { [TOKEN]: current },
+    registerRoutes: (server) => registerWorkspaceRoutes(server, { store }),
   })
   return { app, calls }
 }
@@ -131,12 +130,12 @@ test('generated WS-01/02 routes enforce operator creation and membership-shaped 
     name: 'Operations',
   }])
 
-  const found = await app.inject({ method: 'GET', url: '/api/control/workspaces/33333333-3333-4333-8333-333333333333' })
+  const found = await app.inject({ method: 'GET', url: '/api/control/workspaces/33333333-3333-4333-8333-333333333333', headers: signedIn })
   assert.equal(found.statusCode, 200)
   assert.deepEqual(found.json(), { workspaceId: '33333333-3333-4333-8333-333333333333', name: 'Operations' })
   assert.deepEqual(calls[1], ['getWorkspace', { accountId: OPERATOR.account.accountId, workspaceId: '33333333-3333-4333-8333-333333333333' }])
 
-  const hidden = await app.inject({ method: 'GET', url: '/api/control/workspaces/44444444-4444-4444-8444-444444444444' })
+  const hidden = await app.inject({ method: 'GET', url: '/api/control/workspaces/44444444-4444-4444-8444-444444444444', headers: signedIn })
   assert.equal(hidden.statusCode, 404)
 })
 
@@ -184,7 +183,7 @@ test('WS-01/02 hide malformed identifiers and unexpected store/driver failures',
     },
   })
   t.after(() => malformed.app.close())
-  const hidden = await malformed.app.inject({ method: 'GET', url: '/api/control/workspaces/not-a-uuid' })
+  const hidden = await malformed.app.inject({ method: 'GET', url: '/api/control/workspaces/not-a-uuid', headers: signedIn })
   assert.equal(hidden.statusCode, 404)
   assert.equal(hidden.headers['content-type'].startsWith('application/problem+json'), true)
   assert.deepEqual(hidden.json(), {
@@ -199,7 +198,7 @@ test('WS-01/02 hide malformed identifiers and unexpected store/driver failures',
     storeOverrides: { getWorkspace: async () => { throw new Error('read-driver-secret') } },
   })
   t.after(() => unexpectedRead.app.close())
-  const readFailure = await unexpectedRead.app.inject({ method: 'GET', url: '/api/control/workspaces/33333333-3333-4333-8333-333333333333' })
+  const readFailure = await unexpectedRead.app.inject({ method: 'GET', url: '/api/control/workspaces/33333333-3333-4333-8333-333333333333', headers: signedIn })
   assert.equal(readFailure.statusCode, 500)
   assert.equal(readFailure.headers['content-type'].startsWith('application/problem+json'), true)
   assert.deepEqual(readFailure.json(), {

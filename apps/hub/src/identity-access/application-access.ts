@@ -1,18 +1,16 @@
 import { randomUUID } from 'node:crypto'
-import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 import type { QueryResultRow } from 'pg'
 import { IAM_GENERATED_ROUTES } from '../generated/iam-routes.js'
 import type { ApplicationAccessEntryParams, Iam12Body, ProjectParams, IamOwnerId } from '../generated/iam-routes.js'
 import { z } from 'zod'
 import { Failure } from '../platform/failure.js'
+import { INVITATION_DAYS } from '../platform/lifetimes.js'
 import type { PostgresPool } from '../platform/postgres.js'
 import { isNotAdmitted, parseEmailAddress } from './current-session.js'
-import type { AccountId, EmailAddress, ResolveCurrentSession } from './current-session.js'
-import { isExactOrigin } from '../platform/origin.js'
+import type { AccountId, EmailAddress } from './current-session.js'
+import { routes } from '../http/access.js'
 
-const APPLICATION_INVITATION_MS = 14 * 24 * 60 * 60 * 1000
-const CSRF_COOKIE = '__Host-conexus_csrf'
-const header = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value
 const uuid = { type: 'string', format: 'uuid' } as const
 const projectParamsSchema = { type: 'object', additionalProperties: false, required: ['projectId'], properties: { projectId: uuid } } as const
 // entryKind stays a plain string so an unknown kind answers 404 like an unknown entry, not 400.
@@ -115,7 +113,7 @@ export const createApplicationAccessStore = ({ pool }: Readonly<{ pool: Postgres
       await client.query(`SELECT pg_advisory_xact_lock(${APPLICATION_LOCK_KEY})`, [projectId])
       const settled = await client.query(
         'SELECT kind, entry_id FROM iam.grant_application_access($1, $2, $3, $4, $5)',
-        [actor, projectId, randomUUID(), email, new Date(now.getTime() + APPLICATION_INVITATION_MS)])
+        [actor, projectId, randomUUID(), email, new Date(now.getTime() + INVITATION_DAYS * 24 * 60 * 60 * 1000)])
       await client.query('COMMIT')
       settledEntry = settledRow.parse(settled.rows[0])
     } catch (error) {
@@ -168,58 +166,47 @@ export const createApplicationAccessStore = ({ pool }: Readonly<{ pool: Postgres
 
 export type ApplicationAccessRouteDependencies = Readonly<{
   store: ApplicationAccessStore
-  resolveCurrentSession: ResolveCurrentSession
-  config: Readonly<{ origin: string; applicationAddress: (slug: string) => string | null }>
+  config: Readonly<{ applicationAddress: (slug: string) => string | null }>
 }>
 
 export const registerApplicationAccessRoutes = async (
   app: FastifyInstance,
-  { store, resolveCurrentSession, config }: ApplicationAccessRouteDependencies,
+  { store, config }: ApplicationAccessRouteDependencies,
 ): Promise<readonly IamOwnerId[]> => {
-  const authentic = (request: FastifyRequest): void => {
-    const requestCsrf = header(request.headers['x-conexus-csrf'])
-    if (!isExactOrigin(request.headers.origin, config.origin) || !requestCsrf || requestCsrf !== request.cookies[CSRF_COOKIE]) throw new Failure('REQUEST_AUTHENTICITY_DENIED')
-  }
-  const signedIn = async (request: FastifyRequest, write = false): Promise<AccountId> => {
-    const current = await resolveCurrentSession(request, write)
-    if (!current) throw new Failure('AUTHENTICATION_REQUIRED')
-    return current.account.accountId
-  }
+  const route = routes(app)
   const refused = (error: unknown): never => {
     if (isApplicationNotFound(error)) throw new Failure('PROJECT_NOT_FOUND')
     if (isNotAdmitted(error)) throw new Failure('APPLICATION_ACCESS_MANAGE_REQUIRED')
     throw error
   }
 
-  app.route<{ Params: ProjectParams }>({
+  route.session<{ Params: ProjectParams }>({
     ...IAM_GENERATED_ROUTES['IAM-11'],
     schema: { ...IAM_GENERATED_ROUTES['IAM-11'].schema, params: projectParamsSchema },
-    handler: async (request) => {
-      const actor = await signedIn(request)
+    handler: async (request, _reply, session) => {
+      const actor = session.account.accountId
       const { slug, entries } = await store.list({ actor, projectId: request.params.projectId }).catch(refused)
       const address = slug ? config.applicationAddress(slug) : null
       return { ...(address ? { address } : {}), entries }
     },
   })
 
-  app.route<{ Params: ProjectParams; Body: Iam12Body }>({
+  route.session<{ Params: ProjectParams; Body: Iam12Body }>({
     ...IAM_GENERATED_ROUTES['IAM-12'],
     schema: { ...IAM_GENERATED_ROUTES['IAM-12'].schema, params: projectParamsSchema },
-    handler: async (request) => {
-      authentic(request)
-      const actor = await signedIn(request, true)
+    handler: async (request, _reply, session) => {
+      const actor = session.account.accountId
       const email = parseEmailAddress(request.body.email)
       if (!email) throw new Failure('INVITATION_NOT_ACCEPTABLE')
       return store.grant({ actor, projectId: request.params.projectId, email }).catch(refused)
     },
   })
 
-  app.route<{ Params: ApplicationAccessEntryParams }>({
+  route.session<{ Params: ApplicationAccessEntryParams }>({
     ...IAM_GENERATED_ROUTES['IAM-13'],
     schema: { ...IAM_GENERATED_ROUTES['IAM-13'].schema, params: entryParamsSchema },
-    handler: async (request, reply) => {
-      authentic(request)
-      const actor = await signedIn(request, true)
+    handler: async (request, reply, session) => {
+      const actor = session.account.accountId
       const { projectId, entryKind, entryId } = request.params
       if (entryKind !== 'grant' && entryKind !== 'invitation') throw new Failure('APPLICATION_ACCESS_ENTRY_NOT_FOUND')
       const found = await (entryKind === 'grant'

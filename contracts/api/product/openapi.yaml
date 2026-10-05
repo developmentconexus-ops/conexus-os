@@ -18,8 +18,9 @@ x-conexus-security-semantics:
   nonHttpIngress: []
 x-conexus-browser-request-authenticity:
   credentialedCrossOriginProductApi: DENY
-  fetchMetadata: SAME_ORIGIN_ONLY
-  fallback: EXACT_ORIGIN_OR_REFERER
+  fetchMetadata: SAME_ORIGIN_OR_NONE
+  fallback: EXACT_ORIGIN_ON_WRITE
+  forms: REFUSED
 paths:
   /api/control/access-context:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1access-context'

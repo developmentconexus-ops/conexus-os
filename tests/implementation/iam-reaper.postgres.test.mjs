@@ -37,9 +37,9 @@ const seeded = async (t, name) => {
   await query(connectionString, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'p', 'NEW', $3, 'p')", [projectId, workspaceId, 'a'.repeat(40)])
   await query(connectionString, "INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'reaper-app', $2)", [projectId, owner])
   const hubSession = (label, { startedAgo = 0, idleAgo = null, endedAgo = null } = {}) => query(connectionString, `
-    INSERT INTO iam.host_session(token_digest, kind, account_id, started_at, absolute_expires_at, provider_refresh_token, provider_checked_at, csrf_digest, idle_expires_at, ended_at, ended_reason)
-    VALUES ($1, 'HUB', $2, $3, $3::timestamptz + interval '8 hours', $4, $3, $5, $6, $7, $8)`,
-  [sha(label), owner, ago(startedAgo), endedAgo === null ? SEALED : null, sha('csrf'),
+    INSERT INTO iam.host_session(token_digest, kind, account_id, started_at, absolute_expires_at, provider_refresh_token, provider_checked_at, idle_expires_at, ended_at, ended_reason)
+    VALUES ($1, 'HUB', $2, $3, $3::timestamptz + interval '8 hours', $4, $3, $5, $6, $7)`,
+  [sha(label), owner, ago(startedAgo), endedAgo === null ? SEALED : null,
     idleAgo === null ? new Date(ago(startedAgo).getTime() + 7 * HOUR) : ago(idleAgo), endedAgo === null ? null : ago(endedAgo), endedAgo === null ? null : 'SIGNED_OUT'])
   const applicationSession = (label, { startedAgo = 0 } = {}) => query(connectionString, `
     INSERT INTO iam.host_session(token_digest, kind, account_id, started_at, absolute_expires_at, project_id, provider_refresh_token, provider_checked_at)
