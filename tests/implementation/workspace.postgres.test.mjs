@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import pg from 'pg'
 import { z } from 'zod'
 import { hubModuleUrl } from './hub-build.mjs'
+import { waitUntilBlocked } from './race.mjs'
 import { query } from './hub-database.mjs'
 import { openRuntimeFixture } from './hub-runtime-fixture.mjs'
 
@@ -90,7 +91,7 @@ test('a revoke waits for an admitted writer and the next admission is refused', 
   await entered
   let revoked = false
   const revoke = query(connection, 'SELECT iam.remove_workspace_member($1, $2, $3)', [ACCOUNT, workspaceId, MEMBER]).then(() => { revoked = true })
-  await new Promise((resolve) => setTimeout(resolve, 50))
+  await waitUntilBlocked(connection)
   assert.equal(revoked, false)
   release()
   await Promise.all([writer, revoke])

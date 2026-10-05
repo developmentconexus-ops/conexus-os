@@ -5,10 +5,10 @@ import pg from 'pg'
 import { hubModuleUrl } from './hub-build.mjs'
 import { query } from './hub-database.mjs'
 import { ID, setupProjects } from './project-fixture.mjs'
+import { waitUntilBlocked } from './race.mjs'
 
 const { admitApplication, admitInstallationAdministrator, admitWorkspace } = await import(hubModuleUrl('identity-access/admission.js'))
 
-const pause = () => new Promise((resolve) => setTimeout(resolve, 150))
 const pending = (promise) => {
   const state = { settled: false }
   promise.then(() => { state.settled = true }, () => { state.settled = true })
@@ -56,7 +56,7 @@ test('an admitApplication that waited on a project whose tombstone committed mea
   const admission = database.transaction(ID.member, (gate) => admitApplication(gate, projectId))
   const state = pending(admission)
   admission.catch(() => undefined)
-  await pause()
+  await waitUntilBlocked(connection)
   assert.equal(state.settled, false)
   await holder.query('COMMIT')
   await assert.rejects(admission, { id: 'APPLICATION_NOT_FOUND' })
@@ -69,7 +69,7 @@ test('one member leaving twice at once: the second admission waits for the first
   const leaving = database.transaction(ID.member, (gate) => admitWorkspace(gate, ID.workspace, 'members.leave'))
   const state = pending(leaving)
   leaving.catch(() => undefined)
-  await pause()
+  await waitUntilBlocked(connection)
   assert.equal(state.settled, false)
   await holder.query('DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [ID.member, ID.workspace])
   await holder.query('COMMIT')
@@ -84,7 +84,7 @@ test('an administrator revoked while its project deletion waits on the tenure ro
   const deletion = store.deleteProject({ accountId: ID.administrator, projectId, confirmName: 'Atlas' })
   const state = pending(deletion)
   deletion.catch(() => undefined)
-  await pause()
+  await waitUntilBlocked(connection)
   assert.equal(state.settled, false)
   await holder.query('COMMIT')
   await assert.rejects(deletion, { id: 'PROJECT_DELETE_DENIED' })
@@ -92,7 +92,7 @@ test('an administrator revoked while its project deletion waits on the tenure ro
 })
 
 test('two administrators managing administrators at once serialize on the tenure lock without a deadlock', async (t) => {
-  const { database } = await setupProjects(t, 'conexus_admin_manage_race')
+  const { connection, database } = await setupProjects(t, 'conexus_admin_manage_race')
   let release
   const held = new Promise((resolve) => { release = resolve })
   let admitted
@@ -105,7 +105,7 @@ test('two administrators managing administrators at once serialize on the tenure
   await entered
   const second = database.transaction(ID.memberAdministrator, (gate) => admitInstallationAdministrator(gate, 'administrators.manage'))
   const state = pending(second)
-  await pause()
+  await waitUntilBlocked(connection)
   assert.equal(state.settled, false, 'the second waits on the first')
   release()
   await Promise.all([first, second])

@@ -5,6 +5,7 @@ import pg from 'pg'
 import { query } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { HEAD, ID, setupProjects } from './project-fixture.mjs'
+import { waitUntilBlocked } from './race.mjs'
 
 const { admitProject } = await import(hubModuleUrl('identity-access/admission.js'))
 const digest = (character) => character.repeat(64)
@@ -140,7 +141,6 @@ const pending = (promise) => {
   promise.then(() => { state.settled = true }, () => { state.settled = true })
   return state
 }
-const pause = () => new Promise((resolve) => setTimeout(resolve, 150))
 
 test('a deactivation waits for the tombstone, or commits first and the deletion is refused', async (t) => {
   const { connection, store, seedProject, onCleanup } = await setupProjects(t, 'conexus_prj_deactivate')
@@ -150,10 +150,10 @@ test('a deactivation waits for the tombstone, or commits first and the deletion 
   await holder.query('SELECT 1 FROM project.project WHERE project_id = $1 FOR UPDATE', [first])
   const deletion = remove(store, ID.administrator, first)
   const state = pending(deletion)
-  await pause()
+  await waitUntilBlocked(connection)
   const deactivation = query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.administrator])
   const deactivated = pending(deactivation)
-  await pause()
+  await waitUntilBlocked(connection, { count: 2 })
   assert.equal(state.settled, false)
   assert.equal(deactivated.settled, false)
   await holder.query('COMMIT')
@@ -195,7 +195,7 @@ test('a tombstone waits for an admitted writer in either order, with no deadlock
   await entered
   const deletion = remove(store, ID.administrator, projectId)
   const state = pending(deletion)
-  await pause()
+  await waitUntilBlocked(connection)
   assert.equal(state.settled, false)
   release()
   await Promise.all([writer, deletion])
@@ -209,13 +209,13 @@ test('a tombstone waits for an admitted writer in either order, with no deadlock
   const admission = database.transaction(ID.member, (gate) => admitProject(gate, other, 'project.build'))
   const admissionState = pending(admission)
   admission.catch(() => undefined)
-  await pause()
+  await waitUntilBlocked(connection)
   assert.equal(admissionState.settled, false)
   await holder.query('COMMIT')
   await assert.rejects(admission, { id: 'PROJECT_NOT_FOUND' })
 })
 
-test('a deletion and today run start serialize in both orders without a deadlock', async (t) => {
+test('a deletion and today run start serialize in both orders without a deadlock', { timeout: 30_000 }, async (t) => {
   const { connection, store, seedProject, onCleanup } = await setupProjects(t, 'conexus_prj_runstart')
   const lockForRun = (projectId) => query(connection, 'SELECT builder.lock_project_for_run($1, $2) AS locked', [ID.member, projectId]).then((result) => result.rows[0].locked)
   const first = await seedProject('Atlas')
@@ -224,7 +224,7 @@ test('a deletion and today run start serialize in both orders without a deadlock
   await holder.query('SELECT builder.lock_project_for_run($1, $2)', [ID.member, first])
   const racing = remove(store, ID.administrator, first)
   const racingState = pending(racing)
-  await pause()
+  await waitUntilBlocked(connection)
   assert.equal((await tombstones(connection)).length, 1, 'the tombstone commits while the run start holds the working state')
   assert.equal(racingState.settled, false, 'the purge waits for the run start, as today')
   await holder.query('COMMIT')
@@ -236,10 +236,7 @@ test('a deletion and today run start serialize in both orders without a deadlock
   await tombstoning.query('SELECT 1 FROM project.project WHERE project_id = $1 FOR UPDATE', [second])
   await tombstoning.query(`INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Atlas', $3)`, [second, ID.workspace, ID.administrator])
   const starting = lockForRun(second)
-  const startingState = pending(starting)
-  await pause()
-  assert.equal(startingState.settled, true, 'today the run start does not wait for an uncommitted tombstone; part 1 moves it onto admitProject')
-  assert.equal(await starting, true)
+  assert.equal(await starting, true, 'today the run start does not wait for an uncommitted tombstone; part 1 moves it onto admitProject')
   await tombstoning.query('COMMIT')
   await remove(store, ID.administrator, second)
   await assert.rejects(lockForRun(second), (error) => /NOT_ADMITTED|PROJECT_DELETING/.test(error.message))
