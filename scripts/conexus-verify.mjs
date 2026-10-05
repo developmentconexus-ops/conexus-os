@@ -73,6 +73,7 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('access-owner-check', 'node scripts/check-access-owner.mjs'),
   candidateStep('census-builder-run', 'node scripts/census-builder-run.mjs'),
   candidateStep('generators', 'npm run generate'),
+  candidateStep('contract-check', 'npm run contract:check'),
   candidateStep('e2b-template-check', 'node scripts/builder-e2b-template.mjs --check'),
   candidateStep('web-style', 'node scripts/check-web-style.mjs'),
   candidateStep('wire-openapi-lint', 'npm run wire:lint'),

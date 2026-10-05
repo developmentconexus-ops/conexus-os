@@ -10,8 +10,6 @@ paths:
       summary: ListProjectSourceTree
       operationId: ListProjectSourceTree
       x-conexus-4a-id: BLD-08
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       parameters:
         - $ref: '#/components/parameters/SourceRevision'
@@ -32,8 +30,6 @@ paths:
       summary: GetProjectSourceFile
       operationId: GetProjectSourceFile
       x-conexus-4a-id: BLD-09
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       parameters:
         - $ref: '#/components/parameters/SourceRevision'
@@ -59,8 +55,6 @@ paths:
       summary: CompareProjectSourceRevisions
       operationId: CompareProjectSourceRevisions
       x-conexus-4a-id: BLD-29
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       parameters:
         - name: baseSourceRevision
@@ -90,8 +84,6 @@ paths:
       summary: GetBuilderSession
       operationId: GetBuilderSession
       x-conexus-4a-id: BLD-23
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
@@ -110,8 +102,6 @@ paths:
       summary: SendBuilderMessage
       operationId: SendBuilderMessage
       x-conexus-4a-id: BLD-24
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: IDEMPOTENCY_KEY
       x-conexus-contract-state: SCHEMA_CLOSED
       parameters:
         - $ref: './openapi.yaml#/components/parameters/IdempotencyKey'
@@ -149,8 +139,6 @@ paths:
       summary: CancelBuilderRun
       operationId: CancelBuilderRun
       x-conexus-4a-id: BLD-25
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       requestBody:
         required: true
@@ -179,8 +167,6 @@ paths:
       summary: GetBuilderRunTrace
       operationId: GetBuilderRunTrace
       x-conexus-4a-id: BLD-26
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':

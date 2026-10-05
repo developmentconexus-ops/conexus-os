@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { OPERATIONS } from '../../../packages/contract/dist/index.js'
 import { LEDGER } from './route-ledger.mjs'
 import { HUB_ORIGIN, bootstrapCookie, hubSessionCookie } from './test-listener.mjs'
 import {
@@ -86,6 +87,15 @@ test('the ledger names every route of the three listeners, with its kind, and no
   const recorded = walk.routes().map((route) => `${key(route)} ${route.kind}`).sort()
   const ledger = LEDGER.map((row) => `${key(row)} ${row.kind}`).sort()
   assert.deepEqual(recorded, ledger)
+})
+
+test('each declared operation has one route with its access kind', () => {
+  for (const operation of OPERATIONS) {
+    assert.deepEqual(
+      LEDGER.filter((row) => row.operation === operation.id).map(({ method, url, kind }) => ({ method, url, kind })),
+      [{ method: operation.method, url: operation.path, kind: operation.access }],
+    )
+  }
 })
 
 for (const row of LEDGER) {

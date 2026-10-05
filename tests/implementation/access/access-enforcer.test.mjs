@@ -24,6 +24,8 @@ const bootRefusal = async (registerRoutes) => {
 test('a listener does not start with a route outside the table, and names the route', async () => {
   assert.equal(await bootRefusal(async (app) => { app.get('/x', async () => 'x'); return [] }),
     'INTERNAL_UNEXPECTED ROUTE_ACCESS_UNDECLARED GET /x')
+  assert.equal(await bootRefusal(async (app) => { routes(app).session({ method: 'POST', url: '/api/control/things', handler: async () => 'x' }); return [] }),
+    'INTERNAL_UNEXPECTED ROUTE_OPERATION_UNDECLARED POST /api/control/things')
   assert.equal(await bootRefusal(async (app) => { app.route({ method: 'POST', url: '/page', config: { access: 'navigation' }, handler: async () => 'x' }); return [] }),
     'INTERNAL_UNEXPECTED ROUTE_ACCESS_METHOD POST /page')
   assert.equal(await bootRefusal(async (app) => { routes(app).bootstrap({ method: 'GET', url: '/setup-read', handler: async () => 'x' }); return [] }),
@@ -65,15 +67,15 @@ const toyHub = async ({ sessions = { [ALICE_TOKEN]: ALICE }, onRequest } = {}) =
       if (onRequest) server.addHook('onRequest', onRequest)
       const route = routes(server)
       route.session({
-        method: 'POST', url: '/api/control/things',
+        method: 'POST', url: '/api/test/things',
         schema: { body: { type: 'object', additionalProperties: false, required: ['name'], properties: { name: { type: 'string' } } } },
         handler: async (request, _reply, session) => {
           ran.push(request.body.name)
           return { accountId: session.account.accountId, digest: session.digest.toString('hex') }
         },
       })
-      route.session({ method: 'GET', url: '/api/control/things', handler: async () => ({ things: [] }) })
-      route.session({ method: 'DELETE', url: '/api/control/things/:id', handler: async (request, reply) => { ran.push(request.body); return reply.code(204).send() } })
+      route.session({ method: 'GET', url: '/api/test/things', handler: async () => ({ things: [] }) })
+      route.session({ method: 'DELETE', url: '/api/test/things/:id', handler: async (request, reply) => { ran.push(request.body); return reply.code(204).send() } })
       route.bootstrap({ method: 'POST', url: '/api/control/accounts', handler: async (_request, _reply, { token }) => ({ token }) })
       route['sign-out']({ method: 'DELETE', url: '/api/session', handler: async (_request, reply, { digest }) => reply.code(200).send({ digest: digest.toString('hex') }) })
       route['sign-in']({ url: '/protocol/oidc/login', handler: async () => 'signing in' })
@@ -90,7 +92,7 @@ test('the order: authenticity before the body, the body before the credential', 
   const { app, resolved, ran } = await toyHub()
   t.after(() => app.close())
   const cookie = hubSessionCookie(ALICE_TOKEN)
-  const post = (headers, payload) => app.inject({ method: 'POST', url: '/api/control/things', headers, payload })
+  const post = (headers, payload) => app.inject({ method: 'POST', url: '/api/test/things', headers, payload })
 
   assert.equal(problem(await post({ ...hubJsonWrite, origin: 'https://evil.test', cookie }, '{not json')), '403 REQUEST_AUTHENTICITY_DENIED')
   assert.equal(problem(await post({ ...hubJsonWrite, origin: 'https://evil.test', 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate', 'content-type': 'text/plain', cookie }, 'x')), '403 REQUEST_AUTHENTICITY_DENIED')
@@ -113,20 +115,20 @@ test('a GET with a foreign Origin or a sibling Fetch Metadata is refused before 
   t.after(() => app.close())
   const cookie = hubSessionCookie(ALICE_TOKEN)
   for (const headers of [{ origin: 'https://sales.apps.conexus.test' }, { 'sec-fetch-site': 'same-site' }, { 'sec-fetch-site': 'cross-site' }]) {
-    assert.equal(problem(await app.inject({ method: 'GET', url: '/api/control/things', headers: { ...headers, cookie } })), '403 REQUEST_AUTHENTICITY_DENIED', JSON.stringify(headers))
+    assert.equal(problem(await app.inject({ method: 'GET', url: '/api/test/things', headers: { ...headers, cookie } })), '403 REQUEST_AUTHENTICITY_DENIED', JSON.stringify(headers))
   }
   assert.deepEqual(resolved, [])
-  assert.equal((await app.inject({ method: 'GET', url: '/api/control/things', headers: { 'sec-fetch-site': 'same-origin', cookie } })).statusCode, 200)
+  assert.equal((await app.inject({ method: 'GET', url: '/api/test/things', headers: { 'sec-fetch-site': 'same-origin', cookie } })).statusCode, 200)
 })
 
 test('an empty JSON body is no body on every method; a route that needs one answers 400', async (t) => {
   const { app, ran } = await toyHub()
   t.after(() => app.close())
   const cookie = hubSessionCookie(ALICE_TOKEN)
-  const removed = await app.inject({ method: 'DELETE', url: '/api/control/things/1', headers: { ...hubJsonWrite, cookie }, payload: '' })
+  const removed = await app.inject({ method: 'DELETE', url: '/api/test/things/1', headers: { ...hubJsonWrite, cookie }, payload: '' })
   assert.equal(removed.statusCode, 204)
   assert.deepEqual(ran, [undefined])
-  assert.equal(problem(await app.inject({ method: 'POST', url: '/api/control/things', headers: { ...hubJsonWrite, cookie }, payload: '  \n' })), '400 REQUEST_VALIDATION_FAILED')
+  assert.equal(problem(await app.inject({ method: 'POST', url: '/api/test/things', headers: { ...hubJsonWrite, cookie }, payload: '  \n' })), '400 REQUEST_VALIDATION_FAILED')
 })
 
 test('sign-out takes the cookie unresolved; bootstrap takes its own cookie', async (t) => {
@@ -151,7 +153,7 @@ test('only a page answers HEAD; anything unmatched is 404 with the Hub headers',
   assert.equal(page.statusCode, 200)
   assert.equal(page.body, '')
   assert.equal(page.headers['content-length'], String(Buffer.byteLength('<html>shell</html>')))
-  for (const [method, url] of [['HEAD', '/api/control/things'], ['HEAD', '/protocol/oidc/login'], ['GET', '/nothing'], ['POST', '/nothing']]) {
+  for (const [method, url] of [['HEAD', '/api/test/things'], ['HEAD', '/protocol/oidc/login'], ['GET', '/nothing'], ['POST', '/nothing']]) {
     const missing = await app.inject({ method, url, headers: { origin: 'https://evil.test' } })
     assert.equal(missing.statusCode, 404, `${method} ${url}`)
     if (method !== 'HEAD') assert.equal(missing.json().code, 'NOT_FOUND')
@@ -171,7 +173,7 @@ test('a session ended while its write is still arriving is refused, and the hand
   const socket = connect(app.server.address().port, '127.0.0.1')
   const answer = new Promise((resolve) => { let text = ''; socket.on('data', (chunk) => { text += chunk }); socket.on('end', () => resolve(text)) })
   socket.write([
-    'POST /api/control/things HTTP/1.1', 'host: 127.0.0.1', `origin: ${HUB_ORIGIN}`, 'sec-fetch-site: same-origin', 'content-type: application/json',
+    'POST /api/test/things HTTP/1.1', 'host: 127.0.0.1', `origin: ${HUB_ORIGIN}`, 'sec-fetch-site: same-origin', 'content-type: application/json',
     `content-length: ${body.length}`, `cookie: ${hubSessionCookie(ALICE_TOKEN)}`, 'connection: close', '', body.slice(0, -1),
   ].join('\r\n'))
   await onRequestPassed

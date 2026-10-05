@@ -1,0 +1,32 @@
+import { z } from 'zod'
+
+export const AccountId = z.uuid().brand<'AccountId'>().meta({ id: 'AccountId' })
+export type AccountId = z.output<typeof AccountId>
+export const WorkspaceId = z.uuid().brand<'WorkspaceId'>().meta({ id: 'WorkspaceId' })
+export type WorkspaceId = z.output<typeof WorkspaceId>
+export const ProjectId = z.uuid().brand<'ProjectId'>().meta({ id: 'ProjectId' })
+export type ProjectId = z.output<typeof ProjectId>
+export const ProjectRevision = z.uuid().brand<'ProjectRevision'>().meta({ id: 'ProjectRevision' })
+export type ProjectRevision = z.output<typeof ProjectRevision>
+export const SourceRevision = z.string().regex(/^[a-f0-9]{40}$/).brand<'SourceRevision'>().meta({ id: 'SourceRevision' })
+export type SourceRevision = z.output<typeof SourceRevision>
+export const ConversationId = z.uuid().brand<'ConversationId'>().meta({ id: 'ConversationId' })
+export type ConversationId = z.output<typeof ConversationId>
+export const BuilderRunId = z.uuid().brand<'BuilderRunId'>().meta({ id: 'BuilderRunId' })
+export type BuilderRunId = z.output<typeof BuilderRunId>
+export const ArtifactRevisionId = z.uuid().brand<'ArtifactRevisionId'>().meta({ id: 'ArtifactRevisionId' })
+export type ArtifactRevisionId = z.output<typeof ArtifactRevisionId>
+export const ExecutionId = z.uuid().brand<'ExecutionId'>().meta({ id: 'ExecutionId' })
+export type ExecutionId = z.output<typeof ExecutionId>
+export const InvitationId = z.uuid().brand<'InvitationId'>().meta({ id: 'InvitationId' })
+export type InvitationId = z.output<typeof InvitationId>
+export const GrantId = z.uuid().brand<'GrantId'>().meta({ id: 'GrantId' })
+export type GrantId = z.output<typeof GrantId>
+export const ConnectionId = z.uuid().brand<'ConnectionId'>().meta({ id: 'ConnectionId' })
+export type ConnectionId = z.output<typeof ConnectionId>
+export const BindingId = z.uuid().brand<'BindingId'>().meta({ id: 'BindingId' })
+export type BindingId = z.output<typeof BindingId>
+export const ModelAccountId = z.uuid().brand<'ModelAccountId'>().meta({ id: 'ModelAccountId' })
+export type ModelAccountId = z.output<typeof ModelAccountId>
+export const ModelLoginId = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/).brand<'ModelLoginId'>().meta({ id: 'ModelLoginId' })
+export type ModelLoginId = z.output<typeof ModelLoginId>

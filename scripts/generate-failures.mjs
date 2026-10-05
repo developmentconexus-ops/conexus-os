@@ -6,7 +6,7 @@ const sourcePath = 'contracts/technical/failures.json'
 const eventsPath = 'contracts/technical/log-events.json'
 export const failureTargets = Object.freeze({
   hub: 'apps/hub/src/platform/failures.generated.ts',
-  web: 'apps/web/src/generated/failures.ts',
+  contract: 'packages/contract/src/failures.generated.ts',
   app: 'apps/hub/src/generated/app-failures.ts',
   events: 'apps/hub/src/platform/log-events.generated.ts',
   text: 'apps/hub/src/platform/failure-text.generated.ts',
@@ -86,8 +86,13 @@ const renderFailureText = ({ actions, failures }) => [
   '',
 ].join('\n')
 
-const renderWebFailures = ({ actions, failures }) => [
-  header,
+const renderContractFailures = ({ actions, failures }) => [
+  'export const FAILURE_STATUS = {',
+  ...Array.from({ length: Math.ceil(failures.length / 4) }, (_entry, index) =>
+    `  ${failures.slice(index * 4, index * 4 + 4).map((row) => `${quoted(row.code)}: ${row.status ?? 500},`).join(' ')}`),
+  '} as const',
+  '',
+  'export type FailureCode = keyof typeof FAILURE_STATUS',
   '',
   'export const FAILURE_ACTIONS = {',
   ...Object.entries(actions).map(([action, sentence]) => `  ${quoted(action)}: ${sentence === null ? 'null' : quoted(sentence)},`),
@@ -96,10 +101,8 @@ const renderWebFailures = ({ actions, failures }) => [
   'export type FailureAction = keyof typeof FAILURE_ACTIONS',
   '',
   'export const FAILURES = {',
-  ...failures.filter((row) => row.audience !== 'operator').map((row) => `  ${quoted(row.code)}: { message: ${quoted(row.message)}, action: ${quoted(row.action)} },`),
-  '} as const satisfies Readonly<Record<string, Readonly<{ message: string; action: FailureAction }>>>',
-  '',
-  'export type FailureCode = keyof typeof FAILURES',
+  ...failures.filter((row) => row.audience !== 'operator').map((row) => `  ${quoted(row.code)}: { message: ${quoted(row.message)}, action: ${quoted(row.action)}, status: ${row.status ?? 500} },`),
+  '} as const satisfies Readonly<Record<string, Readonly<{ message: string; action: FailureAction; status: number }>>>',
   '',
 ].join('\n')
 
@@ -154,7 +157,7 @@ const renderAppFailures = (table) => [
 /** Every generated file as the table renders it, by path. */
 export const renderFailureTargets = (table) => ({
   [failureTargets.hub]: renderHubFailures(table),
-  [failureTargets.web]: renderWebFailures(table),
+  [failureTargets.contract]: renderContractFailures(table),
   [failureTargets.app]: renderAppFailures(table),
   [failureTargets.events]: renderLogEvents(table),
   [failureTargets.text]: renderFailureText(table),

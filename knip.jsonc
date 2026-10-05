@@ -30,6 +30,9 @@
     "apps/hub/src/app-runner/main.ts",
     "apps/hub/src/telemetry/register.ts",
     "apps/web/src/main.tsx",
+    "apps/web/src/app/foreign.ts",
+    "apps/web/src/app/route-params.ts",
+    "packages/contract/src/index.ts",
     "apps/hub/compiler-template/**",
     // The Builder skills' reference screens are read as text and copied into each Project.
     "builder-skills/**/*.tsx",
@@ -47,6 +50,6 @@
     "@biomejs/biome"
   ],
   // The reference screens import the generated app's own components and libraries, which this package does not install.
-  "ignoreIssues": { "builder-skills/**": ["unlisted", "unresolved"] },
+  "ignoreIssues": { "builder-skills/**": ["unlisted", "unresolved"], "apps/web/src/app/http.ts": ["exports"] },
   "ignoreBinaries": ["setpriv", "pgrep"]
 }

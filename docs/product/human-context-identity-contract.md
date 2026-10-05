@@ -194,9 +194,6 @@ IAM-01 GetControlPlaneAccessContext
   workspaces[] → workspaceId + name
   projects[]   → projectId + workspaceId + name
 
-WS-02 GetWorkspace
-  → workspaceId + name
-
 PRJ-01 ListProjects
   → ProjectSummary including name
 

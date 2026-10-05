@@ -10,10 +10,7 @@ paths:
       summary: ListProjects
       operationId: ListProjects
       x-conexus-4a-id: PRJ-01
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
-      x-conexus-authority-routes: [project.read, workspace.access.manage]
       responses:
         '200':
           description: Projects currently disclosable to the caller in the Workspace. The normal project.read route follows ordinary Project disclosure; the workspace.access.manage route is access-administration summary disclosure only and returns exact contained ProjectSummary identities without granting Project content/source/data/build authority.
@@ -33,8 +30,6 @@ paths:
       summary: CreateProject
       operationId: CreateProject
       x-conexus-4a-id: PRJ-03
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: IDEMPOTENCY_KEY
       x-conexus-contract-state: SCHEMA_CLOSED
       parameters:
         - $ref: './openapi.yaml#/components/parameters/IdempotencyKey'
@@ -81,8 +76,6 @@ paths:
       summary: GetProject
       operationId: GetProject
       x-conexus-4a-id: PRJ-02
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       responses:
         '200':
@@ -101,8 +94,6 @@ paths:
       summary: DeleteProject
       operationId: DeleteProject
       x-conexus-4a-id: PRJ-04
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-current-state-carrier: NONE
       x-conexus-contract-state: SCHEMA_CLOSED
       description: Installation-administrator only. The caller must repeat the Project's exact current name to confirm; every Hub row naming the Project, its Mastra Factory state, its application's preview data and its GitHub repository are torn down together. A 503 means the request is durably recorded and safe to repeat unchanged; the Project stays gone from every disclosure meanwhile.
       parameters:

@@ -114,7 +114,6 @@ export const ROLE_BY_CALL_SITE = Object.freeze({
     'workspace.reserve_or_replay_create_workspace': 'hub_workspace_command',
     'workspace.create_workspace': 'hub_workspace_command',
     'workspace.complete_create_workspace_receipt': 'hub_workspace_command',
-    'workspace.get_workspace_summary': 'hub_workspace_read',
   }),
 })
 

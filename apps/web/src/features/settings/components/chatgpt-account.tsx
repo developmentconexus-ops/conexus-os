@@ -2,7 +2,7 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
-import { FAILURES } from '../../../generated/failures.ts'
+import { FAILURES } from '../../../../../../packages/contract/dist/failures.generated.js'
 import { accountsQueryKey, accountsUrl, callModelAccounts as call, type Accounts } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
 

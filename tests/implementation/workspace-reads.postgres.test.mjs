@@ -10,7 +10,6 @@ import { hubSessionCookie, opaque, testListener } from './access/test-listener.m
 const built = hubModuleUrl
 const { registerIdentityAccessRoutes } = await import(built('identity-access/routes.js'))
 const { createIdentityAccessStore } = await import(built('identity-access/store.js'))
-const { createWorkspaceStore } = await import(built('workspace/store.js'))
 
 const ACCOUNT_ID = '11111111-1111-4111-8111-111111111111'
 const WORKSPACE_ID = '33333333-3333-4333-8333-333333333333'
@@ -231,15 +230,12 @@ test('IAM-01 rolls back a failed read and releases the checked-out client', asyn
   assert.equal(readPool.calls.filter(({ text }) => text.startsWith('SELECT')).length, 1)
 })
 
-test('one shared pool object serves both operation-specific ports and I&A does not own its close', async () => {
+test('I&A does not close the Workspace list pool', async () => {
   const identityPool = fakePool()
   const sharedReadPool = fakePool()
   const identityStore = createIdentityAccessStore({ pool: identityPool.pool, workspaceReadPool: sharedReadPool.pool })
-  const workspaceStore = createWorkspaceStore({ commandPool: fakePool().pool, readPool: sharedReadPool.pool })
-
   await identityStore.listAccessibleWorkspaces(ACCOUNT_ID)
-  await workspaceStore.getWorkspace({ accountId: ACCOUNT_ID, workspaceId: WORKSPACE_ID })
-  assert.equal(sharedReadPool.calls.filter(({ text }) => text === 'BEGIN READ ONLY').length, 2)
+  assert.equal(sharedReadPool.calls.filter(({ text }) => text === 'BEGIN READ ONLY').length, 1)
 
   await identityStore.close()
   assert.equal(identityPool.ends, 1)

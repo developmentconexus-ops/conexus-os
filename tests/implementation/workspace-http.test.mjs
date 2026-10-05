@@ -95,12 +95,6 @@ const buildRoutes = async ({ current = OPERATOR, storeOverrides = {} } = {}) => 
         replayed: false,
       }
     },
-    async getWorkspace(input) {
-      calls.push(['getWorkspace', input])
-      return input.workspaceId === '33333333-3333-4333-8333-333333333333'
-        ? { workspaceId: input.workspaceId, name: 'Operations' }
-        : null
-    },
     ...storeOverrides,
   }
   const { app } = await testListener({
@@ -111,10 +105,10 @@ const buildRoutes = async ({ current = OPERATOR, storeOverrides = {} } = {}) => 
   return { app, calls }
 }
 
-test('generated WS-01/02 routes enforce operator creation and membership-shaped disclosure', async (t) => {
+test('WS-01 declares and checks workspace creation', async (t) => {
   const { app, calls } = await buildRoutes()
   t.after(() => app.close())
-  assert.deepEqual(app.routeCensus(), ['WS-01', 'WS-02'])
+  assert.deepEqual(app.routeCensus(), ['WS-01'])
 
   const created = await app.inject({ method: 'POST', url: '/api/control/workspaces', headers: authenticHeaders, payload: { name: 'Operations' } })
   assert.equal(created.statusCode, 201)
@@ -130,13 +124,7 @@ test('generated WS-01/02 routes enforce operator creation and membership-shaped 
     name: 'Operations',
   }])
 
-  const found = await app.inject({ method: 'GET', url: '/api/control/workspaces/33333333-3333-4333-8333-333333333333', headers: signedIn })
-  assert.equal(found.statusCode, 200)
-  assert.deepEqual(found.json(), { workspaceId: '33333333-3333-4333-8333-333333333333', name: 'Operations' })
-  assert.deepEqual(calls[1], ['getWorkspace', { accountId: OPERATOR.account.accountId, workspaceId: '33333333-3333-4333-8333-333333333333' }])
 
-  const hidden = await app.inject({ method: 'GET', url: '/api/control/workspaces/44444444-4444-4444-8444-444444444444', headers: signedIn })
-  assert.equal(hidden.statusCode, 404)
 })
 
 test('WS-01 refuses unauthenticated, authenticity failures and caller-selected authority', async (t) => {
@@ -152,6 +140,20 @@ test('WS-01 refuses unauthenticated, authenticity failures and caller-selected a
   const callerSelectedCreator = await operator.app.inject({ method: 'POST', url: '/api/control/workspaces', headers: authenticHeaders, payload: { name: 'Operations', creatorAccountId: MEMBER.account.accountId } })
   assert.equal(callerSelectedCreator.statusCode, 400)
   assert.equal(operator.calls.length, 0)
+})
+
+test('WS-01 names a missing or empty idempotency key', async (t) => {
+  const { app, calls } = await buildRoutes()
+  t.after(() => app.close())
+  for (const headers of [
+    { ...hubJsonWrite, origin: ORIGIN, ...signedIn },
+    { ...hubJsonWrite, origin: ORIGIN, ...signedIn, 'idempotency-key': '' },
+  ]) {
+    const response = await app.inject({ method: 'POST', url: '/api/control/workspaces', headers, payload: { name: 'Operations' } })
+    assert.equal(response.statusCode, 400)
+    assert.equal(response.json().code, 'IDEMPOTENCY_KEY_REQUIRED')
+  }
+  assert.deepEqual(calls, [])
 })
 
 test('WS-01 admits any authenticated Account, who becomes the Workspace owner', async (t) => {
@@ -172,43 +174,7 @@ test('WS-01 maps changed-request/outcome conflicts to 409 without leaking intern
   }
 })
 
-test('WS-01/02 hide malformed identifiers and unexpected store/driver failures', async (t) => {
-  const malformed = await buildRoutes({
-    storeOverrides: {
-      getWorkspace: async () => {
-        const error = new Error('invalid input syntax for type uuid: secret-driver-detail')
-        error.code = '22P02'
-        throw error
-      },
-    },
-  })
-  t.after(() => malformed.app.close())
-  const hidden = await malformed.app.inject({ method: 'GET', url: '/api/control/workspaces/not-a-uuid', headers: signedIn })
-  assert.equal(hidden.statusCode, 404)
-  assert.equal(hidden.headers['content-type'].startsWith('application/problem+json'), true)
-  assert.deepEqual(hidden.json(), {
-    type: 'urn:conexus:problem:WORKSPACE_NOT_FOUND',
-    title: 'WORKSPACE_NOT_FOUND',
-    status: 404,
-    code: 'WORKSPACE_NOT_FOUND',
-  })
-  assert.equal(hidden.body.includes('secret-driver-detail'), false)
-
-  const unexpectedRead = await buildRoutes({
-    storeOverrides: { getWorkspace: async () => { throw new Error('read-driver-secret') } },
-  })
-  t.after(() => unexpectedRead.app.close())
-  const readFailure = await unexpectedRead.app.inject({ method: 'GET', url: '/api/control/workspaces/33333333-3333-4333-8333-333333333333', headers: signedIn })
-  assert.equal(readFailure.statusCode, 500)
-  assert.equal(readFailure.headers['content-type'].startsWith('application/problem+json'), true)
-  assert.deepEqual(readFailure.json(), {
-    type: 'urn:conexus:problem:INTERNAL_UNEXPECTED',
-    title: 'INTERNAL_UNEXPECTED',
-    status: 500,
-    code: 'INTERNAL_UNEXPECTED',
-  })
-  assert.equal(readFailure.body.includes('read-driver-secret'), false)
-
+test('WS-01 hides unexpected store failures', async (t) => {
   const unexpectedCreate = await buildRoutes({
     storeOverrides: { createWorkspace: async () => { throw new Error('create-driver-secret') } },
   })
@@ -270,7 +236,7 @@ test('workspace store composes exact WS-01 functions atomically and short-circui
   assert.equal(replayCommand.calls.filter(({ text }) => /create_workspace|complete_create/.test(text)).length, 1)
 })
 
-test('workspace store rolls back every failed boundary and WS-02 is one read-only statement', async () => {
+test('workspace store rolls back every failed boundary', async () => {
   for (const failingFunction of ['reserve_or_replay_create_workspace', 'workspace.create_workspace', 'complete_create_workspace_receipt']) {
     const command = fakePool((sql, values) => {
       if (sql.includes(failingFunction)) throw new Error('boundary failure')
@@ -284,18 +250,5 @@ test('workspace store rolls back every failed boundary and WS-02 is one read-onl
     assert.equal(command.calls.at(-1).text, 'RELEASE')
   }
 
-  const command = fakePool(() => ({ rows: [] }))
-  const read = fakePool((sql) => sql.includes('get_workspace_summary')
-    ? { rows: [{ workspace_id: '33333333-3333-4333-8333-333333333333', name: 'Operations' }] }
-    : { rows: [] })
-  const store = createWorkspaceStore({ commandPool: command.pool, readPool: read.pool })
-  assert.deepEqual(await store.getWorkspace({ accountId: OPERATOR.account.accountId, workspaceId: '33333333-3333-4333-8333-333333333333' }), {
-    workspaceId: '33333333-3333-4333-8333-333333333333', name: 'Operations',
-  })
-  const sql = read.calls.map(({ text }) => text)
-  assert.deepEqual([sql[0], sql.at(-2), sql.at(-1)], ['BEGIN READ ONLY', 'COMMIT', 'RELEASE'])
-  assert.equal(sql.filter((text) => text.startsWith('SELECT')).length, 1)
-  assert.match(sql[1], /workspace\.get_workspace_summary\(\$1, \$2\)/)
-  assert.doesNotMatch(sql[1], /iam\./)
-  assert.deepEqual(read.calls[1].values, [OPERATOR.account.accountId, '33333333-3333-4333-8333-333333333333'])
+
 })

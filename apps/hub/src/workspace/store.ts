@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { PoolClient, QueryResultRow } from 'pg'
+import type { QueryResultRow } from 'pg'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import type { PostgresPool } from '../platform/postgres.js'
 import { Failure } from '../platform/failure.js'
@@ -21,11 +21,6 @@ type CreateWorkspaceInput = Readonly<{
   name: string
 }>
 
-type GetWorkspaceInput = Readonly<{
-  accountId: string
-  workspaceId: string
-}>
-
 type WorkspaceResponseBody = Omit<WorkspaceCreateResult, 'replayed'>
 
 type ReservationRow = QueryResultRow & Readonly<{
@@ -35,14 +30,8 @@ type ReservationRow = QueryResultRow & Readonly<{
   response_body: WorkspaceResponseBody | null
 }>
 
-type WorkspaceRow = QueryResultRow & Readonly<{
-  workspace_id: string
-  name: string
-}>
-
 export type WorkspaceStore = Readonly<{
   createWorkspace(input: CreateWorkspaceInput): Promise<WorkspaceCreateResult>
-  getWorkspace(input: GetWorkspaceInput): Promise<WorkspaceSummary | null>
 }>
 
 const keyDigest = (value: string): string => sha256(Buffer.from(value, 'utf8'))
@@ -61,10 +50,8 @@ const validReplay = (
 
 export const createWorkspaceStore = ({
   commandPool,
-  readPool,
 }: Readonly<{
   commandPool: PostgresPool
-  readPool: PostgresPool
 }>): WorkspaceStore => {
   const createWorkspace = async ({ accountId, idempotencyKey, name }: CreateWorkspaceInput): Promise<WorkspaceCreateResult> => {
     const client = await commandPool.connect()
@@ -112,24 +99,5 @@ export const createWorkspaceStore = ({
     }
   }
 
-  const getWorkspace = async ({ accountId, workspaceId }: GetWorkspaceInput): Promise<WorkspaceSummary | null> => {
-    const client: PoolClient = await readPool.connect()
-    try {
-      await client.query('BEGIN READ ONLY')
-      const result = await client.query<WorkspaceRow>(`
-        SELECT s.workspace_id, s.name
-        FROM workspace.get_workspace_summary($1, $2) s
-      `, [accountId, workspaceId])
-      const row = result.rows[0] ?? null
-      await client.query('COMMIT')
-      return row ? { workspaceId: row.workspace_id, name: row.name } : null
-    } catch (error) {
-      await client.query('ROLLBACK')
-      throw error
-    } finally {
-      client.release()
-    }
-  }
-
-  return Object.freeze({ createWorkspace, getWorkspace })
+  return Object.freeze({ createWorkspace })
 }

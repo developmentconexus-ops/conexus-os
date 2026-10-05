@@ -157,9 +157,13 @@ function isPublicPackageEntry(path) {
   return /^packages\/[^/]+\/src\/index\.(?:mjs|mts|js|ts)$/.test(path)
 }
 
+function isContractEntry(path) {
+  return /^packages\/contract\/dist\/(?:index|failures\.generated)\.js$/.test(path)
+}
+
 function isAllowedRelativeTarget(source, target) {
   const app = source.match(/^apps\/([^/]+)\/src\//)?.[1]
-  if (app) return target.startsWith(`apps/${app}/src/`) || isPublicPackageEntry(target)
+  if (app) return target.startsWith(`apps/${app}/src/`) || isPublicPackageEntry(target) || isContractEntry(target)
   const sourcePackage = packageName(source)
   if (sourcePackage) return target.startsWith(`packages/${sourcePackage}/src/`) || isPublicPackageEntry(target)
   return false
@@ -259,7 +263,7 @@ export function checkImportLaw(rootDirectory) {
         }
       }
       if (source.startsWith('apps/hub/src/http/') && isRelative &&
-          !target.startsWith('apps/hub/src/http/') && !HTTP_TARGETS.has(target)) {
+          !target.startsWith('apps/hub/src/http/') && !HTTP_TARGETS.has(target) && !isContractEntry(target)) {
         violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'HTTP mechanics cannot import semantic owners, generated contracts, or platform internals'))
       }
       if (source === 'apps/hub/src/identity-access/routes.ts' && isRelative) {
@@ -297,7 +301,7 @@ export function checkImportLaw(rootDirectory) {
         const allowed = [
           'apps/hub/src/http/problem.',
           'apps/hub/src/platform/failure.',
-          'apps/hub/src/generated/workspace-routes.',
+          'packages/contract/dist/index.',
           'apps/hub/src/workspace/',
           'apps/hub/src/identity-access/current-session.',
           'apps/hub/src/http/access.',

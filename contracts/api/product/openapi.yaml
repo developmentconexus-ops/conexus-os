@@ -12,15 +12,6 @@ servers:
     description: Relative Product API root; deployment origin remains outside 4B.
 security:
   - ConexusSession: []
-x-conexus-security-semantics:
-  keycloak: authentication-provider-only
-  productAuthority: server-resolved-current-owner-facts
-  nonHttpIngress: []
-x-conexus-browser-request-authenticity:
-  credentialedCrossOriginProductApi: DENY
-  fetchMetadata: SAME_ORIGIN_OR_NONE
-  fallback: EXACT_ORIGIN_ON_WRITE
-  forms: REFUSED
 paths:
   /api/control/access-context:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1access-context'
@@ -28,10 +19,6 @@ paths:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1session'
   /api/control/accounts:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1accounts'
-  /api/control/workspaces:
-    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces'
-  /api/control/workspaces/{workspaceId}:
-    $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}'
   /api/control/workspaces/{workspaceId}/members:
     $ref: './identity-workspace-paths.yaml#/paths/~1api~1control~1workspaces~1{workspaceId}~1members'
   /api/control/workspaces/{workspaceId}/members/{accountId}:
