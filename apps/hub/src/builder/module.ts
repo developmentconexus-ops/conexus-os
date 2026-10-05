@@ -270,9 +270,7 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
         runHistory: await store.listBuilderRuns({ accountId, projectId }),
       })
     },
-    readTrace: async ({ accountId, projectId, builderRunId }): Promise<BuilderTraceSummary> => {
-      const preview = await store.readPreviewSubject({ accountId, projectId })
-      if (!preview) throw new Failure('PROJECT_BUILD_DENIED')
+    readTrace: async ({ projectId, builderRunId }): Promise<BuilderTraceSummary> => {
       const mastraStorage = mastra.getStorage()
       const observabilityStore = await mastraStorage?.getStore('observability')
       if (!observabilityStore) return UNAVAILABLE_TRACE_SUMMARY

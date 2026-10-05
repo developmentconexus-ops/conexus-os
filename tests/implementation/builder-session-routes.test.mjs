@@ -464,6 +464,28 @@ test('the session read serves the latest run with the calls its live run in this
   assert.deepEqual(await read(), [], 'after a restart the row still says WAITING, and nothing is answerable')
 })
 
+test('the trace route answers a Project the account cannot build in with PROJECT_BUILD_DENIED, and an older run id with BUILDER_RUN_NOT_FOUND', async (t) => {
+  const latest = '88888888-8888-4888-8888-888888888888'
+  const older = '99999999-9999-4999-8999-999999999999'
+  let subject = null
+  const { app } = await createBuilderRoutesApp(t, {
+    session: { read: async () => { throw new Error('unused') }, readTrace: async () => { throw new Error('unused') } },
+    store: {
+      readPreviewSubject: async () => subject,
+      readBuilderRun: async () => {
+        if (!subject) throw new Error('the run is read only after the Project admits the account')
+        return { builderRunId: latest }
+      },
+    },
+  })
+  const trace = (id) => app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/builder-session/runs/${id}/trace`, ...authentic })
+  const hidden = await trace(latest)
+  assert.deepEqual([hidden.statusCode, hidden.json().code], [403, 'PROJECT_BUILD_DENIED'])
+  subject = { lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null }
+  const stale = await trace(older)
+  assert.deepEqual([stale.statusCode, stale.json().code], [404, 'BUILDER_RUN_NOT_FOUND'])
+})
+
 test('builder session, cancel, trace, and preview routes log failure codes on internal errors', async (t) => {
   const { logger } = await import(hubModuleUrl('platform/logger.js'))
   const pinoStreamSym = Object.getOwnPropertySymbols(logger).find((s) => s.description === 'pino.stream')
@@ -488,6 +510,7 @@ test('builder session, cancel, trace, and preview routes log failure codes on in
         return { builderRunId: runId, accountId: accountA, projectId: projectA, conversationId: conversationA, idempotencyKey: 'k', content: 'c', state: 'PENDING', resultKind: null, runSequence: 1, baseSourceRevision: '0'.repeat(40), resultSourceRevision: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
       },
       readLaunchSubject: async () => ({ lastPreviewSourceRevision: 'a'.repeat(40), lastPreviewArtifactRevisionId: runId, lastPreviewArtifactDigest: 'd'.repeat(64) }),
+      readPreviewSubject: async () => ({ lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null }),
     },
     service: {
       cancelBuilderRun: async () => { throw new Error('CANCEL_SERVICE_FAIL') },
