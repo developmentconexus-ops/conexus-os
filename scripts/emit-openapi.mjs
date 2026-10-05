@@ -31,18 +31,22 @@ const noExtensions = (value) => {
     .map(([key, entry]) => [key, noExtensions(entry)]))
 }
 
+const withoutFailureCode = (value) => {
+  if (Array.isArray(value)) return value.map(withoutFailureCode)
+  if (value === null || typeof value !== 'object') return value
+  return Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'failureCode').map(([key, entry]) => [key, withoutFailureCode(entry)]))
+}
+
 const asComponent = (schema, components, io) => {
   const json = z.toJSONSchema(schema, { io })
   for (const [name, definition] of Object.entries(json.$defs ?? {})) {
-    const normalized = JSON.parse(JSON.stringify(definition).replaceAll('#/$defs/', '#/components/schemas/'))
-    delete normalized.failureCode
+    const normalized = withoutFailureCode(JSON.parse(JSON.stringify(definition).replaceAll('#/$defs/', '#/components/schemas/')))
     if (components[name] && JSON.stringify(components[name]) !== JSON.stringify(normalized)) throw new Error(`OPENAPI_SCHEMA_COLLISION: ${name}`)
     components[name] = normalized
   }
   delete json.$schema
   delete json.$defs
-  delete json.failureCode
-  return JSON.parse(JSON.stringify(json).replaceAll('#/$defs/', '#/components/schemas/'))
+  return withoutFailureCode(JSON.parse(JSON.stringify(json).replaceAll('#/$defs/', '#/components/schemas/')))
 }
 
 const parameters = (part, location, components) => {

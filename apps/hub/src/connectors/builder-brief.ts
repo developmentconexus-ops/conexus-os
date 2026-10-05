@@ -32,7 +32,7 @@ export const createConnectorBrief = ({
   if (!isMintedScope(scope)) return CONNECTOR_BRIEF_UNAVAILABLE
   let bindings: readonly BoundConnection[]
   try {
-    bindings = await store.listBindings({ projectId: scope.projectId, environment: scope.environment })
+    bindings = await store.listBindings(scope)
   } catch {
     endSpan(observability.startSpan({ type: SpanType.GENERIC, name: 'connector.brief', metadata: { projectId: scope.projectId } }), 'STORE_UNAVAILABLE')
     return CONNECTOR_BRIEF_UNAVAILABLE

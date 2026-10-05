@@ -480,7 +480,7 @@ const connectorSetup = async (t, sandbox) => {
   const ports = createHandlerPorts({ directory: socketDir, broker })
   await ports.sweep()
   const open = async (projectId) => {
-    const port = await ports.open(scopeFromArtifactSource({ via: 'PREVIEW', projectId }))
+    const port = await ports.open(scopeFromArtifactSource({ via: 'PREVIEW', accountId: '55555555-5555-4555-8555-555555555555', projectId }))
     t.after(() => port.close())
     return port
   }

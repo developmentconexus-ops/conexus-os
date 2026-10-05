@@ -64,7 +64,7 @@ export type BuilderRunPorts = Readonly<{
   mirrorDebounceMs?: number
   materializeStarter?(input: Readonly<{ repositoryRoot: string; directCommand(command: string, args: readonly string[]): Promise<CommandResult>; writeFiles(files: SandboxFileInput[]): Promise<void> }>): Promise<unknown>
   /** Opens the run's connector access; the run ends it on every exit. Absent, it adds nothing to the agent's instructions. */
-  openConnectorRun?(input: Readonly<{ projectId: string; builderRunId: string }>): Promise<ConnectorRun>
+  openConnectorRun?(input: Readonly<{ projectId: string; accountId: string; builderRunId: string }>): Promise<ConnectorRun>
   /** The Project's display name, read when a turn starts. */
   readProjectName(input: Readonly<{ accountId: string; projectId: string }>): Promise<string>
   /** The Prévia's runner, which `conexus_run_operation` invokes the candidate's operations through. */

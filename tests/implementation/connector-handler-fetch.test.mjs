@@ -57,7 +57,7 @@ const setup = async (t, { limits, tokenPrefix, lookupDelayMs = 0 } = {}) => {
   t.after(() => rmSync(directory, { recursive: true, force: true }))
   const ports = createHandlerPorts({ directory, broker, ...(limits ? { limits } : {}) })
   const open = async (projectId = PROJECT) => {
-    const port = await ports.open(scopeFromArtifactSource({ via: 'PREVIEW', projectId }))
+    const port = await ports.open(scopeFromArtifactSource({ via: 'PREVIEW', accountId: '55555555-5555-4555-8555-555555555555', projectId }))
     t.after(() => port.close())
     return port
   }
@@ -148,7 +148,7 @@ test('by default a serialized answer over 256 KiB is RESPONSE_TOO_LARGE', async 
   const directory = mkdtempSync(join(tmpdir(), 'cx-fetch-'))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
   const broker = { fetch: async () => ({ ok: true, status: 200, bytes: 0, body: 'x'.repeat(300 * 1024) }) }
-  const port = await createHandlerPorts({ directory, broker }).open(scopeFromArtifactSource({ via: 'PREVIEW', projectId: PROJECT }))
+  const port = await createHandlerPorts({ directory, broker }).open(scopeFromArtifactSource({ via: 'PREVIEW', accountId: '55555555-5555-4555-8555-555555555555', projectId: PROJECT }))
   t.after(() => port.close())
   assert.deepEqual((await post(port.socketPath, READ)).json, { ok: false, code: 'RESPONSE_TOO_LARGE' })
 })

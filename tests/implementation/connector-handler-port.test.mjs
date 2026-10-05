@@ -25,7 +25,7 @@ const READ = Object.freeze({
   query: { serviceName: LOAD, outputType: 'json' },
   body: { serviceName: LOAD, requestBody: { dataSet: NATIVE_ORDER_DATASET } },
 })
-const scope = scopeFromArtifactSource({ via: 'PREVIEW', projectId: PROJECT })
+const scope = scopeFromArtifactSource({ via: 'PREVIEW', accountId: '55555555-5555-4555-8555-555555555555', projectId: PROJECT })
 
 /** One raw POST over a unix socket; resolves the parsed answer or the connection error's code. */
 const post = (socketPath, body, path = '/v1/fetch') => new Promise((resolve) => {

@@ -37,7 +37,7 @@ const memoryStore = ({ bindings = { [PROJECT]: [bound('erp', CONNECTION)] }, cre
       calls.push('listBindings')
       return environment === 'preview' ? [...(bindings[projectId] ?? [])] : []
     },
-    readConnectionCredential: async (connectionId) => {
+    readConnectionCredential: async (_scope, connectionId) => {
       calls.push('readConnectionCredential')
       return credentials[connectionId] ?? null
     },
@@ -57,7 +57,7 @@ const setup = async (t, { store = memoryStore(), nativeLimits, now, tokenPrefix,
   return { fake, other, store, broker, ...record }
 }
 
-const handler = (projectId = PROJECT) => Object.freeze({ kind: 'handler', invocationId: 'invocation-1', scope: scopeFromArtifactSource({ via: 'PREVIEW', projectId }) })
+const handler = (projectId = PROJECT) => Object.freeze({ kind: 'handler', invocationId: 'invocation-1', scope: scopeFromArtifactSource({ via: 'PREVIEW', accountId: '55555555-5555-4555-8555-555555555555', projectId }) })
 const agent = (scope) => Object.freeze({ kind: 'agent', sessionId: 'run-1', scope })
 
 const read = (overrides = {}) => ({
@@ -257,7 +257,7 @@ test('a binding to an unregistered integrator, or to one with no pinned destinat
 test('P5: an expired or revoked run scope is NOT_GRANTED, and a spent budget is CALL_LIMIT, each before the network', async (t) => {
   let clock = 1_000
   const { fake, broker } = await setup(t, { now: () => clock })
-  const run = scopeForBuilderRun(PROJECT, { ttlMs: 60_000, calls: 5 }, 1_000)
+  const run = scopeForBuilderRun({ projectId: PROJECT, accountId: '55555555-5555-4555-8555-555555555555' }, { ttlMs: 60_000, calls: 5 }, 1_000)
   assert.deepEqual(await broker.fetch(agent(run), read()), ORDER_READ)
   clock = 60_999
   assert.deepEqual(await broker.fetch(agent(run), read()), ORDER_READ)
@@ -266,13 +266,13 @@ test('P5: an expired or revoked run scope is NOT_GRANTED, and a spent budget is 
   assert.equal(fake.requests.filter(({ path }) => path === ROUTE).length, 2)
 
   clock = 1_000
-  const revoked = scopeForBuilderRun(PROJECT, { ttlMs: 60_000, calls: 5 }, 1_000)
+  const revoked = scopeForBuilderRun({ projectId: PROJECT, accountId: '55555555-5555-4555-8555-555555555555' }, { ttlMs: 60_000, calls: 5 }, 1_000)
   assert.deepEqual(await broker.fetch(agent(revoked), read()), ORDER_READ)
   revokeScope(revoked)
   revokeScope(revoked)
   assert.deepEqual(await broker.fetch(agent(revoked), read()), { ok: false, code: 'NOT_GRANTED' })
 
-  const budget = scopeForBuilderRun(PROJECT, { ttlMs: 60_000, calls: 1 }, 1_000)
+  const budget = scopeForBuilderRun({ projectId: PROJECT, accountId: '55555555-5555-4555-8555-555555555555' }, { ttlMs: 60_000, calls: 1 }, 1_000)
   assert.deepEqual(await broker.fetch(agent(budget), read({ query: { serviceName: WRITE, outputType: 'json' } })), { ok: false, code: 'SERVICE_REFUSED' })
   assert.deepEqual(await broker.fetch(agent(budget), read()), ORDER_READ, 'a refused request spent nothing')
   assert.deepEqual(await broker.fetch(agent(budget), read()), { ok: false, code: 'CALL_LIMIT' })
@@ -388,7 +388,7 @@ test('P5: a stalled vendor ends at the deadline as PROVIDER_TIMEOUT, for the ser
 
 test('P2: the records carry the binding name, the integrator and closed facts, never a path, query, body, value or token', async (t) => {
   const { fake, broker, facts, exporter, lines } = await setup(t)
-  const scope = scopeForBuilderRun(PROJECT, { ttlMs: 60_000, calls: 5 })
+  const scope = scopeForBuilderRun({ projectId: PROJECT, accountId: '55555555-5555-4555-8555-555555555555' }, { ttlMs: 60_000, calls: 5 })
   const marked = read({ body: { serviceName: LOAD, requestBody: { dataSet: { ...NATIVE_ORDER_DATASET, criteria: { expression: { $: 'this.CODPARC = ?' }, parameter: [{ $: 'MARKER-VALUE-5e1', type: 'S' }] } } } } })
   assert.deepEqual(await broker.fetch(agent(scope), read()), ORDER_READ)
   fake.mode.service = 'envelope-error'

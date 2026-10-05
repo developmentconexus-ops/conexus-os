@@ -6,10 +6,10 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
-import pg from 'pg'
 import { build } from 'vite'
 import { hubModuleUrl } from './hub-build.mjs'
-import { buildHubDatabase } from './hub-database.mjs'
+import { query } from './hub-database.mjs'
+import { ID, setupProjects } from './project-fixture.mjs'
 import { opaque, testListener } from './access/test-listener.mjs'
 
 // Real Fastify + real PostgreSQL, driven by a real Chromium, exactly as the Hub runs: only the
@@ -60,51 +60,25 @@ const findFreePort = () => new Promise((settle, reject) => {
 })
 
 const setupFixture = async (t) => {
-  const fixture = await buildHubDatabase(t, 'connector_integrations')
-  const owner = new pg.Client({ connectionString: fixture.connectionString })
-  await owner.connect()
-  fixture.onCleanup(() => owner.end())
+  const fixture = await setupProjects(t, 'connector_integrations')
+  const { connection, database, seedProject } = fixture
 
-  const adminAccountId = randomUUID() // installation administrator, Workspace member, not Owner
-  const ownerAccountId = randomUUID() // Workspace Owner, not an installation administrator
-  const bothAccountId = randomUUID() // both
+  const adminAccountId = ID.memberAdministrator // installation administrator, Workspace member, not Owner
+  const ownerAccountId = ID.owner // Workspace Owner, not an installation administrator
+  const bothAccountId = ID.administrator // both
   const accounts = { [adminAccountId]: 'Administrador', [ownerAccountId]: 'Dona do Workspace', [bothAccountId]: 'Leandro' }
-  for (const [id, name] of Object.entries(accounts)) {
-    await owner.query(
-      'INSERT INTO iam.account(account_id, issuer, external_subject, display_name, email, active) VALUES ($1,$2,$3,$4,$5,true)',
-      [id, 'https://connector-integrations.test', id, name, `${id}@connector-integrations.test`],
-    )
-  }
-  await owner.query("INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')", [adminAccountId])
-  await owner.query("INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')", [bothAccountId])
-
-  const workspaceId = randomUUID()
-  await owner.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1,$2)', [workspaceId, 'Metal Nobre'])
-  await owner.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,'owner')", [ownerAccountId, workspaceId])
-  await owner.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,'owner')", [bothAccountId, workspaceId])
-  await owner.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,'member')", [adminAccountId, workspaceId])
-
-  const projectId = randomUUID()
-  await owner.query(
-    "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1,$2,$3,'NEW',$4,$5)",
-    [projectId, workspaceId, 'Pedidos de compra', 'a'.repeat(40), 'r1'],
-  )
-
-  const runtimePool = new pg.Pool({ connectionString: fixture.connectionString, options: '-c role=hub_iam_runtime', max: 4 })
-  runtimePool.on('error', () => {})
-  fixture.onCleanup(() => runtimePool.end())
+  for (const [id, name] of Object.entries(accounts)) await query(connection, 'UPDATE iam.account SET display_name = $2 WHERE account_id = $1', [id, name])
+  await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [bothAccountId, ID.workspace])
+  const workspaceId = ID.workspace
+  const projectId = await seedProject('Pedidos de compra')
 
   const logLines = []
   const sessions = Object.fromEntries(Object.entries(accounts).map(([id, displayName]) => [opaque(id), { account: { accountId: id, displayName }, issuer: 'https://connector-integrations.test', subject: id }]))
-  const isInstallationAdministrator = async (accountId) => {
-    const result = await owner.query('SELECT 1 FROM iam.installation_administrator WHERE account_id = $1 AND revoked_at IS NULL', [accountId])
-    return result.rowCount > 0
-  }
 
   const port = await findFreePort()
   const origin = `http://127.0.0.1:${port}`
   const envelope = createSecretEnvelope('cd'.repeat(32))
-  const connectors = createConnectorModule({ pool: runtimePool, envelope, isInstallationAdministrator })
+  const connectors = createConnectorModule({ database, envelope })
 
   const { app } = await testListener({
     hubOrigin: origin,

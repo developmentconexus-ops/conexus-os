@@ -106,7 +106,7 @@ test('hub_command holds EXECUTE on the project purges, the repository registrati
       OR proc.proname = 'lock_administrators' AND namespace.nspname = 'iam')
       AND has_function_privilege($1, proc.oid, 'EXECUTE') ORDER BY 1`, [role]).then((result) => result.rows.map((row) => row.signature))
   assert.deepEqual(await held('hub_command'), [
-    'builder.purge_project(uuid)', 'builder.register_project_repository(uuid)', 'connector.purge_project(uuid)',
+    'builder.purge_project(uuid)', 'builder.register_project_repository(uuid)',
     'iam.lock_administrators()', 'iam.purge_project(uuid)', 'reg.purge_project(uuid)',
   ])
   assert.deepEqual(await held('hub_runtime'), [])

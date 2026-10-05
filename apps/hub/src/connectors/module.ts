@@ -4,8 +4,7 @@ import type { RequestContext } from '@mastra/core/request-context'
 import { MastraStorageExporter } from '@mastra/observability'
 import type { FastifyInstance } from 'fastify'
 import type { ConnectionCheckOutcome } from '../../../../packages/contract/dist/index.js'
-import { Failure } from '../platform/failure.js'
-import type { PostgresPool } from '../platform/db.js'
+import type { Database } from '../platform/db.js'
 import { logLine } from '../platform/logger.js'
 import type { EventLog } from '../platform/logger.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
@@ -25,7 +24,8 @@ import { registerConnectorRoutes } from './routes.js'
 import { sankhyaDefinition } from './sankhya/definition.js'
 import { createSankhyaGateway, pinnedGatewayOrigin } from './sankhya/gateway.js'
 import { scopeFromArtifactSource } from './scope.js'
-import { createBrokerStore, createConnectorStore } from './store.js'
+import { createBrokerStore, createConnectorStore, purgeProjectBindings } from './store.js'
+import type { ConnectorStore } from './store.js'
 
 export type ConnectorModule = Readonly<{
   registerConnectorRoutes(app: FastifyInstance): ReturnType<typeof registerConnectorRoutes>
@@ -33,16 +33,18 @@ export type ConnectorModule = Readonly<{
    * One invocation's port, closed over the scope minted here from the artifact source. Null when no
    * socket directory is configured: the handler's calls then answer CONNECTOR_UNCONFIGURED.
    */
-  openHandlerPort(source: Readonly<{ via: 'PREVIEW' | 'APPLICATION'; projectId: string }>): Promise<HandlerPort | null>
+  openHandlerPort(source: Readonly<{ via: 'PREVIEW' | 'APPLICATION'; accountId: string; projectId: string }>): Promise<HandlerPort | null>
   /** Empties the socket directory; the Hub runs it once at startup. */
   sweepHandlerPorts(): Promise<void>
   /** One Builder run's access: a scope minted for the run, and the brief of this Project's own bindings. The brief opens
    * no credential and makes no network call. */
-  openBuilderRun(input: Readonly<{ projectId: string; builderRunId: string }>): Promise<BuilderConnectorRun>
+  openBuilderRun(input: Readonly<{ projectId: string; accountId: string; builderRunId: string }>): Promise<BuilderConnectorRun>
   /** Contributes `connector_fetch` to the Builder run bound with `openBuilderRun`. */
   builderTools(context: Readonly<{ requestContext: RequestContext }>): ToolsInput
   /** The route-level projection of `connector_fetch` payloads the Builder's session routes serve. */
   toolPayloadProjection: ToolPayloadProjection
+  /** The Project purge's step for this owner: it deletes the Project's bindings in the purge transaction. */
+  purgeProjectBindings: typeof purgeProjectBindings
   broker: Broker
   observability: ObservabilityInstance
 }>
@@ -56,22 +58,34 @@ const CHECK_OUTCOME: Readonly<Partial<Record<BrokerErrorCode, ConnectionCheckOut
   RESPONSE_REFUSED: 'PROVIDER_ERROR',
 })
 
+/**
+ * The store's transaction ends with the credential read, so the provider call never holds the administrator's locks.
+ * @public The pinned gateway origin refuses a fake one, so the check test builds this with its own broker.
+ */
+export const createConnectionCheck = ({ store, broker, configured }: Readonly<{ store: ConnectorStore; broker: Broker; configured: boolean }>): CheckConnection =>
+  async ({ accountId, workspaceId, connectionId }) => {
+    const { connectorId, sealed } = await store.readCredentialForCheck({ accountId, workspaceId, connectionId })
+    if (!configured) return 'CONNECTOR_UNCONFIGURED'
+    const result = await broker.checkCredential(connectorId, sealed)
+    return result.ok ? 'OK' : CHECK_OUTCOME[result.code] ?? 'PROVIDER_UNAVAILABLE'
+  }
+
 export const createConnectorModule = ({
-  pool,
+  database,
   envelope,
   gatewayOrigin,
   socketDirectory,
   log = logLine,
 }: Readonly<{
-  pool: PostgresPool
+  database: Database
   envelope: SecretEnvelope
   /** The pinned Sankhya gateway origin; absent, every call and check answers CONNECTOR_UNCONFIGURED with no network. */
   gatewayOrigin?: string | undefined
   socketDirectory?: string | undefined
   log?: EventLog
 }>): ConnectorModule => {
-  const store = createConnectorStore({ pool, envelope })
-  const brokerStore = createBrokerStore(pool)
+  const store = createConnectorStore({ database, envelope })
+  const brokerStore = createBrokerStore(database)
   const registeredConnectors: readonly RegisteredConnector[] = [
     { definition: sankhyaDefinition, adapter: gatewayOrigin ? createSankhyaGateway({ origin: pinnedGatewayOrigin(gatewayOrigin) }) : null },
   ]
@@ -83,17 +97,6 @@ export const createConnectorModule = ({
   const broker = createBroker({ connectors: registeredConnectors, store: brokerStore, envelope, observability })
   const connectorBrief = createConnectorBrief({ store: brokerStore, observability })
   const ports = socketDirectory ? createHandlerPorts({ directory: socketDirectory, broker }) : null
-
-  const checkConnection: CheckConnection = async ({ accountId, workspaceId, connectionId }) => {
-    const connection = (await store.listConnections({ accountId, workspaceId }))
-      .find((candidate) => candidate.connectionId === connectionId && candidate.disabledAt === undefined)
-    if (!connection) throw new Failure('CONNECTOR_CONNECTION_NOT_FOUND')
-    if (!gatewayOrigin) return 'CONNECTOR_UNCONFIGURED'
-    const result = await broker.checkCredential(connection.connectorId, connection.connectionId)
-    if (result.ok) return 'OK'
-    if (result.code === 'NOT_GRANTED') throw new Failure('CONNECTOR_CONNECTION_NOT_FOUND')
-    return CHECK_OUTCOME[result.code] ?? 'PROVIDER_UNAVAILABLE'
-  }
 
   // Disable is terminal, so the cached token of that Connection goes with it.
   const administeredStore = Object.freeze({
@@ -107,11 +110,12 @@ export const createConnectorModule = ({
   return Object.freeze({
     registerConnectorRoutes: (app: FastifyInstance) => registerConnectorRoutes(app, {
       store: administeredStore,
-      checkConnection,
+      checkConnection: createConnectionCheck({ store, broker, configured: Boolean(gatewayOrigin) }),
     }),
     openHandlerPort: async (source) => (ports ? ports.open(scopeFromArtifactSource(source)) : null),
     sweepHandlerPorts: async () => { await ports?.sweep() },
-    openBuilderRun: ({ projectId, builderRunId }) => openBuilderRun({ brief: connectorBrief, projectId, builderRunId, ports }),
+    openBuilderRun: ({ projectId, accountId, builderRunId }) => openBuilderRun({ brief: connectorBrief, projectId, accountId, builderRunId, ports }),
+    purgeProjectBindings,
     builderTools: createConnectorFetchTools(broker),
     toolPayloadProjection: createToolPayloadProjection(new Map(registeredConnectors.map(({ definition }) => [definition.id, new Set(definition.native.services)]))),
     broker,

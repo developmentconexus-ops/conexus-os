@@ -2235,8 +2235,7 @@
                   "label": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 200,
-                    "failureCode": "CONNECTOR_LABEL_REFUSED"
+                    "maxLength": 200
                   },
                   "credential": {
                     "$ref": "#/components/schemas/SankhyaCredential"

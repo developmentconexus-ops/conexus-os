@@ -42,7 +42,7 @@ const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
 const binding = Object.freeze({ bindingId: 'binding-erp', name: 'erp', connectionId: CONNECTION, connectorId: 'sankhya' })
 const store = Object.freeze({
   listBindings: async ({ projectId, environment }) => (projectId === PROJECT && environment === 'preview' ? [binding] : []),
-  readConnectionCredential: async (connectionId) => (connectionId === CONNECTION ? sealed : null),
+  readConnectionCredential: async (_scope, connectionId) => (connectionId === CONNECTION ? sealed : null),
 })
 
 const connectorsOf = async (t, { now } = {}) => {
@@ -56,7 +56,7 @@ const connectorsOf = async (t, { now } = {}) => {
     fake, record, broker,
     tools: createConnectorFetchTools(broker),
     projection: createToolPayloadProjection(new Map([['sankhya', new Set(sankhyaDefinition.native.services)]])),
-    openRun: (projectId = PROJECT) => openBuilderRun({ brief, projectId, builderRunId: RUN }),
+    openRun: (projectId = PROJECT) => openBuilderRun({ brief, projectId, accountId: '55555555-5555-4555-8555-555555555555', builderRunId: RUN }),
   }
 }
 

@@ -2,477 +2,435 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
-import { loadHubMigrationFiles, runHubMigrations, runMigrations } from '../../scripts/run-hub-migrations.mjs'
+import { z } from 'zod'
+import { EXPECTED_NATIVE_ORDER, NATIVE_ORDER_DATASET, startFakeGateway } from './connector-fake-gateway.mjs'
+import { setupConnectors, skip } from './connector-fixture.mjs'
+import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
-import { buildHubDatabase, createEmptyDatabase } from './hub-database.mjs'
+import { query } from './hub-database.mjs'
+import { ID } from './project-fixture.mjs'
+import { waitUntilBlocked } from './race.mjs'
+
+const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
+const { createBrokerStore, purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
+const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
+const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
+const { scopeForBuilderRun, scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
+const { sql, DATABASE_FAILURES } = await import(hubModuleUrl('platform/db.js'))
+const { admitSystem } = await import(hubModuleUrl('identity-access/admission.js'))
 
 const DIGEST = 'd'.repeat(64)
-const configured = ['CONEXUS_TEST_DB_HOST', 'CONEXUS_TEST_DB_PORT', 'CONEXUS_TEST_DB_NAME', 'CONEXUS_TEST_DB_USER', 'CONEXUS_TEST_DB_PASSWORD'].every((name) => process.env[name])
+const SEALED = 'mastra:factory-secret:v1:seed'
+const SEEDED = '33333333-3333-4333-8333-333333333333'
+const SEEDED_AT = '2026-10-04T12:00:00.000Z'
+const CREDENTIAL = Object.freeze({ clientId: 'client-a', clientSecret: 'secret-a-4f1c', xToken: 'token-a-77d2' })
+const OTHER_OWNER = '10000000-0000-4000-8000-0000000000b1'
+const LOAD = 'CRUDServiceProvider.loadRecords'
+const NATIVE_READ = Object.freeze({
+  connection: 'erp', method: 'POST', path: '/gateway/v1/mge/service.sbr',
+  query: { serviceName: LOAD, outputType: 'json' },
+  body: { serviceName: LOAD, requestBody: { dataSet: NATIVE_ORDER_DATASET } },
+})
+const ORDER_READ = Object.freeze({ ok: true, status: 200, bytes: Buffer.byteLength(JSON.stringify(EXPECTED_NATIVE_ORDER)), body: EXPECTED_NATIVE_ORDER })
+const NOT_GRANTED = Object.freeze({ ok: false, code: 'NOT_GRANTED' })
 
-const refusal = async (run) => {
+const pending = (promise) => {
+  const state = { settled: false }
+  promise.then(() => { state.settled = true }, () => { state.settled = true })
+  return state
+}
+
+const hold = async (connection, onCleanup) => {
+  const client = new pg.Client(connection)
+  await client.connect()
+  onCleanup(() => client.end().catch(() => undefined))
+  await client.query('BEGIN')
+  return client
+}
+
+const asRole = async (connection, role, accountId, text, values = []) => {
+  const client = new pg.Client(connection)
+  await client.connect()
   try {
-    await run()
+    await client.query('BEGIN')
+    await client.query("SELECT set_config('role', $1, true)", [role])
+    if (accountId) await client.query("SELECT set_config('conexus.account_id', $1, true)", [accountId])
+    const result = await client.query(text, values)
+    return { code: null, rows: result.rows }
   } catch (error) {
-    return { code: error.code, message: error.message }
+    return { code: error.code, rows: [] }
+  } finally {
+    await client.end()
   }
-  return { code: null, message: null }
 }
 
-const seeding = (client) => ({
-  account: async (label, { active = true } = {}) => {
-    const accountId = randomUUID()
-    await client.query('INSERT INTO iam.account(account_id, issuer, external_subject, display_name, email, active) VALUES ($1,$2,$3,$4,$5,$6)',
-      [accountId, 'https://connector.test', accountId, label, `${label}@connector.test`, active])
-    return accountId
-  },
-  workspace: async (label, members = []) => {
-    const workspaceId = randomUUID()
-    await client.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1,$2)', [workspaceId, label])
-    for (const [accountId, role] of members) {
-      await client.query('INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,$3)', [accountId, workspaceId, role])
-    }
-    return workspaceId
-  },
-  project: async (workspaceId, name) => {
-    const projectId = randomUUID()
-    await client.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1,$2,$3,'NEW',$4,$5)",
-      [projectId, workspaceId, name, 'a'.repeat(40), name])
-    return projectId
-  },
-})
+const Label = z.object({ label: z.string() })
+const Binding = z.object({ binding_id: z.string() })
+const labelsOf = async (database, accountId) => (await database.read(accountId, (tx) => tx.rows(Label, sql`SELECT label FROM connector.connection ORDER BY label`))).map((row) => row.label)
+const bindingsOf = (database, accountId) => database.read(accountId, (tx) => tx.rows(Binding, sql`SELECT binding_id FROM connector.project_binding`))
+const count = async (connection, text, values) => (await query(connection, text, values)).rows[0].n
+const openBindings = (connection, projectId) => count(connection, 'SELECT count(*)::integer AS n FROM connector.project_binding WHERE project_id = $1 AND unbound_at IS NULL', [projectId])
+const allBindings = (connection, projectId) => count(connection, 'SELECT count(*)::integer AS n FROM connector.project_binding WHERE project_id = $1', [projectId])
 
-const connectorDatabase = async (t) => {
-  const fixture = await buildHubDatabase(t, 'connector')
-  const client = new pg.Client(fixture.connection)
-  await client.connect()
-  fixture.onCleanup(() => client.end())
-
-  const administrator = async (accountId) => {
-    await client.query("INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')", [accountId])
-  }
-  const createConnection = (actor, connectionId, workspaceId, connectorId, label, credentialSealed, credentialDigest = DIGEST) =>
-    client.query('SELECT connection_id, connector_id, label, created_at, disabled_at, created FROM connector.create_connection($1,$2,$3,$4,$5,$6,$7)',
-      [actor, connectionId, workspaceId, connectorId, label, credentialSealed, [credentialDigest]])
-  const bind = (actor, projectId, connectionId, name) =>
-    client.query('SELECT binding_id, name, connection_id, connector_id, label, bound_at FROM connector.bind_connection($1,$2,$3,$4)',
-      [actor, projectId, connectionId, name])
-  const unbind = (actor, projectId, bindingId) =>
-    client.query('SELECT connector.unbind_connection($1,$2,$3) AS found', [actor, projectId, bindingId])
-  const disable = (actor, workspaceId, connectionId) =>
-    client.query('SELECT connector.disable_connection($1,$2,$3) AS found', [actor, workspaceId, connectionId])
-  const listProjectBindings = async (actor, projectId) =>
-    (await client.query('SELECT kind, binding_id, name, connection_id, connector_id, label FROM connector.list_project_bindings($1,$2)', [actor, projectId])).rows
-  const boundConnections = async (projectId) =>
-    (await client.query('SELECT binding_id, name, connection_id, connector_id FROM connector.list_bound_connections($1, $2)', [projectId, 'preview'])).rows
-
-  return { fixture, client, ...seeding(client), administrator, createConnection, bind, unbind, disable, listProjectBindings, boundConnections }
+const seedConnection = async (connection, { connectionId = randomUUID(), workspaceId = ID.workspace, connectorId = 'sankhya', label, disabled = false }) => {
+  await query(connection, `INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by, created_at, disabled_at, disabled_by)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, [connectionId, workspaceId, connectorId, label, SEALED, DIGEST, ID.administrator, SEEDED_AT, disabled ? SEEDED_AT : null, disabled ? ID.administrator : null])
+  return connectionId
 }
 
-test('installation administrators hold a Workspace Connection; idempotent create and a conflicting retry', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
-  const { client, account, workspace, administrator, createConnection, disable } = await connectorDatabase(t)
-  const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
-  const envelope = createSecretEnvelope('ab'.repeat(32))
+test('CON-01 and CON-02: administrator only, idempotent create, conflicts, absent Workspace, sealed at rest', { skip }, async (t) => {
+  const { connection, store, database } = await setupConnectors(t, 'connector_admin')
+  await seedConnection(connection, { connectionId: SEEDED, label: 'ERP' })
+  assert.deepEqual(await store.listConnections({ accountId: ID.administrator, workspaceId: ID.workspace }), [{ connectionId: SEEDED, connectorId: 'sankhya', label: 'ERP', createdAt: SEEDED_AT }])
+  await assert.rejects(store.listConnections({ accountId: ID.owner, workspaceId: ID.workspace }), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' })
+  assert.deepEqual(await store.listConnections({ accountId: ID.administrator, workspaceId: randomUUID() }), [])
 
-  const admin = await account('admin-a')
-  await administrator(admin)
-  const nonAdmin = await account('member-a')
-  const workspaceId = await workspace('purchasing-a', [[admin, 'owner'], [nonAdmin, 'member']])
   const connectionId = randomUUID()
-  const sealed = await envelope.seal(JSON.stringify({ clientId: 'client-a', clientSecret: 'super-secret-value', xToken: 'x-token-value' }))
-
-  await t.test('a non-administrator is refused, disclosing nothing about the Workspace', async () => {
-    assert.deepEqual(
-      await refusal(() => createConnection(nonAdmin, connectionId, workspaceId, 'sankhya', 'ERP principal', sealed)),
-      { code: '42501', message: 'NOT_ADMITTED' })
+  const body = { connectionId, connectorId: 'sankhya', label: 'ERP filial', credential: CREDENTIAL }
+  const create = (input = body, workspaceId = ID.workspace) => store.createConnection({ accountId: ID.administrator, workspaceId, body: input })
+  const first = await create()
+  assert.deepEqual({ ...first, connection: { ...first.connection, createdAt: typeof first.connection.createdAt } }, {
+    connection: { connectionId, connectorId: 'sankhya', label: 'ERP filial', createdAt: 'string' }, created: true,
   })
+  const retry = await create({ ...body, credential: { xToken: CREDENTIAL.xToken, clientSecret: CREDENTIAL.clientSecret, clientId: CREDENTIAL.clientId } })
+  assert.deepEqual(retry, { connection: first.connection, created: false })
+  await assert.rejects(create({ ...body, label: 'Changed' }), { id: 'CONNECTOR_CONNECTION_CONFLICT' })
+  await assert.rejects(create({ ...body, credential: { ...CREDENTIAL, clientSecret: 'another' } }), { id: 'CONNECTOR_CONNECTION_CONFLICT' })
+  await assert.rejects(create(body, ID.otherWorkspace), { id: 'CONNECTOR_CONNECTION_CONFLICT' })
+  assert.deepEqual((await query(connection, 'SELECT workspace_id, label FROM connector.connection WHERE connection_id = $1', [connectionId])).rows, [{ workspace_id: ID.workspace, label: 'ERP filial' }])
 
-  await t.test('P1: the stored row matches the sealed envelope prefix and holds no fragment of the credential', async () => {
-    const created = (await createConnection(admin, connectionId, workspaceId, 'sankhya', 'ERP principal', sealed)).rows[0]
-    assert.deepEqual({ connector_id: created.connector_id, label: created.label, disabled_at: created.disabled_at, created: created.created },
-      { connector_id: 'sankhya', label: 'ERP principal', disabled_at: null, created: true })
-    const stored = (await client.query('SELECT credential_sealed FROM connector.connection WHERE connection_id = $1', [connectionId])).rows[0]
-    assert.ok(stored.credential_sealed.startsWith('mastra:factory-secret:v1:'))
-    for (const secret of ['client-a', 'super-secret-value', 'x-token-value']) {
-      assert.equal(stored.credential_sealed.includes(secret), false, `the stored envelope must not contain ${secret}`)
-    }
-    assert.equal(await envelope.open(stored.credential_sealed), JSON.stringify({ clientId: 'client-a', clientSecret: 'super-secret-value', xToken: 'x-token-value' }))
-  })
+  await assert.rejects(create({ ...body, connectionId: randomUUID() }, randomUUID()), (error) => error.id === 'CONNECTOR_WORKSPACE_NOT_FOUND' && error.cause?.code === '23503')
+  const rule = DATABASE_FAILURES.find((entry) => entry.failure === 'CONNECTOR_WORKSPACE_NOT_FOUND')
+  assert.deepEqual(rule, { sqlstate: '23503', constraint: 'connection_workspace_id_fkey', failure: 'CONNECTOR_WORKSPACE_NOT_FOUND' })
+  assert.equal((await query(connection, 'SELECT 1 FROM pg_constraint WHERE conname = $1', [rule.constraint])).rowCount, 1)
 
-  await t.test('a retry with the same id and fields is idempotent; a retry with a different field is a conflict', async () => {
-    const reseal = await envelope.seal(JSON.stringify({ clientId: 'client-a', clientSecret: 'super-secret-value', xToken: 'x-token-value' }))
-    assert.notEqual(reseal, sealed, 'a fresh seal of the same credential is different ciphertext')
-    const repeat = (await createConnection(admin, connectionId, workspaceId, 'sankhya', 'ERP principal', reseal)).rows[0]
-    assert.deepEqual({ connection_id: repeat.connection_id, created: repeat.created }, { connection_id: connectionId, created: false })
-    const conflict = { code: 'P0001', message: 'CONNECTOR_CONNECTION_CONFLICT' }
-    assert.deepEqual(await refusal(() => createConnection(admin, connectionId, workspaceId, 'sankhya', 'Different label', sealed)), conflict)
-    assert.deepEqual(await refusal(() => createConnection(admin, connectionId, workspaceId, 'sankhya', 'ERP principal', sealed, 'e'.repeat(64))), conflict)
-    const stored = (await client.query('SELECT credential_sealed, credential_digest FROM connector.connection WHERE connection_id = $1', [connectionId])).rows[0]
-    assert.deepEqual(stored, { credential_sealed: sealed, credential_digest: DIGEST }, 'no retry replaced the stored credential')
-  })
-
-  await t.test('a Workspace holds several open Connections of one integrator', async () => {
-    const second = (await createConnection(admin, randomUUID(), workspaceId, 'sankhya', 'ERP filial', sealed)).rows[0]
-    assert.deepEqual({ connector_id: second.connector_id, label: second.label, disabled_at: second.disabled_at, created: second.created },
-      { connector_id: 'sankhya', label: 'ERP filial', disabled_at: null, created: true })
-  })
-
-  await t.test('the table admits any integrator id of the right shape and refuses any other', async () => {
-    const other = await workspace('shape-a')
-    const shaped = (await createConnection(admin, randomUUID(), other, 'synthetic-rest', 'CRM', sealed)).rows[0]
-    assert.deepEqual({ connector_id: shaped.connector_id, created: shaped.created }, { connector_id: 'synthetic-rest', created: true })
-    assert.equal((await refusal(() => createConnection(admin, randomUUID(), other, 'Sankhya ERP', 'Bad', sealed))).code, '23514')
-  })
-
-  await t.test('a Connection of a Workspace that does not exist is refused by name', async () => {
-    assert.deepEqual(await refusal(() => createConnection(admin, randomUUID(), randomUUID(), 'sankhya', 'Nowhere', sealed)),
-      { code: 'P0002', message: 'CONNECTOR_WORKSPACE_NOT_FOUND' })
-  })
-
-  await t.test('a digest that is not 64 hex characters is refused by the column CHECK', async () => {
-    const other = await workspace('digest-a')
-    assert.equal((await refusal(() => createConnection(admin, randomUUID(), other, 'sankhya', 'Digest', sealed, 'not-a-digest'))).code, '23514')
-  })
-
-  await t.test('an unsealed credential is refused by the column CHECK', async () => {
-    assert.equal((await refusal(() => createConnection(admin, randomUUID(), workspaceId, 'sankhya', 'Plain', 'plaintext-not-an-envelope'))).code, '23514')
-  })
-
-  await t.test('list_connections is scoped to the Workspace and refuses a non-administrator', async () => {
-    const listed = await client.query('SELECT connector_id, label FROM connector.list_connections($1, $2)', [admin, workspaceId])
-    assert.deepEqual(listed.rows, [{ connector_id: 'sankhya', label: 'ERP principal' }, { connector_id: 'sankhya', label: 'ERP filial' }])
-    assert.equal((await refusal(() => client.query('SELECT * FROM connector.list_connections($1, $2)', [nonAdmin, workspaceId]))).code, '42501')
-  })
-
-  await t.test('disabling is idempotent, narrowing, and keeps the row as the record', async () => {
-    const other = await workspace('other-a')
-    assert.equal((await refusal(() => disable(nonAdmin, workspaceId, connectionId))).code, '42501')
-    assert.equal((await disable(admin, other, connectionId)).rows[0].found, false, 'wrong Workspace, not found')
-    assert.equal((await disable(admin, workspaceId, connectionId)).rows[0].found, true)
-    assert.equal((await disable(admin, workspaceId, connectionId)).rows[0].found, true, 'idempotent')
-    const record = (await client.query('SELECT disabled_by, disabled_at IS NOT NULL AS disabled FROM connector.connection WHERE connection_id = $1', [connectionId])).rows[0]
-    assert.deepEqual(record, { disabled_by: admin, disabled: true })
-  })
+  const stored = (await query(connection, 'SELECT credential_sealed, credential_digest FROM connector.connection WHERE connection_id = $1', [connectionId])).rows[0]
+  assert.match(stored.credential_sealed, /^mastra:factory-secret:v1:/)
+  assert.equal(stored.credential_sealed.includes(CREDENTIAL.clientSecret), false)
+  assert.match(stored.credential_digest, /^[0-9a-f]{64}$/)
+  assert.deepEqual(await labelsOf(database, ID.administrator), ['ERP', 'ERP filial'])
 })
 
-test('Project bindings: P7 cross-Workspace is unrepresentable and non-disclosing, Owner admission, idempotent bind, the two conflicts, scoped unbind', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
-  const { client, account, workspace, project, administrator, createConnection, bind, unbind, disable, listProjectBindings } = await connectorDatabase(t)
-  const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
-  const envelope = createSecretEnvelope('cd'.repeat(32))
-  const sealed = await envelope.seal(JSON.stringify({ clientId: 'client-b', clientSecret: 'secret-b', xToken: 'token-b' }))
+test('CON-03 and CON-04: the credential read and the disable are administrator commands that end every open binding', { skip }, async (t) => {
+  const { connection, store, addConnection, bind, disable, seedProject, brokerStore, scopeOf } = await setupConnectors(t, 'connector_check')
+  const projectId = await seedProject('Atlas')
+  const erp = await addConnection('sankhya', 'ERP', CREDENTIAL)
+  await bind(projectId, erp, 'erp')
+  const read = (accountId, workspaceId = ID.workspace, connectionId = erp) => store.readCredentialForCheck({ accountId, workspaceId, connectionId })
+  const found = await read(ID.administrator)
+  assert.equal(found.connectorId, 'sankhya')
+  assert.match(found.sealed, /^mastra:factory-secret:v1:/)
+  await assert.rejects(read(ID.owner), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' })
+  await assert.rejects(read(ID.administrator, ID.otherWorkspace), { id: 'CONNECTOR_CONNECTION_NOT_FOUND' })
+  await assert.rejects(disable(erp, ID.workspace, ID.owner), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' })
 
-  const admin = await account('admin-b')
-  await administrator(admin)
-  const owner = await account('owner-b')
-  const plainMember = await account('member-b')
-  const stranger = await account('stranger-b')
-  const appOnly = await account('app-only-b')
-  await client.query("UPDATE iam.account SET origin = 'APPLICATION_INVITATION' WHERE account_id = $1", [appOnly])
-  const foreignOwner = await account('foreign-owner-b')
-
-  const workspaceId = await workspace('purchasing-b', [[owner, 'owner'], [plainMember, 'member']])
-  const foreignWorkspaceId = await workspace('foreign-b', [[foreignOwner, 'owner']])
-  const principal = randomUUID()
-  const branch = randomUUID()
-  await createConnection(admin, principal, workspaceId, 'sankhya', 'ERP principal', sealed)
-  await createConnection(admin, branch, workspaceId, 'sankhya', 'ERP filial', sealed)
-  const projectId = await project(workspaceId, 'Pedidos')
-  const secondProject = await project(workspaceId, 'Notas')
-
-  await t.test('P7: a direct insert with mismatched Workspaces fails 23503, and it cannot be written at all', async () => {
-    assert.equal((await refusal(() => client.query(
-      'INSERT INTO connector.project_binding (workspace_id, project_id, environment, connection_id, name, bound_by) VALUES ($1,$2,$3,$4,$5,$6)',
-      [foreignWorkspaceId, projectId, 'preview', principal, 'erp', foreignOwner]))).code, '23503')
-  })
-
-  await t.test('an Owner of another Workspace binding this Connection is refused without disclosure (P0002)', async () => {
-    assert.deepEqual(await refusal(() => bind(foreignOwner, projectId, principal, 'erp')), { code: 'P0002', message: 'CONNECTOR_PROJECT_NOT_FOUND' })
-  })
-
-  await t.test('a member who is not an Owner is refused, and a stranger or an app-only Account is told nothing', async () => {
-    assert.deepEqual(await refusal(() => bind(plainMember, projectId, principal, 'erp')), { code: '42501', message: 'NOT_ADMITTED' })
-    for (const nonMember of [stranger, appOnly]) {
-      assert.deepEqual(await refusal(() => bind(nonMember, projectId, principal, 'erp')), { code: 'P0002', message: 'CONNECTOR_PROJECT_NOT_FOUND' })
-    }
-    assert.deepEqual(await refusal(() => listProjectBindings(plainMember, projectId)), { code: '42501', message: 'NOT_ADMITTED' })
-  })
-
-  let erp
-  await t.test('an Owner binds a Connection under a name, idempotently', async () => {
-    const first = (await bind(owner, projectId, principal, 'erp')).rows[0]
-    assert.deepEqual({ name: first.name, connection_id: first.connection_id, connector_id: first.connector_id, label: first.label },
-      { name: 'erp', connection_id: principal, connector_id: 'sankhya', label: 'ERP principal' })
-    erp = first.binding_id
-    const repeat = (await bind(owner, projectId, principal, 'erp')).rows[0]
-    assert.deepEqual({ binding_id: repeat.binding_id, bound_at: repeat.bound_at }, { binding_id: erp, bound_at: first.bound_at }, 'the same open binding answers a repeated request')
-  })
-
-  await t.test('the Connection under another name, or the name on another Connection, is a conflict; a second Connection of one integrator binds under its own name', async () => {
-    const conflict = { code: 'P0001', message: 'CONNECTOR_BINDING_CONFLICT' }
-    assert.deepEqual(await refusal(() => bind(owner, projectId, principal, 'erp-2')), conflict)
-    assert.deepEqual(await refusal(() => bind(owner, projectId, branch, 'erp')), conflict)
-    const filial = (await bind(owner, projectId, branch, 'filial')).rows[0]
-    assert.deepEqual(await listProjectBindings(owner, projectId), [
-      { kind: 'binding', binding_id: erp, name: 'erp', connection_id: principal, connector_id: 'sankhya', label: 'ERP principal' },
-      { kind: 'binding', binding_id: filial.binding_id, name: 'filial', connection_id: branch, connector_id: 'sankhya', label: 'ERP filial' },
-    ])
-    assert.deepEqual(await listProjectBindings(owner, secondProject), [
-      { kind: 'bindable', binding_id: null, name: null, connection_id: branch, connector_id: 'sankhya', label: 'ERP filial' },
-      { kind: 'bindable', binding_id: null, name: null, connection_id: principal, connector_id: 'sankhya', label: 'ERP principal' },
-    ])
-  })
-
-  await t.test('a name outside the pattern is refused by the column CHECK', async () => {
-    for (const name of ['ERP', '1erp', 'erp_principal', `e${'r'.repeat(40)}`]) {
-      assert.equal((await refusal(() => bind(owner, secondProject, principal, name))).code, '23514', name)
-    }
-  })
-
-  await t.test('a Connection of another Workspace, a missing one or a disabled one cannot be bound (P0002)', async () => {
-    const foreignConnectionId = randomUUID()
-    await createConnection(admin, foreignConnectionId, foreignWorkspaceId, 'sankhya', 'Foreign principal', sealed)
-    const unavailable = { code: 'P0002', message: 'CONNECTOR_CONNECTION_NOT_AVAILABLE' }
-    assert.deepEqual(await refusal(() => bind(owner, secondProject, foreignConnectionId, 'erp')), unavailable)
-    assert.deepEqual(await refusal(() => bind(owner, secondProject, randomUUID(), 'erp')), unavailable)
-    const retired = randomUUID()
-    await createConnection(admin, retired, workspaceId, 'sankhya', 'ERP antigo', sealed)
-    await disable(admin, workspaceId, retired)
-    assert.deepEqual(await refusal(() => bind(owner, secondProject, retired, 'erp')), unavailable)
-  })
-
-  await t.test('unbind is scoped to the named Project and idempotent, the row is kept as the record, and the name binds again', async () => {
-    assert.equal((await unbind(owner, secondProject, erp)).rows[0].found, false, 'a binding id of another Project is not found')
-    assert.equal((await unbind(owner, projectId, erp)).rows[0].found, true)
-    assert.equal((await unbind(owner, projectId, erp)).rows[0].found, false, 'idempotent')
-    const record = (await client.query('SELECT name, unbound_by, unbound_at IS NOT NULL AS unbound FROM connector.project_binding WHERE binding_id = $1', [erp])).rows[0]
-    assert.deepEqual(record, { name: 'erp', unbound_by: owner, unbound: true })
-    const again = (await bind(owner, projectId, principal, 'erp')).rows[0]
-    assert.notEqual(again.binding_id, erp)
-    assert.deepEqual({ name: again.name, connection_id: again.connection_id }, { name: 'erp', connection_id: principal })
-  })
+  await disable(erp)
+  await disable(erp)
+  assert.deepEqual([await allBindings(connection, projectId), await openBindings(connection, projectId)], [1, 0])
+  assert.deepEqual(await brokerStore.listBindings(scopeOf(projectId)), [])
+  assert.equal(await brokerStore.readConnectionCredential(scopeOf(projectId), erp), null)
+  await assert.rejects(read(ID.administrator), { id: 'CONNECTOR_CONNECTION_NOT_FOUND' })
+  await assert.rejects(disable(randomUUID()), { id: 'CONNECTOR_CONNECTION_NOT_FOUND' })
+  await assert.rejects(disable(erp, ID.otherWorkspace), { id: 'CONNECTOR_CONNECTION_NOT_FOUND' })
 })
 
-test('P8: the broker sees a bound Connection only while the binding is open, the Connection is enabled and the Project is not archived', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
-  const { client, account, workspace, project, administrator, createConnection, bind, unbind, disable, listProjectBindings, boundConnections } = await connectorDatabase(t)
-  const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
-  const envelope = createSecretEnvelope('ef'.repeat(32))
-  const sealed = await envelope.seal(JSON.stringify({ clientId: 'client-c', clientSecret: 'secret-c', xToken: 'token-c' }))
-
-  const admin = await account('admin-c')
-  await administrator(admin)
-  const owner = await account('owner-c')
-  const workspaceId = await workspace('purchasing-c', [[owner, 'owner']])
-  const connectionId = randomUUID()
-  await createConnection(admin, connectionId, workspaceId, 'sankhya', 'ERP principal', sealed)
-  const projectA = await project(workspaceId, 'Pedidos A')
-  const projectB = await project(workspaceId, 'Pedidos B')
-  const bindingA = (await bind(owner, projectA, connectionId, 'erp')).rows[0].binding_id
-  const bindingB = (await bind(owner, projectB, connectionId, 'erp')).rows[0].binding_id
-
-  await t.test('an open binding, an enabled Connection and a live Project are listed', async () => {
-    assert.deepEqual(await boundConnections(projectA), [{ binding_id: bindingA, name: 'erp', connection_id: connectionId, connector_id: 'sankhya' }])
-    assert.deepEqual(await boundConnections(projectB), [{ binding_id: bindingB, name: 'erp', connection_id: connectionId, connector_id: 'sankhya' }])
+test('CON-03 over the real routes: the administrator transaction is committed while the provider call runs', { skip }, async (t) => {
+  const fixture = await setupConnectors(t, 'connector_check_route')
+  const { connection, store, addConnection, onCleanup } = fixture
+  const { createConnectionCheck } = await import(hubModuleUrl('connectors/module.js'))
+  const { registerConnectorRoutes } = await import(hubModuleUrl('connectors/routes.js'))
+  const { testListener, hubJsonWrite, opaque } = await import('./access/test-listener.mjs')
+  const fake = await startFakeGateway()
+  t.after(() => fake.close())
+  const erp = await addConnection('sankhya', 'ERP', { clientId: 'c', clientSecret: 's', xToken: 'x' })
+  const { broker } = await connectorBroker(t, fixture, fixture.brokerStore, fake)
+  const token = opaque('administrator')
+  const { app } = await testListener({
+    sessions: { [token]: { account: { accountId: ID.administrator, displayName: 'Administrator' }, issuer: 'https://issuer.test', subject: 'administrator' } },
+    registerRoutes: (instance) => registerConnectorRoutes(instance, { store, checkConnection: createConnectionCheck({ store, broker, configured: true }) }),
   })
+  onCleanup(() => app.close())
+  const check = () => app.inject({ method: 'POST', url: `/api/control/workspaces/${ID.workspace}/connections/${erp}/authentication-check`, headers: hubJsonWrite, cookies: { '__Host-conexus_session': token }, payload: {} })
 
-  await t.test('an archived Project lists nothing', async () => {
-    await client.query('UPDATE project.project SET archived = true WHERE project_id = $1', [projectA])
-    assert.deepEqual(await boundConnections(projectA), [])
-    await client.query('UPDATE project.project SET archived = false WHERE project_id = $1', [projectA])
-    assert.deepEqual(await boundConnections(projectA), [{ binding_id: bindingA, name: 'erp', connection_id: connectionId, connector_id: 'sankhya' }])
-  })
+  assert.deepEqual((await check()).json(), { outcome: 'OK' })
 
-  await t.test("unbinding one Project's binding empties only its own list", async () => {
-    await unbind(owner, projectA, bindingA)
-    assert.deepEqual(await boundConnections(projectA), [])
-    assert.deepEqual(await boundConnections(projectB), [{ binding_id: bindingB, name: 'erp', connection_id: connectionId, connector_id: 'sankhya' }])
-  })
-
-  await t.test('disabling the Connection ends every open binding of it, and the rows stay as the record', async () => {
-    await disable(admin, workspaceId, connectionId)
-    assert.deepEqual(await boundConnections(projectB), [])
-    const record = (await client.query('SELECT unbound_by, unbound_at IS NOT NULL AS unbound FROM connector.project_binding WHERE binding_id = $1', [bindingB])).rows[0]
-    assert.deepEqual(record, { unbound_by: admin, unbound: true })
-  })
-
-  await t.test('after disable-then-create, binding the new Connection opens a new binding that is listed', async () => {
-    const replacement = randomUUID()
-    await createConnection(admin, replacement, workspaceId, 'sankhya', 'ERP principal novo', sealed)
-    assert.deepEqual(await listProjectBindings(owner, projectB), [
-      { kind: 'bindable', binding_id: null, name: null, connection_id: replacement, connector_id: 'sankhya', label: 'ERP principal novo' },
-    ], 'no binding is left open on the disabled Connection')
-    const bound = (await bind(owner, projectB, replacement, 'erp')).rows[0]
-    assert.notEqual(bound.binding_id, bindingB)
-    assert.deepEqual(await boundConnections(projectB), [{ binding_id: bound.binding_id, name: 'erp', connection_id: replacement, connector_id: 'sankhya' }])
-  })
+  fake.mode.authenticate = 'stall'
+  fake.requests.length = 0
+  broker.forget(erp)
+  const answer = check()
+  const started = Date.now()
+  while (fake.requests.length === 0 && Date.now() - started < 3000) await new Promise((resolve) => setTimeout(resolve, 10))
+  assert.equal(fake.requests.length, 1, 'the provider call is in flight')
+  const revoked = query(connection, 'UPDATE iam.installation_administrator SET revoked_at = now(), revoked_by = $2 WHERE account_id = $1', [ID.administrator, ID.memberAdministrator])
+  assert.equal(await Promise.race([revoked.then(() => 'committed'), new Promise((resolve) => setTimeout(() => resolve('waiting'), 1500))]), 'committed')
+  const settled = await answer
+  assert.deepEqual({ status: settled.statusCode, body: settled.json() }, { status: 200, body: { outcome: 'PROVIDER_TIMEOUT' } })
+  assert.equal((await check()).statusCode, 403)
 })
 
-test('a bind that races a disable of its Connection is ended by it, never left open on a disabled Connection', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
-  const { fixture, client, account, workspace, project, administrator, createConnection, boundConnections } = await connectorDatabase(t)
-  const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
-  const sealed = await createSecretEnvelope('34'.repeat(32)).seal(JSON.stringify({ clientId: 'client-e', clientSecret: 'secret-e', xToken: 'token-e' }))
-  const admin = await account('admin-e')
-  await administrator(admin)
-  const owner = await account('owner-e')
-  const workspaceId = await workspace('purchasing-e', [[owner, 'owner']])
-  const connectionId = randomUUID()
-  await createConnection(admin, connectionId, workspaceId, 'sankhya', 'ERP principal', sealed)
-  const projectId = await project(workspaceId, 'Pedidos')
+test('CON-08, CON-09 and CON-10: owner only, ordered entries, conflicts, a foreign or disabled Connection, a tombstoned or archived Project', { skip }, async (t) => {
+  const { connection, store, addConnection, bind, unbind, archive, seedProject } = await setupConnectors(t, 'connector_bindings')
+  const projectId = await seedProject('Atlas')
+  const erp = await addConnection('sankhya', 'ERP', CREDENTIAL)
+  const filial = await addConnection('sankhya', 'Filial', CREDENTIAL)
+  const disabled = await seedConnection(connection, { label: 'Old', disabled: true })
+  const foreign = await seedConnection(connection, { label: 'Elsewhere', workspaceId: ID.otherWorkspace })
+  await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [ID.owner, ID.otherWorkspace])
+  await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [ID.administrator, ID.workspace])
+  const list = (accountId = ID.owner, id = projectId) => store.listProjectBindings({ accountId, projectId: id })
 
-  const binding = new pg.Client(fixture.connection)
-  await binding.connect()
-  fixture.onCleanup(() => binding.end())
-  await binding.query('BEGIN')
-  const opened = (await binding.query('SELECT binding_id FROM connector.bind_connection($1,$2,$3,$4)', [owner, projectId, connectionId, 'erp'])).rows[0]
-  const disabling = client.query('SELECT connector.disable_connection($1,$2,$3) AS found', [admin, workspaceId, connectionId])
-  const settled = await Promise.race([disabling.then(() => 'DISABLED'), new Promise((wake) => { setTimeout(() => wake('WAITING'), 300) })])
-  assert.equal(settled, 'WAITING', 'the disable waits for the open bind transaction')
+  const binding = await bind(projectId, erp, 'erp')
+  assert.deepEqual({ ...binding, boundAt: typeof binding.boundAt }, { kind: 'binding', bindingId: binding.bindingId, name: 'erp', connectionId: erp, connectorId: 'sankhya', label: 'ERP', boundAt: 'string' })
+  assert.deepEqual((await list()).map((entry) => [entry.kind, entry.name ?? null, entry.label]), [['binding', 'erp', 'ERP'], ['bindable', null, 'Filial']])
+  assert.equal((await bind(projectId, erp, 'erp')).bindingId, binding.bindingId, 'an exact retry returns the same binding')
+  await assert.rejects(bind(projectId, filial, 'erp'), { id: 'CONNECTOR_BINDING_CONFLICT' })
+  await assert.rejects(bind(projectId, erp, 'other'), { id: 'CONNECTOR_BINDING_CONFLICT' })
+  await assert.rejects(bind(projectId, foreign, 'foreign'), { id: 'CONNECTOR_CONNECTION_NOT_AVAILABLE' })
+  await assert.rejects(bind(projectId, disabled, 'old'), { id: 'CONNECTOR_CONNECTION_NOT_AVAILABLE' })
+
+  const otherErp = await seedConnection(connection, { label: 'Other ERP', connectorId: 'other-erp' })
+  const other = await bind(projectId, otherErp, 'other')
+  assert.deepEqual([other.connectorId, (await list()).find((entry) => entry.connectionId === otherErp).connectorId], ['other-erp', 'other-erp'])
+
+  for (const [accountId, id] of [[ID.member, 'CONNECTOR_BINDING_MANAGE_REQUIRED'], [ID.outsider, 'PROJECT_NOT_FOUND']]) {
+    await assert.rejects(list(accountId), { id })
+    await assert.rejects(bind(projectId, filial, 'filial', accountId), { id })
+    await assert.rejects(unbind(projectId, binding.bindingId, accountId), { id })
+  }
+
+  await unbind(projectId, other.bindingId)
+  await assert.rejects(unbind(projectId, other.bindingId), { id: 'CONNECTOR_BINDING_NOT_FOUND' })
+
+  const gone = async (id) => {
+    for (const accountId of [ID.owner, ID.administrator]) {
+      await assert.rejects(list(accountId, id), { id: 'PROJECT_NOT_FOUND' })
+      await assert.rejects(bind(id, filial, 'filial', accountId), { id: 'PROJECT_NOT_FOUND' })
+      await assert.rejects(unbind(id, binding.bindingId, accountId), { id: 'PROJECT_NOT_FOUND' })
+    }
+  }
+  await archive(projectId, true)
+  await gone(projectId)
+  const doomed = await seedProject('Doomed')
+  await query(connection, "INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Doomed', $3)", [doomed, ID.workspace, ID.administrator])
+  await gone(doomed)
+})
+
+test('reader and command walls on both Connector tables', { skip }, async (t) => {
+  const { connection, database, addConnection, bind, seedProject } = await setupConnectors(t, 'connector_walls')
+  await query(connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'other-owner', 'Other owner')", [OTHER_OWNER])
+  await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [OTHER_OWNER, ID.otherWorkspace])
+  const projectId = await seedProject('Atlas')
+  const erp = await addConnection('sankhya', 'ERP A', CREDENTIAL)
+  await seedConnection(connection, { label: 'Old A', disabled: true })
+  const erpB = await seedConnection(connection, { label: 'ERP B', workspaceId: ID.otherWorkspace })
+  await bind(projectId, erp, 'erp')
+
+  assert.deepEqual(await labelsOf(database, ID.owner), ['ERP A'])
+  assert.deepEqual(await labelsOf(database, OTHER_OWNER), ['ERP B'])
+  assert.equal((await bindingsOf(database, ID.owner)).length, 1)
+  assert.deepEqual(await bindingsOf(database, OTHER_OWNER), [])
+  assert.deepEqual(await labelsOf(database, ID.member), [])
+  assert.deepEqual(await bindingsOf(database, ID.member), [])
+  assert.deepEqual((await asRole(connection, 'hub_reader', null, 'SELECT count(*)::integer AS n FROM connector.connection')).rows, [{ n: 0 }])
+  assert.deepEqual((await asRole(connection, 'hub_reader', null, 'SELECT count(*)::integer AS n FROM connector.project_binding')).rows, [{ n: 0 }])
+
+  for (const accountId of [ID.owner, ID.administrator]) {
+    for (const column of ['credential_sealed', 'credential_digest']) {
+      await assert.rejects(database.read(accountId, (tx) => tx.rows(z.object({ value: z.string() }), sql`SELECT ${sql.identifier(column)} AS value FROM connector.connection`)), (error) => error.cause?.code === '42501', `${accountId} ${column}`)
+    }
+  }
+  assert.deepEqual(await labelsOf(database, ID.administrator), ['ERP A', 'ERP B', 'Old A'])
+  assert.deepEqual(await bindingsOf(database, ID.administrator), [])
+
+  const reader = (text, values) => asRole(connection, 'hub_reader', ID.owner, text, values)
+  for (const table of ['connection', 'project_binding']) {
+    assert.equal((await reader(`SELECT 1 FROM connector.${table} FOR SHARE`)).code, '42501', `${table} FOR SHARE`)
+    assert.equal((await reader(`DELETE FROM connector.${table}`)).code, '42501', `${table} DELETE`)
+  }
+  assert.equal((await reader('UPDATE connector.connection SET label = label')).code, '42501')
+  assert.equal((await reader('UPDATE connector.project_binding SET unbound_at = now()')).code, '42501')
+  assert.equal((await reader("INSERT INTO connector.project_binding(workspace_id, project_id, environment, connection_id, name, bound_by) VALUES ($1, $2, 'preview', $3, 'x', $4)", [ID.workspace, projectId, erp, ID.owner])).code, '42501')
+
+  const command = (text, values) => asRole(connection, 'hub_command', null, text, values)
+  for (const column of ['workspace_id', 'connection_id', 'created_by', 'credential_sealed', 'credential_digest']) {
+    assert.equal((await command(`UPDATE connector.connection SET ${column} = ${column}`)).code, '42501', `connection ${column}`)
+  }
+  for (const column of ['project_id', 'workspace_id', 'connection_id', 'bound_by']) {
+    assert.equal((await command(`UPDATE connector.project_binding SET ${column} = ${column}`)).code, '42501', `binding ${column}`)
+  }
+  assert.equal((await command('SELECT 1 FROM connector.connection FOR SHARE')).code, null)
+  assert.equal((await command('SELECT 1 FROM connector.connection FOR UPDATE')).code, null)
+  assert.equal((await command('SELECT 1 FROM connector.project_binding FOR UPDATE')).code, null)
+  assert.equal((await command("INSERT INTO connector.project_binding(workspace_id, project_id, environment, connection_id, name, bound_by) VALUES ($1, $2, 'preview', $3, 'crossed', $4)", [ID.workspace, projectId, erpB, ID.owner])).code, '23503', 'a binding of a Connection of another Workspace')
+
+  for (const table of ['connection', 'project_binding']) {
+    assert.equal((await asRole(connection, 'hub_runtime', null, `SELECT 1 FROM connector.${table}`)).code, '42501', `hub_runtime ${table}`)
+  }
+  assert.equal((await reader('SELECT count(*)::integer FROM connector.connection')).code, null, 'the connection reader policy does not recurse')
+  assert.equal((await reader('SELECT count(*)::integer FROM connector.project_binding')).code, null, 'the binding reader policy does not recurse')
+})
+
+const connectorBroker = async (t, fixture, store = fixture.brokerStore, gateway) => {
+  const fake = gateway ?? await startFakeGateway()
+  if (!gateway) t.after(() => fake.close())
+  const broker = createBroker({
+    connectors: [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }],
+    store, envelope: fixture.envelope, observability: connectorRecord().observability,
+  })
+  const fetchAs = (scope) => broker.fetch({ kind: 'handler', invocationId: randomUUID(), scope }, NATIVE_READ)
+  return { fake, fetchAs, broker }
+}
+
+test('broker refusals are NOT_GRANTED and a store fault is CONNECTOR_PLATFORM_FAILED, for a Builder run, a Preview and an application grantee', { skip }, async (t) => {
+  const fixture = await setupConnectors(t, 'connector_broker_refusals')
+  const { connection, database, addConnection, bind, archive, seedProject } = fixture
+  const { fetchAs } = await connectorBroker(t, fixture)
+  const projectId = await seedProject('Atlas')
+  const erp = await addConnection('sankhya', 'ERP', { clientId: 'c', clientSecret: 's', xToken: 'x' })
+  await bind(projectId, erp, 'erp')
+  const run = (accountId) => scopeForBuilderRun({ projectId, accountId }, { ttlMs: 60_000, calls: 20 })
+  const preview = (accountId) => scopeFromArtifactSource({ via: 'PREVIEW', accountId, projectId })
+  const application = (accountId) => scopeFromArtifactSource({ via: 'APPLICATION', accountId, projectId })
+
+  assert.deepEqual(await fetchAs(run(ID.member)), ORDER_READ)
+  assert.deepEqual(await fetchAs(preview(ID.member)), ORDER_READ)
+  await query(connection, 'INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, $2, $3)', [projectId, 'atlas-app', ID.owner])
+  await query(connection, 'INSERT INTO iam.application_grant(project_id, account_id, granted_by) VALUES ($1, $2, $3)', [projectId, ID.outsider, ID.owner])
+  assert.deepEqual(await fetchAs(run(ID.member)), ORDER_READ, 'a plain member keeps its Builder after the first application grant')
+  assert.deepEqual(await fetchAs(preview(ID.member)), ORDER_READ, 'and its Preview')
+  assert.deepEqual(await fetchAs(application(ID.outsider)), ORDER_READ, 'a grantee with no Workspace membership reads the bound Connection')
+  assert.deepEqual(await fetchAs(preview(ID.outsider)), NOT_GRANTED, 'a grantee is no member of the Project')
+  assert.deepEqual(await labelsOf(database, ID.outsider), [])
+  assert.deepEqual(await bindingsOf(database, ID.outsider), [])
+
+  const unbound = await addConnection('sankhya', 'Unbound', CREDENTIAL)
+  assert.equal(await fixture.brokerStore.readConnectionCredential(preview(ID.member), unbound), null)
+  assert.equal(await fixture.brokerStore.readConnectionCredential(application(ID.outsider), unbound), null)
+
+  await query(connection, 'UPDATE iam.application_grant SET revoked_at = now(), revoked_by = $2 WHERE account_id = $1', [ID.outsider, ID.owner])
+  assert.deepEqual(await fetchAs(application(ID.outsider)), NOT_GRANTED, 'a revoked grant')
+  await query(connection, 'UPDATE iam.application_grant SET revoked_at = NULL, revoked_by = NULL WHERE account_id = $1', [ID.outsider])
+  await archive(projectId, true)
+  for (const scope of [run(ID.member), preview(ID.member), application(ID.outsider)]) assert.deepEqual(await fetchAs(scope), NOT_GRANTED, 'an archived Project')
+  await archive(projectId, false)
+
+  await query(connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1', [ID.member])
+  assert.deepEqual(await fetchAs(run(ID.member)), NOT_GRANTED, 'a run account that lost its membership')
+  await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'member')", [ID.member, ID.workspace])
+  await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.member])
+  assert.deepEqual(await fetchAs(run(ID.member)), NOT_GRANTED, 'a deactivated account')
+  await query(connection, 'UPDATE iam.account SET active = true WHERE account_id = $1', [ID.member])
+
+  await query(connection, "INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Atlas', $3)", [projectId, ID.workspace, ID.administrator])
+  for (const scope of [run(ID.member), preview(ID.member), application(ID.outsider)]) assert.deepEqual(await fetchAs(scope), NOT_GRANTED, 'a Project in deletion')
+
+  const faulty = createBrokerStore({ ...database, transaction: () => Promise.reject(new Error('DATABASE_DOWN')) })
+  const failing = await connectorBroker(t, fixture, faulty)
+  assert.deepEqual(await failing.fetchAs(preview(ID.member)), { ok: false, code: 'CONNECTOR_PLATFORM_FAILED' })
+  assert.equal(failing.fake.requests.length, 0, 'a store fault reaches no provider')
+})
+
+test('CON-09 against CON-04, CON-10 and the Project purge in both lock orders, with no deadlock', { skip }, async (t) => {
+  const { connection, database, store, addConnection, bind, disable, seedProject, onCleanup } = await setupConnectors(t, 'connector_locks')
+  const bindIn = (projectId, connectionId, name) => store.bindConnection({ accountId: ID.owner, projectId, body: { connectionId, name } })
+
+  const atlas = await seedProject('Atlas')
+  const erp = await addConnection('sankhya', 'ERP', CREDENTIAL)
+  const disabling = await hold(connection, onCleanup)
+  await disabling.query('UPDATE connector.connection SET disabled_at = clock_timestamp(), disabled_by = $2 WHERE connection_id = $1', [erp, ID.administrator])
+  const racing = bindIn(atlas, erp, 'erp')
+  racing.catch(() => undefined)
+  await waitUntilBlocked(connection)
+  await disabling.query('COMMIT')
+  await assert.rejects(racing, { id: 'CONNECTOR_CONNECTION_NOT_AVAILABLE' })
+  assert.equal(await openBindings(connection, atlas), 0, 'a bind that waited on a disable leaves no open binding')
+
+  const borealis = await seedProject('Borealis')
+  const second = await addConnection('sankhya', 'ERP 2', CREDENTIAL)
+  const binding = await hold(connection, onCleanup)
+  await binding.query('SELECT 1 FROM connector.connection WHERE connection_id = $1 FOR SHARE', [second])
+  await binding.query("INSERT INTO connector.project_binding(workspace_id, project_id, environment, connection_id, name, bound_by) VALUES ($1, $2, 'preview', $3, 'erp', $4)", [ID.workspace, borealis, second, ID.owner])
+  const disabled = disable(second)
+  const disabledState = pending(disabled)
+  disabled.catch(() => undefined)
+  await waitUntilBlocked(connection)
+  assert.equal(disabledState.settled, false, 'a disable waits for the bind that holds the Connection')
   await binding.query('COMMIT')
-  assert.equal((await disabling).rows[0].found, true)
-  const record = (await client.query('SELECT unbound_by FROM connector.project_binding WHERE binding_id = $1', [opened.binding_id])).rows[0]
-  assert.deepEqual(record, { unbound_by: admin })
-  assert.deepEqual(await boundConnections(projectId), [])
+  await disabled
+  assert.equal(await openBindings(connection, borealis), 0, 'and ends the binding that committed first')
+
+  const cirrus = await seedProject('Cirrus')
+  const kept = await addConnection('sankhya', 'ERP 3', CREDENTIAL)
+  const first = await bind(cirrus, kept, 'erp')
+  const unbinding = await hold(connection, onCleanup)
+  await unbinding.query('UPDATE connector.project_binding SET unbound_at = clock_timestamp(), unbound_by = $2 WHERE binding_id = $1', [first.bindingId, ID.owner])
+  const rebind = bindIn(cirrus, kept, 'erp')
+  const rebound = pending(rebind)
+  rebind.catch(() => undefined)
+  await waitUntilBlocked(connection)
+  assert.equal(rebound.settled, false)
+  await unbinding.query('COMMIT')
+  assert.notEqual((await rebind).bindingId, first.bindingId)
+  assert.deepEqual([await openBindings(connection, cirrus), await allBindings(connection, cirrus)], [1, 2], 'one unbind and one new binding')
+
+  const dryad = await seedProject('Dryad')
+  const racers = await Promise.allSettled([bindIn(dryad, kept, 'erp'), bindIn(dryad, kept, 'erp'), bindIn(dryad, kept, 'erp')])
+  assert.deepEqual(racers.map((racer) => racer.status), ['fulfilled', 'fulfilled', 'fulfilled'])
+  assert.equal(new Set(racers.map((racer) => racer.value.bindingId)).size, 1)
+  assert.equal(await openBindings(connection, dryad), 1)
+
+  const doomed = await seedProject('Doomed')
+  const tombstone = await hold(connection, onCleanup)
+  await tombstone.query('SELECT 1 FROM project.project WHERE project_id = $1 FOR UPDATE', [doomed])
+  await tombstone.query("INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Doomed', $3)", [doomed, ID.workspace, ID.administrator])
+  const late = bindIn(doomed, kept, 'late')
+  const lateState = pending(late)
+  late.catch(() => undefined)
+  await waitUntilBlocked(connection)
+  assert.equal(lateState.settled, false)
+  await tombstone.query('COMMIT')
+  await assert.rejects(late, { id: 'PROJECT_NOT_FOUND' })
+
+  const purged = await seedProject('Purged')
+  await bind(purged, kept, 'erp')
+  const purge = (projectId) => database.system('project-purge', async (gate) => purgeProjectBindings(await admitSystem(gate, 'project-purge'), projectId))
+  await purge(purged)
+  assert.equal(await allBindings(connection, purged), 0)
+  await purge(purged)
+  assert.equal(await allBindings(connection, purged), 0, 'a purge retry deletes zero')
+  assert.equal(await openBindings(connection, dryad), 1, 'and no other Project loses a binding')
 })
 
-test('read_connection_credential and list_bound_connections: the broker surface no admission gates', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
-  const { client, account, workspace, project, administrator, createConnection, bind, disable, boundConnections } = await connectorDatabase(t)
-  const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
-  const envelope = createSecretEnvelope('12'.repeat(32))
-  const credential = { clientId: 'client-d', clientSecret: 'secret-d', xToken: 'token-d' }
-  const sealed = await envelope.seal(JSON.stringify(credential))
+test('administrator revocation against CON-02 and CON-04: a revocation that commits first is refused, one that starts later waits', { skip }, async (t) => {
+  const { connection, store, addConnection, disable, onCleanup } = await setupConnectors(t, 'connector_revocation')
+  const erp = await addConnection('sankhya', 'ERP', CREDENTIAL)
+  const revoke = (accountId) => query(connection, 'UPDATE iam.installation_administrator SET revoked_at = now(), revoked_by = $2 WHERE account_id = $1', [accountId, ID.administrator])
 
-  const admin = await account('admin-d')
-  await administrator(admin)
-  const owner = await account('owner-d')
-  const workspaceId = await workspace('purchasing-d', [[owner, 'owner']])
-  const connectionId = randomUUID()
-  await createConnection(admin, connectionId, workspaceId, 'sankhya', 'ERP principal', sealed)
-  const projectId = await project(workspaceId, 'Pedidos')
-  const bindingId = (await bind(owner, projectId, connectionId, 'erp')).rows[0].binding_id
+  const blocker = await hold(connection, onCleanup)
+  await blocker.query('SELECT 1 FROM connector.connection WHERE connection_id = $1 FOR UPDATE', [erp])
+  const disabling = disable(erp, ID.workspace, ID.memberAdministrator)
+  disabling.catch(() => undefined)
+  await waitUntilBlocked(connection)
+  const revoking = revoke(ID.memberAdministrator)
+  const revoked = pending(revoking)
+  await waitUntilBlocked(connection, { count: 2 })
+  assert.equal(revoked.settled, false, 'the revocation waits for the tenure the command holds')
+  await blocker.query('COMMIT')
+  await disabling
+  await revoking
+  await assert.rejects(disable(erp, ID.workspace, ID.memberAdministrator), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' })
+  await assert.rejects(store.createConnection({ accountId: ID.memberAdministrator, workspaceId: ID.workspace, body: { connectionId: randomUUID(), connectorId: 'sankhya', label: 'New', credential: CREDENTIAL } }), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' })
 
-  const read = async (id) => (await client.query('SELECT connector.read_connection_credential($1) AS sealed', [id])).rows[0].sealed
-  assert.equal(JSON.parse(await envelope.open(await read(connectionId))).clientId, 'client-d')
-  assert.deepEqual(await boundConnections(projectId), [{ binding_id: bindingId, name: 'erp', connection_id: connectionId, connector_id: 'sankhya' }])
-
-  await disable(admin, workspaceId, connectionId)
-  assert.equal(await read(connectionId), null, 'a disabled Connection answers no credential')
-  assert.deepEqual(await boundConnections(projectId), [])
-})
-
-test('0031 moves every grant to a binding: open grants of one Connection collapse into one erp binding, revoked grants stay as unbound rows, and the grant table and its functions are gone', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
-  const fixture = await createEmptyDatabase(t, 'connector_move')
-  const migrations = loadHubMigrationFiles()
-  await runMigrations({ connectionString: fixture.connectionString, migrations: migrations.filter(({ version }) => version <= '0030'), catalogSnapshot: null })
-  const client = new pg.Client(fixture.connection)
-  await client.connect()
-  fixture.onCleanup(() => client.end())
-  const { account, workspace, project } = seeding(client)
-
-  const owner = await account('owner-move')
-  const successor = await account('successor-move')
-  const workspaceId = await workspace('purchasing-move', [[owner, 'owner'], [successor, 'owner']])
-  const orders = await project(workspaceId, 'Pedidos')
-  const notes = await project(workspaceId, 'Notas')
-  const retired = randomUUID()
-  const principal = randomUUID()
-  await client.query(`INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by, created_at, disabled_by, disabled_at)
-    VALUES ($1, $2, 'sankhya', 'ERP antigo', 'mastra:factory-secret:v1:retired', $3, $4, '2026-09-20T09:00:00Z', $4, '2026-09-22T09:00:00Z')`, [retired, workspaceId, DIGEST, owner])
-  await client.query(`INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by, created_at)
-    VALUES ($1, $2, 'sankhya', 'ERP principal', 'mastra:factory-secret:v1:principal', $3, $4, '2026-09-22T10:00:00Z')`, [principal, workspaceId, DIGEST, owner])
-
-  const ORDER = '0000000a-0000-4000-8000-000000000001'
-  const SPIKE = '0000000a-0000-4000-8000-000000000002'
-  const WITHDRAWN = '0000000a-0000-4000-8000-000000000003'
-  const BEFORE_DISABLE = '0000000a-0000-4000-8000-000000000004'
-  const NOTES = '0000000a-0000-4000-8000-000000000005'
-  const grant = (grantId, projectId, connectionId, capabilityId, grantedBy, grantedAt, revokedBy = null, revokedAt = null) => client.query(
-    `INSERT INTO connector.project_grant(grant_id, workspace_id, project_id, environment, connection_id, capability_kind, capability_id, granted_by, granted_at, revoked_by, revoked_at)
-     VALUES ($1, $2, $3, 'preview', $4, 'operation', $5, $6, $7, $8, $9)`,
-    [grantId, workspaceId, projectId, connectionId, capabilityId, grantedBy, grantedAt, revokedBy, revokedAt])
-  await grant(BEFORE_DISABLE, orders, retired, 'sankhya.purchase-order.read', owner, '2026-09-21T09:00:00Z', owner, '2026-09-22T09:00:00Z')
-  await grant(ORDER, orders, principal, 'sankhya.purchase-order.read', successor, '2026-09-24T11:00:00Z')
-  await grant(SPIKE, orders, principal, 'sankhya.read', owner, '2026-09-23T10:00:00Z')
-  await grant(WITHDRAWN, orders, principal, 'sankhya.order-item.read', owner, '2026-09-23T12:00:00Z', successor, '2026-09-25T08:00:00Z')
-  await grant(NOTES, notes, principal, 'sankhya.purchase-order.read', successor, '2026-09-24T12:00:00Z')
-
-  const result = await runHubMigrations({ connectionString: fixture.connectionString })
-  assert.deepEqual(result.appliedNow, migrations.filter(({ version }) => version > '0030').map(({ version }) => version))
-
-  const rows = (await client.query(`SELECT binding_id, project_id, environment, connection_id, name, bound_by, bound_at, unbound_by, unbound_at
-    FROM connector.project_binding ORDER BY binding_id`)).rows
-  assert.deepEqual(rows, [
-    { binding_id: SPIKE, project_id: orders, environment: 'preview', connection_id: principal, name: 'erp', bound_by: owner, bound_at: new Date('2026-09-23T10:00:00Z'), unbound_by: null, unbound_at: null },
-    { binding_id: WITHDRAWN, project_id: orders, environment: 'preview', connection_id: principal, name: 'erp', bound_by: owner, bound_at: new Date('2026-09-23T12:00:00Z'), unbound_by: successor, unbound_at: new Date('2026-09-25T08:00:00Z') },
-    { binding_id: BEFORE_DISABLE, project_id: orders, environment: 'preview', connection_id: retired, name: 'erp', bound_by: owner, bound_at: new Date('2026-09-21T09:00:00Z'), unbound_by: owner, unbound_at: new Date('2026-09-22T09:00:00Z') },
-    { binding_id: NOTES, project_id: notes, environment: 'preview', connection_id: principal, name: 'erp', bound_by: successor, bound_at: new Date('2026-09-24T12:00:00Z'), unbound_by: null, unbound_at: null },
-  ])
-  assert.deepEqual((await client.query('SELECT binding_id, name, connection_id, connector_id FROM connector.list_bound_connections($1, $2)', [orders, 'preview'])).rows,
-    [{ binding_id: SPIKE, name: 'erp', connection_id: principal, connector_id: 'sankhya' }])
-
-  const gone = (await client.query(`SELECT to_regclass('connector.project_grant') AS grant_table,
-    (SELECT array_agg(p.proname::text ORDER BY p.proname) FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'connector') AS functions`)).rows[0]
-  assert.deepEqual(gone, {
-    grant_table: null,
-    functions: [
-      'admit_installation_administrator', 'admit_project_owner', 'bind_connection', 'create_connection', 'disable_connection',
-      'list_bound_connections', 'list_connections', 'list_project_bindings', 'purge_project', 'read_connection_credential', 'unbind_connection',
-    ],
-  })
-})
-
-test('the Hub store tells an identical retry from a changed credential without opening the stored one, and settles concurrent binds on one binding', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {
-  const { fixture, client, account, workspace, project, administrator } = await connectorDatabase(t)
-  const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
-  const { createConnectorStore } = await import(hubModuleUrl('connectors/store.js'))
-  const conflicted = (error) => error?.id === 'CONNECTOR_CONNECTION_CONFLICT'
-  const pool = new pg.Pool({ connectionString: fixture.connectionString, options: '-c role=hub_iam_runtime', max: 10 })
-  pool.on('error', () => {})
-  fixture.onCleanup(() => pool.end())
-  const envelope = createSecretEnvelope('ab'.repeat(32))
-  const store = createConnectorStore({ pool, envelope })
-
-  const admin = await account('admin-store')
-  await administrator(admin)
-  const workspaceId = await workspace('purchasing-store', [[admin, 'owner']])
-  const credential = { clientId: 'client-a', clientSecret: 'super-secret-value', xToken: 'x-token-value' }
-  const create = (connectionId, fields = {}) => store.createConnection({ accountId: admin, workspaceId, body: { connectionId, connectorId: 'sankhya', label: 'ERP principal', credential, ...fields } })
-  const summary = ({ connection, created }) => ({ connectionId: connection.connectionId, created })
-
-  const connectionId = randomUUID()
-  assert.deepEqual(summary(await create(connectionId)), { connectionId, created: true })
-  assert.deepEqual(summary(await create(connectionId, { credential: { xToken: 'x-token-value', clientSecret: 'super-secret-value', clientId: 'client-a' } })),
-    { connectionId, created: false }, 'the same credential in another key order is the same retry')
-  const changed = await create(connectionId, { credential: { ...credential, xToken: 'another-x-token' } }).then(() => null, (error) => error)
-  assert.equal(conflicted(changed), true, 'a retry that changes the credential is a conflict')
-
-  assert.equal((await refusal(() => pool.query('SELECT credential_digest FROM connector.connection'))).code, '42501', 'hub_iam_runtime only calls the functions')
-  const digest = (await client.query('SELECT credential_digest FROM connector.connection WHERE connection_id = $1', [connectionId])).rows[0].credential_digest
-  const canonical = JSON.stringify({ clientId: 'client-a', clientSecret: 'super-secret-value', xToken: 'x-token-value' })
-  assert.equal(digest, envelope.fingerprints(canonical)[0])
-  assert.notEqual(digest, createSecretEnvelope('cd'.repeat(32)).fingerprints(canonical)[0], 'the digest is keyed by the installation key')
-
-  // The installation key rotates, and the old one stays configured to open what it sealed.
-  const rotated = createConnectorStore({ pool, envelope: createSecretEnvelope('cd'.repeat(32), ['ab'.repeat(32)]) })
-  const createRotated = (fields = {}) => rotated.createConnection({ accountId: admin, workspaceId, body: { connectionId, connectorId: 'sankhya', label: 'ERP principal', credential, ...fields } })
-  assert.deepEqual(summary(await createRotated()), { connectionId, created: false }, 'an identical retry after the rotation still replays')
-  const changedAfterRotation = await createRotated({ credential: { ...credential, xToken: 'another-x-token' } }).then(() => null, (error) => error)
-  assert.equal(conflicted(changedAfterRotation), true, 'a changed credential is still a conflict after the rotation')
-  const forgotten = createConnectorStore({ pool, envelope: createSecretEnvelope('cd'.repeat(32)) })
-  const afterRetirement = await forgotten.createConnection({ accountId: admin, workspaceId, body: { connectionId, connectorId: 'sankhya', label: 'ERP principal', credential } }).then(() => null, (error) => error)
-  assert.equal(conflicted(afterRetirement), true, 'once the old key is no longer configured, the stored digest cannot be matched')
-
-  // A client that times out and retries while its first request is still in flight.
-  const racedId = randomUUID()
-  const other = await workspace('purchasing-race', [[admin, 'owner']])
-  const raced = await Promise.all(Array.from({ length: 8 }, () => store.createConnection({ accountId: admin, workspaceId: other, body: { connectionId: racedId, connectorId: 'sankhya', label: 'ERP', credential } })))
-  assert.deepEqual(raced.map(summary).filter(({ created }) => created), [{ connectionId: racedId, created: true }])
-  assert.equal(raced.every(({ connection }) => connection.connectionId === racedId), true)
-
-  const projectId = await project(other, 'race')
-  const bindings = await Promise.all(Array.from({ length: 8 }, () => store.bindConnection({ accountId: admin, projectId, body: { connectionId: racedId, name: 'erp' } })))
-  assert.equal(new Set(bindings.map((binding) => binding.bindingId)).size, 1)
-  const { bindingId: _settled, boundAt: _at, ...settled } = bindings[0]
-  assert.deepEqual(settled, { kind: 'binding', name: 'erp', connectionId: racedId, connectorId: 'sankhya', label: 'ERP' })
-  const open = await client.query('SELECT count(*)::int AS open FROM connector.project_binding WHERE project_id = $1 AND unbound_at IS NULL', [projectId])
-  assert.deepEqual(open.rows, [{ open: 1 }])
-  const listed = await store.listProjectBindings({ accountId: admin, projectId })
-  assert.deepEqual(listed, [bindings[0]])
+  const held = randomUUID()
+  const creator = await hold(connection, onCleanup)
+  await creator.query("INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by) VALUES ($1, $2, 'sankhya', 'Held', $3, $4, $5)", [held, ID.workspace, SEALED, DIGEST, ID.administrator])
+  const creating = store.createConnection({ accountId: ID.administrator, workspaceId: ID.workspace, body: { connectionId: held, connectorId: 'sankhya', label: 'Held', credential: CREDENTIAL } })
+  creating.catch(() => undefined)
+  await waitUntilBlocked(connection)
+  const revokingAdministrator = revoke(ID.administrator)
+  await waitUntilBlocked(connection, { count: 2 })
+  await creator.query('ROLLBACK')
+  assert.equal((await creating).created, true)
+  await revokingAdministrator
+  await assert.rejects(store.listConnections({ accountId: ID.administrator, workspaceId: ID.workspace }), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' })
 })

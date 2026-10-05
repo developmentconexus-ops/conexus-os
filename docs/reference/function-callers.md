@@ -16,9 +16,6 @@ A part that ports an owner reads its functions here: a function with a caller in
 - `builder.read_preview_subject` calls `iam.visible_projects`
 - `builder.request_builder_run_cancellation` calls `iam.admit_project`
 - `builder.settle_builder_run_build` calls `reg.matches_application_artifact`
-- `connector.admit_installation_administrator` calls `iam.is_installation_administrator`
-- `connector.admit_project_owner` calls `iam.admit_workspace`
-- `connector.admit_project_owner` calls `iam.visible_workspaces`
 - `reg.get_application_by_source` calls `iam.visible_projects`
 - `reg.get_application_thumbnail` calls `builder.served_preview_revision`
 - `reg.get_application_thumbnail` calls `iam.has_application_access`
@@ -65,21 +62,10 @@ A part that ports an owner reads its functions here: a function with a caller in
 | `builder.set_builder_run_phase` | builder_owner | - | `apps/hub/src/builder/store.ts` |
 | `builder.settle_builder_run` | builder_owner | - | `apps/hub/src/builder/store.ts` |
 | `builder.settle_builder_run_build` | builder_owner | - | `apps/hub/src/builder/store.ts` |
-| `connector.admit_installation_administrator` | connector_owner | `connector.create_connection`, `connector.disable_connection`, `connector.list_connections` | - |
-| `connector.admit_project_owner` | connector_owner | `connector.bind_connection`, `connector.list_project_bindings`, `connector.unbind_connection` | - |
-| `connector.bind_connection` | connector_owner | - | `apps/hub/src/connectors/store.ts` |
-| `connector.create_connection` | connector_owner | - | `apps/hub/src/connectors/store.ts` |
-| `connector.disable_connection` | connector_owner | - | `apps/hub/src/connectors/store.ts` |
-| `connector.list_bound_connections` | connector_owner | - | `apps/hub/src/connectors/store.ts` |
-| `connector.list_connections` | connector_owner | - | `apps/hub/src/connectors/store.ts` |
-| `connector.list_project_bindings` | connector_owner | - | `apps/hub/src/connectors/store.ts` |
-| `connector.purge_project` | connector_owner | - | `apps/hub/src/project/deletion.ts` |
-| `connector.read_connection_credential` | connector_owner | - | `apps/hub/src/connectors/store.ts` |
-| `connector.unbind_connection` | connector_owner | - | `apps/hub/src/connectors/store.ts` |
 | `iam.account_access_scope` | iam_owner | `iam.hub_session_live`, `iam.open_hub_session`, `iam.resolve_hub_session` | - |
 | `iam.admit_application_owner` | iam_owner | `iam.cancel_application_invitation`, `iam.grant_application_access`, `iam.list_application_access`, `iam.revoke_application_grant` | - |
 | `iam.admit_project` | iam_owner | `builder.claim_builder_run`, `builder.create_builder_run`, `builder.lock_project_for_run`, `builder.request_builder_run_cancellation` | - |
-| `iam.admit_workspace` | iam_owner | `connector.admit_project_owner`, `iam.admit_application_owner`, `iam.admit_project`, `iam.cancel_workspace_invitation`, `iam.invite_workspace_member`, `iam.remove_workspace_member`, `iam.set_workspace_member_role` | - |
+| `iam.admit_workspace` | iam_owner | `iam.admit_application_owner`, `iam.admit_project`, `iam.cancel_workspace_invitation`, `iam.invite_workspace_member`, `iam.remove_workspace_member`, `iam.set_workspace_member_role` | - |
 | `iam.application_by_slug` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
 | `iam.application_slug` | iam_owner | - | `apps/hub/src/identity-access/application-access.ts`, `apps/hub/src/identity-access/host-sessions.ts` |
 | `iam.application_slug_base` | iam_owner | `iam.grant_application_access` | - |
@@ -98,7 +84,7 @@ A part that ports an owner reads its functions here: a function with a caller in
 | `iam.has_application_access` | iam_owner | `iam.mint_application_handoff`, `iam.redeem_handoff`, `iam.resolve_application_session`, `iam.revoke_application_grant`, `reg.get_application_thumbnail`, `reg.get_served_application`, `reg.read_served_application_file` | - |
 | `iam.hub_session_live` | iam_owner | `iam.open_preview`, `iam.redeem_handoff`, `iam.resolve_preview_session` | - |
 | `iam.invite_workspace_member` | iam_owner | - | `apps/hub/src/identity-access/membership.ts` |
-| `iam.is_installation_administrator` | iam_owner | `connector.admit_installation_administrator`, `iam.admit_project`, `iam.bootstrap_installation_administrator`, `iam.grant_installation_administrator_by_email`, `iam.grant_installation_administrator`, `iam.list_installation_administrators`, `iam.revoke_installation_administrator`, `iam.visible_projects` | `apps/hub/src/identity-access/installation-administration.ts` |
+| `iam.is_installation_administrator` | iam_owner | `iam.admit_project`, `iam.bootstrap_installation_administrator`, `iam.grant_installation_administrator_by_email`, `iam.grant_installation_administrator`, `iam.list_installation_administrators`, `iam.revoke_installation_administrator`, `iam.visible_projects` | `apps/hub/src/identity-access/installation-administration.ts` |
 | `iam.list_application_access` | iam_owner | - | `apps/hub/src/identity-access/application-access.ts` |
 | `iam.list_installation_administrators` | iam_owner | - | `apps/hub/src/identity-access/installation-administration.ts` |
 | `iam.list_workspace_roster` | iam_owner | - | `apps/hub/src/identity-access/membership.ts` |
@@ -121,7 +107,7 @@ A part that ports an owner reads its functions here: a function with a caller in
 | `iam.session_lifetimes` | iam_owner | `iam.mint_application_handoff`, `iam.open_hub_session`, `iam.open_preview`, `iam.redeem_handoff`, `iam.resolve_application_session`, `iam.resolve_hub_session`, `iam.resolve_preview_session` | - |
 | `iam.set_workspace_member_role` | iam_owner | - | `apps/hub/src/identity-access/membership.ts` |
 | `iam.visible_projects` | iam_owner | `builder.admit_source_revision`, `builder.list_builder_runs`, `builder.read_builder_run`, `builder.read_latest_code_changing_builder_run`, `builder.read_preview_subject`, `reg.get_application_by_source`, `reg.read_application_file_by_source` | - |
-| `iam.visible_workspaces` | iam_owner | `connector.admit_project_owner`, `iam.admit_application_owner`, `iam.list_workspace_roster`, `iam.visible_projects` | - |
+| `iam.visible_workspaces` | iam_owner | `iam.admit_application_owner`, `iam.list_workspace_roster`, `iam.visible_projects` | - |
 | `model.read_installation_default` | model_owner | - | `apps/hub/src/builder/module.ts` |
 | `model.read_model_account` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |
 | `model.read_model_account_by_id` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |

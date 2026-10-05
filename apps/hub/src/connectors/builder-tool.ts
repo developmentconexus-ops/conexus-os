@@ -40,9 +40,9 @@ export type BuilderConnectorRun = Readonly<{
 }>
 
 export const openBuilderRun = async (
-  { brief, projectId, builderRunId, ports = null }: Readonly<{ brief: ConnectorBrief; projectId: string; builderRunId: string; ports?: HandlerPorts | null }>,
+  { brief, projectId, accountId, builderRunId, ports = null }: Readonly<{ brief: ConnectorBrief; projectId: string; accountId: string; builderRunId: string; ports?: HandlerPorts | null }>,
 ): Promise<BuilderConnectorRun> => {
-  const scope = scopeForBuilderRun(projectId, BUILDER_RUN_TERMS)
+  const scope = scopeForBuilderRun({ projectId, accountId }, BUILDER_RUN_TERMS)
   const consumer: Consumer = Object.freeze({ kind: 'agent', sessionId: builderRunId, scope })
   runConsumers.add(consumer)
   return Object.freeze({

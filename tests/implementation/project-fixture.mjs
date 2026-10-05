@@ -8,6 +8,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 const { openDatabase } = await import(hubModuleUrl('platform/db.js'))
 const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
 const { createProjectDeletion } = await import(hubModuleUrl('project/deletion.js'))
+const { purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
 
 export const ID = Object.freeze({
   owner: '10000000-0000-4000-8000-000000000001',
@@ -47,6 +48,7 @@ export const setupProjects = async (t, prefix, { repository } = {}) => {
     releaseApplicationData: async () => { events.push('release') },
     killSandboxes: async () => { events.push('kill') },
     deleteRepository: async () => { events.push('repository') },
+    purgeConnectorBindings: purgeProjectBindings,
   }
   const repositoryPort = repository ?? { prepare: async () => STARTER }
   const store = createProjectStore({ database, repository: repositoryPort, deletion: ports })

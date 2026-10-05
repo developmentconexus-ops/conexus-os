@@ -25,7 +25,7 @@ type AnyAdapter = Adapter<unknown>
 export type RegisteredConnector = Readonly<{ definition: AnyDefinition; adapter: AnyAdapter | null }>
 
 type NativeTarget = Readonly<{
-  connector: RegisteredConnector; adapter: AnyAdapter; connectionId: ConnectionId
+  connector: RegisteredConnector; adapter: AnyAdapter; scope: ConsumerScope; connectionId: ConnectionId
   service: string; method: string; url: URL; body: ParsedNativeRequest['body']
 }>
 
@@ -47,8 +47,8 @@ export type Broker = Readonly<{
   fetch(consumer: Consumer, request: unknown, options?: FetchOptions): Promise<FetchResult>
   /** The integrator and service `fetch` would send the request to, with no network and no call spent. Never throws. */
   describe(consumer: Consumer, request: unknown): Promise<FetchDescription>
-  /** The allow-listed authentication alone, with no cache: whether the Connection's credential authenticates now. Never throws. */
-  checkCredential(connectorId: string, connectionId: ConnectionId): Promise<BrokerResult<null>>
+  /** The allow-listed authentication alone, with no cache: whether the sealed credential, read by the caller under its own admission, authenticates now. Never throws. */
+  checkCredential(connectorId: string, sealed: string): Promise<BrokerResult<null>>
   forget(connectionId: ConnectionId): void
 }>
 
@@ -125,14 +125,7 @@ export const createBroker = ({
   const adapterOf = (connectorId: string): RegisteredConnector | undefined => connectors.find((connector) => connector.definition.id === connectorId)
 
   // Only this function opens the credential envelope.
-  const authenticate = async (connector: RegisteredConnector, adapter: AnyAdapter, connectionId: ConnectionId, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken> => {
-    let sealed: string | null
-    try {
-      sealed = await store.readConnectionCredential(connectionId)
-    } catch (error) {
-      throw new BrokerRefusal(platformFault(error))
-    }
-    if (sealed === null) throw new BrokerRefusal('NOT_GRANTED')
+  const issueToken = async (connector: RegisteredConnector, adapter: AnyAdapter, sealed: string, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken> => {
     let opened: string
     try {
       opened = await envelope.open(sealed)
@@ -150,8 +143,19 @@ export const createBroker = ({
     return adapter.authenticate(new Redacted(credential.data), signal, trace)
   }
 
+  const authenticate = async (connector: RegisteredConnector, adapter: AnyAdapter, scope: ConsumerScope, connectionId: ConnectionId, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken> => {
+    let sealed: string | null
+    try {
+      sealed = await store.readConnectionCredential(scope, connectionId)
+    } catch (error) {
+      throw new BrokerRefusal(platformFault(error))
+    }
+    if (sealed === null) throw new BrokerRefusal('NOT_GRANTED')
+    return issueToken(connector, adapter, sealed, signal, trace)
+  }
+
   /** The admitted request on the Connection's token, under one deadline for authentication and request. */
-  const sendOnToken = async ({ connector, adapter, connectionId, service, method, url, body }: NativeTarget, span: AnySpan, signal: AbortSignal): Promise<FetchResult> => {
+  const sendOnToken = async ({ connector, adapter, scope, connectionId, service, method, url, body }: NativeTarget, span: AnySpan, signal: AbortSignal): Promise<FetchResult> => {
     const protocol = connector.definition.native
     let attempt = 0
     let issued = 0
@@ -162,7 +166,7 @@ export const createBroker = ({
         connectionId,
         () => {
           issued += 1
-          return authenticate(connector, adapter, connectionId, signal, trace)
+          return authenticate(connector, adapter, scope, connectionId, signal, trace)
         },
         async (lease) => {
           attempt += 1
@@ -199,7 +203,7 @@ export const createBroker = ({
     if (!isMintedScope(scope, at)) return { ok: false, refusal: refused('NOT_GRANTED'), binding: null, connector: null }
     let bindings: readonly BoundConnection[]
     try {
-      const lookup = store.listBindings({ projectId: scope.projectId, environment: scope.environment })
+      const lookup = store.listBindings(scope)
       bindings = await (signal ? untilDeadline(signal, lookup) : lookup)
     } catch (error) {
       return { ok: false, refusal: refused(signal?.aborted ? 'PROVIDER_TIMEOUT' : platformFault(error)), binding: null, connector: null }
@@ -213,7 +217,7 @@ export const createBroker = ({
     if (!url) return { ok: false, refusal: refused('INPUT_REFUSED', ['/path']), binding, connector }
     const admitted = connector.definition.native.admit({ method, url, body: body?.plain })
     if (!admitted.ok) return { ok: false, refusal: refused(admitted.code, admitted.issues), binding, connector }
-    return { ok: true, scope, binding, target: { connector, adapter, connectionId: binding.connectionId, service: admitted.service, method, url, body } }
+    return { ok: true, scope, binding, target: { connector, adapter, scope, connectionId: binding.connectionId, service: admitted.service, method, url, body } }
   }
 
   const executeFetch = async (consumer: Consumer, request: unknown, at: number, span: AnySpan, signal: AbortSignal): Promise<FetchResult> => {
@@ -257,7 +261,7 @@ export const createBroker = ({
       endSpan(span, result.ok ? 'OK' : result.code)
       return result
     },
-    async checkCredential(connectorId: string, connectionId: ConnectionId): Promise<BrokerResult<null>> {
+    async checkCredential(connectorId: string, sealed: string): Promise<BrokerResult<null>> {
       const connector = adapterOf(connectorId)
       const adapter = connector?.adapter
       const span = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.check', metadata: {
@@ -269,7 +273,7 @@ export const createBroker = ({
       } else {
         const signal = AbortSignal.timeout(deadlineMs)
         try {
-          await untilDeadline(signal, authenticate(connector, adapter, connectionId, signal, requestTrace(span, () => 1, signal)))
+          await untilDeadline(signal, issueToken(connector, adapter, sealed, signal, requestTrace(span, () => 1, signal)))
           result = Object.freeze({ ok: true, value: null })
         } catch (error) {
           result = refused(codeOf(error, signal))

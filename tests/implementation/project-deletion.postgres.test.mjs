@@ -98,7 +98,8 @@ test('a deletion that fails after the purge resumes on retry, and a crash inside
   const fixture = await setupProjects(t, 'conexus_prj_resume')
   const { connection, database, seedProject } = fixture
   const { createProjectDeletion } = await import(hubModuleUrl('project/deletion.js'))
-  const ports = { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => { if (failing.repository++ === 0) throw new Error('GITHUB_DOWN') } }
+  const { purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
+  const ports = { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => { if (failing.repository++ === 0) throw new Error('GITHUB_DOWN') }, purgeConnectorBindings: purgeProjectBindings }
   const deletion = createProjectDeletion({ database, ports })
   const projectId = await seedProject('Atlas')
   const seeded = await seedEverything(connection, projectId)

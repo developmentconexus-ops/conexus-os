@@ -16,7 +16,7 @@ const CONNECTOR_BRIEF_UNAVAILABLE = 'The Conexões bound to this Project could n
 const SANKHYA_GATEWAY_ORIGINS = ['https://api.sankhya.com.br', 'https://api.sandbox.sankhya.com.br']
 
 const PROJECT = '22222222-2222-4222-8222-222222222222'
-const scope = scopeFromArtifactSource({ via: 'PREVIEW', projectId: PROJECT })
+const scope = scopeFromArtifactSource({ via: 'PREVIEW', accountId: '55555555-5555-4555-8555-555555555555', projectId: PROJECT })
 
 const bound = (name, connectorId = 'sankhya', connectionId = '33333333-3333-4333-8333-333333333333') =>
   ({ bindingId: '44444444-4444-4444-8444-444444444444', name, connectionId, connectorId })
@@ -103,11 +103,11 @@ test('the brief and the Skill carry no credential material and no gateway origin
 test('the module opens no Builder run, and reads no binding, for a Project id it cannot mint a scope for', async () => {
   const { createConnectorModule } = await import(hubModuleUrl('connectors/module.js'))
   const module = createConnectorModule({
-    pool: { query: async () => { throw new Error('the store must not be reached') } },
+    database: { transaction: async () => { throw new Error('the store must not be reached') } },
     envelope: { seal: async () => '', open: async () => '', fingerprints: () => [''] },
     log: () => {},
   })
-  await assert.rejects(module.openBuilderRun({ projectId: 'not-a-uuid', builderRunId: '11111111-1111-4111-8111-111111111111' }), invariant('CONNECTOR_SCOPE_REFUSED'))
+  await assert.rejects(module.openBuilderRun({ projectId: 'not-a-uuid', accountId: '55555555-5555-4555-8555-555555555555', builderRunId: '11111111-1111-4111-8111-111111111111' }), invariant('CONNECTOR_SCOPE_REFUSED'))
 })
 
 test('the Sankhya guide teaches how to find any data, and carries no one-app recipe or real value', () => {

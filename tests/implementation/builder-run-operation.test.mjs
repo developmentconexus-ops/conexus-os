@@ -35,7 +35,7 @@ const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
 const store = Object.freeze({
   listBindings: async ({ projectId, environment }) => (projectId === PROJECT && environment === 'preview'
     ? [{ bindingId: 'binding-erp', name: 'erp', connectionId: CONNECTION, connectorId: 'sankhya' }] : []),
-  readConnectionCredential: async (connectionId) => (connectionId === CONNECTION ? sealed : null),
+  readConnectionCredential: async (_scope, connectionId) => (connectionId === CONNECTION ? sealed : null),
 })
 
 const ITEM_LINES = { type: 'object', properties: { code: { type: 'string' }, price: { type: 'string' }, promo: { type: 'string' }, discount: { type: 'string' } }, required: ['code', 'price'], additionalProperties: false }
@@ -117,7 +117,7 @@ const setup = async (t, { built = BUILT } = {}) => {
   const brief = createConnectorBrief({ connectors, store, observability: record.observability })
   const socketDirectory = mkdtempSync(join(tmpdir(), 'cx-run-op-ports-'))
   t.after(() => rmSync(socketDirectory, { recursive: true, force: true }))
-  const run = await openBuilderRun({ brief, projectId: PROJECT, builderRunId: RUN, ports: createHandlerPorts({ directory: socketDirectory, broker }) })
+  const run = await openBuilderRun({ brief, projectId: PROJECT, accountId: '55555555-5555-4555-8555-555555555555', builderRunId: RUN, ports: createHandlerPorts({ directory: socketDirectory, broker }) })
   t.after(() => run.end())
   const runner = fakeRunner(t)
   const runOperation = createOperationRunner({
