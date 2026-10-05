@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { AccountId, BuilderRunId, ProjectId, WorkspaceId } from '../../../../packages/contract/dist/index.js'
 import { AccountId as AccountIdSchema, WorkspaceId as WorkspaceIdSchema } from '../../../../packages/contract/dist/index.js'
 import type { AuthenticationGate, CommandGate, Digest, JobName, Mode, ReadTx, Sql, TxQueries, WriteTx } from '../platform/db.js'
-import { openGate, sql } from '../platform/db.js'
+import { openGate, readOnlyView, sql } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
 
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
@@ -83,7 +83,8 @@ export type Admitted<S extends Scope, M extends Mode = 'write'> = Proof<S, M>
 
 /**
  * The proof of a read that changes nothing. A separate class from Proof, so no port that needs an
- * Admitted accepts it, and its transaction is a ReadTx, so it has no way to write. It holds no row lock.
+ * Admitted accepts it, and its transaction is a ReadTx that only selects: insert, update, delete, merge and the row lock clauses
+ * are refused in the SQL text. A SQL function that writes, called from a SELECT, is not stopped there. It holds no row lock.
  */
 class Checked<S extends Scope> {
   // biome-ignore lint/correctness/noUnusedPrivateClassMembers: type identity is the use
@@ -277,7 +278,7 @@ export const checkApplication = async (gate: CommandGate, projectId: ProjectId):
   const { tx, accountId } = accountGate(gate)
   const access = await tx.maybe(Access, applicationAccess(accountId, projectId))
   if (!access || !(access.member || access.granted)) throw refuse('APPLICATION_NOT_FOUND', await missingProject(tx, projectId))
-  return new Checked({ kind: 'application', accountId, projectId, via: access.member ? 'membership' : 'grant' }, { mode: 'read', accountId: tx.accountId, rows: tx.rows, one: tx.one, maybe: tx.maybe })
+  return new Checked({ kind: 'application', accountId, projectId, via: access.member ? 'membership' : 'grant' }, readOnlyView(tx))
 }
 
 /** @public Frozen by spec 0015 section 3; its body is built in part 1. */

@@ -54,16 +54,19 @@ export const sql = Object.assign(<V extends readonly unknown[]>(strings: Templat
 }, { identifier })
 
 const ALLOWED_FIRST_KEYWORD = /^(?:select|insert|update|delete|with)\b/
+const READ_FIRST_KEYWORD = /^(?:select|with)\b/
+const WRITE_OR_LOCK_WORDS = /\b(?:insert|update|delete|merge)\b|\bfor (?:update|share|no key update|key share)\b/
 const REFUSED_WORDS = /\bconexus\b|session_authorization|u&|set_config|current_setting/
 
 const lowered = (code: string): string => code.toLowerCase().replace(/\s+/g, ' ').trim()
 
 /** The composed text of every executed statement may only select, insert, update, delete or run a CTE; see spec 0015, admission section 4.1. */
-const refuseSqlText = (statement: Sql): void => {
+const refuseSqlText = (statement: Sql, mode: Mode): void => {
   const code = codeOfSql(statement.text)
   const text = code === null ? null : lowered(code)
   const statements = text === null ? [] : text.split(';').map((part) => part.trim()).filter((part) => part !== '')
-  if (text === null || statements.length === 0 || statements.some((part) => !ALLOWED_FIRST_KEYWORD.test(part)) || REFUSED_WORDS.test(text)) {
+  if (text === null || statements.length === 0 || statements.some((part) => !ALLOWED_FIRST_KEYWORD.test(part)) || REFUSED_WORDS.test(text)
+    || (mode === 'read' && (statements.some((part) => !READ_FIRST_KEYWORD.test(part)) || WRITE_OR_LOCK_WORDS.test(text)))) {
     throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'SQL_TEXT_REFUSED' } })
   }
 }
@@ -157,11 +160,11 @@ const openPool = (connection: PoolConfig): Pool => {
 const extendedQuery = (statement: Sql): QueryConfig & { readonly queryMode: 'extended' } =>
   ({ text: statement.text, values: [...statement.values], queryMode: 'extended' })
 
-const transactionView = (client: PoolClient) => {
+const transactionView = (client: PoolClient, mode: Mode) => {
   let active = true
   const query = async (statement: Sql) => {
     if (!active) throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'TRANSACTION_ENDED' } })
-    refuseSqlText(statement)
+    refuseSqlText(statement, mode)
     try { return await client.query(extendedQuery(statement)) }
     catch (error) { throw databaseFailure(error) }
   }
@@ -185,12 +188,27 @@ const transactionView = (client: PoolClient) => {
 }
 
 const readView = (client: PoolClient, accountId: AccountId | null) => {
-  const { rows, one, maybe, end } = transactionView(client)
+  const { rows, one, maybe, end } = transactionView(client, 'read')
   return { mode: 'read' as const, accountId, rows, one, maybe, end }
 }
 
+/**
+ * A read view of a write transaction: it only selects, so it cannot write and takes no row lock.
+ * A SQL function that writes, called from a SELECT, is not stopped here; the server's grants decide that.
+ */
+export const readOnlyView = (tx: WriteTx): ReadTx => {
+  const check = (statement: Sql): Sql => { refuseSqlText(statement, 'read'); return statement }
+  return {
+    mode: 'read',
+    accountId: tx.accountId,
+    rows: (schema, statement) => tx.rows(schema, check(statement)),
+    one: (schema, statement, missing) => tx.one(schema, check(statement), missing),
+    maybe: (schema, statement) => tx.maybe(schema, check(statement)),
+  }
+}
+
 const writeView = (client: PoolClient, accountId: AccountId | null) => {
-  const { rows, one, maybe, execute, end } = transactionView(client)
+  const { rows, one, maybe, execute, end } = transactionView(client, 'write')
   return { mode: 'write' as const, accountId, rows, one, maybe, run: execute, end }
 }
 
@@ -226,12 +244,16 @@ const optionSettings = (options: string): readonly string[] | null => {
   }
   return names
 }
-const refuseConnectionOptions = (connection: DatabaseConnection): void => {
-  if (connection.options === undefined) return
-  const names = optionSettings(connection.options)
+// pg reads PGOPTIONS when the config leaves options unset, so the options checked are the ones the
+// pool is given explicitly: the environment's value goes through the allow list like the config's.
+const checkedConnection = (connection: DatabaseConnection): DatabaseConnection => {
+  const options = connection.options ?? process.env.PGOPTIONS
+  if (options === undefined) return connection
+  const names = optionSettings(options)
   if (names === null || names.some((name) => !ALLOWED_OPTION_SETTINGS.includes(name))) {
     throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'POOL_OPTION_REFUSED' } })
   }
+  return { ...connection, options }
 }
 
 const pools = new WeakMap<Database, Pool>()
@@ -241,8 +263,8 @@ export const unportedPool = (database: Database): Pool => {
   return pool
 }
 
-export const openDatabase = (connection: DatabaseConnection): Database => {
-  refuseConnectionOptions(connection)
+export const openDatabase = (given: DatabaseConnection): Database => {
+  const connection = checkedConnection(given)
   const pool = openPool({ ...connection, password: readSecretFile(connection.passwordFile) })
   const transact = async <T, V extends TxQueries>(entry: Entry, view: (client: PoolClient) => V & { end(): void }, fn: (tx: V) => Promise<T>): Promise<T> => {
     if (entered.getStore()) throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'NESTED_TRANSACTION' } })
@@ -295,8 +317,8 @@ export const openDatabase = (connection: DatabaseConnection): Database => {
   return database
 }
 
-export const openFactoryPool = (connection: DatabaseConnection): FactoryPool => {
-  refuseConnectionOptions(connection)
+export const openFactoryPool = (given: DatabaseConnection): FactoryPool => {
+  const connection = checkedConnection(given)
   return Object.assign(openPool({ ...connection, password: readSecretFile(connection.passwordFile) }), { [factoryBrand]: true as const })
 }
 

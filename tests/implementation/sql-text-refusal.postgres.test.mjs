@@ -95,6 +95,17 @@ test('openDatabase allows only a search_path option, and refuses a role, an auth
   assert.throws(() => openDatabase({ ...base, options: '-c search_path=iam' }), { code: 'ENOENT' })
 })
 
+test('openDatabase checks the PGOPTIONS of the environment like its own options', async (t) => {
+  const { connection } = await openRuntimeFixture(t, 'conexus_pgoptions')
+  const base = { host: connection.host, port: connection.port, database: connection.database, user: 'hub_runtime', passwordFile: '/nonexistent' }
+  const before = process.env.PGOPTIONS
+  t.after(() => { if (before === undefined) delete process.env.PGOPTIONS; else process.env.PGOPTIONS = before })
+  process.env.PGOPTIONS = '-c conexus.job=project-purge'
+  assert.throws(() => openDatabase(base), (error) => error.id === 'INTERNAL_UNEXPECTED' && error.details?.reason === 'POOL_OPTION_REFUSED')
+  process.env.PGOPTIONS = '-c search_path=iam'
+  assert.throws(() => openDatabase(base), { code: 'ENOENT' })
+})
+
 test('a literal or a comment that holds a semicolon, a conexus word, a comment opener or a switch is not refused', async (t) => {
   const { database } = await openRuntimeFixture(t, 'conexus_sql_text_literals', { accounts: [[ACCOUNT, 'a']] })
   const Text = z.object({ value: z.string() })

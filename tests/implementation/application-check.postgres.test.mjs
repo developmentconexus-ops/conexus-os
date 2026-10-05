@@ -79,3 +79,28 @@ test('a checkApplication holds no row lock and assigns no transaction id, and ad
   })
   assert.deepEqual(admitted, { assigned: true, blocked: ['the account', 'the membership', 'the project'] })
 })
+
+test('a checked transaction and a read entry refuse a write and a row lock before the server, and no row changes', async (t) => {
+  const { connection, database, seedProject } = await setupProjects(t, 'conexus_check_read_only')
+  const projectId = await seedProject('Atlas')
+  await seedApplication(connection, projectId)
+  const Slug = z.object({ slug: z.string() })
+  const slugs = async () => (await query(connection, 'SELECT slug FROM iam.application WHERE project_id = $1', [projectId])).rows.map((row) => row.slug)
+  const [slugBefore] = await slugs()
+  const refusedText = (error) => error.id === 'INTERNAL_UNEXPECTED' && error.details?.reason === 'SQL_TEXT_REFUSED'
+  const statements = [
+    sql`UPDATE iam.application SET slug = 'changed' WHERE project_id = ${projectId} RETURNING slug`,
+    sql`INSERT INTO iam.application(project_id, slug, created_by) VALUES (${projectId}, 'second', ${ID.owner}) RETURNING slug`,
+    sql`DELETE FROM iam.application WHERE project_id = ${projectId} RETURNING slug`,
+    sql`SELECT slug FROM iam.application WHERE project_id = ${projectId} FOR SHARE`,
+    sql`SELECT slug FROM iam.application WHERE project_id = ${projectId} FOR NO KEY UPDATE`,
+    sql`WITH changed AS (UPDATE iam.application SET slug = 'changed' WHERE project_id = ${projectId} RETURNING slug) SELECT slug FROM changed`,
+  ]
+  for (const statement of statements) {
+    await assert.rejects(database.transaction(ID.member, async (gate) => (await checkApplication(gate, projectId)).tx.rows(Slug, statement)), refusedText, statement.text)
+    await assert.rejects(database.read(ID.member, (tx) => tx.rows(Slug, statement)), refusedText, statement.text)
+  }
+  assert.deepEqual(await slugs(), [slugBefore])
+  const read = await database.transaction(ID.member, async (gate) => (await checkApplication(gate, projectId)).tx.rows(Slug, sql`SELECT slug FROM iam.application WHERE project_id = ${projectId}`))
+  assert.deepEqual(read, [{ slug: slugBefore }])
+})
