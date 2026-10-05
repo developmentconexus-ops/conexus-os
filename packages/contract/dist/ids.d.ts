@@ -29,3 +29,5 @@ export declare const ModelAccountId: z.core.$ZodBranded<z.ZodUUID, "ModelAccount
 export type ModelAccountId = z.output<typeof ModelAccountId>;
 export declare const ModelLoginId: z.core.$ZodBranded<z.ZodString, "ModelLoginId", "out">;
 export type ModelLoginId = z.output<typeof ModelLoginId>;
+export declare const IdempotencyKey: z.core.$ZodBranded<z.ZodString, "IdempotencyKey", "out">;
+export type IdempotencyKey = z.output<typeof IdempotencyKey>;

@@ -55,12 +55,13 @@ test('the read entry has no write method and a retained transaction stops at its
   await assert.rejects(retained.rows(z.object({ value: z.number() }), sql`SELECT 1 AS value`), { id: 'INTERNAL_UNEXPECTED' })
 })
 
-test('the runtime role can call remaining functions but cannot change schema, assume an owner, or read factory', async (t) => {
+test('the runtime role can call the functions its old roles held but cannot change schema, assume an owner, or read factory', async (t) => {
   const { database, connection } = await setup(t)
   await query(connection, 'CREATE TABLE factory.s1_private (value integer)')
   const pool = unportedPool(database)
   const sqlstate = (statement) => pool.query(statement).then(() => 'OK', (error) => error.code)
-  assert.equal(await sqlstate('SELECT iam.session_lifetimes()'), 'OK')
+  assert.equal(await sqlstate("SELECT iam.is_installation_administrator('10000000-0000-4000-8000-00000000000a')"), 'OK')
+  assert.equal(await sqlstate('SELECT iam.session_lifetimes()'), '42501')
   assert.equal(await sqlstate('CREATE TABLE workspace.s1_forbidden (id integer)'), '42501')
   assert.equal(await sqlstate('ALTER TABLE iam.account ADD COLUMN s1_forbidden integer'), '42501')
   assert.equal(await sqlstate('SET ROLE iam_owner'), '42501')
@@ -75,10 +76,9 @@ test('every mapped database failure names a real constraint and a registered fai
     assert.equal(failures.failures.some((row) => row.code === rule.failure), true)
     if (rule.constraint) assert.equal((await query(connection, 'SELECT 1 FROM pg_constraint WHERE conname = $1', [rule.constraint])).rowCount > 0, true)
   }
-  const insert = sql`INSERT INTO platform.operation_receipt(operation_id, authority, account_id, key_digest, request_digest, resource_id, state)
-    VALUES ('WS-01', 'bootstrap:issuer:subject', NULL, decode('aa', 'hex'), decode('bb', 'hex'), '20000000-0000-4000-8000-000000000001', 'reserved')`
-  await database.system('migration', (tx) => tx.run(insert))
-  await assert.rejects(database.system('migration', (tx) => tx.run(insert)), (error) => error.id === 'IDEMPOTENCY_CONFLICT' && error.cause?.code === '23505')
+  await query(connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'a', 'A')", [ACCOUNT])
+  const orphan = sql`INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES (${ACCOUNT}, '20000000-0000-4000-8000-000000000001', 'owner')`
+  await assert.rejects(database.system('migration', (tx) => tx.run(orphan)), (error) => error.id === 'WORKSPACE_NOT_FOUND' && error.cause?.code === '23503')
   await assert.rejects(database.read(ACCOUNT, (tx) => tx.rows(z.object({ value: z.number() }), sql`SELECT 1 / 0 AS value`)),
     (error) => error.id === 'INTERNAL_UNEXPECTED' && error.cause?.code === '22012')
 })

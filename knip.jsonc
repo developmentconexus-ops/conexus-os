@@ -25,6 +25,7 @@
     "tests/implementation/sandbox-probe/read_secrets.mjs",
     "tests/implementation/sandbox-probe/walk_fs.mjs",
     "tests/fixtures/admission-negative.ts",
+    "tests/fixtures/biome/session-setting-in-sql.ts",
     "tests/fixtures/census-boundaries/pg-rows.ts",
     "tests/fixtures/census-boundaries/web-json.ts",
     // Bundled as text into the check by scripts/build-app-check.mjs, which writes it into each Project as conexus/sankhya.gen.ts.
@@ -35,6 +36,7 @@
     "apps/hub/src/app-runner/main.ts",
     "apps/hub/src/telemetry/register.ts",
     "apps/web/src/main.tsx",
+    // Frozen by spec 0015 section 3 and first called by later parts: the Builder feature for parseForeign, the first operation with path params for routeParam.
     "apps/web/src/app/foreign.ts",
     "apps/web/src/app/route-params.ts",
     "packages/contract/src/index.ts",
@@ -56,15 +58,7 @@
   ],
   // The reference screens import the generated app's own components and libraries, which this package does not install.
   "ignoreIssues": {
-    "builder-skills/**": ["unlisted", "unresolved"],
-    // Frozen by spec 0015 section 3: the web caller's query and href are first used by the parts that declare GET operations.
-    "apps/web/src/app/http.ts": ["exports"],
-    // Frozen by spec 0015 section 3: the table each part extends with its own constraints, read by the data test on the built Hub.
-    "apps/hub/src/platform/db.ts": ["exports"],
-    // Frozen by spec 0015 section 3: reserve and complete are first called by project creation in part 3.
-    "apps/hub/src/platform/receipt.ts": ["exports", "types"],
-    // Frozen by spec 0015 section 3: the scope, action and role tables that parts 3 to 6 admit through.
-    "apps/hub/src/identity-access/admission.ts": ["exports", "types"]
+    "builder-skills/**": ["unlisted", "unresolved"]
   },
   "ignoreBinaries": ["setpriv", "pgrep"]
 }

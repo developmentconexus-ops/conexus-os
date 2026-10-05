@@ -1,6 +1,4 @@
 import { z } from 'zod';
-export declare const IdempotencyKey: z.core.$ZodBranded<z.ZodString, "IdempotencyKey", "out">;
-export type IdempotencyKey = z.output<typeof IdempotencyKey>;
 export declare const WorkspaceName: z.ZodString;
 export declare const WorkspaceCreated: z.ZodObject<{
     workspaceId: z.core.$ZodBranded<z.ZodUUID, "WorkspaceId", "out">;
@@ -31,6 +29,6 @@ export declare const WS01: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["IDEMPOTENCY_CONFLICT"];
+    readonly failures: readonly ["IDEMPOTENCY_CONFLICT", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: null;
 };

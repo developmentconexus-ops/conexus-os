@@ -21,7 +21,7 @@ export const createWorkspaceStore = (database: Database): WorkspaceStore => Obje
   createWorkspace: ({ accountId, idempotencyKey, body }) => database.transaction(accountId, async (tx) => {
     const creator = await admitAccount(tx, accountId)
     return idempotent(creator, WS01, idempotencyKey, { params: undefined, query: undefined, body }, WorkspaceId, async (workspaceId): Promise<Reply<typeof WS01>> => {
-      await creator.tx.run(sql`INSERT INTO workspace.workspace (workspace_id, name, created_by) VALUES (${workspaceId}, ${body.name}, ${accountId})`)
+      await creator.tx.run(sql`INSERT INTO workspace.workspace (workspace_id, name, created_by) VALUES (${workspaceId}, ${body.name}, ${creator.scope.accountId})`)
       await grantCreatorMembership(creator, workspaceId)
       return { workspaceId, name: body.name, creatorAccountId: accountId, initialAccessEstablished: true }
     })

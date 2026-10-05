@@ -141,13 +141,13 @@ test('WS-01 admits any authenticated Account, who becomes the Workspace owner', 
   assert.equal(member.calls[0][1].accountId, MEMBER.account.accountId)
 })
 
-test('WS-01 maps changed-request/outcome conflicts to 409 without leaking internals', async (t) => {
-  for (const code of ['IDEMPOTENCY_CONFLICT', 'OUTCOME_UNKNOWN']) {
+test('WS-01 maps the failures its store declares to their status without leaking internals', async (t) => {
+  for (const [code, status] of [['IDEMPOTENCY_CONFLICT', 409], ['ACCOUNT_INACTIVE', 403], ['ACCOUNT_NOT_FOUND', 404]]) {
     const { app } = await buildRoutes({ storeOverrides: { createWorkspace: async () => { throw new Failure(code) } } })
     t.after(() => app.close())
     const response = await app.inject({ method: 'POST', url: '/api/control/workspaces', headers: authenticHeaders, payload: { name: 'Operations' } })
-    assert.equal(response.statusCode, 409)
-    assert.equal(response.json().status, 409)
+    assert.equal(response.statusCode, status)
+    assert.equal(response.json().code, code)
   }
 })
 

@@ -8,6 +8,7 @@ import { Failure } from './failure.js'
 
 type ReceiptScope = AccountScope | WorkspaceScope<WorkspaceAction> | ProjectScope | BootstrapScope
 export type DigestInput<O extends JsonOperation> = Pick<Input<O>, 'params' | 'query' | 'body'>
+/** @public Frozen by spec 0015 section 3; first called by project creation in part 3. */
 export type Receipt<I, R> = Readonly<{ kind: 'fresh'; resourceId: I }> | Readonly<{ kind: 'replay'; reply: R }>
 
 const ReceiptRow = z.object({
@@ -40,14 +41,14 @@ const replyBody = <O extends JsonOperation>(op: O, reply: Reply<O>): unknown => 
 const replayReply = <O extends JsonOperation>(op: O, status: number | null, body: unknown): Reply<O> => {
   const declared = Object.entries(op.success).find(([key]) => Number(key) === status)
   if (!declared) throw new Failure('INTERNAL_UNEXPECTED')
-  const parsed = declared[1] === null ? undefined : declared[1].parse(body)
-  const reply: unknown = Object.keys(op.success).length === 1 ? parsed : { status, body: parsed }
+  const single = Object.keys(op.success).length === 1
+  const stored = body === null ? undefined : body
+  const reply: unknown = single ? stored : { status, body: stored }
   const isReply = (value: unknown): value is Reply<O> => {
-    if (Object.keys(op.success).length === 1) {
-      return declared[1] === null ? value === undefined : declared[1].safeParse(value).success
-    }
+    const part = declared[1]
+    if (single) return part === null ? value === undefined : part.safeParse(value).success
     return typeof value === 'object' && value !== null && 'status' in value && value.status === status &&
-      'body' in value && (declared[1] === null ? value.body === undefined : declared[1].safeParse(value.body).success)
+      'body' in value && (part === null ? value.body === undefined : part.safeParse(value.body).success)
   }
   if (!isReply(reply)) throw new Failure('INTERNAL_UNEXPECTED')
   return reply
@@ -61,7 +62,8 @@ const receiptKey = <O extends JsonOperation>(proof: Admitted<ReceiptScope>, op: 
   requestDigest: digest(input),
 })
 
-export const reserve = async <O extends JsonOperation, I extends z.ZodType>(
+/** @public Frozen by spec 0015 section 3; first called by project creation in part 3. */
+export const reserve = async <O extends JsonOperation, I extends z.ZodType<string>>(
   proof: Admitted<ReceiptScope>, op: O, key: IdempotencyKey, input: DigestInput<O>, id: I,
 ): Promise<Receipt<z.output<I>, Reply<O>>> => {
   const receipt = receiptKey(proof, op, key, input)
@@ -83,8 +85,9 @@ export const reserve = async <O extends JsonOperation, I extends z.ZodType>(
   return { kind: 'fresh', resourceId }
 }
 
+/** @public Frozen by spec 0015 section 3; first called by project creation in part 3. */
 export const complete = async <O extends JsonOperation>(
-  proof: Admitted<ReceiptScope>, op: O, key: IdempotencyKey, input: DigestInput<O>, resourceId: unknown, reply: Reply<O>,
+  proof: Admitted<ReceiptScope>, op: O, key: IdempotencyKey, input: DigestInput<O>, resourceId: string, reply: Reply<O>,
 ): Promise<void> => {
   const receipt = receiptKey(proof, op, key, input)
   const changed = await proof.tx.run(sql`
@@ -96,7 +99,7 @@ export const complete = async <O extends JsonOperation>(
   if (changed !== 1) throw new Failure('INTERNAL_UNEXPECTED')
 }
 
-export const idempotent = async <O extends JsonOperation, I extends z.ZodType>(
+export const idempotent = async <O extends JsonOperation, I extends z.ZodType<string>>(
   proof: Admitted<ReceiptScope>, op: O, key: IdempotencyKey, input: DigestInput<O>, id: I,
   run: (resourceId: z.output<I>) => Promise<Reply<O>>,
 ): Promise<Readonly<{ replayed: boolean; reply: Reply<O> }>> => {

@@ -59,9 +59,12 @@ Who may act is decided in TypeScript and bounded again by the database.
   locks the rows it read in the same transaction, in the order the old SQL functions locked them, and
   decides over `ROLE_ALLOWS`. A command without a proof, or with a proof of another scope or action,
   does not compile (`tests/fixtures/admission-negative.ts`, run by `tests/repository/admission-types.test.mjs`).
-- **The acting account.** Every transaction opens through `platform/db.ts` and sets the acting account
-  or the `system` scope first, local to the transaction. The account comes from the signed session the
-  access enforcer parsed (spec 0014), never from a request body.
+- **The acting account.** Every transaction opens through `platform/db.ts` and sets both
+  `conexus.account_id` and `conexus.scope` first, local to the transaction, the one the entry does not
+  use set to the empty string. A setting a session carries from its role or its connection never
+  survives into a transaction. The account comes from the signed session the access enforcer parsed
+  (spec 0014), never from a request body, and an admission function refuses an account other than the
+  one its transaction opened for.
 - **Row policies.** A policed table has `FORCE ROW LEVEL SECURITY` and one policy per command
   `TO hub_runtime`, so a list that forgets its `WHERE` still returns only the acting account's rows, and
   a transaction with no account set sees nothing. Today `workspace.workspace` and
@@ -70,11 +73,18 @@ Who may act is decided in TypeScript and bounded again by the database.
   with the part that will police it, and `npm run db:catalog:check` fails on a table that is in neither
   state.
 - **Functions.** A `SECURITY DEFINER` function still holds the rules of an owner that has not been
-  ported, with a pinned `search_path`. `hub_runtime` holds `EXECUTE` on each of them. A policed table
-  carries a `legacy_owner` policy for the owner roles of the functions that read it, which the catalog
-  lint derives from the function bodies. Each part ports one owner's functions into TypeScript and drops
-  its bridge; the ceilings fall in `hub-catalog-census.json`, and `docs/reference/function-callers.md`
-  shows which function still calls which.
+  ported, with a pinned `search_path`. `hub_runtime` holds `EXECUTE` on the functions the older
+  capability roles held and on nothing else. No function reads a table that is policed today, so no
+  policy bridges a function owner and `legacyOwnerPolicies` is 0. Each part ports one owner's functions
+  into TypeScript before it polices the tables they read, the ceilings fall in
+  `hub-catalog-census.json`, and `docs/reference/function-callers.md` shows which function still calls
+  which.
+- **Grants that outlive the policies.** Until part 6, `hub_runtime` can insert into
+  `iam.workspace_membership` and update its `role` column, and insert into and update `iam.account`,
+  `iam.bootstrap_context` and `iam.oidc_transaction`, with no row policy on any of them.
+  `grantCreatorMembership` is the only statement in the Hub that inserts a membership
+  (`tests/repository/workspace-membership-writer.test.mjs`), and the catalog lint reads column grants
+  as well as table grants, so a policed table cannot keep a grant it has no policy for.
 
 What this guards is an accidental broad query, a forgotten check and a revoke racing a write. A
 compromised Hub process can set any account, as it could hold any capability role before.

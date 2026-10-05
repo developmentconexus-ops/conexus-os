@@ -11,7 +11,7 @@ import { CAPABILITY_BY_ROLE } from './hub-roles.generated.js'
 const sqlBrand: unique symbol = Symbol('sql')
 const factoryBrand: unique symbol = Symbol('factory-pool')
 
-type Mode = 'read' | 'write'
+export type Mode = 'read' | 'write'
 export type Sql = Readonly<{ [sqlBrand]: true; text: string; values: readonly unknown[] }>
 export type DatabaseConnection = Readonly<{ host: string; port: number; database: string; user: 'hub_runtime' | 'hub_factory'; passwordFile: string; max?: number; connectionTimeoutMillis?: number; options?: string }>
 export type JobName = 'iam-reaper' | 'project-purge' | 'builder-executor' | 'migration'
@@ -40,6 +40,7 @@ export const sql = Object.assign((strings: TemplateStringsArray, ...interpolatio
 
 export interface ReadTx {
   readonly mode: Mode
+  readonly accountId: AccountId | null
   rows<S extends z.ZodType>(schema: S, query: Sql): Promise<readonly z.output<S>[]>
   one<S extends z.ZodType>(schema: S, query: Sql, missing: FailureCode): Promise<z.output<S>>
   maybe<S extends z.ZodType>(schema: S, query: Sql): Promise<z.output<S> | null>
@@ -60,9 +61,9 @@ export interface Database {
 }
 
 type DatabaseFailureRule = Readonly<{ sqlstate: string; constraint: string | null; failure: FailureCode }>
+/** @public Frozen by spec 0015 section 3; each part adds its constraints. */
 export const DATABASE_FAILURES: readonly DatabaseFailureRule[] = Object.freeze([
   { sqlstate: '23503', constraint: 'workspace_membership_workspace_id_fkey', failure: 'WORKSPACE_NOT_FOUND' },
-  { sqlstate: '23505', constraint: 'operation_receipt_pkey', failure: 'IDEMPOTENCY_CONFLICT' },
 ])
 
 export const errorCode = (error: unknown): string | undefined => {
@@ -113,14 +114,16 @@ const transactionView = (client: PoolClient) => {
   }
 }
 
-const readView = (client: PoolClient) => {
+type Acting = Readonly<{ accountId: AccountId | null; scope: 'system' | '' }>
+
+const readView = (client: PoolClient, acting: Acting) => {
   const { rows, one, maybe, end } = transactionView(client)
-  return { mode: 'read' as const, rows, one, maybe, end }
+  return { mode: 'read' as const, accountId: acting.accountId, rows, one, maybe, end }
 }
 
-const writeView = (client: PoolClient) => {
+const writeView = (client: PoolClient, acting: Acting) => {
   const { rows, one, maybe, execute, end } = transactionView(client)
-  return { mode: 'write' as const, rows, one, maybe, run: execute, end }
+  return { mode: 'write' as const, accountId: acting.accountId, rows, one, maybe, run: execute, end }
 }
 
 const pools = new WeakMap<Database, Pool>()
@@ -132,15 +135,15 @@ export const unportedPool = (database: Database): Pool => {
 
 export const openDatabase = (connection: DatabaseConnection): Database => {
   const pool = openPool({ ...connection, password: readSecretFile(connection.passwordFile) })
-  const transact = async <T, V extends ReadTx>(begin: string, setting: readonly [string, string] | null, view: (client: PoolClient) => V & { end(): void }, fn: (tx: V) => Promise<T>): Promise<T> => {
+  const transact = async <T, V extends ReadTx>(begin: string, acting: Acting, view: (client: PoolClient, acting: Acting) => V & { end(): void }, fn: (tx: V) => Promise<T>): Promise<T> => {
     const client = await pool.connect()
     let discard: Error | undefined
     let started = false
-    const tx = view(client)
+    const tx = view(client, acting)
     try {
       await client.query(begin)
       started = true
-      if (setting) await client.query('SELECT set_config($1, $2, true)', [...setting])
+      await client.query("SELECT set_config('conexus.account_id', $1, true), set_config('conexus.scope', $2, true)", [acting.accountId ?? '', acting.scope])
       const value = await fn(tx)
       await client.query('COMMIT')
       return value
@@ -155,9 +158,9 @@ export const openDatabase = (connection: DatabaseConnection): Database => {
     }
   }
   const database: Database = {
-    transaction: (accountId, fn) => transact('BEGIN', ['conexus.account_id', accountId], writeView, fn),
-    read: (accountId, fn) => transact('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY', ['conexus.account_id', accountId], readView, fn),
-    system: (_job, fn) => transact('BEGIN', ['conexus.scope', 'system'], writeView, fn),
+    transaction: (accountId, fn) => transact('BEGIN', { accountId, scope: '' }, writeView, fn),
+    read: (accountId, fn) => transact('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY', { accountId, scope: '' }, readView, fn),
+    system: (_job, fn) => transact('BEGIN', { accountId: null, scope: 'system' }, writeView, fn),
     session: async (fn) => {
       const client = new pg.Client({ ...connection, password: readSecretFile(connection.passwordFile), application_name: 'conexus-hub:instance-lock' })
       const lost = new Promise<never>((_resolve, reject) => {

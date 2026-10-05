@@ -25,6 +25,6 @@ export declare const OPERATIONS: readonly {
         }, import("zod/v4/core").$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["IDEMPOTENCY_CONFLICT"];
+    readonly failures: readonly ["IDEMPOTENCY_CONFLICT", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: null;
 }[];

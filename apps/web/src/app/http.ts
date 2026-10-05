@@ -57,11 +57,13 @@ export async function call(op: JsonOperation, input: Input<AnyOperation>, option
   return success.length === 1 ? parsed.data : { status: response.status, body: parsed.data }
 }
 
+/** @public Frozen by spec 0015 section 3; first used by the parts that declare GET operations. */
 export const query = <O extends JsonOperation>(op: O, input: Input<O>) => ({
   queryKey: [op.id, input] as const,
   queryFn: ({ signal }: { signal: AbortSignal }) => call(op, input, { signal }),
 })
 
+/** @public Frozen by spec 0015 section 3; first used by the parts that declare GET operations. */
 export const href = <O extends BinaryOperation>(op: O, input: Input<O>): string => urlOf(op, input)
 
 export const hubFetch = (input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> =>

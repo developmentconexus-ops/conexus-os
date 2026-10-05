@@ -30,3 +30,5 @@ export const ModelAccountId = z.uuid().brand<'ModelAccountId'>().meta({ id: 'Mod
 export type ModelAccountId = z.output<typeof ModelAccountId>
 export const ModelLoginId = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/).brand<'ModelLoginId'>().meta({ id: 'ModelLoginId' })
 export type ModelLoginId = z.output<typeof ModelLoginId>
+export const IdempotencyKey = z.string().min(1).brand<'IdempotencyKey'>().meta({ id: 'IdempotencyKey', failureCode: 'IDEMPOTENCY_KEY_REQUIRED' })
+export type IdempotencyKey = z.output<typeof IdempotencyKey>

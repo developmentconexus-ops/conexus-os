@@ -14,3 +14,4 @@ export const ConnectionId = z.uuid().brand().meta({ id: 'ConnectionId' });
 export const BindingId = z.uuid().brand().meta({ id: 'BindingId' });
 export const ModelAccountId = z.uuid().brand().meta({ id: 'ModelAccountId' });
 export const ModelLoginId = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/).brand().meta({ id: 'ModelLoginId' });
+export const IdempotencyKey = z.string().min(1).brand().meta({ id: 'IdempotencyKey', failureCode: 'IDEMPOTENCY_KEY_REQUIRED' });

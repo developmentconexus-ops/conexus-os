@@ -1413,7 +1413,32 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "REQUEST_AUTHENTICITY_DENIED"
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "ACCOUNT_INACTIVE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "ACCOUNT_NOT_FOUND"
                           ]
                         }
                       }

@@ -11,7 +11,7 @@ import type { OidcIdentity, OidcTransaction, VerifiedIdentity } from './oidc.js'
 
 type ProvisionResult = AccountSummary & Readonly<{ replayed: boolean }>
 type AccessibleWorkspace = Readonly<{ workspaceId: string; name: string }>
-export type WorkspaceReader = Readonly<{ listAccessibleWorkspaces(accountId: string): Promise<readonly AccessibleWorkspace[]> }>
+export type WorkspaceReader = Readonly<{ listAccessibleWorkspaces(accountId: AccountId): Promise<readonly AccessibleWorkspace[]> }>
 
 type AccountRow = QueryResultRow & {
   account_id: string
@@ -68,7 +68,7 @@ export type IdentityAccessStore = Readonly<{
   createProvisioningContext(input: VerifiedIdentity & Readonly<{ configuredIssuer: string; configuredSubject: string; now?: Date }>): Promise<string>
   claimInvitations(input: Readonly<{ accountId: AccountId; verifiedEmail: EmailAddress | null }>): Promise<number>
   provisionBootstrap(input: Readonly<{ bootstrapToken: string; idempotencyKey: string; configuredIssuer: string; configuredSubject: string; displayName: string; email?: string; now?: Date }>): Promise<ProvisionResult>
-  listAccessibleWorkspaces(accountId: string): Promise<readonly AccessibleWorkspace[]>
+  listAccessibleWorkspaces(accountId: AccountId): Promise<readonly AccessibleWorkspace[]>
 }>
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
