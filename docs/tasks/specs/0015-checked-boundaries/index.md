@@ -1,19 +1,26 @@
 # 0015. The data checked at every Hub boundary, the contract in Zod, the rules in TypeScript
 
 **Date**: 2026-10-04
-**Status**: Approved (approved by the operator on 2026-10-04)
+**Status**: Revision 5.3, approved (design 4 chosen by the operator on 2026-10-05; revision approved by HQ the same day under the operator's delegation; reviews B and C decided by HQ on 2026-10-05)
 **Lane**: `lane:shaped`
 **Depends on**: spec 0014 (merged in #507), whose definer `routes(app)[kind]` and route ledger this spec
 extends; spec 0013 (merged in #505) for the job executor and `iam.reap_expired`; spec 0009 for the
 failure table. Base `479dfd69`.
 **Changes**: the role per capability model of `docs/reference/security-and-authority.md` section 2
-and `docs/reference/hub-database-roles.md` is replaced by one runtime role; the rules in
+and `docs/reference/hub-database-roles.md` is replaced by one login role that each transaction
+switches to a reader or a command role; the rules in
 `docs/development/review/data-migrations.md` that require a `SECURITY DEFINER` function per command
 are rewritten in part 0.
 
 References to "spike N" name facts measured before the build on PostgreSQL 17.10 with every Hub
 migration applied, on the real Hub build and its tests: spike 1 the contract path, spike 2 the data
-module and the proof, spike 3 the read policies, spike 4 the contract package build. "Review" names the
+module and the proof, spike 3 the read policies, spike 4 the contract package build. "The split
+spike" (`authz-redesign/spike/spike.md`, 2026-10-05) measured the reader and command roles on a
+pooled client and the tenant paths of every table after migration 0064. "The interrogations"
+(`authz-redesign/interrogate/`, 2026-10-05) are the two reviews of revision 5 that revision 5.1
+answers, by the HQ decisions in `authz-redesign/rev51-hq-decisions.md`. Revision 5.2 answers the
+confirmation of 5.1 (`authz-redesign/interrogate/sonnet-confirm-51.md`), by the HQ decisions in
+`authz-redesign/rev52-hq-decisions.md`. "Review" names the
 comparison of three candidate designs. Neither is in this repository. Each part proves its facts again
 in its own tests.
 
@@ -25,8 +32,10 @@ decided by one of 115 `SECURITY DEFINER` functions whose refusals the code recog
 After this spec each of those is checked where it enters: the operation is written once in Zod and both
 the Hub and the web check against it, every row is parsed by a schema in one data module, and every
 command needs a typed proof that only an admission function makes, inside the command's own
-transaction. The business rules move from SQL to TypeScript, PostgreSQL keeps integrity and adds read
-policies so a list cannot leak, and one runtime role replaces nine. The work lands as a foundation that
+transaction. The business rules move from SQL to TypeScript. PostgreSQL keeps integrity, filters a
+person's reads by policy so a list cannot leak, and holds a command's writes by composite tenant keys
+and column grants. One login role replaces nine; each transaction runs it as a reader or a command
+role. The work lands as a foundation that
 ports one owner whole, then one part per owner in parallel, `iam` last.
 
 ## Structure
@@ -35,11 +44,11 @@ ports one owner whole, then one part per owner in parallel, `iam` last.
 | --- | --- |
 | [0015-contract.md](0015-contract.md) | the operation declared once in Zod, the Hub registration and output check, the web `call`, the emitted OpenAPI and its checks, branded ids, the package build |
 | [0015-data.md](0015-data.md) | the one module that imports `pg`, the transaction entries, the database error table, the one receipt, the runtime role and the register |
-| [0015-admission.md](0015-admission.md) | the typed proof, the admission functions and lock order, WS-01 and the concurrent revoke, the read policies and the bridge during the parts |
+| [0015-admission.md](0015-admission.md) | the typed proof, the gate, the admission functions and lock order, WS-01 and the concurrent revoke, the split wall (reader policies, the command role, the run time refusal of a role switch and the second wall on writes), the purge guard, the bridges during the parts, what revision 5 deleted and what revisions 5.1 and 5.2 changed |
 | [0015-function-map.md](0015-function-map.md) | where each of the 118 functions goes, what stays in SQL, how they leave |
-| `0015-part-<owner>.md` (one per part 1 to 6, written when the part starts) | that part's policies per table and command, lock order, refusal codes and fixtures, derived from the bodies it ports under the rules of the admission child, section 4 |
+| `0015-part-<owner>.md` (one per part 1 to 6, written when the part starts) | that part's reader policies, table register rows, composite keys, lock order, refusal codes and fixtures, derived from the bodies it ports under the rules of the admission child, sections 4 and 5 |
 
-This file holds what crosses the children: the requirements, the frozen signatures, the census rules,
+This file holds what crosses the children: the requirements, the signatures, the census rules,
 the parts and their order.
 
 ## Requirements
@@ -81,25 +90,52 @@ the parts and their order.
   current state, as today.
 - **AC-7**: A command called without an admission proof, with a proof of another scope or action, with
   an object literal, a spread copy or a read proof, fails `tsc`; `run` on a read transaction fails
-  `tsc`.
+  `tsc`; a statement on a command or job transaction before its admission fails `tsc`; an object
+  literal or a spread copy where a gate is due fails `tsc`; no admission takes an account id beside
+  its gate.
 - **AC-8**: A member removed while writing gets today's outcome in both orders; two owners removing each
   other, and two concurrent administrator revocations, get today's outcomes (one succeeds or
-  `LAST_OWNER`), never a deadlock.
-- **AC-9**: Every Hub table is under a read policy with `FORCE`, or listed in `UNSCOPED_TABLES` as
-  permanent with a reason; a list read whose `WHERE` is deleted still returns only the acting account's
-  rows; with no account set a transaction sees nothing; an outsider cannot write a row into, or join, a
-  workspace it cannot see; a grantee without membership still opens its application and its connectors;
-  no `legacy_owner` bridge remains.
-- **AC-10**: The Hub connects as `hub_runtime` (DML only, refused 42501 on any DDL and on `factory`) and
-  `hub_factory`; `iam_rls` and `conexus_owner` are NOLOGIN and pass `assertRoleInvariants`; no capability
+  `LAST_OWNER`), never a deadlock; one member leaving twice at once gets one success and one refusal;
+  a command, an application open or a run step racing a project deletion or its purge is refused
+  once the tombstone commits, for an administrator too, never a deadlock.
+- **AC-9**: For split tables: each is under `FORCE` with the one command policy and, if a person
+  reads it, one reader policy named `reader` (and `reader_admin` where the administrator branch is
+  separate); a list read whose `WHERE` is deleted still returns only the acting
+  account's rows; a read with no account set sees nothing; a client back in the pool after a commit, a
+  rollback or an error reads nothing (42501), except on `iam.account` behind the
+  `legacy_runtime` bridge until part 6; the reader cannot lock or write; through `read()`, a
+  member of one workspace reads no row of another and reads every seeded row of its own, by a test
+  generated over every table `hub_reader` can `SELECT`, with an administrator variant over the literal reach list (`project.project_deletion`,
+  `connector.connection`, `iam.installation_administrator` and the `iam.account` rows of open
+  tenures). For pending tables: each has a register row naming the privileges of
+  `hub_runtime`, `hub_reader` and `hub_command`, and the lint asserts it. Every other table is listed
+  in `UNSCOPED_TABLES` as permanent with a reason. Every operation run as a member or grantee of one
+  tenant with another tenant's ids answers its refusal and changes no row; a command cannot change a
+  tenant or owner column, point a row at two tenants, run an `UPDATE`, `DELETE`, `MERGE` or
+  `ON CONFLICT DO UPDATE` without a visible top level `WHERE`, or run a purge outside the
+  `project-purge` job; an entry opened inside another is refused; a grantee without membership still
+  opens its application and its connectors, and reads nothing through `read()`; no `legacy_owner` or
+  `legacy_runtime` bridge remains.
+- **AC-10**: The Hub connects as `hub_runtime` (`NOINHERIT`, a member of `hub_reader` and
+  `hub_command` only, holding no privilege of its own at the end, refused 42501 on any DDL and on
+  `factory`) and `hub_factory`; every transaction's first statement is `SET LOCAL ROLE`, and no Hub
+  code holds a bare `SET ROLE` or `set_config('role'`; the `sql` tag refuses at run time any text whose
+  first keyword is not `select`, `insert`, `update`, `delete` or `with`, and the bare word `conexus`,
+  `session_authorization`, `u&`, `set_config` and `current_setting` anywhere in it (a guard against
+  accidents, not against our own code written to evade it); both memberships
+  of `hub_runtime` have `inherit_option` and `admin_option` false, no `role` setting exists for it or
+  the database, and no pool option names a role; `hub_reader`, `hub_command`, `iam_rls` and
+  `conexus_owner` are NOLOGIN and pass `assertRoleInvariants`; no capability
   role and none of the seven `*_owner` roles holds a grant, owns an object or logs in, and on a fresh
   cluster none exists; the register, its generated file, provisioning and the two reference documents
   agree.
-- **AC-11**: No function in a Hub schema holds a business rule: the catalog holds only the `iam.*`
-  policy helpers of the admission child, and 115 `SECURITY DEFINER` functions become zero outside them.
+- **AC-11**: No function in a Hub schema holds a business rule: the catalog holds only the three
+  `rls.*` policy helpers of the admission child and `iam.lock_administrators()`, whose body is one
+  `LOCK TABLE`, and 115 `SECURITY DEFINER` functions become zero outside them.
 - **AC-12**: Ids that cross a boundary are branded once in `packages/contract/src/ids.ts`; a
   `WorkspaceId` where a `ProjectId` is due fails `tsc`; brands come only from a parse, with zero
-  `as <Brand>`.
+  `as <Brand>`; a value typed `RawToken` in a `sql` template fails `tsc` (an accident guard, proven
+  by a fixture), and a token lookup takes only a `Digest`.
 - **AC-13**: Each census is a CI rule by mechanism with today's count as a ceiling that only falls and
   ends at zero: unparsed rows, `json() as`, `noUnsafeTypeAssertion: debt` suppressions (97), web called
   routes without an operation (18 plus 7), definer functions, tables without a policy, operations still
@@ -117,12 +153,15 @@ the parts and their order.
 ## Decision
 
 **Chosen option**: Option 1, the operation in Zod, rows parsed in one data module, commands guarded by a
-typed proof, reads guarded by Row Level Security, the rules in TypeScript.
+typed proof, reads guarded by Row Level Security, the rules in TypeScript. Revision 5 adds design 4,
+the split wall, chosen by the operator on 2026-10-05. Revision 5.1 closes the gaps two interrogations
+found in it, and revision 5.2 the gap their confirmation proved still open, by HQ decision.
 
 Each operation is declared once in Zod in a shared package and drives the Hub handler, the web caller
 and the emitted OpenAPI; every row is parsed at the data module; every command takes a proof made only
-by an admission that locks what it read; every read runs under a policy keyed to the acting account; the
-118 functions leave for TypeScript, part by part.
+by an admission that locks what it read, and runs as a command role the policies do not filter, held
+by composite tenant keys, column grants and lints; every person's read runs as a reader role under a
+policy keyed to the acting account; the 118 functions leave for TypeScript, part by part.
 
 **Implementation skills**: `conexus-development` (`.agents/skills/conexus-development/`)
 
@@ -150,9 +189,10 @@ rows the command locked.
 | --- | --- | --- |
 | `packages/contract/src/*` (built to `dist/`) | operations, ids, problem, failure codes, `OPERATIONS` | both apps, the emitter, the tests |
 | `apps/hub/src/http/access.ts` | `routes(app).operation(op, handler)` on the S3 definer | each owner's `routes.ts` |
-| `apps/hub/src/platform/db.ts` | the only Hub `pg` import: `openDatabase`, `sql`, `Tx`, `DATABASE_FAILURES` | stores, admission, receipt, lifecycle |
+| `apps/hub/src/platform/db.ts` | the only Hub `pg` import: `openDatabase`, `sql` (with its run time text refusal), `Tx`, `CommandGate`, `AuthenticationGate`, `openGate`, `RawToken`, `Digest`, `DATABASE_FAILURES`, the only `SET LOCAL ROLE` and `conexus.*` settings, the nested entry refusal | stores, admission, receipt, lifecycle (`openGate`: `admission.ts` and `authentication.ts` only) |
 | `apps/hub/src/platform/receipt.ts` | `idempotent`, `reserve`, `complete` over `platform.operation_receipt` | idempotent commands |
-| `apps/hub/src/identity-access/admission.ts` | `Admitted`, `Scope`, the `admit*` functions, `ROLE_ALLOWS`, `grantCreatorMembership` | every store (allowed across owners) |
+| `apps/hub/src/identity-access/admission.ts` | `Admitted`, `Checked`, `Scope`, the `admit*` functions (with `admitInstallationAdministrator`), `checkApplication`, `isInstallationAdministrator`, `ROLE_ALLOWS`, `ACTION_REFUSALS`, `grantCreatorMembership` | every store (allowed across owners) |
+| `apps/hub/src/identity-access/authentication.ts` | `DigestKey`, `lookupByDigest(key)` and the eight typed steps of the `AuthenticationGate`, as functions over the gate that open it with `openGate` (reviews B and C, 2026-10-05) | the session and sign in modules, `admission.ts` |
 | `apps/web/src/app/http.ts` | `call`, `query`, `href` | every web feature |
 | `apps/web/src/app/foreign.ts` | `parseForeign` | the Builder feature |
 | `scripts/emit-openapi.mjs` | `contracts/api/product/openapi.json` | `contract:check`, Redocly, bijection |
@@ -162,18 +202,42 @@ rows the command locked.
 first line of the store function; "where does this row come from" by the schema in the call that read
 it.
 
-### 3. Frozen in part 0 (the contract between the children and the parts)
+### 3. The surface of part 0 (the contract between the children and the parts)
 
 Parts 1 to 7 build against these and do not change them; a needed change goes back through this spec.
+The admission surface changed four times on 2026-10-05 (typed steps, `lookupByDigest(key)`, `Checked`, `SystemScope<J>`). It finalizes when PR #512 (part 0b) merges, not before. It is the base being built, so a part changing it is not a change to a frozen base, and the rule that a part may not change a frozen base is not triggered. HQ says so to the operator.
 `Operation`, `operation()`, `Success`, `Effect`, `Input`, `Reply`, `Result` (contract child, section 2);
 `routes(app).operation` and `Handler<O>` (contract, 3); `call`, `query`, `href`, `parseForeign` and the
-route param helper (contract, 4); `Database`, `ReadTx`, `WriteTx`, `sql`, `DATABASE_FAILURES`,
-`openFactoryPool` (data, 1 and 2); `idempotent`, `reserve`, `complete` (data, 3);
-`Admitted`, `Scope` and its action and job lists, the admission signatures, `ROLE_ALLOWS`,
-`CHANGES_OWNER_SET`, `ACTION_REFUSALS` and the lock order (admission, 1 and 2); the helpers part 0 owns
-(`iam.acting_founds()` lands in part 6) and the rules every policy follows (admission, 4); the policies of the
-tables part 0 polices. The policies of the later parts are decided by their child specs; `authenticate`
-joins `Database` in part 6; the brands (contract, 6).
+route param helper (contract, 4); `Database` (with `transaction` and `system` handing a
+`CommandGate`, and `authenticate` an `AuthenticationGate`), `ReadTx` (with `accountId`), `WriteTx`,
+`CommandGate`, `AuthenticationGate` (the gate alone), `openGate`, `sql` (refusing a
+`RawToken` at compile time and any statement but `select`, `insert`, `update`, `delete` and `with`, and the words `conexus` and `set_config`, at run time), `RawToken`,
+`Digest`, `DATABASE_FAILURES`, `openFactoryPool`, the role and settings each entry sets, and the
+nested entry refusal (data, 1 and 2); `idempotent`, `reserve`, `complete` (data, 3); `Admitted`,
+`Scope` and its action and job lists, `SystemScope<J>`, `RunScope.via`, `Checked`, the admission signatures with `checkApplication` (none takes an account id beside its
+gate), `ROLE_ALLOWS`, `CHANGES_OWNER_SET`, `ACTION_REFUSALS`, the lock order, the fresh read after a
+lock wait with the deletion predicate, and the scoped read rule (admission, 1 and 2); the three `rls`
+helpers, `iam.lock_administrators()`, the rules every reader policy follows, the command policy, the
+second wall on writes, the purge guard and the table register (admission, 4 to 7); the policies of the
+tables parts 0, 3 and 0b police. A part that needs a fourth helper brings it back here. The reader
+policies and register rows of the later parts are decided by their child specs; `authenticate` joins
+`Database` in part 6, with its list of digest kinds; the brands (contract, 6).
+
+**Frozen changes in revision 5.1**, against what parts 0 and 3 built and against revision 5: the gate
+is a nominal class resolved through a module `WeakMap` (revision 5 had a structural interface with
+`accountId`); `system` hands a gate, not a `WriteTx`; every admission drops its `accountId` parameter
+and reads the actor from the gate (`admission.ts:95,104-105,139-140` take one today); `ReadTx.accountId` stays
+as built (`db.ts:43`; revision 5 had removed it); `authenticate` hands an `AuthenticationGate`, not a
+`WriteTx`; `admitApplication` moves from part 6 to part 0b; `admitRun`, `admitBootstrap` and
+`admitSystem` have signatures (admission child, section 2).
+
+**Frozen changes in revision 5.2**, against 5.1: the `sql` tag allows only `select`, `insert`,
+`update`, `delete` and `with` statements and refuses the bare word `conexus`, `session_authorization`,
+`u&`, `set_config` and `current_setting`; reader policies are named `reader` and `reader_admin`; the
+administrator reach list is the four tables of the admission child, section 4.2, rule 4; the
+`legacy_runtime` bridge exists on `iam.account` only.
+
+**Surface changes from reviews B and C (HQ, 2026-10-05)**, before #512 merges: `checkApplication` and `Checked` for served reads, which take no row lock and hand a `ReadTx` (admission child, section 2); `SystemScope<J extends JobName>` and `admitSystem(gate, job)`, so a purge port takes `Admitted<SystemScope<'project-purge'>>`; `RunScope.via`, `'account'` or `'executor'`; `lookupByDigest(key)`, `DigestKey` and the eight typed steps move from `db.ts` to `identity-access/authentication.ts`, which `openGate`'s import rule also allows, and `db.ts` keeps only the gate (data child, section 1).
 
 **Shared files have one writer at a time.** `hub.ts`, the route ledger, `openapi.json`,
 `operation-ledger.md`, `hub-catalog-snapshot.json`, the census ceilings, the role register and the
@@ -195,10 +259,11 @@ not by line, so moving a file does not retire one.
 | 2. `response.json() as` in the web | 26 by the study (22 single line); the checker's count in part 0 is the ceiling | `fetch` only in `app/http.ts` (`noRestrictedGlobals`, exists); the checker counts `.json()` on a `Response` outside `app/http.ts` and assertions on its result | `verify:quick` |
 | 3. `noUnsafeTypeAssertion: debt` | 97 | the existing census item `unsafeAssertionDebt` counts suppressions; at zero the `debt` form is refused | `verify:quick` |
 | 4. Web called routes without an operation | 18 + 7 | boot refusal `ROUTE_OPERATION_UNDECLARED` with its shrinking list; the walk's "every operation has one ledger row" | route walk, boot |
-| 5. Functions with a business rule | 115 definer of 118 | the function count in `hub-catalog-snapshot.json`, read by `db:catalog:check`; at zero any function in a Hub schema other than the `iam.*` helpers fails | `db:catalog:check` |
-| 6. Tables without a policy, and bridges | the pending list part 0 computes | the catalog lint (admission child, section 4) | `db:catalog:check` |
+| 5. Functions with a business rule | 115 definer of 118 | the function count in `hub-catalog-snapshot.json`, read by `db:catalog:check`; at zero any function in a Hub schema other than the `rls.*` helpers and `iam.lock_administrators()` fails | `db:catalog:check` |
+| 6. Tables not split, and bridges | the pending list part 0 computes | the catalog lint and the table register (admission child, sections 5 and 7) | `db:catalog:check` |
 | 7. Operations still in YAML | 30 | the count of operations in `contracts/api/product/*-paths.yaml` | `contract:check` |
 | 8. Unparsed JSON input that is not HTTP or a row | 54 suppressions | counted inside rule 3 by source (manifest, runner IPC, Mastra output) | `verify:quick` |
+| 9. Direct privileges of `hub_runtime` | the count part 0b leaves | the catalog lint counts the table and function grants held by `hub_runtime` itself; zero in part 6, when `unportedPool` goes | `db:catalog:check` |
 
 The `uncheckedQueryRows` regex (`scripts/census-builder-run.mjs`) is deleted; it miscounts both ways
 (76 by regex against 79 by the checker). Each rule has fixtures that must be found: a renamed query
@@ -224,15 +289,21 @@ table's.
 - A command's transaction is the one its proof was admitted in (`proof.tx`), and the proof dies with it.
 - A row reaches TypeScript only through a schema; a reply reaches the wire only through the success
   schema; a Hub answer reaches a web feature only through `call` or `parseForeign`.
-- A transaction always carries the acting account or the system scope, set first, local to the
-  transaction.
-- Every Hub table is under `FORCE` with a policy for all commands, or is listed with its reason.
+- A transaction always runs as `hub_reader` or `hub_command`, switched by its first statement, local
+  to the transaction; a read also carries the acting account, set second.
+- A command, job or authentication transaction can do nothing before its admission: its callback
+  holds a gate, not a transaction, and the gate carries the actor so no admission takes it twice.
+- No entry opens inside another, and the tag refuses any statement but `select`, `insert`, `update`,
+  `delete` and `with`, so a command's text does not switch its role or set a `conexus` setting.
+  Deliberate evasion by our own code is for review and the lints.
+- Every Hub table is under `FORCE` with the command policy and, if a person reads it, the reader
+  policy, with the command grants its register row names, or is listed with its reason.
 - Each fact has one owner: the wire shape in the declaration, the role rule in `ROLE_ALLOWS`, roles in
   the register, failure status in `failures.json`, expiry in `EXPIRY_RULES`.
 
 ### 7. Security model
 
-See the admission child, section 5. The compliance scope is the same as today (no regulated data class
+See the admission child, sections 4, 5 and 8. The compliance scope is the same as today (no regulated data class
 is added); the audit trail of who changed what is not changed by this spec.
 
 ### 8. Critical test scenarios
@@ -247,10 +318,15 @@ is added); the audit trail of who changed what is not changed by this spec.
 - Wrong row: a migration fixture changes a column type; the read throws at the schema and the answer is
   `INTERNAL_UNEXPECTED`, verifies **AC-5**.
 - Receipt: replay, conflict, crash between Git and completion, retry after revoke, verifies **AC-6**.
-- Proof and leak fixtures, revoke race, last owner race, outsider walk: the admission child, section 6,
-  verifies **AC-7** to **AC-9**.
-- Roles: as `hub_runtime`, `CREATE TABLE`, `ALTER`, `DROP`, `SET ROLE` and a read of `factory` answer
-  42501, verifies **AC-10**.
+- Proof and leak fixtures, revoke race, last owner race, outsider walk, pooled client roles, generated
+  cross tenant reads, write wall and lint fixtures: the admission child, section 10, verifies **AC-7**
+  to **AC-9**.
+- Roles: as `hub_runtime`, `CREATE TABLE`, `ALTER`, `DROP`, `SET ROLE postgres` and a read of
+  `factory` answer 42501; `SET LOCAL ROLE hub_reader` and `hub_command` succeed inside a transaction
+  from `db.ts`; the same text through the `sql` tag, in any case, spacing or quoting, is refused, and so
+  are `conexus .job` with a space, a `u&` escaped `role`, a `DO` block, a plain `SET` and a `CALL`;
+  after the transaction ends, a `SELECT` on `workspace.workspace` is 42501; the membership and setting
+  invariants hold, verifies **AC-10**.
 - Census fixtures: each rule finds its planted fixture, and a fake "Enforced by" name fails
   `check-enforced-by.mjs`, verifies **AC-13**.
 
@@ -259,11 +335,14 @@ is added); the audit trail of who changed what is not changed by this spec.
 The build approach is Skateboard: the thinnest whole first, then grow. Part 0 is that whole: every new
 primitive, used end to end by one real owner (workspace), so nothing lands unused. Part 3 (project)
 merges second, alone, because its functions call builder, connector, registry and `iam`, and the
-builder, connector and registry policies read `project.project`. Then parts 1, 2, 4, 5 and 7 run in
-parallel worktrees, each merging when green, one at a time. Part 6 (`iam`) is last because every other
+builder, connector and registry policies read `project.project`. Parts 0, 3 and 7 are built, on the
+stacked pull requests 509, 510 and 511, under revision 4. Part 0b, the split wall, stacks on 511 and
+turns what they built into revision 5.1 before any later part builds; it is mostly subtraction,
+plus the guards revision 5.1 adds. Then
+parts 1, 2, 4 and 5 run in parallel worktrees, each merging when green, one at a time. Part 6 (`iam`) is last because every other
 owner's SQL calls `iam` until it is ported. Parts 1 to 6 each start with their child spec
 (`/jm-architect S1 part <owner>`), approved by the operator, then build (`/jm-develop`); part 0 is fully
-specified here. A child spec decides inside this umbrella; a change to the frozen surface comes back
+specified here. A child spec decides inside this umbrella; a change to the surface of part 0 after #512 merges comes back
 here. The real dependencies come from the caller graph script
 (function map child, section 2), not from this list.
 
@@ -292,7 +371,9 @@ here. The real dependencies come from the caller graph script
    `Workspace`) with a field of the conversation's sandbox record, which already creates that
    `Workspace`. Rewrite `security-and-authority.md` section 2, `hub-database-roles.md` and
    `data-migrations.md` for the new model. Satisfies **AC-1** to **AC-3** (for workspace), **AC-5**,
-   **AC-6** (WS-01), **AC-7**, **AC-10** (runtime role), **AC-12**, **AC-13**, **AC-14**.
+   **AC-6** (WS-01), **AC-7**, **AC-10** (runtime role), **AC-12**, **AC-13**, **AC-14**. Built under
+   revision 4; part 0b removes its `created_by`, its receipt and system branches and its `iam.acting_*`
+   helpers.
 2. **Part 3, project** (10 functions, merged second, alone). PRJ-03 on `reserve` and `complete` under
    the workspace authority, still calling `builder.register_project_repository` as SQL; `admitProject`
    with the parent row lock; the project purge orchestrator in `system('project-purge', fn)`, one
@@ -300,39 +381,224 @@ here. The real dependencies come from the caller graph script
    `project.list_project_summaries_with_activity` as one query in `project/store.ts`; its policies, locks and refusal codes per `0015-part-project.md`; the `project-summaries` and thumbnail routes declared (thumbnail
    as `Binary`); `project.operation_idempotency`, the 42501 checks and `generate-project-contracts.mjs`
    deleted; the revoke race on PRJ-03 against today's `iam.remove_workspace_member`. Satisfies
-   **AC-1** to **AC-6**, **AC-8** (revoke), **AC-9**, **AC-11**.
-3. **Part 1, builder** (31). Its policies, locks and refusal codes per `0015-part-builder.md`. Declares the seven BLD operations and the Mastra mount schemas; deletes the
+   **AC-1** to **AC-6**, **AC-8** (revoke), **AC-9**, **AC-11**. Built under revision 4; part 0b moves
+   its tombstone step to the administrator's transaction and removes its `S` branches.
+3. **Part 7, the other JSON input** (built, PR 511). The suppressions on JSON that is neither HTTP, a row nor Mastra
+   output: the app manifest (`app-runner/server-manifest.ts`) and the runner IPC (`worker.ts`,
+   `module.ts`), parsed with schemas in their own module (the manifest keeps a first fault validator with type guards, `0015-part-json-input.md` section 2.1). Satisfies **AC-13**.
+4. **Part 0b, the split wall** (merged fourth, alone, on top of PR 511; fully specified here). It
+   changes no operation and no answer, except that a command on a project whose deletion has started
+   is now refused for an administrator too (admission child, section 2). Subtract first: the
+   migration below drops before it creates, and the code loses `conexus.scope`, `Acting.scope`,
+   `ConnectionAction`, the `connection` scope and `admitProjectDeletion` before it gains the gate.
+
+   **Migration `0065_split_wall.sql`** (the next free number when it merges; 0062 to 0064 are not
+   edited). In order:
+   - Drop every policy `TO hub_runtime` on `workspace.workspace`, `platform.operation_receipt`,
+     `project.project`, `project.project_deletion`, `builder.builder_run` and
+     `builder.project_working_state` (`0063_workspace_admission.sql:61-85`,
+     `0064_project_owner.sql:19-58`). The `legacy_owner` bridges stay.
+   - Drop `iam.acting_account()`, `iam.acting_scope()`, `iam.acting_workspaces()`,
+     `iam.acting_installation_administrator()` and `iam.acting_applications()`
+     (`0063_workspace_admission.sql:15-57`), and `iam_rls`'s `SELECT` on `iam.application_grant`.
+   - Drop `workspace.workspace.created_by` (`0063_workspace_admission.sql:3-9`).
+   - `CREATE OR REPLACE` the four purge functions (`0064_project_owner.sql:68-128`) with their guard
+     reading `conexus.job` instead of `conexus.scope` (admission child, section 6).
+   - `CREATE OR REPLACE` `reg.get_served_application`, `reg.read_served_application_file` and
+     `reg.get_application_thumbnail` from their latest definitions
+     (`0023_application_session.sql:357`, `0024_application_access_review.sql:256`,
+     `0048_application_thumbnail.sql:101`) with the condition
+     `p_account_id = nullif(current_setting('conexus.account_id', true), '')::uuid` (admission child,
+     section 7).
+   - Create `hub_reader` and `hub_command`, `NOLOGIN NOINHERIT NOBYPASSRLS`, inside the idempotent
+     `DO` block of `0062_runtime_data_boundary.sql:2-12`, and
+     `GRANT hub_reader, hub_command TO hub_runtime WITH INHERIT FALSE, SET TRUE`. `USAGE` on every Hub
+     schema to both.
+   - Create schema `rls` owned by `conexus_owner`, `USAGE` to `hub_reader` and `iam_rls` only, and
+     the three helpers of the admission child, section 4.2, owned by `iam_rls`, with
+     `SET search_path TO pg_catalog, pg_temp`, `EXECUTE` revoked from `PUBLIC` and granted to
+     `hub_reader` only.
+   - Create `iam.lock_administrators()`, `SECURITY DEFINER`, owned by `iam_owner` (the owner of
+     `iam.installation_administrator`, `0017_installation_administrator.sql:26`), with
+     `SET search_path TO pg_catalog, pg_temp` and the one `LOCK TABLE` statement; `EXECUTE` revoked
+     from `PUBLIC` and granted to `hub_command` only.
+   - On the six tables of the first step and on `iam.account` and `iam.workspace_membership`:
+     `ENABLE` and `FORCE` (the six have them already), the reader policy `reader` of section 4.2 (none on the
+     receipt), `reader_admin` on `project.project_deletion`, and the command policy of section 4.3.
+     On the two `iam` tables also the `FOR SELECT TO iam_rls USING (true)` policy the helpers need
+     and the `legacy_owner` bridge for every owner role whose live function reads them (`iam_owner`
+     included, since `FORCE` binds the owner; the lint derives the set). On `iam.account` alone also
+     the `legacy_runtime` bridge for sign in, which `identity-access/store.ts:100,143,192` still runs
+     through `unportedPool`; `iam.workspace_membership` has no unported reader and gets none.
+   - Revoke every privilege `hub_runtime` holds on the six tables; it keeps its grants on `iam.account`,
+     behind `legacy_runtime`, until part 6; its grants on `iam.workspace_membership` go with the six. Grant `hub_reader` `SELECT` on the five
+     reader tables of the six and on the two `iam` tables. Grant `hub_command`: `workspace.workspace`
+     `SELECT, INSERT` (no command deletes a workspace, so the `DELETE` of revision 5 goes);
+     `platform.operation_receipt` `SELECT, INSERT, DELETE` and `UPDATE (state, response_status,
+     response_body, completed_at)`; `project.project` `SELECT, INSERT, DELETE` and `UPDATE (name)`
+     (no command on the new path updates it yet; the column is for the row lock, and each later
+     command adds the columns it writes); `project.project_deletion`
+     `SELECT, INSERT, DELETE` and `UPDATE (purged_at, completed_at)`; `builder.builder_run` and
+     `builder.project_working_state` `SELECT`; `iam.account` `SELECT, UPDATE (created_at)` (the row lock goes through a column with no
+     rule on it; `0001_baseline.sql:1926-1937`); `iam.workspace_membership` `SELECT, INSERT,
+     UPDATE (created_at)` (part 6 adds `UPDATE (role)` with the role command; `DELETE` comes with
+     the roster commands of part 6); and on the pending tables the new path reads, each recorded in its register
+     row: `iam.installation_administrator` `SELECT, UPDATE (revoked_at)` (the tenure `FOR SHARE`;
+     never table level, admission child, section 5), `iam.application` `SELECT`,
+     `iam.application_grant` `SELECT, UPDATE (revoked_at)` (for `admitApplication`; the column only
+     permits the row lock, since `application_grant_revocation_check`,
+     `0022_application_access.sql:60`, refuses a `revoked_at` written without `revoked_by`, which part 6
+     grants with the revoke command). `hub_runtime`
+     keeps its direct grants on the tables no part has split.
+   - `EXECUTE` on `builder.register_project_repository`, the four purges and
+     `iam.lock_administrators()` to `hub_command`, the first five revoked from `hub_runtime`; on the
+     three `reg` served functions to `hub_reader`; every other live function stays with `hub_runtime`
+     for its unported callers. Each `EXECUTE` is a register row. `scripts/function-callers.mjs`
+     produces the lists, and the migration's test compares them with the catalog.
+
+   Before the revoke, the caller graph and `tests/repository/hub-call-sites.mjs` confirm that no
+   unported code reads the six tables through `unportedPool`, and confirm that `iam.account` is the one `iam` table with an unported reader (its `legacy_runtime`
+   bridge) and `iam.workspace_membership` has none.
+
+   **Code.** `platform/db.ts`: each entry's role switch, the read's account setting and the job's
+   `conexus.job`, sent on the client directly (data child, section 1); `Acting.scope` and the
+   `conexus.scope` setting gone (`db.ts:117,146`); the `Gate` and `AuthGate` classes, the `WeakMap`
+   and `openGate`; `system` hands a gate; the `sql` tag's run time text refusal (first keyword allow list and the refused words of the
+   admission child, section 4.1); the nested entry
+   refusal over `AsyncLocalStorage`; `openDatabase` refusing a role in `options`; `RawToken`,
+   `Digest` and the typed `sql` values. `ReadTx.accountId` stays (`db.ts:43`).
+   `identity-access/admission.ts`: `ConnectionAction`, the `connection` scope and its three
+   `ACTION_REFUSALS` rows gone (`admission.ts:14,56,44-46`); `project.delete` moves to
+   `AdministratorAction`; `assertActing` and every `accountId` parameter gone (`admission.ts:91-93`),
+   the account read from the gate or from `ReadTx.accountId`; `admitProjectDeletion`
+   (`admission.ts:166-172`) becomes `admitInstallationAdministrator`, which reads the acting account's
+   open tenure `FOR SHARE` instead of calling `iam.is_installation_administrator`, and calls
+   `iam.lock_administrators()` for `administrators.manage`; `admitProject`'s fresh read carries the
+   deletion predicate in SQL with no administrator exception (`admission.ts:159-160`); `members.leave`
+   locks the acting membership `FOR UPDATE`; `admitApplication`, `checkApplication` and `admitSystem` built as the
+   admission child, section 2, states; `admitRun` declared with its signature, its body built
+   in part 1, which grants the column a run lock needs on `builder.builder_run`; `grantCreatorMembership` founds only an empty
+   workspace; `JobName` loses `'migration'` (`db.ts:17`). `project/deletion.ts`: the tombstone step
+   runs in `database.transaction(accountId, ...)` (`deletion.ts:40-53`) in the order account, tenure,
+   project `FOR UPDATE`, fresh tombstone read, `INSERT ... SELECT` from the project row; purge and
+   completion stay in `system('project-purge', ...)` after `admitSystem`, and the purge takes the
+   project `FOR UPDATE` before anything else (`deletion.ts:56-66` takes no lock today).
+   `workspace/store.ts` and `project/store.ts`: the gate; no `created_by`.
+   `scripts/hub-catalog-lint.mjs`: the rules of the admission child, sections 5 and 7, replacing
+   `RUNTIME_ROLE` and `POLICY_HELPER` (`hub-catalog-lint.mjs:1-3`). `scripts/census-boundaries.mjs`:
+   the write lint (admission child, section 5). `contracts/technical/hub-catalog-census.json`: the
+   table register with its pending rows and function rows, and census rule 9. `scripts/hub-catalog.mjs`:
+   `assertRoleInvariants` as the data child, section 4, states. `contracts/technical/hub-database-roles.json`,
+   its generator and `platform/hub-roles.generated.ts`: the two transaction roles, the three `rls`
+   helpers and `iam.lock_administrators()`. Biome: the role lint and the restricted import of
+   `openGate` (`admission.ts` and `authentication.ts`). A repository test: `purge_project` only in `project/deletion.ts`.
+   `docs/reference/security-and-authority.md` section 2, `docs/reference/hub-database-roles.md` and
+   `docs/development/review/data-migrations.md` restated for the split, with rollback forward only (a new migration, not a revert), and
+   `docs/tasks/specs/0015-checked-boundaries/0015-part-project.md` updated in the same pull request.
+
+   **Tests.** The pooled client facts, the run time text refusal with the three proved bypasses and the
+   plain `SET`, `DO` and `CALL` fixtures, the role invariants, the type
+   fixtures (gate, `RawToken`, no `accountId` parameter), the nested entry refusal, the generated cross
+   tenant read test over every table `hub_reader` can `SELECT` (the five reader tables of the six and
+   the two `iam` tables) with its positive control and administrator variant, the per operation cross
+   tenant test over the operations ported so far, the route walk's entry record, the founding guard,
+   the column grant refusals, the purge guard and the served function account check, the lint
+   fixtures, the administrator deletion cases, the deletion races on the project row (`admitProject`,
+   `admitApplication` and the purge), the double leave, and the revoke race on the command
+   role: the admission child, section 10. Then the full suite and the local Conexus check of
+   **AC-15**, sign in included (the `legacy_runtime` bridge on `iam.account`). Satisfies **AC-7** to **AC-10** for the
+   tables it splits, **AC-12** (raw tokens), **AC-13** (rule 9).
+5. **Part 1, builder** (31). Its reader policies, register rows, locks and refusal codes per
+   `0015-part-builder.md`. Cut from that draft: the 15 `INSERT`, `UPDATE` and `DELETE` rows of its
+   section 4; the `S` branch of its five `SELECT` rows; the reader rows of `builder.project_repository` and `builder.builder_run_model_account`, which no person lists (rule 6, decided by HQ); the served pointer paragraph with its `iam_rls`
+   grant and policy on `builder.project_working_state`; every `iam.acting_applications` use; the
+   section "If the part 0 amendment is refused". It keeps the person branches of three `SELECT` rows
+   (`builder_run`, `project_working_state`, `conversation_session`) as reader policies, and gives the
+   other two tables no reader policy and no reader grant, so `hub_reader` gets 42501 on them; the
+   bridges, its column grants without `project_id` or `account_id`, and adds the
+   `builder.builder_run.account_id` key (the builder runs the `ADD FOREIGN KEY` against a copy of the local data before the pull request); the executor runs as section 6 of the admission child says, and the account steps of a run before its candidate use `admitRun`, stricter than today;
+   it builds the body of `admitRun`, with `projectId` added to `RunScope` (project `FOR SHARE`, then the run `FOR UPDATE`, then the fresh
+   read with the deletion predicate, admission child, section 2) with the column grant on
+   `builder.builder_run` its row lock needs, and the run's deletion race tests; a run reads its held
+   credential after `admitRun`, filtered by the run from the proof. Every command read follows the
+   scoped read rule, proven by the per operation cross tenant test for the BLD operations. Declares the eight BLD operations (with BLD-30, Preview) and the Mastra mount schemas; deletes the
    hand written BLD types on both sides (`builder/routes.ts`, `features/builder/api.ts`) and
    `JsonRow<T>` (`builder/store.ts`); parses the Mastra output the Hub and the web read
    (`mastra-session-routes.ts`, `transcript.ts`, `pending-card.tsx`, `mastra-session.ts`); keeps the
    run row key and current state replay for BLD create; the executor claims under `system` and works
    under the run's account; runs the trigger parity test, then drops the trigger; ports
    `register_project_repository` and `builder.purge_project` as ports wired by `hub.ts` and edits their
-   project call sites; the run lease functions ported one for one; its drop migration and part 4's merge
-   as one step. Builder rows (21), BLD operations without a declaration (7) and `builder/api.ts` casts
+   project call sites; the run lease functions ported one for one; its drop migration keeps
+   `admit_verified_application_source` and `served_preview_revision`, which part 4 drops. Builder rows (21), BLD operations without a declaration (7) and `builder/api.ts` casts
    (8) reach zero. Satisfies **AC-1**, **AC-4** to **AC-6**, **AC-9**, **AC-11**.
-4. **Part 2, connectors** (11). Its policies, locks and refusal codes per `0015-part-connectors.md`; the
-   broker reads under the grant holder's account; `connector.purge_project` as a port; the message text
+6. **Part 2, connectors** (11). Its reader policies, register rows, locks and refusal codes per
+   `0015-part-connectors.md`. Cut from that draft: the six `INSERT`, `UPDATE` and `DELETE` rows; the
+   `S` and `G` branches of the two `SELECT` rows; `connector.enabled_connection` with its `iam_rls`
+   grants; `admitElevated` (CON-02 and CON-04 become `admitInstallationAdministrator` with
+   `connection.manage` in the person's transaction); `admitConnection`; the section "If the amendment
+   is refused". It keeps the connection `SELECT` (with `ADMIN`) and the binding `SELECT` as reader
+   policies, restated so neither reads the other table under its policy. They use the three `rls`
+   helpers, and no fourth. The workspace owner's connection action is named: `connections.bind`, a `WorkspaceAction`
+   row allowed to `owner` only in `ROLE_ALLOWS`, with the same name as a `ProjectAction` admitted
+   through `admitProject`, for listing, binding and unbinding a project's connections
+   (`connectors/routes.ts:118-147`), which borrow `members.manage` through
+   `connector.admit_project_owner` today (`0029_connector.sql:134-151`). `ReadAction` gains
+   `'connections.bind'` and the read overload of `admitProject` takes it, so CON-08 stays an owner only
+   `read()`, as today. CON-01 asks the shared `isInstallationAdministrator(tx)` of
+   `admission.ts`, which part 6 uses too. CON-03 is a command after `admitInstallationAdministrator`
+   with `connection.manage`, and `hub_reader` gets no credential column. The grantee's bound
+   connection is read after `checkApplication` (built in part 0b; `admitApplication` when the broker transaction writes), filtered by
+   `proof.scope.projectId`; the broker reads under the grant holder's account on that proof; `connector.purge_project` as a port; the message text
    checks (`connectors/model.ts`) and `generate-connector-contracts.mjs` deleted. Connector rows (8) and
    `connector-api.ts` casts (5) reach zero. Satisfies **AC-1**, **AC-4**, **AC-5**, **AC-9**, **AC-11**,
    **AC-14**.
-5. **Part 4, registry** (9). Its policies, locks and refusal codes per `0015-part-registry.md`; `reg.purge_project` as a
-   port; `reg.retain_application_execution` ported; served application reads under
-   `read(accountId, ...)`, calling `builder.served_preview_revision` as SQL until part 1 lands, then the
-   port. Satisfies **AC-5**, **AC-9**, **AC-11**.
-6. **Part 5, model accounts** (6). Its policies, locks and refusal codes per `0015-part-model.md`; the ten model account routes
+7. **Part 4, registry** (9). Its reader policies, register rows, locks and refusal codes per
+   `0015-part-registry.md`. Cut from that draft: the nine `INSERT`, `UPDATE` and `DELETE` rows; the `S`
+   and `H` branches of the three `SELECT` rows; the amendment A paragraph on `iam_rls` grants over
+   seven source tables; the section "If the amendment is refused". It keeps the three `SELECT` rows'
+   member branch as reader policies and adds the `reg.application_thumbnail` key (`reg.artifact` gets none: its `workspace_id` is NULL for an application, so the register records `artifact_project_id_fkey`); the thumbnail read drops the `iam.application` row condition;
+   `reg.purge_project` as a port; `reg.retain_application_execution` ported, under `admitRun` on the
+   command role; served application reads move from `read(accountId, ...)` to reads on the command
+   role after `checkApplication` (built in part 0b, no row lock), each filtered by `proof.scope.projectId`, reading the served pointer directly from
+   `builder.project_working_state` (no SQL function and no Builder port); retention takes its Project from
+   `RunScope.projectId`; the three `reg` served
+   functions, with the `p_account_id` check part 0b added, are dropped; the per operation cross
+   tenant test covers the served routes. Satisfies **AC-5**, **AC-9**, **AC-11**.
+8. **Part 5, model accounts** (6). Its reader policies, register rows, locks and refusal codes per
+   `0015-part-model.md`. Cut from that draft: the two `INSERT` and `UPDATE` rows, the `S` branches and
+   the `HELD` branch; a run reads the credential it holds after `admitRun`, filtered by the run from
+   the proof. It keeps the
+   person branches of two `SELECT` rows (`model.model_account`, `model.installation_default`) and the column grant `UPDATE (kind, secret, updated_at)`; `model.model_account_sharing_history` gets no reader policy and no reader grant, since no route lists it (rule 6, decided by HQ); `take`, `hold` and `track` carry the run `{ builderRunId, accountId }` where they carried the payer; the eleven model account routes (MDL-01 to MDL-11)
    declared; the four argument call to `model.upsert_model_account` fixed in the port; a run's refresh
    of a shared credential tested with sharing withdrawn mid run. Satisfies **AC-1**, **AC-4**, **AC-5**,
    **AC-9**, **AC-11**.
-7. **Part 7, the other JSON input.** The suppressions on JSON that is neither HTTP, a row nor Mastra
-   output: the app manifest (`app-runner/server-manifest.ts`) and the runner IPC (`worker.ts`,
-   `module.ts`), parsed with schemas in their own module (the manifest keeps a first fault validator with type guards, `0015-part-json-input.md` section 2.1). Satisfies **AC-13**.
-8. **Part 6, identity and access, last** (46). Its policies, locks and refusal codes per
-   `0015-part-iam.md`; `authenticate`, IAM-03 on the
-   bootstrap authority, `iam.acting_founds()` and the claim branch; sessions, invitations, roster
-   (`removeMember`, `leaveWorkspace` with the owner set lock), application access, installation
-   administration (with the table lock), `iam.purge_project` as a port, `reap_expired` as
-   `EXPIRY_RULES`; `iam.operation_idempotency`, every bridge, the seven `*_owner` roles (objects moved to
+9. **Part 6, identity and access, last** (46). Its reader policies, register rows, locks and refusal
+   codes per `0015-part-iam.md`. Cut from that draft: every `INSERT`, `UPDATE`, `DELETE` and lock only
+   row of its section 4; every `C` (credential) and `S` branch; the `SELECT` rows of
+   `iam.bootstrap_context`, `iam.oidc_transaction`, `iam.host_session`, `iam.preview`, `iam.handoff`
+   and the receipt (command only tables); `iam.acting_credential()`, `iam.installation_founded()`,
+   `iam.acting_founds()`, `iam.acting_invitations()`, `iam.acting_owned_workspaces()` and the founding
+   branch `F`; `admitElevated` (IAM-13 becomes an owner command under `admitProject` with an action
+   part 6 adds to `ROLE_ALLOWS`; IAM-16 and IAM-17 use `admitInstallationAdministrator` with
+   `administrators.manage`); the table level `UPDATE` on the tenure table that revision 5 planned
+   (the table lock goes through `iam.lock_administrators()`, built in part 0b, and `hub_command`
+   widens `UPDATE (revoked_at)` to `UPDATE (revoked_at, revoked_by)` only, as does `iam.application_grant`,
+   since each revocation check needs both columns); the section "If the amendment is refused". It keeps the reader
+   `SELECT` of `iam.account`, adding to part 0b's predicate (self, co members) only grantees of owned
+   projects and `ADMIN` for open tenures and for the accounts named by `granted_by` on them (IAM-15's
+   grantor name, as today); keeps part 0b's `iam.workspace_membership` policy; adds
+   `iam.workspace_invitation`, `iam.installation_administrator` (`ADMIN`, with its `iam_rls` policy),
+   `iam.application`, `iam.application_invitation` and `iam.application_grant`, and the
+   `iam.preview` key, and the account pair keys of `iam.host_session` and `iam.handoff`; `ReadAction` gains `'application.manage'` (IAM-11 stays an owner only `read()`); IAM-14 and IAM-15 use `isInstallationAdministrator(tx)`; IAM-12 and IAM-13 take no owner set lock; the first administrator rule stays in TypeScript; `authenticate` with its
+   `AuthenticationGate`, the closed `key` union of digest kinds for `lookupByDigest(key)`, the eight typed
+   steps of the gate's second family in `identity-access/authentication.ts` (`lookupIdentity`, `provisionIdentity`, `lookupSlug`,
+   `hasOpenInvitation`, `startOidc`, `mintContext`, `consumeOidcState`, `endCredential`), and the body of `admitBootstrap`; IAM-03 on the bootstrap authority with the first administrator under the table
+   lock and the full tenure history; sessions, invitations, roster (`removeMember`, `leaveWorkspace`
+   with the owner set lock and the acting membership `FOR UPDATE`, and the `DELETE` grant on
+   `iam.workspace_membership`), application access on the `admitApplication` part 0b built,
+   installation administration (with the table lock), `iam.purge_project` as a port, `reap_expired`
+   as `EXPIRY_RULES`; `iam.operation_idempotency`, every bridge (the `legacy_runtime` bridge on `iam.account`, with
+   `unportedPool`), the seven `*_owner` roles (objects moved to
    `conexus_owner`), the last capability role, `generate-iam-contracts.mjs`, `schema-to-typescript.mjs`,
    the root `openapi.yaml` and the YAML branch of the emitter, the global Ajv, `toFailure`'s `P0001`
    branch and the boot refusal list deleted; the shape lines restated. Rules 1, 4, 5, 6 and 7 reach
@@ -350,15 +616,24 @@ before it merges.
 - One declaration per operation drives the handler types, the input check, the output encode, the web
   parse and the OpenAPI; the wire cannot drift silently.
 - A forgotten permission check does not compile, and a forgotten list filter does not leak.
+- Policies exist only where they hold: one reader `SELECT` policy per table a person lists, and one
+  identical command policy per table. The child drafts' 113 policy table rows become about 24 reader
+  rows, and the three helpers and `iam.lock_administrators()` are the only functions left.
 - Rules are read in one language, tested with ordinary unit and store tests, and change without
   redefining a function in a migration (57 of 59 migrations redefine functions today).
 - Ten pools over nine roles become one; the executor pool that crossed a trust boundary goes.
 
 **Negative / tradeoffs**:
 - The per role separation of the old model goes: a SQL bug in one owner can now write another owner's
-  tables. The import law, the proof's scope and the policies are what bound it.
+  tables. The import law, the proof's scope, the gate, the scoped read rule with its per operation
+  test, the composite keys, the column grants and the write lint bound it; no policy does.
+- A command with a wrong `WHERE` inside its admitted scope is not stopped by the database. This
+  departs from PostgREST and Supabase, which judge every write by policy; it matches cal.com,
+  Documenso, Better Auth and Mastra, which check in code and then write (rationale).
 - Read policies are a second guard written in SQL beside the TypeScript admission, with their own
   helper role, and a per row cost (under 1.5 ms measured, more on large tables).
+- Every transaction spends one statement on `SET LOCAL ROLE`, and a read or a job one more on its
+  setting. Every `sql` call scans its text once for the refused forms.
 - One Zod parse per JSON answer on the Hub and one in the web.
 - `packages/contract/dist` is committed, so contract changes show twice in a diff (folded as generated).
 - A receipt that spans the deploy of its owner's part runs fresh, since old receipt rows are not copied.
@@ -376,14 +651,61 @@ before it merges.
 **Strategy**: strangler by owner. Old and new run side by side between parts: an unported owner keeps
 its YAML route, its Ajv check, its functions and its bridge policy; a ported owner has none of them.
 **Phases**: the parts of the build plan, in that order, each one merge.
-**Rollback**: revert the part's merge commit and add a migration that restores what its migration
-dropped (migrations are append only); the parts before it stay.
+**Rollback**: forward only. A part's migration that reached a database is not reverted; the exit is a new migration (migrations are append only, `delivery.md:145`). Reverting the merge commit after a drop migration ran leaves a database the old code cannot run on, so no part writes or tests a restoring migration; the parts before it stay.
 **Risks**: a function still called from an unported body or TypeScript SQL (caught by the caller graph
 check); a policy that filters a definer function silently (the bridge, whose owner set the lint derives
-from the bodies); two parts' drop migrations that depend on each other (builder and registry, merged as
-one step).
+from the bodies); two parts' drop migrations that depend on each other (builder and registry: part 1 keeps
+`admit_verified_application_source` and `served_preview_revision`, and part 4 drops them).
 
 ## Follow-up
+
+**Decided by HQ on revision 5** (`authz-redesign/rev5-hq-decisions.md`), closed:
+- [x] The helper schema is named `rls`.
+- [x] `CommandGate` and `openGate` are kept; revision 5.1 makes the gate nominal and has it carry the
+  actor.
+- [x] The tenure table's table level `UPDATE` is withdrawn by revision 5.1: the table lock goes
+  through `iam.lock_administrators()`, and `hub_command` keeps `UPDATE (revoked_at)` only (part 6 widens it to the pair `(revoked_at, revoked_by)`, revision 5.3).
+- [x] `app-runner/data-plane.ts:100,139` and its bare `SET ROLE` are reviewed in the Applications
+  cluster wave.
+- [x] Part 0b updates the stale `0015-part-project.md` in its pull request.
+
+**Decided by HQ on revision 5.3** (the trims of the child specs of parts 1, 2, 4, 5 and 6,
+2026-10-05), closed:
+- [x] Part 1: no reader row on `builder.project_repository` and `builder.builder_run_model_account`
+  (rule 6: no person lists them). `admitRun` keeps the pre candidate account steps, stricter than
+  today. The two step claim stands, and section 6 of the admission child says so. The owner check
+  stands on `readHeldCredential`. The builder runs the `ADD FOREIGN KEY` on `builder_run.account_id`
+  against a copy of the local data before the pull request.
+- [x] Part 5: no reader row on `model.model_account_sharing_history` (rule 6). `run` replaces `payer`
+  in `take`, `hold` and `track`.
+- [x] Umbrella counts are fixed by HQ, not by the children.
+- [x] The `reg.artifact` composite key is withdrawn. The register records `artifact_project_id_fkey`.
+  `iam.host_session` and `iam.handoff` take `(preview_id, account_id)` and `(parent_digest,
+  account_id)`, and `iam.preview` takes the `project_id` key.
+- [x] The tenure grant and the application grant are `UPDATE (revoked_at, revoked_by)` from part 6.
+  Part 0b keeps its one column for the row lock.
+- [x] Part 4: `PRJ-THUMBNAIL` drops the application row condition. `RunScope` gains `projectId`
+  (part 1 adds it). The served pointer is read directly from `builder.project_working_state`.
+- [x] Part 2: `ReadAction` gains `'connections.bind'` with the read overload. One shared
+  `isInstallationAdministrator(tx)` in `admission.ts` serves CON-01, CON-03 and part 6. CON-08 stays
+  owner only.
+- [x] Part 6: the `AuthenticationGate` gets a second closed family of eight typed steps (six keyed by one
+  exact value, and `consumeOidcState()` and `endCredential(reason)` on the row a lookup bound). `ReadAction` gains `'application.manage'`. IAM-15's grantor name stays, by widening
+  `reader_admin` on `iam.account` to the accounts named by `granted_by` on open tenures.
+  `iam.application` has an owner only reader. IAM-12 and IAM-13 take no owner set lock, since the
+  membership `FOR SHARE` serializes with a role change. The first administrator rule stays in
+  TypeScript. The `host_session` update columns are confirmed at the build head.
+
+**Decided by HQ on reviews B and C** (`s1-tech-review/hq-decisions-B-C.md`, 2026-10-05), closed:
+- [x] Reviews B and C (HQ, 2026-10-05): `checkApplication` and `Checked` for served reads; `SystemScope<J>` and `RunScope.via`; the identity steps and `DigestKey` in `identity-access/authentication.ts`; rollback forward only; part 1 keeps two SQL functions that part 4 drops; part 6 lock order for handoff redemption and sign in against the purge, with no transaction held across a runner call; the admission surface finalizes when #512 merges.
+
+**Open for HQ (revision 5.1).**
+- [x] `system` now hands a gate instead of a `WriteTx`, a change beyond decision 5, so that
+  `admitSystem` can read its job without taking it twice. It also stops a job's statements before
+  admission. Built (`db.ts:113`).
+- [x] `iam.account` alone carries a `legacy_runtime` bridge to `hub_runtime` until part 6, because
+  sign in still reads it through `unportedPool` (`identity-access/store.ts:100,143,192`);
+  `iam.workspace_membership` has no unported reader and no bridge (decided by HQ on revision 5.2).
 
 - [ ] Four mismatches between the YAML and the running Hub (IAM-01, IAM-04, IAM-11, CON-09): the owner
   part reads the handler and its web consumer, and the declaration follows the running behavior unless

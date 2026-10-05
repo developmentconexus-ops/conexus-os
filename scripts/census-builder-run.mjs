@@ -128,7 +128,8 @@ const repeatedTimerSuppressions = hits(hubSource, /biome-ignore lint\/style\/noR
 // Anything else, a suppression under packages/, or a suppression that silences the rule without naming it, fails.
 const DEBT = /^\s*\/\/ biome-ignore lint\/nursery\/noUnsafeTypeAssertion: debt\b/
 const EXEMPT = /^\s*\/\/ biome-ignore lint\/nursery\/noUnsafeTypeAssertion: exempt (\S.*)$/
-const UNNAMED = /biome-ignore(?:-all|-start)?\s+lint(?:\/[A-Za-z]+)?(?![/A-Za-z])/
+// lint/plugin is the category of a Grit plugin diagnostic: it silences only plugin rules, never noUnsafeTypeAssertion.
+const UNNAMED = /biome-ignore(?:-all|-start)?\s+lint(?:\/(?!plugin\b)[A-Za-z]+)?(?![/A-Za-z])/
 const SOURCE = /\.[cm]?tsx?$/
 const sourceLines = (paths) => paths.flatMap((path) => readFileSync(path, 'utf8').split('\n').map((line, i) => ({ at: `${rel(path)}:${i + 1}`, line })))
 const appLines = sourceLines(walk(join(repo, 'apps'), (path) => SOURCE.test(path)))

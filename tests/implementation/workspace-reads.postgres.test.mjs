@@ -33,7 +33,7 @@ test('IAM-01 lists only active memberships through the workspace policy', async 
   fixture.onCleanup(() => database.close())
   await query(fixture.connection, `INSERT INTO iam.account(account_id, issuer, external_subject, display_name)
     VALUES ($1, 'https://issuer.test', 'owner', 'Owner'), ($2, 'https://issuer.test', 'other', 'Other')`, [ACCOUNT, OTHER])
-  await query(fixture.connection, "INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'Operations', $2)", [WORKSPACE, ACCOUNT])
+  await query(fixture.connection, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Operations')", [WORKSPACE])
   await query(fixture.connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [ACCOUNT, WORKSPACE])
   const store = createIdentityAccessStore({ pool: {}, workspaceReader: createWorkspaceModule({ database }) })
   assert.deepEqual(await store.listAccessibleWorkspaces(ACCOUNT), [{ workspaceId: WORKSPACE, name: 'Operations' }])

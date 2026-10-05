@@ -1,23 +1,18 @@
-import { execFileSync } from 'node:child_process'
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { buildReplay } from './generate-hub-catalog-snapshot.mjs'
+import { hubSources, stripComments } from './hub-sources.mjs'
 
 const repo = resolve(fileURLToPath(new URL('../', import.meta.url)))
 const outputPath = join(repo, 'docs/reference/function-callers.md')
 const migrationsDir = join(repo, 'apps/hub/migrations')
 
-const stripComments = (sql) => sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ')
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const callOf = (name) => new RegExp(`(?<![\\w.])${escapeRegExp(name)}\\s*\\(`, 'i')
 
 const createdNames = () => new Set(readdirSync(migrationsDir).filter((file) => file.endsWith('.sql')).flatMap((file) =>
   [...stripComments(readFileSync(join(migrationsDir, file), 'utf8')).matchAll(/\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([a-z_]+\.[a-z_0-9]+)\s*\(/gi)].map((match) => match[1].toLowerCase())))
-
-const hubSources = () => execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard', 'apps/hub/src'], { cwd: repo, encoding: 'utf8' })
-  .split('\0').filter((path) => path.endsWith('.ts') && !path.endsWith('.generated.ts'))
-  .map((path) => ({ path, owner: path.split('/').slice(0, 4).join('/'), text: stripComments(readFileSync(join(repo, path), 'utf8')) }))
 
 export const graph = (functions, sources, created) => {
   const live = [...new Set(functions.map((fn) => fn.name))]

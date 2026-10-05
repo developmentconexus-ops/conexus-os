@@ -8,6 +8,20 @@ import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const required = (name) => process.env[name] || (() => { throw new Error(`MISSING_TEST_CONFIG_${name}`) })()
 const admin = { host: required('CONEXUS_TEST_DB_HOST'), port: Number(required('CONEXUS_TEST_DB_PORT')), database: required('CONEXUS_TEST_DB_NAME'), user: required('CONEXUS_TEST_DB_USER'), password: required('CONEXUS_TEST_DB_PASSWORD') }
+// The served functions answer only for the account the read acts as, which the Hub's read entry sets.
+const servedReaderOver = async (clientOf) => {
+  const { createServedApplicationReader } = await import(hubModuleUrl('registry/served-application.js'))
+  return createServedApplicationReader({ read: async (account, fn) => {
+    const client = clientOf()
+    await client.query("SELECT set_config('conexus.account_id', $1, false)", [account])
+    return fn({
+      maybe: async (schema, statement) => {
+        const row = (await client.query(statement.text, [...statement.values])).rows[0]
+        return row ? schema.parse(row) : null
+      },
+    })
+  } })
+}
 const connect = async (config) => { const client = new pg.Client(config); await client.connect(); return client }
 
 test('C-020 Registry retains execution artifacts and serves authorized source reads', async (t) => {
@@ -27,7 +41,7 @@ test('C-020 Registry retains execution artifacts and serves authorized source re
   const accountId = randomUUID(); const workspaceId = randomUUID(); const projectId = randomUUID(); const builderRunId = randomUUID()
   const sourceRevision = 'b'.repeat(40); const digest = 'd'.repeat(64)
   await setup.query("INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://registry.c020', $2, 'C020')", [accountId, accountId])
-  await setup.query('INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, $2, (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))', [workspaceId, 'C020 Registry'])
+  await setup.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'C020 Registry'])
   await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   await setup.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'C020 app', 'NEW', $3, 'revision')", [projectId, workspaceId, sourceRevision])
   await setup.query('INSERT INTO builder.project_working_state(project_id) VALUES ($1)', [projectId])
@@ -77,13 +91,7 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   const migrated = await runHubMigrations({ connectionString: url.toString() })
   assert.deepEqual(migrated.versions, loadHubMigrationFiles().map(({ version }) => version))
   const { createApplicationArtifactStore } = await import(hubModuleUrl('registry/application-artifact-store.js'))
-  const { createServedApplicationReader } = await import(hubModuleUrl('registry/served-application.js'))
-  const servedReader = createServedApplicationReader({ read: (_account, fn) => fn({
-    maybe: async (schema, statement) => {
-      const row = (await runtime.query(statement.text, [...statement.values])).rows[0]
-      return row ? schema.parse(row) : null
-    },
-  }) })
+  const servedReader = await servedReaderOver(() => runtime)
   setup = await connect(config)
   assert.deepEqual((await setup.query(`SELECT
     has_schema_privilege('builder_owner', 'reg', 'USAGE') AS builder_reg_usage,
@@ -116,7 +124,7 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   const sourceA = 'a'.repeat(40); const sourceB = 'b'.repeat(40)
   const digest = 'e'.repeat(64)
   await setup.query("INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://registry.settlement', $2, 'Settlement')", [accountId, accountId])
-  await setup.query('INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, $2, (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))', [workspaceId, 'Settlement Registry'])
+  await setup.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'Settlement Registry'])
   await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   await setup.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'Settlement app', 'NEW', $3, 'revision')", [projectId, workspaceId, sourceA])
   await setup.query('INSERT INTO builder.project_working_state(project_id) VALUES ($1)', [projectId])
@@ -151,22 +159,26 @@ test('C-020 source-scoped settlement composes with the executor artifact lifecyc
   // While the membership is gone the artifact reads disclose nothing, and restoring it reopens
   // them, because both derive from that one row.
   assert.equal(await store.getApplicationBySource(runtime, { accountId, projectId, sourceRevision: sourceB }), null)
-  assert.equal(await store.getApplicationThumbnail(runtime, { accountId, projectId }), null)
+  assert.equal(await servedReader.readThumbnail({ accountId, projectId }), null)
   await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   assert.deepEqual((await store.getApplicationBySource(runtime, { accountId, projectId, sourceRevision: sourceB })).artifactRevisionId, retained.artifactRevisionId)
   const file = await store.readApplicationFileBySource(runtime, { accountId, projectId, sourceRevision: sourceB, artifactRevisionId: retained.artifactRevisionId, path: 'index.html' })
   assert.equal(Buffer.from(file.bytes).toString(), bytes.toString())
   await setup.query("INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'settlement-app', $2)", [projectId, accountId])
-  const thumbnail = await store.getApplicationThumbnail(runtime, { accountId, projectId })
+  const thumbnail = await servedReader.readThumbnail({ accountId, projectId })
   assert.equal(thumbnail?.artifactRevisionId, retained.artifactRevisionId)
   assert.equal(thumbnail?.mediaType, 'image/png')
   assert.equal(Buffer.from(thumbnail.bytes).toString('hex'), thumbnailBytes.toString('hex'))
-  assert.equal(await store.getApplicationThumbnail(runtime, { accountId: randomUUID(), projectId }), null)
+  assert.equal(await servedReader.readThumbnail({ accountId: randomUUID(), projectId }), null)
 
   const served = await servedReader.readThumbnail({ accountId, projectId })
   assert.equal(served?.artifactRevisionId, retained.artifactRevisionId)
   assert.equal(served?.sha256, createHash('sha256').update(thumbnailBytes).digest('hex'))
   assert.equal(await servedReader.readThumbnail({ accountId: randomUUID(), projectId }), null)
+  await runtime.query("SELECT set_config('conexus.account_id', $1, false)", [accountId])
+  assert.equal((await runtime.query('SELECT 1 FROM reg.get_application_thumbnail($1, $2)', [accountId, projectId])).rowCount, 1)
+  assert.equal((await runtime.query('SELECT 1 FROM reg.get_application_thumbnail($1, $2)', [randomUUID(), projectId])).rowCount, 0)
+  assert.equal((await runtime.query('SELECT 1 FROM reg.get_served_application($1, $2)', [randomUUID(), projectId])).rowCount, 0)
 })
 
 test('a BUILT result that carries a thumbnail settles through the real registry: the build is stored and the thumbnail is retained', async (t) => {
@@ -186,7 +198,7 @@ test('a BUILT result that carries a thumbnail settles through the real registry:
   const accountId = randomUUID(); const workspaceId = randomUUID(); const projectId = randomUUID(); const builderRunId = randomUUID()
   const sourceA = 'a'.repeat(40); const sourceB = 'b'.repeat(40); const digest = 'f'.repeat(64)
   await setup.query("INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://registry.thumbnail', $2, 'Thumbnail')", [accountId, accountId])
-  await setup.query('INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, $2, (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))', [workspaceId, 'Thumbnail Registry'])
+  await setup.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'Thumbnail Registry'])
   await setup.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   await setup.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'Thumbnail app', 'NEW', $3, 'revision')", [projectId, workspaceId, sourceA])
   await setup.query('INSERT INTO builder.project_working_state(project_id) VALUES ($1)', [projectId])
@@ -198,6 +210,7 @@ test('a BUILT result that carries a thumbnail settles through the real registry:
   assert.equal((await runtime.query('SELECT builder.advance_builder_run_source($1,$2) AS advanced', [builderRunId, sourceB])).rows[0].advanced, true)
 
   const store = createApplicationArtifactStore()
+  const servedReader = await servedReaderOver(() => runtime)
   const bytes = Buffer.from('<!doctype html><title>Thumbnail</title>')
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d])
   const compiledApplication = { projectId, executionId: builderRunId, sourceRevision: sourceB, templateRef: '537fnzf4c16x9d7oz21k:3331a697-459d-44d8-bcdd-abade6ba1e81', recipeSha256: 'ce2a48f54c08ccdd7641fac8208560963cf43ecdc16bd459a3f333786d1ed4b5', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes, sha256: createHash('sha256').update(bytes).digest('hex') }] }
@@ -222,7 +235,7 @@ test('a BUILT result that carries a thumbnail settles through the real registry:
   assert.deepEqual(settled, [['build-settle', null, true]])
   const stored = await store.getApplicationBySource(runtime, { accountId, projectId, sourceRevision: sourceB })
   assert.equal(stored.projectId, projectId)
-  const thumbnail = await store.getApplicationThumbnail(runtime, { accountId, projectId })
+  const thumbnail = await servedReader.readThumbnail({ accountId, projectId })
   assert.equal(thumbnail.artifactRevisionId, stored.artifactRevisionId)
   assert.equal(Buffer.from(thumbnail.bytes).toString('hex'), png.toString('hex'))
 })

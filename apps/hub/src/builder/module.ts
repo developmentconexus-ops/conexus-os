@@ -129,12 +129,10 @@ export const createConfiguredBuilderModule = ({ database, runtimePool, builder, 
   const getApplicationBySource = applicationArtifacts.getApplicationBySource
   const readApplicationFileBySource = applicationArtifacts.readApplicationFileBySource
   const retainApplicationThumbnail = applicationArtifacts.retainApplicationThumbnail
-  const getApplicationThumbnail = applicationArtifacts.getApplicationThumbnail
   const boundApplicationArtifacts: BuilderApplicationArtifacts = Object.freeze({
     ...(getApplicationBySource ? { getApplicationBySource: (input: ApplicationSourceCoordinates) => getApplicationBySource(runtimePool, input) } : {}),
     retainApplication: (input) => applicationArtifacts.retainApplication(runtimePool, input),
     ...(retainApplicationThumbnail ? { retainApplicationThumbnail: (input: Parameters<NonNullable<typeof retainApplicationThumbnail>>[1]) => retainApplicationThumbnail(runtimePool, input) } : {}),
-    ...(getApplicationThumbnail ? { getApplicationThumbnail: (input: Parameters<NonNullable<typeof getApplicationThumbnail>>[1]) => getApplicationThumbnail(runtimePool, input) } : {}),
     ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(runtimePool, input) } : {}),
   })
   const git = createConexusGit({ root: builder.gitRoot, starter: [...fixedApplicationStarterFiles(), ...APPLICATION_SHAPE_FILES, ...starterProjectFiles()] })
@@ -331,7 +329,6 @@ export const createConfiguredBuilderModule = ({ database, runtimePool, builder, 
     },
     readApplicationFileBySource: service.readApplicationFileBySource,
     getApplicationBySource: service.getApplicationBySource,
-    getApplicationThumbnail: boundApplicationArtifacts.getApplicationThumbnail,
     close: async () => {
       // The Hub closed its jobs first, so no pass reads what closes below.
       try {

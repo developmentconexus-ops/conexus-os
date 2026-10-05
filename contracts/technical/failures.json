@@ -21,6 +21,7 @@
     { "code": "IDEMPOTENCY_KEY_REQUIRED", "category": "SYSTEM", "status": 400, "audience": "person", "message": "O pedido saiu sem o identificador que o Conexus exige. A falha foi registrada.", "action": "NONE" },
     { "code": "IDEMPOTENCY_CONFLICT", "category": "USER", "status": 409, "audience": "person", "message": "Já existe um pedido igual a este, com dados diferentes.", "action": "NONE" },
     { "code": "OUTCOME_UNKNOWN", "category": "SYSTEM", "status": 409, "audience": "person", "message": "O Conexus não conseguiu confirmar se o pedido anterior terminou. A falha foi registrada.", "action": "NONE" },
+    { "code": "DATABASE_BUSY", "category": "SYSTEM", "status": 503, "audience": "person", "message": "O Conexus está ocupado e não terminou o pedido. A falha foi registrada.", "action": "NONE" },
     { "code": "IDENTITY_PROVIDER_UNAVAILABLE", "category": "THIRD_PARTY", "status": 503, "audience": "person+app", "message": "O serviço de login não respondeu agora. Sua sessão continua aberta.", "action": "RETRY_LATER" },
     { "code": "BOOTSTRAP_REQUIRED", "category": "USER", "status": 401, "audience": "person", "message": "A configuração inicial precisa começar pelo login.", "action": "SIGN_IN" },
     { "code": "BOOTSTRAP_SEALED", "category": "USER", "status": 409, "audience": "person", "message": "A configuração inicial já foi concluída.", "action": "NONE" },

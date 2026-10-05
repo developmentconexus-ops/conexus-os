@@ -1,10 +1,28 @@
 language js
 
-JsTemplateExpression() as $query where {
-    $query <: r"(?s)^sql`.*(?:set_config|conexus[.]).*`$",
-    register_diagnostic(
-        span = $query,
-        message = "The acting account and scope are set once per transaction by platform/db.ts. A sql template outside it never sets or names a conexus.* setting.",
-        severity = "error"
-    )
+or {
+    JsTemplateExpression() as $query where {
+        $query <: r"(?is)^sql`.*(?:set_config|conexus\s*[.]|current_setting\s*[(]).*`$",
+        register_diagnostic(
+            span = $query,
+            message = "The role, the acting account and the scope are set once per transaction by platform/db.ts. A sql template outside it never sets or names a conexus.* setting.",
+            severity = "error"
+        )
+    },
+    JsTemplateExpression() as $query where {
+        $query <: r"(?is)^[a-z_.]*`.*(?:set_config\s*[(]|set\s+(?:local\s+|session\s+)?role\b|reset\s+role\b|session\s+authorization|conexus\s*[.]\s*(?:account_id|job)\b).*`$",
+        register_diagnostic(
+            span = $query,
+            message = "The role is switched once per transaction by platform/db.ts. A query text outside it never switches a role or sets a conexus.* setting.",
+            severity = "error"
+        )
+    },
+    JsStringLiteralExpression() as $text where {
+        $text <: r"(?is)^.*(?:set_config\s*[(]|set\s+(?:local\s+|session\s+)?role\b|reset\s+role\b|session\s+authorization|conexus\s*[.]\s*(?:account_id|job)\b).*$",
+        register_diagnostic(
+            span = $text,
+            message = "The role is switched once per transaction by platform/db.ts. A query string outside it never switches a role or sets a conexus.* setting.",
+            severity = "error"
+        )
+    }
 }

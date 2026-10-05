@@ -7,9 +7,11 @@ and how the functions leave. Satisfies AC-11 of the umbrella.
 
 All 118 live functions in the Hub schemas leave, part by part, each one for a named TypeScript home.
 PostgreSQL keeps what holds even when a TypeScript bug writes: tables, CHECK, UNIQUE, partial unique
-indexes, foreign keys, the `workspace_role` type, transactions, row locks and the read policies. The
-only functions left at the end are the `iam.*` policy helpers of the admission child, which hold no
-business rule.
+indexes, foreign keys (with the composite tenant keys), column grants, the `workspace_role` type,
+transactions, row locks and the reader policies. The only functions left at the end are the three
+`rls.*` policy helpers of the admission child and `iam.lock_administrators()`, whose body is the one
+`LOCK TABLE` that `administrators.manage` needs (admission child, section 5). None holds a business
+rule.
 
 ## 1. Categories
 
@@ -57,7 +59,9 @@ deletion ports the composition root already passes (`hub.ts`).
   `project.project`; the `iam.admit_*` and `iam.visible_*` functions are called from every owner.
 - **A ported owner calls an unported one through its SQL function, then through a port.** When part
   3 ports PRJ-03 and the purge, its TypeScript still calls `builder.register_project_repository` and the
-  four owner purges as SQL on `proof.tx`, so nothing changes for those owners yet. The owner's own part
+  four owner purges as SQL on `proof.tx`, so nothing changes for those owners yet. Until each purge
+  becomes a port, it keeps its guard on `conexus.job`, which only `system('project-purge', ...)` sets
+  (admission child, section 6). The owner's own part
   then replaces its function with a TypeScript function that `hub.ts` passes to project as a port (the
   pattern of the deletion ports today), edits that one call site, and drops the function. The same
   holds for `reg` calling `builder.served_preview_revision`. The project purge stays one transaction:
@@ -176,8 +180,8 @@ The schema prefix is the part: `workspace` in part 0, `project` 3 (merged second
 | `iam.role_allows` | OTHER | `identity-access/admission.ts` |
 | `iam.session_lifetimes` | READER | `platform/lifetimes.ts; delete SQL duplicate` |
 | `iam.set_workspace_member_role` | AUTHZ+COMMAND+INVARIANT | `identity-access/membership.ts` |
-| `iam.visible_projects` | AUTHZ+READER | the read policies (`iam.acting_*` helpers) and `identity-access/admission.ts` |
-| `iam.visible_workspaces` | AUTHZ+READER | the read policies (`iam.acting_*` helpers) and `identity-access/admission.ts` |
+| `iam.visible_projects` | AUTHZ+READER | the reader policies (`rls.acting_*` helpers) and `identity-access/admission.ts` |
+| `iam.visible_workspaces` | AUTHZ+READER | the reader policies (`rls.acting_*` helpers) and `identity-access/admission.ts` |
 | `model.read_installation_default` | READER | `builder/model-account-store.ts` |
 | `model.read_model_account_by_id` | READER | `builder/model-account-store.ts` |
 | `model.read_model_account` | READER | `builder/model-account-store.ts` |

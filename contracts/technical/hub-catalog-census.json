@@ -3,110 +3,388 @@
     "permanent": [
       {
         "table": "iam.schema_migration",
-        "reason": "Migration bookkeeping with no tenant data; only the migration runner touches it."
+        "reason": "Migration bookkeeping with no tenant data; the migration runner writes it and the Hub reads it once at boot (platform/lifecycle.ts) as hub_runtime.",
+        "privileges": {
+          "hub_runtime": [
+            "SELECT"
+          ],
+          "hub_reader": [],
+          "hub_command": []
+        }
       }
     ],
     "pending": [
       {
         "table": "builder.builder_run_model_account",
-        "part": 1
+        "part": 1,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "builder.conversation_session",
-        "part": 1
+        "part": 1,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "builder.project_repository",
-        "part": 1
+        "part": 1,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "connector.connection",
-        "part": 2
+        "part": 2,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "connector.project_binding",
-        "part": 2
-      },
-      {
-        "table": "iam.account",
-        "part": 6
+        "part": 2,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "iam.application",
-        "part": 6
+        "part": 6,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": [
+            "SELECT"
+          ]
+        }
       },
       {
         "table": "iam.application_grant",
-        "part": 6
+        "part": 6,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": [
+            "SELECT",
+            "UPDATE(revoked_at)"
+          ]
+        }
       },
       {
         "table": "iam.application_invitation",
-        "part": 6
+        "part": 6,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "iam.bootstrap_context",
-        "part": 6
+        "part": 6,
+        "privileges": {
+          "hub_runtime": [
+            "INSERT",
+            "SELECT",
+            "UPDATE"
+          ],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "iam.handoff",
-        "part": 6
+        "part": 6,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "iam.host_session",
-        "part": 6
+        "part": 6,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "iam.installation_administrator",
-        "part": 6
+        "part": 6,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": [
+            "SELECT",
+            "UPDATE(revoked_at)"
+          ]
+        }
       },
       {
         "table": "iam.oidc_transaction",
-        "part": 6
+        "part": 6,
+        "privileges": {
+          "hub_runtime": [
+            "INSERT",
+            "SELECT",
+            "UPDATE"
+          ],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "iam.operation_idempotency",
-        "part": 6
+        "part": 6,
+        "privileges": {
+          "hub_runtime": [
+            "INSERT",
+            "SELECT",
+            "UPDATE"
+          ],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "iam.preview",
-        "part": 6
+        "part": 6,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "iam.workspace_invitation",
-        "part": 6
-      },
-      {
-        "table": "iam.workspace_membership",
-        "part": 6
+        "part": 6,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "model.installation_default",
-        "part": 5
+        "part": 5,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "model.model_account",
-        "part": 5
+        "part": 5,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "model.model_account_sharing_history",
-        "part": 5
+        "part": 5,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "reg.application_thumbnail",
-        "part": 4
+        "part": 4,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "reg.artifact",
-        "part": 4
+        "part": 4,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": []
+        }
       },
       {
         "table": "reg.artifact_revision",
-        "part": 4
+        "part": 4,
+        "privileges": {
+          "hub_runtime": [],
+          "hub_reader": [],
+          "hub_command": []
+        }
       }
     ]
   },
   "ceilings": {
     "ruleFunctions": 102,
-    "legacyOwnerPolicies": 4
+    "legacyOwnerPolicies": 6,
+    "runtimePrivileges": 92
+  },
+  "register": {
+    "split": [
+      {
+        "table": "builder.builder_run",
+        "reader": true,
+        "command": [
+          "SELECT"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "account_id",
+          "builder_run_id",
+          "project_id"
+        ]
+      },
+      {
+        "table": "builder.project_working_state",
+        "reader": true,
+        "command": [
+          "SELECT"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "project_id"
+        ]
+      },
+      {
+        "table": "iam.account",
+        "reader": true,
+        "readerColumns": [
+          "account_id",
+          "display_name",
+          "email"
+        ],
+        "command": [
+          "SELECT",
+          "UPDATE(created_at)"
+        ],
+        "runtime": [
+          "INSERT",
+          "SELECT",
+          "UPDATE"
+        ],
+        "compositeKeys": [],
+        "keyColumns": [
+          "account_id"
+        ]
+      },
+      {
+        "table": "iam.workspace_membership",
+        "reader": true,
+        "command": [
+          "INSERT",
+          "SELECT",
+          "UPDATE(created_at)"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "account_id",
+          "workspace_id"
+        ]
+      },
+      {
+        "table": "platform.operation_receipt",
+        "reader": false,
+        "command": [
+          "DELETE",
+          "INSERT",
+          "SELECT",
+          "UPDATE(completed_at,response_body,response_status,state)"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "account_id",
+          "key_digest",
+          "resource_id"
+        ]
+      },
+      {
+        "table": "project.project",
+        "reader": true,
+        "command": [
+          "DELETE",
+          "INSERT",
+          "SELECT",
+          "UPDATE(name)"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "project_id",
+          "workspace_id"
+        ]
+      },
+      {
+        "table": "project.project_deletion",
+        "reader": true,
+        "readerAdmin": true,
+        "command": [
+          "DELETE",
+          "INSERT",
+          "SELECT",
+          "UPDATE(completed_at,purged_at)"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "project_id",
+          "workspace_id"
+        ]
+      },
+      {
+        "table": "workspace.workspace",
+        "reader": true,
+        "command": [
+          "INSERT",
+          "SELECT"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "workspace_id"
+        ]
+      }
+    ],
+    "functions": {
+      "hub_reader": [
+        "reg.get_application_thumbnail(p_account_id uuid, p_project_id uuid)",
+        "reg.get_served_application(p_account_id uuid, p_project_id uuid)",
+        "reg.read_served_application_file(p_account_id uuid, p_project_id uuid, p_artifact_revision_id uuid, p_path text)",
+        "rls.acting_account()",
+        "rls.acting_installation_administrator()",
+        "rls.acting_workspaces()"
+      ],
+      "hub_command": [
+        "builder.purge_project(p_project_id uuid)",
+        "builder.register_project_repository(p_project_id uuid)",
+        "connector.purge_project(p_project_id uuid)",
+        "iam.lock_administrators()",
+        "iam.purge_project(p_project_id uuid)",
+        "reg.purge_project(p_project_id uuid)"
+      ]
+    }
   }
 }

@@ -68,9 +68,11 @@ export const reserve = async <O extends JsonOperation, I extends z.ZodType<strin
 ): Promise<Receipt<z.output<I>, Reply<O>>> => {
   const receipt = receiptKey(proof, op, key, input)
   const candidate = id.parse(randomUUID())
+  // The id schema is generic, so its output could carry the RawToken brand; this widening to plain text is what lets a resource id into the template.
+  const candidateText: string = candidate
   await proof.tx.run(sql`
     INSERT INTO platform.operation_receipt (operation_id, authority, account_id, key_digest, request_digest, resource_id, state)
-    VALUES (${receipt.operationId}, ${receipt.authority}, ${receipt.accountId}, ${receipt.keyDigest}, ${receipt.requestDigest}, ${candidate}, 'reserved')
+    VALUES (${receipt.operationId}, ${receipt.authority}, ${receipt.accountId}, ${receipt.keyDigest}, ${receipt.requestDigest}, ${candidateText}, 'reserved')
     ON CONFLICT (operation_id, authority, key_digest) DO NOTHING
   `)
   const row = await proof.tx.one(ReceiptRow, sql`

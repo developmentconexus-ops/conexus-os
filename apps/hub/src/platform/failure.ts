@@ -27,7 +27,7 @@ export const failureRow = (failure: Failure) => FAILURES[failure.id]
 const isFailureCode = (value: string): value is FailureCode => Object.hasOwn(FAILURES, value)
 
 /** A function in our own database that ended with `RAISE EXCEPTION 'A_ROW_CODE'`: the one vendor error that already names a row. */
-const raisedRow = (error: unknown): FailureCode | undefined =>
+export const raisedRow = (error: unknown): FailureCode | undefined =>
   error instanceof Error && 'code' in error && error.code === 'P0001' && isFailureCode(error.message) ? error.message : undefined
 
 /**
@@ -46,12 +46,12 @@ const LEVEL_BY_CATEGORY = { SYSTEM: 'error', THIRD_PARTY: 'warn', USER: 'info' }
  * category. It holds the code, the category, the cause's type and our own ids: never the cause's
  * message or stack, which may carry a person's or a vendor's text.
  */
-const SYSTEM_CODE = /^[A-Z][A-Z0-9_]+$/
+const SYSTEM_CODE = /^(?:[A-Z][A-Z0-9_]+|[0-9][0-9A-Z]{4})$/
 const MAX_FRAMES = 12
 
 /**
  * Where a failure came from: the frame lines of each error in its cause chain, each headed by the
- * error's type and its system code (`ECONNREFUSED`). A message can carry a URL, a host or vendor
+ * error's type and its system code (`ECONNREFUSED`, or a SQLSTATE such as `42501`). A message can carry a URL, a host or vendor
  * text, so no message is written.
  */
 const stackOf = (error: unknown): string | undefined => {

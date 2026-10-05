@@ -16,7 +16,7 @@ const readSource = () => {
   const digest = createHash('sha256').update(text).digest('hex')
   const parsed = JSON.parse(text)
   if (!Array.isArray(parsed.roles) || parsed.roles.length === 0) fail('ROLE_REGISTER_EMPTY', sourcePath)
-  return { digest, roles: parsed.roles, policyRoles: parsed.policyRoles ?? [] }
+  return { digest, roles: parsed.roles, policyRoles: parsed.policyRoles ?? [], transactionRoles: parsed.transactionRoles ?? [] }
 }
 
 const refuseDuplicates = (roles) => {
@@ -44,6 +44,12 @@ const refuseIncompleteRow = (roles) => {
   }
 }
 
+const refuseTransactionRoles = (transactionRoles) => {
+  for (const row of transactionRoles) {
+    if (!row.role?.startsWith('hub_') || !row.purpose) fail('ROLE_REGISTER_TRANSACTION_ROLE_REFUSED', String(row.role))
+  }
+}
+
 const renderRow = (row) => {
   const members = [
     `role: ${JSON.stringify(row.role)}`,
@@ -56,8 +62,9 @@ const renderRow = (row) => {
   return `  Object.freeze({ ${members.join(', ')} }),`
 }
 
-export const renderRegister = ({ digest, roles, policyRoles = [] }) => {
+export const renderRegister = ({ digest, roles, policyRoles = [], transactionRoles = [] }) => {
   refuseIncompleteRow(roles)
+  refuseTransactionRoles(transactionRoles)
   refuseDuplicates(roles)
   const activeRoles = roles.filter((row) => !row.legacy)
   const capabilities = activeRoles.map((row) => `  ${row.role}: ${JSON.stringify(row.capability)},`).join('\n')
@@ -85,6 +92,8 @@ export const renderRegister = ({ digest, roles, policyRoles = [] }) => {
     '})',
     '',
     `export const POLICY_ROLES = ${JSON.stringify(policyRoles)} as const`,
+    '',
+    `export const TRANSACTION_ROLES = ${JSON.stringify(transactionRoles.map((row) => row.role))} as const`,
     '',
   ].join('\n')
 }

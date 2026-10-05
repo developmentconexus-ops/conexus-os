@@ -12,7 +12,7 @@ const seeded = async (t, name) => {
   const workspaceId = randomUUID()
   const projectId = randomUUID()
   await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://invitation.test', $2, 'Owner')", [owner, owner])
-  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'Invitations', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))", [workspaceId])
+  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Invitations')", [workspaceId])
   await query(connectionString, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [owner, workspaceId])
   await query(connectionString, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'p', 'NEW', $3, 'p')", [projectId, workspaceId, 'a'.repeat(40)])
   await query(connectionString, "INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'invitation-app', $2)", [projectId, owner])

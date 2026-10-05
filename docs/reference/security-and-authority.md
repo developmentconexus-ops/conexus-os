@@ -43,48 +43,88 @@ and a capability granted to a Project never becomes the secret behind it.
 
 ## 2. Database roles
 
-The Hub reaches its database as one runtime role, `hub_runtime`, and Mastra's storage as `hub_factory`.
+The Hub reaches its database as one login role, `hub_runtime`, and Mastra's storage as `hub_factory`.
 `docs/reference/hub-database-roles.md` is the register.
 
-`hub_runtime` holds data manipulation only. It cannot run DDL, cannot `SET ROLE`, and cannot read the
-`factory` schema; PostgreSQL refuses each with 42501. `hub_factory` owns `factory` and holds nothing
-else. Two further roles never log in. `conexus_owner` owns the objects of schema `platform` (the
-operation receipt), and `iam_rls` owns the `iam.acting_*` helper functions that the row policies call.
-The schemas are `iam`, `workspace`, `project`, `builder`, `reg`, `model`, `connector` and `platform`.
+`hub_runtime` logs in and holds nothing on a split table except `iam.account`, whose unported readers
+keep a bridge until part 6. Until the parts that own them port the functions it still runs, it holds
+the older surface: `INSERT`, `SELECT` and `UPDATE` on `iam.account`, `iam.bootstrap_context`,
+`iam.oidc_transaction` and `iam.operation_idempotency`, and `EXECUTE` on the legacy `SECURITY DEFINER`
+functions, several of which take the acting account as an argument. Its ceiling is
+`runtimePrivileges` in `contracts/technical/hub-catalog-census.json` (92 today: 12 table privileges
+and 80 `EXECUTE`), which may only fall. Each transaction's first statement
+after `BEGIN` is one `SELECT set_config(...)` that sets the role, to `hub_reader` for a read or to
+`hub_command` for a command and a job, both `NOLOGIN NOINHERIT NOBYPASSRLS`, together with the
+transaction's settings, all local to the transaction. `hub_runtime` also carries three timeouts, named
+in the register: `lock_timeout` 5 s, `statement_timeout` 30 s and `idle_in_transaction_session_timeout`
+60 s. A wait or a statement that runs out answers the 503 `DATABASE_BUSY`. `hub_runtime` is a member of the two without `INHERIT`, so the
+switch is the only way to use their privileges. It cannot run DDL and cannot read the `factory`
+schema; PostgreSQL refuses each with 42501. `hub_factory` owns `factory` and holds nothing else.
+Two further roles never log in. `conexus_owner` owns the objects of schema `platform` and the private
+schema `rls`, and `iam_rls` owns the three `rls.acting_*` helper functions that the reader policies
+call. The schemas are `iam`, `workspace`, `project`, `builder`, `reg`, `model`, `connector`,
+`platform` and `rls`.
 
 Who may act is decided in TypeScript and bounded again by the database.
 
-- **The proof.** A command takes an `Admitted<Scope>` as its first parameter and writes only on the
-  transaction inside it. Only an admission function in `identity-access/admission.ts` makes one. It
-  locks the rows it read in the same transaction, in the order the old SQL functions locked them, and
-  decides over `ROLE_ALLOWS`. A command without a proof, or with a proof of another scope or action,
-  does not compile (`tests/fixtures/admission-negative.ts`, run by `tests/repository/admission-types.test.mjs`).
-- **The acting account.** Every transaction opens through `platform/db.ts` and sets both
-  `conexus.account_id` and `conexus.scope` first, local to the transaction, the one the entry does not
-  use set to the empty string. A setting a session carries from its role or its connection never
-  survives into a transaction. The account comes from the signed session the access enforcer parsed
-  (spec 0014), never from a request body, and an admission function refuses an account other than the
-  one its transaction opened for.
-- **Row policies.** A policed table has `FORCE ROW LEVEL SECURITY` and one policy per command
-  `TO hub_runtime`, so a list that forgets its `WHERE` still returns only the acting account's rows, and
-  a transaction with no account set sees nothing. Today `workspace.workspace` and
-  `platform.operation_receipt` are policed. A member can read a workspace and cannot update or delete
-  it; only `system` deletes. Every other table is listed in `contracts/technical/hub-catalog-census.json`
-  with the part that will police it, and `npm run db:catalog:check` fails on a table that is in neither
-  state.
+- **The gate and the proof.** `database.transaction(accountId, fn)` and `database.system(job, fn)`
+  hand `fn` a `CommandGate`, a nominal class with no query method. Only an admission function in
+  `identity-access/admission.ts` opens it, locks the rows it read in the order the old SQL functions
+  locked them, decides over `ROLE_ALLOWS` and returns an `Admitted<Scope>`. A command takes that proof
+  and writes only on the transaction inside it. A command without a proof, with a proof of another
+  scope or action, with an object literal or a spread copy of a gate or a proof, or with a read proof,
+  does not compile (`tests/fixtures/admission-negative.ts`, run by
+  `tests/repository/admission-types.test.mjs`). Any reference to the `openGate` symbol outside
+  `admission.ts` is a finding of the `gateReferences` census item, which resolves the symbol with the
+  type checker, so an alias, a namespace import, a destructuring and a dynamic import are found; the
+  Biome rule on the named import is a fast hint, not the gate. The acting account comes from the signed session the access enforcer parsed (spec 0014),
+  never from a request body, and the gate carries it, so no admission takes an account argument.
+- **Reads.** `database.read(accountId, fn)` runs `repeatable read` and read only as `hub_reader`, with
+  `conexus.account_id` set local to the transaction. Every table a person reads has `FORCE ROW LEVEL
+  SECURITY` and one `FOR SELECT TO hub_reader` policy named `reader` (and `reader_admin` where an
+  installation administrator reads across Workspaces), built on the three `rls.*` helpers; the
+  catalog lint requires each reader policy to call `rls.acting_account()`. A read that
+  forgets its `WHERE` still returns only the acting account's rows, and a read with no account set
+  returns none. `hub_reader` holds `SELECT` and nothing else.
+- **Commands.** `hub_command` has one policy per split table, `FOR ALL USING (true) WITH CHECK
+  (true)`: the wall on a write is the admission, the column grants (a
+  command updates only the columns its register row names, never a tenant column), the composite
+  tenant keys the parts that add them put in the register (no split table has one yet) and the write
+  lint in `scripts/census-boundaries.mjs`, which refuses an update or a delete of a split table whose
+  `where` compares none of the key or tenant columns its register row names (`keyColumns`). `system(job, fn)` also sets `conexus.job`, and the four project purge functions refuse any
+  other job with `PURGE_REQUIRES_SYSTEM`.
+- **The `sql` tag.** It refuses at run time any text whose statements do not start with `select`,
+  `insert`, `update`, `delete` or `with`, and the words `conexus`, `session_authorization`, `u&`,
+  `set_config` and `current_setting`. It reads string literals, dollar quoted text, quoted identifiers
+  and nested comments first, so a word inside a literal is neither a bypass nor a refusal, and every
+  statement goes over the extended protocol, which refuses a second statement. A role switch cannot be
+  built from our code. `openDatabase` accepts only a `search_path` connection option, and a `read`, `transaction` or `system` opened inside
+  another fails with `NESTED_TRANSACTION`.
 - **Functions.** A `SECURITY DEFINER` function still holds the rules of an owner that has not been
   ported, with a pinned `search_path`. `hub_runtime` holds `EXECUTE` on the functions the older
-  capability roles held and on nothing else. No function reads a table that is policed today, so no
-  policy bridges a function owner and `legacyOwnerPolicies` is 0. Each part ports one owner's functions
-  into TypeScript before it polices the tables they read, the ceilings fall in
-  `hub-catalog-census.json`, and `docs/reference/function-callers.md` shows which function still calls
-  which.
-- **Grants that outlive the policies.** Until part 6, `hub_runtime` can insert into
-  `iam.workspace_membership` and update its `role` column, and insert into and update `iam.account`,
-  `iam.bootstrap_context` and `iam.oidc_transaction`, with no row policy on any of them.
-  `grantCreatorMembership` is the only statement in the Hub that inserts a membership
-  (`tests/repository/workspace-membership-writer.test.mjs`), and the catalog lint reads column grants
-  as well as table grants, so a policed table cannot keep a grant it has no policy for.
+  capability roles held. `hub_command` holds `EXECUTE` on the four purges, on
+  `builder.register_project_repository` and on `iam.lock_administrators()`; `hub_reader` holds it on
+  the three `reg` served functions (each filters by the acting account) and the three helpers. The
+  register in `contracts/technical/hub-catalog-census.json` lists them and `npm run db:catalog:check`
+  fails on any other. Each part ports one owner's functions into TypeScript before it splits the
+  tables they read, the ceilings fall in the register, and `docs/reference/function-callers.md` shows
+  which function still calls which.
+- **Grants that outlive the split.** Until part 6, `hub_runtime` itself can insert into and update
+  `iam.account`, `iam.bootstrap_context` and `iam.oidc_transaction`, and read `iam.account` through
+  the `legacy_runtime` policy, because unported TypeScript still reads them. `iam.workspace_membership`
+  has no such bridge. The boundaries census names the only modules that may write an authority table,
+  by verb. `iam.workspace_membership` belongs to `admission.ts` alone, whose `grantCreatorMembership`
+  inserts only into a Workspace that has none. Any write on `project.project_deletion` and `DELETE` on
+  `project.project` belong to `project/deletion.ts`, and `DELETE` on `platform.operation_receipt` to
+  that file and `platform/receipt.ts` (the `authorityTableWrites` item of
+  `scripts/census-boundaries.mjs`, recorded at zero). Part 6 adds its own tables to the rule.
+- **Served reads.** A request the application host serves changes nothing, so it uses
+  `checkApplication`, not `admitApplication`: the same access and deletion rule in one statement with
+  no row lock, returning a `Checked` whose transaction is a read transaction. A `Checked` is not an
+  `Admitted`, so no command accepts it. A transaction that also writes admits instead.
+- **What the log holds.** A database error logs its SQLSTATE and our own constraint and table names,
+  never its message. An admission refusal logs why (`OUTSIDER`, `FORBIDDEN`, `TOMBSTONE` or
+  `INACTIVE`) in its details; the response carries the code and nothing else.
 
 What this guards is an accidental broad query, a forgotten check and a revoke racing a write. A
 compromised Hub process can set any account, as it could hold any capability role before.

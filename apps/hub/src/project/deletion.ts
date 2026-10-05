@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { WorkspaceId, type AccountId, type ProjectId as ProjectIdType } from '../../../../packages/contract/dist/index.js'
 import { BUILDER_RUN_STATES } from '../generated/builder-run-vocabulary.js'
-import { admitProjectDeletion } from '../identity-access/admission.js'
+import { admitInstallationAdministrator, admitSystem, type Admitted, type SystemScope } from '../identity-access/admission.js'
 import type { Database, WriteTx } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
@@ -37,8 +37,11 @@ const settled = (tombstone: z.output<typeof Tombstone>, confirmName: string): Re
 }
 
 export const createProjectDeletion = ({ database, ports }: Readonly<{ database: Database; ports: ProjectDeletionPorts }>) => {
-  const begin = ({ accountId, projectId, confirmName }: DeleteProjectInput) => database.system('project-purge', async (tx) => {
-    const administrator = await admitProjectDeletion(tx, accountId)
+  // The administrator's own transaction: account, tenure, then the project row, so a command admitted
+  // on the project and this tombstone serialize on that row.
+  const begin = ({ accountId, projectId, confirmName }: DeleteProjectInput) => database.transaction(accountId, async (gate) => {
+    const administrator = await admitInstallationAdministrator(gate, 'project.delete')
+    const tx = administrator.tx
     const existing = await tombstoneOf(tx, projectId)
     if (existing) return settled(existing, confirmName)
     const target = await tx.maybe(Target, sql`SELECT workspace_id, name FROM project.project WHERE project_id = ${projectId} FOR UPDATE`)
@@ -47,13 +50,16 @@ export const createProjectDeletion = ({ database, ports }: Readonly<{ database: 
     if (!target) throw new Failure('PROJECT_NOT_FOUND')
     if (target.name !== confirmName) throw new Failure('PROJECT_NAME_MISMATCH')
     if (await busy(tx, projectId)) throw new Failure('PROJECT_BUSY')
-    await administrator.tx.run(sql`
+    const written = await tx.run(sql`
       INSERT INTO project.project_deletion (project_id, workspace_id, name, requested_by)
-      VALUES (${projectId}, ${target.workspace_id}, ${target.name}, ${administrator.scope.accountId})`)
+      SELECT project_id, workspace_id, name, ${administrator.scope.accountId}::uuid FROM project.project WHERE project_id = ${projectId}`)
+    if (written !== 1) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_TOMBSTONE_NOT_WRITTEN' } })
     return { completed: false }
   })
 
-  const purge = (projectId: ProjectIdType) => database.system('project-purge', async (tx) => {
+  const removeProject = async ({ tx }: Admitted<SystemScope<'project-purge'>>, projectId: ProjectIdType) => {
+    // The purge takes the project row first, like every admission that reaches it; a retry after the row is gone goes on.
+    await tx.maybe(Present, sql`SELECT 1 AS present FROM project.project WHERE project_id = ${projectId} FOR UPDATE`)
     if (!(await tombstoneOf(tx, projectId))) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_DELETION_NOT_STARTED' } })
     if (await busy(tx, projectId)) throw new Failure('PROJECT_BUSY')
     await tx.run(sql`SELECT iam.purge_project(${projectId})`)
@@ -63,10 +69,15 @@ export const createProjectDeletion = ({ database, ports }: Readonly<{ database: 
     await tx.run(sql`DELETE FROM platform.operation_receipt WHERE operation_id = 'PRJ-03' AND resource_id = ${projectId}`)
     await tx.run(sql`DELETE FROM project.project WHERE project_id = ${projectId}`)
     await tx.run(sql`UPDATE project.project_deletion SET purged_at = coalesce(purged_at, now()) WHERE project_id = ${projectId}`)
-  })
+  }
 
-  const complete = (projectId: ProjectIdType) => database.system('project-purge', (tx) => tx.run(sql`
-    UPDATE project.project_deletion SET completed_at = clock_timestamp() WHERE project_id = ${projectId} AND completed_at IS NULL`))
+  const purge = (projectId: ProjectIdType) => database.system('project-purge', async (gate) => removeProject(await admitSystem(gate, 'project-purge'), projectId))
+
+  const complete = (projectId: ProjectIdType) => database.system('project-purge', async (gate) => {
+    const { tx } = await admitSystem(gate, 'project-purge')
+    return tx.run(sql`
+      UPDATE project.project_deletion SET completed_at = clock_timestamp() WHERE project_id = ${projectId} AND completed_at IS NULL`)
+  })
 
   // The tombstone is the only step that can refuse: not admitted, not found, the wrong name, or a
   // Project still busy building. Every step after it names the tombstone's own Project id, never the

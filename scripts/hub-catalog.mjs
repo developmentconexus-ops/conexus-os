@@ -91,6 +91,8 @@ export const assertCatalog = async (client, snapshot) => {
 // owner boundary, and no Hub or owner role may be a member of another, which is the SET ROLE path
 // docs/reference/data-and-persistence.md section 6.2 forbids.
 export const assertRoleInvariants = async (client) => {
+  const roleRegister = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), 'utf8'))
+  const transactionRoles = roleRegister.transactionRoles.map(row => row.role).sort()
   const elevated = (await client.query(`
     SELECT rolname FROM pg_roles
     WHERE (rolname LIKE 'hub\\_%' OR rolname LIKE '%\\_owner' OR rolname = 'iam_rls')
@@ -99,6 +101,9 @@ export const assertRoleInvariants = async (client) => {
   `)).rows.map(row => row.rolname)
   if (elevated.length > 0) fail('MIGRATION_ROLE_ATTRIBUTE_REFUSED', elevated.join(','))
 
+  // The Hub logs in as hub_runtime and switches each transaction to a transaction role. That switch is
+  // the only membership there is: hub_runtime in hub_reader and hub_command, never with the right to
+  // inherit their privileges or to grant them on, and no other Hub or owner role in any membership.
   const memberships = (await client.query(`
     SELECT pg_get_userbyid(m.member) || ' in ' || pg_get_userbyid(m.roleid) AS membership
     FROM pg_auth_members m
@@ -106,7 +111,33 @@ export const assertRoleInvariants = async (client) => {
       OR pg_get_userbyid(m.roleid) LIKE 'hub\\_%' OR pg_get_userbyid(m.roleid) LIKE '%\\_owner' OR pg_get_userbyid(m.roleid) = 'iam_rls'
     ORDER BY 1
   `)).rows.map(row => row.membership)
-  if (memberships.length > 0) fail('MIGRATION_ROLE_MEMBERSHIP_REFUSED', memberships.join(','))
+  const expectedMemberships = (transactionRoles.length > 0 ? transactionRoles.map(role => `hub_runtime in ${role}`) : []).sort()
+  if (JSON.stringify(memberships) !== JSON.stringify(expectedMemberships)) fail('MIGRATION_ROLE_MEMBERSHIP_REFUSED', memberships.join(','))
+  const openMemberships = (await client.query(`
+    SELECT pg_get_userbyid(m.roleid) AS role FROM pg_auth_members m
+    WHERE pg_get_userbyid(m.member) = 'hub_runtime' AND (m.inherit_option OR m.admin_option)
+    ORDER BY 1
+  `)).rows.map(row => row.role)
+  if (openMemberships.length > 0) fail('MIGRATION_ROLE_MEMBERSHIP_OPTION_REFUSED', openMemberships.join(','))
+  // The only settings on the login role are the ones the register names, with its values: the
+  // timeouts that bound a lock wait, a statement and an idle transaction. A role, a session
+  // authorization or a conexus.* setting there would change every transaction, and a missing
+  // timeout leaves every wait unbounded.
+  const registered = roleRegister.roles.find(row => row.role === 'hub_runtime')?.settings ?? {}
+  const expectedSettings = Object.entries(registered).map(([name, value]) => `hub_runtime ${name}=${value}`).sort()
+  const roleSettings = (await client.query(`
+    SELECT coalesce(pg_get_userbyid(NULLIF(s.setrole, 0)), 'all roles') || ' ' || config AS setting
+    FROM pg_db_role_setting s CROSS JOIN LATERAL unnest(s.setconfig) AS config
+    WHERE (s.setrole = 0 OR s.setrole = 'hub_runtime'::regrole)
+      AND (s.setdatabase = 0 OR s.setdatabase = (SELECT oid FROM pg_database WHERE datname = current_database()))
+    ORDER BY 1
+  `)).rows.map(row => row.setting)
+  // A database wide or all roles setting cannot override a role's timeout, so only the ones that change
+  // what every transaction is count: a role, a session authorization or a conexus.* setting.
+  const DANGEROUS_WIDE = /^all roles (?:role|session_authorization|conexus\.[^=]*)=/i
+  const unexpectedSettings = roleSettings.filter(setting => (setting.startsWith('all roles ') ? DANGEROUS_WIDE.test(setting) : !expectedSettings.includes(setting)))
+  const missingSettings = expectedSettings.filter(setting => !roleSettings.includes(setting)).map(setting => `missing ${setting}`)
+  if (unexpectedSettings.length > 0 || missingSettings.length > 0) fail('MIGRATION_ROLE_SETTING_REFUSED', [...unexpectedSettings, ...missingSettings].join(','))
 
   // Every migration creates a hub_* role LOGIN and every *_owner role NOLOGIN; a role that can
   // authenticate is not an owner of anything, and an owner role the Hub could log in as would
@@ -117,9 +148,11 @@ export const assertRoleInvariants = async (client) => {
   const loginViolations = (await client.query(`
     SELECT rolname FROM pg_roles
     WHERE rolname NOT LIKE 'pg\\_%'
-      AND ((rolname LIKE 'hub\\_%' AND NOT rolcanlogin) OR (rolname LIKE '%\\_owner' AND rolcanlogin))
+      AND ((rolname LIKE 'hub\\_%' AND rolname <> ALL($1::text[]) AND NOT rolcanlogin)
+        OR (rolname = ANY($1::text[]) AND rolcanlogin)
+        OR (rolname LIKE '%\\_owner' AND rolcanlogin))
     ORDER BY rolname
-  `)).rows.map(row => row.rolname)
+  `, [transactionRoles])).rows.map(row => row.rolname)
   if (loginViolations.length > 0) fail('MIGRATION_ROLE_LOGIN_REFUSED', loginViolations.join(','))
 
   // Every hub_* and *_owner role is also created NOINHERIT: a role's own grants are the ones
@@ -134,7 +167,6 @@ export const assertRoleInvariants = async (client) => {
 
   const policyRole = (await client.query("SELECT rolcanlogin, rolinherit, rolbypassrls FROM pg_roles WHERE rolname = 'iam_rls'")).rows[0]
   if (!policyRole || policyRole.rolcanlogin || policyRole.rolinherit || policyRole.rolbypassrls) fail('MIGRATION_POLICY_ROLE_REFUSED', 'iam_rls')
-  const roleRegister = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), 'utf8'))
   const expectedHelpers = roleRegister.policyRoles.flatMap(row => row.role === 'iam_rls' ? row.owns : []).sort()
   const ownedHelpers = (await client.query("SELECT n.nspname || '.' || p.proname AS name FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE p.proowner = 'iam_rls'::regrole ORDER BY 1")).rows.map(row => row.name)
   if (JSON.stringify(ownedHelpers) !== JSON.stringify(expectedHelpers)) fail('MIGRATION_POLICY_HELPER_OWNERSHIP_REFUSED', ownedHelpers.join(','))
@@ -147,7 +179,7 @@ export const assertRoleInvariants = async (client) => {
   `)).rows.map(row => row.grant)
   if (policyGrants.length > 0) fail('MIGRATION_POLICY_ROLE_GRANT_REFUSED', policyGrants.join(','))
 
-  const hubSchemas = ['iam', 'workspace', 'project', 'builder', 'reg', 'model', 'connector', 'platform']
+  const hubSchemas = ['iam', 'workspace', 'project', 'builder', 'reg', 'model', 'connector', 'platform', 'rls']
   const wrongOwners = (await client.query(`
     SELECT kind || ' ' || name || ' owner=' || owner AS object FROM (
       SELECT 'schema' AS kind, n.nspname AS name, pg_get_userbyid(n.nspowner) AS owner
@@ -178,7 +210,7 @@ export const assertRoleInvariants = async (client) => {
     FROM pg_proc AS p
     JOIN pg_namespace AS n ON n.oid = p.pronamespace
     CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) AS entry
-    WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg', 'model', 'connector', 'platform')
+    WHERE n.nspname IN ('iam', 'workspace', 'project', 'builder', 'reg', 'model', 'connector', 'platform', 'rls')
       AND entry.grantee = 0
       AND entry.privilege_type = 'EXECUTE'
     ORDER BY 1

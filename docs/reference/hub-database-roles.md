@@ -20,27 +20,39 @@ defect in this table. Adding a role means adding a row to the register and regen
 | `hub_runtime` | `hub-data` | `hub.ts`, one pool for every owner | `CONEXUS_DB_PASSWORD_FILE` |
 | `hub_factory` | `factory-storage` | `builder/module.ts` | `CONEXUS_DB_FACTORY_PASSWORD_FILE` |
 
-`hub_runtime` holds data manipulation on the tables the Hub's TypeScript reads or writes, and
-`EXECUTE` only on the functions the older capability roles held, copied by `0062_runtime_data_boundary.sql`.
-No default privilege grants it a function created later, so a new function is callable only after a
-migration grants it. It is refused 42501 on any DDL, on `SET ROLE` and
-on the `factory` schema. Its authority comes from the proof an admission function makes and from the row
-policies on the tables a part has policed, not from the role (see
+`hub_runtime` is the only login role for the Hub's data. It holds `EXECUTE` only on the functions the
+older capability roles held, copied by `0062_runtime_data_boundary.sql`, and no default privilege
+grants it a function created later. It is refused 42501 on any DDL, on `factory`, and, with no role
+switched, on every table a part has split. A transaction starts by switching to one of the two
+transaction roles below, and its authority comes from that role, the row policies on the tables a part
+has split and the proof an admission function makes (see
 [security and authority](security-and-authority.md#2-database-roles)).
+
+## Transaction roles
+
+`hub_reader` and `hub_command` are `NOLOGIN NOINHERIT NOBYPASSRLS` and are listed under
+`transactionRoles` in the register. `hub_runtime` is a member of each `WITH INHERIT FALSE, SET TRUE`,
+and the Hub sets the role, with the transaction's settings, in one `SELECT set_config(...)` right after `BEGIN`.
+
+| Role | Used by | Holds |
+| --- | --- | --- |
+| `hub_reader` | `database.read` | `SELECT` on the split tables a person reads, each behind a `reader` policy; `EXECUTE` on the `rls.*` helpers and the `reg` served functions |
+| `hub_command` | `database.transaction` and `database.system` | the verbs and columns the table register lists per split table, a `USING (true)` policy named `command`, and `EXECUTE` on the purges, `builder.register_project_repository` and `iam.lock_administrators()` |
 
 ## Roles that never connect
 
 | Role | Owns or does | Why it never logs in |
 | --- | --- | --- |
 | `conexus_owner` | schema `platform` and its tables | the owner of what `hub_runtime` uses; `NOLOGIN` |
-| `iam_rls` | the `iam.acting_*` helper functions the policies call | holds `SELECT` on the few tables the helpers read and nothing else; `NOLOGIN`, no `BYPASSRLS` |
+| `iam_rls` | the `rls.acting_*` helper functions the policies call | holds `SELECT` on the few tables the helpers read and nothing else; `NOLOGIN`, no `BYPASSRLS` |
 | `iam_owner`, `workspace_owner`, `project_owner`, `registry_owner`, `builder_owner`, `connector_owner`, `model_owner` | the schemas and functions of an owner whose rules are still in SQL | `NOLOGIN`; each is dropped, with its objects moved to `conexus_owner`, when its part ports the owner |
 | `hub_iam_runtime` and the other capability roles marked `legacy` in the register | nothing the Hub uses | their grants stay until the last owner is ported, and no Hub module connects as them |
 | `hub_workspace_read`, `hub_workspace_command` | retired | `0063_workspace_admission.sql` drops them with the last functions they could execute |
 
 `assertRoleInvariants` in `scripts/hub-catalog.mjs` reads `pg_roles` and refuses a role of the Hub that
 holds `SUPERUSER`, `CREATEROLE`, `CREATEDB`, `REPLICATION` or `BYPASSRLS`, any membership between Hub or
-owner roles, an owner role that can log in, a Hub role that inherits, an object in a Hub schema owned by
+owner roles other than `hub_runtime` in `hub_reader` and in `hub_command`, either of those two with
+`INHERIT` or `ADMIN`, a setting on `hub_runtime` or the database other than the three timeouts the register names (`lock_timeout`, `statement_timeout`, `idle_in_transaction_session_timeout`), which a `role`, `session_authorization` or `conexus.*` setting is not, an owner role that can log in, a Hub role that inherits, an object in a Hub schema owned by
 a role the register does not list, and any function executable by `PUBLIC`. It also checks that
 `iam_rls` owns exactly the helpers the register names and holds nothing but `SELECT`.
 
