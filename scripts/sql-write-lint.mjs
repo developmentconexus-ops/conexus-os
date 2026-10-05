@@ -5,6 +5,7 @@ const PLACEHOLDER = '$'
 const normalizeSql = (text) => text
   .replace(/'(?:[^']|'')*'|\/\*[\s\S]*?\*\/|--[^\n]*/g, (token) => (token.startsWith("'") ? "''" : ' '))
   .toLowerCase()
+  .replaceAll('"', '')
   .replace(/\s+/g, ' ')
   .trim()
 
@@ -38,6 +39,26 @@ const CONSTANT_PREDICATE = /^\(?\s*(?:true|not\s+false|(\d+)\s*=\s*\1|''\s*=\s*'
 
 const CONSTANT_DISJUNCT = /\bor\s+\(?\s*(?:true|(\d+)\s*=\s*\1)\b/
 
+const article = (word) => (word === 'update' ? 'an' : 'a')
+
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// The target of an update or a delete, and the name it goes by in the where: its alias, or the table.
+const UPDATE_TARGET = /^update\s+(?:only\s+)?([\w.]+)(?:\s+(?:as\s+)?(?!set\b)(\w+))?\s+set\b/
+const DELETE_TARGET = /^delete\s+from\s+(?:only\s+)?([\w.]+)(?:\s+(?:as\s+)?(?!using\b|where\b|returning\b)(\w+))?(?=\s|$)/
+
+// A key or tenant column compared with a value the template names: a placeholder, a list or a subquery.
+const keyComparison = (column, qualifiers) => new RegExp(`(?<![\\w$.])(?:(?:${qualifiers.map(escapeRegExp).join('|')})\\.)?${escapeRegExp(column)}\\s*(?:=\\s*(?:\\$|any\\s*\\(\\)|\\(\\))|\\bin\\s*\\(\\))`)
+
+const keyProblem = (first, top, where, splitTables) => {
+  const target = (first === 'update' ? UPDATE_TARGET : DELETE_TARGET).exec(top)
+  const keys = target ? splitTables[target[1]] : undefined
+  if (!keys) return null
+  const qualifiers = [target[1], target[1].split('.').at(-1), ...(target[2] ? [target[2]] : [])]
+  if (keys.some((column) => keyComparison(column, qualifiers).test(where))) return null
+  return `${article(first)} ${first} of ${target[1]} whose where compares none of its key columns (${keys.join(', ') || 'none registered'})`
+}
+
 const predicateProblem = (predicate) => {
   const text = predicate.replace(/\breturning\b[\s\S]*$/, '').trim()
   if (text === '') return 'an empty where'
@@ -46,9 +67,7 @@ const predicateProblem = (predicate) => {
   return null
 }
 
-const article = (word) => (word === 'update' ? 'an' : 'a')
-
-const analyzeStatement = (statement, problems) => {
+const analyzeStatement = (statement, problems, splitTables) => {
   const { top, groups } = groupsOf(statement)
   const first = /^[a-z]+/.exec(top)?.[0]
   if (first === 'with') {
@@ -57,11 +76,11 @@ const analyzeStatement = (statement, problems) => {
     let last = -1
     groups.forEach((group, index) => {
       if (!isBody(index)) return
-      analyzeStatement(group.body.trim(), problems)
+      analyzeStatement(group.body.trim(), problems, splitTables)
       last = index
     })
     const main = segments.slice(last + 1).join('()').replace(/^[\s,]+/, '').trim()
-    if (last >= 0 && main !== '') analyzeStatement(main, problems)
+    if (last >= 0 && main !== '') analyzeStatement(main, problems, splitTables)
     return
   }
   if (first === 'merge') {
@@ -74,6 +93,10 @@ const analyzeStatement = (statement, problems) => {
     else {
       const problem = predicateProblem(where[1])
       if (problem) problems.push(`${article(first)} ${first} with ${problem}`)
+      else {
+        const keyed = keyProblem(first, top, where[1], splitTables)
+        if (keyed) problems.push(keyed)
+      }
     }
     return
   }
@@ -83,9 +106,11 @@ const analyzeStatement = (statement, problems) => {
   }
 }
 
-// Returns the problems of one template text; an empty list means the template is clean.
-export const writeProblems = (joined) => {
+// Returns the problems of one template text; an empty list means the template is clean. splitTables maps
+// a split table to the key and tenant columns its register row names: an update or a delete of one must
+// compare one of them in its where.
+export const writeProblems = (joined, splitTables = {}) => {
   const problems = []
-  for (const statement of normalizeSql(joined).split(';')) if (statement.trim() !== '') analyzeStatement(statement.trim(), problems)
+  for (const statement of normalizeSql(joined).split(';')) if (statement.trim() !== '') analyzeStatement(statement.trim(), problems, splitTables)
   return problems
 }
