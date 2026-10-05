@@ -15,7 +15,7 @@ stores that issue SQL, and the scripts that generate or apply them. [`areas.json
       The reviewer diffs the old body against the new one, not only the signature.
 - [ ] A migration that touches real data carries `needs:aprovo`. Owner:
       [Ask for "Aprovo"](../delivery.md#ask-for-aprovo-on-three-kinds-of-change).
-- [ ] A store reaches the database only through `platform/db.ts`, as `hub_runtime`. A new role is a
+- [ ] A store reaches the database only through `platform/db.ts`, as `hub_runtime`, which switches to `hub_reader` or `hub_command` first. A new role is a
       row in `contracts/technical/hub-database-roles.json` with the projection regenerated, and
       `npm run db:roles:check` refuses drift. No migration gives `hub_runtime` DDL, `BYPASSRLS` or a
       grant on `factory`.
@@ -23,12 +23,20 @@ stores that issue SQL, and the scripts that generate or apply them. [`areas.json
       pure TypeScript function over rows the command locked, behind an admission proof. A new
       `SECURITY DEFINER` function that holds a rule is refused: `ruleFunctions` in
       `contracts/technical/hub-catalog-census.json` may only fall.
-- [ ] A migration that polices a table adds `FORCE ROW LEVEL SECURITY`, one policy per command
-      `TO hub_runtime` where read and write authority differ (a `WITH CHECK` is never `true`, and a
-      `DELETE` or `UPDATE` is gated by `USING`), a `legacy_owner` policy for the owner role of every
-      function that still reads the table, and the grants the policies allow and no more. It removes
-      the table's row from `UNSCOPED_TABLES`. A command `hub_runtime` holds no grant for needs no policy. `npm run db:catalog:check` derives the bridge owners from
-      the function bodies and fails on any table that is neither policed nor listed.
+- [ ] A migration that splits a table adds `ENABLE` and `FORCE ROW LEVEL SECURITY`, a `reader` policy
+      `TO hub_reader` built on the `rls.*` helpers (a second `reader_admin` only on the administrator
+      reach list), one `command` policy `TO hub_command FOR ALL USING (true) WITH CHECK (true)`, a
+      `legacy_owner` policy for the owner role of every function that still reads the table, and the
+      grants its table register row lists and no more: `SELECT` for the reader, the named verbs and
+      columns for the command role, nothing for `hub_runtime`. It moves the table from `pending` to
+      `split` in the register. `npm run db:catalog:check` derives the bridge owners from the function
+      bodies and fails on any table in no list, any grant the register does not name and any
+      `EXECUTE` it does not list.
+- [ ] A SQL text that writes keeps its filter in the template: `update` and `delete` have a top level
+      `where` with a column comparison, no `merge`, and an upsert's `do update` has its own `where`.
+      `scripts/census-boundaries.mjs` counts `sqlWrites` and its ceiling is zero.
+- [ ] A role is created in an idempotent `DO` block, because roles are cluster-global: a test database
+      that creates one wrongly leaves it in every other database of the cluster.
 - [ ] A migration that drops a function names its exact signature, without `CASCADE`, and
       `npm run db:callers:check` shows no caller left in another function's body or in the SQL text of
       `apps/hub/src`. The regenerated `docs/reference/function-callers.md` is in the same commit.
