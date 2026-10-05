@@ -68,7 +68,8 @@ const repairFeedback = (detail: string, redFinishes: number): string => [
 export const createCandidateGate = ({ candidate, judge, onRedFinish }: Readonly<{
   candidate(): Promise<SourceRevision | null>
   judge(revision: SourceRevision): Promise<CandidateVerdict>
-  onRedFinish?(redFinishes: number): void
+  /** Told before `finish` returns the feedback, so the person sees the verdict before the agent starts repairing. */
+  onRedFinish?(redFinishes: number, feedback: string): Promise<void>
 }>): CandidateGate => {
   const verdicts = new Map<SourceRevision, CandidateVerdict>()
   let redFinishes = 0
@@ -92,8 +93,9 @@ export const createCandidateGate = ({ candidate, judge, onRedFinish }: Readonly<
     const verdict = await current()
     if (verdict?.kind !== 'RED_APP') return null
     redFinishes += 1
-    onRedFinish?.(redFinishes)
-    return repairFeedback(verdict.detail, redFinishes)
+    const feedback = repairFeedback(verdict.detail, redFinishes)
+    await onRedFinish?.(redFinishes, feedback)
+    return feedback
   }
   return Object.freeze({
     // Mastra may ask again while a slow check still runs; both askings share that one check.

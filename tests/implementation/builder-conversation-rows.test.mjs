@@ -172,17 +172,47 @@ test('a call resolved in a later message keeps its first place and arguments and
   ])
 })
 
-test("the Conexus check's verdict reads as a notice in its own words, without Mastra's scoring frame", async () => {
+const REASON = 'Verificação do Conexus: o app não passou (1 de 3).\ntypecheck failed:\napp/src/total.ts:1: TS2322 Type string is not number\nResolva estes problemas e diga que terminou: o Conexus verifica o app quando você terminar.'
+const noticesIn = (html) => [...html.matchAll(/<div class="builder-turn-notice" role="note">(.*?)<\/div><\/div>/gs)].map(([, inner]) => inner.replace(/<[^>]+>/g, ''))
+const checkRed = (id) => ({ id, threadId: 't', role: 'signal', createdAt: '2026-10-02T14:35:55.000Z', content: {
+  format: 2, parts: [{ type: 'text', text: REASON }], metadata: { signal: { id, type: 'notification', attributes: { source: 'conexus', outcome: 'CHECK_RED', run: 'r1' } } },
+} })
+
+test("a red check's own words are one notice, once across the live event and the history that holds it", () => {
+  const live = reduce([{ type: 'event', event: { type: 'message_start', message: checkRed('check-red-1') } }, { type: 'event', event: { type: 'message_end', id: 'check-red-1' } }])
+  const escaped = REASON.replaceAll("'", '&#x27;')
+  assert.deepEqual(noticesIn(render({ entries: live.entries })), [escaped])
+  const merged = reduce([{ type: 'mergeWindow', messages: [checkRed('check-red-1')] }], live)
+  assert.deepEqual(noticesIn(render({ entries: merged.entries })), [escaped])
+  assert.equal(merged.entries.length, 1)
+})
+
+// Mastra's completion row for a red verdict, as the thread stores it beside the check's own notice.
+const completionRow = async () => {
   const { formatStreamCompletionFeedback } = await import('@mastra/core/loop')
-  const reason = 'Verificação do Conexus: o app não passou (1 de 3).\ntypecheck failed:\napp/src/total.ts:1: TS2322 Type string is not number\nResolva estes problemas e diga que terminou: o Conexus verifica o app quando você terminar.'
-  const verdict = { complete: false, totalDuration: 1200, timedOut: false, scorers: [{ scorerId: 'conexus-check', scorerName: 'Verificação do Conexus', score: 0, passed: false, reason }] }
-  const stored = (id, maxIterationReached) => ({ id, threadId: 't', role: 'assistant', createdAt: '2026-10-02T14:35:55.000Z', content: {
-    format: 2, parts: [{ type: 'text', text: formatStreamCompletionFeedback(verdict, maxIterationReached) }], metadata: { mode: 'stream', completionResult: { passed: false, suppressFeedback: false } },
-  } })
-  const html = render({ entries: reduce([{ type: 'mergeWindow', messages: [stored('check-1', false), stored('check-2', true)] }]).entries })
-  const notices = [...html.matchAll(/<div class="builder-turn-notice" role="note">(.*?)<\/div><\/div>/gs)].map(([, inner]) => inner.replace(/<[^>]+>/g, ''))
-  const escaped = reason.replaceAll("'", '&#x27;')
-  assert.deepEqual(notices, [escaped, escaped])
+  const verdict = { complete: false, totalDuration: 1200, timedOut: false, scorers: [{ scorerId: 'conexus-check', scorerName: 'Verificação do Conexus', score: 0, passed: false, reason: REASON }] }
+  return { id: 'completion-1', threadId: 't', role: 'assistant', createdAt: '2026-10-02T14:35:56.000Z', content: {
+    format: 2, parts: [{ type: 'text', text: formatStreamCompletionFeedback(verdict, false) }], metadata: { mode: 'stream', completionResult: { passed: false, suppressFeedback: false } },
+  } }
+}
+
+test("Mastra's completion row for the same verdict draws nothing", async () => {
+  const completion = await completionRow()
+  const repair = assistant('repair-1', [{ type: 'text', text: 'Corrigi o erro de tipo.' }])
+  const html = render({ entries: reduce([{ type: 'mergeWindow', messages: [checkRed('check-red-1'), completion, repair] }]).entries, working: true })
+  assert.deepEqual(noticesIn(html), [REASON.replaceAll("'", '&#x27;')])
+  assert.equal(count(html, 'conexus-check'), 0)
+  assert.equal(count(html, 'Score'), 0)
+  assert.equal(count(html, 'Corrigi o erro de tipo.'), 1)
+})
+
+test("Mastra's completion row does not hold back the card the run waits on, as its words are never drawn to be revealed", async () => {
+  const waiting = reduce([{ type: 'mergeWindow', messages: [checkRed('check-red-1'), await completionRow()] }, { type: 'event', event: { type: 'tool_suspended', toolCallId: 'q1', toolName: 'ask_user', args: {}, suspendPayload: null } }])
+  const reduced = globalThis.window
+  globalThis.window = { matchMedia: () => ({ matches: false }) }
+  try {
+    assert.equal(count(render({ ...waitingOnAll(waiting), working: true, renderPrompt: card }), 'card q1'), 1)
+  } finally { globalThis.window = reduced }
 })
 
 // The step as Mastra stores it when a call runs beside a question: the sibling stays `call` until the

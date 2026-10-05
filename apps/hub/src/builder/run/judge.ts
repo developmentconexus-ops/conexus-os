@@ -66,7 +66,7 @@ const createJudge = ({ git, projectId, executionId, log, cancelled, gatePhase, v
   return verdict
 }
 
-export const createRunGate = ({ git, projectId, executionId, base, turnStart, excluded, log, cancelled, gatePhase, vm, sandbox }: Readonly<{
+export const createRunGate = ({ git, projectId, executionId, base, turnStart, excluded, log, cancelled, gatePhase, noteRed, vm, sandbox }: Readonly<{
   git: Pick<ConexusGit, 'listFilesLong' | 'archive' | 'acceptSnapshot'>
   projectId: ProjectId
   executionId: ExecutionId
@@ -76,6 +76,8 @@ export const createRunGate = ({ git, projectId, executionId, base, turnStart, ex
   log: EventLog
   cancelled(): boolean
   gatePhase(phase: BuilderRunPhase): void
+  /** Writes the red check's feedback into the conversation; resolves once the thread stores it. */
+  noteRed(redFinishes: number, feedback: string): Promise<void>
   vm: RunVm
   sandbox: Pick<RunSandbox, 'runCheck'>
 }>): Readonly<{ gate: CandidateGate; pulled(): SourceRevision | null }> => {
@@ -91,8 +93,10 @@ export const createRunGate = ({ git, projectId, executionId, base, turnStart, ex
       return pulled ?? (turnStart === base ? null : turnStart)
     },
     judge: createJudge({ git, projectId, executionId, log, cancelled, gatePhase, vm, sandbox }),
-    onRedFinish: (count) => {
-      if (count < GATE_RED_BUDGET) gatePhase('AGENT')
+    // The scorer must never throw, so a note that fails is logged and the run goes on.
+    onRedFinish: async (count, feedback) => {
+      await noteRed(count, feedback).catch((error: unknown) => log('BUILDER_CHECK_NOTE_FAILED', { run: executionId, red_finishes: count, error: error instanceof Error ? error.message : String(error) }))
+      if (!cancelled() && count < GATE_RED_BUDGET) gatePhase('AGENT')
     },
   })
   return { gate, pulled: () => pulled }

@@ -1,13 +1,13 @@
 import { createHash } from 'node:crypto'
 import { FAILURE_TEXT } from '../platform/failure-text.generated.js'
 import { projectResourceId } from './conversations.js'
-import type { ControllerSession, RunNote } from './run/ports.js'
+import type { ControllerSession, RunNote, SettledNote } from './run/ports.js'
 import type { BuilderRunId, ConversationId, ProjectId, SourceRevision } from '../../../../packages/contract/dist/index.js'
 
 // Deterministic on run+code so a retried call collapses onto the same message instead of
 // appending a duplicate diagnostic.
-const diagnosticMessageId = (builderRunId: BuilderRunId, code: string): string =>
-  createHash('sha256').update(`builder-diagnostic:${builderRunId}:${code}`).digest('hex')
+const diagnosticMessageId = (builderRunId: BuilderRunId, key: string): string =>
+  createHash('sha256').update(`builder-diagnostic:${builderRunId}:${key}`).digest('hex')
 
 // The person reads a run by the first eight characters of its id; the failure code stays in the log.
 const reference = (builderRunId: BuilderRunId): string => `Referência: ${builderRunId.slice(0, 8)}.`
@@ -20,7 +20,7 @@ const kept = (sourceRevision: SourceRevision): string =>
 // What the table says for the run's failure; a code the table keeps for the operator says nothing here.
 const rowText = (code: string): string => Object.entries(FAILURE_TEXT).find(([row]) => row === code)?.[1] ?? ''
 
-const NOTE_TEXT: Readonly<Record<RunNote['outcome'], (note: RunNote) => string>> = Object.freeze({
+const NOTE_TEXT: Readonly<Record<SettledNote['outcome'], (note: SettledNote) => string>> = Object.freeze({
   SOURCE_BASE_MOVED: ({ builderRunId, sourceRevision }) =>
     `A execução ${builderRunId} não foi aplicada: a fonte do Project mudou enquanto ela trabalhava, e nada foi sobrescrito. ${kept(sourceRevision)} ${reference(builderRunId)} O próximo pedido junta os arquivos desta conversa com a versão atual da fonte.`,
   RUN_NOT_FINISHED: ({ builderRunId, sourceRevision }) =>
@@ -47,9 +47,10 @@ type NoteSession = Pick<ControllerSession, 'sendSignalToThread'>
  * writes it once.
  */
 const noteSignal = (note: RunNote) => ({
-  id: diagnosticMessageId(note.builderRunId, note.code),
+  id: diagnosticMessageId(note.builderRunId, note.outcome === 'CHECK_RED' ? `CHECK_RED:${note.redFinishes}` : note.code),
   type: 'notification' as const,
-  contents: NOTE_TEXT[note.outcome](note),
+  // The check's feedback is already written for the person and the agent; the rest comes from the table.
+  contents: note.outcome === 'CHECK_RED' ? note.feedback : NOTE_TEXT[note.outcome](note),
   attributes: { source: 'conexus', outcome: note.outcome, run: note.builderRunId },
 })
 

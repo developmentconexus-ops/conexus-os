@@ -38,11 +38,12 @@ const isUserAuthored = (message: MastraDBMessage): boolean =>
 
 // The Hub tells the thread what happened to a run with a Mastra `notification` signal, written for the
 // next model turn. The person reads a Conexus signal by its `outcome`, never from its words, and never
-// as something the Builder said. Mastra's completion check writes its verdict as an assistant message;
-// it is the Conexus check speaking, so it is a notice too, in the check's own words.
+// as something the Builder said. The one exception is CHECK_RED: the check's own words, written for
+// the agent and the person alike, are the notice, because no fixed sentence can say what failed.
+const isNotice = (message: MastraDBMessage): boolean => signalType(message) === 'notification'
+// Mastra's completion check writes its verdict as an assistant message for the model alone; the person reads the same verdict in the CHECK_RED notice, so this row is neither drawn nor revealed.
 const isCompletionCheck = (message: MastraDBMessage): boolean =>
   message.role === 'assistant' && typeof message.content.metadata === 'object' && message.content.metadata !== null && 'completionResult' in message.content.metadata
-const isNotice = (message: MastraDBMessage): boolean => signalType(message) === 'notification' || isCompletionCheck(message)
 
 // The five outcomes that are a run's failure have no entry here: `RunFailure` already says that run.
 const CONEXUS_OUTCOME_NOTICE: Readonly<Record<string, string>> = {
@@ -57,17 +58,11 @@ const signalAttribute = (message: MastraDBMessage, name: 'source' | 'outcome'): 
 }
 
 const noticeText = (message: MastraDBMessage): string => {
-  if (isCompletionCheck(message)) return completionCheckText(message)
   if (signalAttribute(message, 'source') !== 'conexus') return userText(message)
   const outcome = signalAttribute(message, 'outcome')
+  if (outcome === 'CHECK_RED') return userText(message)
   return (typeof outcome === 'string' ? CONEXUS_OUTCOME_NOTICE[outcome] : undefined) ?? ''
 }
-
-// The check's reason, without Mastra's scoring frame around it: everything from `Reason:` to the
-// verdict line Mastra closes the message with, blank lines in the reason included.
-const COMPLETION_CHECK_REASON = /Reason: ([\s\S]*?)\n+(?:✅|⚠️|🔄)[^\n]*\s*$/u
-const completionCheckText = (message: MastraDBMessage): string =>
-  COMPLETION_CHECK_REASON.exec(userText(message))?.[1]?.trim() ?? 'O Conexus verificou o app.'
 
 type CallState = 'running' | 'waiting' | 'ended' | 'failed' | 'done'
 
@@ -281,7 +276,7 @@ const flattenMessage = (entry: MessageEntry, message: MastraDBMessage, streaming
     const text = noticeText(message)
     return text ? [{ kind: 'notice', key, text }] : []
   }
-  if (message.role !== 'assistant') return []
+  if (message.role !== 'assistant' || isCompletionCheck(message)) return []
   const parts = message.content.parts
   return parts.flatMap((part, index): Piece[] => {
     const partKey = `${key}-${index}`
@@ -345,7 +340,7 @@ const useRevealedTurn = (messages: readonly MessageEntry[], merged: ReadonlyMap<
   messages.forEach((entry, index) => { if (isUserAuthored(entry.message)) start = index + 1 })
   const turn = messages.slice(start).flatMap((entry) => {
     const message = merged.get(entry.id) ?? entry.message
-    return message.role === 'assistant' && !isNotice(message) ? [{ id: entry.id, parts: message.content.parts }] : []
+    return message.role === 'assistant' && !isNotice(message) && !isCompletionCheck(message) ? [{ id: entry.id, parts: message.content.parts }] : []
   })
   const script = turn.flatMap((message) => message.parts)
   const shown = useRevealedParts(script, working)
