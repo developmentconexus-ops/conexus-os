@@ -125,7 +125,7 @@ test('an artifact with a server tree reaches its Preview only after its migratio
 })
 
 test('a fast forward that moved main and then failed is admitted by a sweep, never failed or disowned', async (t) => {
-  const run = await harness(t, { afterFastForward: () => { throw new Error('CONEXUS_GIT_FAILED') } })
+  const run = await harness(t, { afterFastForward: () => { throw new Failure('CONEXUS_GIT_FAILED') } })
   await run.start()
   assert.equal(await run.settled(), true, 'a sweep settled it without a restart')
   await run.service.close()
@@ -136,7 +136,7 @@ test('a fast forward that moved main and then failed is admitted by a sweep, nev
 })
 
 test('a fast forward that failed before main moved fails the run with the discarded note once a sweep reads main', async (t) => {
-  const run = await harness(t, { beforeFastForward: () => { throw new Error('CONEXUS_GIT_FAILED') } })
+  const run = await harness(t, { beforeFastForward: () => { throw new Failure('CONEXUS_GIT_FAILED') } })
   await run.start()
   assert.equal(await run.settled(), true, 'a sweep settled it without a restart')
   await run.service.close()

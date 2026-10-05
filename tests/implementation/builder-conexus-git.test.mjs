@@ -102,15 +102,30 @@ test('an empty repository gets the starter and one that moved on keeps its main'
   assert.equal(await git.readMain(PROJECT), moved)
 })
 
-test('a missing repository has no main and deleting converges', async (t) => {
+test('a missing repository is a named Git failure, an empty one has no main, and deleting converges', async (t) => {
   const root = join(scratch(t), 'git')
   const git = createConexusGit({ root, starter: STARTER })
-  await assert.rejects(git.readMain(PROJECT), { message: 'CONEXUS_GIT_MAIN_MISSING' })
+  await assert.rejects(git.readMain(PROJECT), { id: 'CONEXUS_GIT_FAILED' })
+  mkdirSync(root, { recursive: true })
+  run(root, ['init', '--quiet', '--bare', `${PROJECT}.git`])
+  await assert.rejects(git.readMain(PROJECT), { id: 'CONEXUS_GIT_MAIN_MISSING' })
   await git.ensureRepository(PROJECT)
   await git.deleteRepository(PROJECT)
   await git.deleteRepository(PROJECT)
-  await assert.rejects(git.readMain(PROJECT), { message: 'CONEXUS_GIT_MAIN_MISSING' })
-  await assert.rejects(git.ensureRepository('../escape'), { message: 'CONEXUS_GIT_PROJECT_REFUSED' })
+  await assert.rejects(git.readMain(PROJECT), { id: 'CONEXUS_GIT_FAILED' })
+  await assert.rejects(git.ensureRepository('../escape'), { id: 'CONEXUS_GIT_PROJECT_REFUSED' })
+})
+
+test('a Git read answers its named cause as the unavailable row and lets any other fault through unnamed', async () => {
+  const { gitUnavailableAs } = await import(hubModuleUrl('platform/git-failure.js'))
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
+  const unavailable = gitUnavailableAs('BUILDER_SOURCE_UNAVAILABLE')
+  const named = await Promise.reject(new Failure('CONEXUS_GIT_MAIN_MISSING')).catch(unavailable).catch((error) => error)
+  assert.deepEqual([named.id, named.details], ['BUILDER_SOURCE_UNAVAILABLE', { reason: 'CONEXUS_GIT_MAIN_MISSING' }])
+  const fault = new TypeError('planted')
+  assert.equal(await Promise.reject(fault).catch(unavailable).catch((error) => error), fault)
+  const other = new Failure('PROJECT_NOT_FOUND')
+  assert.equal(await Promise.reject(other).catch(unavailable).catch((error) => error), other)
 })
 
 test('main fast forwards only from the run base to a descendant, and a retry converges', async (t) => {

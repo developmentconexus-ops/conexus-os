@@ -174,6 +174,7 @@ export const FAILURE_TEXT = {
   'BUILDER_STARTER_ENTRY_UNSAFE': 'O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.',
   'BUILDER_STARTER_ROOT_REFUSED': 'O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.',
   'CONEXUS_APP_ROOT_MISSING': 'O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.',
+  'CONEXUS_GIT_FAILED': 'O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.',
   'CONEXUS_GIT_MAIN_MISSING': 'O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.',
   'CONEXUS_GIT_MERGE_REFUSED': 'O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.',
   'CONEXUS_GIT_PROJECT_REFUSED': 'O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.',

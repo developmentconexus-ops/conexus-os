@@ -7,6 +7,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { buildHubDatabase, query } from './hub-database.mjs'
 import { ID, setupProjects } from './project-fixture.mjs'
 
+const { Failure } = await import(hubModuleUrl('platform/failure.js'))
 const { createConexusGit } = await import(hubModuleUrl('builder/conexus-git.js'))
 const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
 const { builderProjectPorts } = await import(hubModuleUrl('builder/project-ports.js'))
@@ -43,7 +44,7 @@ test('creating a Project makes its Conexus Git repository with the starter on ma
   assert.deepEqual({ projectId: replayed.reply.projectId, replayed: replayed.replayed }, { projectId: created.projectId, replayed: true })
   assert.equal(await git.readMain(created.projectId), main)
 
-  const refused = await create(storeWith(async () => { throw new Error('CONEXUS_GIT_FAILED') }), 'second').catch((error) => error)
+  const refused = await create(storeWith(async () => { throw new Failure('CONEXUS_GIT_FAILED') }), 'second').catch((error) => error)
   assert.deepEqual({ id: refused.id, reason: refused.details.reason }, { id: 'PROJECT_REPOSITORY_UNAVAILABLE', reason: 'CONEXUS_GIT_FAILED' })
   // The receipt stays reserved, so the same key later reaches the same Project id and its repository.
   const recovered = (await create(storeWith(git.ensureRepository), 'second')).reply

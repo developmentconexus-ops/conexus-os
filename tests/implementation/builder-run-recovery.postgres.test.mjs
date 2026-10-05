@@ -10,6 +10,7 @@ import { query } from './hub-database.mjs'
 import { setupBuilder } from './builder-fixture.mjs'
 import { ID } from './project-fixture.mjs'
 
+const { Failure } = await import(built('platform/failure.js'))
 const { createBuilderStore } = await import(built('builder/store.js'))
 const { createBuilderService } = await import(built('builder/service.js'))
 const { createConexusGit } = await import(built('builder/conexus-git.js'))
@@ -78,7 +79,7 @@ const recoveryHarness = async (t, name, crashes) => {
       git: {
         readMain: git.readMain,
         mainContains: async (projectId, revision) => {
-          if (outage.active) throw new Error('CONEXUS_GIT_FAILED')
+          if (outage.active) throw new Failure('CONEXUS_GIT_FAILED')
           return git.mainContains(projectId, revision)
         },
       },

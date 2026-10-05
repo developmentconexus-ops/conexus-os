@@ -182,6 +182,7 @@
     { "code": "BUILDER_STARTER_ENTRY_UNSAFE", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
     { "code": "BUILDER_STARTER_ROOT_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
     { "code": "CONEXUS_APP_ROOT_MISSING", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
+    { "code": "CONEXUS_GIT_FAILED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
     { "code": "CONEXUS_GIT_MAIN_MISSING", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
     { "code": "CONEXUS_GIT_MERGE_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
     { "code": "CONEXUS_GIT_PROJECT_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },

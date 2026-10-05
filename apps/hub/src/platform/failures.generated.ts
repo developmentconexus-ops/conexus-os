@@ -176,6 +176,7 @@ export const FAILURES = {
   'BUILDER_STARTER_ENTRY_UNSAFE': { category: 'SYSTEM', status: 500 },
   'BUILDER_STARTER_ROOT_REFUSED': { category: 'SYSTEM', status: 500 },
   'CONEXUS_APP_ROOT_MISSING': { category: 'SYSTEM', status: 500 },
+  'CONEXUS_GIT_FAILED': { category: 'SYSTEM', status: 500 },
   'CONEXUS_GIT_MAIN_MISSING': { category: 'SYSTEM', status: 500 },
   'CONEXUS_GIT_MERGE_REFUSED': { category: 'SYSTEM', status: 500 },
   'CONEXUS_GIT_PROJECT_REFUSED': { category: 'SYSTEM', status: 500 },

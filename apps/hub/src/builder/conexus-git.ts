@@ -61,7 +61,7 @@ const MAX_RESULT_FILE_BYTES = 12 * 1024 * 1024
 /** The most files a result may hold: 256, the file count `application-artifact-runtime.ts` allows in a build output; the starter holds 41. */
 const MAX_RESULT_FILES = 256
 
-class GitCommandError extends Error {
+class GitCommandError extends Failure {
   constructor(readonly exitCode: number, readonly stderr: string) {
     super('CONEXUS_GIT_FAILED', { cause: { exitCode, stderr: stderr.slice(0, 2_000) } })
   }
@@ -181,7 +181,7 @@ export const createConexusGit = ({ root, starter }: Readonly<{ root: string; sta
   }
 
   const readMain = async (projectId: string): Promise<SourceRevision> => {
-    const main = await readRef(projectId, MAIN).catch(() => null)
+    const main = await readRef(projectId, MAIN)
     if (!main) throw new Failure('CONEXUS_GIT_MAIN_MISSING')
     return main
   }
