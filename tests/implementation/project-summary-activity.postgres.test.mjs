@@ -36,6 +36,7 @@ test('a tombstoned project shows no run or preview, and a purged one reaches the
   const { connection, store, seedProject, settleRun } = await setupProjects(t, 'conexus_prj_cards_tomb')
   const projectId = await seedProject('Atlas')
   await settleRun(projectId)
+  await query(connection, 'UPDATE builder.project_working_state SET last_preview_source_revision = $2, last_preview_artifact_revision_id = $3, last_preview_artifact_digest = $4 WHERE project_id = $1', [projectId, HEAD, randomUUID(), 'b'.repeat(64)])
   const cardsOf = (accountId) => store.listProjectSummariesWithActivity({ accountId, workspaceId: ID.workspace })
   await query(connection, `INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Atlas', $3)`, [projectId, ID.workspace, ID.administrator])
   const [tombstoned] = await cardsOf(ID.memberAdministrator)

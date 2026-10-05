@@ -52,7 +52,8 @@ ledger.
 
 **PRJ-02's reply.** Today a purged project seen by an installation administrator comes back with
 `projectRevision: ''`, which the YAML's `minLength: 1` forbids and `project-settings.tsx` reads as
-"purged". The Zod success is a union, so the wire stays byte for byte and the empty value is declared:
+"purged". The empty value also reaches a non member administrator between the tombstone and the purge,
+since that administrator never sees the project row; the web text is a moment early for them. The Zod success is a union, so the wire stays byte for byte and the empty value is declared:
 the live project (`projectRevision: ProjectRevision`, `deleting: boolean`) or the purged tombstone
 (`projectRevision: z.literal('')`, `archived: z.literal(false)`, `deleting: z.literal(true)`). The web
 narrows on the literal.
@@ -154,8 +155,10 @@ export function admitProject(tx: ReadTx, accountId: AccountId, projectId: Projec
    applies `HIDDEN` again. Hidden now: the `outsider` code. (Part 1's review, Sonnet finding 6.)
 
 `ProjectAction` maps onto today's `iam.action` for the membership check: `project.read` to
-`workspace.read`, `project.build` to `project.build`, as `iam.admit_project` passes its action to
-`iam.admit_workspace` today. The parts that call it add the `ACTION_REFUSALS` rows for `project.read`
+`workspace.read`, and `project.build` to its own `ROLE_ALLOWS` row, which part 3 adds to
+`WorkspaceAction` and to both roles (the umbrella lets a part add an action row), as `iam.admit_project`
+passes its action to `iam.admit_workspace` today. Both roles hold both actions, so the forbidden branch
+of `admitProject` is unreachable with today's roles. The parts that call it add the `ACTION_REFUSALS` rows for `project.read`
 and `project.build`; where today's callers map the 42501 to different codes for one action, that
 part's child spec says which code the row keeps. Part 3 tests it on fixtures only: a member (admitted),
 an outsider, a member without the role, a plain member of a tombstoned project (outsider code), a member
@@ -172,6 +175,9 @@ while a tombstone commits, which step 5 refuses.
 One change, stated as admission section 2 asks: an account that is not `active` gets the umbrella's
 `ACCOUNT_INACTIVE` on PRJ-03, where today it gets `PROJECT_CREATE_DENIED`. It reaches PRJ-03 only with a
 session opened before the deactivation.
+
+`ProjectSummary` stays in `identity-workspace-paths.yaml`, since a workspace response still references
+it; part 6 deletes it.
 
 ## 4. Policies
 
@@ -222,6 +228,12 @@ its RLS, because `iam.acting_applications()` reads it as `iam_rls` and a forced 
 role returns no rows (spike section 7). Test: the helper returns the project for a member and for a grantee
 on a part 3 head.
 
+**The purges.** `iam`, `connector`, `reg` and `builder` `.purge_project` are granted to `hub_runtime`
+only, and `project_owner` loses its execute on them and on `builder.register_project_repository`. Each
+purge is recreated in part 3's migration with a first statement that raises `PURGE_REQUIRES_SYSTEM`
+(42501) unless `conexus.scope` is `system`, so a person transaction that calls one is refused and
+leaves its rows.
+
 **Grants**: `hub_runtime` gets `SELECT, INSERT, UPDATE, DELETE` on `project.project` and
 `project.project_deletion`, and `SELECT` on the two builder tables, in part 3's migration. It gets
 nothing on `iam.installation_administrator`; the admission reads it through the definer function.
@@ -232,7 +244,8 @@ nothing on `iam.installation_administrator`; the admission reads it through the 
 purge, delete the repository, complete. The purge opens `system('project-purge', fn)` and, on one
 `WriteTx`, runs today's `purge_project` in today's order:
 
-1. No tombstone for the project: `PROJECT_DELETION_NOT_STARTED`, as today.
+1. No tombstone for the project: `PROJECT_DELETION_NOT_STARTED`. It is an invariant, unreachable from
+   HTTP, since the deletion command inserts the tombstone in the transaction before it.
 2. A queued or running run: `PROJECT_BUSY`.
 3. `iam.purge_project`, `connector.purge_project`, `reg.purge_project` and `builder.purge_project` as
    SQL (each owner's part replaces its call with a port on the same `WriteTx`).

@@ -174,7 +174,7 @@ export declare const OPERATIONS: readonly ({
         readonly 200: {
             readonly mediaType: "image/png";
             readonly maxBytes: 512000;
-            readonly etag: true;
+            readonly cache: "revalidate-private";
         };
     };
     readonly effects: readonly [];

@@ -3,7 +3,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
-import { buildHubDatabase, query } from './hub-database.mjs'
+import { buildHubDatabase, givePasswordToHubRuntime, query } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { hubSessionCookie, opaque, testListener } from './access/test-listener.mjs'
 
@@ -23,8 +23,7 @@ const oidc = Object.freeze({
 
 test('IAM-01 lists only active memberships through the workspace policy', async (t) => {
   const fixture = await buildHubDatabase(t, 'conexus_workspace_reads')
-  await query(fixture.connection, "ALTER ROLE hub_runtime PASSWORD 'workspace-read-test-only'")
-  fixture.onCleanup(() => query(fixture.connection, 'ALTER ROLE hub_runtime PASSWORD NULL'))
+  await givePasswordToHubRuntime(fixture.connection, fixture.onCleanup, 'workspace-read-test-only')
   const directory = mkdtempSync(resolve(tmpdir(), 's1-workspace-read-'))
   fixture.onCleanup(() => rmSync(directory, { recursive: true, force: true }))
   const passwordFile = resolve(directory, 'password')

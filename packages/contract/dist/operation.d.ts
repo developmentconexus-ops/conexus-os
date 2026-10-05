@@ -5,7 +5,7 @@ export type Effect = 'clear-session-cookie' | 'clear-bootstrap-cookie';
 export type Binary = Readonly<{
     mediaType: 'image/png';
     maxBytes: number;
-    etag?: true;
+    cache?: 'revalidate-private';
 }>;
 export type NoContent = null;
 type Part = z.ZodType | null;
@@ -56,7 +56,7 @@ export type Input<O extends AnyOperation> = Readonly<{
 }>;
 type Statuses<O extends AnyOperation> = keyof O['success'] & number;
 type BodyOf<S> = S extends z.ZodType ? z.output<S> : S extends null ? undefined : S extends Binary ? (S extends {
-    readonly etag: true;
+    readonly cache: 'revalidate-private';
 } ? Readonly<{
     bytes: Uint8Array;
     etag: string;

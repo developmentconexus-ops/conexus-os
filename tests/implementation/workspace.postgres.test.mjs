@@ -6,7 +6,7 @@ import { resolve } from 'node:path'
 import { test } from 'node:test'
 import pg from 'pg'
 import { z } from 'zod'
-import { buildHubDatabase, query } from './hub-database.mjs'
+import { buildHubDatabase, givePasswordToHubRuntime, query } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { openDatabase, sql } = await import(hubModuleUrl('platform/db.js'))
@@ -31,8 +31,7 @@ const leakSessionSettings = async (connection) => {
 
 const setup = async (t) => {
   const fixture = await buildHubDatabase(t, 'conexus_workspace')
-  await query(fixture.connection, "ALTER ROLE hub_runtime PASSWORD 'workspace-test-only'")
-  fixture.onCleanup(() => query(fixture.connection, 'ALTER ROLE hub_runtime PASSWORD NULL'))
+  await givePasswordToHubRuntime(fixture.connection, fixture.onCleanup, 'workspace-test-only')
   const directory = mkdtempSync(resolve(tmpdir(), 's1-workspace-'))
   fixture.onCleanup(() => rmSync(directory, { recursive: true, force: true }))
   const passwordFile = resolve(directory, 'password')
@@ -130,6 +129,10 @@ test('hub_runtime holds EXECUTE on the four project purges and on no owner helpe
       AND has_function_privilege('hub_runtime', proc.oid, 'EXECUTE') ORDER BY 1`)
   assert.deepEqual(held.rows.map((row) => row.signature), ['builder.purge_project(uuid)', 'connector.purge_project(uuid)', 'iam.purge_project(uuid)', 'reg.purge_project(uuid)'])
   await assert.rejects(query(runtime, 'SELECT iam.visible_projects($1)', [randomUUID()]), { code: '42501' })
+  const ownerHeld = await query(connection, `SELECT count(*)::integer AS held FROM pg_proc proc
+    WHERE proc.proname IN ('purge_project', 'register_project_repository') AND proc.pronamespace::regnamespace::text IN ('iam', 'builder', 'connector', 'reg')
+      AND has_function_privilege('project_owner', proc.oid, 'EXECUTE')`)
+  assert.deepEqual(ownerHeld.rows, [{ held: 0 }])
 })
 
 test('an admission proof for one account is refused inside the transaction of another', async (t) => {

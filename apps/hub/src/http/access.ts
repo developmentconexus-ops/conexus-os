@@ -351,11 +351,12 @@ export const routes = (app: FastifyInstance) => {
         if (declared === null) return reply.code(status).send()
         if (declared && 'parse' in declared) return reply.code(status).send(declared.parse(body))
         if (declared) {
-          const bytes = declared.etag === true ? (typeof body === 'object' && body !== null && 'bytes' in body ? body.bytes : null) : body
-          const etag = declared.etag === true && typeof body === 'object' && body !== null && 'etag' in body && typeof body.etag === 'string' ? body.etag : null
-          if (bytes instanceof Uint8Array && bytes.byteLength <= declared.maxBytes && (declared.etag !== true || etag !== null)) {
+          const revalidated = declared.cache === 'revalidate-private'
+          const bytes = revalidated ? (typeof body === 'object' && body !== null && 'bytes' in body ? body.bytes : null) : body
+          const etag = revalidated && typeof body === 'object' && body !== null && 'etag' in body && typeof body.etag === 'string' ? body.etag : null
+          if (bytes instanceof Uint8Array && bytes.byteLength <= declared.maxBytes && (!revalidated || etag !== null)) {
             const sent = reply.code(status).type(declared.mediaType)
-            if (etag !== null) sent.header('Cache-Control', 'private, no-cache').header('ETag', `"${etag}"`)
+            if (revalidated && etag !== null) sent.header('Cache-Control', 'private, no-cache').header('ETag', `"${etag}"`)
             return sent.send(Buffer.from(bytes))
           }
         }

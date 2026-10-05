@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
-import { buildHubDatabase, query } from './hub-database.mjs'
+import { buildHubDatabase, givePasswordToHubRuntime, query } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { openDatabase } = await import(hubModuleUrl('platform/db.js'))
@@ -24,8 +24,7 @@ export const STARTER = 'b'.repeat(40)
 
 export const setupProjects = async (t, prefix, { repository } = {}) => {
   const fixture = await buildHubDatabase(t, prefix)
-  await query(fixture.connection, `ALTER ROLE hub_runtime PASSWORD '${PASSWORD}'`)
-  fixture.onCleanup(() => query(fixture.connection, 'ALTER ROLE hub_runtime PASSWORD NULL'))
+  await givePasswordToHubRuntime(fixture.connection, fixture.onCleanup, PASSWORD)
   const directory = mkdtempSync(resolve(tmpdir(), 's1-project-'))
   fixture.onCleanup(() => rmSync(directory, { recursive: true, force: true }))
   const passwordFile = resolve(directory, 'password')

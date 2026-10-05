@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { AccountId, ProjectId as ProjectIdType } from '../../../../packages/contract/dist/index.js'
+import { WorkspaceId, type AccountId, type ProjectId as ProjectIdType } from '../../../../packages/contract/dist/index.js'
 import { BUILDER_RUN_STATES } from '../generated/builder-run-vocabulary.js'
 import { admitProjectDeletion } from '../identity-access/admission.js'
 import type { Database, WriteTx } from '../platform/db.js'
@@ -20,7 +20,7 @@ export type ProjectDeletionPorts = Readonly<{
 type DeleteProjectInput = Readonly<{ accountId: AccountId; projectId: ProjectIdType; confirmName: string }>
 
 const Tombstone = z.object({ name: z.string(), completed_at: z.date().nullable() })
-const Target = z.object({ workspace_id: z.uuid(), name: z.string() })
+const Target = z.object({ workspace_id: WorkspaceId, name: z.string() })
 const Present = z.object({ present: z.literal(1) })
 
 const tombstoneOf = (tx: WriteTx, projectId: ProjectIdType) => tx.maybe(Tombstone, sql`

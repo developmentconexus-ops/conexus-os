@@ -85,7 +85,7 @@ const emit = () => {
         responses[status].content = binary
           ? { [body.mediaType]: { schema: { type: 'string', format: 'binary', maxLength: body.maxBytes } } }
           : { 'application/json': { schema: asComponent(body, components, 'output') } }
-        if (binary && body.etag) responses[status].headers = { ETag: { schema: { type: 'string' } }, 'Cache-Control': { schema: { type: 'string', enum: ['private, no-cache'] } } }
+        if (binary && body.cache === 'revalidate-private') responses[status].headers = { ETag: { schema: { type: 'string' } }, 'Cache-Control': { schema: { type: 'string', enum: ['private, no-cache'] } } }
       }
     }
     const failureCodes = [...new Set([...common, ...op.failures, ...(op.headers?.shape?.['idempotency-key'] ? ['IDEMPOTENCY_KEY_REQUIRED'] : [])])]

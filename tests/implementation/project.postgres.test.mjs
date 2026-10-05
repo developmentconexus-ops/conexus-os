@@ -66,7 +66,7 @@ test('PRJ-03 refuses a retry after the account lost the workspace, an inactive a
   await assert.rejects(create(store, ID.owner, 'inactive'), { id: 'ACCOUNT_INACTIVE' })
 })
 
-test('a revoke that commits first refuses PRJ-03, and a revoke that waits for it lets it finish', async (t) => {
+test('a revoke that commits first refuses PRJ-03', async (t) => {
   const { connection, store, onCleanup } = await setupProjects(t, 'conexus_prj03_revoke')
   const revoker = new pg.Client(connection)
   await revoker.connect()
@@ -80,15 +80,32 @@ test('a revoke that commits first refuses PRJ-03, and a revoke that waits for it
   assert.equal(settled, false)
   await revoker.query('COMMIT')
   await assert.rejects(waiting, { id: 'PROJECT_CREATE_DENIED' })
+})
 
-  await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'member')", [ID.member, ID.workspace])
-  const writer = new pg.Client(connection)
-  await writer.connect()
-  onCleanup(() => writer.end())
-  const created = await create(store, ID.member, 'admitted-first')
+test('a revoke waits for an admitted PRJ-03 and the next admission is refused', async (t) => {
+  let holder
+  const { connection, store, onCleanup } = await setupProjects(t, 'conexus_prj03_admitted', { repository: { prepare: async () => {
+    await holder.query('BEGIN')
+    await holder.query('SELECT 1 FROM platform.operation_receipt FOR UPDATE')
+    return STARTER
+  } } })
+  holder = new pg.Client(connection)
+  await holder.connect()
+  onCleanup(() => holder.end())
+  const creating = create(store, ID.member, 'admitted-first')
+  const creation = { settled: false }
+  creating.then(() => { creation.settled = true }, () => { creation.settled = true })
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  assert.equal(creation.settled, false, 'the second transaction is admitted and waits on its receipt')
+  const revoking = query(connection, 'SELECT iam.remove_workspace_member($1, $2, $3)', [ID.owner, ID.workspace, ID.member])
+  const revocation = { settled: false }
+  revoking.then(() => { revocation.settled = true }, () => { revocation.settled = true })
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  assert.equal(revocation.settled, false, 'the revoke waits for the admitted writer')
+  await holder.query('COMMIT')
+  const [created] = await Promise.all([creating, revoking])
   assert.equal(created.replayed, false)
-  const removal = await query(connection, 'SELECT iam.remove_workspace_member($1, $2, $3)', [ID.owner, ID.workspace, ID.member])
-  assert.equal(removal.rowCount, 1)
+  assert.equal((await query(connection, 'SELECT count(*)::integer AS projects FROM project.project')).rows[0].projects, 1)
   await assert.rejects(create(store, ID.member, 'after-revoke'), { id: 'PROJECT_CREATE_DENIED' })
 })
 
@@ -174,10 +191,27 @@ test('without an account set, project tables and the builder reads show and chan
   assert.equal((await query(runtime, "UPDATE project.project SET archived = true")).rowCount, 0)
   assert.equal((await query(runtime, 'DELETE FROM project.project')).rowCount, 0)
   assert.equal((await query(runtime, 'DELETE FROM project.project_deletion')).rowCount, 0)
+  assert.equal((await query(runtime, 'UPDATE project.project_deletion SET purged_at = now()')).rowCount, 0)
   const rows = z.object({ project_id: z.string() })
   assert.deepEqual(await database.read(ID.outsider, (tx) => tx.rows(rows, sql`SELECT project_id FROM builder.builder_run`)), [])
   assert.deepEqual(await database.read(ID.outsider, (tx) => tx.rows(rows, sql`SELECT project_id FROM builder.project_working_state`)), [])
   assert.equal((await database.read(ID.member, (tx) => tx.rows(rows, sql`SELECT project_id FROM builder.project_working_state`))).length, 0)
+})
+
+test('a person transaction cannot run a project purge, and the rows stay', async (t) => {
+  const { connection, database, seedProject } = await setupProjects(t, 'conexus_prj_purge_guard')
+  const projectId = await seedProject('Atlas')
+  const refused = (error) => { assert.equal(error.cause.code, '42501'); assert.match(error.cause.message, /PURGE_REQUIRES_SYSTEM/); return true }
+  const purges = {
+    iam: sql`SELECT iam.purge_project(${projectId})`,
+    connector: sql`SELECT connector.purge_project(${projectId})`,
+    reg: sql`SELECT reg.purge_project(${projectId})`,
+    builder: sql`SELECT builder.purge_project(${projectId})`,
+  }
+  for (const [schema, statement] of Object.entries(purges)) {
+    await assert.rejects(database.transaction(ID.member, (tx) => tx.run(statement)), refused, schema)
+  }
+  assert.deepEqual((await query(connection, 'SELECT (SELECT count(*)::integer FROM builder.project_working_state WHERE project_id = $1) AS working, (SELECT count(*)::integer FROM builder.project_repository WHERE project_id = $1) AS repository', [projectId])).rows, [{ working: 1, repository: 1 }])
 })
 
 test('the policy helper is false for an administrator whose account is not active', async (t) => {

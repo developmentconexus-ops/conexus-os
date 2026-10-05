@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
 import { z } from 'zod'
-import { buildHubDatabase, query } from './hub-database.mjs'
+import { buildHubDatabase, givePasswordToHubRuntime, query } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { takeHubLogs } from './hub-log-capture.mjs'
 
@@ -14,12 +14,11 @@ const PASSWORD = 's1-data-test-only'
 
 const setup = async (t) => {
   const fixture = await buildHubDatabase(t, 'conexus_s1_data')
-  await query(fixture.connection, "ALTER ROLE hub_runtime PASSWORD 's1-data-test-only'")
+  await givePasswordToHubRuntime(fixture.connection, fixture.onCleanup, PASSWORD)
   const directory = mkdtempSync(resolve(tmpdir(), 's1-data-'))
   const passwordFile = resolve(directory, 'runtime-password')
   writeFileSync(passwordFile, PASSWORD)
   chmodSync(passwordFile, 0o600)
-  fixture.onCleanup(() => query(fixture.connection, 'ALTER ROLE hub_runtime PASSWORD NULL'))
   fixture.onCleanup(() => rmSync(directory, { recursive: true, force: true }))
   const database = openDatabase({ host: fixture.connection.host, port: fixture.connection.port, database: fixture.database, user: 'hub_runtime', passwordFile, max: 1 })
   fixture.onCleanup(() => database.close())

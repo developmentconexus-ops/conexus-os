@@ -92,11 +92,13 @@ function About({ project }: Readonly<{ project: ProjectDetail }>) {
 // most. The retry names the tombstone's own recorded name, never a name the administrator retypes,
 // since that recorded name is the only one this Project still has.
 //
-// projectRevision is only ever empty once the project read has fallen back to the tombstone, which only
-// happens after the Hub purge has run -- so it is the one signal this screen has for which side of
-// that purge the crash landed on. The GitHub delete itself runs after that purge and before the
-// tombstone is marked complete, so an empty revision does not tell us whether GitHub succeeded before
-// the crash -- the copy below must not claim either way, only that a retry is safe and needed.
+// projectRevision is empty whenever the project read has fallen back to the tombstone: after the Hub purge,
+// and also, between the tombstone and the purge, for an administrator who is not a member of the workspace,
+// who never sees the project row. So an empty revision is the signal this screen has for which side of
+// that purge the crash landed on only for a member; for a non member administrator it can still read as
+// purged a moment early. The GitHub delete itself runs after that purge and before the tombstone is marked
+// complete, so an empty revision does not tell us whether GitHub succeeded before the crash -- the copy
+// below must not claim either way, only that a retry is safe and needed.
 function DeletionRecovery({ project }: Readonly<{ project: ProjectDetail }>) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()

@@ -236,7 +236,7 @@ export declare const PRJ_THUMBNAIL: {
         readonly 200: {
             readonly mediaType: "image/png";
             readonly maxBytes: 512000;
-            readonly etag: true;
+            readonly cache: "revalidate-private";
         };
     };
     readonly effects: readonly [];
