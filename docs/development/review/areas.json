@@ -44,7 +44,7 @@
     "paths": [
       "apps/hub/migrations/**"
     ],
-    "page": "docs/development/review/data-migrations.md",
+    "guides": ["D"],
     "flows": []
   },
   {
@@ -76,7 +76,7 @@
       "docs/tasks/specs/0006-people-and-sign-in/**",
       "docs/tasks/specs/0008-configuration-model/**"
     ],
-    "page": "docs/development/review/data-migrations.md",
+    "guides": ["D"],
     "flows": []
   },
   {

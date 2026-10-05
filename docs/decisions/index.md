@@ -191,7 +191,7 @@ vendor. The gap is reviewed before the first external customer.
 ## Decided on 2026-09-23
 
 The operator decided this on 2026-09-23, after the independent reviews of the first Stage 2 Q1
-candidate. The [Stage 2 reference](../reference/stage2-managed-application-platform.md#database-topology)
+candidate. The [architecture guide](../reference/architecture.md#system-map)
 records the topology, and the [Q1 task](../tasks/stage2-q1-handler-runtime-data-qualification.md)
 qualifies it. C-028 is unchanged, because Conexus still allocates Project application data.
 

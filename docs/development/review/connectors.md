@@ -19,7 +19,7 @@ Applications PostgreSQL cluster. [`areas.json`](areas.json) owns the paths.
       its own authorization filter on top.
 - [ ] A Project database role cannot lift its own bounds. Its isolation rests on a credential or
       privilege it cannot mint or change from its own session. Owner:
-      [Database topology](../../reference/stage2-managed-application-platform.md#database-topology).
+      [Database](../../reference/database.md#stores).
 - [ ] A privilege granted to a `NOINHERIT` role says `WITH INHERIT TRUE` or is used through
       `SET ROLE`. A bare grant gives membership, not the privilege.
 - [ ] A change to egress or to what the sandbox can reach states its effect under

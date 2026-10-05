@@ -89,7 +89,7 @@ export const assertCatalog = async (client, snapshot) => {
 // These are the properties a regenerated snapshot must never be able to bless, so they are
 // asserted directly rather than compared. No Hub role may hold an attribute that bypasses the
 // owner boundary, and no Hub or owner role may be a member of another, which is the SET ROLE path
-// docs/reference/data-and-persistence.md section 6.2 forbids.
+// docs/reference/database.md, Roles, forbids.
 export const assertRoleInvariants = async (client) => {
   const roleRegister = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), 'utf8'))
   const transactionRoles = roleRegister.transactionRoles.map(row => row.role).sort()

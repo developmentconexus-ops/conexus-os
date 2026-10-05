@@ -12,6 +12,7 @@ export const GUIDES = Object.freeze({
   C: { path: 'docs/development/codebase-principles.md', kib: 8 },
   A: { path: 'docs/reference/architecture.md', kib: 8 },
   L: { path: 'docs/development/delivery.md', kib: 10 },
+  D: { path: 'docs/reference/database.md', kib: 8 },
   T: { path: 'docs/development/testing.md', kib: 6 },
 })
 const GUIDE_PATHS = new Set(Object.values(GUIDES).map(guide => guide.path))

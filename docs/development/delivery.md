@@ -140,7 +140,7 @@ A pull request is ready when these hold at its exact head SHA, plus the lane's g
   create. An approved increment includes its routine reversible steps; do not ask for each one.
 - A pull request links its issue, says what changes and for whom, and does only what the issue
   asks. Use conventional commits.
-- Migrations are forward-only. After a migration change, run `npm run db:catalog:snapshot` and commit the snapshot. See the [baseline rules](../reference/data-and-persistence.md#baseline-and-forward-migrations).
+- Migrations follow [database](../reference/database.md#migrations).
 - A contract change and its [operation ledger](../product/operation-ledger.md) change go in one commit. `npm run wire:bijection` gates on an exact count.
 - `scripts/check-agent-context.mjs` (`npm run repository:check`) checks cited scripts, links, size
   caps and the two workflow guards.

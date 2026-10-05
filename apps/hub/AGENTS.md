@@ -5,7 +5,7 @@ The Hub: the Fastify control plane, its PostgreSQL migrations and the Builder. [
 ## Traps
 
 - Owners never deep-import one another, except the shared contracts `scripts/check-import-law.mjs` names (the session contract and the application-server manifest). `platform/` imports no application layer, and `hub.ts` imports only the module constructors and platform helpers the checker allowlists. `npm run test:import-law` enforces it.
-- A migration on `main` is never edited. Add the next number, pin its SHA-256 in `scripts/run-hub-migrations.mjs`, then run `npm run db:catalog:snapshot`. Running migrations against the pilot changes it for good, so it needs the operator's Aprovo ([WSL environment](../../.agents/skills/conexus-development/references/wsl-environment.md)).
+- Migrations follow [database](../../docs/reference/database.md#migrations). Running them against the pilot changes it for good, so it needs the operator's Aprovo.
 - Generated application code never runs in the Hub process. It goes through the application runner (`src/app-runner/module.ts`).
 - An importable Mastra `dist/` path is not a public API. Check the [Mastra boundary](../../docs/reference/mastra/boundary.md) before you use one, and never write Mastra tables.
 

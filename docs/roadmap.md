@@ -64,9 +64,8 @@ Historical tasks and evidence remain records. They are not current execution pat
 
 The operator accepted the Stage 2 direction after an architecture review and an independent GPT-6 Astra challenge.
 
-C-028 records the decision. The technical target and qualification program live in:
-
-[Stage 2 managed application platform](reference/stage2-managed-application-platform.md)
+C-028 records the decision. The [architecture guide](reference/architecture.md) holds its technical
+shape; the qualification gates are below.
 
 The initial realization is deliberately a managed application platform:
 
@@ -314,11 +313,10 @@ after the step before it has a verdict, and each technology enters only under th
 [dependency rule](reference/architecture.md#dependencies), with its own consumer.
 
 "Code harness" here means the paved road of ready pieces the Builder assembles inside the managed
-profile. The general software-development harness of the
-[Stage 2 reference](reference/stage2-managed-application-platform.md#1-why-this-exists), a second
+profile. The general software-development harness, a second
 application profile with a backend per Project, is a different thing and stays future.
 
-| Order | Step | Candidates from the [technology queue](reference/stage2-managed-application-platform.md#7-technology-qualification-queue) | Enters when |
+| Order | Step | Candidates from the [technology baseline](#technology-baseline) | Enters when |
 | --- | --- | --- | --- |
 | 1 | Code harness: events, React UI library, auth, roles and users, audit, telemetry, an implementation guide, and a set of global Conexus skills (server, identity, connectors, frontend) | Fastify, Zod and `pg` already selected. oRPC if handlers need end-to-end typed procedures. Drizzle or Prisma only if SQL-first fails | Stage 2 closes |
 | 2 | Application templates built from the harness | None new | The harness has its first pieces |

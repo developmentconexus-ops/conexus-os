@@ -2,7 +2,7 @@
 
 How Conexus is composed: the parts, who owns each concept, which way dependencies point and where
 code may run. Owners next door: [product](../product/contract.md) for what the parts are for,
-[database](data-and-persistence.md) for how PostgreSQL enforces what this file assigns,
+[database](database.md) for how PostgreSQL enforces what this file assigns,
 [security](security-and-authority.md) for who may act, [API](../product/wire-contract.md) for the
 wire, [code](../development/codebase-principles.md) for how a module is written. Exact Mastra API
 evidence is in [the Mastra reference](mastra/index.md); reasons and rejected options are in the

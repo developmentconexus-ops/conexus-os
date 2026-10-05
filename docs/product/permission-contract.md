@@ -194,7 +194,7 @@ lifecycle surface introduces its own action at its first real call site.
 will need authority this model does not express. Each line below is a requirement on a
 future call site. None of them is an action today, and none may be added to `iam.action`
 before the operation that needs it exists. [Section 12 of the product contract](contract.md#12-approved-destination)
-owns what each one means; the [Stage 2 application reference](../reference/stage2-managed-application-platform.md)
+owns what each one means; the [architecture guide](../reference/architecture.md)
 owns the qualification sequence.
 
 | Requirement | What it must decide | Why the current model does not answer it |

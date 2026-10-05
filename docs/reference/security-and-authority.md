@@ -1,7 +1,7 @@
 # Security and authority
 
 Technical detail for the security boundary. [The permission contract](../product/permission-contract.md)
-owns who may do what, and [the role register](hub-database-roles.md) owns the database
+owns who may do what, and [the database guide](database.md#roles) owns the database
 roles. This file describes the code; where they disagree, the code is right.
 
 ## 1. Trust zones
@@ -44,7 +44,7 @@ and a capability granted to a Project never becomes the secret behind it.
 ## 2. Database roles
 
 The Hub reaches its database as one login role, `hub_runtime`, and Mastra's storage as `hub_factory`.
-`docs/reference/hub-database-roles.md` is the register.
+`contracts/technical/hub-database-roles.json` is the register.
 
 `hub_runtime` logs in and holds nothing on a split table except `iam.account`, whose unported readers
 keep a bridge until part 6. Until the parts that own them port the functions it still runs, it holds

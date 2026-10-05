@@ -11,7 +11,6 @@ owns status and the next action. Start there.
 | How to work on this repository | [`AGENTS.md`](../AGENTS.md) and [`CONTRIBUTING.md`](../CONTRIBUTING.md) |
 | The approved product destination | [Product contract, section 12](product/contract.md#12-approved-destination) |
 | What Q1 proved, and its boundaries | [Stage 2 Q1 evidence and verdict](evidence/stage2-q1/README.md#verdict), closed |
-| The Stage 2 generated-application architecture and qualification map | [Stage 2 managed application platform](reference/stage2-managed-application-platform.md) |
 | Pre-implementation research, SDK/library candidates and superseded alternatives (not execution authority) | [Stage 2 research memory, R01–R13](research/stage2/README.md) |
 | The previous Factory adoption work | [Factory adoption](tasks/factory-adoption.md), closed |
 | Why the Factory-centered composition was chosen | [Sessions and Work qualification](evidence/sessions-work-qualification/README.md), closed |
@@ -37,9 +36,7 @@ owns status and the next action. Start there.
 | Need | Owner |
 | --- | --- |
 | How the Builder works | [C-020 Mastra-native Builder](reference/builder-c020-mastra-native.md) |
-| How Stage 2 generated applications are shaped and qualified | [Stage 2 managed application platform](reference/stage2-managed-application-platform.md) |
-| Project, data and persistence | [Data and persistence](reference/data-and-persistence.md) |
-| Database roles and their capabilities | [Role register](reference/hub-database-roles.md) |
+| Stores, database roles, where a rule lives, migrations | [Database](reference/database.md) |
 | Backing up the database and Git root, and proving a restore | [Backup and tested restore](reference/backup.md) |
 | Running the pilot Hub and runner under systemd, and what a crash looks like | [Pilot supervision](reference/pilot-supervision.md) |
 | Security and authority | [Security reference](reference/security-and-authority.md) |
