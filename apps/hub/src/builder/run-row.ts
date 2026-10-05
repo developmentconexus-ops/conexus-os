@@ -8,7 +8,6 @@ export type { BuilderRunSummary, BuilderRunView } from '../../../../packages/con
 /** The result kinds of a run that changed the source. */
 export const CODE_CHANGING_RESULT_KINDS = BUILDER_RUN_RESULT_KINDS.filter((kind) => kind !== 'RESPONSE_ONLY')
 
-// The columns a run summary reads.
 export const RUN_COLUMNS = sql`
   run.builder_run_id, run.project_id, run.conversation_id, run.state, run.phase, run.base_source_revision,
   run.result_source_revision, run.result_kind, run.failure_code, run.request_text, run.created_at,

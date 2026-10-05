@@ -17,7 +17,6 @@ const runBase = {
   cancellationRequested: z.boolean(),
 }
 
-// Each state holds only what that state can: a phase while running, a result once settled, a failure code once it failed or was interrupted.
 const runVariants = <Extra extends z.ZodRawShape>(extra: Extra) => z.discriminatedUnion('state', [
   z.object({ ...runBase, ...extra, state: z.literal('QUEUED'), phase: z.null(), resultSourceRevision: z.null(), resultKind: z.null(), failureCode: z.null() }),
   z.object({ ...runBase, ...extra, state: z.literal('RUNNING'), phase: z.enum(BUILDER_RUN_PHASES).nullable(), resultSourceRevision: SourceRevision.nullable(), resultKind: z.null(), failureCode: z.null() }),

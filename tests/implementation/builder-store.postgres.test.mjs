@@ -23,6 +23,9 @@ const pending = (promise) => {
   return state
 }
 
+// The columns a test is about, read once from the row and compared with a literal.
+const fields = (actual, ...keys) => Object.fromEntries(keys.map((key) => [key, actual[key]]))
+
 const harness = async (t, name) => {
   const fixture = await setupBuilder(t, name)
   const store = createBuilderStore({ database: fixture.database, ownerId: OWNER })
@@ -127,17 +130,17 @@ test('every exit from RUNNING leaves a null phase, a response ends as RESPONSE_O
   assert.equal((await store.setBuilderRunPhase({ builderRunId: failing, phase: 'AGENT', actor: executor })).phase, 'AGENT')
   assert.equal((await row(failing)).phase, 'AGENT')
   await store.failBuilderRun({ builderRunId: failing, failureCode: 'BUILDER_SOURCE_ADMISSION_FAILED' })
-  assert.deepEqual(await row(failing), { ...(await row(failing)), state: 'FAILED', phase: null, failure_code: 'BUILDER_SOURCE_ADMISSION_FAILED' })
+  assert.deepEqual(fields(await row(failing), 'state', 'phase', 'failure_code'), { state: 'FAILED', phase: null, failure_code: 'BUILDER_SOURCE_ADMISSION_FAILED' })
 
   const interrupted = await running(await seedBuilderProject('Interrupted'))
   await store.setBuilderRunPhase({ builderRunId: interrupted, phase: 'WAITING', actor: executor })
   await store.interruptBuilderRun({ builderRunId: interrupted, failureCode: 'BUILDER_QUESTION_EXPIRED' })
-  assert.deepEqual(await row(interrupted), { ...(await row(interrupted)), state: 'INTERRUPTED', phase: null, failure_code: 'BUILDER_QUESTION_EXPIRED', cancellation_reason: 'BUILDER_QUESTION_EXPIRED' })
+  assert.deepEqual(fields(await row(interrupted), 'state', 'phase', 'failure_code', 'cancellation_reason'), { state: 'INTERRUPTED', phase: null, failure_code: 'BUILDER_QUESTION_EXPIRED', cancellation_reason: 'BUILDER_QUESTION_EXPIRED' })
 
   const responseOnly = await running(await seedBuilderProject('Response'))
   await store.setBuilderRunPhase({ builderRunId: responseOnly, phase: 'AGENT', actor: executor })
   await store.settleBuilderRun({ builderRunId: responseOnly })
-  assert.deepEqual(await row(responseOnly), { ...(await row(responseOnly)), state: 'SUCCEEDED', phase: null, result_kind: 'RESPONSE_ONLY', result_source_revision: null })
+  assert.deepEqual(fields(await row(responseOnly), 'state', 'phase', 'result_kind', 'result_source_revision'), { state: 'SUCCEEDED', phase: null, result_kind: 'RESPONSE_ONLY', result_source_revision: null })
 
   const projectId = await seedBuilderProject('Built')
   const preview = { revision: randomUUID(), digest: 'd'.repeat(64) }
@@ -147,7 +150,7 @@ test('every exit from RUNNING leaves a null phase, a response ends as RESPONSE_O
   assert.equal((await row(built)).phase, 'SOURCE_ADMISSION')
   await store.advanceBuilderRunSource({ builderRunId: built, sourceRevision: CANDIDATE })
   await store.settleBuilderRunBuild({ kind: 'FAILED', builderRunId: built, sourceRevision: CANDIDATE, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
-  assert.deepEqual(await row(built), { ...(await row(built)), state: 'FAILED', phase: null, result_kind: 'SOURCE_CHANGED_BUILD_FAILED', result_source_revision: CANDIDATE, failure_code: 'BUILDER_PREVIEW_NOT_BUILT' })
+  assert.deepEqual(fields(await row(built), 'state', 'phase', 'result_kind', 'result_source_revision', 'failure_code'), { state: 'FAILED', phase: null, result_kind: 'SOURCE_CHANGED_BUILD_FAILED', result_source_revision: CANDIDATE, failure_code: 'BUILDER_PREVIEW_NOT_BUILT' })
   assert.deepEqual(await working(projectId), { current_state: 'BUILD_FAILED', last_preview_source_revision: HEAD, last_preview_artifact_revision_id: preview.revision, last_preview_artifact_digest: preview.digest })
 })
 
@@ -179,7 +182,7 @@ test('a run records one candidate, advances only to it, settles as a response on
   await store.advanceBuilderRunSource({ builderRunId, sourceRevision: CANDIDATE })
   await assert.rejects(store.settleBuilderRunBuild({ kind: 'FAILED', builderRunId, sourceRevision: OTHER, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' }), { id: 'BUILDER_RUN_TRANSITION_REFUSED', details: { transition: 'build settlement' } })
   await store.settleBuilderRunBuild({ kind: 'FAILED', builderRunId, sourceRevision: CANDIDATE, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
-  assert.deepEqual(await row(builderRunId), { ...(await row(builderRunId)), state: 'FAILED', trigger_message_id: 'mastra-message-1', sandbox_id: 'sandbox-1', candidate_revision: CANDIDATE, result_source_revision: CANDIDATE })
+  assert.deepEqual(fields(await row(builderRunId), 'state', 'trigger_message_id', 'sandbox_id', 'candidate_revision', 'result_source_revision'), { state: 'FAILED', trigger_message_id: 'mastra-message-1', sandbox_id: 'sandbox-1', candidate_revision: CANDIDATE, result_source_revision: CANDIDATE })
   await assert.rejects(store.recordBuilderRunModelAccount({ builderRunId, accountId: ID.owner, modelAccountId: payer }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
 })
 
@@ -199,16 +202,16 @@ test('a queued run ends unclaimed only while still queued and unowned, and a cla
   const { connection, store, start, row, seedBuilderProject } = await harness(t, 'conexus_builder_unclaimed')
   const lost = await start(await seedBuilderProject('Lost'))
   await store.endUnclaimedBuilderRun({ builderRunId: lost.builderRunId, ending: { state: 'FAILED', failureCode: 'BUILDER_RUN_NOT_ADMITTED' } })
-  assert.deepEqual(await row(lost.builderRunId), { ...(await row(lost.builderRunId)), state: 'FAILED', failure_code: 'BUILDER_RUN_NOT_ADMITTED', phase: null })
+  assert.deepEqual(fields(await row(lost.builderRunId), 'state', 'failure_code', 'phase'), { state: 'FAILED', failure_code: 'BUILDER_RUN_NOT_ADMITTED', phase: null })
 
   const cancelled = await start(await seedBuilderProject('Cancelled'))
   await store.requestBuilderRunCancellation({ accountId: ID.owner, projectId: cancelled.projectId, builderRunId: cancelled.builderRunId })
   await store.endUnclaimedBuilderRun({ builderRunId: cancelled.builderRunId, ending: { state: 'FAILED', failureCode: 'BUILDER_RUN_NOT_ADMITTED' } })
-  assert.deepEqual(await row(cancelled.builderRunId), { ...(await row(cancelled.builderRunId)), state: 'INTERRUPTED', failure_code: 'USER_CANCELLED' })
+  assert.deepEqual(fields(await row(cancelled.builderRunId), 'state', 'failure_code'), { state: 'INTERRUPTED', failure_code: 'USER_CANCELLED' })
 
   const stopped = await start(await seedBuilderProject('Stopped'))
   await store.endUnclaimedBuilderRun({ builderRunId: stopped.builderRunId, ending: { state: 'INTERRUPTED', failureCode: 'HUB_RESTART' } })
-  assert.deepEqual(await row(stopped.builderRunId), { ...(await row(stopped.builderRunId)), state: 'INTERRUPTED', phase: null, failure_code: 'HUB_RESTART', cancellation_requested: true, cancellation_reason: 'HUB_RESTART' })
+  assert.deepEqual(fields(await row(stopped.builderRunId), 'state', 'phase', 'failure_code', 'cancellation_requested', 'cancellation_reason'), { state: 'INTERRUPTED', phase: null, failure_code: 'HUB_RESTART', cancellation_requested: true, cancellation_reason: 'HUB_RESTART' })
 
   const claimed = await start(await seedBuilderProject('Claimed'))
   await store.claimBuilderRun({ builderRunId: claimed.builderRunId })
