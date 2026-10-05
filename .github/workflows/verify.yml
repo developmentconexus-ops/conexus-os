@@ -19,7 +19,7 @@ jobs:
     name: verify (${{ matrix.group }})
     strategy:
       matrix:
-        group: [browser, postgres, rest, live]
+        group: [browser, postgres, rest, live, backup]
     # A draft is work in progress: its author runs the touched suites locally and pushes as often as
     # needed. CI runs once, when the pull request is marked ready for review, and on every push after.
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft

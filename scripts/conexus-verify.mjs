@@ -49,7 +49,8 @@ const hubBuildStep = Object.freeze({
 
 const TEST_GROUP_GLOBS = Object.freeze({
   repository: Object.freeze(['tests/repository/!(*.browser|*.postgres).test.mjs']),
-  implementation: Object.freeze(['tests/implementation/!(*.browser|*.postgres).test.mjs', 'tests/implementation/access/*.test.mjs']),
+  implementation: Object.freeze(['tests/implementation/!(*.browser|*.postgres|conexus-backup).test.mjs', 'tests/implementation/access/*.test.mjs']),
+  backup: Object.freeze(['tests/implementation/conexus-backup.test.mjs']),
   postgres: Object.freeze(['tests/implementation/*.postgres.test.mjs']),
   browser: Object.freeze(['tests/implementation/*.browser.test.mjs']),
   live: Object.freeze(['tests/live/*.test.mjs']),
@@ -92,6 +93,10 @@ const GRAPH_STEPS = Object.freeze([
 
   testStep('browser-tests', 'browser', 'browser'),
 
+  // The backup suite boots its own PostgreSQL and Keycloak containers and runs the real backup and
+  // restore scripts, about as long as every other suite of the rest group together, so it is a group.
+  testStep('backup-tests', 'backup', 'backup'),
+
   // One Hub, one Chromium and a scripted model for the whole suite, so the flows share one boot.
   candidateStep('live-builder', 'npm run test:live', 'live'),
 
@@ -100,12 +105,12 @@ const GRAPH_STEPS = Object.freeze([
 
 export const CANDIDATE_GRAPH = GRAPH_STEPS
 
-// CI runs the graph as four jobs, each on its own machine with its own PostgreSQL and CPU. A step's
+// CI runs the graph as five jobs, each on its own machine with its own PostgreSQL and CPU. A step's
 // group follows from its class: rest (static checks and the suites that need nothing), postgres,
-// browser, live. Two steps belong to every group: the Hub build, which publishes the compiled Hub
+// browser, live, backup. Two steps belong to every group: the Hub build, which publishes the compiled Hub
 // the suites import, and the skip check, which reads the ledger of the job it runs in.
-export const VERIFY_GROUPS = Object.freeze(['browser', 'postgres', 'rest', 'live'])
-const GROUP_OF_CLASS = Object.freeze({ browser: 'browser', postgres: 'postgres', static: 'rest', live: 'live' })
+export const VERIFY_GROUPS = Object.freeze(['browser', 'postgres', 'rest', 'live', 'backup'])
+const GROUP_OF_CLASS = Object.freeze({ browser: 'browser', postgres: 'postgres', static: 'rest', live: 'live', backup: 'backup' })
 const EVERY_GROUP = new Set([hubBuildStep.scope, 'only-opt-in-skips'])
 
 export const groupsOf = (step) => {
