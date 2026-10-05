@@ -10,6 +10,7 @@
   "collectionsAcrossModules": 0,
   "plainPortIds": 2,
   "failureToDefault": 0,
+  "runContextReadsOutsideOwner": 0,
   "handTypedRunStates": 0,
   "runEndWriters": 0,
   "positionalSourceReads": 0,

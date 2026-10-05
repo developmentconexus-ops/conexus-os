@@ -148,6 +148,13 @@ const gitAdapterConversions = builderSource.filter((path) => rel(path) === 'apps
 })
 const failureToDefault = [...hits(builderSource.filter((path) => !NOT_REPOSITORY_OR_STORE.test(rel(path))), FAILURE_DEFAULT), ...gitAdapterConversions]
 
+// The run's id, payer and conversation ride in the request context under keys only run-context.ts names: it writes them
+// from branded ids and reads them back, and a value that is not an id there is a broken invariant (INTERNAL_UNEXPECTED).
+// Another module that parses them itself, or reads them raw, decides alone what a bad value means: the earlier reader
+// turned it into "connect a model". The failureToDefault scan could not see it because nothing there is a default.
+const runContextReadsOutsideOwner = hits(builderSource.filter((path) => rel(path) !== 'apps/hub/src/builder/run-context.ts'),
+  /getRaw\(\s*(?:RUN_ID_KEY|RUN_ACCOUNT_ID_KEY|CONVERSATION_ID_KEY|['"`]conexusBuilder(?:Run|Account|Conversation)Id['"`])|safeParse\([^)]*getRaw\(/)
+
 const runFiles = builderSource.filter((path) => /^apps\/hub\/src\/builder\/(run\/|service\.ts$|runtime\.ts$)/.test(rel(path)))
 const runFunctionLengthSuppressions = hits(runFiles, /biome-ignore lint\/complexity\/noExcessiveLinesPerFunction/, { comments: true })
 
@@ -204,6 +211,7 @@ const census = {
   collectionsAcrossModules,
   plainPortIds,
   failureToDefault,
+  runContextReadsOutsideOwner,
   handTypedRunStates,
   runEndWriters,
   positionalSourceReads,

@@ -6,6 +6,7 @@ import test from 'node:test'
 import { InMemoryStore } from '@mastra/core/storage'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { hubModuleUrl } from './hub-build.mjs'
+import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 import { testConversations } from './builder-conversation-fixture.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
@@ -66,7 +67,7 @@ const openRun = async (t, { model, failsRead, bindExtra = () => {} }) => {
   t.after(() => conversations.close())
   const run = await createControllerRunSessions({ controller, conversations, readDefaultModel: async () => 'anthropic/default-model' })({
     projectId, conversationId, builderRunId,
-    bindContext: (requestContext) => { requestContext.setRaw('conexusBuilderRunId', builderRunId); requestContext.setRaw('conexusBuilderConversationId', conversationId); bindExtra(requestContext) },
+    bindContext: (requestContext) => { bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId, conversationId }); bindExtra(requestContext) },
   })
   return { run, storageCalls, controller }
 }
@@ -162,7 +163,7 @@ const routing = createModelRouting({
   readDefault: async () => null,
   record: async () => {},
 })
-const bindAccount = (requestContext) => requestContext.setRaw('conexusBuilderAccountId', accountId)
+const bindAccount = (requestContext) => bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId, conversationId, accountId })
 
 const anthropicError = (status, type, message) => () => new Response(JSON.stringify({ type: 'error', error: { type, message } }), { status, headers: { 'content-type': 'application/json' } })
 const anthropicAnswer = () => new Response([

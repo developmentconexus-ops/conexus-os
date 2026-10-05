@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { RequestContext } from '@mastra/core/request-context'
 import { hubModuleUrl } from './hub-build.mjs'
+import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 
 const { createModelRouting } = await import(hubModuleUrl('builder/model-routing.js'))
 const { createAnthropicRoute } = await import(hubModuleUrl('builder/anthropic/route.js'))
@@ -39,8 +40,7 @@ const routingOver = (anthropicRow = rows.anthropic) => createModelRouting({
 // The request context AgentController gives a call: the session's model and its live state.
 const turn = (modelId, state = {}) => {
   const requestContext = new RequestContext()
-  requestContext.setRaw('conexusBuilderRunId', 'run-1')
-  requestContext.setRaw('conexusBuilderAccountId', ana)
+  bindRunContext(requestContext, { ...RUN_CONTEXT, accountId: ana })
   requestContext.set('controller', { session: { modelId, modeId: 'build' }, getState: () => state })
   return requestContext
 }

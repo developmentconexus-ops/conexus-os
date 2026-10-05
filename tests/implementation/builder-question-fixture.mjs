@@ -5,6 +5,7 @@ import { Mastra } from '@mastra/core/mastra'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { Memory } from '@mastra/memory'
 import { hubModuleUrl } from './hub-build.mjs'
+import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 import { conversationId, projectId } from './builder-run-harness.mjs'
 import { testConversations } from './builder-conversation-fixture.mjs'
 
@@ -76,8 +77,7 @@ const scratchWorkspace = (t) => {
 }
 
 export const bindRun = (builderRunId) => (requestContext) => {
-  requestContext.setRaw('conexusBuilderRunId', builderRunId)
-  requestContext.setRaw('conexusBuilderConversationId', conversationId)
+  bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId, conversationId })
 }
 
 export const liveSession = (controller) => controller.getSessionByResource(resourceId, conversationScope)

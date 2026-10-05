@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
+import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 import { hubJsonWrite, hubWrite, opaque, testListener } from './access/test-listener.mjs'
 
 const built = hubModuleUrl
@@ -361,18 +362,16 @@ const routingOver = async ({ store, threadModel = null, defaults = {}, routes = 
   })
   const call = (builderRunId, accountId, modelId) => {
     const requestContext = new RequestContext()
-    requestContext.setRaw('conexusBuilderRunId', builderRunId)
-    requestContext.setRaw('conexusBuilderAccountId', accountId)
+    bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId, accountId })
     requestContext.set('controller', { session: { modelId } })
     return routing.resolve({ requestContext })
   }
   const memoryCall = (builderRunId, accountId) => {
     const requestContext = new RequestContext()
-    requestContext.setRaw('conexusBuilderRunId', builderRunId)
-    requestContext.setRaw('conexusBuilderAccountId', accountId)
+    bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId, accountId })
     return routing.resolveMemory(requestContext)
   }
-  const check = (accountId) => routing.check({ accountId, projectId: 'project-1', conversationId: 'conversation-1' })
+  const check = (accountId) => routing.check({ accountId, projectId: '33333333-3333-4333-8333-333333333333', conversationId: RUN_CONTEXT.conversationId })
   return { call, memoryCall, check, recorded }
 }
 

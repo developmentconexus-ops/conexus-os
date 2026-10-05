@@ -11,7 +11,7 @@ import { gitUnavailableAs } from '../platform/git-failure.js'
 import type { Job } from '../platform/jobs.js'
 import { logLine } from '../platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from '../platform/secrets.js'
-import { type AccountId, BuilderRunId, ConversationId, type ProjectId, type BuilderTraceSummary } from '../../../../packages/contract/dist/index.js'
+import type { AccountId, BuilderRunId, ConversationId, ProjectId, BuilderTraceSummary } from '../../../../packages/contract/dist/index.js'
 import { registerBuilderRoutes } from './routes.js'
 import { mountLogFilter, mountValidationFailure, registerBuilderSessionRoutes } from './mastra-session-routes.js'
 import type { ToolPayloadProjection } from './mastra-session-routes.js'
@@ -49,7 +49,8 @@ import { createGoogleAiProAccounts } from './google-ai-pro/store.js'
 import { ANTHROPIC_PROVIDER, createClaudeHolds } from './anthropic/credential.js'
 import { createAnthropicRoute } from './anthropic/route.js'
 import { createModelAccountStore } from './model-account-store.js'
-import { CONVERSATION_ID_KEY, createModelRouting, RUN_ID_KEY, type ModelRole, type ModelRoute } from './model-routing.js'
+import { createModelRouting, type ModelRole, type ModelRoute } from './model-routing.js'
+import { readRunContext } from './run-context.js'
 import { createBuilderMemory } from './memory.js'
 import { createCodexHolds, OPENAI_MODEL_PROVIDER } from './openai-codex/credential.js'
 import { createOpenAICodexRoute } from './openai-codex/route.js'
@@ -168,9 +169,8 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
     id: BUILDER_CONTROLLER_ID,
     workspace: (context) => liveConversations.workspace(context),
     runTools: ({ requestContext }) => {
-      const conversationId = ConversationId.safeParse(requestContext.getRaw(CONVERSATION_ID_KEY))
-      const runId = BuilderRunId.safeParse(requestContext.getRaw(RUN_ID_KEY))
-      return conversationId.success && runId.success ? service.runTools(conversationId.data, runId.data) : undefined
+      const context = readRunContext(requestContext)
+      return context ? service.runTools(context.conversationId, context.builderRunId) : undefined
     },
     model: modelRouting.resolve,
     docsTools,

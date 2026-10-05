@@ -5,7 +5,8 @@ import { wrapLanguageModel, type LanguageModelMiddleware } from 'ai'
 import { readSessionModelId, readSessionThinkingLevel } from './harness/request-context.js'
 import type { HeldModelAccount, ModelAccountStore } from './model-account-store.js'
 import { Failure } from '../platform/failure.js'
-import { AccountId, BuilderRunId, type ConversationId, type ModelAccountId, type ProjectId } from '../../../../packages/contract/dist/index.js'
+import { requireRunContext } from './run-context.js'
+import type { AccountId, BuilderRunId, ConversationId, ModelAccountId, ProjectId } from '../../../../packages/contract/dist/index.js'
 
 /**
  * How a model call pays for and reaches one provider's models: the `model.model_account` provider,
@@ -29,12 +30,6 @@ export const wrapGatewayModel = (model: GatewayLanguageModel, middleware: readon
 
 /** The installation's two default models: the Builder's, for a conversation with none of its own, and the memory's. */
 export type ModelRole = 'build' | 'memory'
-
-/** Where a run's request context carries its id, and the account that pays for its calls (run/run.ts sets both on every turn). */
-export const RUN_ID_KEY = 'conexusBuilderRunId'
-export const RUN_ACCOUNT_ID_KEY = 'conexusBuilderAccountId'
-/** Where a turn's request context carries its conversation, whose workspace a new session resolves. */
-export const CONVERSATION_ID_KEY = 'conexusBuilderConversationId'
 
 const providerOfModel = (modelId: string): string => parseModelString(modelId).provider ?? ''
 
@@ -64,11 +59,9 @@ export const createModelRouting = ({ routes, modelAccounts, conversationModel, r
     return { route, account, modelId }
   }
   const call = async (requestContext: RequestContext, modelId: string | null, thinkingLevel?: ThinkingLevelSetting): Promise<MastraModelConfig> => {
-    const runId = BuilderRunId.safeParse(requestContext.getRaw(RUN_ID_KEY))
-    const payer = AccountId.safeParse(requestContext.getRaw(RUN_ACCOUNT_ID_KEY))
-    if (!runId.success || !payer.success) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
-    const { route, account, modelId: selected } = await accountFor(payer.data, modelId)
-    await record(runId.data, payer.data, account.modelAccountId)
+    const { builderRunId, accountId } = requireRunContext(requestContext)
+    const { route, account, modelId: selected } = await accountFor(accountId, modelId)
+    await record(builderRunId, accountId, account.modelAccountId)
     const held = route.take(account)
     return held.model(parseModelString(selected).modelId, thinkingLevel)
   }

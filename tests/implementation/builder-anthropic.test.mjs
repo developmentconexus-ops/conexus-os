@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { RequestContext } from '@mastra/core/request-context'
 import { hubModuleUrl } from './hub-build.mjs'
+import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 import { hubJsonWrite, opaque, testListener } from './access/test-listener.mjs'
 
 const built = hubModuleUrl
@@ -207,8 +208,7 @@ const routingOver = ({ store, holds = createClaudeHolds({ store }) }) => {
   })
   const call = (builderRunId, accountId, modelId) => {
     const requestContext = new RequestContext()
-    requestContext.setRaw('conexusBuilderRunId', builderRunId)
-    requestContext.setRaw('conexusBuilderAccountId', accountId)
+    bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId, accountId })
     requestContext.set('controller', { session: { modelId, modeId: 'build' } })
     return routing.resolve({ requestContext })
   }

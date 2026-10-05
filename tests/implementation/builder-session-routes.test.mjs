@@ -8,6 +8,7 @@ import { Mastra } from '@mastra/core/mastra'
 import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
 import { hubModuleUrl } from './hub-build.mjs'
+import { bindRunContext } from './run-context.mjs'
 import { testConversations } from './builder-conversation-fixture.mjs'
 import { hubJsonWrite, hubSessionCookie, opaque, testListener } from './access/test-listener.mjs'
 
@@ -583,10 +584,8 @@ for (const [label, status, type] of [['401', 401, 'authentication_error'], ['503
     const reading = (async () => { for await (const chunk of response.body) frames.push(Buffer.from(chunk).toString()) })().catch(() => undefined)
     const session = await controller.getSessionByResource(`project:${projectA}`, `conversation:${conversationA}`)
     const requestContext = new (await import('@mastra/core/request-context')).RequestContext()
-    requestContext.setRaw('conexusBuilderAccountId', accountA)
-    requestContext.setRaw('conexusBuilderRunId', randomUUID())
+    bindRunContext(requestContext, { builderRunId: randomUUID(), accountId: accountA, conversationId: conversationA })
     await session.model.switch({ modelId: 'anthropic/claude-test' })
-    requestContext.setRaw('conexusBuilderConversationId', conversationA)
     const ended = new Promise((done) => { session.subscribe((event) => { if (event.type === 'agent_end') setTimeout(done, 50) }) })
     await session.sendMessage({ content: 'Faça o app.', requestContext }).catch(() => undefined)
     await ended

@@ -3,7 +3,7 @@ import { APPLICATION_CHECK_EXCLUDED } from '../application-starter.js'
 import type { ApplicationServerPort, BuilderApplicationArtifacts } from '../application-build.js'
 import { agentReportOf } from '../check/report.js'
 import { SANDBOX_CHECKOUT } from '../sandbox.js'
-import { CONVERSATION_ID_KEY, RUN_ACCOUNT_ID_KEY, RUN_ID_KEY } from '../model-routing.js'
+import { bindRunContext } from '../run-context.js'
 import { CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_PROJECT_NEW_KEY, CONEXUS_TURN_CONFLICTS_KEY, CONEXUS_TURN_DATE_KEY, type RunTools } from '../harness/index.js'
 import { turnDate } from '../harness/prompt.js'
 import { createRunTiming } from '../run-timing.js'
@@ -185,9 +185,7 @@ const readRunContext = async (run: Run): Promise<(conflicted: readonly string[])
   // The paths the turn's start left with conflict markers, which the agent resolves first (decision 3).
   return (conflicted) => (requestContext) => {
     requestContext.setRaw('conexusBuilderProjectId', projectId)
-    requestContext.setRaw(RUN_ID_KEY, builderRunId)
-    requestContext.setRaw(CONVERSATION_ID_KEY, conversationId)
-    requestContext.setRaw(RUN_ACCOUNT_ID_KEY, run.request.accountId)
+    bindRunContext(requestContext, { builderRunId, conversationId, accountId: run.request.accountId })
     requestContext.setRaw(CONEXUS_PROJECT_NAME_KEY, projectName)
     requestContext.setRaw(CONEXUS_TURN_DATE_KEY, date)
     requestContext.setRaw(CONEXUS_PROJECT_NEW_KEY, isNew ? 'true' : '')

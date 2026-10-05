@@ -11,7 +11,7 @@ const DEBT = '// biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning w
 const EXEMPT = `// biome-ignore lint/nursery/noUnsafeTypeAssertion: exempt ${REASON}`
 const ZERO = {
   sqlRunWriters: 0, sqlRunWriterTriggers: 0, runSummaryLiterals: 0, parkedReferences: 0, abortUndoCalls: 0, hubSendMessageCalls: 0,
-  mastraInternalsOutsideLeftovers: 0, sessionScopes: 0, collectionsAcrossModules: 0, plainPortIds: 0, failureToDefault: 0, handTypedRunStates: 0, runEndWriters: 0, positionalSourceReads: 0, runFunctionLengthSuppressions: 0,
+  mastraInternalsOutsideLeftovers: 0, sessionScopes: 0, collectionsAcrossModules: 0, plainPortIds: 0, failureToDefault: 0, runContextReadsOutsideOwner: 0, handTypedRunStates: 0, runEndWriters: 0, positionalSourceReads: 0, runFunctionLengthSuppressions: 0,
   failureCodesWithoutRow: 0, repeatedTimerSuppressions: 0, unsafeAssertionDebt: 3,
 }
 const FILES = {
@@ -179,4 +179,14 @@ test('in the Git adapter a swallowing catch and a catch that renames every failu
   assert.equal(renamed.status, 1)
   assert.match(renamed.out, /failureToDefault 1 \(record 0\) UP\s+apps\/hub\/src\/builder\/conexus-git\.ts:1/)
   assert.equal(fixture(t, { files: adapter('await git().catch(async (error: unknown) => {\n  if (await read() === null) throw error\n})\n') }).run().status, 0)
+})
+
+test('a module other than run-context.ts that reads the run keys raw, or parses a request-context value itself, is counted', (t) => {
+  const reader = (text) => ({ ...FILES, 'apps/hub/src/builder/model-routing.ts': text })
+  const raw = fixture(t, { files: reader("const runId = BuilderRunId.safeParse(requestContext.getRaw(RUN_ID_KEY))\n") }).run()
+  assert.equal(raw.status, 1)
+  assert.match(raw.out, /runContextReadsOutsideOwner 1 \(record 0\) UP\s+apps\/hub\/src\/builder\/model-routing\.ts:1/)
+  assert.equal(fixture(t, { files: reader("const id = requestContext.getRaw('conexusBuilderRunId')\n") }).run().status, 1)
+  assert.equal(fixture(t, { files: { ...FILES, 'apps/hub/src/builder/run-context.ts': "const id = requestContext.getRaw('conexusBuilderRunId')\n" } }).run().status, 0)
+  assert.equal(fixture(t, { files: reader('const context = readRunContext(requestContext)\n') }).run().status, 0)
 })
