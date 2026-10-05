@@ -1,486 +1,141 @@
-# Conexus OS product contract
+# Product contract
 
-This file owns what Conexus means: its concepts, its journeys and the rules its
-behaviour must keep. [The roadmap](../roadmap.md) owns status and the next action.
-[The operation ledger](operation-ledger.md) owns the operation census, and
-[security](../reference/security-and-authority.md#who-may-act) owns who may do what.
+What Conexus means: who it is for, its concepts, its journeys and the truths it must keep. Owners
+next door: [the roadmap](../roadmap.md) says what is delivered and what is next,
+[security](../reference/security-and-authority.md#who-may-act) who may do what,
+[DESIGN.md](../../DESIGN.md) how it looks, [the wire contract](wire-contract.md) its routes. Sections
+1 to 6 describe the product today; section 7 is the approved destination, which is approval, never
+proof that a rule is enforced. Product rules are enforced by the verify flows and review.
 
-This file carries two kinds of statement and marks which is which. Sections 1 to 11
-describe behaviour the code has today; where they and the code disagree, the code is
-right and this file is wrong. [Section 12](#12-approved-destination) is the approved
-destination, which is where the product is going and what it may not become.
+## 1. Purpose and people
 
-Section 12 is approval, not proof. Reading a rule there is never evidence that the rule
-is enforced. It is also not a denial: a few of its rules restate a guarantee sections 3.5
-and 3.6 already carry, and those stay guarantees. Where the two overlap, section 12 marks
-which part is already kept, so that widening a rule is never mistaken for having built
-it.
+Conexus lets a person in a company go from "I need an app that does X" to that app running, without
+waiting on the IT team. They describe it in Portuguese, the Builder builds it, and the app runs on
+the platform connected to the company's systems. Success for one session is a working app in the
+Preview, built from a conversation, usable at once.
 
----
+It serves two groups with equal weight, in the same Project and conversation: staff who are not
+technical, who never have to read code, and the company's developers, who read the code and each
+run's change in the same place. One installation serves one company. The interface is Portuguese.
 
-## 1. What Conexus is
+Principles. The person gets an app, not a process: branches, pull requests and pipeline steps stay
+out of sight. A failed run says what failed and leaves the source repairable. Anything a
+non-technical person sees has a plain meaning, and a developer can open the code behind it. No
+customer, testimonial or metric is invented.
 
-Conexus is the platform the people at this company sign in to. They open a Workspace,
-open a Project, and talk to the Builder. The Builder writes the source of a small
-business application, compiles it, and serves it back as a Preview they can use.
+## 2. Concepts
 
-The Builder runs on the Mastra Agent Controller. It is the first base and it has to
-work. Everything else arrives one planned step at a time.
+- **Account.** One person, signed in through Keycloak with a verified email. The first Account comes
+  from a preconfigured bootstrap identity; every other arrives by invitation. An application
+  invitation to one verified email creates an app-only Account that reaches that one application and
+  never a Workspace or the Hub; it expires after 14 days.
+- **Workspace.** The isolation root, owning Projects and a roster. Roles are `owner` and `member`;
+  only an owner administers the roster, and the last owner stays. Belonging to one Workspace grants
+  nothing in another. An installation administrator acts on the installation and gains nothing
+  inside a Workspace by it.
+- **Invitation.** Names a Workspace, a verified email and a role; claimed when that person signs in
+  with that address. Nothing is emailed. Removing a roster entry withdraws every right it gave.
+- **Project.** One unit of software in a Workspace, created with its source in one step.
+- **Working source.** The Project's current source in Conexus Git. Each request starts from it, even
+  when it failed to compile; a change advances it, and a change built on an older revision never
+  overwrites later work.
+- **Builder run.** One admitted attempt to answer one request, in one conversation. A Project has at
+  most one active run. It settles `SUCCEEDED`, `FAILED` or `INTERRUPTED`, and a success is
+  `RESPONSE_ONLY`, `SOURCE_CHANGED` or `SOURCE_CHANGED_BUILD_FAILED`; a failed build still advances
+  the source. Stop cancels the real run, and cancelling twice is cancelling once.
+- **Preview.** A candidate that passed its checks, served to the people who build the Project. Each
+  launch has its own route. It is a development surface: a failed candidate may leave none, and
+  keeping the last good one is implementation, not a promise.
+- **Model.** Each person connects their own model accounts; an installation administrator may share
+  one with everyone. The model is chosen per conversation, and nothing is sent until one is chosen.
+- **Names.** Workspace, Project and Connection names and an Account's display name are required,
+  non-blank, for people only: never identity, routing or authority. A Keycloak user re-created with
+  the same email is a new person; disable, never delete.
 
----
+## 3. Journeys
 
-## 2. Who uses it
+- **First access.** The bootstrap identity signs in, provisions its own Account and nothing else, and
+  creates the first Workspace. There is no public signup and no reusable admin credential.
+- **Invite.** An owner invites a verified email with a role; the invitation shows in the roster
+  beside members; the person signs in with that address and becomes a member.
+- **Build.** A person opens a Project, writes a request in a conversation, watches real activity,
+  and uses the Preview; the next request continues the same conversation and source. They may read
+  the source at an exact revision, see what a run changed, and read a run's safe trace.
+- **Use an app.** An app-only person opens the app's address, signs in, and uses it. Revoking their
+  grant or membership stops them at their next request. An archived Project's app is refused.
 
-One person is one Account, a global human identity held by Keycloak and recognised by
-Conexus. An Account may belong to several Workspaces. Belonging to one never grants
-anything in another.
+## 4. The Build surface
 
-Inside a Workspace an Account holds one of two roles.
+The app is the main area and the conversation sits beside it; both survive resizing, collapsing and
+a narrow screen. Enter sends, Shift+Enter breaks a line, input methods are safe. While a question
+waits, Enter answers it, Stop is its own control, and the screen says "Esperando a sua resposta" with
+no countdown. A model change never touches an active run. Progress shows only facts the Hub has
+measured. The Preview stays usable while new work runs, and an older launch never replaces a newer
+one. A failed admitted source stays current with a safe diagnostic, and there is no automatic repair
+loop. Code and Changes are read-only, and Changes compares a run's base with its result. Reload
+reconciles conversation, run, source and Preview from the server. Scenario selectors, simulated runs,
+seeded replies and fake trace bars never ship.
 
-| Role | May do |
-| --- | --- |
-| `owner` | everything a member may do, plus administer the roster |
-| `member` | everything except administer the roster |
-
-There are no other Workspace roles. Workspace membership owns development-plane authority over
-the Project. A published application's audience and its runtime grants are separate Project-scoped
-authority: using an application does not make a person a Workspace member or grant Builder access.
-Project Connection bindings are also Project-scoped runtime authority, not Workspace roles. These Stage 2
-surfaces are direction under C-028 until their qualification lands.
-
-Outside every Workspace, an Account may also be an installation administrator. An
-administrator may take installation-wide actions, such as connecting or replacing the company
-GitHub organization and sharing a model account with everyone in the installation. The operator
-sets the first administrator from the shell. After that an administrator grants and revokes the
-role, and the last active administrator cannot be removed. Each grant and revocation records
-who acted and when. Being an administrator grants nothing inside any Workspace or Project.
-[Security](../reference/security-and-authority.md#who-may-act) owns the rule.
-
----
-
-## 3. Core concepts
-
-### 3.1 Account
-
-One human identity. Conexus reads `email_verified` from the validated ID token and
-accepts only the boolean `true`. An unverified address is refused.
-
-The first Account self-provisions from a preconfigured bootstrap identity. Every later
-Account arrives through an authorized invitation path. A Workspace invitation may grant
-development membership. An application invitation, made by an Owner of the Project's Workspace
-to one verified email, creates an app-only Account when that person first signs in. It grants
-that one application and never a Workspace membership or a Hub session. The invitation expires
-after 14 days. The app-only Account's display name is the ID token `name` claim, or the verified
-email when the claim is absent.
-
-On an application's host, authority is an unrevoked grant for that Account and application, or a
-current membership in the Project's Workspace. It is resolved on every request, so revoking the
-grant or removing the membership stops the person at their next request. An archived Project's
-application is refused.
-
-### 3.2 Workspace
-
-The isolation root. Creating a Workspace is a Control Plane capability, not a consequence of
-merely possessing an Account. A control-plane-eligible Account may create one and becomes its
-owner. A Workspace owns Projects and a roster.
-
-### 3.3 Membership and invitation
-
-An invitation names a Workspace, a verified email address and a role. The pair of
-Workspace and address is its natural key. The invited person is admitted when they
-sign in with that verified address.
-
-Removing a roster entry withdraws every right derived from it. The last owner cannot
-be demoted or removed.
-
-### 3.4 Project
-
-A unit of software inside a Workspace. A Project is created with its source in one
-transaction: it never exists without a repository. A Project may also be created from
-an existing repository, and the Builder reads that source the way it reads source it
-wrote itself.
-
-### 3.5 Working source
-
-The current state of a Project's authored source, owned by Conexus and held in Project
-Git.
-
-Each Builder request starts from the current working source, including source that
-failed to compile. A request that changes source advances the working revision. Only a
-revision that passed its checks is offered as a Preview.
-
-There is no approved statement of intent the Builder reads before coding. Intent lives
-in the conversation and in the source.
-
-### 3.6 Builder run
-
-One admitted attempt to answer one request. A Project has at most one active run. A run
-carries an idempotency key and the conversation it speaks in. The conversation owns one
-scoped Mastra Session on its thread and one E2B sandbox. The sandbox is paused between turns.
-When the sandbox is lost, the Hub rebuilds it from the conversation's mirror in the Conexus Git.
-
-A run settles in one state and, when it succeeded, with one result.
+## 5. What the product must tell the truth about
 
 ```text
-state  = QUEUED | RUNNING | SUCCEEDED | FAILED | INTERRUPTED
-result = RESPONSE_ONLY | SOURCE_CHANGED | SOURCE_CHANGED_BUILD_FAILED
+loading != empty != failed != partial          unknown != zero
+model narration != Hub progress                stale != current
+working != blocked != waiting for you != done  a grant issued != a Preview that loaded != a working app
+read from a system != written to look like it  a timed-out request != a known failure
 ```
 
-`RESPONSE_ONLY` means the agent answered without changing source. A response-only turn
-keeps its answer without a commit or a compilation. `SOURCE_CHANGED_BUILD_FAILED` still
-advances the working source, so the next request continues from it, and an artifact that
-does not compile is never offered as a Preview.
-
-### 3.7 Preview
-
-An artifact that passed its checks, served back to the person who asked for it. Each
-launch binds its own immutable route. A newer candidate does not mutate an older route.
-Today the Hub keeps offering the last artifact that compiled while a later candidate
-fails; that is implementation behaviour, not a Product guarantee (see
-[12.4](#124-source-preview-and-publication)).
-
-A grant issued or an iframe that loaded is not proof that the application works.
-
-### 3.8 Model
-
-Conexus has no model connection of its own. Model authentication, credentials, provider
-connection and selection are Mastra Code's, per [C-022](../decisions/index.md). A model
-choice belongs to the conversation it was made in. The Conexus model connection subsystem,
-its custody and its Workspace sharing were removed by
-`apps/hub/migrations/0009_remove_model_connections.sql` and the change that carried it.
-The Workspace's enterprise connections are a different subject and stay Conexus's.
-
----
-
-## 4. Journey A. First access and the first Workspace
-
-```text
-the preconfigured bootstrap identity signs in through Keycloak
-→ it self-provisions its own Account and nothing else
-→ the bootstrap context is spent
-→ an ordinary Account-backed session is established
-→ the person creates a Workspace and becomes its owner
-→ the Workspace shows its Projects and its roster
-```
-
-There is no public signup, no billing and no reusable admin credential.
-
-## 5. Journey B. Invite a person into a Workspace
-
-```text
-a Workspace owner invites a verified email address with a role
-→ the invitation is pending and visible in the same roster projection as members
-→ the invited person signs in through Keycloak with that verified address
-→ the invitation is claimed and they become a member
-→ an owner may change a role or remove a roster entry
-```
-
-Nothing is emailed. The invited person is told out of band. An unverified address is
-refused at sign-in, so an invitation to one can never be claimed.
-
-## 6. Journey C. Choose a model
-
-```text
-the person opens a conversation in a Project
-→ the Build surface offers the models Mastra Code's credential store has authenticated
-→ the person chooses one, and the choice belongs to that conversation
-→ the screen refuses to send until a model is chosen
-```
-
-A run that reaches the sandbox with no model chosen is refused as
-`BUILDER_MODEL_NOT_SELECTED`. Conexus never guesses which model the person pays for.
-
-## 7. Journey D. Create a Project and build with the Builder
-
-```text
-Workspace
-→ create a Project, or import an existing repository
-→ source and initial access are established in one transaction
-→ the person writes a request in the Project's Build conversation
-→ a BuilderRun is admitted with an idempotency key and the conversation it speaks in
-→ the conversation's Mastra Session on its thread
-→ the conversation's E2B sandbox, resumed, or rebuilt from the mirror when lost
-→ the agent reads and edits files
-→ Conexus admits the resulting revision and advances the working source
-→ compile
-→ on success the artifact becomes the Preview
-→ the person uses the Preview and writes the next request
-```
-
-The person may read the source tree and any file at an exact revision, cancel a run,
-and read that run's safe native trace. Cancelling twice is the same as cancelling once.
-
----
-
-## 8. What the product must tell the truth about
-
-These distinctions must stay visible. Collapsing them is the failure this section
-exists to prevent.
-
-```text
-loading         != empty         != failed        != partial
-model narration != Hub progress
-working         != blocked       != waiting for the user != finished
-Preview ready   != the application works
-a grant issued  != a Preview that loaded != a working application
-read from a system != written to look like it
-```
-
-The Hub owns run state and progress. A model's own narration never marks work
-complete. Where a fact is missing it is shown as missing, never as a zero, a
-percentage or a timer that was invented to fill the space.
-
-Run detail is a bounded authorized projection of Product and native Mastra facts.
-Where usage or cost is not reported it is shown as unavailable rather than as zero.
-
----
-
-## 9. Authority rules
-
-1. Authority is membership of the Workspace that owns the resource. Nothing crosses
-   Workspaces automatically.
-2. A Workspace is deny-by-default.
-3. Only an `owner` administers the roster. A `member` holds every other right.
-4. The last owner of a Workspace cannot be demoted or removed.
-5. Removing a roster entry withdraws every right derived from it.
-6. Every protected call rechecks current authority on the server, inside the same
-   transaction that does the work.
-7. Ids supplied by the browser, by a model or by a provider are never authority.
-8. A provider, sandbox or trace identity is not a Conexus principal.
-9. Credentials stay in custody and are never returned to a browser.
-10. The bootstrap context is the only pre-Account principal. It is bound to one
-    preconfigured OIDC subject, may provision only its own Account, and is invalid
-    afterwards.
-
----
-
-## 10. What is in the product today
-
-```text
-sign-in through Keycloak with a verified email address
-Account self-provisioning for the bootstrap identity, invitation for everyone else
-Workspaces with owner and member roles
-a Workspace roster of members and invitations with their state
-Projects, created new or imported from an existing repository
-read-only inspection of Project source at an exact revision
-the Builder: conversation, run, compile and Preview
-run cancellation and a safe native run trace
-```
-
-That is the whole current surface. The operation ledger holds its exact census.
-
----
-
-## 11. What Conexus is not
-
-```text
-an ERP replacement
-an unrestricted database console
-a generic integration platform
-a generic workflow or BPM engine
-a universal automation or scheduler product
-a marketplace of plugins, apps or agents
-a low-code form builder
-an IDE as the primary experience
-a chat that hides the real source, run and Preview
-```
-
-Shared mechanics may exist inside the implementation. They never become Product
-authority by convenience.
-
----
-
-## 12. Approved destination
-
-The operator approved this direction on 2026-09-20. It is registered as C-021 in
-[the decision register](../decisions/index.md). None of it is built. It is written
-here so that the next increment is chosen against a destination instead of against a
-memory, and so that nobody builds machinery the destination does not ask for.
-
-Each rule below is owned here as product meaning. Where a rule needs a mechanism, the
-mechanism stays open on purpose, and [the roadmap](../roadmap.md) owns which question
-is being answered next.
-
-### 12.1 What Conexus is for
-
-Conexus is the platform a company builds, administers and evolves its own products on,
-connected to its own context and systems. The target stays a usable internal base. It
-is not a general SaaS or a multi-stack platform product.
-
-### 12.2 Project and application
-
-A Project is one publishable product. It holds that product's development and its
-operation together: source, frontend and backend, conversations, the product's own
-agents, knowledge, data, integrations and automations, each as it is delivered.
-
-Administration happens inside Conexus. The people who use the published application
-reach it by URL without administering the Project. A reachable URL does not mean an
-application without authentication.
-
-C-028 selects the first application profile as a managed Conexus application: Project Git
-keeps browser source, server business handlers, Project migrations and an application
-manifest; Conexus supplies the trusted runtime boundary, Project data authority, application
-access and Connector mediation. The first profile does not give each Project an independent
-permanent backend/container/cloud deployment. Exact runner, data programming model and
-ingress mechanics are qualified incrementally by the Stage 2 program rather than fixed here.
-
-### 12.3 Conversations
-
-A Project offers several persistent conversations. The Project's policy is `SHARED` or
-`PER_USER`. No default is approved yet, there is no extra per-conversation sharing, and
-no transition may quietly expose conversations that were private when they were written.
-
-A conversation is general. It can explain, investigate, develop, test and use the
-capabilities it is authorized for. It is not a Builder chat with another name. The
-person talks to one principal agent and does not pick a specialist first; delegation
-and subagents belong to the native mechanisms wherever those are adequate.
-
-Agents that ship inside the published application are product resources. They are not
-the agent that helps build it.
-
-A persistent conversation does not imply a live SDK session or a permanent sandbox. The
-physical mapping between a conversation, a Thread, a Session, a `resourceId`, a scope
-and an owner is deliberately unfixed.
-
-Offering more conversations is not a reason to own them. Their messages stay in the
-framework's store, and Conexus does not grow a second conversation lifecycle beside it.
-
-Privacy covers messages, persisted requests, diagnostics, recovered memory and
-delegation, not only what a list shows. Sharing a conversation transfers neither
-credentials nor its author's permissions to whoever continues it.
-
-### 12.4 Source, Preview and publication
-
-A Project has one current source. Conversations and delegated work are not competing
-authorities over it. In ordinary interactive use an admitted change advances the source
-automatically, without imposing visible branches or pull requests, and a change built on
-an older revision never silently overwrites later work.
-
-Source admission and artifact health are different questions. An admitted source remains
-repairable when its build, boot or application checks fail. Preview is a development surface,
-not an availability guarantee: a failed candidate may leave no usable Preview while the next
-interaction repairs the source. A Preview is offered only for a candidate that passed the checks
-that apply.
-
-This preserves the important current truths from [3.5](#35-working-source) and
-[3.6](#36-builder-run): source advances deliberately, a stale base is refused, and build
-failure is reported as build failure. It explicitly removes previous-Preview continuity as a
-Product invariant. Published application stability is a separate rule below.
-
-Publishing is a separate, explicit, authorized capability. Editing, an agent finishing,
-or a Work item completing never publishes production. A Release names immutable verified
-application material and the source revision that produced it; publishing records who did it
-and when, and only Publish changes what employee users receive. The first profile is hosted as
-a managed Conexus application. Q5 qualifies the smallest stable ingress/publication mechanism;
-it does not pre-authorize a cloud deployment platform.
-
-Separating Preview from Published does not make it safe to edit production data while
-developing, and rolling an artifact back does not undo data, migrations or effects that
-already left the system. Those limits are recorded here rather than answered by an
-environment and rollback platform designed in advance.
-
-### 12.5 Data
-
-Each Project owns a logical application data space of its own, isolated from Conexus's
-internal data and from every other Project. Server business logic and data migrations that
-define that application stay in Project Git. Q1 qualifies the smallest physical runtime/data
-boundary and Q2 qualifies the programming model; neither question authorizes browser database
-credentials or direct access to Hub-owned data.
-
-A conversation and an application act only through authority admitted for that Project and
-environment. Evolving a Project's structure grants no arbitrary access to the system database
-or to production. A product's own data and data that belongs to an external system stay distinct.
-
-### 12.6 Integrations
-
-Enterprise connections belong to the Workspace. Each external system has one integrator, such as
-Sankhya, Google, TOTVS or Mercado Livre, and every integrator follows one platform pattern. A
-Connection is one configured account of an integrator, and a Workspace may hold several Connections
-of one integrator. An installation administrator creates a Connection and types its credential. A
-Workspace owner binds a Connection to a Project under a Project-local name, such as `erp`.
-
-The Builder, the Project's applications and later automations send requests in the vendor's own
-format, through one Conexus executor, to the Connection a Project-local name binds. Consumers never
-receive the credential, the vendor token or arbitrary authenticated transport. A Connection reads
-now. Writing waits until Conexus validates writes with a real application. A Connection is
-read-only because the vendor-side principal it uses can only read. There is no operation catalog,
-no request DSL and no grant per operation ([C-030](../decisions/index.md#decided-on-2026-09-28-one-integrator-per-external-system-c-030)).
-
-Every value that an application presents as coming from an external system traces back to a read
-through a bound Connection, made live or stored earlier by a sync job through the same executor.
-When a request needs a system that the Project has no Connection bound for, the Builder tells the
-person which system is missing and what to bind in Integrações, and builds nothing that stands in
-for its data. It never writes invented or sample records and labels them as that system's. A read
-that fails shows as a failure in the application, never as empty or made-up data. The operator
-decided this rule on 2026-09-28, from issue #310.
-
-Q4 qualifies this shape first, with Sankhya as the first integrator. This authorizes nobody to
-share an account or work around a provider's rules.
-
-### 12.7 Brain
-
-Brain is governed enterprise knowledge at the Workspace and Project levels. Conversation
-memory, something learned in passing and a one-off exception do not become standing
-policy on their own.
-
-Existing memory, retrieval and knowledge mechanisms are reused where they fit. No
-retrieval-augmented pipeline, knowledge graph, embedding store or memory engine is built
-here, and the Factory's Knowledge capability is not called qualified without evidence.
-
-### 12.8 Automations
-
-An automation is a persistent Project resource with a trigger, an action and the
-capabilities it is authorized for. Known steps run as deterministic code or workflows,
-and an agent is used where judgement is actually needed.
-
-Existing execution, scheduling and observability mechanisms come first. That does not
-assume Mastra already answers every trigger and schedule. A generated automation gains
-no production authority by existing.
-
-### 12.9 Work
-
-A Session is interaction. Work is bounded, delegable work, which may come from a Session
-or from authorized feedback inside the application.
-
-Work produces a reviewed, validated candidate. Applying it to the Project is explicit
-and goes through the Project's own reconciliation and authorization. There is no
-auto-apply and no implicit publish of delegated work.
-
-### 12.10 How it is built
-
-Each increment ends in a usable, verified result before anything leans on it. Only the
-next increment is planned in detail.
-
-Conexus does not build a second implementation of a mechanism the framework already
-provides adequately. Owning an enterprise rule does not oblige Conexus to own the engine
-that runs it. Binding an authorization to a native id is allowed; mirroring the
-framework's messages, states and lifecycles is not, and neither is a universal wrapper
-whose purpose is to hide it.
-
-### 12.11 What is still open
-
-These are unanswered on purpose. None has an answer hidden in this file, and none gets a
-placeholder task.
-
-```text
-Q1 generated-handler runtime/isolation realization
-Q2 application data programming model
-Q3 application-session/grant realization
-Q4 exact contract of the first integrator, Sankhya
-Q5 exact Release/Publish ingress realization
-what becomes of BuilderRun beyond the current Builder path
-conversation privacy transitions
-admission and reconciliation of delegated Work
-the scheduler
-the Brain mechanism
-```
-
-### 12.12 Removed, not deferred
-
-Project Inception, the Project Baseline, AnalyticQuery, Product Agents, connection
-bindings, the capability gateway and the old Managed Application Runtime were removed from
-the product on 2026-09-19. They are not paused and no seam waits for them. C-028's managed
-application profile is a new realization on the Factory-centered base, not revival of that
-removed runtime or its authority model. Brain, Releases, publication, integrations and
-automations arrive only through their current owners and qualification. The Project binding of
-C-030 is a new record qualified by Q4. It does not restore the removed connection bindings.
+The Hub owns run state; a model's narration never marks work complete. A missing fact shows as
+missing, never as an invented zero, percentage or timer; unreported usage is "unavailable". A
+stale write says someone changed the thing first and keeps both.
+
+## 6. Surfaces and what Conexus is not
+
+The surfaces are entry, setup, sign-out and no-access pages; Workspaces and their Projects and
+people; a Project's conversations, settings, application access and Integrações; the person's
+account and models; and installation administration. The web router is the exact list. There are no
+others, and no navigation is added for an unapproved one because a shell looks empty.
+
+Conexus is not an ERP replacement, a database console, a generic integration, workflow, automation
+or low-code platform, a marketplace, an IDE first, or a chat that hides the real source, run and
+Preview.
+
+## 7. Approved destination
+
+Approved by the operator as C-021 (2026-09-20) and C-028; none of it is proof of delivery.
+
+- **Purpose.** The platform a company builds, administers and evolves its own products on,
+  connected to its own context and systems: a usable internal base, not a general SaaS.
+- **Project and application.** A Project is one publishable product holding its development and
+  operation: source, frontend and backend, conversations, its own agents, knowledge, data,
+  integrations and automations. Its users reach the published app by URL, signed in, without
+  administering the Project. The first profile is a managed Conexus application, not a backend per
+  Project.
+- **Conversations.** A Project offers several persistent conversations, private to the person who
+  started it (C-036). A conversation is general and talks to one principal agent. Privacy covers
+  messages, requests, diagnostics, memory and delegation. Continuing a conversation transfers neither
+  credentials nor permissions. Conexus keeps no second store for messages.
+- **Source, Preview, publication.** One current source; admission and artifact health are separate
+  questions. Publishing is explicit and authorized; editing, an agent finishing or work completing
+  never publishes. A Release names immutable verified material and its source revision, and only
+  Publish changes what employees receive. Separate Preview and Published data do not make editing
+  production data safe, and rolling back an artifact undoes no data, migration or effect.
+- **Data.** Each Project owns an isolated data space; its handlers and migrations stay in its source.
+  No browser database credential and no reach into Hub data. A product's own data and an external
+  system's data stay apart.
+- **Integrations.** Each external system has one integrator; a Connection is one configured account
+  of it, created by an installation administrator and bound to a Project under a local name by a
+  Workspace owner. Requests go in the vendor's own format through one Conexus executor; consumers
+  never see the credential. Connections read only for now. Every value shown as coming from a system
+  traces to a read through a bound Connection. When none is bound, the Builder says what to bind and
+  builds nothing that stands in for the data; a failed read shows as a failure, never as empty or
+  invented data (C-030).
+- **Brain, automations, work.** Knowledge is governed at Workspace and Project level; memory learned
+  in passing is not policy. An automation is a Project resource with a trigger, an action and its
+  authorized capabilities, gaining no production authority by existing. Delegated work yields a
+  reviewed candidate applied only through the Project's own admission, never auto-applied or
+  published.
+- **Open on purpose.** Publish ingress, conversation privacy transitions, delegated work admission,
+  the scheduler and the Brain mechanism.
+- **Removed, not deferred.** Project Inception, the Project Baseline, AnalyticQuery, Product Agents,
+  the old connection bindings, the capability gateway and the old managed runtime.

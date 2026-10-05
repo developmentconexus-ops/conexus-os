@@ -4,9 +4,8 @@ How Conexus is composed: the parts, who owns each concept, which way dependencie
 code may run. Owners next door: [product](../product/contract.md) for what the parts are for,
 [database](database.md) for how PostgreSQL enforces what this file assigns,
 [security](security-and-authority.md) for who may act, [API](../product/wire-contract.md) for the
-wire, [code](../development/codebase-principles.md) for how a module is written. Exact Mastra API
-evidence is in [the Mastra reference](mastra/index.md); reasons and rejected options are in the
-[decision register](../decisions/index.md).
+wire, [code](../development/codebase-principles.md) for how a module is written. Mastra evidence is
+in [the Mastra reference](mastra/index.md); reasons are in the [decision register](../decisions/index.md).
 
 ## System map
 
@@ -99,7 +98,17 @@ with a Conexus prompt, one `build` mode and planning skills (C-032, spec 0004). 
 one Mastra session, one E2B sandbox and one branch mirror across its turns; an idle sweep releases
 them. The agent's "done" is one checked verdict on the candidate, and a red check goes back to the
 agent in the same run. Admission runs the Hub's check bundle (spec 0012) and never executes a file
-from the candidate. Enforced by the run's tests and review.
+from the candidate. Cancelling records intent before it signals the run; a pending cancellation
+prevents a later success, and a settled run is never rewritten. A reconnect reads the thread, the
+run, the source and the Preview from their owners, so a missed live event is never lost state.
+Enforced by the run's tests and review.
+
+## The web app
+
+The web app projects what the Hub says. It owns no business lifecycle, authorization decision,
+parallel schema or mirror of business entities; its cache and preferences are never server truth.
+A hard screen never justifies a screen-shaped endpoint, and a missing endpoint never justifies
+dropping a need the person has: it goes to the owner as a finding. Review.
 
 ## Dependencies
 

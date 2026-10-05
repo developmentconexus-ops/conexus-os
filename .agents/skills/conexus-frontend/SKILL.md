@@ -40,4 +40,4 @@ Do not stop at the typecheck. Prove the screen with the [`verify`](../verify/SKI
 - [`iconography.md`](references/iconography.md): Lucide rules.
 - [`visual-foundations.md`](references/visual-foundations.md): the intent of color, type, layout and motion.
 - [`product-surfaces.md`](references/product-surfaces.md): shape a new surface before building it.
-- Owners: [`frontend-and-product-surfaces.md`](../../../docs/reference/frontend-and-product-surfaces.md) (section 33.6 owns Build), [`apps/web/AGENTS.md`](../../../apps/web/AGENTS.md) (commands), [`review/frontend.md`](../../../docs/development/review/frontend.md) (what the reviewer checks), [`verify/features`](../verify/features/README.md) (screens by feature), `PRODUCT.md` (users).
+- Owners: [product contract](../../../docs/product/contract.md) (section 4 owns Build), [`apps/web/AGENTS.md`](../../../apps/web/AGENTS.md) (commands), [`review/frontend.md`](../../../docs/development/review/frontend.md) (what the reviewer checks), [`verify/features`](../verify/features/README.md) (screens by feature), the product contract (users).

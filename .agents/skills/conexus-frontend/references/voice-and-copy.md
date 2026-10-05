@@ -11,7 +11,7 @@ Duas pessoas leem a mesma tela. Uma é da operação, de vendas ou de pessoas, n
 - Simples, calmo e responsável. Diga o que aconteceu e o que continua valendo.
 - Nunca animado, nunca com desculpas vazias, nunca com ponto de exclamação.
 - Sem emoji. Os únicos símbolos no texto são o separador `·` e as reticências `…` (um caractere só).
-- Sem nomes de clientes, depoimentos ou números inventados. `PRODUCT.md` proíbe.
+- Sem nomes de clientes, depoimentos ou números inventados. O [contrato de produto](../../../../docs/product/contract.md) proíbe.
 
 ## Pessoa e nomes
 

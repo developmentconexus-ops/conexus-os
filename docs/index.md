@@ -9,7 +9,7 @@ owns status and the next action. Start there.
 | --- | --- |
 | Status, what exists, what is next | [Roadmap](roadmap.md) |
 | How to work on this repository | [`AGENTS.md`](../AGENTS.md) and [`CONTRIBUTING.md`](../CONTRIBUTING.md) |
-| The approved product destination | [Product contract, section 12](product/contract.md#12-approved-destination) |
+| The approved product destination | [Product contract, section 7](product/contract.md#7-approved-destination) |
 | What Q1 proved, and its boundaries | [Stage 2 Q1 evidence and verdict](evidence/stage2-q1/README.md#verdict), closed |
 | Pre-implementation research, SDK/library candidates and superseded alternatives (not execution authority) | [Stage 2 research memory, R01–R13](research/stage2/README.md) |
 | The previous Factory adoption work | [Factory adoption](tasks/factory-adoption.md), closed |
@@ -27,21 +27,18 @@ owns status and the next action. Start there.
 | Future vision: apps, agents and AI processes sharing company capabilities (not execution authority) | [Integrated enterprise platform vision](research/integrated-enterprise-platform-vision.md) |
 | The fixed operation census | [Operation ledger](product/operation-ledger.md) |
 | Wire shape and its rules | [Wire contract](product/wire-contract.md) |
-| Human context and identity | [Human-context identity](product/human-context-identity-contract.md) |
 | Decisions in force and how to reopen one | [Decision register](decisions/index.md) |
 
 ## Technical reference
 
 | Need | Owner |
 | --- | --- |
-| How the Builder works | [C-020 Mastra-native Builder](reference/builder-c020-mastra-native.md) |
 | Stores, database roles, where a rule lives, migrations | [Database](reference/database.md) |
 | Backing up the database and Git root, and proving a restore | [Backup and tested restore](reference/backup.md) |
 | Running the pilot Hub and runner under systemd, and what a crash looks like | [Pilot supervision](reference/pilot-supervision.md) |
 | Who may do what, sign-in, sessions, secrets and egress | [Security and authority](reference/security-and-authority.md) |
 | Who owns each concept, and where code runs | [Architecture](reference/architecture.md) |
 | Which Mastra API Conexus uses where it once reached past Mastra | [Mastra boundary](reference/mastra/boundary.md) |
-| Frontend surfaces | [Frontend reference](reference/frontend-and-product-surfaces.md) |
 | Exact Mastra lookup | [Mastra reference](reference/mastra/index.md) and the repository Mastra skill |
 | How Mitra builds apps, and what Conexus took from it | [Mitra research](research/mitra/index.md), reference evidence only |
 | Functionality seen in other products, with a verdict for Conexus | [Functional references](research/functional-references/index.md), reference evidence only |
