@@ -1,7 +1,7 @@
 # 0015. The data checked at every Hub boundary, the contract in Zod, the rules in TypeScript
 
 **Date**: 2026-10-04
-**Status**: Revision 5.2, approved (design 4 chosen by the operator on 2026-10-05; revision approved by HQ the same day under the operator's delegation)
+**Status**: Revision 5.3, approved (design 4 chosen by the operator on 2026-10-05; revision approved by HQ the same day under the operator's delegation; reviews B and C decided by HQ on 2026-10-05)
 **Lane**: `lane:shaped`
 **Depends on**: spec 0014 (merged in #507), whose definer `routes(app)[kind]` and route ledger this spec
 extends; spec 0013 (merged in #505) for the job executor and `iam.reap_expired`; spec 0009 for the
@@ -48,7 +48,7 @@ ports one owner whole, then one part per owner in parallel, `iam` last.
 | [0015-function-map.md](0015-function-map.md) | where each of the 118 functions goes, what stays in SQL, how they leave |
 | `0015-part-<owner>.md` (one per part 1 to 6, written when the part starts) | that part's reader policies, table register rows, composite keys, lock order, refusal codes and fixtures, derived from the bodies it ports under the rules of the admission child, sections 4 and 5 |
 
-This file holds what crosses the children: the requirements, the frozen signatures, the census rules,
+This file holds what crosses the children: the requirements, the signatures, the census rules,
 the parts and their order.
 
 ## Requirements
@@ -189,9 +189,10 @@ rows the command locked.
 | --- | --- | --- |
 | `packages/contract/src/*` (built to `dist/`) | operations, ids, problem, failure codes, `OPERATIONS` | both apps, the emitter, the tests |
 | `apps/hub/src/http/access.ts` | `routes(app).operation(op, handler)` on the S3 definer | each owner's `routes.ts` |
-| `apps/hub/src/platform/db.ts` | the only Hub `pg` import: `openDatabase`, `sql` (with its run time text refusal), `Tx`, `CommandGate`, `AuthenticationGate`, `openGate`, `RawToken`, `Digest`, `DATABASE_FAILURES`, the only `SET LOCAL ROLE` and `conexus.*` settings, the nested entry refusal | stores, admission, receipt, lifecycle (`openGate`: admission only) |
+| `apps/hub/src/platform/db.ts` | the only Hub `pg` import: `openDatabase`, `sql` (with its run time text refusal), `Tx`, `CommandGate`, `AuthenticationGate`, `openGate`, `RawToken`, `Digest`, `DATABASE_FAILURES`, the only `SET LOCAL ROLE` and `conexus.*` settings, the nested entry refusal | stores, admission, receipt, lifecycle (`openGate`: `admission.ts` and `authentication.ts` only) |
 | `apps/hub/src/platform/receipt.ts` | `idempotent`, `reserve`, `complete` over `platform.operation_receipt` | idempotent commands |
-| `apps/hub/src/identity-access/admission.ts` | `Admitted`, `Scope`, the `admit*` functions (with `admitInstallationAdministrator`), `isInstallationAdministrator`, `ROLE_ALLOWS`, `ACTION_REFUSALS`, `grantCreatorMembership` | every store (allowed across owners) |
+| `apps/hub/src/identity-access/admission.ts` | `Admitted`, `Checked`, `Scope`, the `admit*` functions (with `admitInstallationAdministrator`), `checkApplication`, `isInstallationAdministrator`, `ROLE_ALLOWS`, `ACTION_REFUSALS`, `grantCreatorMembership` | every store (allowed across owners) |
+| `apps/hub/src/identity-access/authentication.ts` | `DigestKey`, `lookupByDigest(key)` and the eight typed steps of the `AuthenticationGate`, as functions over the gate that open it with `openGate` (reviews B and C, 2026-10-05) | the session and sign in modules, `admission.ts` |
 | `apps/web/src/app/http.ts` | `call`, `query`, `href` | every web feature |
 | `apps/web/src/app/foreign.ts` | `parseForeign` | the Builder feature |
 | `scripts/emit-openapi.mjs` | `contracts/api/product/openapi.json` | `contract:check`, Redocly, bijection |
@@ -201,18 +202,19 @@ rows the command locked.
 first line of the store function; "where does this row come from" by the schema in the call that read
 it.
 
-### 3. Frozen in part 0 (the contract between the children and the parts)
+### 3. The surface of part 0 (the contract between the children and the parts)
 
 Parts 1 to 7 build against these and do not change them; a needed change goes back through this spec.
+The admission surface changed four times on 2026-10-05 (typed steps, `lookupByDigest(key)`, `Checked`, `SystemScope<J>`). It finalizes when PR #512 (part 0b) merges, not before. It is the base being built, so a part changing it is not a change to a frozen base, and the rule that a part may not change a frozen base is not triggered. HQ says so to the operator.
 `Operation`, `operation()`, `Success`, `Effect`, `Input`, `Reply`, `Result` (contract child, section 2);
 `routes(app).operation` and `Handler<O>` (contract, 3); `call`, `query`, `href`, `parseForeign` and the
 route param helper (contract, 4); `Database` (with `transaction` and `system` handing a
 `CommandGate`, and `authenticate` an `AuthenticationGate`), `ReadTx` (with `accountId`), `WriteTx`,
-`CommandGate`, `AuthenticationGate` and its two closed families (`lookupByDigest(key)`, a closed `key` union per kind, and the eight typed steps: six identity steps, `consumeOidcState()` and `endCredential(reason)`), `openGate`, `sql` (refusing a
+`CommandGate`, `AuthenticationGate` (the gate alone), `openGate`, `sql` (refusing a
 `RawToken` at compile time and any statement but `select`, `insert`, `update`, `delete` and `with`, and the words `conexus` and `set_config`, at run time), `RawToken`,
 `Digest`, `DATABASE_FAILURES`, `openFactoryPool`, the role and settings each entry sets, and the
 nested entry refusal (data, 1 and 2); `idempotent`, `reserve`, `complete` (data, 3); `Admitted`,
-`Scope` and its action and job lists, the admission signatures (none takes an account id beside its
+`Scope` and its action and job lists, `SystemScope<J>`, `RunScope.via`, `Checked`, the admission signatures with `checkApplication` (none takes an account id beside its
 gate), `ROLE_ALLOWS`, `CHANGES_OWNER_SET`, `ACTION_REFUSALS`, the lock order, the fresh read after a
 lock wait with the deletion predicate, and the scoped read rule (admission, 1 and 2); the three `rls`
 helpers, `iam.lock_administrators()`, the rules every reader policy follows, the command policy, the
@@ -227,13 +229,15 @@ is a nominal class resolved through a module `WeakMap` (revision 5 had a structu
 and reads the actor from the gate (`admission.ts:95,104-105,139-140` take one today); `ReadTx.accountId` stays
 as built (`db.ts:43`; revision 5 had removed it); `authenticate` hands an `AuthenticationGate`, not a
 `WriteTx`; `admitApplication` moves from part 6 to part 0b; `admitRun`, `admitBootstrap` and
-`admitSystem` have frozen signatures (admission child, section 2).
+`admitSystem` have signatures (admission child, section 2).
 
 **Frozen changes in revision 5.2**, against 5.1: the `sql` tag allows only `select`, `insert`,
 `update`, `delete` and `with` statements and refuses the bare word `conexus`, `session_authorization`,
 `u&`, `set_config` and `current_setting`; reader policies are named `reader` and `reader_admin`; the
 administrator reach list is the four tables of the admission child, section 4.2, rule 4; the
 `legacy_runtime` bridge exists on `iam.account` only.
+
+**Surface changes from reviews B and C (HQ, 2026-10-05)**, before #512 merges: `checkApplication` and `Checked` for served reads, which take no row lock and hand a `ReadTx` (admission child, section 2); `SystemScope<J extends JobName>` and `admitSystem(gate, job)`, so a purge port takes `Admitted<SystemScope<'project-purge'>>`; `RunScope.via`, `'account'` or `'executor'`; `lookupByDigest(key)`, `DigestKey` and the eight typed steps move from `db.ts` to `identity-access/authentication.ts`, which `openGate`'s import rule also allows, and `db.ts` keeps only the gate (data child, section 1).
 
 **Shared files have one writer at a time.** `hub.ts`, the route ledger, `openapi.json`,
 `operation-ledger.md`, `hub-catalog-snapshot.json`, the census ceilings, the role register and the
@@ -338,7 +342,7 @@ plus the guards revision 5.1 adds. Then
 parts 1, 2, 4 and 5 run in parallel worktrees, each merging when green, one at a time. Part 6 (`iam`) is last because every other
 owner's SQL calls `iam` until it is ported. Parts 1 to 6 each start with their child spec
 (`/jm-architect S1 part <owner>`), approved by the operator, then build (`/jm-develop`); part 0 is fully
-specified here. A child spec decides inside this umbrella; a change to the frozen surface comes back
+specified here. A child spec decides inside this umbrella; a change to the surface of part 0 after #512 merges comes back
 here. The real dependencies come from the caller graph script
 (function map child, section 2), not from this list.
 
@@ -471,8 +475,8 @@ here. The real dependencies come from the caller graph script
    open tenure `FOR SHARE` instead of calling `iam.is_installation_administrator`, and calls
    `iam.lock_administrators()` for `administrators.manage`; `admitProject`'s fresh read carries the
    deletion predicate in SQL with no administrator exception (`admission.ts:159-160`); `members.leave`
-   locks the acting membership `FOR UPDATE`; `admitApplication` and `admitSystem` built as the
-   admission child, section 2, states; `admitRun` declared with its frozen signature, its body built
+   locks the acting membership `FOR UPDATE`; `admitApplication`, `checkApplication` and `admitSystem` built as the
+   admission child, section 2, states; `admitRun` declared with its signature, its body built
    in part 1, which grants the column a run lock needs on `builder.builder_run`; `grantCreatorMembership` founds only an empty
    workspace; `JobName` loses `'migration'` (`db.ts:17`). `project/deletion.ts`: the tombstone step
    runs in `database.transaction(accountId, ...)` (`deletion.ts:40-53`) in the order account, tenure,
@@ -487,9 +491,9 @@ here. The real dependencies come from the caller graph script
    `assertRoleInvariants` as the data child, section 4, states. `contracts/technical/hub-database-roles.json`,
    its generator and `platform/hub-roles.generated.ts`: the two transaction roles, the three `rls`
    helpers and `iam.lock_administrators()`. Biome: the role lint and the restricted import of
-   `openGate`. A repository test: `purge_project` only in `project/deletion.ts`.
+   `openGate` (`admission.ts` and `authentication.ts`). A repository test: `purge_project` only in `project/deletion.ts`.
    `docs/reference/security-and-authority.md` section 2, `docs/reference/hub-database-roles.md` and
-   `docs/development/review/data-migrations.md` restated for the split, and
+   `docs/development/review/data-migrations.md` restated for the split, with rollback forward only (a new migration, not a revert), and
    `docs/tasks/specs/0015-checked-boundaries/0015-part-project.md` updated in the same pull request.
 
    **Tests.** The pooled client facts, the run time text refusal with the three proved bypasses and the
@@ -524,8 +528,8 @@ here. The real dependencies come from the caller graph script
    run row key and current state replay for BLD create; the executor claims under `system` and works
    under the run's account; runs the trigger parity test, then drops the trigger; ports
    `register_project_repository` and `builder.purge_project` as ports wired by `hub.ts` and edits their
-   project call sites; the run lease functions ported one for one; its drop migration and part 4's merge
-   as one step. Builder rows (21), BLD operations without a declaration (7) and `builder/api.ts` casts
+   project call sites; the run lease functions ported one for one; its drop migration keeps
+   `admit_verified_application_source` and `served_preview_revision`, which part 4 drops. Builder rows (21), BLD operations without a declaration (7) and `builder/api.ts` casts
    (8) reach zero. Satisfies **AC-1**, **AC-4** to **AC-6**, **AC-9**, **AC-11**.
 6. **Part 2, connectors** (11). Its reader policies, register rows, locks and refusal codes per
    `0015-part-connectors.md`. Cut from that draft: the six `INSERT`, `UPDATE` and `DELETE` rows; the
@@ -543,7 +547,7 @@ here. The real dependencies come from the caller graph script
    `read()`, as today. CON-01 asks the shared `isInstallationAdministrator(tx)` of
    `admission.ts`, which part 6 uses too. CON-03 is a command after `admitInstallationAdministrator`
    with `connection.manage`, and `hub_reader` gets no credential column. The grantee's bound
-   connection is read after `admitApplication` (built in part 0b), filtered by
+   connection is read after `checkApplication` (built in part 0b; `admitApplication` when the broker transaction writes), filtered by
    `proof.scope.projectId`; the broker reads under the grant holder's account on that proof; `connector.purge_project` as a port; the message text
    checks (`connectors/model.ts`) and `generate-connector-contracts.mjs` deleted. Connector rows (8) and
    `connector-api.ts` casts (5) reach zero. Satisfies **AC-1**, **AC-4**, **AC-5**, **AC-9**, **AC-11**,
@@ -555,7 +559,7 @@ here. The real dependencies come from the caller graph script
    member branch as reader policies and adds the `reg.application_thumbnail` key (`reg.artifact` gets none: its `workspace_id` is NULL for an application, so the register records `artifact_project_id_fkey`); the thumbnail read drops the `iam.application` row condition;
    `reg.purge_project` as a port; `reg.retain_application_execution` ported, under `admitRun` on the
    command role; served application reads move from `read(accountId, ...)` to reads on the command
-   role after `admitApplication` (built in part 0b), each filtered by `proof.scope.projectId`, reading the served pointer directly from
+   role after `checkApplication` (built in part 0b, no row lock), each filtered by `proof.scope.projectId`, reading the served pointer directly from
    `builder.project_working_state` (no SQL function and no Builder port); retention takes its Project from
    `RunScope.projectId`; the three `reg` served
    functions, with the `p_account_id` check part 0b added, are dropped; the per operation cross
@@ -587,7 +591,7 @@ here. The real dependencies come from the caller graph script
    `iam.application`, `iam.application_invitation` and `iam.application_grant`, and the
    `iam.preview` key, and the account pair keys of `iam.host_session` and `iam.handoff`; `ReadAction` gains `'application.manage'` (IAM-11 stays an owner only `read()`); IAM-14 and IAM-15 use `isInstallationAdministrator(tx)`; IAM-12 and IAM-13 take no owner set lock; the first administrator rule stays in TypeScript; `authenticate` with its
    `AuthenticationGate`, the closed `key` union of digest kinds for `lookupByDigest(key)`, the eight typed
-   steps of the gate's second family (`lookupIdentity`, `provisionIdentity`, `lookupSlug`,
+   steps of the gate's second family in `identity-access/authentication.ts` (`lookupIdentity`, `provisionIdentity`, `lookupSlug`,
    `hasOpenInvitation`, `startOidc`, `mintContext`, `consumeOidcState`, `endCredential`), and the body of `admitBootstrap`; IAM-03 on the bootstrap authority with the first administrator under the table
    lock and the full tenure history; sessions, invitations, roster (`removeMember`, `leaveWorkspace`
    with the owner set lock and the acting membership `FOR UPDATE`, and the `DELETE` grant on
@@ -647,12 +651,11 @@ before it merges.
 **Strategy**: strangler by owner. Old and new run side by side between parts: an unported owner keeps
 its YAML route, its Ajv check, its functions and its bridge policy; a ported owner has none of them.
 **Phases**: the parts of the build plan, in that order, each one merge.
-**Rollback**: revert the part's merge commit and add a migration that restores what its migration
-dropped (migrations are append only); the parts before it stay.
+**Rollback**: forward only. A part's migration that reached a database is not reverted; the exit is a new migration (migrations are append only, `delivery.md:145`). Reverting the merge commit after a drop migration ran leaves a database the old code cannot run on, so no part writes or tests a restoring migration; the parts before it stay.
 **Risks**: a function still called from an unported body or TypeScript SQL (caught by the caller graph
 check); a policy that filters a definer function silently (the bridge, whose owner set the lint derives
-from the bodies); two parts' drop migrations that depend on each other (builder and registry, merged as
-one step).
+from the bodies); two parts' drop migrations that depend on each other (builder and registry: part 1 keeps
+`admit_verified_application_source` and `served_preview_revision`, and part 4 drops them).
 
 ## Follow-up
 
@@ -693,10 +696,13 @@ one step).
   membership `FOR SHARE` serializes with a role change. The first administrator rule stays in
   TypeScript. The `host_session` update columns are confirmed at the build head.
 
+**Decided by HQ on reviews B and C** (`s1-tech-review/hq-decisions-B-C.md`, 2026-10-05), closed:
+- [x] Reviews B and C (HQ, 2026-10-05): `checkApplication` and `Checked` for served reads; `SystemScope<J>` and `RunScope.via`; the identity steps and `DigestKey` in `identity-access/authentication.ts`; rollback forward only; part 1 keeps two SQL functions that part 4 drops; part 6 lock order for handoff redemption and sign in against the purge, with no transaction held across a runner call; the admission surface finalizes when #512 merges.
+
 **Open for HQ (revision 5.1).**
-- [ ] `system` now hands a gate instead of a `WriteTx`, a frozen change beyond decision 5, so that
-  `admitSystem` can read its job without taking it twice. Recommended: it also stops a job's
-  statements before admission.
+- [x] `system` now hands a gate instead of a `WriteTx`, a change beyond decision 5, so that
+  `admitSystem` can read its job without taking it twice. It also stops a job's statements before
+  admission. Built (`db.ts:113`).
 - [x] `iam.account` alone carries a `legacy_runtime` bridge to `hub_runtime` until part 6, because
   sign in still reads it through `unportedPool` (`identity-access/store.ts:100,143,192`);
   `iam.workspace_membership` has no unported reader and no bridge (decided by HQ on revision 5.2).

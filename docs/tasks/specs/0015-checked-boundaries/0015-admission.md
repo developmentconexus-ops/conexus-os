@@ -58,7 +58,7 @@ type Scope =
   | { readonly kind: 'workspace'; readonly accountId: AccountId; readonly workspaceId: WorkspaceId; readonly role: WorkspaceRole; readonly action: WorkspaceAction; readonly owners: readonly OwnerRow[] | null }
   | { readonly kind: 'project'; readonly accountId: AccountId; readonly workspaceId: WorkspaceId; readonly projectId: ProjectId; readonly action: ProjectAction }
   | { readonly kind: 'application'; readonly accountId: AccountId; readonly projectId: ProjectId; readonly via: 'grant' | 'membership' }
-  | { readonly kind: 'run'; readonly builderRunId: BuilderRunId; readonly accountId: AccountId; readonly projectId: ProjectId; readonly owner: RunOwner }
+  | { readonly kind: 'run'; readonly builderRunId: BuilderRunId; readonly accountId: AccountId; readonly projectId: ProjectId; readonly owner: RunOwner; readonly via: 'account' | 'executor' }
   | { readonly kind: 'bootstrap'; readonly issuer: string; readonly subject: string }
   | { readonly kind: 'system'; readonly job: JobName }
 ```
@@ -73,7 +73,7 @@ type AdministratorScope<A extends AdministratorAction> = Extract<Scope, { kind: 
 type ApplicationScope = Extract<Scope, { kind: 'application' }>
 type RunScope = Extract<Scope, { kind: 'run' }>
 type BootstrapScope = Extract<Scope, { kind: 'bootstrap' }>
-type SystemScope = Extract<Scope, { kind: 'system' }>
+type SystemScope<J extends JobName = JobName> = Extract<Scope, { kind: 'system' }> & { readonly job: J }
 type OwnerRow = { readonly accountId: AccountId; readonly active: boolean }
 // owners is the locked owner set for an action in CHANGES_OWNER_SET, and null for every other action:
 type WorkspaceScope<A extends WorkspaceAction> = Extract<Scope, { kind: 'workspace' }> & {
@@ -101,8 +101,19 @@ list that only an owner may read stays a `read()`: the route walk of section 10 
 part opens a command transaction just to get an owner check. The rule for the next such list is the
 same: a list that only a role may read is a read action.
 
-**The run scope carries the Project.** `RunScope` has `projectId`, read from the run row by
-`admitRun`. Part 1 adds it. Every run scoped statement then filters by `proof.scope.projectId`, as the
+**A read only proof for served reads.** `Checked` is a second nominal class, apart from `Admitted`. Only `checkApplication` makes one (section 2), and its `tx` is a `ReadTx`.
+
+```ts
+export class Checked<S extends Scope> {
+  readonly #brand = true
+  constructor(readonly scope: S, readonly tx: ReadTx) {}
+}
+```
+
+A served read port takes `Checked<ApplicationScope>`. A command port takes an `Admitted`, which a `Checked` is not, so no command port accepts it, and a `ReadTx` has no `run`, so a read port cannot write.
+
+**The run scope carries the Project and the path.** `RunScope` has `projectId`, read from the run row by
+`admitRun`, and `via`, `'account'` under `transaction(run.accountId)` and `'executor'` under `system('builder-executor')`. Part 1 adds both. The two paths check different things, and the scope records which one admitted, as `ApplicationScope.via` does. Every run scoped statement then filters by `proof.scope.projectId`, as the
 scoped read rule below asks, and part 4's retention takes its Project from the proof and not from a
 second read of the run row.
 
@@ -131,9 +142,10 @@ export function admitProject<A extends ReadAction & ProjectAction>(tx: ReadTx, p
 export function admitInstallationAdministrator<A extends AdministratorAction>(gate: CommandGate, action: A): Promise<Admitted<AdministratorScope<A>>>
 export function isInstallationAdministrator(tx: ReadTx): Promise<boolean>   // a fact, not a proof: CON-01 (part 2), IAM-14 and IAM-15 (part 6)
 export function admitApplication(gate: CommandGate, projectId: ProjectId): Promise<Admitted<ApplicationScope>>   // built in part 0b
+export function checkApplication(gate: CommandGate, projectId: ProjectId): Promise<Checked<ApplicationScope>>   // built in part 0b: served reads, no row lock, ReadTx only
 export function admitRun(gate: CommandGate, builderRunId: BuilderRunId, owner: RunOwner): Promise<Admitted<RunScope>>   // body in part 1
 export function admitBootstrap(gate: AuthenticationGate, digest: Digest): Promise<Admitted<BootstrapScope>>   // part 6
-export function admitSystem(gate: CommandGate): Promise<Admitted<SystemScope>>
+export function admitSystem<J extends JobName>(gate: CommandGate, job: J): Promise<Admitted<SystemScope<J>>>
 export const ROLE_ALLOWS: { readonly [R in WorkspaceRole]: readonly WorkspaceAction[] }  // iam.role_allows as a table
 export const CHANGES_OWNER_SET = ['members.manage', 'members.leave'] as const satisfies readonly WorkspaceAction[]
 ```
@@ -144,7 +156,7 @@ has no query method. It is a class with a `#private` field whose constructor is 
 an object literal or a spread copy fails `tsc`, as for the proof. `db.ts` keeps, in a module
 `WeakMap`, the gate's `WriteTx` and its actor: the account of a `transaction`, the job of a `system`,
 and for `authenticate` the account a digest lookup resolved, or none. `openGate(gate)` returns that
-record and is importable only by `identity-access/admission.ts`. So a command transaction can do
+record and is importable only by `identity-access/admission.ts` and `identity-access/authentication.ts`. So a command transaction can do
 nothing before its admission, the `WriteTx` reaches the command only as `proof.tx`, and the account
 travels once: the entry binds it, and the admission reads it. This matters more now than in revision
 4: the command role sees every row, so a read inside a command transaction before admission would not
@@ -158,7 +170,7 @@ Each admission checks the actor kind it accepts and throws `INTERNAL_UNEXPECTED`
 `GATE_ACTOR_REFUSED` on another: `admitAccount` takes an account gate or an authentication gate whose
 lookup resolved an account; `admitWorkspace`, `admitProject`, `admitInstallationAdministrator` and
 `admitApplication` take an account gate; `admitRun` takes an account gate or the job
-`'builder-executor'`; `admitSystem` takes a job gate and puts its job in the scope; `admitBootstrap`
+`'builder-executor'`; `admitSystem` takes a job gate and `job`, throws the same invariant when the gate's job is not `job` (the one runtime check), and puts the job in the scope, so a port that needs one job takes `Admitted<SystemScope<'project-purge'>>` and a proof of another job fails `tsc`; `admitBootstrap`
 takes an authentication gate. A read admission whose `ReadTx.accountId` is null throws the same.
 
 The admission takes its locks only in a command transaction: `FOR SHARE OF` the account and the
@@ -278,6 +290,8 @@ the deletion rule. `via` records which path admitted. A refusal is `APPLICATION_
 existing code (`mar/application-host-routes.ts:124`); the host answers `APPLICATION_NOT_READY` on a
 null served read today (`mar/application-host-routes.ts:130`), and parts 2 and 4 keep each caller's
 answer when they move it onto this admission.
+
+**The served read.** `checkApplication(gate, projectId)` makes a `Checked<ApplicationScope>` for a request that changes nothing: the application host's manifest, file and thumbnail reads, and the connector broker when it writes nothing in that transaction. It runs the same access and deletion predicates as `admitApplication` (active account, the membership or the open grant, the `iam.application` row, a Project that is not archived, no deletion row) in one statement and takes no row lock, not even `FOR SHARE`. `via` records which path admitted. The proof's `tx` is a `ReadTx`, so only read ports accept it. The reason is that the lock exists to serialize a write with a tombstone or a revoke. A served read changes nothing, and today's served read takes no lock. The application host calls it once per asset, and the locking form measured about 3 times slower serial and about 2 times at 16 clients on a local run (review C, Q3.1). A revoke or tombstone that commits during the read is seen by the next request, as today. A caller that writes in the same transaction calls `admitApplication`.
 
 **The run.** `admitRun(gate, builderRunId, owner)` serves two callers. Under `system('builder-executor', ...)`
 it takes the project `FOR SHARE`, then the run `FOR UPDATE`, checks `owner_id` and that the run has
@@ -460,7 +474,7 @@ role has `BYPASSRLS`. A helper returns facts about the acting account, never a r
    (`0064_project_owner.sql:19-25`; `0030_project_deletion.sql:74`). The administrator variant of the
    cross tenant test (section 10) uses this list and no other.
 5. A grantee has no reader branch. An application grantee reads the facts of the one application it
-   opens on the command role, filtered by `proof.scope.projectId`, after `admitApplication` (section 6). A run reads its held
+   opens on the command role, filtered by `proof.scope.projectId`, after `checkApplication` (a write: `admitApplication`; section 6). A run reads its held
    credential on the command role after `admitRun`, filtered by the run from the proof. A credential flow reads by digest on
    the command role (section 6). The Project thumbnail (`PRJ-THUMBNAIL`, part 4) is a member read, not
    a grantee read. It drops today's `iam.application` row condition (`iam.has_application_access`),
@@ -595,10 +609,10 @@ the write is. Each refusal has a fixture that must be found.
 
 | Caller | Entry | Scope |
 | --- | --- | --- |
-| a job of `platform/jobs.ts` (reaper, purge) | `system(job, fn)`, then `admitSystem(gate)` | `Admitted<SystemScope>` |
+| a job of `platform/jobs.ts` (reaper, purge) | `system(job, fn)`, then `admitSystem(gate, job)` | `Admitted<SystemScope<J>>` |
 | project deletion | the tombstone in the administrator's own `transaction(accountId, ...)` after `admitInstallationAdministrator(gate, 'project.delete')`, in the order of section 2; the purge and its completion in `system('project-purge', fn)` after `admitSystem`, which first takes the project `FOR UPDATE` while its row exists (a retry after the row is gone goes on), then checks the tombstone and the busy runs, then passes one `WriteTx` to every owner's purge port, so the five purges stay one transaction as today; each port deletes its rows, and the receipt rows whose `resource_id` is the project | administrator, then system |
 | the Builder executor | claims a queued run in two steps (a system read of the run's account and project, then `transaction(run.accountId)` with `admitProject` sets the owner; a queued run has no owner, so the claim is not an `admitRun`), and renews, ends, fails and reconciles a run it owns in `system('builder-executor', fn)` with `admitRun`, which locks the project, then the run, and checks `owner_id` and that the run has not ended, as the claim and heartbeat functions do today; the run's own work (model turns, source writes) runs in `transaction(run.accountId, fn)` after `admitProject` or `admitRun`, so a run whose account lost the project fails its next work step, and the executor settles it under `system` | run |
-| the application host and the connector broker | `transaction(grantHolder, fn)` with `admitApplication(gate, projectId)` (section 2); then the served revision, its artifact and the bound connection are read on `proof.tx`, each filtered by `proof.scope.projectId` (section 1). The served pointer is the three `last_preview_*` columns of `builder.project_working_state`, read directly on the admitted Project (part 4), with no SQL function and no Builder port There is no grantee list and no grantee policy | application |
+| the application host and the connector broker | `transaction(grantHolder, fn)` with `checkApplication(gate, projectId)`, or `admitApplication` when the transaction writes (section 2); then the served revision, its artifact and the bound connection are read on `proof.tx`, each filtered by `proof.scope.projectId` (section 1). The served pointer is the three `last_preview_*` columns of `builder.project_working_state`, read directly on the admitted Project (part 4), with no SQL function and no Builder port There is no grantee list and no grantee policy | application |
 | session and sign in resolution | `authenticate(fn)`, importable only by the identity session and sign in modules; it hands an `AuthenticationGate` with two closed families of exact steps (data child, section 1): `lookupByDigest`, every lookup by the digest of the presented token, and the typed steps: the identity steps (`lookupIdentity`, `provisionIdentity`, `lookupSlug`, `hasOpenInvitation`, `startOidc`, `mintContext`), each keyed by one exact value, and `consumeOidcState()` and `endCredential(reason)`, which act only on the row the gate's lookup bound, take no digest argument and need no active account. Neither family lists. A lookup that finds an account, and `provisionIdentity`, bind it to the gate for `admitAccount`. `consumeOidcState()` consumes the bound `oidc-state` row once; `endCredential(reason)` ends the bound session or handoff with today's predicates (part 6) | bootstrap or account |
 | the operator bootstrap | `authenticate(fn)` with `admitBootstrap(gate, digest)`, which locks the bootstrap context found by that digest; the first administrator takes the table lock and checks the full tenure history, revoked rows included, in the same transaction | bootstrap |
 
@@ -773,6 +787,7 @@ From revision 4 and from the amendments A and A+ that were drafted against it:
   two owners removing each other; two concurrent administrator revocations; an administrator revoked
   while its project deletion waits on the tenure lock; one member leaving twice at once (one succeeds,
   the other answers `WORKSPACE_NOT_FOUND`): today's outcomes, no 40P01, verifies AC-8.
+- `checkApplication` (part 0b): a tsc negative fixture passes its `Checked` where an `Admitted` is due, passes it to a command port, and runs `run` on its `tx`, each failing; a purge port handed `Admitted<SystemScope<'builder-executor'>>` fails `tsc`; a grantee and a member read; an outsider and a tombstoned Project are refused with `APPLICATION_NOT_FOUND`; during the read `pg_locks` shows no row lock held by the backend. Benchmark: rerun review C's local benchmark for this form and record it beside today's read.
 - Deletion races on the project row (`admitRun` in part 1): an `admitProject`, an `admitApplication` and an `admitRun` that
   waited on a project whose tombstone committed meanwhile each answer their refusal; a tombstone that
   waits on an admitted command is written after it commits; a purge that waits on an admitted run
@@ -950,3 +965,4 @@ spec's text above.
 - The thumbnail drops the application row condition, and the served pointer is read directly
   (sections 4.2 and 6).
 - The account steps of a run before its candidate use `admitRun` (section 2).
+- Reviews B and C (HQ, 2026-10-05): `checkApplication` and `Checked` (sections 1, 2, 6 and 10); `SystemScope<J>` with `admitSystem(gate, job)`; `RunScope.via`; `openGate` also importable by `identity-access/authentication.ts`. The surface finalizes when #512 merges.

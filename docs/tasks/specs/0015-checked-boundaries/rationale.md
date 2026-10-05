@@ -117,6 +117,12 @@ What Option 1 costs is the per role write separation. It was already broken by t
 the import law, the proof's scope, the gate, the composite keys, the column grants and the write lint
 bound what a bug can touch. The operator accepted that trade.
 
+## Reviews B and C (HQ, 2026-10-05)
+
+Reviews B and C (HQ, 2026-10-05) are applied as the umbrella's decided list says. One paragraph answers the Mastra first rule for routes.
+
+**Mastra `createRoute`.** Mastra's `createRoute` (`@mastra/server/server-adapter`, installed 1.5.15) does not carry our contract routes. It has no headers part, so the idempotency key and the origin facts have no place. It flattens path, query and body into one handler object, and a key present in two parts collides. It never parses a reply: `responseSchema` only feeds OpenAPI, for the 200 status alone, so our two success statuses, 204, binary reply and cookie effects have no place. Its validation failures reach us only through an `onValidationError` hook, and the per parameter failure code of `malformed` is lost. Its auth is its own, while the session grant, the access table and the admission stay in our route layer. Our `routes(app).operation` already does all of this. It is not a question of fit with Fastify: Mastra's Fastify adapter already runs beside our routes under the one Hub (`builder/mastra-session-routes.ts`), so no second server is needed. The idea worth keeping is OpenAPI emission from Zod. Mastra's generator takes its own route shape and documents 200 only. `z.toJSONSchema` over our `Operation` declarations is smaller and ours, and the emitter of the contract child, section 5, already uses it. This was read from the installed source. No route was run end to end and no OpenAPI document was generated.
+
 ## Evidence from the spikes
 
 - **Spike 1, contract.** WS-01 and WS-02 in Zod in a shared package, registered by the S3 definer with a
