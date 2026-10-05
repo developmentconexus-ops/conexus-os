@@ -10,6 +10,7 @@ import type { ProjectSourceReads } from './source.js'
 import type { BuilderRunSummary, BuilderRunView, BuilderStore, TakenOverRun } from './store.js'
 import type { ApplicationArtifactMetadata, ApplicationSourceCoordinates, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
 import { Failure, logFailure, toFailure } from '../platform/failure.js'
+import { gitUnavailableAs } from '../platform/git-failure.js'
 import { logLine, logger } from '../platform/logger.js'
 import { heapUsedRatio } from '../platform/heap.js'
 
@@ -120,6 +121,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   runs: BuilderRunDependencies
 }>): BuilderService => {
   const { ownerId } = store
+  const unavailable = gitUnavailableAs('BUILDER_SOURCE_UNAVAILABLE')
   // The live runs by conversation: the only map of runs in the Hub.
   const runs = new Map<string, LiveRun>()
   const liveRunIds = (): readonly BuilderRunId[] => [...runs.values()].map((live) => live.builderRunId)
@@ -152,7 +154,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     applicationShutdown.signal.aborted ? Promise.reject(new Failure('BUILDER_APPLICATION_CLOSED')) : read()
   // A revision the source view may show the caller; `main` counts as read from the Conexus Git now.
   const admitSource = async ({ accountId, projectId }: Readonly<{ accountId: AccountId; projectId: ProjectId }>, sourceRevision: string): Promise<boolean> =>
-    store.admitSourceRevision({ accountId, projectId, sourceRevision, mainRevision: await dependencies.git.readMain(projectId).catch(() => null) })
+    store.admitSourceRevision({ accountId, projectId, sourceRevision, mainRevision: await dependencies.git.readMain(projectId).catch(unavailable) })
   return Object.freeze({
     sendBuilderMessage: async (input) => {
       await store.admitBuilder(input)
@@ -171,7 +173,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       }
       if (await dependencies.conversations.ownerOf(input.projectId, input.conversationId) !== 'PROJECT') throw new Failure('CONVERSATION_NOT_FOUND')
       // The base is `main`, read only once the database holds the Project's run lock.
-      const builderRun = await store.createBuilderRun({ ...input, readBase: () => dependencies.git.readMain(input.projectId) })
+      const builderRun = await store.createBuilderRun({ ...input, readBase: () => dependencies.git.readMain(input.projectId).catch(unavailable) })
       if (builderRun.state === 'QUEUED' && !runs.has(input.conversationId)) start(builderRun, input)
       return { builderRun, created: true }
     },

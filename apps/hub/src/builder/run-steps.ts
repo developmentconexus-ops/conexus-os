@@ -11,7 +11,7 @@ import { unlessNotAdmitted, withRun, type RunActor } from './run-access.js'
 export type InterruptionCode = Extract<FailureCode, 'USER_CANCELLED' | 'HUB_RESTART' | 'BUILDER_QUESTION_EXPIRED'>
 
 /** How a run no claim reached ends: a refused claim fails it, a stop interrupts it. */
-export type UnclaimedEnding = Readonly<{ kind: 'FAILED'; code: FailureCode }> | Readonly<{ kind: 'INTERRUPTED'; code: InterruptionCode }>
+type UnclaimedEnding = Readonly<{ kind: 'FAILED'; code: FailureCode }> | Readonly<{ kind: 'INTERRUPTED'; code: InterruptionCode }>
 
 /** What the Preview build of an admitted source came to: the artifact the registry holds, or the code the build failed with. */
 type BuildSettlement = Readonly<{ builderRunId: BuilderRunId; sourceRevision: SourceRevision }> & (

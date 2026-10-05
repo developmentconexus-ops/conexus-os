@@ -48,7 +48,6 @@
     { "code": "BUILDER_MESSAGE_REFUSED", "category": "USER", "status": 422, "audience": "person", "message": "O Conexus não aceitou essa mensagem.", "action": "NONE" },
     { "code": "BUILDER_UNAVAILABLE", "category": "SYSTEM", "status": 503, "audience": "person", "message": "O Builder não está disponível agora. A falha foi registrada.", "action": "NONE" },
     { "code": "BUILDER_RUN_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos essa execução.", "action": "NONE" },
-    { "code": "BUILDER_CANCELLATION_UNAVAILABLE", "category": "SYSTEM", "status": 503, "audience": "person", "message": "O Conexus não conseguiu parar a execução. A falha foi registrada.", "action": "NONE" },
     { "code": "BUILDER_TRACE_UNAVAILABLE", "category": "SYSTEM", "status": 503, "audience": "person", "message": "O Conexus não conseguiu carregar o detalhe da execução. A falha foi registrada.", "action": "NONE" },
     { "code": "PREVIEW_UNAVAILABLE", "category": "SYSTEM", "status": 503, "audience": "person", "message": "O Conexus não conseguiu abrir a Prévia. A falha foi registrada.", "action": "NONE" },
     { "code": "PREVIEW_SUBJECT_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos o que a Prévia mostraria.", "action": "NONE" },

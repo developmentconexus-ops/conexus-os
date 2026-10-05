@@ -3439,7 +3439,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "BUILDER_SESSION_UNAVAILABLE"
+                            "BUILDER_SESSION_UNAVAILABLE",
+                            "BUILDER_SOURCE_UNAVAILABLE"
                           ]
                         }
                       }
@@ -3712,7 +3713,7 @@
                         "code": {
                           "enum": [
                             "BUILDER_CAPACITY_FULL",
-                            "BUILDER_UNAVAILABLE"
+                            "BUILDER_SOURCE_UNAVAILABLE"
                           ]
                         }
                       }
@@ -3883,30 +3884,6 @@
                         "code": {
                           "enum": [
                             "INTERNAL_UNEXPECTED"
-                          ]
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Problem",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Problem"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "enum": [
-                            "BUILDER_CANCELLATION_UNAVAILABLE"
                           ]
                         }
                       }

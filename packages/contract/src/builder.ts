@@ -136,7 +136,7 @@ export const BLD23 = operation({
   id: 'BLD-23', access: 'session', method: 'GET', path: '/api/control/projects/:projectId/builder-session',
   params: projectParam, query: null, headers: null, body: null,
   success: { 200: BuilderSession },
-  effects: [], failures: ['BUILDER_SESSION_UNAVAILABLE', 'PROJECT_BUILD_DENIED'], malformed: { projectId: 'PROJECT_NOT_FOUND' },
+  effects: [], failures: ['BUILDER_SESSION_UNAVAILABLE', 'PROJECT_BUILD_DENIED', 'BUILDER_SOURCE_UNAVAILABLE'], malformed: { projectId: 'PROJECT_NOT_FOUND' },
 })
 
 export const BLD24 = operation({
@@ -147,7 +147,7 @@ export const BLD24 = operation({
   success: { 201: BuilderMessageAccepted, 200: BuilderMessageAccepted },
   effects: [],
   failures: ['IDEMPOTENCY_CONFLICT', 'CONVERSATION_NOT_FOUND', 'BUILDER_CAPACITY_FULL', 'PROJECT_BUILD_DENIED', 'ACCOUNT_INACTIVE', 'BUILDER_MESSAGE_REFUSED',
-    'BUILDER_RUN_CREATE_FAILED', 'BUILDER_BUSY', 'PROJECT_BUSY', 'BUILDER_UNAVAILABLE'],
+    'BUILDER_RUN_CREATE_FAILED', 'BUILDER_BUSY', 'PROJECT_BUSY', 'BUILDER_SOURCE_UNAVAILABLE'],
   malformed: { projectId: 'PROJECT_NOT_FOUND' },
 })
 
@@ -155,7 +155,7 @@ export const BLD25 = operation({
   id: 'BLD-25', access: 'session', method: 'POST', path: '/api/control/projects/:projectId/builder-session/runs/:builderRunId/cancel',
   params: runParams, query: null, headers: null, body: noBody,
   success: { 200: BuilderMessageAccepted },
-  effects: [], failures: ['BUILDER_RUN_NOT_FOUND', 'PROJECT_BUILD_DENIED', 'ACCOUNT_INACTIVE', 'BUILDER_CANCELLATION_UNAVAILABLE'],
+  effects: [], failures: ['BUILDER_RUN_NOT_FOUND', 'PROJECT_BUILD_DENIED', 'ACCOUNT_INACTIVE'],
   malformed: { projectId: 'PROJECT_NOT_FOUND', builderRunId: 'BUILDER_RUN_NOT_FOUND' },
 })
 

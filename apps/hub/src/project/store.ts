@@ -8,6 +8,7 @@ import { admitWorkspace, isInstallationAdministrator, type Admitted, type Worksp
 import type { Database } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
+import { gitUnavailableAs } from '../platform/git-failure.js'
 import { complete, reserve } from '../platform/receipt.js'
 import { createProjectDeletion } from './deletion.js'
 import type { ProjectDeletionPorts } from './deletion.js'
@@ -58,10 +59,6 @@ const toProjectCard = (row: z.output<typeof CardRow>): ProjectCard => ProjectCar
   deleting: row.deleting,
 })
 
-// Conexus Git failures are named codes; only the code is kept, and anything else is a failure with no name.
-const GIT_FAILURE_NAME = /^(CONEXUS_GIT_[A-Z_]+)$/
-const gitFailureName = (error: unknown): string => GIT_FAILURE_NAME.exec(error instanceof Error ? error.message : '')?.[1] ?? 'CONEXUS_GIT_FAILED'
-
 export const createProjectStore = ({
   database,
   repository,
@@ -88,9 +85,7 @@ export const createProjectStore = ({
     if (reserved.kind === 'replay') return { replayed: true, reply: reserved.reply }
     const projectId = reserved.resourceId
 
-    const prepared = await repository.prepare(projectId).catch((error: unknown) => {
-      throw new Failure('PROJECT_REPOSITORY_UNAVAILABLE', { cause: error, details: { reason: gitFailureName(error) } })
-    })
+    const prepared = await repository.prepare(projectId).catch(gitUnavailableAs('PROJECT_REPOSITORY_UNAVAILABLE'))
     const starterRevision = SourceRevision.safeParse(prepared)
     if (!starterRevision.success) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_STARTER_REVISION_UNREADABLE' } })
 

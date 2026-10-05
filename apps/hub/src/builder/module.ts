@@ -7,6 +7,7 @@ import type { ObservabilityInstance } from '@mastra/core/observability'
 import type { RequestContext } from '@mastra/core/request-context'
 import { openFactoryPool, type Database, type PostgresPool } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
+import { gitUnavailableAs } from '../platform/git-failure.js'
 import type { Job } from '../platform/jobs.js'
 import { logLine } from '../platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from '../platform/secrets.js'
@@ -257,40 +258,39 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
     ...(machines ? [{ name: 'idle-machines', everyMs: HOUR_MS, run: async (signal: AbortSignal) => { await sweepIdleMachines(machines, signal) } }] : []),
     ...(googleAiPro ? [{ name: 'idle-cliproxy', everyMs: MINUTE_MS, run: async (signal: AbortSignal) => { await (await googleAiProReady)?.pool.sweepIdle(signal) } }] : []),
   ]
+  const readTraceSummary = async (projectId: ProjectId, builderRunId: BuilderRunId): Promise<BuilderTraceSummary> => {
+    const mastraStorage = mastra.getStorage()
+    const observabilityStore = await mastraStorage?.getStore('observability')
+    if (!observabilityStore) return UNAVAILABLE_TRACE_SUMMARY
+    const traces = await observabilityStore.listTraces({
+      filters: { metadata: { conexusBuilderProjectId: projectId, conexusBuilderRunId: builderRunId } },
+      pagination: { page: 0, perPage: 1 },
+    })
+    const root = traces.spans.at(0)
+    if (!root) return UNAVAILABLE_TRACE_SUMMARY
+    const trace = await observabilityStore.getTrace({ traceId: root.traceId })
+    const scoresStore = await mastraStorage?.getStore('scores')
+    const scoreRows = scoresStore
+      ? (await scoresStore.listScoresBySpan({ traceId: root.traceId, spanId: root.spanId, pagination: { page: 0, perPage: 50 } })).scores
+      : []
+    return buildTraceSummary({ traceId: root.traceId, spans: trace?.spans ?? [], scores: scoreRows })
+  }
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }): Promise<BuilderSessionSnapshot> => {
       const preview = await store.readPreviewSubject({ accountId, projectId })
       if (!preview) throw new Failure('PROJECT_BUILD_DENIED')
       return Object.freeze({
         projectId,
-        workingSourceRevision: SourceRevision.safeParse(await git.readMain(projectId).catch(() => null)).data ?? null,
+        workingSourceRevision: SourceRevision.parse(await git.readMain(projectId).catch(gitUnavailableAs('BUILDER_SOURCE_UNAVAILABLE'))),
         lastPreviewSourceRevision: preview.lastPreviewSourceRevision,
         lastPreviewArtifactRevisionId: preview.lastPreviewArtifactRevisionId,
         lastPreviewArtifactDigest: preview.lastPreviewArtifactDigest,
         runHistory: await store.listBuilderRuns({ accountId, projectId }),
       })
     },
-    readTrace: async ({ projectId, builderRunId }): Promise<BuilderTraceSummary> => {
-      const mastraStorage = mastra.getStorage()
-      const observabilityStore = await mastraStorage?.getStore('observability')
-      if (!observabilityStore) return UNAVAILABLE_TRACE_SUMMARY
-      const traces = await observabilityStore.listTraces({
-        filters: { metadata: { conexusBuilderProjectId: projectId, conexusBuilderRunId: builderRunId } },
-        pagination: { page: 0, perPage: 1 },
-      })
-      const root = traces.spans.at(0)
-      if (!root) return UNAVAILABLE_TRACE_SUMMARY
-      const trace = await observabilityStore.getTrace({ traceId: root.traceId })
-      const scoresStore = await mastraStorage?.getStore('scores')
-      const scoreRows = scoresStore
-        ? (await scoresStore.listScoresBySpan({ traceId: root.traceId, spanId: root.spanId, pagination: { page: 0, perPage: 50 } })).scores
-        : []
-      return buildTraceSummary({
-        traceId: root.traceId,
-        spans: trace?.spans ?? [],
-        scores: scoreRows,
-      })
-    },
+    readTrace: ({ projectId, builderRunId }): Promise<BuilderTraceSummary> => readTraceSummary(projectId, builderRunId).catch((cause: unknown) => {
+      throw new Failure('BUILDER_TRACE_UNAVAILABLE', { cause, details: { projectId, builderRunId } })
+    }),
   })
   const admitProject = async ({ accountId, projectId }: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<boolean> =>
     (await store.readPreviewSubject({ accountId, projectId })) !== null
