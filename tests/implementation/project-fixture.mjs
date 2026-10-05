@@ -39,7 +39,7 @@ export const setupProjects = async (t, prefix, { repository } = {}) => {
     ($5, 'https://issuer.test', 'member-administrator', 'Member Administrator')`,
   [ID.owner, ID.member, ID.outsider, ID.administrator, ID.memberAdministrator])
   await query(connection, "INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP'), ($2, 'OPERATOR_BOOTSTRAP')", [ID.administrator, ID.memberAdministrator])
-  await query(connection, "INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'Operations', $3), ($2, 'Elsewhere', $3)", [ID.workspace, ID.otherWorkspace, ID.owner])
+  await query(connection, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Operations'), ($2, 'Elsewhere')", [ID.workspace, ID.otherWorkspace])
   await query(connection, `INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES
     ($1, $4, 'owner'), ($2, $4, 'member'), ($3, $4, 'member')`, [ID.owner, ID.member, ID.memberAdministrator, ID.workspace])
   const events = []

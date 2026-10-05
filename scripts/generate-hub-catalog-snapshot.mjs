@@ -5,6 +5,7 @@ import { resolve } from 'node:path'
 import pg from 'pg'
 import { catalogDigest, catalogSnapshotPath, describeCatalogDrift, readCatalog, readFunctions } from './hub-catalog.mjs'
 import { lintCatalog } from './hub-catalog-lint.mjs'
+import { hubSources, unportedReaders } from './hub-sources.mjs'
 import { baselineVersion, runHubMigrations } from './run-hub-migrations.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '..')
@@ -78,7 +79,7 @@ if (isEntrypoint) {
     const committed = JSON.parse(readFileSync(target, 'utf8'))
     if (committed.head !== snapshot.head) fail('CATALOG_SNAPSHOT_HEAD_DRIFT', `${committed.head} committed, ${snapshot.head} built`)
     if (catalogDigest(committed.catalog) !== catalogDigest(snapshot.catalog)) fail('CATALOG_SNAPSHOT_DIGEST_DRIFT', describeCatalogDrift(snapshot.catalog, committed.catalog))
-    const { problems, counts } = lintCatalog({ catalog: snapshot.catalog, functions, census: readCensus() })
+    const { problems, counts } = lintCatalog({ catalog: snapshot.catalog, functions, census: readCensus(), unported: unportedReaders(hubSources(), ['iam.account', 'iam.workspace_membership']) })
     if (problems.length > 0) fail('CATALOG_LINT_FAILED', problems.join('; '))
     process.stdout.write(`${JSON.stringify({ verdict: 'CURRENT', lint: counts, head: snapshot.head, digest: catalogDigest(snapshot.catalog) })}\n`)
   } else {

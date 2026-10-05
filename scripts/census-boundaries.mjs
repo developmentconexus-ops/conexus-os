@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { joinTemplate, writeProblems } from './sql-write-lint.mjs'
 
 const repo = resolve(fileURLToPath(new URL('../', import.meta.url)))
 const recordPath = join(repo, 'contracts/technical/census-boundaries.json')
@@ -25,6 +26,11 @@ const enclosingName = (node) => {
   return '<module>'
 }
 
+const moduleVariable = (node) => {
+  for (let current = node.parent; current; current = current.parent) if (ts.isVariableDeclaration(current)) return current.name.getText()
+  return '<module>'
+}
+
 const referencesMember = (checker, node, member, belongs) => {
   if (ts.isPropertyAccessExpression(node) && node.name.text === member) return belongs(checker.getSymbolAtLocation(node.name))
   if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression) && node.argumentExpression.text === member) return belongs(checker.getSymbolAtLocation(node.argumentExpression))
@@ -44,12 +50,14 @@ const resultIsDiscarded = (node) => {
   return ts.isExpressionStatement(value.parent)
 }
 
+const templateParts = (template) => (ts.isNoSubstitutionTemplateLiteral(template) ? [template.text] : [template.head.text, ...template.templateSpans.map((span) => span.literal.text)])
+
 const isPgQuery = (symbol) => declaredIn(symbol, /node_modules\/(?:@types\/)?pg\//)
 const isResponseJson = (symbol) => ['Response', 'Body'].includes(parentName(symbol) ?? '')
 
 export const findings = (program, { root = repo, pgEdge = DATABASE_EDGE, responseEdge = RESPONSE_EDGE } = {}) => {
   const checker = program.getTypeChecker()
-  const result = { pgQueryRows: [], pgImportFiles: [], webResponseJson: [] }
+  const result = { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [] }
   for (const file of program.getSourceFiles()) {
     if (file.isDeclarationFile || file.fileName.includes('/node_modules/')) continue
     const path = relative(root, file.fileName)
@@ -57,6 +65,9 @@ export const findings = (program, { root = repo, pgEdge = DATABASE_EDGE, respons
       if (!pgEdge.includes(path) && referencesMember(checker, node, 'query', isPgQuery) && !resultIsDiscarded(node)) result.pgQueryRows.push(`${path}#${enclosingName(node)}`)
       if (!responseEdge.includes(path) && referencesMember(checker, node, 'json', isResponseJson)) result.webResponseJson.push(`${path}#${enclosingName(node)}`)
       if (ts.isImportDeclaration(node) && !pgEdge.includes(path) && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text === 'pg') result.pgImportFiles.push(path)
+      if (ts.isTaggedTemplateExpression(node) && ts.isIdentifier(node.tag) && node.tag.text === 'sql') {
+        for (const problem of writeProblems(joinTemplate(templateParts(node.template)))) result.sqlWrites.push(`${path}#${enclosingName(node) === '<module>' ? moduleVariable(node) : enclosingName(node)}: ${problem}`)
+      }
       ts.forEachChild(node, visit)
     }
     visit(file)
@@ -78,6 +89,7 @@ export const census = () => {
     pgQueryRows: hub.pgQueryRows,
     pgImportFiles: hub.pgImportFiles,
     webResponseJson: web.webResponseJson,
+    sqlWrites: hub.sqlWrites,
   }
 }
 

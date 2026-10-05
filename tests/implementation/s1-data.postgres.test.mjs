@@ -9,6 +9,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { takeHubLogs } from './hub-log-capture.mjs'
 
 const { openDatabase, sql, unportedPool, DATABASE_FAILURES } = await import(hubModuleUrl('platform/db.js'))
+const { admitAccount, admitSystem } = await import(hubModuleUrl('identity-access/admission.js'))
 const ACCOUNT = '10000000-0000-4000-8000-00000000000a'
 const PASSWORD = 's1-data-test-only'
 
@@ -26,10 +27,12 @@ const setup = async (t) => {
 }
 
 test('a row is parsed, a missing row has its named failure, and a transaction setting does not leak', async (t) => {
-  const { database } = await setup(t)
+  const { database, connection } = await setup(t)
+  await query(connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'a', 'A')", [ACCOUNT])
   const NumberRow = z.object({ value: z.number() })
   const StringRow = z.object({ value: z.string() })
-  const result = await database.transaction(ACCOUNT, async (tx) => {
+  const result = await database.transaction(ACCOUNT, async (gate) => {
+    const { tx } = await admitAccount(gate)
     assert.equal(tx.mode, 'write')
     const value = await tx.one(NumberRow, sql`SELECT ${7}::integer AS value`, 'NOT_FOUND')
     const quoted = await tx.one(z.object({ 'col"name': z.number() }), sql`SELECT ${8}::integer AS ${sql.identifier('col"name')}`, 'NOT_FOUND')
@@ -76,7 +79,7 @@ test('every mapped database failure names a real constraint and a registered fai
   }
   await query(connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'a', 'A')", [ACCOUNT])
   const orphan = sql`INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES (${ACCOUNT}, '20000000-0000-4000-8000-000000000001', 'owner')`
-  await assert.rejects(database.system('project-purge', (tx) => tx.run(orphan)), (error) => error.id === 'WORKSPACE_NOT_FOUND' && error.cause?.code === '23503')
+  await assert.rejects(database.system('project-purge', async (gate) => (await admitSystem(gate)).tx.run(orphan)), (error) => error.id === 'WORKSPACE_NOT_FOUND' && error.cause?.code === '23503')
   await assert.rejects(database.read(ACCOUNT, (tx) => tx.rows(z.object({ value: z.number() }), sql`SELECT 1 / 0 AS value`)),
     (error) => error.id === 'INTERNAL_UNEXPECTED' && error.cause?.code === '22012')
 })

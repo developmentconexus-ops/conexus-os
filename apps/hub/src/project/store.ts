@@ -76,8 +76,8 @@ export const createProjectStore = ({
 
     // The reserved receipt is the intent: a retry with the same key reaches the same Project id, and
     // so the repository this call may already have created.
-    const reserved = await database.transaction(accountId, async (tx) =>
-      reserve(await admitWorkspace(tx, accountId, workspaceId, 'project.create'), PRJ03, idempotencyKey, receiptInput, ProjectId))
+    const reserved = await database.transaction(accountId, async (gate) =>
+      reserve(await admitWorkspace(gate, workspaceId, 'project.create'), PRJ03, idempotencyKey, receiptInput, ProjectId))
     if (reserved.kind === 'replay') return { replayed: true, reply: reserved.reply }
     const projectId = reserved.resourceId
 
@@ -87,8 +87,8 @@ export const createProjectStore = ({
     const starterRevision = SourceRevision.safeParse(prepared)
     if (!starterRevision.success) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_STARTER_REVISION_UNREADABLE' } })
 
-    return database.transaction(accountId, async (tx) => {
-      const proof = await admitWorkspace(tx, accountId, workspaceId, 'project.create')
+    return database.transaction(accountId, async (gate) => {
+      const proof = await admitWorkspace(gate, workspaceId, 'project.create')
       const receipt = await reserve(proof, PRJ03, idempotencyKey, receiptInput, ProjectId)
       if (receipt.kind === 'replay') return { replayed: true, reply: receipt.reply }
       if (receipt.resourceId !== projectId) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_RECEIPT_RESOURCE_CHANGED' } })
@@ -120,7 +120,7 @@ export const createProjectStore = ({
       }
       const purged = await tx.maybe(TombstoneRow, sql`
         SELECT project_id, workspace_id, name FROM project.project_deletion
-        WHERE project_id = ${projectId} AND completed_at IS NULL AND (SELECT iam.acting_installation_administrator())`)
+        WHERE project_id = ${projectId} AND completed_at IS NULL AND (SELECT rls.acting_installation_administrator())`)
       return purged ? { projectId: purged.project_id, workspaceId: purged.workspace_id, name: purged.name, projectRevision: '', archived: false, deleting: true } : null
     }),
     listProjectSummariesWithActivity: ({ accountId, workspaceId }) => database.read(accountId, async (tx) =>
@@ -147,7 +147,7 @@ export const createProjectStore = ({
             tombstone.requested_at, NULL, NULL, false, true
           FROM project.project_deletion AS tombstone
           WHERE tombstone.workspace_id = ${workspaceId} AND tombstone.completed_at IS NULL AND tombstone.purged_at IS NOT NULL
-            AND (SELECT iam.acting_installation_administrator())
+            AND (SELECT rls.acting_installation_administrator())
         ) AS combined ORDER BY sort_at DESC, project_id`)).map(toProjectCard)),
     deleteProject: createProjectDeletion({ database, ports: deletion }).deleteProject,
   })

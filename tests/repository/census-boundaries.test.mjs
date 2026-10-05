@@ -36,5 +36,27 @@ test('the data module and the one caller are the edge', () => {
     rootNames: [resolve(root, 'tests/fixtures/census-boundaries/pg-rows.ts')],
     options: { strict: true, skipLibCheck: true, noEmit: true, target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, types: [] },
   })
-  assert.deepEqual(findings(program, { root, pgEdge: ['tests/fixtures/census-boundaries/pg-rows.ts'], responseEdge: [] }), { pgQueryRows: [], pgImportFiles: [], webResponseJson: [] })
+  assert.deepEqual(findings(program, { root, pgEdge: ['tests/fixtures/census-boundaries/pg-rows.ts'], responseEdge: [] }), { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [] })
+})
+
+test('a write whose filter is not visible in its template is found, and a write with one is not', () => {
+  const prefix = 'tests/fixtures/census-boundaries/sql-writes.ts#'
+  assert.deepEqual(fixture('sql-writes').sqlWrites.sort(), [
+    ['afterCte', 'an update with no where outside parentheses'],
+    ['afterSemicolon', 'a delete with no where outside parentheses'],
+    ['commentedWhere', 'a delete with no where outside parentheses'],
+    ['constantDisjunct', 'an update with a where whose predicate is a constant'],
+    ['constantEquality', 'an update with a where whose predicate is a constant'],
+    ['constantTrue', 'a delete with a where whose predicate is a constant'],
+    ['deleteAll', 'a delete with no where outside parentheses'],
+    ['inCte', 'a delete with no where outside parentheses'],
+    ['merge', 'a merge'],
+    ['noWhere', 'an update with no where outside parentheses'],
+    ['spaced', 'a delete with no where outside parentheses'],
+    ['upperCase', 'a delete with no where outside parentheses'],
+    ['upsertWithoutWhere', 'an insert ... on conflict do update with no where'],
+    ['whereInterpolated', 'a delete with no where outside parentheses'],
+    ['whereOnlyInSubquery', 'a delete with no where outside parentheses'],
+    ['wholeFilterInterpolated', 'a delete with a where with no comparison of a column written in the template'],
+  ].map(([name, problem]) => `${prefix}${name}: ${problem}`).sort())
 })

@@ -1,5 +1,5 @@
 {
-  "$comment": "Every Hub connection role is registered here. The runtime uses hub_runtime for Hub data and hub_factory for Mastra storage; capability roles remain only while their SQL owners are ported.",
+  "$comment": "Every Hub connection role is registered here. The Hub logs in as hub_runtime and switches each transaction to a transaction role; hub_factory is for Mastra storage. Capability roles remain only while their SQL owners are ported.",
   "roles": [
     {
       "role": "hub_runtime",
@@ -52,11 +52,9 @@
     {
       "role": "iam_rls",
       "owns": [
-        "iam.acting_account",
-        "iam.acting_applications",
-        "iam.acting_installation_administrator",
-        "iam.acting_scope",
-        "iam.acting_workspaces"
+        "rls.acting_account",
+        "rls.acting_installation_administrator",
+        "rls.acting_workspaces"
       ],
       "privileges": [
         "SELECT"
@@ -72,5 +70,15 @@
     "connector_owner",
     "model_owner",
     "conexus_owner"
+  ],
+  "transactionRoles": [
+    {
+      "role": "hub_reader",
+      "purpose": "a person's read: SELECT under the reader policies"
+    },
+    {
+      "role": "hub_command",
+      "purpose": "a command: the verbs the table register names, under its proof"
+    }
   ]
 }

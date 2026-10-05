@@ -101,14 +101,6 @@ const retainedThumbnailRowSchema = z.object({
   out_byte_length: z.number().int().positive().max(512000),
   out_sha256: sha256Schema,
 }).strict()
-const thumbnailRowSchema = z.object({
-  artifact_revision_id: uuidSchema,
-  media_type: z.literal('image/png'),
-  bytes: z.instanceof(Uint8Array),
-  byte_length: z.number().int().positive().max(512000),
-  sha256: sha256Schema,
-}).strict()
-
 type ApplicationPayload = z.infer<typeof payloadSchema>
 type ApplicationMetadata = Readonly<{
   artifactRevisionId: string
@@ -131,14 +123,6 @@ type RetainedApplicationThumbnail = Readonly<{
   projectId: string
   artifactRevisionId: string
   mediaType: string
-  byteLength: number
-  sha256: string
-}>
-
-type ApplicationArtifactThumbnail = Readonly<{
-  artifactRevisionId: string
-  mediaType: 'image/png'
-  bytes: Uint8Array
   byteLength: number
   sha256: string
 }>
@@ -174,10 +158,6 @@ export type ApplicationArtifactStore = Readonly<{
     mediaType: string
     bytes: Uint8Array
   }>): Promise<RetainedApplicationThumbnail>
-  getApplicationThumbnail(client: RegistryQueryClient, input: Readonly<{
-    accountId: string
-    projectId: string
-  }>): Promise<ApplicationArtifactThumbnail | null>
 }>
 
 const refuseInput = (): never => {
@@ -331,21 +311,6 @@ const parseRetainedThumbnail = (value: unknown): RetainedApplicationThumbnail =>
   })
 }
 
-const parseThumbnail = (value: unknown): ApplicationArtifactThumbnail => {
-  const parsed = parseResponseOrRefuse(thumbnailRowSchema, value)
-  const bytes = Uint8Array.from(parsed.bytes)
-  if (bytes.byteLength > 512000 || bytes.byteLength !== parsed.byte_length) refuseResponse()
-  const digest = createHash('sha256').update(bytes).digest('hex')
-  if (digest !== parsed.sha256) refuseResponse()
-  return Object.freeze({
-    artifactRevisionId: parsed.artifact_revision_id,
-    mediaType: parsed.media_type,
-    bytes,
-    byteLength: parsed.byte_length,
-    sha256: digest,
-  })
-}
-
 export const createApplicationArtifactStore = (): ApplicationArtifactStore => Object.freeze({
   async retainApplication(client, input) {
     const parsedInput = parseOrRefuse(z.object({ accountId: uuidSchema, compiled: z.unknown() }).strict(), input)
@@ -406,18 +371,5 @@ export const createApplicationArtifactStore = (): ApplicationArtifactStore => Ob
     const row = rows[0]
     if (!row) throw new Failure('APPLICATION_ARTIFACT_RESPONSE_REFUSED')
     return parseRetainedThumbnail(row)
-  },
-
-  async getApplicationThumbnail(client, input) {
-    const parsed = parseOrRefuse(z.object({
-      accountId: uuidSchema,
-      projectId: uuidSchema,
-    }).strict(), input)
-    const rows = await queryRows(client,
-      'SELECT * FROM reg.get_application_thumbnail($1, $2)',
-      [parsed.accountId, parsed.projectId],
-    )
-    const row = rows[0]
-    return row ? parseThumbnail(row) : null
   },
 })

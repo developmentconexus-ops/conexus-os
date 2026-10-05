@@ -49,9 +49,9 @@ const refusal = async (connection, sql, parameters = []) => {
   }
 }
 
-const seedWorkspace = async (connection, { label, creator }) => {
+const seedWorkspace = async (connection, { label }) => {
   const workspaceId = randomUUID()
-  await query(connection, 'INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1,$2,$3)', [workspaceId, label, creator])
+  await query(connection, 'INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1,$2)', [workspaceId, label])
   return workspaceId
 }
 const seedAccount = async (connection, { label, active = true }) => {
@@ -82,7 +82,7 @@ test('a member of the Workspace reads, creates and builds every Project in it', 
   await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
 
   const owner = await seedAccount(connection, { label: 'Owner' })
-  const workspaceId = await seedWorkspace(connection, { label: 'Shared', creator: owner })
+  const workspaceId = await seedWorkspace(connection, { label: 'Shared' })
   const member = await seedAccount(connection, { label: 'Member' })
   const stranger = await seedAccount(connection, { label: 'Stranger' })
   await seedMember(connection, owner, workspaceId, 'owner')
@@ -124,7 +124,7 @@ test('removing the member stops the next claim and still records the work alread
   await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
 
   const owner = await seedAccount(connection, { label: 'Owner' })
-  const workspaceId = await seedWorkspace(connection, { label: 'Mid-run', creator: owner })
+  const workspaceId = await seedWorkspace(connection, { label: 'Mid-run' })
   const member = await seedAccount(connection, { label: 'Member' })
   await seedMember(connection, owner, workspaceId, 'owner')
   await seedMember(connection, member, workspaceId, 'member')
@@ -159,7 +159,7 @@ test('an inactive account is refused everywhere, including Preview and source re
   await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
 
   const owner = await seedAccount(connection, { label: 'Owner' })
-  const workspaceId = await seedWorkspace(connection, { label: 'Deactivation', creator: owner })
+  const workspaceId = await seedWorkspace(connection, { label: 'Deactivation' })
   const dormant = await seedAccount(connection, { label: 'Dormant' })
   await seedMember(connection, owner, workspaceId, 'owner')
   await seedMember(connection, dormant, workspaceId, 'member')

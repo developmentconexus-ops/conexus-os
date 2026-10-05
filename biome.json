@@ -246,6 +246,18 @@
     },
     {
       "includes": [
+        "apps/hub/src/telemetry/log-codes.generated.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noExcessiveLinesPerFile": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
         ".agents/skills/verify/scripts/control.mjs"
       ],
       "linter": {

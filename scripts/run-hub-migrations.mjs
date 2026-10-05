@@ -73,6 +73,7 @@ const oneOwnerPerLifetimeDigest = '718c64fd896e0c04550c59d3b3fddea548737aea6256c
 const dropWorkspaceGetSummaryDigest = '8a6a0d7a8674ea3b74722d7d2e458ac5bd3c38662f2ab9233e83c3728606213d'
 const runtimeDataBoundaryDigest = '954e765ed481e9c10e94ea4f34181df2ef0c1d809515e14ab20a7de2c304f1d1'
 const workspaceAdmissionDigest = '9f43118c3e057c30978f1fef5cfe6956d8f5d46c989f1751d7a072e3bbd0060b'
+const splitWallDigest = 'ae56b4fea08ad8c20b450631f0d1ce861fd5b107c300dd29611622acbef981cf'
 const projectOwnerDigest = '9c0efb7e558d81e5634c74d63dd953ad18fd7b82f3b2c0bc4d8030b68269df4f'
 
 const migrationDigests = new Map([
@@ -140,6 +141,7 @@ const migrationDigests = new Map([
   ['0062_runtime_data_boundary.sql', runtimeDataBoundaryDigest],
   ['0063_workspace_admission.sql', workspaceAdmissionDigest],
   ['0064_project_owner.sql', projectOwnerDigest],
+  ['0065_split_wall.sql', splitWallDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n
@@ -225,7 +227,7 @@ export const runMigrations = async ({ connectionString, migrations, catalogSnaps
       const ledger = await ledgerState(client, migrations)
       if (catalogSnapshot) {
         await assertCatalog(client, catalogSnapshot)
-        if (catalogSnapshot.catalog.function.some((line) => line.startsWith('function iam.acting_account('))) {
+        if (catalogSnapshot.catalog.function.some((line) => line.startsWith('function rls.acting_account('))) {
           await assertRoleInvariants(client)
         }
       }

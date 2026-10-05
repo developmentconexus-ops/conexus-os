@@ -81,11 +81,36 @@ export interface WriteTx extends ReadTx {
   run(query: Sql): Promise<number>
 }
 
+/** Nominal and without a query method: only db.ts makes one, so a command can do nothing before an admission opens it. */
+class Gate {
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: type identity is the use
+  readonly #gate = true
+}
+/** Nominal like Gate, and a separate class, so no command admission accepts it. Part 6 adds its digest lookups. */
+class AuthGate {
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: type identity is the use
+  readonly #authentication = true
+}
+export type CommandGate = Gate
+export type AuthenticationGate = AuthGate
+type Actor =
+  | Readonly<{ kind: 'account'; accountId: AccountId }>
+  | Readonly<{ kind: 'job'; job: JobName }>
+  | Readonly<{ kind: 'authentication'; accountId: AccountId | null }>
+const opened = new WeakMap<Gate | AuthGate, Readonly<{ tx: WriteTx; actor: Actor }>>()
+
+/** Importable only by identity-access/admission.ts: the transaction and the actor a gate was opened with. */
+export const openGate = (gate: CommandGate | AuthenticationGate): Readonly<{ tx: WriteTx; actor: Actor }> => {
+  const record = opened.get(gate)
+  if (!record) throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'GATE_UNKNOWN' } })
+  return record
+}
+
 type SessionLock = Readonly<{ tryAdvisoryLock(key: bigint): Promise<boolean> }>
 export interface Database {
-  transaction<T>(accountId: AccountId, fn: (tx: WriteTx) => Promise<T>): Promise<T>
+  transaction<T>(accountId: AccountId, fn: (gate: CommandGate) => Promise<T>): Promise<T>
   read<T>(accountId: AccountId, fn: (tx: ReadTx) => Promise<T>): Promise<T>
-  system<T>(job: JobName, fn: (tx: WriteTx) => Promise<T>): Promise<T>
+  system<T>(job: JobName, fn: (gate: CommandGate) => Promise<T>): Promise<T>
   session<T>(fn: (lock: SessionLock) => Promise<T>): Promise<T>
   close(): Promise<void>
 }
@@ -145,17 +170,30 @@ const transactionView = (client: PoolClient) => {
   }
 }
 
-type Acting = Readonly<{ accountId: AccountId | null; scope: 'system' | '' }>
-
-const readView = (client: PoolClient, acting: Acting) => {
+const readView = (client: PoolClient, accountId: AccountId | null) => {
   const { rows, one, maybe, end } = transactionView(client)
-  return { mode: 'read' as const, accountId: acting.accountId, rows, one, maybe, end }
+  return { mode: 'read' as const, accountId, rows, one, maybe, end }
 }
 
-const writeView = (client: PoolClient, acting: Acting) => {
+const writeView = (client: PoolClient, accountId: AccountId | null) => {
   const { rows, one, maybe, execute, end } = transactionView(client)
-  return { mode: 'write' as const, accountId: acting.accountId, rows, one, maybe, run: execute, end }
+  return { mode: 'write' as const, accountId, rows, one, maybe, run: execute, end }
 }
+
+const gateFor = (tx: WriteTx, actor: Actor): CommandGate => {
+  const gate = new Gate()
+  opened.set(gate, { tx, actor })
+  return gate
+}
+
+// The role is the first statement after BEGIN and LOCAL ends it with the transaction, so a client
+// goes back to the pool as the login role, which holds nothing on a split table. These two
+// constants are the only role switch in the Hub; a bare SET ROLE survives a ROLLBACK.
+const SWITCH_TO_READER = 'SET LOCAL ROLE hub_reader'
+const SWITCH_TO_COMMAND = 'SET LOCAL ROLE hub_command'
+
+type Entry = Readonly<{ begin: string; role: string; setting: Readonly<{ name: string; value: string }> | null }>
+const READ_ENTRY = 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY'
 
 const entered = new AsyncLocalStorage<true>()
 const refuseOptionNamingRole = (connection: DatabaseConnection): void => {
@@ -174,16 +212,17 @@ export const unportedPool = (database: Database): Pool => {
 export const openDatabase = (connection: DatabaseConnection): Database => {
   refuseOptionNamingRole(connection)
   const pool = openPool({ ...connection, password: readSecretFile(connection.passwordFile) })
-  const transact = async <T, V extends ReadTx>(begin: string, acting: Acting, view: (client: PoolClient, acting: Acting) => V & { end(): void }, fn: (tx: V) => Promise<T>): Promise<T> => {
+  const transact = async <T, V extends ReadTx>(entry: Entry, view: (client: PoolClient) => V & { end(): void }, fn: (tx: V) => Promise<T>): Promise<T> => {
     if (entered.getStore()) throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'NESTED_TRANSACTION' } })
     const client = await pool.connect()
     let discard: Error | undefined
     let started = false
-    const tx = view(client, acting)
+    const tx = view(client)
     try {
-      await client.query(begin)
+      await client.query(entry.begin)
       started = true
-      await client.query("SELECT set_config('conexus.account_id', $1, true), set_config('conexus.scope', $2, true)", [acting.accountId ?? '', acting.scope])
+      await client.query(entry.role)
+      if (entry.setting) await client.query('SELECT set_config($1, $2, true)', [entry.setting.name, entry.setting.value])
       const value = await entered.run(true, () => fn(tx))
       await client.query('COMMIT')
       return value
@@ -198,9 +237,11 @@ export const openDatabase = (connection: DatabaseConnection): Database => {
     }
   }
   const database: Database = {
-    transaction: (accountId, fn) => transact('BEGIN', { accountId, scope: '' }, writeView, fn),
-    read: (accountId, fn) => transact('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY', { accountId, scope: '' }, readView, fn),
-    system: (_job, fn) => transact('BEGIN', { accountId: null, scope: 'system' }, writeView, fn),
+    transaction: (accountId, fn) => transact({ begin: 'BEGIN', role: SWITCH_TO_COMMAND, setting: null }, (client) => writeView(client, accountId),
+      (tx) => fn(gateFor(tx, { kind: 'account', accountId }))),
+    read: (accountId, fn) => transact({ begin: READ_ENTRY, role: SWITCH_TO_READER, setting: { name: 'conexus.account_id', value: accountId } }, (client) => readView(client, accountId), fn),
+    system: (job, fn) => transact({ begin: 'BEGIN', role: SWITCH_TO_COMMAND, setting: { name: 'conexus.job', value: job } }, (client) => writeView(client, null),
+      (tx) => fn(gateFor(tx, { kind: 'job', job }))),
     session: async (fn) => {
       const client = new pg.Client({ ...connection, password: readSecretFile(connection.passwordFile), application_name: 'conexus-hub:instance-lock' })
       const lost = new Promise<never>((_resolve, reject) => {

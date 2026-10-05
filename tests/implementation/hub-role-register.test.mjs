@@ -27,12 +27,10 @@ test('the register holds every role the Hub connects as, with the capability an 
   ])
   assert.deepEqual(register.policyRoles, [{
     role: 'iam_rls',
-    owns: [
-      'iam.acting_account', 'iam.acting_applications', 'iam.acting_installation_administrator',
-      'iam.acting_scope', 'iam.acting_workspaces',
-    ],
+    owns: ['rls.acting_account', 'rls.acting_installation_administrator', 'rls.acting_workspaces'],
     privileges: ['SELECT'],
   }])
+  assert.deepEqual(register.transactionRoles.map((row) => row.role), ['hub_reader', 'hub_command'])
 })
 
 test('the Hub config reads the password file and the role of every registered role from its variable', () => {

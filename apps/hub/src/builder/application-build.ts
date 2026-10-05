@@ -58,10 +58,6 @@ export type BuilderApplicationArtifacts = Readonly<{
     mediaType: 'image/png'
     bytes: Uint8Array
   }>): Promise<unknown>
-  getApplicationThumbnail?(input: Readonly<{
-    accountId: string
-    projectId: string
-  }>): Promise<Readonly<{ artifactRevisionId: string; mediaType: 'image/png'; bytes: Uint8Array; sha256: string }> | null>
   readApplicationFileBySource?(input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
 }>
 
@@ -77,10 +73,6 @@ export type UnboundBuilderApplicationArtifacts = Readonly<{
     mediaType: 'image/png'
     bytes: Uint8Array
   }>): Promise<unknown>
-  getApplicationThumbnail?(client: ApplicationArtifactClient, input: Readonly<{
-    accountId: string
-    projectId: string
-  }>): Promise<Readonly<{ artifactRevisionId: string; mediaType: 'image/png'; bytes: Uint8Array; sha256: string }> | null>
   readApplicationFileBySource?(client: ApplicationArtifactClient, input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
 }>
 

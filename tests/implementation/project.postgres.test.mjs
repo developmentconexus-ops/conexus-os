@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
 import { z } from 'zod'
@@ -8,6 +7,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { ID, PASSWORD, STARTER, setupProjects } from './project-fixture.mjs'
 
 const { sql } = await import(hubModuleUrl('platform/db.js'))
+const { admitAccount } = await import(hubModuleUrl('identity-access/admission.js'))
 
 const NEW = { name: 'Atlas', sourceBootstrap: { mode: 'NEW' } }
 const create = (store, accountId, key, body = NEW, workspaceId = ID.workspace) => store.createProject({ accountId, workspaceId, idempotencyKey: key, body })
@@ -180,18 +180,27 @@ test('a list whose WHERE is deleted still returns only the acting account projec
   assert.deepEqual(await read(ID.administrator), [])
 })
 
-test('without an account set, project tables and the builder reads show and change nothing', async (t) => {
+test('the login role alone reads nothing, and the reader without an account set shows and changes nothing', async (t) => {
   const { connection, seedProject, database } = await setupProjects(t, 'conexus_prj_noaccount')
   const projectId = await seedProject('Atlas')
   await query(connection, `INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Atlas', $3)`, [projectId, ID.workspace, ID.administrator])
   const runtime = { ...connection, user: 'hub_runtime', password: PASSWORD }
-  for (const table of ['project.project', 'project.project_deletion', 'builder.builder_run', 'builder.project_working_state']) {
-    assert.deepEqual((await query(runtime, `SELECT count(*)::integer AS count FROM ${table}`)).rows, [{ count: 0 }], table)
+  const tables = ['project.project', 'project.project_deletion', 'builder.builder_run', 'builder.project_working_state']
+  for (const table of tables) {
+    await assert.rejects(query(runtime, `SELECT count(*)::integer AS count FROM ${table}`), { code: '42501' }, table)
   }
-  assert.equal((await query(runtime, "UPDATE project.project SET archived = true")).rowCount, 0)
-  assert.equal((await query(runtime, 'DELETE FROM project.project')).rowCount, 0)
-  assert.equal((await query(runtime, 'DELETE FROM project.project_deletion')).rowCount, 0)
-  assert.equal((await query(runtime, 'UPDATE project.project_deletion SET purged_at = now()')).rowCount, 0)
+  const client = new pg.Client(runtime)
+  await client.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query('SET LOCAL ROLE hub_reader')
+    for (const table of tables) {
+      assert.deepEqual((await client.query(`SELECT count(*)::integer AS count FROM ${table}`)).rows, [{ count: 0 }], table)
+    }
+    await client.query('ROLLBACK')
+  } finally {
+    await client.end()
+  }
   const rows = z.object({ project_id: z.string() })
   assert.deepEqual(await database.read(ID.outsider, (tx) => tx.rows(rows, sql`SELECT project_id FROM builder.builder_run`)), [])
   assert.deepEqual(await database.read(ID.outsider, (tx) => tx.rows(rows, sql`SELECT project_id FROM builder.project_working_state`)), [])
@@ -203,13 +212,13 @@ test('a person transaction cannot run a project purge, and the rows stay', async
   const projectId = await seedProject('Atlas')
   const refused = (error) => { assert.equal(error.cause.code, '42501'); assert.match(error.cause.message, /PURGE_REQUIRES_SYSTEM/); return true }
   const purges = {
-    iam: sql`SELECT iam.purge_project(${projectId})`,
-    connector: sql`SELECT connector.purge_project(${projectId})`,
-    reg: sql`SELECT reg.purge_project(${projectId})`,
-    builder: sql`SELECT builder.purge_project(${projectId})`,
+    iam: sql`SELECT iam.purge_project(${projectId}::uuid)`,
+    connector: sql`SELECT connector.purge_project(${projectId}::uuid)`,
+    reg: sql`SELECT reg.purge_project(${projectId}::uuid)`,
+    builder: sql`SELECT builder.purge_project(${projectId}::uuid)`,
   }
   for (const [schema, statement] of Object.entries(purges)) {
-    await assert.rejects(database.transaction(ID.member, (tx) => tx.run(statement)), refused, schema)
+    await assert.rejects(database.transaction(ID.member, async (gate) => (await admitAccount(gate)).tx.run(statement)), refused, schema)
   }
   assert.deepEqual((await query(connection, 'SELECT (SELECT count(*)::integer FROM builder.project_working_state WHERE project_id = $1) AS working, (SELECT count(*)::integer FROM builder.project_repository WHERE project_id = $1) AS repository', [projectId])).rows, [{ working: 1, repository: 1 }])
 })
@@ -217,16 +226,14 @@ test('a person transaction cannot run a project purge, and the rows stay', async
 test('the policy helper is false for an administrator whose account is not active', async (t) => {
   const { connection, database } = await setupProjects(t, 'conexus_prj_helper')
   const flag = z.object({ administrator: z.boolean() })
-  const read = () => database.read(ID.administrator, (tx) => tx.one(flag, sql`SELECT iam.acting_installation_administrator() AS administrator`, 'INTERNAL_UNEXPECTED'))
+  const read = () => database.read(ID.administrator, (tx) => tx.one(flag, sql`SELECT rls.acting_installation_administrator() AS administrator`, 'INTERNAL_UNEXPECTED'))
   assert.deepEqual(await read(), { administrator: true })
   await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.administrator])
   assert.deepEqual(await read(), { administrator: false })
 })
 
-test('an outsider cannot write a project into a workspace it cannot see', async (t) => {
+test('an outsider is refused at admission before any project write is reachable', async (t) => {
   const { database } = await setupProjects(t, 'conexus_prj_write')
-  const refused = (error) => { assert.equal(error.cause.code, '42501'); return true }
-  await assert.rejects(database.transaction(ID.outsider, (tx) => tx.run(sql`
-    INSERT INTO project.project (project_id, workspace_id, name, source_mode, source_revision, project_revision)
-    VALUES (${randomUUID()}, ${ID.workspace}, 'Planted', 'NEW', ${STARTER}, ${randomUUID()})`)), refused)
+  const { admitWorkspace } = await import(hubModuleUrl('identity-access/admission.js'))
+  await assert.rejects(database.transaction(ID.outsider, (gate) => admitWorkspace(gate, ID.workspace, 'workspace.read')), { id: 'WORKSPACE_NOT_FOUND' })
 })

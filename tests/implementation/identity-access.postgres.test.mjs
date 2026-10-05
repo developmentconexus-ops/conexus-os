@@ -46,7 +46,7 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
       await admin.query(`DROP DATABASE "${database}" WITH (FORCE)`)
     } finally {
       try {
-        await admin.query('ALTER ROLE hub_iam_runtime PASSWORD NULL')
+        await admin.query('ALTER ROLE hub_runtime PASSWORD NULL')
       } finally {
         await admin.end()
       }
@@ -60,9 +60,9 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
   url.username = installed.user
   url.password = installed.password
   await runHubMigrations({ connectionString: url.toString() })
-  await admin.query(`ALTER ROLE hub_iam_runtime PASSWORD 'runtime-test-only'`)
+  await admin.query(`ALTER ROLE hub_runtime PASSWORD 'runtime-test-only'`)
 
-  const runtimeConnection = { ...installed, user: 'hub_iam_runtime', password: 'runtime-test-only' }
+  const runtimeConnection = { ...installed, user: 'hub_runtime', password: 'runtime-test-only' }
   storePool = testPool(runtimeConnection)
   store = createIdentityAccessStore({ pool: storePool })
   // A provisioning token rotates while it is unclaimed, and the expired one stays dead.

@@ -181,7 +181,7 @@ test('installation administration is its own fact, bootstrapped by the operator 
     const workspaceOwner = await account('workspace-owner')
     const workspaceId = randomUUID()
     const projectId = randomUUID()
-    await owner.query('INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1,$2, (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))', [workspaceId, 'not-the-admins'])
+    await owner.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1,$2)', [workspaceId, 'not-the-admins'])
     await owner.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,'owner')", [workspaceOwner, workspaceId])
     await owner.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1,$2,'p','NEW',$3,'p')",
       [projectId, workspaceId, 'a'.repeat(40)])

@@ -1,7 +1,7 @@
 import type { AccountId, WorkspaceId } from '../../packages/contract/dist/index.js'
-import { admitAccount, grantCreatorMembership } from '../../apps/hub/src/identity-access/admission.js'
+import { admitAccount, admitApplication, admitWorkspace, grantCreatorMembership } from '../../apps/hub/src/identity-access/admission.js'
 import type { Admitted, AccountScope, ProjectScope, WorkspaceScope } from '../../apps/hub/src/identity-access/admission.js'
-import type { ReadTx, RawToken, WriteTx } from '../../apps/hub/src/platform/db.js'
+import type { AuthenticationGate, CommandGate, ReadTx, RawToken, WriteTx } from '../../apps/hub/src/platform/db.js'
 import { digest, sql } from '../../apps/hub/src/platform/db.js'
 
 declare const account: AccountId
@@ -12,6 +12,8 @@ declare const writeReader: Admitted<WorkspaceScope<'workspace.read'>>
 declare const readTx: ReadTx
 declare const writeTx: WriteTx
 declare const presented: RawToken
+declare const gate: CommandGate
+declare const authentication: AuthenticationGate
 
 // @ts-expect-error A proof cannot be constructed as an object.
 const forged: Admitted<AccountScope> = { scope: { kind: 'account', accountId: account }, tx: writeTx }
@@ -27,8 +29,24 @@ const wrongProject: Admitted<ProjectScope> = owner
 const wrongMode: Admitted<WorkspaceScope<'workspace.read'>> = reader
 // @ts-expect-error ReadTx has no mutation method.
 readTx.run
-// @ts-expect-error Account admission locks the row, so it needs a write transaction.
-admitAccount(readTx, account)
+// @ts-expect-error Account admission takes a gate, never a transaction.
+admitAccount(readTx)
+// @ts-expect-error Admission takes no account id: the gate carries the actor.
+admitAccount(gate, account)
+// @ts-expect-error A gate is nominal, so an object literal is not one.
+const literalGate: CommandGate = {}
+// @ts-expect-error A spread copy of a gate is not a gate.
+const spreadGate: CommandGate = { ...gate }
+// @ts-expect-error A gate has no query method.
+gate.rows
+// @ts-expect-error A gate does not expose its transaction.
+gate.tx
+// @ts-expect-error A workspace admission takes a command gate, not an authentication gate.
+admitWorkspace(authentication, workspace, 'workspace.read')
+// @ts-expect-error A transaction mode that writes cannot be asked of a read: run is not on a ReadTx.
+readTx.run(sql`SELECT 1`)
+// @ts-expect-error The application admission takes a gate, not a read transaction.
+admitApplication(readTx, workspace)
 // @ts-expect-error The command requires an account admission proof.
 grantCreatorMembership(account, workspace)
 // @ts-expect-error Undefined is not a proof.
@@ -37,9 +55,10 @@ grantCreatorMembership(undefined, workspace)
 // @ts-expect-error A raw token is never a query value; only its digest is.
 sql`SELECT ${presented}`
 
+const positiveAuthentication: Promise<Admitted<AccountScope>> = admitAccount(authentication)
 const positiveDigest = sql`SELECT ${digest(presented)}, ${'plain'}`
 const positiveOwner: Admitted<WorkspaceScope<'members.manage'>> = owner
 const positiveRead: Admitted<WorkspaceScope<'workspace.read'>, 'read'> = reader
-const positiveGrant: Promise<void> = grantCreatorMembership(await admitAccount(writeTx, account), workspace)
+const positiveGrant: Promise<void> = grantCreatorMembership(await admitAccount(gate), workspace)
 
-void [positiveDigest, positiveOwner, positiveRead, positiveGrant, forged, copied, wrongScope, wrongAction, wrongProject, wrongMode]
+void [literalGate, spreadGate, positiveAuthentication, positiveDigest, positiveOwner, positiveRead, positiveGrant, forged, copied, wrongScope, wrongAction, wrongProject, wrongMode]

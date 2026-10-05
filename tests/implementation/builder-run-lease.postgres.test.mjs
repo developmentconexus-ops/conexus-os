@@ -20,7 +20,7 @@ const leaseHarness = async (t, name) => {
   const account = randomUUID()
   const workspaceId = randomUUID()
   await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://lease.test', $2, 'Owner')", [account, account])
-  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'Lease', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))", [workspaceId])
+  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Lease')", [workspaceId])
   await query(connectionString, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [account, workspaceId])
   const store = createBuilderStore({
     executorPool: testPool({ ...connection, max: 4, options: '-c role=hub_builder_executor' }),

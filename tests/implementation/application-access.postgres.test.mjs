@@ -49,13 +49,7 @@ const applicationDatabase = async (t, label, { migrate = (connectionString) => r
   }
   const workspace = async (label, members = []) => {
     const workspaceId = randomUUID()
-    const hasCreator = (await client.query(`SELECT EXISTS (SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'workspace' AND table_name = 'workspace' AND column_name = 'created_by') AS present`)).rows[0].present
-    if (hasCreator) {
-      await client.query('INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1,$2,$3)', [workspaceId, label, members[0][0]])
-    } else {
-      await client.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1,$2)', [workspaceId, label])
-    }
+    await client.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1,$2)', [workspaceId, label])
     for (const [accountId, role] of members) {
       await client.query('INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,$3)', [accountId, workspaceId, role])
     }
@@ -1001,12 +995,21 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
 
   await t.test('one read serves a file of the served artifact, and reads only that file', async () => {
     const { createServedApplicationReader } = await import(hubModuleUrl('registry/served-application.js'))
-    const reader = createServedApplicationReader({ read: (_account, fn) => fn({
-      maybe: async (schema, statement) => {
-        const row = (await pool.query(statement.text, [...statement.values])).rows[0]
-        return row ? schema.parse(row) : null
-      },
-    }) })
+    // The served functions answer only for the account the read acts as, which the Hub's read entry sets.
+    const reader = createServedApplicationReader({ read: async (account, fn) => {
+      const reading = await pool.connect()
+      try {
+        await reading.query("SELECT set_config('conexus.account_id', $1, false)", [account])
+        return await fn({
+          maybe: async (schema, statement) => {
+            const row = (await reading.query(statement.text, [...statement.values])).rows[0]
+            return row ? schema.parse(row) : null
+          },
+        })
+      } finally {
+        reading.release()
+      }
+    } })
     const artifactId = randomUUID()
     const revisionId = randomUUID()
     const file = (path, mediaType, text) => ({ path, mediaType, base64: Buffer.from(text).toString('base64'), sha256: createHash('sha256').update(text).digest('hex') })
@@ -1030,7 +1033,10 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
   })
 
   await t.test('the served artifact is read only through application access', async () => {
-    const reads = async (accountId) => (await client.query('SELECT * FROM reg.get_served_application($1,$2)', [accountId, otherProject])).rows
+    const reads = async (accountId) => {
+      await client.query("SELECT set_config('conexus.account_id', $1, false)", [accountId])
+      return (await client.query('SELECT * FROM reg.get_served_application($1,$2)', [accountId, otherProject])).rows
+    }
     assert.deepEqual(await reads(control), [])
     assert.deepEqual(await reads(owner), [], 'no Preview has been built, so nothing is served')
   })

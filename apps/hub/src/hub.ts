@@ -92,19 +92,16 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     },
     thumbnailReader: {
       readThumbnail: async (input) => {
-        if (servedApplications) {
-          return servedApplications.readThumbnail(input)
-        }
-        const reader = builder?.getApplicationThumbnail
-        if (!reader) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'BUILDER_THUMBNAIL_READER_UNAVAILABLE' } })
-        return reader(input)
+        if (!servedApplications) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'THUMBNAIL_READER_UNAVAILABLE' } })
+        return servedApplications.readThumbnail(input)
       },
     },
   })
   let builder: ReturnType<typeof createConfiguredBuilderModule> | undefined
   const applicationRunner = config.appRunner ? createApplicationRunnerClient(config.appRunner.socketPath) : undefined
-  // The application host reads only the artifact an application serves, gated by access to it.
-  const servedApplications = config.application && config.builder ? createServedApplicationReader(database) : undefined
+  // The served reads run as the reader role under the account that asks, so a Project's thumbnail is read here
+  // whether or not the application host is configured. The host reads only what an application serves, gated by access to it.
+  const servedApplications = config.builder ? createServedApplicationReader(database) : undefined
   const mar = config.preview ? createMarModule({
     sessions: identityAccess.hostSessions,
     exactHubOrigin: config.origin,

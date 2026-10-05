@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const hubSourceRoot = resolve(repositoryRoot, 'apps/hub/src')
 const roleRegister = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), 'utf8'))
-export const registeredRoles = new Set(roleRegister.roles.map(({ role }) => role))
+export const registeredRoles = new Set([...roleRegister.roles, ...roleRegister.transactionRoles].map(({ role }) => role))
 
 // A pool is a local variable, so no parse of the Hub's TypeScript tells a reader which login role
 // reaches a given function. This table declares it. A call site missing from it fails, which is
@@ -87,13 +87,13 @@ export const ROLE_BY_CALL_SITE = Object.freeze({
     'iam.is_installation_administrator': 'hub_runtime',
   }),
   'project/deletion.ts': Object.freeze({
-    'iam.purge_project': 'hub_runtime',
-    'reg.purge_project': 'hub_runtime',
-    'builder.purge_project': 'hub_runtime',
+    'iam.purge_project': 'hub_command',
+    'reg.purge_project': 'hub_command',
+    'builder.purge_project': 'hub_command',
   }),
   'project/store.ts': Object.freeze({
-    'iam.acting_installation_administrator': 'hub_runtime',
-    'builder.register_project_repository': 'hub_runtime',
+    'rls.acting_installation_administrator': 'hub_reader',
+    'builder.register_project_repository': 'hub_command',
   }),
   'registry/application-artifact-store.ts': Object.freeze({
     'reg.retain_application_execution': 'hub_builder_executor',
@@ -103,9 +103,9 @@ export const ROLE_BY_CALL_SITE = Object.freeze({
     'reg.get_application_thumbnail': 'hub_builder_executor',
   }),
   'registry/served-application.ts': Object.freeze({
-    'reg.get_served_application': 'hub_builder_executor',
-    'reg.read_served_application_file': 'hub_builder_executor',
-    'reg.get_application_thumbnail': 'hub_builder_executor',
+    'reg.get_served_application': 'hub_reader',
+    'reg.read_served_application_file': 'hub_reader',
+    'reg.get_application_thumbnail': 'hub_reader',
   }),
 })
 
@@ -139,7 +139,7 @@ const argumentsAt = (text, open) => {
   return null
 }
 
-const CALL_PATTERN = /\b(SELECT|FROM|JOIN)\s+(iam|workspace|project|builder|reg|claude_connection|model_connection)\.([a-z_][a-z0-9_]*)\s*\(/g
+const CALL_PATTERN = /\b(SELECT|FROM|JOIN)\s+(iam|workspace|project|builder|reg|rls|claude_connection|model_connection)\.([a-z_][a-z0-9_]*)\s*\(/g
 
 export const hubCallSites = () => {
   const found = []

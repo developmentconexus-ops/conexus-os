@@ -41,7 +41,7 @@ const seeded = async (t, prefix) => {
   const workspaceId = randomUUID()
   const projectId = randomUUID()
   await client.query("INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://lifetimes.test', $2, 'Owner')", [owner, owner])
-  await client.query("INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'Lifetimes', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))", [workspaceId])
+  await client.query("INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Lifetimes')", [workspaceId])
   await client.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [owner, workspaceId])
   await client.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'p', 'NEW', $3, 'p')", [projectId, workspaceId, 'a'.repeat(40)])
   await client.query("INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'lifetimes-app', $2)", [projectId, owner])

@@ -4,6 +4,8 @@ import { z } from 'zod'
 import { hubModuleUrl } from './hub-build.mjs'
 import { openRuntimeFixture } from './hub-runtime-fixture.mjs'
 
+const { admitAccount } = await import(hubModuleUrl('identity-access/admission.js'))
+
 const { sql, openDatabase } = await import(hubModuleUrl('platform/db.js'))
 const ACCOUNT = '10000000-0000-4000-8000-0000000000a1'
 const Value = z.object({ value: z.number() })
@@ -34,7 +36,7 @@ test('the sql tag refuses at run time every text whose first keyword is not sele
   for (const [label, text] of REFUSED) {
     const statement = sql(Object.assign([text], { raw: [text] }))
     await assert.rejects(database.read(ACCOUNT, (tx) => tx.rows(Value, statement)), refused, `read: ${label}`)
-    await assert.rejects(database.transaction(ACCOUNT, (tx) => tx.rows(Value, statement)), refused, `transaction: ${label}`)
+    await assert.rejects(database.transaction(ACCOUNT, async (gate) => (await admitAccount(gate)).tx.rows(Value, statement)), refused, `transaction: ${label}`)
   }
 })
 
@@ -51,11 +53,11 @@ test('select, insert, update, delete and with run, and a query that names the ro
   assert.deepEqual(await database.read(ACCOUNT, (tx) => tx.rows(Value, sql`select 1 as value`)), [{ value: 1 }])
   assert.deepEqual(await database.read(ACCOUNT, (tx) => tx.rows(Value, sql`with one as (select 1 as value) select value from one`)), [{ value: 1 }])
   assert.deepEqual(await database.read(ACCOUNT, (tx) => tx.rows(z.object({ role: z.string() }), sql`select role from iam.workspace_membership`)), [])
-  const changed = await database.transaction(ACCOUNT, async (tx) => ({
+  const changed = await database.transaction(ACCOUNT, async (gate) => { const { tx } = await admitAccount(gate); return {
     inserted: await tx.run(sql`insert into platform.operation_receipt (operation_id, authority, account_id, key_digest, request_digest, resource_id, state) values ('T-1', 'account:a', ${ACCOUNT}, ${Buffer.from('k')}, ${Buffer.from('r')}, ${ACCOUNT}, 'reserved')`),
     updated: await tx.run(sql`update platform.operation_receipt set state = 'reserved' where operation_id = 'T-1'`),
     deleted: await tx.run(sql`with gone as (delete from platform.operation_receipt where operation_id = 'T-1' returning 1) select 1`),
-  }))
+  } })
   assert.deepEqual(changed, { inserted: 1, updated: 1, deleted: 1 })
 })
 

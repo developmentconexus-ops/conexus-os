@@ -18,10 +18,10 @@ export type WorkspaceStore = Readonly<{
 export const createWorkspaceStore = (database: Database): WorkspaceStore => Object.freeze({
   list: (accountId) => database.read(accountId, (tx) =>
     tx.rows(WorkspaceRow, sql`SELECT workspace_id, name FROM workspace.workspace ORDER BY name, workspace_id`)),
-  createWorkspace: ({ accountId, idempotencyKey, body }) => database.transaction(accountId, async (tx) => {
-    const creator = await admitAccount(tx, accountId)
+  createWorkspace: ({ accountId, idempotencyKey, body }) => database.transaction(accountId, async (gate) => {
+    const creator = await admitAccount(gate)
     return idempotent(creator, WS01, idempotencyKey, { params: undefined, query: undefined, body }, WorkspaceId, async (workspaceId): Promise<Reply<typeof WS01>> => {
-      await creator.tx.run(sql`INSERT INTO workspace.workspace (workspace_id, name, created_by) VALUES (${workspaceId}, ${body.name}, ${creator.scope.accountId})`)
+      await creator.tx.run(sql`INSERT INTO workspace.workspace (workspace_id, name) VALUES (${workspaceId}, ${body.name})`)
       await grantCreatorMembership(creator, workspaceId)
       return { workspaceId, name: body.name, creatorAccountId: accountId, initialAccessEstablished: true }
     })
