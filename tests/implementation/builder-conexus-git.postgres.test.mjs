@@ -52,7 +52,7 @@ test('every function 0032 reshaped runs against a Project whose source is its Co
   for (const [accountId, name] of [[owner, 'Owner'], [outsider, 'Outsider']]) {
     await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://git.test', $3, $2)", [accountId, name, accountId])
   }
-  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Git')", [workspaceId])
+  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'Git', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))", [workspaceId])
   await query(connectionString, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [owner, workspaceId])
   await query(connectionString, 'SELECT iam.bootstrap_installation_administrator($1)', [owner])
 
@@ -261,7 +261,7 @@ test('creating a Project makes its Conexus Git repository with the starter on ma
   const accountId = randomUUID()
   const workspaceId = randomUUID()
   await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://creation.test', $2, 'Creator')", [accountId, accountId])
-  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Creation')", [workspaceId])
+  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'Creation', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))", [workspaceId])
   await query(connectionString, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
   const commandPool = testPool({ ...connection, max: 2, options: '-c role=hub_project_command' })
   onCleanup(() => commandPool.end())

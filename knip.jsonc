@@ -22,6 +22,7 @@
     "tests/implementation/sandbox-probe/read_proc.mjs",
     "tests/implementation/sandbox-probe/read_secrets.mjs",
     "tests/implementation/sandbox-probe/walk_fs.mjs",
+    "tests/fixtures/admission-negative.ts",
     // Bundled as text into the check by scripts/build-app-check.mjs, which writes it into each Project as conexus/sankhya.gen.ts.
     "apps/hub/src/builder/handler-kit/sankhya.ts",
     // The application check's bundle starts here; the Hub itself imports only its report module.
@@ -50,6 +51,6 @@
     "@biomejs/biome"
   ],
   // The reference screens import the generated app's own components and libraries, which this package does not install.
-  "ignoreIssues": { "builder-skills/**": ["unlisted", "unresolved"], "apps/web/src/app/http.ts": ["exports"], "apps/hub/src/platform/db.ts": ["exports", "types"] },
+  "ignoreIssues": { "builder-skills/**": ["unlisted", "unresolved"], "apps/web/src/app/http.ts": ["exports"], "apps/hub/src/platform/db.ts": ["exports", "types"], "apps/hub/src/identity-access/admission.ts": ["exports", "types"], "apps/hub/src/platform/receipt.ts": ["exports", "types"] },
   "ignoreBinaries": ["setpriv", "pgrep"]
 }

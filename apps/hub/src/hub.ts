@@ -42,9 +42,10 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   // behind this code, ends here with a named line and leaves the live Hub alone.
   const releaseInstanceLock = await takeInstanceLock(database, exitOnLostInstanceLock())
   await assertSchemaCurrent(pool, resolve(import.meta.dirname, '../migrations'))
+  const workspace = createWorkspaceModule({ database })
   const identityAccessDependencies = {
     pool,
-    workspaceReadPool: pool,
+    workspaceReader: workspace,
     origin: config.origin,
     issuer: config.oidc.issuer,
     clientId: config.oidc.clientId,
@@ -64,9 +65,6 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   })
   // A restarted Hub leaves no orphan handler socket still answering.
   await connectors.sweepHandlerPorts()
-  const workspace = createWorkspaceModule({
-    commandPool: pool,
-  })
   const project = createConfiguredProjectModule({
     pool,
     // The builder module owns the Conexus Git and is composed below; creation reaches it at request time.

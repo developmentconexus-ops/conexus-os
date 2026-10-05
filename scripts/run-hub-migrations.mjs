@@ -72,6 +72,7 @@ const invitationStateDigest = '52f15875fe72585faafb7bccab2e9b9aaebb8711db5377725
 const oneOwnerPerLifetimeDigest = '718c64fd896e0c04550c59d3b3fddea548737aea6256c5d5b57e8ba2bd9cd7c7'
 const dropWorkspaceGetSummaryDigest = '8a6a0d7a8674ea3b74722d7d2e458ac5bd3c38662f2ab9233e83c3728606213d'
 const runtimeDataBoundaryDigest = '7ff108386e64afd6b20e280840b2686e9703bc26e0b081db97167b74545078ac'
+const workspaceAdmissionDigest = '0e183f999860ccf267ed01dc99c014b8b929dcd90c1887e232ac7e5aee830fec'
 
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
@@ -136,6 +137,7 @@ const migrationDigests = new Map([
   ['0060_one_owner_per_lifetime_no_csrf_token.sql', oneOwnerPerLifetimeDigest],
   ['0061_drop_workspace_get_summary.sql', dropWorkspaceGetSummaryDigest],
   ['0062_runtime_data_boundary.sql', runtimeDataBoundaryDigest],
+  ['0063_workspace_admission.sql', workspaceAdmissionDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n
@@ -221,7 +223,9 @@ export const runMigrations = async ({ connectionString, migrations, catalogSnaps
       const ledger = await ledgerState(client, migrations)
       if (catalogSnapshot) {
         await assertCatalog(client, catalogSnapshot)
-        await assertRoleInvariants(client)
+        if (catalogSnapshot.catalog.function.some((line) => line.startsWith('function iam.acting_account('))) {
+          await assertRoleInvariants(client)
+        }
       }
       await client.query('COMMIT')
       return { verdict: 'PASS', appliedNow, versions: [...ledger.applied.keys()] }

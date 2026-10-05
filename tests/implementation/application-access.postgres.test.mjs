@@ -49,7 +49,13 @@ const applicationDatabase = async (t, label, { migrate = (connectionString) => r
   }
   const workspace = async (label, members = []) => {
     const workspaceId = randomUUID()
-    await client.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1,$2)', [workspaceId, label])
+    const hasCreator = (await client.query(`SELECT EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'workspace' AND table_name = 'workspace' AND column_name = 'created_by') AS present`)).rows[0].present
+    if (hasCreator) {
+      await client.query('INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1,$2,$3)', [workspaceId, label, members[0][0]])
+    } else {
+      await client.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1,$2)', [workspaceId, label])
+    }
     for (const [accountId, role] of members) {
       await client.query('INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,$3)', [accountId, workspaceId, role])
     }

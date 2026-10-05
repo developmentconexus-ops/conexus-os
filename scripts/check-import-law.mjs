@@ -9,6 +9,7 @@ const TECHNICAL_HUB_LAYERS = new Set(['generated', 'http', 'platform'])
 // What a Conexus session is has one definition. Every owner needs it and none may fork it,
 // so it is admitted across owner boundaries the way the HTTP problem helper is.
 const SESSION_CONTRACT = 'apps/hub/src/identity-access/current-session.ts'
+const ADMISSION_CONTRACT = 'apps/hub/src/identity-access/admission.ts'
 // What a Project's application server manifest admits has one definition too: the Builder's build and
 // check and the application runner must refuse exactly the same manifests.
 const APPLICATION_SERVER_CONTRACT = 'apps/hub/src/app-runner/server-manifest.ts'
@@ -227,7 +228,7 @@ export function checkImportLaw(rootDirectory) {
 
       if (sourceLayer && targetLayer && sourceLayer !== targetLayer &&
           !TECHNICAL_HUB_LAYERS.has(sourceLayer) && !TECHNICAL_HUB_LAYERS.has(targetLayer) &&
-          target !== SESSION_CONTRACT && target !== APPLICATION_SERVER_CONTRACT) {
+          target !== SESSION_CONTRACT && target !== ADMISSION_CONTRACT && target !== APPLICATION_SERVER_CONTRACT) {
         violations.push(violation('IMPORT_OWNER_TO_OWNER', source, specifier, 'semantic owners cannot deep-import one another'))
       }
 
@@ -313,16 +314,18 @@ export function checkImportLaw(rootDirectory) {
       }
       if (source === 'apps/hub/src/workspace/store.ts' && isRelative) {
         const allowed = [
-          'packages/canonical-json/src/index.',
+          'packages/contract/dist/index.',
           'apps/hub/src/platform/db.',
-          'apps/hub/src/platform/failure.',
+          'apps/hub/src/platform/receipt.',
+          'apps/hub/src/identity-access/admission.',
         ]
         if (!allowed.some((prefix) => target.startsWith(prefix))) {
-          violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'workspace store may use only owner errors/types, PostgreSQL types, and canonical JSON'))
+          violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'workspace store may use only the contract, data module, receipt, and admission'))
         }
       }
       if (source.startsWith('apps/hub/src/platform/') && isRelative &&
-          !target.startsWith('apps/hub/src/platform/') && !isContractEntry(target)) {
+          !target.startsWith('apps/hub/src/platform/') && !isContractEntry(target) &&
+          !(source === 'apps/hub/src/platform/receipt.ts' && (target === ADMISSION_CONTRACT || target === 'packages/canonical-json/src/index.mjs'))) {
         violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'platform adapters may share platform code but cannot import application layers'))
       }
 

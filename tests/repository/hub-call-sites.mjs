@@ -82,7 +82,6 @@ export const ROLE_BY_CALL_SITE = Object.freeze({
     'iam.email_has_open_invitation': 'hub_iam_runtime',
     'iam.claim_invitations': 'hub_iam_runtime',
     'iam.grant_first_installation_administrator': 'hub_iam_runtime',
-    'workspace.list_visible_workspace_summaries': 'hub_workspace_read',
   }),
   'project/deletion.ts': Object.freeze({
     'project.begin_project_deletion': 'hub_project_command',
@@ -109,11 +108,6 @@ export const ROLE_BY_CALL_SITE = Object.freeze({
     'reg.get_served_application': 'hub_builder_executor',
     'reg.read_served_application_file': 'hub_builder_executor',
     'reg.get_application_thumbnail': 'hub_builder_executor',
-  }),
-  'workspace/store.ts': Object.freeze({
-    'workspace.reserve_or_replay_create_workspace': 'hub_workspace_command',
-    'workspace.create_workspace': 'hub_workspace_command',
-    'workspace.complete_create_workspace_receipt': 'hub_workspace_command',
   }),
 })
 

@@ -49,9 +49,9 @@ const refusal = async (connection, sql, parameters = []) => {
   }
 }
 
-const seedWorkspace = async (connection, { label }) => {
+const seedWorkspace = async (connection, { label, creator }) => {
   const workspaceId = randomUUID()
-  await query(connection, 'INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1,$2)', [workspaceId, label])
+  await query(connection, 'INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1,$2,$3)', [workspaceId, label, creator])
   return workspaceId
 }
 const seedAccount = async (connection, { label, active = true }) => {
@@ -81,8 +81,8 @@ test('a member of the Workspace reads, creates and builds every Project in it', 
   const connection = await freshDatabase(t)
   await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
 
-  const workspaceId = await seedWorkspace(connection, { label: 'Shared' })
   const owner = await seedAccount(connection, { label: 'Owner' })
+  const workspaceId = await seedWorkspace(connection, { label: 'Shared', creator: owner })
   const member = await seedAccount(connection, { label: 'Member' })
   const stranger = await seedAccount(connection, { label: 'Stranger' })
   await seedMember(connection, owner, workspaceId, 'owner')
@@ -132,8 +132,8 @@ test('removing the member stops the next claim and still records the work alread
   const connection = await freshDatabase(t)
   await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
 
-  const workspaceId = await seedWorkspace(connection, { label: 'Mid-run' })
   const owner = await seedAccount(connection, { label: 'Owner' })
+  const workspaceId = await seedWorkspace(connection, { label: 'Mid-run', creator: owner })
   const member = await seedAccount(connection, { label: 'Member' })
   await seedMember(connection, owner, workspaceId, 'owner')
   await seedMember(connection, member, workspaceId, 'member')
@@ -167,8 +167,8 @@ test('an inactive account is refused everywhere, including Preview and source re
   const connection = await freshDatabase(t)
   await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
 
-  const workspaceId = await seedWorkspace(connection, { label: 'Deactivation' })
   const owner = await seedAccount(connection, { label: 'Owner' })
+  const workspaceId = await seedWorkspace(connection, { label: 'Deactivation', creator: owner })
   const dormant = await seedAccount(connection, { label: 'Dormant' })
   await seedMember(connection, owner, workspaceId, 'owner')
   await seedMember(connection, dormant, workspaceId, 'member')
@@ -204,4 +204,3 @@ test('the runner refuses a database where PUBLIC may execute a Hub function', as
     await client.end()
   }
 })
-

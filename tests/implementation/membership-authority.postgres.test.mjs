@@ -48,7 +48,8 @@ test('the membership authority derives every right from one role row and revokes
   }
   const workspace = async (label) => {
     const workspaceId = randomUUID()
-    await client.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1,$2)', [workspaceId, label])
+    const creator = await account(`creator-${workspaceId}`)
+    await client.query('INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1,$2,$3)', [workspaceId, label, creator])
     return workspaceId
   }
   const member = (accountId, workspaceId, role) =>

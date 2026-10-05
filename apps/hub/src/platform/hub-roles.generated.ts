@@ -1,6 +1,6 @@
 // GENERATED from contracts/technical/hub-database-roles.json by scripts/generate-hub-role-register.mjs. Do not edit.
 
-export const HUB_ROLE_REGISTER_DIGEST = "c8bbf470cc8a338b1d9e5d74ecdc1889903d257994e04b03aa61df6ab15f52f8"
+export const HUB_ROLE_REGISTER_DIGEST = "c304580e8f477193e1bfacb97316fe77f39ebf09c2fee12d53411414b9e0fefe"
 
 export type HubRoleRow = Readonly<{
   role: string
@@ -22,4 +22,4 @@ export const CAPABILITY_BY_ROLE: Readonly<Record<string, string>> = Object.freez
   hub_factory: "factory-storage",
 })
 
-export const POLICY_ROLES = [{"role":"iam_rls","owns":[],"privileges":["SELECT"]}] as const
+export const POLICY_ROLES = [{"role":"iam_rls","owns":["iam.acting_account","iam.acting_applications","iam.acting_installation_administrator","iam.acting_scope","iam.acting_workspaces"],"privileges":["SELECT"]}] as const

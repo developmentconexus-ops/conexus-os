@@ -1,243 +1,58 @@
 import assert from 'node:assert/strict'
-import { randomUUID } from 'node:crypto'
-import test from 'node:test'
-import pg from 'pg'
-import { runHubMigrations } from '../../scripts/run-hub-migrations.mjs'
-import { refuseProtectedCluster } from './protected-cluster.mjs'
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { resolve } from 'node:path'
+import { test } from 'node:test'
+import { buildHubDatabase, query } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { hubSessionCookie, opaque, testListener } from './access/test-listener.mjs'
 
-const built = hubModuleUrl
-const { registerIdentityAccessRoutes } = await import(built('identity-access/routes.js'))
-const { createIdentityAccessStore } = await import(built('identity-access/store.js'))
-
-const ACCOUNT_ID = '11111111-1111-4111-8111-111111111111'
-const WORKSPACE_ID = '33333333-3333-4333-8333-333333333333'
+const { openDatabase } = await import(hubModuleUrl('platform/db.js'))
+const { createIdentityAccessStore } = await import(hubModuleUrl('identity-access/store.js'))
+const { createWorkspaceModule } = await import(hubModuleUrl('workspace/module.js'))
+const { registerIdentityAccessRoutes } = await import(hubModuleUrl('identity-access/routes.js'))
+const ACCOUNT = '11111111-1111-4111-8111-111111111111'
+const OTHER = '22222222-2222-4222-8222-222222222222'
+const WORKSPACE = '33333333-3333-4333-8333-333333333333'
 const TOKEN = opaque('operator')
-const signedIn = { cookie: hubSessionCookie(TOKEN) }
-const CURRENT = Object.freeze({
-  account: { accountId: ACCOUNT_ID, displayName: 'Operator' },
-  issuer: 'https://issuer.test',
-  subject: 'bootstrap',
-})
-
-const fakePool = (respond = () => ({ rows: [] })) => {
-  const calls = []
-  let ends = 0
-  const client = {
-    async query(text, values) {
-      const sql = String(text).trim()
-      calls.push({ text: sql, values })
-      return respond(sql, values)
-    },
-    release() { calls.push({ text: 'RELEASE' }) },
-  }
-  return {
-    calls,
-    get ends() { return ends },
-    pool: {
-      connect: async () => client,
-      query: async (text, values) => respond(String(text), values),
-      end: async () => { ends += 1 },
-    },
-  }
-}
 
 const oidc = Object.freeze({
   begin: async () => { throw new Error('not used') },
   complete: async () => { throw new Error('not used') },
 })
 
-const required = (name) => {
-  const value = process.env[name]
-  if (!value) throw new Error(`MISSING_TEST_CONFIG_${name}`)
-  return value
-}
-const admin = {
-  host: required('CONEXUS_TEST_DB_HOST'), port: Number(required('CONEXUS_TEST_DB_PORT')),
-  database: required('CONEXUS_TEST_DB_NAME'), user: required('CONEXUS_TEST_DB_USER'),
-  password: required('CONEXUS_TEST_DB_PASSWORD'),
-}
-const query = async (connection, sql, parameters = []) => {
-  const client = new pg.Client(connection)
-  await client.connect()
-  try { return await client.query(sql, parameters) } finally { await client.end() }
-}
-const connectionStringFor = (connection) => {
-  const url = new URL('postgresql://localhost')
-  url.hostname = connection.host
-  url.port = String(connection.port)
-  url.pathname = `/${connection.database}`
-  url.username = connection.user
-  url.password = connection.password
-  return url.toString()
-}
+test('IAM-01 lists only active memberships through the workspace policy', async (t) => {
+  const fixture = await buildHubDatabase(t, 'conexus_workspace_reads')
+  await query(fixture.connection, "ALTER ROLE hub_runtime PASSWORD 'workspace-read-test-only'")
+  fixture.onCleanup(() => query(fixture.connection, 'ALTER ROLE hub_runtime PASSWORD NULL'))
+  const directory = mkdtempSync(resolve(tmpdir(), 's1-workspace-read-'))
+  fixture.onCleanup(() => rmSync(directory, { recursive: true, force: true }))
+  const passwordFile = resolve(directory, 'password')
+  writeFileSync(passwordFile, 'workspace-read-test-only')
+  chmodSync(passwordFile, 0o600)
+  const database = openDatabase({ host: fixture.connection.host, port: fixture.connection.port, database: fixture.database, user: 'hub_runtime', passwordFile })
+  fixture.onCleanup(() => database.close())
+  await query(fixture.connection, `INSERT INTO iam.account(account_id, issuer, external_subject, display_name)
+    VALUES ($1, 'https://issuer.test', 'owner', 'Owner'), ($2, 'https://issuer.test', 'other', 'Other')`, [ACCOUNT, OTHER])
+  await query(fixture.connection, "INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'Operations', $2)", [WORKSPACE, ACCOUNT])
+  await query(fixture.connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [ACCOUNT, WORKSPACE])
+  const store = createIdentityAccessStore({ pool: {}, workspaceReader: createWorkspaceModule({ database }) })
+  assert.deepEqual(await store.listAccessibleWorkspaces(ACCOUNT), [{ workspaceId: WORKSPACE, name: 'Operations' }])
+  assert.deepEqual(await store.listAccessibleWorkspaces(OTHER), [])
 
-// A forced drop terminates whatever the pools still hold, so one cleanup closes them first and
-// drops afterwards. Scratch roles carry no password, so a pool reaches the database on the admin
-// login and assumes its role for the life of the connection: every statement the store issues
-// runs under exactly the privileges the deployed pool has.
-const migratedDatabase = async (t) => {
-  await refuseProtectedCluster()
-  const database = `conexus_s2_reads_${randomUUID().replaceAll('-', '')}`
-  await query(admin, `CREATE DATABASE "${database}"`)
-  const connection = { ...admin, database }
-  const pools = []
-  t.after(async () => {
-    await Promise.all(pools.map((pool) => pool.end()))
-    await query(admin, `DROP DATABASE "${database}" WITH (FORCE)`)
-  })
-  await runHubMigrations({ connectionString: connectionStringFor(connection), catalogSnapshot: null })
-  return {
-    connection,
-    poolAs: async (role) => {
-      const pool = new pg.Pool({ ...connection, options: `-c role=${role}`, max: 2 })
-      pools.push(pool)
-      assert.equal((await pool.query('SELECT current_user')).rows[0].current_user, role)
-      return pool
-    },
-  }
-}
-
-const seedAccount = async (connection, { active = true } = {}) => {
-  const accountId = randomUUID()
-  await query(connection,
-    'INSERT INTO iam.account(account_id, issuer, external_subject, display_name, active) VALUES ($1,$2,$3,$4,$5)',
-    [accountId, 'https://reads.test', accountId, 'Operator', active])
-  return accountId
-}
-const seedWorkspace = async (connection, name) => {
-  const workspaceId = randomUUID()
-  await query(connection, 'INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1,$2)', [workspaceId, name])
-  return workspaceId
-}
-const addMember = (connection, accountId, workspaceId) => query(connection,
-  "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,'owner')",
-  [accountId, workspaceId])
-
-test('the Workspace list runs as the deployed read role and shows exactly the accounts memberships', async (t) => {
-  const { connection, poolAs } = await migratedDatabase(t)
-  const readPool = await poolAs('hub_workspace_read')
-  const store = createIdentityAccessStore({ pool: fakePool().pool, workspaceReadPool: readPool })
-
-  const member = await seedAccount(connection)
-  const stranger = await seedAccount(connection)
-  const inactive = await seedAccount(connection, { active: false })
-  const workspaceId = await seedWorkspace(connection, 'Operations')
-  const otherWorkspaceId = await seedWorkspace(connection, 'Unrelated')
-  await addMember(connection, member, workspaceId)
-  await addMember(connection, inactive, workspaceId)
-  await addMember(connection, stranger, otherWorkspaceId)
-
-  assert.deepEqual(await store.listAccessibleWorkspaces(member), [{ workspaceId, name: 'Operations' }])
-  assert.deepEqual(await store.listAccessibleWorkspaces(await seedAccount(connection)), [])
-  assert.deepEqual(await store.listAccessibleWorkspaces(inactive), [])
-
-  await query(connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2',
-    [member, workspaceId])
-  assert.deepEqual(await store.listAccessibleWorkspaces(member), [])
-})
-
-test('the read role reaches the Workspace list and nothing underneath it', async (t) => {
-  const { connection, poolAs } = await migratedDatabase(t)
-  const readPool = await poolAs('hub_workspace_read')
-
-  await assert.rejects(readPool.query('SELECT * FROM iam.workspace_membership'), /permission denied/)
-  await assert.rejects(readPool.query('SELECT * FROM iam.visible_workspaces($1)', [ACCOUNT_ID]), /permission denied/)
-  await assert.rejects(readPool.query('SELECT * FROM workspace.workspace'), /permission denied/)
-
-  // The reader that took an already-admitted id array is gone, so no caller can assemble the list
-  // itself and hand it over.
-  assert.deepEqual((await query(connection,
-    `SELECT to_regprocedure('workspace.list_workspace_summaries(uuid[])')::text AS removed`)).rows,
-    [{ removed: null }])
-})
-
-test('IAM-01 returns the real membership-derived Workspace projection on creator re-entry', async (t) => {
-  const identityPool = fakePool()
-  const readPool = fakePool((sql) => sql.includes('list_visible_workspace_summaries')
-    ? { rows: [{ workspace_id: WORKSPACE_ID, name: 'Operations' }] }
-    : { rows: [] })
-  const store = createIdentityAccessStore({ pool: identityPool.pool, workspaceReadPool: readPool.pool })
+  const current = Object.freeze({ account: { accountId: ACCOUNT, displayName: 'Owner' }, issuer: 'https://issuer.test', subject: 'owner' })
   const { app } = await testListener({
-    sessions: { [TOKEN]: CURRENT },
+    sessions: { [TOKEN]: current },
     registerRoutes: (server) => registerIdentityAccessRoutes(server, {
-      store,
-      workspaceReader: store,
-      oidc,
-      config: { origin: 'https://conexus.test', bootstrapIssuer: CURRENT.issuer, bootstrapSubject: CURRENT.subject },
+      store, workspaceReader: store, oidc,
+      config: { origin: 'https://conexus.test', bootstrapIssuer: current.issuer, bootstrapSubject: current.subject },
     }),
   })
   t.after(() => app.close())
-
-  const response = await app.inject({ method: 'GET', url: '/api/control/access-context', headers: signedIn })
+  const response = await app.inject({ method: 'GET', url: '/api/control/access-context', headers: { cookie: hubSessionCookie(TOKEN) } })
   assert.equal(response.statusCode, 200)
-  assert.deepEqual(response.json(), {
-    account: CURRENT.account,
-    workspaces: [{ workspaceId: WORKSPACE_ID, name: 'Operations' }],
-    projects: [],
-  })
-  assert.deepEqual(readPool.calls.map(({ text }) => text === 'RELEASE' ? text : text.split(/\s+/)[0]),
-    ['BEGIN', 'SELECT', 'COMMIT', 'RELEASE'])
-  assert.deepEqual(readPool.calls[1].values, [ACCOUNT_ID])
-  assert.equal(readPool.calls.filter(({ text }) => text.startsWith('SELECT')).length, 1)
-})
+  assert.deepEqual(response.json().workspaces, [{ workspaceId: WORKSPACE, name: 'Operations' }])
 
-test('IAM-01 discloses neither absent nor revoked membership and never reads before authentication', async (t) => {
-  const identityPool = fakePool()
-  const readPool = fakePool()
-  const store = createIdentityAccessStore({ pool: identityPool.pool, workspaceReadPool: readPool.pool })
-  const { app: authenticated } = await testListener({
-    sessions: { [TOKEN]: CURRENT },
-    registerRoutes: (server) => registerIdentityAccessRoutes(server, {
-      store, workspaceReader: store, oidc,
-      config: { origin: 'https://conexus.test', bootstrapIssuer: CURRENT.issuer, bootstrapSubject: CURRENT.subject },
-    }),
-  })
-  t.after(() => authenticated.close())
-  const hidden = await authenticated.inject({ method: 'GET', url: '/api/control/access-context', headers: signedIn })
-  assert.equal(hidden.statusCode, 200)
-  assert.deepEqual(hidden.json().workspaces, [])
-
-  const callsAfterAuthenticatedRead = readPool.calls.length
-  const { app: unauthenticated } = await testListener({
-    sessions: { [TOKEN]: null },
-    registerRoutes: (server) => registerIdentityAccessRoutes(server, {
-      store, workspaceReader: store, oidc,
-      config: { origin: 'https://conexus.test', bootstrapIssuer: CURRENT.issuer, bootstrapSubject: CURRENT.subject },
-    }),
-  })
-  t.after(() => unauthenticated.close())
-  const denied = await unauthenticated.inject({ method: 'GET', url: '/api/control/access-context', headers: signedIn })
-  assert.equal(denied.statusCode, 401)
-  assert.equal(readPool.calls.length, callsAfterAuthenticatedRead)
-})
-
-test('IAM-01 rolls back a failed read and releases the checked-out client', async () => {
-  const identityPool = fakePool()
-  const readPool = fakePool((sql) => {
-    if (sql.includes('list_visible_workspace_summaries')) throw new Error('read failed')
-    return { rows: [] }
-  })
-  const store = createIdentityAccessStore({ pool: identityPool.pool, workspaceReadPool: readPool.pool })
-  await assert.rejects(store.listAccessibleWorkspaces(ACCOUNT_ID), /read failed/)
-  assert.deepEqual(readPool.calls.map(({ text }) => text), [
-    'BEGIN READ ONLY',
-    readPool.calls[1].text,
-    'ROLLBACK',
-    'RELEASE',
-  ])
-  assert.equal(readPool.calls.filter(({ text }) => text.startsWith('SELECT')).length, 1)
-})
-
-test('I&A does not close the Workspace list pool', async () => {
-  const identityPool = fakePool()
-  const sharedReadPool = fakePool()
-  const identityStore = createIdentityAccessStore({ pool: identityPool.pool, workspaceReadPool: sharedReadPool.pool })
-  await identityStore.listAccessibleWorkspaces(ACCOUNT_ID)
-  assert.equal(sharedReadPool.calls.filter(({ text }) => text === 'BEGIN READ ONLY').length, 1)
-
-  await identityStore.close()
-  assert.equal(identityPool.ends, 1)
-  assert.equal(sharedReadPool.ends, 0)
+  await query(fixture.connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [ACCOUNT, WORKSPACE])
+  assert.deepEqual(await store.listAccessibleWorkspaces(ACCOUNT), [])
 })

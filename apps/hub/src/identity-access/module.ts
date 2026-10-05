@@ -16,7 +16,7 @@ import { createMembershipStore, registerMembershipRoutes } from './membership.js
 import { createOidcAdapter } from './oidc.js'
 import { iamReaperJob } from './reaper.js'
 import { registerIdentityAccessRoutes } from './routes.js'
-import { createIdentityAccessStore } from './store.js'
+import { createIdentityAccessStore, type WorkspaceReader } from './store.js'
 import type { CurrentSession, HubSessionDigest } from './current-session.js'
 import { Failure } from '../platform/failure.js'
 
@@ -38,7 +38,7 @@ export type IdentityAccessModule = Readonly<{
 
 export const createIdentityAccessModule = async ({
   pool,
-  workspaceReadPool,
+  workspaceReader,
   origin,
   issuer,
   clientId,
@@ -49,7 +49,7 @@ export const createIdentityAccessModule = async ({
   allowInsecureForTest = false,
 }: Readonly<{
   pool: PostgresPool
-  workspaceReadPool: PostgresPool | undefined
+  workspaceReader: WorkspaceReader
   origin: string
   issuer: string
   clientId: string
@@ -61,7 +61,7 @@ export const createIdentityAccessModule = async ({
   application: Readonly<{ address: ApplicationAddress }> | undefined
   allowInsecureForTest?: boolean
 }>): Promise<IdentityAccessModule> => {
-  const store = createIdentityAccessStore({ pool, ...(workspaceReadPool ? { workspaceReadPool } : {}) })
+  const store = createIdentityAccessStore({ pool, workspaceReader })
   const membership = createMembershipStore({ pool })
   const applicationAccess = createApplicationAccessStore({ pool })
   const oidc = await createOidcAdapter({

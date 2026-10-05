@@ -8,7 +8,6 @@ const built = hubModuleUrl
 const { readHubConfig } = await import(built('platform/config.js'))
 const { registerWorkspaceRoutes } = await import(built('workspace/routes.js'))
 const { Failure } = await import(built('platform/failure.js'))
-const { createWorkspaceStore } = await import(built('workspace/store.js'))
 
 const missing = (name) => (error) => error.id === 'CONFIG_MISSING' && error.details?.name === name
 
@@ -66,13 +65,12 @@ const buildRoutes = async ({ current = OPERATOR, storeOverrides = {} } = {}) => 
   const store = {
     async createWorkspace(input) {
       calls.push(['createWorkspace', input])
-      return {
+      return { replayed: false, reply: {
         workspaceId: '33333333-3333-4333-8333-333333333333',
-        name: input.name,
+        name: input.body.name,
         creatorAccountId: input.accountId,
         initialAccessEstablished: true,
-        replayed: false,
-      }
+      } }
     },
     ...storeOverrides,
   }
@@ -100,7 +98,7 @@ test('WS-01 declares and checks workspace creation', async (t) => {
   assert.deepEqual(calls[0], ['createWorkspace', {
     accountId: OPERATOR.account.accountId,
     idempotencyKey: 'workspace-key',
-    name: 'Operations',
+    body: { name: 'Operations' },
   }])
 
 
@@ -168,66 +166,4 @@ test('WS-01 hides unexpected store failures', async (t) => {
     code: 'INTERNAL_UNEXPECTED',
   })
   assert.equal(createFailure.body.includes('create-driver-secret'), false)
-})
-
-const fakePool = (respond) => {
-  const calls = []
-  const client = {
-    async query(text, values) {
-      calls.push({ text: String(text).trim(), values })
-      return respond(String(text), values, calls.length)
-    },
-    release() { calls.push({ text: 'RELEASE' }) },
-  }
-  return { calls, pool: { connect: async () => client } }
-}
-
-test('workspace store composes exact WS-01 functions atomically and short-circuits replay', async () => {
-  const command = fakePool((sql, values) => {
-    if (sql.includes('reserve_or_replay_create_workspace')) return { rows: [{ state: 'RESERVED', workspace_id: values[3], response_status: null, response_body: null }] }
-    return { rows: [], rowCount: 1 }
-  })
-  const read = fakePool(() => ({ rows: [] }))
-  const store = createWorkspaceStore({ commandPool: command.pool, readPool: read.pool })
-  const result = await store.createWorkspace({ accountId: OPERATOR.account.accountId, idempotencyKey: 'key', name: 'Operations' })
-  assert.equal(result.initialAccessEstablished, true)
-  const sql = command.calls.map(({ text }) => text)
-  assert.equal(sql[0], 'BEGIN')
-  assert.match(sql[1], /reserve_or_replay_create_workspace/)
-  // Creating the Workspace and establishing its owner is one call now: the Hub no longer reaches
-  // into iam to finish a workspace it just created.
-  assert.match(sql[2], /workspace\.create_workspace/)
-  assert.equal(sql.some((text) => /iam\./.test(text)), false)
-  assert.match(sql[3], /complete_create_workspace_receipt/)
-  assert.equal(sql[4], 'COMMIT')
-  assert.equal(sql[5], 'RELEASE')
-
-  const replayCommand = fakePool((_sql, _values, index) => index === 2
-    ? { rows: [{ state: 'REPLAY', workspace_id: result.workspaceId, response_status: 201, response_body: {
-      workspaceId: result.workspaceId,
-      name: result.name,
-      creatorAccountId: result.creatorAccountId,
-      initialAccessEstablished: true,
-    } }] }
-    : { rows: [] })
-  const replayStore = createWorkspaceStore({ commandPool: replayCommand.pool, readPool: read.pool })
-  await replayStore.createWorkspace({ accountId: OPERATOR.account.accountId, idempotencyKey: 'key', name: 'Operations' })
-  assert.equal(replayCommand.calls.filter(({ text }) => /create_workspace|complete_create/.test(text)).length, 1)
-})
-
-test('workspace store rolls back every failed boundary', async () => {
-  for (const failingFunction of ['reserve_or_replay_create_workspace', 'workspace.create_workspace', 'complete_create_workspace_receipt']) {
-    const command = fakePool((sql, values) => {
-      if (sql.includes(failingFunction)) throw new Error('boundary failure')
-      if (sql.includes('reserve_or_replay_create_workspace')) return { rows: [{ state: 'RESERVED', workspace_id: values[3] }] }
-      return { rows: [] }
-    })
-    const read = fakePool(() => ({ rows: [] }))
-    const store = createWorkspaceStore({ commandPool: command.pool, readPool: read.pool })
-    await assert.rejects(store.createWorkspace({ accountId: OPERATOR.account.accountId, idempotencyKey: 'key', name: 'Operations' }), /boundary failure/)
-    assert.ok(command.calls.some(({ text }) => text === 'ROLLBACK'))
-    assert.equal(command.calls.at(-1).text, 'RELEASE')
-  }
-
-
 })

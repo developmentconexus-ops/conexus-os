@@ -56,7 +56,13 @@ const setup = async (t, { database, beforeBindings = async () => {} } = {}) => {
     [admin, 'https://connector-broker.test', admin, 'admin', 'admin@connector-broker.test'])
   await owner.query("INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')", [admin])
   const workspaceId = randomUUID()
-  await owner.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1,$2)', [workspaceId, 'purchasing'])
+  const hasCreator = (await owner.query(`SELECT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'workspace' AND table_name = 'workspace' AND column_name = 'created_by') AS present`)).rows[0].present
+  if (hasCreator) {
+    await owner.query('INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1,$2,$3)', [workspaceId, 'purchasing', admin])
+  } else {
+    await owner.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1,$2)', [workspaceId, 'purchasing'])
+  }
   await owner.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1,$2,'owner')", [admin, workspaceId])
   const project = async (name) => {
     const projectId = randomUUID()

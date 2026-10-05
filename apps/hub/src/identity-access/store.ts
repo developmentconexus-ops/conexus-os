@@ -9,9 +9,9 @@ import type { AccountId, AccountSummary, EmailAddress } from './current-session.
 import { Failure } from '../platform/failure.js'
 import type { OidcIdentity, OidcTransaction, VerifiedIdentity } from './oidc.js'
 
-
 type ProvisionResult = AccountSummary & Readonly<{ replayed: boolean }>
 type AccessibleWorkspace = Readonly<{ workspaceId: string; name: string }>
+export type WorkspaceReader = Readonly<{ listAccessibleWorkspaces(accountId: string): Promise<readonly AccessibleWorkspace[]> }>
 
 type AccountRow = QueryResultRow & {
   account_id: string
@@ -50,11 +50,6 @@ type IdempotencyRow = QueryResultRow & {
   response_body: AccountSummary
 }
 
-type WorkspaceSummaryRow = QueryResultRow & {
-  workspace_id: string
-  name: string
-}
-
 // A second account for the same identity is the database's unique violation.
 const translatePostgresError = (error: unknown): never => {
   throw errorCode(error) === '23505' ? new Failure('ACCOUNT_CONFLICT') : error
@@ -79,10 +74,10 @@ export type IdentityAccessStore = Readonly<{
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createIdentityAccessStore = ({
   pool,
-  workspaceReadPool,
+  workspaceReader,
 }: Readonly<{
   pool: PostgresPool
-  workspaceReadPool?: PostgresPool
+  workspaceReader?: WorkspaceReader
 }>): IdentityAccessStore => {
   const transaction = async <Result>(work: (client: PoolClient) => Promise<Result>): Promise<Result> => {
     const client = await pool.connect()
@@ -209,23 +204,7 @@ export const createIdentityAccessStore = ({
       })
     },
     async listAccessibleWorkspaces(accountId) {
-      if (!workspaceReadPool) return []
-      const client = await workspaceReadPool.connect()
-      try {
-        await client.query('BEGIN READ ONLY')
-        const result = await client.query<WorkspaceSummaryRow>(`
-          SELECT s.workspace_id, s.name
-          FROM workspace.list_visible_workspace_summaries($1) s
-          ORDER BY s.name, s.workspace_id
-        `, [accountId])
-        await client.query('COMMIT')
-        return result.rows.map((row) => ({ workspaceId: row.workspace_id, name: row.name }))
-      } catch (error) {
-        await client.query('ROLLBACK')
-        throw error
-      } finally {
-        client.release()
-      }
+      return workspaceReader ? workspaceReader.listAccessibleWorkspaces(accountId) : []
     },
   })
 }

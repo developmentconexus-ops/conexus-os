@@ -1,103 +1,29 @@
-import { randomUUID } from 'node:crypto'
-import type { QueryResultRow } from 'pg'
-import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
-import type { PostgresPool } from '../platform/db.js'
-import { Failure } from '../platform/failure.js'
+import { z } from 'zod'
+import { WorkspaceId, WorkspaceName, WS01, type AccountId, type Input, type Reply } from '../../../../packages/contract/dist/index.js'
+import { admitAccount, grantCreatorMembership } from '../identity-access/admission.js'
+import type { Database } from '../platform/db.js'
+import { sql } from '../platform/db.js'
+import { idempotent } from '../platform/receipt.js'
 
-type WorkspaceSummary = Readonly<{
-  workspaceId: string
-  name: string
-}>
-
-type WorkspaceCreateResult = WorkspaceSummary & Readonly<{
-  creatorAccountId: string
-  initialAccessEstablished: true
-  replayed: boolean
-}>
-
-type CreateWorkspaceInput = Readonly<{
-  accountId: string
-  idempotencyKey: string
-  name: string
-}>
-
-type WorkspaceResponseBody = Omit<WorkspaceCreateResult, 'replayed'>
-
-type ReservationRow = QueryResultRow & Readonly<{
-  state: 'RESERVED' | 'REPLAY' | 'CONFLICT'
-  workspace_id: string
-  response_status: number | null
-  response_body: WorkspaceResponseBody | null
-}>
-
+const WorkspaceRow = z.object({ workspace_id: WorkspaceId, name: WorkspaceName })
 export type WorkspaceStore = Readonly<{
-  createWorkspace(input: CreateWorkspaceInput): Promise<WorkspaceCreateResult>
+  list(accountId: AccountId): Promise<readonly z.output<typeof WorkspaceRow>[]>
+  createWorkspace(input: Readonly<{
+    accountId: AccountId
+    idempotencyKey: Input<typeof WS01>['headers']['idempotency-key']
+    body: Input<typeof WS01>['body']
+  }>): Promise<Readonly<{ replayed: boolean; reply: z.output<typeof WS01.success[201]> }>>
 }>
 
-const keyDigest = (value: string): string => sha256(Buffer.from(value, 'utf8'))
-const bodyDigest = (value: unknown): string => sha256(canonicalBytes(value))
-const validReplay = (
-  row: ReservationRow,
-  accountId: string,
-  name: string,
-): row is ReservationRow & Readonly<{ response_status: 201; response_body: WorkspaceResponseBody }> => {
-  const body = row.response_body
-  return row.response_status === 201 && body !== null &&
-    Object.keys(body).sort().join(',') === 'creatorAccountId,initialAccessEstablished,name,workspaceId' &&
-    body.workspaceId === row.workspace_id && body.name === name &&
-    body.creatorAccountId === accountId && body.initialAccessEstablished === true
-}
-
-export const createWorkspaceStore = ({
-  commandPool,
-}: Readonly<{
-  commandPool: PostgresPool
-}>): WorkspaceStore => {
-  const createWorkspace = async ({ accountId, idempotencyKey, name }: CreateWorkspaceInput): Promise<WorkspaceCreateResult> => {
-    const client = await commandPool.connect()
-    try {
-      await client.query('BEGIN')
-
-      const candidateWorkspaceId = randomUUID()
-      const requestDigest = bodyDigest({ name })
-      const reservation = await client.query<ReservationRow>(`
-        SELECT *
-        FROM workspace.reserve_or_replay_create_workspace($1, $2, $3, $4)
-      `, [accountId, keyDigest(idempotencyKey), requestDigest, candidateWorkspaceId])
-      const row = reservation.rows[0]
-      if (!row) throw new Failure('OUTCOME_UNKNOWN')
-      if (row.state === 'CONFLICT') throw new Failure('IDEMPOTENCY_CONFLICT')
-      if (row.state === 'REPLAY') {
-        if (!validReplay(row, accountId, name)) throw new Failure('OUTCOME_UNKNOWN')
-        await client.query('COMMIT')
-        return { ...row.response_body, replayed: true }
-      }
-      if (row.state !== 'RESERVED') throw new Failure('OUTCOME_UNKNOWN')
-
-      await client.query('SELECT workspace.create_workspace($1, $2, $3)', [row.workspace_id, name, accountId])
-
-      const responseBody: WorkspaceResponseBody = {
-        workspaceId: row.workspace_id,
-        name,
-        creatorAccountId: accountId,
-        initialAccessEstablished: true,
-      }
-      await client.query('SELECT workspace.complete_create_workspace_receipt($1, $2, $3, $4, $5)', [
-        accountId,
-        keyDigest(idempotencyKey),
-        201,
-        bodyDigest(responseBody),
-        JSON.stringify(responseBody),
-      ])
-      await client.query('COMMIT')
-      return { ...responseBody, replayed: false }
-    } catch (error) {
-      await client.query('ROLLBACK')
-      throw error
-    } finally {
-      client.release()
-    }
-  }
-
-  return Object.freeze({ createWorkspace })
-}
+export const createWorkspaceStore = (database: Database): WorkspaceStore => Object.freeze({
+  list: (accountId) => database.read(accountId, (tx) =>
+    tx.rows(WorkspaceRow, sql`SELECT workspace_id, name FROM workspace.workspace ORDER BY name, workspace_id`)),
+  createWorkspace: ({ accountId, idempotencyKey, body }) => database.transaction(accountId, async (tx) => {
+    const creator = await admitAccount(tx, accountId)
+    return idempotent(creator, WS01, idempotencyKey, { params: undefined, query: undefined, body }, WorkspaceId, async (workspaceId): Promise<Reply<typeof WS01>> => {
+      await creator.tx.run(sql`INSERT INTO workspace.workspace (workspace_id, name, created_by) VALUES (${workspaceId}, ${body.name}, ${accountId})`)
+      await grantCreatorMembership(creator, workspaceId)
+      return { workspaceId, name: body.name, creatorAccountId: accountId, initialAccessEstablished: true }
+    })
+  }),
+})

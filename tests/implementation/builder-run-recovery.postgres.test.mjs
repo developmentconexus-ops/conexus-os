@@ -29,7 +29,7 @@ const recoveryHarness = async (t, name, crashes) => {
   const owner = randomUUID()
   const workspaceId = randomUUID()
   await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://recovery.test', $2, 'Owner')", [owner, owner])
-  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Recovery')", [workspaceId])
+  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'Recovery', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))", [workspaceId])
   await query(connectionString, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [owner, workspaceId])
   const executorPool = testPool({ ...connection, max: 2, options: '-c role=hub_builder_executor' })
   const ingressPool = testPool({ ...connection, max: 2, options: '-c role=hub_builder_ingress' })
@@ -145,7 +145,7 @@ test('a run that started in Planejar and built after the plan approval records, 
   const base = 'a'.repeat(40)
   const candidate = 'b'.repeat(40)
   await query(connectionString, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://plan.test', $2, 'Owner')", [owner, owner])
-  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Plan')", [workspaceId])
+  await query(connectionString, "INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'Plan', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))", [workspaceId])
   await query(connectionString, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'Plan', 'NEW', $3, 'plan')", [projectId, workspaceId, base])
   await query(connectionString, 'SELECT builder.register_project_repository($1)', [projectId])
   await query(connectionString, `

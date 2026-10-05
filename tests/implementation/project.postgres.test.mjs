@@ -81,7 +81,7 @@ test('real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollback bo
     INSERT INTO iam.account(account_id, issuer, external_subject, display_name)
     VALUES ($1, 'https://issuer.test', 's3-subject', 'S3 Account')
   `, [accountId])
-  await query(fresh, `INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'S3 Workspace')`, [workspaceId])
+  await query(fresh, `INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, 'S3 Workspace', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))`, [workspaceId])
   await query(fresh, `
     INSERT INTO iam.workspace_membership(account_id, workspace_id, role)
     VALUES ($1, $2, 'owner')
@@ -107,7 +107,7 @@ test('real PostgreSQL proves exact PRJ-03 receipt, creator grant and rollback bo
   await assert.rejects(command.query('SELECT * FROM project.project'), /permission denied/)
   await assert.rejects(command.query('INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, $3, $4, $5, $6)', [projectId, workspaceId, 'Denied', 'NEW', 'a', 'b']), /permission denied/)
   await assert.rejects(command.query('SET ROLE project_owner'), /permission denied/)
-  await assert.rejects(command.query('SELECT workspace.create_workspace($1, $2)', [otherProjectId, 'Unlisted']), /permission denied/)
+  assert.equal((await query(fresh, "SELECT to_regprocedure('workspace.create_workspace(uuid,text,uuid)') AS removed")).rows[0].removed, null)
   assert.deepEqual((await query(fresh, `SELECT count(*)::integer AS count FROM pg_proc WHERE proname IN ('create_project_with_source', 'bind_factory_project')`)).rows, [{ count: 0 }])
   await assert.rejects(command.query('SELECT builder.register_project_repository($1)', [projectId]), /permission denied/)
   await assert.rejects(command.query(CREATE, [accountId, workspaceId, digest('a'), digest('b'), projectId, 'No receipt', 'revision-a', ...REPOSITORY]), /PRJ03_RECEIPT_NOT_RESERVED/)
@@ -215,8 +215,8 @@ test('real PostgreSQL proves current project.read disclosure and revocation', as
   await query(fresh, `INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES
     ($1, 'https://issuer.test', 'p6-reader', 'P6 Reader'),
     ($2, 'https://issuer.test', 'p6-other', 'P6 Other')`, [accountId, otherAccountId])
-  await query(fresh, `INSERT INTO workspace.workspace(workspace_id, name) VALUES
-    ($1, 'P6 Workspace'), ($2, 'Other Workspace')`, [workspaceId, otherWorkspaceId])
+  await query(fresh, `INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES
+    ($1, 'P6 Workspace', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1)), ($2, 'Other Workspace', (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))`, [workspaceId, otherWorkspaceId])
   await query(fresh, `INSERT INTO iam.workspace_membership(account_id, workspace_id, role)
     VALUES ($1, $2, 'owner')`, [accountId, workspaceId])
   await query(fresh, `INSERT INTO iam.workspace_membership(account_id, workspace_id, role)

@@ -60,7 +60,7 @@ test('BuilderRun admission and settlement are idempotent, serialized, and CAS-pr
   await adminClient.query('BEGIN')
   try {
     await adminClient.query('INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, $2, $3, $4)', [accountId, 'https://task1.test', accountId, 'Task 1'])
-    await adminClient.query('INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, $2)', [workspaceId, 'Task 1'])
+    await adminClient.query('INSERT INTO workspace.workspace(workspace_id, name, created_by) VALUES ($1, $2, (SELECT account_id FROM iam.account ORDER BY account_id LIMIT 1))', [workspaceId, 'Task 1'])
     await adminClient.query("INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [accountId, workspaceId])
     await adminClient.query("INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'Task 1', 'NEW', $3, 'task1')", [projectId, workspaceId, source])
     await adminClient.query('SELECT builder.register_project_repository($1)', [projectId])
