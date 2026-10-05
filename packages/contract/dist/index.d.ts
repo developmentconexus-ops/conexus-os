@@ -1,10 +1,217 @@
 export * from './ids.js';
 export * from './failures.generated.js';
+export * from './connector.js';
 export * from './operation.js';
 export * from './problem.js';
 export * from './project.js';
 export * from './workspace.js';
 export declare const OPERATIONS: readonly ({
+    readonly id: "CON-01";
+    readonly access: "session";
+    readonly method: "GET";
+    readonly path: "/api/control/workspaces/:workspaceId/connections";
+    readonly params: import("zod").ZodObject<{
+        workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
+    }, import("zod/v4/core").$strip>;
+    readonly query: null;
+    readonly headers: null;
+    readonly body: null;
+    readonly success: {
+        readonly 200: import("zod").ZodObject<{
+            entries: import("zod").ZodArray<import("zod").ZodObject<{
+                connectionId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ConnectionId", "out">;
+                connectorId: import("zod").ZodString;
+                label: import("zod").ZodString;
+                createdAt: import("zod").ZodISODateTime;
+                disabledAt: import("zod").ZodOptional<import("zod").ZodISODateTime>;
+            }, import("zod/v4/core").$strip>>;
+        }, import("zod/v4/core").$strip>;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED"];
+    readonly malformed: {
+        readonly workspaceId: "WORKSPACE_NOT_FOUND";
+    };
+} | {
+    readonly id: "CON-02";
+    readonly access: "session";
+    readonly method: "POST";
+    readonly path: "/api/control/workspaces/:workspaceId/connections";
+    readonly params: import("zod").ZodObject<{
+        workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
+    }, import("zod/v4/core").$strip>;
+    readonly query: null;
+    readonly headers: null;
+    readonly body: import("zod").ZodObject<{
+        connectionId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ConnectionId", "out">;
+        connectorId: import("zod").ZodEnum<{
+            sankhya: "sankhya";
+        }>;
+        label: import("zod").ZodString;
+        credential: import("zod").ZodObject<{
+            clientId: import("zod").ZodString;
+            clientSecret: import("zod").ZodString;
+            xToken: import("zod").ZodString;
+        }, import("zod/v4/core").$strict>;
+    }, import("zod/v4/core").$strict>;
+    readonly success: {
+        readonly 201: import("zod").ZodObject<{
+            connectionId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ConnectionId", "out">;
+            connectorId: import("zod").ZodString;
+            label: import("zod").ZodString;
+            createdAt: import("zod").ZodISODateTime;
+            disabledAt: import("zod").ZodOptional<import("zod").ZodISODateTime>;
+        }, import("zod/v4/core").$strip>;
+        readonly 200: import("zod").ZodObject<{
+            connectionId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ConnectionId", "out">;
+            connectorId: import("zod").ZodString;
+            label: import("zod").ZodString;
+            createdAt: import("zod").ZodISODateTime;
+            disabledAt: import("zod").ZodOptional<import("zod").ZodISODateTime>;
+        }, import("zod/v4/core").$strip>;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "CONNECTOR_WORKSPACE_NOT_FOUND", "CONNECTOR_LABEL_REFUSED", "CONNECTOR_CREDENTIAL_REFUSED", "CONNECTOR_CONNECTION_CONFLICT"];
+    readonly malformed: {
+        readonly workspaceId: "CONNECTOR_WORKSPACE_NOT_FOUND";
+    };
+} | {
+    readonly id: "CON-03";
+    readonly access: "session";
+    readonly method: "POST";
+    readonly path: "/api/control/workspaces/:workspaceId/connections/:connectionId/authentication-check";
+    readonly params: import("zod").ZodObject<{
+        workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
+        connectionId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ConnectionId", "out">;
+    }, import("zod/v4/core").$strip>;
+    readonly query: null;
+    readonly headers: null;
+    readonly body: null;
+    readonly success: {
+        readonly 200: import("zod").ZodObject<{
+            outcome: import("zod").ZodEnum<{
+                CONNECTOR_UNCONFIGURED: "CONNECTOR_UNCONFIGURED";
+                CREDENTIAL_REFUSED: "CREDENTIAL_REFUSED";
+                PROVIDER_TIMEOUT: "PROVIDER_TIMEOUT";
+                PROVIDER_UNAVAILABLE: "PROVIDER_UNAVAILABLE";
+                PROVIDER_ERROR: "PROVIDER_ERROR";
+                OK: "OK";
+            }>;
+        }, import("zod/v4/core").$strip>;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "CONNECTOR_CONNECTION_NOT_FOUND"];
+    readonly malformed: {
+        readonly workspaceId: "CONNECTOR_CONNECTION_NOT_FOUND";
+        readonly connectionId: "CONNECTOR_CONNECTION_NOT_FOUND";
+    };
+} | {
+    readonly id: "CON-04";
+    readonly access: "session";
+    readonly method: "DELETE";
+    readonly path: "/api/control/workspaces/:workspaceId/connections/:connectionId";
+    readonly params: import("zod").ZodObject<{
+        workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
+        connectionId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ConnectionId", "out">;
+    }, import("zod/v4/core").$strip>;
+    readonly query: null;
+    readonly headers: null;
+    readonly body: null;
+    readonly success: {
+        readonly 204: null;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "CONNECTOR_CONNECTION_NOT_FOUND"];
+    readonly malformed: {
+        readonly workspaceId: "CONNECTOR_CONNECTION_NOT_FOUND";
+        readonly connectionId: "CONNECTOR_CONNECTION_NOT_FOUND";
+    };
+} | {
+    readonly id: "CON-08";
+    readonly access: "session";
+    readonly method: "GET";
+    readonly path: "/api/control/projects/:projectId/connection-bindings";
+    readonly params: import("zod").ZodObject<{
+        projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
+    }, import("zod/v4/core").$strip>;
+    readonly query: null;
+    readonly headers: null;
+    readonly body: null;
+    readonly success: {
+        readonly 200: import("zod").ZodObject<{
+            entries: import("zod").ZodArray<import("zod").ZodUnion<readonly [import("zod").ZodObject<{
+                kind: import("zod").ZodLiteral<"binding">;
+                bindingId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "BindingId", "out">;
+                name: import("zod").ZodString;
+                connectionId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ConnectionId", "out">;
+                connectorId: import("zod").ZodString;
+                label: import("zod").ZodString;
+                boundAt: import("zod").ZodISODateTime;
+            }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+                kind: import("zod").ZodLiteral<"bindable">;
+                connectionId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ConnectionId", "out">;
+                connectorId: import("zod").ZodString;
+                label: import("zod").ZodString;
+            }, import("zod/v4/core").$strip>]>>;
+        }, import("zod/v4/core").$strip>;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly ["PROJECT_NOT_FOUND", "CONNECTOR_BINDING_MANAGE_REQUIRED", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly malformed: {
+        readonly projectId: "PROJECT_NOT_FOUND";
+    };
+} | {
+    readonly id: "CON-09";
+    readonly access: "session";
+    readonly method: "POST";
+    readonly path: "/api/control/projects/:projectId/connection-bindings";
+    readonly params: import("zod").ZodObject<{
+        projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
+    }, import("zod/v4/core").$strip>;
+    readonly query: null;
+    readonly headers: null;
+    readonly body: import("zod").ZodObject<{
+        connectionId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ConnectionId", "out">;
+        name: import("zod").ZodString;
+    }, import("zod/v4/core").$strict>;
+    readonly success: {
+        readonly 200: import("zod").ZodObject<{
+            kind: import("zod").ZodLiteral<"binding">;
+            bindingId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "BindingId", "out">;
+            name: import("zod").ZodString;
+            connectionId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ConnectionId", "out">;
+            connectorId: import("zod").ZodString;
+            label: import("zod").ZodString;
+            boundAt: import("zod").ZodISODateTime;
+        }, import("zod/v4/core").$strip>;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly ["PROJECT_NOT_FOUND", "CONNECTOR_BINDING_MANAGE_REQUIRED", "CONNECTOR_CONNECTION_NOT_AVAILABLE", "CONNECTOR_BINDING_CONFLICT", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly malformed: {
+        readonly projectId: "PROJECT_NOT_FOUND";
+    };
+} | {
+    readonly id: "CON-10";
+    readonly access: "session";
+    readonly method: "DELETE";
+    readonly path: "/api/control/projects/:projectId/connection-bindings/:bindingId";
+    readonly params: import("zod").ZodObject<{
+        projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
+        bindingId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "BindingId", "out">;
+    }, import("zod/v4/core").$strip>;
+    readonly query: null;
+    readonly headers: null;
+    readonly body: null;
+    readonly success: {
+        readonly 204: null;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly ["PROJECT_NOT_FOUND", "CONNECTOR_BINDING_MANAGE_REQUIRED", "CONNECTOR_BINDING_NOT_FOUND", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly malformed: {
+        readonly projectId: "PROJECT_NOT_FOUND";
+        readonly bindingId: "CONNECTOR_BINDING_NOT_FOUND";
+    };
+} | {
     readonly id: "PRJ-01";
     readonly access: "session";
     readonly method: "GET";

@@ -330,6 +330,12 @@ export const routes = (app: FastifyInstance) => {
           const raw = typeof value === 'object' && value !== null && 'idempotency-key' in value ? value['idempotency-key'] : undefined
           if (isHubFailureCode(code) && (raw === undefined || raw === '')) return { error: new Failure(code) }
         }
+        if (httpPart === 'body' && op.body instanceof zod.ZodObject) {
+          const field = parsed.error.issues[0]?.path[0]
+          const schema = typeof field === 'string' ? op.body.shape[field] : undefined
+          const code = schema ? zod.globalRegistry.get(schema)?.failureCode : undefined
+          if (isHubFailureCode(code)) return { error: new Failure(code) }
+        }
         return { error: parsed.error }
       },
       handler: async (request, reply) => {
