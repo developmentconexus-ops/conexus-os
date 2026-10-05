@@ -125,3 +125,11 @@ test('the vendored Mastra skill is not checked against this package.json', conte
   assert.equal(result.status, 0, result.stderr)
   assert.equal(result.stdout, 'Agent context checks passed (files=2).\n')
 })
+
+test('a guide passes at its byte cap and fails one byte over', context => {
+  const guide = 'docs/development/codebase-principles.md'
+  assert.equal(run(fixture(context, { [guide]: `${'x'.repeat(8191)}\n` })).status, 0)
+  const result = run(fixture(context, { [guide]: `${'x'.repeat(8192)}\n` }))
+  assert.equal(result.status, 1)
+  assert.equal(result.stderr, `error ${guide}: 8193 bytes exceeds the cap of 8192\n`)
+})
