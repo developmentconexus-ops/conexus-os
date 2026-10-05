@@ -37,7 +37,8 @@ const candidateStep = (scope, command, environmentClass = 'static') => Object.fr
   graph: 'candidate',
 })
 
-const HUB_BUILD_DIRECTORY = 'node_modules/.cache/conexus-hub-build'
+// Groups run side by side on one machine each need their own directory: the build starts by emptying it.
+const HUB_BUILD_DIRECTORY = process.env.CONEXUS_VERIFY_HUB_BUILD_DIRECTORY ?? 'node_modules/.cache/conexus-hub-build'
 
 // The hub typecheck also emits, once, the compiled Hub every Hub suite imports, and the bundle of the
 // application check the Hub sends to each VM. It runs first and publishes the directory to the steps
