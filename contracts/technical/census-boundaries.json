@@ -2,5 +2,6 @@
   "pgQueryRows": 73,
   "pgImportFiles": 6,
   "webResponseJson": 23,
-  "sqlWrites": 0
+  "sqlWrites": 0,
+  "authorityTableWrites": 0
 }

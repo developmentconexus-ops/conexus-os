@@ -13,6 +13,11 @@ export const DATABASE_EDGE = Object.freeze([
   'apps/hub/src/app-runner/worker.ts',
   'apps/hub/src/app-runner/supervisor.ts',
 ])
+// The only modules that may insert, update, delete or merge a row of an authority table. Part 6 adds
+// iam.installation_administrator and iam.application_grant.
+export const AUTHORITY_TABLE_WRITERS = Object.freeze({
+  'iam.workspace_membership': Object.freeze(['apps/hub/src/identity-access/admission.ts']),
+})
 export const RESPONSE_EDGE = Object.freeze(['apps/web/src/app/http.ts'])
 
 const declaredIn = (symbol, pattern) => (symbol?.declarations ?? []).some((declaration) => pattern.test(declaration.getSourceFile().fileName))
@@ -55,9 +60,14 @@ const templateParts = (template) => (ts.isNoSubstitutionTemplateLiteral(template
 const isPgQuery = (symbol) => declaredIn(symbol, /node_modules\/(?:@types\/)?pg\//)
 const isResponseJson = (symbol) => ['Response', 'Body'].includes(parentName(symbol) ?? '')
 
-export const findings = (program, { root = repo, pgEdge = DATABASE_EDGE, responseEdge = RESPONSE_EDGE } = {}) => {
+const writtenTables = (text, tables) => {
+  const normalized = text.toLowerCase().replaceAll('"', '').replace(/\s+/g, ' ')
+  return tables.filter((table) => new RegExp(`\\b(?:insert into|update|delete from|merge into) ${table.replace('.', '\\.')}\\b`).test(normalized))
+}
+
+export const findings = (program, { root = repo, pgEdge = DATABASE_EDGE, responseEdge = RESPONSE_EDGE, authorityWriters = AUTHORITY_TABLE_WRITERS } = {}) => {
   const checker = program.getTypeChecker()
-  const result = { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [] }
+  const result = { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [], authorityTableWrites: [] }
   for (const file of program.getSourceFiles()) {
     if (file.isDeclarationFile || file.fileName.includes('/node_modules/')) continue
     const path = relative(root, file.fileName)
@@ -66,7 +76,10 @@ export const findings = (program, { root = repo, pgEdge = DATABASE_EDGE, respons
       if (!responseEdge.includes(path) && referencesMember(checker, node, 'json', isResponseJson)) result.webResponseJson.push(`${path}#${enclosingName(node)}`)
       if (ts.isImportDeclaration(node) && !pgEdge.includes(path) && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text === 'pg') result.pgImportFiles.push(path)
       if (ts.isTaggedTemplateExpression(node) && ts.isIdentifier(node.tag) && node.tag.text === 'sql') {
-        for (const problem of writeProblems(joinTemplate(templateParts(node.template)))) result.sqlWrites.push(`${path}#${enclosingName(node) === '<module>' ? moduleVariable(node) : enclosingName(node)}: ${problem}`)
+        const text = joinTemplate(templateParts(node.template))
+        const owner = enclosingName(node) === '<module>' ? moduleVariable(node) : enclosingName(node)
+        for (const problem of writeProblems(text)) result.sqlWrites.push(`${path}#${owner}: ${problem}`)
+        for (const table of writtenTables(text, Object.keys(authorityWriters))) if (!authorityWriters[table].includes(path)) result.authorityTableWrites.push(`${path}#${owner}: writes ${table}`)
       }
       ts.forEachChild(node, visit)
     }
@@ -90,6 +103,7 @@ export const census = () => {
     pgImportFiles: hub.pgImportFiles,
     webResponseJson: web.webResponseJson,
     sqlWrites: hub.sqlWrites,
+    authorityTableWrites: hub.authorityTableWrites,
   }
 }
 
@@ -112,7 +126,7 @@ if (isEntrypoint) {
     if (process.argv.includes('--list') || verdict === 'UP') for (const entry of found[item]) console.log(`    ${entry}`)
   }
   if (failed) {
-    console.error('census-boundaries: a count went up. Read the rows through a schema in platform/db.ts and call the Hub through app/http.ts, or record a lower number with --write when the change lowers it.')
+    console.error('census-boundaries: a count went up. Only the modules named in AUTHORITY_TABLE_WRITERS write an authority table. Read the rows through a schema in platform/db.ts and call the Hub through app/http.ts, or record a lower number with --write when the change lowers it.')
     process.exit(1)
   }
 }

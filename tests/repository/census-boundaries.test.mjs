@@ -36,7 +36,7 @@ test('the data module and the one caller are the edge', () => {
     rootNames: [resolve(root, 'tests/fixtures/census-boundaries/pg-rows.ts')],
     options: { strict: true, skipLibCheck: true, noEmit: true, target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, types: [] },
   })
-  assert.deepEqual(findings(program, { root, pgEdge: ['tests/fixtures/census-boundaries/pg-rows.ts'], responseEdge: [] }), { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [] })
+  assert.deepEqual(findings(program, { root, pgEdge: ['tests/fixtures/census-boundaries/pg-rows.ts'], responseEdge: [] }), { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [], authorityTableWrites: [] })
 })
 
 test('a write whose filter is not visible in its template is found, and a write with one is not', () => {
@@ -59,4 +59,15 @@ test('a write whose filter is not visible in its template is found, and a write 
     ['whereOnlyInSubquery', 'a delete with no where outside parentheses'],
     ['wholeFilterInterpolated', 'a delete with a where with no comparison of a column written in the template'],
   ].map(([name, problem]) => `${prefix}${name}: ${problem}`).sort())
+})
+
+test('a statement that writes an authority table outside its owning module is found, and a read or another table is not', () => {
+  const prefix = 'tests/fixtures/census-boundaries/authority-writes.ts#'
+  assert.deepEqual(fixture('authority-writes').authorityTableWrites.sort(), ['deletes', 'inCte', 'inserts', 'updates'].map((name) => `${prefix}${name}: writes iam.workspace_membership`))
+  const program = ts.createProgram({
+    rootNames: [resolve(root, 'tests/fixtures/census-boundaries/authority-writes.ts')],
+    options: { strict: true, skipLibCheck: true, noEmit: true, target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext, types: [] },
+  })
+  const owner = findings(program, { root, pgEdge: [], responseEdge: [], authorityWriters: { 'iam.workspace_membership': ['tests/fixtures/census-boundaries/authority-writes.ts'] } })
+  assert.deepEqual(owner.authorityTableWrites, [])
 })
