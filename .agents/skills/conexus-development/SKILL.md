@@ -14,8 +14,8 @@ proof and merge, and wins any disagreement. The roadmap and GitHub own status.
 1. Read the root `AGENTS.md`. Chat, handoffs and memory are orientation, never authority.
 2. Work in a WSL worktree per [`references/wsl-environment.md`](references/wsl-environment.md), then
    run `npm run conexus:preflight`.
-3. Read [`docs/roadmap.md`](../../../docs/roadmap.md) for the current work, and `delivery.md` to
-   pick the lane ([`references/work-routes.md`](references/work-routes.md)).
+3. Read [`docs/roadmap.md`](../../../docs/roadmap.md) for the current work, and
+   [delivery](../../../docs/development/delivery.md#pick-the-lane-by-risk) to pick the lane.
 4. Load Poteto Mode if the session has it, and the [`mastra`](../mastra/SKILL.md) skill before any
    claim about Mastra.
 

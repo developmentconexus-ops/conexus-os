@@ -1,11 +1,11 @@
 # Delivery rules
 
-This file owns how a change moves from an issue to `main`: lanes, gates, labels, proof, merge, Git
-and pull requests. The [engineering method](engineering-method.md) owns how a decision is reasoned,
-the [decision register](../decisions/index.md) and the product contract own meaning, and
-[the roadmap](../roadmap.md) owns status. Workstreams (frentes: work we know we must build or investigate) and ideas live in the private `conexus-hq`
-repository. Units of work live here, as issues from the [templates](../../.github/ISSUE_TEMPLATE/).
-The operator ratified this file on 2026-09-24. It replaces the repository method and engineering rules.
+How approved work ships: lanes, waves, specs, review, merge, Git and CI. Subject rules live in the
+other guides ([code](codebase-principles.md), [testing](testing.md),
+[architecture](../reference/architecture.md) and their neighbors); general method lives in pstack;
+[the roadmap](../roadmap.md) owns status. Workstreams and ideas live in the private `conexus-hq`
+repository; units of work live here as issues from the [templates](../../.github/ISSUE_TEMPLATE/).
+Each rule names how it is enforced; "review" means the reviewer judges it.
 
 ## Pick the lane by risk
 
@@ -14,110 +14,133 @@ A change is in the qualification lane when any Q trigger is true:
 - **Q-a.** The roadmap names the work as a program gate with a verdict.
 - **Q-b.** It creates or moves authority or a trust boundary, changes a structural runtime,
   database or service boundary, or has an external effect that is hard to undo.
-- **Q-c.** Its proof must outlive the pull request: a real Builder run as evidence, a pilot run,
-  or files in `docs/evidence`.
+- **Q-c.** Its proof must outlive the pull request: a real Builder run, a pilot run, or files in
+  `docs/evidence`.
 - **Q-d.** A new dependency or framework enters, under the [dependency rule](../reference/architecture.md#dependencies).
 
 | Lane | Entry: all must hold | Path | Gates | Merge |
 | --- | --- | --- | --- | --- |
-| `lane:fast` | Inside accepted product meaning. No Q trigger. One pull request. Appetite P | issue, Factory triage and plan; the Factory builds work that blocks no product gate, an implementer builds work that blocks a gate; pull request | CI green; Factory review `approve`; Codex on request; diff read | see Decision D1 |
-| `lane:shaped` | New user-visible capability, a change across modules, or more than one pull request. Inside accepted direction. No Q trigger | workstream from `conexus-hq`, sub-issues here, each one through the fast-lane path | fast-lane gates, and the workstream's "done when" checked on the real artifact | operator |
-| `lane:qualification` | Any Q trigger | workstream, task in `docs/tasks`, implementer, evidence | CI green; Factory review `approve`; evidence; operator verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | operator |
+| `lane:fast` | Inside accepted product meaning. No Q trigger. One pull request. Appetite P | issue; the Factory triages, plans and builds work that blocks no product gate, a builder builds work that blocks one | CI green; Factory `approve`; diff read | Decision D1 |
+| `lane:shaped` | New user-visible capability or a change across modules. Inside accepted direction. No Q trigger | a wave: one spec, one pull request | fast-lane gates, verification and review on the same head | operator |
+| `lane:qualification` | Any Q trigger | a wave whose spec also names the deciding proof | shaped gates, evidence, operator verdict ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | operator |
 
-Decision D1 (2026-09-25): the manager merges a `lane:fast` pull request of `effort:low` or `effort:medium`, without `needs:aprovo`, once Factory review approved it, `verify` is green at its head, and the merge gate passes.
-The operator merges `effort:high`, `lane:shaped`, `lane:qualification` and any `needs:aprovo` pull request. The Factory never merges.
+Decision D1 (2026-09-25): the manager merges a `lane:fast` pull request of `effort:low` or
+`effort:medium`, without `needs:aprovo`, once the Factory approved it, `verify` is green at its head
+and the merge gate passes. The operator merges everything else. The Factory never merges. Enforced
+by the `main` ruleset and review.
 
-Only the qualification lane writes a task in `docs/tasks`. Other lanes track work in the issue.
+## Waves
 
-## Exploration spikes
+A wave that will be built has one spec in `docs/tasks/specs/NNNN-title/`, no child specs, and one
+pull request. Every decision goes into the spec or a guide when it is made; no decision file grows
+beside them. Parts run in sequence inside the pull request, one green commit per part. A spec over
+800 lines or a plan over 70 product files is an alarm: the spec says in one sentence why it does
+not split. What blocks a wave is an open decision or a part that depends on one not yet built.
+A wave that lays a base for others proves its contract with at least one real consumer before
+merge; a later wave that breaks that contract opens a corrective wave and leaves the merged one
+closed. Enforced by review.
 
-An implementer spike answers one question, on its own branch and worktree, and never merges. It reports what it tried and what it recommends.
-- One question per spike, on its own branch, never merged. Reused code is rebuilt on a fresh branch and fully reviewed.
-- No customer data enters this repository; on the pilot, record what changed and restore it.
-- A run counts as gate proof only when declared so before it runs.
+A spec follows the `jm-architect` template and also carries **Non-goals**, **Preserved decisions**
+(decisions and invariants that must not regress), **What breaks the premise**, **Owner
+reconciliation** (the guides, contracts and decisions that change) and a **Stop rule**. The
+planning session writes the scope, the Status and the approval line, `**Approval**: approved by the
+operator on <date>, commit <sha>`; the builder ticks the Build plan boxes. Enforced by review.
+
+## When the methods disagree
+
+The planning session and the builder use the jm steps and the pstack playbooks. Where they disagree:
+
+| Conflict | Wins |
+| --- | --- |
+| `jm-develop` forbids delegating; the Feature playbook delegates | the planning session delegates to one builder; the builder does not delegate code |
+| Feature and Refactoring start by exploring the design | in the build the approved spec is the design; it is not reopened |
+| `jm-develop` offers to build on an `Assumed` spec | never; go back to the spec |
+| `jm-architect` takes every choice to the engineer | the planning session answers the technical ones; the operator decides spec, merge and product |
+| `jm-architect` allows child specs | only for a standard with no build |
+| `jm-develop` follows `ui-guide` and `logical-guide` | guides C, T and V; the jm guides only as procedure where ours are silent |
+| jm writes the scope and the spec Status | only the planning session writes scope, Status and approval; the builder ticks the Build plan |
+| `jm-check review`, `jm-test`, `jm-debug`, thermo-nuclear review | out of the flow; review is `/pstack:interrogate` |
+
+## Review loop
+
+1. A finding carries its symptom and evidence. Its cause may be unknown.
+2. The builder finds the cause before fixing it and writes: symptom, root cause, why the fix
+   removes the cause, and what stops it returning.
+3. Triage groups findings by premise and keeps every symptom.
+4. The fix comes in one round, in the same pull request. The recheck reads only the findings and
+   the fix diff; if the fix touches a protected property or the deciding proof, review and proof
+   run again.
+5. Two failed fixes on one premise send the wave back to its spec.
+6. A finding repeated in two pull requests becomes a check, when a check can tell the defect from
+   correct code.
+
+A finding with no rule broken and no defect shown is a preference and does not block. Enforced by
+review.
 
 ## Ask for "Aprovo" on three kinds of change
 
-`needs:aprovo` is orthogonal to the lanes. Add it in any lane to:
-- a migration;
-- a change under an area marked `"gate": "aprovo"` in [`areas.json`](review/areas.json);
-- a screen the operator asked to see.
-The `aprovo-gate` workflow (`.github/workflows/aprovo-gate.yml`) fails a change under a gated area until the label is set.
-The label blocks auto-merge. Nothing else needs a per-pull-request "Aprovo" or a live pilot test by
-the operator. `needs:operator` marks an issue that waits on the operator for a fact or an action.
+`needs:aprovo` is orthogonal to the lanes. Add it to a migration, a change under an area marked
+`"gate": "aprovo"` in [`areas.json`](review/areas.json), and a screen the operator asked to see. The
+`aprovo-gate` workflow fails a change under a gated area until the label is set, and the label blocks
+auto-merge. `needs:operator` marks an issue waiting on the operator for a fact or an action.
 
 ## Stop, then escalate
 
 Stop before building when the work creates a product requirement, a semantic owner or a trust
 boundary, changes a structural runtime, database, service or module boundary, deletes accepted
 meaning without a destination, needs an unauthorized production effect or secret, or contradicts
-authority needed for correctness. Take the decision first: Factory triage routes it to
-"Await approval". A downstream finding reopens the smallest upstream owner. Never invent authority to
-make a downstream artifact work.
-If a higher-lane trigger appears mid-work, stop, comment on the issue, and change the lane label. The
-manager reshapes the workstream.
+authority needed for correctness. A downstream finding reopens the smallest upstream owner; never
+invent authority to make a downstream artifact work. A higher-lane trigger found mid-work stops the
+work and changes the lane label. Code is not a reason to keep a decision: a better alternative goes
+to the operator with evidence. Enforced by review.
 
 ## Size work by appetite and limit work in progress
 
-- **P** (pequeno): up to 1 calendar day. **M** (médio): up to 1 week. **G** (grande): up to 2 weeks. Split anything larger.
-A workstream that passes its appetite stops. The manager records what was learned on the issue and returns
-it, reshaped, to the queue. It gets more time only through a new workstream. At once, run at most 1 qualification workstream and 2 shaped workstreams. The fast lane needs no workstream and holds at
-most 5 open pull requests.
-
-## Working rules
-
-- **Lean delivery.** The operator does not test pull requests on the pilot. For a [phase 2 wave](../roadmap.md#order-of-work-to-q5), the operator tests the pull request on the local Conexus. CI runs once per ready head.
-- **Best evidence over past decisions.** Code that exists is not a reason to keep it. When you see a
-  better alternative than what is implemented or decided, bring it to the operator with evidence.
-  Reopen the owner. Do not work around it.
-- **Laptop first, then server.** Make each capability work on the WSL laptop pilot. Server
-  installation and infrastructure migration follow validation there.
-- **The Factory targets `main`.** Factory pull requests use `main` as their base.
-- **Codex never authors.**
-- **CodeRabbit is off** for this repository.
+**P** up to 1 day, **M** up to 1 week, **G** up to 2 weeks; split anything larger. Work past its
+appetite stops and returns reshaped. At once run at most 1 qualification and 2 shaped workstreams;
+the fast lane holds at most 5 open pull requests. An exploration spike answers one question on its
+own branch, never merges, and counts as gate proof only when declared so before it runs.
 
 ## Proof and verification
 
-- Required CI protects objective properties that hold for every change. It does not judge
-  architecture quality, UX quality or document shape.
-- What counts as proof, and where a test lives, is owned by [testing](testing.md).
-- Verification is the static checks plus one `node --test` per group in `scripts/conexus-verify.mjs`, each run once.
-  Before every push, after `git add` of new files, run `npm run verify:quick`: it runs the Hub and web typechecks, the repository check, the generators (CI then fails on a changed or new file), the web style check, the `knip` unused-export check, `biome ci` (a warning fails it), the log code registry
-  check and the import law, with no Docker, browser or network, in about half a minute.
-  The cheap static checks run first so a run fails fast, and a pull request that changes only Markdown under `docs/`,
-  `.agents/` or the repository root runs only the documentation checks (`npm run verify:docs`); `verify` still reports.
-  CI runs the graph as four jobs, `browser`, `postgres`, `rest` and `live` (`--group`), each on its own runner so no step shares
-  a machine resource with a step of another group; the `verify` job is the one required check and fails if any group does.
-- A change to workflow events or concurrency needs evidence that the `main` rulesets and trigger
-  coverage stay equivalent.
-- In the qualification lane, freeze the candidate, the protected claims and the deciding-proof route
-  first. An independent GPT-6 Sol review runs when the operator asks, and it never sees the other reviews. The lead adjudicates every finding against
-  current owners. A valid non-blocker gets DEFER SAFELY with a revisit trigger. Run another round
-  only when a correction invalidated a protected property or the deciding proof.
-- Keep evidence that has a current or credible future consumer. Review rounds and handoffs belong
-  to Git history once their obligations are absorbed.
+- Before each commit run `npm run verify:quick` (typechecks, repository check, generators, style,
+  `knip`, `biome ci`, log codes, import law; no Docker, browser or network) and the tests the change
+  touches or that consume a changed contract, at most two groups at once. Enforced by CI on the head.
+- CI runs the whole graph in `scripts/conexus-verify.mjs` as the `browser`, `postgres`, `rest` and
+  `live` jobs; `verify` is the one required check. A Markdown-only change runs `npm run verify:docs`.
+- Required CI protects objective properties of every change, never architecture taste, UX taste or
+  document shape. A workflow event or concurrency change shows the rulesets stay equivalent.
+- A pull request is ready, not draft, as soon as the build ends, so CI and the Factory run while
+  verification goes on.
+- Before merge the builder checks the diff against the guides: the review accepts the guide change
+  in the same pull request, or one sentence saying why no guide rule changed. Enforced by review.
+- Evidence stays only while it has a consumer; review rounds and handoffs belong to Git history.
 
 ## Merge gate
 
-A pull request is ready when these hold at its exact head SHA, plus the lane's gates above:
+A pull request is ready when these hold at its exact head SHA, plus the lane's gates:
+
 - CI `verify` is green. GitHub skips the workflow silently when a pull request conflicts with its
-  base. If no run exists at your head, merge `main` into your branch and push again.
-- The Factory reviews every pull request, and its verdict `approve` is the required review. On a
-  pull request the Factory did not build, a finding that is not a leak or a security gap goes to
-  the author once and does not block; the operator decides whether to dismiss that review, and
-  his dismissal takes the place of the Factory's `approve` for that head. An
-  independent GPT-6 Sol review runs only when the operator asks, without the Factory's verdict.
-  Every review follows [the review checklist](review-checklist.md) from `origin/main`, with the
-  census redone by the reviewer.
-- The person who merges has read the diff. A plan, an artifact or a Preview grant is not product acceptance.
+  base; with no run at your head, merge `main` and push again.
+- The Factory reviews every pull request; its `approve` is the required review. On a pull request
+  the Factory did not build, a finding that is not a leak or a security gap goes to the author once
+  and does not block, and the operator may dismiss that review for that head.
+- A wave's verification and review passed on this head, each naming the head it judged.
+- The person who merges has read the diff. A plan, an artifact or a Preview grant is not product
+  acceptance. The operator does not test pull requests on the pilot.
 
 ## Git and pull requests
 
-- Trunk is `main`. Its rulesets require a pull request and the `verify` check with no bypass, and only an administrator updates it, so the Factory never merges. Open every pull request against `main`. Squash merge is the normal shape.
-- Work in an Ubuntu WSL2 worktree on the Linux filesystem, one writer per worktree. Concurrent writers get disjoint file sets and report to one named integrator.
-- Preserve state you do not own. Never reset, clean, stash, force-push or discard work you did not create. Never rewrite shared history.
-- An approved increment includes its routine reversible implementation and checks. Do not ask for approval of each mechanical step.
-- One coherent increment per pull request. Link the issue. Use conventional commits.
+- Trunk is `main`; its rulesets require a pull request and `verify` with no bypass. Every pull
+  request, the Factory's included, targets `main`. Squash merge.
+- A capability works on the WSL laptop pilot before any server installation.
+- Work in an Ubuntu WSL2 worktree on the Linux filesystem, one writer per worktree. Concurrent
+  writers get disjoint file sets and report to one integrator.
+- Preserve state you do not own. Never reset, clean, stash, force-push or discard work you did not
+  create. An approved increment includes its routine reversible steps; do not ask for each one.
+- A pull request links its issue, says what changes and for whom, and does only what the issue
+  asks. Use conventional commits.
 - Migrations are forward-only. After a migration change, run `npm run db:catalog:snapshot` and commit the snapshot. See the [baseline rules](../reference/data-and-persistence.md#baseline-and-forward-migrations).
 - A contract change and its [operation ledger](../product/operation-ledger.md) change go in one commit. `npm run wire:bijection` gates on an exact count.
-- `scripts/check-agent-context.mjs`, run by `npm run repository:check`, enforces what a script can check in these documents: cited scripts exist, links resolve, size caps, and no workflow uses `pull_request_target` or `contents: write`.
+- `scripts/check-agent-context.mjs` (`npm run repository:check`) checks cited scripts, links, size
+  caps and the two workflow guards.

@@ -27,8 +27,8 @@ const gitFixture = (context, files) => {
 const currentFiles = () => Object.fromEntries([
   'AGENTS.md', 'README.md', 'docs/index.md', 'docs/roadmap.md',
   'docs/product/contract.md', 'docs/decisions/index.md',
-  'docs/development/engineering-method.md', 'docs/development/delivery.md',
-  'docs/development/review-checklist.md',
+  'docs/development/codebase-principles.md', 'docs/development/delivery.md',
+  'docs/development/testing.md',
   '.agents/skills/conexus-frontend/SKILL.md',
   'contracts/api/product/openapi.yaml',
 ].map(path => [path, '# fixture\n']).concat([

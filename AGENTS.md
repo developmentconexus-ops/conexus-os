@@ -10,7 +10,6 @@ Before relying on chat, a handoff, or remembered state:
 3. use [`docs/index.md`](docs/index.md) to find the smallest owner of your question;
 4. for any Conexus planning, execution, review or handoff, read [`.agents/skills/conexus-development/SKILL.md`](.agents/skills/conexus-development/SKILL.md);
 5. load only the method that applies:
-   - [`engineering-method.md`](docs/development/engineering-method.md) for material engineering decisions;
    - [`delivery.md`](docs/development/delivery.md) for lanes, approval, proof, merge, Git and CI;
    - the [`conexus-frontend`](.agents/skills/conexus-frontend/SKILL.md) skill for frontend work.
 

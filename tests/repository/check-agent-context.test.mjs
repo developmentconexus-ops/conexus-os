@@ -133,3 +133,13 @@ test('a guide passes at its byte cap and fails one byte over', context => {
   assert.equal(result.status, 1)
   assert.equal(result.stderr, `error ${guide}: 8193 bytes exceeds the cap of 8192\n`)
 })
+
+test('the delivery guide carries a line cap and a byte cap, and each fails on its own', context => {
+  const longLines = `${Array.from({ length: 120 }, () => 'x'.repeat(99)).join('\n')}\n`
+  const tooManyLines = run(fixture(context, { [DELIVERY]: lines(151) }))
+  assert.equal(tooManyLines.status, 1)
+  assert.equal(tooManyLines.stderr, `error ${DELIVERY}: 151 lines exceeds the cap of 150\n`)
+  const tooManyBytes = run(fixture(context, { [DELIVERY]: longLines }))
+  assert.equal(tooManyBytes.status, 1)
+  assert.equal(tooManyBytes.stderr, `error ${DELIVERY}: 12000 bytes exceeds the cap of 10240\n`)
+})
