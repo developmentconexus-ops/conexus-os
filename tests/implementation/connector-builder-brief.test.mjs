@@ -88,7 +88,7 @@ test('an unreadable store answers the fixed notice, and records a code with no s
 
 test('a scope this module did not mint is told connector data is unavailable, whatever the store would answer', async () => {
   const brief = briefOf(storeOf([bound('erp')]))
-  assert.equal(await brief({ projectId: PROJECT, environment: 'preview' }), CONNECTOR_BRIEF_UNAVAILABLE)
+  assert.equal(await brief({ projectId: PROJECT }), CONNECTOR_BRIEF_UNAVAILABLE)
 })
 
 test('the brief and the Skill carry no credential material and no gateway origin', async () => {

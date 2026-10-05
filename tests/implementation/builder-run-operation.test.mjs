@@ -13,7 +13,7 @@ import { FAKE_CREDENTIAL, NATIVE_ORDER_DATASET, startFakeGateway } from './conne
 import { connectorRecord } from './connector-record.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { createBroker } = await import(hubModuleUrl('connectors/broker.js'))
+const { createBroker, registryOf } = await import(hubModuleUrl('connectors/broker.js'))
 const { createConnectorBrief } = await import(hubModuleUrl('connectors/builder-brief.js'))
 const { createConnectorFetchTools, openBuilderRun } = await import(hubModuleUrl('connectors/builder-tool.js'))
 const { createHandlerPorts } = await import(hubModuleUrl('connectors/handler-port.js'))
@@ -33,7 +33,7 @@ const READER_URL = hubModuleUrl('builder/handler-kit/sankhya.js')
 const envelope = createSecretEnvelope('ef'.repeat(32))
 const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
 const store = Object.freeze({
-  listBindings: async ({ projectId, environment }) => (projectId === PROJECT && environment === 'preview'
+  listBindings: async ({ projectId }) => (projectId === PROJECT
     ? [{ bindingId: 'binding-erp', name: 'erp', connectionId: CONNECTION, connectorId: 'sankhya' }] : []),
   readConnectionCredential: async (_scope, connectionId) => (connectionId === CONNECTION ? sealed : null),
 })
@@ -112,9 +112,9 @@ const setup = async (t, { built = BUILT } = {}) => {
   const fake = await startFakeGateway()
   t.after(() => fake.close())
   const record = connectorRecord()
-  const connectors = [{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }]
+  const connectors = registryOf([{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }])
   const broker = createBroker({ connectors, store, envelope, observability: record.observability })
-  const brief = createConnectorBrief({ connectors, store, observability: record.observability })
+  const brief = createConnectorBrief({ store, observability: record.observability })
   const socketDirectory = mkdtempSync(join(tmpdir(), 'cx-run-op-ports-'))
   t.after(() => rmSync(socketDirectory, { recursive: true, force: true }))
   const run = await openBuilderRun({ brief, projectId: PROJECT, accountId: '55555555-5555-4555-8555-555555555555', builderRunId: RUN, ports: createHandlerPorts({ directory: socketDirectory, broker }) })

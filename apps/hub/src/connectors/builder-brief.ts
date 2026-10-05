@@ -4,7 +4,7 @@ import { endSpan } from './record.js'
 import { isMintedScope } from './scope.js'
 import type { ConsumerScope } from './scope.js'
 import type { BrokerStore } from './store.js'
-import type { BoundConnection } from './model.js'
+import type { BoundConnection } from './store.js'
 
 const CONNECTOR_BRIEF_UNAVAILABLE = 'The Conexões bound to this Project could not be read in this run. Do not call `connector_fetch` or `connectors.fetch`; '
   + 'when the request needs data from an external system, change no files, tell the person it is unavailable right now and that they can ask again later, and stop.'
