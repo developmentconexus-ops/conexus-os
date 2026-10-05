@@ -22,6 +22,8 @@
     "db:baseline:check": "node scripts/generate-hub-baseline.mjs --check",
     "db:catalog:snapshot": "node scripts/generate-hub-catalog-snapshot.mjs",
     "db:catalog:check": "node scripts/generate-hub-catalog-snapshot.mjs --check",
+    "db:callers": "node scripts/function-callers.mjs",
+    "db:callers:check": "node scripts/function-callers.mjs --check",
     "repository:check": "node scripts/check-agent-context.mjs",
     "worktree:reap": "node scripts/worktree-reap.mjs",
     "worktree:new": "node scripts/worktree-new.mjs",

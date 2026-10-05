@@ -51,6 +51,14 @@ export const readCatalog = async (client) => {
   return catalog
 }
 
+// The live functions of the Hub schemas with their bodies, for the lint and the caller graph.
+export const readFunctions = async (client) => (await client.query(`
+  SELECT n.nspname || '.' || p.proname AS name, pg_get_userbyid(p.proowner) AS owner, p.prosecdef AS definer, p.prosrc AS body
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE ${hubObjects} AND p.prokind = 'f'
+  ORDER BY 1, p.oid
+`)).rows
+
 export const catalogDigest = (catalog) =>
   createHash('sha256').update(JSON.stringify(CATALOG_SECTIONS.map(section => [section, catalog[section] ?? []]))).digest('hex')
 

@@ -5,6 +5,9 @@
     // package.json scripts are already roots, and a directory glob would hide orphaned scripts.
     "scripts/check-test-skips.mjs",
     "scripts/census-builder-run.mjs",
+    "scripts/census-boundaries.mjs",
+    "scripts/check-enforced-by.mjs",
+    "scripts/function-callers.mjs",
     "scripts/codemods/error-code-to-failure.mjs",
     "scripts/keycloak-refresh-probe.mjs",
     "scripts/builder-eval/plan-bench.mjs",
@@ -23,6 +26,8 @@
     "tests/implementation/sandbox-probe/read_secrets.mjs",
     "tests/implementation/sandbox-probe/walk_fs.mjs",
     "tests/fixtures/admission-negative.ts",
+    "tests/fixtures/census-boundaries/pg-rows.ts",
+    "tests/fixtures/census-boundaries/web-json.ts",
     // Bundled as text into the check by scripts/build-app-check.mjs, which writes it into each Project as conexus/sankhya.gen.ts.
     "apps/hub/src/builder/handler-kit/sankhya.ts",
     // The application check's bundle starts here; the Hub itself imports only its report module.

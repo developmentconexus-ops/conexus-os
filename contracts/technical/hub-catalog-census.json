@@ -1,0 +1,132 @@
+{
+  "unscoped": {
+    "permanent": [
+      {
+        "table": "iam.schema_migration",
+        "reason": "Migration bookkeeping with no tenant data; only the migration runner touches it."
+      }
+    ],
+    "pending": [
+      {
+        "table": "builder.builder_run",
+        "part": 1
+      },
+      {
+        "table": "builder.builder_run_model_account",
+        "part": 1
+      },
+      {
+        "table": "builder.conversation_session",
+        "part": 1
+      },
+      {
+        "table": "builder.project_repository",
+        "part": 1
+      },
+      {
+        "table": "builder.project_working_state",
+        "part": 1
+      },
+      {
+        "table": "connector.connection",
+        "part": 2
+      },
+      {
+        "table": "connector.project_binding",
+        "part": 2
+      },
+      {
+        "table": "iam.account",
+        "part": 6
+      },
+      {
+        "table": "iam.application",
+        "part": 6
+      },
+      {
+        "table": "iam.application_grant",
+        "part": 6
+      },
+      {
+        "table": "iam.application_invitation",
+        "part": 6
+      },
+      {
+        "table": "iam.bootstrap_context",
+        "part": 6
+      },
+      {
+        "table": "iam.handoff",
+        "part": 6
+      },
+      {
+        "table": "iam.host_session",
+        "part": 6
+      },
+      {
+        "table": "iam.installation_administrator",
+        "part": 6
+      },
+      {
+        "table": "iam.oidc_transaction",
+        "part": 6
+      },
+      {
+        "table": "iam.operation_idempotency",
+        "part": 6
+      },
+      {
+        "table": "iam.preview",
+        "part": 6
+      },
+      {
+        "table": "iam.workspace_invitation",
+        "part": 6
+      },
+      {
+        "table": "iam.workspace_membership",
+        "part": 6
+      },
+      {
+        "table": "model.installation_default",
+        "part": 5
+      },
+      {
+        "table": "model.model_account",
+        "part": 5
+      },
+      {
+        "table": "model.model_account_sharing_history",
+        "part": 5
+      },
+      {
+        "table": "project.operation_idempotency",
+        "part": 3
+      },
+      {
+        "table": "project.project",
+        "part": 3
+      },
+      {
+        "table": "project.project_deletion",
+        "part": 3
+      },
+      {
+        "table": "reg.application_thumbnail",
+        "part": 4
+      },
+      {
+        "table": "reg.artifact",
+        "part": 4
+      },
+      {
+        "table": "reg.artifact_revision",
+        "part": 4
+      }
+    ]
+  },
+  "ceilings": {
+    "ruleFunctions": 112,
+    "legacyOwnerPolicies": 1
+  }
+}
