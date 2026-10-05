@@ -264,7 +264,7 @@ test('the hub build step publishes its directory to the steps after it, and only
   assert.equal(result.exitCode, 1)
   assert.deepEqual(seen.map(([scope]) => scope), ['hub-typecheck', 'web-typecheck', 'biome'])
   assert.equal(seen[0][1], null)
-  assert.equal(seen[1][1], resolve(repositoryRoot, 'node_modules/.cache/conexus-hub-build'))
+  assert.equal(seen[1][1], resolve(repositoryRoot, process.env.CONEXUS_VERIFY_HUB_BUILD_DIRECTORY ?? 'node_modules/.cache/conexus-hub-build'))
   assert.equal(seen[2][1], seen[1][1])
 
   const failedBuild = []
