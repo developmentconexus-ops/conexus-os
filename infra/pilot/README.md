@@ -1,7 +1,7 @@
 # Pilot: Hub and application runner
 
 The pilot is the WSL laptop where each capability is proved before a server
-([delivery rules](../../docs/development/delivery.md#working-rules)). It runs the Hub and the application runner
+([delivery rules](../../docs/development/delivery.md#git-and-pull-requests)). It runs the Hub and the application runner
 from one fixed checkout of `main`. The Keycloak it signs in with is in [`../keycloak`](../keycloak/README.md).
 
 | What | Where |

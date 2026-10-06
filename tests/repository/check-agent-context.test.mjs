@@ -127,13 +127,13 @@ test('a guide passes at its byte cap and fails one byte over', context => {
 })
 
 test('the delivery guide carries a line cap and a byte cap, and each fails on its own', context => {
-  const longLines = `${Array.from({ length: 120 }, () => 'x'.repeat(99)).join('\n')}\n`
-  const tooManyLines = run(fixture(context, { [DELIVERY]: lines(151) }))
+  const longLines = `${Array.from({ length: 170 }, () => 'x'.repeat(99)).join('\n')}\n`
+  const tooManyLines = run(fixture(context, { [DELIVERY]: lines(261) }))
   assert.equal(tooManyLines.status, 1)
-  assert.equal(tooManyLines.stderr, `error ${DELIVERY}: 151 lines exceeds the cap of 150\n`)
+  assert.equal(tooManyLines.stderr, `error ${DELIVERY}: 261 lines exceeds the cap of 260\n`)
   const tooManyBytes = run(fixture(context, { [DELIVERY]: longLines }))
   assert.equal(tooManyBytes.status, 1)
-  assert.equal(tooManyBytes.stderr, `error ${DELIVERY}: 12000 bytes exceeds the cap of 10240\n`)
+  assert.equal(tooManyBytes.stderr, `error ${DELIVERY}: 17000 bytes exceeds the cap of 16384\n`)
 })
 
 test('an area that names no guide, or a guide that does not exist, fails', context => {

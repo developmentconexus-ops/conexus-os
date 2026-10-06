@@ -18,7 +18,7 @@ Each guide owns one subject, and a rule lives in one of them.
 | S | [Security guide](reference/security-and-authority.md) | OWASP ASVS level 2: trust zones, who may act, sign-in, sessions, browser boundary, secrets, egress, untrusted code, logging, recovery |
 | V | [`DESIGN.md`](../DESIGN.md) | Look, motion, accessibility, icons, voice |
 | T | [Testing guide](development/testing.md) | Microsoft playbook and Google test sizes: behavior, sizes, skips, doubles, generated output, negative cases, routes, screens, Builder proof |
-| L | [Delivery](development/delivery.md) | Lanes, waves, specs, review, merge, Git and CI |
+| L | [Delivery guide](development/delivery.md) | Microsoft playbook, Google eng-practices and DORA: lanes, waves, review loop, Aprovo, stop rules, small batches, proof, merge gate, Git |
 
 ## Records and machine owners
 

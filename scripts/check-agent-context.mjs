@@ -11,7 +11,7 @@ const VENDORED = ['.agents/skills/mastra/']
 export const GUIDES = Object.freeze({
   C: { path: 'docs/development/codebase-principles.md', kib: 12 },
   A: { path: 'docs/reference/architecture.md', kib: 24 },
-  L: { path: 'docs/development/delivery.md', kib: 10 },
+  L: { path: 'docs/development/delivery.md', kib: 16 },
   D: { path: 'docs/reference/database.md', kib: 12 },
   H: { path: 'docs/product/wire-contract.md', kib: 12 },
   S: { path: 'docs/reference/security-and-authority.md', kib: 12 },
@@ -41,7 +41,7 @@ export const SIZE_CAPS = Object.freeze([
   { match: path => path === 'AGENTS.md', ...LINES, max: 60 },
   { match: path => path.endsWith('/AGENTS.md'), ...CHARACTERS, max: NESTED_AGENTS_CHARACTERS, note: 'about 500 tokens' },
   { match: path => path.endsWith('/SKILL.md'), ...LINES, max: 90 },
-  { match: path => path === GUIDES.L.path, ...LINES, max: 150 },
+  { match: path => path === GUIDES.L.path, ...LINES, max: 260 },
 ])
 
 // GitHub's heading anchor: lowercase, punctuation dropped, each whitespace character a hyphen.
