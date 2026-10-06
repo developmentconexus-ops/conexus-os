@@ -5,6 +5,7 @@ import { Failure } from '../../platform/failure.js'
 import { encodeKey, type GoogleAiProKey, isAuthFileName } from './credential.js'
 import type { CliproxyPool, LoginInstance } from './pool.js'
 import { ModelLoginId, type AccountId } from '../../../../../packages/contract/dist/index.js'
+import type { ConnectResult } from '../model-account/accounts.js'
 
 type LoginState = 'waiting' | 'succeeded' | 'failed' | 'expired'
 
@@ -53,7 +54,7 @@ const management = async (instance: LoginInstance, path: string, body?: unknown)
  */
 export const createGoogleAiProLogin = <C extends Caller>({ pool, connect, timeoutMs = 5 * 60_000 }: Readonly<{
   pool: Pick<CliproxyPool, 'startLogin'>
-  connect(caller: C, key: GoogleAiProKey): Promise<'connected' | 'failed'>
+  connect(caller: C, key: GoogleAiProKey): Promise<ConnectResult>
   timeoutMs?: number
 }>): GoogleAiProLogin<C> => {
   let current: Attempt<C> | undefined
@@ -83,7 +84,7 @@ export const createGoogleAiProLogin = <C extends Caller>({ pool, connect, timeou
       key = await readRecord(attempt)
       if (!key) return finish(attempt, 'failed')
     }
-    return finish(attempt, await connect(attempt.caller, key) === 'connected' ? 'succeeded' : 'failed')
+    return finish(attempt, (await connect(attempt.caller, key)).ok ? 'succeeded' : 'failed')
   }
 
   const status = async (caller: C, loginId: ModelLoginId): Promise<LoginState> => {

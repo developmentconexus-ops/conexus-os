@@ -37,7 +37,7 @@ export const fakeModelAccounts = () => {
       'google-ai-pro': standingOf(accountId, 'google-ai-pro'),
     }),
     write,
-    connect: async (input) => { await write(input); return 'connected' },
+    connect: async (input) => { await write(input); return { ok: true } },
     readDefault: async () => null,
     usable: async (accountId, provider) => rowOf(accountId, provider) !== null,
     select: async (run, provider) => {

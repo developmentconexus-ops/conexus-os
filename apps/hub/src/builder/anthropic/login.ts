@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { completeAnthropicLogin, startAnthropicLogin } from '@mastra/code-sdk/auth/providers/anthropic'
 import type { ClaudeTokens } from './credential.js'
 import { ModelLoginId, type AccountId } from '../../../../../packages/contract/dist/index.js'
+import type { ConnectResult } from '../model-account/accounts.js'
 
 export type ClaudeLoginState = 'succeeded' | 'failed' | 'expired'
 
@@ -35,7 +36,7 @@ const realAuthorization: ClaudeAuthorization = Object.freeze({
  * mistyped paste can be tried again before the deadline.
  */
 export const createClaudeLogin = <C extends Caller>({ connect, authorization = realAuthorization, now = Date.now }: Readonly<{
-  connect(caller: C, tokens: ClaudeTokens): Promise<'connected' | 'failed'>
+  connect(caller: C, tokens: ClaudeTokens): Promise<ConnectResult>
   authorization?: ClaudeAuthorization
   now?: () => number
 }>) => {
@@ -50,7 +51,7 @@ export const createClaudeLogin = <C extends Caller>({ connect, authorization = r
     if (!tokens) return 'failed'
     const connected = await connect(attempt.caller, tokens)
     attempts.delete(loginId)
-    return connected === 'connected' ? 'succeeded' : 'failed'
+    return connected.ok ? 'succeeded' : 'failed'
   }
 
   return Object.freeze({

@@ -41,7 +41,7 @@ test('the model routes register exactly MDL-01 to MDL-11, and no offered model c
 
 test('a sign-in whose credential write is refused answers 200 failed, and a database fault in the same write answers 500', async (t) => {
   const refused = fakeModelAccounts().modelAccounts
-  refused.connect = async () => 'failed'
+  refused.connect = async () => ({ ok: false, reason: 'ACCOUNT_INACTIVE' })
   const { app } = await createApp(t, { claudeAuthorization }, refused)
   const { loginId } = (await post(app, `${claude}/start`)).json()
   const failed = await post(app, `${claude}/complete`, { loginId, code: 'code#v' })

@@ -16,7 +16,7 @@ export const decodeKey = (key: string): AuthRecord => {
   return Object.freeze({ fileName: Buffer.from(name ?? '', 'base64url').toString(), bytes: new Uint8Array(Buffer.from(body ?? '', 'base64url')) })
 }
 
-const isStoredRecord = (value: string): boolean => {
+function isStoredRecord(value: string): boolean {
   if (!value.startsWith(PREFIX)) return false
   const parts = value.slice(PREFIX.length).split('.')
   if (parts.length !== 2 || !parts.every((part) => BASE64URL.test(part))) return false

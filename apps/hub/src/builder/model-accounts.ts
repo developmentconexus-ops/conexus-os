@@ -71,7 +71,7 @@ const anthropicSetting = async (model: string, level: ThinkingLevelSetting): Pro
 }
 
 
-const offerOf = (provider: ModelAccountProvider, models: readonly string[], optionAt: (model: string, level: ThinkingLevelSetting) => unknown): Promise<Offer> => {
+function offerOf(provider: ModelAccountProvider, models: readonly string[], optionAt: (model: string, level: ThinkingLevelSetting) => unknown): Promise<Offer> {
   const { name, routerPrefix } = MODEL_PROVIDERS[provider]
   return Promise.all(models.map(async (model) => ({
     id: `${routerPrefix}/${model}`, provider: routerPrefix, providerName: name, modelName: model,

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { AccountId, ModelAccountId, ModelAccountKind, ModelAccountProvider } from '../../../../../packages/contract/dist/index.js'
+import { AccountId, ModelAccountId, type ModelAccountKind, type ModelAccountProvider } from '../../../../../packages/contract/dist/index.js'
 import { admitAccount, admitSystem, type Admitted, type RunScope, type SystemScope } from '../../identity-access/admission.js'
 import { sql, type Database } from '../../platform/db.js'
 import { Failure } from '../../platform/failure.js'
@@ -9,6 +9,8 @@ import type { RunContext } from '../run-context.js'
 import { LawfulCredential, type Lawful } from './providers.js'
 
 export type ModelRole = 'build' | 'memory'
+
+export type ConnectResult = Readonly<{ ok: true }> | Readonly<{ ok: false; reason: 'ACCOUNT_INACTIVE' | 'ACCOUNT_NOT_FOUND' }>
 
 type HeldRun = Pick<RunContext, 'builderRunId' | 'accountId'>
 
@@ -27,18 +29,16 @@ type ModelStanding = Readonly<Record<ModelAccountProvider, Readonly<{ own: OwnAc
 export type ModelAccounts = Readonly<{
   standing(accountId: AccountId): Promise<ModelStanding>
   write(input: Readonly<{ accountId: AccountId; credential: Lawful; secret: string }>): Promise<void>
-  connect(input: Readonly<{ accountId: AccountId; credential: Lawful; secret: string }>): Promise<'connected' | 'failed'>
+  connect(input: Readonly<{ accountId: AccountId; credential: Lawful; secret: string }>): Promise<ConnectResult>
   readDefault(accountId: AccountId, role: ModelRole): Promise<string | null>
   usable(accountId: AccountId, provider: ModelAccountProvider): Promise<boolean>
   select(run: HeldRun, provider: ModelAccountProvider): Promise<HeldAccount | null>
 }>
 
-const SealedRow = z.object({ model_account_id: ModelAccountId, provider: ModelAccountProvider, kind: ModelAccountKind, secret: z.string() })
-  .transform((row) => ({ modelAccountId: row.model_account_id, credential: LawfulCredential.parse(row), sealed: row.secret }))
-const StandingRow = z.object({ provider: ModelAccountProvider, kind: ModelAccountKind, owner_account_id: AccountId, sharing: z.enum(['just_me', 'everyone']) })
+const SealedRow = z.object({ model_account_id: ModelAccountId, secret: z.string() }).and(LawfulCredential)
+  .transform(({ model_account_id, secret, ...credential }) => ({ modelAccountId: model_account_id, credential, sealed: secret }))
+const StandingRow = z.object({ owner_account_id: AccountId, sharing: z.enum(['just_me', 'everyone']) }).and(LawfulCredential)
 const DefaultRow = z.object({ model_id: z.string() })
-
-const REFUSED_WRITES: ReadonlySet<string> = new Set(['ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'])
 
 export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ database: Database; envelope: SecretEnvelope; ownerId: string }>): ModelAccounts {
   const readById = async ({ tx, scope }: Admitted<RunScope>, { modelAccountId }: Readonly<{ modelAccountId: ModelAccountId }>) => tx.maybe(SealedRow, sql`
@@ -105,9 +105,9 @@ export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ 
     }),
     write,
     connect: (input) => write(input).then(
-      () => 'connected' as const,
-      (error: unknown) => {
-        if (error instanceof Failure && REFUSED_WRITES.has(error.id)) return 'failed' as const
+      (): ConnectResult => ({ ok: true }),
+      (error: unknown): ConnectResult => {
+        if (error instanceof Failure && (error.id === 'ACCOUNT_INACTIVE' || error.id === 'ACCOUNT_NOT_FOUND')) return { ok: false, reason: error.id }
         throw error
       },
     ),

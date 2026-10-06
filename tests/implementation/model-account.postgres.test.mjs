@@ -133,7 +133,7 @@ test('an inactive or unknown account cannot write, and connect answers failed fo
     await accounts.connect({ accountId: C, credential: ANTHROPIC_KEY, secret: 'k' }),
     await accounts.connect({ accountId: randomUUID(), credential: ANTHROPIC_KEY, secret: 'k' }),
     await accounts.connect({ accountId: A, credential: ANTHROPIC_KEY, secret: 'k' }),
-  ], ['failed', 'failed', 'connected'])
+  ], [{ ok: false, reason: 'ACCOUNT_INACTIVE' }, { ok: false, reason: 'ACCOUNT_NOT_FOUND' }, { ok: true }])
   assert.equal((await rowsOf()).length, 1)
   await query(connection, "ALTER TABLE model.model_account ADD CONSTRAINT refuse_everything CHECK (provider = 'none') NOT VALID")
   await assert.rejects(accounts.connect({ accountId: A, credential: CODEX, secret: 'k' }), { id: 'INTERNAL_UNEXPECTED' })
@@ -157,7 +157,9 @@ test('standing reports each provider with the caller\'s own kind and whether one
 test('a row whose provider and kind are no lawful pair is an internal fault at the parse', async (t) => {
   const { accounts, seedRow } = await setup(t, 'conexus_model_unlawful')
   await seedRow(A, 'anthropic', 'google_ai_pro', 'not-anthropic')
-  await assert.rejects(accounts.select({ builderRunId: randomUUID(), accountId: A }, 'anthropic'))
+  const unlawful = { name: 'ZodError', message: /anthropic cannot hold a google_ai_pro account/ }
+  await assert.rejects(accounts.select({ builderRunId: randomUUID(), accountId: A }, 'anthropic'), unlawful)
+  await assert.rejects(accounts.standing(A), unlawful)
 })
 
 test('a run reads the row it recorded after sharing is withdrawn, and the refresh persists with literal bytes; a later non owner selects nothing', async (t) => {

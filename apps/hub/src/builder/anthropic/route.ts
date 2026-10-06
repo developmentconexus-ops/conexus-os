@@ -20,7 +20,7 @@ const ANTHROPIC_PREFIX = MODEL_PROVIDERS.anthropic.routerPrefix
  * through Mastra Code's Claude provider, which applies both itself and sends the subscription
  * bearer with the betas and the identity system message its endpoint requires.
  */
-const modelOf = (holds: TokenHolds<ClaudeTokens>, held: AnthropicAccount): ModelOf => {
+function modelOf(holds: TokenHolds<ClaudeTokens>, held: AnthropicAccount): ModelOf {
   switch (held.credential.kind) {
     case 'api_key': return async (modelName, thinkingLevel) => wrapGatewayModel(
       await new ModelsDevGateway().resolveLanguageModel({ providerId: ANTHROPIC_PREFIX, modelId: modelName, apiKey: held.secret }),

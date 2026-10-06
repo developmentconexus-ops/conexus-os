@@ -3,6 +3,7 @@ import { pollCodexDeviceLogin, startCodexDeviceLogin, type CodexDeviceLoginPendi
 import { toCodexTokens, type CodexTokens } from './credential.js'
 import { Failure } from '../../platform/failure.js'
 import { ModelLoginId, type AccountId } from '../../../../../packages/contract/dist/index.js'
+import type { ConnectResult } from '../model-account/accounts.js'
 
 export type LoginState = 'waiting' | 'succeeded' | 'failed' | 'expired'
 
@@ -30,7 +31,7 @@ const realDevice: CodexDevice = Object.freeze({ start: () => startCodexDeviceLog
  * person who started it and ends at OpenAI's deadline; a person has at most one at a time.
  */
 export const createCodexLogin = <C extends Caller>({ connect, device = realDevice, now = Date.now }: Readonly<{
-  connect(caller: C, tokens: CodexTokens): Promise<'connected' | 'failed'>
+  connect(caller: C, tokens: CodexTokens): Promise<ConnectResult>
   device?: CodexDevice
   now?: () => number
 }>) => {
@@ -55,7 +56,7 @@ export const createCodexLogin = <C extends Caller>({ connect, device = realDevic
     if (answer.status === 'failed') return 'failed'
     const tokens = tokensOf(answer.credentials)
     if (!tokens) return 'failed'
-    return await connect(attempt.caller, tokens) === 'connected' ? 'succeeded' : 'failed'
+    return (await connect(attempt.caller, tokens)).ok ? 'succeeded' : 'failed'
   }
 
   return Object.freeze({

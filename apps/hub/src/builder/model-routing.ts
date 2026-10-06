@@ -30,7 +30,7 @@ export const wrapGatewayModel = (model: GatewayLanguageModel, middleware: readon
   return applied.length ? wrapLanguageModel({ model, middleware: applied }) : model
 }
 
-const takeFrom = (routes: ModelRoutes, held: HeldAccount): Taken => {
+function takeFrom(routes: ModelRoutes, held: HeldAccount): Taken {
   const { credential } = held
   switch (credential.provider) {
     case 'anthropic': return routes.anthropic.take({ ...held, credential })
@@ -39,7 +39,7 @@ const takeFrom = (routes: ModelRoutes, held: HeldAccount): Taken => {
   }
 }
 
-const routeOf = (routes: ModelRoutes, modelId: string): ModelRoutes[keyof ModelRoutes] | undefined => {
+function routeOf(routes: ModelRoutes, modelId: string): ModelRoutes[keyof ModelRoutes] | undefined {
   const prefix = parseModelString(modelId).provider ?? ''
   return isRouterPrefix(prefix) ? routes[prefix] : undefined
 }

@@ -180,13 +180,13 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       child: null,
     },
     'MDL-05': {
-      own: async () => assert.equal(await modelAccounts.connect({ accountId: member, credential: { provider: 'anthropic', kind: 'oauth' }, secret: 'tokens' }), 'connected'),
-      cross: async () => assert.equal(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'anthropic', kind: 'oauth' }, secret: 'tokens' }), 'failed'),
+      own: async () => assert.deepEqual(await modelAccounts.connect({ accountId: member, credential: { provider: 'anthropic', kind: 'oauth' }, secret: 'tokens' }), { ok: true }),
+      cross: async () => assert.deepEqual(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'anthropic', kind: 'oauth' }, secret: 'tokens' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'MDL-10': {
-      own: async () => assert.equal(await modelAccounts.connect({ accountId: member, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), 'connected'),
-      cross: async () => assert.equal(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), 'failed'),
+      own: async () => assert.deepEqual(await modelAccounts.connect({ accountId: member, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: true }),
+      cross: async () => assert.deepEqual(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'WS-01': {

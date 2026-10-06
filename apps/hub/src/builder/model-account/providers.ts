@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { ModelAccountKind, ModelAccountProvider } from '../../../../../packages/contract/dist/index.js'
+import { ModelAccountKind, ModelAccountProvider } from '../../../../../packages/contract/dist/index.js'
 
 type ProviderEntry = Readonly<{
   name: string
@@ -27,14 +27,25 @@ type Providers = typeof MODEL_PROVIDERS
 
 export type Lawful = { [P in ModelAccountProvider]: Readonly<{ provider: P; kind: Providers[P]['kinds'][number] }> }[ModelAccountProvider]
 
-export const LawfulCredential = z.discriminatedUnion('provider', [
-  z.object({ provider: z.literal('anthropic'), kind: z.enum(MODEL_PROVIDERS.anthropic.kinds) }),
-  z.object({ provider: z.literal('openai-codex'), kind: z.enum(MODEL_PROVIDERS['openai-codex'].kinds) }),
-  z.object({ provider: z.literal('google-ai-pro'), kind: z.enum(MODEL_PROVIDERS['google-ai-pro'].kinds) }),
-]) satisfies z.ZodType<Lawful>
+const ProviderKind = z.object({ provider: ModelAccountProvider, kind: ModelAccountKind })
+
+export const LawfulCredential = ProviderKind.transform((pair, ctx): Lawful => {
+  const kinds: readonly ModelAccountKind[] = MODEL_PROVIDERS[pair.provider].kinds
+  if (!isLawful(pair, kinds)) {
+    ctx.issues.push({ code: 'custom', message: `${pair.provider} cannot hold a ${pair.kind} account`, input: pair })
+    return z.NEVER
+  }
+  return pair
+})
+
+function isLawful(pair: z.output<typeof ProviderKind>, kinds: readonly ModelAccountKind[]): pair is Lawful {
+  return kinds.includes(pair.kind)
+}
 
 export type RouterPrefix = Providers[ModelAccountProvider]['routerPrefix']
 
 const PREFIXES: ReadonlySet<string> = new Set(Object.values(MODEL_PROVIDERS).map((entry) => entry.routerPrefix))
 
-export const isRouterPrefix = (value: string): value is RouterPrefix => PREFIXES.has(value)
+export function isRouterPrefix(value: string): value is RouterPrefix {
+  return PREFIXES.has(value)
+}
