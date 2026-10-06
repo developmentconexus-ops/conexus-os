@@ -42,8 +42,8 @@ A change is in the qualification lane when any Q trigger is true:
 
 ## Waves
 
-- A wave that will be built **must** have one spec file, `docs/specs/NNNN-title.md`, no child
-  specs, and one pull request. Parts run in sequence inside it, one green commit per part.
+- A wave that will be built **must** have one spec in `docs/specs/NNNN-title/`, no child specs,
+  and one pull request. Parts run in sequence inside it, one green commit per part.
 - Every decision **must** go into the spec or a guide when it is made. No decision file grows beside
   them.
 - A spec over 800 lines or a plan over 70 product files **must** say in one sentence why it does not
