@@ -11,9 +11,6 @@ export const registeredRoles = new Set([...roleRegister.roles, ...roleRegister.t
 // what stops a new call being added without saying who runs it, and a row here with no call site
 // fails too, so the table cannot outlive the code it describes.
 export const ROLE_BY_CALL_SITE = Object.freeze({
-  'builder/run-lifecycle.ts': Object.freeze({
-    'reg.matches_application_artifact': 'hub_command',
-  }),
   'identity-access/reaper.ts': Object.freeze({
     'iam.reap_expired': 'hub_iam_runtime',
   }),
@@ -65,18 +62,6 @@ export const ROLE_BY_CALL_SITE = Object.freeze({
   }),
   'project/deletion.ts': Object.freeze({
     'iam.purge_project': 'hub_command',
-    'reg.purge_project': 'hub_command',
-  }),
-  'registry/application-artifact-store.ts': Object.freeze({
-    'reg.retain_application_execution': 'hub_builder_executor',
-    'reg.get_application_by_source': 'hub_builder_executor',
-    'reg.read_application_file_by_source': 'hub_builder_executor',
-    'reg.retain_application_thumbnail': 'hub_builder_executor',
-  }),
-  'registry/served-application.ts': Object.freeze({
-    'reg.get_served_application': 'hub_reader',
-    'reg.read_served_application_file': 'hub_reader',
-    'reg.get_application_thumbnail': 'hub_reader',
   }),
 })
 

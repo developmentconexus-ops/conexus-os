@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
+import { z } from 'zod'
+import { AccountId, ApplicationFilePath, ArtifactDigest, ArtifactRevisionId, MediaType, ProjectId, SourceRevision } from '../../../../packages/contract/dist/index.js'
 import { parseCaller } from '../platform/caller.js'
 import { parseApplicationSlug } from '../platform/application-slug.js'
 import { digest, opaqueToken as opaque, parseOpaqueToken } from '../platform/opaque-token.js'
@@ -19,18 +21,18 @@ type HostAuthority<Signed> =
   // The Keycloak check was due and Keycloak could not answer. Refuse, and keep the session.
   | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
 
-type ApplicationAuthority = HostAuthority<{ caller: Caller }>
+type ApplicationAuthority = HostAuthority<{ accountId: AccountId; caller: Caller }>
 
-type ManifestFile = Readonly<{ path: string; mediaType: string }>
-type PreviewManifest = Readonly<{ entryPath: 'index.html'; files: readonly ManifestFile[] }>
+const PreviewManifest = z.object({ entryPath: z.literal('index.html'), files: z.array(z.object({ path: ApplicationFilePath, mediaType: MediaType })).readonly() }).readonly()
+type PreviewManifest = z.infer<typeof PreviewManifest>
 
 /** What one Preview launch shows. Stored once when the Hub opens it and never changed. */
 export type PreviewLaunch = Readonly<{
-  accountId: string
-  projectId: string
-  sourceRevision: string
-  artifactRevisionId: string
-  artifactDigest: string
+  accountId: AccountId
+  projectId: ProjectId
+  sourceRevision: SourceRevision
+  artifactRevisionId: ArtifactRevisionId
+  artifactDigest: ArtifactDigest
   exactHost: string
   manifest: PreviewManifest
 }>
@@ -63,7 +65,7 @@ export type HostSessions = Readonly<{
    * can end the SSO session behind it; null when it no longer opens under this installation's key.
    */
   endHub(digest: HubSessionDigest): Promise<Readonly<{ refreshToken: string | null }> | null>
-  applicationBySlug(slug: string): Promise<string | null>
+  applicationBySlug(slug: string): Promise<ProjectId | null>
   /** The TI-02 branch for a sign-in that began at an application host. Never touches the Hub session. */
   signIn(input: Readonly<{ identity: CompletedSignIn; existingAccountId: string | null; projectId: string; bindingDigest: Buffer; now?: Date }>): Promise<ApplicationSignIn>
   /** Opens a Preview for the developer behind a live Hub session: the entry handoff the Hub page posts to the Preview host, and when the Preview ends. */
@@ -225,7 +227,8 @@ export const createHostSessions = ({
     async applicationBySlug(slug) {
       if (!parseApplicationSlug(slug)) return null
       const result = await pool.query<QueryResultRow & { project_id: string | null }>('SELECT iam.application_by_slug($1) AS project_id', [slug])
-      return result.rows[0]?.project_id ?? null
+      const projectId = result.rows[0]?.project_id
+      return projectId ? ProjectId.parse(projectId) : null
     },
 
     async signIn({ identity, existingAccountId, projectId, bindingDigest, now = new Date() }) {
@@ -287,7 +290,7 @@ export const createHostSessions = ({
         const refused = await checkProvider({ sessionDigest, subject: row.subject, checkedAt: row.provider_checked_at, sealed: row.due_provider_refresh_token, now })
         if (refused) return refused
       }
-      return { kind: 'SIGNED_IN', caller: callerOf(row) }
+      return { kind: 'SIGNED_IN', accountId: AccountId.parse(row.account_id), caller: callerOf(row) }
     },
 
     async previewAuthority({ sessionToken, exactHost, now = new Date() }) {
@@ -305,9 +308,9 @@ export const createHostSessions = ({
       return {
         kind: 'SIGNED_IN',
         binding: Object.freeze({
-          accountId: row.account_id, projectId: row.project_id, sourceRevision: row.source_revision,
-          artifactRevisionId: row.artifact_revision_id, artifactDigest: row.artifact_digest, exactHost,
-          manifest: row.manifest, expiresAt: row.expires_at.getTime(), caller: callerOf(row),
+          accountId: AccountId.parse(row.account_id), projectId: ProjectId.parse(row.project_id), sourceRevision: SourceRevision.parse(row.source_revision),
+          artifactRevisionId: ArtifactRevisionId.parse(row.artifact_revision_id), artifactDigest: ArtifactDigest.parse(row.artifact_digest), exactHost,
+          manifest: PreviewManifest.parse(row.manifest), expiresAt: row.expires_at.getTime(), caller: callerOf(row),
         }),
       }
     },

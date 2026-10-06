@@ -30,13 +30,6 @@
       "legacy": true
     },
     {
-      "role": "hub_builder_executor",
-      "capability": "builder-run-execution",
-      "passwordFileVariable": "CONEXUS_DB_BUILDER_EXECUTOR_PASSWORD_FILE",
-      "connectsFrom": [],
-      "legacy": true
-    },
-    {
       "role": "hub_model_account",
       "capability": "model-account",
       "passwordFileVariable": "CONEXUS_DB_MODEL_ACCOUNT_PASSWORD_FILE",

@@ -35,7 +35,7 @@ const files = {
   'conexus-server/manifest.json': { mediaType: 'application/json; charset=utf-8', text: '{}' },
 }
 
-const harness = async (t, { authorityFor, application = APPLICATION, invokeApplication } = {}) => {
+const harness = async (t, { authorityFor, application = APPLICATION, invokeApplication, runner, registryOverrides = {} } = {}) => {
   const calls = []
   const reads = []
   const sessions = new Map([[TOKEN_A, PROJECT_A]])
@@ -44,7 +44,7 @@ const harness = async (t, { authorityFor, application = APPLICATION, invokeAppli
     async applicationBySlug(slug) { return { 'caderno-de-compras': PROJECT_A, 'outro-app': PROJECT_B }[slug] ?? null },
     async applicationAuthority({ sessionToken, projectId }) {
       if (authorityFor) return authorityFor({ sessionToken, projectId })
-      return sessionToken && sessions.get(sessionToken) === projectId ? { kind: 'SIGNED_IN', caller: EMPLOYEE } : { kind: 'SIGN_IN_REQUIRED' }
+      return sessionToken && sessions.get(sessionToken) === projectId ? { kind: 'SIGNED_IN', accountId: EMPLOYEE.accountId, caller: EMPLOYEE } : { kind: 'SIGN_IN_REQUIRED' }
     },
     async redeem({ handoff, target: { projectId, binding } }) {
       const found = handoffs.get(handoff)
@@ -55,32 +55,36 @@ const harness = async (t, { authorityFor, application = APPLICATION, invokeAppli
     },
     async signOut(sessionToken) { calls.push({ name: 'signOut', sessionToken }); sessions.delete(sessionToken) },
   }
-  const reader = {
-    async served({ projectId }) {
+  const registry = {
+    async readServedManifest(_accountId, projectId) {
       reads.push('served')
       return projectId === PROJECT_A ? { artifactRevisionId: ARTIFACT, files: Object.entries(files).map(([path, file]) => ({ path, mediaType: file.mediaType })) } : null
     },
-    async readServedFile({ projectId, path }) {
+    async readServedFile(_accountId, projectId, path) {
       reads.push(`readServedFile ${path}`)
-      if (projectId !== PROJECT_A) return { kind: 'NOT_SERVED' }
+      if (projectId !== PROJECT_A) return { ok: false, reason: 'NOT_SERVED' }
       const file = files[path]
       return file
-        ? { kind: 'FILE', artifactRevisionId: ARTIFACT, file: { path, mediaType: file.mediaType, bytes: Buffer.from(file.text), sha256: sha(file.text).toString('hex') } }
-        : { kind: 'NOT_FOUND', artifactRevisionId: ARTIFACT }
+        ? { ok: true, artifactRevisionId: ARTIFACT, file: { path, mediaType: file.mediaType, bytes: Buffer.from(file.text), sha256: sha(file.text).toString('hex') } }
+        : { ok: false, reason: 'NOT_FOUND' }
     },
+    readPreviewFile: async () => null,
+    readPinnedServedFile: async () => ({ ok: false, reason: 'NOT_SERVED' }),
+    ...registryOverrides,
   }
   const recordInvocation = async ({ callerLeft: _callerLeft, ...input }) => { calls.push({ name: 'invoke', input }); return { status: 200, body: { ok: true } } }
   const mar = createMarModule({
     sessions: { redeem: async () => null, previewAuthority: async () => ({ kind: 'SIGN_IN_REQUIRED' }) },
-    registryReader: async () => null,
+    registry,
+    ...(runner ? { applicationRunner: runner } : {}),
     exactHubOrigin: HUB,
     previewPort: 3444,
-    applicationHost: { sessions: hostSessions, reader, application },
+    applicationHost: { sessions: hostSessions, application },
   })
   const { app } = await testListener({
     policy: mar.applicationHost.policy,
-    registerRoutes: (server) => registerApplicationHostRoutes(server, {
-      exactHubOrigin: HUB, application, sessions: hostSessions, reader, invokeApplication: invokeApplication ?? recordInvocation,
+    registerRoutes: (server) => runner ? mar.applicationHost.registerRoutes(server) : registerApplicationHostRoutes(server, {
+      exactHubOrigin: HUB, application, sessions: hostSessions, reader: registry, invokeApplication: invokeApplication ?? recordInvocation,
     }),
   })
   t.after(() => app.close())
@@ -361,7 +365,7 @@ test('a caller that disconnects before its call reaches the invoker hands the in
     authorityFor: async () => {
       authorizing.resolve()
       await authorized.promise
-      return { kind: 'SIGNED_IN', caller: EMPLOYEE }
+      return { kind: 'SIGNED_IN', accountId: EMPLOYEE.accountId, caller: EMPLOYEE }
     },
     invokeApplication: async ({ callerLeft }) => {
       invoked.resolve(callerLeft.aborted)
@@ -449,4 +453,53 @@ test('the application host answers a deep link with the app index and the same C
     assert.equal((await app.inject({ method: 'GET', url, headers: { host: HOST_A }, ...signedIn })).statusCode, 404, url)
   }
   assert.deepEqual(reads, ['readServedFile x.js', 'readServedFile x.js'])
+})
+
+const pinned = (reader) => ({ readPinnedServedFile: async (...args) => { pinnedReads.push(args[3]); return reader(...args) } })
+const pinnedReads = []
+const runnerCalls = []
+const recordingRunner = (invoke) => ({ invoke: async (input) => { runnerCalls.push(input); return invoke(input) } })
+const fileOfServer = { ok: true, artifactRevisionId: ARTIFACT, file: { path: 'conexus-server/manifest.json', mediaType: 'application/json; charset=utf-8', bytes: Buffer.from('{}'), sha256: sha('{}').toString('hex') } }
+const operation = async (t, options) => {
+  pinnedReads.length = 0
+  runnerCalls.length = 0
+  const { app } = await harness(t, options)
+  const response = await app.inject(api('addNote'))
+  return { status: response.statusCode, code: response.json().code }
+}
+
+test('a pinned server file read the registry refuses as APPLICATION_NOT_FOUND answers 404 and the runner receives nothing', async (t) => {
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
+  const answer = await operation(t, {
+    runner: recordingRunner(async () => ({ status: 200, body: {} })),
+    registryOverrides: pinned(async () => { throw new Failure('APPLICATION_NOT_FOUND') }),
+  })
+  assert.deepEqual([answer, pinnedReads, runnerCalls.length], [{ status: 404, code: 'APPLICATION_NOT_FOUND' }, ['conexus-server/manifest.json'], 0])
+})
+
+test('a served pointer that moved between the manifest and the pinned file read answers 503 APPLICATION_NOT_READY, and the runner receives nothing', async (t) => {
+  const answer = await operation(t, {
+    runner: recordingRunner(async () => ({ status: 200, body: {} })),
+    registryOverrides: pinned(async () => ({ ok: false, reason: 'STALE_PIN' })),
+  })
+  assert.deepEqual([answer, runnerCalls.length], [{ status: 503, code: 'APPLICATION_NOT_READY' }, 0])
+})
+
+test('a runner that fails answers 503 APPLICATION_RUNNER_UNAVAILABLE, and a registry fault keeps its own code and status', async (t) => {
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
+  const failing = await operation(t, {
+    runner: recordingRunner(async () => { throw new Error('RUNNER_DOWN') }),
+    registryOverrides: pinned(async () => fileOfServer),
+  })
+  assert.deepEqual([failing, runnerCalls.length], [{ status: 503, code: 'APPLICATION_RUNNER_UNAVAILABLE' }, 1])
+  const busy = await operation(t, {
+    runner: recordingRunner(async () => ({ status: 200, body: {} })),
+    registryOverrides: pinned(async () => { throw new Failure('DATABASE_BUSY') }),
+  })
+  assert.deepEqual([busy, runnerCalls.length], [{ status: 503, code: 'DATABASE_BUSY' }, 0])
+  const found = await operation(t, {
+    runner: recordingRunner(async () => ({ status: 200, body: { ok: true } })),
+    registryOverrides: pinned(async () => fileOfServer),
+  })
+  assert.deepEqual([found.status, runnerCalls.length], [200, 1])
 })

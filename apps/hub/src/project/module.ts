@@ -24,7 +24,7 @@ export const createConfiguredProjectModule = ({
   repository: ProjectRepositoryPort
   deletion: ProjectDeletionPorts
   builder: BuilderProjectPorts
-  thumbnailReader?: ProjectThumbnailReader | undefined
+  thumbnailReader: ProjectThumbnailReader
 }>): ProjectModule => {
   const store = createProjectStore({ database, repository, deletion, builder })
   return Object.freeze({

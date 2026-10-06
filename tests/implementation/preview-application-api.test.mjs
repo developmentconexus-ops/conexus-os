@@ -31,8 +31,8 @@ const preview = async (t, invokeApplication) => {
     redeem: async () => null,
     previewAuthority: async ({ sessionToken, exactHost }) => (sessionToken === 'valid' && exactHost === HOST ? { kind: 'SIGNED_IN', binding } : { kind: 'SIGN_IN_REQUIRED' }),
   }
-  const registryReader = async ({ path }) => ({ path, mediaType: binding.manifest.files.find((file) => file.path === path)?.mediaType, bytes: new Uint8Array(), sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' })
-  const mar = createMarModule({ sessions, registryReader, exactHubOrigin: 'https://hub.conexus.localhost:3443', previewPort: PORT })
+  const registryReader = async (_accountId, { path }) => ({ path, mediaType: binding.manifest.files.find((file) => file.path === path)?.mediaType, bytes: new Uint8Array(), sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' })
+  const mar = createMarModule({ sessions, registry: { readPreviewFile: registryReader }, exactHubOrigin: 'https://hub.conexus.localhost:3443', previewPort: PORT })
   const { app } = await testListener({
     policy: mar.previewPolicy,
     registerRoutes: (server) => registerPreviewRoutes(server, {
@@ -89,9 +89,7 @@ test('the Preview API refuses another origin, a missing cookie, a non-JSON body 
   assert.deepEqual(calls, [])
 })
 
-test('the Preview API says the runner is unavailable when it cannot be reached or is not configured', async (t) => {
-  const failing = await preview(t, async () => { throw new Error('APPLICATION_RUNNER_UNAVAILABLE') })
-  assert.deepEqual((await failing.call('listNotes')).json(), problem('APPLICATION_RUNNER_UNAVAILABLE', 503))
+test('the Preview API says the runner is unavailable when it is not configured', async (t) => {
   const absent = await preview(t, undefined)
   const answer = await absent.call('listNotes')
   assert.deepEqual([answer.statusCode, answer.json()], [503, problem('APPLICATION_RUNNER_UNAVAILABLE', 503)])

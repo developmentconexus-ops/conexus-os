@@ -25,3 +25,20 @@ export const waitUntilBlocked = async (connection, { count = 1, timeoutMs = 5000
     await client.end()
   }
 }
+
+/** Resolves once exactly `count` backends of the role are connected to the connection's database. */
+export const waitUntilBackends = async (connection, { role, count, timeoutMs = 5000 }) => {
+  const client = new pg.Client(connection)
+  await client.connect()
+  try {
+    const deadline = Date.now() + timeoutMs
+    for (;;) {
+      const { rows } = await client.query('SELECT count(*)::integer AS n FROM pg_stat_activity WHERE datname = $1 AND usename = $2', [connection.database, role])
+      if (rows[0].n === count) return
+      if (Date.now() > deadline) throw new Error(`WAIT_UNTIL_BACKENDS_TIMEOUT: wanted ${count} ${role} backends, saw ${rows[0].n}`)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+  } finally {
+    await client.end()
+  }
+}

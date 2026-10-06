@@ -159,40 +159,13 @@
           "hub_reader": [],
           "hub_command": []
         }
-      },
-      {
-        "table": "reg.application_thumbnail",
-        "part": 4,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": []
-        }
-      },
-      {
-        "table": "reg.artifact",
-        "part": 4,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": []
-        }
-      },
-      {
-        "table": "reg.artifact_revision",
-        "part": 4,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": []
-        }
       }
     ]
   },
   "ceilings": {
-    "ruleFunctions": 62,
-    "legacyOwnerPolicies": 6,
-    "runtimePrivileges": 59
+    "ruleFunctions": 51,
+    "legacyOwnerPolicies": 4,
+    "runtimePrivileges": 52
   },
   "register": {
     "split": [
@@ -407,6 +380,38 @@
         ]
       },
       {
+        "table": "reg.application_thumbnail",
+        "reader": true,
+        "command": [
+          "INSERT",
+          "SELECT"
+        ],
+        "runtime": [],
+        "compositeKeys": [
+          "application_thumbnail_revision_fkey"
+        ],
+        "keyColumns": [
+          "artifact_revision_id"
+        ]
+      },
+      {
+        "table": "reg.artifact_revision",
+        "reader": true,
+        "command": [
+          "DELETE",
+          "INSERT",
+          "SELECT"
+        ],
+        "runtime": [],
+        "compositeKeys": [
+          "artifact_revision_project_id_fkey"
+        ],
+        "keyColumns": [
+          "artifact_revision_id",
+          "project_id"
+        ]
+      },
+      {
         "table": "workspace.workspace",
         "reader": true,
         "command": [
@@ -422,18 +427,13 @@
     ],
     "functions": {
       "hub_reader": [
-        "reg.get_application_thumbnail(p_account_id uuid, p_project_id uuid)",
-        "reg.get_served_application(p_account_id uuid, p_project_id uuid)",
-        "reg.read_served_application_file(p_account_id uuid, p_project_id uuid, p_artifact_revision_id uuid, p_path text)",
         "rls.acting_account()",
         "rls.acting_installation_administrator()",
         "rls.acting_workspaces()"
       ],
       "hub_command": [
         "iam.lock_administrators()",
-        "iam.purge_project(p_project_id uuid)",
-        "reg.matches_application_artifact(p_project_id uuid, p_source_revision text, p_artifact_revision_id uuid, p_artifact_digest text)",
-        "reg.purge_project(p_project_id uuid)"
+        "iam.purge_project(p_project_id uuid)"
       ]
     }
   }

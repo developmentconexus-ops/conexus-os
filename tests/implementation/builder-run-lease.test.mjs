@@ -27,7 +27,7 @@ test('a run this Hub took over and could not settle is taken again and settled a
       failBuilderRun: async ({ failureCode: code }) => { calls.push(['fail', code]); settled = true },
       close: async () => {},
     },
-    applicationArtifacts: {},
+    registry: {},
     runs: {
       ports: {},
       git: { readMain: async () => 'a'.repeat(40), mainContains: async () => false },
@@ -57,7 +57,7 @@ test('a Conexus Git that cannot answer `main` fails the source reads and the run
       admitSourceRevision: async ({ readMain }) => { await readMain(); reached.push('admit'); return true },
       createBuilderRun: async (input) => { await input.readBase(); reached.push('create') },
     },
-    applicationArtifacts: {},
+    registry: {},
     runs: {
       ports: {},
       git: { readMain: async () => { throw new Failure('CONEXUS_GIT_REF_REFUSED') }, mainContains: async () => false },

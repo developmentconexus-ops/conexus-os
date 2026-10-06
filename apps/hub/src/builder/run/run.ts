@@ -1,6 +1,6 @@
 import { ExecutionId, type AccountId, type BuilderRunId, type ProjectId, type SourceRevision } from '../../../../../packages/contract/dist/index.js'
 import { APPLICATION_CHECK_EXCLUDED } from '../application-starter.js'
-import type { ApplicationServerPort, BuilderApplicationArtifacts } from '../application-build.js'
+import type { ApplicationServerPort, BuilderRegistry } from '../application-build.js'
 import { agentReportOf } from '../check/report.js'
 import { SANDBOX_CHECKOUT } from '../sandbox.js'
 import { bindRunContext } from '../run-context.js'
@@ -52,7 +52,7 @@ type RunStore = Pick<BuilderStore, 'claimBuilderRun' | 'endUnclaimedBuilderRun' 
 export type RunEnvironment = Readonly<{
   ports: BuilderRunPorts
   store: RunStore
-  applicationArtifacts: BuilderApplicationArtifacts
+  registry: Pick<BuilderRegistry, 'seal'>
   applicationServer: ApplicationServerPort | undefined
   appendDiagnostic: DiagnosticAppender
   /** Hands the run, as the builder-session read serves it, to a browser following its conversation; never throws. */
@@ -313,9 +313,9 @@ const conclude = async (run: Run, prepared: Prepared): Promise<RunOutcome> => {
   })
   run.stage = 'ADMITTED'
   await settleAdmittedSource({
-    store: env.store, applicationArtifacts: env.applicationArtifacts, applicationServer: env.applicationServer, appendDiagnostic: env.appendDiagnostic,
+    store: env.store, registry: env.registry, applicationServer: env.applicationServer, appendDiagnostic: env.appendDiagnostic,
     finalizing: () => setPhase(run, 'FINALIZING').catch(() => undefined),
-  }, { ...row, accountId: run.request.accountId }, admitted, applicationBuild)
+  }, row, admitted, applicationBuild)
   return { kind: 'SETTLED' }
 }
 

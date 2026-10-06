@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import type { AccountId, ApplicationFilePath, ProjectId, SourceRevision, ArtifactDigest, ArtifactRevisionId, MediaType, Sha256 } from '../../../../packages/contract/dist/index.js'
 import { classifyAppPath, SERVER_ROOT } from '../platform/application-path.js'
 import type { Caller } from '../platform/caller.js'
 import { Failure } from '../platform/failure.js'
@@ -8,18 +9,18 @@ import { routes } from '../http/access.js'
 import type { HeaderFact } from '../http/access.js'
 import { readCookie, setCookie } from '../http/cookies.js'
 
-export type PreviewHost = Readonly<{ artifactRevisionId: string; exactHost: string; origin: string }>
+export type PreviewHost = Readonly<{ artifactRevisionId: ArtifactRevisionId; exactHost: string; origin: string }>
 
-type ManifestFile = Readonly<{ path: string; mediaType: string }>
+type ManifestFile = Readonly<{ path: ApplicationFilePath; mediaType: MediaType }>
 type Manifest = Readonly<{ entryPath: 'index.html'; files: readonly ManifestFile[] }>
 
 // A Preview's binding, as the session port resolves it: the launch it shows and its author as the caller.
 type PreviewBinding = Readonly<{
-  accountId: string
-  projectId: string
-  sourceRevision: string
-  artifactRevisionId: string
-  artifactDigest: string
+  accountId: AccountId
+  projectId: ProjectId
+  sourceRevision: SourceRevision
+  artifactRevisionId: ArtifactRevisionId
+  artifactDigest: ArtifactDigest
   exactHost: string
   manifest: Manifest
   expiresAt: number
@@ -34,13 +35,12 @@ export type PreviewSessions = Readonly<{
   previewAuthority(input: Readonly<{ sessionToken: string | undefined; exactHost: string }>): Promise<Readonly<{ kind: 'SIGNED_IN'; binding: PreviewBinding }> | Refused>
 }>
 
-type RegistryReader = (input: Readonly<{
-  accountId: string
-  projectId: string
-  sourceRevision: string
-  artifactRevisionId: string
-  path: string
-}> ) => Promise<Readonly<{ path: string; mediaType: string; bytes: Uint8Array; sha256: string }> | null>
+type RegistryReader = (accountId: AccountId, at: Readonly<{
+  projectId: ProjectId
+  sourceRevision: SourceRevision
+  artifactRevisionId: ArtifactRevisionId
+  path: ApplicationFilePath
+}>) => Promise<Readonly<{ path: ApplicationFilePath; mediaType: MediaType; sha256: Sha256; bytes: Uint8Array }> | null>
 
 export type PreviewRouteDependencies = Readonly<{
   sessions: PreviewSessions
@@ -146,13 +146,7 @@ export const registerPreviewRoutes = async (
     if (!declared) return reply.code(404).send()
     let file: Awaited<ReturnType<RegistryReader>>
     try {
-      file = await dependencies.registryReader({
-        accountId: before.accountId,
-        projectId: before.projectId,
-        sourceRevision: before.sourceRevision,
-        artifactRevisionId: before.artifactRevisionId,
-        path,
-      })
+      file = await dependencies.registryReader(before.accountId, { projectId: before.projectId, sourceRevision: before.sourceRevision, artifactRevisionId: before.artifactRevisionId, path: declared.path })
     } catch {
       return reply.code(503).send()
     }
@@ -178,18 +172,10 @@ export const registerPreviewRoutes = async (
     const serverFiles = binding.manifest.files.map((file) => file.path).filter((path) => path.startsWith(SERVER_ROOT))
     if (!OPERATION.test(request.params.operation) || serverFiles.length === 0) throw new Failure('OPERATION_NOT_FOUND')
     if (!dependencies.invokeApplication) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE')
-    let result: Awaited<ReturnType<ApplicationInvoker>>
-    try {
-      result = await dependencies.invokeApplication({
-        source: {
-          via: 'PREVIEW', accountId: binding.accountId, projectId: binding.projectId,
-          sourceRevision: binding.sourceRevision, artifactRevisionId: binding.artifactRevisionId,
-        },
-        serverFiles, operation: request.params.operation, input: request.body, caller: binding.caller, callerLeft: callerLeft(reply),
-      })
-    } catch (error) {
-      throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: error })
-    }
+    const result = await dependencies.invokeApplication({
+      source: { via: 'PREVIEW', accountId: binding.accountId, projectId: binding.projectId, sourceRevision: binding.sourceRevision, artifactRevisionId: binding.artifactRevisionId },
+      serverFiles, operation: request.params.operation, input: request.body, caller: binding.caller, callerLeft: callerLeft(reply),
+    })
     return reply.code(result.status).type('application/problem+json').send(JSON.stringify(result.body))
   }) })
   route.navigation({ url: '/', handler: tracked(serve) })

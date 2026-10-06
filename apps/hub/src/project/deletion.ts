@@ -17,6 +17,7 @@ export type ProjectDeletionPorts = Readonly<{
   deleteRepository(projectId: ProjectIdType): Promise<void>
   /** Deletes the Project's Connection bindings in the purge transaction, which holds the Project row. */
   purgeConnectorBindings(proof: Admitted<SystemScope<'project-purge'>>, projectId: ProjectIdType): Promise<void>
+  purgeRegistry(proof: Admitted<SystemScope<'project-purge'>>, projectId: ProjectIdType): Promise<void>
   /** Deletes the Project's runs, working state and repository marker in the purge transaction, after the registry's rows. */
   purgeBuilder(proof: Admitted<SystemScope<'project-purge'>>, projectId: ProjectIdType): Promise<void>
 }>
@@ -67,7 +68,7 @@ export const createProjectDeletion = ({ database, ports }: Readonly<{ database: 
     if (await busy(tx, projectId)) throw new Failure('PROJECT_BUSY')
     await tx.run(sql`SELECT iam.purge_project(${projectId})`)
     await ports.purgeConnectorBindings(proof, projectId)
-    await tx.run(sql`SELECT reg.purge_project(${projectId})`)
+    await ports.purgeRegistry(proof, projectId)
     await ports.purgeBuilder(proof, projectId)
     await tx.run(sql`DELETE FROM platform.operation_receipt WHERE operation_id = 'PRJ-03' AND resource_id = ${projectId}`)
     await tx.run(sql`DELETE FROM project.project WHERE project_id = ${projectId}`)

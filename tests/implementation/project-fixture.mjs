@@ -10,6 +10,7 @@ const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
 const { createProjectDeletion } = await import(hubModuleUrl('project/deletion.js'))
 const { builderProjectPorts, purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
 const { purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
+const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
 
 export const ID = Object.freeze({
   owner: '10000000-0000-4000-8000-000000000001',
@@ -54,13 +55,13 @@ export const setupProjects = async (t, prefix, { repository } = {}) => {
     killSandboxes: async () => { events.push('kill') },
     deleteRepository: async () => { events.push('repository') },
     purgeConnectorBindings: purgeProjectBindings,
+    purgeRegistry: createRegistryModule({ database }).purge,
     purgeBuilder: purgeProjectBuilder,
   }
   const repositoryPort = repository ?? { prepare: async () => STARTER }
   const store = createProjectStore({ database, repository: repositoryPort, deletion: ports, builder: builderProjectPorts })
   const deletion = createProjectDeletion({ database, ports })
-  const seedProject = async (name = 'Atlas', workspaceId = ID.workspace) => {
-    const projectId = randomUUID()
+  const seedProject = async (name = 'Atlas', workspaceId = ID.workspace, projectId = randomUUID()) => {
     await query(connection, `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)
       VALUES ($1, $2, $3, 'NEW', $4, $5)`, [projectId, workspaceId, name, HEAD, randomUUID()])
     await query(connection, 'INSERT INTO builder.project_working_state(project_id) VALUES ($1)', [projectId])
