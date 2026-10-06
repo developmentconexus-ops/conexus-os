@@ -15,7 +15,7 @@ Each guide owns one subject, and a rule lives in one of them.
 | P | [Product contract](product/contract.md) | Purpose and capabilities, people, scope, concepts, journeys, what it never does |
 | D | [Database guide](reference/database.md) | Evolutionary Database Design: stores, migrations, a database per developer, refactoring, access code, roles, row security, where a rule lives |
 | H | [API guide](product/wire-contract.md) | The Zalando guidelines adapted: contract, URLs, methods, payload, errors, headers, pagination, compatibility |
-| S | [Security and authority](reference/security-and-authority.md) | Who may act, sign-in, sessions, secrets, egress |
+| S | [Security guide](reference/security-and-authority.md) | OWASP ASVS level 2: trust zones, who may act, sign-in, sessions, browser boundary, secrets, egress, untrusted code, logging, recovery |
 | V | [`DESIGN.md`](../DESIGN.md) | Look, motion, accessibility, icons, voice |
 | T | [Testing](development/testing.md) | What counts as proof |
 | L | [Delivery](development/delivery.md) | Lanes, waves, specs, review, merge, Git and CI |

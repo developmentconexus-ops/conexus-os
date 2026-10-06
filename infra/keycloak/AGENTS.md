@@ -1,6 +1,6 @@
 # infra/keycloak
 
-The Keycloak that authenticates the pilot: one container, one realm named `conexus`, one client `conexus-hub`. [`README.md`](README.md) explains each script and each realm setting. [`security-and-authority.md`](../../docs/reference/security-and-authority.md#sign-in) owns human authentication.
+The Keycloak that authenticates the pilot: one container, one realm named `conexus`, one client `conexus-hub`. [`README.md`](README.md) explains each script and each realm setting. [`security-and-authority.md`](../../docs/reference/security-and-authority.md#3-sign-in) owns human authentication.
 
 ## Traps
 

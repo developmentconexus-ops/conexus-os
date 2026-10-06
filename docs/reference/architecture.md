@@ -397,7 +397,12 @@ pull request that fixes one deletes its line.
 | Stores not yet ported run as `hub_runtime` (`unportedPool`, the instance lock session), with `legacy` roles, `legacy_owner` and `legacy_runtime` policies, and SQL functions that hold business rules | S1, parts 4 to 6 |
 | Three migrations drop with `CASCADE` | S1 reset |
 | The Hub swallows a failed run publish and the screen polls instead, and `liveRuns` and the session `subscriptions` share module state | S5 |
+| No route lets a person or an administrator end sessions, and a restore has no step that ends them | Hub base, after S1 |
+| The Hub has no rate limit, and the realm has no brute-force protection | Hub base, after S1 |
+| Keys have no rotation procedure | Hub base, after S1 |
 | The Builder's sandbox has open internet egress (C-023) | Accepted risk |
+| Project handlers can read other Projects' schema names (C-037) | Accepted risk |
+| A deleted Project's prompts stay in trace spans for up to 30 days (C-038) | Accepted risk |
 | One Mastra crossing remains in `apps/hub/src/builder/mastra-leftovers.ts` until mastra-ai/mastra#25903 | Accepted risk |
 
 ## 12. Glossary

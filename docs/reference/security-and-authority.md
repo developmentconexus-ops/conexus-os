@@ -1,131 +1,205 @@
-# Security and authority
+# Security guide
 
-Who may do what, how a person proves who they are, where secrets live and what may leave. Owners
-next door: [database](database.md#6-roles-and-transactions) for how PostgreSQL bounds each transaction,
-[API](../product/wire-contract.md) for the wire, [architecture](architecture.md) for where code runs.
-Code owns the exact facts: `identity-access/admission.ts`, `http/access.ts`, `platform/lifetimes.ts`.
+Who may do what, how a person proves who they are, where secrets live and what may leave. This
+guide follows the chapters of the [OWASP ASVS 5.0](https://github.com/OWASP/ASVS) and targets its
+level 2. Each section cites the ASVS requirements it covers by identifier. Each rule uses the words
+of [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119): **must** and **must not** are defects in
+review, **should** and **should not** need a stated reason to break, and **may** is a free choice.
 
-## Trust zones
+The guide states the target. Code that departs from it is listed in
+[architecture section 11](architecture.md#11-risks-and-technical-debt) with the wave that removes
+it. Owners next door: [database](database.md#6-roles-and-transactions) for how PostgreSQL bounds
+each transaction, the [API guide](../product/wire-contract.md) for the wire, and
+[architecture](architecture.md) for where code runs. Exact facts live in code:
+`identity-access/admission.ts`, `http/access.ts` and `platform/lifetimes.ts`.
 
-The browser is untrusted for anything authority bearing; ids it sends are hints resolved on the
-server. The Hub is trusted, and a module boundary is not process isolation: a compromised Hub
-process is an accepted residual. The E2B guest and the runner's workers run untrusted code. The
-result an agent returns is adversarial input: the Hub moves `main` only by fast forward from the
-run's base, and reads source only as safe paths and regular blobs. Keycloak, model providers and E2B are outside
-the boundary. Storage is trusted and is not one credential domain. Enforced by review.
+## 1. Trust zones
 
-## Who may act
+ASVS V1 and V15.
 
-- Control Plane authority is membership of the Workspace that owns the resource, with its role,
-  `owner` or `member`. `ROLE_ALLOWS` in `admission.ts` is the whole rule: a member does not manage
-  the roster or bind Connections. A Project has no authority of its own beyond its Workspace's. A
-  read is gated by containment through the row policies, not by an action. Leaving is
-  self-service; the last active owner can be neither demoted nor removed.
-- An installation administrator is a fact about an Account, kept as tenures (closed ones stay as
-  the record), not a Workspace role. Its actions are `AdministratorAction` in `admission.ts`:
-  managing the administrator set, managing any Workspace's Connections, and deleting an idle Project
-  in any Workspace, which it still sees while the deletion runs; none needs membership. The last one cannot be revoked;
-  changes to the set take one lock. The bootstrap identity's Account becomes the first, only while
-  the installation has never had one; `npm run iam:bootstrap-installation-administrator` is the operator's recovery path, refused
-  while another active administrator exists.
-- An action exists only when a real call site needs the distinction, and it is necessary, never
-  sufficient: each operation rechecks the exact subject and current state. No authority is inferred
-  from a Keycloak role, group or claim, or from a provider, model, Mastra or E2B identity.
-- A command writes only with the `Admitted` proof an admission function returns after locking the
-  rows it read; a served read uses `Checked`, which no command accepts. The acting account comes
-  from the session the access enforcer parsed, never from a request. A route acting on a child by
-  id checks the child belongs to the parent in the path. Cheap checks (concurrency, size,
-  authority) run before expensive work.
-- A refusal logs its reason (`OUTSIDER`, `FORBIDDEN`, `TOMBSTONE`, `INACTIVE`); the response carries
-  the code only. A database error logs its SQLSTATE and our constraint and table names, never its
-  message.
+- The browser **must** be untrusted for anything that carries authority. An id it sends is a hint
+  the server resolves.
+- The result an agent returns **must** be treated as adversarial input. The Hub moves `main` only by
+  fast forward from the run's base, and reads source only as safe paths and regular files.
+- The E2B sandbox and the runner's workers run untrusted code. Keycloak, model providers and E2B are
+  outside the trust boundary.
 
-Enforced by: `tests/repository/admission-types.test.mjs`, `gateReferences` and
-`authorityTableWrites` in `scripts/census-boundaries.mjs`, the row policies, and review.
+**Why.** Every zone that runs code someone else wrote is a place an attack starts. Naming the zones
+tells each check where it belongs.
 
-Not yet enforced, and each waits for its first real call site: private conversations and
-everything they carry; continuing another person's conversation without their credentials or
-permissions; what a conversation, app or automation may call for a Project;
-explicit, authorized Publish; delegated work reaching source only through the Project's own
-admission. Runtime authority is rechecked at bounded request or Connector admission.
+**Right.** The Hub reads the candidate's tree as paths and blobs, and never runs its files in the
+Hub process.
 
-## Sign-in
+**Wrong.** The Hub trusts a `projectId` the browser sends without resolving the caller's access to
+it.
 
-Keycloak runs Authorization Code with PKCE S256 for a confidential server-side client whose issuer,
-redirect URI and client are pinned in configuration. `email_verified` is accepted only as the
-boolean `true`. A verified `(issuer, subject)` resolves one `iam.account`; Keycloak only
-authenticates. A claim is parsed at the boundary and a malformed one fails closed, diagnosable
-without logging its value. The one bootstrap exception provisions only the preconfigured subject,
-is transient and reaches no ordinary route. A realm change states its effect on every client.
-Enforced by the identity tests and review.
+## 2. Who may act
 
-## Sessions
+ASVS V8.
 
-- One model, `iam.host_session`, one row per cookie of kind `HUB`, `APPLICATION` or `PREVIEW`. A
-  Hub session idles out after 30 minutes inside 8 hours; an application session lasts 8 hours; a
-  Preview lasts at most 15 minutes and only while its Hub session lives. `iam.session_lifetimes()`
-  owns every lifetime; TypeScript windows live in `platform/lifetimes.ts`. `iam.handoff` is a one-use
-  proof for one host (application 60 s, bound to the sign-in binding; Preview 30 s). Enforced by
-  `tests/implementation/session-lifetimes.postgres.test.mjs`.
-- Every write carries the exact `Origin` its access kind names (the Hub's for Hub routes and
-  `hub-entry`, the host's own for `host-write`); Hub API requests have `Sec-Fetch-Site`
-  `same-origin` or none; there is no CSRF token. The Hub cookie is `__Host-conexus_session`. Every
-  route of the three listeners declares one access kind from `http/access.ts`, its one enforcer;
-  only `access.ts` and `http/cookies.ts` read headers and cookies. Enforced by
-  `scripts/check-access-owner.mjs` and `tests/implementation/access/route-walk.test.mjs`.
-- At most every five minutes a request refreshes its session's sealed Keycloak token. A disabled
-  user or an ended SSO session ends the session with its reason; an unreachable Keycloak answers 503
-  and keeps it. Sign-out ends the Conexus session first, then asks Keycloak to end the SSO session
-  within three seconds. Refresh rotation is off; reopen on a Keycloak upgrade that changes refresh
-  for a disabled user. The realm's SSO idle limit (40 minutes) outlasts the Hub's idle limit plus
-  the check. Enforced by the session tests.
-- Each application has its own host. A top-level navigation without a session goes through the Hub
-  sign-in and returns with a handoff; an app-only Account never gets a Hub session. Every
-  application request resolves an unrevoked grant or Workspace membership again, and handlers get
-  the caller from the session, never the request (`iam.account_access_scope`,
-  `iam.has_application_access`, `admitApplication`). The application host sends `frame-ancestors
-  'none'` and grants no CORS. Enforced by `tests/implementation/application-access.postgres.test.mjs`.
-- A Preview launch records its immutable facts in `iam.preview`; every Preview request resolves its
-  session and live Hub session again. An artifact path is never a credential.
+- Authority **must** be membership of the Workspace that owns the resource, with its role, `owner`
+  or `member`. `ROLE_ALLOWS` in `admission.ts` is the whole rule: a member does not manage the roster
+  or bind connections. The last active owner **must not** be demoted or removed.
+- An installation administrator is a fact about an Account, not a Workspace role. Its actions are
+  `AdministratorAction` in `admission.ts`. The last one **must not** be revoked.
+- An action **must** be necessary and never sufficient: each operation rechecks the exact subject
+  and its current state.
+- Authority **must not** be inferred from a Keycloak role, group or claim, or from a provider,
+  model, Mastra or E2B identity.
+- A command **must** write only with the `Admitted` proof an admission function returns after
+  locking the rows it read. A served read uses `Checked`, which no command accepts.
+- The acting Account **must** come from the session, never from the request. A route that acts on a
+  child by id **must** check the child belongs to the parent in its path.
+- An invitation **must** be claimed only by signing in with its verified email. Removing a roster
+  entry **must** withdraw every right it gave.
+- A refusal **must** log its reason (`OUTSIDER`, `FORBIDDEN`, `TOMBSTONE`, `INACTIVE`), and the
+  response **must** carry only the code.
 
-## Secrets
+**Why.** One rule in one place, rechecked on every operation, leaves no path where a stale or
+forged right still works.
 
-- A secret at rest is read through `platform/secrets.ts`, which refuses a file other users can
-  read, and sealed with the installation's one envelope; refresh tokens and model accounts use it,
-  and the database refuses an unsealed value. Retired keys only decrypt. Enforced by the CHECK
-  constraints and review.
-- Model accounts belong to Conexus, one per person and provider (C-032). Model calls run in the Hub.
-  No sandbox, generated app, browser, log or pull request receives a durable privileged credential,
-  a Connection's credential included. An upstream catalog passed on keeps the Hub's own filter.
-  No secret appears in code, fixtures, logs or a pull request. Review.
-- Only authorized exact revisions of a Project are readable; a reachable Git object never grants
-  disclosure. Review.
-- Telemetry exports only what spec 0007's redaction table allows; a new field or body source comes
-  with a planted-string case. Inbound trace context is trusted only on unix socket listeners.
-  Enforced by `tests/implementation/telemetry-redaction.test.mjs`.
+**Right.** A member asks to remove someone from the roster, and admission answers `FORBIDDEN`.
 
-## Egress
+**Wrong.** A route that trusts a `role` field sent in the request body.
 
-Each privileged adapter has a named owner, its own credential and a destination pinned by
-configuration: Keycloak, E2B and Context7 through the Hub's own client. `web_fetch` has no
-credential and no pinned destination: it reaches any public host through the Hub's guard (GET only,
-no query string or fragment, bounded URL, path and host), which cannot prove a URL carries no
-company data. The sandbox may reach any
-host (C-023); each turn logs the hosts it reached, and an empty list is not proof of no egress.
-There is no privileged `fetch(url, secret)` and no egress proxy. The browser leaves only for the
-Keycloak redirect and an application handoff; any other cross-origin path is a security change.
-Enforced by `tests/implementation/builder-egress-log.test.mjs` and review.
+## 3. Sign-in
 
-## Recovery
+ASVS V6.8 and V10.
 
-Not yet implemented, the rule for the first restore: a restored membership, session or credential
-is historical as of the cutoff, restored sessions are invalid, privileged authority is
-re-established through its owning module, and unknown identity continuity keeps sign-in closed.
-Today no restore step ends sessions; `conexus-restore-check.sh` checks row counts and `git fsck`.
+- Sign-in **must** use Keycloak's Authorization Code flow with PKCE S256, for a confidential client
+  whose issuer, redirect URI and client id are pinned in configuration.
+- `email_verified` **must** be accepted only as the boolean `true`. A verified `(issuer, subject)`
+  resolves one Account. Email is never identity.
+- A claim **must** be parsed at the boundary. A malformed claim fails closed and logs no value.
+- The bootstrap identity **must** provision only the preconfigured subject, once, and reach no
+  ordinary route.
+- A change to the realm **must** state its effect on every client.
 
-## Accepted risks
+**Why.** Keycloak proves who the person is. Everything Conexus grants comes from its own records,
+so a change in Keycloak never grants a right by itself.
 
-Accepted by the operator on 2026-10-02 for the pilot. A Project's handler can read other Projects'
-schema, table and column names in the shared application database, never their rows; reopen when
-a second company shares the cluster or a name carries data. A deleted Project's prompts and source
-stay in trace spans up to 30 days; reopen on an erasure request or a store with other retention.
+**Right.** A Keycloak user recreated with the same email becomes a new Account.
+
+**Wrong.** An Account matched by email after its Keycloak subject changed.
+
+## 4. Sessions
+
+ASVS V7.
+
+- Every session **must** be one row of `iam.host_session`, one per cookie, of kind `HUB`,
+  `APPLICATION` or `PREVIEW`. Lifetimes live in `iam.session_lifetimes()` and
+  `platform/lifetimes.ts`.
+- The Hub cookie **must** be `__Host-conexus_session`, `Secure`, `HttpOnly`, `SameSite=Lax`, path
+  `/`, with no domain.
+- A request **must** refresh its session's sealed Keycloak token at a bounded interval. A disabled
+  user or an ended SSO session **must** end the Conexus session.
+- Sign-out **must** end the Conexus session first, then ask Keycloak to end the SSO session.
+- A person **must** be able to end their own sessions, and an administrator another person's.
+- Each application **must** have its own host. An app-only Account **must not** get a Hub session.
+  Every application request resolves an unrevoked grant or Workspace membership again.
+- A handoff **must** be a one-use proof for one host, bound to its sign-in.
+
+**Why.** A session is the key to everything a person can do. A short, revocable session limits what
+a stolen cookie is worth.
+
+**Right.** An administrator disables a person, and their next request is refused.
+
+**Wrong.** A session that stays valid after its Keycloak user was disabled.
+
+## 5. Browser boundary
+
+ASVS V3.
+
+- Every route of the three listeners **must** declare one access kind from `http/access.ts`, its one
+  enforcer. Only `access.ts` and `http/cookies.ts` read headers and cookies.
+- Every write **must** carry the exact `Origin` its access kind names. Hub API requests carry
+  `Sec-Fetch-Site` `same-origin` or none. There is no CSRF token.
+- The Hub **must** send its security headers: a Content Security Policy with a nonce, a strict
+  `Referrer-Policy`, and `frame-ancestors 'none'` on application hosts.
+- There **must not** be a credentialed cross-origin Product API. The browser leaves only for the
+  Keycloak redirect and an application handoff.
+
+**Why.** One enforcer for every route means a new route cannot forget the check: the Hub refuses to
+start with a route that declares no access.
+
+**Right.** A `POST` from another site fails the `Origin` check before the handler runs.
+
+**Wrong.** A route that reads the cookie itself and skips `access.ts`.
+
+## 6. Secrets and cryptography
+
+ASVS V11 and V13.
+
+- A secret at rest **must** be read through `platform/secrets.ts`, which refuses a file other users
+  can read, and sealed with the installation's envelope. The database refuses an unsealed value.
+- Keys **must** have a rotation procedure. A retired key only decrypts.
+- A secret **must not** appear in code, fixtures, logs, telemetry or a pull request.
+- No sandbox, generated app, browser or log **must** receive a durable privileged credential,
+  including a connection's credential. Model calls run in the Hub.
+
+**Why.** A secret that never leaves the Hub cannot leak through the code that Conexus does not
+control.
+
+**Right.** A model account's key is sealed in the database and opened only in the Hub's call.
+
+**Wrong.** An environment variable with a provider key passed into the E2B sandbox.
+
+## 7. Data protection and egress
+
+ASVS V14 and V15.
+
+- Only an authorized exact revision of a Project **must** be readable. A reachable Git object never
+  grants disclosure.
+- Telemetry **must** export only what the redaction table allows. A new field comes with a test that
+  plants a string and proves it is removed.
+- Each privileged adapter **must** have a named owner, its own credential and a destination pinned
+  by configuration: Keycloak, E2B, Context7 and the integration executor.
+- There **must not** be a privileged `fetch(url, secret)`. `web_fetch` carries no credential and
+  goes through the Hub's guard.
+
+**Why.** Every outbound call with a credential is a door. Pinning each door to one destination
+makes it reviewable.
+
+**Right.** The integration executor calls the vendor host pinned in its configuration.
+
+**Wrong.** A helper that takes any URL and attaches the connection's token.
+
+## 8. Untrusted code
+
+ASVS V15.
+
+- Generated code **must not** run in the Hub process. It runs in a fresh worker with no network
+  except its call's connector socket, no host files, no credential, and bounded time, memory and
+  output. Each escape names the layer that blocks it.
+- A Project's runtime role **must** reach only its own schema.
+
+**Why.** Generated code is written by a model from a person's words. It is treated like code from
+the internet.
+
+**Right.** A handler that opens a socket to another host fails in the worker.
+
+**Wrong.** A handler run with `import()` inside the Hub.
+
+## 9. Logging and errors
+
+ASVS V16.
+
+- A security event (sign-in, refusal, session end, administrator change) **must** leave a log line
+  with its code and trace id.
+- A log line **must not** carry a secret, a token or a claim value.
+- An error response **must** carry only its code, never a stack trace or an internal message.
+
+**Why.** An incident is investigated from the logs. A log that leaks a token creates the next
+incident.
+
+**Right.** `IDENTITY_CLAIM_MALFORMED` logged with the claim's name, not its value.
+
+**Wrong.** A refresh token printed in a debug line.
+
+## 10. Recovery and accepted risks
+
+- A restore **must** treat memberships, sessions and credentials as historical as of the cutoff.
+  Restored sessions **must** be invalid, and sign-in stays closed while identity continuity is
+  unknown.
+- An accepted risk **must** be a decision in [the decisions register](../decisions/index.md) with
+  its reopen trigger, and a row in architecture section 11.

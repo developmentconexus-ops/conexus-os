@@ -73,5 +73,5 @@ per installation.
 ## Reopen when
 
 - Keycloak is upgraded past 26.7.x: rerun `scripts/keycloak-refresh-probe.mjs` before trusting rotation off
-  ([sessions](../../docs/reference/security-and-authority.md#sessions)).
+  ([sessions](../../docs/reference/security-and-authority.md#4-sessions)).
 - A requirement to end sessions at the instant of a Keycloak logout (back-channel logout).
