@@ -69,12 +69,6 @@ A part that ports an owner reads its functions here: a function with a caller in
 | `iam.set_workspace_member_role` | iam_owner | - | `apps/hub/src/identity-access/membership.ts` |
 | `iam.visible_projects` | iam_owner | `reg.get_application_by_source`, `reg.read_application_file_by_source` | - |
 | `iam.visible_workspaces` | iam_owner | `iam.admit_application_owner`, `iam.list_workspace_roster`, `iam.visible_projects` | - |
-| `model.read_installation_default` | model_owner | - | `apps/hub/src/builder/module.ts` |
-| `model.read_model_account` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |
-| `model.read_model_account_by_id` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |
-| `model.read_shared_model_account` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |
-| `model.rewrite_model_account_secret` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |
-| `model.upsert_model_account` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |
 | `reg.get_application_by_source` | registry_owner | - | `apps/hub/src/registry/application-artifact-store.ts` |
 | `reg.get_application_thumbnail` | registry_owner | - | `apps/hub/src/registry/served-application.ts` |
 | `reg.get_served_application` | registry_owner | - | `apps/hub/src/registry/served-application.ts` |

@@ -85,6 +85,7 @@ export const FAILURES = {
   'MODEL_LOGIN_UNAVAILABLE': { category: 'THIRD_PARTY', status: 503 },
   'MODEL_LOGIN_BUSY': { category: 'USER', status: 409 },
   'MODEL_LOGIN_CALLBACK_REFUSED': { category: 'USER', status: 400 },
+  'MODEL_LOGIN_NOT_FOUND': { category: 'USER', status: 404 },
   'HUB_UNREACHABLE': { category: 'THIRD_PARTY', status: 503 },
   'HUB_RESPONSE_UNREADABLE': { category: 'THIRD_PARTY', status: 502 },
   'ANTHROPIC_STORED_RECORD_REFUSED': { category: 'USER', status: 500 },

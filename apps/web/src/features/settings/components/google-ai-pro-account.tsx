@@ -3,16 +3,15 @@ import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
 import { FAILURES } from '../../../../../../packages/contract/dist/failures.generated.js'
-import { failureText, isFailure } from '../../../app/http'
-import { callModelAccounts as call } from '../model-accounts-api'
+import { call, failureText, isFailure } from '../../../app/http'
+import { MDL08, MDL09, MDL10, MDL11, type ModelLoginId } from '../../../../../../packages/contract/dist/index.js'
+import { noInput, ownKind } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
 
-type Connection = Readonly<{ mine: boolean; shared: boolean; administrator: boolean }>
 type LoginState = 'waiting' | 'succeeded' | 'failed' | 'expired'
-type Login = Readonly<{ loginId: string; url: string }>
+type Login = Readonly<{ loginId: ModelLoginId; url: string }>
 
 const PROVIDER = 'google-ai-pro'
-const base = `/api/control/model-accounts/${PROVIDER}`
 const connectionQueryKey = ['model-accounts', PROVIDER] as const
 
 const OUTCOME: Readonly<Record<Exclude<LoginState, 'waiting'>, string>> = {
@@ -32,13 +31,13 @@ function SignIn({ login, autoOpened, onDone }: Readonly<{ login: Login; autoOpen
   useEffect(() => {
     let stopped = false
     const timer = setInterval(async () => {
-      const { state } = await call<{ state: LoginState }>('POST', `${base}/login/${login.loginId}`).catch(() => ({ state: 'waiting' as const }))
+      const { state } = await call(MDL11, { ...noInput, params: { loginId: login.loginId } }).catch((error: unknown) => (isFailure(error, 'MODEL_LOGIN_NOT_FOUND') ? { state: 'expired' as const } : { state: 'waiting' as const }))
       if (!stopped && state !== 'waiting') { stopped = true; clearInterval(timer); finish.current(state) }
     }, 2000)
     return () => { stopped = true; clearInterval(timer) }
   }, [login])
   const complete = useMutation({
-    mutationFn: () => call<{ state: LoginState }>('POST', `${base}/login/complete`, { loginId: login.loginId, callbackUrl: pasted.trim() }),
+    mutationFn: () => call(MDL10, { ...noInput, body: { loginId: login.loginId, callbackUrl: pasted.trim() } }),
     onSuccess: ({ state }) => { if (state !== 'waiting') onDone(state) },
     onError: setRefusal,
   })
@@ -59,11 +58,10 @@ function SignIn({ login, autoOpened, onDone }: Readonly<{ login: Login; autoOpen
   </div>
 }
 
-/** Absent when the Hub does not run CLIProxyAPI: the connection read answers 404 then. */
 export function GoogleAiProAccount() {
   const queryClient = useQueryClient()
   const titleId = useId()
-  const connection = useQuery({ queryKey: connectionQueryKey, queryFn: () => call<Connection>('GET', `${base}/connection`), retry: false })
+  const connection = useQuery({ queryKey: connectionQueryKey, queryFn: () => call(MDL08, noInput), retry: false })
   const [login, setLogin] = useState<Login | null>(null)
   const [autoOpened, setAutoOpened] = useState(true)
   const [message, setMessage] = useState<Readonly<{ text: string; failed: boolean }> | null>(null)
@@ -80,7 +78,7 @@ export function GoogleAiProAccount() {
       const tab = window.open('about:blank', '_blank')
       if (tab) tab.opener = null
       try {
-        const started = await call<Login>('POST', `${base}/login/start`, {})
+        const started = await call(MDL09, noInput)
         return { started, tab }
       } catch (error) {
         tab?.close()
@@ -95,12 +93,13 @@ export function GoogleAiProAccount() {
     },
     onError: (error) => fail(failureText(error)),
   })
-  if (connection.isPending || (connection.isError && isFailure(connection.error, 'NOT_FOUND'))) return null
+  if (connection.isPending || (connection.isError && isFailure(connection.error, 'MODEL_LOGIN_UNAVAILABLE'))) return null
   if (connection.isError) return <section aria-labelledby={titleId}>
     <h2 id={titleId}>Google AI Pro</h2>
     <SectionError error={connection.error} description="Não foi possível consultar a sua conta Google AI Pro." onRetry={() => void connection.refetch()} />
   </section>
-  const { mine, shared } = connection.data
+  const { own, shared } = connection.data
+  const mine = ownKind(own) !== null
   return <section aria-labelledby={titleId}>
     <h2 id={titleId}>Google AI Pro</h2>
     <p className="cxs-hint">Use a sua assinatura Google AI Pro no Builder. Você entra com a sua conta Google no seu navegador; a Conexus nunca vê a sua senha.</p>

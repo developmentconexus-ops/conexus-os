@@ -41,8 +41,8 @@ import { BUILDER_CONTROLLER, BUILDER_MODELS, SELECTED_MODEL, assistantMessage, b
 
 // Two Google AI Pro models as the Hub offers them: Flash honors three levels, Pro Agent none.
 const GOOGLE_AI_PRO_MODELS = [
-  { id: 'google-ai-pro/gemini-3-flash', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-3-flash', thinkingLevels: ['low', 'medium', 'high'], hasApiKey: true },
-  { id: 'google-ai-pro/gemini-pro-agent', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-pro-agent', thinkingLevels: [], hasApiKey: true },
+  { id: 'google-ai-pro/gemini-3-flash', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-3-flash', thinkingLevels: ['low', 'medium', 'high'] },
+  { id: 'google-ai-pro/gemini-pro-agent', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-pro-agent', thinkingLevels: [] },
 ]
 const SELECTED_MODEL_NAME = humanizeModelName(BUILDER_MODELS[0].modelName)
 
@@ -769,9 +769,9 @@ test('the slider and /raciocinio offer exactly the levels of the selected model,
   const conversationId = conversationIdOf('conversation-levels')
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
   const models = [
-    { id: 'anthropic/claude-opus-5-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-opus-5-5', thinkingLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'], hasApiKey: true },
-    { id: 'google-ai-pro/gemini-3-flash', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-3-flash', thinkingLevels: ['low', 'medium', 'high'], hasApiKey: true },
-    { id: 'google-ai-pro/gemini-pro-agent', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-pro-agent', thinkingLevels: [], hasApiKey: true },
+    { id: 'anthropic/claude-opus-5-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-opus-5-5', thinkingLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'] },
+    { id: 'google-ai-pro/gemini-3-flash', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-3-flash', thinkingLevels: ['low', 'medium', 'high'] },
+    { id: 'google-ai-pro/gemini-pro-agent', provider: 'google-ai-pro', providerName: 'Google AI Pro', modelName: 'gemini-pro-agent', thinkingLevels: [] },
   ]
   await page.route('**/api/control/access-context', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], projects: [] }) }))
   await routeBuilder(page, { ...builderState([conversation(conversationId, 'Conversa')], {}, 'anthropic/claude-opus-5-5'), models, defaultThinkingLevel: 'high' })
@@ -2102,7 +2102,7 @@ test('a list with no usable model stays "choose a model", with no failure alert 
   const { page } = await openAgenda(t, {
     accountId: '70000000-0000-4000-8000-000000000232', projectId: '70000000-0000-4000-8000-000000000233', conversationId: conversationIdOf('conversation-models-empty'),
   })
-  await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: [BUILDER_MODELS[2]], defaultThinkingLevel: 'medium' }) }))
+  await page.route('**/api/control/model-accounts/models', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ models: [], defaultThinkingLevel: 'medium' }) }))
   await page.reload()
   await messageBox(page).waitFor()
   await page.waitForFunction((placeholder) => document.querySelector('[aria-label="Mensagem para o agente"]')?.getAttribute('placeholder') === placeholder, NO_MODEL_PLACEHOLDER)

@@ -1,10 +1,10 @@
 import { THINKING_LEVEL_VALUES, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import { MastraClient, MastraClientError } from '@mastra/client-js'
-import type { AgentControllerAvailableModel } from '@mastra/client-js'
 import type { SubmitPlanResumeData } from '@mastra/core/tools'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useReducer } from 'react'
-import { hubFetch } from '../../app/http'
+import { MDL01, type OfferedModel } from '../../../../../packages/contract/dist/index.js'
+import { call, hubFetch } from '../../app/http'
 import { parseRunState } from './api'
 import { builderSessionKey, writeStreamedRun } from './builder-session'
 import { type StreamState, useSessionStream, useStreamState } from './connection'
@@ -70,7 +70,7 @@ export const useConversationActions = (projectId: string) => {
 }
 
 /** A model the person can pick, with the reasoning levels it honors, lowest first; none when it has no reasoning level to choose. */
-export type BuilderModel = Readonly<Pick<AgentControllerAvailableModel, 'id' | 'provider' | 'modelName' | 'hasApiKey'> & { providerName: string; thinkingLevels: readonly ReasoningLevel[] }>
+export type BuilderModel = OfferedModel
 
 /**
  * The models this person can reach with their own model account or the installation's shared one.
@@ -78,13 +78,7 @@ export type BuilderModel = Readonly<Pick<AgentControllerAvailableModel, 'id' | '
  */
 export const useBuilderModels = (scope?: 'installation') => useQuery({
   queryKey: ['builder-models', scope ?? 'mine'],
-  queryFn: async (): Promise<Readonly<{ models: readonly BuilderModel[]; defaultThinkingLevel: ReasoningLevel }>> => {
-    const url = scope ? `/api/control/model-accounts/models?scope=${encodeURIComponent(scope)}` : '/api/control/model-accounts/models'
-    const response = await hubFetch(url)
-    if (!response.ok) throw new Error(`BUILDER_MODELS_UNAVAILABLE:${response.status}`)
-    // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-    return await response.json() as Readonly<{ models: readonly BuilderModel[]; defaultThinkingLevel: ReasoningLevel }>
-  },
+  queryFn: () => call(MDL01, { params: undefined, query: scope ? { scope } : {}, headers: undefined, body: undefined }),
 })
 
 /** Mastra Code's own thinking levels, lowest first; the Hub offers each model the ones it honors. */

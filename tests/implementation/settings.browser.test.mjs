@@ -7,9 +7,9 @@ const web = shareWebBrowser()
 const withServer = async (t) => {
   const { page, origin } = await web.openPage(t, { viewport: { width: 1200, height: 900 } })
   // This Hub runs no CLIProxyAPI unless a test says otherwise.
-  await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => route.fulfill(notFound))
+  await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => route.fulfill(problem('MODEL_LOGIN_UNAVAILABLE', 503)))
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ administrator: false, accounts: [{ provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', mine: false, shared: false }] }),
+    status: 200, contentType: 'application/json', body: JSON.stringify({ accounts: [{ provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', own: { state: 'absent' }, shared: false }] }),
   }))
   return { page, origin }
 }
@@ -111,9 +111,9 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
     const request = route.request()
     const path = new URL(request.url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
     const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
-    if (!enabled) return route.fulfill(notFound)
+    if (!enabled) return route.fulfill(problem('MODEL_LOGIN_UNAVAILABLE', 503))
     writes.push([request.method(), path, request.postDataJSON?.() ?? null])
-    if (path === '/connection') return json(200, { mine: connected, shared: false, administrator: false })
+    if (path === '/connection') return json(200, { own: connected ? { state: 'connected', kind: 'google_ai_pro' } : { state: 'absent' }, shared: false })
     // Held open briefly so the test can observe the "Preparando…" label before the tab navigates.
     if (path === '/login/start') { await new Promise((resolve) => setTimeout(resolve, 200)); return json(200, { loginId, url: signIn }) }
     if (path === '/login/complete') {
@@ -148,7 +148,7 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
   await page.getByText('Google AI Pro conectado.').waitFor()
   await page.getByText('Conectado com a sua conta Google.').waitFor()
   assert.deepEqual(writes.filter(([method, path]) => method === 'POST' && path !== `/login/${loginId}`), [
-    ['POST', '/login/start', {}],
+    ['POST', '/login/start', null],
     ['POST', '/login/complete', { loginId, callbackUrl: 'http://localhost:51121/oauth-callback?state=other&code=x' }],
     ['POST', '/login/complete', { loginId, callbackUrl: 'http://localhost:51121/oauth-callback?state=issued-state&code=good' }],
   ])
@@ -157,6 +157,26 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
   await page.reload()
   await page.getByRole('heading', { name: 'Minhas contas de modelo' }).waitFor()
   assert.equal(await page.getByRole('heading', { name: 'Google AI Pro' }).count(), 0)
+})
+
+test('Minhas contas de modelo shows Google AI Pro expired when the status read answers 404 MODEL_LOGIN_NOT_FOUND', async (t) => {
+  const { page, origin } = await withServer(t)
+  const loginId = '0f0f0f0f-0000-4000-8000-000000000004'
+  await routeAccessContext(page, { accountId: 'a11', displayName: 'Pessoa', email: 'pessoa@example.com' })
+  await routeInstallation(page, false)
+  await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => {
+    const path = new URL(route.request().url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
+    const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
+    if (path === '/connection') return json(200, { own: { state: 'absent' }, shared: false })
+    if (path === '/login/start') return json(200, { loginId, url: 'https://accounts.google.com/o/oauth2/v2/auth?state=gone' })
+    if (path === `/login/${loginId}`) return route.fulfill(problem('MODEL_LOGIN_NOT_FOUND', 404))
+    return route.fulfill(notFound)
+  })
+  await page.context().route('https://accounts.google.com/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<html></html>' }))
+  await page.goto(`${origin}/settings/models`)
+  await page.getByRole('heading', { name: 'Google AI Pro' }).waitFor()
+  await page.getByRole('button', { name: 'Conectar com o Google' }).click()
+  await page.getByText('A entrada expirou.').waitFor()
 })
 
 test('Minhas contas de modelo falls back to the primary sign-in link when the popup is blocked', async (t) => {
@@ -168,7 +188,7 @@ test('Minhas contas de modelo falls back to the primary sign-in link when the po
   await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => {
     const path = new URL(route.request().url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
     const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
-    if (path === '/connection') return json(200, { mine: false, shared: false, administrator: false })
+    if (path === '/connection') return json(200, { own: { state: 'absent' }, shared: false })
     if (path === '/login/start') return json(200, { loginId, url: signIn })
     if (path === `/login/${loginId}`) return json(200, { state: 'waiting' })
     return route.fulfill(notFound)
@@ -196,7 +216,7 @@ test('Minhas contas de modelo signs a person in to ChatGPT with a device code, a
   await routeAccessContext(page, { accountId: 'a9', displayName: 'Pessoa', email: 'pessoa@example.com' })
   await routeInstallation(page, false)
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ administrator: false, accounts: [{ provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', mine: connected, shared: false }] }),
+    status: 200, contentType: 'application/json', body: JSON.stringify({ accounts: [{ provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', own: connected ? { state: 'connected', kind: 'oauth' } : { state: 'absent' }, shared: false }] }),
   }))
   await page.route('**/api/control/model-accounts/openai-codex/oauth/**', async (route) => {
     const request = route.request()
@@ -242,9 +262,9 @@ test('Minhas contas de modelo saves an Anthropic key and signs in with a Claude 
   await routeAccessContext(page, { accountId: 'a9', displayName: 'Pessoa', email: 'pessoa@example.com' })
   await routeInstallation(page, false)
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ administrator: false, accounts: [
-      { provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', mine: false, kind: null, shared: false },
-      { provider: 'anthropic', providerName: 'Anthropic (Claude)', mine: kind !== null, kind, shared: false },
+    status: 200, contentType: 'application/json', body: JSON.stringify({ accounts: [
+      { provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', own: { state: 'absent' }, shared: false },
+      { provider: 'anthropic', providerName: 'Anthropic (Claude)', own: kind === null ? { state: 'absent' } : { state: 'connected', kind }, shared: false },
     ] }),
   }))
   await page.route('**/api/control/model-accounts/anthropic/**', async (route) => {
@@ -285,7 +305,7 @@ test('Minhas contas de modelo saves an Anthropic key and signs in with a Claude 
 
   assert.deepEqual(calls, [
     ['PUT', '/api-key', { key: fakeKey }],
-    ['POST', '/oauth/start', {}],
+    ['POST', '/oauth/start', null],
     ['POST', '/oauth/complete', { loginId, code: 'typo#verifier-1' }],
     ['POST', '/oauth/complete', { loginId, code: 'good#verifier-1' }],
   ])

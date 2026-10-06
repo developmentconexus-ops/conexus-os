@@ -1,10 +1,11 @@
 import { createGoogleThinkingMiddleware } from '@mastra/code-sdk/providers/google-thinking'
 import { ModelsDevGateway } from '@mastra/core/llm'
 import type { LanguageModelMiddleware } from 'ai'
+import type { HeldAccount } from '../model-account/accounts.js'
+import { MODEL_PROVIDERS } from '../model-account/providers.js'
 import { wrapGatewayModel, type ModelRoute } from '../model-routing.js'
-import { GOOGLE_AI_PRO_PROVIDER, parseKey, type GoogleAiProKey } from './credential.js'
+import { parseKey, type GoogleAiProKey } from './credential.js'
 import { Failure } from '../../platform/failure.js'
-import type { ModelAccountId } from '../../../../../packages/contract/dist/index.js'
 
 /** The provider Mastra's models.dev gateway builds Gemini's own API client for. */
 const GOOGLE_PROVIDER = 'google'
@@ -48,15 +49,15 @@ class GoogleAiProGateway extends ModelsDevGateway {
 export const createGoogleAiProRoute = ({ routerUrl, track }: Readonly<{
   routerUrl(): Promise<string | undefined>
   /** Ties the key to its row, so a refresh the proxy makes is written back (write-back.ts). */
-  track(key: GoogleAiProKey, modelAccountId: ModelAccountId): void
-}>): ModelRoute => Object.freeze({
-  accountProvider: GOOGLE_AI_PRO_PROVIDER,
-  take: (account) => {
-    const key = parseKey(account.secret)
+  track(key: GoogleAiProKey, held: HeldAccount): void
+}>): ModelRoute<'google-ai-pro'> => Object.freeze({
+  accountProvider: 'google-ai-pro',
+  take: (held) => {
+    const key = parseKey(held.secret)
     if (!key) throw new Failure('GOOGLE_AI_PRO_STORED_RECORD_REFUSED')
-    track(key, account.modelAccountId)
+    track(key, held)
     return {
-      modelProvider: GOOGLE_AI_PRO_PROVIDER,
+      modelProvider: MODEL_PROVIDERS['google-ai-pro'].routerPrefix,
       model: async (modelName, thinkingLevel) => {
         const url = await routerUrl()
         if (!url) throw new Failure('BUILDER_MODEL_NOT_SELECTED')

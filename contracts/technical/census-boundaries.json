@@ -1,10 +1,5 @@
 {
   "pgQueryRows": [
-    "apps/hub/src/builder/model-account-store.ts#createModelAccountStore",
-    "apps/hub/src/builder/model-account-store.ts#createModelAccountStore",
-    "apps/hub/src/builder/model-account-store.ts#readOwn",
-    "apps/hub/src/builder/model-account-store.ts#readShared",
-    "apps/hub/src/builder/module.ts#readDefault",
     "apps/hub/src/identity-access/application-access.ts#cancelInvitation",
     "apps/hub/src/identity-access/application-access.ts#grant",
     "apps/hub/src/identity-access/application-access.ts#grant",
@@ -51,15 +46,13 @@
   ],
   "webResponseJson": [
     "apps/web/src/app/failure.ts#readFailure",
-    "apps/web/src/features/builder/mastra-session.ts#useBuilderModels",
     "apps/web/src/features/identity-access/api.ts#getAccessContext",
     "apps/web/src/features/identity-access/api.ts#provisionCurrentAccount",
     "apps/web/src/features/identity-access/application-access-api.ts#getApplicationAccess",
     "apps/web/src/features/identity-access/application-access-api.ts#grantApplicationAccess",
     "apps/web/src/features/identity-access/membership-api.ts#getWorkspaceRoster",
     "apps/web/src/features/identity-access/membership-api.ts#inviteWorkspaceMember",
-    "apps/web/src/features/settings/installation-api.ts#request",
-    "apps/web/src/features/settings/model-accounts-api.ts#callModelAccounts"
+    "apps/web/src/features/settings/installation-api.ts#request"
   ],
   "sqlWrites": [],
   "authorityTableWrites": [],

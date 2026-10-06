@@ -8,6 +8,7 @@ import { Mastra } from '@mastra/core/mastra'
 import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
 import { hubModuleUrl } from './hub-build.mjs'
+import { oneAccount } from './model-accounts-fake.mjs'
 import { bindRunContext } from './run-context.mjs'
 import { testConversations } from './builder-conversation-fixture.mjs'
 import { hubJsonWrite, hubSessionCookie, opaque, testListener } from './access/test-listener.mjs'
@@ -565,8 +566,8 @@ for (const [label, status, type] of [['401', 401, 'authentication_error'], ['503
     const { createAnthropicRoute } = await import(built('builder/anthropic/route.js'))
     const { createClaudeHolds } = await import(built('builder/anthropic/credential.js'))
     const routing = createModelRouting({
-      routes: { anthropic: createAnthropicRoute(createClaudeHolds({ store: { readById: async () => null, rewrite: async () => false } })) },
-      modelAccounts: { usable: async () => ({ modelAccountId: 'row-anthropic', kind: 'api_key', secret: apiKey }) },
+      routes: { anthropic: createAnthropicRoute(createClaudeHolds({})) },
+      modelAccounts: oneAccount({ modelAccountId: 'row-anthropic', provider: 'anthropic', kind: 'api_key', secret: apiKey }),
       conversationModel: async () => null, readDefault: async () => null, record: async () => {},
     })
     const original = globalThis.fetch

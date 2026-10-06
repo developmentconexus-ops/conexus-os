@@ -10,7 +10,7 @@ table and requires the Product OAS to hold exactly the same set, by id and by op
 name, in both directions. The gate is `wire-bijection` in the candidate graph.
 
 ```text
-fixed Product operations = 31
+fixed Product operations = 43
 ```
 
 The number is a result, not a target. It is whatever the table below holds, and the gate
@@ -18,8 +18,7 @@ fails if the wire disagrees. The count was 39 until 2026-09-19, when Project Inc
 and the Project Baseline left the product. It became 26 later that day, when a model
 connection stopped being a Claude account and `CLA-08` added an API key connection for
 any provider the model router's registry knows. It became 18 on 2026-09-21, when the eight
-`CLA` Model Connection operations left with the subsystem: Mastra owns model credentials
-and selection (C-022). `BLD-27` to `BLD-29` then raised the table to 21 while this line still read
+`CLA` Model Connection operations left with the subsystem (C-022), which the Hub's Model Account owner replaced on 2026-10-06 as `MDL-01` to `MDL-11`. `BLD-27` to `BLD-29` then raised the table to 21 while this line still read
 18. It became 24 on 2026-09-23, when Stage 2 Q3 let a Workspace Owner grant one person the use of
 a Project's application (`IAM-11` to `IAM-13`). It became 31 on 2026-09-24, when Stage 2 Q4 let an
 installation administrator hold a Workspace's Connector Connection and a Workspace Owner grant one
@@ -31,7 +30,8 @@ count stayed 32. It became 30 later that day, when spec 0002 gave the Builder it
 a Project's conversations are its Mastra threads, listed and opened over the Agent Controller's
 own routes, so `BLD-27` and `BLD-28` left the table. It became 31 on 2026-10-05, when spec 0015 declared
 the Projects home's two reads (`PRJ-SUMMARIES`, `PRJ-THUMBNAIL`) in the shared contract, where every
-operation the web calls is a row.
+operation the web calls is a row. It became 43 on 2026-10-06, when part 5 declared the eleven model account
+operations (`MDL-01` to `MDL-11`) and the line caught up with the table.
 
 ---
 
@@ -117,6 +117,17 @@ must agree exactly.
 | `CON-08` | `ListProjectConnectionBindings` | Connector | exact Project's open bindings and the Workspace's enabled Connections it has not bound, in one projection; Owner of the Project's Workspace only | read |
 | `CON-09` | `BindProjectConnection` | Connector | exact Project + one enabled Connection of its own Workspace, under a Project-local name; Owner of the Project's Workspace only; the same Connection under the same name answers the open binding, and the Connection under another name or the name on another Connection is a conflict | command |
 | `CON-10` | `UnbindProjectConnection` | Connector | exact Project's binding; narrowing, the row stays as the record, and the next call through it is refused; Owner of the Project's Workspace only | narrowing command |
+| `MDL-01` | `ListAvailableModels` | Model Account | Builder model picker, current Account and optional installation scope | read |
+| `MDL-02` | `ListModelAccounts` | Model Account | Settings account list, current Account | read |
+| `MDL-03` | `SetModelAccountApiKey` | Model Account | Settings key form, current Account and provider | command |
+| `MDL-04` | `StartClaudeModelLogin` | Model Account | Settings Claude card, current Account | command |
+| `MDL-05` | `CompleteClaudeModelLogin` | Model Account | Settings Claude card, current Account and its attempt | command |
+| `MDL-06` | `StartCodexModelLogin` | Model Account | Settings ChatGPT card, current Account | command |
+| `MDL-07` | `PollCodexModelLogin` | Model Account | Settings ChatGPT card, current Account and its attempt | command |
+| `MDL-08` | `GetGoogleModelConnection` | Model Account | Settings Google card, current Account | read |
+| `MDL-09` | `StartGoogleModelLogin` | Model Account | Settings Google card, current Account | command |
+| `MDL-10` | `CompleteGoogleModelLogin` | Model Account | Settings Google card, current Account and its attempt | command |
+| `MDL-11` | `GetGoogleModelLoginStatus` | Model Account | Settings Google card, current Account and its attempt | command |
 
 # 4. What is not an operation
 

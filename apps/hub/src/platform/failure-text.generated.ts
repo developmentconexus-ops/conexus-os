@@ -83,6 +83,7 @@ export const FAILURE_TEXT = {
   'MODEL_LOGIN_UNAVAILABLE': 'A entrada na conta do modelo não está disponível agora. Tente novamente mais tarde.',
   'MODEL_LOGIN_BUSY': 'Outra entrada na conta do modelo está em andamento. Tente novamente mais tarde.',
   'MODEL_LOGIN_CALLBACK_REFUSED': 'O Conexus não aceitou esse endereço de retorno da entrada.',
+  'MODEL_LOGIN_NOT_FOUND': 'Não encontramos essa entrada na conta do modelo.',
   'HUB_UNREACHABLE': 'A tela não conseguiu falar com o Conexus agora. Tente novamente mais tarde.',
   'HUB_RESPONSE_UNREADABLE': 'A resposta que chegou à tela não veio do Conexus. Tente novamente mais tarde.',
   'ANTHROPIC_STORED_RECORD_REFUSED': 'O Conexus não conseguiu ler a credencial salva desta conta de modelo. Conecte uma conta de modelo em Configurações.',

@@ -1,14 +1,16 @@
 import { createAnthropicThinkingMiddleware, opencodeClaudeMaxProvider, promptCacheMiddleware } from '@mastra/code-sdk/providers/claude-max'
 import type { ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import { ModelsDevGateway, type MastraModelConfig } from '@mastra/core/llm'
-import type { HeldModelAccount, ModelAccountKind } from '../model-account-store.js'
+import type { HeldAccount } from '../model-account/accounts.js'
+import { MODEL_PROVIDERS, type Lawful } from '../model-account/providers.js'
 import { wrapGatewayModel, type ModelRoute } from '../model-routing.js'
 import type { TokenHolds } from '../oauth-holds.js'
-import { ANTHROPIC_PROVIDER, heldClaudeCredentials, parseClaudeTokens, type ClaudeTokens } from './credential.js'
-import { Failure } from '../../platform/failure.js'
+import { heldClaudeCredentials, parseClaudeTokens, type ClaudeTokens } from './credential.js'
 
-type AnthropicKind = Extract<ModelAccountKind, 'api_key' | 'oauth'>
+type AnthropicAccount = HeldAccount<Extract<Lawful, { provider: 'anthropic' }>>
 type ModelOf = (modelName: string, thinkingLevel?: ThinkingLevelSetting) => Promise<MastraModelConfig>
+
+const ANTHROPIC_PREFIX = MODEL_PROVIDERS.anthropic.routerPrefix
 
 /**
  * How each kind of Anthropic row reaches `anthropic/<model>`, at the call's thinking level as Mastra
@@ -18,27 +20,21 @@ type ModelOf = (modelName: string, thinkingLevel?: ThinkingLevelSetting) => Prom
  * through Mastra Code's Claude provider, which applies both itself and sends the subscription
  * bearer with the betas and the identity system message its endpoint requires.
  */
-const modelOfKind = (holds: TokenHolds<ClaudeTokens>): Readonly<Record<AnthropicKind, (account: HeldModelAccount) => ModelOf>> => ({
-  api_key: (account) => async (modelName, thinkingLevel) => wrapGatewayModel(
-    await new ModelsDevGateway().resolveLanguageModel({ providerId: ANTHROPIC_PROVIDER, modelId: modelName, apiKey: account.secret }),
-    [promptCacheMiddleware, createAnthropicThinkingMiddleware(modelName, thinkingLevel)],
-  ),
-  oauth: (account) => {
-    const credentials = heldClaudeCredentials(holds.hold(account.modelAccountId, parseClaudeTokens(account.secret)))
-    return async (modelName, thinkingLevel) => opencodeClaudeMaxProvider(modelName, { authStorage: credentials, ...thinkingLevel ? { thinkingLevel } : {} })
-  },
-})
-
-const isAnthropicKind = (kind: ModelAccountKind): kind is AnthropicKind => kind === 'api_key' || kind === 'oauth'
+const modelOf = (holds: TokenHolds<ClaudeTokens>, held: AnthropicAccount): ModelOf => {
+  switch (held.credential.kind) {
+    case 'api_key': return async (modelName, thinkingLevel) => wrapGatewayModel(
+      await new ModelsDevGateway().resolveLanguageModel({ providerId: ANTHROPIC_PREFIX, modelId: modelName, apiKey: held.secret }),
+      [promptCacheMiddleware, createAnthropicThinkingMiddleware(modelName, thinkingLevel)],
+    )
+    case 'oauth': {
+      const credentials = heldClaudeCredentials(holds.hold(held, parseClaudeTokens(held.secret)))
+      return async (modelName, thinkingLevel) => opencodeClaudeMaxProvider(modelName, { authStorage: credentials, ...thinkingLevel ? { thinkingLevel } : {} })
+    }
+  }
+}
 
 /** The `anthropic/*` route: the caller's Anthropic row pays, whichever kind it is. */
-export const createAnthropicRoute = (holds: TokenHolds<ClaudeTokens>): ModelRoute => {
-  const byKind = modelOfKind(holds)
-  return Object.freeze({
-    accountProvider: ANTHROPIC_PROVIDER,
-    take: (account) => {
-      if (!isAnthropicKind(account.kind)) throw new Failure('ANTHROPIC_STORED_RECORD_REFUSED')
-      return { modelProvider: ANTHROPIC_PROVIDER, model: byKind[account.kind](account) }
-    },
-  })
-}
+export const createAnthropicRoute = (holds: TokenHolds<ClaudeTokens>): ModelRoute<'anthropic'> => Object.freeze({
+  accountProvider: 'anthropic',
+  take: (held) => ({ modelProvider: ANTHROPIC_PREFIX, model: modelOf(holds, held) }),
+})

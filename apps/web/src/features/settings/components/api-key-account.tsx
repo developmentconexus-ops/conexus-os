@@ -2,9 +2,10 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useId, useState } from 'react'
-import { accountsQueryKey, accountsUrl, callModelAccounts, type Accounts } from '../model-accounts-api'
+import { MDL03 } from '../../../../../../packages/contract/dist/index.js'
+import { accountsQueryKey, noInput, ownKind, readAccounts } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
-import { failureText } from '../../../app/http'
+import { call, failureText } from '../../../app/http'
 
 /** The providers a person connects by pasting a key, with where the key comes from. */
 const API_KEY_PROVIDERS = {
@@ -17,12 +18,12 @@ export function ApiKeyAccount({ provider }: Readonly<{ provider: keyof typeof AP
   const titleId = useId()
   const keyId = useId()
   const { console: consoleUrl, placeholder } = API_KEY_PROVIDERS[provider]
-  const accounts = useQuery({ queryKey: accountsQueryKey, queryFn: () => callModelAccounts<Accounts>('GET', accountsUrl), retry: false })
+  const accounts = useQuery({ queryKey: accountsQueryKey, queryFn: readAccounts, retry: false })
   const name = accounts.data?.accounts.find((item) => item.provider === provider)?.providerName ?? provider
   const [key, setKey] = useState('')
   const [message, setMessage] = useState<Readonly<{ text: string; failed: boolean }> | null>(null)
   const save = useMutation({
-    mutationFn: () => callModelAccounts<undefined>('PUT', `/api/control/model-accounts/${encodeURIComponent(provider)}/api-key`, { key: key.trim() }),
+    mutationFn: () => call(MDL03, { ...noInput, params: { provider }, body: { key } }),
     onSuccess: () => {
       setKey('')
       setMessage({ text: 'Chave salva. Os modelos da sua conta já aparecem no Builder.', failed: false })
@@ -40,7 +41,7 @@ export function ApiKeyAccount({ provider }: Readonly<{ provider: keyof typeof AP
     <SectionError error={accounts.error} description={`Não foi possível consultar a sua conta da ${name}.`} onRetry={() => void accounts.refetch()} />
   </section>
   const account = accounts.data.accounts.find((item) => item.provider === provider)
-  const kind = account?.kind ?? null
+  const kind = account ? ownKind(account.own) : null
   return <section aria-labelledby={titleId}>
     <h2 id={titleId}>{title}</h2>
     <p className="cxs-hint">

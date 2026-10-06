@@ -569,8 +569,8 @@ here. The real dependencies come from the caller graph script
    `0015-part-model.md`. Cut from that draft: the two `INSERT` and `UPDATE` rows, the `S` branches and
    the `HELD` branch; a run reads the credential it holds after `admitRun`, filtered by the run from
    the proof. It keeps the
-   person branches of two `SELECT` rows (`model.model_account`, `model.installation_default`) and the column grant `UPDATE (kind, secret, updated_at)`; `model.model_account_sharing_history` gets no reader policy and no reader grant, since no route lists it (rule 6, decided by HQ); `take`, `hold` and `track` carry the run `{ builderRunId, accountId }` where they carried the payer; the eleven model account routes (MDL-01 to MDL-11)
-   declared; the four argument call to `model.upsert_model_account` fixed in the port; a run's refresh
+   person branches of two `SELECT` rows (`model.model_account`, `model.installation_default`) and the column grant `UPDATE (kind, secret, updated_at)`; `model.model_account_sharing_history` gets no reader policy and no reader grant, since no route lists it (rule 6, decided by HQ); `take(held)`, `hold(held, tokens)` and `track(key, held)` take the held handle, which carries its run `{ builderRunId, accountId }`, where they took the payer; the eleven model account routes (MDL-01 to MDL-11)
+   declared and registered through `route.operation`, with the `UNDECLARED_OPERATIONS` rows deleted; `hasApiKey` and `administrator` dropped from the answers; the four argument call to `model.upsert_model_account` fixed in the port; a run's refresh
    of a shared credential tested with sharing withdrawn mid run. Satisfies **AC-1**, **AC-4**, **AC-5**,
    **AC-9**, **AC-11**.
 9. **Part 6, identity and access, last** (46). Its reader policies, register rows, locks and refusal
@@ -677,7 +677,7 @@ from the bodies); two parts' drop migrations that depend on each other (builder 
   today. The two step claim stands, and section 6 of the admission child says so. The owner check
   stands on `readHeldCredential`. The builder runs the `ADD FOREIGN KEY` on `builder_run.account_id`
   against a copy of the local data before the pull request.
-- [x] Part 5: no reader row on `model.model_account_sharing_history` (rule 6). `run` replaces `payer`
+- [x] Part 5: no reader row on `model.model_account_sharing_history` (rule 6). the held handle, which carries its run, replaces `payer`
   in `take`, `hold` and `track`.
 - [x] Umbrella counts are fixed by HQ, not by the children.
 - [x] The `reg.artifact` composite key is withdrawn. The register records `artifact_project_id_fkey`.

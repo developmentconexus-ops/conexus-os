@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 import { hubJsonWrite, hubWrite, opaque, testListener } from './access/test-listener.mjs'
+import { fakeModelAccounts } from './model-accounts-fake.mjs'
 
 const built = hubModuleUrl
 const { registerModelAccountRoutes } = await import(built('builder/model-accounts.js'))
@@ -19,33 +20,6 @@ const authentic = {
   cookies: { '__Host-conexus_session': SESSION_TOKEN },
 }
 const tokens = (label, expires) => ({ access: `access-${label}`, refresh: `refresh-${label}`, expires, accountId: 'chatgpt-account-1', email: 'ana@example.com' })
-
-// model.model_account as a recording stand-in; the Postgres-backed store is proven in
-// model-account.postgres.test.mjs.
-const fakeStore = () => {
-  const rows = new Map()
-  const key = (owner, provider) => `${owner}:${provider}`
-  let nextId = 1
-  const shared = (provider) => [...rows.values()].find((row) => row.provider === provider && row.sharing === 'everyone') ?? null
-  const held = (row) => row && { modelAccountId: row.id, kind: row.kind, secret: row.secret }
-  const store = {
-    usable: async (owner, provider) => held(rows.get(key(owner, provider)) ?? shared(provider)),
-    connection: async (owner, provider) => ({ mine: rows.get(key(owner, provider))?.kind ?? null, shared: shared(provider) !== null }),
-    hasShared: async (provider) => shared(provider) !== null,
-    write: async (owner, provider, kind, secret) => {
-      const existing = rows.get(key(owner, provider))
-      rows.set(key(owner, provider), { id: existing?.id ?? `row-${nextId++}`, owner, provider, kind, secret, sharing: existing?.sharing ?? 'just_me' })
-    },
-    readById: async (id) => held([...rows.values()].find((row) => row.id === id) ?? null),
-    rewrite: async (id, secret) => {
-      const row = [...rows.values()].find((candidate) => candidate.id === id)
-      if (!row) return false
-      row.secret = secret
-      return true
-    },
-  }
-  return { store, rows, share: (owner, provider) => { rows.get(key(owner, provider)).sharing = 'everyone' } }
-}
 
 // OpenAI's device endpoints, scripted: each poll answers what the test queued, else "pending".
 const fakeDevice = () => {
@@ -68,23 +42,22 @@ const fakeDevice = () => {
 }
 
 const createApp = async (t) => {
-  const { store, rows, share } = fakeStore()
+  const { modelAccounts, rows, share } = fakeModelAccounts()
   const { device, answer, expireSoon } = fakeDevice()
   let caller = ana
-  let administrator = false
   const { app } = await testListener({
     sessions: { [SESSION_TOKEN]: () => ({ account: { accountId: caller } }) },
     registerRoutes: async (instance) => {
       await registerModelAccountRoutes(instance, {
-        isInstallationAdministrator: async () => administrator,
-        modelAccounts: store,
+        modelAccounts,
+        defaultThinkingLevel: 'medium',
         openaiCodexDevice: device,
       })
       return []
     },
   })
   t.after(() => app.close())
-  return { app, rows, share, answer, expireSoon, as: (accountId) => { caller = accountId }, makeAdministrator: () => { administrator = true } }
+  return { app, rows, share, answer, expireSoon, as: (accountId) => { caller = accountId } }
 }
 
 const base = '/api/control/model-accounts/openai-codex/oauth'
@@ -109,9 +82,9 @@ test('signing in with ChatGPT hands the person a device code, and the sign-in st
   assert.deepEqual(parseCodexTokens([...rows.values()][0].secret), tokens('signed-in', parseCodexTokens([...rows.values()][0].secret).expires))
 
   const accounts = await app.inject({ method: 'GET', url: '/api/control/model-accounts', ...authentic })
-  assert.deepEqual(accounts.json(), { administrator: false, accounts: [
-    { provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', mine: true, kind: 'oauth', shared: false },
-    { provider: 'anthropic', providerName: 'Anthropic (Claude)', mine: false, kind: null, shared: false },
+  assert.deepEqual(accounts.json(), { accounts: [
+    { provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', own: { state: 'connected', kind: 'oauth' }, shared: false },
+    { provider: 'anthropic', providerName: 'Anthropic (Claude)', own: { state: 'absent' }, shared: false },
   ] })
   for (const body of [started.body, accounts.body]) assert.doesNotMatch(body, /access-|refresh-/, 'no token ever reaches the browser')
 })
@@ -171,7 +144,7 @@ test('the picker offers the ChatGPT models from the model router catalog only to
 
   const mine = await offered()
   const ids = mine.map(({ id }) => id)
-  assert.deepEqual(mine.find(({ id }) => id === 'openai/gpt-5.6-sol'), { id: 'openai/gpt-5.6-sol', provider: 'openai', providerName: 'OpenAI (ChatGPT)', modelName: 'gpt-5.6-sol', thinkingLevels: ['low', 'medium', 'high', 'xhigh', 'max'], hasApiKey: true })
+  assert.deepEqual(mine.find(({ id }) => id === 'openai/gpt-5.6-sol'), { id: 'openai/gpt-5.6-sol', provider: 'openai', providerName: 'OpenAI (ChatGPT)', modelName: 'gpt-5.6-sol', thinkingLevels: ['low', 'medium', 'high', 'xhigh', 'max'] })
   assert.deepEqual(mine.find(({ id }) => id === 'openai/gpt-5.4-mini').thinkingLevels, ['low', 'medium', 'high', 'xhigh'], 'a model before GPT 5.6 runs max as xhigh, so it offers no max')
   for (const present of ['openai/gpt-5.4-mini', 'openai/gpt-5.3-codex']) assert.equal(ids.includes(present), true, present)
   for (const absent of ['openai/gpt-4', 'openai/o1', 'openai/gpt-image-1', 'openai/gpt-image-2', 'openai/chatgpt-image-latest', 'openai/text-embedding-3-large', 'openai/gpt-realtime-2.1']) {
@@ -186,16 +159,20 @@ test('the picker offers the ChatGPT models from the model router catalog only to
   assert.deepEqual((await offered('?scope=installation')).map(({ id }) => id), ids)
 })
 
+const RUN_A = '66666666-6666-4666-8666-66666666666a'
+const RUN_B = '66666666-6666-4666-8666-66666666666b'
+const RUN_C = '66666666-6666-4666-8666-66666666666c'
+
 test('an expired token is refreshed once for every run holding the row, and written back before any call uses it (AC-22)', async () => {
-  const { store, rows } = fakeStore()
-  await store.write(ana, 'openai-codex', 'oauth', serializeCodexTokens(tokens('old', 1_000)))
+  const { modelAccounts, seed, rewrite, rows } = fakeModelAccounts()
+  await seed(ana, 'openai-codex', 'oauth', serializeCodexTokens(tokens('old', 1_000)))
   const rowId = [...rows.values()][0].id
+  const held = (builderRunId) => modelAccounts.select({ builderRunId, accountId: ana }, 'openai-codex')
   const refreshes = []
   let clock = 2_000
   let release
   const gate = new Promise((resolve) => { release = resolve })
   const holds = createCodexHolds({
-    store,
     now: () => clock,
     refresh: async (refreshToken, accountId, email) => {
       refreshes.push({ refreshToken, accountId, email })
@@ -203,8 +180,8 @@ test('an expired token is refreshed once for every run holding the row, and writ
       return tokens('new', 10_000)
     },
   })
-  const runA = holds.hold(rowId, tokens('old', 1_000))
-  const runB = holds.hold(rowId, tokens('old', 1_000))
+  const runA = holds.hold(await held(RUN_A), tokens('old', 1_000))
+  const runB = holds.hold(await held(RUN_B), tokens('old', 1_000))
   const calls = Promise.all([runA(), runB()])
   await new Promise((resolve) => setImmediate(resolve))
   release()
@@ -213,16 +190,36 @@ test('an expired token is refreshed once for every run holding the row, and writ
   assert.deepEqual(parseCodexTokens(rows.get(`${ana}:openai-codex`).secret), tokens('new', 10_000), 'the row holds the refreshed tokens')
 
   // A run that took the row before the refresh adopts the stored tokens instead of spending the used refresh token.
-  const runC = holds.hold(rowId, tokens('old', 1_000))
+  const runC = holds.hold(await held(RUN_C), tokens('old', 1_000))
   assert.deepEqual(await runC(), tokens('new', 10_000))
   assert.equal(refreshes.length, 1)
 
   clock = 5_000
   assert.deepEqual(await runA(), tokens('new', 10_000), 'a live token is used as it is')
 
-  await store.rewrite(rowId, serializeCodexTokens(tokens('new', 1_000)))
+  rewrite(rowId, serializeCodexTokens(tokens('new', 1_000)))
+  const lastHold = holds.hold(await held(RUN_A), tokens('new', 1_000))
   rows.clear()
-  await assert.rejects(holds.hold(rowId, tokens('new', 1_000))(), /BUILDER_MODEL_NOT_SELECTED/, 'a disconnected account ends the run the way a missing one does')
+  await assert.rejects(lastHold(), /BUILDER_MODEL_NOT_SELECTED/, 'a disconnected account ends the run the way a missing one does')
+})
+
+test('a run whose admission is gone never receives the refresh another run made, and the other run still persists it', async () => {
+  const { modelAccounts, seed, revoke, rows } = fakeModelAccounts()
+  await seed(ana, 'openai-codex', 'oauth', serializeCodexTokens(tokens('old', 1_000)))
+  const held = (builderRunId) => modelAccounts.select({ builderRunId, accountId: ana }, 'openai-codex')
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  const holds = createCodexHolds({ now: () => 2_000, refresh: async () => { await gate; return tokens('new', 10_000) } })
+  const allowed = holds.hold(await held(RUN_A), tokens('old', 1_000))
+  const refused = holds.hold(await held(RUN_B), tokens('old', 1_000))
+  const first = allowed()
+  await new Promise((resolve) => setImmediate(resolve))
+  revoke(RUN_B)
+  const second = refused()
+  release()
+  await assert.rejects(second, /BUILDER_MODEL_NOT_SELECTED/)
+  assert.deepEqual(await first, tokens('new', 10_000))
+  assert.deepEqual(parseCodexTokens(rows.get(`${ana}:openai-codex`).secret), tokens('new', 10_000))
 })
 
 const unsigned = (claims) => `${Buffer.from('{"alg":"none"}').toString('base64url')}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.sig`
@@ -275,9 +272,9 @@ const drain = async (stream) => { const types = []; for await (const part of str
 
 test("signing in with ChatGPT runs Mastra's device flow against OpenAI and stores the tokens and account id it returns", async (t) => {
   const seen = fakeOpenAI(t)
-  const { store, rows } = fakeStore()
+  const { modelAccounts, rows } = fakeModelAccounts()
   const { createCodexLogin } = await import(built('builder/openai-codex/login.js'))
-  const login = createCodexLogin({ writeCredential: ({ accountId }, credentials) => store.write(accountId, 'openai-codex', 'oauth', serializeCodexTokens(credentials)) })
+  const login = createCodexLogin({ connect: ({ accountId }, credentials) => modelAccounts.connect({ accountId, credential: { provider: 'openai-codex', kind: 'oauth' }, secret: serializeCodexTokens(credentials) }) })
   const handoff = await login.start({ accountId: ana })
   assert.deepEqual({ url: handoff.url, userCode: handoff.userCode, intervalMs: handoff.intervalMs }, { url: 'https://auth.openai.com/codex/device', userCode: 'ABCD-1234', intervalMs: 1000 })
   assert.equal(await login.poll({ accountId: ana }, handoff.loginId), 'waiting', 'OpenAI answers 403 until the person types the code')
@@ -314,13 +311,13 @@ test('a ChatGPT model calls the Codex endpoint with the person\'s bearer and acc
 
 test("the ChatGPT route serves each person's own row: an expired token is refreshed through Mastra, written back, and the call carries the new bearer", async (t) => {
   const seen = fakeOpenAI(t, { onCodex: codexStream })
-  const { store, rows } = fakeStore()
-  await store.write(ana, 'openai-codex', 'oauth', serializeCodexTokens(tokens('old', 1_000)))
-  await store.write(bia, 'openai-codex', 'oauth', serializeCodexTokens({ ...tokens('bia', Date.now() + 3_600_000), accountId: 'chatgpt-account-bia' }))
-  const route = createOpenAICodexRoute(createCodexHolds({ store }))
+  const { modelAccounts, seed, rows } = fakeModelAccounts()
+  await seed(ana, 'openai-codex', 'oauth', serializeCodexTokens(tokens('old', 1_000)))
+  await seed(bia, 'openai-codex', 'oauth', serializeCodexTokens({ ...tokens('bia', Date.now() + 3_600_000), accountId: 'chatgpt-account-bia' }))
+  const route = createOpenAICodexRoute(createCodexHolds({}))
   assert.equal(route.accountProvider, 'openai-codex')
-  const anaRow = await store.usable(ana, 'openai-codex')
-  const biaRow = await store.usable(bia, 'openai-codex')
+  const anaRow = await modelAccounts.select({ builderRunId: RUN_A, accountId: ana }, 'openai-codex')
+  const biaRow = await modelAccounts.select({ builderRunId: RUN_B, accountId: bia }, 'openai-codex')
   const anaTaken = route.take(anaRow)
   assert.equal(anaTaken.modelProvider, 'openai')
   await drain((await (await anaTaken.model('gpt-5.6-sol')).doStream({ prompt })).stream)
@@ -342,22 +339,22 @@ const routesOver = (holds = null) => ({
   openai: {
     accountProvider: 'openai-codex',
     take: (account) => {
-      const bearer = holds?.hold(account.modelAccountId, parseCodexTokens(account.secret))
+      const bearer = holds?.hold(account, parseCodexTokens(account.secret))
       return { modelProvider: 'openai', model: async (name) => ({ called: name, with: bearer ? (await bearer()).access : account.secret }) }
     },
   },
   'google-ai-pro': { accountProvider: 'google-ai-pro', take: (account) => ({ modelProvider: 'google-ai-pro', model: async (name) => ({ called: name, with: account.secret }) }) },
 })
 
-const routingOver = async ({ store, threadModel = null, defaults = {}, routes = routesOver() }) => {
+const routingOver = async ({ modelAccounts, threadModel = null, defaults = {}, routes = routesOver() }) => {
   const { RequestContext } = await import('@mastra/core/request-context')
   const { createModelRouting } = await import(built('builder/model-routing.js'))
   const recorded = []
   const routing = createModelRouting({
     routes,
-    modelAccounts: store,
+    modelAccounts,
     conversationModel: async () => threadModel,
-    readDefault: async (role) => defaults[role] ?? null,
+    readDefault: async (_accountId, role) => defaults[role] ?? null,
     record: async (builderRunId, _accountId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
   })
   const call = (builderRunId, accountId, modelId) => {
@@ -376,10 +373,10 @@ const routingOver = async ({ store, threadModel = null, defaults = {}, routes = 
 }
 
 test("a model call pays with the caller's own account for its model's provider, else the shared one; without either it fails with the connect-a-model message", async () => {
-  const { store, share } = fakeStore()
-  await store.write(ana, 'openai-codex', 'oauth', 'ana-secret')
-  await store.write(bia, 'google-ai-pro', 'google_ai_pro', 'bia-google-secret')
-  const { call, check } = await routingOver({ store, threadModel: 'openai/gpt-5.6-sol', defaults: { memory: 'openai/gpt-5.6-sol' } })
+  const { modelAccounts, seed, share } = fakeModelAccounts()
+  await seed(ana, 'openai-codex', 'oauth', 'ana-secret')
+  await seed(bia, 'google-ai-pro', 'google_ai_pro', 'bia-google-secret')
+  const { call, check } = await routingOver({ modelAccounts, threadModel: 'openai/gpt-5.6-sol', defaults: { memory: 'openai/gpt-5.6-sol' } })
 
   assert.deepEqual(await call(RUN['run-ana'], ana, 'openai/gpt-5.6-sol'), { called: 'gpt-5.6-sol', with: 'ana-secret' })
   await assert.rejects(check(bia), /BUILDER_MODEL_NOT_SELECTED/, "bia's Google account does not pay for a ChatGPT model")
@@ -390,29 +387,29 @@ test("a model call pays with the caller's own account for its model's provider, 
 })
 
 test('a model for a provider the Hub cannot call is refused with the connect-a-model message', async () => {
-  const { store } = fakeStore()
-  await store.write(ana, 'openai-codex', 'oauth', 'ana-secret')
-  const { call } = await routingOver({ store })
-  await assert.rejects(call(RUN['run-ana'], ana, 'anthropic/claude-fable-5'), /BUILDER_MODEL_NOT_SELECTED/)
+  const { modelAccounts, seed } = fakeModelAccounts()
+  await seed(ana, 'openai-codex', 'oauth', 'ana-secret')
+  const { call } = await routingOver({ modelAccounts })
+  await assert.rejects(call(RUN['run-ana'], ana, 'mistral/mistral-large'), /BUILDER_MODEL_NOT_SELECTED/)
 })
 
 test("a session with no model is refused at the call; the start check falls back to the installation's Builder default and needs its memory default", async () => {
-  const { store } = fakeStore()
-  await store.write(bia, 'google-ai-pro', 'google_ai_pro', 'bia-google-secret')
-  const { call, check } = await routingOver({ store })
+  const { modelAccounts, seed } = fakeModelAccounts()
+  await seed(bia, 'google-ai-pro', 'google_ai_pro', 'bia-google-secret')
+  const { call, check } = await routingOver({ modelAccounts })
   await assert.rejects(call(RUN['run-bia'], bia, ''), /BUILDER_MODEL_NOT_SELECTED/, 'the session holds no model')
   await assert.rejects(check(bia), /BUILDER_MODEL_NOT_SELECTED/, 'no conversation model and no installation default')
-  const withBuild = await routingOver({ store, defaults: { build: 'google-ai-pro/gemini-3-flash' } })
+  const withBuild = await routingOver({ modelAccounts, defaults: { build: 'google-ai-pro/gemini-3-flash' } })
   await assert.rejects(withBuild.check(bia), /BUILDER_MODEL_NOT_SELECTED/, 'no memory default')
-  const withBoth = await routingOver({ store, defaults: { build: 'google-ai-pro/gemini-3-flash', memory: 'google-ai-pro/gemini-3-flash' } })
+  const withBoth = await routingOver({ modelAccounts, defaults: { build: 'google-ai-pro/gemini-3-flash', memory: 'google-ai-pro/gemini-3-flash' } })
   await assert.doesNotReject(withBoth.check(bia))
 })
 
 test("a run's Builder calls and its memory calls each pay with their own model's account and record both", async () => {
-  const { store, rows } = fakeStore()
-  await store.write(ana, 'openai-codex', 'oauth', 'ana-secret')
-  await store.write(ana, 'google-ai-pro', 'google_ai_pro', 'ana-google-secret')
-  const { call, memoryCall, recorded } = await routingOver({ store, defaults: { memory: 'google-ai-pro/gemini-3-flash' } })
+  const { modelAccounts, seed, rows } = fakeModelAccounts()
+  await seed(ana, 'openai-codex', 'oauth', 'ana-secret')
+  await seed(ana, 'google-ai-pro', 'google_ai_pro', 'ana-google-secret')
+  const { call, memoryCall, recorded } = await routingOver({ modelAccounts, defaults: { memory: 'google-ai-pro/gemini-3-flash' } })
 
   assert.deepEqual(await call(RUN['run-1'], ana, 'openai/gpt-5.6-sol'), { called: 'gpt-5.6-sol', with: 'ana-secret' })
   assert.deepEqual(await memoryCall(RUN['run-1'], ana), { called: 'gemini-3-flash', with: 'ana-google-secret' })
@@ -420,15 +417,14 @@ test("a run's Builder calls and its memory calls each pay with their own model's
 })
 
 test('a ChatGPT token refreshed on one call is written back once, and the next call reads it from the row', async () => {
-  const { store, rows } = fakeStore()
-  await store.write(ana, 'openai-codex', 'oauth', serializeCodexTokens(tokens('old', 1_000)))
+  const { modelAccounts, seed, rows } = fakeModelAccounts()
+  await seed(ana, 'openai-codex', 'oauth', serializeCodexTokens(tokens('old', 1_000)))
   const refreshes = []
   const holds = createCodexHolds({
-    store,
     now: () => 2_000,
     refresh: async (refreshToken) => { refreshes.push(refreshToken); return tokens('new', 10_000) },
   })
-  const { call } = await routingOver({ store, routes: routesOver(holds) })
+  const { call } = await routingOver({ modelAccounts, routes: routesOver(holds) })
   const answers = [await call(RUN['run-1'], ana, 'openai/gpt-5.6-sol'), await call(RUN['run-1'], ana, 'openai/gpt-5.6-sol')]
   assert.deepEqual(answers, [{ called: 'gpt-5.6-sol', with: 'access-new' }, { called: 'gpt-5.6-sol', with: 'access-new' }])
   assert.deepEqual(refreshes, ['refresh-old'])

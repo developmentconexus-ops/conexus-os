@@ -3,14 +3,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { FAILURES } from '../../../../../../packages/contract/dist/failures.generated.js'
-import { accountsQueryKey, accountsUrl, callModelAccounts as call, type Accounts } from '../model-accounts-api'
+import { MDL06, MDL07, type ModelLoginId } from '../../../../../../packages/contract/dist/index.js'
+import { call } from '../../../app/http'
+import { accountsQueryKey, noInput, ownKind, readAccounts } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
 
 type LoginState = 'waiting' | 'succeeded' | 'failed' | 'expired'
-type Login = Readonly<{ loginId: string; url: string; userCode: string; intervalMs: number; expiresAt: string }>
+type Login = Readonly<{ loginId: ModelLoginId; url: string; userCode: string; intervalMs: number; expiresAt: string }>
 
 const PROVIDER = 'openai-codex'
-const base = `/api/control/model-accounts/${PROVIDER}/oauth`
 
 const OUTCOME: Readonly<Record<Exclude<LoginState, 'waiting'>, string>> = {
   succeeded: 'ChatGPT conectado.',
@@ -38,7 +39,7 @@ function DeviceCode({ login, onDone, onCancel }: Readonly<{ login: Login; onDone
   useEffect(() => {
     let stopped = false
     const timer = setInterval(async () => {
-      const { state } = await call<{ state: LoginState }>('POST', `${base}/poll?loginId=${encodeURIComponent(login.loginId)}`).catch(() => ({ state: 'waiting' as const }))
+      const { state } = await call(MDL07, { ...noInput, query: { loginId: login.loginId } }).catch(() => ({ state: 'waiting' as const }))
       if (!stopped && state !== 'waiting') { stopped = true; clearInterval(timer); finish.current(state) }
     }, Math.max(login.intervalMs, 2000))
     return () => { stopped = true; clearInterval(timer) }
@@ -63,7 +64,7 @@ function DeviceCode({ login, onDone, onCancel }: Readonly<{ login: Login; onDone
 export function ChatGptAccount() {
   const queryClient = useQueryClient()
   const titleId = useId()
-  const accounts = useQuery({ queryKey: accountsQueryKey, queryFn: () => call<Accounts>('GET', accountsUrl), retry: false })
+  const accounts = useQuery({ queryKey: accountsQueryKey, queryFn: readAccounts, retry: false })
   const [login, setLogin] = useState<Login | null>(null)
   const [message, setMessage] = useState<Readonly<{ text: string; failed: boolean }> | null>(null)
   // Connecting changes which models this person's pickers offer.
@@ -72,7 +73,7 @@ export function ChatGptAccount() {
     queryClient.invalidateQueries({ queryKey: ['builder-models'] }),
   ])
   const start = useMutation({
-    mutationFn: () => call<Login>('POST', `${base}/start`, {}),
+    mutationFn: () => call(MDL06, noInput),
     onSuccess: (started) => { setMessage(null); setLogin(started) },
     onError: () => setMessage({ text: 'Não foi possível iniciar a entrada com o ChatGPT agora.', failed: true }),
   })
@@ -82,7 +83,7 @@ export function ChatGptAccount() {
     <SectionError error={accounts.error} description="Não foi possível consultar a sua conta do ChatGPT." onRetry={() => void accounts.refetch()} />
   </section>
   const account = accounts.data.accounts.find((item) => item.provider === PROVIDER)
-  const mine = account?.mine === true
+  const mine = account !== undefined && ownKind(account.own) !== null
   const shared = account?.shared === true
   return <section aria-labelledby={titleId}>
     <h2 id={titleId}>ChatGPT</h2>

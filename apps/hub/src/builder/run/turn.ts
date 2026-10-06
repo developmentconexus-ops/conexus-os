@@ -3,6 +3,8 @@ import { RequestContext } from '@mastra/core/request-context'
 import type { LiveConversations } from '../conversation.js'
 import { isUserAuthoredMessage } from '../runtime.js'
 import { Failure } from '../../platform/failure.js'
+import { requireRunContext } from '../run-context.js'
+import type { AccountId } from '../../../../../packages/contract/dist/index.js'
 import type { AgentTurn, BuilderRunPorts, ControllerSession, RunSession, Step } from './ports.js'
 import { endQuestions, untilQuestionStored } from './question.js'
 import { driveStep } from './send.js'
@@ -36,14 +38,14 @@ export const createControllerRunSessions = ({ controller, conversations, readDef
   /** How long Mastra may take to store a question, or to let go of a thread whose question ended. */
   questionReleaseMs?: number
   /** The installation's default Builder model, which a conversation with no model of its own starts on. */
-  readDefaultModel(): Promise<string | null>
+  readDefaultModel(accountId: AccountId): Promise<string | null>
 }>): BuilderRunPorts['openSession'] => async ({ projectId, conversationId, bindContext }) => {
   const requestContext = new RequestContext()
   bindContext(requestContext)
   const session = await conversations.open({ projectId, conversationId })
   await session.thread.loadMetadata()
   if (!session.model.hasSelection()) {
-    const modelId = await readDefaultModel()
+    const modelId = await readDefaultModel(requireRunContext(requestContext).accountId)
     if (!modelId) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
     await session.model.switch({ modelId })
   }

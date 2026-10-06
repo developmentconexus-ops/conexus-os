@@ -57,8 +57,7 @@ export async function openHub({ baseUrl, statePath }) {
 
     return Object.freeze({
       workspaceId,
-      usableModelIds: async () => (await call('GET', '/api/control/model-accounts/models')).models
-        .filter((model) => model.hasApiKey).map((model) => model.id),
+      usableModelIds: async () => (await call('GET', '/api/control/model-accounts/models')).models.map((model) => model.id),
       createProject: async ({ name }) => {
         // A fresh key per call guards a network retry of this request, not a rerun of the job.
         const project = await call('POST', `/api/control/workspaces/${workspaceId}/projects`, {

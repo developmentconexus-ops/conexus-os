@@ -43,16 +43,15 @@ import { createProjectSourceReads } from './source.js'
 import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
 import { startModelRouter } from './google-ai-pro/router.js'
 import { createRefreshWriteBack } from './google-ai-pro/write-back.js'
-import { GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
 import { createGoogleAiProRoute } from './google-ai-pro/route.js'
-import { createGoogleAiProAccounts } from './google-ai-pro/store.js'
-import { ANTHROPIC_PROVIDER, createClaudeHolds } from './anthropic/credential.js'
+import { createClaudeHolds } from './anthropic/credential.js'
 import { createAnthropicRoute } from './anthropic/route.js'
-import { createModelAccountStore } from './model-account-store.js'
-import { createModelRouting, type ModelRole, type ModelRoute } from './model-routing.js'
+import { createModelAccounts } from './model-account/accounts.js'
+import { createModelRouting, type ModelRoutes } from './model-routing.js'
+import { DEFAULT_THINKING_LEVEL } from './harness/request-context.js'
 import { readRunContext } from './run-context.js'
 import { createBuilderMemory } from './memory.js'
-import { createCodexHolds, OPENAI_MODEL_PROVIDER } from './openai-codex/credential.js'
+import { createCodexHolds } from './openai-codex/credential.js'
 import { createOpenAICodexRoute } from './openai-codex/route.js'
 import { registerModelAccountRoutes } from './model-accounts.js'
 import type { BuilderRunDependencies } from './service.js'
@@ -92,7 +91,7 @@ const DAY_MS = 24 * HOUR_MS
 const RUN_LEASE_EVERY_MS = 10_000
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
-export const createConfiguredBuilderModule = ({ data, database, runtimePool, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, isInstallationAdministrator, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
+export const createConfiguredBuilderModule = ({ data, database, runtimePool, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
   data: Database
   database: Readonly<{ host: string; port: number; database: string }>
   runtimePool: PostgresPool
@@ -108,7 +107,6 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
   applicationArtifacts: UnboundBuilderApplicationArtifacts
   applicationServer?: ApplicationServerPort
   launchPreview?: BuilderLaunchPreviewPort
-  isInstallationAdministrator(account: AccountId): Promise<boolean>
   /** The Project's display name, which the Builder's prompt states. */
   readProjectName(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<string>
   connectors?: BuilderConnectorPort
@@ -119,16 +117,13 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
   assertBuilderSkillsAvailable()
   const check = loadCheckBundle()
   const log = logLine
-  const store = createBuilderStore({ database: data, ownerId: randomUUID() })
-  // Google AI Pro's credential lives in model.model_account (spec 0002), sealed with the same
-  // envelope every Conexus secret uses.
-  const modelAccounts = createModelAccountStore({
-    pool: runtimePool,
+  const ownerId = randomUUID()
+  const store = createBuilderStore({ database: data, ownerId })
+  const modelAccounts = createModelAccounts({
+    database: data,
     envelope: createSecretEnvelope(readSecretFile(secretKey.file), secretKey.previousFiles.map(readSecretFile)),
+    ownerId,
   })
-  const googleAiProAccounts = createGoogleAiProAccounts(modelAccounts)
-  const readDefault = async (role: ModelRole): Promise<string | null> =>
-    (await runtimePool.query<{ model_id: string | null }>('SELECT model.read_installation_default($1) AS model_id', [role])).rows[0]?.model_id ?? null
   const getApplicationBySource = applicationArtifacts.getApplicationBySource
   const readApplicationFileBySource = applicationArtifacts.readApplicationFileBySource
   const retainApplicationThumbnail = applicationArtifacts.retainApplicationThumbnail
@@ -143,22 +138,22 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
   const storage = createBuilderStorage(storagePool)
   const observability = createBuilderObservability('conexus-builder', connectorObservability)
   const observabilityLifecycle = createBuilderObservabilityLifecycle(observability)
-  const googleWriteBack = createRefreshWriteBack(modelAccounts)
+  const googleWriteBack = createRefreshWriteBack()
   const googleAiProReady = googleAiPro ? startGoogleAiPro(googleAiPro, googleWriteBack.persistFor) : Promise.resolve(undefined)
   googleAiProReady.catch(() => undefined)
 
-  const routes: Readonly<Record<string, ModelRoute>> = Object.freeze({
-    [GOOGLE_AI_PRO_PROVIDER]: createGoogleAiProRoute({ routerUrl: async () => (await googleAiProReady.catch(() => undefined))?.url, track: googleWriteBack.track }),
-    [OPENAI_MODEL_PROVIDER]: createOpenAICodexRoute(createCodexHolds({ store: modelAccounts })),
+  const routes: ModelRoutes = Object.freeze({
+    'google-ai-pro': createGoogleAiProRoute({ routerUrl: async () => (await googleAiProReady.catch(() => undefined))?.url, track: googleWriteBack.track }),
+    openai: createOpenAICodexRoute(createCodexHolds({})),
     // Called from the Hub with the person's Anthropic key or Claude subscription; neither leaves the Hub.
-    [ANTHROPIC_PROVIDER]: createAnthropicRoute(createClaudeHolds({ store: modelAccounts })),
+    anthropic: createAnthropicRoute(createClaudeHolds({})),
   })
   const modelRouting = createModelRouting({
     routes,
     modelAccounts,
     // Read when a run starts, long after the controller below exists.
     conversationModel: (projectId, conversationId) => conversationModel(projectId, conversationId),
-    readDefault,
+    readDefault: modelAccounts.readDefault,
     record: (builderRunId, accountId, modelAccountId) => store.recordBuilderRunModelAccount({
       builderRunId, accountId, modelAccountId,
     }),
@@ -221,7 +216,7 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
     return memory
   })
 
-  const openSession = createControllerRunSessions({ controller, conversations: liveConversations, readDefaultModel: () => readDefault('build') })
+  const openSession = createControllerRunSessions({ controller, conversations: liveConversations, readDefaultModel: (accountId) => modelAccounts.readDefault(accountId, 'build') })
   const ports: BuilderRunPorts = Object.freeze({
     openSandbox: liveConversations.sandbox,
     openSession: async (input) => {
@@ -318,12 +313,12 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
         ...(connectors ? { toolPayloads: connectors.toolPayloadProjection } : {}),
       })
       const googleAiProPool = (await googleAiProReady)?.pool
-      await registerModelAccountRoutes(app, {
-        isInstallationAdministrator,
+      const modelOperations = await registerModelAccountRoutes(app, {
         modelAccounts,
-        ...(googleAiProPool ? { googleAiPro: googleAiProPool, googleAiProAccounts } : {}),
+        defaultThinkingLevel: DEFAULT_THINKING_LEVEL,
+        ...(googleAiProPool ? { googleAiPro: googleAiProPool } : {}),
       })
-      return builderOperations
+      return [...builderOperations, ...modelOperations]
     },
     // Absent without the Builder, and then no Project can be created.
     prepareProjectRepository: (projectId: ProjectId) => git.ensureRepository(projectId),

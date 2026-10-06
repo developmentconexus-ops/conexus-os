@@ -3,6 +3,7 @@ export * from './ids.js';
 export * from './builder.js';
 export * from './failures.generated.js';
 export * from './connectors.js';
+export * from './model-account.js';
 export * from './operation.js';
 export * from './problem.js';
 export * from './project.js';
@@ -224,6 +225,7 @@ export declare const OPERATIONS: readonly ({
                     MODEL_LOGIN_UNAVAILABLE: "MODEL_LOGIN_UNAVAILABLE";
                     MODEL_LOGIN_BUSY: "MODEL_LOGIN_BUSY";
                     MODEL_LOGIN_CALLBACK_REFUSED: "MODEL_LOGIN_CALLBACK_REFUSED";
+                    MODEL_LOGIN_NOT_FOUND: "MODEL_LOGIN_NOT_FOUND";
                     HUB_UNREACHABLE: "HUB_UNREACHABLE";
                     HUB_RESPONSE_UNREADABLE: "HUB_RESPONSE_UNREADABLE";
                     ANTHROPIC_STORED_RECORD_REFUSED: "ANTHROPIC_STORED_RECORD_REFUSED";
@@ -506,6 +508,7 @@ export declare const OPERATIONS: readonly ({
                     MODEL_LOGIN_UNAVAILABLE: "MODEL_LOGIN_UNAVAILABLE";
                     MODEL_LOGIN_BUSY: "MODEL_LOGIN_BUSY";
                     MODEL_LOGIN_CALLBACK_REFUSED: "MODEL_LOGIN_CALLBACK_REFUSED";
+                    MODEL_LOGIN_NOT_FOUND: "MODEL_LOGIN_NOT_FOUND";
                     HUB_UNREACHABLE: "HUB_UNREACHABLE";
                     HUB_RESPONSE_UNREADABLE: "HUB_RESPONSE_UNREADABLE";
                     ANTHROPIC_STORED_RECORD_REFUSED: "ANTHROPIC_STORED_RECORD_REFUSED";
@@ -851,6 +854,7 @@ export declare const OPERATIONS: readonly ({
                     MODEL_LOGIN_UNAVAILABLE: "MODEL_LOGIN_UNAVAILABLE";
                     MODEL_LOGIN_BUSY: "MODEL_LOGIN_BUSY";
                     MODEL_LOGIN_CALLBACK_REFUSED: "MODEL_LOGIN_CALLBACK_REFUSED";
+                    MODEL_LOGIN_NOT_FOUND: "MODEL_LOGIN_NOT_FOUND";
                     HUB_UNREACHABLE: "HUB_UNREACHABLE";
                     HUB_RESPONSE_UNREADABLE: "HUB_RESPONSE_UNREADABLE";
                     ANTHROPIC_STORED_RECORD_REFUSED: "ANTHROPIC_STORED_RECORD_REFUSED";
@@ -1132,6 +1136,7 @@ export declare const OPERATIONS: readonly ({
                     MODEL_LOGIN_UNAVAILABLE: "MODEL_LOGIN_UNAVAILABLE";
                     MODEL_LOGIN_BUSY: "MODEL_LOGIN_BUSY";
                     MODEL_LOGIN_CALLBACK_REFUSED: "MODEL_LOGIN_CALLBACK_REFUSED";
+                    MODEL_LOGIN_NOT_FOUND: "MODEL_LOGIN_NOT_FOUND";
                     HUB_UNREACHABLE: "HUB_UNREACHABLE";
                     HUB_RESPONSE_UNREADABLE: "HUB_RESPONSE_UNREADABLE";
                     ANTHROPIC_STORED_RECORD_REFUSED: "ANTHROPIC_STORED_RECORD_REFUSED";
@@ -1488,6 +1493,7 @@ export declare const OPERATIONS: readonly ({
                     MODEL_LOGIN_UNAVAILABLE: "MODEL_LOGIN_UNAVAILABLE";
                     MODEL_LOGIN_BUSY: "MODEL_LOGIN_BUSY";
                     MODEL_LOGIN_CALLBACK_REFUSED: "MODEL_LOGIN_CALLBACK_REFUSED";
+                    MODEL_LOGIN_NOT_FOUND: "MODEL_LOGIN_NOT_FOUND";
                     HUB_UNREACHABLE: "HUB_UNREACHABLE";
                     HUB_RESPONSE_UNREADABLE: "HUB_RESPONSE_UNREADABLE";
                     ANTHROPIC_STORED_RECORD_REFUSED: "ANTHROPIC_STORED_RECORD_REFUSED";
@@ -1769,6 +1775,7 @@ export declare const OPERATIONS: readonly ({
                     MODEL_LOGIN_UNAVAILABLE: "MODEL_LOGIN_UNAVAILABLE";
                     MODEL_LOGIN_BUSY: "MODEL_LOGIN_BUSY";
                     MODEL_LOGIN_CALLBACK_REFUSED: "MODEL_LOGIN_CALLBACK_REFUSED";
+                    MODEL_LOGIN_NOT_FOUND: "MODEL_LOGIN_NOT_FOUND";
                     HUB_UNREACHABLE: "HUB_UNREACHABLE";
                     HUB_RESPONSE_UNREADABLE: "HUB_RESPONSE_UNREADABLE";
                     ANTHROPIC_STORED_RECORD_REFUSED: "ANTHROPIC_STORED_RECORD_REFUSED";
@@ -2102,6 +2109,7 @@ export declare const OPERATIONS: readonly ({
                     MODEL_LOGIN_UNAVAILABLE: "MODEL_LOGIN_UNAVAILABLE";
                     MODEL_LOGIN_BUSY: "MODEL_LOGIN_BUSY";
                     MODEL_LOGIN_CALLBACK_REFUSED: "MODEL_LOGIN_CALLBACK_REFUSED";
+                    MODEL_LOGIN_NOT_FOUND: "MODEL_LOGIN_NOT_FOUND";
                     HUB_UNREACHABLE: "HUB_UNREACHABLE";
                     HUB_RESPONSE_UNREADABLE: "HUB_RESPONSE_UNREADABLE";
                     ANTHROPIC_STORED_RECORD_REFUSED: "ANTHROPIC_STORED_RECORD_REFUSED";
@@ -2383,6 +2391,7 @@ export declare const OPERATIONS: readonly ({
                     MODEL_LOGIN_UNAVAILABLE: "MODEL_LOGIN_UNAVAILABLE";
                     MODEL_LOGIN_BUSY: "MODEL_LOGIN_BUSY";
                     MODEL_LOGIN_CALLBACK_REFUSED: "MODEL_LOGIN_CALLBACK_REFUSED";
+                    MODEL_LOGIN_NOT_FOUND: "MODEL_LOGIN_NOT_FOUND";
                     HUB_UNREACHABLE: "HUB_UNREACHABLE";
                     HUB_RESPONSE_UNREADABLE: "HUB_RESPONSE_UNREADABLE";
                     ANTHROPIC_STORED_RECORD_REFUSED: "ANTHROPIC_STORED_RECORD_REFUSED";
@@ -2735,6 +2744,7 @@ export declare const OPERATIONS: readonly ({
                     MODEL_LOGIN_UNAVAILABLE: "MODEL_LOGIN_UNAVAILABLE";
                     MODEL_LOGIN_BUSY: "MODEL_LOGIN_BUSY";
                     MODEL_LOGIN_CALLBACK_REFUSED: "MODEL_LOGIN_CALLBACK_REFUSED";
+                    MODEL_LOGIN_NOT_FOUND: "MODEL_LOGIN_NOT_FOUND";
                     HUB_UNREACHABLE: "HUB_UNREACHABLE";
                     HUB_RESPONSE_UNREADABLE: "HUB_RESPONSE_UNREADABLE";
                     ANTHROPIC_STORED_RECORD_REFUSED: "ANTHROPIC_STORED_RECORD_REFUSED";
@@ -3016,6 +3026,7 @@ export declare const OPERATIONS: readonly ({
                     MODEL_LOGIN_UNAVAILABLE: "MODEL_LOGIN_UNAVAILABLE";
                     MODEL_LOGIN_BUSY: "MODEL_LOGIN_BUSY";
                     MODEL_LOGIN_CALLBACK_REFUSED: "MODEL_LOGIN_CALLBACK_REFUSED";
+                    MODEL_LOGIN_NOT_FOUND: "MODEL_LOGIN_NOT_FOUND";
                     HUB_UNREACHABLE: "HUB_UNREACHABLE";
                     HUB_RESPONSE_UNREADABLE: "HUB_RESPONSE_UNREADABLE";
                     ANTHROPIC_STORED_RECORD_REFUSED: "ANTHROPIC_STORED_RECORD_REFUSED";
@@ -3540,6 +3551,288 @@ export declare const OPERATIONS: readonly ({
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
         readonly bindingId: "CONNECTOR_BINDING_NOT_FOUND";
+    };
+} | {
+    readonly query: import("zod").ZodObject<{
+        scope: import("zod").ZodOptional<import("zod").ZodLiteral<"installation">>;
+    }, import("zod/v4/core").$strict>;
+    readonly body: null;
+    readonly success: {
+        readonly 200: import("zod").ZodObject<{
+            models: import("zod").ZodArray<import("zod").ZodObject<{
+                id: import("zod").ZodString;
+                provider: import("zod").ZodString;
+                providerName: import("zod").ZodString;
+                modelName: import("zod").ZodString;
+                thinkingLevels: import("zod").ZodArray<import("zod").ZodEnum<{
+                    off: "off";
+                    low: "low";
+                    medium: "medium";
+                    high: "high";
+                    xhigh: "xhigh";
+                    max: "max";
+                }>>;
+            }, import("zod/v4/core").$strip>>;
+            defaultThinkingLevel: import("zod").ZodEnum<{
+                off: "off";
+                low: "low";
+                medium: "medium";
+                high: "high";
+                xhigh: "xhigh";
+                max: "max";
+            }>;
+        }, import("zod/v4/core").$strip>;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly [];
+    readonly malformed: null;
+    readonly params: null;
+    readonly headers: null;
+    readonly id: "MDL-01";
+    readonly access: "session";
+    readonly method: "GET";
+    readonly path: "/api/control/model-accounts/models";
+} | {
+    readonly query: null;
+    readonly body: null;
+    readonly success: {
+        readonly 200: import("zod").ZodObject<{
+            accounts: import("zod").ZodArray<import("zod").ZodObject<{
+                provider: import("zod").ZodEnum<{
+                    anthropic: "anthropic";
+                    "openai-codex": "openai-codex";
+                    "google-ai-pro": "google-ai-pro";
+                }>;
+                providerName: import("zod").ZodString;
+                own: import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
+                    state: import("zod").ZodLiteral<"absent">;
+                }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+                    state: import("zod").ZodLiteral<"connected">;
+                    kind: import("zod").ZodEnum<{
+                        api_key: "api_key";
+                        oauth: "oauth";
+                        google_ai_pro: "google_ai_pro";
+                    }>;
+                }, import("zod/v4/core").$strip>], "state">;
+                shared: import("zod").ZodBoolean;
+            }, import("zod/v4/core").$strip>>;
+        }, import("zod/v4/core").$strip>;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly [];
+    readonly malformed: null;
+    readonly params: null;
+    readonly headers: null;
+    readonly id: "MDL-02";
+    readonly access: "session";
+    readonly method: "GET";
+    readonly path: "/api/control/model-accounts";
+} | {
+    readonly id: "MDL-03";
+    readonly access: "session";
+    readonly method: "PUT";
+    readonly path: "/api/control/model-accounts/:provider/api-key";
+    readonly params: import("zod").ZodObject<{
+        provider: import("zod").ZodEnum<{
+            anthropic: "anthropic";
+        }>;
+    }, import("zod/v4/core").$strip>;
+    readonly query: null;
+    readonly headers: null;
+    readonly body: import("zod").ZodObject<{
+        key: import("zod").ZodString;
+    }, import("zod/v4/core").$strict>;
+    readonly success: {
+        readonly 204: null;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly ["MODEL_ACCOUNT_KEY_REFUSED", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly malformed: {
+        readonly provider: "MODEL_ACCOUNT_PROVIDER_UNKNOWN";
+    };
+} | {
+    readonly query: null;
+    readonly body: null;
+    readonly success: {
+        readonly 200: import("zod").ZodObject<{
+            loginId: import("zod/v4/core").$ZodBranded<import("zod").ZodString, "ModelLoginId", "out">;
+            url: import("zod").ZodString;
+            expiresAt: import("zod").ZodISODateTime;
+        }, import("zod/v4/core").$strip>;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly ["MODEL_LOGIN_UNAVAILABLE"];
+    readonly malformed: null;
+    readonly params: null;
+    readonly headers: null;
+    readonly id: "MDL-04";
+    readonly access: "session";
+    readonly method: "POST";
+    readonly path: "/api/control/model-accounts/anthropic/oauth/start";
+} | {
+    readonly query: null;
+    readonly body: import("zod").ZodObject<{
+        loginId: import("zod/v4/core").$ZodBranded<import("zod").ZodString, "ModelLoginId", "out">;
+        code: import("zod").ZodString;
+    }, import("zod/v4/core").$strict>;
+    readonly success: {
+        readonly 200: import("zod").ZodObject<{
+            state: import("zod").ZodEnum<{
+                succeeded: "succeeded";
+                failed: "failed";
+                expired: "expired";
+            }>;
+        }, import("zod/v4/core").$strip>;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly [];
+    readonly malformed: null;
+    readonly params: null;
+    readonly headers: null;
+    readonly id: "MDL-05";
+    readonly access: "session";
+    readonly method: "POST";
+    readonly path: "/api/control/model-accounts/anthropic/oauth/complete";
+} | {
+    readonly query: null;
+    readonly body: null;
+    readonly success: {
+        readonly 200: import("zod").ZodObject<{
+            loginId: import("zod/v4/core").$ZodBranded<import("zod").ZodString, "ModelLoginId", "out">;
+            url: import("zod").ZodString;
+            userCode: import("zod").ZodString;
+            intervalMs: import("zod").ZodNumber;
+            expiresAt: import("zod").ZodISODateTime;
+        }, import("zod/v4/core").$strip>;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly ["MODEL_LOGIN_UNAVAILABLE"];
+    readonly malformed: null;
+    readonly params: null;
+    readonly headers: null;
+    readonly id: "MDL-06";
+    readonly access: "session";
+    readonly method: "POST";
+    readonly path: "/api/control/model-accounts/openai-codex/oauth/start";
+} | {
+    readonly query: import("zod").ZodObject<{
+        loginId: import("zod").ZodOptional<import("zod").ZodString>;
+    }, import("zod/v4/core").$strict>;
+    readonly body: null;
+    readonly success: {
+        readonly 200: import("zod").ZodObject<{
+            state: import("zod").ZodEnum<{
+                succeeded: "succeeded";
+                failed: "failed";
+                expired: "expired";
+                waiting: "waiting";
+            }>;
+        }, import("zod/v4/core").$strip>;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly [];
+    readonly malformed: null;
+    readonly params: null;
+    readonly headers: null;
+    readonly id: "MDL-07";
+    readonly access: "session";
+    readonly method: "POST";
+    readonly path: "/api/control/model-accounts/openai-codex/oauth/poll";
+} | {
+    readonly query: null;
+    readonly body: null;
+    readonly success: {
+        readonly 200: import("zod").ZodObject<{
+            own: import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
+                state: import("zod").ZodLiteral<"absent">;
+            }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+                state: import("zod").ZodLiteral<"connected">;
+                kind: import("zod").ZodEnum<{
+                    api_key: "api_key";
+                    oauth: "oauth";
+                    google_ai_pro: "google_ai_pro";
+                }>;
+            }, import("zod/v4/core").$strip>], "state">;
+            shared: import("zod").ZodBoolean;
+        }, import("zod/v4/core").$strip>;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly ["MODEL_LOGIN_UNAVAILABLE"];
+    readonly malformed: null;
+    readonly params: null;
+    readonly headers: null;
+    readonly id: "MDL-08";
+    readonly access: "session";
+    readonly method: "GET";
+    readonly path: "/api/control/model-accounts/google-ai-pro/connection";
+} | {
+    readonly query: null;
+    readonly body: null;
+    readonly success: {
+        readonly 200: import("zod").ZodObject<{
+            loginId: import("zod/v4/core").$ZodBranded<import("zod").ZodString, "ModelLoginId", "out">;
+            url: import("zod").ZodString;
+        }, import("zod/v4/core").$strip>;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly ["MODEL_LOGIN_BUSY", "MODEL_LOGIN_UNAVAILABLE"];
+    readonly malformed: null;
+    readonly params: null;
+    readonly headers: null;
+    readonly id: "MDL-09";
+    readonly access: "session";
+    readonly method: "POST";
+    readonly path: "/api/control/model-accounts/google-ai-pro/login/start";
+} | {
+    readonly query: null;
+    readonly body: import("zod").ZodObject<{
+        loginId: import("zod/v4/core").$ZodBranded<import("zod").ZodString, "ModelLoginId", "out">;
+        callbackUrl: import("zod").ZodString;
+    }, import("zod/v4/core").$strict>;
+    readonly success: {
+        readonly 200: import("zod").ZodObject<{
+            state: import("zod").ZodEnum<{
+                succeeded: "succeeded";
+                failed: "failed";
+                expired: "expired";
+                waiting: "waiting";
+            }>;
+        }, import("zod/v4/core").$strip>;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly ["MODEL_LOGIN_CALLBACK_REFUSED", "MODEL_LOGIN_UNAVAILABLE"];
+    readonly malformed: null;
+    readonly params: null;
+    readonly headers: null;
+    readonly id: "MDL-10";
+    readonly access: "session";
+    readonly method: "POST";
+    readonly path: "/api/control/model-accounts/google-ai-pro/login/complete";
+} | {
+    readonly id: "MDL-11";
+    readonly access: "session";
+    readonly method: "POST";
+    readonly path: "/api/control/model-accounts/google-ai-pro/login/:loginId";
+    readonly params: import("zod").ZodObject<{
+        loginId: import("zod/v4/core").$ZodBranded<import("zod").ZodString, "ModelLoginId", "out">;
+    }, import("zod/v4/core").$strip>;
+    readonly query: null;
+    readonly headers: null;
+    readonly body: null;
+    readonly success: {
+        readonly 200: import("zod").ZodObject<{
+            state: import("zod").ZodEnum<{
+                succeeded: "succeeded";
+                failed: "failed";
+                expired: "expired";
+                waiting: "waiting";
+            }>;
+        }, import("zod/v4/core").$strip>;
+    };
+    readonly effects: readonly [];
+    readonly failures: readonly ["MODEL_LOGIN_UNAVAILABLE"];
+    readonly malformed: {
+        readonly loginId: "MODEL_LOGIN_NOT_FOUND";
     };
 } | {
     readonly id: "PRJ-01";

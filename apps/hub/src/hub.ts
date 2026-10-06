@@ -190,7 +190,6 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
       },
     } : {}),
     ...(launchPreview ? { launchPreview } : {}),
-    isInstallationAdministrator: identityAccess.installationAdministration.isInstallationAdministrator,
     readProjectName: async (input) => {
       const name = await project?.readProjectName(input)
       if (!name) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'BUILDER_PROJECT_NOT_FOUND' } })

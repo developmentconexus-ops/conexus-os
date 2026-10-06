@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { completeAnthropicLogin, startAnthropicLogin } from '@mastra/code-sdk/auth/providers/anthropic'
 import type { ClaudeTokens } from './credential.js'
-import type { AccountId } from '../../../../../packages/contract/dist/index.js'
+import { ModelLoginId, type AccountId } from '../../../../../packages/contract/dist/index.js'
 
 export type ClaudeLoginState = 'succeeded' | 'failed' | 'expired'
 
@@ -34,37 +34,36 @@ const realAuthorization: ClaudeAuthorization = Object.freeze({
  * started it; a person has at most one at a time. A refused code keeps the sign-in open, so a
  * mistyped paste can be tried again before the deadline.
  */
-export const createClaudeLogin = <C extends Caller>({ writeCredential, authorization = realAuthorization, now = Date.now }: Readonly<{
-  writeCredential(caller: C, tokens: ClaudeTokens): Promise<void>
+export const createClaudeLogin = <C extends Caller>({ connect, authorization = realAuthorization, now = Date.now }: Readonly<{
+  connect(caller: C, tokens: ClaudeTokens): Promise<'connected' | 'failed'>
   authorization?: ClaudeAuthorization
   now?: () => number
 }>) => {
-  const attempts = new Map<string, Attempt<C>>()
+  const attempts = new Map<ModelLoginId, Attempt<C>>()
 
   const sweep = (): void => {
     for (const [loginId, attempt] of attempts) if (now() >= attempt.deadlineAt) attempts.delete(loginId)
   }
 
-  const settle = async (loginId: string, attempt: Attempt<C>, pasted: string): Promise<ClaudeLoginState> => {
+  const settle = async (loginId: ModelLoginId, attempt: Attempt<C>, pasted: string): Promise<ClaudeLoginState> => {
     const tokens = await authorization.complete(pasted, attempt.verifier).catch(() => null)
     if (!tokens) return 'failed'
-    return writeCredential(attempt.caller, tokens).then(
-      () => { attempts.delete(loginId); return 'succeeded' as const },
-      () => 'failed' as const,
-    )
+    const connected = await connect(attempt.caller, tokens)
+    attempts.delete(loginId)
+    return connected === 'connected' ? 'succeeded' : 'failed'
   }
 
   return Object.freeze({
-    start: async (caller: C): Promise<Readonly<{ loginId: string; url: string; expiresAt: number }>> => {
+    start: async (caller: C): Promise<Readonly<{ loginId: ModelLoginId; url: string; expiresAt: number }>> => {
       sweep()
       for (const [loginId, attempt] of attempts) if (attempt.caller.accountId === caller.accountId) attempts.delete(loginId)
       const { url, verifier } = await authorization.start()
-      const loginId = randomUUID()
+      const loginId = ModelLoginId.parse(randomUUID())
       const deadlineAt = now() + PASTE_CODE_TTL_MS
       attempts.set(loginId, { caller, verifier, deadlineAt, settling: undefined })
       return Object.freeze({ loginId, url, expiresAt: deadlineAt })
     },
-    complete: async (caller: C, loginId: string, pasted: string): Promise<ClaudeLoginState> => {
+    complete: async (caller: C, loginId: ModelLoginId, pasted: string): Promise<ClaudeLoginState> => {
       sweep()
       const attempt = attempts.get(loginId)
       if (!attempt || attempt.caller.accountId !== caller.accountId) return 'expired'

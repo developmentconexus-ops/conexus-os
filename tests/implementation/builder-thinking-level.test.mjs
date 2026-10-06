@@ -27,13 +27,19 @@ const claudeSubscription = { modelAccountId: 'row-claude', kind: 'oauth', secret
 
 const routingOver = (anthropicRow = rows.anthropic) => createModelRouting({
   routes: {
-    anthropic: createAnthropicRoute(createClaudeHolds({ store: { readById: async () => null, rewrite: async () => false } })),
-    openai: createOpenAICodexRoute({ hold: (_id, tokens) => async () => tokens }),
+    anthropic: createAnthropicRoute(createClaudeHolds({})),
+    openai: createOpenAICodexRoute({ hold: (_held, tokens) => async () => tokens }),
     'google-ai-pro': createGoogleAiProRoute({ routerUrl: async () => ROUTER, track: () => {} }),
   },
-  modelAccounts: { usable: async (_owner, provider) => provider === 'anthropic' ? anthropicRow : rows[provider] ?? null },
+  modelAccounts: {
+    usable: async (_owner, provider) => (provider === 'anthropic' ? anthropicRow : rows[provider]) !== undefined,
+    select: async (run, provider) => {
+      const row = provider === 'anthropic' ? anthropicRow : rows[provider]
+      return row ? { modelAccountId: row.modelAccountId, credential: { provider, kind: row.kind }, secret: row.secret, run, read: async () => null, persist: async () => false } : null
+    },
+  },
   conversationModel: async () => null,
-  readDefault: async (role) => role === 'memory' ? 'anthropic/claude-haiku-4-5' : null,
+  readDefault: async (_accountId, role) => role === 'memory' ? 'anthropic/claude-haiku-4-5' : null,
   record: async () => {},
 })
 

@@ -3,9 +3,10 @@ import { OPENAI_PREFIX, remapOpenAIModelForCodexOAuth } from '@mastra/code-sdk/p
 import type { ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import type { MastraModelConfig } from '@mastra/core/llm'
 import { wrapLanguageModel, type LanguageModelMiddleware } from 'ai'
+import { MODEL_PROVIDERS } from '../model-account/providers.js'
 import type { ModelRoute } from '../model-routing.js'
 import type { TokenHolds } from '../oauth-holds.js'
-import { heldCodexCredentials, OPENAI_CODEX_PROVIDER, OPENAI_MODEL_PROVIDER, parseCodexTokens, type CodexTokens } from './credential.js'
+import { heldCodexCredentials, parseCodexTokens, type CodexTokens } from './credential.js'
 import { Failure } from '../../platform/failure.js'
 
 /**
@@ -60,11 +61,11 @@ const openaiCodexModel = (modelName: string, thinkingLevel: ThinkingLevelSetting
   })
 
 /** The `openai/*` route: the caller's ChatGPT row pays. Called from the Hub; the token never leaves it. */
-export const createOpenAICodexRoute = (holds: TokenHolds<CodexTokens>): ModelRoute => Object.freeze({
-  accountProvider: OPENAI_CODEX_PROVIDER,
-  take: (account) => {
-    const tokens = parseCodexTokens(account.secret)
-    const current = holds.hold(account.modelAccountId, tokens)
-    return { modelProvider: OPENAI_MODEL_PROVIDER, model: async (modelName, thinkingLevel) => openaiCodexModel(modelName, thinkingLevel, tokens, current) }
+export const createOpenAICodexRoute = (holds: TokenHolds<CodexTokens>): ModelRoute<'openai-codex'> => Object.freeze({
+  accountProvider: 'openai-codex',
+  take: (held) => {
+    const tokens = parseCodexTokens(held.secret)
+    const current = holds.hold(held, tokens)
+    return { modelProvider: MODEL_PROVIDERS['openai-codex'].routerPrefix, model: async (modelName, thinkingLevel) => openaiCodexModel(modelName, thinkingLevel, tokens, current) }
   },
 })

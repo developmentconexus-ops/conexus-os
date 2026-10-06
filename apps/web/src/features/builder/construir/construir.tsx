@@ -120,7 +120,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   const sessionModel = useSessionModel(projectId, conversationId)
   // A model without a key on the controller would fail the run, so it is never offered, and a
   // selection that lost its key counts as no selection rather than as a model the person can use.
-  const offeredModels = (models.data?.models ?? []).filter((model) => model.hasApiKey)
+  const offeredModels = models.data?.models ?? []
   const modelReady = offeredModels.some((model) => model.id === sessionModel.modelId)
 
   const run = session.data?.latestBuilderRun ?? null
