@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { WS01 } from '../../../../packages/contract/dist/index.js'
+import { createWorkspace } from '../../../../packages/contract/dist/index.js'
 import type { WorkspaceStore } from './store.js'
 import { routes } from '../http/access.js'
 
@@ -10,10 +10,10 @@ export type WorkspaceRouteDependencies = Readonly<{
 export const registerWorkspaceRoutes = async (
   app: FastifyInstance,
   { store }: WorkspaceRouteDependencies,
-): Promise<readonly ['WS-01']> => {
+): Promise<readonly ['createWorkspace']> => {
   const route = routes(app)
 
-  route.operation(WS01, async (input, session) => {
+  route.operation(createWorkspace, async (input, session) => {
     const created = await store.createWorkspace({
       accountId: session.account.accountId,
       idempotencyKey: input.headers['idempotency-key'],
@@ -22,5 +22,5 @@ export const registerWorkspaceRoutes = async (
     return created.reply
   })
 
-  return ['WS-01']
+  return ['createWorkspace']
 }

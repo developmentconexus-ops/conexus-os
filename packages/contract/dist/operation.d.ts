@@ -22,6 +22,7 @@ export type Success = Readonly<{
 }>;
 export type Operation<Id extends string = string, Access extends AccessKind = AccessKind, Params extends Part = Part, Query extends Part = Part, Headers extends Part = Part, Body extends Part = Part, Successes extends Success = Success, Failures extends readonly FailureCode[] = readonly FailureCode[], Effects extends readonly Effect[] = readonly Effect[]> = Readonly<{
     id: Id;
+    summary: string;
     access: Access;
     method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
     path: string;
@@ -75,4 +76,7 @@ export type EffectsOf<E extends readonly Effect[]> = {
 };
 type PathDeclaration<O extends AnyOperation> = O['path'] extends `${string}:${string}` ? O['malformed'] extends null ? never : unknown : unknown;
 export declare const operation: <const O extends AnyOperation>(declaration: O & PathDeclaration<O>) => O;
+export declare const operationRegistry: <const R extends Readonly<Record<string, AnyOperation>>>(declared: R & { readonly [K in keyof R]: {
+    readonly id: K;
+}; }) => R;
 export {};

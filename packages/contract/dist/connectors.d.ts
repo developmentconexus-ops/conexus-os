@@ -72,8 +72,9 @@ export declare const ConnectionCheckOutcome: z.ZodEnum<{
     OK: "OK";
 }>;
 export type ConnectionCheckOutcome = z.output<typeof ConnectionCheckOutcome>;
-export declare const CON01: {
-    readonly id: "CON-01";
+export declare const listWorkspaceConnections: {
+    readonly id: "listWorkspaceConnections";
+    readonly summary: "List the Connections of a Workspace without any credential field; installation administrator only.";
     readonly access: "session";
     readonly method: "GET";
     readonly path: "/api/control/workspaces/:workspaceId/connections";
@@ -100,8 +101,9 @@ export declare const CON01: {
         readonly workspaceId: "WORKSPACE_NOT_FOUND";
     };
 };
-export declare const CON02: {
-    readonly id: "CON-02";
+export declare const createWorkspaceConnection: {
+    readonly id: "createWorkspaceConnection";
+    readonly summary: "Create a Connection of a Workspace, idempotent on its client-chosen id; installation administrator only.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/workspaces/:workspaceId/connections";
@@ -142,8 +144,9 @@ export declare const CON02: {
         readonly workspaceId: "CONNECTOR_WORKSPACE_NOT_FOUND";
     };
 };
-export declare const CON03: {
-    readonly id: "CON-03";
+export declare const checkWorkspaceConnection: {
+    readonly id: "checkWorkspaceConnection";
+    readonly summary: "Check a Connection by running the allow-listed authentication of its Connector; installation administrator only.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/workspaces/:workspaceId/connections/:connectionId/authentication-check";
@@ -173,8 +176,9 @@ export declare const CON03: {
         readonly connectionId: "CONNECTOR_CONNECTION_NOT_FOUND";
     };
 };
-export declare const CON04: {
-    readonly id: "CON-04";
+export declare const disableWorkspaceConnection: {
+    readonly id: "disableWorkspaceConnection";
+    readonly summary: "Disable a Connection and end its open bindings; installation administrator only.";
     readonly access: "session";
     readonly method: "DELETE";
     readonly path: "/api/control/workspaces/:workspaceId/connections/:connectionId";
@@ -195,8 +199,9 @@ export declare const CON04: {
         readonly connectionId: "CONNECTOR_CONNECTION_NOT_FOUND";
     };
 };
-export declare const CON08: {
-    readonly id: "CON-08";
+export declare const listProjectConnectionBindings: {
+    readonly id: "listProjectConnectionBindings";
+    readonly summary: "List the open bindings of a Project and the Connections it could still bind; Workspace Owner only.";
     readonly access: "session";
     readonly method: "GET";
     readonly path: "/api/control/projects/:projectId/connection-bindings";
@@ -230,8 +235,9 @@ export declare const CON08: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
 };
-export declare const CON09: {
-    readonly id: "CON-09";
+export declare const bindProjectConnection: {
+    readonly id: "bindProjectConnection";
+    readonly summary: "Bind an enabled Connection of the Workspace to a Project under a Project-local name; Workspace Owner only.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/projects/:projectId/connection-bindings";
@@ -270,8 +276,9 @@ export declare const CON09: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
 };
-export declare const CON10: {
-    readonly id: "CON-10";
+export declare const unbindProjectConnection: {
+    readonly id: "unbindProjectConnection";
+    readonly summary: "End the binding of a Connection to a Project; Workspace Owner only.";
     readonly access: "session";
     readonly method: "DELETE";
     readonly path: "/api/control/projects/:projectId/connection-bindings/:bindingId";

@@ -27,7 +27,7 @@ test('Project composition registers exactly the six Project operations', async (
     store: {},
     thumbnailReader: undefined,
   })
-  assert.deepEqual(registered, ['PRJ-01', 'PRJ-02', 'PRJ-03', 'PRJ-04', 'PRJ-SUMMARIES', 'PRJ-THUMBNAIL'])
+  assert.deepEqual(registered, ['listProjects', 'getProject', 'createProject', 'deleteProject', 'listProjectSummaries', 'getProjectThumbnail'])
   assert.equal(routes.length, 6)
   assert.ok(routes.every((route) => !String(route.url).includes('baseline') && !String(route.url).includes('inception')))
 })

@@ -2,7 +2,8 @@ import { call, failureText, isFailure, query } from '../../app/http'
 import { HubFailure } from '../../app/failure'
 import { routeParam } from '../../app/route-params'
 import {
-  BindingId, ConnectionId, CON01, CON02, CON03, CON04, CON08, CON09, CON10, ProjectId, WorkspaceId,
+  createWorkspaceConnection as createWorkspaceConnectionOperation, checkWorkspaceConnection as checkWorkspaceConnectionOperation, disableWorkspaceConnection as disableWorkspaceConnectionOperation, bindProjectConnection as bindProjectConnectionOperation, unbindProjectConnection as unbindProjectConnectionOperation,
+  BindingId, ConnectionId, listWorkspaceConnections, listProjectConnectionBindings, ProjectId, WorkspaceId,
   type ConnectionBinding, type ConnectionBindingEntry, type ConnectionCheckOutcome, type Input,
 } from '../../../../../packages/contract/dist/index.js'
 
@@ -13,23 +14,23 @@ const projectParams = (projectId: string) => ({ projectId: routeParam(ProjectId,
 export type ProjectConnectionBinding = Extract<ConnectionBindingEntry, { kind: 'binding' }>
 export type BindableConnection = Extract<ConnectionBindingEntry, { kind: 'bindable' }>
 
-export const workspaceConnectionsQuery = (workspaceId: string) => query(CON01, { params: workspaceParams(workspaceId), ...noInput, body: undefined })
-export const projectConnectionBindingsQuery = (projectId: string) => query(CON08, { params: projectParams(projectId), ...noInput, body: undefined })
+export const workspaceConnectionsQuery = (workspaceId: string) => query(listWorkspaceConnections, { params: workspaceParams(workspaceId), ...noInput, body: undefined })
+export const projectConnectionBindingsQuery = (projectId: string) => query(listProjectConnectionBindings, { params: projectParams(projectId), ...noInput, body: undefined })
 
-export const createWorkspaceConnection = (workspaceId: string, body: Input<typeof CON02>['body']) =>
-  call(CON02, { params: workspaceParams(workspaceId), ...noInput, body })
+export const createWorkspaceConnection = (workspaceId: string, body: Input<typeof createWorkspaceConnectionOperation>['body']) =>
+  call(createWorkspaceConnectionOperation, { params: workspaceParams(workspaceId), ...noInput, body })
 
 export const checkWorkspaceConnection = async (workspaceId: string, connectionId: string): Promise<ConnectionCheckOutcome> =>
-  (await call(CON03, { params: { ...workspaceParams(workspaceId), connectionId: routeParam(ConnectionId, connectionId) }, ...noInput, body: undefined })).outcome
+  (await call(checkWorkspaceConnectionOperation, { params: { ...workspaceParams(workspaceId), connectionId: routeParam(ConnectionId, connectionId) }, ...noInput, body: undefined })).outcome
 
 export const disableWorkspaceConnection = (workspaceId: string, connectionId: string) =>
-  call(CON04, { params: { ...workspaceParams(workspaceId), connectionId: routeParam(ConnectionId, connectionId) }, ...noInput, body: undefined })
+  call(disableWorkspaceConnectionOperation, { params: { ...workspaceParams(workspaceId), connectionId: routeParam(ConnectionId, connectionId) }, ...noInput, body: undefined })
 
-export const bindProjectConnection = async (projectId: string, body: Input<typeof CON09>['body']): Promise<ConnectionBinding> =>
-  (await call(CON09, { params: projectParams(projectId), ...noInput, body })).body
+export const bindProjectConnection = async (projectId: string, body: Input<typeof bindProjectConnectionOperation>['body']): Promise<ConnectionBinding> =>
+  (await call(bindProjectConnectionOperation, { params: projectParams(projectId), ...noInput, body })).body
 
 export const unbindProjectConnection = (projectId: string, bindingId: string) =>
-  call(CON10, { params: { ...projectParams(projectId), bindingId: routeParam(BindingId, bindingId) }, ...noInput, body: undefined })
+  call(unbindProjectConnectionOperation, { params: { ...projectParams(projectId), bindingId: routeParam(BindingId, bindingId) }, ...noInput, body: undefined })
 
 // The viewer isn't an installation administrator; the Connections section explains that
 // instead of offering a retry.

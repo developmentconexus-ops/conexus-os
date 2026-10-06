@@ -3,7 +3,7 @@
 Part of [spec 0015](index.md). Covers who may act: the typed proof every command requires, the
 admission functions that make it, the lock order, the two database roles a transaction runs as (a
 reader under Row Level Security and a command role under the proof), the second wall on writes, the
-callers that do not act for a signed in person, and the two cases the move must keep (WS-01 and the
+callers that do not act for a signed in person, and the two cases the move must keep (`createWorkspace` and the
 concurrent revoke). Satisfies AC-7 to AC-9 of the umbrella. Revision 5 replaces section 4 and the
 policy rules of revision 4; what it deleted is listed in section 9. Revision 5.1 answers the two
 interrogations of revision 5, and revision 5.2 answers the confirmation of 5.1; what each changed and
@@ -94,7 +94,7 @@ functions check; each part may add the actions its operations check, and a new a
 `ROLE_ALLOWS` and of `ACTION_REFUSALS`, not a change to this union's shape.
 
 **Read actions that only an owner may take** (HQ decision, revision 5.3). `ReadAction` names four
-actions: `'workspace.read'`, `'project.read'`, `'connections.bind'` (part 2, CON-08) and
+actions: `'workspace.read'`, `'project.read'`, `'connections.bind'` (part 2, `listProjectConnectionBindings`) and
 `'application.manage'` (part 6, IAM-11). The last two are owner only through `ROLE_ALLOWS`. The read
 overload of `admitProject` takes any action that is both a `ReadAction` and a `ProjectAction`. So a
 list that only an owner may read stays a `read()`: the route walk of section 10 is unchanged, and no
@@ -140,7 +140,7 @@ export function admitWorkspace<A extends ReadAction & WorkspaceAction>(tx: ReadT
 export function admitProject<A extends ProjectAction>(gate: CommandGate, projectId: ProjectId, action: A): Promise<Admitted<ProjectScope<A>>>
 export function admitProject<A extends ReadAction & ProjectAction>(tx: ReadTx, projectId: ProjectId, action: A): Promise<Admitted<ProjectScope<A>, 'read'>>
 export function admitInstallationAdministrator<A extends AdministratorAction>(gate: CommandGate, action: A): Promise<Admitted<AdministratorScope<A>>>
-export function isInstallationAdministrator(tx: ReadTx): Promise<boolean>   // a fact, not a proof: CON-01 (part 2), IAM-14 and IAM-15 (part 6)
+export function isInstallationAdministrator(tx: ReadTx): Promise<boolean>   // a fact, not a proof: listWorkspaceConnections (part 2), IAM-14 and IAM-15 (part 6)
 export function admitApplication(gate: CommandGate, projectId: ProjectId): Promise<Admitted<ApplicationScope>>   // built in part 0b
 export function checkApplication(gate: CommandGate, projectId: ProjectId): Promise<Checked<ApplicationScope>>   // built in part 0b: served reads, no row lock, ReadTx only
 export function admitRun(gate: CommandGate, builderRunId: BuilderRunId, owner: RunOwner): Promise<Admitted<RunScope>>   // body in part 1
@@ -267,7 +267,7 @@ administrator first asks the fact through `isInstallationAdministrator(tx)`, the
 `admission.ts` that runs `SELECT rls.acting_installation_administrator()` on the read transaction.
 `hub_reader` may execute the helper, so the function needs no grant on
 `iam.installation_administrator`. It returns a boolean, not a proof, and takes no lock. Part 2 writes
-it for CON-01 and CON-03, and part 6 uses the same function for IAM-14 and IAM-15, so no part holds a
+it for `listWorkspaceConnections` and `checkWorkspaceConnection`, and part 6 uses the same function for IAM-14 and IAM-15, so no part holds a
 second copy (HQ decision). The refusal code stays the store's own.
 
 **The project deletion's order.** The tombstone step takes, in order: the account `FOR SHARE` and
@@ -327,9 +327,9 @@ export const leaveWorkspace = async (self: Admitted<WorkspaceScope<'members.leav
 `members.leave` is allowed to every role, as today a member may remove itself; `members.manage` only
 to owners. `lastOwnerRemoved` is a pure function over the locked owners.
 
-## 3. WS-01 and the concurrent revoke
+## 3. `createWorkspace` and the concurrent revoke
 
-**WS-01** creates a workspace and its creator's owner membership, two owners in one transaction.
+**`createWorkspace`** creates a workspace and its creator's owner membership, two owners in one transaction.
 `database.transaction(accountId, ...)` opens; `admitAccount` locks the creator's account `FOR SHARE`;
 `idempotent` reserves the receipt and returns the reserved `resource_id`; `workspace/` inserts the
 workspace with that id; `grantCreatorMembership(creator, workspaceId)`, exported by
@@ -350,7 +350,7 @@ commits. If O deletes first, M's admission waits on the row, then under READ COM
 and is refused. Two owners removing each other both start with step 1 on the same owner set, so the
 second waits for the first and then answers `LAST_OWNER` or succeeds by today's rule, never 40P01.
 
-Part 3 proved the revoke race on PRJ-03 against today's `iam.remove_workspace_member`. Part 0b runs it
+Part 3 proved the revoke race on `createProject` against today's `iam.remove_workspace_member`. Part 0b runs it
 again on the command role. Part 6 proves both races on the TypeScript membership commands.
 
 ## 4. The split wall
@@ -464,7 +464,7 @@ role has `BYPASSRLS`. A helper returns facts about the acting account, never a r
    only on the `SELECT` of a list that has that reach today, as a second policy named `reader_admin`
    (below). The reach list is literal. It names four tables, and no other table has it:
    `project.project_deletion`, for the deletion in progress (`iam.visible_projects`,
-   `0030_project_deletion.sql:74`, built in part 3); `connector.connection`, for CON-01 and CON-03
+   `0030_project_deletion.sql:74`, built in part 3); `connector.connection`, for `listWorkspaceConnections` and `checkWorkspaceConnection`
    (`connector.list_connections`, `0029_connector.sql:157`, part 2);
    `iam.installation_administrator`, and the `iam.account` rows of the open tenures and of the accounts
    named by `granted_by` on them (the grantor's display name, as today), both for IAM-15
@@ -476,7 +476,7 @@ role has `BYPASSRLS`. A helper returns facts about the acting account, never a r
 5. A grantee has no reader branch. An application grantee reads the facts of the one application it
    opens on the command role, filtered by `proof.scope.projectId`, after `checkApplication` (a write: `admitApplication`; section 6). A run reads its held
    credential on the command role after `admitRun`, filtered by the run from the proof. A credential flow reads by digest on
-   the command role (section 6). The Project thumbnail (`PRJ-THUMBNAIL`, part 4) is a member read, not
+   the command role (section 6). The Project thumbnail (`getProjectThumbnail`, part 4) is a member read, not
    a grantee read. It drops today's `iam.application` row condition (`iam.has_application_access`),
    because `hub_reader` holds no grant on that table before part 6. A member of a Project with no
    application row yet now reads its thumbnail. An account with only an application grant no longer
@@ -632,7 +632,7 @@ threat model).
 fails when the text `purge_project` appears in any Hub file but `project/deletion.ts`. The guard dies
 with each function, when its owner's part turns it into a port.
 
-`builder.register_project_repository` takes no job guard: its one caller is PRJ-03 in a person's
+`builder.register_project_repository` takes no job guard: its one caller is `createProject` in a person's
 `transaction` (`project/store.ts:98`), not a job. Its two inserts are `ON CONFLICT DO NOTHING` keyed
 by a project that must exist (`0032_conexus_git.sql:12`, `0001_baseline.sql:2277`), so on another
 tenant's project it changes nothing. Its `EXECUTE` is a register row of `hub_command`.
@@ -783,7 +783,7 @@ From revision 4 and from the amendments A and A+ that were drafted against it:
   or a spread copy where a `CommandGate` is due; an admission called with an `accountId` argument; a
   `RawToken` value in a `sql` template (the fixture proves `NoRawToken` refuses it): `tsc` fails (a
   negative fixture file, checked by the census runner), verifies AC-7.
-- Revoke race, both orders, on PRJ-03 on the command role, and on the membership commands (part 6);
+- Revoke race, both orders, on `createProject` on the command role, and on the membership commands (part 6);
   two owners removing each other; two concurrent administrator revocations; an administrator revoked
   while its project deletion waits on the tenure lock; one member leaving twice at once (one succeeds,
   the other answers `WORKSPACE_NOT_FOUND`): today's outcomes, no 40P01, verifies AC-8.

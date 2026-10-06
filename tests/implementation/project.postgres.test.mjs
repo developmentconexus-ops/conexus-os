@@ -14,7 +14,7 @@ const NEW = { name: 'Atlas', sourceBootstrap: { mode: 'NEW' } }
 const create = (store, accountId, key, body = NEW, workspaceId = ID.workspace) => store.createProject({ accountId, workspaceId, idempotencyKey: key, body })
 const names = (rows) => rows.map((row) => row.name)
 
-test('PRJ-03 creates the project and its repository rows, replays its answer, and refuses a changed request', async (t) => {
+test('createProject creates the project and its repository rows, replays its answer, and refuses a changed request', async (t) => {
   const { connection, store } = await setupProjects(t, 'conexus_prj03')
   const first = await create(store, ID.owner, 'one')
   assert.equal(first.replayed, false)
@@ -25,10 +25,10 @@ test('PRJ-03 creates the project and its repository rows, replays its answer, an
     (SELECT count(*)::integer FROM builder.project_working_state WHERE project_id = p.project_id) AS working,
     (SELECT count(*)::integer FROM builder.project_repository WHERE project_id = p.project_id) AS repository
     FROM project.project p JOIN platform.operation_receipt r ON r.resource_id = p.project_id`)
-  assert.deepEqual(rows.rows, [{ name: 'Atlas', source_revision: STARTER, project_revision: first.reply.projectRevision, state: 'completed', operation_id: 'PRJ-03', working: 1, repository: 1 }])
+  assert.deepEqual(rows.rows, [{ name: 'Atlas', source_revision: STARTER, project_revision: first.reply.projectRevision, state: 'completed', operation_id: 'createProject', working: 1, repository: 1 }])
 })
 
-test('PRJ-03 with the same key and body in another workspace creates there', async (t) => {
+test('createProject with the same key and body in another workspace creates there', async (t) => {
   const { connection, store } = await setupProjects(t, 'conexus_prj03_other')
   await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'member')", [ID.owner, ID.otherWorkspace])
   const here = await create(store, ID.owner, 'shared')
@@ -38,7 +38,7 @@ test('PRJ-03 with the same key and body in another workspace creates there', asy
   assert.equal(there.reply.workspaceId, ID.otherWorkspace)
 })
 
-test('PRJ-03 reaches the same project id after a crash between Git and completion', async (t) => {
+test('createProject reaches the same project id after a crash between Git and completion', async (t) => {
   const prepared = []
   let failNext = true
   const { connection, store } = await setupProjects(t, 'conexus_prj03_crash', { repository: { prepare: async (projectId) => {
@@ -54,7 +54,7 @@ test('PRJ-03 reaches the same project id after a crash between Git and completio
   assert.equal(retried.reply.projectId, prepared[0])
 })
 
-test('PRJ-03 refuses a retry after the account lost the workspace, an inactive account and a source it does not offer', async (t) => {
+test('createProject refuses a retry after the account lost the workspace, an inactive account and a source it does not offer', async (t) => {
   const { connection, store } = await setupProjects(t, 'conexus_prj03_refused')
   await assert.rejects(create(store, ID.outsider, 'outsider'), { id: 'PROJECT_CREATE_DENIED' })
   await assert.rejects(create(store, ID.owner, 'git', { name: 'Atlas', sourceBootstrap: { mode: 'EXISTING_GIT', repositoryLocator: 'https://git.test/x' } }), { id: 'PROJECT_SOURCE_REFUSED' })
@@ -67,7 +67,7 @@ test('PRJ-03 refuses a retry after the account lost the workspace, an inactive a
   await assert.rejects(create(store, ID.owner, 'inactive'), { id: 'ACCOUNT_INACTIVE' })
 })
 
-test('a revoke that commits first refuses PRJ-03', async (t) => {
+test('a revoke that commits first refuses createProject', async (t) => {
   const { connection, store, onCleanup } = await setupProjects(t, 'conexus_prj03_revoke')
   const revoker = new pg.Client(connection)
   await revoker.connect()
@@ -83,7 +83,7 @@ test('a revoke that commits first refuses PRJ-03', async (t) => {
   await assert.rejects(waiting, { id: 'PROJECT_CREATE_DENIED' })
 })
 
-test('a revoke waits for an admitted PRJ-03 and the next admission is refused', async (t) => {
+test('a revoke waits for an admitted createProject and the next admission is refused', async (t) => {
   let holder
   const { connection, store, onCleanup } = await setupProjects(t, 'conexus_prj03_admitted', { repository: { prepare: async () => {
     await holder.query('BEGIN')

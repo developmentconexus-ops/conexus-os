@@ -24,6 +24,7 @@ export type Operation<
   Effects extends readonly Effect[] = readonly Effect[],
 > = Readonly<{
   id: Id
+  summary: string
   access: Access
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   path: string
@@ -64,3 +65,5 @@ type PathDeclaration<O extends AnyOperation> = O['path'] extends `${string}:${st
   : unknown
 
 export const operation = <const O extends AnyOperation>(declaration: O & PathDeclaration<O>): O => Object.freeze(declaration)
+
+export const operationRegistry = <const R extends Readonly<Record<string, AnyOperation>>>(declared: R & { readonly [K in keyof R]: { readonly id: K } }): R => Object.freeze(declared)

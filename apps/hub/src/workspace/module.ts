@@ -5,7 +5,7 @@ import { registerWorkspaceRoutes } from './routes.js'
 import { createWorkspaceStore } from './store.js'
 
 export type WorkspaceModule = Readonly<{
-  registerWorkspaceRoutes(app: FastifyInstance): Promise<readonly ['WS-01']>
+  registerWorkspaceRoutes(app: FastifyInstance): Promise<readonly ['createWorkspace']>
   listAccessibleWorkspaces(accountId: AccountId): Promise<readonly { workspaceId: string; name: string }[]>
 }>
 

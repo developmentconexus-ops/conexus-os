@@ -61,8 +61,9 @@ export declare const ProjectCard: z.ZodObject<{
     deleting: z.ZodBoolean;
 }, z.core.$strip>;
 export type ProjectCard = z.output<typeof ProjectCard>;
-export declare const PRJ01: {
-    readonly id: "PRJ-01";
+export declare const listProjects: {
+    readonly id: "listProjects";
+    readonly summary: "List the Projects of a Workspace.";
     readonly access: "session";
     readonly method: "GET";
     readonly path: "/api/control/workspaces/:workspaceId/projects";
@@ -86,8 +87,9 @@ export declare const PRJ01: {
         readonly workspaceId: "WORKSPACE_NOT_FOUND";
     };
 };
-export declare const PRJ02: {
-    readonly id: "PRJ-02";
+export declare const getProject: {
+    readonly id: "getProject";
+    readonly summary: "Read one Project the Account may open.";
     readonly access: "session";
     readonly method: "GET";
     readonly path: "/api/control/projects/:projectId";
@@ -120,8 +122,9 @@ export declare const PRJ02: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
 };
-export declare const PRJ03: {
-    readonly id: "PRJ-03";
+export declare const createProject: {
+    readonly id: "createProject";
+    readonly summary: "Create a Project with its source and initial access, once per idempotency key.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/workspaces/:workspaceId/projects";
@@ -156,8 +159,9 @@ export declare const PRJ03: {
         readonly workspaceId: "WORKSPACE_NOT_FOUND";
     };
 };
-export declare const PRJ04: {
-    readonly id: "PRJ-04";
+export declare const deleteProject: {
+    readonly id: "deleteProject";
+    readonly summary: "Delete a Project, its data and its repository; installation administrator only.";
     readonly access: "session";
     readonly method: "DELETE";
     readonly path: "/api/control/projects/:projectId";
@@ -178,8 +182,9 @@ export declare const PRJ04: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
 };
-export declare const PRJ_SUMMARIES: {
-    readonly id: "PRJ-SUMMARIES";
+export declare const listProjectSummaries: {
+    readonly id: "listProjectSummaries";
+    readonly summary: "List the Projects of a Workspace with their latest Builder activity and whether a Preview exists.";
     readonly access: "session";
     readonly method: "GET";
     readonly path: "/api/control/workspaces/:workspaceId/project-summaries";
@@ -221,8 +226,9 @@ export declare const PRJ_SUMMARIES: {
         readonly workspaceId: "WORKSPACE_NOT_FOUND";
     };
 };
-export declare const PRJ_THUMBNAIL: {
-    readonly id: "PRJ-THUMBNAIL";
+export declare const getProjectThumbnail: {
+    readonly id: "getProjectThumbnail";
+    readonly summary: "Read the captured thumbnail of a Project application, as an image.";
     readonly access: "session";
     readonly method: "GET";
     readonly path: "/api/control/projects/:projectId/thumbnail";

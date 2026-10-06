@@ -468,8 +468,8 @@
     },
     "/api/control/workspaces": {
       "post": {
-        "operationId": "WS-01",
-        "summary": "WS-01",
+        "operationId": "createWorkspace",
+        "summary": "Create a Workspace; the creator becomes its owner.",
         "parameters": [
           {
             "name": "idempotency-key",
@@ -661,8 +661,8 @@
     },
     "/api/control/workspaces/{workspaceId}/projects": {
       "get": {
-        "operationId": "PRJ-01",
-        "summary": "PRJ-01",
+        "operationId": "listProjects",
+        "summary": "List the Projects of a Workspace.",
         "parameters": [
           {
             "name": "workspaceId",
@@ -786,8 +786,8 @@
         }
       },
       "post": {
-        "operationId": "PRJ-03",
-        "summary": "PRJ-03",
+        "operationId": "createProject",
+        "summary": "Create a Project with its source and initial access, once per idempotency key.",
         "parameters": [
           {
             "name": "workspaceId",
@@ -1040,8 +1040,8 @@
     },
     "/api/control/projects/{projectId}": {
       "get": {
-        "operationId": "PRJ-02",
-        "summary": "PRJ-02",
+        "operationId": "getProject",
+        "summary": "Read one Project the Account may open.",
         "parameters": [
           {
             "name": "projectId",
@@ -1186,8 +1186,8 @@
         }
       },
       "delete": {
-        "operationId": "PRJ-04",
-        "summary": "PRJ-04",
+        "operationId": "deleteProject",
+        "summary": "Delete a Project, its data and its repository; installation administrator only.",
         "parameters": [
           {
             "name": "projectId",
@@ -1386,8 +1386,8 @@
     },
     "/api/control/workspaces/{workspaceId}/project-summaries": {
       "get": {
-        "operationId": "PRJ-SUMMARIES",
-        "summary": "PRJ-SUMMARIES",
+        "operationId": "listProjectSummaries",
+        "summary": "List the Projects of a Workspace with their latest Builder activity and whether a Preview exists.",
         "parameters": [
           {
             "name": "workspaceId",
@@ -1546,8 +1546,8 @@
     },
     "/api/control/projects/{projectId}/thumbnail": {
       "get": {
-        "operationId": "PRJ-THUMBNAIL",
-        "summary": "PRJ-THUMBNAIL",
+        "operationId": "getProjectThumbnail",
+        "summary": "Read the captured thumbnail of a Project application, as an image.",
         "parameters": [
           {
             "name": "projectId",
@@ -1735,8 +1735,8 @@
     },
     "/api/control/workspaces/{workspaceId}/connections": {
       "get": {
-        "operationId": "CON-01",
-        "summary": "CON-01",
+        "operationId": "listWorkspaceConnections",
+        "summary": "List the Connections of a Workspace without any credential field; installation administrator only.",
         "parameters": [
           {
             "name": "workspaceId",
@@ -1870,8 +1870,8 @@
         }
       },
       "post": {
-        "operationId": "CON-02",
-        "summary": "CON-02",
+        "operationId": "createWorkspaceConnection",
+        "summary": "Create a Connection of a Workspace, idempotent on its client-chosen id; installation administrator only.",
         "parameters": [
           {
             "name": "workspaceId",
@@ -2093,8 +2093,8 @@
     },
     "/api/control/workspaces/{workspaceId}/connections/{connectionId}/authentication-check": {
       "post": {
-        "operationId": "CON-03",
-        "summary": "CON-03",
+        "operationId": "checkWorkspaceConnection",
+        "summary": "Check a Connection by running the allow-listed authentication of its Connector; installation administrator only.",
         "parameters": [
           {
             "name": "workspaceId",
@@ -2260,8 +2260,8 @@
     },
     "/api/control/workspaces/{workspaceId}/connections/{connectionId}": {
       "delete": {
-        "operationId": "CON-04",
-        "summary": "CON-04",
+        "operationId": "disableWorkspaceConnection",
+        "summary": "Disable a Connection and end its open bindings; installation administrator only.",
         "parameters": [
           {
             "name": "workspaceId",
@@ -2410,8 +2410,8 @@
     },
     "/api/control/projects/{projectId}/connection-bindings": {
       "get": {
-        "operationId": "CON-08",
-        "summary": "CON-08",
+        "operationId": "listProjectConnectionBindings",
+        "summary": "List the open bindings of a Project and the Connections it could still bind; Workspace Owner only.",
         "parameters": [
           {
             "name": "projectId",
@@ -2569,8 +2569,8 @@
         }
       },
       "post": {
-        "operationId": "CON-09",
-        "summary": "CON-09",
+        "operationId": "bindProjectConnection",
+        "summary": "Bind an enabled Connection of the Workspace to a Project under a Project-local name; Workspace Owner only.",
         "parameters": [
           {
             "name": "projectId",
@@ -2778,8 +2778,8 @@
     },
     "/api/control/projects/{projectId}/connection-bindings/{bindingId}": {
       "delete": {
-        "operationId": "CON-10",
-        "summary": "CON-10",
+        "operationId": "unbindProjectConnection",
+        "summary": "End the binding of a Connection to a Project; Workspace Owner only.",
         "parameters": [
           {
             "name": "projectId",
@@ -2931,8 +2931,8 @@
     },
     "/api/control/projects/{projectId}/source/tree": {
       "get": {
-        "operationId": "BLD-08",
-        "summary": "BLD-08",
+        "operationId": "listProjectSourceTree",
+        "summary": "List the source tree of a Project at one exact source revision.",
         "parameters": [
           {
             "name": "projectId",
@@ -3114,8 +3114,8 @@
     },
     "/api/control/projects/{projectId}/source/file": {
       "get": {
-        "operationId": "BLD-09",
-        "summary": "BLD-09",
+        "operationId": "getProjectSourceFile",
+        "summary": "Read one source file of a Project at one exact source revision.",
         "parameters": [
           {
             "name": "projectId",
@@ -3305,8 +3305,8 @@
     },
     "/api/control/projects/{projectId}/builder-session": {
       "get": {
-        "operationId": "BLD-23",
-        "summary": "BLD-23",
+        "operationId": "getBuilderSession",
+        "summary": "Read the Builder session of a Project: its thread and its latest run and Preview.",
         "parameters": [
           {
             "name": "projectId",
@@ -3455,8 +3455,8 @@
     },
     "/api/control/projects/{projectId}/builder-session/messages": {
       "post": {
-        "operationId": "BLD-24",
-        "summary": "BLD-24",
+        "operationId": "sendBuilderMessage",
+        "summary": "Send a message to the Builder of a Project, which starts a run.",
         "parameters": [
           {
             "name": "projectId",
@@ -3726,8 +3726,8 @@
     },
     "/api/control/projects/{projectId}/builder-session/runs/{builderRunId}/cancel": {
       "post": {
-        "operationId": "BLD-25",
-        "summary": "BLD-25",
+        "operationId": "cancelBuilderRun",
+        "summary": "Cancel a Builder run; repeating the request changes nothing.",
         "parameters": [
           {
             "name": "projectId",
@@ -3896,8 +3896,8 @@
     },
     "/api/control/projects/{projectId}/builder-session/runs/{builderRunId}/trace": {
       "get": {
-        "operationId": "BLD-26",
-        "summary": "BLD-26",
+        "operationId": "getBuilderRunTrace",
+        "summary": "Read the safe trace projection of one Builder run.",
         "parameters": [
           {
             "name": "projectId",
@@ -4077,8 +4077,8 @@
     },
     "/api/control/projects/{projectId}/source/compare": {
       "get": {
-        "operationId": "BLD-29",
-        "summary": "BLD-29",
+        "operationId": "compareProjectSourceRevisions",
+        "summary": "Compare two source revisions of a Project, without file content.",
         "parameters": [
           {
             "name": "projectId",
@@ -4268,8 +4268,8 @@
     },
     "/api/control/projects/{projectId}/builder-session/preview": {
       "post": {
-        "operationId": "BLD-30",
-        "summary": "BLD-30",
+        "operationId": "launchBuilderPreview",
+        "summary": "Launch the Preview of the last good build of a Project.",
         "parameters": [
           {
             "name": "projectId",
@@ -4453,8 +4453,8 @@
     },
     "/api/control/model-accounts/models": {
       "get": {
-        "operationId": "MDL-01",
-        "summary": "MDL-01",
+        "operationId": "listAvailableModels",
+        "summary": "List the models the Builder picker offers the current Account.",
         "parameters": [
           {
             "name": "scope",
@@ -4594,8 +4594,8 @@
     },
     "/api/control/model-accounts": {
       "get": {
-        "operationId": "MDL-02",
-        "summary": "MDL-02",
+        "operationId": "listModelAccounts",
+        "summary": "List the model accounts of the current Account.",
         "parameters": [],
         "responses": {
           "200": {
@@ -4721,8 +4721,8 @@
     },
     "/api/control/model-accounts/{provider}/api-key": {
       "put": {
-        "operationId": "MDL-03",
-        "summary": "MDL-03",
+        "operationId": "setModelAccountApiKey",
+        "summary": "Store the API key of the current Account for a provider.",
         "parameters": [
           {
             "name": "provider",
@@ -4884,8 +4884,8 @@
     },
     "/api/control/model-accounts/anthropic/oauth/start": {
       "post": {
-        "operationId": "MDL-04",
-        "summary": "MDL-04",
+        "operationId": "startClaudeModelLogin",
+        "summary": "Start the Claude sign-in of the current Account.",
         "parameters": [],
         "responses": {
           "200": {
@@ -5042,8 +5042,8 @@
     },
     "/api/control/model-accounts/anthropic/oauth/complete": {
       "post": {
-        "operationId": "MDL-05",
-        "summary": "MDL-05",
+        "operationId": "completeClaudeModelLogin",
+        "summary": "Complete a Claude sign-in attempt of the current Account.",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -5196,8 +5196,8 @@
     },
     "/api/control/model-accounts/openai-codex/oauth/start": {
       "post": {
-        "operationId": "MDL-06",
-        "summary": "MDL-06",
+        "operationId": "startCodexModelLogin",
+        "summary": "Start the ChatGPT sign-in of the current Account.",
         "parameters": [],
         "responses": {
           "200": {
@@ -5364,8 +5364,8 @@
     },
     "/api/control/model-accounts/openai-codex/oauth/poll": {
       "post": {
-        "operationId": "MDL-07",
-        "summary": "MDL-07",
+        "operationId": "pollCodexModelLogin",
+        "summary": "Poll a ChatGPT sign-in attempt of the current Account.",
         "parameters": [
           {
             "name": "loginId",
@@ -5504,8 +5504,8 @@
     },
     "/api/control/model-accounts/google-ai-pro/connection": {
       "get": {
-        "operationId": "MDL-08",
-        "summary": "MDL-08",
+        "operationId": "getGoogleModelConnection",
+        "summary": "Read the Google connection of the current Account.",
         "parameters": [],
         "responses": {
           "200": {
@@ -5656,8 +5656,8 @@
     },
     "/api/control/model-accounts/google-ai-pro/login/start": {
       "post": {
-        "operationId": "MDL-09",
-        "summary": "MDL-09",
+        "operationId": "startGoogleModelLogin",
+        "summary": "Start the Google sign-in of the current Account.",
         "parameters": [],
         "responses": {
           "200": {
@@ -5832,8 +5832,8 @@
     },
     "/api/control/model-accounts/google-ai-pro/login/complete": {
       "post": {
-        "operationId": "MDL-10",
-        "summary": "MDL-10",
+        "operationId": "completeGoogleModelLogin",
+        "summary": "Complete a Google sign-in attempt of the current Account.",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -6011,8 +6011,8 @@
     },
     "/api/control/model-accounts/google-ai-pro/login/{loginId}": {
       "post": {
-        "operationId": "MDL-11",
-        "summary": "MDL-11",
+        "operationId": "getGoogleModelLoginStatus",
+        "summary": "Read the status of a Google sign-in attempt of the current Account.",
         "parameters": [
           {
             "name": "loginId",

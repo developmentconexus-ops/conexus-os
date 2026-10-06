@@ -6,7 +6,7 @@ import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
-import { BindingName, CON01, CON08, ConnectionId, type ConnectionCheckOutcome, type ConnectorConnection } from '../../../../../../packages/contract/dist/index.js'
+import { BindingName, listWorkspaceConnections, listProjectConnectionBindings, ConnectionId, type ConnectionCheckOutcome, type ConnectorConnection } from '../../../../../../packages/contract/dist/index.js'
 import {
   type BindableConnection,
   bindProjectConnection,
@@ -38,7 +38,7 @@ export function IntegrationsScreen({ workspaceId, projectId }: Readonly<{ worksp
 function ConnectionsSection({ workspaceId }: Readonly<{ workspaceId: string }>) {
   const queryClient = useQueryClient()
   const connections = useQuery(workspaceConnectionsQuery(workspaceId))
-  const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: [CON01.id] }), queryClient.invalidateQueries({ queryKey: [CON08.id] })])
+  const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: [listWorkspaceConnections.id] }), queryClient.invalidateQueries({ queryKey: [listProjectConnectionBindings.id] })])
 
   if (connections.isPending) {
     return <section aria-labelledby="connector-connections" className="cx-connector-section" aria-busy="true">
@@ -190,7 +190,7 @@ function CreateConnectionForm({ workspaceId, onCreated }: Readonly<{ workspaceId
 function BindingsSection({ projectId }: Readonly<{ projectId: string }>) {
   const queryClient = useQueryClient()
   const bindings = useQuery(projectConnectionBindingsQuery(projectId))
-  const refresh = () => queryClient.invalidateQueries({ queryKey: [CON08.id] })
+  const refresh = () => queryClient.invalidateQueries({ queryKey: [listProjectConnectionBindings.id] })
 
   if (bindings.isPending) {
     return <section aria-labelledby="connector-bindings" className="cx-connector-section" aria-busy="true">

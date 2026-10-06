@@ -3,7 +3,7 @@ import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useId, useState } from 'react'
 import { FAILURES } from '../../../../../../packages/contract/dist/failures.generated.js'
-import { MDL04, MDL05, type ModelLoginId } from '../../../../../../packages/contract/dist/index.js'
+import { startClaudeModelLogin, completeClaudeModelLogin, type ModelLoginId } from '../../../../../../packages/contract/dist/index.js'
 import { accountsQueryKey, noInput, ownKind, readAccounts } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
 import { call, failureText } from '../../../app/http'
@@ -18,7 +18,7 @@ function PasteCode({ login, onDone, onCancel }: Readonly<{ login: Login; onDone:
   const [refusal, setRefusal] = useState<string | null>(null)
   const pastedId = useId()
   const complete = useMutation({
-    mutationFn: () => call(MDL05, { ...noInput, body: { loginId: login.loginId, code: pasted.trim() } }),
+    mutationFn: () => call(completeClaudeModelLogin, { ...noInput, body: { loginId: login.loginId, code: pasted.trim() } }),
     onSuccess: ({ state }) => { if (state === 'failed') setRefusal(FAILURES.MODEL_LOGIN_ANTHROPIC_REFUSED.message); else onDone(state) },
     onError: (error) => setRefusal(failureText(error)),
   })
@@ -50,7 +50,7 @@ export function ClaudeAccount() {
     queryClient.invalidateQueries({ queryKey: ['builder-models'] }),
   ])
   const start = useMutation({
-    mutationFn: () => call(MDL04, noInput),
+    mutationFn: () => call(startClaudeModelLogin, noInput),
     onSuccess: (started) => { setMessage(null); setLogin(started) },
     onError: () => setMessage({ text: 'Não foi possível iniciar a entrada com a Claude agora.', failed: true }),
   })

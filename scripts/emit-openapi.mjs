@@ -56,12 +56,14 @@ const parameters = (part, location, components) => {
 const emit = () => {
   const bundled = bundleYaml()
   const yamlIds = new Set()
+  const yamlOperationIds = new Set()
   for (const path of Object.values(bundled.paths)) {
     for (const entry of Object.values(path)) {
       if (entry && typeof entry === 'object' && entry['x-conexus-4a-id']) {
         const id = entry['x-conexus-4a-id']
         if (yamlIds.has(id)) throw new Error(`OPENAPI_DUPLICATE_OPERATION: ${id}`)
         yamlIds.add(id)
+        yamlOperationIds.add(entry.operationId)
       }
     }
   }
@@ -69,8 +71,8 @@ const emit = () => {
   const components = document.components.schemas
   delete components.Problem
   asComponent(Problem, components, 'output')
-  for (const op of OPERATIONS) {
-    if (yamlIds.has(op.id)) throw new Error(`OPENAPI_DUPLICATE_OPERATION: ${op.id}`)
+  for (const op of Object.values(OPERATIONS)) {
+    if (yamlOperationIds.has(op.id)) throw new Error(`OPENAPI_DUPLICATE_OPERATION: ${op.id}`)
     const path = op.path.replace(/:(\w+)/g, '{$1}')
     const method = op.method.toLowerCase()
     document.paths[path] ??= {}
@@ -100,7 +102,7 @@ const emit = () => {
     }
     document.paths[path][method] = {
       operationId: op.id,
-      summary: op.id,
+      summary: op.summary,
       parameters: [
         ...parameters(op.params, 'path', components),
         ...parameters(op.query, 'query', components),

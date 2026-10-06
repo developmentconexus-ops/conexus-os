@@ -46,6 +46,16 @@ ASVS V8.
   and its current state.
 - Authority **must not** be inferred from a Keycloak role, group or claim, or from a provider,
   model, Mastra or E2B identity.
+- A principal **must** be one of four classes. `HUMAN_ACCOUNT_SESSION` is an authenticated human
+  mapped to one Account and one opaque Conexus session. `TRUSTED_BOOTSTRAP_CONTEXT` is the transient
+  pre-Account context for the one server-preconfigured OIDC subject; it may self-provision only that
+  Account through `provisionAccount` and is invalid afterwards. `SYSTEM_OWNER_TRANSITION` is an
+  owner-internal transition after an admitted command, with no public operation and no Permission.
+  `APPLICATION_SESSION` is a human Account acting in exactly one application on that application's
+  own host, and it reaches no Product operation. A Keycloak role, group or organization, a Mastra
+  agent, thread or workflow identity, an E2B sandbox or process identity, a trace, span or provider
+  request id, a storage key, path or URL, and any role, project or id the browser supplies are never
+  principals.
 - A command **must** write only with the `Admitted` proof an admission function returns after
   locking the rows it read. A served read uses `Checked`, which no command accepts.
 - The acting Account **must** come from the session, never from the request. A route that acts on a

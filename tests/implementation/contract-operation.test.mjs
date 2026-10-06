@@ -12,7 +12,7 @@ const signedIn = { cookie: hubSessionCookie(token) }
 
 test('an operation maps each malformed boundary and strips an extra reply field', async (t) => {
   const op = operation({
-    id: 'PRJ-02', access: 'session', method: 'GET', path: '/api/control/probe/:projectId',
+    id: 'getProject', access: 'session', method: 'GET', path: '/api/control/probe/:projectId',
     params: z.object({ projectId: ProjectId }),
     query: z.object({ page: z.coerce.number().int() }),
     headers: null, body: null,

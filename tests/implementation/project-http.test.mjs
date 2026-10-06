@@ -28,7 +28,7 @@ const listener = async (t, { store = {}, thumbnailReader } = {}, authenticated =
 const get = (app, url) => app.inject({ method: 'GET', url, headers: { cookie } })
 const problem = (response) => `${response.statusCode} ${response.json().code}`
 
-test('PRJ-01 and PRJ-02 answer the store, 404 a hidden project, and 404 a malformed id before the store', async (t) => {
+test('listProjects and getProject answer the store, 404 a hidden project, and 404 a malformed id before the store', async (t) => {
   let disclose = true
   const calls = []
   const app = await listener(t, { store: {
@@ -45,7 +45,7 @@ test('PRJ-01 and PRJ-02 answer the store, 404 a hidden project, and 404 a malfor
   assert.equal(problem(await get(app, '/api/control/workspaces/not-a-uuid/projects')), '404 WORKSPACE_NOT_FOUND')
 })
 
-test('PRJ-02 answers the purged tombstone with an empty revision and strips a column the schema does not name', async (t) => {
+test('getProject answers the purged tombstone with an empty revision and strips a column the schema does not name', async (t) => {
   const app = await listener(t, { store: {
     getProject: async () => ({ ...summary, projectRevision: '', deleting: true, secret: 'never on the wire' }),
   } })
@@ -60,7 +60,7 @@ test('a store failure on a read is the logged 500, and the session is checked fi
   assert.equal(problem(await get(app, `/api/control/workspaces/${WORKSPACE}/projects`)), '401 AUTHENTICATION_REQUIRED')
 })
 
-test('PRJ-SUMMARIES answers the cards as { projects } and names its own failure', async (t) => {
+test('listProjectSummaries answers the cards as { projects } and names its own failure', async (t) => {
   const card = { projectId: PROJECT, name: 'Fresh', archived: false, lastActivityAt: '2026-02-03T00:00:00.000Z', latestRun: { state: 'SUCCEEDED', resultKind: 'SOURCE_CHANGED' }, hasPreview: true, deleting: false }
   let failure = null
   const app = await listener(t, { store: { listProjectSummariesWithActivity: async () => { if (failure) throw failure; return [card] } } })
@@ -71,7 +71,7 @@ test('PRJ-SUMMARIES answers the cards as { projects } and names its own failure'
   assert.equal(problem(await get(app, url)), '503 PROJECT_SUMMARIES_UNAVAILABLE')
 })
 
-test('PRJ-THUMBNAIL streams the PNG with its ETag and cache header, and names 404 and 503', async (t) => {
+test('getProjectThumbnail streams the PNG with its ETag and cache header, and names 404 and 503', async (t) => {
   let answer = { artifactRevisionId: REVISION, bytes: PNG }
   const calls = []
   const app = await listener(t, { thumbnailReader: { readProjectThumbnail: async (accountId, projectId) => { calls.push({ accountId, projectId }); if (answer instanceof Error) throw answer; return answer } } })
@@ -92,7 +92,7 @@ test('PRJ-THUMBNAIL streams the PNG with its ETag and cache header, and names 40
 })
 
 
-test('PRJ-THUMBNAIL answers 503 PROJECT_THUMBNAIL_UNAVAILABLE for a broken served pointer', async (t) => {
+test('getProjectThumbnail answers 503 PROJECT_THUMBNAIL_UNAVAILABLE for a broken served pointer', async (t) => {
   const { Failure } = await import(hubModuleUrl('platform/failure.js'))
   const broken = new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'SERVED_POINTER_BROKEN' } })
   const app = await listener(t, { thumbnailReader: { readProjectThumbnail: async () => { throw broken } } })

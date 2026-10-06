@@ -70,7 +70,7 @@ export const createProjectDeletion = ({ database, ports }: Readonly<{ database: 
     await ports.purgeConnectorBindings(proof, projectId)
     await ports.purgeRegistry(proof, projectId)
     await ports.purgeBuilder(proof, projectId)
-    await tx.run(sql`DELETE FROM platform.operation_receipt WHERE operation_id = 'PRJ-03' AND resource_id = ${projectId}`)
+    await tx.run(sql`DELETE FROM platform.operation_receipt WHERE operation_id = 'createProject' AND resource_id = ${projectId}`)
     await tx.run(sql`DELETE FROM project.project WHERE project_id = ${projectId}`)
     await tx.run(sql`UPDATE project.project_deletion SET purged_at = coalesce(purged_at, now()) WHERE project_id = ${projectId}`)
   }

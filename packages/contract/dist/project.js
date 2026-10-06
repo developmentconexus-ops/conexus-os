@@ -52,20 +52,20 @@ export const ProjectCard = z.object({
 }).meta({ id: 'ProjectCard' });
 const workspaceParam = z.object({ workspaceId: WorkspaceId });
 const projectParam = z.object({ projectId: ProjectId });
-export const PRJ01 = operation({
-    id: 'PRJ-01', access: 'session', method: 'GET', path: '/api/control/workspaces/:workspaceId/projects',
+export const listProjects = operation({
+    id: 'listProjects', summary: 'List the Projects of a Workspace.', access: 'session', method: 'GET', path: '/api/control/workspaces/:workspaceId/projects',
     params: workspaceParam, query: null, headers: null, body: null,
     success: { 200: z.array(ProjectListItem) },
     effects: [], failures: [], malformed: { workspaceId: 'WORKSPACE_NOT_FOUND' },
 });
-export const PRJ02 = operation({
-    id: 'PRJ-02', access: 'session', method: 'GET', path: '/api/control/projects/:projectId',
+export const getProject = operation({
+    id: 'getProject', summary: 'Read one Project the Account may open.', access: 'session', method: 'GET', path: '/api/control/projects/:projectId',
     params: projectParam, query: null, headers: null, body: null,
     success: { 200: ProjectDetail },
     effects: [], failures: ['PROJECT_NOT_FOUND'], malformed: { projectId: 'PROJECT_NOT_FOUND' },
 });
-export const PRJ03 = operation({
-    id: 'PRJ-03', access: 'session', method: 'POST', path: '/api/control/workspaces/:workspaceId/projects',
+export const createProject = operation({
+    id: 'createProject', summary: 'Create a Project with its source and initial access, once per idempotency key.', access: 'session', method: 'POST', path: '/api/control/workspaces/:workspaceId/projects',
     params: workspaceParam, query: null,
     headers: z.looseObject({ 'idempotency-key': IdempotencyKey }),
     body: z.object({ name: ProjectName, sourceBootstrap: ProjectSourceBootstrap }).strict(),
@@ -74,22 +74,22 @@ export const PRJ03 = operation({
     failures: ['PROJECT_CREATE_DENIED', 'IDEMPOTENCY_CONFLICT', 'PROJECT_SOURCE_REFUSED', 'PROJECT_REPOSITORY_UNAVAILABLE', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
     malformed: { workspaceId: 'WORKSPACE_NOT_FOUND' },
 });
-export const PRJ04 = operation({
-    id: 'PRJ-04', access: 'session', method: 'DELETE', path: '/api/control/projects/:projectId',
+export const deleteProject = operation({
+    id: 'deleteProject', summary: 'Delete a Project, its data and its repository; installation administrator only.', access: 'session', method: 'DELETE', path: '/api/control/projects/:projectId',
     params: projectParam, query: z.object({ confirmName: z.string().min(1) }), headers: null, body: null,
     success: { 204: null },
     effects: [],
     failures: ['PROJECT_DELETE_DENIED', 'PROJECT_NOT_FOUND', 'PROJECT_NAME_MISMATCH', 'PROJECT_BUSY', 'PROJECT_DELETION_INCOMPLETE'],
     malformed: { projectId: 'PROJECT_NOT_FOUND' },
 });
-export const PRJ_SUMMARIES = operation({
-    id: 'PRJ-SUMMARIES', access: 'session', method: 'GET', path: '/api/control/workspaces/:workspaceId/project-summaries',
+export const listProjectSummaries = operation({
+    id: 'listProjectSummaries', summary: 'List the Projects of a Workspace with their latest Builder activity and whether a Preview exists.', access: 'session', method: 'GET', path: '/api/control/workspaces/:workspaceId/project-summaries',
     params: workspaceParam, query: null, headers: null, body: null,
     success: { 200: z.object({ projects: z.array(ProjectCard) }) },
     effects: [], failures: ['PROJECT_SUMMARIES_UNAVAILABLE'], malformed: { workspaceId: 'WORKSPACE_NOT_FOUND' },
 });
-export const PRJ_THUMBNAIL = operation({
-    id: 'PRJ-THUMBNAIL', access: 'session', method: 'GET', path: '/api/control/projects/:projectId/thumbnail',
+export const getProjectThumbnail = operation({
+    id: 'getProjectThumbnail', summary: 'Read the captured thumbnail of a Project application, as an image.', access: 'session', method: 'GET', path: '/api/control/projects/:projectId/thumbnail',
     params: projectParam, query: null, headers: null, body: null,
     success: { 200: { mediaType: 'image/png', maxBytes: 512_000, cache: 'revalidate-private' } },
     effects: [], failures: ['PROJECT_THUMBNAIL_NOT_FOUND', 'PROJECT_THUMBNAIL_UNAVAILABLE'], malformed: { projectId: 'PROJECT_NOT_FOUND' },

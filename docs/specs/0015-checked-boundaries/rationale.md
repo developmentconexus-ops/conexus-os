@@ -125,7 +125,7 @@ Reviews B and C (HQ, 2026-10-05) are applied as the umbrella's decided list says
 
 ## Evidence from the spikes
 
-- **Spike 1, contract.** WS-01 and WS-02 in Zod in a shared package, registered by the S3 definer with a
+- **Spike 1, contract.** `createWorkspace` and WS-02 in Zod in a shared package, registered by the S3 definer with a
   31 line method; a wrong return and a misspelled header failed `tsc`; Zod per route validation; 126 of
   126 tests. `z.toJSONSchema` emitted what the YAML says (pattern, minLength, const, null, oneOf); brands
   do not appear; `reused: 'ref'` across separate conversions collided names, so `.meta({ id })` is used.
@@ -140,7 +140,7 @@ Reviews B and C (HQ, 2026-10-05) are applied as the umbrella's decided list says
   `factory`.
 - **Spike 3, read policies.** The leaking read returned only the acting account's project; no account
   set returned nothing. `WITH CHECK (true)` let an outsider plant a row and join a workspace; the stricter
-  check refused both and kept WS-01 working with the empty workspace branch. A membership policy reading
+  check refused both and kept `createWorkspace` working with the empty workspace branch. A membership policy reading
   itself failed 42P17; a NOLOGIN `iam_rls` owning the helper fixed it without `BYPASSRLS`.
   `set_config(..., false)` leaked to the next transaction on a pooled client; `true` did not, after
   commit, rollback or a throw. The revoke race held with policies on. Cost under 1.5 ms on 12 thousand
@@ -158,7 +158,7 @@ Three candidate designs were compared on surface, security, types, ownership of 
 fit with what exists, and principles. The chosen base was the only one that followed all spike results
 (nominal proof, read policies, no lock in READ ONLY, `malformed`, `dist/` without moving `rootDir`) and
 deleted more than it added. Grafted from the others: the lock order (aggregate row first, `FOR UPDATE`
-on rows the command changes, the tombstone through the parent row); PRJ-03 as reserve, Git outside the
+on rows the command changes, the tombstone through the parent row); `createProject` as reserve, Git outside the
 transaction, then complete with a second admission; the disposition of all 118 functions; the brand
 disposition by census name; status, code and failure table in agreement; `parseForeign` for the
 Mastra mount; censuses by resolved symbol with fixtures; the trigger parity test. Rejected: validating
@@ -181,7 +181,7 @@ and what revision 3 changed:
 - Taking the admission's share lock before the owner set inverted today's order, so two owners removing
   each other would deadlock. Now the admission takes today's locks in today's order, the owner set
   first, and the owners it locked travel in the proof.
-- The single receipt dropped the workspace from PRJ-03's key, could not hold the bootstrap receipt
+- The single receipt dropped the workspace from `createProject`'s key, could not hold the bootstrap receipt
   (no account yet) and would have replayed a stale Builder run. Now the key is the proof's authority,
   the bootstrap has its own authority, and BLD keeps its run row key.
 - Functions call across owners (project to builder, the five purges, registry to builder), so the

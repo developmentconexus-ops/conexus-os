@@ -7,7 +7,7 @@ import test from 'node:test'
 import { docsOnlyChange, isDocsOnly, main } from '../../scripts/ci-change-scope.mjs'
 
 test('Markdown under docs/, under .agents/ and at the root is documentation', () => {
-  assert.equal(isDocsOnly(['docs/roadmap.md', 'docs/product/operation-ledger.md', '.agents/skills/mastra/SKILL.md', 'AGENTS.md', 'README.md']), true)
+  assert.equal(isDocsOnly(['docs/roadmap.md', 'docs/product/wire-contract.md', '.agents/skills/mastra/SKILL.md', 'AGENTS.md', 'README.md']), true)
 })
 
 test('any file outside the allowlist makes the change a full one', () => {

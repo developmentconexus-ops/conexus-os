@@ -24,9 +24,9 @@ administrator's own `transaction`, not in `system`.
 | Function (latest in) | Today | After |
 | --- | --- | --- |
 | `project.list_project_summaries` (0001) | members' projects of a workspace, hiding tombstoned ones from non administrators | `projectStore.list(accountId, workspaceId)` in `read`, one query, the policy filters |
-| `project.get_project` (0055) | a visible project with its `deleting` flag; for an installation administrator, a tombstone not yet completed | `projectStore.get(accountId, projectId)` in `read`, two queries: the project; if none, `SELECT ... FROM project.project_deletion WHERE project_id = $1 AND completed_at IS NULL AND (SELECT rls.acting_installation_administrator())`, which answers the purged member of PRJ-02's reply |
+| `project.get_project` (0055) | a visible project with its `deleting` flag; for an installation administrator, a tombstone not yet completed | `projectStore.get(accountId, projectId)` in `read`, two queries: the project; if none, `SELECT ... FROM project.project_deletion WHERE project_id = $1 AND completed_at IS NULL AND (SELECT rls.acting_installation_administrator())`, which answers the purged member of `getProject`'s reply |
 | `project.list_project_summaries_with_activity` (0030) | cards with the latest run, preview flag, and administrator tombstones | one query in `project/store.ts` joining `builder.builder_run` and `builder.project_working_state` read only, then a pure presenter `toProjectCard` |
-| `project.reserve_or_replay_create_project`, `project.lock_create_project_receipt`, `project.complete_create_project_receipt` (0001) | PRJ-03 receipt in two transactions | `reserve` and `complete` of `platform/receipt.ts` under the workspace authority |
+| `project.reserve_or_replay_create_project`, `project.lock_create_project_receipt`, `project.complete_create_project_receipt` (0001) | `createProject` receipt in two transactions | `reserve` and `complete` of `platform/receipt.ts` under the workspace authority |
 | `project.create_project_with_repository` (0032) | inserts the project and calls `builder.register_project_repository` | `createProject` on `proof.tx`, still calling `builder.register_project_repository` as SQL until part 1 turns it into a port |
 | `project.begin_project_deletion` (0032) | installation administrator only; the tombstone; refuses while a run is queued or running | `begin` in the administrator's `transaction(accountId, fn)` after `admitInstallationAdministrator(gate, 'project.delete')` (section 3) |
 | `project.purge_project` (0030) | refuses without a tombstone; the four owner purges, the receipts, the project row, one transaction | the purge in `system('project-purge', fn)` after `admitSystem(gate)` (section 5) |
@@ -40,20 +40,20 @@ bodies still call them; the bridge keeps them working.
 
 | Id | Method and path | Access | Success | Failures beyond the common set | `malformed` |
 | --- | --- | --- | --- | --- | --- |
-| PRJ-01 | `GET /api/control/workspaces/:workspaceId/projects` | session | 200 project list | none (an outsider gets an empty list, as today) | `workspaceId: WORKSPACE_NOT_FOUND` |
-| PRJ-02 | `GET /api/control/projects/:projectId` | session | 200 project, a union of two members (below) | `PROJECT_NOT_FOUND` | `projectId: PROJECT_NOT_FOUND` |
-| PRJ-03 | `POST /api/control/workspaces/:workspaceId/projects` | session | 201 created | `PROJECT_CREATE_DENIED`, `IDEMPOTENCY_CONFLICT`, `PROJECT_SOURCE_REFUSED`, `PROJECT_REPOSITORY_UNAVAILABLE` | `workspaceId: WORKSPACE_NOT_FOUND` |
-| PRJ-04 | `DELETE /api/control/projects/:projectId` | session | 204 | `PROJECT_DELETE_DENIED`, `PROJECT_NOT_FOUND`, `PROJECT_NAME_MISMATCH`, `PROJECT_BUSY`, `PROJECT_DELETION_INCOMPLETE` | `projectId: PROJECT_NOT_FOUND` |
-| PRJ-SUMMARIES | `GET /api/control/workspaces/:workspaceId/project-summaries` | session | 200 cards | `PROJECT_SUMMARIES_UNAVAILABLE` | `workspaceId: WORKSPACE_NOT_FOUND` |
-| PRJ-THUMBNAIL | `GET /api/control/projects/:projectId/thumbnail` | session | 200 `Binary` (`image/png`) | `PROJECT_THUMBNAIL_NOT_FOUND`, `PROJECT_THUMBNAIL_UNAVAILABLE` | `projectId: PROJECT_NOT_FOUND` |
+| `listProjects` | `GET /api/control/workspaces/:workspaceId/projects` | session | 200 project list | none (an outsider gets an empty list, as today) | `workspaceId: WORKSPACE_NOT_FOUND` |
+| `getProject` | `GET /api/control/projects/:projectId` | session | 200 project, a union of two members (below) | `PROJECT_NOT_FOUND` | `projectId: PROJECT_NOT_FOUND` |
+| `createProject` | `POST /api/control/workspaces/:workspaceId/projects` | session | 201 created | `PROJECT_CREATE_DENIED`, `IDEMPOTENCY_CONFLICT`, `PROJECT_SOURCE_REFUSED`, `PROJECT_REPOSITORY_UNAVAILABLE` | `workspaceId: WORKSPACE_NOT_FOUND` |
+| `deleteProject` | `DELETE /api/control/projects/:projectId` | session | 204 | `PROJECT_DELETE_DENIED`, `PROJECT_NOT_FOUND`, `PROJECT_NAME_MISMATCH`, `PROJECT_BUSY`, `PROJECT_DELETION_INCOMPLETE` | `projectId: PROJECT_NOT_FOUND` |
+| `listProjectSummaries` | `GET /api/control/workspaces/:workspaceId/project-summaries` | session | 200 cards | `PROJECT_SUMMARIES_UNAVAILABLE` | `workspaceId: WORKSPACE_NOT_FOUND` |
+| `getProjectThumbnail` | `GET /api/control/projects/:projectId/thumbnail` | session | 200 `Binary` (`image/png`) | `PROJECT_THUMBNAIL_NOT_FOUND`, `PROJECT_THUMBNAIL_UNAVAILABLE` | `projectId: PROJECT_NOT_FOUND` |
 
 The paths, statuses and codes are today's (the generated routes and `routes.ts`, `summary-routes.ts`,
 `thumbnail-routes.ts`); the builder copies each from the YAML it deletes and the bijection proves it.
 The thumbnail keeps reading through `reg.get_application_thumbnail` as SQL until part 4; the bytes are
-checked by the `Binary` rule. `PRJ-SUMMARIES` and `PRJ-THUMBNAIL` keep today's ids from the route
+checked by the `Binary` rule. `listProjectSummaries` and `getProjectThumbnail` keep today's ids from the route
 ledger.
 
-**PRJ-02's reply.** Today a purged project seen by an installation administrator comes back with
+**`getProject`'s reply.** Today a purged project seen by an installation administrator comes back with
 `projectRevision: ''`, which the YAML's `minLength: 1` forbids and `project-settings.tsx` reads as
 "purged". The empty value also reaches a non member administrator between the tombstone and the purge,
 since that administrator never sees the project row; the web text is a moment early for them. The Zod success is a union, so the wire stays byte for byte and the empty value is declared:
@@ -61,16 +61,16 @@ the live project (`projectRevision: ProjectRevision`, `deleting: boolean`) or th
 (`projectRevision: z.literal('')`, `archived: z.literal(false)`, `deleting: z.literal(true)`). The web
 narrows on the literal.
 
-**PRJ-03's body.** `sourceBootstrap` keeps today's two shapes (`NEW` and `EXISTING_GIT`), and
+**`createProject`'s body.** `sourceBootstrap` keeps today's two shapes (`NEW` and `EXISTING_GIT`), and
 `EXISTING_GIT` answers `PROJECT_SOURCE_REFUSED` (422) before any transaction, as `createProject` does
 today. `starterRevision` from `repository.prepare` parses as the branded `Revision` (40 lower hex, the
 check `create_project_with_repository` makes today); a value that does not parse is
 `INTERNAL_UNEXPECTED`, as today's unmapped `P0001`.
 
-**Copied from today, named so the builder does not invent them.** PRJ-01 orders by `name, project_id`.
-PRJ-SUMMARIES orders by `last_activity_at DESC, project_id` and wraps the cards as `{ projects }`;
+**Copied from today, named so the builder does not invent them.** `listProjects` orders by `name, project_id`.
+`listProjectSummaries` orders by `last_activity_at DESC, project_id` and wraps the cards as `{ projects }`;
 `latestRun` is `null` when a tombstone exists or there is no run, otherwise the run picked by
-`created_at DESC, builder_run_id DESC`. PRJ-THUMBNAIL sets `ETag: "<artifactRevisionId>"` and
+`created_at DESC, builder_run_id DESC`. `getProjectThumbnail` sets `ETag: "<artifactRevisionId>"` and
 `Cache-Control: private, no-cache`, declared as the operation's response headers. Today the thumbnail
 route exists only when `thumbnailReader` is configured; after part 3 it is always declared and
 registered, and without a reader it answers `PROJECT_THUMBNAIL_UNAVAILABLE`, so the boot refusal holds
@@ -80,12 +80,12 @@ in every setup.
 
 | Operation | Entry | Admission | Locks, in order |
 | --- | --- | --- | --- |
-| PRJ-01, PRJ-SUMMARIES | `read(accountId)` | none: the `reader` policy shows only what the account may see | none |
-| PRJ-02, PRJ-THUMBNAIL | `read(accountId)` | none | none |
-| PRJ-03, transaction 1 | `transaction(accountId)` | `admitWorkspace(gate, workspaceId, 'project.create')` | account `FOR SHARE`, membership `FOR SHARE`; receipt `FOR UPDATE` |
-| PRJ-03, transaction 2 | `transaction(accountId)` | the same admission again | the same |
-| PRJ-04, the tombstone | `transaction(accountId)` | `admitInstallationAdministrator(gate, 'project.delete')` | account `FOR SHARE`; the tenure row `FOR SHARE`; the project row `FOR UPDATE`, only on the path with no tombstone |
-| PRJ-04, purge and complete | `system('project-purge')` | `admitSystem(gate)` | the project row `FOR UPDATE` while it exists (section 5) |
+| `listProjects`, `listProjectSummaries` | `read(accountId)` | none: the `reader` policy shows only what the account may see | none |
+| `getProject`, `getProjectThumbnail` | `read(accountId)` | none | none |
+| `createProject`, transaction 1 | `transaction(accountId)` | `admitWorkspace(gate, workspaceId, 'project.create')` | account `FOR SHARE`, membership `FOR SHARE`; receipt `FOR UPDATE` |
+| `createProject`, transaction 2 | `transaction(accountId)` | the same admission again | the same |
+| `deleteProject`, the tombstone | `transaction(accountId)` | `admitInstallationAdministrator(gate, 'project.delete')` | account `FOR SHARE`; the tenure row `FOR SHARE`; the project row `FOR UPDATE`, only on the path with no tombstone |
+| `deleteProject`, purge and complete | `system('project-purge')` | `admitSystem(gate)` | the project row `FOR UPDATE` while it exists (section 5) |
 
 **Why the tombstone runs in the administrator's own transaction.** The installation administrator's
 deletion authority is installation wide, and the reader policies are workspace scoped, so the tombstone
@@ -168,14 +168,14 @@ deletion has started (refused on a command, listed on a read), a system gate (re
 account, and a tombstone waiting on an `admitProject` that holds the row `FOR SHARE`, both orders, no
 40P01; and the run start held at step 4 while a tombstone commits, which step 5 refuses.
 
-**PRJ-03's refusals** (`ACTION_REFUSALS` row, codes as today):
+**`createProject`'s refusals** (`ACTION_REFUSALS` row, codes as today):
 
 | Action | outsider | forbidden |
 | --- | --- | --- |
 | `project.create` | `PROJECT_CREATE_DENIED` (403) | `PROJECT_CREATE_DENIED` (403) |
 
 One change, stated as admission section 2 asks: an account that is not `active` gets the umbrella's
-`ACCOUNT_INACTIVE` on PRJ-03, where today it gets `PROJECT_CREATE_DENIED`. It reaches PRJ-03 only with a
+`ACCOUNT_INACTIVE` on `createProject`, where today it gets `PROJECT_CREATE_DENIED`. It reaches `createProject` only with a
 session opened before the deactivation.
 
 `ProjectSummary` stays in `identity-workspace-paths.yaml`, since a workspace response still references
@@ -206,7 +206,7 @@ Project"). Members can read their workspace's tombstones because `HIDDEN` must s
 that show a tombstone as a card test `ADMIN` and `completed_at IS NULL`, as today's bodies do. The reader
 sees a deletion in progress of a workspace it belongs to or, as an administrator, of any workspace
 (`reader_admin`); the command role reads every row.
-PRJ-02's second query runs only when the first found no visible project, as today. The summaries'
+`getProject`'s second query runs only when the first found no visible project, as today. The summaries'
 tombstone branch today tests `NOT EXISTS` the project row as `project_owner`, which sees every row;
 under the policy, a row the administrator cannot see would look purged and show its card early. So the
 purge stamps the tombstone: `project.project_deletion.purged_at timestamptz`, set in the purge
@@ -258,7 +258,7 @@ purge, delete the repository, complete. The purge opens `system('project-purge',
 2. A queued or running run: `PROJECT_BUSY`.
 3. `iam.purge_project`, `connector.purge_project`, `reg.purge_project` and `builder.purge_project` as
    SQL (each owner's part replaces its call with a port on the same `WriteTx`).
-4. `DELETE FROM platform.operation_receipt WHERE operation_id = 'PRJ-03' AND resource_id = $1`
+4. `DELETE FROM platform.operation_receipt WHERE operation_id = 'createProject' AND resource_id = $1`
    (today's `reserved_project_id` delete; each later owner deletes its own receipts).
 5. `DELETE FROM project.project WHERE project_id = $1`, last, as today, then
    `UPDATE project.project_deletion SET purged_at = coalesce(purged_at, now()) WHERE project_id = $1`.
@@ -272,29 +272,29 @@ all of it back.
 
 | Action | Value | Source |
 | --- | --- | --- |
-| PRJ-03 | `projectId` | `ProjectId.parse(randomUUID())` once, then the receipt's `resource_id` |
-| PRJ-03 | `projectRevision` | minted once per attempt, as today (`store.ts`, `mintIdentity`) |
-| PRJ-03 | `starterRevision` | `repository.prepare(projectId)`, outside the transactions |
-| PRJ-04 | the tombstone's `workspace_id`, `name` | the locked project row, copied by the `INSERT ... SELECT`; on a retry, the existing tombstone |
-| PRJ-04 | the tombstone's `requested_by` | the administrator proof's `accountId` |
+| `createProject` | `projectId` | `ProjectId.parse(randomUUID())` once, then the receipt's `resource_id` |
+| `createProject` | `projectRevision` | minted once per attempt, as today (`store.ts`, `mintIdentity`) |
+| `createProject` | `starterRevision` | `repository.prepare(projectId)`, outside the transactions |
+| `deleteProject` | the tombstone's `workspace_id`, `name` | the locked project row, copied by the `INSERT ... SELECT`; on a retry, the existing tombstone |
+| `deleteProject` | the tombstone's `requested_by` | the administrator proof's `accountId` |
 | summaries | `lastActivityAt`, `latestRun`, `hasPreview`, `deleting` | the latest run, the working state and the tombstone, as `list_project_summaries_with_activity` computes them; the presenter formats `lastActivityAt` as ISO UTC with milliseconds |
 | summaries, administrator tombstones | the card | the tombstone row, as the function's second branch does |
 
 ## 7. Tests (each with literal expected values)
 
-- PRJ-01 and PRJ-SUMMARIES as a member, as an outsider (empty), and as an installation administrator
-  who is not a member (PRJ-01 empty; summaries only the administrator tombstone cards of purged
+- `listProjects` and `listProjectSummaries` as a member, as an outsider (empty), and as an installation administrator
+  who is not a member (`listProjects` empty; summaries only the administrator tombstone cards of purged
   projects, so none while the project row and its tombstone both exist), each before a tombstone, after
   it, after the purge and after `completed_at`.
-- PRJ-02 for a member, an outsider (404), a non member administrator on a live project (404), a
+- `getProject` for a member, an outsider (404), a non member administrator on a live project (404), a
   tombstoned project as a plain member (404), as a member administrator (the live row, `deleting:
   true`), and as a non member administrator after the purge (`projectRevision: ''`, `deleting: true`).
-- PRJ-03: create, replay, conflict, the same key and body in another workspace (creates there), a
+- `createProject`: create, replay, conflict, the same key and body in another workspace (creates there), a
   crash between Git and completion (same project id on retry), a retry after the account lost the
   workspace (`PROJECT_CREATE_DENIED`), an inactive account (`ACCOUNT_INACTIVE`), `EXISTING_GIT`
   (`PROJECT_SOURCE_REFUSED` and no receipt row), and the revoke race in both orders against today's
   `iam.remove_workspace_member`.
-- PRJ-04: a non administrator (`PROJECT_DELETE_DENIED`), an account deactivated while the deletion
+- `deleteProject`: a non administrator (`PROJECT_DELETE_DENIED`), an account deactivated while the deletion
   waits on the project lock (the deactivation waits, or commits first and the deletion answers
   `PROJECT_DELETE_DENIED`), an administrator who is not a member of the
   workspace (deletes, 204), wrong name, busy, two concurrent deletions (one tombstone, no 40P01), a
@@ -302,7 +302,7 @@ all of it back.
   (204), a crash inside the purge (nothing purged), the purge called with no tombstone
   (`PROJECT_DELETION_NOT_STARTED`), and the receipts of every account gone after the purge.
 - Deletion racing today's run start, in both orders: no 40P01, today's outcomes (umbrella section 8).
-- The fixture that deletes the `WHERE` of PRJ-01 still returns only the acting account's projects, for
+- The fixture that deletes the `WHERE` of `listProjects` still returns only the acting account's projects, for
   an outsider and for a non member administrator.
 - Without an account set, `SELECT`, `UPDATE` and `DELETE` on both project tables and `SELECT` on both
   builder tables touch zero rows; as an outsider, a direct `SELECT` of both builder tables returns zero
