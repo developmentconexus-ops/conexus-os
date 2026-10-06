@@ -8,11 +8,6 @@ const LOCK_FUNCTION = 'iam.lock_administrators'
 const LOCK_FUNCTION_OWNER = 'conexus_owner'
 // The tables an installation administrator reads across Workspaces (admission child, section 4.2, rule 4).
 const ADMINISTRATOR_REACH = Object.freeze(['project.project_deletion', 'connector.connection', 'iam.installation_administrator', 'iam.account'])
-// The one table whose unported TypeScript reader keeps a runtime bridge until part 6.
-const RUNTIME_BRIDGE_TABLES = Object.freeze(['iam.account'])
-
-const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
 const grantsOf = (acl) => (acl ? acl.split(',').filter(Boolean).map((entry) => entry.split(':')) : [])
 
 // Privileges a role holds on a table, as sorted register strings: a table level privilege by name,
@@ -49,12 +44,11 @@ const functionRows = (catalog) => catalog.function.flatMap((line) => {
 
 const executeListOf = (catalog, role) => functionRows(catalog).filter((row) => row.executors.includes(role)).map((row) => row.signature)
 
-const covers = (policy, command) => policy.command === '*' || policy.command === command
 const sameList = (left, right) => JSON.stringify([...left].sort()) === JSON.stringify([...right].sort())
 const allowedFunction = (name) => name.startsWith(`${HELPER_SCHEMA}.`) || name === LOCK_FUNCTION
 const show = (list) => (list.length > 0 ? list.join(', ') : 'nothing')
 
-const lintSplitTable = ({ row, catalog, tablePolicies, problems, unported }) => {
+const lintSplitTable = ({ row, catalog, tablePolicies, problems }) => {
   const table = row.table
   const relation = relations(catalog).find((candidate) => candidate.table === table)
   if (!relation?.rls || !relation.force) problems.push(`${table} is split but has no ENABLE and FORCE row level security`)
@@ -73,13 +67,8 @@ const lintSplitTable = ({ row, catalog, tablePolicies, problems, unported }) => 
   if (Boolean(row.readerAdmin) !== (named('reader_admin').length === 1)) problems.push(`${table} must have a reader_admin policy if and only if its register row says readerAdmin`)
   for (const policy of readerPolicies) if (policy.name !== 'reader' && policy.name !== 'reader_admin') problems.push(`${table} has a reader policy named ${policy.name}, which is neither reader nor reader_admin`)
   if (Boolean(row.reader) !== (readerHeld.length > 0)) problems.push(`${table} register row says reader=${Boolean(row.reader)} but ${READER_ROLE} holds ${show(readerHeld)}`)
-  for (const policy of tablePolicies.filter((candidate) => candidate.roles.includes(RUNTIME_ROLE))) {
-    if (policy.name !== 'legacy_runtime' || !RUNTIME_BRIDGE_TABLES.includes(table)) problems.push(`${table} has a policy ${policy.name} TO ${RUNTIME_ROLE}; only legacy_runtime on ${RUNTIME_BRIDGE_TABLES.join(', ')} is allowed`)
-    else if (!unported.get(table)?.length) problems.push(`${table} has a legacy_runtime bridge but no unported TypeScript reads it`)
-  }
-  if (RUNTIME_BRIDGE_TABLES.includes(table) && unported.get(table)?.length && !tablePolicies.some((policy) => policy.name === 'legacy_runtime')) {
-    problems.push(`${table} is read by unported TypeScript and has no legacy_runtime bridge`)
-  }
+  for (const policy of tablePolicies.filter((candidate) => candidate.roles.includes(RUNTIME_ROLE))) problems.push(`${table} has a policy ${policy.name} TO ${RUNTIME_ROLE}; no policy names it`)
+  for (const policy of tablePolicies.filter((candidate) => candidate.name.startsWith('legacy_'))) problems.push(`${table} has a policy ${policy.name}; no legacy policy remains`)
   const held = privilegesOf(catalog, table, COMMAND_ROLE)
   if (!sameList(held, row.command)) problems.push(`${table} gives ${COMMAND_ROLE} ${show(held)}, and its register row says ${show(row.command)}`)
   const runtime = privilegesOf(catalog, table, RUNTIME_ROLE)
@@ -87,31 +76,6 @@ const lintSplitTable = ({ row, catalog, tablePolicies, problems, unported }) => 
   for (const column of row.keyColumns ?? []) if (!catalog.column.some((line) => line.startsWith(`column ${table}.${column} `))) problems.push(`${table} register names key column ${column}, which does not exist`)
   for (const policy of readerPolicies) if (!policy.using.includes('rls.acting_account()')) problems.push(`${table} reader policy ${policy.name} must call rls.acting_account()`)
   for (const key of row.compositeKeys ?? []) if (!catalog.constraint.some((line) => line.startsWith(`constraint ${table}.${key} `))) problems.push(`${table} register names composite key ${key}, which does not exist`)
-}
-
-const lintPendingTable = ({ entry, catalog, tablePolicies, problems }) => {
-  const table = entry.table
-  if (tablePolicies.some((policy) => policy.roles.some((role) => GRANTEES.includes(role)))) problems.push(`${table} is policed but still listed as pending`)
-  for (const role of GRANTEES) {
-    const held = privilegesOf(catalog, table, role)
-    const named = entry.privileges?.[role] ?? []
-    if (!sameList(held, named)) problems.push(`${table} gives ${role} ${show(held)}, and its register row says ${show(named)}`)
-  }
-}
-
-const lintBridges = ({ tables, allPolicies, functions, problems }) => {
-  for (const row of tables.filter((candidate) => candidate.rls)) {
-    const reader = new RegExp(`(?<![\\w.])${escapeRegExp(row.table)}(?![\\w.])`, 'i')
-    const bridged = allPolicies.filter((policy) => policy.table === row.table && !policy.roles.some((role) => GRANTEES.includes(role)))
-    for (const fn of functions) {
-      if (fn.name === LOCK_FUNCTION || !reader.test(fn.body)) continue
-      if (!bridged.some((policy) => policy.roles.includes(fn.owner) && covers(policy, 'r'))) problems.push(`${fn.name} owned by ${fn.owner} reads ${row.table}, which has no bridge policy for ${fn.owner}`)
-    }
-    const readerOwners = new Set(functions.filter((fn) => reader.test(fn.body)).map((fn) => fn.owner))
-    for (const owner of new Set(bridged.flatMap((policy) => policy.roles))) {
-      if (!readerOwners.has(owner)) problems.push(`${row.table} has a bridge policy for ${owner}, which owns no function that reads it`)
-    }
-  }
 }
 
 const lintFunctions = ({ catalog, functions, census, problems }) => {
@@ -131,43 +95,37 @@ const lintFunctions = ({ catalog, functions, census, problems }) => {
 }
 
 // functions: [{ name: 'schema.name', owner, body }], read from pg_proc after the migrations replay.
-// unported: Map of table to the TypeScript files outside the data module's path that name it.
-export const lintCatalog = ({ catalog, functions, census, unported = new Map() }) => {
+export const lintCatalog = ({ catalog, functions, census }) => {
   const problems = []
   const tables = relations(catalog)
   const known = new Set(tables.map((row) => row.table))
   const allPolicies = policies(catalog)
   const permanent = new Map(census.unscoped.permanent.map((entry) => [entry.table, entry.reason]))
-  const pending = new Map(census.unscoped.pending.map((entry) => [entry.table, entry]))
   const split = new Map(census.register.split.map((entry) => [entry.table, entry]))
 
-  for (const table of [...permanent.keys(), ...pending.keys(), ...split.keys()]) if (!known.has(table)) problems.push(`the register names ${table}, which is not a table of the catalog`)
-  for (const table of split.keys()) if (permanent.has(table) || pending.has(table)) problems.push(`${table} is split and also listed as permanent or pending`)
-  for (const table of permanent.keys()) if (pending.has(table)) problems.push(`${table} is both permanent and pending`)
+  for (const table of [...permanent.keys(), ...split.keys()]) if (!known.has(table)) problems.push(`the register names ${table}, which is not a table of the catalog`)
+  for (const table of split.keys()) if (permanent.has(table)) problems.push(`${table} is split and also listed as permanent`)
 
   for (const row of tables) {
     const tablePolicies = allPolicies.filter((policy) => policy.table === row.table)
-    if (split.has(row.table)) lintSplitTable({ row: split.get(row.table), catalog, tablePolicies, problems, unported })
-    else if (pending.has(row.table)) lintPendingTable({ entry: pending.get(row.table), catalog, tablePolicies, problems })
+    if (split.has(row.table)) lintSplitTable({ row: split.get(row.table), catalog, tablePolicies, problems })
     else if (permanent.has(row.table)) {
       const named = census.unscoped.permanent.find((entry) => entry.table === row.table)?.privileges ?? {}
       for (const role of GRANTEES) {
         const held = privilegesOf(catalog, row.table, role)
         if (!sameList(held, named[role] ?? [])) problems.push(`${row.table} is permanent but gives ${role} ${show(held)}, and its register row says ${show(named[role] ?? [])}`)
       }
-    } else problems.push(`${row.table} is in no list of the register: it is not split, pending or permanent`)
+    } else problems.push(`${row.table} is in no list of the register: it is not split or permanent`)
   }
 
-  lintBridges({ tables, allPolicies, functions, problems })
   lintFunctions({ catalog, functions, census, problems })
 
   const ruleFunctions = functions.filter((fn) => !allowedFunction(fn.name)).length
-  const legacyOwner = allPolicies.filter((policy) => policy.name === 'legacy_owner').length
   const runtimePrivileges = tables.reduce((sum, row) => sum + privilegesOf(catalog, row.table, RUNTIME_ROLE).length, 0) + executeListOf(catalog, RUNTIME_ROLE).length
-  for (const [item, count] of [['ruleFunctions', ruleFunctions], ['legacyOwnerPolicies', legacyOwner], ['runtimePrivileges', runtimePrivileges]]) {
+  for (const [item, count] of [['ruleFunctions', ruleFunctions], ['runtimePrivileges', runtimePrivileges]]) {
     const ceiling = census.ceilings[item]
     if (ceiling === undefined) problems.push(`${item} has no recorded ceiling`)
     else if (count > ceiling) problems.push(`${item} is ${count}, above its ceiling ${ceiling}`)
   }
-  return { problems, counts: { ruleFunctions, legacyOwnerPolicies: legacyOwner, runtimePrivileges } }
+  return { problems, counts: { ruleFunctions, runtimePrivileges } }
 }

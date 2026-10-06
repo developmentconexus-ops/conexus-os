@@ -98,7 +98,6 @@ ALTER TABLE iam.host_session
   ADD CONSTRAINT host_session_application_check CHECK (kind <> 'APPLICATION' OR (project_id IS NOT NULL AND absolute_expires_at > started_at AND provider_checked_at >= started_at AND provider_refresh_token IS NOT NULL AND artifact_revision_id IS NULL AND parent_digest IS NULL AND idle_expires_at IS NULL)),
   ADD CONSTRAINT host_session_preview_check CHECK (kind <> 'PREVIEW' OR (project_id IS NOT NULL AND artifact_revision_id IS NOT NULL AND parent_digest IS NOT NULL AND absolute_expires_at > started_at AND provider_refresh_token IS NULL AND provider_checked_at IS NULL AND idle_expires_at IS NULL));
 CREATE INDEX host_session_by_parent ON iam.host_session (parent_digest, account_id) WHERE parent_digest IS NOT NULL;
-CREATE INDEX host_session_by_application_account ON iam.host_session (project_id, account_id) WHERE kind = 'APPLICATION';
 
 ALTER TABLE iam.handoff
   ADD CONSTRAINT handoff_project_id_fkey FOREIGN KEY (project_id) REFERENCES project.project(project_id),
@@ -141,9 +140,8 @@ END $$;
 REVOKE ALL ON iam.account, iam.workspace_membership, iam.oidc_transaction, iam.workspace_invitation, iam.installation_administrator,
   iam.application, iam.application_grant, iam.application_invitation, iam.host_session, iam.handoff
   FROM hub_runtime, hub_command, hub_reader;
-REVOKE ALL ON FUNCTION iam.lock_administrators() FROM hub_runtime;
-GRANT SELECT, INSERT, UPDATE (email, created_at) ON iam.account TO hub_command;
-GRANT SELECT, INSERT, UPDATE (role, created_at), DELETE ON iam.workspace_membership TO hub_command;
+GRANT SELECT, INSERT, UPDATE (email) ON iam.account TO hub_command;
+GRANT SELECT, INSERT, UPDATE (role), DELETE ON iam.workspace_membership TO hub_command;
 GRANT SELECT, INSERT, UPDATE (role, invited_by, expires_at, created_at), DELETE ON iam.workspace_invitation TO hub_command;
 GRANT SELECT, INSERT, UPDATE (revoked_at, revoked_by) ON iam.installation_administrator TO hub_command;
 GRANT SELECT, INSERT, DELETE ON iam.application TO hub_command;

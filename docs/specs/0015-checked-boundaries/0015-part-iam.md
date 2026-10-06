@@ -153,16 +153,16 @@ Deleted: `bootstrap_context`, `operation_idempotency`, `preview`; types `iam.ses
 
 | Table | `hub_command` | `hub_reader` |
 | --- | --- | --- |
-| `account` | `SELECT, INSERT, UPDATE (email, created_at)` | `SELECT (account_id, display_name, email)`, as today |
-| `workspace_membership` | `SELECT, INSERT, UPDATE (role, created_at), DELETE` | `SELECT` |
+| `account` | `SELECT, INSERT, UPDATE (email)` | `SELECT (account_id, display_name, email)`, as today |
+| `workspace_membership` | `SELECT, INSERT, UPDATE (role), DELETE` | `SELECT` |
 | `workspace_invitation` | `SELECT, INSERT, UPDATE (role, invited_by, expires_at, created_at), DELETE` | `SELECT` |
 | `installation_administrator` | `SELECT, INSERT, UPDATE (revoked_at, revoked_by)` | `SELECT` |
 | `application` | `SELECT, INSERT, DELETE` | `SELECT` |
 | `application_grant` | `SELECT, INSERT, UPDATE (revoked_at, revoked_by), DELETE` | `SELECT` |
 | `application_invitation` | `SELECT, INSERT, UPDATE (invited_by, expires_at, created_at), DELETE` (it has no `role`; blast radius, risk 5) | `SELECT` |
-| `oidc_transaction` | `SELECT, INSERT, DELETE` | none |
+| `oidc_transaction` | `SELECT, INSERT, UPDATE (expires_at), DELETE` | none |
 | `host_session` | `SELECT, INSERT, UPDATE (idle_expires_at, provider_refresh_token, provider_checked_at), DELETE` | none |
-| `handoff` | `SELECT, INSERT, DELETE` | none |
+| `handoff` | `SELECT, INSERT, UPDATE (expires_at), DELETE` | none |
 
 `hub_reader` reads seven tables. An installation administrator now reads every account (5 rows where it read 3 in the spike), the visible change the `account` reader policy makes for the administrator screens.
 
