@@ -70,7 +70,7 @@ the logs, the verify harness and the reference code. Measure before you guess.
 
 ## Stop and report when
 
-A [never-list](../../../docs/development/codebase-principles.md#never) item would break, or a
+A **must not** rule of the [code guide](../../../docs/development/codebase-principles.md) would break, or a
 [stop condition](../../../docs/development/delivery.md#stop-then-escalate) holds. Stop means: no
 more code, a comment on the issue with the evidence, and the question for the operator.
 

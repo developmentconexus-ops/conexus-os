@@ -6,7 +6,6 @@
     "scripts/check-test-skips.mjs",
     "scripts/census-builder-run.mjs",
     "scripts/census-boundaries.mjs",
-    "scripts/check-enforced-by.mjs",
     "scripts/codemods/error-code-to-failure.mjs",
     "scripts/keycloak-refresh-probe.mjs",
     "scripts/builder-eval/plan-bench.mjs",

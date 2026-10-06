@@ -386,6 +386,12 @@ pull request that fixes one deletes its line.
 | Model accounts are stored as `model_connection.connection`, a second meaning of "connection" | Hub base, after S1 |
 | Nothing bounds one Project's storage in the Applications cluster | Hub base, after S1 |
 | An `archived` Project state exists that nothing produces | Project lifecycle, after S1 |
+| `ProjectPurged` is told apart by `projectRevision: ''`, and `archived` and `deleting` are booleans | Project lifecycle, after S1 |
+| Rows read without a schema, response bodies cast with `as`, and ids typed `string` in module ports (counted by `scripts/census-boundaries.mjs`) | S1 |
+| `startHub`, `createHttpApp` and the Builder module stay past the function size limit by suppression | Hub base, after S1 |
+| `Scope` in `apps/hub/src/connectors/scope.ts` is a class with mutable state | Hub base, after S1 |
+| `app-runner/http.ts` reads a failure code from `error.message` | Hub base, after S1 |
+| The Hub swallows a failed run publish and the screen polls instead, and `liveRuns` and the session `subscriptions` share module state | S5 |
 | The Builder's sandbox has open internet egress (C-023) | Accepted risk |
 | One Mastra crossing remains in `apps/hub/src/builder/mastra-leftovers.ts` until mastra-ai/mastra#25903 | Accepted risk |
 

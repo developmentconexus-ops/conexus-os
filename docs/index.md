@@ -10,7 +10,7 @@ Each guide owns one subject, and a rule lives in one of them.
 
 | Id | Guide | Owns |
 | --- | --- | --- |
-| C | [Codebase principles](development/codebase-principles.md) | What the code must look like, and the never-list |
+| C | [Code guide](development/codebase-principles.md) | The Google TypeScript Style Guide adapted: modules, classes, functions, data modeling, boundaries, errors, state, naming, redundancy |
 | A | [Architecture](reference/architecture.md) | The twelve arc42 sections: goals, constraints, context, the core, blocks and owners, runtime, deployment, concepts, decisions, quality, debt, glossary |
 | P | [Product contract](product/contract.md) | Purpose and capabilities, people, scope, concepts, journeys, what it never does |
 | D | [Database](reference/database.md) | Stores, roles, where a rule lives, migrations |
