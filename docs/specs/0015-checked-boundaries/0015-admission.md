@@ -291,7 +291,7 @@ existing code (`mar/application-host-routes.ts:124`); the host answers `APPLICAT
 null served read today (`mar/application-host-routes.ts:130`), and parts 2 and 4 keep each caller's
 answer when they move it onto this admission.
 
-**The served read.** `checkApplication(gate, projectId)` makes a `Checked<ApplicationScope>` for a request that changes nothing: the application host's manifest, file and thumbnail reads, and the connector broker when it writes nothing in that transaction. It runs the same access and deletion predicates as `admitApplication` (active account, the membership or the open grant, the `iam.application` row, a Project that is not archived, no deletion row) in one statement and takes no row lock, not even `FOR SHARE`. `via` records which path admitted. The proof's `tx` is a `ReadTx`, so only read ports accept it. The reason is that the lock exists to serialize a write with a tombstone or a revoke. A served read changes nothing, and today's served read takes no lock. The application host calls it once per asset, and the locking form measured about 3 times slower serial and about 2 times at 16 clients on a local run (review C, Q3.1). A revoke or tombstone that commits during the read is seen by the next request, as today. A caller that writes in the same transaction calls `admitApplication`.
+**The served read.** `checkApplication(gate, projectId)` makes a `Checked<ApplicationScope>` for a request that changes nothing: the application host's manifest and file reads, and the connector broker when it writes nothing in that transaction. It runs the same access and deletion predicates as `admitApplication` (active account, the membership or the open grant, the `iam.application` row, a Project that is not archived, no deletion row) in one statement and takes no row lock, not even `FOR SHARE`. `via` records which path admitted. The proof's `tx` is a `ReadTx`, so only read ports accept it. The reason is that the lock exists to serialize a write with a tombstone or a revoke. A served read changes nothing, and today's served read takes no lock. The application host calls it once per asset, and the locking form measured about 3 times slower serial and about 2 times at 16 clients on a local run (review C, Q3.1). A revoke or tombstone that commits during the read is seen by the next request, as today. A caller that writes in the same transaction calls `admitApplication`.
 
 **The run.** `admitRun(gate, builderRunId, owner)` serves two callers. Under `system('builder-executor', ...)`
 it takes the project `FOR SHARE`, then the run `FOR UPDATE`, checks `owner_id` and that the run has
@@ -535,8 +535,8 @@ table, and the table register (section 7) records it:
 
 | Table | Key to add | Part |
 | --- | --- | --- |
-| `reg.artifact` | none. An application artifact has `workspace_id NULL` (`artifact_kind_ownership_check`, `apps/hub/migrations/0001_baseline.sql:2122`), so a `(project_id, workspace_id)` key would check nothing, and filling the column collides with `UNIQUE (workspace_id, kind)`. The register records the existing `artifact_project_id_fkey` | 4 |
-| `reg.application_thumbnail` | `project_id` to `project.project`; the revision's project checked by its command | 4 |
+| `reg.artifact` | dropped by part 4; `reg.artifact_revision` carries `project_id` with one key to `project.project` | 4 |
+| `reg.application_thumbnail` | keyed by `artifact_revision_id`, key to `reg.artifact_revision` `ON DELETE CASCADE`; no `project_id` | 4 |
 | `iam.preview` | `project_id` to `project.project` | 6 |
 | `iam.host_session` | `(preview_id, account_id)` to `iam.preview (preview_id, account_id)`, and `(parent_digest, account_id)` to `iam.host_session (token_digest, account_id)` | 6 |
 | `iam.handoff` | the same two as `iam.host_session` | 6 |
@@ -960,7 +960,7 @@ spec's text above.
   `lookupByDigest(key)` takes a closed `key` union per kind, not `(kind, digest)`, because the
   handoff kind is keyed by more than the digest (data child, section 1).
 - The administrator reach list widens `iam.account` to the grantors of open tenures (section 4.2).
-- `reg.artifact` gets no composite key, and the session keys are the account pairs (section 5).
+- `reg.artifact` is dropped by part 4, so it gets none, and the session keys are the account pairs (section 5).
 - The tenure and application grant updates are `(revoked_at, revoked_by)` from part 6 (section 5).
 - The thumbnail drops the application row condition, and the served pointer is read directly
   (sections 4.2 and 6).
