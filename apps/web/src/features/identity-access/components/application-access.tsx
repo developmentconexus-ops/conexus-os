@@ -15,13 +15,12 @@ import { parseEmail } from '../api'
 import {
   applicationAccessQuery,
   grantApplicationAccess,
-  isApplicationAccessForbidden,
   removeApplicationAccessEntry,
 } from '../application-access-api'
 import '../people.css'
 import { INVITATION_STATE } from '../invitation-state'
 import { useAttemptKey } from '../../../app/attempt-key'
-import { failureText } from '../../../app/http'
+import { failureText, isFailure } from '../../../app/http'
 import { FailureState } from '../../../app/failure-state'
 
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })
@@ -72,7 +71,8 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: ProjectId
     </div>
   }
   if (access.isError) {
-    if (isApplicationAccessForbidden(access.error)) {
+    // A person who may not manage access sees why once; it is no failure to retry.
+    if (isFailure(access.error, 'APPLICATION_ACCESS_MANAGE_REQUIRED')) {
       return <div className="cx-state" role="alert">
         <h2>{failureText(access.error)}</h2>
       </div>
