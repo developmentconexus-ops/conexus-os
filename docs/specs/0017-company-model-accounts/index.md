@@ -2,7 +2,9 @@
 
 **Date**: 2026-10-06
 
-**Status**: Proposed
+**Status**: Approved
+
+**Approval**: approved by the operator on 2026-10-06, commit 9528c5e8
 
 **Lane**: `lane:qualification` (Q-b: a new authority, the installation administrator writing a credential every person's run pays with; Q-c: the proof is a real Builder turn). The migration carries `needs:aprovo` ([delivery](../../development/delivery.md)).
 
@@ -403,5 +405,5 @@ Stop and return to the operator when: a step cannot end green without changing a
 
 - [x] "Conectada por <nome>": copied to the row at connect (operator, 2026-10-06).
 - [x] Guide S 6 gains "A secret at rest is sealed with the installation's envelope and bound to the row it belongs to" (operator, 2026-10-06); the final wording is reviewed in the pull request.
-- [ ] The operator confirms our own token refresh call for Claude and ChatGPT (section 6). The alternatives are unequal: parsing Mastra's message works for Anthropic only, and ChatGPT's refresh carries no cause at all, so AC-6 could not hold for ChatGPT; an upstream Mastra change first would block the wave on a release.
+- [x] Our own token refresh call for Claude and ChatGPT (section 6), confirmed by the operator on 2026-10-06 after the reference check of Mastra, Mastra Code and the Factory. The alternatives are unequal: parsing Mastra's message works for Anthropic only, and ChatGPT's refresh carries no cause at all, so AC-6 could not hold for ChatGPT; an upstream Mastra change first would block the wave on a release.
 - [x] The second local reset of the Migration plan, everything in the local Conexus included (operator, 2026-10-06).
