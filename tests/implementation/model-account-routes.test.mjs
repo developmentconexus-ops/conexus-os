@@ -74,12 +74,12 @@ test('with no proxy pool the four Google routes answer MODEL_LOGIN_UNAVAILABLE, 
   assert.deepEqual(replies.map((reply) => [reply.statusCode, problem(reply)]), Array(4).fill([503, 'MODEL_LOGIN_UNAVAILABLE']))
 })
 
-test('a Google start the pool cannot serve is MODEL_LOGIN_UNAVAILABLE, a well formed unknown handle is expired and a malformed one is 404', async (t) => {
+test('a Google start the pool cannot serve is MODEL_LOGIN_UNAVAILABLE, and a well formed unknown handle and a malformed one are both 404', async (t) => {
   const { app } = await createApp(t, { googleAiPro: { startLogin: async () => { throw new Error('proxy down') } } })
   const started = await post(app, `${google}/login/start`)
   assert.deepEqual([started.statusCode, problem(started)], [503, 'MODEL_LOGIN_UNAVAILABLE'])
   const unknown = await post(app, `${google}/login/${UNKNOWN_LOGIN}`)
-  assert.deepEqual([unknown.statusCode, unknown.json()], [200, { state: 'expired' }])
+  assert.deepEqual([unknown.statusCode, problem(unknown)], [404, 'MODEL_LOGIN_NOT_FOUND'])
   const malformed = await post(app, `${google}/login/not-a-handle`)
   assert.deepEqual([malformed.statusCode, problem(malformed)], [404, 'MODEL_LOGIN_NOT_FOUND'])
 })

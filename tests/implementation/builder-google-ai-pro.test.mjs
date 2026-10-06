@@ -409,11 +409,13 @@ test('one sign-in at a time: another person is told to wait, and the same person
   const busy = await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })
   assert.equal(busy.statusCode, 409)
   assert.equal(busy.json().type.endsWith('MODEL_LOGIN_BUSY'), true)
-  assert.deepEqual((await pollOnce(app, first.loginId)).json(), { state: 'expired' }, 'a sign-in is visible only to its person')
+  const hidden = await pollOnce(app, first.loginId)
+  assert.deepEqual([hidden.statusCode, hidden.json().code], [404, 'MODEL_LOGIN_NOT_FOUND'], 'a sign-in is visible only to its person')
   as(ana)
   const second = (await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })).json()
   assert.notEqual(second.loginId, first.loginId)
-  assert.deepEqual((await pollOnce(app, first.loginId)).json(), { state: 'expired' })
+  const replaced = await pollOnce(app, first.loginId)
+  assert.deepEqual([replaced.statusCode, replaced.json().code], [404, 'MODEL_LOGIN_NOT_FOUND'], 'a restarted sign-in forgets the one it replaced')
 })
 
 test('the Builder offers the Google AI Pro models only to a person who can use them, own or shared', async (t) => {

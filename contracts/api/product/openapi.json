@@ -759,6 +759,30 @@
               }
             }
           },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "WORKSPACE_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "500": {
             "description": "Problem",
             "content": {
@@ -929,7 +953,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "ACCOUNT_NOT_FOUND"
+                            "ACCOUNT_NOT_FOUND",
+                            "WORKSPACE_NOT_FOUND"
                           ]
                         }
                       }
@@ -1493,6 +1518,30 @@
               }
             }
           },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "WORKSPACE_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "500": {
             "description": "Problem",
             "content": {
@@ -1672,7 +1721,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "PROJECT_THUMBNAIL_NOT_FOUND"
+                            "PROJECT_THUMBNAIL_NOT_FOUND",
+                            "PROJECT_NOT_FOUND"
                           ]
                         }
                       }
@@ -1834,6 +1884,30 @@
                           "enum": [
                             "REQUEST_AUTHENTICITY_DENIED",
                             "INSTALLATION_ADMINISTRATOR_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "WORKSPACE_NOT_FOUND"
                           ]
                         }
                       }
@@ -3048,7 +3122,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "SOURCE_REVISION_NOT_FOUND"
+                            "SOURCE_REVISION_NOT_FOUND",
+                            "PROJECT_NOT_FOUND"
                           ]
                         }
                       }
@@ -3242,7 +3317,8 @@
                         "code": {
                           "enum": [
                             "SOURCE_REVISION_NOT_FOUND",
-                            "SOURCE_FILE_NOT_FOUND"
+                            "SOURCE_FILE_NOT_FOUND",
+                            "PROJECT_NOT_FOUND"
                           ]
                         }
                       }
@@ -3392,6 +3468,30 @@
                           "enum": [
                             "REQUEST_AUTHENTICITY_DENIED",
                             "PROJECT_BUILD_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "PROJECT_NOT_FOUND"
                           ]
                         }
                       }
@@ -3611,7 +3711,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "CONVERSATION_NOT_FOUND"
+                            "CONVERSATION_NOT_FOUND",
+                            "PROJECT_NOT_FOUND"
                           ]
                         }
                       }
@@ -3857,7 +3958,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "BUILDER_RUN_NOT_FOUND"
+                            "BUILDER_RUN_NOT_FOUND",
+                            "PROJECT_NOT_FOUND"
                           ]
                         }
                       }
@@ -4014,7 +4116,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "BUILDER_RUN_NOT_FOUND"
+                            "BUILDER_RUN_NOT_FOUND",
+                            "PROJECT_NOT_FOUND"
                           ]
                         }
                       }
@@ -4202,7 +4305,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "SOURCE_REVISION_NOT_FOUND"
+                            "SOURCE_REVISION_NOT_FOUND",
+                            "PROJECT_NOT_FOUND"
                           ]
                         }
                       }
@@ -4390,7 +4494,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "PREVIEW_SUBJECT_NOT_FOUND"
+                            "PREVIEW_SUBJECT_NOT_FOUND",
+                            "PROJECT_NOT_FOUND"
                           ]
                         }
                       }
@@ -4845,7 +4950,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "ACCOUNT_NOT_FOUND"
+                            "ACCOUNT_NOT_FOUND",
+                            "MODEL_ACCOUNT_PROVIDER_UNKNOWN"
                           ]
                         }
                       }
@@ -6112,6 +6218,30 @@
                         "code": {
                           "enum": [
                             "REQUEST_AUTHENTICITY_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "MODEL_LOGIN_NOT_FOUND"
                           ]
                         }
                       }
