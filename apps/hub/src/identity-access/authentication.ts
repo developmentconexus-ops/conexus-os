@@ -1,18 +1,19 @@
 import { z } from 'zod'
-import { AccountId, ArtifactRevisionId, EmailAddress, ProjectId, WorkspaceId } from '@conexus/contract'
+import { AccountId, ArtifactRevisionId, DisplayName, EmailAddress, ProjectId, WorkspaceId, WorkspaceRole } from '@conexus/contract'
 import type { ArtifactRevisionId as ArtifactRevisionIdType } from '@conexus/contract'
 import { ApplicationSlug } from '../platform/application-slug.js'
 import { bindAccount, Digest, openGate, sql } from '../platform/db.js'
 import type { AuthenticationGate, Sql, WriteTx } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import { HUB_IDLE_SECONDS, HUB_SLIDE_EVERY_SECONDS, OIDC_TRANSACTION_SECONDS, PROVIDER_RECHECK_SECONDS } from '../platform/lifetimes.js'
-import { notInDeletion, WORKSPACE_ROLES } from './admission.js'
+import { ActiveAccount, notInDeletion, Present } from './admission.js'
 import type { Admitted, BootstrapScope, ProviderIdentity } from './admission.js'
 import type { SignInClaims } from './oidc.js'
 
 const Liveness = z.enum(['LIVE', 'IDLE_EXPIRED', 'ABSOLUTE_EXPIRED'])
-const Person = { account_id: AccountId, display_name: z.string(), email: EmailAddress.nullable(), subject: z.string() }
-const Standing = { liveness: Liveness, recheck_due: z.boolean(), sealed_token: z.string().nullable(), checked_at: z.string().nullable() }
+const Person = { account_id: AccountId, display_name: DisplayName, email: EmailAddress.nullable(), subject: z.string() }
+// A Hub or application session always holds its sealed token and its last check (the host_session CHECKs).
+const Standing = { liveness: Liveness, recheck_due: z.boolean(), sealed_token: z.string(), checked_at: z.string() }
 
 const OidcState = z.object({
   pkce_verifier: z.string(), nonce: z.string(), application_project_id: ProjectId.nullable(), application_slug: ApplicationSlug.nullable(), sign_in_binding_digest: Digest.nullable(),
@@ -21,7 +22,7 @@ const HubSessionRow = z.object({ ...Person, ...Standing, active: z.boolean(), hu
 const ApplicationSessionRow = z.object({ ...Person, ...Standing, project_id: ProjectId })
 const PreviewSessionRow = z.object({
   ...Person, project_id: ProjectId, artifact_revision_id: ArtifactRevisionId, liveness: Liveness, expires_at: z.date(),
-  parent_digest: Digest, parent_liveness: Liveness, parent_entry: z.boolean(), parent_recheck_due: z.boolean(), parent_sealed_token: z.string().nullable(), parent_checked_at: z.string().nullable(),
+  parent_digest: Digest, parent_liveness: Liveness, parent_active: z.boolean(), parent_entry: z.boolean(), parent_recheck_due: z.boolean(), parent_sealed_token: z.string(), parent_checked_at: z.string(),
 })
 const ApplicationHandoffRow = z.object({ account_id: AccountId, project_id: ProjectId, minted_at: z.string(), sealed_token: z.string() })
 const PreviewHandoffRow = z.object({ account_id: AccountId, project_id: ProjectId, artifact_revision_id: ArtifactRevisionId, parent_digest: Digest, session_expires_at: z.string() })
@@ -77,7 +78,7 @@ export const readPreviewSession = async (gate: AuthenticationGate, key: Digest, 
   SELECT ${personColumns}, session.project_id, session.artifact_revision_id, ${liveness(sql`session`)} AS liveness, session.absolute_expires_at AS expires_at,
     parent.token_digest AS parent_digest,
     ${liveness(sql`parent`)} AS parent_liveness,
-    person.active AND ${hubEntry(sql`person`)} AS parent_entry,
+    person.active AS parent_active, ${hubEntry(sql`person`)} AS parent_entry,
     ${recheckDue(sql`parent`)} AS parent_recheck_due,
     parent.provider_refresh_token AS parent_sealed_token, parent.provider_checked_at::text AS parent_checked_at
   FROM iam.host_session AS session
@@ -124,15 +125,14 @@ export const consumePreviewHandoff = async (gate: AuthenticationGate, key: Diges
     RETURNING handoff.account_id, handoff.project_id, handoff.artifact_revision_id, handoff.parent_digest, handoff.session_expires_at::text AS session_expires_at`))
 }
 
-const KnownAccount = z.object({ account_id: AccountId, active: z.boolean() })
-export type KnownAccount = z.output<typeof KnownAccount>
+export type KnownAccount = z.output<typeof ActiveAccount>
 
 /** The account of a provider pair, bound to the gate when it exists. */
 export const lookupIdentity = async (gate: AuthenticationGate, identity: ProviderIdentity): Promise<KnownAccount | null> =>
-  bound(gate, await txOf(gate).maybe(KnownAccount, sql`
+  bound(gate, await txOf(gate).maybe(ActiveAccount, sql`
     SELECT account_id, active FROM iam.account WHERE issuer = ${identity.issuer} AND external_subject = ${identity.subject}`))
 
-const WorkspaceClaim = z.object({ workspace_id: WorkspaceId, role: z.enum(WORKSPACE_ROLES), invited_by: AccountId })
+const WorkspaceClaim = z.object({ workspace_id: WorkspaceId, role: WorkspaceRole, invited_by: AccountId })
 const ApplicationClaim = z.object({ project_id: ProjectId, invited_by: AccountId, created_at: z.string() })
 /**
  * The invitations one verified email took: never empty, since an empty claim is null. It is the only
@@ -236,8 +236,6 @@ export const slideHubSession = async (gate: AuthenticationGate, key: Digest): Pr
 /** Ends a Hub session its lookup found expired, only while it still is; null when a parallel request ended it first. */
 export const endExpiredHubSession = async (gate: AuthenticationGate, key: Digest): Promise<'ENDED' | null> =>
   (await txOf(gate).run(sql`DELETE FROM iam.host_session AS session WHERE session.token_digest = ${key} AND session.kind = 'HUB' AND NOT ${live(sql`session`)}`)) === 1 ? 'ENDED' : null
-
-const Present = z.object({ present: z.literal(1) })
 
 /**
  * Records a Keycloak answer only over the check this request saw: two requests that found one check due

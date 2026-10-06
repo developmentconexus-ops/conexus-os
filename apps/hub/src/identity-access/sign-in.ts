@@ -26,11 +26,8 @@ export type ApplicationOrigin = string
 /** Why a sign in did not open: the Hub's reasons, and an application that this account may not use. */
 type Refusal = HubNoAccessReason | 'NOT_GRANTED'
 
-/**
- * What each surface discloses for each refusal: the Hub names its own reason; an application host shows one of its three pages.
- * @public Tests call it through the built Hub.
- */
-export const NO_ACCESS = {
+/** What each surface discloses for each refusal: the Hub names its own reason; an application host shows one of its three pages. */
+const NO_ACCESS = {
   SIGN_IN_EXPIRED: { hub: 'SIGN_IN_EXPIRED', application: 'SIGN_IN_FAILED' },
   SIGN_IN_FAILED: { hub: 'SIGN_IN_FAILED', application: 'SIGN_IN_FAILED' },
   IDENTITY_EMAIL_NOT_VERIFIED: { hub: 'IDENTITY_EMAIL_NOT_VERIFIED', application: 'EMAIL_NOT_VERIFIED' },
@@ -39,8 +36,8 @@ export const NO_ACCESS = {
   NOT_GRANTED: { hub: 'IDENTITY_NOT_ELIGIBLE', application: 'NOT_GRANTED' },
 } as const satisfies Readonly<Record<Refusal, Readonly<{ hub: HubNoAccessReason; application: ApplicationNoAccessReason }>>>
 
-/** Where a sign in returns: the Hub, or the application that began it. */
-export type Venue = Readonly<{ kind: 'HUB' }> | Readonly<{ kind: 'APPLICATION'; projectId: ProjectId; origin: ApplicationOrigin }>
+/** Where a sign in returns: the Hub, or the application that began it, from the browser that holds its binding. */
+export type Venue = Readonly<{ kind: 'HUB' }> | Readonly<{ kind: 'APPLICATION'; projectId: ProjectId; origin: ApplicationOrigin; bindingDigest: Digest }>
 
 export type SignInOutcome =
   | Readonly<{ kind: 'HUB'; session: RawToken }>
@@ -65,15 +62,16 @@ export const locationOf = (outcome: SignInOutcome): string => {
   }
 }
 
-type Entrant = Readonly<{ kind: 'account'; claim: Claim | null }> | Readonly<{ kind: 'refused'; refusal: Refusal }>
+// An account that this sign in founded the installation with carries it, so its first tenure is logged once committed.
+type Entrant = Readonly<{ kind: 'account'; claim: Claim | null; founded: AccountId | null }> | Readonly<{ kind: 'refused'; refusal: Refusal }>
 
 const sameIdentity = (claims: SignInClaims, configured: ConfiguredIdentity): boolean =>
   claims.identity.issuer === configured.issuer && claims.identity.subject === configured.subject
 
-const known = (account: KnownAccount, claim: Claim | null): Entrant => (account.active ? { kind: 'account', claim } : { kind: 'refused', refusal: 'ACCOUNT_INACTIVE' })
+const known = (account: KnownAccount, claim: Claim | null): Entrant => (account.active ? { kind: 'account', claim, founded: null } : { kind: 'refused', refusal: 'ACCOUNT_INACTIVE' })
 
 // The identity steps of a callback: a known account, the founding of the installation, or the claim of an invitation.
-const identify = async (gate: AuthenticationGate, claims: SignInClaims, configured: ConfiguredIdentity): Promise<Entrant & Readonly<{ founded?: AccountId }>> => {
+const identify = async (gate: AuthenticationGate, claims: SignInClaims, configured: ConfiguredIdentity): Promise<Entrant> => {
   const verified = claims.email.kind === 'verified' ? claims.email.email : null
   const found = await lookupIdentity(gate, claims.identity)
   if (found) {
@@ -95,7 +93,7 @@ const identify = async (gate: AuthenticationGate, claims: SignInClaims, configur
   const claim = await claimInvitations(gate, verified)
   if (claim) {
     await provisionIdentity(gate, claims, { kind: 'claim', claim })
-    return { kind: 'account', claim }
+    return { kind: 'account', claim, founded: null }
   }
   // A parallel callback of the same person may have claimed the invitations and created the account first.
   const parallel = await lookupIdentity(gate, claims.identity)
@@ -114,13 +112,13 @@ export const createSignIn = ({ database, oidc, sessions, configured, origin, app
   applicationOrigin: ((slug: ApplicationSlug) => ApplicationOrigin) | null
 }>) => {
   /** The callback's one decision: who signed in, what their verified email claims, and the session or handoff it opens, in one entry. */
-  const decide = (claims: SignInClaims, refreshToken: string, venue: Venue, bindingDigest: Digest | null): Promise<Readonly<{ outcome: SignInOutcome; founded: AccountId | null }>> =>
+  const decide = (claims: SignInClaims, venue: Venue): Promise<Readonly<{ outcome: SignInOutcome; founded: AccountId | null }>> =>
     database.authenticate(async (gate) => {
       // The Project first, in the purge's order, before the claim deletes its invitations and inserts its grants.
       if (venue.kind === 'APPLICATION' && !(await lockProject(gate, venue.projectId))) return { outcome: refusedAt(venue, 'NOT_GRANTED'), founded: null }
       const entrant = await identify(gate, claims, configured)
-      const founded = 'founded' in entrant && entrant.founded ? entrant.founded : null
-      if (entrant.kind === 'refused') return { outcome: refusedAt(venue, entrant.refusal), founded }
+      if (entrant.kind === 'refused') return { outcome: refusedAt(venue, entrant.refusal), founded: null }
+      const { founded } = entrant
       const proof = await admitAccount(gate)
       if (entrant.claim) {
         await joinClaimed(proof, entrant.claim)
@@ -128,16 +126,15 @@ export const createSignIn = ({ database, oidc, sessions, configured, origin, app
       }
       if (venue.kind === 'HUB') {
         if (!(await mayEnterHub(proof))) return { outcome: refusedAt(venue, 'IDENTITY_NOT_ELIGIBLE'), founded }
-        return { outcome: { kind: 'HUB', session: await sessions.openHubSession(proof, refreshToken) }, founded }
+        return { outcome: { kind: 'HUB', session: await sessions.openHubSession(proof, claims.refreshToken) }, founded }
       }
-      if (!bindingDigest) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'SIGN_IN_BINDING_MISSING' } })
       // A refusal here keeps what the claim committed: the invitation was accepted by the email it named.
       const admitted = await admitApplication(gate, venue.projectId).catch((error: unknown) => {
         if (error instanceof Failure && error.id === 'APPLICATION_NOT_FOUND') return null
         throw error
       })
       if (!admitted) return { outcome: refusedAt(venue, 'NOT_GRANTED'), founded }
-      return { outcome: { kind: 'APPLICATION', handoff: await sessions.mintApplicationHandoff(admitted, bindingDigest, refreshToken), origin: venue.origin }, founded }
+      return { outcome: { kind: 'APPLICATION', handoff: await sessions.mintApplicationHandoff(admitted, venue.bindingDigest, claims.refreshToken), origin: venue.origin }, founded }
     })
 
   const registerRoutes = async (app: FastifyInstance): Promise<void> => {
@@ -195,8 +192,8 @@ export const createSignIn = ({ database, oidc, sessions, configured, origin, app
       if (!state || queryState !== readCookie(request, 'oidcState')) return answer(refusedAt(hub, 'SIGN_IN_EXPIRED'), 'STATE_MISMATCH')
       const transaction = await database.authenticate((gate) => consumeOidcState(gate, digest(state)))
       if (!transaction) return answer(refusedAt(hub, 'SIGN_IN_EXPIRED'), 'STATE_UNKNOWN')
-      const venue: Venue = transaction.application_project_id && transaction.application_slug && applicationOrigin
-        ? { kind: 'APPLICATION', projectId: transaction.application_project_id, origin: applicationOrigin(transaction.application_slug) }
+      const venue: Venue = transaction.application_project_id && transaction.application_slug && transaction.sign_in_binding_digest && applicationOrigin
+        ? { kind: 'APPLICATION', projectId: transaction.application_project_id, origin: applicationOrigin(transaction.application_slug), bindingDigest: transaction.sign_in_binding_digest }
         : hub
       if (transaction.application_project_id && venue.kind === 'HUB') return answer(refusedAt(hub, 'SIGN_IN_FAILED'), 'APPLICATION_UNAVAILABLE')
       if (error !== undefined) return answer(refusedAt(venue, 'SIGN_IN_FAILED'), typeof error === 'string' ? error.slice(0, 64) : 'PROVIDER_ERROR')
@@ -208,6 +205,11 @@ export const createSignIn = ({ database, oidc, sessions, configured, origin, app
           expectedState: state,
           expectedNonce: transaction.nonce,
         })
+        if (completion.kind === 'no-refresh-token') {
+          // Every session keeps this sign in's Keycloak refresh token, sealed, to ask Keycloak again while it lasts.
+          logFailure(request.log, new Failure('OIDC_REFRESH_TOKEN_MISSING'))
+          return answer(refusedAt(venue, 'SIGN_IN_FAILED'), 'REFRESH_TOKEN_MISSING')
+        }
         if (completion.kind === 'malformed') {
           logLine('IDENTITY_CLAIM_MALFORMED', { claim: completion.claim }, 'warn')
           return answer(refusedAt(venue, 'SIGN_IN_FAILED'), 'CLAIM_MALFORMED')
@@ -217,12 +219,7 @@ export const createSignIn = ({ database, oidc, sessions, configured, origin, app
         logFailure(request.log, new Failure('OIDC_CALLBACK_FAILED', { cause }))
         return answer(refusedAt(venue, 'SIGN_IN_FAILED'), 'EXCHANGE_FAILED')
       }
-      // Every session keeps this sign in's Keycloak refresh token, sealed, to ask Keycloak again while it lasts.
-      if (!claims.refreshToken) {
-        logFailure(request.log, new Failure('OIDC_REFRESH_TOKEN_MISSING'))
-        return answer(refusedAt(venue, 'SIGN_IN_FAILED'), 'REFRESH_TOKEN_MISSING')
-      }
-      const decided = await decide(claims, claims.refreshToken, venue, transaction.sign_in_binding_digest)
+      const decided = await decide(claims, venue)
       if (decided.founded) tenureGranted(decided.founded, 'OPERATOR_BOOTSTRAP')
       return answer(decided.outcome, null)
     } })

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { AccountId, EmailAddress, addInstallationAdministrator, listInstallationAdministrators, removeInstallationAdministrator } from '@conexus/contract'
+import { AccountId, DisplayName, EmailAddress, addInstallationAdministrator, listInstallationAdministrators, removeInstallationAdministrator } from '@conexus/contract'
 import type { AdministratorEntry } from '@conexus/contract'
 import { routes } from '../http/access.js'
 import { sql } from '../platform/db.js'
@@ -8,7 +8,7 @@ import type { Database, Sql, TxQueries } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import { logLine } from '../platform/logger.js'
 import { idempotent } from '../platform/receipt.js'
-import { admitInstallationAdministrator, isInstallationAdministrator, receiptOf } from './admission.js'
+import { ActiveAccount, admitInstallationAdministrator, isInstallationAdministrator, receiptOf } from './admission.js'
 import type { Admitted, BootstrapScope } from './admission.js'
 
 /** An open tenure, as the administrators' table lock holds the set. */
@@ -21,17 +21,17 @@ type Tenure = Readonly<{ accountId: AccountId; active: boolean }>
 export const lastAdministratorStays = (tenures: readonly Tenure[], ending: AccountId): boolean =>
   tenures.some((tenure) => tenure.accountId !== ending && tenure.active)
 
-const EntryRow = z.object({
-  account_id: AccountId, display_name: z.string(), email: EmailAddress.nullable(), granted_via: z.enum(['OPERATOR_BOOTSTRAP', 'ADMINISTRATOR']),
-  granted_at: z.date(), granted_by: AccountId.nullable(), granted_by_name: z.string().nullable(),
-})
-const TenureRow = z.object({ account_id: AccountId, active: z.boolean() })
+const Holder = { account_id: AccountId, display_name: DisplayName, email: EmailAddress.nullable(), granted_at: z.date() }
+// The founding tenure has no grantor; every other one names the administrator who granted it.
+const EntryRow = z.discriminatedUnion('granted_via', [
+  z.object({ ...Holder, granted_via: z.literal('OPERATOR_BOOTSTRAP'), granted_by: z.null(), granted_by_name: z.null() }),
+  z.object({ ...Holder, granted_via: z.literal('ADMINISTRATOR'), granted_by: AccountId, granted_by_name: DisplayName }),
+])
 const Match = z.object({ account_id: AccountId })
 
 const entryOf = (row: z.output<typeof EntryRow>): AdministratorEntry => {
   const fields = { accountId: row.account_id, displayName: row.display_name, ...(row.email ? { email: row.email } : {}), grantedAt: row.granted_at.toISOString() }
   if (row.granted_via === 'OPERATOR_BOOTSTRAP') return { ...fields, grantedVia: 'OPERATOR_BOOTSTRAP' }
-  if (!row.granted_by || !row.granted_by_name) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'TENURE_GRANTOR_MISSING' } })
   return { ...fields, grantedVia: 'ADMINISTRATOR', grantedBy: { accountId: row.granted_by, displayName: row.granted_by_name } }
 }
 
@@ -88,7 +88,7 @@ export const registerAdministratorRoutes = async (app: FastifyInstance, database
   route.operation(removeInstallationAdministrator, async ({ params }, session) => {
     await database.transaction(session.account.accountId, async (gate) => {
       const proof = await admitInstallationAdministrator(gate, 'administrators.manage')
-      const tenures = (await proof.tx.rows(TenureRow, sql`
+      const tenures = (await proof.tx.rows(ActiveAccount, sql`
         SELECT tenure.account_id, person.active FROM iam.installation_administrator AS tenure
         JOIN iam.account AS person ON person.account_id = tenure.account_id
         WHERE tenure.revoked_at IS NULL`)).map((row) => ({ accountId: row.account_id, active: row.active }))

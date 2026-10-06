@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import {
-  AccountId, EmailAddress, GrantId, InvitationId,
+  AccountId, DisplayName, EmailAddress, GrantId, InvitationId,
   cancelApplicationInvitation, getApplicationAccess, grantApplicationAccess, revokeApplicationGrant,
 } from '@conexus/contract'
 import type { ApplicationAccess, ApplicationGrantEntry, ApplicationInvitationEntry, ProjectId } from '@conexus/contract'
@@ -15,7 +15,7 @@ import { idempotent } from '../platform/receipt.js'
 import { admitProject, admitSystem, receiptOf } from './admission.js'
 import type { AccountScope, Admitted, ProjectScope, SystemScope } from './admission.js'
 import type { Claim } from './authentication.js'
-import { invitationState } from './roster.js'
+import { InvitationRow, invitationFields } from './roster.js'
 
 /**
  * The address label of a Project's application: the base from its name, then `-2`, `-3` and so on, inside the 40 characters a label may have.
@@ -40,16 +40,13 @@ const PresenceRow = z.object({ present: z.boolean(), lock_key: z.string().regex(
 export type Presence = Readonly<{ hasApplication: true }> | Readonly<{ hasApplication: false; lockLost: AbortSignal }>
 const Named = z.object({ name: z.string() })
 const Slug = z.object({ slug: ApplicationSlug })
-const GrantRow = z.object({ grant_id: GrantId, account_id: AccountId, display_name: z.string(), email: EmailAddress.nullable(), granted_at: z.date() })
-const InvitationRow = z.object({ invitation_id: InvitationId, email: EmailAddress, invited_at: z.date(), expires_at: z.date(), open: z.boolean() })
+const GrantRow = z.object({ grant_id: GrantId, account_id: AccountId, display_name: DisplayName, email: EmailAddress.nullable(), granted_at: z.date() })
 
 const grantEntry = (row: z.output<typeof GrantRow>): ApplicationGrantEntry => ({
   kind: 'grant', grantId: row.grant_id, accountId: row.account_id, displayName: row.display_name, ...(row.email ? { email: row.email } : {}), grantedAt: row.granted_at.toISOString(),
 })
 
-const invitationEntry = (row: z.output<typeof InvitationRow>): ApplicationInvitationEntry => ({
-  kind: 'invitation', invitationId: row.invitation_id, email: row.email, invitedAt: row.invited_at.toISOString(), expiresAt: row.expires_at.toISOString(), state: invitationState(row),
-})
+const invitationEntry = (row: z.output<typeof InvitationRow>): ApplicationInvitationEntry => ({ kind: 'invitation', ...invitationFields(row) })
 
 // The first grant fixes the address: the base label, then the next free suffix. A label another
 // Project took meanwhile conflicts on the slug key and the next suffix is tried.

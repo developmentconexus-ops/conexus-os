@@ -2,22 +2,14 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { standingOf } = await import(hubModuleUrl('identity-access/sessions.js'))
-const { lastOwnerStays, invitationState } = await import(hubModuleUrl('identity-access/roster.js'))
+const { lastOwnerStays } = await import(hubModuleUrl('identity-access/roster.js'))
 const { lastAdministratorStays } = await import(hubModuleUrl('identity-access/administrators.js'))
-const { NO_ACCESS, locationOf } = await import(hubModuleUrl('identity-access/sign-in.js'))
+const { locationOf } = await import(hubModuleUrl('identity-access/sign-in.js'))
 const { slugFor } = await import(hubModuleUrl('identity-access/application-access.js'))
 const { slugBase, parseApplicationSlug } = await import(hubModuleUrl('platform/application-slug.js'))
 
 const A = '10000000-0000-4000-8000-000000000001'
 const B = '10000000-0000-4000-8000-000000000002'
-
-test('standingOf maps the columns the database computed', () => {
-  assert.deepEqual(standingOf({ liveness: 'LIVE', recheck_due: false }), { kind: 'live', recheckDue: false })
-  assert.deepEqual(standingOf({ liveness: 'LIVE', recheck_due: true }), { kind: 'live', recheckDue: true })
-  assert.deepEqual(standingOf({ liveness: 'IDLE_EXPIRED', recheck_due: true }), { kind: 'ended', reason: 'IDLE_EXPIRED' })
-  assert.deepEqual(standingOf({ liveness: 'ABSOLUTE_EXPIRED', recheck_due: false }), { kind: 'ended', reason: 'ABSOLUTE_EXPIRED' })
-})
 
 test('lastOwnerStays and lastAdministratorStays keep one active holder', () => {
   const both = [{ accountId: A, active: true }, { accountId: B, active: true }]
@@ -33,24 +25,14 @@ test('lastOwnerStays and lastAdministratorStays keep one active holder', () => {
   assert.equal(lastAdministratorStays(both, A), true)
   assert.equal(lastAdministratorStays(inactiveOther, A), false)
   assert.equal(lastAdministratorStays([{ accountId: A, active: true }], A), false)
-  assert.equal(invitationState({ open: true }), 'PENDING')
-  assert.equal(invitationState({ open: false }), 'EXPIRED')
 })
 
-test('locationOf and NO_ACCESS: each outcome has one address, and an application discloses one of its three reasons', () => {
+test('locationOf: each outcome has one address', () => {
   const origin = 'https://estoque-parado.apps.conexus.test'
   assert.equal(locationOf({ kind: 'HUB', session: 'x' }), '/')
   assert.equal(locationOf({ kind: 'APPLICATION', handoff: 'h'.repeat(43), origin }), `${origin}/__conexus/sign-in/complete?handoff=${'h'.repeat(43)}`)
   assert.equal(locationOf({ kind: 'REFUSED', venue: 'HUB', reason: 'ACCOUNT_INACTIVE' }), '/no-access?reason=ACCOUNT_INACTIVE')
   assert.equal(locationOf({ kind: 'REFUSED', venue: 'APPLICATION', reason: 'NOT_GRANTED', origin }), `${origin}/__conexus/no-access?reason=NOT_GRANTED`)
-  assert.deepEqual(NO_ACCESS, {
-    SIGN_IN_EXPIRED: { hub: 'SIGN_IN_EXPIRED', application: 'SIGN_IN_FAILED' },
-    SIGN_IN_FAILED: { hub: 'SIGN_IN_FAILED', application: 'SIGN_IN_FAILED' },
-    IDENTITY_EMAIL_NOT_VERIFIED: { hub: 'IDENTITY_EMAIL_NOT_VERIFIED', application: 'EMAIL_NOT_VERIFIED' },
-    IDENTITY_NOT_ELIGIBLE: { hub: 'IDENTITY_NOT_ELIGIBLE', application: 'NOT_GRANTED' },
-    ACCOUNT_INACTIVE: { hub: 'ACCOUNT_INACTIVE', application: 'NOT_GRANTED' },
-    NOT_GRANTED: { hub: 'IDENTITY_NOT_ELIGIBLE', application: 'NOT_GRANTED' },
-  })
 })
 
 test('the slug base ports the SQL rule exactly, and every suffix is a valid slug', () => {

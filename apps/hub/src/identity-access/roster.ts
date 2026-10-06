@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import {
-  AccountId, EmailAddress, InvitationId, WorkspaceRole,
+  AccountId, DisplayName, EmailAddress, InvitationId, WorkspaceRole,
   cancelWorkspaceInvitation, getWorkspaceRoster, inviteWorkspaceMember, removeWorkspaceMember, setWorkspaceMemberRole,
 } from '@conexus/contract'
 import type { InvitationState, WorkspaceId, WorkspaceInvitationEntry, WorkspaceMemberEntry, WorkspaceRoster } from '@conexus/contract'
@@ -27,19 +27,23 @@ export const lastOwnerStays = (owners: readonly OwnerRow[], change: OwnerChange)
   owners.some((owner) => owner.accountId !== change.accountId && owner.active)
 
 /** An invitation's state, from whether the database's clock still finds it open. */
-export const invitationState = (row: Readonly<{ open: boolean }>): InvitationState => (row.open ? 'PENDING' : 'EXPIRED')
+const invitationState = (row: Readonly<{ open: boolean }>): InvitationState => (row.open ? 'PENDING' : 'EXPIRED')
 
-const MemberRow = z.object({ account_id: AccountId, display_name: z.string(), email: EmailAddress.nullable(), role: WorkspaceRole, since: z.date() })
-const InvitationRow = z.object({ invitation_id: InvitationId, email: EmailAddress, role: WorkspaceRole, invited_at: z.date(), expires_at: z.date(), open: z.boolean() })
+/** The columns every invitation list reads, a Workspace's and an application's. */
+export const InvitationRow = z.object({ invitation_id: InvitationId, email: EmailAddress, invited_at: z.date(), expires_at: z.date(), open: z.boolean() })
+/** The entry fields both invitation lists share. */
+export const invitationFields = (row: z.output<typeof InvitationRow>) => ({
+  invitationId: row.invitation_id, email: row.email, invitedAt: row.invited_at.toISOString(), expiresAt: row.expires_at.toISOString(), state: invitationState(row),
+})
+
+const MemberRow = z.object({ account_id: AccountId, display_name: DisplayName, email: EmailAddress.nullable(), role: WorkspaceRole, since: z.date() })
+const WorkspaceInvitationRow = InvitationRow.extend({ role: WorkspaceRole })
 
 const memberEntry = (row: z.output<typeof MemberRow>): WorkspaceMemberEntry => ({
   kind: 'member', accountId: row.account_id, displayName: row.display_name, ...(row.email ? { email: row.email } : {}), role: row.role, since: row.since.toISOString(),
 })
 
-const invitationEntry = (row: z.output<typeof InvitationRow>): WorkspaceInvitationEntry => ({
-  kind: 'invitation', invitationId: row.invitation_id, email: row.email, role: row.role,
-  invitedAt: row.invited_at.toISOString(), expiresAt: row.expires_at.toISOString(), state: invitationState(row),
-})
+const invitationEntry = (row: z.output<typeof WorkspaceInvitationRow>): WorkspaceInvitationEntry => ({ kind: 'invitation', ...invitationFields(row), role: row.role })
 
 const lockedMember = async (tx: WriteTx, workspaceId: WorkspaceId, accountId: AccountId): Promise<WorkspaceRole> => {
   const member = await tx.maybe(z.object({ role: WorkspaceRole }), sql`
@@ -68,7 +72,7 @@ export const registerRosterRoutes = async (app: FastifyInstance, database: Datab
       FROM iam.workspace_membership AS membership JOIN iam.account AS member ON member.account_id = membership.account_id
       WHERE membership.workspace_id = ${proof.scope.workspaceId}
       ORDER BY membership.created_at, membership.account_id`)
-    const invitations = await tx.rows(InvitationRow, sql`
+    const invitations = await tx.rows(WorkspaceInvitationRow, sql`
       SELECT invitation_id, email, role, created_at AS invited_at, expires_at, expires_at > now() AS open
       FROM iam.workspace_invitation WHERE workspace_id = ${proof.scope.workspaceId}
       ORDER BY created_at, invitation_id`)
@@ -79,7 +83,7 @@ export const registerRosterRoutes = async (app: FastifyInstance, database: Datab
   route.operation(inviteWorkspaceMember, ({ params, headers, body }, session) => database.transaction(session.account.accountId, async (gate) => {
     const proof = await admitWorkspace(gate, params.workspaceId, 'members.manage')
     const { reply } = await idempotent(receiptOf(proof), inviteWorkspaceMember, headers['idempotency-key'], { params, query: undefined, body }, InvitationId, async (invitationId) =>
-      invitationEntry(await proof.tx.one(InvitationRow, sql`
+      invitationEntry(await proof.tx.one(WorkspaceInvitationRow, sql`
         INSERT INTO iam.workspace_invitation (invitation_id, workspace_id, email, role, invited_by, expires_at)
         VALUES (${invitationId}, ${proof.scope.workspaceId}, ${body.email}, ${body.role}, ${proof.scope.accountId}, now() + make_interval(days => ${INVITATION_DAYS}))
         ON CONFLICT (workspace_id, email) DO UPDATE

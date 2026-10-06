@@ -9,9 +9,10 @@ import type { ProviderIdentity } from './admission.js'
 /** The email a sign in carries: verified by the provider, present but not verified, or absent. Only a verified one claims an invitation. */
 type ClaimedEmail = Readonly<{ kind: 'verified'; email: EmailAddress }> | Readonly<{ kind: 'unverified' }> | Readonly<{ kind: 'absent' }>
 /** The claims of a completed sign in, parsed at the provider boundary. */
-export type SignInClaims = Readonly<{ identity: ProviderIdentity; email: ClaimedEmail; displayName: string; refreshToken: string | null }>
+export type SignInClaims = Readonly<{ identity: ProviderIdentity; email: ClaimedEmail; displayName: string; refreshToken: string }>
 /** A completed exchange whose claims parsed, or the name (never the value) of the claim that did not. */
-type Completion = Readonly<{ kind: 'claims'; claims: SignInClaims }> | Readonly<{ kind: 'malformed'; claim: 'iss' | 'sub' | 'name' }>
+// A sign in with no refresh token has nothing to keep each session's Keycloak check with.
+type Completion = Readonly<{ kind: 'claims'; claims: SignInClaims }> | Readonly<{ kind: 'malformed'; claim: 'iss' | 'sub' | 'name' }> | Readonly<{ kind: 'no-refresh-token' }>
 /**
  * Why Keycloak refused a refresh, as far as its answer says: the user is disabled, the SSO session
  * ended (idle or maximum lifetime, or signed out in Keycloak), or anything else (a stale or reused
@@ -83,6 +84,7 @@ export const parseSignInClaims = (claims: Record<string, unknown>, refreshToken:
   if (!subject) return { kind: 'malformed', claim: 'sub' }
   const displayName = nonBlank(claims.name) ?? nonBlank(claims.preferred_username)
   if (!displayName) return { kind: 'malformed', claim: 'name' }
+  if (!refreshToken) return { kind: 'no-refresh-token' }
   return { kind: 'claims', claims: { identity: { issuer, subject }, email: claimedEmail(claims), displayName, refreshToken } }
 }
 

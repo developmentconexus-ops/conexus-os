@@ -1,10 +1,9 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { endSession, getSession } from '@conexus/contract'
-import type { AccountId, ArtifactRevisionId, ProjectId, Session, WorkspaceId } from '@conexus/contract'
+import type { AccountId, ArtifactRevisionId, EmailAddress, ProjectId, Session, WorkspaceId } from '@conexus/contract'
 import { routes } from '../http/access.js'
 import type { ApplicationSlug } from '../platform/application-slug.js'
-import { parseCaller } from '../platform/caller.js'
 import type { Caller } from '../platform/caller.js'
 import { digest, sql } from '../platform/db.js'
 import type { Database, Digest, RawToken } from '../platform/db.js'
@@ -29,8 +28,7 @@ type SessionKind = 'HUB' | 'APPLICATION' | 'PREVIEW'
 /** A session row's standing, mapped from the columns the database computed with its own clock. */
 export type Standing = Readonly<{ kind: 'ended'; reason: 'IDLE_EXPIRED' | 'ABSOLUTE_EXPIRED' }> | Readonly<{ kind: 'live'; recheckDue: boolean }>
 
-/** @public Tests call it through the built Hub. */
-export const standingOf = (row: Readonly<{ liveness: 'LIVE' | 'IDLE_EXPIRED' | 'ABSOLUTE_EXPIRED'; recheck_due: boolean }>): Standing =>
+const standingOf = (row: Readonly<{ liveness: 'LIVE' | 'IDLE_EXPIRED' | 'ABSOLUTE_EXPIRED'; recheck_due: boolean }>): Standing =>
   row.liveness === 'LIVE' ? { kind: 'live', recheckDue: row.recheck_due } : { kind: 'ended', reason: row.liveness }
 
 const PROVIDER_ENDING: Readonly<Record<ProviderRefusal, SessionEndReason>> = Object.freeze({
@@ -61,18 +59,15 @@ type Step<T> =
   | Readonly<{ kind: 'done'; value: T }>
 type Recheck = 'KEPT' | 'ENDED' | 'UNAVAILABLE'
 
-const callerOf = (row: Readonly<{ account_id: AccountId; email: string | null; display_name: string }>): Caller => {
-  const caller = parseCaller({ accountId: row.account_id, email: row.email, displayName: row.display_name })
-  if (!caller) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'HOST_CALLER_UNRESOLVABLE' } })
-  return caller
-}
+const callerOf = (row: Readonly<{ account_id: AccountId; email: EmailAddress | null; display_name: string }>): Caller =>
+  Object.freeze({ accountId: row.account_id, email: row.email, displayName: row.display_name })
 
 const currentOf = (row: HubSessionRow): CurrentSession => ({
   account: { accountId: row.account_id, displayName: row.display_name, ...(row.email ? { email: row.email } : {}) },
 })
 
-const dueOf = (key: Digest, row: Readonly<{ sealed_token: string | null; checked_at: string | null; subject: string }>): Due | null =>
-  row.sealed_token && row.checked_at ? { digest: key, seen: row.checked_at, sealedToken: row.sealed_token, subject: row.subject } : null
+const dueOf = (key: Digest, row: Readonly<{ sealed_token: string; checked_at: string; subject: string }>): Due =>
+  ({ digest: key, seen: row.checked_at, sealedToken: row.sealed_token, subject: row.subject })
 
 const MaxAge = z.object({ max_age: z.number().int() })
 const Expiry = z.object({ expires_at: z.date() })
@@ -142,8 +137,7 @@ export const createSessions = ({ database, envelope, provider }: Readonly<{
       if (!row.active) return ended(gate, key, 'HUB', 'ACCOUNT_INACTIVE')
       if (!row.hub_entry) return ended(gate, key, 'HUB', 'HUB_ENTRY_WITHDRAWN')
       await slideHubSession(gate, key)
-      const due = recheckAllowed && row.recheck_due ? dueOf(key, row) : null
-      return due ? { kind: 'due', due } : { kind: 'done', value: currentOf(row) }
+      return recheckAllowed && row.recheck_due ? { kind: 'due', due: dueOf(key, row) } : { kind: 'done', value: currentOf(row) }
     }))
     if (outcome.kind === 'PROVIDER_UNAVAILABLE') throw new Failure('IDENTITY_PROVIDER_UNAVAILABLE')
     return outcome.kind === 'SERVED' ? outcome.value : null
@@ -167,8 +161,7 @@ export const createSessions = ({ database, envelope, provider }: Readonly<{
       if (!row) return { kind: 'absent' }
       const standing = standingOf(row)
       if (standing.kind === 'ended') return ended(gate, key, 'APPLICATION', standing.reason)
-      const due = recheckAllowed && standing.recheckDue ? dueOf(key, row) : null
-      if (due) return { kind: 'due', due }
+      if (recheckAllowed && standing.recheckDue) return { kind: 'due', due: dueOf(key, row) }
       const checked = await checkApplication(gate, row.project_id).catch((error: unknown) => {
         if (error instanceof Failure && error.id === 'APPLICATION_NOT_FOUND') return null
         throw error
@@ -237,11 +230,12 @@ export const createSessions = ({ database, envelope, provider }: Readonly<{
       const row = await readPreviewSession(gate, key, presented.artifactRevisionId)
       if (!row) return { kind: 'absent' }
       if (row.liveness !== 'LIVE') return ended(gate, key, 'PREVIEW', 'ABSOLUTE_EXPIRED')
-      if (row.parent_liveness !== 'LIVE' || !row.parent_entry) return ended(gate, row.parent_digest, 'HUB', row.parent_liveness === 'LIVE' ? 'HUB_ENTRY_WITHDRAWN' : row.parent_liveness)
-      const due = recheckAllowed && row.parent_recheck_due && row.parent_sealed_token && row.parent_checked_at
-        ? { digest: row.parent_digest, seen: row.parent_checked_at, sealedToken: row.parent_sealed_token, subject: row.subject }
-        : null
-      if (due) return { kind: 'due', due }
+      if (row.parent_liveness !== 'LIVE') return ended(gate, row.parent_digest, 'HUB', row.parent_liveness)
+      if (!row.parent_active) return ended(gate, row.parent_digest, 'HUB', 'ACCOUNT_INACTIVE')
+      if (!row.parent_entry) return ended(gate, row.parent_digest, 'HUB', 'HUB_ENTRY_WITHDRAWN')
+      if (recheckAllowed && row.parent_recheck_due) {
+        return { kind: 'due', due: { digest: row.parent_digest, seen: row.parent_checked_at, sealedToken: row.parent_sealed_token, subject: row.subject } }
+      }
       const checked = await checkProject(gate, row.project_id).catch((error: unknown) => {
         if (error instanceof Failure && error.id === 'PROJECT_NOT_FOUND') return null
         throw error

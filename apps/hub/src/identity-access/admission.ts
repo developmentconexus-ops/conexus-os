@@ -1,16 +1,16 @@
 import { z } from 'zod'
 import type { AccountId, BuilderRunId, ProjectId, WorkspaceId } from '@conexus/contract'
-import { AccountId as AccountIdSchema, ProjectId as ProjectIdSchema, WorkspaceId as WorkspaceIdSchema } from '@conexus/contract'
+import { AccountId as AccountIdSchema, ProjectId as ProjectIdSchema, WorkspaceId as WorkspaceIdSchema, WorkspaceRole } from '@conexus/contract'
 import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
 import type { AuthenticationGate, CommandGate, JobName, Mode, ReadTx, Sql, TxQueries, WriteTx } from '../platform/db.js'
 import { openGate, readOnlyView, sql } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
 import { type Receipted, receipted } from '../platform/receipt.js'
 
+/** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. The contract owns the roles. */
+export const WORKSPACE_ROLES = WorkspaceRole.options
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
-export const WORKSPACE_ROLES = ['owner', 'member'] as const
-/** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
-export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number]
+export type { WorkspaceRole }
 export type WorkspaceAction = 'workspace.read' | 'members.manage' | 'members.leave' | 'project.create' | 'project.build' | 'connections.bind' | 'application.manage'
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
 export type ProjectAction = 'project.read' | 'project.build' | 'connections.bind' | 'application.manage'
@@ -104,12 +104,14 @@ class Checked<S extends Scope> {
 }
 export type { Checked }
 
-const Account = z.object({ account_id: AccountIdSchema, active: z.boolean() })
-const Member = z.object({ role: z.enum(WORKSPACE_ROLES) })
+/** An account row's id and whether it is active, the one shape every lock and lookup of an account reads. */
+export const ActiveAccount = z.object({ account_id: AccountIdSchema, active: z.boolean() })
+/** The row an existence check selects as `1 AS present`. */
+export const Present = z.object({ present: z.literal(1) })
+const Member = z.object({ role: WorkspaceRole })
 const Locked = z.object({ locked: z.number() })
 const ProjectWorkspace = z.object({ workspace_id: WorkspaceIdSchema })
 const Access = z.object({ member: z.boolean(), granted: z.boolean() })
-const Present = z.object({ present: z.literal(1) })
 
 type RefusalReason = 'OUTSIDER' | 'FORBIDDEN' | 'TOMBSTONE' | 'INACTIVE'
 /** An admission refusal answers its code and nothing else; the reason reaches the log only, so an outsider learns nothing from the response. */
@@ -139,7 +141,7 @@ const subjectOf = (subject: CommandGate | ReadTx): Readonly<{ tx: ReadTx | Write
 }
 
 const lockAccount = (tx: WriteTx, accountId: AccountId) =>
-  tx.maybe(Account, sql`SELECT account_id, active FROM iam.account WHERE account_id = ${accountId} FOR SHARE`)
+  tx.maybe(ActiveAccount, sql`SELECT account_id, active FROM iam.account WHERE account_id = ${accountId} FOR SHARE`)
 
 const lockActiveAccount = async (tx: WriteTx, accountId: AccountId): Promise<void> => {
   const account = await lockAccount(tx, accountId)
@@ -160,7 +162,7 @@ const lockOwners = async (tx: WriteTx, workspaceId: WorkspaceId): Promise<readon
     SELECT 1 AS locked FROM iam.workspace_membership
     WHERE workspace_id = ${workspaceId} AND role = 'owner' ORDER BY account_id FOR UPDATE
   `)
-  const owners = await tx.rows(Account, sql`
+  const owners = await tx.rows(ActiveAccount, sql`
     SELECT membership.account_id, account.active FROM iam.workspace_membership AS membership
     JOIN iam.account AS account ON account.account_id = membership.account_id
     WHERE membership.workspace_id = ${workspaceId} AND membership.role = 'owner'
