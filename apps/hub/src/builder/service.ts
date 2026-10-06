@@ -8,7 +8,7 @@ import type { AnswerOutcome } from './run/question.js'
 import { type LiveRun, startRun } from './run/run.js'
 import type { ProjectSourceReads } from './source.js'
 import type { BuilderRunSummary, BuilderRunView, BuilderStore, TakenOverRun } from './store.js'
-import type { ApplicationArtifactMetadata, ApplicationSourceCoordinates, ApplicationArtifactReadResult, ApplicationServerPort, BuilderApplicationArtifacts } from './application-build.js'
+import type { ApplicationServerPort, BuilderRegistry } from './application-build.js'
 import { Failure, logFailure, toFailure } from '../platform/failure.js'
 import { gitUnavailableAs } from '../platform/git-failure.js'
 import { logLine, logger } from '../platform/logger.js'
@@ -34,8 +34,6 @@ export type BuilderService = Readonly<{
   listSourceTree(input: SourceCoordinates): Promise<SourceTree>
   getSourceFile(input: SourceCoordinates & Readonly<{ path: string }>): Promise<SourceFile>
   compareSourceRevisions(input: Readonly<{ accountId: AccountId; projectId: ProjectId; baseSourceRevision: SourceRevision; resultSourceRevision: SourceRevision }>): Promise<SourceComparison>
-  getApplicationBySource(input: ApplicationSourceCoordinates): Promise<ApplicationArtifactMetadata | null>
-  readApplicationFileBySource(input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
   /**
    * One pass of the run lease: refreshes the heartbeat of every run this Hub works, and takes over
    * every other run whose owner went quiet (a crash, a restart, or an ending whose write failed),
@@ -114,9 +112,9 @@ const createRunLease = ({ store, git, ownerId, staleAfterMs, liveRunIds }: Reado
   }
 }
 
-export const createBuilderService = ({ store, applicationArtifacts, applicationServer, runs: dependencies }: Readonly<{
+export const createBuilderService = ({ store, registry, applicationServer, runs: dependencies }: Readonly<{
   store: BuilderStore
-  applicationArtifacts: BuilderApplicationArtifacts
+  registry: Pick<BuilderRegistry, 'seal'>
   applicationServer?: ApplicationServerPort
   runs: BuilderRunDependencies
 }>): BuilderService => {
@@ -125,7 +123,6 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   // The live runs by conversation: the only map of runs in the Hub.
   const runs = new Map<string, LiveRun>()
   const liveRunIds = (): readonly BuilderRunId[] => [...runs.values()].map((live) => live.builderRunId)
-  const applicationShutdown = new AbortController()
   let serviceClosing: Promise<void> | null = null
   // A browser that misses a publish still reads the run from the builder-session poll, so a failed
   // one never stops a run or a stop request.
@@ -138,7 +135,7 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
   }
   const start = (row: BuilderRunSummary, request: Readonly<{ accountId: AccountId; content: string; idempotencyKey: string }>): void => {
     const live = startRun({
-      ports: dependencies.ports, store, applicationArtifacts, applicationServer, appendDiagnostic: dependencies.appendDiagnostic, publishRun,
+      ports: dependencies.ports, store, registry, applicationServer, appendDiagnostic: dependencies.appendDiagnostic, publishRun,
       questionWaitMs: dependencies.questionWaitMs, settleRetryMs: dependencies.settleRetryMs ?? 500,
     }, row, request)
     runs.set(row.conversationId, live)
@@ -150,8 +147,6 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
     const run = runs.get(conversationId)
     return run?.projectId === projectId ? run : undefined
   }
-  const unlessClosed = <T>(read: () => Promise<T>): Promise<T> =>
-    applicationShutdown.signal.aborted ? Promise.reject(new Failure('BUILDER_APPLICATION_CLOSED')) : read()
   // A revision the source view may show the caller; `main` counts as read from the Conexus Git now.
   const admitSource = ({ accountId, projectId }: Readonly<{ accountId: AccountId; projectId: ProjectId }>, sourceRevision: SourceRevision): Promise<boolean> =>
     store.admitSourceRevision({ accountId, projectId, sourceRevision, readMain: () => dependencies.git.readMain(projectId).catch(unavailable) })
@@ -203,13 +198,10 @@ export const createBuilderService = ({ store, applicationArtifacts, applicationS
       if (!admitted[0] || !admitted[1]) throw new Failure('SOURCE_REVISION_NOT_FOUND')
       return dependencies.source.compareRevisions(input)
     },
-    getApplicationBySource: (input) => unlessClosed(async () => (applicationArtifacts.getApplicationBySource ? applicationArtifacts.getApplicationBySource(input) : null)),
-    readApplicationFileBySource: (input) => unlessClosed(async () => (applicationArtifacts.readApplicationFileBySource ? applicationArtifacts.readApplicationFileBySource(input) : null)),
     renewLease: createRunLease({ store, git: dependencies.git, ownerId, staleAfterMs: dependencies.staleAfterMs ?? RUN_STALE_AFTER_MS, liveRunIds }),
     stopRuns: () => { for (const run of runs.values()) run.stop('HUB_STOPPING') },
     close: () => {
       serviceClosing ??= (async () => {
-        applicationShutdown.abort()
         await Promise.all([...runs.values()].map((run) => run.done.catch(() => undefined)))
       })()
       return serviceClosing

@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { hubModuleUrl } from './hub-build.mjs'
 import { query } from './hub-database.mjs'
 import { ID, setupProjects } from './project-fixture.mjs'
+import { seedRevision, seedRevisionThumbnail } from './registry-fixture.mjs'
 
 const { sql } = await import(hubModuleUrl('platform/db.js'))
 
@@ -48,6 +49,9 @@ const seed = async (fixture) => {
   await query(connection, `INSERT INTO model.model_account(model_account_id, owner_account_id, provider, kind, secret) VALUES
     ($1, $3, 'anthropic', 'api_key', $5), ($2, $4, 'anthropic', 'api_key', $5)`, [models.a, models.b, ID.member, OTHER.member, sealed])
   await query(connection, "INSERT INTO model.installation_default(role, model_id, updated_by) VALUES ('build', 'anthropic/x', $1), ('memory', 'anthropic/x', $1)", [ID.administrator])
+  const revisions = { a: await seedRevision(connection, projects.a, { sourceRevision: 'a'.repeat(40), digest: 'a'.repeat(64) }), b: await seedRevision(connection, projects.b, { sourceRevision: 'b'.repeat(40), digest: 'b'.repeat(64) }) }
+  await seedRevisionThumbnail(connection, revisions.a)
+  await seedRevisionThumbnail(connection, revisions.b)
   const runs = async (projectId) => (await query(connection, 'SELECT builder_run_id::text AS key FROM builder.builder_run WHERE project_id = $1', [projectId])).rows.map((row) => row.key)
   const memberKeys = { a: [ID.owner, ID.member, ID.memberAdministrator], b: [OTHER.owner, OTHER.member] }
   return {
@@ -60,6 +64,8 @@ const seed = async (fixture) => {
     'iam.workspace_membership': memberKeys,
     'iam.account': memberKeys,
     'connector.connection': { a: [connections.a], b: [connections.b] },
+    'reg.artifact_revision': { a: [revisions.a], b: [revisions.b] },
+    'reg.application_thumbnail': { a: [revisions.a], b: [revisions.b] },
     'connector.project_binding': { a: [bindings.a], b: [bindings.b] },
     'model.model_account': { a: [models.a], b: [models.b] },
     'model.installation_default': { a: ['build'], b: ['memory'] },
@@ -80,6 +86,8 @@ const KEY_COLUMN = {
   'iam.workspace_membership': 'account_id',
   'iam.account': 'account_id',
   'connector.connection': 'connection_id',
+  'reg.artifact_revision': 'artifact_revision_id',
+  'reg.application_thumbnail': 'artifact_revision_id',
   'connector.project_binding': 'binding_id',
   'model.model_account': 'model_account_id',
   'model.installation_default': 'role',

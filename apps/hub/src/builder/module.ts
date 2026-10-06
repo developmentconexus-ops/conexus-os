@@ -5,7 +5,7 @@ import { Mastra } from '@mastra/core/mastra'
 import { ConsoleLogger } from '@mastra/core/logger'
 import type { ObservabilityInstance } from '@mastra/core/observability'
 import type { RequestContext } from '@mastra/core/request-context'
-import { openFactoryPool, type Database, type PostgresPool } from '../platform/db.js'
+import { openFactoryPool, type Database } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import { gitUnavailableAs } from '../platform/git-failure.js'
 import type { Job } from '../platform/jobs.js'
@@ -17,7 +17,7 @@ import { mountLogFilter, mountValidationFailure, registerBuilderSessionRoutes } 
 import type { ToolPayloadProjection } from './mastra-session-routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort } from './routes.js'
 import { createBuilderService } from './service.js'
-import type { ApplicationServerPort, ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
+import type { ApplicationServerPort, BuilderRegistry } from './application-build.js'
 import { createBuilderStore } from './store.js'
 export { builderProjectPorts, purgeProjectBuilder } from './project-ports.js'
 import { buildTraceSummary, UNAVAILABLE_TRACE_SUMMARY } from './trace-summary.js'
@@ -91,10 +91,9 @@ const DAY_MS = 24 * HOUR_MS
 const RUN_LEASE_EVERY_MS = 10_000
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
-export const createConfiguredBuilderModule = ({ data, database, runtimePool, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
+export const createConfiguredBuilderModule = ({ data, database, builder, factory, secretKey, googleAiPro, registry, applicationServer, launchPreview, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
   data: Database
   database: Readonly<{ host: string; port: number; database: string }>
-  runtimePool: PostgresPool
   builder: Readonly<{
     e2bApiKeyFile: string
     e2bTemplateId: string; gitRoot: string; context7ApiKeyFile?: string | undefined; questionWaitMs: number; modelRetryDelayMs: number | undefined; sandboxIdleMs: number
@@ -104,7 +103,7 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
   factory: Pick<FactoryRuntimeConfig, 'databasePasswordFile'>
   secretKey: InstallationSecretKey
   googleAiPro?: GoogleAiProRuntimeConfig
-  applicationArtifacts: UnboundBuilderApplicationArtifacts
+  registry: BuilderRegistry
   applicationServer?: ApplicationServerPort
   launchPreview?: BuilderLaunchPreviewPort
   /** The Project's display name, which the Builder's prompt states. */
@@ -118,20 +117,11 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
   const check = loadCheckBundle()
   const log = logLine
   const ownerId = randomUUID()
-  const store = createBuilderStore({ database: data, ownerId })
+  const store = createBuilderStore({ database: data, ownerId, registry })
   const modelAccounts = createModelAccounts({
     database: data,
     envelope: createSecretEnvelope(readSecretFile(secretKey.file), secretKey.previousFiles.map(readSecretFile)),
     ownerId,
-  })
-  const getApplicationBySource = applicationArtifacts.getApplicationBySource
-  const readApplicationFileBySource = applicationArtifacts.readApplicationFileBySource
-  const retainApplicationThumbnail = applicationArtifacts.retainApplicationThumbnail
-  const boundApplicationArtifacts: BuilderApplicationArtifacts = Object.freeze({
-    ...(getApplicationBySource ? { getApplicationBySource: (input: ApplicationSourceCoordinates) => getApplicationBySource(runtimePool, input) } : {}),
-    retainApplication: (input) => applicationArtifacts.retainApplication(runtimePool, input),
-    ...(retainApplicationThumbnail ? { retainApplicationThumbnail: (input: Parameters<NonNullable<typeof retainApplicationThumbnail>>[1]) => retainApplicationThumbnail(runtimePool, input) } : {}),
-    ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(runtimePool, input) } : {}),
   })
   const git = createConexusGit({ root: builder.gitRoot, starter: [...fixedApplicationStarterFiles(), ...APPLICATION_SHAPE_FILES, ...starterProjectFiles()] })
   const storagePool = openFactoryPool({ ...database, user: 'hub_factory', passwordFile: factory.databasePasswordFile, options: '-c search_path=factory', max: 20, connectionTimeoutMillis: AGENT_STORAGE_CONNECT_TIMEOUT_MS })
@@ -246,7 +236,7 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
     questionWaitMs: builder.questionWaitMs,
   })
   const service = createBuilderService({
-    store, applicationArtifacts: boundApplicationArtifacts, ...(applicationServer ? { applicationServer } : {}), runs,
+    store, registry, ...(applicationServer ? { applicationServer } : {}), runs,
   })
   // The first lease pass runs at start: the runs a stopped Hub left in flight are settled once their heartbeat is stale.
   const jobs: readonly Job[] = [
@@ -330,8 +320,6 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
       await liveConversations.drop(projectId, conversationIds)
       await git.deleteRepository(projectId)
     },
-    readApplicationFileBySource: service.readApplicationFileBySource,
-    getApplicationBySource: service.getApplicationBySource,
     close: async () => {
       // The Hub closed its jobs first, so no pass reads what closes below.
       try {

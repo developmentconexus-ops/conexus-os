@@ -9,10 +9,7 @@ export const OTHER_OWNER = '0f000000-0000-4000-8000-000000000a02'
 export const setupBuilder = async (t, prefix) => {
   const fixture = await setupProjects(t, prefix)
   const { connection } = fixture
-  const seedBuilderProject = async (name = 'Atlas', workspaceId = ID.workspace) => {
-    const projectId = await fixture.seedProject(name, workspaceId)
-    return projectId
-  }
+  const seedBuilderProject = (name = 'Atlas', workspaceId = ID.workspace, projectId = undefined) => fixture.seedProject(name, workspaceId, projectId)
   // A run row as it stands in a given state; `owner` and `heartbeatAgoMs` are for the executor's rows.
   const seedRun = async (projectId, { accountId = ID.owner, state = 'RUNNING', phase = null, owner = OWNER, conversationId = projectId, createdAgoMs = 0, candidate = null, result = null } = {}) => {
     const builderRunId = randomUUID()

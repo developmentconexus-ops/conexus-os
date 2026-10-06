@@ -556,10 +556,9 @@ here. The real dependencies come from the caller graph script
 7. **Part 4, registry** (9). Its reader policies, register rows, locks and refusal codes per
    `0015-part-registry.md`. Cut from that draft: the nine `INSERT`, `UPDATE` and `DELETE` rows; the `S`
    and `H` branches of the three `SELECT` rows; the amendment A paragraph on `iam_rls` grants over
-   seven source tables; the section "If the amendment is refused". It keeps the three `SELECT` rows'
-   member branch as reader policies and adds the `reg.application_thumbnail` key (`reg.artifact` gets none: its `workspace_id` is NULL for an application, so the register records `artifact_project_id_fkey`); the thumbnail read drops the `iam.application` row condition;
-   `reg.purge_project` as a port; `reg.retain_application_execution` ported, under `admitRun` on the
-   command role; served application reads move from `read(accountId, ...)` to reads on the command
+   seven source tables; the section "If the amendment is refused". It keeps two reader policies,
+   on `reg.artifact_revision` and `reg.application_thumbnail`, drops `reg.artifact` and keys the thumbnail by its revision; the thumbnail read drops the `iam.application` row condition;
+   `reg.purge_project` as a port; retention inside the settlement transaction under one `admitRun`; the matcher dropped; served application reads move from `read(accountId, ...)` to reads on the command
    role after `checkApplication` (built in part 0b, no row lock), each filtered by `proof.scope.projectId`, reading the served pointer directly from
    `builder.project_working_state` (no SQL function and no Builder port); retention takes its Project from
    `RunScope.projectId`; the three `reg` served
@@ -680,7 +679,7 @@ from the bodies); two parts' drop migrations that depend on each other (builder 
 - [x] Part 5: no reader row on `model.model_account_sharing_history` (rule 6). the held handle, which carries its run, replaces `payer`
   in `take`, `hold` and `track`.
 - [x] Umbrella counts are fixed by HQ, not by the children.
-- [x] The `reg.artifact` composite key is withdrawn. The register records `artifact_project_id_fkey`.
+- [x] `reg.artifact` is dropped by part 4. The register records `artifact_revision_project_id_fkey`.
   `iam.host_session` and `iam.handoff` take `(preview_id, account_id)` and `(parent_digest,
   account_id)`, and `iam.preview` takes the `project_id` key.
 - [x] The tenure grant and the application grant are `UPDATE (revoked_at, revoked_by)` from part 6.

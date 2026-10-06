@@ -12,7 +12,7 @@ import { openDatabase, unportedPool } from './platform/db.js'
 import { assertSchemaCurrent, exitOnLostInstanceLock, takeInstanceLock } from './platform/lifecycle.js'
 import { logLine } from './platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from './platform/secrets.js'
-import { createApplicationArtifactStore, createServedApplicationReader } from './registry/module.js'
+import { createRegistryModule } from './registry/module.js'
 import { createWorkspaceModule } from './workspace/module.js'
 import { Failure } from './platform/failure.js'
 
@@ -43,6 +43,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   const releaseInstanceLock = await takeInstanceLock(database, exitOnLostInstanceLock())
   await assertSchemaCurrent(pool, resolve(import.meta.dirname, '../migrations'))
   const workspace = createWorkspaceModule({ database })
+  const registry = createRegistryModule({ database })
   const identityAccessDependencies = {
     pool,
     workspaceReader: workspace,
@@ -90,74 +91,51 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
         return builder.deleteProjectRepository(projectId)
       },
       purgeConnectorBindings: connectors.purgeProjectBindings,
+      purgeRegistry: registry.purge,
       purgeBuilder: purgeProjectBuilder,
     },
-    thumbnailReader: {
-      readThumbnail: async (input) => {
-        if (!servedApplications) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'THUMBNAIL_READER_UNAVAILABLE' } })
-        return servedApplications.readThumbnail(input)
-      },
-    },
+    thumbnailReader: registry,
   })
   let builder: ReturnType<typeof createConfiguredBuilderModule> | undefined
   const applicationRunner = config.appRunner ? createApplicationRunnerClient(config.appRunner.socketPath) : undefined
-  // The served reads run as the reader role under the account that asks, so a Project's thumbnail is read here
-  // whether or not the application host is configured. The host reads only what an application serves, gated by access to it.
-  const servedApplications = config.builder ? createServedApplicationReader(database) : undefined
   const mar = config.preview ? createMarModule({
     sessions: identityAccess.hostSessions,
     exactHubOrigin: config.origin,
     previewPort: config.preview.port,
-    registryReader: (input) => {
-      if (!builder) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'MAR_REGISTRY_READER_UNAVAILABLE' } })
-      return builder.readApplicationFileBySource({
-        accountId: input.accountId, projectId: input.projectId, sourceRevision: input.sourceRevision,
-        artifactRevisionId: input.artifactRevisionId, path: input.path,
-      })
-    },
+    registry,
     // The runner receives the admitted artifact's server tree as the registry holds it, never a path.
     // The MAR module bounds in-flight work and the tree's total size before any file is read, ahead of
     // the runner's own concurrency cap (apps/hub/src/mar/application-invoker.ts).
     ...(applicationRunner ? {
       applicationRunner: {
-        readFile: ({ source, path }) => {
-          if (source.via === 'APPLICATION') {
-            if (!servedApplications) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'MAR_REGISTRY_READER_UNAVAILABLE' } })
-            return servedApplications.readFile({ accountId: source.accountId, projectId: source.projectId, artifactRevisionId: source.artifactRevisionId, path })
-          }
-          const reader = builder
-          if (!reader) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'MAR_REGISTRY_READER_UNAVAILABLE' } })
-          return reader.readApplicationFileBySource({
-            accountId: source.accountId, projectId: source.projectId, sourceRevision: source.sourceRevision, artifactRevisionId: source.artifactRevisionId, path,
-          })
-        },
         invoke: applicationRunner.invoke,
         // Each invocation gets its own connector port, minted by the Connector owner from the source.
         openConnectorPort: (source) => connectors.openHandlerPort(source),
       },
     } : {}),
-    ...(config.application && servedApplications ? {
-      applicationHost: { sessions: identityAccess.hostSessions, reader: servedApplications, application: config.application },
+    ...(config.application ? {
+      applicationHost: { sessions: identityAccess.hostSessions, application: config.application },
     } : {}),
   }) : undefined
   type LaunchPreview = NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>
   const launchPreview: LaunchPreview | undefined = mar ? async (hubSessionDigest, input) => {
-    const address = mar.previewAddress(input.artifactRevisionId)
+    const { launch } = input
+    const address = mar.previewAddress(launch.artifactRevisionId)
     const opened = await identityAccess.openPreview(hubSessionDigest, {
       accountId: input.accountId,
       projectId: input.projectId,
-      sourceRevision: input.artifact.sourceRevision,
-      artifactRevisionId: input.artifactRevisionId,
-      artifactDigest: input.artifactDigest,
+      sourceRevision: launch.sourceRevision,
+      artifactRevisionId: launch.artifactRevisionId,
+      artifactDigest: launch.digest,
       exactHost: address.exactHost,
-      manifest: { entryPath: input.artifact.entryPath, files: input.artifact.files },
+      manifest: { entryPath: launch.entryPath, files: launch.files },
     })
     return {
       entryUrl: address.entryUrl,
       previewUrl: address.previewUrl,
       entryGrant: opened.entryGrant,
-      artifactRevisionId: input.artifactRevisionId,
-      artifactDigest: input.artifactDigest,
+      artifactRevisionId: launch.artifactRevisionId,
+      artifactDigest: launch.digest,
       expiresAt: new Date(opened.expiresAt).toISOString(),
     }
   } : undefined
@@ -169,12 +147,11 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
       port: config.database.port,
       database: config.database.database,
     },
-    runtimePool: pool,
     builder: config.builder,
     factory: config.factory,
     secretKey: config.secretKey,
     ...(config.googleAiPro ? { googleAiPro: config.googleAiPro } : {}),
-    applicationArtifacts: createApplicationArtifactStore(),
+    registry,
     // A Project with an application keeps its Preview data: a divergent migration history is refused, never
     // reset. The presence answer holds until the runner settles, so an application created meanwhile waits.
     // The runner migrates one Project at a time anyway; one prepare at a time here holds one connection.

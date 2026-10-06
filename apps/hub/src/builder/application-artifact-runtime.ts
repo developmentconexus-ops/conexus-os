@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { FileType } from 'e2b'
 import type { CommandResult, EntryInfo, Sandbox } from 'e2b'
+import { APPLICATION_MAX_FILES, APPLICATION_MAX_TOTAL_BYTES, mediaTypeOfPath, type BuilderRunId, type MediaType, type ProjectId, type SourceRevision } from '../../../../packages/contract/dist/index.js'
 import { checkCommand, readCheckReport } from './application-check.js'
 import type { CheckBundle } from './check-delivery.js'
 import type { Caller } from './check/command.js'
@@ -16,56 +17,31 @@ type CheckUser = 'root' | typeof SANDBOX_AGENT_USER
 
 export const TEMPLATE_REF = CURRENT_TEMPLATE_PIN.templateRef
 export const RECIPE_SHA256 = CURRENT_TEMPLATE_PIN.recipeSha256
-const MAX_FILES = 256
-const MAX_TOTAL_BYTES = 12 * 1024 * 1024
-const MAX_LIST_ENTRIES = MAX_FILES * 8
-const MAX_OUTPUT_DEPTH = MAX_FILES
+const MAX_LIST_ENTRIES = APPLICATION_MAX_FILES * 8
+const MAX_OUTPUT_DEPTH = APPLICATION_MAX_FILES
 const REQUEST_TIMEOUT_MS = 30_000
 const SAFE_ABSOLUTE_PATH = /^\/[A-Za-z0-9_./-]+$/
 
 type CompiledApplicationFile = Readonly<{
   path: string
-  mediaType: string
+  mediaType: MediaType
   bytes: Uint8Array
   sha256: string
 }>
 
-/** A by-product of the check, retained beside the compiled application and never part of it. */
 export type CompiledApplicationThumbnail = Readonly<{ mediaType: 'image/png'; bytes: Uint8Array }>
 
 export type CompiledApplication = Readonly<{
-  projectId: string
-  sourceRevision: string
+  projectId: ProjectId
+  sourceRevision: SourceRevision
   templateRef: string
   recipeSha256: string
   files: readonly CompiledApplicationFile[]
-  executionId: string
+  executionId: BuilderRunId
 }>
 
-const mediaTypeForPath = (path: string): string => {
-  const extension = path.slice(path.lastIndexOf('.')).toLowerCase()
-  const mediaTypes: Readonly<Record<string, string>> = {
-    '.avif': 'image/avif',
-    '.cjs': 'text/javascript; charset=utf-8',
-    '.css': 'text/css; charset=utf-8',
-    '.gif': 'image/gif',
-    '.html': 'text/html; charset=utf-8',
-    '.ico': 'image/x-icon',
-    '.jpeg': 'image/jpeg',
-    '.jpg': 'image/jpeg',
-    '.js': 'text/javascript; charset=utf-8',
-    '.json': 'application/json; charset=utf-8',
-    '.mjs': 'text/javascript; charset=utf-8',
-    '.otf': 'font/otf',
-    '.png': 'image/png',
-    '.svg': 'image/svg+xml',
-    '.txt': 'text/plain; charset=utf-8',
-    '.wasm': 'application/wasm',
-    '.webp': 'image/webp',
-    '.woff': 'font/woff',
-    '.woff2': 'font/woff2',
-  }
-  const mediaType = mediaTypes[extension]
+const mediaTypeForPath = (path: string): MediaType => {
+  const mediaType = mediaTypeOfPath(path)
   if (!mediaType) throw new Failure('APPLICATION_COMPILER_OUTPUT_MEDIA_TYPE_REFUSED')
   return mediaType
 }
@@ -96,8 +72,8 @@ const readBoundedOutput = async (sandbox: Sandbox, place: BuildPlace, entry: Ent
     while (true) {
       const next = await reader.read()
       if (next.done) break
-      if (!(next.value instanceof Uint8Array) || next.value.byteLength > MAX_TOTAL_BYTES ||
-        totalBytes + next.value.byteLength > MAX_TOTAL_BYTES || totalBytes + next.value.byteLength > entry.size) {
+      if (!(next.value instanceof Uint8Array) || next.value.byteLength > APPLICATION_MAX_TOTAL_BYTES ||
+        totalBytes + next.value.byteLength > APPLICATION_MAX_TOTAL_BYTES || totalBytes + next.value.byteLength > entry.size) {
         await reader.cancel().catch(() => undefined)
         throw new Failure('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
       }
@@ -121,7 +97,7 @@ const readBoundedOutput = async (sandbox: Sandbox, place: BuildPlace, entry: Ent
 }
 
 const collectOutput = async (sandbox: Sandbox, place: BuildPlace): Promise<readonly CompiledApplicationFile[]> => {
-  const entries = await sandbox.files.list(distRoot(place), { depth: MAX_FILES, ...requestOptions(place) })
+  const entries = await sandbox.files.list(distRoot(place), { depth: APPLICATION_MAX_FILES, ...requestOptions(place) })
   if (entries.length > MAX_LIST_ENTRIES) throw new Failure('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
   const files = new Map<string, EntryInfo>()
   let listedTotalBytes = 0
@@ -132,14 +108,14 @@ const collectOutput = async (sandbox: Sandbox, place: BuildPlace): Promise<reado
     if (entry.type !== FileType.FILE) throw new Failure(entry.type === FileType.SYMLINK
       ? 'APPLICATION_COMPILER_OUTPUT_SYMLINK_REFUSED'
       : 'APPLICATION_COMPILER_OUTPUT_NON_REGULAR_REFUSED')
-    if (files.has(path) || !Number.isSafeInteger(entry.size) || entry.size < 0 || entry.size > MAX_TOTAL_BYTES) {
+    if (files.has(path) || !Number.isSafeInteger(entry.size) || entry.size < 0 || entry.size > APPLICATION_MAX_TOTAL_BYTES) {
       throw new Failure('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
     }
     listedTotalBytes += entry.size
-    if (listedTotalBytes > MAX_TOTAL_BYTES) throw new Failure('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
+    if (listedTotalBytes > APPLICATION_MAX_TOTAL_BYTES) throw new Failure('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
     mediaTypeForPath(path)
     files.set(path, entry)
-    if (files.size > MAX_FILES) throw new Failure('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
+    if (files.size > APPLICATION_MAX_FILES) throw new Failure('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
   }
   if (!files.has('index.html')) throw new Failure('APPLICATION_COMPILER_OUTPUT_ENTRYPOINT_REFUSED')
 
@@ -149,7 +125,7 @@ const collectOutput = async (sandbox: Sandbox, place: BuildPlace): Promise<reado
     const entry = files.get(path)
     if (!entry) throw new Failure('APPLICATION_COMPILER_OUTPUT_PATH_REFUSED')
     const bytes = await readBoundedOutput(sandbox, place, entry)
-    if (bytes.byteLength > MAX_TOTAL_BYTES || totalBytes + bytes.byteLength > MAX_TOTAL_BYTES) {
+    if (bytes.byteLength > APPLICATION_MAX_TOTAL_BYTES || totalBytes + bytes.byteLength > APPLICATION_MAX_TOTAL_BYTES) {
       throw new Failure('APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED')
     }
     const ownedBytes = new Uint8Array(bytes)
@@ -164,13 +140,9 @@ const collectOutput = async (sandbox: Sandbox, place: BuildPlace): Promise<reado
   return Object.freeze(output)
 }
 
-const THUMBNAIL_MAX_BYTES = 512_000
-const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47]
-
 const readThumbnail = async (sandbox: Sandbox, place: BuildPlace, path: string): Promise<CompiledApplicationThumbnail | null> => {
   try {
     const bytes = await sandbox.files.read(path, { format: 'bytes', ...requestOptions(place) })
-    if (bytes.byteLength === 0 || bytes.byteLength > THUMBNAIL_MAX_BYTES || !PNG_MAGIC.every((value, index) => bytes[index] === value)) return null
     return Object.freeze({ mediaType: 'image/png' as const, bytes: new Uint8Array(bytes) })
   } catch {
     return null

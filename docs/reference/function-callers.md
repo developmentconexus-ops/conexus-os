@@ -6,23 +6,12 @@ A part that ports an owner reads its functions here: a function with a caller in
 
 ## Calls across schemas
 
-- `reg.get_application_by_source` calls `iam.visible_projects`
-- `reg.get_application_thumbnail` calls `builder.served_preview_revision`
-- `reg.get_application_thumbnail` calls `iam.has_application_access`
-- `reg.get_served_application` calls `builder.served_preview_revision`
-- `reg.get_served_application` calls `iam.has_application_access`
-- `reg.read_application_file_by_source` calls `iam.visible_projects`
-- `reg.read_served_application_file` calls `builder.served_preview_revision`
-- `reg.read_served_application_file` calls `iam.has_application_access`
-- `reg.retain_application_execution` calls `builder.admit_verified_application_source`
-- `reg.retain_application_thumbnail` calls `builder.admit_verified_application_source`
+None.
 
 ## Every live function
 
 | Function | Owner role | Called by functions | Called from TypeScript |
 | --- | --- | --- | --- |
-| `builder.admit_verified_application_source` | builder_owner | `reg.retain_application_execution`, `reg.retain_application_thumbnail` | - |
-| `builder.served_preview_revision` | builder_owner | `reg.get_application_thumbnail`, `reg.get_served_application`, `reg.read_served_application_file` | - |
 | `iam.account_access_scope` | iam_owner | `iam.hub_session_live`, `iam.open_hub_session`, `iam.resolve_hub_session` | - |
 | `iam.admit_application_owner` | iam_owner | `iam.cancel_application_invitation`, `iam.grant_application_access`, `iam.list_application_access`, `iam.revoke_application_grant` | - |
 | `iam.admit_project` | iam_owner | - | - |
@@ -42,7 +31,7 @@ A part that ports an owner reads its functions here: a function with a caller in
 | `iam.grant_first_installation_administrator` | iam_owner | - | `apps/hub/src/identity-access/store.ts` |
 | `iam.grant_installation_administrator` | iam_owner | - | `apps/hub/src/identity-access/installation-administration.ts` |
 | `iam.grant_installation_administrator_by_email` | iam_owner | - | `apps/hub/src/identity-access/installation-administration.ts` |
-| `iam.has_application_access` | iam_owner | `iam.mint_application_handoff`, `iam.redeem_handoff`, `iam.resolve_application_session`, `iam.revoke_application_grant`, `reg.get_application_thumbnail`, `reg.get_served_application`, `reg.read_served_application_file` | - |
+| `iam.has_application_access` | iam_owner | `iam.mint_application_handoff`, `iam.redeem_handoff`, `iam.resolve_application_session`, `iam.revoke_application_grant` | - |
 | `iam.hub_session_live` | iam_owner | `iam.open_preview`, `iam.redeem_handoff`, `iam.resolve_preview_session` | - |
 | `iam.invite_workspace_member` | iam_owner | - | `apps/hub/src/identity-access/membership.ts` |
 | `iam.is_installation_administrator` | iam_owner | `iam.admit_project`, `iam.bootstrap_installation_administrator`, `iam.grant_installation_administrator_by_email`, `iam.grant_installation_administrator`, `iam.list_installation_administrators`, `iam.revoke_installation_administrator`, `iam.visible_projects` | `apps/hub/src/identity-access/installation-administration.ts` |
@@ -67,17 +56,8 @@ A part that ports an owner reads its functions here: a function with a caller in
 | `iam.role_allows` | iam_owner | `iam.admit_workspace` | - |
 | `iam.session_lifetimes` | iam_owner | `iam.mint_application_handoff`, `iam.open_hub_session`, `iam.open_preview`, `iam.redeem_handoff`, `iam.resolve_application_session`, `iam.resolve_hub_session`, `iam.resolve_preview_session` | - |
 | `iam.set_workspace_member_role` | iam_owner | - | `apps/hub/src/identity-access/membership.ts` |
-| `iam.visible_projects` | iam_owner | `reg.get_application_by_source`, `reg.read_application_file_by_source` | - |
+| `iam.visible_projects` | iam_owner | - | - |
 | `iam.visible_workspaces` | iam_owner | `iam.admit_application_owner`, `iam.list_workspace_roster`, `iam.visible_projects` | - |
-| `reg.get_application_by_source` | registry_owner | - | `apps/hub/src/registry/application-artifact-store.ts` |
-| `reg.get_application_thumbnail` | registry_owner | - | `apps/hub/src/registry/served-application.ts` |
-| `reg.get_served_application` | registry_owner | - | `apps/hub/src/registry/served-application.ts` |
-| `reg.matches_application_artifact` | registry_owner | - | `apps/hub/src/builder/run-lifecycle.ts` |
-| `reg.purge_project` | registry_owner | - | `apps/hub/src/project/deletion.ts` |
-| `reg.read_application_file_by_source` | registry_owner | - | `apps/hub/src/registry/application-artifact-store.ts` |
-| `reg.read_served_application_file` | registry_owner | - | `apps/hub/src/registry/served-application.ts` |
-| `reg.retain_application_execution` | registry_owner | - | `apps/hub/src/registry/application-artifact-store.ts` |
-| `reg.retain_application_thumbnail` | registry_owner | - | `apps/hub/src/registry/application-artifact-store.ts` |
 | `rls.acting_account` | iam_rls | `rls.acting_installation_administrator`, `rls.acting_workspaces` | - |
 | `rls.acting_installation_administrator` | iam_rls | - | `apps/hub/src/identity-access/admission.ts` |
 | `rls.acting_workspaces` | iam_rls | - | - |

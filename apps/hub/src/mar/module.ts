@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import { ArtifactRevisionId } from '../../../../packages/contract/dist/index.js'
 import type { HeaderFact } from '../http/access.js'
 import type { ListenerPolicy } from '../http/access.js'
 import { applicationHostContentSecurityPolicy, previewContentSecurityPolicy } from '../platform/application-csp.js'
@@ -7,7 +8,7 @@ import type { ApplicationAddress } from '../platform/config.js'
 import { registerApplicationHostRoutes } from './application-host-routes.js'
 import type { ApplicationHostReader, ApplicationHostSessions } from './application-host-routes.js'
 import { createApplicationInvoker } from './application-invoker.js'
-import type { ApplicationFileReader, ApplicationRunnerInvoke, ConnectorPortOpener } from './application-invoker.js'
+import type { ApplicationFileReads, ApplicationRunnerInvoke, ConnectorPortOpener } from './application-invoker.js'
 import { registerPreviewRoutes } from './preview-routes.js'
 import type { PreviewHost, PreviewRouteDependencies, PreviewSessions } from './preview-routes.js'
 import { Failure } from '../platform/failure.js'
@@ -16,7 +17,7 @@ type HostPolicy = Extract<ListenerPolicy, Readonly<{ listener: 'preview' | 'appl
 
 export type MarModule = Readonly<{
   /** Where a Preview of this artifact revision is served: its own host on the Preview port. */
-  previewAddress(artifactRevisionId: string): Readonly<{ exactHost: string; entryUrl: string; previewUrl: string }>
+  previewAddress(artifactRevisionId: ArtifactRevisionId): Readonly<{ exactHost: string; entryUrl: string; previewUrl: string }>
   previewPolicy: HostPolicy
   registerPreviewRoutes(app: FastifyInstance): Promise<readonly ['MAR-Preview']>
   /** Each application on its own host; absent when the installation serves no applications. */
@@ -24,12 +25,12 @@ export type MarModule = Readonly<{
   close(): Promise<void>
 }>
 
-type RegistryReader = PreviewRouteDependencies['registryReader']
+export type MarRegistry = ApplicationFileReads & ApplicationHostReader & Readonly<{ readPreviewFile: PreviewRouteDependencies['registryReader'] }>
 
 const PREVIEW_DOMAIN = 'conexus.localhost'
 const PREVIEW_HOST = /^preview-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.conexus\.localhost(?::\d+)?$/
 
-const previewHost = (artifactRevisionId: string, previewPort: number): PreviewHost & Readonly<{ authority: string }> => {
+const previewHost = (artifactRevisionId: ArtifactRevisionId, previewPort: number): PreviewHost & Readonly<{ authority: string }> => {
   const hostAuthority = authority({ port: previewPort, domain: PREVIEW_DOMAIN }, `preview-${artifactRevisionId}`)
   return { artifactRevisionId, exactHost: `preview-${artifactRevisionId}.${PREVIEW_DOMAIN}`, origin: `https://${hostAuthority}`, authority: hostAuthority }
 }
@@ -37,27 +38,26 @@ const previewHost = (artifactRevisionId: string, previewPort: number): PreviewHo
 /** @public */
 export const previewHostOf = (host: HeaderFact, previewPort: number): PreviewHost | null => {
   if (typeof host !== 'string') return null
-  const artifactRevisionId = PREVIEW_HOST.exec(host)?.[1]
-  if (!artifactRevisionId) return null
-  const { authority: expected, ...parsed } = previewHost(artifactRevisionId, previewPort)
+  const named = ArtifactRevisionId.safeParse(PREVIEW_HOST.exec(host)?.[1])
+  if (!named.success) return null
+  const { authority: expected, ...parsed } = previewHost(named.data, previewPort)
   return host === expected ? Object.freeze(parsed) : null
 }
 
 export const createMarModule = ({
   sessions,
-  registryReader,
+  registry,
   applicationRunner,
   exactHubOrigin,
   previewPort,
   applicationHost,
 }: Readonly<{
   sessions: PreviewSessions
-  registryReader: RegistryReader
-  /** The runner's invoke and the registry read of server files; the module bounds admission to them. */
-  applicationRunner?: Readonly<{ invoke: ApplicationRunnerInvoke; readFile: ApplicationFileReader; openConnectorPort?: ConnectorPortOpener }>
+  registry: MarRegistry
+  applicationRunner?: Readonly<{ invoke: ApplicationRunnerInvoke; openConnectorPort?: ConnectorPortOpener }>
   exactHubOrigin: string
   previewPort: number
-  applicationHost?: Readonly<{ sessions: ApplicationHostSessions; reader: ApplicationHostReader; application: ApplicationAddress }>
+  applicationHost?: Readonly<{ sessions: ApplicationHostSessions; application: ApplicationAddress }>
 }>): MarModule => {
   if (!Number.isSafeInteger(previewPort) || previewPort < 1 || previewPort > 65_535 ||
     !/^https:\/\//.test(exactHubOrigin)) {
@@ -67,12 +67,14 @@ export const createMarModule = ({
   let closed = false
   let closing: Promise<void> | null = null
   // One admission budget for both listeners: a busy application cannot starve every Preview, nor the reverse.
-  const invokeApplication = applicationRunner ? createApplicationInvoker(applicationRunner) : undefined
+  const invokeApplication = applicationRunner
+    ? createApplicationInvoker({ ...applicationRunner, readPreviewFile: registry.readPreviewFile, readPinnedServedFile: registry.readPinnedServedFile })
+    : undefined
   const previewHostOfRequest = (host: HeaderFact): PreviewHost | null => previewHostOf(host, previewPort)
   const dependencies: PreviewRouteDependencies = {
-    sessions, registryReader, ...(invokeApplication ? { invokeApplication } : {}), previewHostOf: previewHostOfRequest, pendingRequests, isClosed: () => closed,
+    sessions, registryReader: registry.readPreviewFile, ...(invokeApplication ? { invokeApplication } : {}), previewHostOf: previewHostOfRequest, pendingRequests, isClosed: () => closed,
   }
-  const previewAddress = (artifactRevisionId: string) => {
+  const previewAddress = (artifactRevisionId: ArtifactRevisionId) => {
     const { exactHost, origin } = previewHost(artifactRevisionId, previewPort)
     return Object.freeze({ exactHost, entryUrl: `${origin}/__conexus/preview-entry`, previewUrl: `${origin}/` })
   }
@@ -120,7 +122,7 @@ export const createMarModule = ({
         },
       } satisfies HostPolicy),
       registerRoutes: (app: FastifyInstance) => registerApplicationHostRoutes(app, {
-        ...applicationHost, ...(invokeApplication ? { invokeApplication } : {}), exactHubOrigin,
+        ...applicationHost, reader: registry, ...(invokeApplication ? { invokeApplication } : {}), exactHubOrigin,
       }),
     }) : undefined,
     close,

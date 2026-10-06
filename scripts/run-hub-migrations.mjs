@@ -76,6 +76,7 @@ const workspaceAdmissionDigest = '9f43118c3e057c30978f1fef5cfe6956d8f5d46c989f17
 const splitWallDigest = '9bc879ed9dade286810ca8775caea87b2d381ba18da9e229f83458a17bd7bc61'
 const modelAccountOwnerDigest = '34bba799cec2b22aa90f23362a63fc41576667d0715801cd4be660e9c9af7b82'
 const builderOwnerDigest = 'f95d01e1108cea8f37fb7e98b95e506e0ba96d783c63691b447e5c0ce98517e2'
+const registryOwnerDigest = '4bad3cc589d80b99a027bf174ce1cabef27aa70cccc10c78d7ed7624fa3f9870'
 const projectOwnerDigest = '9c0efb7e558d81e5634c74d63dd953ad18fd7b82f3b2c0bc4d8030b68269df4f'
 const connectorOwnerDigest = '28fb86186bd480deddcecb94e28afd611af6559eaaf326a637931154de4b051f'
 
@@ -147,6 +148,7 @@ const migrationDigests = new Map([
   ['0065_split_wall.sql', splitWallDigest],
   ['0066_connector_owner.sql', connectorOwnerDigest],
   ['0067_builder_owner.sql', builderOwnerDigest],
+  ['0068_registry_owner.sql', registryOwnerDigest],
   ['0069_model_account_owner.sql', modelAccountOwnerDigest],
 ])
 

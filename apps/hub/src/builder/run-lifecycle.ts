@@ -1,10 +1,12 @@
 import { z } from 'zod'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
-import { AccountId, BuilderRunId, ProjectId, SourceRevision, type ArtifactDigest, type ArtifactRevisionId, type ConversationId, type ModelAccountId } from '../../../../packages/contract/dist/index.js'
+import { AccountId, BuilderRunId, ProjectId, SourceRevision, type ConversationId, type ModelAccountId } from '../../../../packages/contract/dist/index.js'
 import { admitProject, admitRun, admitSystem, type Admitted, type ProjectScope, type RunScope, type SystemScope } from '../identity-access/admission.js'
 import { BUILDER_RUN_STATES, OPEN_RUN_STATES, type OpenRunState, type BuilderRunPhase, } from '../generated/builder-run-vocabulary.js'
 import { sql, type Database, } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
+import type { BuilderRegistry } from './application-build.js'
+import type { SealedApplication } from '../platform/sealed-application.js'
 import { RUN_COLUMNS, RunRow, runSummary, type BuilderRunSummary } from './run-row.js'
 
 /** Who a run's write acts as: its author's account before the candidate, the executor for everything it settles. */
@@ -116,11 +118,9 @@ export const createRunStart = ({ database, mintIdentity }: Readonly<{ database: 
 /** An ending without a result: the run failed, or a stop interrupted it. */
 export type StoppedEnding = Exclude<RunEnding, Readonly<{ state: 'SUCCEEDED' }>>
 
-/** What the Preview build of an admitted source came to: the artifact the registry holds, or the code the build failed with. */
-type BuildSettlement = Readonly<{ builderRunId: BuilderRunId; sourceRevision: SourceRevision }> & (
-  | Readonly<{ kind: 'BUILT'; artifactRevisionId: ArtifactRevisionId; artifactDigest: ArtifactDigest }>
-  | Readonly<{ kind: 'FAILED'; failureCode: FailureCode }>
-)
+type BuildSettlement =
+  | Readonly<{ kind: 'BUILT'; builderRunId: BuilderRunId; sealed: SealedApplication }>
+  | Readonly<{ kind: 'FAILED'; builderRunId: BuilderRunId; sourceRevision: SourceRevision; failureCode: FailureCode }>
 
 export type RunSteps = Readonly<{
   /** Starts a queued run under this Hub, after the Project admits its author; a refused, unclaimed row ends FAILED. */
@@ -143,7 +143,6 @@ export type RunSteps = Readonly<{
 }>
 
 const QueuedRun = z.object({ account_id: AccountId, project_id: ProjectId })
-const Matches = z.object({ matches: z.boolean() })
 const Candidates = z.object({ state: z.enum(BUILDER_RUN_STATES), candidate_revision: SourceRevision.nullable(), result_source_revision: SourceRevision.nullable() })
 type Transition = 'candidate' | 'sandbox bind' | 'model account record' | 'settlement' | 'source settlement' | 'build settlement' | 'failure' | 'interruption' | 'cancellation' | 'message bind'
 /** A guarded transition that wrote nothing: the run was not in the state it needs, or the input was not what it takes. */
@@ -157,7 +156,7 @@ const lockWorking = async ({ tx, scope }: Admitted<RunScope>, transition: Transi
   if (!await tx.maybe(Present, sql`SELECT 1 AS present FROM builder.project_working_state WHERE project_id = ${scope.projectId} FOR UPDATE`)) throw transitionRefused(transition)
 }
 
-export const createRunSteps = ({ database, ownerId }: Readonly<{ database: Database; ownerId: string }>): RunSteps => {
+export const createRunSteps = ({ database, ownerId, registry }: Readonly<{ database: Database; ownerId: string; registry: Pick<BuilderRegistry, 'retain'> }>): RunSteps => {
   const executor: RunActor = { via: 'executor' }
   const written = async (proof: Admitted<RunScope>, statement: ReturnType<typeof sql>, transition: Transition): Promise<void> => {
     if (await proof.tx.run(statement) !== 1) throw transitionRefused(transition)
@@ -235,15 +234,14 @@ export const createRunSteps = ({ database, ownerId }: Readonly<{ database: Datab
     settleBuilderRunBuild: (settlement) => withRun(database, ownerId, settlement.builderRunId, executor, async (proof) => {
       const run = await proof.tx.maybe(Candidates, sql`
         SELECT run.state, run.candidate_revision, run.result_source_revision FROM builder.builder_run AS run WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId}`)
-      if (run?.state !== 'RUNNING' || run.result_source_revision !== settlement.sourceRevision) throw transitionRefused('build settlement')
+      const sourceRevision = settlement.kind === 'BUILT' ? settlement.sealed.sourceRevision : settlement.sourceRevision
+      if (run?.state !== 'RUNNING' || run.result_source_revision !== sourceRevision) throw transitionRefused('build settlement')
       await lockWorking(proof, 'build settlement')
       if (settlement.kind === 'BUILT') {
-        const matches = await proof.tx.one(Matches, sql`
-          SELECT reg.matches_application_artifact(${proof.scope.projectId}, ${settlement.sourceRevision}, ${settlement.artifactRevisionId}, ${settlement.artifactDigest}) AS matches`, 'INTERNAL_UNEXPECTED')
-        if (!matches.matches) throw transitionRefused('build settlement')
+        const retained = await registry.retain(proof, settlement.sealed)
         await proof.tx.run(sql`
-          UPDATE builder.project_working_state SET current_state = 'PREVIEW_READY', last_preview_source_revision = ${settlement.sourceRevision},
-            last_preview_artifact_revision_id = ${settlement.artifactRevisionId}, last_preview_artifact_digest = ${settlement.artifactDigest}, updated_at = clock_timestamp()
+          UPDATE builder.project_working_state SET current_state = 'PREVIEW_READY', last_preview_source_revision = ${sourceRevision},
+            last_preview_artifact_revision_id = ${retained.artifactRevisionId}, last_preview_artifact_digest = ${retained.digest}, updated_at = clock_timestamp()
           WHERE project_id = ${proof.scope.projectId}`)
         await endRun(proof, { ...proof.scope, ending: { state: 'SUCCEEDED', resultKind: 'SOURCE_CHANGED', failureCode: null }, from: 'running' })
         return

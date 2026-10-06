@@ -74,10 +74,11 @@ const stackOf = (error: unknown): string | undefined => {
 export const logFailure = (log: Pick<FastifyBaseLogger, 'error' | 'warn' | 'info'>, failure: Failure, fields: Attributes = {}): void => {
   const details = Object.fromEntries(Object.entries(failure.details ?? {}).map(([key, value]) => [`failure.details.${key}`, value]))
   const cause = failure.cause ?? failure
+  const named = cause instanceof Failure ? { ...Object.fromEntries(Object.entries(cause.details ?? {}).map(([key, value]) => [`failure.cause.${key}`, value])), 'failure.cause.code': cause.id } : {}
   const type = cause instanceof Error ? cause.name : typeof cause
   const level = LEVEL_BY_CATEGORY[failureRow(failure).category]
   const stack = level === 'error' ? stackOf(cause) : undefined
-  log[level]({ ...fields, ...details, 'failure.category': failure.category, 'error.type': type, 'exception.type': type, ...(stack ? { 'exception.stacktrace': stack } : {}) }, failure.id)
+  log[level]({ ...fields, ...details, ...named, 'failure.category': failure.category, 'error.type': type, 'exception.type': type, ...(stack ? { 'exception.stacktrace': stack } : {}) }, failure.id)
   const span = trace.getActiveSpan()
   span?.recordException(Object.assign(new Error(failure.id), { name: type }))
   if (level === 'error') span?.setStatus({ code: SpanStatusCode.ERROR })

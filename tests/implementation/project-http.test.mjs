@@ -72,16 +72,16 @@ test('PRJ-SUMMARIES answers the cards as { projects } and names its own failure'
 })
 
 test('PRJ-THUMBNAIL streams the PNG with its ETag and cache header, and names 404 and 503', async (t) => {
-  let answer = { artifactRevisionId: 'rev-001', mediaType: 'image/png', bytes: PNG, sha256: 'x' }
+  let answer = { artifactRevisionId: REVISION, bytes: PNG }
   const calls = []
-  const app = await listener(t, { thumbnailReader: { readThumbnail: async (input) => { calls.push(input); if (answer instanceof Error) throw answer; return answer } } })
+  const app = await listener(t, { thumbnailReader: { readProjectThumbnail: async (accountId, projectId) => { calls.push({ accountId, projectId }); if (answer instanceof Error) throw answer; return answer } } })
   const url = `/api/control/projects/${PROJECT}/thumbnail`
   const ok = await get(app, url)
   assert.equal(ok.statusCode, 200)
   assert.equal(ok.headers['content-type'], 'image/png')
   assert.equal(ok.headers['content-length'], '8')
   assert.equal(ok.headers['cache-control'], 'private, no-cache')
-  assert.equal(ok.headers.etag, '"rev-001"')
+  assert.equal(ok.headers.etag, `"${REVISION}"`)
   assert.deepEqual(ok.rawPayload, PNG)
   assert.deepEqual(calls, [{ accountId: ACCOUNT, projectId: PROJECT }])
   answer = null
@@ -91,7 +91,10 @@ test('PRJ-THUMBNAIL streams the PNG with its ETag and cache header, and names 40
   assert.equal(problem(await get(app, url)), '503 PROJECT_THUMBNAIL_UNAVAILABLE')
 })
 
-test('PRJ-THUMBNAIL without a reader answers its unavailable failure', async (t) => {
-  const app = await listener(t)
+
+test('PRJ-THUMBNAIL answers 503 PROJECT_THUMBNAIL_UNAVAILABLE for a broken served pointer', async (t) => {
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
+  const broken = new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'SERVED_POINTER_BROKEN' } })
+  const app = await listener(t, { thumbnailReader: { readProjectThumbnail: async () => { throw broken } } })
   assert.equal(problem(await get(app, `/api/control/projects/${PROJECT}/thumbnail`)), '503 PROJECT_THUMBNAIL_UNAVAILABLE')
 })

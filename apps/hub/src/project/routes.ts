@@ -1,18 +1,16 @@
 import type { FastifyInstance } from 'fastify'
-import { PRJ01, PRJ02, PRJ03, PRJ04, PRJ_SUMMARIES, PRJ_THUMBNAIL } from '../../../../packages/contract/dist/index.js'
+import { PRJ01, PRJ02, PRJ03, PRJ04, PRJ_SUMMARIES, PRJ_THUMBNAIL, type AccountId, type ArtifactRevisionId, type ProjectId } from '../../../../packages/contract/dist/index.js'
 import { Failure } from '../platform/failure.js'
 import type { ProjectStore } from './store.js'
 import { routes } from '../http/access.js'
 
 export type ProjectThumbnailReader = Readonly<{
-  readThumbnail(input: Readonly<{ accountId: string; projectId: string }>): Promise<
-    Readonly<{ artifactRevisionId: string; mediaType: 'image/png'; bytes: Uint8Array; sha256: string }> | null
-  >
+  readProjectThumbnail(accountId: AccountId, projectId: ProjectId): Promise<Readonly<{ artifactRevisionId: ArtifactRevisionId; bytes: Uint8Array }> | null>
 }>
 
 export const registerProjectRoutes = async (
   app: FastifyInstance,
-  dependencies: Readonly<{ store: ProjectStore; thumbnailReader: ProjectThumbnailReader | undefined }>,
+  dependencies: Readonly<{ store: ProjectStore; thumbnailReader: ProjectThumbnailReader }>,
 ): Promise<readonly ['PRJ-01', 'PRJ-02', 'PRJ-03', 'PRJ-04', 'PRJ-SUMMARIES', 'PRJ-THUMBNAIL']> => {
   const route = routes(app)
   const { store, thumbnailReader } = dependencies
@@ -49,8 +47,7 @@ export const registerProjectRoutes = async (
   }))
 
   route.operation(PRJ_THUMBNAIL, async (input, session) => {
-    if (!thumbnailReader) throw new Failure('PROJECT_THUMBNAIL_UNAVAILABLE', { details: { projectId: input.params.projectId } })
-    const thumbnail = await thumbnailReader.readThumbnail({ accountId: session.account.accountId, projectId: input.params.projectId })
+    const thumbnail = await thumbnailReader.readProjectThumbnail(session.account.accountId, input.params.projectId)
       .catch((error: unknown) => {
         throw new Failure('PROJECT_THUMBNAIL_UNAVAILABLE', { cause: error, details: { projectId: input.params.projectId } })
       })

@@ -67,7 +67,7 @@ remain distinct where the current body makes them distinct.
 | `served_preview_revision` (0023) | It returns the three last Preview columns only when the source is nonnull (`builder-bodies.sql:494`). | Keep this SQL function for the three `reg` served functions through part 1. Part 4 stops calling it and reads the three columns directly, so this part builds no port for it, and part 4's merge drops the function (section 5). No grantee gets a working state row. |
 | `set_builder_run_phase` (0056) | It accepts only the six known phases on an uncancelled running run; refusal is null (`builder-bodies.sql:504`). | A conditional transition with the same summary or null. |
 | `settle_builder_run` (0032) | A response only run with no candidate succeeds (`builder-bodies.sql:524`). | A system run transition, keeping `RESPONSE_ONLY`. |
-| `settle_builder_run_build` (0036) | It checks source and artifact identity, locks run then working state, matches the registry artifact and sets success or build failure (`builder-bodies.sql:542`). | A system transaction with the part 4 matcher port, in the same lock order. The last good Preview stays on build failure. |
+| `settle_builder_run_build` (0036) | It checks source and artifact identity, locks run then working state, matches the registry artifact and sets success or build failure (`builder-bodies.sql:542`). | A system transaction under `admitRun`. Part 4 later adds retention and the thumbnail to its BUILT branch and drops the matcher. The last good Preview stays on build failure. |
 
 The table has 31 rows. The trigger is one of them. Part 1 drops 29 functions and keeps the two
 registry dependencies named above. Part 4 drops those two. `iam.admit_project` and
@@ -253,8 +253,7 @@ The remaining `iam` functions lock account and membership, not Builder rows
 `apps/hub/migrations/0030_project_deletion.sql:39`). The remaining connector functions touch their
 connection and binding rows and acquire no Builder row lock
 (`apps/hub/migrations/0031_project_binding.sql:117`). Registry readers call the old served pointer
-without locking working state (part 4 reads it directly after its merge, still without a lock); its retain function takes run before artifact, but never seeks working
-state (`apps/hub/migrations/0023_application_session.sql:340`, `../part4/0015-part-registry.md:43`).
+without locking working state (part 4 reads it directly after its merge, still without a lock); until part 4, its retain function takes run before artifact; part 4 retains inside the settlement transaction, which takes Project, run, then working state, with no artifact lock (`0015-part-registry.md`, section 3).
 Part 5 model functions touch model rows, and its held credential read goes through `admitRun` in an
 account transaction, which this part's order already covers. Test the purge against each live caller
 at the actual merge head. A leading Project lock is valid only when the caller graph finds no
@@ -430,7 +429,7 @@ already supplies repository preparation and sandbox deletion (`apps/hub/src/hub.
 rows go with the repository and run deletes by their foreign key cascades.
 
 **Registry and the served pointer.** At the part 1 merge head, TypeScript settlement calls
-`reg.matches_application_artifact` as SQL through the `EXECUTE` grant this part's migration adds to `hub_command` (part 0 does not). Part 4 ports the matcher. This
+`reg.matches_application_artifact` as SQL through the `EXECUTE` grant this part's migration adds to `hub_command` (part 0 does not). Part 4 drops the matcher: retention and settlement are one transaction. This
 part builds no port for the served pointer (HQ decision). Part 4 reads the three last Preview columns
 directly from `builder.project_working_state` on the command role, `WHERE project_id =
 proof.scope.projectId` after `checkApplication` (built in part 0b), so a grantee never reads working

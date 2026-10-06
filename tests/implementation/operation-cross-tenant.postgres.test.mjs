@@ -7,6 +7,7 @@ import { OPERATIONS } from '../../packages/contract/dist/index.js'
 import { hubModuleUrl } from './hub-build.mjs'
 import { query } from './hub-database.mjs'
 import { ID, STARTER, setupProjects } from './project-fixture.mjs'
+import { launchablePayload, seedRevision, seedRevisionThumbnail } from './registry-fixture.mjs'
 
 const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
 const { builderProjectPorts, purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
@@ -15,7 +16,7 @@ const { createConnectorStore, purgeProjectBindings } = await import(hubModuleUrl
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
 const { createModelAccounts } = await import(hubModuleUrl('builder/model-account/accounts.js'))
 const { createWorkspaceStore } = await import(hubModuleUrl('workspace/store.js'))
-const { createServedApplicationReader } = await import(hubModuleUrl('registry/served-application.js'))
+const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
 
 const BODY = { name: 'Intruder', sourceBootstrap: { mode: 'NEW' } }
 
@@ -50,6 +51,8 @@ const TENANT_B = Object.freeze({
   'builder.project_repository': 'project_id = $2',
   'builder.project_working_state': 'project_id = $2',
   'connector.connection': 'workspace_id = $1',
+  'reg.artifact_revision': 'project_id = $2',
+  'reg.application_thumbnail': 'artifact_revision_id IN (SELECT artifact_revision_id FROM reg.artifact_revision WHERE project_id = $2)',
   'connector.project_binding': 'workspace_id = $1',
   'iam.account': 'account_id IN (SELECT account_id FROM iam.workspace_membership WHERE workspace_id = $1)',
   'iam.workspace_membership': 'workspace_id = $1',
@@ -89,14 +92,10 @@ const seedTenantB = async ({ connection, seedProject }, projectId, sealed) => {
 
 // A thumbnail needs a served revision, an application and a retained image: seeded here by SQL for one Project.
 const seedThumbnail = async (connection, projectId, bytes) => {
-  const artifactId = randomUUID()
-  const revisionId = randomUUID()
-  await query(connection, "INSERT INTO reg.artifact(artifact_id, kind, semantic_name, project_id) VALUES ($1, 'application', 'app', $2)", [artifactId, projectId])
-  await query(connection, "INSERT INTO reg.artifact_revision(artifact_revision_id, artifact_id, source_revision, digest, payload, availability) VALUES ($1, $2, $3, $4, '{}'::jsonb, 'AVAILABLE')", [revisionId, artifactId, STARTER, 'd'.repeat(64)])
+  const revisionId = await seedRevision(connection, projectId, { sourceRevision: STARTER, digest: 'd'.repeat(64), payload: launchablePayload() })
   await query(connection, 'UPDATE builder.project_working_state SET last_preview_source_revision = $2, last_preview_artifact_revision_id = $3, last_preview_artifact_digest = $4 WHERE project_id = $1', [projectId, STARTER, revisionId, 'd'.repeat(64)])
   await query(connection, "INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, $2, $3)", [projectId, `app-${projectId.slice(0, 8)}`, ID.owner])
-  await query(connection, 'INSERT INTO reg.application_thumbnail(project_id, artifact_revision_id, media_type, bytes, byte_length, sha256) VALUES ($1, $2, $3, $4, $5, $6)',
-    [projectId, revisionId, 'image/png', bytes, bytes.length, createHash('sha256').update(bytes).digest('hex')])
+  await seedRevisionThumbnail(connection, revisionId, bytes)
   return revisionId
 }
 
@@ -126,17 +125,18 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   await query(connection, 'INSERT INTO builder.builder_run_model_account(builder_run_id, model_account_id) SELECT builder_run_id, $2 FROM builder.builder_run WHERE project_id = $1', [projectB, randomUUID()])
   const envelope = createSecretEnvelope('ab'.repeat(32))
   await seedTenantB(fixture, projectB, (plain) => envelope.seal(plain))
-  for (const [table, rows] of await rowsOfB(connection, projectB)) assert.ok(rows.length > 0, `${table} has a seeded row of tenant B`)
   const thumbnailA = Buffer.from('thumbnail-of-a')
   await query(connection, `INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by) VALUES
     ($1, $3, 'sankhya', 'ERP', $5, $6, $4), ($2, $3, 'sankhya', 'Spare', $5, $6, $4)`, [CONNECTION.a, CONNECTION.spare, ID.workspace, ID.administrator, SEALED, 'd'.repeat(64)])
   const revisionA = await seedThumbnail(connection, projectA, thumbnailA)
   await seedThumbnail(connection, projectB, Buffer.from('thumbnail-of-b'))
+  for (const [table, rows] of await rowsOfB(connection, projectB)) assert.ok(rows.length > 0, `${table} has a seeded row of tenant B`)
   const entries = []
   const database = recording(fixture.database, entries)
-  const projects = createProjectStore({ database, repository: { prepare: async () => STARTER }, deletion: { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => undefined, purgeConnectorBindings: purgeProjectBindings, purgeBuilder: purgeProjectBuilder }, builder: builderProjectPorts })
+  const registry = createRegistryModule({ database })
+  const projects = createProjectStore({ database, repository: { prepare: async () => STARTER }, deletion: { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => undefined, purgeRegistry: registry.purge, purgeConnectorBindings: purgeProjectBindings, purgeBuilder: purgeProjectBuilder }, builder: builderProjectPorts })
   const workspaces = createWorkspaceStore(database)
-  const builder = createBuilderStore({ database, ownerId: randomUUID() })
+  const builder = createBuilderStore({ database, ownerId: randomUUID(), registry })
   const runOfB = (await query(connection, 'SELECT builder_run_id FROM builder.builder_run WHERE project_id = $1', [projectB])).rows[0].builder_run_id
   const member = ID.member
   const FOREIGN_BASE = 'c'.repeat(40)
@@ -144,7 +144,6 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   const modelAccounts = createModelAccounts({ database, envelope, ownerId: randomUUID() })
   await query(connection, "INSERT INTO model.model_account(owner_account_id, provider, kind, secret) VALUES ($1, 'openai-codex', 'oauth', $2)", [member, await envelope.seal('codex-of-member')])
   const KEY = { provider: 'anthropic', kind: 'api_key' }
-  const served = createServedApplicationReader(database)
   const before = await digestOfB(connection, projectB)
   const revisionOfA = (await query(connection, 'SELECT project_revision FROM project.project WHERE project_id = $1', [projectA])).rows[0].project_revision
   const withoutActivity = (summaries) => summaries.map(({ lastActivityAt: _at, ...rest }) => rest)
@@ -288,16 +287,16 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       child: async () => assert.notEqual((await builder.readBuilderRun({ accountId: member, projectId: projectBuild })).builderRunId, runOfB),
     },
     'BLD-30': {
-      own: async () => assert.deepEqual(await builder.readLaunchSubject({ accountId: member, projectId: projectA }), { lastPreviewSourceRevision: STARTER, lastPreviewArtifactRevisionId: revisionA, lastPreviewArtifactDigest: 'd'.repeat(64) }),
+      own: async () => assert.deepEqual(await builder.readLaunchSubject({ accountId: member, projectId: projectA }), { sourceRevision: STARTER, artifactRevisionId: revisionA, digest: 'd'.repeat(64), entryPath: 'index.html', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8' }] }),
       cross: () => assert.rejects(builder.readLaunchSubject({ accountId: member, projectId: projectB }), { id: 'PROJECT_BUILD_DENIED' }),
       child: null,
     },
     'PRJ-THUMBNAIL': {
       own: async () => {
-        const thumbnail = await served.readThumbnail({ accountId: member, projectId: projectA })
-        assert.deepEqual({ revision: thumbnail.artifactRevisionId, mediaType: thumbnail.mediaType, bytes: Buffer.from(thumbnail.bytes).toString() }, { revision: revisionA, mediaType: 'image/png', bytes: 'thumbnail-of-a' })
+        const thumbnail = await registry.readProjectThumbnail(member, projectA)
+        assert.deepEqual({ revision: thumbnail.artifactRevisionId, bytes: Buffer.from(thumbnail.bytes).toString() }, { revision: revisionA, bytes: 'thumbnail-of-a' })
       },
-      cross: async () => assert.equal(await served.readThumbnail({ accountId: member, projectId: projectB }), null),
+      cross: async () => assert.equal(await registry.readProjectThumbnail(member, projectB), null),
       child: null,
     },
     'CON-01': {

@@ -139,8 +139,8 @@ export const walkListeners = async () => {
       redeem: async ({ handoff }) => { calls.push('previewSessions.redeem'); return handoff === ENTRY_GRANT ? { sessionToken: opaque('walk preview'), maxAgeSeconds: 900 } : null },
       previewAuthority: async () => { calls.push('previewSessions.previewAuthority'); return { kind: 'SIGN_IN_REQUIRED' } },
     },
-    registryReader: async () => { calls.push('registryReader'); return null },
-    applicationRunner: { invoke: spy('runner', calls).invoke, readFile: async () => { calls.push('runner.readFile'); return null } },
+    registry: spy('registry', calls, { readPreviewFile: async () => null }),
+    applicationRunner: { invoke: spy('runner', calls).invoke },
     exactHubOrigin: HUB_ORIGIN,
     previewPort: PREVIEW_PORT,
     applicationHost: {
@@ -150,7 +150,6 @@ export const walkListeners = async () => {
         redeem: async () => { calls.push('applicationHost.redeem'); return null },
         signOut: async () => { calls.push('applicationHost.signOut') },
       },
-      reader: spy('applicationReader', calls),
       application: applicationAddress,
     },
   })

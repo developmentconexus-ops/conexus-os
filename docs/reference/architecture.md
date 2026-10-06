@@ -380,29 +380,32 @@ pull request that fixes one deletes its line.
 
 | Departure or risk | Wave |
 | --- | --- |
-| `apps/hub/src/platform/receipt.ts` imports `identity-access`, and the import checker allows it | S1 |
+| `apps/hub/src/platform/receipt.ts` imports `identity-access`, and the import checker allows it | S1, part 6 |
 | `http/access.ts` and `builder/run-operation.ts` import the session and admission contracts of `identity-access` and `app-runner` directly, and the import checker exempts the session, admission and application-server contracts | Hub base, after S1 |
 | The sandbox keepalive in `builder/sandbox.ts` and the sign-in expiry in `builder/google-ai-pro/login.ts` run their own timers, outside `platform/jobs.ts` | Hub base, after S1 |
 | The model routes keep verb segments (`/oauth/start`, `/login/complete`), the Google sign-in status is a `POST` named for a read, and the three `start` `POST`s take no `Idempotency-Key` | Hub base, after S1 |
 | `CON-02` and `CON-09` take no `Idempotency-Key` and deduplicate by domain identity (`connectionId`, the binding name) | Hub base, after S1 |
-| `apps/web/src/generated/iam-client.ts` calls the Hub with `fetch`, outside `http.ts` | S1 |
+| `apps/web/src/generated/iam-client.ts` calls the Hub with `fetch`, outside `http.ts` | S1, part 6 |
 | The first access is refused: `admitBootstrap` is not built | S1, part 6 |
 | Model accounts and the Mastra instance live in `builder`, not in the core | Hub base, after S1 |
 | Nothing bounds one Project's storage in the Applications cluster | Hub base, after S1 |
 | An `archived` Project state exists that nothing produces | Project lifecycle, after S1 |
 | `ProjectPurged` is told apart by `projectRevision: ''`, and `archived` and `deleting` are booleans | Project lifecycle, after S1 |
-| Rows read without a schema and response bodies read with `json()` outside the allowed edges (counted by `scripts/census-boundaries.mjs`) | S1 (the other owners' shares stay) |
-| Response bodies cast with `as` and ids typed `string` in module ports, which that script does not count | S1 (parts 4 and 6 keep their shares) |
+| Rows read without a schema and response bodies read with `json()` outside the allowed edges (counted by `scripts/census-boundaries.mjs`) | S1, part 6 |
+| Response bodies cast with `as` and ids typed `string` in module ports, which that script does not count | S1, part 6 |
 | `startHub`, `createHttpApp` and the Builder module stay past the function size limit by suppression | Hub base, after S1 |
 | `Scope` in `apps/hub/src/connectors/scope.ts` is a class with mutable state | Hub base, after S1 |
 | Named top-level functions are `const` arrows, some class fields use `#private` outside secret values, and some types are `interface` without augmenting a library | Hub base, after S1 |
 | `app-runner/http.ts` and the sandbox keepalive in `builder/sandbox.ts` read a failure from `error.message` | Hub base, after S1 |
-| Ten operations are still declared in YAML, and `identity-access/routes.ts` parses `Idempotency-Key` by hand | S1 |
+| The sealed build is a nominal type the Builder can still subclass; the registry refuses an unsealed one at run time | Hub base, after S1 |
+| Ten operations are still declared in YAML, and `identity-access/routes.ts` parses `Idempotency-Key` by hand | S1, part 6 |
 | `GET .../workspaces/{workspaceId}/projects` returns a top-level array, and lists that grow have no continuation token | Hub base, after S1 |
-| Stores not yet ported run as `hub_runtime` (`unportedPool`, the instance lock session), with `legacy` roles, `legacy_owner` and `legacy_runtime` policies, and SQL functions that hold business rules | S1, parts 4 and 6 |
+| Stores not yet ported run as `hub_runtime` (`unportedPool`, the instance lock session), with `legacy` roles, `legacy_owner` and `legacy_runtime` policies, and SQL functions that hold business rules | S1, part 6 |
 | Tests read production source text (`builder-harness.test.mjs`, `builder-template-pins.test.mjs`, `builder-check-bundle.test.mjs`, `connector-adapter-source.test.mjs`) | Hub base, after S1 |
 | Tests in the unsuffixed `tests/implementation` group open a socket or write to disk (`application-host.test.mjs`, `builder-conexus-git.test.mjs`) although that group is Small | Hub base, after S1 |
 | PostgreSQL tests skip without an `opt-in:` reason when no database is configured, and `keycloak-theme:check` is outside CI | Hub base, after S1 |
+| A sandbox that cannot open ends the Builder turn as `INTERNAL_UNEXPECTED`, with no failure row of its own | Before the screen check |
+| The no-access page names the wrong reason when Keycloak reports an unverified email | S1, part 6 |
 | The Hub swallows a failed run publish and the screen polls instead, and `liveRuns` and the session `subscriptions` share module state | S5 |
 | Beyond signing out of the current session, no route lets a person manage their other sessions or an administrator end another person's sessions, and a restore has no step that ends them | Hub base, after S1 |
 | The Hub has no rate limit, and the realm has no brute-force protection | Hub base, after S1 |
