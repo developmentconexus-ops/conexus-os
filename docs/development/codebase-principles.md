@@ -38,7 +38,7 @@ extended, so a class buys nothing over a function.
 **Right.**
 
 ```ts
-export const createProjectModule = (deps: ProjectDeps) => {
+export function createProjectModule(deps: ProjectDeps) {
   const store = createProjectStore(deps.db)
   return Object.freeze({ create: (input: CreateProject) => store.create(input) })
 }
@@ -52,19 +52,22 @@ by a `biome-ignore`.
 - **Conexus decision.** A class **must** be one of four kinds:
   - an error that extends `Error` or `Failure`,
   - a subclass of a library base (for example the E2B `Sandbox`),
-  - a nominal type with a `#private` field that only its own module constructs (`Admitted`,
+  - a nominal type with a `private` member that only its own module constructs (`Admitted`,
     `Checked`, `Gate`),
-  - a value that hides a secret in a `#value` field (`Redacted`, `AccessToken`).
+  - a value that hides a secret (`Redacted`, `AccessToken`).
 - A class **must not** exist only to group static members (Google).
-- **Conexus decision.** `#private` is allowed for the last two kinds, against the Google guide.
-  TypeScript's `private` disappears at runtime, so it can neither brand a type nor keep a secret out
-  of `JSON.stringify`.
+- Class members **must** use TypeScript's `private`, not `#private` (Google). A `private` member
+  already makes the type nominal for the compiler.
+- **Conexus decision.** A value that hides a secret keeps it in a `#value` field. Google forbids
+  `#private` for its cost when compiled below ES2022 and because static types already enforce
+  visibility. Conexus compiles to ES2022, so the first reason does not apply, and the second does
+  not cover a secret: a `private` field still appears in `JSON.stringify` and in logs.
 
 **Why.** better-auth, Documenso and the TypeScript compiler write the same rule: functions and
 closures, classes only where the language needs one. Mastra uses classes because its users extend
 its classes, and nobody extends a Hub module.
 
-**Right.** `class Checked { #brand = true }`, constructed only by `admission.ts`, so no other module
+**Right.** `class Checked { private readonly checked = true }`, constructed only by `admission.ts`, so no other module
 can forge a checked read.
 
 **Wrong.** A class with mutable state and methods that a module could have been, such as a scope
@@ -72,9 +75,9 @@ object with `live()`, `spend()` and `revoke()`.
 
 ## 3. Functions
 
-- **Conexus decision.** A named function **may** be a `const` arrow, where the Google guide prefers
-  a function declaration. The module's operations are arrows in its frozen object, and the code
-  keeps one shape.
+- A named top-level function **should** be a function declaration (Google). An arrow **may** be
+  used inside another function, for a callback, for an operation in a module's frozen object, or
+  when the function needs an explicit type annotation.
 - A function **should** take one object when it takes more than two parameters, and **must not**
   take two neighboring parameters of the same type that a caller can swap (Effective TypeScript,
   "Avoid repeated parameters of the same type").
@@ -99,9 +102,10 @@ arguments of the same type compile and fail at runtime.
   variant (Effective TypeScript, "Limit the use of optional properties").
 - Code **must not** use `any` (use `unknown`), `as`, or the non-null assertion `!`. Biome refuses
   them.
-- **Conexus decision.** Code **should** use `type`, where the Google guide prefers `interface` for
-  object shapes. Zod schemas produce types with `z.infer`, and a union can only be a `type`. An
-  `interface` **may** declare a shape a library extends.
+- **Conexus decision.** Code **should** use `type` for every type, where the Google guide prefers
+  `interface` for object shapes. Google's own reason is to choose one of two nearly equal forms.
+  Conexus must use `type` for unions and for the types Zod infers with `z.infer`, so `type` is the
+  one form that covers everything. An `interface` **may** declare a shape a library asks to extend.
 - A fact **must** have one owner: each type, state, contract, failure code and constant lives in one
   place, and the rest is generated or derived from it. A consumer reads a fact from its owner or
   from an event that carries it, never infers it from a phase change, timing or message text.
