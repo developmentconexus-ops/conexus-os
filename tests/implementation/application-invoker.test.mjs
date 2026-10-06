@@ -8,7 +8,6 @@ const { createApplicationInvoker } = await import(hubModuleUrl('mar/application-
 
 const bytes = (length) => new Uint8Array(length)
 
-// The invoker reads a Preview's server tree through the registry's two reads; these tests drive the Preview one.
 const reads = (readFile) => ({
   readPreviewFile: (_accountId, at) => readFile(at),
   readPinnedServedFile: async () => ({ ok: false, reason: 'NOT_SERVED' }),

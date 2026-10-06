@@ -38,7 +38,6 @@ export const retain = async ({ tx, scope }: Admitted<RunScope>, sealed: SealedAp
   return { artifactRevisionId: stored.artifact_revision_id, digest: stored.digest }
 }
 
-/** Deletes the Project's revisions; their thumbnails go by cascade. A Project with none is a successful retry. */
 export const purge = async ({ tx }: Admitted<SystemScope<'project-purge'>>, projectId: ProjectId): Promise<void> => {
   await tx.run(sql`DELETE FROM reg.artifact_revision WHERE project_id = ${projectId}`)
 }

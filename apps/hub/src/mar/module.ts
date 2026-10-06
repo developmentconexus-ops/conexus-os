@@ -24,7 +24,6 @@ export type MarModule = Readonly<{
   close(): Promise<void>
 }>
 
-/** What the MAR owner reads of the registry, declared structurally. */
 export type MarRegistry = ApplicationFileReads & ApplicationHostReader & Readonly<{ readPreviewFile: PreviewRouteDependencies['registryReader'] }>
 
 const PREVIEW_DOMAIN = 'conexus.localhost'
@@ -54,7 +53,6 @@ export const createMarModule = ({
 }: Readonly<{
   sessions: PreviewSessions
   registry: MarRegistry
-  /** The runner's invoke; the module bounds admission to it and reads the server tree from the registry. */
   applicationRunner?: Readonly<{ invoke: ApplicationRunnerInvoke; openConnectorPort?: ConnectorPortOpener }>
   exactHubOrigin: string
   previewPort: number

@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { OTHER_OWNER, OWNER, setupBuilder } from './builder-fixture.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { query } from './hub-database.mjs'
+import { waitUntilBlocked } from './race.mjs'
 import { ID } from './project-fixture.mjs'
 import { CURRENT_PIN as CURRENT, seedRevision, seedRevisionThumbnail } from './registry-fixture.mjs'
 
@@ -103,7 +104,7 @@ test('a member reads the source revisions on the current pin, a grantee reads on
 })
 
 test('the served reads answer the manifest, a file, a missing path, a stale pin and a project that serves nothing', async (t) => {
-  const { connection, seedBuilderProject, registry, served, point } = await world(t, 'conexus_registry_served')
+  const { connection, database, seedBuilderProject, registry, served, point } = await world(t, 'conexus_registry_served')
   const projectId = await seedBuilderProject('Atlas')
   const { first, second } = await served(projectId)
   const bare = await seedBuilderProject('Bare')
@@ -131,6 +132,7 @@ test('the served reads answer the manifest, a file, a missing path, a stale pin 
   await assert.rejects(registry.readServedFile(ID.outsider, projectId, 'index.html'), invariant('SERVED_POINTER_BROKEN'))
   await assert.rejects(registry.readProjectThumbnail(ID.member, projectId), invariant('SERVED_POINTER_BROKEN'))
   await assert.rejects(registry.readPinnedServedFile(ID.outsider, projectId, second, 'index.html'), invariant('SERVED_POINTER_BROKEN'))
+  await assert.rejects(database.transaction(ID.member, async (gate) => registry.readLaunch(await admitProject(gate, projectId, 'project.build'))), invariant('SERVED_POINTER_BROKEN'))
 })
 
 test('a purge that commits between the access check and the read answers NOT_SERVED, never a broken pointer', async (t) => {
@@ -344,4 +346,45 @@ test('the roles hold only the privileges the registry grants them', async (t) =>
     ['hub_runtime', 'SELECT 1 FROM reg.application_thumbnail'],
   ]
   for (const [role, statement] of refusals) assert.equal(await as(role, statement), '42501', `${role}: ${statement}`)
+})
+
+test('two raw sessions race the revision insert: the second waits on the unique index, then reads the first row or inserts after its rollback', async (t) => {
+  const { connection, seedBuilderProject } = await world(t, 'conexus_registry_index_race')
+  const projectId = await seedBuilderProject('Atlas')
+  const insert = "INSERT INTO reg.artifact_revision(artifact_revision_id, project_id, source_revision, digest, payload) VALUES (gen_random_uuid(), $1, $2, $3, '{}'::jsonb) ON CONFLICT (project_id, source_revision) DO NOTHING"
+  const reread = 'SELECT digest FROM reg.artifact_revision WHERE project_id = $1 AND source_revision = $2'
+  const session = async () => {
+    const client = new pg.Client(connection)
+    await client.connect()
+    await client.query('SET ROLE hub_command')
+    await client.query('BEGIN')
+    return client
+  }
+  for (const outcome of ['COMMIT', 'ROLLBACK']) {
+    const source = outcome === 'COMMIT' ? SOURCE_1 : SOURCE_2
+    const first = await session()
+    const second = await session()
+    await first.query(insert, [projectId, source, DIGEST_1])
+    const waiting = second.query(insert, [projectId, source, DIGEST_2])
+    await waitUntilBlocked(connection)
+    await first.query(outcome)
+    await waiting
+    const seen = (await second.query(reread, [projectId, source])).rows
+    await second.query('COMMIT')
+    await first.end()
+    await second.end()
+    assert.deepEqual(seen, [{ digest: outcome === 'COMMIT' ? DIGEST_1 : DIGEST_2 }], outcome)
+  }
+  assert.equal((await query(connection, 'SELECT count(*)::integer AS n FROM reg.artifact_revision WHERE project_id = $1', [projectId])).rows[0].n, 2)
+})
+
+test('a build sealed for one Project is refused under the proof of a run of another, and writes nothing in either', async (t) => {
+  const { seedBuilderProject, rows, runFor, sealFor, store } = await world(t, 'conexus_registry_foreign_seal')
+  const projectA = await seedBuilderProject('Atlas')
+  const projectB = await seedBuilderProject('Borealis')
+  const runA = await runFor(projectA)
+  const runB = await runFor(projectB)
+  const sealedForA = sealFor(projectA, runA, [F], { thumbnail: { bytes: PNG_T2 } })
+  await assert.rejects(store.settleBuilderRunBuild({ builderRunId: runB, sourceRevision: SOURCE_E, kind: 'BUILT', sealed: sealedForA }), { id: 'BUILDER_RUN_TRANSITION_REFUSED' })
+  assert.deepEqual([await rows(projectA), await rows(projectB)], [{ revisions: 0, thumbnails: 0 }, { revisions: 0, thumbnails: 0 }])
 })

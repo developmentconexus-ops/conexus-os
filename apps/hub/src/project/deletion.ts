@@ -17,7 +17,6 @@ export type ProjectDeletionPorts = Readonly<{
   deleteRepository(projectId: ProjectIdType): Promise<void>
   /** Deletes the Project's Connection bindings in the purge transaction, which holds the Project row. */
   purgeConnectorBindings(proof: Admitted<SystemScope<'project-purge'>>, projectId: ProjectIdType): Promise<void>
-  /** Deletes the Project's built revisions, and their thumbnails with them, in the purge transaction, before the Builder's rows. */
   purgeRegistry(proof: Admitted<SystemScope<'project-purge'>>, projectId: ProjectIdType): Promise<void>
   /** Deletes the Project's runs, working state and repository marker in the purge transaction, after the registry's rows. */
   purgeBuilder(proof: Admitted<SystemScope<'project-purge'>>, projectId: ProjectIdType): Promise<void>

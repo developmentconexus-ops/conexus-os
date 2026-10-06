@@ -4,6 +4,7 @@ import { admitAccount, admitApplication, checkApplication, admitProject, admitSy
 import type { Admitted, AccountScope, ApplicationScope, Checked, ProjectScope, SystemScope, WorkspaceScope } from '../../apps/hub/src/identity-access/admission.js'
 import type { AuthenticationGate, CommandGate, ReadTx, RawToken, WriteTx } from '../../apps/hub/src/platform/db.js'
 import { digest, sql } from '../../apps/hub/src/platform/db.js'
+import type { RegistryModule } from '../../apps/hub/src/registry/module.js'
 
 declare const account: AccountId
 declare const workspace: WorkspaceId
@@ -20,6 +21,7 @@ declare const readTx: ReadTx
 declare const writeTx: WriteTx
 declare const presented: RawToken
 declare const gate: CommandGate
+declare const registry: RegistryModule
 declare const authentication: AuthenticationGate
 
 // @ts-expect-error A proof cannot be constructed as an object.
@@ -62,6 +64,11 @@ admitWorkspace(builder.tx, workspace, 'workspace.read')
 const writeMode: ReadTx['mode'] = 'write'
 // @ts-expect-error A job proof for one job cannot stand in for the purge job's proof.
 const wrongJob: Admitted<SystemScope<'project-purge'>> = reaper
+// @ts-expect-error The registry purge takes the project purge proof, so another job's proof is refused.
+void registry.purge(reaper, project)
+// @ts-expect-error The registry purge takes a purge proof, not a build proof.
+void registry.purge(builder, project)
+void registry.purge(purge, project)
 // @ts-expect-error A served read proof has a read transaction, so it cannot write.
 checked.tx.run(sql`SELECT 1`)
 // @ts-expect-error A served read proof cannot stand in for a write proof: no command port accepts it.

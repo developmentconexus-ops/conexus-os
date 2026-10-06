@@ -81,7 +81,6 @@ export const settleAdmittedSource = async ({ store, registry, applicationServer,
     return
   }
   try {
-    // Sealed before the runner: an invalid build fails here, before the Preview database migrates.
     const sealed = registry.seal(
       { compiledApplication: applicationBuild.compiledApplication, thumbnail: applicationBuild.thumbnail ?? null },
       { projectId: run.projectId, builderRunId: run.builderRunId, sourceRevision: admitted },

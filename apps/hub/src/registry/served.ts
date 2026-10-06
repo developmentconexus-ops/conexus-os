@@ -55,7 +55,6 @@ const fileOf = (path: ApplicationFilePath): Readonly<{ columns: Sql; joins: Sql;
 
 const brokenPointer = (): Failure => new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'SERVED_POINTER_BROKEN' } })
 
-/** The manifest of the revision the Project serves, null when it serves none. */
 export const readManifest = async (tx: TxQueries, projectId: ProjectId): Promise<ServedManifest | null> => {
   const row = await tx.maybe(pointerRow({ files: ManifestFiles }), pointerStatement(projectId, { columns: sql`${FILES_OF_REVISION} AS files`, joins: sql``, absent: sql`FALSE` }))
   if (row === null || row.state === 'NONE') return null
@@ -76,14 +75,12 @@ const readFile = async (tx: TxQueries, projectId: ProjectId, path: ApplicationFi
   return { kind: 'FILE', artifactRevisionId: row.revision_id, file: { path: row.path, mediaType: row.media_type, sha256: row.sha256, bytes: row.bytes } }
 }
 
-/** One file of whatever the Project serves now. */
 export const readServedFileOf = async (tx: TxQueries, projectId: ProjectId, path: ApplicationFilePath): Promise<ServedFile> => {
   const read = await readFile(tx, projectId, path)
   if (read.kind === 'NONE') return { ok: false, reason: 'NOT_SERVED' }
   return read.kind === 'MISSING' ? { ok: false, reason: 'NOT_FOUND' } : { ok: true, artifactRevisionId: read.artifactRevisionId, file: read.file }
 }
 
-/** One file of a pinned revision, while it is still the one served. */
 export const readPinnedFileOf = async (tx: TxQueries, projectId: ProjectId, path: ApplicationFilePath, pin: ArtifactRevisionId): Promise<PinnedFile> => {
   const read = await readFile(tx, projectId, path)
   if (read.kind === 'NONE') return { ok: false, reason: 'NOT_SERVED' }
@@ -101,7 +98,6 @@ const LaunchColumns = {
   files: ManifestFiles,
 }
 
-/** The five coordinates of the served revision for a Preview launch. A revision retained on an older template pin is not launched. */
 export const readLaunchOf = async (tx: TxQueries, projectId: ProjectId): Promise<ServedLaunch | null> => {
   const row = await tx.maybe(pointerRow(LaunchColumns), pointerStatement(projectId, {
     columns: sql`revision.source_revision AS source_revision, revision.digest AS digest, revision.payload->>'entryPath' AS entry_path,
@@ -115,7 +111,6 @@ export const readLaunchOf = async (tx: TxQueries, projectId: ProjectId): Promise
   return { sourceRevision: row.source_revision, artifactRevisionId: row.revision_id, digest: row.digest, entryPath: row.entry_path, files: row.files }
 }
 
-/** The thumbnail of the served revision, null when the Project serves none or that revision has no picture. */
 export const readThumbnailOf = async (tx: TxQueries, projectId: ProjectId): Promise<ServedThumbnail | null> => {
   const row = await tx.maybe(pointerRow({ bytes: z.instanceof(Uint8Array) }), pointerStatement(projectId, {
     columns: sql`thumbnail.bytes AS bytes`,
@@ -129,7 +124,6 @@ export const readThumbnailOf = async (tx: TxQueries, projectId: ProjectId): Prom
 
 const PreviewFileRow = z.object(FileColumns)
 
-/** A file of the exact revision a Preview was launched on, or null when the source, revision, path or template pin do not match. */
 export const readPreviewFileOf = (tx: TxQueries, input: Readonly<{ projectId: ProjectId; sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId; path: ApplicationFilePath }>): Promise<ApplicationFile | null> =>
   tx.maybe(PreviewFileRow, sql`
     SELECT file->>'path' AS path, file->>'mediaType' AS media_type, file->>'sha256' AS sha256, decode(file->>'base64', 'base64') AS bytes

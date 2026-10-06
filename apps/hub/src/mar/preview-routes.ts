@@ -35,7 +35,6 @@ export type PreviewSessions = Readonly<{
   previewAuthority(input: Readonly<{ sessionToken: string | undefined; exactHost: string }>): Promise<Readonly<{ kind: 'SIGNED_IN'; binding: PreviewBinding }> | Refused>
 }>
 
-/** The registry's read of one file of the exact revision a Preview launched on, declared structurally: the MAR owner does not import the registry. */
 type RegistryReader = (accountId: AccountId, at: Readonly<{
   projectId: ProjectId
   sourceRevision: SourceRevision
@@ -57,7 +56,6 @@ const sameBinding = (left: PreviewBinding, right: PreviewBinding): boolean => (
   left.artifactRevisionId === right.artifactRevisionId && left.artifactDigest === right.artifactDigest && left.exactHost === right.exactHost
 )
 
-// The binding comes from a Preview session row; the registry takes it as branded ids.
 const subjectOf = (binding: PreviewBinding) => ({
   accountId: AccountId.parse(binding.accountId),
   projectId: ProjectId.parse(binding.projectId),

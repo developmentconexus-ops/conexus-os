@@ -12,7 +12,7 @@ const ENTRY_PATH = 'index.html'
 
 type FileInput = Readonly<{ path: string; mediaType: string; bytes: Uint8Array; sha256: string }>
 type SealOutcome = Readonly<{
-  compiledApplication: Readonly<{ projectId: string; executionId: string; sourceRevision: string; templateRef: string; recipeSha256: string; files: readonly FileInput[] }>
+  compiledApplication: Readonly<{ projectId: ProjectId; executionId: BuilderRunId; sourceRevision: SourceRevision; templateRef: string; recipeSha256: string; files: readonly FileInput[] }>
   thumbnail: Readonly<{ bytes: Uint8Array }> | null
 }>
 type SealRun = Readonly<{ projectId: ProjectId; builderRunId: BuilderRunId; sourceRevision: SourceRevision }>
@@ -54,7 +54,6 @@ const sealFiles = (files: readonly FileInput[]): readonly PayloadFile[] => {
   return sealed
 }
 
-/** A picture that is not a PNG of 1 to 512000 bytes is dropped: it never fails the build. */
 const sealThumbnail = (thumbnail: SealOutcome['thumbnail']): Thumbnail | null => {
   if (thumbnail === null) return null
   const { bytes } = thumbnail
@@ -84,7 +83,6 @@ export const seal = ({ compiledApplication, thumbnail }: SealOutcome, run: SealR
   return sealed
 }
 
-/** The payload and thumbnail of a sealed build, for the registry's own insert. */
 export const contentsOf = (sealed: SealedApplication): Contents => {
   const found = contents.get(sealed)
   if (found === undefined) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'SEALED_APPLICATION_NOT_SEALED' } })

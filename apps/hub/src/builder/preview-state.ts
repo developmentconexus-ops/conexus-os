@@ -39,7 +39,6 @@ const PreviewRow = z.object({
 export type PreviewState = Readonly<{
   readLatestCodeChangingBuilderRun(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<BuilderCodeChangingRun | null>
   readPreviewSubject(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<BuilderPreview | null>
-  /** The revision a launch shows: the account is admitted to build in the Project first, so a person who cannot build gets PROJECT_BUILD_DENIED before any read. */
   readLaunchSubject(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<ServedLaunch | null>
   /** `readMain` reads `main` from the Conexus Git, and runs only once the account is known to see the Project. */
   admitSourceRevision(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType; sourceRevision: SourceRevision; readMain(): Promise<SourceRevision> }>): Promise<boolean>

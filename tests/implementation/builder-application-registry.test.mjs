@@ -51,3 +51,14 @@ test('seal gives the digest of the canonical payload of one file whatever the th
   const digest = (thumbnail) => seal({ ...outcome([html]), thumbnail }, run).digest
   assert.equal(digest(null), digest({ bytes: Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0]) }))
 })
+
+test('seal refuses a build of 12582913 bytes and accepts one of 12582912', () => {
+  const sized = (total) => {
+    const html = fileOf('index.html', 'text/html; charset=utf-8', '<html></html>')
+    const parts = Array.from({ length: 11 }, (_, number) => fileOf(`part-${number}.txt`, 'text/plain; charset=utf-8', 'x'.repeat(1024 * 1024)))
+    const rest = total - html.bytes.byteLength - 11 * 1024 * 1024
+    return [html, ...parts, fileOf('part-11.txt', 'text/plain; charset=utf-8', 'x'.repeat(rest))]
+  }
+  assert.equal(seal(outcome(sized(12582912)), run).projectId, projectId)
+  refusal(outcome(sized(12582913)))
+})

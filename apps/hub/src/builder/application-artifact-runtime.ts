@@ -31,7 +31,6 @@ type CompiledApplicationFile = Readonly<{
   sha256: string
 }>
 
-/** A by-product of the check, retained beside the compiled application and never part of it. The registry's seal decides whether it is a picture worth keeping. */
 export type CompiledApplicationThumbnail = Readonly<{ mediaType: 'image/png'; bytes: Uint8Array }>
 
 export type CompiledApplication = Readonly<{

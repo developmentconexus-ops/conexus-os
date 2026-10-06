@@ -5,10 +5,8 @@ import type { PrepareResult } from '../app-runner/server-manifest.js'
 import type { CandidateOperationPorts } from './run-operation.js'
 import { Failure } from '../platform/failure.js'
 
-/** A build sealed by the registry before the runner: the Project, the source and the digest it will be retained under. */
 export type SealedApplication = Readonly<{ projectId: ProjectId; sourceRevision: SourceRevision; digest: ArtifactDigest }>
 
-/** What the Preview launch needs of the revision the Project serves. */
 export type ServedLaunch = Readonly<{
   sourceRevision: SourceRevision
   artifactRevisionId: ArtifactRevisionId

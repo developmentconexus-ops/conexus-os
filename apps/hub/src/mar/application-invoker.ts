@@ -18,7 +18,6 @@ type ArtifactSource =
 
 type ReadServerFile = Readonly<{ path: ApplicationFilePath; sha256: string; bytes: Uint8Array }>
 
-/** The registry's reads of a server tree, declared structurally: the MAR owner does not import the registry. */
 export type ApplicationFileReads = Readonly<{
   readPreviewFile(accountId: AccountId, at: Readonly<{ projectId: ProjectId; sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId; path: ApplicationFilePath }>): Promise<ReadServerFile | null>
   readPinnedServedFile(accountId: AccountId, projectId: ProjectId, artifactRevisionId: ArtifactRevisionId, path: ApplicationFilePath): Promise<
@@ -137,8 +136,6 @@ export const createApplicationInvoker = (dependencies: ApplicationFileReads & Re
   const runner = createGate(limits.globalConcurrency, limits.admissionQueueLimit)
   const projects = new Map<string, Gate>()
 
-  // A Preview serves its launch revision. An application serves what it serves now: a pin the served
-  // revision moved past, or an unserved Project, answers NOT_READY, and the next request reads the new one.
   const readFile = async (source: ArtifactSource, path: ApplicationFilePath): Promise<ReadServerFile> => {
     if (source.via === 'PREVIEW') {
       const { projectId, sourceRevision, artifactRevisionId } = source

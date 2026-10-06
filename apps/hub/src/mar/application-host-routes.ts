@@ -157,7 +157,6 @@ export const registerApplicationHostRoutes = async (
     }
     const accountId = AccountId.parse(authority.caller.accountId)
     const projectId = ProjectId.parse(target.projectId)
-    // A path the registry cannot hold is a file that is not there.
     const readFile = async (path: string) => {
       const parsed = ApplicationFilePath.safeParse(path)
       return parsed.success ? dependencies.reader.readServedFile(accountId, projectId, parsed.data) : { ok: false, reason: 'NOT_FOUND' } as const

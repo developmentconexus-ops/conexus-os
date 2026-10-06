@@ -117,7 +117,6 @@ export const createRunStart = ({ database, mintIdentity }: Readonly<{ database: 
 /** An ending without a result: the run failed, or a stop interrupted it. */
 export type StoppedEnding = Exclude<RunEnding, Readonly<{ state: 'SUCCEEDED' }>>
 
-/** What the Preview build of an admitted source came to: the sealed build the registry retains in the settlement, or the code the build failed with. */
 type BuildSettlement = Readonly<{ builderRunId: BuilderRunId; sourceRevision: SourceRevision }> & (
   | Readonly<{ kind: 'BUILT'; sealed: SealedApplication }>
   | Readonly<{ kind: 'FAILED'; failureCode: FailureCode }>
