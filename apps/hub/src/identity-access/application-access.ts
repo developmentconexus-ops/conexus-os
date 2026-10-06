@@ -15,7 +15,7 @@ import { idempotent } from '../platform/receipt.js'
 import { admitProject, admitSystem, receiptOf } from './admission.js'
 import type { AccountScope, Admitted, ProjectScope, SystemScope } from './admission.js'
 import type { Claim } from './authentication.js'
-import { InvitationRow, invitationFields } from './roster.js'
+import { inserted, InvitationRow, invitationFields } from './roster.js'
 
 /**
  * The address label of a Project's application: the base from its name, then `-2`, `-3` and so on, inside the 40 characters a label may have.
@@ -146,12 +146,13 @@ export const createApplicationAccess = ({ database, addressOf }: Readonly<{
       await lockApplication(proof.tx, proof.scope.projectId)
       const { reply } = await idempotent(receiptOf(proof), grantApplicationAccess, headers['idempotency-key'], { params, query: undefined, body }, InvitationId, async (invitationId) => {
         await ensureApplication(proof)
-        return invitationEntry(await proof.tx.one(InvitationRow, sql`
+        const row = await proof.tx.one(InvitationRow.extend(inserted), sql`
           INSERT INTO iam.application_invitation (invitation_id, project_id, email, invited_by, expires_at)
           VALUES (${invitationId}, ${proof.scope.projectId}, ${body.email}, ${proof.scope.accountId}, now() + make_interval(days => ${INVITATION_DAYS}))
           ON CONFLICT (project_id, email) DO UPDATE SET invited_by = EXCLUDED.invited_by, expires_at = EXCLUDED.expires_at, created_at = clock_timestamp()
           WHERE application_invitation.project_id = ${proof.scope.projectId}
-          RETURNING invitation_id, email, created_at AS invited_at, expires_at, expires_at > now() AS open`, 'INTERNAL_UNEXPECTED'))
+          RETURNING invitation_id, email, created_at AS invited_at, expires_at, expires_at > now() AS open, xmax = 0 AS inserted`, 'INTERNAL_UNEXPECTED')
+        return { status: row.inserted ? 201 : 200, body: invitationEntry(row) } as const
       })
       return reply
     }))

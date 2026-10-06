@@ -129,10 +129,10 @@ export const getWorkspaceRoster = operation({
 })
 
 export const inviteWorkspaceMember = operation({
-  id: 'inviteWorkspaceMember', summary: 'Invite an email into a Workspace with a role; the pair is the natural key, so a new invitation of the same email refreshes it. Owner only.', access: 'session', method: 'POST', path: '/api/control/workspaces/:workspaceId/invitations',
+  id: 'inviteWorkspaceMember', summary: 'Invite an email into a Workspace with a role; the pair is the natural key, so a new invitation of the same email refreshes it and answers 200; a new one answers 201. Owner only.', access: 'session', method: 'POST', path: '/api/control/workspaces/:workspaceId/invitations',
   params: workspaceParam, query: null, headers: keyed,
   body: z.object({ email: EmailAddress, role: WorkspaceRole }).strict(),
-  success: { 200: WorkspaceInvitationEntry },
+  success: { 200: WorkspaceInvitationEntry, 201: WorkspaceInvitationEntry },
   effects: [], failures: ['MEMBERS_MANAGE_REQUIRED', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
   malformed: { workspaceId: 'WORKSPACE_NOT_FOUND', email: 'EMAIL_INVALID' },
 })
@@ -170,10 +170,10 @@ export const getApplicationAccess = operation({
 })
 
 export const grantApplicationAccess = operation({
-  id: 'grantApplicationAccess', summary: 'Invite an email to a Project\'s application; the first grant fixes the application\'s address. The person\'s next sign in claims it. Owner only.', access: 'session', method: 'POST', path: '/api/control/projects/:projectId/application-access',
+  id: 'grantApplicationAccess', summary: 'Invite an email to a Project\'s application; the first grant fixes the application\'s address. The person\'s next sign in claims it. A new invitation answers 201, a refreshed one 200. Owner only.', access: 'session', method: 'POST', path: '/api/control/projects/:projectId/application-access',
   params: projectParam, query: null, headers: keyed,
   body: z.object({ email: EmailAddress }).strict(),
-  success: { 200: ApplicationInvitationEntry },
+  success: { 200: ApplicationInvitationEntry, 201: ApplicationInvitationEntry },
   effects: [], failures: ['APPLICATION_ACCESS_MANAGE_REQUIRED', 'DATABASE_BUSY', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
   malformed: { projectId: 'PROJECT_NOT_FOUND', email: 'EMAIL_INVALID' },
 })

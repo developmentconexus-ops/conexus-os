@@ -11,8 +11,9 @@ const workspaceParams = (workspaceId: WorkspaceId) => ({ workspaceId })
 
 export const workspaceRosterQuery = (workspaceId: WorkspaceId) => query(getWorkspaceRoster, { params: workspaceParams(workspaceId), ...noInput })
 
-export const inviteWorkspaceMember = (workspaceId: WorkspaceId, email: EmailAddress, role: WorkspaceRole, idempotencyKey: IdempotencyKey) =>
-  call(inviteWorkspaceMemberOperation, { params: workspaceParams(workspaceId), query: undefined, headers: { 'idempotency-key': idempotencyKey }, body: { email, role } })
+// A new invitation answers 201 and a refreshed one 200, with the same entry.
+export const inviteWorkspaceMember = async (workspaceId: WorkspaceId, email: EmailAddress, role: WorkspaceRole, idempotencyKey: IdempotencyKey) =>
+  (await call(inviteWorkspaceMemberOperation, { params: workspaceParams(workspaceId), query: undefined, headers: { 'idempotency-key': idempotencyKey }, body: { email, role } })).body
 
 export const setWorkspaceMemberRole = (workspaceId: WorkspaceId, accountId: AccountId, role: WorkspaceRole) =>
   call(setWorkspaceMemberRoleOperation, { params: { ...workspaceParams(workspaceId), accountId }, query: undefined, headers: undefined, body: { role } })

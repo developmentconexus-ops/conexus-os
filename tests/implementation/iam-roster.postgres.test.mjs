@@ -44,15 +44,15 @@ test('the roster reads under hub_reader: a member sees members and invitations, 
   assert.equal(problemOf(await kept.inject({ method: 'GET', url: roster, headers: { cookie: sessionCookie('k'.repeat(43)) } })), '404 WORKSPACE_NOT_FOUND')
 })
 
-test('invitations: owner only, keyed, and the pair (Workspace, email) is one invitation', async (t) => {
+test('invitations: owner only, keyed, and the pair (Workspace, email) is one invitation, 201 when new and 200 when refreshed', async (t) => {
   const { hub, as } = await team(t, 'conexus_iam_roster_invite')
   const invite = (token, body, key) => hub.call(token, 'POST', invitations, body, key === undefined ? {} : { 'idempotency-key': key })
   assert.equal(problemOf(await invite(as.member, { email: 'ana@x.com', role: 'member' }, 'k0')), '403 MEMBERS_MANAGE_REQUIRED')
   assert.equal(problemOf(await invite(as.owner, { email: 'ana@x.com', role: 'member' })), '400 IDEMPOTENCY_KEY_REQUIRED')
   const first = await invite(as.owner, { email: 'ana@x.com', role: 'member' }, 'k1')
   const replay = await invite(as.owner, { email: 'ana@x.com', role: 'member' }, 'k1')
-  assert.equal(first.statusCode, 200)
-  assert.deepEqual(replay.json(), first.json())
+  assert.equal(first.statusCode, 201)
+  assert.deepEqual([replay.statusCode, replay.json()], [201, first.json()])
   assert.equal((await hub.sql('SELECT count(*)::int AS n FROM iam.workspace_invitation'))[0].n, 1)
   assert.equal(problemOf(await invite(as.owner, { email: 'bia@x.com', role: 'member' }, 'k1')), '409 IDEMPOTENCY_CONFLICT')
   const refreshed = await invite(as.owner, { email: ' Ana@X.com ', role: 'owner' }, 'k2')

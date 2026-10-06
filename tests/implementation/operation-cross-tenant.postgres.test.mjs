@@ -238,7 +238,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
     'inviteWorkspaceMember': {
       own: async () => {
         const answered = await call('owner', 'POST', `${W(ID.workspace)}/invitations`, { email: 'newcomer@example.test', role: 'member' })
-        assert.deepEqual({ status: answered.status, email: answered.body.email, role: answered.body.role }, { status: 200, email: 'newcomer@example.test', role: 'member' })
+        assert.deepEqual({ status: answered.status, email: answered.body.email, role: answered.body.role }, { status: 201, email: 'newcomer@example.test', role: 'member' })
       },
       cross: () => refused('owner', 'POST', `${W(ID.otherWorkspace)}/invitations`, 404, 'WORKSPACE_NOT_FOUND', { email: 'intruder@example.test', role: 'member' }),
       child: null,
@@ -278,7 +278,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
     'grantApplicationAccess': {
       own: async () => {
         const answered = await call('owner', 'POST', P(projectA), { email: 'guest@example.test' })
-        assert.deepEqual({ status: answered.status, email: answered.body.email }, { status: 200, email: 'guest@example.test' })
+        assert.deepEqual({ status: answered.status, email: answered.body.email }, { status: 201, email: 'guest@example.test' })
       },
       cross: () => refused('owner', 'POST', P(projectB), 404, 'PROJECT_NOT_FOUND', { email: 'intruder@example.test' }),
       child: null,

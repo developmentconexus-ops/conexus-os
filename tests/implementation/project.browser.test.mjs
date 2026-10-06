@@ -87,7 +87,7 @@ async function mockHub(page, hub) {
       const renewed = hub.roster.entries.find((entry) => entry.kind === 'invitation' && entry.email === body.email)
       const invitation = { kind: 'invitation', invitationId: renewed?.invitationId ?? ids.invitation, email: body.email, role: body.role, invitedAt: '2026-09-22T12:00:00.000Z', expiresAt: '2026-10-06T12:00:00.000Z', state: 'PENDING' }
       hub.roster.entries = [...hub.roster.entries.filter((entry) => entry !== renewed), invitation]
-      return json(route, 200, invitation)
+      return json(route, renewed ? 200 : 201, invitation)
     }
     if ((p.includes('/members/') || p.includes('/invitations/')) && method === 'DELETE') return route.fulfill({ status: 204 })
     if (p.endsWith('/thumbnail') && method === 'GET') {

@@ -84,7 +84,7 @@ test('granting access shows the new invitation, and revoking a grant removes it'
       grantSubmitted = true
       const invitation = { kind: 'invitation', invitationId: NEW_INVITATION_ID, email: route.request().postDataJSON().email, invitedAt: '2026-09-20T00:00:00.000Z', expiresAt: '2026-10-20T00:00:00.000Z', state: 'PENDING' }
       entries = [...entries, invitation]
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(invitation) })
+      return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(invitation) })
     }
     if (grantSubmitted && holdRefresh) {
       holdRefresh()

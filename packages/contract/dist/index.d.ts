@@ -107,7 +107,7 @@ export declare const OPERATIONS: {
     };
     readonly inviteWorkspaceMember: {
         readonly id: "inviteWorkspaceMember";
-        readonly summary: "Invite an email into a Workspace with a role; the pair is the natural key, so a new invitation of the same email refreshes it. Owner only.";
+        readonly summary: "Invite an email into a Workspace with a role; the pair is the natural key, so a new invitation of the same email refreshes it and answers 200; a new one answers 201. Owner only.";
         readonly access: "session";
         readonly method: "POST";
         readonly path: "/api/control/workspaces/:workspaceId/invitations";
@@ -127,6 +127,21 @@ export declare const OPERATIONS: {
         }, import("zod/v4/core").$strict>;
         readonly success: {
             readonly 200: import("zod").ZodObject<{
+                kind: import("zod").ZodLiteral<"invitation">;
+                invitationId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "InvitationId", "out">;
+                email: import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">;
+                role: import("zod").ZodEnum<{
+                    owner: "owner";
+                    member: "member";
+                }>;
+                invitedAt: import("zod").ZodISODateTime;
+                expiresAt: import("zod").ZodISODateTime;
+                state: import("zod").ZodEnum<{
+                    PENDING: "PENDING";
+                    EXPIRED: "EXPIRED";
+                }>;
+            }, import("zod/v4/core").$strip>;
+            readonly 201: import("zod").ZodObject<{
                 kind: import("zod").ZodLiteral<"invitation">;
                 invitationId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "InvitationId", "out">;
                 email: import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">;
@@ -276,7 +291,7 @@ export declare const OPERATIONS: {
     };
     readonly grantApplicationAccess: {
         readonly id: "grantApplicationAccess";
-        readonly summary: "Invite an email to a Project's application; the first grant fixes the application's address. The person's next sign in claims it. Owner only.";
+        readonly summary: "Invite an email to a Project's application; the first grant fixes the application's address. The person's next sign in claims it. A new invitation answers 201, a refreshed one 200. Owner only.";
         readonly access: "session";
         readonly method: "POST";
         readonly path: "/api/control/projects/:projectId/application-access";
@@ -292,6 +307,17 @@ export declare const OPERATIONS: {
         }, import("zod/v4/core").$strict>;
         readonly success: {
             readonly 200: import("zod").ZodObject<{
+                kind: import("zod").ZodLiteral<"invitation">;
+                invitationId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "InvitationId", "out">;
+                email: import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">;
+                invitedAt: import("zod").ZodISODateTime;
+                expiresAt: import("zod").ZodISODateTime;
+                state: import("zod").ZodEnum<{
+                    PENDING: "PENDING";
+                    EXPIRED: "EXPIRED";
+                }>;
+            }, import("zod/v4/core").$strip>;
+            readonly 201: import("zod").ZodObject<{
                 kind: import("zod").ZodLiteral<"invitation">;
                 invitationId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "InvitationId", "out">;
                 email: import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">;

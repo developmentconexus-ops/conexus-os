@@ -32,6 +32,8 @@ const invitationState = (row: Readonly<{ open: boolean }>): InvitationState => (
 /** The columns every invitation list reads, a Workspace's and an application's. */
 export const InvitationRow = z.object({ invitation_id: InvitationId, email: EmailAddress, invited_at: z.date(), expires_at: z.date(), open: z.boolean() })
 /** The entry fields both invitation lists share. */
+/** Whether an invitation upsert inserted (`xmax = 0`) or refreshed the existing invitation. */
+export const inserted = { inserted: z.boolean() }
 export const invitationFields = (row: z.output<typeof InvitationRow>) => ({
   invitationId: row.invitation_id, email: row.email, invitedAt: row.invited_at.toISOString(), expiresAt: row.expires_at.toISOString(), state: invitationState(row),
 })
@@ -82,14 +84,16 @@ export const registerRosterRoutes = async (app: FastifyInstance, database: Datab
   // The pair (Workspace, email) is the invitation: a new invitation of the same email refreshes its role, inviter and expiry and keeps its id.
   route.operation(inviteWorkspaceMember, ({ params, headers, body }, session) => database.transaction(session.account.accountId, async (gate) => {
     const proof = await admitWorkspace(gate, params.workspaceId, 'members.manage')
-    const { reply } = await idempotent(receiptOf(proof), inviteWorkspaceMember, headers['idempotency-key'], { params, query: undefined, body }, InvitationId, async (invitationId) =>
-      invitationEntry(await proof.tx.one(WorkspaceInvitationRow, sql`
+    const { reply } = await idempotent(receiptOf(proof), inviteWorkspaceMember, headers['idempotency-key'], { params, query: undefined, body }, InvitationId, async (invitationId) => {
+      const row = await proof.tx.one(WorkspaceInvitationRow.extend(inserted), sql`
         INSERT INTO iam.workspace_invitation (invitation_id, workspace_id, email, role, invited_by, expires_at)
         VALUES (${invitationId}, ${proof.scope.workspaceId}, ${body.email}, ${body.role}, ${proof.scope.accountId}, now() + make_interval(days => ${INVITATION_DAYS}))
         ON CONFLICT (workspace_id, email) DO UPDATE
           SET (role, invited_by, expires_at, created_at) = (EXCLUDED.role, EXCLUDED.invited_by, EXCLUDED.expires_at, clock_timestamp())
           WHERE workspace_invitation.workspace_id = ${proof.scope.workspaceId}
-        RETURNING invitation_id, email, role, created_at AS invited_at, expires_at, expires_at > now() AS open`, 'INTERNAL_UNEXPECTED')))
+        RETURNING invitation_id, email, role, created_at AS invited_at, expires_at, expires_at > now() AS open, xmax = 0 AS inserted`, 'INTERNAL_UNEXPECTED')
+      return { status: row.inserted ? 201 : 200, body: invitationEntry(row) } as const
+    })
     return reply
   }))
 

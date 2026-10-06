@@ -280,7 +280,7 @@ export declare const getWorkspaceRoster: {
 };
 export declare const inviteWorkspaceMember: {
     readonly id: "inviteWorkspaceMember";
-    readonly summary: "Invite an email into a Workspace with a role; the pair is the natural key, so a new invitation of the same email refreshes it. Owner only.";
+    readonly summary: "Invite an email into a Workspace with a role; the pair is the natural key, so a new invitation of the same email refreshes it and answers 200; a new one answers 201. Owner only.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/workspaces/:workspaceId/invitations";
@@ -300,6 +300,21 @@ export declare const inviteWorkspaceMember: {
     }, z.core.$strict>;
     readonly success: {
         readonly 200: z.ZodObject<{
+            kind: z.ZodLiteral<"invitation">;
+            invitationId: z.core.$ZodBranded<z.ZodUUID, "InvitationId", "out">;
+            email: z.core.$ZodBranded<z.ZodPipe<z.ZodString, z.ZodEmail>, "EmailAddress", "out">;
+            role: z.ZodEnum<{
+                owner: "owner";
+                member: "member";
+            }>;
+            invitedAt: z.ZodISODateTime;
+            expiresAt: z.ZodISODateTime;
+            state: z.ZodEnum<{
+                PENDING: "PENDING";
+                EXPIRED: "EXPIRED";
+            }>;
+        }, z.core.$strip>;
+        readonly 201: z.ZodObject<{
             kind: z.ZodLiteral<"invitation">;
             invitationId: z.core.$ZodBranded<z.ZodUUID, "InvitationId", "out">;
             email: z.core.$ZodBranded<z.ZodPipe<z.ZodString, z.ZodEmail>, "EmailAddress", "out">;
@@ -449,7 +464,7 @@ export declare const getApplicationAccess: {
 };
 export declare const grantApplicationAccess: {
     readonly id: "grantApplicationAccess";
-    readonly summary: "Invite an email to a Project's application; the first grant fixes the application's address. The person's next sign in claims it. Owner only.";
+    readonly summary: "Invite an email to a Project's application; the first grant fixes the application's address. The person's next sign in claims it. A new invitation answers 201, a refreshed one 200. Owner only.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/projects/:projectId/application-access";
@@ -465,6 +480,17 @@ export declare const grantApplicationAccess: {
     }, z.core.$strict>;
     readonly success: {
         readonly 200: z.ZodObject<{
+            kind: z.ZodLiteral<"invitation">;
+            invitationId: z.core.$ZodBranded<z.ZodUUID, "InvitationId", "out">;
+            email: z.core.$ZodBranded<z.ZodPipe<z.ZodString, z.ZodEmail>, "EmailAddress", "out">;
+            invitedAt: z.ZodISODateTime;
+            expiresAt: z.ZodISODateTime;
+            state: z.ZodEnum<{
+                PENDING: "PENDING";
+                EXPIRED: "EXPIRED";
+            }>;
+        }, z.core.$strip>;
+        readonly 201: z.ZodObject<{
             kind: z.ZodLiteral<"invitation">;
             invitationId: z.core.$ZodBranded<z.ZodUUID, "InvitationId", "out">;
             email: z.core.$ZodBranded<z.ZodPipe<z.ZodString, z.ZodEmail>, "EmailAddress", "out">;
