@@ -48,3 +48,55 @@ test('C-020 source inspection admits current subjects and latest code-changing r
   await insertRun(otherRun, otherProject, null, 'RESPONSE_ONLY', '2026-09-14T12:00:00Z', source('f'))
   assert.equal(await store.readLatestCodeChangingBuilderRun({ accountId: account, projectId: otherProject }), null)
 })
+
+test('source inspection admits base and result revisions of an in-flight code-changing run before settlement', async (t) => {
+  const { connection, database, seedBuilderProject } = await setupBuilder(t, 'conexus_source_inspection_inflight')
+  const store = createBuilderStore({ database, ownerId: randomUUID() })
+  const account = ID.owner
+  const unauthorized = ID.outsider
+  const project = await seedBuilderProject('Project P')
+  const otherProject = await seedBuilderProject('Project Q')
+  const noResultProject = await seedBuilderProject('Project R')
+  const baseRev = source('1')
+  const resultRev = source('2')
+  const unrecordedRev = source('3')
+  const otherProjectBaseRev = source('4')
+  const otherProjectResultRev = source('5')
+  const runningWithoutResultBaseRev = source('6')
+
+  const runId = randomUUID()
+  const otherRunId = randomUUID()
+  const noResultRunId = randomUUID()
+
+  const insertRun = ({ id, projectId, base, result, state }) => query(connection, `INSERT INTO builder.builder_run(
+    builder_run_id, project_id, account_id, conversation_id, trigger_message_id, idempotency_digest, request_digest,
+    base_source_revision, state, result_source_revision, result_kind, created_at
+  ) VALUES ($1, $2, $3, $2, $4, $5, $5, $6, $7, $8, NULL, clock_timestamp())`, [
+    id, projectId, account, id, id.replaceAll('-', '').padEnd(64, '0'), base, state, result,
+  ])
+
+  await insertRun({ id: runId, projectId: project, base: baseRev, result: resultRev, state: 'RUNNING' })
+  await insertRun({ id: otherRunId, projectId: otherProject, base: otherProjectBaseRev, result: otherProjectResultRev, state: 'RUNNING' })
+  await insertRun({ id: noResultRunId, projectId: noResultProject, base: runningWithoutResultBaseRev, result: null, state: 'RUNNING' })
+
+  const admit = (revision, subject = project, actor = account, main = resultRev) =>
+    store.admitSourceRevision({ accountId: actor, projectId: subject, sourceRevision: revision, readMain: async () => main })
+
+  // Literal values: run in RUNNING with base B, result R; main = R; no Preview at B
+  assert.equal(await admit(baseRev), true)
+  assert.equal(await admit(resultRev), true)
+
+  // Revision no run records is false
+  assert.equal(await admit(unrecordedRev), false)
+
+  // Revision recorded only by a run of another Project is false
+  assert.equal(await admit(otherProjectBaseRev), false)
+  assert.equal(await admit(otherProjectResultRev), false)
+
+  // RUNNING run with null result_source_revision does not admit its base
+  assert.equal(await store.admitSourceRevision({ accountId: account, projectId: noResultProject, sourceRevision: runningWithoutResultBaseRev, readMain: async () => source('9') }), false)
+
+  // Unauthorized actor cannot admit
+  assert.equal(await admit(baseRev, project, unauthorized), false)
+})
+

@@ -83,7 +83,13 @@ export const createPreviewState = ({ database, registry }: Readonly<{ database: 
           SELECT 1 AS present FROM builder.project_working_state WHERE project_id = ${scope.projectId} AND last_preview_source_revision = ${sourceRevision}`)
         if (preview) return true
         const change = await latestChange(tx, scope.projectId)
-        return change !== null && (change.base_source_revision === sourceRevision || change.result_source_revision === sourceRevision)
+        if (change !== null && (change.base_source_revision === sourceRevision || change.result_source_revision === sourceRevision)) return true
+        const inFlight = await tx.maybe(z.object({ present: z.literal(1) }), sql`
+          SELECT 1 AS present FROM builder.builder_run
+          WHERE project_id = ${scope.projectId} AND state = 'RUNNING' AND result_source_revision IS NOT NULL
+            AND (base_source_revision = ${sourceRevision} OR result_source_revision = ${sourceRevision})
+          LIMIT 1`)
+        return inFlight !== null
       }).catch((error: unknown) => {
         if (error instanceof Failure && error.id === 'PROJECT_NOT_FOUND') return false
         throw error
