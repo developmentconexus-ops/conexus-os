@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { failureText, HubFailure, isFailure, readFailure } from '../../apps/web/src/app/failure.ts'
-import { FAILURES } from '../../packages/contract/dist/failures.generated.js'
+import { FAILURES } from '@conexus/contract'
 
 const problem = (body, status = 409) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status })
 

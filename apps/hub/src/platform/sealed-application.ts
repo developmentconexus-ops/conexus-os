@@ -1,4 +1,4 @@
-import type { ArtifactDigest, ProjectId, SourceRevision } from '../../../../packages/contract/dist/index.js'
+import type { ArtifactDigest, ProjectId, SourceRevision } from '@conexus/contract'
 
 /**
  * A build checked and hashed before the runner. The registry's `seal` makes them and records each

@@ -1,4 +1,4 @@
-import type { AccountId, ConversationId, ExecutionId, ProjectId, SourceRevision } from '../../../../../packages/contract/dist/index.js'
+import type { AccountId, ConversationId, ExecutionId, ProjectId, SourceRevision } from '@conexus/contract'
 import type { CommandResult, ExecuteCommandOptions } from '@mastra/core/workspace'
 import { CHECK_NODE_PATH } from '../application-check.js'
 import { checkEntryPath, installCheck } from '../check-delivery.js'

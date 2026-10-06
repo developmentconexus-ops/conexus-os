@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { AccountId, BuilderRunId, ConversationId, ProjectId, SourceRevision } from '../../../../packages/contract/dist/index.js'
+import type { AccountId, BuilderRunId, ConversationId, ProjectId, SourceRevision } from '@conexus/contract'
 import { admitSystem } from '../identity-access/admission.js'
 import { sql, type Database } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'

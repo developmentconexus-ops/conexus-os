@@ -1,4 +1,4 @@
-import type { ExecutionId, ProjectId, SourceRevision } from '../../packages/contract/dist/index.js'
+import type { ExecutionId, ProjectId, SourceRevision } from '@conexus/contract'
 import { candidateSnapshot, mirrorSnapshot } from '../../apps/hub/src/builder/conexus-git.js'
 
 declare const execution: ExecutionId

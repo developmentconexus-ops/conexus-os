@@ -1,4 +1,4 @@
-import { ExecutionId, type AccountId, type BuilderRunId, type ProjectId, type SourceRevision } from '../../../../../packages/contract/dist/index.js'
+import { ExecutionId, type AccountId, type BuilderRunId, type ProjectId, type SourceRevision } from '@conexus/contract'
 import { APPLICATION_CHECK_EXCLUDED } from '../application-starter.js'
 import type { ApplicationServerPort, BuilderRegistry } from '../application-build.js'
 import { agentReportOf } from '../check/report.js'

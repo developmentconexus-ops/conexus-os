@@ -2,15 +2,13 @@ import type {
   FastifyInstance, onRequestHookHandler, FastifyRequest, FastifySchema, HTTPMethods, RawReplyDefaultExpression, RawRequestDefaultExpression, RawServerDefault,
   RouteGenericInterface, RouteHandlerMethod, RouteOptions,
 } from 'fastify'
-import { fieldFailures } from '../../../../packages/contract/dist/index.js'
-import type { AnyOperation, EffectsOf, Input, Out, Reply } from '../../../../packages/contract/dist/index.js'
+import type { AnyOperation, EffectsOf, Input, Out, Reply } from '@conexus/contract'
 import type { z } from 'zod'
 import { z as zod } from 'zod'
 import { clearCookie } from './cookies.js'
 import { bootstrapToken, hubSessionDigest } from '../identity-access/current-session.js'
 import type { BootstrapToken, CurrentSession, HubSession, HubSessionDigest } from '../identity-access/current-session.js'
-import { Failure } from '../platform/failure.js'
-import { FAILURE_STATUS as HUB_FAILURES } from '../../../../packages/contract/dist/failures.generated.js'
+import { Failure, type FailureCode } from '../platform/failure.js'
 import { parseOpaqueToken } from '../platform/opaque-token.js'
 import { readCredentialCookie } from './cookies.js'
 
@@ -170,20 +168,6 @@ declare module 'fastify' {
 }
 
 const missing = (invariant: string): Failure => new Failure('INTERNAL_UNEXPECTED', { details: { invariant } })
-// Only the malformed table of an operation reaches here untyped: it is read by a runtime key from an erased generic.
-const isHubFailureCode = (code: unknown): code is keyof typeof HUB_FAILURES => typeof code === 'string' && Object.hasOwn(HUB_FAILURES, code)
-
-/** The schema of one body field. A union body is read through the option its discriminator selects. */
-const shapeField = (object: zod.ZodObject, field: string): zod.ZodType | undefined => Object.entries(object.shape).find(([key]) => key === field)?.[1]
-
-const bodyField = (body: zod.ZodType | null, value: unknown, field: string): zod.ZodType | undefined => {
-  if (body instanceof zod.ZodObject) return shapeField(body, field)
-  if (!(body instanceof zod.ZodDiscriminatedUnion) || typeof value !== 'object' || value === null) return undefined
-  const discriminator = body.def.discriminator
-  const selected = Object.entries(value).find(([key]) => key === discriminator)?.[1]
-  const option = body.options.find((candidate) => candidate instanceof zod.ZodObject && shapeField(candidate, discriminator)?.safeParse(selected).success)
-  return option instanceof zod.ZodObject ? shapeField(option, field) : undefined
-}
 
 /** @public */
 export const grantOf = <Kind extends AccessKind>(request: FastifyRequest, kind: Kind): Grants[Kind] => {
@@ -307,22 +291,15 @@ export const routes = (app: FastifyInstance) => {
         if (part === null) return { value }
         const parsed = part.safeParse(value)
         if (parsed.success) return { value: parsed.data }
-        if (httpPart === 'params') {
-          const name = parsed.error.issues[0]?.path[0]
-          const code = typeof name === 'string' && op.malformed ? Object.entries(op.malformed).find(([key]) => key === name)?.[1] : undefined
-          if (isHubFailureCode(code)) return { error: new Failure(code) }
-        }
-        if (httpPart === 'headers' && op.headers instanceof zod.ZodObject) {
-          const schema = op.headers.shape['idempotency-key']
-          const code = schema ? fieldFailures.get(schema)?.failureCode : undefined
-          const raw = typeof value === 'object' && value !== null && 'idempotency-key' in value ? value['idempotency-key'] : undefined
-          if (code && (raw === undefined || raw === '')) return { error: new Failure(code) }
-        }
-        if (httpPart === 'body') {
-          const field = parsed.error.issues[0]?.path[0]
-          const schema = typeof field === 'string' ? bodyField(op.body, value, field) : undefined
-          const code = schema ? fieldFailures.get(schema)?.failureCode : undefined
+        const malformed: Readonly<Record<string, FailureCode>> | null = op.malformed
+        const refused = (name: unknown): FailureCode | undefined => (typeof name === 'string' && malformed !== null && Object.hasOwn(malformed, name) ? malformed[name] : undefined)
+        if (httpPart === 'params' || httpPart === 'body') {
+          const code = refused(parsed.error.issues[0]?.path[0])
           if (code) return { error: new Failure(code) }
+        }
+        if (httpPart === 'headers' && op.headers instanceof zod.ZodObject && 'idempotency-key' in op.headers.shape) {
+          const raw = typeof value === 'object' && value !== null && 'idempotency-key' in value ? value['idempotency-key'] : undefined
+          if (raw === undefined || raw === '') return { error: new Failure('IDEMPOTENCY_KEY_REQUIRED') }
         }
         return { error: parsed.error }
       },

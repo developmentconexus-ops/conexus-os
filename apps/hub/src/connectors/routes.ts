@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import {
   listWorkspaceConnections, createWorkspaceConnection, checkWorkspaceConnection, disableWorkspaceConnection, listProjectConnectionBindings, bindProjectConnection, unbindProjectConnection,
   type AccountId, type ConnectionCheckOutcome, type ConnectionId, type Reply, type WorkspaceId,
-} from '../../../../packages/contract/dist/index.js'
+} from '@conexus/contract'
 import { routes } from '../http/access.js'
 import type { ConnectorStore } from './store.js'
 

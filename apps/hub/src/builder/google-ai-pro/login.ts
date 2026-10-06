@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { Failure } from '../../platform/failure.js'
 import { encodeKey, type GoogleAiProKey, isAuthFileName } from './credential.js'
 import type { CliproxyPool, LoginInstance } from './pool.js'
-import { ModelLoginId, type AccountId } from '../../../../../packages/contract/dist/index.js'
+import { ModelLoginId, type AccountId } from '@conexus/contract'
 import type { ConnectResult } from '../model-account/accounts.js'
 
 type LoginState = 'waiting' | 'succeeded' | 'failed' | 'expired'
@@ -87,12 +87,16 @@ export const createGoogleAiProLogin = <C extends Caller>({ pool, connect, timeou
     return finish(attempt, (await connect(attempt.caller, key)).ok ? 'succeeded' : 'failed')
   }
 
-  const status = async (caller: C, loginId: ModelLoginId): Promise<LoginState> => {
-    const attempt = own(caller, loginId)
-    if (!attempt) return 'expired'
+  const outcomeOf = async (attempt: Attempt<C>): Promise<LoginState> => {
     if (attempt.outcome !== 'waiting') return attempt.outcome
     attempt.settling ??= settle(attempt).finally(() => { attempt.settling = undefined })
     return attempt.settling
+  }
+
+  const status = async (caller: C, loginId: ModelLoginId): Promise<LoginState> => {
+    const attempt = own(caller, loginId)
+    if (!attempt) throw new Failure('MODEL_LOGIN_NOT_FOUND')
+    return outcomeOf(attempt)
   }
 
   const start = async (caller: C): Promise<Readonly<{ loginId: ModelLoginId; url: string }>> => {
@@ -144,7 +148,7 @@ export const createGoogleAiProLogin = <C extends Caller>({ pool, connect, timeou
       !(callback.searchParams.get('code') || callback.searchParams.get('error'))) throw new Failure('MODEL_LOGIN_CALLBACK_REFUSED')
     const answer = await management(attempt.instance, '/oauth-callback', { provider: 'antigravity', redirect_url: callback.href })
     if (answer.status !== 'ok') return finish(attempt, 'failed')
-    return status(caller, loginId)
+    return outcomeOf(attempt)
   }
 
   return Object.freeze({ start, complete, status })

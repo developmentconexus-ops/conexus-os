@@ -1,9 +1,9 @@
 import { z } from 'zod'
-import { BuilderRunSummary as BuilderRunSummarySchema, BuilderRunId, ConversationId, FAILURE_CODES, ProjectId, SourceRevision, type BuilderRunSummary } from '../../../../packages/contract/dist/index.js'
+import { BuilderRunSummary as BuilderRunSummarySchema, BuilderRunId, ConversationId, FAILURE_CODES, ProjectId, SourceRevision, type BuilderRunSummary } from '@conexus/contract'
 import { BUILDER_RUN_PHASES, BUILDER_RUN_RESULT_KINDS, BUILDER_RUN_STATES } from '../generated/builder-run-vocabulary.js'
 import { sql } from '../platform/db.js'
 
-export type { BuilderRunSummary, BuilderRunView } from '../../../../packages/contract/dist/index.js'
+export type { BuilderRunSummary, BuilderRunView } from '@conexus/contract'
 
 /** The result kinds of a run that changed the source. */
 export const CODE_CHANGING_RESULT_KINDS = BUILDER_RUN_RESULT_KINDS.filter((kind) => kind !== 'RESPONSE_ONLY')

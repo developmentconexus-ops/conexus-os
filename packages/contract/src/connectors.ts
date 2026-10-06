@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import type { FailureCode } from './failures.generated.js'
-import { fieldFailures } from './field-failures.js'
 import { BindingId, ConnectionId, ProjectId, WorkspaceId } from './ids.js'
 import { operation } from './operation.js'
 
@@ -16,13 +15,13 @@ export const ConnectorIdText = z.string().regex(CONNECTOR_ID_PATTERN).meta({ id:
 export const BindingName = z.string().regex(BINDING_NAME_PATTERN).brand<'BindingName'>().meta({ id: 'BindingName' })
 export type BindingName = z.output<typeof BindingName>
 
-export const ConnectionLabel = z.string().trim().min(1).max(200).register(fieldFailures, { failureCode: 'CONNECTOR_LABEL_REFUSED' })
+export const ConnectionLabel = z.string().trim().min(1).max(200)
 
 export const SankhyaCredential = z.strictObject({
   clientId: z.string().min(1).max(200).meta({ writeOnly: true }),
   clientSecret: z.string().min(1).max(500).meta({ writeOnly: true }),
   xToken: z.string().min(1).max(500).meta({ writeOnly: true }),
-}).meta({ id: 'SankhyaCredential' }).register(fieldFailures, { failureCode: 'CONNECTOR_CREDENTIAL_REFUSED' })
+}).meta({ id: 'SankhyaCredential' })
 export type SankhyaCredential = z.output<typeof SankhyaCredential>
 
 /** The credential schema of each registered connector. */
@@ -83,7 +82,7 @@ export const createWorkspaceConnection = operation({
   success: { 201: ConnectorConnection, 200: ConnectorConnection },
   effects: [],
   failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED', 'CONNECTOR_WORKSPACE_NOT_FOUND', 'CONNECTOR_LABEL_REFUSED', 'CONNECTOR_CREDENTIAL_REFUSED', 'CONNECTOR_CONNECTION_CONFLICT'],
-  malformed: { workspaceId: 'CONNECTOR_WORKSPACE_NOT_FOUND' },
+  malformed: { workspaceId: 'CONNECTOR_WORKSPACE_NOT_FOUND', label: 'CONNECTOR_LABEL_REFUSED', credential: 'CONNECTOR_CREDENTIAL_REFUSED' },
 })
 
 export const checkWorkspaceConnection = operation({

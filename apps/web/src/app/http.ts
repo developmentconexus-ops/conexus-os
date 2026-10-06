@@ -2,7 +2,7 @@
 
 import { HubFailure, readFailure } from './failure.ts'
 import { clearAuthorityCache } from './query-client'
-import type { AnyOperation, BinaryOperation, Input, JsonOperation, Result } from '../../../../packages/contract/dist/index.js'
+import type { AnyOperation, BinaryOperation, Input, JsonOperation, Result } from '@conexus/contract'
 
 const urlOf = (op: AnyOperation, input: Input<AnyOperation>): string => {
   const params = input.params

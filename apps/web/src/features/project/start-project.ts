@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRef } from 'react'
 import { sendBuilderMessage } from '../builder/api'
 import { applyThreadSettings, openConversation, type ReasoningLevel } from '../builder/mastra-session'
-import { IdempotencyKey, listProjects, listProjectSummaries, type ProjectCreated } from '../../../../../packages/contract/dist/index.js'
+import { IdempotencyKey, listProjects, listProjectSummaries, type ProjectCreated } from '@conexus/contract'
 import { createProject } from './api'
 import { failureText, isFailure } from '../../app/http'
 

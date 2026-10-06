@@ -158,13 +158,9 @@ function isPublicPackageEntry(path) {
   return /^packages\/[^/]+\/src\/index\.(?:mjs|mts|js|ts)$/.test(path)
 }
 
-function isContractEntry(path) {
-  return /^packages\/contract\/dist\/(?:index|failures\.generated)\.js$/.test(path)
-}
-
 function isAllowedRelativeTarget(source, target) {
   const app = source.match(/^apps\/([^/]+)\/src\//)?.[1]
-  if (app) return target.startsWith(`apps/${app}/src/`) || isPublicPackageEntry(target) || isContractEntry(target)
+  if (app) return target.startsWith(`apps/${app}/src/`) || isPublicPackageEntry(target)
   const sourcePackage = packageName(source)
   if (sourcePackage) return target.startsWith(`packages/${sourcePackage}/src/`) || isPublicPackageEntry(target)
   return false
@@ -232,6 +228,10 @@ export function checkImportLaw(rootDirectory) {
         violations.push(violation('IMPORT_OWNER_TO_OWNER', source, specifier, 'semantic owners cannot deep-import one another'))
       }
 
+      if (specifier.startsWith('@conexus/contract/') || (target.startsWith('packages/contract/') && packageName(source) !== 'contract')) {
+        violations.push(violation('IMPORT_PACKAGE_DEEP', source, specifier, 'the contract is imported as @conexus/contract, never by a path into the package'))
+      }
+
       const packageMatch = target.match(/^packages\/([^/]+)\/src\/(.+)$/)
       if (packageMatch && packageName(source) !== packageMatch[1] &&
           !/^index\.(?:mjs|mts|js|ts)$/.test(packageMatch[2])) {
@@ -264,7 +264,7 @@ export function checkImportLaw(rootDirectory) {
         }
       }
       if (source.startsWith('apps/hub/src/http/') && isRelative &&
-          !target.startsWith('apps/hub/src/http/') && !HTTP_TARGETS.has(target) && !isContractEntry(target)) {
+          !target.startsWith('apps/hub/src/http/') && !HTTP_TARGETS.has(target)) {
         violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'HTTP mechanics cannot import semantic owners, generated contracts, or platform internals'))
       }
       if (source === 'apps/hub/src/identity-access/routes.ts' && isRelative) {
@@ -302,7 +302,6 @@ export function checkImportLaw(rootDirectory) {
         const allowed = [
           'apps/hub/src/http/problem.',
           'apps/hub/src/platform/failure.',
-          'packages/contract/dist/index.',
           'apps/hub/src/workspace/',
           'apps/hub/src/identity-access/current-session.',
           'apps/hub/src/http/access.',
@@ -314,7 +313,6 @@ export function checkImportLaw(rootDirectory) {
       }
       if (source === 'apps/hub/src/workspace/store.ts' && isRelative) {
         const allowed = [
-          'packages/contract/dist/index.',
           'apps/hub/src/platform/db.',
           'apps/hub/src/platform/receipt.',
           'apps/hub/src/identity-access/admission.',
@@ -324,7 +322,7 @@ export function checkImportLaw(rootDirectory) {
         }
       }
       if (source.startsWith('apps/hub/src/platform/') && isRelative &&
-          !target.startsWith('apps/hub/src/platform/') && !isContractEntry(target) &&
+          !target.startsWith('apps/hub/src/platform/') &&
           !(source === 'apps/hub/src/platform/receipt.ts' && (target === ADMISSION_CONTRACT || target === 'packages/canonical-json/src/index.mjs'))) {
         violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'platform adapters may share platform code but cannot import application layers'))
       }

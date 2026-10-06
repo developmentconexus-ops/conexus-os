@@ -1,6 +1,6 @@
 import { type QueryClient, useQuery } from '@tanstack/react-query'
 import { type BuilderRun, type BuilderSession, getBuilderSession } from './api'
-import type { BuilderRunView } from '../../../../../packages/contract/dist/index.js'
+import type { BuilderRunView } from '@conexus/contract'
 import { isActive, isWaiting } from './construir/run-state'
 
 // One cache entry holds the Project's run, written by two sources: the builder-session read, and the

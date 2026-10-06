@@ -7,7 +7,7 @@ import type { HeldAccount, ModelAccounts, ModelRole } from './model-account/acco
 import { isRouterPrefix, type MODEL_PROVIDERS, type Lawful } from './model-account/providers.js'
 import { Failure } from '../platform/failure.js'
 import { requireRunContext } from './run-context.js'
-import type { AccountId, BuilderRunId, ConversationId, ModelAccountId, ModelAccountProvider, ProjectId } from '../../../../packages/contract/dist/index.js'
+import type { AccountId, BuilderRunId, ConversationId, ModelAccountId, ModelAccountProvider, ProjectId } from '@conexus/contract'
 
 type Taken = Readonly<{ modelProvider: string; model(modelName: string, thinkingLevel?: ThinkingLevelSetting): Promise<MastraModelConfig> }>
 

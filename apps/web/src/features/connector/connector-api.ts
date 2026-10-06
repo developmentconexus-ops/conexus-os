@@ -5,7 +5,7 @@ import {
   createWorkspaceConnection as createWorkspaceConnectionOperation, checkWorkspaceConnection as checkWorkspaceConnectionOperation, disableWorkspaceConnection as disableWorkspaceConnectionOperation, bindProjectConnection as bindProjectConnectionOperation, unbindProjectConnection as unbindProjectConnectionOperation,
   BindingId, ConnectionId, listWorkspaceConnections, listProjectConnectionBindings, ProjectId, WorkspaceId,
   type ConnectionBinding, type ConnectionBindingEntry, type ConnectionCheckOutcome, type Input,
-} from '../../../../../packages/contract/dist/index.js'
+} from '@conexus/contract'
 
 const noInput = { query: undefined, headers: undefined } as const
 const workspaceParams = (workspaceId: string) => ({ workspaceId: routeParam(WorkspaceId, workspaceId) })

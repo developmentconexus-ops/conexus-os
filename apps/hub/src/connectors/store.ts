@@ -2,7 +2,7 @@ import { z } from 'zod'
 import {
   BindingId, BindingName, ConnectionId, ConnectorIdText, type ProjectId,
   type AccountId, type createWorkspaceConnection, type FailureCode, type bindProjectConnection, type ConnectionBinding, type ConnectionBindingEntry, type ConnectorConnection, type Input, type WorkspaceId,
-} from '../../../../packages/contract/dist/index.js'
+} from '@conexus/contract'
 import {
   admitInstallationAdministrator, admitProject, checkApplication, isInstallationAdministrator,
   type Admitted, type SystemScope,

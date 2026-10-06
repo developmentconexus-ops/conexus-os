@@ -1,4 +1,4 @@
-import type { SourceRevision } from '../../../../packages/contract/dist/index.js'
+import type { SourceRevision } from '@conexus/contract'
 import type { ApplicationCheckRun, CompiledApplication, CompiledApplicationThumbnail } from './application-artifact-runtime.js'
 import { failedBootStep, failedStepEvidence, refusingStep, unrenderedBootStep } from './application-check.js'
 import { Failure } from '../platform/failure.js'

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { expect } from '@playwright/test'
-import { FAILURES } from '../../packages/contract/dist/failures.generated.js'
+import { FAILURES } from '@conexus/contract'
 import { liveFlow } from './harness.mjs'
 
 const REQUEST = 'Crie uma planilha de despesas da viagem'

@@ -1,4 +1,4 @@
-import type { AccountId, ApplicationFilePath, ArtifactRevisionId, ProjectId, SourceRevision } from '../../../../packages/contract/dist/index.js'
+import type { AccountId, ApplicationFilePath, ArtifactRevisionId, ProjectId, SourceRevision } from '@conexus/contract'
 import { checkApplication, type Admitted, type ProjectScope } from '../identity-access/admission.js'
 import type { Database } from '../platform/db.js'
 import { purge, retain } from './retain.js'

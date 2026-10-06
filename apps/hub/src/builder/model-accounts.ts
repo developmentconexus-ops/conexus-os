@@ -7,7 +7,7 @@ import type { FastifyInstance } from 'fastify'
 import {
   listAvailableModels, listModelAccounts, setModelAccountApiKey, startClaudeModelLogin, completeClaudeModelLogin, startCodexModelLogin, pollCodexModelLogin, getGoogleModelConnection, startGoogleModelLogin, completeGoogleModelLogin, getGoogleModelLoginStatus,
   ModelLoginId, type AccountId, type ModelAccountProvider, type OfferedModel,
-} from '../../../../packages/contract/dist/index.js'
+} from '@conexus/contract'
 import { Failure } from '../platform/failure.js'
 import { serializeClaudeTokens } from './anthropic/credential.js'
 import { createClaudeLogin, type ClaudeAuthorization } from './anthropic/login.js'

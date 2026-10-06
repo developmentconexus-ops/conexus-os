@@ -1,4 +1,4 @@
-import { SourceRevision as SourceRevisionSchema, type BuilderRunId, type ProjectId, type SourceRevision } from '../../../../../packages/contract/dist/index.js'
+import { SourceRevision as SourceRevisionSchema, type BuilderRunId, type ProjectId, type SourceRevision } from '@conexus/contract'
 import { RECIPE_SHA256, TEMPLATE_REF } from '../application-artifact-runtime.js'
 import { prepareApplicationServer } from '../application-build.js'
 import type { ApplicationServerPort, BuilderRegistry } from '../application-build.js'
@@ -12,7 +12,7 @@ import type { BuilderRunPhase } from '../../generated/builder-run-vocabulary.js'
 import { Failure, type FailureCode, toFailure } from '../../platform/failure.js'
 import { FAILURES } from '../../platform/failures.generated.js'
 import type { DiagnosticAppender, SettledNote } from './ports.js'
-import type { ConversationId } from '../../../../../packages/contract/dist/index.js'
+import type { ConversationId } from '@conexus/contract'
 
 /**
  * The last step a stop can prevent. The candidate is recorded before `main` moves, so a restart

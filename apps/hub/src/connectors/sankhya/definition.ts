@@ -1,4 +1,4 @@
-import { SankhyaCredential } from '../../../../../packages/contract/dist/index.js'
+import { SankhyaCredential } from '@conexus/contract'
 import type { ConnectorDefinition } from '../integrator.js'
 import { sankhyaNativeProtocol } from './gateway.js'
 

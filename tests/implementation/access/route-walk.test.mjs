@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { OPERATIONS } from '../../../packages/contract/dist/index.js'
+import { OPERATIONS } from '@conexus/contract'
 import { LEDGER } from './route-ledger.mjs'
 import { HUB_ORIGIN, bootstrapCookie, hubSessionCookie } from './test-listener.mjs'
 import {

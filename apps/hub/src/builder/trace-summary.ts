@@ -2,7 +2,7 @@ import type { ScoreRowData } from '@mastra/core/evals'
 import { SpanType } from '@mastra/core/observability'
 import type { SpanRecord } from '@mastra/core/storage'
 import { z } from 'zod'
-import type { BuilderTraceScore, BuilderTraceSpan, BuilderTraceSummary, BuilderTraceUsage } from '../../../../packages/contract/dist/index.js'
+import type { BuilderTraceScore, BuilderTraceSpan, BuilderTraceSummary, BuilderTraceUsage } from '@conexus/contract'
 
 // The fields of Mastra's stored span and score records this summary reads, so a plain object with
 // those fields maps the same as a stored record.

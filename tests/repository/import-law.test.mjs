@@ -55,6 +55,13 @@ test('every import-law RED control fires its named rule', async (suite) => {
       'apps/hub/src/server.ts': 'import "../../../packages/two/src/internal.mjs"',
       'packages/two/src/internal.mjs': '',
     }],
+    ['IMPORT_PACKAGE_DEEP contract by relative path', {
+      'apps/web/src/main.ts': 'import "../../../packages/contract/src/index.js"',
+      'packages/contract/src/index.ts': '',
+    }],
+    ['IMPORT_PACKAGE_DEEP contract by package subpath', {
+      'apps/hub/src/server.ts': 'import "@conexus/contract/dist/index.js"',
+    }],
     ['IMPORT_LAYER_MATRIX server branch', {
       'apps/hub/src/server.ts': 'import "./identity-access/store.js"',
       'apps/hub/src/identity-access/store.ts': '',

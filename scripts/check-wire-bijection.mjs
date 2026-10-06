@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { OPERATIONS } from '../packages/contract/dist/index.js';
+import { OPERATIONS } from '@conexus/contract';
 
 const bundledProductOas = () => {
   if (process.env.CONEXUS_PRODUCT_OAS_BUNDLE) return JSON.parse(fs.readFileSync(process.env.CONEXUS_PRODUCT_OAS_BUNDLE, 'utf8'));
