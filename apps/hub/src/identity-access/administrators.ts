@@ -63,6 +63,7 @@ export const registerAdministratorRoutes = async (app: FastifyInstance, database
   }))
 
   // An email names one active account or none: two active accounts with the same email are refused, never guessed between.
+  // An account that already holds a tenure keeps it: the add answers 200 with that tenure and grants nothing.
   route.operation(addInstallationAdministrator, async ({ headers, body }, session) => {
     const { reply, replayed } = await database.transaction(session.account.accountId, async (gate) => {
       const proof = await admitInstallationAdministrator(gate, 'administrators.manage')
@@ -71,15 +72,16 @@ export const registerAdministratorRoutes = async (app: FastifyInstance, database
         const [match] = matches
         if (!match) throw new Failure('ACCOUNT_NOT_FOUND')
         if (matches.length > 1) throw new Failure('ACCOUNT_EMAIL_AMBIGUOUS')
-        await proof.tx.run(sql`
+        const granted = await proof.tx.maybe(Match, sql`
           INSERT INTO iam.installation_administrator (account_id, granted_via, granted_by) VALUES (${match.account_id}, 'ADMINISTRATOR', ${proof.scope.accountId})
-          ON CONFLICT (account_id) WHERE revoked_at IS NULL DO NOTHING`)
+          ON CONFLICT (account_id) WHERE revoked_at IS NULL DO NOTHING
+          RETURNING account_id`)
         const [entry] = await entries(proof.tx, sql` AND tenure.account_id = ${match.account_id}`)
         if (!entry) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'TENURE_NOT_READABLE' } })
-        return entryOf(entry)
+        return granted ? { status: 201 as const, body: entryOf(entry) } : { status: 200 as const, body: entryOf(entry) }
       })
     })
-    if (!replayed) tenureGranted(reply.accountId, reply.grantedVia)
+    if (!replayed && reply.status === 201) tenureGranted(reply.body.accountId, reply.body.grantedVia)
     return reply
   })
 

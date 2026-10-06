@@ -566,7 +566,7 @@ export declare const listInstallationAdministrators: {
 };
 export declare const addInstallationAdministrator: {
     readonly id: "addInstallationAdministrator";
-    readonly summary: "Make the one active account with this email an installation administrator; installation administrator only.";
+    readonly summary: "Make the one active account with this email an installation administrator: 201 when it gets a tenure, 200 with the tenure it already holds. Installation administrator only.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/installation/administrators";
@@ -579,6 +579,23 @@ export declare const addInstallationAdministrator: {
         email: z.core.$ZodBranded<z.ZodPipe<z.ZodString, z.ZodEmail>, "EmailAddress", "out">;
     }, z.core.$strict>;
     readonly success: {
+        readonly 200: z.ZodDiscriminatedUnion<[z.ZodObject<{
+            grantedVia: z.ZodLiteral<"OPERATOR_BOOTSTRAP">;
+            accountId: z.core.$ZodBranded<z.ZodUUID, "AccountId", "out">;
+            displayName: z.ZodString;
+            email: z.ZodOptional<z.core.$ZodBranded<z.ZodPipe<z.ZodString, z.ZodEmail>, "EmailAddress", "out">>;
+            grantedAt: z.ZodISODateTime;
+        }, z.core.$strip>, z.ZodObject<{
+            grantedVia: z.ZodLiteral<"ADMINISTRATOR">;
+            grantedBy: z.ZodObject<{
+                accountId: z.core.$ZodBranded<z.ZodUUID, "AccountId", "out">;
+                displayName: z.ZodString;
+            }, z.core.$strip>;
+            accountId: z.core.$ZodBranded<z.ZodUUID, "AccountId", "out">;
+            displayName: z.ZodString;
+            email: z.ZodOptional<z.core.$ZodBranded<z.ZodPipe<z.ZodString, z.ZodEmail>, "EmailAddress", "out">>;
+            grantedAt: z.ZodISODateTime;
+        }, z.core.$strip>], "grantedVia">;
         readonly 201: z.ZodDiscriminatedUnion<[z.ZodObject<{
             grantedVia: z.ZodLiteral<"OPERATOR_BOOTSTRAP">;
             accountId: z.core.$ZodBranded<z.ZodUUID, "AccountId", "out">;

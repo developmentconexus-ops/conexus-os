@@ -393,7 +393,7 @@ export declare const OPERATIONS: {
     };
     readonly addInstallationAdministrator: {
         readonly id: "addInstallationAdministrator";
-        readonly summary: "Make the one active account with this email an installation administrator; installation administrator only.";
+        readonly summary: "Make the one active account with this email an installation administrator: 201 when it gets a tenure, 200 with the tenure it already holds. Installation administrator only.";
         readonly access: "session";
         readonly method: "POST";
         readonly path: "/api/control/installation/administrators";
@@ -406,6 +406,23 @@ export declare const OPERATIONS: {
             email: import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">;
         }, import("zod/v4/core").$strict>;
         readonly success: {
+            readonly 200: import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
+                grantedVia: import("zod").ZodLiteral<"OPERATOR_BOOTSTRAP">;
+                accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;
+                displayName: import("zod").ZodString;
+                email: import("zod").ZodOptional<import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">>;
+                grantedAt: import("zod").ZodISODateTime;
+            }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+                grantedVia: import("zod").ZodLiteral<"ADMINISTRATOR">;
+                grantedBy: import("zod").ZodObject<{
+                    accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;
+                    displayName: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>;
+                accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;
+                displayName: import("zod").ZodString;
+                email: import("zod").ZodOptional<import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">>;
+                grantedAt: import("zod").ZodISODateTime;
+            }, import("zod/v4/core").$strip>], "grantedVia">;
             readonly 201: import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
                 grantedVia: import("zod").ZodLiteral<"OPERATOR_BOOTSTRAP">;
                 accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;

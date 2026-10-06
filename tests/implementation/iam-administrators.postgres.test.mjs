@@ -30,7 +30,10 @@ test('administrators: listed with how each became one, added by one active email
   const added = await add(founder, 'bia@x.com', 'a3')
   assert.equal(added.statusCode, 201)
   assert.deepEqual({ ...added.json(), grantedAt: undefined }, { accountId: BIA, displayName: 'Bia', email: 'bia@x.com', grantedVia: 'ADMINISTRATOR', grantedBy: { accountId: leandro, displayName: 'Leandro' }, grantedAt: undefined })
-  assert.equal((await add(founder, 'bia@x.com', 'a3')).body, added.body)
+  const replayed = await add(founder, 'bia@x.com', 'a3')
+  assert.deepEqual([replayed.statusCode, replayed.body], [201, added.body])
+  const held = await add(founder, 'bia@x.com', 'a4')
+  assert.deepEqual([held.statusCode, held.body], [200, added.body])
   assert.equal(problemOf(await add(founder, 'caio@x.com', 'a3')), '409 IDEMPOTENCY_CONFLICT')
   assert.deepEqual(lines.of('INSTALLATION_ADMINISTRATOR_GRANTED').map((fields) => fields.grantedVia), ['OPERATOR_BOOTSTRAP', 'ADMINISTRATOR'])
 

@@ -1960,7 +1960,7 @@
       },
       "post": {
         "operationId": "addInstallationAdministrator",
-        "summary": "Make the one active account with this email an installation administrator; installation administrator only.",
+        "summary": "Make the one active account with this email an installation administrator: 201 when it gets a tenure, 200 with the tenure it already holds. Installation administrator only.",
         "parameters": [
           {
             "name": "idempotency-key",
@@ -1991,6 +1991,16 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "Success 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdministratorEntry"
+                }
+              }
+            }
+          },
           "201": {
             "description": "Success 201",
             "content": {

@@ -201,10 +201,10 @@ export const listInstallationAdministrators = operation({
 })
 
 export const addInstallationAdministrator = operation({
-  id: 'addInstallationAdministrator', summary: 'Make the one active account with this email an installation administrator; installation administrator only.', access: 'session', method: 'POST', path: '/api/control/installation/administrators',
+  id: 'addInstallationAdministrator', summary: 'Make the one active account with this email an installation administrator: 201 when it gets a tenure, 200 with the tenure it already holds. Installation administrator only.', access: 'session', method: 'POST', path: '/api/control/installation/administrators',
   params: null, query: null, headers: keyed,
   body: z.object({ email: EmailAddress }).strict(),
-  success: { 201: AdministratorEntry },
+  success: { 200: AdministratorEntry, 201: AdministratorEntry },
   effects: [], failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED', 'EMAIL_INVALID', 'ACCOUNT_NOT_FOUND', 'ACCOUNT_EMAIL_AMBIGUOUS', 'IDEMPOTENCY_CONFLICT'],
   malformed: { email: 'EMAIL_INVALID' },
 })
