@@ -33,7 +33,7 @@ GRANT SELECT ON model.model_account TO hub_command;
 GRANT INSERT (kind, owner_account_id, provider, secret) ON model.model_account TO hub_command;
 GRANT UPDATE (kind, secret, updated_at) ON model.model_account TO hub_command;
 
-DROP OWNED BY hub_model_account;
+REVOKE USAGE ON SCHEMA model FROM hub_model_account;
 DROP ROLE hub_model_account;
 
 COMMIT;
