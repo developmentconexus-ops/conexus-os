@@ -15,7 +15,7 @@ each transaction, the [API guide](../product/wire-contract.md) for the wire, and
 
 ## 1. Trust zones
 
-ASVS V1 and V15.
+ASVS V15.
 
 - The browser **must** be untrusted for anything that carries authority. An id it sends is a hint
   the server resolves.
