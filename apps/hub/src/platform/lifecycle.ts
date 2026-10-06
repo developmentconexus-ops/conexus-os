@@ -1,7 +1,7 @@
 import { readdirSync } from 'node:fs'
 import { Failure, logFailure, toFailure } from './failure.js'
 import { logLine, logger } from './logger.js'
-import type { Database, PostgresPool } from './db.js'
+import type { Database } from './db.js'
 
 const SHUTDOWN_DEADLINE_MS = 15_000
 
@@ -18,7 +18,6 @@ const REFUSED_START_CODES: ReadonlySet<string> = new Set(['CONFIG_MISSING', 'CON
 const exitCodeOf = (error: unknown): number => (error instanceof Failure && REFUSED_START_CODES.has(error.id) ? REFUSED_START_EXIT_CODE : 1)
 
 const MIGRATION_FILE = /^(\d{4})_[a-z0-9_]+\.sql$/
-const UNDEFINED_TABLE = '42P01'
 
 const migrationVersionsIn = (migrationsRoot: string): readonly string[] =>
   readdirSync(migrationsRoot).flatMap((name) => {
@@ -32,14 +31,8 @@ const migrationVersionsIn = (migrationsRoot: string): readonly string[] =>
  * one by one, so the Hub refuses to serve instead. The ledger is written only by
  * scripts/run-hub-migrations.mjs, which the operator runs before starting the Hub.
  */
-export const assertSchemaCurrent = async (pool: Pick<PostgresPool, 'query'>, migrationsRoot: string): Promise<void> => {
-  const applied = await pool.query<{ version: string }>('SELECT version FROM iam.schema_migration').then(
-    (result) => new Set(result.rows.map((row) => row.version)),
-    (error: unknown) => {
-      if (typeof error === 'object' && error !== null && 'code' in error && error.code === UNDEFINED_TABLE) return new Set<string>()
-      throw error
-    },
-  )
+export const assertSchemaCurrent = async (database: Pick<Database, 'appliedMigrations'>, migrationsRoot: string): Promise<void> => {
+  const applied = await database.appliedMigrations()
   const missing = migrationVersionsIn(migrationsRoot).filter((version) => !applied.has(version))
   if (missing.length > 0) throw new Failure('HUB_SCHEMA_BEHIND', { details: { versions: missing.join(',') } })
 }

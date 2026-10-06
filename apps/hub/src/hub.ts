@@ -8,7 +8,7 @@ import { createHostingModule } from './hosting/module.js'
 import { startJobs } from './platform/jobs.js'
 import { readHubConfig } from './platform/config.js'
 import { censusConnections, reportConnectionCensus } from './platform/connection-census.js'
-import { openDatabase, unportedPool } from './platform/db.js'
+import { openDatabase } from './platform/db.js'
 import { assertSchemaCurrent, exitOnLostInstanceLock, takeInstanceLock } from './platform/lifecycle.js'
 import { logLine } from './platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from './platform/secrets.js'
@@ -37,11 +37,10 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     passwordFile: config.database.passwordFile,
   }
   const database = openDatabase(mainConnection)
-  const pool = unportedPool(database)
   // Before anything that touches shared state (handler sockets, runs): a second Hub, or a database
   // behind this code, ends here with a named line and leaves the live Hub alone.
   const releaseInstanceLock = await takeInstanceLock(database, exitOnLostInstanceLock())
-  await assertSchemaCurrent(pool, resolve(import.meta.dirname, '../migrations'))
+  await assertSchemaCurrent(database, resolve(import.meta.dirname, '../migrations'))
   const workspace = createWorkspaceModule({ database })
   const registry = createRegistryModule({ database })
   const identityAccessDependencies = {

@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { z } from 'zod'
 import type { AccountId } from '@conexus/contract'
-import { Failure, logFailure, raisedRow, type FailureCode } from './failure.js'
+import { Failure, logFailure, type FailureCode } from './failure.js'
 import { fieldOf } from './field-of.js'
 import { logger } from './logger.js'
 import { codeOfSql } from './sql-lexer.js'
@@ -21,7 +21,6 @@ export type JobName = 'iam-reaper' | 'project-purge' | 'builder-executor' | 'app
 /** The application_name of a dedicated session connection, so a test or an operator finds its backend. */
 type SessionName = 'conexus-hub:instance-lock' | 'conexus-hub:application-presence'
 export type FactoryPool = Pool & Readonly<{ [factoryBrand]: true }>
-export type PostgresPool = Pool
 export type PostgresConnection = PoolConfig
 
 const identifier = (name: string): Sql => ({ [sqlBrand]: true, text: `"${name.replaceAll('"', '""')}"`, values: [] })
@@ -141,6 +140,8 @@ export interface Database {
   system<T>(job: JobName, fn: (gate: CommandGate) => Promise<T>): Promise<T>
   authenticate<T>(fn: (gate: AuthenticationGate) => Promise<T>): Promise<T>
   session<T>(name: SessionName, fn: (lock: SessionLock) => Promise<T>): Promise<T>
+  /** The migration versions the ledger records, read as the login role, which keeps SELECT on the ledger alone; none before the ledger exists. */
+  appliedMigrations(): Promise<ReadonlySet<string>>
   close(): Promise<void>
 }
 
@@ -165,7 +166,7 @@ const databaseFailure = (error: unknown): Failure | unknown => {
     ?? DATABASE_FAILURES.find((entry) => entry.sqlstate === error.code && entry.constraint === null)
   // The SQLSTATE and the names of our own constraint and table, never the message: it can carry a row's values.
   const details = Object.fromEntries(Object.entries({ sqlstate: error.code, constraint: error.constraint, table: error.table }).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
-  return new Failure(rule?.failure ?? raisedRow(error) ?? 'INTERNAL_UNEXPECTED', { cause: error, details })
+  return new Failure(rule?.failure ?? 'INTERNAL_UNEXPECTED', { cause: error, details })
 }
 
 const openPool = (connection: PoolConfig): Pool => {
@@ -286,12 +287,7 @@ const checkedConnection = (connection: DatabaseConnection): DatabaseConnection =
   return { ...connection, options }
 }
 
-const pools = new WeakMap<Database, Pool>()
-export const unportedPool = (database: Database): Pool => {
-  const pool = pools.get(database)
-  if (!pool) throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'DATABASE_POOL_MISSING' } })
-  return pool
-}
+const UNDEFINED_TABLE = '42P01'
 
 export const openDatabase = (given: DatabaseConnection): Database => {
   const connection = checkedConnection(given)
@@ -353,9 +349,15 @@ export const openDatabase = (given: DatabaseConnection): Database => {
         await client.end().catch(() => undefined)
       }
     },
+    appliedMigrations: () => pool.query<{ version: string }>('SELECT version FROM iam.schema_migration').then(
+      (result) => new Set(result.rows.map((row) => row.version)),
+      (error: unknown) => {
+        if (errorCode(error) === UNDEFINED_TABLE) return new Set<string>()
+        throw databaseFailure(error)
+      },
+    ),
     close: () => pool.end(),
   }
-  pools.set(database, pool)
   return database
 }
 

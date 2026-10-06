@@ -1,17 +1,8 @@
 {
-  "pgQueryRows": [
-    "apps/hub/src/platform/lifecycle.ts#assertSchemaCurrent"
-  ],
+  "pgQueryRows": [],
   "pgImportFiles": [],
   "webResponseJson": [
-    "apps/web/src/app/failure.ts#readFailure",
-    "apps/web/src/features/identity-access/api.ts#getAccessContext",
-    "apps/web/src/features/identity-access/api.ts#provisionCurrentAccount",
-    "apps/web/src/features/identity-access/application-access-api.ts#getApplicationAccess",
-    "apps/web/src/features/identity-access/application-access-api.ts#grantApplicationAccess",
-    "apps/web/src/features/identity-access/membership-api.ts#getWorkspaceRoster",
-    "apps/web/src/features/identity-access/membership-api.ts#inviteWorkspaceMember",
-    "apps/web/src/features/settings/installation-api.ts#request"
+    "apps/web/src/app/failure.ts#readFailure"
   ],
   "sqlWrites": [],
   "authorityTableWrites": [],

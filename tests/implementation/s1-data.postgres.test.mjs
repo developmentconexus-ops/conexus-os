@@ -4,11 +4,11 @@ import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
 import { z } from 'zod'
-import { buildHubDatabase, givePasswordToHubRuntime, query } from './hub-database.mjs'
+import { buildHubDatabase, givePasswordToHubRuntime, loginPoolOf, query } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { takeHubLogs } from './hub-log-capture.mjs'
 
-const { openDatabase, sql, unportedPool, DATABASE_FAILURES } = await import(hubModuleUrl('platform/db.js'))
+const { openDatabase, sql, DATABASE_FAILURES } = await import(hubModuleUrl('platform/db.js'))
 const { admitAccount, admitSystem } = await import(hubModuleUrl('identity-access/admission.js'))
 const ACCOUNT = '10000000-0000-4000-8000-00000000000a'
 const PASSWORD = 's1-data-test-only'
@@ -41,7 +41,7 @@ test('a row is parsed, a missing row has its named failure, and a transaction se
   assert.deepEqual(result, { value: { value: 7 }, quoted: { 'col"name': 8 } })
   await assert.rejects(database.read(ACCOUNT, (tx) => tx.one(StringRow, sql`SELECT 1 AS value`, 'NOT_FOUND')), { name: 'ZodError' })
   await assert.rejects(database.read(ACCOUNT, (tx) => tx.one(NumberRow, sql`SELECT 1 AS value WHERE false`, 'NOT_FOUND')), { id: 'NOT_FOUND' })
-  assert.deepEqual((await unportedPool(database).query("SELECT current_setting('conexus.account_id', true) AS value")).rows, [{ value: '' }])
+  assert.deepEqual((await (await loginPoolOf(database)).query("SELECT current_setting('conexus.account_id', true) AS value")).rows, [{ value: '' }])
 })
 
 test('the read entry has no write method and a retained transaction stops at its boundary', async (t) => {
@@ -59,12 +59,12 @@ test('the read entry has no write method and a retained transaction stops at its
 test('the runtime role cannot call the tenure lock, lock or read iam tables, change schema, assume an owner, or read factory', async (t) => {
   const { database, connection } = await setup(t)
   await query(connection, 'CREATE TABLE factory.s1_private (value integer)')
-  const pool = unportedPool(database)
+  const pool = await loginPoolOf(database)
   const sqlstate = (statement) => pool.query(statement).then(() => 'OK', (error) => error.code)
   assert.equal(await sqlstate('SELECT iam.lock_administrators()'), '42501')
   assert.equal(await sqlstate('CREATE TABLE workspace.s1_forbidden (id integer)'), '42501')
   assert.equal(await sqlstate('ALTER TABLE iam.account ADD COLUMN s1_forbidden integer'), '42501')
-  assert.equal(await sqlstate('SET ROLE iam_owner'), '42501')
+  assert.equal(await sqlstate('SET ROLE conexus_owner'), '42501')
   assert.equal(await sqlstate('SELECT * FROM factory.s1_private'), '42501')
   assert.equal(await sqlstate('SELECT 1 FROM iam.account FOR SHARE'), '42501')
 })
@@ -85,7 +85,7 @@ test('every mapped database failure names a real constraint and a registered fai
 
 test('a dead idle client is logged and the shared pool recovers', async (t) => {
   const { database, connection } = await setup(t)
-  const pool = unportedPool(database)
+  const pool = await loginPoolOf(database)
   takeHubLogs()
   const client = await pool.connect()
   const pid = (await client.query('SELECT pg_backend_pid() AS pid')).rows[0].pid

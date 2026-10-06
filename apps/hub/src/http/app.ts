@@ -1,7 +1,5 @@
 import cookie from '@fastify/cookie'
 import helmet from '@fastify/helmet'
-import { Ajv2020 } from 'ajv/dist/2020.js'
-import addFormatsModule from 'ajv-formats'
 import Fastify from 'fastify'
 import { readFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
@@ -67,11 +65,6 @@ export const createHttpApp = async ({
     logFailure(request.log, failure, { 'http.route': request.routeOptions.url ?? '' })
     return sendFailure(reply, failure)
   })
-  const ajv = new Ajv2020({ allErrors: true, strict: true, coerceTypes: false, useDefaults: false, removeAdditional: false })
-  ajv.addKeyword({ keyword: 'x-conexus-schema-source', schemaType: 'string', valid: true })
-  const addFormats = addFormatsModule.default
-  addFormats(ajv)
-  app.setValidatorCompiler(({ schema }) => ajv.compile(schema))
   await app.register(cookie)
   await app.register(helmet, {
     // CodeMirror keeps rewriting one <style> element, so no fixed hash covers it; the page hands

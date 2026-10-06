@@ -63,7 +63,7 @@ test('invitations: owner only, keyed, and the pair (Workspace, email) is one inv
   assert.equal(problemOf(await invite(as.owner, { email: 'not an email', role: 'member' }, 'k3')), '400 EMAIL_INVALID')
 })
 
-test('a member cannot make themselves owner; the only owner stays; two owners stepping down at once: one wins', async (t) => {
+test('a member cannot make themselves owner; the only owner stays; two owners stepping down at once: one wins; two owners demoting each other: the loser no longer holds authority', async (t) => {
   const { hub, as } = await team(t, 'conexus_iam_roster_owner')
   assert.equal(problemOf(await hub.call(as.member, 'PUT', member(MEMBER), { role: 'owner' })), '403 MEMBERS_MANAGE_REQUIRED')
   assert.deepEqual(await hub.sql('SELECT role FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [MEMBER, W]), [{ role: 'member' }])
@@ -78,6 +78,10 @@ test('a member cannot make themselves owner; the only owner stays; two owners st
   await hub.sql("UPDATE iam.workspace_membership SET role = 'owner' WHERE workspace_id = $1", [W])
   const removals = await Promise.all([hub.call(as.owner, 'DELETE', member(OWNER)), hub.call(as.member, 'DELETE', member(MEMBER))])
   assert.deepEqual(removals.map((answer) => answer.statusCode).sort(), [204, 409])
+
+  await hub.sql("INSERT INTO iam.workspace_membership (account_id, workspace_id, role) SELECT account_id, $1, 'owner' FROM iam.account WHERE account_id = ANY($2) ON CONFLICT (account_id, workspace_id) DO UPDATE SET role = 'owner'", [W, [OWNER, MEMBER]])
+  const demotions = await Promise.all([hub.call(as.owner, 'PUT', member(MEMBER), { role: 'member' }), hub.call(as.member, 'PUT', member(OWNER), { role: 'member' })])
+  assert.deepEqual(demotions.map((answer) => answer.statusCode === 200 ? '200' : problemOf(answer)).sort(), ['200', '403 MEMBERS_MANAGE_REQUIRED'])
 })
 
 test('a member leaves; an entry of another Workspace is not found; cancel and claim of one invitation: exactly one wins', async (t) => {

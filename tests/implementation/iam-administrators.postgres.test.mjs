@@ -36,7 +36,7 @@ test('administrators: listed with how each became one, added by one active email
 
   assert.equal(problemOf(await hub.call(founder, 'DELETE', `${administrators}/${CAIO}`)), '404 INSTALLATION_ADMINISTRATOR_NOT_FOUND')
   const removals = await Promise.all([hub.call(founder, 'DELETE', `${administrators}/${BIA}`), hub.call(bia, 'DELETE', `${administrators}/${leandro}`)])
-  assert.deepEqual(removals.map((answer) => answer.statusCode).sort(), [204, 403])
+  assert.deepEqual(removals.map((answer) => answer.statusCode === 204 ? '204' : problemOf(answer)).sort(), ['204', '403 INSTALLATION_ADMINISTRATOR_REQUIRED'])
   const remaining = (await hub.sql('SELECT account_id FROM iam.installation_administrator WHERE revoked_at IS NULL')).map((row) => row.account_id)
   assert.equal(remaining.length, 1)
   const survivor = remaining[0] === leandro ? founder : bia

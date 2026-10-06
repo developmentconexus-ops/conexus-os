@@ -4,9 +4,9 @@ import type { Caller } from '../platform/caller.js'
 import { applicationSlugOfHost } from '../platform/config.js'
 import type { ApplicationAddress } from '../platform/config.js'
 import type { ApplicationInvoker } from './application-invoker.js'
-import { digest, opaqueToken, parseOpaqueToken, presentedToken } from '../platform/opaque-token.js'
+import { digest, mintToken, presentedToken } from '../platform/opaque-token.js'
 import type { ApplicationSlug } from '../platform/application-slug.js'
-import type { RawToken } from '../platform/db.js'
+import { digest as tokenDigest, type RawToken } from '../platform/db.js'
 import { routes } from '../http/access.js'
 import { clearCookie, readCookie, setCookie } from '../http/cookies.js'
 import { Failure } from '../platform/failure.js'
@@ -76,10 +76,10 @@ export const registerApplicationHostRoutes = async <C>(
   // sign-in already in progress keeps its binding, so parallel navigations share it and every handoff
   // they bring back redeems.
   const startSignIn = (request: FastifyRequest, reply: FastifyReply, slug: ApplicationSlug): unknown => {
-    const binding = parseOpaqueToken(readCookie(request, 'applicationSignIn')) ?? opaqueToken()
+    const binding = presentedToken(readCookie(request, 'applicationSignIn')) ?? mintToken()
     const login = new URL('/protocol/oidc/login', dependencies.exactHubOrigin)
     login.searchParams.set('application', slug)
-    login.searchParams.set('binding', digest(binding).toString('base64url'))
+    login.searchParams.set('binding', tokenDigest(binding).toString('base64url'))
     setCookie(reply, 'applicationSignIn', binding)
     return clearCookie(reply, 'applicationSession').code(303).header('location', login.href).send()
   }

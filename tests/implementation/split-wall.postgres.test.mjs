@@ -4,11 +4,11 @@ import pg from 'pg'
 import { z } from 'zod'
 import { assertRoleInvariants } from '../../scripts/hub-catalog.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
-import { buildHubDatabase, query } from './hub-database.mjs'
+import { buildHubDatabase, loginPoolOf, query } from './hub-database.mjs'
 import { openRuntimeFixture } from './hub-runtime-fixture.mjs'
 import { refuseProtectedCluster } from './protected-cluster.mjs'
 
-const { sql, unportedPool } = await import(hubModuleUrl('platform/db.js'))
+const { sql } = await import(hubModuleUrl('platform/db.js'))
 const { admitAccount, admitSystem } = await import(hubModuleUrl('identity-access/admission.js'))
 const { purgeProject } = await import(hubModuleUrl('identity-access/application-access.js'))
 
@@ -22,7 +22,7 @@ const inCommand = (database, accountId, statement) => database.transaction(accou
 
 test('a pooled client is hub_runtime after a commit, a rollback and a throw, and the reader can neither lock nor write', async (t) => {
   const { database } = await openRuntimeFixture(t, 'conexus_split_pool', { max: 1, accounts: [[ACCOUNT, 'a']] })
-  const pool = unportedPool(database)
+  const pool = await loginPoolOf(database)
   const facts = async () => (await pool.query("SELECT current_user AS who, coalesce(current_setting('conexus.account_id', true), '') AS account")).rows[0]
   await database.transaction(ACCOUNT, (gate) => admitAccount(gate))
   assert.deepEqual(await facts(), { who: 'hub_runtime', account: '' })
@@ -57,9 +57,10 @@ test('a pooled client is hub_runtime after a commit, a rollback and a throw, and
 test('an entry sends BEGIN, one set_config statement for the role and the settings, its queries and COMMIT', async (t) => {
   const { database } = await openRuntimeFixture(t, 'conexus_split_round_trips', { max: 1, accounts: [[ACCOUNT, 'a']] })
   const sent = []
-  unportedPool(database).on('connect', (client) => {
-    const original = client.query.bind(client)
-    client.query = (config, ...rest) => { sent.push(typeof config === 'string' ? config : config.text); return original(config, ...rest) }
+  const original = pg.Client.prototype.query
+  t.mock.method(pg.Client.prototype, 'query', function (config, ...rest) {
+    if (this.connectionParameters?.user === 'hub_runtime') sent.push(typeof config === 'string' ? config : config.text)
+    return original.call(this, config, ...rest)
   })
   await database.read(ACCOUNT, (tx) => tx.rows(z.object({ one: z.number() }), sql`SELECT 1 AS one`))
   assert.deepEqual(sent, ['BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY', 'SELECT set_config($1, $2, true), set_config($3, $4, true)', 'SELECT 1 AS one', 'COMMIT'])
@@ -88,7 +89,7 @@ test('a query that resumes after the entry returned is refused before COMMIT and
 test('hub_runtime sessions carry the register timeouts, and a lock wait and a slow statement answer DATABASE_BUSY', async (t) => {
   await refuseProtectedCluster()
   const { connection, database, onCleanup, openRuntimeDatabase } = await openRuntimeFixture(t, 'conexus_split_timeouts', { accounts: [[ACCOUNT, 'a']] })
-  const shown = await unportedPool(database).query("SELECT current_setting('lock_timeout') AS lock, current_setting('statement_timeout') AS statement, current_setting('idle_in_transaction_session_timeout') AS idle")
+  const shown = await (await loginPoolOf(database)).query("SELECT current_setting('lock_timeout') AS lock, current_setting('statement_timeout') AS statement, current_setting('idle_in_transaction_session_timeout') AS idle")
   assert.deepEqual(shown.rows, [{ lock: '5s', statement: '30s', idle: '1min' }])
   await query(connection, "ALTER ROLE hub_runtime SET lock_timeout = '300ms'")
   onCleanup(() => query(connection, "ALTER ROLE hub_runtime SET lock_timeout = '5s'; ALTER ROLE hub_runtime SET statement_timeout = '30s'"))

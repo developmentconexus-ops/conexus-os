@@ -29,20 +29,8 @@ export class Failure extends MastraError {
 
 export const failureRow = (failure: Failure) => FAILURES[failure.id]
 
-const isFailureCode = (value: string): value is FailureCode => Object.hasOwn(FAILURES, value)
-
-/** A function in our own database that ended with `RAISE EXCEPTION 'A_ROW_CODE'`: the one vendor error that already names a row. */
-export const raisedRow = (error: unknown): FailureCode | undefined =>
-  error instanceof Error && 'code' in error && error.code === 'P0001' && isFailureCode(error.message) ? error.message : undefined
-
-/**
- * A `Failure` as it is, a database RAISE of a row's code as that row with the original as its
- * cause; anything else is a fault nobody named, with the original as its cause.
- */
-export const toFailure = (error: unknown): Failure => {
-  if (error instanceof Failure) return error
-  return new Failure(raisedRow(error) ?? 'INTERNAL_UNEXPECTED', { cause: error })
-}
+/** A `Failure` as it is; anything else is a fault nobody named, with the original as its cause. */
+export const toFailure = (error: unknown): Failure => error instanceof Failure ? error : new Failure('INTERNAL_UNEXPECTED', { cause: error })
 
 const LEVEL_BY_CATEGORY = { SYSTEM: 'error', THIRD_PARTY: 'warn', USER: 'info' } as const
 

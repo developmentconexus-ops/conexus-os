@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import pg from 'pg'
 import { z } from 'zod'
 import { hubModuleUrl } from './hub-build.mjs'
-import { query } from './hub-database.mjs'
+import { loginPoolOf, query } from './hub-database.mjs'
 import { OWNER, setupBuilder } from './builder-fixture.mjs'
 import { HEAD, ID } from './project-fixture.mjs'
 import { waitUntilBlocked } from './race.mjs'
@@ -374,8 +374,7 @@ test('the wall on the Builder tables: hub_runtime holds none after a commit, a r
   const keys = { 'builder.builder_run': builderRunId, 'builder.project_working_state': projectId, 'builder.project_repository': projectId, 'builder.conversation_session': conversationId, 'builder.builder_run_model_account': builderRunId }
 
   const single = openRuntimeDatabase({ max: 1 })
-  const { unportedPool } = await import(hubModuleUrl('platform/db.js'))
-  const pool = unportedPool(single)
+  const pool = await loginPoolOf(single)
   const backendInTransaction = async (gate) => (await backendOf((await admitAccount(gate)).tx)).pid
   const backendOf = (tx) => tx.one(z.object({ pid: z.number() }), sql`SELECT pg_backend_pid()::integer AS pid`, 'INTERNAL_UNEXPECTED')
   const backends = []
