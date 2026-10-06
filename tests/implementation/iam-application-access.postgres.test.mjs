@@ -115,7 +115,7 @@ test('presence: while the first prepare of an application holds the shared lock,
   const released = new Promise((resolve) => { release = resolve })
   let entered
   const holding = new Promise((resolve) => { entered = resolve })
-  const prepare = hub.applicationAccess.withApplicationPresence(P, async (hasApplication) => {
+  const prepare = hub.applicationAccess.withApplicationPresence(P, async ({ hasApplication }) => {
     entered(hasApplication)
     await released
     return hasApplication
@@ -130,5 +130,5 @@ test('presence: while the first prepare of an application holds the shared lock,
   release()
   assert.equal(await prepare, false)
   assert.equal((await grant('ana@x.com', 'after')).statusCode, 200)
-  assert.equal(await hub.applicationAccess.withApplicationPresence(P, async (hasApplication) => hasApplication), true)
+  assert.equal(await hub.applicationAccess.withApplicationPresence(P, async ({ hasApplication }) => hasApplication), true)
 })

@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:net'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { test } from 'node:test'
 import pg from 'pg'
 import { z } from 'zod'
@@ -8,7 +12,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { query } from './hub-database.mjs'
 import { ID, setupProjects } from './project-fixture.mjs'
 
-const { sql, bindAccount } = await import(hubModuleUrl('platform/db.js'))
+const { sql, bindAccount, openDatabase } = await import(hubModuleUrl('platform/db.js'))
 const { admitAccount, admitBootstrap, admitInstallationAdministrator, admitWorkspace, checkApplication, checkProject, configuredIdentity, receiptOf } = await import(hubModuleUrl('identity-access/admission.js'))
 const { reserve } = await import(hubModuleUrl('platform/receipt.js'))
 
@@ -106,26 +110,59 @@ test('receiptOf derives the stored authority from the proof: a Workspace keeps i
   ])
 })
 
-test('a named session connection carries its name, takes the shared lock that a transaction lock waits on, and answers DATABASE_BUSY when it cannot get it', async (t) => {
+test('a named session connection carries its name, takes the shared lock that a transaction lock waits on, frees it by closing, and answers DATABASE_BUSY when it cannot get it', async (t) => {
   const { connection, database, onCleanup } = await setupProjects(t, 'conexus_iam_presence_session')
   const key = 4242n
   const admin = new pg.Client(connection)
   await admin.connect()
   onCleanup(() => admin.end())
   const names = async () => (await admin.query("SELECT application_name FROM pg_stat_activity WHERE datname = current_database() AND application_name LIKE 'conexus-hub:%-%' ORDER BY 1")).rows.map((row) => row.application_name)
-  const holder = database.session('conexus-hub:application-presence', async (lock) => {
+  const taken = async () => (await admin.query('SELECT pg_try_advisory_xact_lock($1) AS taken', [key])).rows[0].taken
+  const seen = await database.session('conexus-hub:application-presence', async (lock) => {
     await lock.advisoryLockShared(key)
-    const seen = await names()
-    const waited = await admin.query("SELECT pg_try_advisory_xact_lock($1) AS taken", [key])
-    await lock.advisoryUnlockShared(key)
-    const free = await admin.query("SELECT pg_try_advisory_xact_lock($1) AS taken", [key])
-    return { seen, blocked: !waited.rows[0].taken, freed: free.rows[0].taken }
+    return { names: await names(), blocked: !(await taken()) }
   })
-  assert.deepEqual(await holder, { seen: ['conexus-hub:application-presence'], blocked: true, freed: true })
+  assert.deepEqual({ ...seen, freed: await taken() }, { names: ['conexus-hub:application-presence'], blocked: true, freed: true })
   await admin.query('BEGIN')
   await admin.query('SELECT pg_advisory_xact_lock($1)', [key])
   const started = Date.now()
   await assert.rejects(database.session('conexus-hub:application-presence', (lock) => lock.advisoryLockShared(key)), { id: 'DATABASE_BUSY' })
   await admin.query('ROLLBACK')
   assert.ok(Date.now() - started >= 4500, 'the wait is bounded by the login role\'s 5 s lock_timeout')
+})
+
+test('a session whose connection is lost rejects its caller and aborts the work it was running', async (t) => {
+  const { connection, database, onCleanup } = await setupProjects(t, 'conexus_iam_presence_lost')
+  const admin = new pg.Client(connection)
+  await admin.connect()
+  onCleanup(() => admin.end())
+  let signal
+  const held = database.session('conexus-hub:application-presence', async (lock, lost) => {
+    await lock.advisoryLockShared(4343n)
+    signal = lost
+    await admin.query("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = 'conexus-hub:application-presence'")
+    return new Promise(() => {})
+  })
+  await assert.rejects(held)
+  assert.equal(signal.aborted, true)
+})
+
+test('a session whose connect is refused rejects its caller and leaves nothing to reject later', async (t) => {
+  const closed = createServer()
+  await new Promise((listening) => closed.listen(0, '127.0.0.1', listening))
+  const { port } = closed.address()
+  await new Promise((done) => closed.close(done))
+  const directory = mkdtempSync(join(tmpdir(), 's1-refused-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const passwordFile = join(directory, 'password')
+  writeFileSync(passwordFile, 'unused', { mode: 0o600 })
+  const database = openDatabase({ host: '127.0.0.1', port, database: 'none', user: 'hub_runtime', passwordFile })
+  t.after(() => database.close())
+  const unhandled = []
+  const record = (reason) => unhandled.push(reason)
+  process.on('unhandledRejection', record)
+  t.after(() => process.off('unhandledRejection', record))
+  await assert.rejects(database.session('conexus-hub:application-presence', async () => 'ran'), { code: 'ECONNREFUSED' })
+  await new Promise((settled) => setTimeout(settled, 100))
+  assert.deepEqual(unhandled, [])
 })

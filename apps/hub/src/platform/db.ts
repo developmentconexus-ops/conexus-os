@@ -132,14 +132,14 @@ export const bindAccount = (gate: AuthenticationGate, accountId: AccountId): voi
 type SessionLock = Readonly<{
   tryAdvisoryLock(key: bigint): Promise<boolean>
   advisoryLockShared(key: bigint): Promise<void>
-  advisoryUnlockShared(key: bigint): Promise<void>
 }>
 export interface Database {
   transaction<T>(accountId: AccountId, fn: (gate: CommandGate) => Promise<T>): Promise<T>
   read<T>(accountId: AccountId, fn: (tx: ReadTx) => Promise<T>): Promise<T>
   system<T>(job: JobName, fn: (gate: CommandGate) => Promise<T>): Promise<T>
   authenticate<T>(fn: (gate: AuthenticationGate) => Promise<T>): Promise<T>
-  session<T>(name: SessionName, fn: (lock: SessionLock) => Promise<T>): Promise<T>
+  /** Runs fn on a dedicated connection; its locks end with it, and `lost` aborts when it ends before fn does. */
+  session<T>(name: SessionName, fn: (lock: SessionLock, lost: AbortSignal) => Promise<T>): Promise<T>
   /** The migration versions the ledger records, read as the login role, which keeps SELECT on the ledger alone; none before the ledger exists. */
   appliedMigrations(): Promise<ReadonlySet<string>>
   close(): Promise<void>
@@ -169,9 +169,12 @@ const databaseFailure = (error: unknown): Failure | unknown => {
   return new Failure(rule?.failure ?? 'INTERNAL_UNEXPECTED', { cause: error, details })
 }
 
+const CONNECT_TIMEOUT_MS = 5000
+const Taken = z.object({ taken: z.boolean() })
+
 const openPool = (connection: PoolConfig): Pool => {
   const capability = connection.user ? CAPABILITY_BY_ROLE[connection.user] ?? connection.user : 'unlabelled'
-  const pool = new pg.Pool({ ...connection, application_name: `conexus-hub:${capability}`, max: connection.max ?? 20, connectionTimeoutMillis: connection.connectionTimeoutMillis ?? 5000 })
+  const pool = new pg.Pool({ ...connection, application_name: `conexus-hub:${capability}`, max: connection.max ?? 20, connectionTimeoutMillis: connection.connectionTimeoutMillis ?? CONNECT_TIMEOUT_MS })
   pool.on('connect', (client) => {
     client.on('error', (error) => logFailure(logger, new Failure('HUB_POOL_ERROR', { cause: error }), { 'hub.capability': capability, 'db.error_code': errorCode(error) ?? '' }))
   })
@@ -328,23 +331,32 @@ export const openDatabase = (given: DatabaseConnection): Database => {
     authenticate: (fn) => transact({ begin: 'BEGIN', role: 'hub_command', settings: [] }, (client) => writeView(client, null),
       (tx) => fn(authenticationGateFor(tx))),
     session: async (name, fn) => {
-      const client = new pg.Client({ ...connection, password: readSecretFile(connection.passwordFile), application_name: name })
+      const client = new pg.Client({
+        ...connection, password: readSecretFile(connection.passwordFile), application_name: name,
+        connectionTimeoutMillis: connection.connectionTimeoutMillis ?? CONNECT_TIMEOUT_MS,
+      })
+      try { await client.connect() }
+      catch (error) { throw databaseFailure(error) }
+      // Armed only once connected: a refused connect rejects above and leaves no listener to fire later.
+      const aborter = new AbortController()
       const lost = new Promise<never>((_resolve, reject) => {
-        client.on('error', reject)
-        client.on('end', () => reject(new Error(`${name} connection ended`)))
+        const end = (cause: unknown) => {
+          aborter.abort(cause)
+          reject(cause)
+        }
+        client.on('error', end)
+        client.on('end', () => end(new Error(`${name} connection ended`)))
       })
       // The login role's lock_timeout bounds the blocking wait; its 55P03 answers DATABASE_BUSY like a transaction's.
-      const lockQuery = async (text: string, key: bigint): Promise<void> => {
-        try { await client.query(text, [key]) }
+      const lockQuery = async (text: string, key: bigint): Promise<unknown> => {
+        try { return (await client.query(text, [key])).rows[0] }
         catch (error) { throw databaseFailure(error) }
       }
-      await client.connect()
       try {
         return await Promise.race([fn({
-          tryAdvisoryLock: async (key) => (await client.query<{ taken: boolean }>('SELECT pg_try_advisory_lock($1) AS taken', [key])).rows[0]?.taken === true,
-          advisoryLockShared: (key) => lockQuery('SELECT pg_advisory_lock_shared($1)', key),
-          advisoryUnlockShared: (key) => lockQuery('SELECT pg_advisory_unlock_shared($1)', key),
-        }), lost])
+          tryAdvisoryLock: async (key) => Taken.parse(await lockQuery('SELECT pg_try_advisory_lock($1) AS taken', key)).taken,
+          advisoryLockShared: async (key) => { await lockQuery('SELECT pg_advisory_lock_shared($1)', key) },
+        }, aborter.signal), lost])
       } finally {
         await client.end().catch(() => undefined)
       }
@@ -367,7 +379,7 @@ export const openFactoryPool = (given: DatabaseConnection): FactoryPool => {
 }
 
 export const probeConnection = async (connection: PostgresConnection): Promise<void> => {
-  const client = new pg.Client({ ...connection, connectionTimeoutMillis: 5000 })
+  const client = new pg.Client({ ...connection, connectionTimeoutMillis: CONNECT_TIMEOUT_MS })
   try {
     await client.connect()
     await client.query('SELECT 1')

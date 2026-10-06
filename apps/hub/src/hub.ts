@@ -152,7 +152,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
         invoke: applicationRunner.invoke,
         prepare: (input) => {
           const prepared = preparing.catch(() => undefined).then(() => identityAccess.withApplicationPresence(input.projectId,
-            (hasApplication) => applicationRunner.prepare({ ...input, onDivergence: hasApplication ? 'REFUSE' : 'RESET' })))
+            (presence) => applicationRunner.prepare(presence.hasApplication ? { ...input, onDivergence: 'REFUSE' } : { ...input, onDivergence: 'RESET', signal: presence.lockLost })))
           preparing = prepared
           return prepared
         },

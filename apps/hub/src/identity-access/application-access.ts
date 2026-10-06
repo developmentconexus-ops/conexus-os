@@ -34,7 +34,10 @@ export const slugFor = (projectName: string, attempt: number): ApplicationSlug =
 const APPLICATION_LOCK_PREFIX = 'conexus:application:'
 const applicationLockKey = (projectId: ProjectId): Sql => sql`hashtextextended(${APPLICATION_LOCK_PREFIX}::text || ${projectId}::text, 0)`
 
-const Presence = z.object({ present: z.boolean(), lock_key: z.string().regex(/^-?\d+$/) })
+const PresenceRow = z.object({ present: z.boolean(), lock_key: z.string().regex(/^-?\d+$/) })
+
+/** What a prepare runs on: a Project with an application, or one without, held so while `lockLost` has not aborted. */
+export type Presence = Readonly<{ hasApplication: true }> | Readonly<{ hasApplication: false; lockLost: AbortSignal }>
 const Named = z.object({ name: z.string() })
 const Slug = z.object({ slug: ApplicationSlug })
 const GrantRow = z.object({ grant_id: GrantId, account_id: AccountId, display_name: z.string(), email: EmailAddress.nullable(), granted_at: z.date() })
@@ -99,29 +102,26 @@ export const createApplicationAccess = ({ database, addressOf }: Readonly<{
 }>) => {
   const readPresence = (projectId: ProjectId) => database.system('application-presence', async (gate) => {
     const { tx } = await admitSystem(gate, 'application-presence')
-    return tx.one(Presence, sql`
+    return tx.one(PresenceRow, sql`
       SELECT EXISTS (SELECT 1 FROM iam.application WHERE project_id = ${projectId}) AS present, ${applicationLockKey(projectId)}::text AS lock_key`, 'INTERNAL_UNEXPECTED')
   })
 
   /**
    * Runs work on whether the Project has an application. With none, the shared presence lock is held at
    * session level, with no transaction open, for as long as the work runs, so a grant cannot create the
-   * application meanwhile. An application, once present, is never taken from a Project that keeps existing.
+   * application meanwhile; closing the connection releases it. The work gets the signal that aborts when
+   * that connection is lost, the moment the lock stops excluding a grant. An application, once present,
+   * is never taken from a Project that keeps existing.
    */
-  const withApplicationPresence = async <T>(projectId: ProjectId, work: (hasApplication: boolean) => Promise<T>): Promise<T> => {
+  const withApplicationPresence = async <T>(projectId: ProjectId, work: (presence: Presence) => Promise<T>): Promise<T> => {
     const first = await readPresence(projectId)
-    if (first.present) return work(true)
-    const key = BigInt(first.lock_key)
-    const held = await database.session('conexus-hub:application-presence', async (lock) => {
-      await lock.advisoryLockShared(key)
-      try {
-        const again = await readPresence(projectId)
-        return again.present ? { ran: false as const } : { ran: true as const, value: await work(false) }
-      } finally {
-        await lock.advisoryUnlockShared(key)
-      }
+    if (first.present) return work({ hasApplication: true })
+    const held = await database.session('conexus-hub:application-presence', async (lock, lost) => {
+      await lock.advisoryLockShared(BigInt(first.lock_key))
+      const again = await readPresence(projectId)
+      return again.present ? { ran: false as const } : { ran: true as const, value: await work({ hasApplication: false, lockLost: lost }) }
     })
-    return held.ran ? held.value : work(true)
+    return held.ran ? held.value : work({ hasApplication: true })
   }
 
   const registerRoutes = async (app: FastifyInstance) => {
