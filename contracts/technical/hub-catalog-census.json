@@ -12,12 +12,10 @@
           "hub_command": []
         }
       }
-    ],
-    "pending": []
+    ]
   },
   "ceilings": {
     "ruleFunctions": 0,
-    "legacyOwnerPolicies": 0,
     "runtimePrivileges": 1
   },
   "register": {
@@ -156,7 +154,7 @@
         "command": [
           "INSERT",
           "SELECT",
-          "UPDATE(created_at,email)"
+          "UPDATE(email)"
         ],
         "runtime": [],
         "compositeKeys": [],
@@ -305,7 +303,7 @@
           "DELETE",
           "INSERT",
           "SELECT",
-          "UPDATE(created_at,role)"
+          "UPDATE(role)"
         ],
         "runtime": [],
         "compositeKeys": [],
