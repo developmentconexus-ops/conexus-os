@@ -116,9 +116,9 @@ const withPage = async (t, { origin, projectId, workspaceId, accountId, accounts
     if (!response.url().startsWith(origin)) return
     responseBodies.push(response.text().then((text) => ({ url: response.url(), text })).catch(() => null))
   })
-  await page.route('**/api/control/access-context', (route) => route.fulfill({
+  await page.route('**/api/session', (route) => route.fulfill({
     status: 200, contentType: 'application/json',
-    body: JSON.stringify({ account: { accountId, displayName: accounts[accountId] }, workspaces: [{ workspaceId, name: 'Metal Nobre' }], projects: [] }),
+    body: JSON.stringify({ account: { accountId, displayName: accounts[accountId] }, workspaces: [{ workspaceId, name: 'Metal Nobre' }], administrator: false }),
   }))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({
     status: 200, contentType: 'application/json',

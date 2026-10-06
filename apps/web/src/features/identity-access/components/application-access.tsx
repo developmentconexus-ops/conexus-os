@@ -10,17 +10,18 @@ import type { UseMutationResult } from '@tanstack/react-query'
 import { Link2 } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useId, useState } from 'react'
+import type { ApplicationInvitationEntry, EmailAddress } from '@conexus/contract'
+import { parseEmail } from '../api'
 import {
-  applicationAccessQueryKey,
-  getApplicationAccess,
+  applicationAccessQuery,
   grantApplicationAccess,
   isApplicationAccessForbidden,
-  revokeApplicationAccessEntry,
+  removeApplicationAccessEntry,
 } from '../application-access-api'
 import type { GrantEntry, InvitationEntry } from '../application-access-api'
-import type { GrantedApplicationAccess } from '../../../generated/iam-client'
 import '../people.css'
 import { INVITATION_STATE } from '../invitation-state'
+import { useAttemptKey } from '../../../app/attempt-key'
 import { failureText } from '../../../app/http'
 import { FailureState } from '../../../app/failure-state'
 
@@ -37,11 +38,7 @@ async function copyAddress(address: string) {
   }
 }
 
-type Grant = UseMutationResult<GrantedApplicationAccess, Error, string>
-
-// What the server answered to a grant or an invitation: the screen shows it as it came.
-const outcomeText = (access: GrantedApplicationAccess): string =>
-  access.kind === 'grant' ? `${access.displayName} já tem acesso.` : `Convite criado para ${access.email}.`
+type Grant = UseMutationResult<ApplicationInvitationEntry, Error, EmailAddress>
 
 type Pending = Readonly<{ kind: 'grant'; entry: GrantEntry } | { kind: 'invitation'; entry: InvitationEntry }>
 
@@ -50,20 +47,22 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
   const [message, setMessage] = useState('')
   const [pending, setPending] = useState<Pending | null>(null)
   const [outcome, setOutcome] = useState<string | null>(null)
-  const access = useQuery({ queryKey: applicationAccessQueryKey(projectId), queryFn: () => getApplicationAccess(projectId) })
-  const refresh = () => queryClient.invalidateQueries({ queryKey: applicationAccessQueryKey(projectId) })
+  const accessQuery = applicationAccessQuery(projectId)
+  const access = useQuery(accessQuery)
+  const refresh = () => queryClient.invalidateQueries({ queryKey: accessQuery.queryKey })
+  const grantKey = useAttemptKey()
   const fail = (error: unknown) => setMessage(failureText(error))
 
   const revoke = useMutation({
-    mutationFn: ({ kind, id }: { kind: 'grant' | 'invitation'; id: string }) => revokeApplicationAccessEntry(projectId, kind, id),
+    mutationFn: (entry: GrantEntry | InvitationEntry) => removeApplicationAccessEntry(projectId, entry),
     onSuccess: async () => { setMessage(''); setPending(null); await refresh() },
     onError: fail,
   })
 
   // The one grant call: the form and the row of an expired invitation both use it.
   const grant = useMutation({
-    mutationFn: (email: string) => grantApplicationAccess(projectId, { email }),
-    onSuccess: async (granted) => { await refresh(); setOutcome(outcomeText(granted)) },
+    mutationFn: (email: EmailAddress) => grantApplicationAccess(projectId, email, grantKey.keyFor(email)),
+    onSuccess: async (invitation) => { grantKey.settled(); await refresh(); setOutcome(`Convite criado para ${invitation.email}.`) },
   })
 
   if (access.isPending) {
@@ -169,9 +168,7 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
           <AlertDialog.Cancel>Voltar</AlertDialog.Cancel>
           <AlertDialog.Action
             onClick={() => {
-              if (!pending) return
-              const id = pending.kind === 'grant' ? pending.entry.grantId : pending.entry.invitationId
-              revoke.mutate({ kind: pending.kind, id })
+              if (pending) revoke.mutate(pending.entry)
             }}
           >
             {pending?.kind === 'invitation' ? 'Cancelar convite' : 'Remover'}
@@ -190,13 +187,18 @@ function GrantForm({ grant, outcome, onSubmit }: Readonly<{ grant: Grant; outcom
     event.preventDefault()
     if (grant.isPending) return
     const form = event.currentTarget
-    const email = String(new FormData(form).get('email') ?? '').trim()
-    if (!email) {
+    const raw = String(new FormData(form).get('email') ?? '').trim()
+    if (!raw) {
       setMessage('Escreva o email da pessoa.')
       return
     }
+    const parsed = parseEmail(raw)
+    if ('message' in parsed) {
+      setMessage(parsed.message)
+      return
+    }
     onSubmit()
-    grant.mutate(email, {
+    grant.mutate(parsed.email, {
       onSuccess: () => { setMessage(''); form.reset() },
       onError: (error) => setMessage(failureText(error)),
     })

@@ -6,7 +6,7 @@ import { Link } from '@tanstack/react-router'
 import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
 import { IdempotencyKey, createWorkspace, type WorkspaceCreated } from '@conexus/contract'
-import { accessContextQueryKey } from '../../identity-access/api'
+import { sessionQueryKey } from '../../identity-access/api'
 import { call, failureText } from '../../../app/http'
 
 type Attempt = { name: string; idempotencyKey: IdempotencyKey }
@@ -40,7 +40,7 @@ export function WorkspaceCreateForm({
         return
       }
       attempt.current = undefined
-      await queryClient.invalidateQueries({ queryKey: accessContextQueryKey })
+      await queryClient.invalidateQueries({ queryKey: sessionQueryKey })
       onCreated(workspace)
     },
     onError: (error) => setMessage(failureText(error)),

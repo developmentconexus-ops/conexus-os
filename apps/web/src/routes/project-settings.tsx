@@ -7,11 +7,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createRoute, Link, useNavigate } from '@tanstack/react-router'
 import { KeyRound } from 'lucide-react'
 import { useId, useState } from 'react'
-import { AccessGate } from '../app/access-gate'
+import { AccessGate, useSession } from '../app/access-gate'
 import { Shell } from '../app/shell'
 import { listProjectSummaries, type ProjectDetail } from '@conexus/contract'
 import { deleteProject, projectQuery } from '../features/project/api'
-import { useInstallation } from '../features/settings/use-installation'
 import '../features/project/project-settings.css'
 import { rootRoute } from './__root'
 import { failureText, isFailure } from '../app/http'
@@ -128,7 +127,7 @@ function DeletionRecovery({ project }: Readonly<{ project: ProjectDetail }>) {
 }
 
 function DangerZone({ project }: Readonly<{ project: ProjectDetail }>) {
-  const installation = useInstallation()
+  const session = useSession()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const inputId = useId()
@@ -144,7 +143,7 @@ function DangerZone({ project }: Readonly<{ project: ProjectDetail }>) {
     onError: (error) => setMessage(failureText(error)),
   })
 
-  if (installation.data?.administrator !== true) return null
+  if (session.data?.administrator !== true) return null
 
   return <section className="cx-danger" aria-labelledby="cx-danger-title">
     <h2 id="cx-danger-title">Zona de risco</h2>

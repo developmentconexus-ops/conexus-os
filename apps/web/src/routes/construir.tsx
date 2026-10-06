@@ -7,7 +7,7 @@ import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
 import { listConversations, openConversation } from '../features/builder/mastra-session'
 import { projectQuery } from '../features/project/api'
-import type { AccessContext } from '../generated/iam-client'
+import type { Session } from '@conexus/contract'
 import { rootRoute } from './__root'
 import { failureText, isFailure, isRetryable } from '../app/http'
 
@@ -23,11 +23,11 @@ function Status({ title, children, working = false }: Readonly<{ title: string; 
 }
 
 /** The Project read every Construir route shares, inside the app's own access gate. */
-function ProjectFrame({ projectId, children }: Readonly<{ projectId: string; children: (context: AccessContext) => ReactNode }>) {
+function ProjectFrame({ projectId, children }: Readonly<{ projectId: string; children: (context: Session) => ReactNode }>) {
   return <AccessGate>{(context) => <ProjectScope context={context} projectId={projectId}>{children(context)}</ProjectScope>}</AccessGate>
 }
 
-function ProjectScope({ context, projectId, children }: Readonly<{ context: AccessContext; projectId: string; children: ReactNode }>) {
+function ProjectScope({ context, projectId, children }: Readonly<{ context: Session; projectId: string; children: ReactNode }>) {
   const project = useQuery(projectQuery(projectId))
   if (project.isError) {
     const hidden = isFailure(project.error, 'PROJECT_NOT_FOUND')
