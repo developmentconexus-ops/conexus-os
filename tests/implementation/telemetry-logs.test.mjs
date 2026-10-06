@@ -61,7 +61,7 @@ test('request logging is off: a served request writes no record of its own', asy
 
 const HOST_FAILURE = `
 const { createHttpApp } = await import(process.env.HUB_BUILD + '/http/app.js')
-const { createMarModule } = await import(process.env.HUB_BUILD + '/mar/module.js')
+const { createHostingModule } = await import(process.env.HUB_BUILD + '/hosting/module.js')
 const PROJECT = '11111111-1111-4111-8111-111111111111'
 const HOST = 'caderno.conexus.localhost:3445'
 const application = { port: 3445, domain: 'conexus.localhost' }
@@ -77,7 +77,7 @@ const registry = {
   readPreviewFile: async () => null,
   readPinnedServedFile: async (_account, _project, artifactRevisionId, path) => ({ ok: true, artifactRevisionId, file: { path, sha256: 'e'.repeat(64), bytes: new Uint8Array(4) } }),
 }
-const mar = createMarModule({
+const hosting = createHostingModule({
   sessions: { redeem: async () => null, previewAuthority: async () => ({ kind: 'SIGN_IN_REQUIRED' }) },
   registry,
   applicationRunner: { invoke: async () => { throw new Error('runner socket refused: PLANTED_RUNNER_CAUSE') } },
@@ -85,7 +85,7 @@ const mar = createMarModule({
   previewPort: 3444,
   applicationHost: { sessions: hostSessions, application },
 })
-const app = await createHttpApp({ policy: mar.applicationHost.policy, staticRoot: null, registerRoutes: mar.applicationHost.registerRoutes })
+const app = await createHttpApp({ policy: hosting.applicationHost.policy, staticRoot: null, registerRoutes: hosting.applicationHost.registerRoutes })
 const answer = await app.inject({ method: 'POST', url: '/__conexus/api/listDeals', cookies: { '__Host-conexus_app': 't'.repeat(43) }, payload: {},
   headers: { host: HOST, 'content-type': 'application/json', origin: 'https://' + HOST } })
 console.log(JSON.stringify({ answer: [answer.statusCode, answer.json()] }))

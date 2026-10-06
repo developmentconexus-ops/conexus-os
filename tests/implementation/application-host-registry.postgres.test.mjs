@@ -6,7 +6,7 @@ import { query } from './hub-database.mjs'
 import { ID } from './project-fixture.mjs'
 import { DIGEST_2, F, P, SOURCE_2, deferred, fileOf, payloadOf, seedRevision, world } from './registry-fixture.mjs'
 
-const { createMarModule } = await import(hubModuleUrl('mar/module.js'))
+const { createHostingModule } = await import(hubModuleUrl('hosting/module.js'))
 
 const HUB = 'https://hub.conexus.localhost:3443'
 const APPLICATION = Object.freeze({ port: 3445, domain: 'conexus.localhost' })
@@ -22,7 +22,7 @@ async function hostOver(t, { registry, projectId, runnerCalls }) {
     redeem: async () => null,
     signOut: async () => undefined,
   }
-  const mar = createMarModule({
+  const hosting = createHostingModule({
     sessions: { redeem: async () => null, previewAuthority: async () => ({ kind: 'SIGN_IN_REQUIRED' }) },
     registry,
     applicationRunner: { invoke: async (input) => { runnerCalls.push(input); return { status: 200, body: { ok: true } } } },
@@ -30,7 +30,7 @@ async function hostOver(t, { registry, projectId, runnerCalls }) {
     previewPort: 3444,
     applicationHost: { sessions, application: APPLICATION },
   })
-  const { app } = await testListener({ policy: mar.applicationHost.policy, registerRoutes: (server) => mar.applicationHost.registerRoutes(server) })
+  const { app } = await testListener({ policy: hosting.applicationHost.policy, registerRoutes: (server) => hosting.applicationHost.registerRoutes(server) })
   t.after(() => app.close())
   return app
 }

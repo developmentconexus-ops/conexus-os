@@ -287,8 +287,8 @@ fresh read, which requires the `iam.application` row, a project that is not `arc
 row, and the membership or the open grant still there. That is today's
 `iam.has_application_access` (`0023_application_session.sql:31-51`) plus the lock, the fresh read and
 the deletion rule. `via` records which path admitted. A refusal is `APPLICATION_NOT_FOUND`, an
-existing code (`mar/application-host-routes.ts:124`); the host answers `APPLICATION_NOT_READY` on a
-null served read today (`mar/application-host-routes.ts:130`), and parts 2 and 4 keep each caller's
+existing code (`hosting/application-host-routes.ts:124`); the host answers `APPLICATION_NOT_READY` on a
+null served read today (`hosting/application-host-routes.ts:130`), and parts 2 and 4 keep each caller's
 answer when they move it onto this admission.
 
 **The served read.** `checkApplication(gate, projectId)` makes a `Checked<ApplicationScope>` for a request that changes nothing: the application host's manifest and file reads, and the connector broker when it writes nothing in that transaction. It runs the same access and deletion predicates as `admitApplication` (active account, the membership or the open grant, the `iam.application` row, a Project that is not archived, no deletion row) in one statement and takes no row lock, not even `FOR SHARE`. `via` records which path admitted. The proof's `tx` is a `ReadTx`, so only read ports accept it. The reason is that the lock exists to serialize a write with a tombstone or a revoke. A served read changes nothing, and today's served read takes no lock. The application host calls it once per asset, and the locking form measured about 3 times slower serial and about 2 times at 16 clients on a local run (review C, Q3.1). A revoke or tombstone that commits during the read is seen by the next request, as today. A caller that writes in the same transaction calls `admitApplication`.

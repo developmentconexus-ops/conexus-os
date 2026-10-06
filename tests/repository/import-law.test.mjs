@@ -123,18 +123,18 @@ test('the access edges: HTTP reads the session contract, the token and the lifet
     'apps/hub/src/identity-access/store.ts': 'import "../platform/lifetimes.js"',
   }), [])
   assert.deepEqual(layerViolations({
-    'apps/hub/src/http/app.ts': 'import "../mar/module.js"; import "../platform/application-csp.js"',
+    'apps/hub/src/http/app.ts': 'import "../hosting/module.js"; import "../platform/application-csp.js"',
     'apps/hub/src/http/access.ts': 'import "../identity-access/store.js"',
     'apps/hub/src/hub.ts': 'import "./http/access.js"',
     'apps/hub/src/identity-access/routes.ts': 'import "../platform/origin.js"',
     'apps/hub/src/workspace/routes.ts': 'import "../platform/origin.js"',
-    'apps/hub/src/mar/module.ts': '',
+    'apps/hub/src/hosting/module.ts': '',
     'apps/hub/src/platform/application-csp.ts': '',
     'apps/hub/src/identity-access/store.ts': '',
     'apps/hub/src/platform/origin.ts': '',
   }).sort(), [
     'apps/hub/src/http/access.ts -> ../identity-access/store.js',
-    'apps/hub/src/http/app.ts -> ../mar/module.js',
+    'apps/hub/src/http/app.ts -> ../hosting/module.js',
     'apps/hub/src/http/app.ts -> ../platform/application-csp.js',
     'apps/hub/src/hub.ts -> ./http/access.js',
     'apps/hub/src/identity-access/routes.ts -> ../platform/origin.js',

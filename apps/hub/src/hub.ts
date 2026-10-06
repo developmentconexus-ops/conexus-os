@@ -4,7 +4,7 @@ import { createApplicationRunnerClient } from './app-runner/module.js'
 import { createConnectorModule } from './connectors/module.js'
 import { createHttpApp } from './http/app.js'
 import { createIdentityAccessModule } from './identity-access/module.js'
-import { createMarModule } from './mar/module.js'
+import { createHostingModule } from './hosting/module.js'
 import { startJobs } from './platform/jobs.js'
 import { readHubConfig } from './platform/config.js'
 import { censusConnections, reportConnectionCensus } from './platform/connection-census.js'
@@ -98,14 +98,14 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   })
   let builder: ReturnType<typeof createConfiguredBuilderModule> | undefined
   const applicationRunner = config.appRunner ? createApplicationRunnerClient(config.appRunner.socketPath) : undefined
-  const mar = config.preview ? createMarModule({
+  const hosting = config.preview ? createHostingModule({
     sessions: identityAccess.hostSessions,
     exactHubOrigin: config.origin,
     previewPort: config.preview.port,
     registry,
     // The runner receives the admitted artifact's server tree as the registry holds it, never a path.
-    // The MAR module bounds in-flight work and the tree's total size before any file is read, ahead of
-    // the runner's own concurrency cap (apps/hub/src/mar/application-invoker.ts).
+    // The hosting module bounds in-flight work and the tree's total size before any file is read, ahead of
+    // the runner's own concurrency cap (apps/hub/src/hosting/application-invoker.ts).
     ...(applicationRunner ? {
       applicationRunner: {
         invoke: applicationRunner.invoke,
@@ -118,9 +118,9 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     } : {}),
   }) : undefined
   type LaunchPreview = NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>
-  const launchPreview: LaunchPreview | undefined = mar ? async (hubSessionDigest, input) => {
+  const launchPreview: LaunchPreview | undefined = hosting ? async (hubSessionDigest, input) => {
     const { launch } = input
-    const address = mar.previewAddress(launch.artifactRevisionId)
+    const address = hosting.previewAddress(launch.artifactRevisionId)
     const opened = await identityAccess.openPreview(hubSessionDigest, {
       accountId: input.accountId,
       projectId: input.projectId,
@@ -202,18 +202,18 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
       },
     } : {}),
   })
-  const previewApp = mar && config.preview ? await createHttpApp({
-    policy: mar.previewPolicy,
-    registerRoutes: mar.registerPreviewRoutes,
+  const previewApp = hosting && config.preview ? await createHttpApp({
+    policy: hosting.previewPolicy,
+    registerRoutes: hosting.registerPreviewRoutes,
     staticRoot: null,
     https: {
       cert: readFileSync(config.preview.certFile),
       key: readFileSync(config.preview.keyFile),
     },
   }) : undefined
-  const applicationApp = mar?.applicationHost && config.preview && config.application ? await createHttpApp({
-    policy: mar.applicationHost.policy,
-    registerRoutes: mar.applicationHost.registerRoutes,
+  const applicationApp = hosting?.applicationHost && config.preview && config.application ? await createHttpApp({
+    policy: hosting.applicationHost.policy,
+    registerRoutes: hosting.applicationHost.registerRoutes,
     staticRoot: null,
     https: {
       cert: readFileSync(config.preview.certFile),
@@ -241,7 +241,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     closed = true
     await jobs.close()
     await Promise.all([app.close(), previewApp?.close(), applicationApp?.close()])
-    await mar?.close()
+    await hosting?.close()
     await Promise.all([builder?.close(), identityAccess.close()])
     await database.close()
     await releaseInstanceLock()

@@ -4,7 +4,7 @@ import test from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { createApplicationInvoker } = await import(hubModuleUrl('mar/application-invoker.js'))
+const { createApplicationInvoker } = await import(hubModuleUrl('hosting/application-invoker.js'))
 
 const bytes = (length) => new Uint8Array(length)
 

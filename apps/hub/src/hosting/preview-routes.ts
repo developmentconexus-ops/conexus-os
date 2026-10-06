@@ -29,7 +29,7 @@ type PreviewBinding = Readonly<{
 
 type Refused = Readonly<{ kind: 'SIGN_IN_REQUIRED' }> | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
 
-// The session port this host needs, declared structurally: the MAR owner does not import identity-access.
+// The session port this host needs, declared structurally: the hosting owner does not import identity-access.
 export type PreviewSessions = Readonly<{
   redeem(input: Readonly<{ handoff: string; target: Readonly<{ kind: 'PREVIEW'; exactHost: string }> }>): Promise<Readonly<{ sessionToken: string; maxAgeSeconds: number }> | null>
   previewAuthority(input: Readonly<{ sessionToken: string | undefined; exactHost: string }>): Promise<Readonly<{ kind: 'SIGNED_IN'; binding: PreviewBinding }> | Refused>

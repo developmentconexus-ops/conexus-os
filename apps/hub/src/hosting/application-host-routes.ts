@@ -20,7 +20,7 @@ type Authority =
   | Readonly<{ kind: 'SIGN_IN_REQUIRED' }>
   | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
 
-// The ports this host needs, declared structurally: the MAR owner does not import identity-access.
+// The ports this host needs, declared structurally: the hosting owner does not import identity-access.
 export type ApplicationHostSessions = Readonly<{
   applicationBySlug(slug: string): Promise<ProjectId | null>
   applicationAuthority(input: Readonly<{ sessionToken: string | undefined; projectId: string; now?: Date }>): Promise<Authority>

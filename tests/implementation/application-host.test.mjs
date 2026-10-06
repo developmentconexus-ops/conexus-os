@@ -8,8 +8,8 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { invalidConfig } from './failure-matchers.mjs'
 import { testListener } from './access/test-listener.mjs'
 
-const { createMarModule } = await import(hubModuleUrl('mar/module.js'))
-const { registerApplicationHostRoutes } = await import(hubModuleUrl('mar/application-host-routes.js'))
+const { createHostingModule } = await import(hubModuleUrl('hosting/module.js'))
+const { registerApplicationHostRoutes } = await import(hubModuleUrl('hosting/application-host-routes.js'))
 const { applicationOrigin, applicationSlugOfHost, readHubConfig } = await import(hubModuleUrl('platform/config.js'))
 
 const missing = (name) => (error) => error.id === 'CONFIG_MISSING' && error.details?.name === name
@@ -73,7 +73,7 @@ const harness = async (t, { authorityFor, application = APPLICATION, invokeAppli
     ...registryOverrides,
   }
   const recordInvocation = async ({ callerLeft: _callerLeft, ...input }) => { calls.push({ name: 'invoke', input }); return { status: 200, body: { ok: true } } }
-  const mar = createMarModule({
+  const hosting = createHostingModule({
     sessions: { redeem: async () => null, previewAuthority: async () => ({ kind: 'SIGN_IN_REQUIRED' }) },
     registry,
     ...(runner ? { applicationRunner: runner } : {}),
@@ -82,8 +82,8 @@ const harness = async (t, { authorityFor, application = APPLICATION, invokeAppli
     applicationHost: { sessions: hostSessions, application },
   })
   const { app } = await testListener({
-    policy: mar.applicationHost.policy,
-    registerRoutes: (server) => runner ? mar.applicationHost.registerRoutes(server) : registerApplicationHostRoutes(server, {
+    policy: hosting.applicationHost.policy,
+    registerRoutes: (server) => runner ? hosting.applicationHost.registerRoutes(server) : registerApplicationHostRoutes(server, {
       exactHubOrigin: HUB, application, sessions: hostSessions, reader: registry, invokeApplication: invokeApplication ?? recordInvocation,
     }),
   })
