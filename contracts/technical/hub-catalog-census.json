@@ -218,7 +218,8 @@
         "command": [
           "DELETE",
           "INSERT",
-          "SELECT"
+          "SELECT",
+          "UPDATE(expires_at)"
         ],
         "runtime": [],
         "compositeKeys": [
@@ -270,7 +271,8 @@
         "command": [
           "DELETE",
           "INSERT",
-          "SELECT"
+          "SELECT",
+          "UPDATE(expires_at)"
         ],
         "runtime": [],
         "compositeKeys": [],
