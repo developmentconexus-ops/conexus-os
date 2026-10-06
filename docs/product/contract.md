@@ -2,7 +2,7 @@
 
 What Conexus is for, who it serves, and the promises it keeps. Each section gives a rule, why it
 holds, and a right and a wrong example. [The roadmap](../roadmap.md) holds what is delivered,
-[security](../reference/security-and-authority.md#who-may-act) who may do what,
+[security](../reference/security-and-authority.md#2-who-may-act) who may do what,
 [DESIGN.md](../../DESIGN.md) how screens look, [the wire contract](wire-contract.md) the routes, and
 `apps/web/src/app/router.tsx` the exact list of screens. Exact values live in code, and this guide
 points to them. A product rule changes only by an operator decision in

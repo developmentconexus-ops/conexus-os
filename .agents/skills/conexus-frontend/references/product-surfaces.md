@@ -1,6 +1,6 @@
 # New product surfaces
 
-The procedure for a surface that does not exist yet: a new route, a new region of a screen, or a new material interaction. A change to an existing screen does not need it. The rules it applies live in [`DESIGN.md`](../../../../DESIGN.md) (approving a surface), the [product contract](../../../../docs/product/contract.md) (the truths a screen keeps) and [architecture](../../../../docs/reference/architecture.md#the-web-app) (what the web app may own).
+The procedure for a surface that does not exist yet: a new route, a new region of a screen, or a new material interaction. A change to an existing screen does not need it. The rules it applies live in [delivery](../../../../docs/development/delivery.md#approve-a-new-surface-from-something-usable) (approving a surface), [`DESIGN.md`](../../../../DESIGN.md) (the look), the [product contract](../../../../docs/product/contract.md) (the truths a screen keeps) and [architecture](../../../../docs/reference/architecture.md#the-web-app) (what the web app may own).
 
 ## Start from the person, not the backend
 

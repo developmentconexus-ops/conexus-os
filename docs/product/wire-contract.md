@@ -1,95 +1,172 @@
-# Wire contract
+# API guide
 
-The rules for the Hub's public boundary: where an operation is declared, how a request is parsed,
-how errors, preconditions and retries look on the wire. Owners next door: the
-[operation ledger](operation-ledger.md) holds the census, [security](../reference/security-and-authority.md)
-decides who may call and how a request proves where it comes from, [product](contract.md) owns the
-journeys, [database](../reference/database.md) the SQL. Exact shapes live in `packages/contract`.
+How the Hub's public API is designed. This guide adapts the
+[Zalando RESTful API Guidelines](https://opensource.zalando.com/restful-api-guidelines/) (CC BY 4.0)
+and follows their order. Errors follow [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457). Each rule
+uses the words of [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119): **must** and **must not** are
+defects in review, **should** and **should not** need a stated reason to break, and **may** is a
+free choice.
 
-## One declaration per operation
+The guide states the target. Code that departs from it is listed in
+[architecture section 11](../reference/architecture.md#11-risks-and-technical-debt) with the wave
+that removes it. Owners next door: the [operation ledger](operation-ledger.md) lists every
+operation, [security](../reference/security-and-authority.md) decides who may call and how the
+session travels, [product](contract.md) owns the journeys, and [database](../reference/database.md)
+the SQL.
 
-- An operation is declared once: in Zod in `OPERATIONS` of `packages/contract` (its id, access kind,
-  method, path, params, query, body, successes and failures), or, until it is ported, in the YAML
-  leaf files of `contracts/api/product/`. A new operation is declared in Zod.
-  `contracts/api/product/openapi.json` is emitted from the union; `npm run contract:check` refuses a
-  stale file or an operation declared in both.
-- Every operation has one ledger row, and a contract change and its ledger row ship together.
-  `npm run wire:bijection` counts both ways and fails when they disagree.
-- The Hub's route types and the web client derive from the contract. Generated files are never
-  edited: `npm run generate` followed by the clean tree check. A hand-written parser beside the
-  schema is a defect. Review.
-- No path selects an arbitrary operation: a `{operationSlug}` variable or an `execute` segment fails
-  `npm run wire:bijection`. Every current operation lives under `/api/control/...` or `/api/session`;
-  a path namespace grants nothing. Review.
-- A surface that is not built has no contract; it is deleted, not kept for later. Review.
-- The technical ingress (`contracts/api/technical/openapi.yaml`) is separate and never counts in the
-  Product census. Live observation of a Builder run is technical ingress: a Mastra id is never a
-  Product identity, and the end of a stream is never the run's terminal truth; the Hub's settlement
-  is. `wire:bijection` reads only the Product contract; `npm run wire:technical-lint` lints the
-  technical document; the rest is review.
-- A generated application declares one literal path per operation with exact input and output
-  schemas; `{}` and boolean schemas are refused. Enforced by the Hub's application check.
+## 1. Contract first
 
-## Parsing
+- An operation **must** be declared once, in Zod, in `OPERATIONS` of `packages/contract`: its id,
+  access, method, path, params, query, body, successes and failures.
+- `contracts/api/product/openapi.json` **must** be emitted from that declaration, never written by
+  hand. The Hub's route types and the web client **must** derive from it.
+- Every operation **must** have one ledger row, and the contract and the ledger **must** change in
+  the same pull request.
+- A surface that is not built **must not** have a contract.
+- The live stream of a Builder run is technical ingress, declared apart in
+  `contracts/api/technical/openapi.yaml`. A Mastra id **must not** be a product identity, and the
+  end of a stream **must not** be read as the run's result. The Hub's settlement is.
 
-A request is parsed once at its route against the contract schema, and the handler trusts the parsed
-value. A route with an id in its path has a params schema with the id's format, so a malformed id
-fails before any store call. In a Zod operation it answers its `malformed` row (a 404 for a Project
-or Workspace id), which the contract type requires for every path id; a route not yet ported
-answers `REQUEST_VALIDATION_FAILED` (400). Safe methods never change state. Enforced by the route tests and
-review.
+**Why.** One declaration gives the Hub, the web app and the documentation the same shape, so a
+change that breaks a caller fails to compile instead of failing in production.
 
-## Names and values
+**Right.** A new operation is one entry in `OPERATIONS`, and `npm run generate` updates the client.
 
-Reusable schemas have stable PascalCase semantic names. A wire name is not a table name, a component
-name or a provider's DTO name. No generic carriers (`AnyResource`, `GenericResult`,
-`ProviderPayload`) without a proven repeated meaning. Money never rides on binary floating point,
-and a response with money names one ISO 4217 `currencyCode`. Unknown is not zero, partial is not
-complete, and stale is not current: uncertainty is a state, never a nullable or zero business
-number. Review.
+**Wrong.** A route parses its body with a hand-written check beside the schema.
 
-## Errors
+## 2. URLs
 
-A failure answers RFC 9457 Problem Details as `application/problem+json`. Its code comes from
-`failures.json` with the status that row names; `detail` is for people and is never parsed.
+- Every path **must** live under `/api/control/...` or `/api/session`. A path namespace grants
+  nothing.
+- A path **must** name resources with plural nouns and ids, for example
+  `/api/control/projects/{projectId}/conversations`.
+- A path **must not** select an arbitrary operation, such as a `{operationSlug}` variable or an
+  `execute` segment.
+
+**Why.** A path that names the resource tells the reader and the access rule what is touched. A
+path that names an operation turns the API into a remote procedure call that no rule can read.
+
+**Right.** `POST /api/control/workspaces/{workspaceId}/projects`.
+
+**Wrong.** `POST /api/control/execute/{operationSlug}`.
+
+## 3. Requests and methods
+
+- A request **must** be parsed once, at its route, against the contract schema. The handler trusts
+  the parsed value.
+- A path id **must** have a params schema with the id's format. A malformed id **must** answer the
+  operation's `malformed` row (404 for a Project or Workspace id) before any store call.
+- `GET` and `HEAD` **must not** change state.
+- A `POST` that creates something **must** take an `Idempotency-Key`.
+
+**Why.** A safe method that changes state breaks caches, retries and prefetching. A create without
+a key creates a duplicate when the network retries.
+
+**Right.** `GET /api/control/projects/{projectId}` reads, and a retried create with the same key
+returns the first result.
+
+**Wrong.** A `GET` that marks a notification as read.
+
+## 4. Payload and names
+
+- Bodies **must** be JSON objects, never a top-level array.
+- Field names **must** be `camelCase`. Reusable schemas **must** have stable `PascalCase` names from
+  the domain. A wire name **must not** be a table name, a component name or a provider's name.
+- Dates and times **must** be RFC 3339 strings in UTC (`z.iso.datetime()`).
+- A schema **must not** be a generic carrier such as `AnyResource`, `GenericResult` or
+  `ProviderPayload`.
+- An unknown or partial value **must** be a state in the schema, never a `null` or a zero.
+- Bytes **must** be reached through their owning operation. A storage key, object path or signed URL
+  **must not** authorize by possession.
+
+**Why.** A top-level object can gain a field without breaking callers. Domain names keep the API
+readable when the tables or the screens change.
+
+**Right.** `{ "usage": { "kind": "UNAVAILABLE" } }`.
+
+**Wrong.** `{ "usage": 0 }` when the provider reported nothing.
+
+## 5. Status codes and errors
+
+- A failure **must** answer `application/problem+json` with `type`, `title`, `status` and `code`,
+  plus `traceId` for a Conexus fault. It **must not** carry a stack trace or a `detail` a client
+  parses.
+- `code` **must** come from `contracts/technical/failures.json`, with the status its row names.
+- A subject the caller may not know about **must** answer 404, never a 403 that confirms it exists.
+- A success **must** answer 200 with a body, 201 for a create, or 204 with no body.
 
 | Status | Meaning |
 | --- | --- |
-| 400 | a malformed request |
-| 401 | not authenticated |
-| 403 | authenticated, the subject may be disclosed, and the action or the request's authenticity is refused |
-| 404 | absent, or not disclosable to this caller |
-| 409 | conflicts with current state, uniqueness or a single flight |
-| 413, 415, 429 | too large, wrong media type, a bound reached |
-| 422 | a valid request with business input the owner refuses |
-| 500 | an unexpected system failure, recorded |
-| 502, 504 | an upstream failed or timed out |
-| 503 | a required dependency is unavailable |
+| 400 | A malformed request |
+| 401 | Not authenticated |
+| 403 | Authenticated, the subject may be disclosed, and the action is refused |
+| 404 | Absent, or not disclosable to this caller |
+| 409 | A conflict with current state, uniqueness or a single flight |
+| 412 | A stale `If-Match` |
+| 413, 415, 429 | Too large, the wrong media type, or a limit reached |
+| 422 | A valid request whose business input the owner refuses |
+| 500 | An unexpected failure, recorded |
+| 502, 503, 504 | An upstream failed, a dependency is unavailable, or an upstream timed out |
 
-A subject the caller may not know about answers 404, never a 403 that confirms it exists.
-`scripts/generate-failures.mjs` keeps every row's status in 400-599 (500 by default); which row
-gets which status is review.
+**Why.** One code per failure lets the web app show the person the right text and lets the
+developer find the log line. A parsed `detail` turns prose into a contract nobody declared.
 
-## Preconditions and retries
+**Right.** `{ "type": "urn:conexus:problem:IDEMPOTENCY_CONFLICT", "title": "IDEMPOTENCY_CONFLICT",
+"status": 409, "code": "IDEMPOTENCY_CONFLICT" }`.
 
-- No operation takes `If-Match` today. A command that needs current state carries the expected
-  revision in its own payload. An operation that later takes `If-Match` carries the ETag of the
-  target it mutates, answers a stale one with 412 and adds that row to `failures.json`. Review.
-- `Idempotency-Key` is scoped to the exact operation and subject. Reusing it with a different payload
-  is refused; a duplicate never creates a second effect; an ambiguous downstream effect stays fenced
-  and the key never authorizes a blind replay. A Project or Workspace receipt lives while its entity
-  lives. Enforced by the idempotency tests and review.
+**Wrong.** A client that branches on `detail.includes('already exists')`.
 
-## Session carriage
+## 6. Headers
 
-The session travels in the opaque cookie `__Host-conexus_session` (Secure, HttpOnly, Path `/`, no
-Domain, SameSite Lax), declared in OpenAPI only as a security scheme. Possession of the cookie is
-authentication, never authorization; Keycloak tokens, roles and groups are never accepted as Product
-authorization. There is no credentialed cross-origin Product API. Review.
+- `Idempotency-Key` **must** be scoped to the exact operation and subject. A reuse with a different
+  payload **must** answer `IDEMPOTENCY_CONFLICT`. A duplicate **must not** create a second effect,
+  and an ambiguous downstream effect **must not** be replayed blindly.
+- A command that needs current state **must** carry the expected revision in its payload, or take
+  `If-Match` with the target's `ETag` and answer a stale one with 412.
+- A cacheable read **should** send `ETag` and `Cache-Control`, as the Project thumbnail does.
 
-## Lists and bytes
+**Why.** Retries happen on every network. The key makes a retry safe, and the revision makes a
+stale write visible instead of silent.
 
-There is no global filter, sort or include language: each operation exposes its accepted filters.
-A list that can grow returns an opaque continuation token, which is not authorization, source
-identity or a snapshot, and the server controls the page size. Bytes are reached through their
-owning operation; a storage key, object path or signed URL never authorizes by possession. Review.
+**Right.** A second `POST` with the same key and body returns the first Project.
+
+**Wrong.** A second `POST` with the same key and another body creates a second Project.
+
+## 7. Lists and pagination
+
+- A list that can grow **must** return an opaque continuation token, and the server **must** control
+  the page size. The token **must not** be authorization, a source identity or a snapshot.
+- A list **must** expose only the filters its operation declares. There is no global filter, sort
+  or include language.
+
+**Why.** An unbounded list grows with the company's data until a request times out.
+
+**Right.** `GET .../conversations?pageToken=...` returns `{ items, nextPageToken }`.
+
+**Wrong.** A list that returns every row and a client that slices it.
+
+## 8. Compatibility
+
+- The API **must not** carry a version in its path or headers. The Hub and the web app ship from
+  one repository, and a change **must** update both in the same pull request.
+- A removed field or operation **must** leave the contract, the Hub and the client together. There
+  is no deprecation period.
+
+**Why.** One deploy carries both sides, so a version or a deprecation window only keeps dead code.
+
+**Right.** A renamed field changes in the contract, and the compiler finds every caller.
+
+**Wrong.** `/api/v2/projects` beside `/api/v1/projects`.
+
+## 9. Generated apps
+
+- A generated app **must** declare one literal path per operation in `conexus/manifest.json`, with
+  closed input and output schemas (`additionalProperties: false`).
+- It **must** call its server only through the client generated from that manifest.
+
+**Why.** A closed schema lets the Hub check every call an app makes, the same way it checks its
+own.
+
+**Right.** `"path": "/orders/pending"` with an object schema that lists its fields.
+
+**Wrong.** `"path": "/{anything}"` with an open schema.

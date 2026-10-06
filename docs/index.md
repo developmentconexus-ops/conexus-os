@@ -10,15 +10,15 @@ Each guide owns one subject, and a rule lives in one of them.
 
 | Id | Guide | Owns |
 | --- | --- | --- |
-| C | [Codebase principles](development/codebase-principles.md) | What the code must look like, and the never-list |
+| C | [Code guide](development/codebase-principles.md) | The Google TypeScript Style Guide adapted: modules, classes, functions, data modeling, boundaries, errors, state, naming, redundancy |
 | A | [Architecture](reference/architecture.md) | The twelve arc42 sections: goals, constraints, context, the core, blocks and owners, runtime, deployment, concepts, decisions, quality, debt, glossary |
 | P | [Product contract](product/contract.md) | Purpose and capabilities, people, scope, concepts, journeys, what it never does |
-| D | [Database](reference/database.md) | Stores, roles, where a rule lives, migrations |
-| H | [Wire contract](product/wire-contract.md) | Operations, parsing, errors, retries on the wire |
-| S | [Security and authority](reference/security-and-authority.md) | Who may act, sign-in, sessions, secrets, egress |
+| D | [Database guide](reference/database.md) | Evolutionary Database Design: stores, migrations, a database per developer, refactoring, access code, roles, row security, where a rule lives |
+| H | [API guide](product/wire-contract.md) | The Zalando guidelines adapted: contract, URLs, methods, payload, errors, headers, pagination, compatibility |
+| S | [Security guide](reference/security-and-authority.md) | OWASP ASVS level 2: trust zones, who may act, sign-in, sessions, browser boundary, secrets, egress, untrusted code, logging, recovery |
 | V | [`DESIGN.md`](../DESIGN.md) | Look, motion, accessibility, icons, voice |
-| T | [Testing](development/testing.md) | What counts as proof |
-| L | [Delivery](development/delivery.md) | Lanes, waves, specs, review, merge, Git and CI |
+| T | [Testing guide](development/testing.md) | Microsoft playbook and Google test sizes: behavior, sizes, skips, doubles, generated output, negative cases, routes, screens, Builder proof |
+| L | [Delivery guide](development/delivery.md) | Microsoft playbook, Google eng-practices and DORA: lanes, waves, review loop, Aprovo, stop rules, small batches, proof, merge gate, Git |
 
 ## Records and machine owners
 

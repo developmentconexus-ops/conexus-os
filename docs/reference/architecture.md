@@ -385,7 +385,33 @@ pull request that fixes one deletes its line.
 | Model accounts and the Mastra instance live in `builder`, not in the core | Hub base, after S1 |
 | Nothing bounds one Project's storage in the Applications cluster | Hub base, after S1 |
 | An `archived` Project state exists that nothing produces | Project lifecycle, after S1 |
+| `ProjectPurged` is told apart by `projectRevision: ''`, and `archived` and `deleting` are booleans | Project lifecycle, after S1 |
+| Rows read without a schema, response bodies cast with `as`, and ids typed `string` in module ports (counted by `scripts/census-boundaries.mjs`) | S1 |
+| `startHub`, `createHttpApp` and the Builder module stay past the function size limit by suppression | Hub base, after S1 |
+| `Scope` in `apps/hub/src/connectors/scope.ts` is a class with mutable state | Hub base, after S1 |
+| About 400 named top-level functions are `const` arrows, eight class fields use `#private` outside secret values, and six types are `interface` without augmenting a library | Hub base, after S1 |
+| `app-runner/http.ts` reads a failure code from `error.message` | Hub base, after S1 |
+| Ten operations are still declared in YAML, and `identity-access/routes.ts` parses `Idempotency-Key` by hand | S1 |
+| `GET .../workspaces/{workspaceId}/projects` returns a top-level array, and lists that grow have no continuation token | Hub base, after S1 |
+| Stores not yet ported run as `hub_runtime` (`unportedPool`, the instance lock session), with `legacy` roles, `legacy_owner` and `legacy_runtime` policies, and SQL functions that hold business rules | S1, parts 4 to 6 |
+| Three migrations drop with `CASCADE` | S1 reset |
+| Tests read production source text (`builder-harness.test.mjs`, `builder-template-pins.test.mjs`, `builder-check-bundle.test.mjs`, `connector-adapter-source.test.mjs`) | Hub base, after S1 |
+| PostgreSQL tests skip without an `opt-in:` reason when no database is configured, and `keycloak-theme:check` is outside CI | Hub base, after S1 |
+| The Hub swallows a failed run publish and the screen polls instead, and `liveRuns` and the session `subscriptions` share module state | S5 |
+| No route lets a person or an administrator end sessions, and a restore has no step that ends them | Hub base, after S1 |
+| The Hub has no rate limit, and the realm has no brute-force protection | Hub base, after S1 |
+| Keys have no rotation procedure | Hub base, after S1 |
+| Screen stylesheets write values by hand: radii (`14px`, `999px` and others), shadows and the overlay as raw `rgb()`, shadows at rest (`styles.css`, `projects-home.css`, `lens-surfaces.css`, `construir.css`), a gradient texture in `.cx-thumb-placeholder`, and about 49 unused selectors in `styles.css` that carry them | Web style, after S1 |
+| `tokens.css` has no `card` or `pill` radius and no spacing scale, no test ties the front matter of `DESIGN.md` to `tokens.css`, and `.impeccable/design.json` repeats the tokens with no reader | Web style, after S1 |
+| `accent-text` on `canvas`, `surface-3` and `accent-soft`, and `success` on `surface-3` and `surface-4`, fall below 4.5:1 | Web style, after S1 |
+| `.cx-nav-soon` text is 10.4px | Web style, after S1 |
+| `composer.css` overrides Mastra's `composer-box` per component, and its controls show focus by a fill, not the outline | Web style, after S1 |
+| The composer's animated conic ring and the shimmer on "Pensando…" are motions beyond Encaixe | Web style, after S1 |
+| An icon has stroke 1.75 (`builder-conversation.tsx`), icons use sizes 13, 15 and 17, and `ask-user-pt.tsx` types a `✓` glyph | Web style, after S1 |
+| Retry buttons say "Tentar novamente" in two places and "Tentar de novo" in a third | Web style, after S1 |
 | The Builder's sandbox has open internet egress (C-023) | Accepted risk |
+| Project handlers can read other Projects' schema names (C-037) | Accepted risk |
+| A deleted Project's prompts stay in trace spans for up to 30 days (C-038) | Accepted risk |
 | One Mastra crossing remains in `apps/hub/src/builder/mastra-leftovers.ts` until mastra-ai/mastra#25903 | Accepted risk |
 
 ## 12. Glossary

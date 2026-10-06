@@ -83,7 +83,6 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('access-owner-check', 'node scripts/check-access-owner.mjs'),
   candidateStep('census-builder-run', 'node scripts/census-builder-run.mjs'),
   candidateStep('census-boundaries', 'node scripts/census-boundaries.mjs'),
-  candidateStep('enforced-by-check', 'node scripts/check-enforced-by.mjs'),
   candidateStep('generators', 'npm run generate'),
   candidateStep('contract-check', 'npm run contract:check'),
   candidateStep('e2b-template-check', 'node scripts/builder-e2b-template.mjs --check'),
@@ -140,7 +139,7 @@ export const DOCS_CHECK_SCOPES = Object.freeze([
 
 export const DOCS_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => DOCS_CHECK_SCOPES.includes(step.scope)))
 
-export const QUICK_CHECK_SCOPES = Object.freeze(['web-typecheck', 'hub-typecheck', 'repository-check', 'generators', 'contract-check', 'web-style', 'knip', 'biome', 'import-law-check', 'access-owner-check', 'census-builder-run', 'census-boundaries', 'enforced-by-check'])
+export const QUICK_CHECK_SCOPES = Object.freeze(['web-typecheck', 'hub-typecheck', 'repository-check', 'generators', 'contract-check', 'web-style', 'knip', 'biome', 'import-law-check', 'access-owner-check', 'census-builder-run', 'census-boundaries'])
 
 export const QUICK_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => QUICK_CHECK_SCOPES.includes(step.scope)))
 

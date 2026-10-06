@@ -1,4 +1,5 @@
 ---
+version: alpha
 name: Conexus OS
 description: Governed enterprise workbench where an AI agent builds and evolves business applications under explicit authority.
 colors:
@@ -41,7 +42,7 @@ colors:
 typography:
   display:
     fontFamily: "Bricolage Grotesque, system-ui, sans-serif"
-    fontSize: "clamp(1.6rem, 3.2vw, 2.1rem)"
+    fontSize: "2.1rem"
     fontWeight: 600
     lineHeight: 1.15
     letterSpacing: "-0.02em"
@@ -63,7 +64,7 @@ typography:
     lineHeight: 1
   eyebrow:
     fontFamily: "Hanken Grotesk, system-ui, sans-serif"
-    fontSize: "0.68rem"
+    fontSize: "0.6875rem"
     fontWeight: 700
     lineHeight: 1
     letterSpacing: "0.08em"
@@ -160,115 +161,238 @@ components:
 
 # Design System: Conexus OS
 
-How Conexus looks, moves and speaks. `packages/brand/src/tokens.css` owns every value and outranks
-the frontmatter above; the [product contract](docs/product/contract.md) owns what screens mean;
-[testing](docs/development/testing.md#screens) owns how a screen is proved. Rules marked "check" fail
-`npm run web:style:check` or a test; the rest are judged in review.
+How Conexus looks, moves and speaks. This guide follows the
+[DESIGN.md format](https://github.com/google-labs-code/design.md) from Google Labs (Apache 2.0,
+version alpha): the front matter holds the tokens, and the sections below give the rules, under the
+format's section names and order so `npx @google/design.md lint DESIGN.md` can read them. Each rule
+uses the words of [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119): **must** and **must not** are
+defects in review, **should** and **should not** need a stated reason to break, and **may** is a
+free choice.
 
-## 1. Overview
+`packages/brand/src/tokens.css` **must** define every color and radius the front matter names, with
+the same value. The front matter's type, spacing and component sizes are the values the stylesheets
+use. The format's `primary` is our `ink`, and the front matter does not repeat it under a second
+name. The guide states the target. Code that departs from it is listed in
+[architecture section 11](docs/reference/architecture.md#11-risks-and-technical-debt) with the wave
+that removes it. Owners next door: the [product guide](docs/product/contract.md) for what a screen
+means, [testing](docs/development/testing.md#8-screens) for how a screen is proved,
+[delivery](docs/development/delivery.md#approve-a-new-surface-from-something-usable) for who approves
+a new surface, and [architecture](docs/reference/architecture.md#the-web-app) for what the web app
+may own.
+
+## Overview
 
 **"Grafite e Ipê".** Graphite neutrals, flat and separated by hairlines, so the person's own app is
-the most colorful thing on screen. Ipê, a warm gold, is the one accent. Prose is sans and facts are
-mono. A full-width top bar, a scope rail that collapses to icons, and a page column; Construir splits
-into the stage, with the Preview edge to edge on white paper, and a resizable chat rail; on a phone a
-segmented switch swaps the two and both stay mounted. Regions and panes take no radius.
+the most colorful thing on screen. Ipê, a warm gold, is the one accent. Prose is sans, and facts are
+mono.
 
-Conexus designs its screens, structure and page patterns. `@mastra/playground-ui` supplies parts
-only, repainted through `apps/web/src/mastra-theme.css`; its structure blocks are not adopted by new
-screens and no part is forked (C-031). One way per need: a native `title` beside `Tooltip`, a raw
-color or a raw font is a defect.
+- A screen's regions (the top bar, the scope rail, the page column and the panes) **must** take no
+  radius and no shadow. Hairlines separate them.
+- Conexus designs its own screens, structure and page patterns. `@mastra/playground-ui` supplies
+  parts only (C-031).
+- Each need **must** have one way. A second way beside the first, such as a native `title` beside
+  `Tooltip`, is a defect.
 
-## 2. Color
+**Why.** The person's app is the content. The frame around it stays quiet so it never competes, and
+one way per need makes every screen read the same.
 
-- Every color is a `--cx-*` token; only `tokens.css` holds a raw value. Review: `web:style:check`
-  checks class names and the Mastra re-pointing, not values. A new token goes in
-  light, OS-dark and chosen-dark with the same name; `brand-tokens.test.mjs` fails when the names
-  differ and pins the ink and accent values. Check. Updating this file and `.impeccable/design.json`
-  with a token change is review.
-- **One accent.** Ipê marks focus, caret, selection, the active lens and the agent at work. It is
-  never a resting button fill, a heading or decoration; only the send button turns ipê, on hover.
-- **Ink primary.** The primary action is `--cx-ink` with `--cx-on-ink`.
-- **Never color alone.** Success, warning and danger mark status only, always with a word and
-  usually a mark; their grounds are low tints of the surface. Secondary text keeps 4.5:1 contrast.
-- **Two themes.** Light is the default, dark follows the system unless the person picks one, and
-  every change is checked in both.
-- Mastra parts follow the brand through `mastra-theme.css`, never a per-component override.
+**Right.** The Projects page: hairline cards on the canvas, with color only in the thumbnails.
 
-## 3. Type
+**Wrong.** A gradient header and a shadow under the scope rail.
 
-Bricolage Grotesque for headings, Hanken Grotesk for everything read as language, JetBrains Mono
-for facts only: model ids, paths, commands, times, revisions, error codes, counts. Mono is never a
-costume. Numerals are tabular; prose never goes below 12px, mono stamps and group labels not below
-11px. The fonts are self-hosted from `packages/brand/fonts`; no other family and no CDN.
+## Colors
 
-## 4. Shape, elevation and layout
+- Every color **must** be a `--cx-*` token. Only `tokens.css` holds a raw value, including shadows
+  and overlays.
+- A new token **must** be defined in the light, OS-dark and chosen-dark blocks under one name, and
+  in the front matter.
+- Ipê (`accent`) **must** mark only focus, the caret, selection (including the chosen value of a
+  control), the active lens and the agent at work. It is never a resting button fill, a heading or
+  decoration. The send button turns ipê on hover.
+- The primary action **must** be `ink` with `on-ink`.
+- Success, warning and danger **must** mark status only, always beside a word. Their grounds are low
+  tints of the surface.
+- Text **must** keep 4.5:1 contrast with its ground in both themes.
+- Light is the default. Dark follows the system unless the person picks a theme.
+- Mastra parts **must** follow the brand through `apps/web/src/mastra-theme.css`, never through an
+  override per component.
 
-Hairlines, not shadows: a card at rest does not float. A shadow appears only on a hover lift, a
-popover or a menu, black at low alpha. Radius comes from the scale; spacing takes the nearest
-existing `rem` step. No glass, gradient surface, texture or imagery besides the Preview. A brand
-component sizes itself with a `cx-*` class, never a `style` attribute, so it renders under the
-sign-in theme's strict CSP. Check for the wordmark (`brand-wordmark-csp.browser.test.mjs`); review
-for the rest. A screen's own structure
-uses `cx-*` classes; Tailwind utilities only adjust a composed Mastra part.
+**Why.** One accent sends the eye to what is happening now. Tokens let both themes change in one
+file.
 
-## 5. Motion
+**Right.** `border-bottom: 1px solid var(--cx-line)`.
 
-**Encaixe** is the one authored motion: the mark's two pieces slide apart and fit back while the
-agent works, and fit once on the first load. Everything else is quiet. All motion stops under
-`prefers-reduced-motion`, and the end state makes sense without it. No second motif: no orb,
-shimmer or bounce.
+**Wrong.** `box-shadow: 0 8px 24px rgb(0 0 0 / .06)` written in a screen's stylesheet.
 
-## 6. Interaction and accessibility
+## Typography
 
-- Hover moves a surface one step up; press shows a fill and never shrinks; `:focus-visible` draws a
-  2px ipê outline, never removed without a replacement; disabled says why when it is not obvious.
-- Tab reaches every action in reading order, Esc closes what opened, and no drag lacks a keyboard
-  path. Every input has a label and every icon-only button a pt-BR `aria-label`.
-- A screen reflows at 390px and at 200% zoom with no sideways scroll, and its console shows no error
-  or CSP violation.
+- Headings **must** use Bricolage Grotesque (`display`, `title`). Everything read as language uses
+  Hanken Grotesk (`body`, `label`, `eyebrow`).
+- JetBrains Mono (`fact`) **must** be used for facts only: model ids, paths, commands, times,
+  revisions, error codes and counts.
+- Numerals **must** be tabular.
+- Prose **must not** go below 12px. Mono stamps and group labels **must not** go below 11px.
+- The fonts **must** be self-hosted from `packages/brand/fonts`. No other family and no CDN.
+- `display` shrinks from 2.1rem to 1.6rem on narrow screens (`clamp(1.6rem, 3.2vw, 2.1rem)`). The
+  front matter gives its largest size.
 
-## 7. Icons
+**Why.** Mono marks what a person may copy or compare exactly. Used as decoration, it stops meaning
+that.
 
-Lucide only, from `lucide-react`, with its defaults (outline, stroke 2, round caps) and color from
-`currentColor` set by a token on the parent. Size follows the neighbor (16px inline, 14px toolbars,
-18px rail). The stop control is the one filled icon. One icon, one meaning, never status alone. A
-decorative icon is `aria-hidden`. Provider logos appear only in model pickers. No icon font, emoji,
-glyph or second set.
+**Right.** A failed run shows its code, `SOURCE_MOVED`, in mono after the sentence.
 
-## 8. Voice
+**Wrong.** A section title in mono to look technical.
 
-- pt-BR only, everywhere a person reads, including `aria-label` and placeholders; no English left by
-  a Mastra part (replace it in `builder-copy.ts`). Sentence case; capitals only in small group
-  labels. Buttons are verbs ("Permitir", "Ver aplicativo"), never a bare "OK".
-- Simple, calm and responsible: no exclamation, no empty apology, no emoji; the only symbols are `·`
-  and `…`. The product says **você**; in chat the agent is **Conexus** and speaks in the first
-  person; in system text it is **o agente**. Product nouns are capitalized: Workspace, Projeto,
-  Prévia, Construir, and the lenses Prévia, Código, Alterações, Sobre.
-- A failure's words come from the failure table (`failures.json`, read by `app/failure.ts`): it says what went wrong and what
-  still stands, shows the request again, and puts the internal code in mono. A Conexus failure never
-  asks to try again. What the person can fix says what to change.
-- Each tool becomes a sentence while it runs and when it ends (`tool-sentences.ts`), never its
-  technical name; three or more calls fold into one line. Reasoning shows only as "Pensando…".
-- What is not built says "em breve". Numbers use Brazilian format ("8,4 s"). Examples are real
-  company requests, never invented customers or figures.
+## Layout
 
-## 9. Approving a surface
+- Spacing **must** come from the `spacing` scale.
+- A screen's own structure **must** use `cx-*` classes. Tailwind utilities **may** only adjust a
+  composed Mastra part.
+- A brand component **must** size itself with a `cx-*` class, never a `style` attribute, so it
+  renders under the sign-in theme's strict Content Security Policy.
+- A screen **must** reflow at 390px wide and at 200% zoom with no sideways scroll.
 
-Only the operator approves the structure of a new surface, from something usable: a clickable
-prototype or the real screen on stubbed data, never a static picture. The structural piece is
-approved before the pieces that inherit it. Styling may not change reading order, region priority,
-where actions sit, density, navigation or phone behavior without that approval. Values on a screen
-match the issue's literal numbers and copy. A screen the operator asked to see carries
-`needs:aprovo`.
+**Why.** A class keeps the structure in a stylesheet, where one change reaches every screen. An
+inline style escapes both the stylesheet and the policy.
 
-## 10. The Build surface
+**Right.** `<div className="cx-page">`, with its rule in `frame.css`.
 
-The app is the main area and the conversation sits beside it; both survive resizing, collapsing and
-a narrow screen. Enter sends, Shift+Enter breaks a line, and input methods are safe. While a
-question waits, Enter answers it, Stop is its own control, and the screen says "Esperando a sua
-resposta" with no countdown. The conversation follows new messages only while the reader stays at
-its end. A model change never touches an active run. The Preview stays usable while new work runs,
-and an older launch never replaces a newer one. A failed source stays current with a safe
-diagnostic, and there is no automatic repair loop. Code and Changes are read-only, and Changes
-compares a run's base with its result. Reload reconciles conversation, run, source and Preview from
-the server.
+**Wrong.** `<div className="grid gap-[13px] p-5">` in a Conexus screen.
+
+## Elevation & Depth
+
+- Surfaces **must** be separated by hairlines (`line`), not shadows. A card at rest does not float.
+- A shadow **may** appear only on a hover lift, a popover or a menu, from a token.
+- There **must not** be glass, a gradient surface, texture or imagery, except the Preview.
+
+**Why.** A flat screen reads faster. Depth appears only where something sits above the page.
+
+**Right.** A menu opens with a shadow, and the card under it keeps its hairline.
+
+**Wrong.** A card placeholder filled with a repeating gradient.
+
+## Shapes
+
+- Every radius **must** come from `rounded`: `control` for buttons and inputs, `object` for windows,
+  popovers and panels, `card` for Project cards, `composer` for the composer, and `pill` for chips.
+- Regions and panes take no radius.
+
+**Why.** A short scale lets shape say what a thing is.
+
+**Right.** `border-radius: var(--cx-radius-control)`.
+
+**Wrong.** `border-radius: 14px` written by hand.
+
+## Components
+
+The front matter names each component and its tokens: the buttons (`button-primary`,
+`button-default`, `button-ghost`, `icon-button`), navigation items, inputs, chips, panels, Project
+cards and the composer. A state such as hover is its own entry.
+
+- A component **must** take its colors, radius and type from tokens.
+- A new component **must** enter the front matter in the same change.
+- A Mastra part **must** be used as shipped and painted through `mastra-theme.css`. New screens
+  **must not** adopt its structure blocks, and no part is forked.
+
+**Why.** Mastra keeps improving its parts. A painted part takes each improvement, and a forked or
+patched one loses it.
+
+**Right.** A Mastra button that takes the brand's colors from `mastra-theme.css`.
+
+**Wrong.** `[data-slot="composer-box"] { border-radius: 16px }` in a screen's stylesheet.
+
+## Motion
+
+- **Encaixe** is the one authored motion: the mark's two pieces slide apart and fit back while the
+  agent works, and fit once on the first load. There **must not** be a second motif, such as an
+  orb, a shimmer or a bounce.
+- All motion **must** stop under `prefers-reduced-motion`, and the end state makes sense without it.
+
+**Why.** With one motion tied to the agent, movement always means that Conexus is working.
+
+**Right.** The mark moves while a run works and rests when it ends.
+
+**Wrong.** A shimmer on "Pensando…" beside the moving mark.
+
+## Interaction and accessibility
+
+- Hover **must** move a surface one step up its scale: `surface`, `surface-3`, `surface-4`. Press
+  shows a fill and never shrinks.
+- `:focus-visible` **must** draw a 2px `accent` outline.
+- A disabled control **should** say why when the reason is not obvious.
+- Tab **must** reach every action in reading order, Esc closes what opened, and every drag has a
+  keyboard path.
+- Every input **must** have a label, and every icon-only button a pt-BR `aria-label`.
+- The console **must** show no error and no Content Security Policy violation.
+
+**Why.** A person on a keyboard or a screen reader uses the same product as everyone else.
+
+**Right.** The effort slider moves with the arrow keys and shows the outline on focus.
+
+**Wrong.** A button that shows focus only with a lighter fill.
+
+## Iconography
+
+- Icons **must** come from `lucide-react` with its defaults: outline, stroke 2 and round caps, colored
+  by `currentColor` from a token on the parent.
+- Size follows the neighbor: 14px in toolbars, 16px inline and 18px in the rail.
+- The stop control is the one filled icon. An icon has one meaning and never shows status alone. A
+  decorative icon is `aria-hidden`.
+- Provider logos **may** appear only in model pickers.
+- There **must not** be an icon font, an emoji, a text glyph or a second icon set.
+
+**Why.** One set at one stroke reads as one product.
+
+**Right.** `<Square fill="currentColor" />` on the stop control.
+
+**Wrong.** `'✓ '` typed into a button's text.
+
+## Voice
+
+- Everything a person reads **must** be in pt-BR, including `aria-label` and placeholders. English
+  left by a Mastra part is replaced in `builder-copy.ts`.
+- Text **must** use sentence case, with capitals only in small group labels. Buttons are verbs
+  ("Permitir", "Ver aplicativo"), never a bare "OK".
+- Text **must** be simple, calm and responsible: no exclamation, no empty apology and no emoji. The
+  only symbols are `·` and `…`.
+- The product says **você**. In chat the agent is **Conexus** and speaks in the first person. In
+  system text it is **o agente**. Product nouns are capitalized: Workspace, Projeto, Prévia,
+  Construir, and the lenses Prévia, Código, Alterações and Sobre.
+- One action **must** have one text everywhere.
+- A failure's words **must** come from `contracts/technical/failures.json`, read by
+  `apps/web/src/app/failure.ts`, with the internal code in mono. A failure Conexus caused never asks
+  the person to try again. A failure the person can fix says what to change.
+- A tool **must** show as a sentence while it runs and when it ends (`tool-sentences.ts`), never as
+  its technical name. Reasoning shows only as "Pensando…".
+- What is not built says "em breve". Numbers and dates use the Brazilian format ("1.234,5",
+  "5 de out."). Examples are real company requests, never invented customers or figures.
+
+**Why.** A non-technical person reads every word as a promise. Plain, calm Portuguese is what earns
+their trust.
+
+**Right.** The same verb on every button that does the same thing.
+
+**Wrong.** "Tentar novamente" on one screen and "Tentar de novo" on another.
+
+## The Build surface
+
+- The app **must** be the main area, with the conversation beside it. Both survive resizing,
+  collapsing and a narrow screen. On a phone a segmented switch swaps the two, and both stay
+  mounted.
+- Enter **must** send and Shift+Enter break a line, safely with input methods.
+- While a question waits, Enter **must** answer it, Stop stays its own control, and the screen says
+  "Esperando a sua resposta" with no countdown.
+- The conversation **must** follow new messages only while the reader stays at its end.
+- A model change **must not** touch an active run.
+- The Preview **must** stay usable while new work runs, and an older launch never replaces a newer
+  one.
+- A failed source **must** stay current with a safe diagnostic, with no automatic repair loop.
+- Code and Changes **must** be read-only. Changes compares a run's base with its result.
+- A reload **must** rebuild the conversation, the run, the source and the Preview from the server.
+
+**Why.** The person builds by watching the app change while they talk. Losing either side, or their
+place in it, breaks the work.
+
+**Right.** A person reloads during a run and finds the same run, messages and Preview.
+
+**Wrong.** The conversation jumps to the end while the person reads an earlier answer.

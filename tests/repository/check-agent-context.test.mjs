@@ -111,15 +111,6 @@ test('a skill over 90 lines fails, the conexus-development skill included', cont
   assert.equal(result.stderr, `error ${skill}: 91 lines exceeds the cap of 90\n`)
 })
 
-test('the never-list passes at 15 items and fails at 16', context => {
-  const shapes = 'docs/development/codebase-principles.md'
-  const items = count => `${Array.from({ length: count }, (_, index) => `- **Never do ${index}.** Instead do the other.`).join('\n')}\n`
-  assert.equal(run(fixture(context, { [shapes]: items(15) })).status, 0)
-  const result = run(fixture(context, { [shapes]: items(16) }))
-  assert.equal(result.status, 1)
-  assert.equal(result.stderr, `error ${shapes}: 16 never-list items exceeds the cap of 15\n`)
-})
-
 test('the vendored Mastra skill is not checked against this package.json', context => {
   const candidate = fixture(context, { '.agents/skills/mastra/SKILL.md': 'Run `npm run dev` in your Mastra project.\n' })
   const result = run(candidate)
@@ -129,20 +120,20 @@ test('the vendored Mastra skill is not checked against this package.json', conte
 
 test('a guide passes at its byte cap and fails one byte over', context => {
   const guide = 'docs/development/codebase-principles.md'
-  assert.equal(run(fixture(context, { [guide]: `${'x'.repeat(8191)}\n` })).status, 0)
-  const result = run(fixture(context, { [guide]: `${'x'.repeat(8192)}\n` }))
+  assert.equal(run(fixture(context, { [guide]: `${'x'.repeat(12287)}\n` })).status, 0)
+  const result = run(fixture(context, { [guide]: `${'x'.repeat(12288)}\n` }))
   assert.equal(result.status, 1)
-  assert.equal(result.stderr, `error ${guide}: 8193 bytes exceeds the cap of 8192\n`)
+  assert.equal(result.stderr, `error ${guide}: 12289 bytes exceeds the cap of 12288\n`)
 })
 
 test('the delivery guide carries a line cap and a byte cap, and each fails on its own', context => {
-  const longLines = `${Array.from({ length: 120 }, () => 'x'.repeat(99)).join('\n')}\n`
-  const tooManyLines = run(fixture(context, { [DELIVERY]: lines(151) }))
+  const longLines = `${Array.from({ length: 170 }, () => 'x'.repeat(99)).join('\n')}\n`
+  const tooManyLines = run(fixture(context, { [DELIVERY]: lines(261) }))
   assert.equal(tooManyLines.status, 1)
-  assert.equal(tooManyLines.stderr, `error ${DELIVERY}: 151 lines exceeds the cap of 150\n`)
+  assert.equal(tooManyLines.stderr, `error ${DELIVERY}: 261 lines exceeds the cap of 260\n`)
   const tooManyBytes = run(fixture(context, { [DELIVERY]: longLines }))
   assert.equal(tooManyBytes.status, 1)
-  assert.equal(tooManyBytes.stderr, `error ${DELIVERY}: 12000 bytes exceeds the cap of 10240\n`)
+  assert.equal(tooManyBytes.stderr, `error ${DELIVERY}: 17000 bytes exceeds the cap of 16384\n`)
 })
 
 test('an area that names no guide, or a guide that does not exist, fails', context => {

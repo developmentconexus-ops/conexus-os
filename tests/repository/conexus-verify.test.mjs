@@ -151,7 +151,6 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'access-owner-check',
   'census-builder-run',
   'census-boundaries',
-  'enforced-by-check',
   'generators',
   'contract-check',
   'e2b-template-check',

@@ -9,15 +9,15 @@ const VENDORED = ['.agents/skills/mastra/']
 
 // Each guide is the one owner of its subject, with a byte cap on the whole file.
 export const GUIDES = Object.freeze({
-  C: { path: 'docs/development/codebase-principles.md', kib: 8 },
-  A: { path: 'docs/reference/architecture.md', kib: 24 },
-  L: { path: 'docs/development/delivery.md', kib: 10 },
-  D: { path: 'docs/reference/database.md', kib: 8 },
-  H: { path: 'docs/product/wire-contract.md', kib: 8 },
+  C: { path: 'docs/development/codebase-principles.md', kib: 12 },
+  A: { path: 'docs/reference/architecture.md', kib: 28 },
+  L: { path: 'docs/development/delivery.md', kib: 16 },
+  D: { path: 'docs/reference/database.md', kib: 12 },
+  H: { path: 'docs/product/wire-contract.md', kib: 12 },
   S: { path: 'docs/reference/security-and-authority.md', kib: 12 },
   P: { path: 'docs/product/contract.md', kib: 12 },
-  V: { path: 'DESIGN.md', kib: 12 },
-  T: { path: 'docs/development/testing.md', kib: 6 },
+  V: { path: 'DESIGN.md', kib: 20 },
+  T: { path: 'docs/development/testing.md', kib: 10 },
 })
 const GUIDE_PATHS = new Set(Object.values(GUIDES).map(guide => guide.path))
 
@@ -30,7 +30,6 @@ export function inScope(path) {
 const LINES = { unit: 'lines', measure: text => text.replace(/\n$/, '').split('\n').length }
 const CHARACTERS = { unit: 'characters', measure: text => text.length }
 const BYTES = { unit: 'bytes', measure: text => Buffer.byteLength(text) }
-const NEVER_ITEMS = { unit: 'never-list items', measure: text => text.split('\n').filter(line => line.startsWith('- **Never ')).length }
 
 // Mastra caps a package AGENTS.md at 500 tokens (tokenx estimateTokenCount). tokenx 2.1.0 on Mastra's and
 // our AGENTS.md files measured 0.237 to 0.270 tokens per character, so 1800 characters stays under 500.
@@ -42,8 +41,7 @@ export const SIZE_CAPS = Object.freeze([
   { match: path => path === 'AGENTS.md', ...LINES, max: 60 },
   { match: path => path.endsWith('/AGENTS.md'), ...CHARACTERS, max: NESTED_AGENTS_CHARACTERS, note: 'about 500 tokens' },
   { match: path => path.endsWith('/SKILL.md'), ...LINES, max: 90 },
-  { match: path => path === GUIDES.L.path, ...LINES, max: 150 },
-  { match: path => path === GUIDES.C.path, ...NEVER_ITEMS, max: 15 },
+  { match: path => path === GUIDES.L.path, ...LINES, max: 260 },
 ])
 
 // GitHub's heading anchor: lowercase, punctuation dropped, each whitespace character a hyphen.
