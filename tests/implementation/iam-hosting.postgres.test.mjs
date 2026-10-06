@@ -321,6 +321,11 @@ for (const order of ['racer first', 'purge first']) {
         const callback = await hub.signInWith(person('caio', { email: 'caio@x.com' }), { application: SLUG, binding: bindingParam })
         return callback.statusCode === 303 && /sign-in\/complete|no-access\?reason=(NOT_GRANTED|SIGN_IN_FAILED)/.test(callback.headers.location)
       }],
+      // An unknown identity whose verified email claims an application invitation of P: the claim deletes a child of P, so the callback must hold P first.
+      ['application callback that claims', /DELETE FROM iam\.application_invitation/, async ({ hub }) => {
+        const callback = await hub.signInWith(person('nina', { email: 'nina@x.com' }), { application: SLUG, binding: bindingParam })
+        return callback.statusCode === 303 && /sign-in\/complete|no-access\?reason=NOT_GRANTED/.test(callback.headers.location)
+      }, 'invitation'],
       ['application redeem', /INSERT INTO iam\.host_session/, async ({ hub, applicationApp }) => {
         const callback = await hub.signInWith(person('caio', { email: 'caio@x.com' }), { application: SLUG, binding: bindingParam })
         const complete = new URL(callback.headers.location)
@@ -338,6 +343,7 @@ for (const order of ['racer first', 'purge first']) {
       const { hub, launch, purge } = world
       let prepared
       if (setup === 'preview') prepared = (await launch(MEMBER, await hub.openHubSession(MEMBER))).entryGrant
+      if (setup === 'invitation') await hub.sql("INSERT INTO iam.application_invitation (invitation_id, project_id, email, invited_by, expires_at) VALUES (gen_random_uuid(), $1, 'nina@x.com', $2, now() + interval '1 day')", [P, OWNER])
       const log = statements(t)
       let outcome
       if (order === 'racer first') {

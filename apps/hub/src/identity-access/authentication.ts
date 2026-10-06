@@ -85,27 +85,36 @@ export const readPreviewSession = async (gate: AuthenticationGate, key: Digest, 
   JOIN iam.account AS person ON person.account_id = session.account_id
   WHERE session.token_digest = ${key} AND session.kind = 'PREVIEW' AND session.artifact_revision_id = ${artifactRevisionId}`))
 
-/** Consumes an application handoff once, on its own host and from the browser that holds its binding. */
-export const consumeApplicationHandoff = async (gate: AuthenticationGate, key: Digest, slug: ApplicationSlug, bindingDigest: Digest): Promise<ApplicationHandoffRow | null> => bound(gate, await txOf(gate).maybe(ApplicationHandoffRow, sql`
-  DELETE FROM iam.handoff AS handoff USING iam.application AS application
-  WHERE handoff.handoff_digest = ${key} AND handoff.kind = 'APPLICATION' AND handoff.expires_at > now()
-    AND application.project_id = handoff.project_id AND application.slug = ${slug} AND handoff.binding_digest = ${bindingDigest}
-  RETURNING handoff.account_id, handoff.project_id, handoff.minted_at::text AS minted_at, handoff.provider_refresh_token AS sealed_token`))
-
 const ProjectOf = z.object({ project_id: ProjectId })
 
-/**
- * Consumes a Preview handoff once, while its parent Hub session is alive. The Project row comes first, as
- * the purge takes it: a redeem and a purge then wait in the same order and never deadlock.
- */
+// A step that writes a Project's children takes the Project row FOR SHARE first, in the order the purge
+// takes it FOR UPDATE, so the two wait on each other in one order and never deadlock. A Project in deletion has none.
+const shareProject = async (tx: WriteTx, projectId: ProjectId): Promise<ProjectId | null> => (await tx.maybe(ProjectOf, sql`
+  SELECT stored.project_id FROM project.project AS stored WHERE stored.project_id = ${projectId} AND ${notInDeletion(sql`stored`)} FOR SHARE`))?.project_id ?? null
+
+const shareProjectOfSlug = async (tx: WriteTx, slug: ApplicationSlug): Promise<ProjectId | null> => (await tx.maybe(ProjectOf, sql`
+  SELECT stored.project_id FROM iam.application AS application
+  JOIN project.project AS stored ON stored.project_id = application.project_id
+  WHERE application.slug = ${slug} AND ${notInDeletion(sql`stored`)}
+  FOR SHARE OF stored`))?.project_id ?? null
+
+/** Consumes an application handoff once, on its own host and from the browser that holds its binding, after its Project. */
+export const consumeApplicationHandoff = async (gate: AuthenticationGate, key: Digest, slug: ApplicationSlug, bindingDigest: Digest): Promise<ApplicationHandoffRow | null> => {
+  const tx = txOf(gate)
+  if (!(await shareProjectOfSlug(tx, slug))) return null
+  return bound(gate, await tx.maybe(ApplicationHandoffRow, sql`
+    DELETE FROM iam.handoff AS handoff USING iam.application AS application
+    WHERE handoff.handoff_digest = ${key} AND handoff.kind = 'APPLICATION' AND handoff.expires_at > now()
+      AND application.project_id = handoff.project_id AND application.slug = ${slug} AND handoff.binding_digest = ${bindingDigest}
+    RETURNING handoff.account_id, handoff.project_id, handoff.minted_at::text AS minted_at, handoff.provider_refresh_token AS sealed_token`))
+}
+
+/** Consumes a Preview handoff once, while its parent Hub session is alive, after its Project. */
 export const consumePreviewHandoff = async (gate: AuthenticationGate, key: Digest, artifactRevisionId: ArtifactRevisionIdType): Promise<PreviewHandoffRow | null> => {
   const tx = txOf(gate)
   const pending = await tx.maybe(ProjectOf, sql`SELECT project_id FROM iam.handoff WHERE handoff_digest = ${key} AND kind = 'PREVIEW'`)
   if (!pending) return null
-  if (!(await tx.maybe(ProjectOf, sql`
-    SELECT project_id FROM project.project AS stored WHERE project_id = ${pending.project_id}
-      AND ${notInDeletion(sql`stored`)}
-    FOR SHARE`))) return null
+  if (!(await shareProject(tx, pending.project_id))) return null
   return bound(gate, await tx.maybe(PreviewHandoffRow, sql`
     DELETE FROM iam.handoff AS handoff
     WHERE handoff.handoff_digest = ${key} AND handoff.kind = 'PREVIEW' AND handoff.artifact_revision_id = ${artifactRevisionId} AND handoff.expires_at > now()
@@ -175,13 +184,10 @@ export const refreshEmail = async (gate: AuthenticationGate, email: EmailAddress
 }
 
 /** The Project of an application address, taken FOR SHARE so a purge waits; a Project in deletion has none. */
-export const lookupSlug = async (gate: AuthenticationGate, slug: ApplicationSlug): Promise<ProjectId | null> =>
-  (await txOf(gate).maybe(ProjectOf, sql`
-    SELECT stored.project_id FROM iam.application AS application
-    JOIN project.project AS stored ON stored.project_id = application.project_id
-    WHERE application.slug = ${slug}
-      AND ${notInDeletion(sql`stored`)}
-    FOR SHARE OF stored`))?.project_id ?? null
+export const lookupSlug = (gate: AuthenticationGate, slug: ApplicationSlug): Promise<ProjectId | null> => shareProjectOfSlug(txOf(gate), slug)
+
+/** Takes the Project an application sign in returns to FOR SHARE, before the sign in claims or grants anything of it. */
+export const lockProject = async (gate: AuthenticationGate, projectId: ProjectId): Promise<boolean> => (await shareProject(txOf(gate), projectId)) !== null
 
 export type OidcStart = Readonly<{
   stateDigest: Digest

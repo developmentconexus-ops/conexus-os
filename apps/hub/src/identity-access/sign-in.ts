@@ -13,7 +13,7 @@ import { admitAccount, admitApplication, admitBootstrap } from './admission.js'
 import type { ConfiguredIdentity } from './admission.js'
 import { grantFirstTenure, tenureGranted } from './administrators.js'
 import { grantClaimed } from './application-access.js'
-import { claimInvitations, consumeOidcState, lookupIdentity, lookupSlug, provisionIdentity, refreshEmail, startOidc } from './authentication.js'
+import { claimInvitations, consumeOidcState, lockProject, lookupIdentity, lookupSlug, provisionIdentity, refreshEmail, startOidc } from './authentication.js'
 import type { Claim, KnownAccount } from './authentication.js'
 import type { OidcAdapter, SignInClaims } from './oidc.js'
 import { joinClaimed } from './roster.js'
@@ -116,6 +116,8 @@ export const createSignIn = ({ database, oidc, sessions, configured, origin, app
   /** The callback's one decision: who signed in, what their verified email claims, and the session or handoff it opens, in one entry. */
   const decide = (claims: SignInClaims, refreshToken: string, venue: Venue, bindingDigest: Digest | null): Promise<Readonly<{ outcome: SignInOutcome; founded: AccountId | null }>> =>
     database.authenticate(async (gate) => {
+      // The Project first, in the purge's order, before the claim deletes its invitations and inserts its grants.
+      if (venue.kind === 'APPLICATION' && !(await lockProject(gate, venue.projectId))) return { outcome: refusedAt(venue, 'NOT_GRANTED'), founded: null }
       const entrant = await identify(gate, claims, configured)
       const founded = 'founded' in entrant && entrant.founded ? entrant.founded : null
       if (entrant.kind === 'refused') return { outcome: refusedAt(venue, entrant.refusal), founded }

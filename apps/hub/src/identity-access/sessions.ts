@@ -15,7 +15,7 @@ import { mintToken } from '../platform/opaque-token.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { admitAccount, admitApplication, checkApplication, checkProject, isInstallationAdministrator } from './admission.js'
 import type { AccountScope, Admitted, ApplicationScope, Checked, ProjectScope } from './admission.js'
-import { consumeApplicationHandoff, consumePreviewHandoff, endCredential, endExpiredHubSession, hubEntry, lookupSlug, readApplicationSession, readHubSession, readPreviewSession, recordProviderCheck, slideHubSession } from './authentication.js'
+import { consumeApplicationHandoff, consumePreviewHandoff, endCredential, endExpiredHubSession, hubEntry, readApplicationSession, readHubSession, readPreviewSession, recordProviderCheck, slideHubSession } from './authentication.js'
 import type { HubSessionRow } from './authentication.js'
 import type { CurrentSession, HubSessionDigest } from './current-session.js'
 import type { OidcAdapter, ProviderRefusal } from './oidc.js'
@@ -181,7 +181,6 @@ export const createSessions = ({ database, envelope, provider }: Readonly<{
   /** Redeems an application handoff once, from the browser that holds its binding, into an application session. */
   const redeemApplication = (input: Readonly<{ handoff: RawToken; slug: ApplicationSlug; binding: RawToken }>): Promise<Redeemed | null> =>
     database.authenticate(async (gate) => {
-      if (!(await lookupSlug(gate, input.slug))) return null
       const handoff = await consumeApplicationHandoff(gate, digest(input.handoff), input.slug, digest(input.binding))
       if (!handoff) return null
       const proof = await admitApplication(gate, handoff.project_id).catch((error: unknown) => {
