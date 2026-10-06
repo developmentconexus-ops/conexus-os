@@ -16,6 +16,7 @@
         "scripts/codemods/error-code-to-failure.mjs",
         "scripts/codemods/operation-code-to-name.mjs",
         "scripts/codemods/contract-package-import.mjs",
+        "scripts/codemods/mar-to-hosting.mjs",
         "scripts/keycloak-refresh-probe.mjs",
         "scripts/builder-eval/plan-bench.mjs",
         "scripts/builder-eval/experiment.mjs",
