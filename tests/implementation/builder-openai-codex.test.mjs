@@ -203,6 +203,44 @@ test('an expired token is refreshed once for every run holding the row, and writ
   await assert.rejects(lastHold(), /BUILDER_MODEL_NOT_SELECTED/, 'a disconnected account ends the run the way a missing one does')
 })
 
+test('a run whose read straddles another run\'s write back adopts the refreshed row, and the spent refresh token is never sent twice', async () => {
+  const row = { secret: serializeCodexTokens(tokens('old', 1_000)) }
+  const modelAccountId = 'row-shared'
+  const run = (gate) => ({
+    modelAccountId,
+    credential: { provider: 'openai-codex', kind: 'oauth' },
+    secret: row.secret,
+    run: { builderRunId: RUN_A, accountId: ana },
+    read: async () => {
+      const snapshot = row.secret
+      await gate
+      return { secret: snapshot }
+    },
+    persist: async (secret) => { row.secret = secret; return true },
+  })
+  const refreshes = []
+  const holds = createCodexHolds({
+    now: () => 2_000,
+    refresh: async (refreshToken) => { refreshes.push(refreshToken); return tokens('new', 10_000) },
+  })
+  let release
+  const gated = new Promise((resolve) => { release = resolve })
+  const leader = holds.hold(run(Promise.resolve()), tokens('old', 1_000))
+  const follower = holds.hold({ ...run(gated), read: (() => { let first = true; return async () => {
+    if (!first) return { secret: row.secret }
+    first = false
+    const snapshot = row.secret
+    await gated
+    return { secret: snapshot }
+  } })() }, tokens('old', 1_000))
+  const following = follower()
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.deepEqual(await leader(), tokens('new', 10_000))
+  release()
+  assert.deepEqual(await following, tokens('new', 10_000))
+  assert.deepEqual(refreshes, ['refresh-old'])
+})
+
 test('a run whose admission is gone never receives the refresh another run made, and the other run still persists it', async () => {
   const { modelAccounts, seed, revoke, rows } = fakeModelAccounts()
   await seed(ana, 'openai-codex', 'oauth', serializeCodexTokens(tokens('old', 1_000)))

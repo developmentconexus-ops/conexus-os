@@ -9,6 +9,8 @@ import { ID } from './project-fixture.mjs'
 
 const { createModelAccounts } = await import(hubModuleUrl('builder/model-account/accounts.js'))
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
+const { unportedPool } = await import(hubModuleUrl('platform/db.js'))
+const { admitAccount } = await import(hubModuleUrl('identity-access/admission.js'))
 
 const KEY = 'ab'.repeat(32)
 const envelope = createSecretEnvelope(KEY)
@@ -302,4 +304,47 @@ test('the catalog: three forced tables, no model function, no retired role, and 
   for (const table of ['model_account', 'installation_default', 'model_account_sharing_history']) {
     assert.equal((await sqlstate(connection, ENTRY.runtime(), `SELECT 1 FROM model.${table}`)).state, '42501', `hub_runtime on ${table}`)
   }
+})
+
+test('a pooled client is hub_runtime with no grant on the model tables after a commit, a rollback and a throw', async (t) => {
+  const { openRuntimeDatabase, seedRow } = await setup(t, 'conexus_model_pooled')
+  const single = openRuntimeDatabase({ max: 1 })
+  const pooled = createModelAccounts({ database: single, envelope, ownerId: OWNER })
+  const pool = unportedPool(single)
+  const refusedOnEveryTable = async (when) => {
+    assert.deepEqual((await pool.query('SELECT current_user AS who')).rows, [{ who: 'hub_runtime' }], when)
+    for (const table of ['model_account', 'installation_default', 'model_account_sharing_history']) {
+      await assert.rejects(pool.query(`SELECT 1 FROM model.${table}`), { code: '42501' }, `${when}: ${table}`)
+    }
+  }
+  await seedRow(B, 'anthropic', 'api_key', 'shared-by-b', 'everyone')
+  await pooled.write({ accountId: A, credential: ANTHROPIC_KEY, secret: 'committed' })
+  await refusedOnEveryTable('after a commit')
+  await assert.rejects(pooled.write({ accountId: randomUUID(), credential: ANTHROPIC_KEY, secret: 'k' }), { id: 'ACCOUNT_NOT_FOUND' })
+  await refusedOnEveryTable('after a rollback')
+  await assert.rejects(single.transaction(A, async (gate) => { await admitAccount(gate); throw new Error('thrown') }), { message: 'thrown' })
+  await refusedOnEveryTable('after a throw')
+  assert.equal((await pooled.standing(A)).anthropic.shared, true)
+  await refusedOnEveryTable('after a read')
+})
+
+test('concurrent upserts beside the unported IAM paths never deadlock under a short deadlock_timeout', async (t) => {
+  const { accounts, connection, rowsOf } = await setup(t, 'conexus_model_deadlock')
+  await query(connection, `ALTER DATABASE "${connection.database}" SET deadlock_timeout = '100ms'`)
+  const iam = async () => {
+    await query(connection, "UPDATE iam.account SET display_name = 'Owner again' WHERE account_id = $1", [A])
+    await query(connection, "UPDATE iam.workspace_membership SET role = role WHERE account_id = $1", [A])
+  }
+  const outcomes = []
+  for (let round = 0; round < 15; round++) {
+    outcomes.push(...await Promise.allSettled([
+      accounts.write({ accountId: A, credential: ANTHROPIC_KEY, secret: `one-${round}` }),
+      accounts.write({ accountId: A, credential: ANTHROPIC_OAUTH, secret: `two-${round}` }),
+      accounts.connect({ accountId: A, credential: CODEX, secret: `codex-${round}` }),
+      iam(),
+      iam(),
+    ]))
+  }
+  assert.deepEqual(outcomes.filter((outcome) => outcome.status === 'rejected').map((outcome) => outcome.reason?.cause?.code ?? outcome.reason?.code ?? String(outcome.reason)), [])
+  assert.deepEqual((await rowsOf()).map((row) => row.provider), ['anthropic', 'openai-codex'])
 })

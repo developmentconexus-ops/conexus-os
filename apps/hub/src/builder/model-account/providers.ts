@@ -30,15 +30,15 @@ export type Lawful = { [P in ModelAccountProvider]: Readonly<{ provider: P; kind
 const ProviderKind = z.object({ provider: ModelAccountProvider, kind: ModelAccountKind })
 
 export const LawfulCredential = ProviderKind.transform((pair, ctx): Lawful => {
-  const kinds: readonly ModelAccountKind[] = MODEL_PROVIDERS[pair.provider].kinds
-  if (!isLawful(pair, kinds)) {
+  if (!isLawful(pair)) {
     ctx.issues.push({ code: 'custom', message: `${pair.provider} cannot hold a ${pair.kind} account`, input: pair })
     return z.NEVER
   }
   return pair
 })
 
-function isLawful(pair: z.output<typeof ProviderKind>, kinds: readonly ModelAccountKind[]): pair is Lawful {
+function isLawful(pair: z.output<typeof ProviderKind>): pair is Lawful {
+  const kinds: readonly ModelAccountKind[] = MODEL_PROVIDERS[pair.provider].kinds
   return kinds.includes(pair.kind)
 }
 

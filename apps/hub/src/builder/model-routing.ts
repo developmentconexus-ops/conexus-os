@@ -12,6 +12,9 @@ import type { AccountId, BuilderRunId, ConversationId, ModelAccountId, ModelAcco
 type Taken = Readonly<{ modelProvider: string; model(modelName: string, thinkingLevel?: ThinkingLevelSetting): Promise<MastraModelConfig> }>
 
 /**
+ * How a model call pays for and reaches one provider's models: the account provider whose rows pay,
+ * and the call built on the row a run holds. A Builder call carries the conversation's thinking
+ * level, which the route hands to its provider's own Mastra option; a memory call carries none.
  */
 export type ModelRoute<P extends ModelAccountProvider = ModelAccountProvider> = Readonly<{
   accountProvider: P

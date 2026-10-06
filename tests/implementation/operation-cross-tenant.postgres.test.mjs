@@ -103,9 +103,11 @@ const seedThumbnail = async (connection, projectId, bytes) => {
 // The path parameters of an operation beyond the two tenant ids name a child of a tenant (a run, a
 // member, a connection, a grant). Such an operation needs an attempt that admits the actor in its own
 // tenant and passes a child id of another. None of today's operations takes one.
-const TENANT_PARAMETERS = Object.freeze(['workspaceId', 'projectId', 'provider', 'loginId'])
-const IN_MEMORY = Object.freeze(['MDL-04', 'MDL-06', 'MDL-07', 'MDL-09', 'MDL-11'])
-const childParameters = (operation) => [...operation.path.matchAll(/:(\w+)/g)].map((found) => found[1]).filter((name) => !TENANT_PARAMETERS.includes(name))
+const TENANT_PARAMETERS = Object.freeze(['workspaceId', 'projectId'])
+// A provider name and a sign-in handle that only the person who started it can see: neither names a tenant's row.
+const NON_TENANT_PARAMETERS = Object.freeze(['provider', 'loginId'])
+const IN_MEMORY = Object.freeze(['MDL-04', 'MDL-06', 'MDL-09'])
+const childParameters = (operation) => [...operation.path.matchAll(/:(\w+)/g)].map((found) => found[1]).filter((name) => ![...TENANT_PARAMETERS, ...NON_TENANT_PARAMETERS].includes(name))
 
 const digestOfB = async (connection, projectId) => {
   const found = await rowsOfB(connection, projectId)
@@ -185,6 +187,16 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       child: null,
     },
     'MDL-10': {
+      own: async () => assert.deepEqual(await modelAccounts.connect({ accountId: member, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: true }),
+      cross: async () => assert.deepEqual(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
+      child: null,
+    },
+    'MDL-07': {
+      own: async () => assert.deepEqual(await modelAccounts.connect({ accountId: member, credential: { provider: 'openai-codex', kind: 'oauth' }, secret: 'tokens' }), { ok: true }),
+      cross: async () => assert.deepEqual(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'openai-codex', kind: 'oauth' }, secret: 'tokens' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
+      child: null,
+    },
+    'MDL-11': {
       own: async () => assert.deepEqual(await modelAccounts.connect({ accountId: member, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: true }),
       cross: async () => assert.deepEqual(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
       child: null,

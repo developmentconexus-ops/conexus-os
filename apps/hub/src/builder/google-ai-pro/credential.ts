@@ -36,16 +36,17 @@ export type GoogleAiProKey = z.output<typeof GoogleAiProKey>
 export const InstanceId = z.string().regex(/^[0-9a-f]{16}$/).brand<'InstanceId'>()
 export type InstanceId = z.output<typeof InstanceId>
 
-export const encodeKey = ({ fileName, bytes }: AuthRecord): GoogleAiProKey => {
+export function encodeKey({ fileName, bytes }: AuthRecord): GoogleAiProKey {
   const key = GoogleAiProKey.safeParse(`${PREFIX}${Buffer.from(fileName).toString('base64url')}.${Buffer.from(bytes).toString('base64url')}`)
   if (!key.success) throw new Failure('GOOGLE_AI_PRO_RECORD_REFUSED')
   return key.data
 }
 
-export const parseKey = (value: string): GoogleAiProKey | null => {
+export function parseKey(value: string): GoogleAiProKey | null {
   const key = GoogleAiProKey.safeParse(value)
   return key.success ? key.data : null
 }
 
-export const instanceIdOf = (key: GoogleAiProKey): InstanceId =>
-  InstanceId.parse(createHash('sha256').update(key).digest('hex').slice(0, 16))
+export function instanceIdOf(key: GoogleAiProKey): InstanceId {
+  return InstanceId.parse(createHash('sha256').update(key).digest('hex').slice(0, 16))
+}
