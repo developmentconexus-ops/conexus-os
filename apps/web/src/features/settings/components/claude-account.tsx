@@ -3,22 +3,22 @@ import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useId, useState } from 'react'
 import { FAILURES } from '../../../../../../packages/contract/dist/failures.generated.js'
-import { accountsQueryKey, accountsUrl, callModelAccounts as call, type Accounts } from '../model-accounts-api'
+import { MDL04, MDL05, type ModelLoginId } from '../../../../../../packages/contract/dist/index.js'
+import { accountsQueryKey, noInput, ownKind, readAccounts } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
-import { failureText } from '../../../app/http'
+import { call, failureText } from '../../../app/http'
 
 type LoginState = 'succeeded' | 'failed' | 'expired'
-type Login = Readonly<{ loginId: string; url: string; expiresAt: string }>
+type Login = Readonly<{ loginId: ModelLoginId; url: string; expiresAt: string }>
 
 const PROVIDER = 'anthropic'
-const base = `/api/control/model-accounts/${PROVIDER}/oauth`
 
 function PasteCode({ login, onDone, onCancel }: Readonly<{ login: Login; onDone: (state: Exclude<LoginState, 'failed'>) => void; onCancel: () => void }>) {
   const [pasted, setPasted] = useState('')
   const [refusal, setRefusal] = useState<string | null>(null)
   const pastedId = useId()
   const complete = useMutation({
-    mutationFn: () => call<{ state: LoginState }>('POST', `${base}/complete`, { loginId: login.loginId, code: pasted.trim() }),
+    mutationFn: () => call(MDL05, { ...noInput, body: { loginId: login.loginId, code: pasted.trim() } }),
     onSuccess: ({ state }) => { if (state === 'failed') setRefusal(FAILURES.MODEL_LOGIN_ANTHROPIC_REFUSED.message); else onDone(state) },
     onError: (error) => setRefusal(failureText(error)),
   })
@@ -41,7 +41,7 @@ function PasteCode({ login, onDone, onCancel }: Readonly<{ login: Login; onDone:
 export function ClaudeAccount() {
   const queryClient = useQueryClient()
   const titleId = useId()
-  const accounts = useQuery({ queryKey: accountsQueryKey, queryFn: () => call<Accounts>('GET', accountsUrl), retry: false })
+  const accounts = useQuery({ queryKey: accountsQueryKey, queryFn: readAccounts, retry: false })
   const [login, setLogin] = useState<Login | null>(null)
   const [message, setMessage] = useState<Readonly<{ text: string; failed: boolean }> | null>(null)
   // Connecting changes which models this person's pickers offer.
@@ -50,7 +50,7 @@ export function ClaudeAccount() {
     queryClient.invalidateQueries({ queryKey: ['builder-models'] }),
   ])
   const start = useMutation({
-    mutationFn: () => call<Login>('POST', `${base}/start`, {}),
+    mutationFn: () => call(MDL04, noInput),
     onSuccess: (started) => { setMessage(null); setLogin(started) },
     onError: () => setMessage({ text: 'Não foi possível iniciar a entrada com a Claude agora.', failed: true }),
   })
@@ -60,7 +60,7 @@ export function ClaudeAccount() {
     <SectionError error={accounts.error} description="Não foi possível consultar a sua assinatura Claude." onRetry={() => void accounts.refetch()} />
   </section>
   const account = accounts.data.accounts.find((item) => item.provider === PROVIDER)
-  const kind = account?.kind ?? null
+  const kind = account ? ownKind(account.own) : null
   return <section aria-labelledby={titleId}>
     <h2 id={titleId}>Assinatura Claude</h2>
     <p className="cxs-hint">Use a sua assinatura Claude Pro ou Max no Builder. Você entra com a sua conta Claude no seu navegador; a Conexus nunca vê a sua senha.</p>

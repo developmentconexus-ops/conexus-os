@@ -2,41 +2,25 @@ import { createAnthropicThinkingMiddleware } from '@mastra/code-sdk/providers/cl
 import { resolveGoogleThinkingConfig } from '@mastra/code-sdk/providers/google-thinking'
 import { getEffectiveThinkingLevel, THINKING_LEVEL_TO_REASONING_EFFORT } from '@mastra/code-sdk/providers/openai-codex'
 import { getAvailableThinkingLevelsForModel, THINKING_LEVEL_VALUES, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
-import type { AvailableModel } from '@mastra/core/agent-controller'
 import { getProviderConfig } from '@mastra/core/llm'
 import type { FastifyInstance } from 'fastify'
-import { DEFAULT_THINKING_LEVEL } from './harness/request-context.js'
+import {
+  MDL01, MDL02, MDL03, MDL04, MDL05, MDL06, MDL07, MDL08, MDL09, MDL10, MDL11,
+  ModelLoginId, type AccountId, type ModelAccountProvider, type OfferedModel,
+} from '../../../../packages/contract/dist/index.js'
 import { Failure } from '../platform/failure.js'
-import { ANTHROPIC_KEY_SHAPE, ANTHROPIC_PROVIDER, serializeClaudeTokens } from './anthropic/credential.js'
+import { serializeClaudeTokens } from './anthropic/credential.js'
 import { createClaudeLogin, type ClaudeAuthorization } from './anthropic/login.js'
-import type { AccountId } from '../identity-access/current-session.js'
-import { GOOGLE_AI_PRO_MODELS, GOOGLE_AI_PRO_PROVIDER } from './google-ai-pro/credential.js'
 import { createGoogleAiProLogin } from './google-ai-pro/login.js'
 import type { CliproxyPool } from './google-ai-pro/pool.js'
-import type { GoogleAiProAccounts } from './google-ai-pro/store.js'
-import type { ModelAccountKind, ModelAccountStore } from './model-account-store.js'
-import { OPENAI_CODEX_PROVIDER, OPENAI_MODEL_PROVIDER, serializeCodexTokens } from './openai-codex/credential.js'
+import type { ModelAccounts } from './model-account/accounts.js'
+import { MODEL_PROVIDERS, type RouterPrefix } from './model-account/providers.js'
+import { serializeCodexTokens } from './openai-codex/credential.js'
 import { createCodexLogin, type CodexDevice } from './openai-codex/login.js'
 import { routes } from '../http/access.js'
 
-const LOGIN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-
 type Caller = Readonly<{ accountId: AccountId }>
-/** `thinkingLevels`: the levels the composer offers for the model, lowest first; none when it has no thinking. */
-type OfferedModel = Readonly<Pick<AvailableModel, 'id' | 'provider' | 'modelName' | 'hasApiKey'> & { providerName: string; thinkingLevels: readonly ThinkingLevelSetting[] }>
-type Offer = readonly Omit<OfferedModel, 'hasApiKey'>[]
-
-/**
- * The name a person reads for a provider: Mastra's catalog name, except for the providers the Hub
- * signs in to by subscription, whose catalog name says nothing of how the person pays.
- */
-const PROVIDER_NAME_OVERRIDES: Readonly<Record<string, string>> = Object.freeze({
-  [ANTHROPIC_PROVIDER]: 'Anthropic (Claude)',
-  [OPENAI_CODEX_PROVIDER]: 'OpenAI (ChatGPT)',
-  [OPENAI_MODEL_PROVIDER]: 'OpenAI (ChatGPT)',
-  [GOOGLE_AI_PRO_PROVIDER]: 'Google AI Pro',
-})
-const providerNameOf = (provider: string): string => PROVIDER_NAME_OVERRIDES[provider] ?? getProviderConfig(provider)?.name ?? provider
+type Offer = readonly OfferedModel[]
 
 const shapeOf = (option: unknown): string => JSON.stringify(option) ?? 'undefined'
 
@@ -63,28 +47,15 @@ const thinkingLevelsOf = async (modelId: string, optionAt: (level: ThinkingLevel
   return Object.freeze(levels)
 }
 
-// Every offer's `modelName` is the bare model id, as Mastra's AvailableModel documents it; the web's humanizeModelName is the one place that makes it readable.
-/** The Google AI Pro models, by the id a thread's model selection stores and a run resolves. */
-const googleAiProOffer = (): Promise<Offer> => Promise.all(GOOGLE_AI_PRO_MODELS.map(async (model) => Object.freeze({
-  id: `${GOOGLE_AI_PRO_PROVIDER}/${model}`, provider: GOOGLE_AI_PRO_PROVIDER, providerName: providerNameOf(GOOGLE_AI_PRO_PROVIDER), modelName: model,
-  thinkingLevels: await thinkingLevelsOf(`${GOOGLE_AI_PRO_PROVIDER}/${model}`, (level) => resolveGoogleThinkingConfig(model, level)),
-})))
-
 // Mastra's model router catalog lists every model of a provider, and Mastra Code offers all of them
 // on a subscription. The catalog carries no capability field, so the ones that cannot chat are
 // left out by name, as the Hub did for the Factory catalog, with the retired ones the catalog marks.
 const NON_CHAT_MODEL = /(^|[-_.])(image|dall-?e|embed|embedding|tts|whisper|transcribe|realtime|rerank|moderation)([-_.]|$)/i
-const chatModelsOf = (provider: string): readonly string[] => {
+const chatModelsOf = (provider: RouterPrefix): readonly string[] => {
   const catalog = getProviderConfig(provider)
   const retired = new Set(catalog?.deprecatedModels ?? [])
   return (catalog?.models ?? []).filter((model) => !retired.has(model) && !NON_CHAT_MODEL.test(model))
 }
-
-/** The ChatGPT subscription's models, by the `openai/<model>` id a thread stores and a run resolves. */
-const openaiCodexOffer = (): Promise<Offer> => Promise.all(chatModelsOf(OPENAI_MODEL_PROVIDER).map(async (model) => Object.freeze({
-  id: `${OPENAI_MODEL_PROVIDER}/${model}`, provider: OPENAI_MODEL_PROVIDER, providerName: providerNameOf(OPENAI_MODEL_PROVIDER), modelName: model,
-  thinkingLevels: await thinkingLevelsOf(`${OPENAI_MODEL_PROVIDER}/${model}`, (level) => THINKING_LEVEL_TO_REASONING_EFFORT[getEffectiveThinkingLevel(model, level)]),
-})))
 
 /** What Mastra Code's Claude middleware writes into the request's Anthropic options for a level; nothing when it writes none. */
 const anthropicSetting = async (model: string, level: ThinkingLevelSetting): Promise<unknown> => {
@@ -94,157 +65,104 @@ const anthropicSetting = async (model: string, level: ThinkingLevelSetting): Pro
   const call: Parameters<NonNullable<typeof middleware.transformParams>>[0] = {
     type: 'stream',
     params: { prompt: [], providerOptions: {} },
-    model: { specificationVersion: 'v3', provider: ANTHROPIC_PROVIDER, modelId: model, supportedUrls: {}, doGenerate: unused, doStream: unused },
+    model: { specificationVersion: 'v3', provider: MODEL_PROVIDERS.anthropic.routerPrefix, modelId: model, supportedUrls: {}, doGenerate: unused, doStream: unused },
   }
   return (await middleware.transformParams(call)).providerOptions?.anthropic
 }
 
-/** Both kinds of Anthropic account serve every chat model of Mastra's catalog, by the `anthropic/<model>` id a thread stores and a run resolves. */
-const anthropicOffer = (): Promise<Offer> => Promise.all(chatModelsOf(ANTHROPIC_PROVIDER).map(async (model) => Object.freeze({
-  id: `${ANTHROPIC_PROVIDER}/${model}`, provider: ANTHROPIC_PROVIDER, providerName: providerNameOf(ANTHROPIC_PROVIDER), modelName: model,
-  thinkingLevels: await thinkingLevelsOf(`${ANTHROPIC_PROVIDER}/${model}`, (level) => anthropicSetting(model, level)),
-})))
 
-/** The providers a person connects by pasting a key, and the shape each key must have. */
-const API_KEY_SHAPES: Readonly<Record<string, RegExp>> = Object.freeze({ [ANTHROPIC_PROVIDER]: ANTHROPIC_KEY_SHAPE })
+function offerOf(provider: ModelAccountProvider, models: readonly string[], optionAt: (model: string, level: ThinkingLevelSetting) => unknown): Promise<Offer> {
+  const { name, routerPrefix } = MODEL_PROVIDERS[provider]
+  return Promise.all(models.map(async (model) => ({
+    id: `${routerPrefix}/${model}`, provider: routerPrefix, providerName: name, modelName: model,
+    thinkingLevels: [...await thinkingLevelsOf(`${routerPrefix}/${model}`, (level) => optionAt(model, level))],
+  })))
+}
 
-/** The accounts the Settings screen lists, by `model.model_account` provider. */
-const LISTED_PROVIDERS = [OPENAI_CODEX_PROVIDER, ANTHROPIC_PROVIDER] as const
+const OFFERS = {
+  'google-ai-pro': () => offerOf('google-ai-pro', MODEL_PROVIDERS['google-ai-pro'].models, resolveGoogleThinkingConfig),
+  'openai-codex': () => offerOf('openai-codex', chatModelsOf(MODEL_PROVIDERS['openai-codex'].routerPrefix), (model, level) => THINKING_LEVEL_TO_REASONING_EFFORT[getEffectiveThinkingLevel(model, level)]),
+  anthropic: () => offerOf('anthropic', chatModelsOf(MODEL_PROVIDERS.anthropic.routerPrefix), anthropicSetting),
+} satisfies Record<ModelAccountProvider, () => Promise<Offer>>
 
-type Connection = Readonly<{ provider: string; providerName: string; mine: boolean; kind: ModelAccountKind | null; shared: boolean }>
+const OFFER_ORDER = ['google-ai-pro', 'openai-codex', 'anthropic'] as const satisfies readonly ModelAccountProvider[]
+
+const LISTED_PROVIDERS = ['openai-codex', 'anthropic'] as const satisfies readonly ModelAccountProvider[]
 
 /**
  * Model accounts on the Builder's own tables (spec 0002): Google AI Pro, the ChatGPT subscription,
  * and Anthropic by key or by Claude subscription. Sharing and the defaults screen are the rest of
  * slice 5.
  */
-// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
-export const registerModelAccountRoutes = async (app: FastifyInstance, { isInstallationAdministrator, modelAccounts, openaiCodexDevice, claudeAuthorization, googleAiPro, googleAiProAccounts }: Readonly<{
-  isInstallationAdministrator(account: AccountId): Promise<boolean>
-  modelAccounts: ModelAccountStore
+export const registerModelAccountRoutes = async (app: FastifyInstance, { modelAccounts, defaultThinkingLevel, openaiCodexDevice, claudeAuthorization, googleAiPro }: Readonly<{
+  modelAccounts: Pick<ModelAccounts, 'standing' | 'write' | 'connect'>
+  defaultThinkingLevel: ThinkingLevelSetting
   // OpenAI's device-code endpoints; only tests replace them.
   openaiCodexDevice?: CodexDevice
   // Anthropic's authorization endpoints; only tests replace them.
   claudeAuthorization?: ClaudeAuthorization
   // Present when the Hub runs CLIProxyAPI; then a person signs in to Google AI Pro from Settings.
   googleAiPro?: Pick<CliproxyPool, 'startLogin'>
-  // The Google AI Pro credential's home, `model.model_account`: present exactly when googleAiPro is.
-  googleAiProAccounts?: GoogleAiProAccounts
-}>): Promise<void> => {
+}>): Promise<readonly ['MDL-01', 'MDL-02', 'MDL-03', 'MDL-04', 'MDL-05', 'MDL-06', 'MDL-07', 'MDL-08', 'MDL-09', 'MDL-10', 'MDL-11']> => {
   const route = routes(app)
-  // Offered only to a caller who can use it, own or shared, since a model whose first turn fails is
-  // worse than one not offered. With scope=installation, whether the installation shares one.
-  const offeredModels = async (accountId: AccountId, scope?: 'installation'): Promise<readonly Omit<OfferedModel, 'hasApiKey'>[]> => {
-    const usable = async (provider: string): Promise<boolean> => scope === 'installation'
-      ? modelAccounts.hasShared(provider)
-      : modelAccounts.connection(accountId, provider).then(({ mine, shared }) => mine !== null || shared)
-    const offers: readonly (readonly [string, () => Promise<Offer>])[] = [
-      ...(googleAiProAccounts ? [[GOOGLE_AI_PRO_PROVIDER, googleAiProOffer] as const] : []),
-      [OPENAI_CODEX_PROVIDER, openaiCodexOffer],
-      [ANTHROPIC_PROVIDER, anthropicOffer],
-    ]
-    return (await Promise.all(offers.map(async ([provider, offer]) => await usable(provider) ? await offer() : []))).flat()
-  }
-  route.session<{ Querystring: { scope?: 'installation' } }>({ method: 'GET', url: '/api/control/model-accounts/models', schema: { querystring: { type: 'object', additionalProperties: false, properties: { scope: { type: 'string', enum: ['installation'] } } } }, handler: async (request, _reply, session) => {
-    const caller = session.account
-    return { models: (await offeredModels(caller.accountId, request.query.scope)).map((model) => ({ ...model, hasApiKey: true })), defaultThinkingLevel: DEFAULT_THINKING_LEVEL }
-  } })
-
-  // The caller's accounts for the providers this Hub signs in to, never their secrets.
-  route.session({ method: 'GET', url: '/api/control/model-accounts', handler: async (_request, _reply, session) => {
-    const caller = session.account
-    const [administrator, accounts] = await Promise.all([
-      isInstallationAdministrator(caller.accountId),
-      Promise.all(LISTED_PROVIDERS.map(async (provider): Promise<Connection> => {
-        const { mine, shared } = await modelAccounts.connection(caller.accountId, provider)
-        return { provider, providerName: providerNameOf(provider), mine: mine !== null, kind: mine, shared }
-      })),
-    ])
-    return { administrator, accounts }
-  } })
-
-  // A key the person pastes becomes their own `api_key` row, sealed. The key is never sent back.
-  route.session<{ Params: { provider: string }; Body: { key: string } }>({ method: 'PUT', url: '/api/control/model-accounts/:provider/api-key', schema: { body: { type: 'object', additionalProperties: false, required: ['key'], properties: { key: { type: 'string', maxLength: 512 } } } }, handler: async (request, reply, session) => {
-    const caller = session.account
-    const shape = Object.hasOwn(API_KEY_SHAPES, request.params.provider) ? API_KEY_SHAPES[request.params.provider] : undefined
-    if (!shape) throw new Failure('MODEL_ACCOUNT_PROVIDER_UNKNOWN')
-    const key = request.body.key.trim()
-    if (!shape.test(key)) throw new Failure('MODEL_ACCOUNT_KEY_REFUSED')
-    await modelAccounts.write(caller.accountId, request.params.provider, 'api_key', key)
-    return reply.code(204).send()
-  } })
-
   const claudeLogin = createClaudeLogin<Caller>({
-    writeCredential: ({ accountId }, tokens) => modelAccounts.write(accountId, ANTHROPIC_PROVIDER, 'oauth', serializeClaudeTokens(tokens)),
+    connect: ({ accountId }, tokens) => modelAccounts.connect({ accountId, credential: { provider: 'anthropic', kind: 'oauth' }, secret: serializeClaudeTokens(tokens) }),
     ...(claudeAuthorization ? { authorization: claudeAuthorization } : {}),
   })
-  const claudeBase = `/api/control/model-accounts/${ANTHROPIC_PROVIDER}/oauth`
-  route.session({ method: 'POST', url: `${claudeBase}/start`, handler: async (_request, _reply, session) => {
-    const caller = session.account
-    return claudeLogin.start(caller).then(
-      ({ expiresAt, ...handoff }) => ({ ...handoff, expiresAt: new Date(expiresAt).toISOString() }),
-      (error: unknown) => { throw new Failure('MODEL_LOGIN_UNAVAILABLE', { cause: error }) },
-    )
-  } })
-  route.session<{ Body: { loginId: string; code: string } }>({ method: 'POST', url: `${claudeBase}/complete`, schema: {
-      body: {
-        type: 'object', additionalProperties: false, required: ['loginId', 'code'],
-        properties: { loginId: { type: 'string', pattern: LOGIN_ID.source }, code: { type: 'string', minLength: 1, maxLength: 4096 } },
-      },
-    }, handler: async (request, _reply, session) => {
-    const caller = session.account
-    return { state: await claudeLogin.complete(caller, request.body.loginId, request.body.code) }
-  } })
-
   const codexLogin = createCodexLogin<Caller>({
-    writeCredential: ({ accountId }, tokens) => modelAccounts.write(accountId, OPENAI_CODEX_PROVIDER, 'oauth', serializeCodexTokens(tokens)),
+    connect: ({ accountId }, tokens) => modelAccounts.connect({ accountId, credential: { provider: 'openai-codex', kind: 'oauth' }, secret: serializeCodexTokens(tokens) }),
     ...(openaiCodexDevice ? { device: openaiCodexDevice } : {}),
   })
-  const codexBase = `/api/control/model-accounts/${OPENAI_CODEX_PROVIDER}/oauth`
-  route.session({ method: 'POST', url: `${codexBase}/start`, handler: async (_request, _reply, session) => {
-    const caller = session.account
-    return codexLogin.start(caller).then(
-      ({ expiresAt, ...handoff }) => ({ ...handoff, expiresAt: new Date(expiresAt).toISOString() }),
-      (error: unknown) => { throw new Failure('MODEL_LOGIN_UNAVAILABLE', { cause: error }) },
-    )
-  } })
-  route.session<{ Querystring: { loginId?: string } }>({ method: 'POST', url: `${codexBase}/poll`, schema: { querystring: { type: 'object', additionalProperties: false, properties: { loginId: { type: 'string', maxLength: 64 } } } }, handler: async (request, _reply, session) => {
-    const caller = session.account
-    return { state: await codexLogin.poll(caller, request.query.loginId ?? '') }
-  } })
-
-  if (googleAiPro && googleAiProAccounts) {
-    const login = createGoogleAiProLogin<Caller>({
-      pool: googleAiPro,
-      writeCredential: ({ accountId }, key) => googleAiProAccounts.write(accountId, key),
-    })
-    // The Settings card reads the person's own connection and whether one is shared.
-    route.session({ method: 'GET', url: `/api/control/model-accounts/${GOOGLE_AI_PRO_PROVIDER}/connection`, handler: async (_request, _reply, session) => {
-      const caller = session.account
-      const [{ mine, shared }, administrator] = await Promise.all([
-        googleAiProAccounts.connection(caller.accountId),
-        isInstallationAdministrator(caller.accountId),
-      ])
-      return { mine, shared, administrator }
-    } })
-    const base = `/api/control/model-accounts/${GOOGLE_AI_PRO_PROVIDER}/login`
-    route.session({ method: 'POST', url: `${base}/start`, handler: async (_request, _reply, session) => {
-      const caller = session.account
-      return login.start(caller)
-    } })
-    route.session<{ Body: { loginId: string; callbackUrl: string } }>({ method: 'POST', url: `${base}/complete`, schema: {
-        body: {
-          type: 'object', additionalProperties: false, required: ['loginId', 'callbackUrl'],
-          properties: { loginId: { type: 'string', pattern: LOGIN_ID.source }, callbackUrl: { type: 'string', maxLength: 4096 } },
-        },
-      }, handler: async (request, _reply, session) => {
-      const caller = session.account
-      return { state: await login.complete(caller, request.body.loginId, request.body.callbackUrl) }
-    } })
-    route.session<{ Params: { loginId: string } }>({ method: 'POST', url: `${base}/:loginId`, handler: async (request, _reply, session) => {
-      const caller = session.account
-      if (!LOGIN_ID.test(request.params.loginId)) return { state: 'expired' }
-      return { state: await login.status(caller, request.params.loginId) }
-    } })
+  const googleLogin = googleAiPro && createGoogleAiProLogin<Caller>({
+    pool: googleAiPro,
+    connect: ({ accountId }, key) => modelAccounts.connect({ accountId, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: key }),
+  })
+  const google = (): NonNullable<typeof googleLogin> => {
+    if (!googleLogin) throw new Failure('MODEL_LOGIN_UNAVAILABLE')
+    return googleLogin
   }
+  const unavailable = (error: unknown): never => { throw new Failure('MODEL_LOGIN_UNAVAILABLE', { cause: error }) }
+
+  route.operation(MDL01, async ({ query }, session) => {
+    const standing = await modelAccounts.standing(session.account.accountId)
+    const usable = (provider: ModelAccountProvider): boolean =>
+      standing[provider].shared || (query.scope !== 'installation' && standing[provider].own.state === 'connected')
+    const offering = OFFER_ORDER.filter((provider) => usable(provider) && (provider !== 'google-ai-pro' || googleLogin))
+    return { models: (await Promise.all(offering.map((provider) => OFFERS[provider]()))).flat(), defaultThinkingLevel }
+  })
+
+  // The caller's accounts for the providers this Hub signs in to, never their secrets.
+  route.operation(MDL02, async (_input, session) => {
+    const standing = await modelAccounts.standing(session.account.accountId)
+    return { accounts: LISTED_PROVIDERS.map((provider) => ({ provider, providerName: MODEL_PROVIDERS[provider].name, ...standing[provider] })) }
+  })
+
+  // A key the person pastes becomes their own `api_key` row, sealed. The key is never sent back.
+  route.operation(MDL03, async ({ params, body }, session) => {
+    if (!MODEL_PROVIDERS[params.provider].keyShape.test(body.key)) throw new Failure('MODEL_ACCOUNT_KEY_REFUSED')
+    await modelAccounts.write({ accountId: session.account.accountId, credential: { provider: params.provider, kind: 'api_key' }, secret: body.key })
+    return undefined
+  })
+
+  route.operation(MDL04, async (_input, session) => claudeLogin.start(session.account).then(
+    ({ expiresAt, ...handoff }) => ({ ...handoff, expiresAt: new Date(expiresAt).toISOString() }), unavailable))
+  route.operation(MDL05, async ({ body }, session) => ({ state: await claudeLogin.complete(session.account, body.loginId, body.code) }))
+
+  route.operation(MDL06, async (_input, session) => codexLogin.start(session.account).then(
+    ({ expiresAt, ...handoff }) => ({ ...handoff, expiresAt: new Date(expiresAt).toISOString() }), unavailable))
+  route.operation(MDL07, async ({ query }, session) => {
+    const loginId = ModelLoginId.safeParse(query.loginId)
+    return { state: loginId.success ? await codexLogin.poll(session.account, loginId.data) : 'expired' as const }
+  })
+
+  route.operation(MDL08, async (_input, session) => {
+    google()
+    const { own, shared } = (await modelAccounts.standing(session.account.accountId))['google-ai-pro']
+    return { own, shared }
+  })
+  route.operation(MDL09, async (_input, session) => google().start(session.account))
+  route.operation(MDL10, async ({ body }, session) => ({ state: await google().complete(session.account, body.loginId, body.callbackUrl) }))
+  route.operation(MDL11, async ({ params }, session) => ({ state: await google().status(session.account, params.loginId) }))
+
+  return ['MDL-01', 'MDL-02', 'MDL-03', 'MDL-04', 'MDL-05', 'MDL-06', 'MDL-07', 'MDL-08', 'MDL-09', 'MDL-10', 'MDL-11']
 }

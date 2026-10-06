@@ -18,6 +18,7 @@ const { registerBuilderSessionRoutes } = await import(built('builder/mastra-sess
 const { createConversations } = await import(built('builder/conversations.js'))
 const { createModelRouting } = await import(built('builder/model-routing.js'))
 
+import { noAccounts, oneAccount } from './model-accounts-fake.mjs'
 import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 
 const ana = '22222222-2222-4222-8222-222222222222'
@@ -59,10 +60,10 @@ const probeRouting = (script = [], onObserverPrompt = () => {}, titleDelayMs = 0
     },
   })
   const routing = createModelRouting({
-    routes: { probe: { accountProvider: 'probe', take: (account) => ({ modelProvider: 'probe', model: async (name) => model(name, account.modelAccountId) }) } },
-    modelAccounts: { usable: async (accountId) => ({ modelAccountId: `acct-${accountId}`, kind: 'api_key', secret: 'x' }) },
+    routes: { anthropic: { accountProvider: 'anthropic', take: (account) => ({ modelProvider: 'probe', model: async (name) => model(name, account.modelAccountId) }) } },
+    modelAccounts: oneAccount({ modelAccountId: `acct-${ana}`, provider: 'anthropic', kind: 'api_key', secret: 'x' }),
     conversationModel: async () => null,
-    readDefault: async (role) => role === 'memory' ? 'probe/observer' : 'probe/main',
+    readDefault: async (_accountId, role) => role === 'memory' ? 'anthropic/observer' : 'anthropic/main',
     record: async (builderRunId, _accountId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
   })
   return { routing, calls, titled, recorded, offered }
@@ -93,7 +94,7 @@ const builderWithMemory = async (t, script, onObserverPrompt, titleDelayMs) => {
 // A turn of a conversation on the model its session holds, the way a run's session does.
 const firstWindows = async (controller, content, { resourceId = 'project:memory', threadId } = {}) => {
   const session = await controller.createSession({ resourceId, scope: `conversation:${threadId ?? runId}`, requestContext: runContext(), ...(threadId ? { threadId } : {}) })
-  await session.model.switch({ modelId: 'probe/main' })
+  await session.model.switch({ modelId: 'anthropic/main' })
   await session.state.set({ yolo: true })
   const windows = []
   const results = {}
@@ -187,7 +188,7 @@ test('an Observer call outside a run has no one to pay for it and is refused as 
 test('a run refuses to start when the installation has no memory default, and no model of the conversation stands in for it', async () => {
   const { routing } = probeRouting()
   const unset = createModelRouting({
-    routes: {}, modelAccounts: { usable: async () => null }, conversationModel: async () => 'probe/main', readDefault: async () => null, record: async () => {},
+    routes: {}, modelAccounts: noAccounts, conversationModel: async () => 'anthropic/main', readDefault: async () => null, record: async () => {},
   })
   await assert.rejects(unset.check({ accountId: ana, projectId: '33333333-3333-4333-8333-333333333333', conversationId: '44444444-4444-4444-8444-444444444444' }), { id: 'BUILDER_MODEL_NOT_SELECTED' })
   await assert.doesNotReject(routing.check({ accountId: ana, projectId: '33333333-3333-4333-8333-333333333333', conversationId: '44444444-4444-4444-8444-444444444444' }))

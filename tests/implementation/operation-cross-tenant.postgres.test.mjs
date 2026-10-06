@@ -14,6 +14,7 @@ const { builderProjectPorts, purgeProjectBuilder } = await import(hubModuleUrl('
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
 const { createConnectorStore, purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
+const { createModelAccounts } = await import(hubModuleUrl('builder/model-account/accounts.js'))
 const { createWorkspaceStore } = await import(hubModuleUrl('workspace/store.js'))
 const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
 
@@ -38,6 +39,9 @@ const SEALED = 'mastra:factory-secret:v1:seed'
 // register without an entry here, or without a seeded row of B, fails the test below.
 const TENANT_B = Object.freeze({
   'workspace.workspace': 'workspace_id = $1',
+  'model.installation_default': 'updated_by IN (SELECT account_id FROM iam.workspace_membership WHERE workspace_id = $1)',
+  'model.model_account': 'owner_account_id IN (SELECT account_id FROM iam.workspace_membership WHERE workspace_id = $1)',
+  'model.model_account_sharing_history': 'changed_by_account_id IN (SELECT account_id FROM iam.workspace_membership WHERE workspace_id = $1)',
   'platform.operation_receipt': 'resource_id IN ($1, $2)',
   'project.project': 'workspace_id = $1',
   'project.project_deletion': 'workspace_id = $1',
@@ -68,7 +72,7 @@ const rowsOfB = async (connection, projectId) => {
   return found
 }
 
-const seedTenantB = async ({ connection, seedProject }, projectId) => {
+const seedTenantB = async ({ connection, seedProject }, projectId, sealed) => {
   await query(connection, `INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES
     ($1, 'https://issuer.test', 'other-owner', 'Other owner'), ($2, 'https://issuer.test', 'other-member', 'Other member')`, [OTHER.owner, OTHER.member])
   await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $3, 'owner'), ($2, $3, 'member')", [OTHER.owner, OTHER.member, ID.otherWorkspace])
@@ -80,6 +84,10 @@ const seedTenantB = async ({ connection, seedProject }, projectId) => {
     ($1, $2, $3, 'preview', $4, 'erp', $5)`, [BINDING_B, ID.otherWorkspace, projectId, CONNECTION.b, OTHER.owner])
   await query(connection, `INSERT INTO platform.operation_receipt(operation_id, authority, account_id, key_digest, request_digest, resource_id, state)
     VALUES ('PRJ-03', 'account:b', $1, $2, $3, $4, 'reserved')`, [OTHER.owner, Buffer.from('k'), Buffer.from('r'), projectId])
+  const privateOfB = (await query(connection, `INSERT INTO model.model_account(owner_account_id, provider, kind, secret) VALUES
+    ($1, 'anthropic', 'api_key', $2), ($1, 'google-ai-pro', 'google_ai_pro', $2) RETURNING model_account_id`, [OTHER.owner, await sealed('private-of-b')])).rows[0].model_account_id
+  await query(connection, "INSERT INTO model.model_account_sharing_history(model_account_id, previous_sharing, new_sharing, changed_by_account_id) VALUES ($1, 'just_me', 'everyone', $2)", [privateOfB, OTHER.owner])
+  await query(connection, "INSERT INTO model.installation_default(role, model_id, updated_by) VALUES ('build', 'anthropic/claude-sonnet-5', $1)", [OTHER.owner])
 }
 
 // A thumbnail needs a served revision, an application and a retained image: seeded here by SQL for one Project.
@@ -95,7 +103,10 @@ const seedThumbnail = async (connection, projectId, bytes) => {
 // member, a connection, a grant). Such an operation needs an attempt that admits the actor in its own
 // tenant and passes a child id of another. None of today's operations takes one.
 const TENANT_PARAMETERS = Object.freeze(['workspaceId', 'projectId'])
-const childParameters = (operation) => [...operation.path.matchAll(/:(\w+)/g)].map((found) => found[1]).filter((name) => !TENANT_PARAMETERS.includes(name))
+// A provider name and a sign-in handle that only the person who started it can see: neither names a tenant's row.
+const NON_TENANT_PARAMETERS = Object.freeze(['provider', 'loginId'])
+const IN_MEMORY = Object.freeze(['MDL-04', 'MDL-06', 'MDL-09'])
+const childParameters = (operation) => [...operation.path.matchAll(/:(\w+)/g)].map((found) => found[1]).filter((name) => ![...TENANT_PARAMETERS, ...NON_TENANT_PARAMETERS].includes(name))
 
 const digestOfB = async (connection, projectId) => {
   const found = await rowsOfB(connection, projectId)
@@ -112,7 +123,8 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   await settleRun(projectB)
   await query(connection, 'INSERT INTO builder.conversation_session(conversation_id, project_id) VALUES ($1, $2)', [randomUUID(), projectB])
   await query(connection, 'INSERT INTO builder.builder_run_model_account(builder_run_id, model_account_id) SELECT builder_run_id, $2 FROM builder.builder_run WHERE project_id = $1', [projectB, randomUUID()])
-  await seedTenantB(fixture, projectB)
+  const envelope = createSecretEnvelope('ab'.repeat(32))
+  await seedTenantB(fixture, projectB, (plain) => envelope.seal(plain))
   const thumbnailA = Buffer.from('thumbnail-of-a')
   await query(connection, `INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by) VALUES
     ($1, $3, 'sankhya', 'ERP', $5, $6, $4), ($2, $3, 'sankhya', 'Spare', $5, $6, $4)`, [CONNECTION.a, CONNECTION.spare, ID.workspace, ID.administrator, SEALED, 'd'.repeat(64)])
@@ -126,9 +138,12 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   const workspaces = createWorkspaceStore(database)
   const builder = createBuilderStore({ database, ownerId: randomUUID(), registry })
   const runOfB = (await query(connection, 'SELECT builder_run_id FROM builder.builder_run WHERE project_id = $1', [projectB])).rows[0].builder_run_id
-  const FOREIGN_BASE = 'c'.repeat(40)
-  const connectors = createConnectorStore({ database, envelope: createSecretEnvelope('ab'.repeat(32)) })
   const member = ID.member
+  const FOREIGN_BASE = 'c'.repeat(40)
+  const connectors = createConnectorStore({ database, envelope })
+  const modelAccounts = createModelAccounts({ database, envelope, ownerId: randomUUID() })
+  await query(connection, "INSERT INTO model.model_account(owner_account_id, provider, kind, secret) VALUES ($1, 'openai-codex', 'oauth', $2)", [member, await envelope.seal('codex-of-member')])
+  const KEY = { provider: 'anthropic', kind: 'api_key' }
   const before = await digestOfB(connection, projectB)
   const revisionOfA = (await query(connection, 'SELECT project_revision FROM project.project WHERE project_id = $1', [projectA])).rows[0].project_revision
   const withoutActivity = (summaries) => summaries.map(({ lastActivityAt: _at, ...rest }) => rest)
@@ -140,7 +155,51 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   // cross: the same call with the ids of tenant B answers its refusal and nothing of B.
   // child: null while no operation takes a child id of a tenant.
   let bindingOfA
+  const ABSENT = { own: { state: 'absent' }, shared: false }
   const attempts = {
+    'MDL-01': {
+      own: async () => assert.deepEqual((await modelAccounts.standing(member))['openai-codex'], { own: { state: 'connected', kind: 'oauth' }, shared: false }),
+      cross: async () => assert.deepEqual((await modelAccounts.standing(member)).anthropic, ABSENT),
+      child: null,
+    },
+    'MDL-02': {
+      own: async () => assert.deepEqual(await modelAccounts.standing(member), { anthropic: ABSENT, 'openai-codex': { own: { state: 'connected', kind: 'oauth' }, shared: false }, 'google-ai-pro': ABSENT }),
+      cross: async () => assert.deepEqual((await modelAccounts.standing(member)).anthropic, ABSENT),
+      child: null,
+    },
+    'MDL-08': {
+      own: async () => assert.deepEqual((await modelAccounts.standing(member))['google-ai-pro'], ABSENT),
+      cross: async () => assert.deepEqual((await modelAccounts.standing(member))['google-ai-pro'].own, { state: 'absent' }),
+      child: null,
+    },
+    'MDL-03': {
+      own: async () => {
+        await modelAccounts.write({ accountId: member, credential: KEY, secret: 'key-of-member' })
+        assert.deepEqual((await query(connection, "SELECT provider, kind, sharing FROM model.model_account WHERE owner_account_id = $1 AND provider = 'anthropic'", [member])).rows, [{ provider: 'anthropic', kind: 'api_key', sharing: 'just_me' }])
+      },
+      cross: () => assert.rejects(modelAccounts.write({ accountId: randomUUID(), credential: KEY, secret: 'intruder' }), { id: 'ACCOUNT_NOT_FOUND' }),
+      child: null,
+    },
+    'MDL-05': {
+      own: async () => assert.deepEqual(await modelAccounts.connect({ accountId: member, credential: { provider: 'anthropic', kind: 'oauth' }, secret: 'tokens' }), { ok: true }),
+      cross: async () => assert.deepEqual(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'anthropic', kind: 'oauth' }, secret: 'tokens' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
+      child: null,
+    },
+    'MDL-10': {
+      own: async () => assert.deepEqual(await modelAccounts.connect({ accountId: member, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: true }),
+      cross: async () => assert.deepEqual(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
+      child: null,
+    },
+    'MDL-07': {
+      own: async () => assert.deepEqual(await modelAccounts.connect({ accountId: member, credential: { provider: 'openai-codex', kind: 'oauth' }, secret: 'tokens' }), { ok: true }),
+      cross: async () => assert.deepEqual(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'openai-codex', kind: 'oauth' }, secret: 'tokens' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
+      child: null,
+    },
+    'MDL-11': {
+      own: async () => assert.deepEqual(await modelAccounts.connect({ accountId: member, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: true }),
+      cross: async () => assert.deepEqual(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
+      child: null,
+    },
     'WS-01': {
       own: async () => {
         const created = await workspaces.createWorkspace({ accountId: member, idempotencyKey: 'tenant', body: { name: 'Mine' } })
@@ -298,9 +357,10 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       child: () => assert.rejects(connectors.unbindConnection({ accountId: ID.owner, projectId: projectA, bindingId: BINDING_B }), { id: 'CONNECTOR_BINDING_NOT_FOUND' }),
     },
   }
-  assert.deepEqual(Object.keys(attempts).sort(), OPERATIONS.map((operation) => operation.id).sort(), 'every operation of the contract has its attempts')
+  assert.deepEqual(Object.keys(attempts).sort(), OPERATIONS.map((operation) => operation.id).filter((id) => !IN_MEMORY.includes(id)).sort(), 'every operation of the contract has its attempts')
 
   for (const operation of OPERATIONS) {
+    if (IN_MEMORY.includes(operation.id)) continue
     const attempt = attempts[operation.id]
     if (childParameters(operation).length > 0) assert.equal(typeof attempt.child, 'function', `${operation.id} takes a child id (${childParameters(operation).join(', ')}) and needs the attempt that passes a child of another tenant`)
     else assert.equal(attempt.child, null, `${operation.id} takes no child id, so it has no child attempt`)

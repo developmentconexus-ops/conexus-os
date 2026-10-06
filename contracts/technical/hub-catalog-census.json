@@ -132,40 +132,13 @@
           "hub_reader": [],
           "hub_command": []
         }
-      },
-      {
-        "table": "model.installation_default",
-        "part": 5,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": []
-        }
-      },
-      {
-        "table": "model.model_account",
-        "part": 5,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": []
-        }
-      },
-      {
-        "table": "model.model_account_sharing_history",
-        "part": 5,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": []
-        }
       }
     ]
   },
   "ceilings": {
-    "ruleFunctions": 51,
+    "ruleFunctions": 45,
     "legacyOwnerPolicies": 4,
-    "runtimePrivileges": 52
+    "runtimePrivileges": 46
   },
   "register": {
     "split": [
@@ -327,6 +300,50 @@
         "keyColumns": [
           "account_id",
           "workspace_id"
+        ]
+      },
+      {
+        "table": "model.installation_default",
+        "reader": true,
+        "command": [],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "role"
+        ]
+      },
+      {
+        "table": "model.model_account",
+        "reader": true,
+        "readerColumns": [
+          "created_at",
+          "kind",
+          "model_account_id",
+          "owner_account_id",
+          "provider",
+          "sharing",
+          "updated_at"
+        ],
+        "command": [
+          "INSERT(kind,owner_account_id,provider,secret)",
+          "SELECT",
+          "UPDATE(kind,secret,updated_at)"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "model_account_id",
+          "owner_account_id"
+        ]
+      },
+      {
+        "table": "model.model_account_sharing_history",
+        "reader": false,
+        "command": [],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "history_id"
         ]
       },
       {

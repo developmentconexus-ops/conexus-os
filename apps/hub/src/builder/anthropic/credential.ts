@@ -1,19 +1,8 @@
 import { refreshAnthropicToken } from '@mastra/code-sdk/auth/providers/anthropic'
 import { z } from 'zod'
 import type { CredentialStore } from '@mastra/code-sdk/auth/types'
-import type { ModelAccountStore } from '../model-account-store.js'
 import { createTokenHolds, type TokenHolds } from '../oauth-holds.js'
 import { Failure } from '../../platform/failure.js'
-
-/**
- * Anthropic is one `model.model_account` provider with two kinds: `api_key`, a key from the
- * Anthropic Console, and `oauth`, a Claude Pro or Max subscription signed in the way Mastra Code
- * and the Factory sign in. One row per person per provider, so connecting one kind replaces the other.
- */
-export const ANTHROPIC_PROVIDER = 'anthropic'
-
-/** An Anthropic Console key as the Console issues it; anything else never reaches the row. */
-export const ANTHROPIC_KEY_SHAPE = /^sk-ant-[A-Za-z0-9_-]{20,200}$/
 
 /** A Claude subscription's tokens as Mastra Code stores them (`OAuthCredentials` minus its `type`). */
 export type ClaudeTokens = Readonly<{ access: string; refresh: string; expires: number }>
@@ -30,12 +19,11 @@ export const parseClaudeTokens = (secret: string): ClaudeTokens => {
   return Object.freeze({ access, refresh, expires })
 }
 
-export const createClaudeHolds = ({ store, refresh = refreshAnthropicToken, now = Date.now }: Readonly<{
-  store: Pick<ModelAccountStore, 'readById' | 'rewrite'>
+export const createClaudeHolds = ({ refresh = refreshAnthropicToken, now = Date.now }: Readonly<{
   refresh?: (refreshToken: string) => Promise<ClaudeTokens>
   now?: () => number
 }>): TokenHolds<ClaudeTokens> => createTokenHolds({
-  store, now, parse: parseClaudeTokens, serialize: serializeClaudeTokens, refresh: (stored) => refresh(stored.refresh),
+  now, parse: parseClaudeTokens, serialize: serializeClaudeTokens, refresh: (stored) => refresh(stored.refresh),
 })
 
 /**

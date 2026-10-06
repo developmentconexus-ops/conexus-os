@@ -45,6 +45,10 @@ const seed = async (fixture) => {
   const bindings = { a: '44444444-4444-4444-8444-0000000000a1', b: '44444444-4444-4444-8444-0000000000b1' }
   await query(connection, `INSERT INTO connector.project_binding(binding_id, workspace_id, project_id, environment, connection_id, name, bound_by) VALUES
     ($1, $3, $5, 'preview', $7, 'erp', $9), ($2, $4, $6, 'preview', $8, 'erp', $10)`, [bindings.a, bindings.b, ID.workspace, ID.otherWorkspace, projects.a, projects.b, connections.a, connections.b, ID.owner, OTHER.owner])
+  const models = { a: '55555555-5555-4555-8555-0000000000a1', b: '55555555-5555-4555-8555-0000000000b1' }
+  await query(connection, `INSERT INTO model.model_account(model_account_id, owner_account_id, provider, kind, secret) VALUES
+    ($1, $3, 'anthropic', 'api_key', $5), ($2, $4, 'anthropic', 'api_key', $5)`, [models.a, models.b, ID.member, OTHER.member, sealed])
+  await query(connection, "INSERT INTO model.installation_default(role, model_id, updated_by) VALUES ('build', 'anthropic/x', $1), ('memory', 'anthropic/x', $1)", [ID.administrator])
   const revisions = { a: await seedRevision(connection, projects.a, { sourceRevision: 'a'.repeat(40), digest: 'a'.repeat(64) }), b: await seedRevision(connection, projects.b, { sourceRevision: 'b'.repeat(40), digest: 'b'.repeat(64) }) }
   await seedRevisionThumbnail(connection, revisions.a)
   await seedRevisionThumbnail(connection, revisions.b)
@@ -63,10 +67,13 @@ const seed = async (fixture) => {
     'reg.artifact_revision': { a: [revisions.a], b: [revisions.b] },
     'reg.application_thumbnail': { a: [revisions.a], b: [revisions.b] },
     'connector.project_binding': { a: [bindings.a], b: [bindings.b] },
+    'model.model_account': { a: [models.a], b: [models.b] },
+    'model.installation_default': { a: ['build'], b: ['memory'] },
   }
 }
 
 const OWNER_ONLY = Object.freeze(['connector.connection', 'connector.project_binding'])
+const EVERYONE = Object.freeze(['model.installation_default'])
 const readerOf = (table, workspace) => (OWNER_ONLY.includes(table) ? { a: ID.owner, b: OTHER.owner }[workspace] : { a: ID.member, b: OTHER.member }[workspace])
 
 const KEY_COLUMN = {
@@ -82,6 +89,8 @@ const KEY_COLUMN = {
   'reg.artifact_revision': 'artifact_revision_id',
   'reg.application_thumbnail': 'artifact_revision_id',
   'connector.project_binding': 'binding_id',
+  'model.model_account': 'model_account_id',
+  'model.installation_default': 'role',
 }
 
 const readableTables = async (connection) => (await query(connection, `SELECT n.nspname || '.' || c.relname AS table_name FROM pg_class c
@@ -102,8 +111,9 @@ test('every table hub_reader can SELECT is seeded, and a member of one workspace
   for (const table of tables) {
     const { a, b } = seeded[table]
     assert.ok(a.length > 0 && b.length > 0, `${table} is seeded in both workspaces`)
-    assert.deepEqual(await visibleKeys(fixture.database, readerOf(table, 'a'), table), [...a].sort(), `${table}: a reader of A reads exactly A's rows`)
-    assert.deepEqual(await visibleKeys(fixture.database, readerOf(table, 'b'), table), [...b].sort(), `${table}: a reader of B reads exactly B's rows`)
+    const whole = [...a, ...b].sort()
+    assert.deepEqual(await visibleKeys(fixture.database, readerOf(table, 'a'), table), EVERYONE.includes(table) ? whole : [...a].sort(), `${table}: a reader of A reads exactly A's rows`)
+    assert.deepEqual(await visibleKeys(fixture.database, readerOf(table, 'b'), table), EVERYONE.includes(table) ? whole : [...b].sort(), `${table}: a reader of B reads exactly B's rows`)
     if (OWNER_ONLY.includes(table)) assert.deepEqual(await visibleKeys(fixture.database, ID.member, table), [], `${table}: a member who is not an owner reads nothing`)
   }
 })
@@ -113,7 +123,7 @@ test('an installation administrator who belongs to neither workspace reads the d
   const seeded = await seed(fixture)
   const REACH = ['project.project_deletion', 'connector.connection']
   for (const table of await readableTables(fixture.connection)) {
-    const expected = REACH.includes(table) ? [...seeded[table].a, ...seeded[table].b].sort() : table === 'iam.account' ? [ID.administrator] : []
+    const expected = REACH.includes(table) || EVERYONE.includes(table) ? [...seeded[table].a, ...seeded[table].b].sort() : table === 'iam.account' ? [ID.administrator] : []
     assert.deepEqual(await visibleKeys(fixture.database, ID.administrator, table), expected, table)
   }
 })

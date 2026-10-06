@@ -6,6 +6,7 @@ import test from 'node:test'
 import { InMemoryStore } from '@mastra/core/storage'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { hubModuleUrl } from './hub-build.mjs'
+import { oneAccount } from './model-accounts-fake.mjs'
 import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 import { testConversations } from './builder-conversation-fixture.mjs'
 
@@ -157,8 +158,8 @@ test('a rate limit is retried by Mastra twice, then fails as rate limited', asyn
 const apiKey = `sk-ant-api03-${'k'.repeat(40)}`
 const accountId = '55555555-5555-4555-8555-555555555555'
 const routing = createModelRouting({
-  routes: { anthropic: createAnthropicRoute(createClaudeHolds({ store: { readById: async () => null, rewrite: async () => false } })) },
-  modelAccounts: { usable: async () => ({ modelAccountId: 'row-anthropic', kind: 'api_key', secret: apiKey }) },
+  routes: { anthropic: createAnthropicRoute(createClaudeHolds({})) },
+  modelAccounts: oneAccount({ modelAccountId: 'row-anthropic', provider: 'anthropic', kind: 'api_key', secret: apiKey }),
   conversationModel: async () => null,
   readDefault: async () => null,
   record: async () => {},

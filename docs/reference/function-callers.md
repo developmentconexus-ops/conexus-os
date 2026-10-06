@@ -58,12 +58,6 @@ None.
 | `iam.set_workspace_member_role` | iam_owner | - | `apps/hub/src/identity-access/membership.ts` |
 | `iam.visible_projects` | iam_owner | - | - |
 | `iam.visible_workspaces` | iam_owner | `iam.admit_application_owner`, `iam.list_workspace_roster`, `iam.visible_projects` | - |
-| `model.read_installation_default` | model_owner | - | `apps/hub/src/builder/module.ts` |
-| `model.read_model_account` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |
-| `model.read_model_account_by_id` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |
-| `model.read_shared_model_account` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |
-| `model.rewrite_model_account_secret` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |
-| `model.upsert_model_account` | model_owner | - | `apps/hub/src/builder/model-account-store.ts` |
 | `rls.acting_account` | iam_rls | `rls.acting_installation_administrator`, `rls.acting_workspaces` | - |
 | `rls.acting_installation_administrator` | iam_rls | - | `apps/hub/src/identity-access/admission.ts` |
 | `rls.acting_workspaces` | iam_rls | - | - |

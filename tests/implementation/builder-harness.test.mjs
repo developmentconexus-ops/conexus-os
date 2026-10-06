@@ -343,8 +343,9 @@ test('a ChatGPT subscription model, which reports provider openai.responses and 
 test('both kinds of Anthropic account ask Anthropic for its own web_search', async () => {
   const { createAnthropicRoute } = await import(hubModuleUrl('builder/anthropic/route.js'))
   const { createClaudeHolds, serializeClaudeTokens } = await import(hubModuleUrl('builder/anthropic/credential.js'))
-  const route = createAnthropicRoute(createClaudeHolds({ store: { readById: async () => null, rewrite: async () => false } }))
-  const sentFor = (account, resourceId) => toolsSentToModel(() => route.take(account).model('claude-sonnet-5'), resourceId)
+  const route = createAnthropicRoute(createClaudeHolds({}))
+  const held = ({ modelAccountId, kind, secret }) => ({ modelAccountId, credential: { provider: 'anthropic', kind }, secret, run: { builderRunId: '66666666-6666-4666-8666-666666666601', accountId: '22222222-2222-4222-8222-222222222222' }, read: async () => null, persist: async () => false })
+  const sentFor = (account, resourceId) => toolsSentToModel(() => route.take(held(account)).model('claude-sonnet-5'), resourceId)
   const key = await sentFor({ modelAccountId: 'row-1', kind: 'api_key', secret: `sk-ant-api03-${'x'.repeat(40)}` }, 'project:probe-api_key')
   const subscription = await sentFor({ modelAccountId: 'row-2', kind: 'oauth', secret: serializeClaudeTokens({ access: 'unused', refresh: 'unused', expires: 9_999_999_999_999 }) }, 'project:probe-oauth')
   const anthropicSearch = [{ type: 'provider', name: 'web_search', id: 'anthropic.web_search_20250305', args: {} }]

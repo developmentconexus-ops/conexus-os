@@ -439,8 +439,9 @@ bridges after its caller graph has no edge. The Project purge's registry port st
 transaction (`builder-bodies.sql:542`, `builder-bodies.sql:494`,
 `apps/hub/migrations/0030_project_deletion.sql:276`, `../part4/0015-part-registry.md:102`).
 
-**Held credentials.** The executor module exports two ports for part 5's model store. The model store
-takes only proofs.
+**Held credentials.** Part 5 builds `readHeldCredential` and `persistHeldCredential` in
+`builder/model-account/accounts.ts` (`0015-part-model.md`, section 3); part 1 as merged built neither. The
+model store takes only proofs.
 
 - `readHeldCredential(builderRunId, accountId, modelAccountId)` opens `transaction(accountId)`, calls
   `admitRun(gate, builderRunId, owner)` with its own process owner id, and gives the proof to the
@@ -577,7 +578,7 @@ its held lookup (`apps/hub/src/builder/module.ts:162`, `builder-bodies.sql:355`,
     graph at the part 1 head. The migration drops 29 exact signatures without `CASCADE` and keeps the
     two registry callers' Builder functions. The full suite and local Conexus path close the part.
 
-- `readHeldCredential`: with the run owned by this instance, it returns the literal sealed secret.
+- Part 5 proves `readHeldCredential`: with the run owned by this instance, it returns the literal sealed secret.
   After a lease takeover by another owner it returns `null`; with an `accountId` that is not the run's,
   `null`; for a run that recorded no model account, `null`; for a model account id the run did not
   record, `null`.
@@ -630,7 +631,7 @@ remain until part 6, as the data child requires.
   functions in its own migration.
 - Part 5: this part owns `builder.builder_run_model_account` (its grants and its
   composite key as today, and no reader policy). The model store reads it only inside the join of `readById` after
-  `admitRun`, through the port `readHeldCredential`. Part 5 builds after part 1.
+  `admitRun`, through the port `readHeldCredential`, which part 5 builds after part 1.
 
 ## 10. Decided by HQ
 
@@ -651,7 +652,7 @@ remain until part 6, as the data child requires.
   draft claims in two steps instead: a system read of the queued row, then `transaction(run.accountId)`
   with `admitProject` and the conditional update (section 3). HQ keeps the two step claim and has
   corrected the umbrella's section 6 to say so: `admitRun` covers the claimed run only.
-- The same owner check applies to `readHeldCredential` (section 5): a model call on an instance that
+- The same owner check applies to `readHeldCredential` (section 5, built by part 5): a model call on an instance that
   just lost the lease cannot read its credential, because `admitRun` refuses a run it no longer owns.
   HQ accepts it: the new owner's own calls read it, and the old instance's call fails with
   `BUILDER_MODEL_NOT_SELECTED`.

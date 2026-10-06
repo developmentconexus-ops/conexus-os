@@ -3,6 +3,8 @@ import type { AccountId, ArtifactDigest, ProjectId, SourceRevision, WorkspaceId 
 import { admitAccount, admitApplication, checkApplication, admitProject, admitSystem, admitWorkspace, grantCreatorMembership } from '../../apps/hub/src/identity-access/admission.js'
 import type { Admitted, AccountScope, RunScope, ApplicationScope, Checked, ProjectScope, SystemScope, WorkspaceScope } from '../../apps/hub/src/identity-access/admission.js'
 import type { AuthenticationGate, CommandGate, ReadTx, RawToken, WriteTx } from '../../apps/hub/src/platform/db.js'
+import type { Lawful } from '../../apps/hub/src/builder/model-account/providers.js'
+import type { ModelRoute, ModelRoutes } from '../../apps/hub/src/builder/model-routing.js'
 import { digest, sql } from '../../apps/hub/src/platform/db.js'
 import { SealedApplication } from '../../apps/hub/src/platform/sealed-application.js'
 import type { RegistryModule } from '../../apps/hub/src/registry/module.js'
@@ -107,4 +109,11 @@ const positivePurge: Admitted<SystemScope<'project-purge'>> = purge
 const positiveSystem: Promise<Admitted<SystemScope<'project-purge'>>> = admitSystem(gate, 'project-purge')
 const positiveGrant: Promise<void> = grantCreatorMembership(await admitAccount(gate), workspace)
 
-void [literalGate, spreadGate, positiveAuthentication, positiveDigest, positiveOwner, positiveRead, positiveGrant, positivePurge, positiveSystem, positiveChecked, positiveCheckedRead, checkedAsAdmitted, admittedAsChecked, copiedChecked, writeMode, wrongJob, forged, copied, wrongScope, wrongAction, wrongProject, wrongMode]
+declare const anthropicRoute: ModelRoute<'anthropic'>
+declare const googleRoute: ModelRoute<'google-ai-pro'>
+// @ts-expect-error A Lawful credential of openai-codex cannot hold the api_key kind.
+const unlawful: Lawful = { provider: 'openai-codex', kind: 'api_key' }
+// @ts-expect-error A ModelRoutes missing the router prefix openai does not compile.
+const missingPrefix: ModelRoutes = { anthropic: anthropicRoute, 'google-ai-pro': googleRoute }
+
+void [unlawful, missingPrefix, literalGate, spreadGate, positiveAuthentication, positiveDigest, positiveOwner, positiveRead, positiveGrant, positivePurge, positiveSystem, positiveChecked, positiveCheckedRead, checkedAsAdmitted, admittedAsChecked, copiedChecked, writeMode, wrongJob, forged, copied, wrongScope, wrongAction, wrongProject, wrongMode]

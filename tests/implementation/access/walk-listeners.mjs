@@ -121,12 +121,11 @@ export const walkListeners = async () => {
       await registerBuilderRoutes(server, { store: spy('builderStore', calls), service: spy('builderService', calls), session: spy('builderSession', calls), launchPreview: async () => { calls.push('launchPreview'); throw new Error('stub launchPreview') } })
       await mount.register(server)
       await registerModelAccountRoutes(server, {
-        isInstallationAdministrator: async () => { calls.push('isInstallationAdministrator'); return false },
         modelAccounts: spy('modelAccounts', calls),
+        defaultThinkingLevel: 'medium',
         openaiCodexDevice: spy('openaiCodexDevice', calls),
         claudeAuthorization: spy('claudeAuthorization', calls),
         googleAiPro: spy('googleAiPro', calls),
-        googleAiProAccounts: spy('googleAiProAccounts', calls),
       })
       await registerConnectorRoutes(server, {
         store: spy('connectors', calls),

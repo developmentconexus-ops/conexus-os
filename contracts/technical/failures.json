@@ -91,6 +91,7 @@
     { "code": "MODEL_LOGIN_UNAVAILABLE", "category": "THIRD_PARTY", "status": 503, "audience": "person", "message": "A entrada na conta do modelo não está disponível agora.", "action": "RETRY_LATER" },
     { "code": "MODEL_LOGIN_BUSY", "category": "USER", "status": 409, "audience": "person", "message": "Outra entrada na conta do modelo está em andamento.", "action": "RETRY_LATER" },
     { "code": "MODEL_LOGIN_CALLBACK_REFUSED", "category": "USER", "status": 400, "audience": "person", "message": "O Conexus não aceitou esse endereço de retorno da entrada.", "action": "NONE" },
+    { "code": "MODEL_LOGIN_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos essa entrada na conta do modelo.", "action": "NONE" },
     { "code": "HUB_UNREACHABLE", "category": "THIRD_PARTY", "status": 503, "audience": "person", "message": "A tela não conseguiu falar com o Conexus agora.", "action": "RETRY_LATER" },
     { "code": "HUB_RESPONSE_UNREADABLE", "category": "THIRD_PARTY", "status": 502, "audience": "person", "message": "A resposta que chegou à tela não veio do Conexus.", "action": "RETRY_LATER" },
     { "code": "ANTHROPIC_STORED_RECORD_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "O Conexus não conseguiu ler a credencial salva desta conta de modelo.", "action": "CONNECT_MODEL_ACCOUNT" },

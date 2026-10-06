@@ -135,7 +135,7 @@ const readUsableModels = (page) => page.evaluate(async () => {
   const response = await fetch('/api/control/model-accounts/models', { credentials: 'same-origin' })
   const status = response.status
   const body = response.ok ? await response.json() : null
-  return { status, models: (body?.models ?? []).filter((model) => model.hasApiKey) }
+  return { status, models: body?.models ?? [] }
 })
 
 /** Mints the same Preview grant the "Recarregar prévia" button mints, only to read back the

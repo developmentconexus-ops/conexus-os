@@ -8,6 +8,7 @@ import { test } from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import { hubModuleUrl } from './hub-build.mjs'
 import { hubJsonWrite, hubWrite, opaque, testListener } from './access/test-listener.mjs'
+import { fakeModelAccounts } from './model-accounts-fake.mjs'
 
 const built = hubModuleUrl
 const { encodeKey, decodeKey, parseKey, instanceIdOf } = await import(built('builder/google-ai-pro/credential.js'))
@@ -15,7 +16,6 @@ const { createCliproxyPool, verifyCliproxyBinary } = await import(built('builder
 const { startModelRouter } = await import(built('builder/google-ai-pro/router.js'))
 const { createRefreshWriteBack } = await import(built('builder/google-ai-pro/write-back.js'))
 const { registerModelAccountRoutes } = await import(built('builder/model-accounts.js'))
-const { createGoogleAiProAccounts } = await import(built('builder/google-ai-pro/store.js'))
 
 const record = (account, extra = {}) => ({ fileName: `antigravity-${account}.json`, bytes: new TextEncoder().encode(JSON.stringify({ type: 'antigravity', refresh_token: `refresh-${account}`, ...extra })) })
 
@@ -238,11 +238,12 @@ test('a refreshed auth file is captured and written back before an idle proxy\'s
 test("a call through the router writes the refreshed record back to the caller's model account row by id, once (AC-22)", async (t) => {
   const { binary, stateDir } = scratch(t)
   const rewrites = []
-  const writeBack = createRefreshWriteBack({ rewrite: async (modelAccountId, secret) => { rewrites.push([modelAccountId, secret]); return true } })
+  const heldRow = { modelAccountId: 'row-ana', persist: async (secret) => { rewrites.push(['row-ana', secret]); return true } }
+  const writeBack = createRefreshWriteBack()
   const pool = openPool(t, { binary, stateDir, idleMs: 0 })
   const router = await openRouter(t, pool, writeBack.persistFor)
   const key = encodeKey(record('ana@example.com'))
-  writeBack.track(key, 'row-ana')
+  writeBack.track(key, heldRow)
   const answer = await gemini(router, 'models', key)
   assert.equal(answer.status, 200)
   await answer.json()
@@ -259,12 +260,13 @@ test("a call through the router writes the refreshed record back to the caller's
 test('an unrefreshed record, or one whose row is not known, writes nothing back', async (t) => {
   const { binary, stateDir } = scratch(t)
   const rewrites = []
-  const writeBack = createRefreshWriteBack({ rewrite: async (modelAccountId, secret) => { rewrites.push([modelAccountId, secret]); return true } })
+  const heldRow = { modelAccountId: 'row-ana', persist: async (secret) => { rewrites.push(['row-ana', secret]); return true } }
+  const writeBack = createRefreshWriteBack()
   const pool = openPool(t, { binary, stateDir, idleMs: 0 })
   const router = await openRouter(t, pool, writeBack.persistFor)
   const known = encodeKey(record('ana@example.com'))
   const unknown = encodeKey(record('bia@example.com'))
-  writeBack.track(known, 'row-ana')
+  writeBack.track(known, heldRow)
   for (const key of [known, unknown]) await (await gemini(router, 'models', key)).json()
   assert.equal(await sweptUntil(pool, () => !existsSync(join(stateDir, instanceIdOf(known))) && !existsSync(join(stateDir, instanceIdOf(unknown)))), true)
   assert.deepEqual(rewrites, [])
@@ -321,42 +323,24 @@ const authentic = {
 }
 
 // The sign-in routes run for real; only model.model_account is a recording stand-in
-// (the Postgres-backed store is proven separately in model-account.postgres.test.mjs).
-const fakeModelAccounts = () => {
-  const own = new Map()
-  let sharedAccountId = null
-  const writes = []
-  const held = (accountId) => own.has(accountId) ? { modelAccountId: `row-${accountId}`, kind: 'google_ai_pro', secret: own.get(accountId) } : null
-  // Only Google AI Pro rows exist here; every other provider has none.
-  const google = (provider) => provider === 'google-ai-pro'
-  const store = {
-    hasShared: async (provider) => google(provider) && sharedAccountId !== null,
-    usable: async (accountId, provider) => google(provider) ? held(accountId) ?? (sharedAccountId !== null ? held(sharedAccountId) : null) : null,
-    connection: async (accountId, provider) => ({ mine: google(provider) && own.has(accountId) ? 'google_ai_pro' : null, shared: google(provider) && sharedAccountId !== null }),
-    write: async (accountId, _provider, _kind, key) => { own.set(accountId, key); writes.push({ accountId, key }) },
-  }
-  return { store, writes, share: (accountId) => { sharedAccountId = accountId } }
-}
-
 const createLoginApp = async (t) => {
   const { binary, stateDir } = scratch(t)
   const pool = openPool(t, { binary, stateDir })
-  const modelAccounts = fakeModelAccounts()
+  const { modelAccounts, rows, share } = fakeModelAccounts()
   let caller = ana
   const { app } = await testListener({
     sessions: { [SESSION_TOKEN]: () => ({ account: { accountId: caller } }) },
     registerRoutes: async (instance) => {
       await registerModelAccountRoutes(instance, {
-        isInstallationAdministrator: async () => false,
-        modelAccounts: modelAccounts.store,
+        modelAccounts,
+        defaultThinkingLevel: 'medium',
         googleAiPro: pool,
-        googleAiProAccounts: createGoogleAiProAccounts(modelAccounts.store),
       })
       return []
     },
   })
   t.after(() => app.close())
-  return { app, stateDir, writes: modelAccounts.writes, share: modelAccounts.share, as: (accountId) => { caller = accountId } }
+  return { app, stateDir, rows, share: (accountId) => share(accountId, 'google-ai-pro'), as: (accountId) => { caller = accountId } }
 }
 
 const base = '/api/control/model-accounts/google-ai-pro/login'
@@ -376,7 +360,7 @@ const pollUntilSettled = async (app, loginId) => {
 }
 
 test('signing in from Settings stores the record as the person\'s own model.model_account row', async (t) => {
-  const { app, stateDir, writes } = await createLoginApp(t)
+  const { app, stateDir, rows } = await createLoginApp(t)
   const started = await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })
   assert.equal(started.statusCode, 200)
   const { loginId, url } = started.json()
@@ -388,15 +372,16 @@ test('signing in from Settings stores the record as the person\'s own model.mode
   assert.equal(completed.statusCode, 200)
   assert.equal(await pollUntilSettled(app, loginId), 'succeeded')
 
-  assert.equal(writes.length, 1)
-  assert.equal(writes[0].accountId, ana)
-  const stored = decodeKey(parseKey(writes[0].key))
+  const written = [...rows.values()]
+  assert.equal(written.length, 1)
+  assert.equal(written[0].owner, ana)
+  const stored = decodeKey(parseKey(written[0].secret))
   assert.equal(stored.fileName, 'antigravity-person@example.com.json')
   assert.deepEqual(JSON.parse(Buffer.from(stored.bytes).toString()), { type: 'antigravity', refresh_token: 'refresh-from-google' })
   assert.deepEqual(readdirSync(stateDir), [], 'the sign-in proxy and its copy of the record are gone')
 
   const connection = await app.inject({ method: 'GET', url: '/api/control/model-accounts/google-ai-pro/connection', ...authentic })
-  assert.deepEqual(connection.json(), { mine: true, shared: false, administrator: false })
+  assert.deepEqual(connection.json(), { own: { state: 'connected', kind: 'google_ai_pro' }, shared: false })
 })
 
 test('a pasted address with the wrong host, path or state is refused, and a refused sign-in fails', async (t) => {

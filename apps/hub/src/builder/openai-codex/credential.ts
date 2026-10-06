@@ -1,18 +1,8 @@
 import { refreshOpenAICodexToken } from '@mastra/code-sdk/auth/providers/openai-codex'
 import { z } from 'zod'
 import type { CredentialStore, OAuthCredentials } from '@mastra/code-sdk/auth/types'
-import type { ModelAccountStore } from '../model-account-store.js'
 import { createTokenHolds, type TokenHolds } from '../oauth-holds.js'
 import { Failure } from '../../platform/failure.js'
-
-/**
- * A ChatGPT subscription is Mastra's `openai-codex` auth provider: the credential Mastra Code and
- * the Factory read for every `openai/*` model id (`getAuthProviderId` in @mastra/code-sdk's
- * mastracode-gateway). It is the `provider` of its `model.model_account` row, kind `oauth`.
- */
-export const OPENAI_CODEX_PROVIDER = 'openai-codex'
-/** The model router provider in the model ids a subscription serves (`openai/<model>`). */
-export const OPENAI_MODEL_PROVIDER = 'openai'
 
 /** A ChatGPT subscription's tokens as Mastra Code stores them (`OAuthCredentials` minus its `type`). */
 export type CodexTokens = Readonly<{ access: string; refresh: string; expires: number; accountId: string; email?: string }>
@@ -36,12 +26,11 @@ export const parseCodexTokens = (secret: string): CodexTokens => {
 }
 
 /** A ChatGPT row held by runs; refreshed and written back as `createTokenHolds` says. */
-export const createCodexHolds = ({ store, refresh = refreshOpenAICodexToken, now = Date.now }: Readonly<{
-  store: Pick<ModelAccountStore, 'readById' | 'rewrite'>
+export const createCodexHolds = ({ refresh = refreshOpenAICodexToken, now = Date.now }: Readonly<{
   refresh?: (refreshToken: string, accountId: string, email?: string) => Promise<OAuthCredentials>
   now?: () => number
 }>): TokenHolds<CodexTokens> => createTokenHolds({
-  store, now, parse: parseCodexTokens, serialize: serializeCodexTokens,
+  now, parse: parseCodexTokens, serialize: serializeCodexTokens,
   refresh: async (stored) => toCodexTokens(await refresh(stored.refresh, stored.accountId, stored.email)),
 })
 
@@ -54,7 +43,7 @@ export const createCodexHolds = ({ store, refresh = refreshOpenAICodexToken, now
 export const heldCodexCredentials = (initial: CodexTokens, current: () => Promise<CodexTokens>): CredentialStore => Object.freeze({
   allowEnvironmentFallback: false,
   reload: () => undefined,
-  get: (provider: string) => provider === OPENAI_CODEX_PROVIDER ? { type: 'oauth' as const, ...initial } : undefined,
+  get: (provider: string) => provider === 'openai-codex' ? { type: 'oauth' as const, ...initial } : undefined,
   getStoredApiKey: () => undefined,
   getApiKey: async () => (await current()).access,
   getOAuthCredential: async () => ({ type: 'oauth' as const, ...await current() }),

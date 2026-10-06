@@ -3,12 +3,10 @@ import { BuilderRunView } from '../../packages/contract/dist/index.js'
 // What the browser suites share: the Builder controller's routes stubbed for a page, and the thread messages they serve.
 export const BUILDER_CONTROLLER = '**/api/builder/agent-controller/conexus-builder'
 // The model and a conversation's own state are the controller's, so the screen reads
-// them from the Builder's controller and holds none. A model with no key is never offered.
 const ALL_LEVELS = ['low', 'medium', 'high', 'xhigh']
 export const BUILDER_MODELS = [
-  { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-opus-4-5', thinkingLevels: ALL_LEVELS, hasApiKey: true },
-  { id: 'anthropic/claude-sonnet-4-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-sonnet-4-5', thinkingLevels: ALL_LEVELS, hasApiKey: true },
-  { id: 'groq/llama-4', provider: 'groq', providerName: 'Groq', modelName: 'llama-4', thinkingLevels: [], hasApiKey: false },
+  { id: 'anthropic/claude-opus-4-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-opus-4-5', thinkingLevels: ALL_LEVELS },
+  { id: 'anthropic/claude-sonnet-4-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-sonnet-4-5', thinkingLevels: ALL_LEVELS },
 ]
 export const SELECTED_MODEL = BUILDER_MODELS[0].id
 // A Project's conversations are its threads, as the native threads route lists them.
