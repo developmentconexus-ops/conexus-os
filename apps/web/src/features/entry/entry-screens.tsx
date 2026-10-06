@@ -1,16 +1,18 @@
 import { Button } from '@mastra/playground-ui/components/Button'
+import { FAILURES, type HubNoAccessReason } from '@conexus/contract'
 import type { ReactNode } from 'react'
 import { ConexusMark, ConexusWordmark } from '../../../../../packages/brand/src/index'
 import './entry.css'
+import { HubFailure } from '../../app/failure'
 import { failureText, isRetryable } from '../../app/http'
 
 export const SIGN_IN_URL = '/protocol/oidc/login'
 
 // Screens outside a Workspace share one centered column under the lockup, like the sign-in page.
-export function EntryFrame({ title, children, arrive = false }: Readonly<{ title: string; children?: ReactNode; arrive?: boolean }>) {
+function EntryFrame({ title, children }: Readonly<{ title: string; children?: ReactNode }>) {
   return <main className="cx-entry">
     <div className="cx-entry-column">
-      <ConexusWordmark size="md" arrive={arrive} />
+      <ConexusWordmark size="md" />
       <h1>{title}</h1>
       {children}
     </div>
@@ -33,13 +35,18 @@ export function SignedOut() {
   </EntryFrame>
 }
 
-export function NoAccess() {
-  return <EntryFrame title="Acesso ainda não liberado">
-    <p>Sua identidade foi confirmada, mas ainda não há uma conta no Conexus para ela.</p>
-    <ul className="cx-entry-list">
-      <li>Peça um convite a um owner do Workspace, com este mesmo email.</li>
-      <li>Se já foi convidado, confirme seu email no provedor de login e entre de novo.</li>
-    </ul>
+const NO_ACCESS_TITLE = {
+  SIGN_IN_EXPIRED: 'O login não foi concluído',
+  SIGN_IN_FAILED: 'Não foi possível entrar',
+  IDENTITY_EMAIL_NOT_VERIFIED: 'E-mail ainda não verificado',
+  IDENTITY_NOT_ELIGIBLE: 'Acesso ainda não liberado',
+  ACCOUNT_INACTIVE: 'Conta desativada',
+} as const satisfies Record<HubNoAccessReason, string>
+
+export function NoAccess({ reason }: Readonly<{ reason: HubNoAccessReason }>) {
+  return <EntryFrame title={NO_ACCESS_TITLE[reason]}>
+    <p>{failureText(new HubFailure(reason, null))}</p>
+    {FAILURES[reason].action === 'SIGN_IN_AGAIN' && <Button as="a" href={SIGN_IN_URL} variant="primary" size="lg">Entrar de novo</Button>}
     <Button as="a" href={SIGN_IN_URL} variant="outline" size="lg">Entrar com outra conta</Button>
   </EntryFrame>
 }

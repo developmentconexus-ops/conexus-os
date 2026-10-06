@@ -13,7 +13,7 @@ import type { ReactElement, ReactNode } from 'react'
 import { ConexusMark, ConexusWordmark } from '../../../../packages/brand/src/index'
 import { endCurrentSession } from '../features/identity-access/api'
 import { projectsQuery } from '../features/project/api'
-import type { AccessContext } from '../generated/iam-client'
+import type { Session } from '@conexus/contract'
 import { ThemeToggle } from './theme-toggle'
 import './frame.css'
 import { failureText } from './http'
@@ -139,7 +139,7 @@ function SwitcherTrigger({ label, className, children }: Readonly<{ label: strin
   </DropdownMenu.Trigger>
 }
 
-function WorkspaceSwitcher({ context, current, trigger }: Readonly<{ context: AccessContext; current: string; trigger?: ReactNode }>) {
+function WorkspaceSwitcher({ context, current, trigger }: Readonly<{ context: Session; current: string; trigger?: ReactNode }>) {
   const navigate = useNavigate()
   return <DropdownMenu>
     {trigger ?? <SwitcherTrigger label="Trocar de Workspace" />}
@@ -189,7 +189,7 @@ function ProjectSwitcher({ workspaceId, current, trigger }: Readonly<{ workspace
   </DropdownMenu>
 }
 
-function AccountMenu({ context }: Readonly<{ context: AccessContext }>) {
+function AccountMenu({ context }: Readonly<{ context: Session }>) {
   const navigate = useNavigate()
   const signOutInFlight = useRef(false)
   const signOut = useMutation({
@@ -199,7 +199,7 @@ function AccountMenu({ context }: Readonly<{ context: AccessContext }>) {
       signOutInFlight.current = false
     },
   })
-  const { displayName, email } = context.account
+  const { displayName } = context.account
   return <div className="cx-account">
     <DropdownMenu>
       <DropdownMenu.Trigger className="cx-account-trigger" aria-label={`Conta de ${displayName}`}>
@@ -208,7 +208,6 @@ function AccountMenu({ context }: Readonly<{ context: AccessContext }>) {
       <DropdownMenu.Content align="end" className="cx-menu cx-account-menu">
         <div className="cx-account-who">
           <strong>{displayName}</strong>
-          {email && <span>{email}</span>}
         </div>
         <DropdownMenu.Separator />
         <DropdownMenu.Item onClick={() => void navigate({ to: '/settings/account' })}>Configurações</DropdownMenu.Item>
@@ -230,7 +229,7 @@ function AccountMenu({ context }: Readonly<{ context: AccessContext }>) {
   </div>
 }
 
-function TopBar({ context, scope, place, arrive }: Readonly<{ context: AccessContext; scope: ShellScope | undefined; place: string | undefined; arrive: boolean }>) {
+function TopBar({ context, scope, place, arrive }: Readonly<{ context: Session; scope: ShellScope | undefined; place: string | undefined; arrive: boolean }>) {
   const workspace = scope?.workspace
   const project = scope?.project
   return <header className="cx-topbar">
@@ -279,7 +278,7 @@ export function Shell({
   place,
   children,
 }: {
-  context: AccessContext
+  context: Session
   scope?: ShellScope | undefined
   rail?: ReactNode
   /** A top-level area outside any Workspace, such as Configurações, named as the last crumb. */

@@ -8,7 +8,6 @@ import { settingsAccountRoute } from '../routes/settings-account'
 import { settingsIndexRoute } from '../routes/settings-index'
 import { settingsInstallationAdminsRoute } from '../routes/settings-installation-admins'
 import { settingsModelsRoute } from '../routes/settings-models'
-import { setupRoute } from '../routes/setup'
 import { workspaceMembersRoute } from '../routes/workspace-members'
 import { workspaceNewRoute } from '../routes/workspace-new'
 import { workspaceProjectNewRoute } from '../routes/workspace-project-new'
@@ -28,7 +27,6 @@ const settingsRouteWithChildren = settingsRoute.addChildren([
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
-  setupRoute,
   signedOutRoute,
   noAccessRoute,
   workspacesRoute,

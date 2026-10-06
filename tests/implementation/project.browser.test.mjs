@@ -65,21 +65,20 @@ async function mockHub(page, hub) {
     const body = request.postData() ? request.postDataJSON() : null
     hub.requests.push({ method, path: url.pathname, body, idempotencyKey: await request.headerValue('idempotency-key') })
     const p = url.pathname
-    if (p === '/api/control/access-context') {
-      if (hub.accessStatus !== 200) return json(route, hub.accessStatus, { type: 'AUTHENTICATION_REQUIRED' })
-      return json(route, 200, { account: { accountId: ids.account, displayName: 'Marina Alves', email: 'marina@empresa.com.br' }, workspaces: hub.workspaces, projects: [] })
+    if (p === '/api/session' && method === 'GET') {
+      if (hub.accessStatus !== 200) return route.fulfill({ status: hub.accessStatus, contentType: 'application/problem+json', body: JSON.stringify({ type: 'urn:conexus:problem:AUTHENTICATION_REQUIRED', title: 'AUTHENTICATION_REQUIRED', status: hub.accessStatus, code: 'AUTHENTICATION_REQUIRED' }) })
+      return json(route, 200, { account: { accountId: ids.account, displayName: 'Marina Alves' }, administrator: false, workspaces: hub.workspaces })
     }
     if (p === '/api/session' && method === 'DELETE') return route.fulfill({ status: 204 })
     if (p === '/api/control/model-accounts/models' && hub.modelsStatus !== 200) return json(route, hub.modelsStatus, { type: 'unavailable' })
     if (p === '/api/control/model-accounts/models') return json(route, 200, { models: [{ id: 'anthropic/claude-opus-4-5', provider: 'anthropic', providerName: 'Anthropic (Claude)', modelName: 'claude-opus-4-5', thinkingLevels: ['low', 'medium', 'high', 'xhigh'] }], defaultThinkingLevel: 'medium' })
-    if (p === '/api/control/accounts' && method === 'POST') return json(route, 201, { accountId: ids.account, displayName: body.displayName })
     if (p === '/api/control/workspaces' && method === 'POST') return json(route, 201, { workspaceId: ids.sales, name: body.name, initialAccessEstablished: true, creatorAccountId: ids.account })
     const summaries = p.match(/^\/api\/control\/workspaces\/([^/]+)\/project-summaries$/)
     if (summaries) return json(route, hub.summariesStatus, hub.summariesStatus === 200 ? { projects: hub.summaries } : { type: 'unavailable' })
     const projects = p.match(/^\/api\/control\/workspaces\/([^/]+)\/projects$/)
     if (projects && method === 'POST') return json(route, 201, projectOf(ids.created))
     if (projects) return json(route, 200, hub.summaries.map(({ projectId, name, archived }) => ({ projectId, workspaceId: ids.operations, name, archived })))
-    if (p.endsWith('/members')) {
+    if (p.endsWith('/roster')) {
       if (hub.rosterRefreshGate) await hub.rosterRefreshGate()
       return json(route, 200, hub.roster)
     }
@@ -90,7 +89,7 @@ async function mockHub(page, hub) {
       hub.roster.entries = [...hub.roster.entries.filter((entry) => entry !== renewed), invitation]
       return json(route, 200, invitation)
     }
-    if (p.includes('/roster/') && method === 'DELETE') return route.fulfill({ status: 204 })
+    if ((p.includes('/members/') || p.includes('/invitations/')) && method === 'DELETE') return route.fulfill({ status: 204 })
     if (p.endsWith('/thumbnail') && method === 'GET') {
       const projectId = p.split('/')[4]
       if (!hub.summaries.find((summary) => summary.projectId === projectId)?.hasPreview || projectId === ids.visits) return json(route, 404, { type: 'PROJECT_THUMBNAIL_NOT_FOUND' })
@@ -173,17 +172,32 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await page.getByRole('heading', { name: 'Sessão encerrada' }).waitFor()
     assert.equal(await page.getByRole('link', { name: 'Entrar de novo' }).getAttribute('href'), '/protocol/oidc/login')
     await shoot(page, '01-signed-out')
-    await page.goto(`${origin}/no-access`)
+    await page.goto(`${origin}/no-access?reason=IDENTITY_NOT_ELIGIBLE`)
     await page.getByRole('heading', { name: 'Acesso ainda não liberado' }).waitFor()
     await shoot(page, '02-no-access')
-    await reset({ accessStatus: 401 })
-    await page.goto(`${origin}/setup`)
-    await page.getByRole('heading', { name: 'Criar minha conta' }).waitFor()
-    await shoot(page, '03-setup')
-    await page.getByLabel('Seu nome').fill('Marina Alves')
-    await page.getByRole('button', { name: 'Criar minha conta' }).click()
-    await page.getByRole('heading', { name: 'Conta criada' }).waitFor()
-    assert.deepEqual(hub.requests.find((entry) => entry.path === '/api/control/accounts').body, { displayName: 'Marina Alves' })
+  })
+
+  await t.test('the Hub no access page names each reason, and an unknown or missing one reads as a failed sign in', async () => {
+    await reset()
+    const reasons = [
+      ['SIGN_IN_EXPIRED', 'O login não foi concluído', 'O login demorou demais ou foi aberto em outra aba. Entre de novo.', true],
+      ['SIGN_IN_FAILED', 'Não foi possível entrar', 'O serviço de login não concluiu a entrada. Entre de novo.', true],
+      ['IDENTITY_EMAIL_NOT_VERIFIED', 'E-mail ainda não verificado', 'O seu provedor de login informou que o e-mail desta conta ainda não foi verificado. Confirme o e-mail no seu provedor de login e entre de novo.', false],
+      ['IDENTITY_NOT_ELIGIBLE', 'Acesso ainda não liberado', 'Você entrou, mas ninguém convidou este e-mail para o Conexus. Peça um convite a quem cuida do seu Workspace, com este mesmo e-mail.', false],
+      ['ACCOUNT_INACTIVE', 'Conta desativada', 'Esta conta foi desativada no Conexus. Peça a quem administra o Conexus.', false],
+    ]
+    for (const [reason, title, text, offersRetry] of reasons) {
+      await page.goto(`${origin}/no-access?reason=${reason}`)
+      await page.getByRole('heading', { name: title }).waitFor()
+      await page.getByText(text, { exact: true }).waitFor()
+      assert.equal(await page.getByRole('link', { name: 'Entrar com outra conta' }).getAttribute('href'), '/protocol/oidc/login')
+      assert.equal(await page.getByRole('link', { name: 'Entrar de novo' }).count(), offersRetry ? 1 : 0, reason)
+      await shoot(page, `02-no-access-${reason.toLowerCase()}`)
+    }
+    for (const search of ['?reason=NOPE', '']) {
+      await page.goto(`${origin}/no-access${search}`)
+      await page.getByRole('heading', { name: 'Não foi possível entrar' }).waitFor()
+    }
   })
 
   await t.test('two Workspaces and no last one lands on the list; one Workspace skips it', async () => {
@@ -278,7 +292,6 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await page.keyboard.press('Escape')
     await page.getByRole('button', { name: 'Conta de Marina Alves' }).click()
     await page.getByRole('menuitem', { name: 'Sair do Conexus' }).waitFor()
-    await page.getByText('marina@empresa.com.br').waitFor()
     await shoot(page, '08-account-menu')
     await page.keyboard.press('Escape')
 
@@ -376,7 +389,9 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await page.getByLabel('Email').fill('rafael@empresa.com.br')
     await page.getByRole('button', { name: 'Convidar' }).click()
     await page.getByText('Convite criado para rafael@empresa.com.br.').waitFor()
-    assert.deepEqual(hub.requests.find((entry) => entry.path.endsWith('/invitations')).body, { email: 'rafael@empresa.com.br', role: 'member' })
+    const invite = hub.requests.find((entry) => entry.path.endsWith('/invitations'))
+    assert.deepEqual(invite.body, { email: 'rafael@empresa.com.br', role: 'member' })
+    assert.match(invite.idempotencyKey, /^[0-9a-f-]{36}$/)
     await page.getByRole('button', { name: 'Copiar link de entrada' }).click()
     assert.equal(await page.evaluate(() => navigator.clipboard.readText()), `${origin}/`)
     await page.getByRole('button', { name: 'Ações para Diego Souza' }).click()
@@ -384,7 +399,7 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await page.getByRole('alertdialog').getByRole('button', { name: 'Remover' }).click()
     await page.waitForFunction(() => true)
     await page.getByRole('alertdialog').waitFor({ state: 'detached' })
-    assert.ok(hub.requests.some((entry) => entry.method === 'DELETE' && entry.path.endsWith(`/roster/member/${ids.diego}`)))
+    assert.ok(hub.requests.some((entry) => entry.method === 'DELETE' && entry.path.endsWith(`/members/${ids.diego}`)))
   })
 
   await t.test('an invitation stays unconfirmed until the refreshed roster includes it', async () => {
@@ -414,7 +429,7 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
 
   await t.test('an expired invitation shows Vencido, and Convidar de novo asks the server again with its email and role', async () => {
     await reset()
-    hub.roster = { ...hub.roster, entries: [...hub.roster.entries, { kind: 'invitation', invitationId: 'expired-1', email: 'vencida@empresa.com.br', role: 'owner', invitedAt: '2026-08-01T12:00:00.000Z', expiresAt: '2026-08-15T12:00:00.000Z', state: 'EXPIRED' }] }
+    hub.roster = { ...hub.roster, entries: [...hub.roster.entries, { kind: 'invitation', invitationId: '40000000-0000-4000-8000-000000000002', email: 'vencida@empresa.com.br', role: 'owner', invitedAt: '2026-08-01T12:00:00.000Z', expiresAt: '2026-08-15T12:00:00.000Z', state: 'EXPIRED' }] }
     await page.goto(`${origin}/workspaces/${ids.operations}/settings/people`)
     await page.getByRole('heading', { name: 'Convites 2' }).waitFor()
     const expired = page.locator('.cx-person', { hasText: 'vencida@empresa.com.br' })
@@ -492,7 +507,7 @@ test('a double click on Criar Workspace sends one request', { timeout: 120_000 }
     const request = route.request()
     const path = new URL(request.url()).pathname
     const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
-    if (path === '/api/control/access-context') return json(200, { account: { accountId, displayName: 'Marina Alves', email: 'marina@empresa.com.br' }, workspaces: [], projects: [] })
+    if (path === '/api/session') return json(200, { account: { accountId, displayName: 'Marina Alves' }, administrator: false, workspaces: [] })
     if (path === '/api/control/workspaces' && request.method() === 'POST') {
       creates += 1
       await new Promise((settle) => setTimeout(settle, 300))

@@ -1,7 +1,7 @@
 import { createRoute, Navigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useAuthorityLost } from '../app/query-client'
-import { useAccessContext } from '../app/access-gate'
+import { useSession } from '../app/access-gate'
 import { entryDestination, readLastWorkspace } from '../features/entry/entry-destination'
 import { EntryFailure, EntryLoading, SIGN_IN_URL } from '../features/entry/entry-screens'
 import { isAuthenticationRequired } from '../features/identity-access/api'
@@ -22,7 +22,7 @@ function GoToSignIn() {
 
 function EntryRoute() {
   const authorityLost = useAuthorityLost()
-  const access = useAccessContext()
+  const access = useSession()
   if (authorityLost || (access.isError && isAuthenticationRequired(access.error))) return <GoToSignIn />
   if (access.isPending) return <EntryLoading label="Abrindo o Conexus" />
   if (access.isError) return <EntryFailure error={access.error} onRetry={() => void access.refetch()} />

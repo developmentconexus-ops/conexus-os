@@ -14,14 +14,9 @@ const withServer = async (t) => {
   return { page, origin }
 }
 
-const routeAccessContext = (page, account) =>
-  page.route('**/api/control/access-context', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ account, workspaces: [], projects: [] }),
-  }))
-
-const routeInstallation = (page, administrator) =>
-  page.route('**/api/control/installation', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ administrator }),
+const routeSession = (page, account, administrator) =>
+  page.route('**/api/session', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ account, workspaces: [], administrator }),
   }))
 
 const notFound = { status: 404, contentType: 'application/problem+json', body: JSON.stringify({ type: 'urn:conexus:problem:NOT_FOUND', title: 'NOT_FOUND', status: 404, code: 'NOT_FOUND' }) }
@@ -29,8 +24,7 @@ const problem = (code, status = 409) => ({ status, contentType: 'application/pro
 
 test('/settings redirects to Minha conta, and a member sees no Instalação group and is refused an installation route', async (t) => {
   const { page, origin } = await withServer(t)
-  await routeAccessContext(page, { accountId: 'a1', displayName: 'Pessoa Membro', email: 'membro@example.com' })
-  await routeInstallation(page, false)
+  await routeSession(page, { accountId: '10000000-0000-4000-8000-000000000001', displayName: 'Pessoa Membro' }, false)
   await page.goto(`${origin}/settings`)
   await page.waitForURL(`${origin}/settings/account`)
   await page.getByRole('heading', { name: 'Minha conta' }).waitFor()
@@ -43,8 +37,7 @@ test('/settings redirects to Minha conta, and a member sees no Instalação grou
 
 test('an administrator sees Administradores as the one installation item in the rail, and the retired ones are gone', async (t) => {
   const { page, origin } = await withServer(t)
-  await routeAccessContext(page, { accountId: 'a2', displayName: 'Administradora', email: 'admin@example.com' })
-  await routeInstallation(page, true)
+  await routeSession(page, { accountId: '10000000-0000-4000-8000-000000000002', displayName: 'Administradora' }, true)
   await page.goto(`${origin}/settings/account`)
   await page.getByRole('link', { name: 'Administradores' }).waitFor()
   for (const label of ['GitHub', 'Modelos da empresa', 'Memória']) {
@@ -54,13 +47,12 @@ test('an administrator sees Administradores as the one installation item in the 
 
 test('Administradores shows a danger alert when granting fails', async (t) => {
   const { page, origin } = await withServer(t)
-  await routeAccessContext(page, { accountId: 'a8', displayName: 'Administradora', email: 'admin@example.com' })
-  await routeInstallation(page, true)
+  await routeSession(page, { accountId: '10000000-0000-4000-8000-000000000008', displayName: 'Administradora' }, true)
   await page.route('**/api/control/installation/administrators', (route) => {
     if (route.request().method() === 'POST') return route.fulfill({ status: 500, contentType: 'application/json', body: '{}' })
     return route.fulfill({
       status: 200, contentType: 'application/json',
-      body: JSON.stringify({ administrators: [{ accountId: 'a8', displayName: 'Administradora', email: 'admin@example.com', grantedVia: 'OPERATOR_BOOTSTRAP', grantedBy: null, grantedAt: '2026-09-01T00:00:00.000Z' }] }),
+      body: JSON.stringify({ administrators: [{ accountId: '10000000-0000-4000-8000-000000000008', displayName: 'Administradora', email: 'admin@example.com', grantedVia: 'OPERATOR_BOOTSTRAP', grantedAt: '2026-09-01T00:00:00.000Z' }] }),
     })
   })
 
@@ -75,16 +67,15 @@ test('Administradores shows a danger alert when granting fails', async (t) => {
 
 test('Administradores refuses to revoke the last administrator and to grant an unknown e-mail', async (t) => {
   const { page, origin } = await withServer(t)
-  await routeAccessContext(page, { accountId: 'a6', displayName: 'Única Admin', email: 'unica@example.com' })
-  await routeInstallation(page, true)
+  await routeSession(page, { accountId: '10000000-0000-4000-8000-000000000006', displayName: 'Única Admin' }, true)
   await page.route('**/api/control/installation/administrators', (route) => {
     if (route.request().method() === 'POST') return route.fulfill(problem('ACCOUNT_NOT_FOUND'))
     return route.fulfill({
       status: 200, contentType: 'application/json',
-      body: JSON.stringify({ administrators: [{ accountId: 'a6', displayName: 'Única Admin', email: 'unica@example.com', grantedVia: 'OPERATOR_BOOTSTRAP', grantedBy: null, grantedAt: '2026-09-01T00:00:00.000Z' }] }),
+      body: JSON.stringify({ administrators: [{ accountId: '10000000-0000-4000-8000-000000000006', displayName: 'Única Admin', email: 'unica@example.com', grantedVia: 'OPERATOR_BOOTSTRAP', grantedAt: '2026-09-01T00:00:00.000Z' }] }),
     })
   })
-  await page.route('**/api/control/installation/administrators/a6', (route) => route.fulfill({ ...problem('LAST_INSTALLATION_ADMINISTRATOR'), status: 409 }))
+  await page.route('**/api/control/installation/administrators/10000000-0000-4000-8000-000000000006', (route) => route.fulfill({ ...problem('LAST_INSTALLATION_ADMINISTRATOR'), status: 409 }))
 
   await page.goto(`${origin}/settings/installation/admins`)
   await page.getByRole('heading', { name: 'Administradores' }).waitFor()
@@ -98,6 +89,36 @@ test('Administradores refuses to revoke the last administrator and to grant an u
   await page.getByText('Nenhuma conta ativa usa este e-mail. A pessoa precisa entrar no Conexus uma vez antes.').waitFor()
 })
 
+test('Administradores adds an administrator with one key per attempt and lists who granted it', async (t) => {
+  const { page, origin } = await withServer(t)
+  const actor = { accountId: '10000000-0000-4000-8000-000000000012', displayName: 'Administradora' }
+  const added = { accountId: '10000000-0000-4000-8000-000000000013', displayName: 'Bruno Lima', email: 'bruno@example.com', grantedVia: 'ADMINISTRATOR', grantedBy: actor, grantedAt: '2026-09-02T00:00:00.000Z' }
+  const first = { ...actor, email: 'admin@example.com', grantedVia: 'OPERATOR_BOOTSTRAP', grantedAt: '2026-09-01T00:00:00.000Z' }
+  await routeSession(page, actor, true)
+  let administrators = [first]
+  const posts = []
+  await page.route('**/api/control/installation/administrators', (route) => {
+    if (route.request().method() === 'POST') {
+      posts.push({ body: route.request().postDataJSON(), key: route.request().headers()['idempotency-key'] })
+      if (posts.length === 1) return route.fulfill(problem('INTERNAL_UNEXPECTED', 500))
+      administrators = [first, added]
+      return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(added) })
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ administrators }) })
+  })
+
+  await page.goto(`${origin}/settings/installation/admins`)
+  await page.getByText('Definido pelo operador na instalação').waitFor()
+  await page.getByLabel('E-mail').fill(' Bruno@Example.com ')
+  await page.getByRole('button', { name: 'Tornar administrador' }).click()
+  await page.getByRole('alert').waitFor()
+  await page.getByRole('button', { name: 'Tornar administrador' }).click()
+  await page.getByText('Concedido por Administradora em').waitFor()
+  assert.deepEqual(posts.map((post) => post.body), [{ email: 'bruno@example.com' }, { email: 'bruno@example.com' }])
+  assert.equal(posts[0].key, posts[1].key, 'a retry of the same attempt keeps its key')
+  assert.match(posts[0].key, /^[0-9a-f-]{36}$/)
+})
+
 test('Minhas contas de modelo signs a person in to Google AI Pro through a pasted Google address, and hides the card where the Hub runs no CLIProxyAPI', async (t) => {
   const { page, origin } = await withServer(t)
   const loginId = '0f0f0f0f-0000-4000-8000-000000000001'
@@ -105,8 +126,7 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
   let connected = false
   let enabled = true
   const writes = []
-  await routeAccessContext(page, { accountId: 'a9', displayName: 'Pessoa', email: 'pessoa@example.com' })
-  await routeInstallation(page, false)
+  await routeSession(page, { accountId: '10000000-0000-4000-8000-000000000009', displayName: 'Pessoa' }, false)
   await page.route('**/api/control/model-accounts/google-ai-pro/**', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
@@ -162,8 +182,7 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
 test('Minhas contas de modelo shows Google AI Pro expired when the status read answers 404 MODEL_LOGIN_NOT_FOUND', async (t) => {
   const { page, origin } = await withServer(t)
   const loginId = '0f0f0f0f-0000-4000-8000-000000000004'
-  await routeAccessContext(page, { accountId: 'a11', displayName: 'Pessoa', email: 'pessoa@example.com' })
-  await routeInstallation(page, false)
+  await routeSession(page, { accountId: '10000000-0000-4000-8000-000000000011', displayName: 'Pessoa' }, false)
   await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => {
     const path = new URL(route.request().url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
     const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
@@ -183,8 +202,7 @@ test('Minhas contas de modelo falls back to the primary sign-in link when the po
   const { page, origin } = await withServer(t)
   const loginId = '0f0f0f0f-0000-4000-8000-000000000002'
   const signIn = 'https://accounts.google.com/o/oauth2/v2/auth?state=blocked-state'
-  await routeAccessContext(page, { accountId: 'a10', displayName: 'Pessoa Bloqueada', email: 'bloqueada@example.com' })
-  await routeInstallation(page, false)
+  await routeSession(page, { accountId: '10000000-0000-4000-8000-000000000010', displayName: 'Pessoa Bloqueada' }, false)
   await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => {
     const path = new URL(route.request().url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
     const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
@@ -213,8 +231,7 @@ test('Minhas contas de modelo signs a person in to ChatGPT with a device code, a
   let connected = false
   let polls = 0
   const calls = []
-  await routeAccessContext(page, { accountId: 'a9', displayName: 'Pessoa', email: 'pessoa@example.com' })
-  await routeInstallation(page, false)
+  await routeSession(page, { accountId: '10000000-0000-4000-8000-000000000009', displayName: 'Pessoa' }, false)
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({ accounts: [{ provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', own: connected ? { state: 'connected', kind: 'oauth' } : { state: 'absent' }, shared: false }] }),
   }))
@@ -259,8 +276,7 @@ test('Minhas contas de modelo saves an Anthropic key and signs in with a Claude 
   const authorizeUrl = 'https://claude.ai/oauth/authorize?attempt=1'
   let kind = null
   const calls = []
-  await routeAccessContext(page, { accountId: 'a9', displayName: 'Pessoa', email: 'pessoa@example.com' })
-  await routeInstallation(page, false)
+  await routeSession(page, { accountId: '10000000-0000-4000-8000-000000000009', displayName: 'Pessoa' }, false)
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({ accounts: [
       { provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', own: { state: 'absent' }, shared: false },

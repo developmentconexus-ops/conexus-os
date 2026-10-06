@@ -1,48 +1,28 @@
-import type {
-  InviteWorkspaceMemberInput,
-  WorkspaceInvitation,
-  WorkspaceRoster,
-} from '../../generated/iam-client'
-import { iamClient } from '../../generated/iam-client'
-import { hubCall } from '../../app/http'
+import {
+  WorkspaceId, cancelWorkspaceInvitation as cancelWorkspaceInvitationOperation, getWorkspaceRoster,
+  inviteWorkspaceMember as inviteWorkspaceMemberOperation, removeWorkspaceMember as removeWorkspaceMemberOperation,
+  setWorkspaceMemberRole as setWorkspaceMemberRoleOperation,
+  type AccountId, type EmailAddress, type IdempotencyKey, type InvitationId, type WorkspaceInvitationEntry, type WorkspaceMemberEntry, type WorkspaceRole,
+} from '@conexus/contract'
+import { call, query } from '../../app/http'
+import { routeParam } from '../../app/route-params'
 
-export const workspaceRosterQueryKey = (workspaceId: string) =>
-  ['identity-access', 'workspace-roster', workspaceId] as const
+export type MemberEntry = WorkspaceMemberEntry
+export type InvitationEntry = WorkspaceInvitationEntry
 
-type RosterEntry = WorkspaceRoster['entries'][number]
-export type MemberEntry = Extract<RosterEntry, { kind: 'member' }>
-export type InvitationEntry = Extract<RosterEntry, { kind: 'invitation' }>
+const noInput = { query: undefined, headers: undefined, body: undefined } as const
+const workspaceParams = (workspaceId: string) => ({ workspaceId: routeParam(WorkspaceId, workspaceId) })
 
-export async function getWorkspaceRoster(workspaceId: string): Promise<WorkspaceRoster> {
-  const response = await hubCall(iamClient.listWorkspaceMembers(workspaceId), 200)
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  return response.json() as Promise<WorkspaceRoster>
-}
+export const workspaceRosterQuery = (workspaceId: string) => query(getWorkspaceRoster, { params: workspaceParams(workspaceId), ...noInput })
 
-export async function inviteWorkspaceMember(
-  workspaceId: string,
-  input: InviteWorkspaceMemberInput,
-): Promise<WorkspaceInvitation> {
-  const response = await hubCall(iamClient.inviteWorkspaceMember(workspaceId, input), 200)
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  return response.json() as Promise<WorkspaceInvitation>
-}
+export const inviteWorkspaceMember = (workspaceId: string, email: EmailAddress, role: WorkspaceRole, idempotencyKey: IdempotencyKey) =>
+  call(inviteWorkspaceMemberOperation, { params: workspaceParams(workspaceId), query: undefined, headers: { 'idempotency-key': idempotencyKey }, body: { email, role } })
 
-export async function setWorkspaceMemberRole(
-  workspaceId: string,
-  accountId: string,
-  role: InviteWorkspaceMemberInput['role'],
-): Promise<void> {
-  await hubCall(iamClient.setWorkspaceMemberRole(workspaceId, accountId, { role }), 204)
-}
+export const setWorkspaceMemberRole = (workspaceId: string, accountId: AccountId, role: WorkspaceRole) =>
+  call(setWorkspaceMemberRoleOperation, { params: { ...workspaceParams(workspaceId), accountId }, query: undefined, headers: undefined, body: { role } })
 
-export async function removeWorkspaceMember(workspaceId: string, accountId: string): Promise<void> {
-  await hubCall(iamClient.removeWorkspaceRosterEntry(workspaceId, 'member', accountId), 204)
-}
+export const removeWorkspaceMember = (workspaceId: string, accountId: AccountId) =>
+  call(removeWorkspaceMemberOperation, { params: { ...workspaceParams(workspaceId), accountId }, ...noInput })
 
-export async function cancelWorkspaceInvitation(
-  workspaceId: string,
-  invitationId: string,
-): Promise<void> {
-  await hubCall(iamClient.removeWorkspaceRosterEntry(workspaceId, 'invitation', invitationId), 204)
-}
+export const cancelWorkspaceInvitation = (workspaceId: string, invitationId: InvitationId) =>
+  call(cancelWorkspaceInvitationOperation, { params: { ...workspaceParams(workspaceId), invitationId }, ...noInput })

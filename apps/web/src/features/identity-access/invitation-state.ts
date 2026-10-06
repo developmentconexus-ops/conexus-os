@@ -1,6 +1,4 @@
-import type { WorkspaceInvitation } from '../../generated/iam-client'
-
-export type InvitationState = WorkspaceInvitation['state']
+import type { InvitationState } from '@conexus/contract'
 
 export const INVITATION_STATE: Record<InvitationState, Readonly<{ word: string; tone: 'pending' | 'neutral'; dateWord: string }>> = {
   PENDING: { word: 'Pendente', tone: 'pending', dateWord: 'vale até' },
