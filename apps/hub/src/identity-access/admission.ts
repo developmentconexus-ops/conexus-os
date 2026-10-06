@@ -177,6 +177,8 @@ export function admitWorkspace<A extends WorkspaceAction>(gate: CommandGate, wor
 export function admitWorkspace<A extends ReadAction & WorkspaceAction>(tx: ReadTx, workspaceId: WorkspaceId, action: A): Promise<Admitted<WorkspaceScope<A>, 'read'>>
 export async function admitWorkspace(subject: CommandGate | ReadTx, workspaceId: WorkspaceId, action: WorkspaceAction): Promise<Admitted<Scope, Mode>> {
   const { tx, writer, accountId } = subjectOf(subject)
+  // An outsider is refused before any lock, so it never holds a Workspace's owner rows; the locked read below decides.
+  if (writer && !(await memberOf(writer, accountId, workspaceId, sql``))) throw refuse(ACTION_REFUSALS[action].outsider, 'OUTSIDER')
   const owners = writer && CHANGES_OWNER_SET.some((candidate) => candidate === action) ? await lockOwners(writer, workspaceId) : null
   // A read leaves the account to the membership policy, which hides an inactive account's memberships, so it reads as an outsider.
   if (writer) await lockActiveAccount(writer, accountId)
@@ -200,11 +202,22 @@ export const grantCreatorMembership = async (creator: Admitted<AccountScope>, wo
 // A project read is a workspace read of the owning workspace; project.build is its own row in ROLE_ALLOWS.
 const requiredAction = (action: ProjectAction): WorkspaceAction => (action === 'project.read' ? 'workspace.read' : action)
 
+/** The one spelling of "this Project is not being deleted", over a `project.project` alias. */
+export const notInDeletion = (project: Sql) => sql`NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = ${project}.project_id)`
+
 // A project with any deletion row is refused, an administrator included: its deletion takes the row for update first.
 const liveProject = (projectId: ProjectId, lock: Sql) => sql`
   SELECT workspace_id FROM project.project AS stored
-  WHERE stored.project_id = ${projectId}
-    AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = stored.project_id)${lock}`
+  WHERE stored.project_id = ${projectId} AND ${notInDeletion(sql`stored`)}${lock}`
+
+/**
+ * Takes a live Project FOR SHARE, so a purge waits, and reads it again in a new statement: a tombstone
+ * that committed while the lock waited is invisible to the locked row. False when it is being deleted.
+ */
+const lockLiveProject = async (tx: WriteTx, projectId: ProjectId): Promise<boolean> => {
+  await tx.maybe(ProjectWorkspace, liveProject(projectId, sql` FOR SHARE`))
+  return (await tx.maybe(ProjectWorkspace, liveProject(projectId, sql``))) !== null
+}
 
 /** @public Frozen by spec 0015 section 3; parts 1, 2 and 4 admit through it. */
 export function admitProject<A extends ProjectAction>(gate: CommandGate, projectId: ProjectId, action: A): Promise<Admitted<ProjectScope<A>>>
@@ -218,11 +231,7 @@ export async function admitProject(subject: CommandGate | ReadTx, projectId: Pro
   const member = await memberOf(tx, accountId, found.workspace_id, writer ? sql` FOR SHARE` : sql``)
   if (!member) throw refuse(ACTION_REFUSALS[action].outsider, 'OUTSIDER')
   if (!ROLE_ALLOWS[member.role].some((allowed) => allowed === requiredAction(action))) throw refuse(ACTION_REFUSALS[action].forbidden, 'FORBIDDEN')
-  if (writer) {
-    await writer.maybe(ProjectWorkspace, liveProject(projectId, sql` FOR SHARE`))
-    // A tombstone that committed while the lock waited is invisible to the locked row, so the visibility read runs again in a new statement.
-    if (!(await writer.maybe(ProjectWorkspace, liveProject(projectId, sql``)))) throw refuse(ACTION_REFUSALS[action].outsider, 'TOMBSTONE')
-  }
+  if (writer && !(await lockLiveProject(writer, projectId))) throw refuse(ACTION_REFUSALS[action].outsider, 'TOMBSTONE')
   return new Proof({ kind: 'project', accountId, workspaceId: found.workspace_id, projectId, action }, tx)
 }
 
@@ -252,7 +261,7 @@ const applicationAccess = (accountId: AccountId, projectId: ProjectId) => sql`
   FROM project.project AS stored
   WHERE stored.project_id = ${projectId} AND NOT stored.archived
     AND EXISTS (SELECT 1 FROM iam.account AS account WHERE account.account_id = ${accountId} AND account.active)
-    AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = stored.project_id)
+    AND ${notInDeletion(sql`stored`)}
     AND EXISTS (SELECT 1 FROM iam.application AS application WHERE application.project_id = stored.project_id)`
 
 /** @public Frozen by spec 0015 section 3; the application host and the connector broker admit through it. */
@@ -263,7 +272,7 @@ export const admitApplication = async (gate: CommandGate | AuthenticationGate, p
   const found = await tx.maybe(ProjectWorkspace, liveProject(projectId, sql``))
   if (!found) throw refuse('APPLICATION_NOT_FOUND', await missingProject(tx, projectId))
   const member = await memberOf(tx, accountId, found.workspace_id, sql` FOR SHARE`)
-  await tx.maybe(ProjectWorkspace, liveProject(projectId, sql` FOR SHARE`))
+  if (!(await lockLiveProject(tx, projectId))) throw refuse('APPLICATION_NOT_FOUND', 'TOMBSTONE')
   // The grant is the project's child and the purge deletes grants while it holds the project, so it is taken after the project.
   if (!member) {
     await tx.maybe(Present, sql`
@@ -294,7 +303,7 @@ const projectAccess = (accountId: AccountId, projectId: ProjectId) => sql`
     AND EXISTS (SELECT 1 FROM iam.account AS account WHERE account.account_id = ${accountId} AND account.active)
     AND EXISTS (SELECT 1 FROM iam.workspace_membership AS membership
       WHERE membership.account_id = ${accountId} AND membership.workspace_id = stored.workspace_id)
-    AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = stored.project_id)`
+    AND ${notInDeletion(sql`stored`)}`
 
 /** The Preview's twin of checkApplication: the account's membership of the Project's Workspace and no deletion row, in one statement that locks no row. */
 export const checkProject = async (gate: CommandGate | AuthenticationGate, projectId: ProjectId): Promise<Checked<ProjectScope<'project.read'>>> => {
@@ -311,11 +320,9 @@ const notAdmitted = (): Failure => new Failure('BUILDER_RUN_NOT_ADMITTED')
 
 // A run row is locked by its own id, after the Project: the purge takes the Project first, so the order never crosses.
 const lockedRun = async (tx: WriteTx, builderRunId: BuilderRunId, projectId: ProjectId, owner: RunOwner): Promise<z.output<typeof RunRow>> => {
-  await tx.maybe(ProjectWorkspace, liveProject(projectId, sql` FOR SHARE`))
+  if (!(await lockLiveProject(tx, projectId))) throw notAdmitted()
   const run = await tx.maybe(RunRow, sql`SELECT project_id, account_id, owner_id::text AS owner_id FROM builder.builder_run WHERE builder_run_id = ${builderRunId} AND state = ANY(${OPEN_RUN_STATES}::text[]) FOR UPDATE`)
   if (!run || run.project_id !== projectId || run.owner_id !== owner.ownerId) throw notAdmitted()
-  // A tombstone that committed while the locks waited is invisible to the locked rows, so the visibility read runs again in a new statement.
-  if (!(await tx.maybe(ProjectWorkspace, liveProject(projectId, sql``)))) throw notAdmitted()
   return run
 }
 

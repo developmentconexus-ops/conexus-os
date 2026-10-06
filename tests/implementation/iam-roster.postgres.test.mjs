@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import pg from 'pg'
 import { HUB_ORIGIN, W, iamHub, person, problemOf, sessionCookie } from './iam-fixture.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
@@ -112,4 +113,17 @@ test('an expired invitation can still be cancelled', async (t) => {
   const [{ invitation_id: invitationId }] = await hub.sql("INSERT INTO iam.workspace_invitation (invitation_id, workspace_id, email, role, invited_by, created_at, expires_at) VALUES (gen_random_uuid(), $1, 'late@x.com', 'member', $2, now() - interval '3 days', now() - interval '1 day') RETURNING invitation_id", [W, OWNER])
   assert.equal((await hub.call(as.owner, 'DELETE', `/api/control/workspaces/${W}/invitations/${invitationId}`)).statusCode, 204)
   assert.equal((await hub.sql('SELECT count(*)::int AS n FROM iam.workspace_invitation'))[0].n, 0)
+})
+
+test('an outsider\'s roster command is refused before it locks the owner rows, so it never waits on an owner\'s command', async (t) => {
+  const { hub, as } = await team(t, 'conexus_iam_roster_outsider_lock')
+  const holder = new pg.Client(hub.connection)
+  await holder.connect()
+  await holder.query('BEGIN')
+  await holder.query("SELECT 1 FROM iam.workspace_membership WHERE workspace_id = $1 AND role = 'owner' FOR SHARE", [W])
+  const started = Date.now()
+  assert.equal(problemOf(await hub.call(as.outsider, 'DELETE', member(MEMBER))), '404 WORKSPACE_NOT_FOUND')
+  assert.ok(Date.now() - started < 2000, 'the refusal took no owner row lock')
+  await holder.query('ROLLBACK')
+  await holder.end()
 })

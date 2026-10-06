@@ -15,7 +15,7 @@ import { mintToken } from '../platform/opaque-token.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { admitAccount, admitApplication, checkApplication, checkProject, isInstallationAdministrator } from './admission.js'
 import type { AccountScope, Admitted, ApplicationScope, Checked, ProjectScope } from './admission.js'
-import { consumeApplicationHandoff, consumePreviewHandoff, endCredential, endExpiredHubSession, lookupSlug, readApplicationSession, readHubSession, readPreviewSession, recordProviderCheck, slideHubSession } from './authentication.js'
+import { consumeApplicationHandoff, consumePreviewHandoff, endCredential, endExpiredHubSession, hubEntry, lookupSlug, readApplicationSession, readHubSession, readPreviewSession, recordProviderCheck, slideHubSession } from './authentication.js'
 import type { HubSessionRow } from './authentication.js'
 import type { CurrentSession, HubSessionDigest } from './current-session.js'
 import type { OidcAdapter, ProviderRefusal } from './oidc.js'
@@ -78,11 +78,9 @@ const MaxAge = z.object({ max_age: z.number().int() })
 const Expiry = z.object({ expires_at: z.date() })
 const Entry = z.object({ entry: z.boolean() })
 
-/** Whether an account enters the Hub: an account of the Control Plane, or one with a membership. */
+/** Whether the admitted account enters the Hub, by the one Hub entry rule. */
 export const mayEnterHub = async (proof: Admitted<AccountScope>): Promise<boolean> =>
-  (await proof.tx.one(Entry, sql`
-    SELECT origin = 'CONTROL_PLANE' OR EXISTS (SELECT 1 FROM iam.workspace_membership WHERE account_id = ${proof.scope.accountId}) AS entry
-    FROM iam.account WHERE account_id = ${proof.scope.accountId}`, 'INTERNAL_UNEXPECTED')).entry
+  (await proof.tx.one(Entry, sql`SELECT ${hubEntry(sql`account`)} AS entry FROM iam.account AS account WHERE account.account_id = ${proof.scope.accountId}`, 'INTERNAL_UNEXPECTED')).entry
 
 export type WorkspaceReader = Readonly<{ listAccessibleWorkspaces(accountId: AccountId): Promise<readonly Readonly<{ workspaceId: WorkspaceId; name: string }>[]> }>
 

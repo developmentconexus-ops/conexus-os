@@ -6,7 +6,7 @@ import { bindAccount, Digest, openGate, sql } from '../platform/db.js'
 import type { AuthenticationGate, Sql, WriteTx } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import { HUB_IDLE_SECONDS, HUB_SLIDE_EVERY_SECONDS, OIDC_TRANSACTION_SECONDS, PROVIDER_RECHECK_SECONDS } from '../platform/lifetimes.js'
-import { WORKSPACE_ROLES } from './admission.js'
+import { notInDeletion, WORKSPACE_ROLES } from './admission.js'
 import type { Admitted, BootstrapScope, ProviderIdentity } from './admission.js'
 import type { SignInClaims } from './oidc.js'
 
@@ -36,13 +36,14 @@ export type PreviewHandoffRow = z.output<typeof PreviewHandoffRow>
 const txOf = (gate: AuthenticationGate): WriteTx => openGate(gate).tx
 
 // Deadlines are compared with the database's now(), so no TypeScript clock decides whether a credential is alive.
-const hubLiveness = sql`CASE WHEN session.absolute_expires_at <= now() THEN 'ABSOLUTE_EXPIRED' WHEN session.idle_expires_at <= now() THEN 'IDLE_EXPIRED' ELSE 'LIVE' END`
-const hubLive = sql`(session.absolute_expires_at > now() AND session.idle_expires_at > now())`
-const absoluteLiveness = sql`CASE WHEN session.absolute_expires_at <= now() THEN 'ABSOLUTE_EXPIRED' ELSE 'LIVE' END`
-const recheckDue = sql`coalesce(session.provider_checked_at <= now() - make_interval(secs => ${PROVIDER_RECHECK_SECONDS}), false)`
-const hubEntry = (account: Sql) => sql`(${account}.origin = 'CONTROL_PLANE' OR EXISTS (SELECT 1 FROM iam.workspace_membership AS membership WHERE membership.account_id = ${account}.account_id))`
+/** The one spelling of a session's standing, for every kind: an application or Preview session has no idle limit. */
+export const liveness = (session: Sql) => sql`CASE WHEN ${session}.absolute_expires_at <= now() THEN 'ABSOLUTE_EXPIRED' WHEN ${session}.idle_expires_at <= now() THEN 'IDLE_EXPIRED' ELSE 'LIVE' END`
+const live = (session: Sql) => sql`(${liveness(session)} = 'LIVE')`
+const recheckDue = (session: Sql) => sql`${session}.provider_checked_at <= now() - make_interval(secs => ${PROVIDER_RECHECK_SECONDS})`
+/** Whether an account enters the Hub: an account of the Control Plane, or one with a membership. */
+export const hubEntry = (account: Sql) => sql`(${account}.origin = 'CONTROL_PLANE' OR EXISTS (SELECT 1 FROM iam.workspace_membership AS membership WHERE membership.account_id = ${account}.account_id))`
 const personColumns = sql`person.account_id, person.display_name, person.email, person.external_subject AS subject`
-const standingColumns = (liveness: Sql) => sql`${liveness} AS liveness, ${recheckDue} AS recheck_due, session.provider_refresh_token AS sealed_token, session.provider_checked_at::text AS checked_at`
+const standingColumns = sql`${liveness(sql`session`)} AS liveness, ${recheckDue(sql`session`)} AS recheck_due, session.provider_refresh_token AS sealed_token, session.provider_checked_at::text AS checked_at`
 
 const bound = <R extends Readonly<{ account_id: AccountId }>>(gate: AuthenticationGate, row: R | null): R | null => {
   if (row) bindAccount(gate, row.account_id)
@@ -59,13 +60,13 @@ export const consumeOidcState = (gate: AuthenticationGate, key: Digest): Promise
 
 /** Reads a Hub session and its standing, with no lock: the slide and the end are each one guarded statement. */
 export const readHubSession = async (gate: AuthenticationGate, key: Digest): Promise<HubSessionRow | null> => bound(gate, await txOf(gate).maybe(HubSessionRow, sql`
-  SELECT ${personColumns}, ${standingColumns(hubLiveness)}, person.active, ${hubEntry(sql`person`)} AS hub_entry
+  SELECT ${personColumns}, ${standingColumns}, person.active, ${hubEntry(sql`person`)} AS hub_entry
   FROM iam.host_session AS session JOIN iam.account AS person ON person.account_id = session.account_id
   WHERE session.token_digest = ${key} AND session.kind = 'HUB'`))
 
 /** Reads an application session of one application's host, with no lock. */
 export const readApplicationSession = async (gate: AuthenticationGate, key: Digest, slug: ApplicationSlug): Promise<ApplicationSessionRow | null> => bound(gate, await txOf(gate).maybe(ApplicationSessionRow, sql`
-  SELECT ${personColumns}, ${standingColumns(absoluteLiveness)}, session.project_id
+  SELECT ${personColumns}, ${standingColumns}, session.project_id
   FROM iam.host_session AS session
   JOIN iam.application AS application ON application.project_id = session.project_id AND application.slug = ${slug}
   JOIN iam.account AS person ON person.account_id = session.account_id
@@ -73,11 +74,11 @@ export const readApplicationSession = async (gate: AuthenticationGate, key: Dige
 
 /** Reads a Preview session of one revision and its parent Hub session's standing, with no lock. */
 export const readPreviewSession = async (gate: AuthenticationGate, key: Digest, artifactRevisionId: ArtifactRevisionIdType): Promise<PreviewSessionRow | null> => bound(gate, await txOf(gate).maybe(PreviewSessionRow, sql`
-  SELECT ${personColumns}, session.project_id, session.artifact_revision_id, ${absoluteLiveness} AS liveness, session.absolute_expires_at AS expires_at,
+  SELECT ${personColumns}, session.project_id, session.artifact_revision_id, ${liveness(sql`session`)} AS liveness, session.absolute_expires_at AS expires_at,
     parent.token_digest AS parent_digest,
-    CASE WHEN parent.absolute_expires_at <= now() THEN 'ABSOLUTE_EXPIRED' WHEN parent.idle_expires_at <= now() THEN 'IDLE_EXPIRED' ELSE 'LIVE' END AS parent_liveness,
+    ${liveness(sql`parent`)} AS parent_liveness,
     person.active AND ${hubEntry(sql`person`)} AS parent_entry,
-    parent.provider_checked_at <= now() - make_interval(secs => ${PROVIDER_RECHECK_SECONDS}) AS parent_recheck_due,
+    ${recheckDue(sql`parent`)} AS parent_recheck_due,
     parent.provider_refresh_token AS parent_sealed_token, parent.provider_checked_at::text AS parent_checked_at
   FROM iam.host_session AS session
   JOIN iam.host_session AS parent ON parent.token_digest = session.parent_digest AND parent.account_id = session.account_id
@@ -103,14 +104,14 @@ export const consumePreviewHandoff = async (gate: AuthenticationGate, key: Diges
   if (!pending) return null
   if (!(await tx.maybe(ProjectOf, sql`
     SELECT project_id FROM project.project AS stored WHERE project_id = ${pending.project_id}
-      AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = stored.project_id)
+      AND ${notInDeletion(sql`stored`)}
     FOR SHARE`))) return null
   return bound(gate, await tx.maybe(PreviewHandoffRow, sql`
     DELETE FROM iam.handoff AS handoff
     WHERE handoff.handoff_digest = ${key} AND handoff.kind = 'PREVIEW' AND handoff.artifact_revision_id = ${artifactRevisionId} AND handoff.expires_at > now()
       AND EXISTS (SELECT 1 FROM iam.host_session AS parent JOIN iam.account AS person ON person.account_id = parent.account_id
         WHERE parent.token_digest = handoff.parent_digest AND parent.account_id = handoff.account_id
-          AND parent.absolute_expires_at > now() AND parent.idle_expires_at > now() AND person.active AND ${hubEntry(sql`person`)})
+          AND ${live(sql`parent`)} AND person.active AND ${hubEntry(sql`person`)})
     RETURNING handoff.account_id, handoff.project_id, handoff.artifact_revision_id, handoff.parent_digest, handoff.session_expires_at::text AS session_expires_at`))
 }
 
@@ -179,7 +180,7 @@ export const lookupSlug = async (gate: AuthenticationGate, slug: ApplicationSlug
     SELECT stored.project_id FROM iam.application AS application
     JOIN project.project AS stored ON stored.project_id = application.project_id
     WHERE application.slug = ${slug}
-      AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = stored.project_id)
+      AND ${notInDeletion(sql`stored`)}
     FOR SHARE OF stored`))?.project_id ?? null
 
 export type OidcStart = Readonly<{
@@ -214,13 +215,13 @@ export const endCredential = async (gate: AuthenticationGate, credential: Readon
 export const slideHubSession = async (gate: AuthenticationGate, key: Digest): Promise<void> => {
   await txOf(gate).run(sql`
     UPDATE iam.host_session AS session SET idle_expires_at = least(now() + make_interval(secs => ${HUB_IDLE_SECONDS}), session.absolute_expires_at)
-    WHERE session.token_digest = ${key} AND session.kind = 'HUB' AND ${hubLive}
+    WHERE session.token_digest = ${key} AND session.kind = 'HUB' AND ${live(sql`session`)}
       AND session.idle_expires_at < now() + make_interval(secs => ${HUB_IDLE_SECONDS - HUB_SLIDE_EVERY_SECONDS})`)
 }
 
 /** Ends a Hub session its lookup found expired, only while it still is; null when a parallel request ended it first. */
 export const endExpiredHubSession = async (gate: AuthenticationGate, key: Digest): Promise<'ENDED' | null> =>
-  (await txOf(gate).run(sql`DELETE FROM iam.host_session AS session WHERE session.token_digest = ${key} AND session.kind = 'HUB' AND NOT ${hubLive}`)) === 1 ? 'ENDED' : null
+  (await txOf(gate).run(sql`DELETE FROM iam.host_session AS session WHERE session.token_digest = ${key} AND session.kind = 'HUB' AND NOT ${live(sql`session`)}`)) === 1 ? 'ENDED' : null
 
 const Present = z.object({ present: z.literal(1) })
 

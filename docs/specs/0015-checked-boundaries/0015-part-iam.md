@@ -487,6 +487,7 @@ Recorded at the stage 6 review (2026-10-06), each accepted by HQ:
 
 27. An add of an account that already holds a tenure grants nothing: it answers 200 with that tenure and writes no `INSTALLATION_ADMINISTRATOR_GRANTED` line; a new tenure answers 201.
 28. The `DigestKey` union, the `DIGEST_EFFECT` table and the overloaded `lookupByDigest` give way to six named lookups. Nothing read the table, every caller passed a literal kind, and the dispatch's one job was to bind the account, which each lookup now does (guide C section 10: nothing dead stays, and an abstraction needs two real callers; review 6, R4 finding 2 and X F10).
+29. Each SQL rule has one spelling: `liveness(alias)`, `recheckDue(alias)` and `hubEntry(alias)` in `authentication.ts` (the reaper and the Hub entry check use them too), and `notInDeletion(alias)` in `admission.ts`, which `authentication.ts` imports. `lockLiveProject` is the one Project `FOR SHARE` and second read that `admitProject`, `admitApplication` and the run admission share. A Workspace command reads the actor's membership with no lock first and refuses an outsider there, so an outsider never takes a Workspace's owner rows; the membership is a plain read, not `FOR SHARE`, because a member that held its own row `FOR SHARE` and then took the owner rows `FOR UPDATE` would deadlock against a second owner doing the same (review 6, R4 finding 7, X F3 and F13).
 
 ## References
 

@@ -3,6 +3,7 @@ import type { Database, Sql } from '../platform/db.js'
 import type { Job } from '../platform/jobs.js'
 import { logLine } from '../platform/logger.js'
 import { admitSystem } from './admission.js'
+import { liveness } from './authentication.js'
 
 const REAP_EVERY_MS = 5 * 60_000
 /** Rows one rule takes in one pass; a backlog drains over later passes. */
@@ -19,7 +20,7 @@ const EXPIRY_RULES = [
       ORDER BY expires_at, handoff_digest LIMIT ${limit} FOR UPDATE SKIP LOCKED)` },
   { table: 'host_session', remove: (limit: number): Sql => sql`
     DELETE FROM iam.host_session WHERE token_digest IN (
-      SELECT token_digest FROM iam.host_session WHERE absolute_expires_at <= now() OR idle_expires_at <= now()
+      SELECT token_digest FROM iam.host_session AS session WHERE ${liveness(sql`session`)} <> 'LIVE'
       ORDER BY absolute_expires_at, token_digest LIMIT ${limit} FOR UPDATE SKIP LOCKED)` },
   { table: 'oidc_transaction', remove: (limit: number): Sql => sql`
     DELETE FROM iam.oidc_transaction WHERE state_digest IN (
