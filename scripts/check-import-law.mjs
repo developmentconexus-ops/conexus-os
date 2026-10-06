@@ -323,7 +323,7 @@ export function checkImportLaw(rootDirectory) {
       }
       if (source.startsWith('apps/hub/src/platform/') && isRelative &&
           !target.startsWith('apps/hub/src/platform/') &&
-          !(source === 'apps/hub/src/platform/receipt.ts' && (target === ADMISSION_CONTRACT || target === 'packages/canonical-json/src/index.mjs'))) {
+          !(source === 'apps/hub/src/platform/receipt.ts' && target === 'packages/canonical-json/src/index.mjs')) {
         violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'platform adapters may share platform code but cannot import application layers'))
       }
 

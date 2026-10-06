@@ -14,15 +14,16 @@ export const DATABASE_EDGE = Object.freeze([
   'apps/hub/src/app-runner/supervisor.ts',
 ])
 // The only modules that may write an authority table with the named verbs (MERGE counts as every verb).
-// One rule per table and verb list. Part 6 adds iam.installation_administrator and iam.application_grant.
+// One rule per table and verb list. A table `schema.*` names every table of the schema, and a module
+// ending in `/` names every file under that folder: only identity access writes a table of schema iam.
 export const AUTHORITY_TABLE_WRITERS = Object.freeze([
-  Object.freeze({ table: 'iam.workspace_membership', verbs: Object.freeze(['INSERT', 'UPDATE', 'DELETE']), modules: Object.freeze(['apps/hub/src/identity-access/admission.ts']) }),
+  Object.freeze({ table: 'iam.*', verbs: Object.freeze(['INSERT', 'UPDATE', 'DELETE']), modules: Object.freeze(['apps/hub/src/identity-access/']) }),
   Object.freeze({ table: 'project.project_deletion', verbs: Object.freeze(['INSERT', 'UPDATE', 'DELETE']), modules: Object.freeze(['apps/hub/src/project/deletion.ts']) }),
   Object.freeze({ table: 'project.project', verbs: Object.freeze(['DELETE']), modules: Object.freeze(['apps/hub/src/project/deletion.ts']) }),
   Object.freeze({ table: 'platform.operation_receipt', verbs: Object.freeze(['DELETE']), modules: Object.freeze(['apps/hub/src/project/deletion.ts', 'apps/hub/src/platform/receipt.ts']) }),
 ])
 // The only module that may reach the transaction behind a gate.
-export const GATE_OPENER = Object.freeze({ declaration: /apps\/hub\/src\/platform\/db\.ts$/, readers: Object.freeze(['apps/hub/src/identity-access/admission.ts']) })
+export const GATE_OPENER = Object.freeze({ declaration: /apps\/hub\/src\/platform\/db\.ts$/, readers: Object.freeze(['apps/hub/src/identity-access/admission.ts', 'apps/hub/src/identity-access/authentication.ts']) })
 export const RESPONSE_EDGE = Object.freeze(['apps/web/src/app/http.ts'])
 
 const declaredIn = (symbol, pattern) => (symbol?.declarations ?? []).some((declaration) => pattern.test(declaration.getSourceFile().fileName))
@@ -68,12 +69,14 @@ const isResponseJson = (symbol) => ['Response', 'Body'].includes(parentName(symb
 const VERBS = Object.freeze({ 'insert into': 'INSERT', update: 'UPDATE', 'delete from': 'DELETE', 'merge into': 'MERGE' })
 
 // The writes of a template that break a rule: one entry per table and verb written outside the rule's modules.
+const tablePattern = (table) => (table.endsWith('.*') ? `${table.slice(0, -2)}\\.[a-z_][a-z0-9_]*` : table.replace('.', '\\.'))
+const ownedBy = (modules, path) => modules.some((module) => (module.endsWith('/') ? path.startsWith(module) : path === module))
 const writesOutside = (text, path, rules) => {
   const normalized = normalizeSql(text)
-  return rules.flatMap((rule) => [...normalized.matchAll(new RegExp(`\\b(insert into|update|delete from|merge into) (?:only )?${rule.table.replace('.', '\\.')}\\b`, 'g'))]
-    .map((found) => VERBS[found[1]])
-    .filter((verb) => (verb === 'MERGE' || rule.verbs.includes(verb)) && !rule.modules.includes(path))
-    .map((verb) => `${verb} ${rule.table}`))
+  return rules.flatMap((rule) => [...normalized.matchAll(new RegExp(`\\b(insert into|update|delete from|merge into) (?:only )?(${tablePattern(rule.table)})\\b`, 'g'))]
+    .map((found) => ({ verb: VERBS[found[1]], table: found[2] }))
+    .filter(({ verb }) => (verb === 'MERGE' || rule.verbs.includes(verb)) && !ownedBy(rule.modules, path))
+    .map(({ verb, table }) => `${verb} ${table}`))
 }
 
 // The symbol openGate is declared once, in the data module. Every Identifier or member name that resolves to it,
@@ -184,7 +187,7 @@ if (isEntrypoint) {
     if (process.argv.includes('--list')) for (const entry of removed) console.log(`    gone: ${entry}`)
   }
   if (failed) {
-    console.error('census-boundaries: a finding is not in the record. Only the modules named in AUTHORITY_TABLE_WRITERS write an authority table, and only admission.ts reaches openGate. Read rows through a schema in platform/db.ts and call the Hub through app/http.ts, or record the lower set with --write when the change removes findings.')
+    console.error('census-boundaries: a finding is not in the record. Only the modules named in AUTHORITY_TABLE_WRITERS write an authority table, and only admission.ts and authentication.ts reach openGate. Read rows through a schema in platform/db.ts and call the Hub through app/http.ts, or record the lower set with --write when the change removes findings.')
     process.exit(1)
   }
 }

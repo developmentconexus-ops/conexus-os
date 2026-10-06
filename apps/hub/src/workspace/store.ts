@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { WorkspaceId, WorkspaceName, createWorkspace, type AccountId, type Input, type Reply } from '@conexus/contract'
-import { admitAccount, grantCreatorMembership } from '../identity-access/admission.js'
+import { admitAccount, grantCreatorMembership, receiptOf } from '../identity-access/admission.js'
 import type { Database } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { idempotent } from '../platform/receipt.js'
@@ -20,7 +20,7 @@ export const createWorkspaceStore = (database: Database): WorkspaceStore => Obje
     tx.rows(WorkspaceRow, sql`SELECT workspace_id, name FROM workspace.workspace ORDER BY name, workspace_id`)),
   createWorkspace: ({ accountId, idempotencyKey, body }) => database.transaction(accountId, async (gate) => {
     const creator = await admitAccount(gate)
-    return idempotent(creator, createWorkspace, idempotencyKey, { params: undefined, query: undefined, body }, WorkspaceId, async (workspaceId): Promise<Reply<typeof createWorkspace>> => {
+    return idempotent(receiptOf(creator), createWorkspace, idempotencyKey, { params: undefined, query: undefined, body }, WorkspaceId, async (workspaceId): Promise<Reply<typeof createWorkspace>> => {
       await creator.tx.run(sql`INSERT INTO workspace.workspace (workspace_id, name) VALUES (${workspaceId}, ${body.name})`)
       await grantCreatorMembership(creator, workspaceId)
       return { workspaceId, name: body.name, creatorAccountId: accountId, initialAccessEstablished: true }

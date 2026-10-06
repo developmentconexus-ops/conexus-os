@@ -62,7 +62,7 @@ test('a write whose filter is not visible in its template is found, and a write 
   ].map(([name, problem]) => `${prefix}${name}: ${problem}`).sort())
 })
 
-test('a statement that writes an authority table outside its owning modules is found by table and verb, and a read or another verb is not', () => {
+test('a statement that writes an authority table outside its owning modules is found by table and verb, every table of schema iam outside its folder, and a read or another verb is not', () => {
   const prefix = 'tests/fixtures/census-boundaries/authority-writes.ts#'
   assert.deepEqual(fixture('authority-writes').authorityTableWrites.sort(), [
     ['commentedDelete', 'DELETE project.project'],
@@ -72,6 +72,7 @@ test('a statement that writes an authority table outside its owning modules is f
     ['inserts', 'INSERT iam.workspace_membership'],
     ['onlyDelete', 'DELETE project.project'],
     ['onlyUpdate', 'UPDATE iam.workspace_membership'],
+    ['otherTable', 'UPDATE iam.account'],
     ['projectDelete', 'DELETE project.project'],
     ['receiptDelete', 'DELETE platform.operation_receipt'],
     ['receiptMerge', 'MERGE platform.operation_receipt'],
@@ -81,7 +82,7 @@ test('a statement that writes an authority table outside its owning modules is f
     ['updates', 'UPDATE iam.workspace_membership'],
   ].map(([name, write]) => `${prefix}${name}: writes ${write}`).sort())
   const owners = [
-    { table: 'iam.workspace_membership', verbs: ['INSERT', 'UPDATE', 'DELETE'], modules: ['tests/fixtures/census-boundaries/authority-writes.ts'] },
+    { table: 'iam.*', verbs: ['INSERT', 'UPDATE', 'DELETE'], modules: ['tests/fixtures/census-boundaries/'] },
     { table: 'project.project_deletion', verbs: ['INSERT', 'UPDATE', 'DELETE'], modules: ['tests/fixtures/census-boundaries/authority-writes.ts'] },
     { table: 'project.project', verbs: ['DELETE'], modules: ['tests/fixtures/census-boundaries/authority-writes.ts'] },
     { table: 'platform.operation_receipt', verbs: ['DELETE'], modules: ['tests/fixtures/census-boundaries/authority-writes.ts'] },
@@ -92,7 +93,7 @@ test('a statement that writes an authority table outside its owning modules is f
 test('the rules of the real register name the modules that may write the authority tables', async () => {
   const { AUTHORITY_TABLE_WRITERS } = await import('../../scripts/census-boundaries.mjs')
   assert.deepEqual(AUTHORITY_TABLE_WRITERS.map(({ table, verbs, modules }) => [table, verbs.join('/'), modules.join(' ')]), [
-    ['iam.workspace_membership', 'INSERT/UPDATE/DELETE', 'apps/hub/src/identity-access/admission.ts'],
+    ['iam.*', 'INSERT/UPDATE/DELETE', 'apps/hub/src/identity-access/'],
     ['project.project_deletion', 'INSERT/UPDATE/DELETE', 'apps/hub/src/project/deletion.ts'],
     ['project.project', 'DELETE', 'apps/hub/src/project/deletion.ts'],
     ['platform.operation_receipt', 'DELETE', 'apps/hub/src/project/deletion.ts apps/hub/src/platform/receipt.ts'],
