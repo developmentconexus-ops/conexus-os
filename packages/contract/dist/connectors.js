@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { fieldFailures } from './field-failures.js';
 import { BindingId, ConnectionId, ProjectId, WorkspaceId } from './ids.js';
 import { operation } from './operation.js';
 const CONNECTOR_ID_PATTERN = /^[a-z][a-z0-9-]{0,39}$/;
@@ -9,12 +8,12 @@ export const ConnectorId = z.enum(['sankhya']).meta({ id: 'ConnectorId' });
 /** The stored text of a connector id: the column accepts any value of this shape since migration 0031, and the registry decides which of them this Hub knows. */
 export const ConnectorIdText = z.string().regex(CONNECTOR_ID_PATTERN).meta({ id: 'ConnectorIdText' });
 export const BindingName = z.string().regex(BINDING_NAME_PATTERN).brand().meta({ id: 'BindingName' });
-export const ConnectionLabel = z.string().trim().min(1).max(200).register(fieldFailures, { failureCode: 'CONNECTOR_LABEL_REFUSED' });
+export const ConnectionLabel = z.string().trim().min(1).max(200);
 export const SankhyaCredential = z.strictObject({
     clientId: z.string().min(1).max(200).meta({ writeOnly: true }),
     clientSecret: z.string().min(1).max(500).meta({ writeOnly: true }),
     xToken: z.string().min(1).max(500).meta({ writeOnly: true }),
-}).meta({ id: 'SankhyaCredential' }).register(fieldFailures, { failureCode: 'CONNECTOR_CREDENTIAL_REFUSED' });
+}).meta({ id: 'SankhyaCredential' });
 /** The credential schema of each registered connector. */
 export const CONNECTOR_CREDENTIALS = { sankhya: SankhyaCredential };
 export const ConnectorConnection = z.object({
@@ -61,7 +60,7 @@ export const createWorkspaceConnection = operation({
     success: { 201: ConnectorConnection, 200: ConnectorConnection },
     effects: [],
     failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED', 'CONNECTOR_WORKSPACE_NOT_FOUND', 'CONNECTOR_LABEL_REFUSED', 'CONNECTOR_CREDENTIAL_REFUSED', 'CONNECTOR_CONNECTION_CONFLICT'],
-    malformed: { workspaceId: 'CONNECTOR_WORKSPACE_NOT_FOUND' },
+    malformed: { workspaceId: 'CONNECTOR_WORKSPACE_NOT_FOUND', label: 'CONNECTOR_LABEL_REFUSED', credential: 'CONNECTOR_CREDENTIAL_REFUSED' },
 });
 export const checkWorkspaceConnection = operation({
     id: 'checkWorkspaceConnection', summary: 'Check a Connection by running the allow-listed authentication of its Connector; installation administrator only.', access: 'session', method: 'POST', path: '/api/control/workspaces/:workspaceId/connections/:connectionId/authentication-check',

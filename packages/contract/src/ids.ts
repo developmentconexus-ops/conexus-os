@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { fieldFailures } from './field-failures.js'
 
 export const AccountId = z.uuid().brand<'AccountId'>().meta({ id: 'AccountId' })
 export type AccountId = z.output<typeof AccountId>
@@ -13,7 +12,7 @@ export const SourceRevision = z.string().regex(/^[a-f0-9]{40}$/).brand<'SourceRe
 export type SourceRevision = z.output<typeof SourceRevision>
 export const ArtifactDigest = z.string().regex(/^[0-9a-f]{64}$/).brand<'ArtifactDigest'>().meta({ id: 'ArtifactDigest' })
 export type ArtifactDigest = z.output<typeof ArtifactDigest>
-export const ConversationId = z.uuid().brand<'ConversationId'>().meta({ id: 'ConversationId' }).register(fieldFailures, { failureCode: 'CONVERSATION_NOT_FOUND' })
+export const ConversationId = z.uuid().brand<'ConversationId'>().meta({ id: 'ConversationId' })
 export type ConversationId = z.output<typeof ConversationId>
 export const BuilderRunId = z.uuid().brand<'BuilderRunId'>().meta({ id: 'BuilderRunId' })
 export type BuilderRunId = z.output<typeof BuilderRunId>
@@ -33,7 +32,7 @@ export const ModelAccountId = z.uuid().brand<'ModelAccountId'>().meta({ id: 'Mod
 export type ModelAccountId = z.output<typeof ModelAccountId>
 export const ModelLoginId = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/).brand<'ModelLoginId'>().meta({ id: 'ModelLoginId' })
 export type ModelLoginId = z.output<typeof ModelLoginId>
-export const IdempotencyKey = z.string().min(1).brand<'IdempotencyKey'>().meta({ id: 'IdempotencyKey' }).register(fieldFailures, { failureCode: 'IDEMPOTENCY_KEY_REQUIRED' })
+export const IdempotencyKey = z.string().min(1).brand<'IdempotencyKey'>().meta({ id: 'IdempotencyKey' })
 export type IdempotencyKey = z.output<typeof IdempotencyKey>
 export const ApplicationFilePath = z.string().min(1).max(1024).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/).brand<'ApplicationFilePath'>().meta({ id: 'ApplicationFilePath' })
 export type ApplicationFilePath = z.output<typeof ApplicationFilePath>

@@ -9,6 +9,16 @@ export type Binary = Readonly<{
 }>;
 export type NoContent = null;
 type Part = z.ZodType | null;
+type KeysOfUnion<T> = T extends unknown ? keyof T : never;
+type BodyFields<Body extends Part> = Body extends z.ZodType ? KeysOfUnion<z.output<Body>> : never;
+/** The failure a refused value answers: one entry for every path param, and one for each body field that has its own failure. */
+type Malformed<Params extends Part, Body extends Part> = Params extends z.ZodType ? {
+    readonly [K in keyof z.output<Params>]: FailureCode;
+} & {
+    readonly [K in BodyFields<Body>]?: FailureCode;
+} : {
+    readonly [K in BodyFields<Body>]?: FailureCode;
+} | null;
 export type Success = Readonly<{
     200: z.ZodType;
     201?: z.ZodType;
@@ -33,9 +43,7 @@ export type Operation<Id extends string = string, Access extends AccessKind = Ac
     success: Successes;
     effects: Effects;
     failures: Failures;
-    malformed: Params extends z.ZodType ? {
-        readonly [K in keyof z.output<Params>]: FailureCode;
-    } : null;
+    malformed: Malformed<Params, Body>;
 }>;
 export type AnyOperation = Operation;
 export type JsonOperation = AnyOperation & Readonly<{
@@ -75,7 +83,9 @@ export type EffectsOf<E extends readonly Effect[]> = {
     readonly [K in E[number]]: () => void;
 };
 type PathDeclaration<O extends AnyOperation> = O['path'] extends `${string}:${string}` ? O['malformed'] extends null ? never : unknown : unknown;
-export declare const operation: <const O extends AnyOperation>(declaration: O & PathDeclaration<O>) => O;
+export declare const operation: <const O extends AnyOperation>(declaration: O & PathDeclaration<O> & Readonly<{
+    malformed: Malformed<O["params"], O["body"]>;
+}>) => O;
 export declare const operationRegistry: <const R extends Readonly<Record<string, AnyOperation>>>(declared: R & { readonly [K in keyof R]: {
     readonly id: K;
 }; }) => R;
