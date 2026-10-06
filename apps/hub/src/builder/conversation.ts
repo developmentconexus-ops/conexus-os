@@ -6,7 +6,7 @@ import { logger } from '../platform/logger.js'
 import type { ConversationSandboxes } from './conversation-sandboxes.js'
 import { projectResourceId } from './conversations.js'
 import type { ControllerSession, RunSandbox } from './run/ports.js'
-import type { ConversationId, ProjectId } from '../../../../packages/contract/dist/index.js'
+import type { ConversationId, ProjectId } from '@conexus/contract'
 
 type SessionPorts = Pick<AgentController, 'createSession' | 'deleteSession' | 'getSessionByResource'>
 

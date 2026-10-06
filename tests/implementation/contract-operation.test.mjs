@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { z } from 'zod'
-import { operation, ProjectId } from '../../packages/contract/dist/index.js'
+import { operation, ProjectId } from '@conexus/contract'
 import { hubModuleUrl } from './hub-build.mjs'
 import { hubSessionCookie, opaque, testListener } from './access/test-listener.mjs'
 

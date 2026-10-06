@@ -7,7 +7,7 @@ import { createMirrorFeed } from './run/mirror.js'
 import type { RunSandbox } from './run/ports.js'
 import { Failure, logFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
-import type { ConversationId } from '../../../../packages/contract/dist/index.js'
+import type { ConversationId } from '@conexus/contract'
 
 // A deleted Project's kill waits on E2B at most this long per VM, so an unreachable provider never holds the deletion.
 const PROVIDER_KILL_TIMEOUT_MS = 15_000

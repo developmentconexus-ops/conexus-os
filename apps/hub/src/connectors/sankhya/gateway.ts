@@ -4,7 +4,7 @@ import type { AdapterFailureReason } from '../errors.js'
 import type { Adapter, EnvelopeStatus, NativeProtocol, ProviderAnswer, RequestTrace } from '../integrator.js'
 import { AccessToken } from '../token-cache.js'
 import type { IssuedToken, Redacted } from '../token-cache.js'
-import type { SankhyaCredential } from '../../../../../packages/contract/dist/index.js'
+import type { SankhyaCredential } from '@conexus/contract'
 import { isOneReadStatement } from './read-only-sql.js'
 import { Failure } from '../../platform/failure.js'
 

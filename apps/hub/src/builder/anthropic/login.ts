@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { completeAnthropicLogin, startAnthropicLogin } from '@mastra/code-sdk/auth/providers/anthropic'
 import type { ClaudeTokens } from './credential.js'
-import { ModelLoginId, type AccountId } from '../../../../../packages/contract/dist/index.js'
+import { ModelLoginId, type AccountId } from '@conexus/contract'
 import type { ConnectResult } from '../model-account/accounts.js'
 
 export type ClaudeLoginState = 'succeeded' | 'failed' | 'expired'

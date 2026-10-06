@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { ArtifactRevisionId } from '../../../../packages/contract/dist/index.js'
+import { ArtifactRevisionId } from '@conexus/contract'
 import type { HeaderFact } from '../http/access.js'
 import type { ListenerPolicy } from '../http/access.js'
 import { applicationHostContentSecurityPolicy, previewContentSecurityPolicy } from '../platform/application-csp.js'

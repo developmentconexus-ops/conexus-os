@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { AccountId, ArtifactDigest, ProjectId, SourceRevision, WorkspaceId } from '../../packages/contract/dist/index.js'
+import type { AccountId, ArtifactDigest, ProjectId, SourceRevision, WorkspaceId } from '@conexus/contract'
 import { admitAccount, admitApplication, checkApplication, admitProject, admitSystem, admitWorkspace, grantCreatorMembership } from '../../apps/hub/src/identity-access/admission.js'
 import type { Admitted, AccountScope, RunScope, ApplicationScope, Checked, ProjectScope, SystemScope, WorkspaceScope } from '../../apps/hub/src/identity-access/admission.js'
 import type { AuthenticationGate, CommandGate, ReadTx, RawToken, WriteTx } from '../../apps/hub/src/platform/db.js'

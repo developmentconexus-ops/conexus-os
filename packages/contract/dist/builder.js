@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { BUILDER_RUN_PHASES } from './builder-run-vocabulary.js';
 import { FAILURE_CODES } from './failures.generated.js';
-import { fieldFailures } from './field-failures.js';
 import { ArtifactDigest, ArtifactRevisionId, BuilderRunId, ConversationId, IdempotencyKey, ProjectId, SourceRevision } from './ids.js';
 import { operation } from './operation.js';
 const RunFailureCode = z.enum(FAILURE_CODES).meta({ id: 'FailureCode' });
@@ -120,12 +119,12 @@ export const sendBuilderMessage = operation({
     id: 'sendBuilderMessage', summary: 'Send a message to the Builder of a Project, which starts a run.', access: 'session', method: 'POST', path: '/api/control/projects/:projectId/builder-session/messages',
     params: projectParam, query: null,
     headers: z.looseObject({ 'idempotency-key': IdempotencyKey }),
-    body: z.object({ content: z.string().min(1).max(20_000).regex(/\S/).register(fieldFailures, { failureCode: 'BUILDER_MESSAGE_REFUSED' }), conversationId: ConversationId }).strict(),
+    body: z.object({ content: z.string().min(1).max(20_000).regex(/\S/), conversationId: ConversationId }).strict(),
     success: { 201: BuilderMessageAccepted, 200: BuilderMessageAccepted },
     effects: [],
     failures: ['IDEMPOTENCY_CONFLICT', 'CONVERSATION_NOT_FOUND', 'BUILDER_CAPACITY_FULL', 'PROJECT_BUILD_DENIED', 'ACCOUNT_INACTIVE', 'BUILDER_MESSAGE_REFUSED',
         'BUILDER_RUN_CREATE_FAILED', 'BUILDER_BUSY', 'PROJECT_BUSY', 'BUILDER_SOURCE_UNAVAILABLE'],
-    malformed: { projectId: 'PROJECT_NOT_FOUND' },
+    malformed: { projectId: 'PROJECT_NOT_FOUND', content: 'BUILDER_MESSAGE_REFUSED', conversationId: 'CONVERSATION_NOT_FOUND' },
 });
 export const cancelBuilderRun = operation({
     id: 'cancelBuilderRun', summary: 'Cancel a Builder run; repeating the request changes nothing.', access: 'session', method: 'POST', path: '/api/control/projects/:projectId/builder-session/runs/:builderRunId/cancel',

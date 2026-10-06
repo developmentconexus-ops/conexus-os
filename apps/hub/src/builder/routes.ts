@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { listProjectSourceTree, getProjectSourceFile, getBuilderSession, sendBuilderMessage, cancelBuilderRun, getBuilderRunTrace, compareProjectSourceRevisions, launchBuilderPreview, type AccountId, type BuilderRunId, type BuilderRunSummary, type BuilderSession, type BuilderTraceSummary, type PreviewLaunch, type ProjectId } from '../../../../packages/contract/dist/index.js'
+import { listProjectSourceTree, getProjectSourceFile, getBuilderSession, sendBuilderMessage, cancelBuilderRun, getBuilderRunTrace, compareProjectSourceRevisions, launchBuilderPreview, type AccountId, type BuilderRunId, type BuilderRunSummary, type BuilderSession, type BuilderTraceSummary, type PreviewLaunch, type ProjectId } from '@conexus/contract'
 import { Failure } from '../platform/failure.js'
 import type { BuilderService } from './service.js'
 import type { BuilderStore } from './store.js'

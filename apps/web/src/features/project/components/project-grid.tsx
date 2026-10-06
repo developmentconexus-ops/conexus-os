@@ -2,7 +2,7 @@ import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
-import type { ProjectCard as ProjectCardSummary } from '../../../../../../packages/contract/dist/index.js'
+import type { ProjectCard as ProjectCardSummary } from '@conexus/contract'
 import { projectThumbnailUrl } from '../api'
 import { FailureState } from '../../../app/failure-state'
 

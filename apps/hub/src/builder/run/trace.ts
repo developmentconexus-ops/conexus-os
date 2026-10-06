@@ -1,6 +1,6 @@
 import { type Attributes, type Span, SpanStatusCode, context, trace } from '@opentelemetry/api'
 import type { BuilderRunPhase } from '../../generated/builder-run-vocabulary.js'
-import type { BuilderRunId, ConversationId, ProjectId } from '../../../../../packages/contract/dist/index.js'
+import type { BuilderRunId, ConversationId, ProjectId } from '@conexus/contract'
 
 const tracer = trace.getTracer('conexus-builder')
 

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
 import { z } from 'zod'
-import { AccountId, ApplicationFilePath, ArtifactDigest, ArtifactRevisionId, MediaType, ProjectId, SourceRevision } from '../../../../packages/contract/dist/index.js'
+import { AccountId, ApplicationFilePath, ArtifactDigest, ArtifactRevisionId, MediaType, ProjectId, SourceRevision } from '@conexus/contract'
 import { parseCaller } from '../platform/caller.js'
 import { parseApplicationSlug } from '../platform/application-slug.js'
 import { digest, opaqueToken as opaque, parseOpaqueToken } from '../platform/opaque-token.js'

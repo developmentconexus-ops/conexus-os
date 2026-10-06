@@ -7,10 +7,10 @@ import { join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { CommandResult } from '@mastra/core/workspace'
-import { SourceRevision, type ExecutionId } from '../../../../packages/contract/dist/index.js'
+import { SourceRevision, type ExecutionId } from '@conexus/contract'
 import { Failure, type FailureCode } from '../platform/failure.js'
 import { logLine } from '../platform/logger.js'
-import type { ConversationId, ProjectId } from '../../../../packages/contract/dist/index.js'
+import type { ConversationId, ProjectId } from '@conexus/contract'
 
 /**
  * The Conexus Git: one bare repository per Project on the Hub's own disk, `<root>/<projectId>.git`.

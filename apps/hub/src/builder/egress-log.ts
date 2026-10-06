@@ -2,7 +2,7 @@ import type { CommandResult } from '@mastra/core/workspace'
 import { Failure, logFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
 import type { EventLog } from '../platform/logger.js'
-import type { ConversationId, ExecutionId } from '../../../../packages/contract/dist/index.js'
+import type { ConversationId, ExecutionId } from '@conexus/contract'
 
 /**
  * The hosts a conversation's sandbox reaches (issue #418). Sandbox egress stays open (C-023); this is
@@ -39,7 +39,7 @@ type Offsets = Readonly<{ dns: number; tcp: number }>
 
 const dnsForwarderSource = (): string => `import dgram from 'node:dgram'
 import { appendFileSync, writeFileSync } from 'node:fs'
-import type { ConversationId, ExecutionId } from '../../../../packages/contract/dist/index.js'
+import type { ConversationId, ExecutionId } from '@conexus/contract'
 const LOG = '${DNS_LOG_PATH}'
 const UPSTREAM = process.argv[2]
 let written = 0

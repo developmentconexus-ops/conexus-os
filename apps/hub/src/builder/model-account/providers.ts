@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ModelAccountKind, ModelAccountProvider } from '../../../../../packages/contract/dist/index.js'
+import { ModelAccountKind, ModelAccountProvider } from '@conexus/contract'
 
 type ProviderEntry = Readonly<{
   name: string

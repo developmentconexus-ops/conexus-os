@@ -1,5 +1,5 @@
-import { AccountId as AccountIdSchema } from '../../../../packages/contract/dist/index.js'
-import type { AccountId as ContractAccountId } from '../../../../packages/contract/dist/index.js'
+import { AccountId as AccountIdSchema } from '@conexus/contract'
+import type { AccountId as ContractAccountId } from '@conexus/contract'
 import { Failure } from '../platform/failure.js'
 import { digest, parseOpaqueToken } from '../platform/opaque-token.js'
 import type { OpaqueToken } from '../platform/opaque-token.js'

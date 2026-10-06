@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { WorkspaceId, type AccountId, type ProjectId as ProjectIdType } from '../../../../packages/contract/dist/index.js'
+import { WorkspaceId, type AccountId, type ProjectId as ProjectIdType } from '@conexus/contract'
 import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
 import { admitInstallationAdministrator, admitSystem, type Admitted, type SystemScope } from '../identity-access/admission.js'
 import type { Database, WriteTx } from '../platform/db.js'

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { FileType } from 'e2b'
 import type { CommandResult, EntryInfo, Sandbox } from 'e2b'
-import { APPLICATION_MAX_FILES, APPLICATION_MAX_TOTAL_BYTES, mediaTypeOfPath, type BuilderRunId, type MediaType, type ProjectId, type SourceRevision } from '../../../../packages/contract/dist/index.js'
+import { APPLICATION_MAX_FILES, APPLICATION_MAX_TOTAL_BYTES, mediaTypeOfPath, type BuilderRunId, type MediaType, type ProjectId, type SourceRevision } from '@conexus/contract'
 import { checkCommand, readCheckReport } from './application-check.js'
 import type { CheckBundle } from './check-delivery.js'
 import type { Caller } from './check/command.js'

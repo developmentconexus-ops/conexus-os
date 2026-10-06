@@ -1,4 +1,4 @@
-import { listModelAccounts, type OwnModelAccount } from '../../../../../packages/contract/dist/index.js'
+import { listModelAccounts, type OwnModelAccount } from '@conexus/contract'
 import { call } from '../../app/http'
 
 export const accountsQueryKey = ['model-accounts'] as const

@@ -6,7 +6,7 @@ import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
-import { BindingName, listWorkspaceConnections, listProjectConnectionBindings, ConnectionId, type ConnectionCheckOutcome, type ConnectorConnection } from '../../../../../../packages/contract/dist/index.js'
+import { BindingName, listWorkspaceConnections, listProjectConnectionBindings, ConnectionId, type ConnectionCheckOutcome, type ConnectorConnection } from '@conexus/contract'
 import {
   type BindableConnection,
   bindProjectConnection,

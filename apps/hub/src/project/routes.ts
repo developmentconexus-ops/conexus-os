@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { listProjects, getProject, createProject, deleteProject, listProjectSummaries, getProjectThumbnail, type AccountId, type ArtifactRevisionId, type ProjectId } from '../../../../packages/contract/dist/index.js'
+import { listProjects, getProject, createProject, deleteProject, listProjectSummaries, getProjectThumbnail, type AccountId, type ArtifactRevisionId, type ProjectId } from '@conexus/contract'
 import { Failure } from '../platform/failure.js'
 import type { ProjectStore } from './store.js'
 import { routes } from '../http/access.js'

@@ -3,7 +3,7 @@ import { routeParam } from '../../app/route-params'
 import {
   createProject as createProjectOperation, deleteProject as deleteProjectOperation,
   ProjectId, listProjects, getProject, listProjectSummaries, getProjectThumbnail, WorkspaceId, type IdempotencyKey,
-} from '../../../../../packages/contract/dist/index.js'
+} from '@conexus/contract'
 
 const noInput = { query: undefined, headers: undefined, body: undefined } as const
 const projectParams = (projectId: string) => ({ projectId: routeParam(ProjectId, projectId) })

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ConversationId, type AccountId, type ProjectId } from '../../../../packages/contract/dist/index.js'
+import { ConversationId, type AccountId, type ProjectId } from '@conexus/contract'
 import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
 import { admitSystem } from '../identity-access/admission.js'
 import { sql, type Database } from '../platform/db.js'

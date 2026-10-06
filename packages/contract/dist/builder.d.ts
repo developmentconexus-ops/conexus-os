@@ -5707,6 +5707,8 @@ export declare const sendBuilderMessage: {
     readonly failures: readonly ["IDEMPOTENCY_CONFLICT", "CONVERSATION_NOT_FOUND", "BUILDER_CAPACITY_FULL", "PROJECT_BUILD_DENIED", "ACCOUNT_INACTIVE", "BUILDER_MESSAGE_REFUSED", "BUILDER_RUN_CREATE_FAILED", "BUILDER_BUSY", "PROJECT_BUSY", "BUILDER_SOURCE_UNAVAILABLE"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
+        readonly content: "BUILDER_MESSAGE_REFUSED";
+        readonly conversationId: "CONVERSATION_NOT_FOUND";
     };
 };
 export declare const cancelBuilderRun: {

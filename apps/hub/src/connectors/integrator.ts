@@ -1,5 +1,5 @@
 import type { z } from 'zod'
-import type { ConnectorId } from '../../../../packages/contract/dist/index.js'
+import type { ConnectorId } from '@conexus/contract'
 import type { BrokerErrorCode } from './errors.js'
 import type { ConsumerScope } from './scope.js'
 import type { IssuedToken, Redacted } from './token-cache.js'

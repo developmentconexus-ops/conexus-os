@@ -7,7 +7,7 @@ import { fieldOf } from '../platform/field-of.js'
 import { Failure, logFailure } from '../platform/failure.js'
 import { AGENT_USER } from './check/agent.js'
 import { logger } from '../platform/logger.js'
-import { ConversationId } from '../../../../packages/contract/dist/index.js'
+import { ConversationId } from '@conexus/contract'
 
 // The template's own home for the agent; the conversation's checkout lives inside it.
 const SANDBOX_HOME = '/workspace'

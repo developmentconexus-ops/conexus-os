@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { AccountId, ProjectId } from '../../../../packages/contract/dist/index.js'
+import { AccountId, ProjectId } from '@conexus/contract'
 import { Failure } from '../platform/failure.js'
 
 /** Whether the consumer's account reads as a member of the Project or as a holder of an application grant. */

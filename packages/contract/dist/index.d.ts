@@ -1,4 +1,3 @@
-export * from './field-failures.js';
 export * from './ids.js';
 export * from './builder.js';
 export * from './failures.generated.js';
@@ -295,6 +294,8 @@ export declare const OPERATIONS: {
         readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "CONNECTOR_WORKSPACE_NOT_FOUND", "CONNECTOR_LABEL_REFUSED", "CONNECTOR_CREDENTIAL_REFUSED", "CONNECTOR_CONNECTION_CONFLICT"];
         readonly malformed: {
             readonly workspaceId: "CONNECTOR_WORKSPACE_NOT_FOUND";
+            readonly label: "CONNECTOR_LABEL_REFUSED";
+            readonly credential: "CONNECTOR_CREDENTIAL_REFUSED";
         };
     };
     readonly checkWorkspaceConnection: {
@@ -2997,6 +2998,8 @@ export declare const OPERATIONS: {
         readonly failures: readonly ["IDEMPOTENCY_CONFLICT", "CONVERSATION_NOT_FOUND", "BUILDER_CAPACITY_FULL", "PROJECT_BUILD_DENIED", "ACCOUNT_INACTIVE", "BUILDER_MESSAGE_REFUSED", "BUILDER_RUN_CREATE_FAILED", "BUILDER_BUSY", "PROJECT_BUSY", "BUILDER_SOURCE_UNAVAILABLE"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
+            readonly content: "BUILDER_MESSAGE_REFUSED";
+            readonly conversationId: "CONVERSATION_NOT_FOUND";
         };
     };
     readonly cancelBuilderRun: {

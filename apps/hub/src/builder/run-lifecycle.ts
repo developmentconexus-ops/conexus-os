@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
-import { AccountId, BuilderRunId, ProjectId, SourceRevision, type ConversationId, type ModelAccountId } from '../../../../packages/contract/dist/index.js'
+import { AccountId, BuilderRunId, ProjectId, SourceRevision, type ConversationId, type ModelAccountId } from '@conexus/contract'
 import { admitProject, admitRun, admitSystem, type Admitted, type ProjectScope, type RunScope, type SystemScope } from '../identity-access/admission.js'
 import { BUILDER_RUN_STATES, OPEN_RUN_STATES, type OpenRunState, type BuilderRunPhase, } from '../generated/builder-run-vocabulary.js'
 import { sql, type Database, } from '../platform/db.js'
