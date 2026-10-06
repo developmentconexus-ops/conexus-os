@@ -54,6 +54,15 @@ test('seal gives the digest of the canonical payload of one file whatever the th
   assert.equal(digest({ bytes: Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0]) }), D_E)
 })
 
+test('seal keeps its own copy of the thumbnail: a caller that mutates its buffer afterwards cannot change what was hashed', () => {
+  const source = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0])
+  const sealed = seal({ ...outcome(), thumbnail: { bytes: source } }, run)
+  source.fill(7)
+  const kept = contentsOf(sealed).thumbnail
+  assert.deepEqual([...kept.bytes], [0x89, 0x50, 0x4e, 0x47, 0])
+  assert.equal(kept.sha256, 'ad91235e882292469812e16da0b8fc77075a7c6d6f8760c24be14a5c792508cf')
+})
+
 test('seal refuses a build of 12582913 bytes and accepts one of 12582912', () => {
   const sized = (total) => {
     const html = fileOf('index.html', 'text/html; charset=utf-8', '<html></html>')

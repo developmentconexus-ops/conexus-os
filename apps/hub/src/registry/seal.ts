@@ -49,7 +49,7 @@ function sealFiles(files: readonly FileInput[]): readonly PayloadFile[] {
 
 function sealThumbnail(thumbnail: SealOutcome['thumbnail']): Thumbnail | null {
   if (thumbnail === null) return null
-  const { bytes } = thumbnail
+  const bytes = Uint8Array.from(thumbnail.bytes)
   if (bytes.byteLength === 0 || bytes.byteLength > THUMBNAIL_MAX_BYTES || !PNG_MAGIC.every((value, index) => bytes[index] === value)) return null
   return { bytes, sha256: Sha256.parse(createHash('sha256').update(bytes).digest('hex')) }
 }
