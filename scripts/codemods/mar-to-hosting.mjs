@@ -57,6 +57,9 @@ for (const file of tracked(
   'scripts',
   'tests',
   'contracts',
+  'docs/specs/0003-app-stack-v2',
+  'docs/specs/0005-app-access-perfis',
+  'docs/specs/0007-telemetry-otel',
   'docs/specs/0015-checked-boundaries',
   'docs/reference',
   'docs/development',
@@ -66,6 +69,15 @@ for (const file of tracked(
   if (!existsSync(fullPath)) continue
   let text = readFileSync(fullPath, 'utf8')
   const before = text
+
+  // Preserve the historical f01f2d72 snapshot in 0007 rationale
+  const snapshotPlaceholder = '___HISTORICAL_F01F2D72_SNAPSHOT___'
+  if (file === 'docs/specs/0007-telemetry-otel/rationale.md') {
+    text = text.replace(
+      "`catch {}` (`mar/application-host-routes.ts:164`) drops the cause and answers 503.",
+      snapshotPlaceholder
+    )
+  }
 
   // Universal module / symbol replacements
   text = text.replaceAll('apps/hub/src/mar/', 'apps/hub/src/hosting/')
@@ -86,6 +98,8 @@ for (const file of tracked(
   text = text.replaceAll('createMarModule', 'createHostingModule')
   text = text.replaceAll('MarModule', 'HostingModule')
   text = text.replaceAll('MarRegistry', 'HostingRegistry')
+  text = text.replaceAll('MAR-Preview', 'Hosting-Preview')
+  text = text.replaceAll('MAR-Application', 'Hosting-Application')
   text = text.replaceAll('MAR_CONFIG_REFUSED', 'HOSTING_CONFIG_REFUSED')
   text = text.replaceAll('MAR_REGISTRY_READER_UNAVAILABLE', 'HOSTING_REGISTRY_READER_UNAVAILABLE')
 
@@ -107,6 +121,13 @@ for (const file of tracked(
     } else {
       text = text.replace(/\bmar\b/g, 'hosting')
     }
+  }
+
+  if (file === 'docs/specs/0007-telemetry-otel/rationale.md') {
+    text = text.replace(
+      snapshotPlaceholder,
+      "`catch {}` (`mar/application-host-routes.ts:164`) drops the cause and answers 503."
+    )
   }
 
   if (text !== before) {

@@ -19,9 +19,9 @@ export type HostingModule = Readonly<{
   /** Where a Preview of this artifact revision is served: its own host on the Preview port. */
   previewAddress(artifactRevisionId: ArtifactRevisionId): Readonly<{ exactHost: string; entryUrl: string; previewUrl: string }>
   previewPolicy: HostPolicy
-  registerPreviewRoutes(app: FastifyInstance): Promise<readonly ['MAR-Preview']>
+  registerPreviewRoutes(app: FastifyInstance): Promise<readonly ['Hosting-Preview']>
   /** Each application on its own host; absent when the installation serves no applications. */
-  applicationHost: Readonly<{ policy: HostPolicy; registerRoutes(app: FastifyInstance): Promise<readonly ['MAR-Application']> }> | undefined
+  applicationHost: Readonly<{ policy: HostPolicy; registerRoutes(app: FastifyInstance): Promise<readonly ['Hosting-Application']> }> | undefined
   close(): Promise<void>
 }>
 

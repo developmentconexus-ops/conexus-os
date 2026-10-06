@@ -72,7 +72,7 @@ export const callerLeft = (reply: FastifyReply): AbortSignal => {
 export const registerPreviewRoutes = async (
   app: FastifyInstance,
   dependencies: PreviewRouteDependencies,
-): Promise<readonly ['MAR-Preview']> => {
+): Promise<readonly ['Hosting-Preview']> => {
   const route = routes(app)
   const tracked = <Request extends FastifyRequest>(handler: (request: Request, reply: FastifyReply) => Promise<unknown>) =>
     async (request: Request, reply: FastifyReply): Promise<unknown> => {
@@ -180,5 +180,5 @@ export const registerPreviewRoutes = async (
   }) })
   route.navigation({ url: '/', handler: tracked(serve) })
   route.navigation({ url: '/*', handler: tracked(serve) })
-  return ['MAR-Preview']
+  return ['Hosting-Preview']
 }

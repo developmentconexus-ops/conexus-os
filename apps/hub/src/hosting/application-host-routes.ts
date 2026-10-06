@@ -61,7 +61,7 @@ const UNAVAILABLE = page('Aplicativo indisponível', FAILURE_TEXT.IDENTITY_PROVI
 export const registerApplicationHostRoutes = async (
   app: FastifyInstance,
   dependencies: ApplicationHostDependencies,
-): Promise<readonly ['MAR-Application']> => {
+): Promise<readonly ['Hosting-Application']> => {
   const now = dependencies.now ?? (() => new Date())
   const route = routes(app)
 
@@ -175,5 +175,5 @@ export const registerApplicationHostRoutes = async (
   }
   route.navigation({ url: '/', handler: serve })
   route.navigation({ url: '/*', handler: serve })
-  return ['MAR-Application']
+  return ['Hosting-Application']
 }
