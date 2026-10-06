@@ -1,6 +1,7 @@
 export * from './ids.js';
 export * from './builder.js';
 export * from './failures.generated.js';
+export * from './identity-access.js';
 export * from './connectors.js';
 export * from './model-account.js';
 export * from './operation.js';
@@ -8,6 +9,447 @@ export * from './problem.js';
 export * from './project.js';
 export * from './workspace.js';
 export declare const OPERATIONS: {
+    readonly getSession: {
+        readonly id: "getSession";
+        readonly summary: "Read the signed in account, whether it administers the installation, and its Workspaces.";
+        readonly access: "session";
+        readonly method: "GET";
+        readonly path: "/api/session";
+        readonly params: null;
+        readonly query: null;
+        readonly headers: null;
+        readonly body: null;
+        readonly success: {
+            readonly 200: import("zod").ZodObject<{
+                account: import("zod").ZodObject<{
+                    accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;
+                    displayName: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>;
+                administrator: import("zod").ZodBoolean;
+                workspaces: import("zod").ZodArray<import("zod").ZodObject<{
+                    workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
+                    name: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+            }, import("zod/v4/core").$strip>;
+        };
+        readonly effects: readonly [];
+        readonly failures: readonly ["IDENTITY_PROVIDER_UNAVAILABLE"];
+        readonly malformed: null;
+    };
+    readonly endSession: {
+        readonly id: "endSession";
+        readonly summary: "End the Hub session of this browser, its Previews with it, and ask Keycloak to end its own.";
+        readonly access: "sign-out";
+        readonly method: "DELETE";
+        readonly path: "/api/session";
+        readonly params: null;
+        readonly query: null;
+        readonly headers: null;
+        readonly body: null;
+        readonly success: {
+            readonly 204: null;
+        };
+        readonly effects: readonly ["clear-session-cookie"];
+        readonly failures: readonly [];
+        readonly malformed: null;
+    };
+    readonly getWorkspaceRoster: {
+        readonly id: "getWorkspaceRoster";
+        readonly summary: "Read the members and the invitations of a Workspace, and the reader's own role.";
+        readonly access: "session";
+        readonly method: "GET";
+        readonly path: "/api/control/workspaces/:workspaceId/roster";
+        readonly params: import("zod").ZodObject<{
+            workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
+        }, import("zod/v4/core").$strip>;
+        readonly query: null;
+        readonly headers: null;
+        readonly body: null;
+        readonly success: {
+            readonly 200: import("zod").ZodObject<{
+                viewerRole: import("zod").ZodEnum<{
+                    owner: "owner";
+                    member: "member";
+                }>;
+                entries: import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
+                    kind: import("zod").ZodLiteral<"member">;
+                    accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;
+                    displayName: import("zod").ZodString;
+                    email: import("zod").ZodOptional<import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">>;
+                    role: import("zod").ZodEnum<{
+                        owner: "owner";
+                        member: "member";
+                    }>;
+                    since: import("zod").ZodISODateTime;
+                }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+                    kind: import("zod").ZodLiteral<"invitation">;
+                    invitationId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "InvitationId", "out">;
+                    email: import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">;
+                    role: import("zod").ZodEnum<{
+                        owner: "owner";
+                        member: "member";
+                    }>;
+                    invitedAt: import("zod").ZodISODateTime;
+                    expiresAt: import("zod").ZodISODateTime;
+                    state: import("zod").ZodEnum<{
+                        PENDING: "PENDING";
+                        EXPIRED: "EXPIRED";
+                    }>;
+                }, import("zod/v4/core").$strip>], "kind">>;
+            }, import("zod/v4/core").$strip>;
+        };
+        readonly effects: readonly [];
+        readonly failures: readonly ["WORKSPACE_NOT_FOUND"];
+        readonly malformed: {
+            readonly workspaceId: "WORKSPACE_NOT_FOUND";
+        };
+    };
+    readonly inviteWorkspaceMember: {
+        readonly id: "inviteWorkspaceMember";
+        readonly summary: "Invite an email into a Workspace with a role; the pair is the natural key, so a new invitation of the same email refreshes it. Owner only.";
+        readonly access: "session";
+        readonly method: "POST";
+        readonly path: "/api/control/workspaces/:workspaceId/invitations";
+        readonly params: import("zod").ZodObject<{
+            workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
+        }, import("zod/v4/core").$strip>;
+        readonly query: null;
+        readonly headers: import("zod").ZodObject<{
+            'idempotency-key': import("zod/v4/core").$ZodBranded<import("zod").ZodString, "IdempotencyKey", "out">;
+        }, import("zod/v4/core").$loose>;
+        readonly body: import("zod").ZodObject<{
+            email: import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">;
+            role: import("zod").ZodEnum<{
+                owner: "owner";
+                member: "member";
+            }>;
+        }, import("zod/v4/core").$strict>;
+        readonly success: {
+            readonly 200: import("zod").ZodObject<{
+                kind: import("zod").ZodLiteral<"invitation">;
+                invitationId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "InvitationId", "out">;
+                email: import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">;
+                role: import("zod").ZodEnum<{
+                    owner: "owner";
+                    member: "member";
+                }>;
+                invitedAt: import("zod").ZodISODateTime;
+                expiresAt: import("zod").ZodISODateTime;
+                state: import("zod").ZodEnum<{
+                    PENDING: "PENDING";
+                    EXPIRED: "EXPIRED";
+                }>;
+            }, import("zod/v4/core").$strip>;
+        };
+        readonly effects: readonly [];
+        readonly failures: readonly ["WORKSPACE_NOT_FOUND", "MEMBERS_MANAGE_REQUIRED", "EMAIL_INVALID", "IDEMPOTENCY_CONFLICT", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+        readonly malformed: {
+            readonly workspaceId: "WORKSPACE_NOT_FOUND";
+            readonly email: "EMAIL_INVALID";
+        };
+    };
+    readonly removeWorkspaceMember: {
+        readonly id: "removeWorkspaceMember";
+        readonly summary: "Remove a member from a Workspace, which withdraws every right the membership gave. An owner removes anyone; a member removes only themselves.";
+        readonly access: "session";
+        readonly method: "DELETE";
+        readonly path: "/api/control/workspaces/:workspaceId/members/:accountId";
+        readonly params: import("zod").ZodObject<{
+            workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
+            accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;
+        }, import("zod/v4/core").$strip>;
+        readonly query: null;
+        readonly headers: null;
+        readonly body: null;
+        readonly success: {
+            readonly 204: null;
+        };
+        readonly effects: readonly [];
+        readonly failures: readonly ["WORKSPACE_NOT_FOUND", "MEMBERS_MANAGE_REQUIRED", "ROSTER_ENTRY_NOT_FOUND", "LAST_OWNER", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+        readonly malformed: {
+            readonly workspaceId: "WORKSPACE_NOT_FOUND";
+            readonly accountId: "ROSTER_ENTRY_NOT_FOUND";
+        };
+    };
+    readonly cancelWorkspaceInvitation: {
+        readonly id: "cancelWorkspaceInvitation";
+        readonly summary: "Cancel an invitation into a Workspace that nobody has claimed. Owner only.";
+        readonly access: "session";
+        readonly method: "DELETE";
+        readonly path: "/api/control/workspaces/:workspaceId/invitations/:invitationId";
+        readonly params: import("zod").ZodObject<{
+            workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
+            invitationId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "InvitationId", "out">;
+        }, import("zod/v4/core").$strip>;
+        readonly query: null;
+        readonly headers: null;
+        readonly body: null;
+        readonly success: {
+            readonly 204: null;
+        };
+        readonly effects: readonly [];
+        readonly failures: readonly ["WORKSPACE_NOT_FOUND", "MEMBERS_MANAGE_REQUIRED", "ROSTER_ENTRY_NOT_FOUND", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+        readonly malformed: {
+            readonly workspaceId: "WORKSPACE_NOT_FOUND";
+            readonly invitationId: "ROSTER_ENTRY_NOT_FOUND";
+        };
+    };
+    readonly setWorkspaceMemberRole: {
+        readonly id: "setWorkspaceMemberRole";
+        readonly summary: "Set the role of a member of a Workspace; the Workspace keeps at least one owner. Owner only.";
+        readonly access: "session";
+        readonly method: "PUT";
+        readonly path: "/api/control/workspaces/:workspaceId/members/:accountId";
+        readonly params: import("zod").ZodObject<{
+            workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
+            accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;
+        }, import("zod/v4/core").$strip>;
+        readonly query: null;
+        readonly headers: null;
+        readonly body: import("zod").ZodObject<{
+            role: import("zod").ZodEnum<{
+                owner: "owner";
+                member: "member";
+            }>;
+        }, import("zod/v4/core").$strict>;
+        readonly success: {
+            readonly 200: import("zod").ZodObject<{
+                kind: import("zod").ZodLiteral<"member">;
+                accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;
+                displayName: import("zod").ZodString;
+                email: import("zod").ZodOptional<import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">>;
+                role: import("zod").ZodEnum<{
+                    owner: "owner";
+                    member: "member";
+                }>;
+                since: import("zod").ZodISODateTime;
+            }, import("zod/v4/core").$strip>;
+        };
+        readonly effects: readonly [];
+        readonly failures: readonly ["WORKSPACE_NOT_FOUND", "MEMBERS_MANAGE_REQUIRED", "ROSTER_ENTRY_NOT_FOUND", "LAST_OWNER", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+        readonly malformed: {
+            readonly workspaceId: "WORKSPACE_NOT_FOUND";
+            readonly accountId: "ROSTER_ENTRY_NOT_FOUND";
+        };
+    };
+    readonly getApplicationAccess: {
+        readonly id: "getApplicationAccess";
+        readonly summary: "Read the address of a Project's application and who may use it besides the members of its Workspace. Owner only.";
+        readonly access: "session";
+        readonly method: "GET";
+        readonly path: "/api/control/projects/:projectId/application-access";
+        readonly params: import("zod").ZodObject<{
+            projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
+        }, import("zod/v4/core").$strip>;
+        readonly query: null;
+        readonly headers: null;
+        readonly body: null;
+        readonly success: {
+            readonly 200: import("zod").ZodObject<{
+                address: import("zod").ZodOptional<import("zod").ZodURL>;
+                entries: import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
+                    kind: import("zod").ZodLiteral<"grant">;
+                    grantId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "GrantId", "out">;
+                    accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;
+                    displayName: import("zod").ZodString;
+                    email: import("zod").ZodOptional<import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">>;
+                    grantedAt: import("zod").ZodISODateTime;
+                }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+                    kind: import("zod").ZodLiteral<"invitation">;
+                    invitationId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "InvitationId", "out">;
+                    email: import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">;
+                    invitedAt: import("zod").ZodISODateTime;
+                    expiresAt: import("zod").ZodISODateTime;
+                    state: import("zod").ZodEnum<{
+                        PENDING: "PENDING";
+                        EXPIRED: "EXPIRED";
+                    }>;
+                }, import("zod/v4/core").$strip>], "kind">>;
+            }, import("zod/v4/core").$strip>;
+        };
+        readonly effects: readonly [];
+        readonly failures: readonly ["PROJECT_NOT_FOUND", "APPLICATION_ACCESS_MANAGE_REQUIRED"];
+        readonly malformed: {
+            readonly projectId: "PROJECT_NOT_FOUND";
+        };
+    };
+    readonly grantApplicationAccess: {
+        readonly id: "grantApplicationAccess";
+        readonly summary: "Invite an email to a Project's application; the first grant fixes the application's address. The person's next sign in claims it. Owner only.";
+        readonly access: "session";
+        readonly method: "POST";
+        readonly path: "/api/control/projects/:projectId/application-access";
+        readonly params: import("zod").ZodObject<{
+            projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
+        }, import("zod/v4/core").$strip>;
+        readonly query: null;
+        readonly headers: import("zod").ZodObject<{
+            'idempotency-key': import("zod/v4/core").$ZodBranded<import("zod").ZodString, "IdempotencyKey", "out">;
+        }, import("zod/v4/core").$loose>;
+        readonly body: import("zod").ZodObject<{
+            email: import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">;
+        }, import("zod/v4/core").$strict>;
+        readonly success: {
+            readonly 200: import("zod").ZodObject<{
+                kind: import("zod").ZodLiteral<"invitation">;
+                invitationId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "InvitationId", "out">;
+                email: import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">;
+                invitedAt: import("zod").ZodISODateTime;
+                expiresAt: import("zod").ZodISODateTime;
+                state: import("zod").ZodEnum<{
+                    PENDING: "PENDING";
+                    EXPIRED: "EXPIRED";
+                }>;
+            }, import("zod/v4/core").$strip>;
+        };
+        readonly effects: readonly [];
+        readonly failures: readonly ["PROJECT_NOT_FOUND", "APPLICATION_ACCESS_MANAGE_REQUIRED", "EMAIL_INVALID", "IDEMPOTENCY_CONFLICT", "DATABASE_BUSY", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+        readonly malformed: {
+            readonly projectId: "PROJECT_NOT_FOUND";
+            readonly email: "EMAIL_INVALID";
+        };
+    };
+    readonly revokeApplicationGrant: {
+        readonly id: "revokeApplicationGrant";
+        readonly summary: "Revoke a person's grant to a Project's application; their next request to it is refused. Owner only.";
+        readonly access: "session";
+        readonly method: "DELETE";
+        readonly path: "/api/control/projects/:projectId/application-access/grants/:grantId";
+        readonly params: import("zod").ZodObject<{
+            projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
+            grantId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "GrantId", "out">;
+        }, import("zod/v4/core").$strip>;
+        readonly query: null;
+        readonly headers: null;
+        readonly body: null;
+        readonly success: {
+            readonly 204: null;
+        };
+        readonly effects: readonly [];
+        readonly failures: readonly ["PROJECT_NOT_FOUND", "APPLICATION_ACCESS_MANAGE_REQUIRED", "APPLICATION_ACCESS_ENTRY_NOT_FOUND", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+        readonly malformed: {
+            readonly projectId: "PROJECT_NOT_FOUND";
+            readonly grantId: "APPLICATION_ACCESS_ENTRY_NOT_FOUND";
+        };
+    };
+    readonly cancelApplicationInvitation: {
+        readonly id: "cancelApplicationInvitation";
+        readonly summary: "Cancel an invitation to a Project's application that nobody has claimed. Owner only.";
+        readonly access: "session";
+        readonly method: "DELETE";
+        readonly path: "/api/control/projects/:projectId/application-access/invitations/:invitationId";
+        readonly params: import("zod").ZodObject<{
+            projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
+            invitationId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "InvitationId", "out">;
+        }, import("zod/v4/core").$strip>;
+        readonly query: null;
+        readonly headers: null;
+        readonly body: null;
+        readonly success: {
+            readonly 204: null;
+        };
+        readonly effects: readonly [];
+        readonly failures: readonly ["PROJECT_NOT_FOUND", "APPLICATION_ACCESS_MANAGE_REQUIRED", "APPLICATION_ACCESS_ENTRY_NOT_FOUND", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+        readonly malformed: {
+            readonly projectId: "PROJECT_NOT_FOUND";
+            readonly invitationId: "APPLICATION_ACCESS_ENTRY_NOT_FOUND";
+        };
+    };
+    readonly listInstallationAdministrators: {
+        readonly id: "listInstallationAdministrators";
+        readonly summary: "List the installation administrators and how each became one; installation administrator only.";
+        readonly access: "session";
+        readonly method: "GET";
+        readonly path: "/api/control/installation/administrators";
+        readonly params: null;
+        readonly query: null;
+        readonly headers: null;
+        readonly body: null;
+        readonly success: {
+            readonly 200: import("zod").ZodObject<{
+                administrators: import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
+                    grantedVia: import("zod").ZodLiteral<"OPERATOR_BOOTSTRAP">;
+                    accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;
+                    displayName: import("zod").ZodString;
+                    email: import("zod").ZodOptional<import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">>;
+                    grantedAt: import("zod").ZodISODateTime;
+                }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+                    grantedVia: import("zod").ZodLiteral<"ADMINISTRATOR">;
+                    grantedBy: import("zod").ZodObject<{
+                        accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;
+                        displayName: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>;
+                    accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;
+                    displayName: import("zod").ZodString;
+                    email: import("zod").ZodOptional<import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">>;
+                    grantedAt: import("zod").ZodISODateTime;
+                }, import("zod/v4/core").$strip>], "grantedVia">>;
+            }, import("zod/v4/core").$strip>;
+        };
+        readonly effects: readonly [];
+        readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED"];
+        readonly malformed: null;
+    };
+    readonly addInstallationAdministrator: {
+        readonly id: "addInstallationAdministrator";
+        readonly summary: "Make the one active account with this email an installation administrator; installation administrator only.";
+        readonly access: "session";
+        readonly method: "POST";
+        readonly path: "/api/control/installation/administrators";
+        readonly params: null;
+        readonly query: null;
+        readonly headers: import("zod").ZodObject<{
+            'idempotency-key': import("zod/v4/core").$ZodBranded<import("zod").ZodString, "IdempotencyKey", "out">;
+        }, import("zod/v4/core").$loose>;
+        readonly body: import("zod").ZodObject<{
+            email: import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">;
+        }, import("zod/v4/core").$strict>;
+        readonly success: {
+            readonly 201: import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
+                grantedVia: import("zod").ZodLiteral<"OPERATOR_BOOTSTRAP">;
+                accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;
+                displayName: import("zod").ZodString;
+                email: import("zod").ZodOptional<import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">>;
+                grantedAt: import("zod").ZodISODateTime;
+            }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+                grantedVia: import("zod").ZodLiteral<"ADMINISTRATOR">;
+                grantedBy: import("zod").ZodObject<{
+                    accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;
+                    displayName: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>;
+                accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;
+                displayName: import("zod").ZodString;
+                email: import("zod").ZodOptional<import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">>;
+                grantedAt: import("zod").ZodISODateTime;
+            }, import("zod/v4/core").$strip>], "grantedVia">;
+        };
+        readonly effects: readonly [];
+        readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "EMAIL_INVALID", "ACCOUNT_NOT_FOUND", "ACCOUNT_EMAIL_AMBIGUOUS", "IDEMPOTENCY_CONFLICT"];
+        readonly malformed: {
+            readonly email: "EMAIL_INVALID";
+        };
+    };
+    readonly removeInstallationAdministrator: {
+        readonly id: "removeInstallationAdministrator";
+        readonly summary: "End an account's tenure as installation administrator; the installation keeps at least one. Installation administrator only.";
+        readonly access: "session";
+        readonly method: "DELETE";
+        readonly path: "/api/control/installation/administrators/:accountId";
+        readonly params: import("zod").ZodObject<{
+            accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;
+        }, import("zod/v4/core").$strip>;
+        readonly query: null;
+        readonly headers: null;
+        readonly body: null;
+        readonly success: {
+            readonly 204: null;
+        };
+        readonly effects: readonly [];
+        readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "INSTALLATION_ADMINISTRATOR_NOT_FOUND", "LAST_INSTALLATION_ADMINISTRATOR"];
+        readonly malformed: {
+            readonly accountId: "INSTALLATION_ADMINISTRATOR_NOT_FOUND";
+        };
+    };
     readonly createWorkspace: {
         readonly id: "createWorkspace";
         readonly summary: "Create a Workspace; the creator becomes its owner.";
@@ -609,6 +1051,9 @@ export declare const OPERATIONS: {
                         IDENTITY_PROVIDER_UNAVAILABLE: "IDENTITY_PROVIDER_UNAVAILABLE";
                         BOOTSTRAP_REQUIRED: "BOOTSTRAP_REQUIRED";
                         BOOTSTRAP_SEALED: "BOOTSTRAP_SEALED";
+                        SIGN_IN_EXPIRED: "SIGN_IN_EXPIRED";
+                        SIGN_IN_FAILED: "SIGN_IN_FAILED";
+                        IDENTITY_EMAIL_NOT_VERIFIED: "IDENTITY_EMAIL_NOT_VERIFIED";
                         IDENTITY_NOT_ELIGIBLE: "IDENTITY_NOT_ELIGIBLE";
                         ACCOUNT_CONFLICT: "ACCOUNT_CONFLICT";
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
@@ -657,9 +1102,10 @@ export declare const OPERATIONS: {
                         LAST_OWNER: "LAST_OWNER";
                         ROSTER_ENTRY_NOT_FOUND: "ROSTER_ENTRY_NOT_FOUND";
                         INSTALLATION_ADMINISTRATOR_REQUIRED: "INSTALLATION_ADMINISTRATOR_REQUIRED";
-                        INSTALLATION_ADMINISTRATOR_EMAIL_INVALID: "INSTALLATION_ADMINISTRATOR_EMAIL_INVALID";
+                        EMAIL_INVALID: "EMAIL_INVALID";
                         ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND";
                         ACCOUNT_EMAIL_AMBIGUOUS: "ACCOUNT_EMAIL_AMBIGUOUS";
+                        INSTALLATION_ADMINISTRATOR_NOT_FOUND: "INSTALLATION_ADMINISTRATOR_NOT_FOUND";
                         LAST_INSTALLATION_ADMINISTRATOR: "LAST_INSTALLATION_ADMINISTRATOR";
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
@@ -887,6 +1333,9 @@ export declare const OPERATIONS: {
                         IDENTITY_PROVIDER_UNAVAILABLE: "IDENTITY_PROVIDER_UNAVAILABLE";
                         BOOTSTRAP_REQUIRED: "BOOTSTRAP_REQUIRED";
                         BOOTSTRAP_SEALED: "BOOTSTRAP_SEALED";
+                        SIGN_IN_EXPIRED: "SIGN_IN_EXPIRED";
+                        SIGN_IN_FAILED: "SIGN_IN_FAILED";
+                        IDENTITY_EMAIL_NOT_VERIFIED: "IDENTITY_EMAIL_NOT_VERIFIED";
                         IDENTITY_NOT_ELIGIBLE: "IDENTITY_NOT_ELIGIBLE";
                         ACCOUNT_CONFLICT: "ACCOUNT_CONFLICT";
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
@@ -935,9 +1384,10 @@ export declare const OPERATIONS: {
                         LAST_OWNER: "LAST_OWNER";
                         ROSTER_ENTRY_NOT_FOUND: "ROSTER_ENTRY_NOT_FOUND";
                         INSTALLATION_ADMINISTRATOR_REQUIRED: "INSTALLATION_ADMINISTRATOR_REQUIRED";
-                        INSTALLATION_ADMINISTRATOR_EMAIL_INVALID: "INSTALLATION_ADMINISTRATOR_EMAIL_INVALID";
+                        EMAIL_INVALID: "EMAIL_INVALID";
                         ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND";
                         ACCOUNT_EMAIL_AMBIGUOUS: "ACCOUNT_EMAIL_AMBIGUOUS";
+                        INSTALLATION_ADMINISTRATOR_NOT_FOUND: "INSTALLATION_ADMINISTRATOR_NOT_FOUND";
                         LAST_INSTALLATION_ADMINISTRATOR: "LAST_INSTALLATION_ADMINISTRATOR";
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
@@ -1228,6 +1678,9 @@ export declare const OPERATIONS: {
                         IDENTITY_PROVIDER_UNAVAILABLE: "IDENTITY_PROVIDER_UNAVAILABLE";
                         BOOTSTRAP_REQUIRED: "BOOTSTRAP_REQUIRED";
                         BOOTSTRAP_SEALED: "BOOTSTRAP_SEALED";
+                        SIGN_IN_EXPIRED: "SIGN_IN_EXPIRED";
+                        SIGN_IN_FAILED: "SIGN_IN_FAILED";
+                        IDENTITY_EMAIL_NOT_VERIFIED: "IDENTITY_EMAIL_NOT_VERIFIED";
                         IDENTITY_NOT_ELIGIBLE: "IDENTITY_NOT_ELIGIBLE";
                         ACCOUNT_CONFLICT: "ACCOUNT_CONFLICT";
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
@@ -1276,9 +1729,10 @@ export declare const OPERATIONS: {
                         LAST_OWNER: "LAST_OWNER";
                         ROSTER_ENTRY_NOT_FOUND: "ROSTER_ENTRY_NOT_FOUND";
                         INSTALLATION_ADMINISTRATOR_REQUIRED: "INSTALLATION_ADMINISTRATOR_REQUIRED";
-                        INSTALLATION_ADMINISTRATOR_EMAIL_INVALID: "INSTALLATION_ADMINISTRATOR_EMAIL_INVALID";
+                        EMAIL_INVALID: "EMAIL_INVALID";
                         ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND";
                         ACCOUNT_EMAIL_AMBIGUOUS: "ACCOUNT_EMAIL_AMBIGUOUS";
+                        INSTALLATION_ADMINISTRATOR_NOT_FOUND: "INSTALLATION_ADMINISTRATOR_NOT_FOUND";
                         LAST_INSTALLATION_ADMINISTRATOR: "LAST_INSTALLATION_ADMINISTRATOR";
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
@@ -1505,6 +1959,9 @@ export declare const OPERATIONS: {
                         IDENTITY_PROVIDER_UNAVAILABLE: "IDENTITY_PROVIDER_UNAVAILABLE";
                         BOOTSTRAP_REQUIRED: "BOOTSTRAP_REQUIRED";
                         BOOTSTRAP_SEALED: "BOOTSTRAP_SEALED";
+                        SIGN_IN_EXPIRED: "SIGN_IN_EXPIRED";
+                        SIGN_IN_FAILED: "SIGN_IN_FAILED";
+                        IDENTITY_EMAIL_NOT_VERIFIED: "IDENTITY_EMAIL_NOT_VERIFIED";
                         IDENTITY_NOT_ELIGIBLE: "IDENTITY_NOT_ELIGIBLE";
                         ACCOUNT_CONFLICT: "ACCOUNT_CONFLICT";
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
@@ -1553,9 +2010,10 @@ export declare const OPERATIONS: {
                         LAST_OWNER: "LAST_OWNER";
                         ROSTER_ENTRY_NOT_FOUND: "ROSTER_ENTRY_NOT_FOUND";
                         INSTALLATION_ADMINISTRATOR_REQUIRED: "INSTALLATION_ADMINISTRATOR_REQUIRED";
-                        INSTALLATION_ADMINISTRATOR_EMAIL_INVALID: "INSTALLATION_ADMINISTRATOR_EMAIL_INVALID";
+                        EMAIL_INVALID: "EMAIL_INVALID";
                         ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND";
                         ACCOUNT_EMAIL_AMBIGUOUS: "ACCOUNT_EMAIL_AMBIGUOUS";
+                        INSTALLATION_ADMINISTRATOR_NOT_FOUND: "INSTALLATION_ADMINISTRATOR_NOT_FOUND";
                         LAST_INSTALLATION_ADMINISTRATOR: "LAST_INSTALLATION_ADMINISTRATOR";
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
@@ -1859,6 +2317,9 @@ export declare const OPERATIONS: {
                         IDENTITY_PROVIDER_UNAVAILABLE: "IDENTITY_PROVIDER_UNAVAILABLE";
                         BOOTSTRAP_REQUIRED: "BOOTSTRAP_REQUIRED";
                         BOOTSTRAP_SEALED: "BOOTSTRAP_SEALED";
+                        SIGN_IN_EXPIRED: "SIGN_IN_EXPIRED";
+                        SIGN_IN_FAILED: "SIGN_IN_FAILED";
+                        IDENTITY_EMAIL_NOT_VERIFIED: "IDENTITY_EMAIL_NOT_VERIFIED";
                         IDENTITY_NOT_ELIGIBLE: "IDENTITY_NOT_ELIGIBLE";
                         ACCOUNT_CONFLICT: "ACCOUNT_CONFLICT";
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
@@ -1907,9 +2368,10 @@ export declare const OPERATIONS: {
                         LAST_OWNER: "LAST_OWNER";
                         ROSTER_ENTRY_NOT_FOUND: "ROSTER_ENTRY_NOT_FOUND";
                         INSTALLATION_ADMINISTRATOR_REQUIRED: "INSTALLATION_ADMINISTRATOR_REQUIRED";
-                        INSTALLATION_ADMINISTRATOR_EMAIL_INVALID: "INSTALLATION_ADMINISTRATOR_EMAIL_INVALID";
+                        EMAIL_INVALID: "EMAIL_INVALID";
                         ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND";
                         ACCOUNT_EMAIL_AMBIGUOUS: "ACCOUNT_EMAIL_AMBIGUOUS";
+                        INSTALLATION_ADMINISTRATOR_NOT_FOUND: "INSTALLATION_ADMINISTRATOR_NOT_FOUND";
                         LAST_INSTALLATION_ADMINISTRATOR: "LAST_INSTALLATION_ADMINISTRATOR";
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
@@ -2136,6 +2598,9 @@ export declare const OPERATIONS: {
                         IDENTITY_PROVIDER_UNAVAILABLE: "IDENTITY_PROVIDER_UNAVAILABLE";
                         BOOTSTRAP_REQUIRED: "BOOTSTRAP_REQUIRED";
                         BOOTSTRAP_SEALED: "BOOTSTRAP_SEALED";
+                        SIGN_IN_EXPIRED: "SIGN_IN_EXPIRED";
+                        SIGN_IN_FAILED: "SIGN_IN_FAILED";
+                        IDENTITY_EMAIL_NOT_VERIFIED: "IDENTITY_EMAIL_NOT_VERIFIED";
                         IDENTITY_NOT_ELIGIBLE: "IDENTITY_NOT_ELIGIBLE";
                         ACCOUNT_CONFLICT: "ACCOUNT_CONFLICT";
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
@@ -2184,9 +2649,10 @@ export declare const OPERATIONS: {
                         LAST_OWNER: "LAST_OWNER";
                         ROSTER_ENTRY_NOT_FOUND: "ROSTER_ENTRY_NOT_FOUND";
                         INSTALLATION_ADMINISTRATOR_REQUIRED: "INSTALLATION_ADMINISTRATOR_REQUIRED";
-                        INSTALLATION_ADMINISTRATOR_EMAIL_INVALID: "INSTALLATION_ADMINISTRATOR_EMAIL_INVALID";
+                        EMAIL_INVALID: "EMAIL_INVALID";
                         ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND";
                         ACCOUNT_EMAIL_AMBIGUOUS: "ACCOUNT_EMAIL_AMBIGUOUS";
+                        INSTALLATION_ADMINISTRATOR_NOT_FOUND: "INSTALLATION_ADMINISTRATOR_NOT_FOUND";
                         LAST_INSTALLATION_ADMINISTRATOR: "LAST_INSTALLATION_ADMINISTRATOR";
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
@@ -2465,6 +2931,9 @@ export declare const OPERATIONS: {
                         IDENTITY_PROVIDER_UNAVAILABLE: "IDENTITY_PROVIDER_UNAVAILABLE";
                         BOOTSTRAP_REQUIRED: "BOOTSTRAP_REQUIRED";
                         BOOTSTRAP_SEALED: "BOOTSTRAP_SEALED";
+                        SIGN_IN_EXPIRED: "SIGN_IN_EXPIRED";
+                        SIGN_IN_FAILED: "SIGN_IN_FAILED";
+                        IDENTITY_EMAIL_NOT_VERIFIED: "IDENTITY_EMAIL_NOT_VERIFIED";
                         IDENTITY_NOT_ELIGIBLE: "IDENTITY_NOT_ELIGIBLE";
                         ACCOUNT_CONFLICT: "ACCOUNT_CONFLICT";
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
@@ -2513,9 +2982,10 @@ export declare const OPERATIONS: {
                         LAST_OWNER: "LAST_OWNER";
                         ROSTER_ENTRY_NOT_FOUND: "ROSTER_ENTRY_NOT_FOUND";
                         INSTALLATION_ADMINISTRATOR_REQUIRED: "INSTALLATION_ADMINISTRATOR_REQUIRED";
-                        INSTALLATION_ADMINISTRATOR_EMAIL_INVALID: "INSTALLATION_ADMINISTRATOR_EMAIL_INVALID";
+                        EMAIL_INVALID: "EMAIL_INVALID";
                         ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND";
                         ACCOUNT_EMAIL_AMBIGUOUS: "ACCOUNT_EMAIL_AMBIGUOUS";
+                        INSTALLATION_ADMINISTRATOR_NOT_FOUND: "INSTALLATION_ADMINISTRATOR_NOT_FOUND";
                         LAST_INSTALLATION_ADMINISTRATOR: "LAST_INSTALLATION_ADMINISTRATOR";
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
@@ -2742,6 +3212,9 @@ export declare const OPERATIONS: {
                         IDENTITY_PROVIDER_UNAVAILABLE: "IDENTITY_PROVIDER_UNAVAILABLE";
                         BOOTSTRAP_REQUIRED: "BOOTSTRAP_REQUIRED";
                         BOOTSTRAP_SEALED: "BOOTSTRAP_SEALED";
+                        SIGN_IN_EXPIRED: "SIGN_IN_EXPIRED";
+                        SIGN_IN_FAILED: "SIGN_IN_FAILED";
+                        IDENTITY_EMAIL_NOT_VERIFIED: "IDENTITY_EMAIL_NOT_VERIFIED";
                         IDENTITY_NOT_ELIGIBLE: "IDENTITY_NOT_ELIGIBLE";
                         ACCOUNT_CONFLICT: "ACCOUNT_CONFLICT";
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
@@ -2790,9 +3263,10 @@ export declare const OPERATIONS: {
                         LAST_OWNER: "LAST_OWNER";
                         ROSTER_ENTRY_NOT_FOUND: "ROSTER_ENTRY_NOT_FOUND";
                         INSTALLATION_ADMINISTRATOR_REQUIRED: "INSTALLATION_ADMINISTRATOR_REQUIRED";
-                        INSTALLATION_ADMINISTRATOR_EMAIL_INVALID: "INSTALLATION_ADMINISTRATOR_EMAIL_INVALID";
+                        EMAIL_INVALID: "EMAIL_INVALID";
                         ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND";
                         ACCOUNT_EMAIL_AMBIGUOUS: "ACCOUNT_EMAIL_AMBIGUOUS";
+                        INSTALLATION_ADMINISTRATOR_NOT_FOUND: "INSTALLATION_ADMINISTRATOR_NOT_FOUND";
                         LAST_INSTALLATION_ADMINISTRATOR: "LAST_INSTALLATION_ADMINISTRATOR";
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
@@ -3094,6 +3568,9 @@ export declare const OPERATIONS: {
                         IDENTITY_PROVIDER_UNAVAILABLE: "IDENTITY_PROVIDER_UNAVAILABLE";
                         BOOTSTRAP_REQUIRED: "BOOTSTRAP_REQUIRED";
                         BOOTSTRAP_SEALED: "BOOTSTRAP_SEALED";
+                        SIGN_IN_EXPIRED: "SIGN_IN_EXPIRED";
+                        SIGN_IN_FAILED: "SIGN_IN_FAILED";
+                        IDENTITY_EMAIL_NOT_VERIFIED: "IDENTITY_EMAIL_NOT_VERIFIED";
                         IDENTITY_NOT_ELIGIBLE: "IDENTITY_NOT_ELIGIBLE";
                         ACCOUNT_CONFLICT: "ACCOUNT_CONFLICT";
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
@@ -3142,9 +3619,10 @@ export declare const OPERATIONS: {
                         LAST_OWNER: "LAST_OWNER";
                         ROSTER_ENTRY_NOT_FOUND: "ROSTER_ENTRY_NOT_FOUND";
                         INSTALLATION_ADMINISTRATOR_REQUIRED: "INSTALLATION_ADMINISTRATOR_REQUIRED";
-                        INSTALLATION_ADMINISTRATOR_EMAIL_INVALID: "INSTALLATION_ADMINISTRATOR_EMAIL_INVALID";
+                        EMAIL_INVALID: "EMAIL_INVALID";
                         ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND";
                         ACCOUNT_EMAIL_AMBIGUOUS: "ACCOUNT_EMAIL_AMBIGUOUS";
+                        INSTALLATION_ADMINISTRATOR_NOT_FOUND: "INSTALLATION_ADMINISTRATOR_NOT_FOUND";
                         LAST_INSTALLATION_ADMINISTRATOR: "LAST_INSTALLATION_ADMINISTRATOR";
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
@@ -3371,6 +3849,9 @@ export declare const OPERATIONS: {
                         IDENTITY_PROVIDER_UNAVAILABLE: "IDENTITY_PROVIDER_UNAVAILABLE";
                         BOOTSTRAP_REQUIRED: "BOOTSTRAP_REQUIRED";
                         BOOTSTRAP_SEALED: "BOOTSTRAP_SEALED";
+                        SIGN_IN_EXPIRED: "SIGN_IN_EXPIRED";
+                        SIGN_IN_FAILED: "SIGN_IN_FAILED";
+                        IDENTITY_EMAIL_NOT_VERIFIED: "IDENTITY_EMAIL_NOT_VERIFIED";
                         IDENTITY_NOT_ELIGIBLE: "IDENTITY_NOT_ELIGIBLE";
                         ACCOUNT_CONFLICT: "ACCOUNT_CONFLICT";
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
@@ -3419,9 +3900,10 @@ export declare const OPERATIONS: {
                         LAST_OWNER: "LAST_OWNER";
                         ROSTER_ENTRY_NOT_FOUND: "ROSTER_ENTRY_NOT_FOUND";
                         INSTALLATION_ADMINISTRATOR_REQUIRED: "INSTALLATION_ADMINISTRATOR_REQUIRED";
-                        INSTALLATION_ADMINISTRATOR_EMAIL_INVALID: "INSTALLATION_ADMINISTRATOR_EMAIL_INVALID";
+                        EMAIL_INVALID: "EMAIL_INVALID";
                         ACCOUNT_NOT_FOUND: "ACCOUNT_NOT_FOUND";
                         ACCOUNT_EMAIL_AMBIGUOUS: "ACCOUNT_EMAIL_AMBIGUOUS";
+                        INSTALLATION_ADMINISTRATOR_NOT_FOUND: "INSTALLATION_ADMINISTRATOR_NOT_FOUND";
                         LAST_INSTALLATION_ADMINISTRATOR: "LAST_INSTALLATION_ADMINISTRATOR";
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";

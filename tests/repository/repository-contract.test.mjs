@@ -29,7 +29,7 @@ const currentFiles = () => Object.fromEntries([
   'docs/product/contract.md', 'docs/decisions/index.md',
   'docs/development/codebase-principles.md', 'docs/development/delivery.md',
   'docs/development/testing.md',
-  'contracts/api/product/openapi.yaml',
+  'contracts/api/product/openapi.json',
 ].map(path => [path, '# fixture\n']).concat([
   ['package.json', '{"name":"conexus-os","private":true}\n'],
   ['docs/development/review/areas.json', '[{"area":"all","paths":["**"],"guides":["A"]}]\n'],

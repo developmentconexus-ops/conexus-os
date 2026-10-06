@@ -39,7 +39,7 @@ export const registerInstallationRoutes = async (app: FastifyInstance, { install
   route.session<{ Body: { email?: unknown } }>({ method: 'POST', url: '/api/control/installation/administrators', handler: async (request, reply, session) => {
     const caller = await admitAdministrator(session)
     const { email } = request.body ?? {}
-    if (typeof email !== 'string' || !EMAIL.test(email)) throw new Failure('INSTALLATION_ADMINISTRATOR_EMAIL_INVALID')
+    if (typeof email !== 'string' || !EMAIL.test(email)) throw new Failure('EMAIL_INVALID')
     const accountId = await installationAdministration.grantByEmail({ actor: caller.accountId, email }).catch((error: unknown) => {
       if (isAccountNotFound(error)) throw new Failure('ACCOUNT_NOT_FOUND')
       if (isAccountEmailAmbiguous(error)) throw new Failure('ACCOUNT_EMAIL_AMBIGUOUS')

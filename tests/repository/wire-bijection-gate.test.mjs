@@ -1,176 +1,79 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
-// The gate passed while an operation sat in a leaf contract file with no $ref in openapi.yaml.
-// Each test here plants one of those faults in a controlled copy and requires the gate to fail,
-// because a gate is only worth its runtime if it can be shown to catch what it missed.
+// Each test plants one fault in a controlled copy of the emitted document and requires the gate to
+// fail, because a gate is only worth its runtime if it can be shown to catch what it guards.
 const gate = resolve(import.meta.dirname, '../../scripts/check-wire-bijection.mjs')
 
-const leafOperation = (path, operationId, fourAId) => `  ${path}:
-    post:
-      operationId: ${operationId}
-      summary: Planted.
-      x-conexus-4a-id: ${fourAId}
-      x-conexus-ingress: [CONTROL_PLANE]
-      x-conexus-contract-state: SCHEMA_CLOSED
-      responses:
-        '204': { description: Done. }
-`
+const createWorkspace = { path: '/api/control/workspaces', method: 'post', operationId: 'createWorkspace' }
+const createConnection = { path: '/api/control/workspaces/{workspaceId}/connections', method: 'post', operationId: 'createWorkspaceConnection' }
 
-const buildFixture = (t, { leafOperations, bundledOperations }) => {
+const runGate = (t, operations) => {
   const root = mkdtempSync(resolve(tmpdir(), 'conexus-wire-gate-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
-  mkdirSync(resolve(root, 'contracts/api/product'), { recursive: true })
-
-  writeFileSync(resolve(root, 'contracts/api/product/thing-paths.yaml'), `paths:
-${leafOperations.join('')}components:
-  schemas: {}
-`)
-
   const paths = {}
-  for (const { path, operationId, fourAId, contractState = 'SCHEMA_CLOSED', schemas = {} } of bundledOperations) {
-    paths[path] = { post: {
-      operationId,
-      'x-conexus-4a-id': fourAId,
-      'x-conexus-contract-state': contractState,
-      ...schemas,
-    } }
+  for (const { path, method, operationId, schemas = {} } of operations) {
+    paths[path] ??= {}
+    paths[path][method] = { operationId, ...schemas }
   }
   const bundlePath = resolve(root, 'bundle.json')
   writeFileSync(bundlePath, JSON.stringify({ paths }))
-
-  return { root, bundlePath }
+  return spawnSync(process.execPath, [gate], { encoding: 'utf8', env: { ...process.env, CONEXUS_PRODUCT_OAS_BUNDLE: bundlePath } })
 }
 
-const runGate = ({ root, bundlePath }) => spawnSync(process.execPath, [gate], {
-  cwd: root,
-  encoding: 'utf8',
-  env: { ...process.env, CONEXUS_PRODUCT_OAS_BUNDLE: bundlePath },
-})
-
-test('the gate passes on a leaf file and a bundle that agree', (t) => {
-  const result = runGate(buildFixture(t, {
-    leafOperations: [leafOperation('/api/thing', 'ShareThing', 'thingOne')],
-    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'thingOne' }],
-  }))
+test('the gate passes on a document whose operations are declared', (t) => {
+  const result = runGate(t, [createWorkspace])
   assert.equal(result.status, 0, result.stderr)
   assert.match(result.stdout, /wire bijection passed \(1 Product operations/)
 })
 
-test('the gate fails when a current operation is defined in a leaf file but never bundled', (t) => {
-  // Exactly the shape a real operation once had, before openapi.yaml gained its $ref.
-  const result = runGate(buildFixture(t, {
-    leafOperations: [
-      leafOperation('/api/thing', 'ShareThing', 'thingOne'),
-      leafOperation('/api/thing/unshare', 'UnshareThing', 'thingSeven'),
-    ],
-    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'thingOne' }],
-  }))
+test('an operation the contract package does not declare fails the gate', (t) => {
+  const result = runGate(t, [createWorkspace, { path: '/api/ghost', method: 'post', operationId: 'ghostThing' }])
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /thingSeven POST \/api\/thing\/unshare \(thing-paths\.yaml\)/)
-  assert.match(result.stderr, /add a \$ref in openapi\.yaml/)
+  assert.match(result.stderr, /no declared operation in @conexus\/contract: POST \/api\/ghost/)
 })
 
-test('a leaf path that no bundle lists fails the gate, whatever surface it serves', (t) => {
-  const result = runGate(buildFixture(t, {
-    leafOperations: [
-      leafOperation('/api/thing', 'ShareThing', 'thingOne'),
-      leafOperation('/api/control/workspaces/{workspaceId}/areas', 'ListAreas', 'listAreas'),
-    ],
-    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'thingOne' }],
-  }))
+test('a declared path under another operation id fails the gate', (t) => {
+  const result = runGate(t, [{ ...createWorkspace, operationId: 'makeWorkspace' }])
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /listAreas POST \/api\/control\/workspaces\/\{workspaceId\}\/areas \(thing-paths\.yaml\)/)
-  assert.match(result.stderr, /add a \$ref in openapi\.yaml/)
+  assert.match(result.stderr, /no declared operation in @conexus\/contract: POST \/api\/control\/workspaces/)
 })
 
-test('a new leaf path with an unknown 4A id cannot pass unbundled', (t) => {
-  // Matching by 4A id once let a leaf path with an unlisted id skip the unbundled check entirely.
-  const result = runGate(buildFixture(t, {
-    leafOperations: [
-      leafOperation('/api/thing', 'ShareThing', 'thingOne'),
-      leafOperation('/api/control/projects/{projectId}/never-wired', 'NeverWired', 'neverWired'),
-    ],
-    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'thingOne' }],
-  }))
+test('two operations that share an operationId fail the gate', (t) => {
+  const result = runGate(t, [createWorkspace, { ...createConnection, operationId: 'createWorkspace' }])
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /neverWired POST \/api\/control\/projects\/\{projectId\}\/never-wired \(thing-paths\.yaml\)/)
+  assert.match(result.stderr, /duplicate operationId: createWorkspace/)
 })
 
-test('a bundled operation with no leaf contract source fails the gate', (t) => {
-  // The reverse direction of the same absolute bijection: openapi.yaml cannot $ref a path that no
-  // leaf *-paths.yaml file defines.
-  const result = runGate(buildFixture(t, {
-    leafOperations: [leafOperation('/api/thing', 'ShareThing', 'thingOne')],
-    bundledOperations: [
-      { path: '/api/thing', operationId: 'ShareThing', fourAId: 'thingOne' },
-      { path: '/api/ghost', operationId: 'GhostThing', fourAId: 'thingTwo' },
-    ],
-  }))
+test('a generic executor-shaped path fails the gate', (t) => {
+  const result = runGate(t, [{ path: '/api/execute', method: 'post', operationId: 'runAnything' }])
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /bundled Product OAS operations with no leaf contract source: POST \/api\/ghost/)
-})
-
-test('a leaf contract file the scanner cannot read fails instead of reporting nothing', (t) => {
-  const fixture = buildFixture(t, {
-    leafOperations: [leafOperation('/api/thing', 'ShareThing', 'thingOne')],
-    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'thingOne' }],
-  })
-  writeFileSync(resolve(fixture.root, 'contracts/api/product/thing-paths.yaml'), 'components:\n  schemas: {}\n')
-  const result = runGate(fixture)
-  assert.equal(result.status, 1)
-  assert.match(result.stderr, /leaf contract file has no top-level paths block: thing-paths\.yaml/)
-})
-
-const connectorFixture = (t, { contractState, schemas }) => buildFixture(t, {
-  leafOperations: [leafOperation('/api/connections', 'CreateConnection', 'createWorkspaceConnection')],
-  bundledOperations: [{ path: '/api/connections', operationId: 'CreateConnection', fourAId: 'createWorkspaceConnection', contractState, schemas }],
+  assert.match(result.stderr, /forbidden generic executor-shaped Product path: \/api\/execute/)
 })
 
 const request = (properties) => ({ requestBody: { content: { 'application/json': { schema: { properties } } } } })
 const response = (properties) => ({ responses: { 201: { content: { 'application/json': { schema: { properties } } } } } })
 
 test('a Connector operation that accepts a credential only as writeOnly and never returns it passes', (t) => {
-  const result = runGate(connectorFixture(t, { schemas: {
+  const result = runGate(t, [{ ...createConnection, schemas: {
     ...request({ clientSecret: { type: 'string', writeOnly: true }, name: { type: 'string' } }),
     ...response({ id: { type: 'string' } }),
-  } }))
+  } }])
   assert.equal(result.status, 0, result.stderr)
 })
 
 test('a credential field in a request that is not writeOnly fails the gate', (t) => {
-  const result = runGate(connectorFixture(t, { schemas: request({ clientSecret: { type: 'string' } }) }))
+  const result = runGate(t, [{ ...createConnection, schemas: request({ clientSecret: { type: 'string' } }) }])
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /credential field clientSecret of CreateConnection is not writeOnly/)
+  assert.match(result.stderr, /credential field clientSecret of createWorkspaceConnection is not writeOnly/)
 })
 
 test('a credential field in a success response fails the gate, however deep', (t) => {
-  const result = runGate(connectorFixture(t, { schemas: response({ items: { items: { properties: { xToken: { type: 'string' } } } } }) }))
+  const result = runGate(t, [{ ...createConnection, schemas: response({ items: { items: { properties: { xToken: { type: 'string' } } } } }) }])
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /successful response schema of CreateConnection carries the credential field xToken/)
-})
-
-test('two bundled operations that share an operationId fail the gate', (t) => {
-  const result = runGate(buildFixture(t, {
-    leafOperations: [leafOperation('/api/thing', 'ShareThing', 'thingOne'), leafOperation('/api/other', 'ShareThing', 'thingTwo')],
-    bundledOperations: [
-      { path: '/api/thing', operationId: 'ShareThing', fourAId: 'thingOne' },
-      { path: '/api/other', operationId: 'ShareThing', fourAId: 'thingTwo' },
-    ],
-  }))
-  assert.equal(result.status, 1)
-  assert.match(result.stderr, /duplicate operationId: ShareThing/)
-})
-
-test('a generic executor-shaped path fails the gate', (t) => {
-  const result = runGate(buildFixture(t, {
-    leafOperations: [leafOperation('/api/execute', 'RunAnything', 'thingOne')],
-    bundledOperations: [{ path: '/api/execute', operationId: 'RunAnything', fourAId: 'thingOne' }],
-  }))
-  assert.equal(result.status, 1)
-  assert.match(result.stderr, /forbidden generic executor-shaped Product path: \/api\/execute/)
+  assert.match(result.stderr, /successful response schema of createWorkspaceConnection carries the credential field xToken/)
 })
