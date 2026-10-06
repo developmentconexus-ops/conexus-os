@@ -193,7 +193,7 @@ rows the command locked.
 | `apps/hub/src/platform/db.ts` | the only Hub `pg` import: `openDatabase`, `sql` (with its run time text refusal), `Tx`, `CommandGate`, `AuthenticationGate`, `openGate`, `RawToken`, `Digest`, `DATABASE_FAILURES`, the only `SET LOCAL ROLE` and `conexus.*` settings, the nested entry refusal | stores, admission, receipt, lifecycle (`openGate`: `admission.ts` and `authentication.ts` only) |
 | `apps/hub/src/platform/receipt.ts` | `idempotent`, `reserve`, `complete` over `platform.operation_receipt` | idempotent commands |
 | `apps/hub/src/identity-access/admission.ts` | `Admitted`, `Checked`, `Scope`, the `admit*` functions (with `admitInstallationAdministrator`), `checkApplication`, `isInstallationAdministrator`, `ROLE_ALLOWS`, `ACTION_REFUSALS`, `grantCreatorMembership` | every store (allowed across owners) |
-| `apps/hub/src/identity-access/authentication.ts` | `DigestKey`, `lookupByDigest(key)` and the eight typed steps of the `AuthenticationGate`, as functions over the gate that open it with `openGate` (reviews B and C, 2026-10-05) | the session and sign in modules, `admission.ts` |
+| `apps/hub/src/identity-access/authentication.ts` | the six named lookups (`consumeOidcState`, `readHubSession`, `readApplicationSession`, `readPreviewSession`, `consumeApplicationHandoff` and `consumePreviewHandoff`) and the typed steps of the `AuthenticationGate`, as functions over the gate that open it with `openGate` (reviews B and C, 2026-10-05) | the session and sign in modules, `admission.ts` |
 | `apps/web/src/app/http.ts` | `call`, `query`, `href` | every web feature |
 | `apps/web/src/app/foreign.ts` | `parseForeign` | the Builder feature |
 | `scripts/emit-openapi.mjs` | `contracts/api/product/openapi.json` | `contract:check`, Redocly, bijection |
@@ -590,9 +590,9 @@ here. The real dependencies come from the caller graph script
    `iam.workspace_invitation`, `iam.installation_administrator` (`ADMIN`, with its `iam_rls` policy),
    `iam.application`, `iam.application_invitation` and `iam.application_grant`, and the
    Preview session's link to its artifact revision, and the account pair keys of `iam.host_session` and `iam.handoff`; `ReadAction` gains `'application.manage'` (IAM-11 stays an owner only `read()`); IAM-14 and IAM-15 use `isInstallationAdministrator(tx)`; IAM-12 and IAM-13 take no owner set lock; the first administrator rule stays in TypeScript; `authenticate` with its
-   `AuthenticationGate`, the closed `key` union of digest kinds for `lookupByDigest(key)`, the typed
+   `AuthenticationGate`, the six named lookups by digest (`consumeOidcState`, `readHubSession`, `readApplicationSession`, `readPreviewSession`, `consumeApplicationHandoff` and `consumePreviewHandoff`), the typed
    steps in `identity-access/authentication.ts` (`lookupIdentity`, `provisionIdentity`, `refreshEmail`, `lookupSlug`,
-   `startOidc`, `endCredential`), `claimInvitations` and the `DIGEST_EFFECT` table, and the body of `admitBootstrap`; the first account in the sign in callback; sessions, invitations, roster (`removeMember`, `leaveWorkspace`
+   `startOidc`, `endCredential`), and `claimInvitations`, and the body of `admitBootstrap`; the first account in the sign in callback; sessions, invitations, roster (`removeMember`, `leaveWorkspace`
    with the owner set lock and the acting membership `FOR UPDATE`, and the `DELETE` grant on
    `iam.workspace_membership`), application access under `admitProject(..., 'application.manage')`, `admitApplication` for the sign in and `checkApplication` for served reads,
    installation administration (with the table lock), `iam.purge_project` as a port, `reap_expired`
