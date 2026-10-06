@@ -114,8 +114,7 @@ everyone while the administrator catches up.
 
 **Project sources**:
 - `docs/decisions/index.md`: C-015, C-026, C-028, C-030.
-- `docs/tasks/stage2-q3-application-identity-qualification.md` section 9 (the non-goal).
-- `docs/product/permission-contract.md` sections 4 and 5; `docs/product/operation-ledger.md`
+- `docs/reference/security-and-authority.md` sections 4 and 5; `docs/product/operation-ledger.md`
   `IAM-11` to `IAM-13`.
 - `apps/hub/src/app-runner/{supervisor,data-plane,pg-relay,worker,requests,server-manifest}.ts`,
   `apps/hub/src/platform/caller.ts`, `apps/hub/src/identity-access/host-sessions.ts`,

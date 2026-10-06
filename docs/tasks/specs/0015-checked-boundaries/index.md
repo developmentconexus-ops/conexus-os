@@ -7,9 +7,9 @@
 extends; spec 0013 (merged in #505) for the job executor and `iam.reap_expired`; spec 0009 for the
 failure table. Base `479dfd69`.
 **Changes**: the role per capability model of `docs/reference/security-and-authority.md` section 2
-and `docs/reference/hub-database-roles.md` is replaced by one login role that each transaction
+and `docs/reference/database.md` is replaced by one login role that each transaction
 switches to a reader or a command role; the rules in
-`docs/development/review/data-migrations.md` that require a `SECURITY DEFINER` function per command
+`docs/reference/database.md` that require a `SECURITY DEFINER` function per command
 are rewritten in part 0.
 
 References to "spike N" name facts measured before the build on PostgreSQL 17.10 with every Hub
@@ -348,7 +348,7 @@ here. The real dependencies come from the caller graph script
 
 1. **Part 0, the foundation and the workspace owner.** Subtract first: delete WS-02 and
    `workspace.get_workspace_summary` (no caller in the web or anywhere else) with its rows in
-   `docs/product/operation-ledger.md` and `docs/product/human-context-identity-contract.md`, the five
+   `docs/product/operation-ledger.md` and `docs/product/contract.md`, the five
    `x-conexus-*` keys with no reader, and `uncheckedQueryRows`. Then add `packages/contract` with
    `dist/`, the import law rows, `generate-failures.mjs` writing the package's failure codes;
    `routes(app).operation` with effects, the boot refusal and its list; `call`, `query`, `href`,
@@ -492,8 +492,8 @@ here. The real dependencies come from the caller graph script
    its generator and `platform/hub-roles.generated.ts`: the two transaction roles, the three `rls`
    helpers and `iam.lock_administrators()`. Biome: the role lint and the restricted import of
    `openGate` (`admission.ts` and `authentication.ts`). A repository test: `purge_project` only in `project/deletion.ts`.
-   `docs/reference/security-and-authority.md` section 2, `docs/reference/hub-database-roles.md` and
-   `docs/development/review/data-migrations.md` restated for the split, with rollback forward only (a new migration, not a revert), and
+   `docs/reference/security-and-authority.md` section 2, `docs/reference/database.md` and
+   `docs/reference/database.md` restated for the split, with rollback forward only (a new migration, not a revert), and
    `docs/tasks/specs/0015-checked-boundaries/0015-part-project.md` updated in the same pull request.
 
    **Tests.** The pooled client facts, the run time text refusal with the three proved bypasses and the

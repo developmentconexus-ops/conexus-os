@@ -11,7 +11,7 @@ Path keys: `SP` is this session's scratchpad
 github.com/anthropics/skills at `3337550` (2026-09-24). `SHADCN` is `SP/shadcn`, a sparse clone of
 github.com/shadcn-ui/ui at `db2db46` (2026-09-28), MIT (`SHADCN/LICENSE.md:1-3`). `HA` is
 `docs/research/builder`. `SPEC` is
-`docs/tasks/specs/0002-builder-own-harness/index.md`.
+spec 0002, the Builder's own harness (built; its file is in Git history).
 
 Marks: **[measured]** means I ran it in the probe. **[read]** means I read it in code or docs.
 **[unproven]** means nobody has run it yet in the real E2B template or the Hub.

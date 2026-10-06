@@ -907,7 +907,7 @@ Records to amend, each needing the operator's approval before this spec is Accep
 - [ ] New decision (next free number after the ones 0005 to 0007 propose): the configuration model
       of this spec, with decisions 1 to 6.
 - [ ] Amend specs 0005, 0006 and 0007 as listed above.
-- [ ] `docs/development/review/platform.md`: the sorting rule line (slice 1).
+- [ ] `docs/reference/architecture.md`: the sorting rule line (slice 1).
 - [ ] `infra/keycloak/README.md` and `infra/pilot/README.md`: the break-glass account, the
       `conexus-settings` service account and its realm-wide role, the operator secrets directory,
       `settings-check.sh`, the *Fresh install order* and the slice 1 release note (slice 1).
