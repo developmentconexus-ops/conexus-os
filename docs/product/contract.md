@@ -104,8 +104,8 @@ the agent.
 - **Integration** (Integração). A company system connected to Conexus. In code, a connector is the
   kind of system and a connection is one configured account of it.
 - **Model account** (Conta de modelo). An AI account a person or the installation connects, never
-  called a connection. The model is chosen per conversation, over an installation default and a
-  personal one.
+  called a connection. The model is chosen per conversation; a new conversation starts on the
+  person's default, else the installation's. The personal default is not built.
 - **Publication** (Publicação). Only an explicit act publishes an app to its users. Destination.
 
 ## 5. Journeys
