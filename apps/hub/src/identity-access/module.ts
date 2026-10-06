@@ -1,14 +1,12 @@
 import type { FastifyInstance } from 'fastify'
-import type { AccountId, ArtifactRevisionId, ProjectId } from '@conexus/contract'
 import { applicationOrigin } from '../platform/config.js'
 import type { ApplicationAddress } from '../platform/config.js'
 import type { Database } from '../platform/db.js'
 import type { Job } from '../platform/jobs.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
-import { admitProject, configuredIdentity } from './admission.js'
+import { configuredIdentity } from './admission.js'
 import { registerAdministratorRoutes } from './administrators.js'
 import { createApplicationAccess, purgeProject } from './application-access.js'
-import type { HubSessionDigest } from './current-session.js'
 import { iamReaperJob } from './expiry.js'
 import { createOidcAdapter } from './oidc.js'
 import { registerRosterRoutes } from './roster.js'
@@ -53,8 +51,7 @@ export const createIdentityAccessModule = async ({
     applicationHost: Object.freeze({ withApplicationRequest: sessions.withApplicationRequest, redeem: sessions.redeemApplication, signOut: sessions.signOutApplication }),
     previewHost: Object.freeze({ withPreviewRequest: sessions.withPreviewRequest, redeem: sessions.redeemPreview }),
     /** The entry handoff of a Preview, under the launching person's own admission of the Project. */
-    openPreview: (hubSession: HubSessionDigest, launch: Readonly<{ accountId: AccountId; projectId: ProjectId; artifactRevisionId: ArtifactRevisionId }>) =>
-      database.transaction(launch.accountId, async (gate) => sessions.openPreview(await admitProject(gate, launch.projectId, 'project.read'), hubSession, launch.artifactRevisionId)),
+    openPreview: sessions.openPreview,
     withApplicationPresence: applicationAccess.withApplicationPresence,
     purgeProject,
     jobs,

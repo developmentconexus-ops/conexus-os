@@ -18,7 +18,7 @@ const Expiry = z.object({ expires_at: z.date() })
 /** The Preview session: opened from a Hub session's launch, redeemed on its own host, checked on every request with its parent. */
 export const createPreviewSessions = ({ database }: SessionDependencies, { ended, settle }: SessionCore) => {
   /** Mints the entry handoff of a Preview under the launch's own admission, so the launch cannot disagree with it. */
-  const openPreview = async (proof: Admitted<ProjectScope<'project.read'>>, hubSession: HubSessionDigest, artifactRevisionId: ArtifactRevisionId): Promise<Readonly<{ entryGrant: RawToken; expiresAt: Date }>> => {
+  const openPreview = async (proof: Admitted<ProjectScope<'project.build'>>, hubSession: HubSessionDigest, artifactRevisionId: ArtifactRevisionId): Promise<Readonly<{ entryGrant: RawToken; expiresAt: Date }>> => {
     const entryGrant = mintToken()
     const { expires_at: expiresAt } = await proof.tx.one(Expiry, sql`
       INSERT INTO iam.handoff (handoff_digest, kind, account_id, project_id, artifact_revision_id, parent_digest, minted_at, expires_at, session_expires_at)

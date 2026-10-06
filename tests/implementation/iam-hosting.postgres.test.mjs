@@ -91,7 +91,7 @@ const estate = async (t, prefix, { invoke } = {}) => {
   })
   const sessions = async (kind) => (await hub.sql('SELECT count(*)::int AS n FROM iam.host_session WHERE kind = $1', [kind]))[0].n
   const launch = (accountId, hubToken, artifactRevisionId = revision) =>
-    hub.database.transaction(accountId, async (gate) => hub.sessions.openPreview(await admitProject(gate, P, 'project.read'), digestOf(hubToken), artifactRevisionId))
+    hub.database.transaction(accountId, async (gate) => hub.sessions.openPreview(await admitProject(gate, P, 'project.build'), digestOf(hubToken), artifactRevisionId))
   const enter = (entryGrant, artifactRevisionId = revision) => previewApp.inject({
     method: 'POST', url: '/__conexus/preview-entry', payload: `entryGrant=${entryGrant}`,
     headers: { host: previewHost(artifactRevisionId), origin: HUB_ORIGIN, 'content-type': 'application/x-www-form-urlencoded' },
@@ -187,7 +187,7 @@ test('revoke then grant again through the operations: the next document asks to 
   assert.match(refused.headers.location, /^https:\/\/hub\.conexus\.test\/protocol\/oidc\/login\?application=estoque-parado&binding=/)
   assert.equal((await hub.sql("SELECT count(*)::int AS n FROM iam.host_session WHERE kind = 'APPLICATION'"))[0].n, 0)
 
-  assert.equal((await hub.call(owner, 'POST', access, { email: 'caio@x.com' }, { 'idempotency-key': 'again' })).statusCode, 200)
+  assert.equal((await hub.call(owner, 'POST', access, { email: 'caio@x.com' }, { 'idempotency-key': 'again' })).statusCode, 201)
   const second = await signIn()
   assert.equal(second.statusCode, 303)
   const renewed = second.headers['set-cookie'].split(';')[0].slice('__Host-conexus_app='.length)

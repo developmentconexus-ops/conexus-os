@@ -117,10 +117,9 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     } : {}),
   }) : undefined
   type LaunchPreview = NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>
-  const launchPreview: LaunchPreview | undefined = hosting ? async (hubSessionDigest, input) => {
-    const { launch } = input
+  const launchPreview: LaunchPreview | undefined = hosting ? async (hubSessionDigest, proof, launch) => {
     const address = hosting.previewAddress(launch.artifactRevisionId)
-    const opened = await identityAccess.openPreview(hubSessionDigest, { accountId: input.accountId, projectId: input.projectId, artifactRevisionId: launch.artifactRevisionId })
+    const opened = await identityAccess.openPreview(proof, hubSessionDigest, launch.artifactRevisionId)
     return {
       entryUrl: address.entryUrl,
       previewUrl: address.previewUrl,

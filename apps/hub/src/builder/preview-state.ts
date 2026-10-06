@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { ArtifactDigest, ArtifactRevisionId, BuilderRunId, ConversationId, ProjectId, SourceRevision, type AccountId, type ProjectId as ProjectIdType } from '@conexus/contract'
 import { BUILDER_RUN_RESULT_KINDS } from '../generated/builder-run-vocabulary.js'
 import { admitProject } from '../identity-access/admission.js'
+import type { Admitted, ProjectScope } from '../identity-access/admission.js'
 import { sql, type Database, type TxQueries } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import type { BuilderRegistry, ServedLaunch } from './application-build.js'
@@ -39,7 +40,8 @@ const PreviewRow = z.object({
 export type PreviewState = Readonly<{
   readLatestCodeChangingBuilderRun(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<BuilderCodeChangingRun | null>
   readPreviewSubject(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<BuilderPreview | null>
-  readLaunchSubject(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<ServedLaunch | null>
+  /** Admits the build, reads the launch and hands both to `open` in the one transaction; null when nothing is built yet. */
+  openLaunch<T>(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>, open: (proof: Admitted<ProjectScope<'project.build'>>, launch: ServedLaunch) => Promise<T>): Promise<T | null>
   /** `readMain` reads `main` from the Conexus Git, and runs only once the account is known to see the Project. */
   admitSourceRevision(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType; sourceRevision: SourceRevision; readMain(): Promise<SourceRevision> }>): Promise<boolean>
 }>
@@ -74,7 +76,11 @@ export const createPreviewState = ({ database, registry }: Readonly<{ database: 
       } : null
     }),
     readPreviewSubject: ({ accountId, projectId }) => database.read(accountId, (tx) => previewOf(tx, projectId)),
-    readLaunchSubject: ({ accountId, projectId }) => database.transaction(accountId, async (gate) => registry.readLaunch(await admitProject(gate, projectId, 'project.build'))),
+    openLaunch: ({ accountId, projectId }, open) => database.transaction(accountId, async (gate) => {
+      const proof = await admitProject(gate, projectId, 'project.build')
+      const launch = await registry.readLaunch(proof)
+      return launch ? open(proof, launch) : null
+    }),
     admitSourceRevision: ({ accountId, projectId, sourceRevision, readMain }) =>
       database.read(accountId, async (tx) => {
         const { scope } = await admitProject(tx, projectId, 'project.read')

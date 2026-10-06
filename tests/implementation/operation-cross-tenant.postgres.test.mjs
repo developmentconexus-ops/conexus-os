@@ -456,8 +456,8 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       child: async () => assert.notEqual((await builder.readBuilderRun({ accountId: member, projectId: projectBuild })).builderRunId, runOfB),
     },
     'launchBuilderPreview': {
-      own: async () => assert.deepEqual(await builder.readLaunchSubject({ accountId: member, projectId: projectA }), { sourceRevision: STARTER, artifactRevisionId: revisionA, digest: 'd'.repeat(64), entryPath: 'index.html', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8' }] }),
-      cross: () => assert.rejects(builder.readLaunchSubject({ accountId: member, projectId: projectB }), { id: 'PROJECT_BUILD_DENIED' }),
+      own: async () => assert.deepEqual(await builder.openLaunch({ accountId: member, projectId: projectA }, async (_proof, launch) => launch), { sourceRevision: STARTER, artifactRevisionId: revisionA, digest: 'd'.repeat(64), entryPath: 'index.html', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8' }] }),
+      cross: () => assert.rejects(builder.openLaunch({ accountId: member, projectId: projectB }, async () => assert.fail('a refused admission opens nothing')), { id: 'PROJECT_BUILD_DENIED' }),
       child: null,
     },
     'getProjectThumbnail': {

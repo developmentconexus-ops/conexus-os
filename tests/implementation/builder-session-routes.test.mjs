@@ -506,7 +506,7 @@ test('a failure the Builder routes cannot name is a 500, and a trace store failu
     },
     store: {
       readBuilderRun: async () => ({ builderRunId: runId }),
-      readLaunchSubject: async () => ({ artifactRevisionId: runId, digest: 'd'.repeat(64), sourceRevision: 'a'.repeat(40), entryPath: 'index.html', files: [] }),
+      openLaunch: async (_input, open) => open({}, { artifactRevisionId: runId, digest: 'd'.repeat(64), sourceRevision: 'a'.repeat(40), entryPath: 'index.html', files: [] }),
       readPreviewSubject: async () => ({ lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null }),
     },
     service: {
