@@ -273,7 +273,7 @@ export declare const getWorkspaceRoster: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["WORKSPACE_NOT_FOUND"];
+    readonly failures: readonly [];
     readonly malformed: {
         readonly workspaceId: "WORKSPACE_NOT_FOUND";
     };
@@ -316,7 +316,7 @@ export declare const inviteWorkspaceMember: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["WORKSPACE_NOT_FOUND", "MEMBERS_MANAGE_REQUIRED", "EMAIL_INVALID", "IDEMPOTENCY_CONFLICT", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly failures: readonly ["MEMBERS_MANAGE_REQUIRED", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly workspaceId: "WORKSPACE_NOT_FOUND";
         readonly email: "EMAIL_INVALID";
@@ -339,7 +339,7 @@ export declare const removeWorkspaceMember: {
         readonly 204: null;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["WORKSPACE_NOT_FOUND", "MEMBERS_MANAGE_REQUIRED", "ROSTER_ENTRY_NOT_FOUND", "LAST_OWNER", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly failures: readonly ["MEMBERS_MANAGE_REQUIRED", "LAST_OWNER", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly workspaceId: "WORKSPACE_NOT_FOUND";
         readonly accountId: "ROSTER_ENTRY_NOT_FOUND";
@@ -362,7 +362,7 @@ export declare const cancelWorkspaceInvitation: {
         readonly 204: null;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["WORKSPACE_NOT_FOUND", "MEMBERS_MANAGE_REQUIRED", "ROSTER_ENTRY_NOT_FOUND", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly failures: readonly ["MEMBERS_MANAGE_REQUIRED", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly workspaceId: "WORKSPACE_NOT_FOUND";
         readonly invitationId: "ROSTER_ENTRY_NOT_FOUND";
@@ -400,7 +400,7 @@ export declare const setWorkspaceMemberRole: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["WORKSPACE_NOT_FOUND", "MEMBERS_MANAGE_REQUIRED", "ROSTER_ENTRY_NOT_FOUND", "LAST_OWNER", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly failures: readonly ["MEMBERS_MANAGE_REQUIRED", "LAST_OWNER", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly workspaceId: "WORKSPACE_NOT_FOUND";
         readonly accountId: "ROSTER_ENTRY_NOT_FOUND";
@@ -442,7 +442,7 @@ export declare const getApplicationAccess: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_NOT_FOUND", "APPLICATION_ACCESS_MANAGE_REQUIRED"];
+    readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
@@ -477,7 +477,7 @@ export declare const grantApplicationAccess: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_NOT_FOUND", "APPLICATION_ACCESS_MANAGE_REQUIRED", "EMAIL_INVALID", "IDEMPOTENCY_CONFLICT", "DATABASE_BUSY", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "DATABASE_BUSY", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
         readonly email: "EMAIL_INVALID";
@@ -500,7 +500,7 @@ export declare const revokeApplicationGrant: {
         readonly 204: null;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_NOT_FOUND", "APPLICATION_ACCESS_MANAGE_REQUIRED", "APPLICATION_ACCESS_ENTRY_NOT_FOUND", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
         readonly grantId: "APPLICATION_ACCESS_ENTRY_NOT_FOUND";
@@ -523,7 +523,7 @@ export declare const cancelApplicationInvitation: {
         readonly 204: null;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_NOT_FOUND", "APPLICATION_ACCESS_MANAGE_REQUIRED", "APPLICATION_ACCESS_ENTRY_NOT_FOUND", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
         readonly invitationId: "APPLICATION_ACCESS_ENTRY_NOT_FOUND";
@@ -598,7 +598,7 @@ export declare const addInstallationAdministrator: {
         }, z.core.$strip>], "grantedVia">;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "EMAIL_INVALID", "ACCOUNT_NOT_FOUND", "ACCOUNT_EMAIL_AMBIGUOUS", "IDEMPOTENCY_CONFLICT"];
+    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "ACCOUNT_NOT_FOUND", "ACCOUNT_EMAIL_AMBIGUOUS"];
     readonly malformed: {
         readonly email: "EMAIL_INVALID";
     };
@@ -619,7 +619,7 @@ export declare const removeInstallationAdministrator: {
         readonly 204: null;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "INSTALLATION_ADMINISTRATOR_NOT_FOUND", "LAST_INSTALLATION_ADMINISTRATOR"];
+    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "LAST_INSTALLATION_ADMINISTRATOR"];
     readonly malformed: {
         readonly accountId: "INSTALLATION_ADMINISTRATOR_NOT_FOUND";
     };

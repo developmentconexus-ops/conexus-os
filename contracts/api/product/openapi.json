@@ -557,8 +557,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "WORKSPACE_NOT_FOUND",
-                            "ACCOUNT_NOT_FOUND"
+                            "ACCOUNT_NOT_FOUND",
+                            "WORKSPACE_NOT_FOUND"
                           ]
                         }
                       }
@@ -733,9 +733,9 @@
                       "properties": {
                         "code": {
                           "enum": [
+                            "ACCOUNT_NOT_FOUND",
                             "WORKSPACE_NOT_FOUND",
-                            "ROSTER_ENTRY_NOT_FOUND",
-                            "ACCOUNT_NOT_FOUND"
+                            "ROSTER_ENTRY_NOT_FOUND"
                           ]
                         }
                       }
@@ -934,9 +934,9 @@
                       "properties": {
                         "code": {
                           "enum": [
+                            "ACCOUNT_NOT_FOUND",
                             "WORKSPACE_NOT_FOUND",
-                            "ROSTER_ENTRY_NOT_FOUND",
-                            "ACCOUNT_NOT_FOUND"
+                            "ROSTER_ENTRY_NOT_FOUND"
                           ]
                         }
                       }
@@ -1111,9 +1111,9 @@
                       "properties": {
                         "code": {
                           "enum": [
+                            "ACCOUNT_NOT_FOUND",
                             "WORKSPACE_NOT_FOUND",
-                            "ROSTER_ENTRY_NOT_FOUND",
-                            "ACCOUNT_NOT_FOUND"
+                            "ROSTER_ENTRY_NOT_FOUND"
                           ]
                         }
                       }
@@ -1439,8 +1439,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "PROJECT_NOT_FOUND",
-                            "ACCOUNT_NOT_FOUND"
+                            "ACCOUNT_NOT_FOUND",
+                            "PROJECT_NOT_FOUND"
                           ]
                         }
                       }
@@ -1639,9 +1639,9 @@
                       "properties": {
                         "code": {
                           "enum": [
+                            "ACCOUNT_NOT_FOUND",
                             "PROJECT_NOT_FOUND",
-                            "APPLICATION_ACCESS_ENTRY_NOT_FOUND",
-                            "ACCOUNT_NOT_FOUND"
+                            "APPLICATION_ACCESS_ENTRY_NOT_FOUND"
                           ]
                         }
                       }
@@ -1792,9 +1792,9 @@
                       "properties": {
                         "code": {
                           "enum": [
+                            "ACCOUNT_NOT_FOUND",
                             "PROJECT_NOT_FOUND",
-                            "APPLICATION_ACCESS_ENTRY_NOT_FOUND",
-                            "ACCOUNT_NOT_FOUND"
+                            "APPLICATION_ACCESS_ENTRY_NOT_FOUND"
                           ]
                         }
                       }
@@ -4639,9 +4639,9 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "PROJECT_NOT_FOUND",
                             "CONNECTOR_CONNECTION_NOT_AVAILABLE",
-                            "ACCOUNT_NOT_FOUND"
+                            "ACCOUNT_NOT_FOUND",
+                            "PROJECT_NOT_FOUND"
                           ]
                         }
                       }
@@ -4816,9 +4816,9 @@
                       "properties": {
                         "code": {
                           "enum": [
+                            "ACCOUNT_NOT_FOUND",
                             "PROJECT_NOT_FOUND",
-                            "CONNECTOR_BINDING_NOT_FOUND",
-                            "ACCOUNT_NOT_FOUND"
+                            "CONNECTOR_BINDING_NOT_FOUND"
                           ]
                         }
                       }
@@ -5563,8 +5563,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "CONVERSATION_NOT_FOUND",
-                            "PROJECT_NOT_FOUND"
+                            "PROJECT_NOT_FOUND",
+                            "CONVERSATION_NOT_FOUND"
                           ]
                         }
                       }
@@ -5588,9 +5588,9 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "IDEMPOTENCY_CONFLICT",
                             "BUILDER_BUSY",
-                            "PROJECT_BUSY"
+                            "PROJECT_BUSY",
+                            "IDEMPOTENCY_CONFLICT"
                           ]
                         }
                       }
@@ -5810,8 +5810,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "BUILDER_RUN_NOT_FOUND",
-                            "PROJECT_NOT_FOUND"
+                            "PROJECT_NOT_FOUND",
+                            "BUILDER_RUN_NOT_FOUND"
                           ]
                         }
                       }
@@ -5968,8 +5968,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "BUILDER_RUN_NOT_FOUND",
-                            "PROJECT_NOT_FOUND"
+                            "PROJECT_NOT_FOUND",
+                            "BUILDER_RUN_NOT_FOUND"
                           ]
                         }
                       }
@@ -8474,9 +8474,7 @@
                   "$ref": "#/components/schemas/WorkspaceId"
                 },
                 "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "pattern": "\\S"
+                  "$ref": "#/components/schemas/WorkspaceName"
                 }
               },
               "required": [
@@ -8529,6 +8527,11 @@
         "type": "string",
         "format": "uuid",
         "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+      },
+      "WorkspaceName": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
       },
       "WorkspaceRoster": {
         "type": "object",
@@ -8881,11 +8884,6 @@
           "initialAccessEstablished"
         ],
         "additionalProperties": false
-      },
-      "WorkspaceName": {
-        "type": "string",
-        "minLength": 1,
-        "pattern": "\\S"
       },
       "ProjectListItem": {
         "type": "object",
