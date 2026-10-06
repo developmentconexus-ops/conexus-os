@@ -2,7 +2,7 @@
 
 **Status**: Approved, revision 2.4 (after the spec review, its confirmation, and the confirmation of revision 2.3, all of 2026-10-06)
 
-**Approval**: approved by the operator at the spec gate on 2026-10-06 ("A aprovo"), commit APPROVAL_SHA
+**Approval**: approved by the operator at the spec gate on 2026-10-06 ("A aprovo"), commit 916b576e
 
 **Lane**: `lane:qualification` (Q-b). The migration carries `needs:aprovo` ([delivery](../../development/delivery.md#ask-for-aprovo-on-three-kinds-of-change)).
 
