@@ -8467,7 +8467,7 @@
         "type": "object",
         "properties": {
           "account": {
-            "$ref": "#/components/schemas/AccountSummary"
+            "$ref": "#/components/schemas/SessionAccount"
           },
           "administrator": {
             "type": "boolean"
@@ -8501,7 +8501,7 @@
         ],
         "additionalProperties": false
       },
-      "AccountSummary": {
+      "SessionAccount": {
         "type": "object",
         "properties": {
           "accountId": {
@@ -8509,6 +8509,11 @@
           },
           "displayName": {
             "$ref": "#/components/schemas/DisplayName"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
           }
         },
         "required": [
@@ -8842,6 +8847,22 @@
             "additionalProperties": false
           }
         ]
+      },
+      "AccountSummary": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "displayName": {
+            "$ref": "#/components/schemas/DisplayName"
+          }
+        },
+        "required": [
+          "accountId",
+          "displayName"
+        ],
+        "additionalProperties": false
       },
       "WorkspaceCreated": {
         "type": "object",

@@ -17,7 +17,9 @@ const factoryBrand: unique symbol = Symbol('factory-pool')
 export type Mode = 'read' | 'write'
 export type Sql = Readonly<{ [sqlBrand]: true; text: string; values: readonly unknown[] }>
 export type DatabaseConnection = Readonly<{ host: string; port: number; database: string; user: 'hub_runtime' | 'hub_factory'; passwordFile: string; max?: number; connectionTimeoutMillis?: number; options?: string }>
-export type JobName = 'iam-reaper' | 'project-purge' | 'builder-executor'
+export type JobName = 'iam-reaper' | 'project-purge' | 'builder-executor' | 'application-presence'
+/** The application_name of a dedicated session connection, so a test or an operator finds its backend. */
+type SessionName = 'conexus-hub:instance-lock' | 'conexus-hub:application-presence'
 export type FactoryPool = Pool & Readonly<{ [factoryBrand]: true }>
 export type PostgresPool = Pool
 export type PostgresConnection = PoolConfig
@@ -93,7 +95,7 @@ class Gate {
   // biome-ignore lint/correctness/noUnusedPrivateClassMembers: type identity is the use
   readonly #gate = true
 }
-/** Nominal like Gate, and a separate class, so no command admission accepts it. Part 6 adds its digest lookups. */
+/** Nominal like Gate, and a separate class, so no command admission accepts it; identity-access/authentication.ts holds its lookups. */
 class AuthGate {
   // biome-ignore lint/correctness/noUnusedPrivateClassMembers: type identity is the use
   readonly #authentication = true
@@ -106,19 +108,38 @@ type Actor =
   | Readonly<{ kind: 'authentication'; accountId: AccountId | null }>
 const opened = new WeakMap<Gate | AuthGate, Readonly<{ tx: WriteTx; actor: Actor }>>()
 
-/** Importable only by identity-access/admission.ts: the transaction and the actor a gate was opened with. */
+/** Importable only by identity-access/admission.ts and authentication.ts: the transaction and the actor a gate was opened with. */
 export const openGate = (gate: CommandGate | AuthenticationGate): Readonly<{ tx: WriteTx; actor: Actor }> => {
   const record = opened.get(gate)
   if (!record) throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'GATE_UNKNOWN' } })
   return record
 }
 
-type SessionLock = Readonly<{ tryAdvisoryLock(key: bigint): Promise<boolean> }>
+/**
+ * Importable only by identity-access/authentication.ts: the account a lookup found becomes the gate's actor, once.
+ * @public Frozen by spec 0015 part iam section 5.
+ */
+export const bindAccount = (gate: AuthenticationGate, accountId: AccountId): void => {
+  const record = opened.get(gate)
+  if (!record) throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'GATE_UNKNOWN' } })
+  const { actor } = record
+  if (actor.kind !== 'authentication' || (actor.accountId !== null && actor.accountId !== accountId)) {
+    throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'GATE_ACTOR_REFUSED' } })
+  }
+  opened.set(gate, { tx: record.tx, actor: { kind: 'authentication', accountId } })
+}
+
+type SessionLock = Readonly<{
+  tryAdvisoryLock(key: bigint): Promise<boolean>
+  advisoryLockShared(key: bigint): Promise<void>
+  advisoryUnlockShared(key: bigint): Promise<void>
+}>
 export interface Database {
   transaction<T>(accountId: AccountId, fn: (gate: CommandGate) => Promise<T>): Promise<T>
   read<T>(accountId: AccountId, fn: (tx: ReadTx) => Promise<T>): Promise<T>
   system<T>(job: JobName, fn: (gate: CommandGate) => Promise<T>): Promise<T>
-  session<T>(fn: (lock: SessionLock) => Promise<T>): Promise<T>
+  authenticate<T>(fn: (gate: AuthenticationGate) => Promise<T>): Promise<T>
+  session<T>(name: SessionName, fn: (lock: SessionLock) => Promise<T>): Promise<T>
   close(): Promise<void>
 }
 
@@ -219,6 +240,12 @@ const gateFor = (tx: WriteTx, actor: Actor): CommandGate => {
   return gate
 }
 
+const authenticationGateFor = (tx: WriteTx): AuthenticationGate => {
+  const gate = new AuthGate()
+  opened.set(gate, { tx, actor: { kind: 'authentication', accountId: null } })
+  return gate
+}
+
 // The role and the entry's settings are set in one statement right after BEGIN, all with is_local
 // true, so they end with the transaction and a client goes back to the pool as the login role, which
 // holds nothing on a split table. This is the only role switch in the Hub; a bare SET ROLE survives a ROLLBACK.
@@ -300,15 +327,27 @@ export const openDatabase = (given: DatabaseConnection): Database => {
     read: (accountId, fn) => transact({ begin: READ_ENTRY, role: 'hub_reader', settings: [['conexus.account_id', accountId]] }, (client) => readView(client, accountId), fn),
     system: (job, fn) => transact({ begin: 'BEGIN', role: 'hub_command', settings: [['conexus.job', job]] }, (client) => writeView(client, null),
       (tx) => fn(gateFor(tx, { kind: 'job', job }))),
-    session: async (fn) => {
-      const client = new pg.Client({ ...connection, password: readSecretFile(connection.passwordFile), application_name: 'conexus-hub:instance-lock' })
+    // READ COMMITTED like transaction: a one use DELETE ... RETURNING raced by another session returns no row instead of 40001.
+    authenticate: (fn) => transact({ begin: 'BEGIN', role: 'hub_command', settings: [] }, (client) => writeView(client, null),
+      (tx) => fn(authenticationGateFor(tx))),
+    session: async (name, fn) => {
+      const client = new pg.Client({ ...connection, password: readSecretFile(connection.passwordFile), application_name: name })
       const lost = new Promise<never>((_resolve, reject) => {
         client.on('error', reject)
-        client.on('end', () => reject(new Error('instance lock connection ended')))
+        client.on('end', () => reject(new Error(`${name} connection ended`)))
       })
+      // The login role's lock_timeout bounds the blocking wait; its 55P03 answers DATABASE_BUSY like a transaction's.
+      const lockQuery = async (text: string, key: bigint): Promise<void> => {
+        try { await client.query(text, [key]) }
+        catch (error) { throw databaseFailure(error) }
+      }
       await client.connect()
       try {
-        return await Promise.race([fn({ tryAdvisoryLock: async (key) => (await client.query<{ taken: boolean }>('SELECT pg_try_advisory_lock($1) AS taken', [key])).rows[0]?.taken === true }), lost])
+        return await Promise.race([fn({
+          tryAdvisoryLock: async (key) => (await client.query<{ taken: boolean }>('SELECT pg_try_advisory_lock($1) AS taken', [key])).rows[0]?.taken === true,
+          advisoryLockShared: (key) => lockQuery('SELECT pg_advisory_lock_shared($1)', key),
+          advisoryUnlockShared: (key) => lockQuery('SELECT pg_advisory_unlock_shared($1)', key),
+        }), lost])
       } finally {
         await client.end().catch(() => undefined)
       }

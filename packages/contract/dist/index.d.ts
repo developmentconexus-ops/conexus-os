@@ -24,6 +24,7 @@ export declare const OPERATIONS: {
                 account: import("zod").ZodObject<{
                     accountId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "AccountId", "out">;
                     displayName: import("zod").ZodString;
+                    email: import("zod").ZodOptional<import("zod/v4/core").$ZodBranded<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodEmail>, "EmailAddress", "out">>;
                 }, import("zod/v4/core").$strip>;
                 administrator: import("zod").ZodBoolean;
                 workspaces: import("zod").ZodArray<import("zod").ZodObject<{

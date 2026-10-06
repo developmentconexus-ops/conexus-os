@@ -1,12 +1,22 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { canonicalBytes } from '../../../../packages/canonical-json/src/index.mjs'
-import type { IdempotencyKey, Input, JsonOperation, Reply } from '@conexus/contract'
-import type { Admitted, AccountScope, BootstrapScope, ProjectScope, WorkspaceAction, WorkspaceScope } from '../identity-access/admission.js'
+import type { AccountId, IdempotencyKey, Input, JsonOperation, Reply, WorkspaceId } from '@conexus/contract'
+import type { WriteTx } from './db.js'
 import { sql } from './db.js'
 import { Failure } from './failure.js'
 
-type ReceiptScope = AccountScope | WorkspaceScope<WorkspaceAction> | ProjectScope | BootstrapScope
+/** Whose key space a receipt lives in; identity-access/admission.ts derives it from an admitted proof. */
+export type ReceiptAuthority =
+  | Readonly<{ kind: 'account'; accountId: AccountId }>
+  | Readonly<{ kind: 'workspace'; workspaceId: WorkspaceId; accountId: AccountId }>
+  | Readonly<{ kind: 'installation'; accountId: AccountId }>
+const receiptedBrand: unique symbol = Symbol('receipted')
+/** A write transaction and the authority of the proof that admitted it; only receiptOf in admission.ts makes one. */
+export type Receipted = Readonly<{ [receiptedBrand]: true; tx: WriteTx; authority: ReceiptAuthority }>
+/** Importable only by identity-access/admission.ts. */
+export const receipted = (tx: WriteTx, authority: ReceiptAuthority): Receipted => ({ [receiptedBrand]: true, tx, authority })
+
 export type DigestInput<O extends JsonOperation> = Pick<Input<O>, 'params' | 'query' | 'body'>
 /** @public Frozen by spec 0015 section 3; first called by project creation in part 3. */
 export type Receipt<I, R> = Readonly<{ kind: 'fresh'; resourceId: I }> | Readonly<{ kind: 'replay'; reply: R }>
@@ -17,12 +27,11 @@ const ReceiptRow = z.object({
 })
 
 const digest = (value: unknown): Buffer => createHash('sha256').update(canonicalBytes(value)).digest()
-const authorityOf = (scope: ReceiptScope): string => {
-  switch (scope.kind) {
-    case 'account': return `account:${scope.accountId}`
-    case 'workspace': return `workspace:${scope.workspaceId}:account:${scope.accountId}`
-    case 'project': return `workspace:${scope.workspaceId}:account:${scope.accountId}`
-    case 'bootstrap': return `bootstrap:${scope.issuer}:${scope.subject}`
+const authorityText = (authority: ReceiptAuthority): string => {
+  switch (authority.kind) {
+    case 'account': return `account:${authority.accountId}`
+    case 'workspace': return `workspace:${authority.workspaceId}:account:${authority.accountId}`
+    case 'installation': return `installation:account:${authority.accountId}`
   }
 }
 
@@ -54,17 +63,17 @@ const replayReply = <O extends JsonOperation>(op: O, status: number | null, body
   return reply
 }
 
-const receiptKey = <O extends JsonOperation>(proof: Admitted<ReceiptScope>, op: O, key: IdempotencyKey, input: DigestInput<O>) => ({
+const receiptKey = <O extends JsonOperation>(proof: Receipted, op: O, key: IdempotencyKey, input: DigestInput<O>) => ({
   operationId: op.id,
-  authority: authorityOf(proof.scope),
-  accountId: 'accountId' in proof.scope ? proof.scope.accountId : null,
+  authority: authorityText(proof.authority),
+  accountId: proof.authority.accountId,
   keyDigest: digest(key),
   requestDigest: digest(input),
 })
 
 /** @public Frozen by spec 0015 section 3; first called by project creation in part 3. */
 export const reserve = async <O extends JsonOperation, I extends z.ZodType<string>>(
-  proof: Admitted<ReceiptScope>, op: O, key: IdempotencyKey, input: DigestInput<O>, id: I,
+  proof: Receipted, op: O, key: IdempotencyKey, input: DigestInput<O>, id: I,
 ): Promise<Receipt<z.output<I>, Reply<O>>> => {
   const receipt = receiptKey(proof, op, key, input)
   const candidate = id.parse(randomUUID())
@@ -89,7 +98,7 @@ export const reserve = async <O extends JsonOperation, I extends z.ZodType<strin
 
 /** @public Frozen by spec 0015 section 3; first called by project creation in part 3. */
 export const complete = async <O extends JsonOperation>(
-  proof: Admitted<ReceiptScope>, op: O, key: IdempotencyKey, input: DigestInput<O>, resourceId: string, reply: Reply<O>,
+  proof: Receipted, op: O, key: IdempotencyKey, input: DigestInput<O>, resourceId: string, reply: Reply<O>,
 ): Promise<void> => {
   const receipt = receiptKey(proof, op, key, input)
   const changed = await proof.tx.run(sql`
@@ -102,7 +111,7 @@ export const complete = async <O extends JsonOperation>(
 }
 
 export const idempotent = async <O extends JsonOperation, I extends z.ZodType<string>>(
-  proof: Admitted<ReceiptScope>, op: O, key: IdempotencyKey, input: DigestInput<O>, id: I,
+  proof: Receipted, op: O, key: IdempotencyKey, input: DigestInput<O>, id: I,
   run: (resourceId: z.output<I>) => Promise<Reply<O>>,
 ): Promise<Readonly<{ replayed: boolean; reply: Reply<O> }>> => {
   const receipt = await reserve(proof, op, key, input, id)

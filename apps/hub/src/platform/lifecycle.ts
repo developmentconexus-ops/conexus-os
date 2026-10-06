@@ -63,7 +63,7 @@ export const takeInstanceLock = async (database: Database, onLost: (cause: unkno
   let lockAcquired = false
   const acquired = deferred()
   const release = deferred()
-  const held = database.session(async (lock) => {
+  const held = database.session('conexus-hub:instance-lock', async (lock) => {
     if (!await lock.tryAdvisoryLock(1_538_775_160n)) throw new Failure('HUB_ALREADY_RUNNING')
     lockAcquired = true
     acquired.resolve()

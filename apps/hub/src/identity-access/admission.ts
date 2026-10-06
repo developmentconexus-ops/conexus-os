@@ -2,23 +2,24 @@ import { z } from 'zod'
 import type { AccountId, BuilderRunId, ProjectId, WorkspaceId } from '@conexus/contract'
 import { AccountId as AccountIdSchema, ProjectId as ProjectIdSchema, WorkspaceId as WorkspaceIdSchema } from '@conexus/contract'
 import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
-import type { AuthenticationGate, CommandGate, Digest, JobName, Mode, ReadTx, Sql, TxQueries, WriteTx } from '../platform/db.js'
+import type { AuthenticationGate, CommandGate, JobName, Mode, ReadTx, Sql, TxQueries, WriteTx } from '../platform/db.js'
 import { openGate, readOnlyView, sql } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
+import { type Receipted, receipted } from '../platform/receipt.js'
 
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
 export const WORKSPACE_ROLES = ['owner', 'member'] as const
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
 export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number]
-export type WorkspaceAction = 'workspace.read' | 'members.manage' | 'members.leave' | 'project.create' | 'project.build' | 'connections.bind'
+export type WorkspaceAction = 'workspace.read' | 'members.manage' | 'members.leave' | 'project.create' | 'project.build' | 'connections.bind' | 'application.manage'
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
-export type ProjectAction = 'project.read' | 'project.build' | 'connections.bind'
+export type ProjectAction = 'project.read' | 'project.build' | 'connections.bind' | 'application.manage'
 /** The commands an installation administrator runs across Workspaces. */
 export type AdministratorAction = 'project.delete' | 'connection.manage' | 'administrators.manage'
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
 export type Action = WorkspaceAction | ProjectAction | AdministratorAction
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
-export type ReadAction = 'workspace.read' | 'project.read' | 'connections.bind'
+export type ReadAction = 'workspace.read' | 'project.read' | 'connections.bind' | 'application.manage'
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
 export type RunOwner = Readonly<{ ownerId: string }>
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
@@ -26,7 +27,7 @@ export type OwnerRow = Readonly<{ accountId: AccountId; active: boolean }>
 
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
 export const ROLE_ALLOWS = {
-  owner: ['workspace.read', 'members.manage', 'members.leave', 'project.create', 'project.build', 'connections.bind'],
+  owner: ['workspace.read', 'members.manage', 'members.leave', 'project.create', 'project.build', 'connections.bind', 'application.manage'],
   member: ['workspace.read', 'members.leave', 'project.create', 'project.build'],
 } as const satisfies { readonly [R in WorkspaceRole]: readonly WorkspaceAction[] }
 
@@ -44,6 +45,7 @@ export const ACTION_REFUSALS = {
   'project.read': { outsider: 'PROJECT_NOT_FOUND', forbidden: 'PROJECT_NOT_FOUND' },
   'project.build': { outsider: 'PROJECT_BUILD_DENIED', forbidden: 'PROJECT_BUILD_DENIED' },
   'connections.bind': { outsider: 'PROJECT_NOT_FOUND', forbidden: 'CONNECTOR_BINDING_MANAGE_REQUIRED' },
+  'application.manage': { outsider: 'PROJECT_NOT_FOUND', forbidden: 'APPLICATION_ACCESS_MANAGE_REQUIRED' },
   'project.delete': { outsider: 'PROJECT_DELETE_DENIED', forbidden: 'PROJECT_DELETE_DENIED' },
   'connection.manage': { outsider: 'INSTALLATION_ADMINISTRATOR_REQUIRED', forbidden: 'INSTALLATION_ADMINISTRATOR_REQUIRED' },
   'administrators.manage': { outsider: 'INSTALLATION_ADMINISTRATOR_REQUIRED', forbidden: 'INSTALLATION_ADMINISTRATOR_REQUIRED' },
@@ -68,6 +70,13 @@ export type ApplicationScope = Extract<Scope, { kind: 'application' }>
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
 export type RunScope = Extract<Scope, { kind: 'run' }>
 export type BootstrapScope = Extract<Scope, { kind: 'bootstrap' }>
+/** The provider pair that is a person's identity. */
+export type ProviderIdentity = Readonly<{ issuer: string; subject: string }>
+const ConfiguredIdentitySchema = z.object({ issuer: z.string().min(1), subject: z.string().min(1) }).brand<'ConfiguredIdentity'>()
+/** The operator's configured identity, the only one that may found an installation. */
+export type ConfiguredIdentity = z.output<typeof ConfiguredIdentitySchema>
+/** Made once at boot from the configured issuer and subject. */
+export const configuredIdentity = (identity: ProviderIdentity): ConfiguredIdentity => ConfiguredIdentitySchema.parse(identity)
 /** @public Frozen by spec 0015 section 3; parts 3 to 6 admit through it. */
 export type SystemScope<J extends JobName = JobName> = Extract<Scope, { kind: 'system' }> & Readonly<{ job: J }>
 export type WorkspaceScope<A extends WorkspaceAction> = Extract<Scope, { kind: 'workspace' }> & Readonly<{
@@ -112,10 +121,10 @@ const missingProject = async (tx: TxQueries, projectId: ProjectId): Promise<Refu
 
 const refusedActor = (): Failure => new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'GATE_ACTOR_REFUSED' } })
 
-// A command admission takes the actor from its gate: the account of a person's transaction.
-const accountGate = (gate: CommandGate): Readonly<{ tx: WriteTx; accountId: AccountId }> => {
+// A command admission takes the actor from its gate: the account of a person's transaction, or the account an authentication lookup bound.
+const accountGate = (gate: CommandGate | AuthenticationGate): Readonly<{ tx: WriteTx; accountId: AccountId }> => {
   const { tx, actor } = openGate(gate)
-  if (actor.kind !== 'account') throw refusedActor()
+  if (actor.kind === 'job' || actor.accountId === null) throw refusedActor()
   return { tx, accountId: actor.accountId }
 }
 
@@ -169,13 +178,8 @@ export function admitWorkspace<A extends ReadAction & WorkspaceAction>(tx: ReadT
 export async function admitWorkspace(subject: CommandGate | ReadTx, workspaceId: WorkspaceId, action: WorkspaceAction): Promise<Admitted<Scope, Mode>> {
   const { tx, writer, accountId } = subjectOf(subject)
   const owners = writer && CHANGES_OWNER_SET.some((candidate) => candidate === action) ? await lockOwners(writer, workspaceId) : null
-  if (writer) {
-    await lockActiveAccount(writer, accountId)
-  } else {
-    const account = await tx.maybe(Account, sql`SELECT account_id, active FROM iam.account WHERE account_id = ${accountId}`)
-    if (!account) throw new Failure('ACCOUNT_NOT_FOUND')
-    if (!account.active) throw new Failure('ACCOUNT_INACTIVE')
-  }
+  // A read leaves the account to the membership policy, which hides an inactive account's memberships, so it reads as an outsider.
+  if (writer) await lockActiveAccount(writer, accountId)
   // A leaving member deletes its own row, so it takes it for update; every other action reads it.
   const lock = !writer ? sql`` : action === 'members.leave' ? sql` FOR UPDATE` : sql` FOR SHARE`
   const member = await memberOf(tx, accountId, workspaceId, lock)
@@ -252,7 +256,7 @@ const applicationAccess = (accountId: AccountId, projectId: ProjectId) => sql`
     AND EXISTS (SELECT 1 FROM iam.application AS application WHERE application.project_id = stored.project_id)`
 
 /** @public Frozen by spec 0015 section 3; the application host and the connector broker admit through it. */
-export const admitApplication = async (gate: CommandGate, projectId: ProjectId): Promise<Admitted<ApplicationScope>> => {
+export const admitApplication = async (gate: CommandGate | AuthenticationGate, projectId: ProjectId): Promise<Admitted<ApplicationScope>> => {
   const { tx, accountId } = accountGate(gate)
   const account = await lockAccount(tx, accountId)
   if (!account?.active) throw refuse('APPLICATION_NOT_FOUND', 'INACTIVE')
@@ -273,14 +277,31 @@ export const admitApplication = async (gate: CommandGate, projectId: ProjectId):
 
 /**
  * The same access and deletion rule as admitApplication, in one statement that locks no row, for a
- * served read that changes nothing. A command that writes in its transaction admits instead.
+ * served read that changes nothing. A command that writes in its transaction admits instead. An
+ * authentication gate must have bound an account.
  * @public Frozen by spec 0015 section 3; the served application reads and the connector broker use it.
  */
-export const checkApplication = async (gate: CommandGate, projectId: ProjectId): Promise<Checked<ApplicationScope>> => {
+export const checkApplication = async (gate: CommandGate | AuthenticationGate, projectId: ProjectId): Promise<Checked<ApplicationScope>> => {
   const { tx, accountId } = accountGate(gate)
   const access = await tx.maybe(Access, applicationAccess(accountId, projectId))
   if (!access || !(access.member || access.granted)) throw refuse('APPLICATION_NOT_FOUND', await missingProject(tx, projectId))
   return new Checked({ kind: 'application', accountId, projectId, via: access.member ? 'membership' : 'grant' }, readOnlyView(tx))
+}
+
+const projectAccess = (accountId: AccountId, projectId: ProjectId) => sql`
+  SELECT stored.workspace_id FROM project.project AS stored
+  WHERE stored.project_id = ${projectId}
+    AND EXISTS (SELECT 1 FROM iam.account AS account WHERE account.account_id = ${accountId} AND account.active)
+    AND EXISTS (SELECT 1 FROM iam.workspace_membership AS membership
+      WHERE membership.account_id = ${accountId} AND membership.workspace_id = stored.workspace_id)
+    AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = stored.project_id)`
+
+/** The Preview's twin of checkApplication: the account's membership of the Project's Workspace and no deletion row, in one statement that locks no row. */
+export const checkProject = async (gate: CommandGate | AuthenticationGate, projectId: ProjectId): Promise<Checked<ProjectScope<'project.read'>>> => {
+  const { tx, accountId } = accountGate(gate)
+  const found = await tx.maybe(ProjectWorkspace, projectAccess(accountId, projectId))
+  if (!found) throw refuse('PROJECT_NOT_FOUND', await missingProject(tx, projectId))
+  return new Checked({ kind: 'project', accountId, workspaceId: found.workspace_id, projectId, action: 'project.read' }, readOnlyView(tx))
 }
 
 const RunRow = z.object({ project_id: ProjectIdSchema, account_id: AccountIdSchema, owner_id: z.string().nullable() })
@@ -324,9 +345,32 @@ export const admitRun = async (gate: CommandGate, builderRunId: BuilderRunId, ow
   return new Proof({ kind: 'run', builderRunId, accountId: run.account_id, projectId: place.project_id, owner, via: 'account' }, tx)
 }
 
-/** @public Frozen by spec 0015 section 3; its body is built in part 6. */
-export const admitBootstrap = (_gate: AuthenticationGate, _digest: Digest): Promise<Admitted<BootstrapScope>> =>
-  Promise.reject(new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'ADMIT_BOOTSTRAP_IS_BUILT_IN_PART_6' } }))
+const NoAccount = z.object({ empty: z.boolean() })
+
+/**
+ * The founding of an installation: under the administrators' table lock, a proof only while no account exists.
+ * Null means an account exists now, so a parallel first sign in of the same person founded it first.
+ */
+export const admitBootstrap = async (gate: AuthenticationGate, identity: ConfiguredIdentity): Promise<Admitted<BootstrapScope> | null> => {
+  const { tx, actor } = openGate(gate)
+  if (actor.kind !== 'authentication' || actor.accountId !== null) throw refusedActor()
+  await tx.run(sql`SELECT iam.lock_administrators()`)
+  const { empty } = await tx.one(NoAccount, sql`SELECT NOT EXISTS (SELECT 1 FROM iam.account) AS empty`, 'INTERNAL_UNEXPECTED')
+  return empty ? new Proof({ kind: 'bootstrap', issuer: identity.issuer, subject: identity.subject }, tx) : null
+}
+
+type ReceiptScope = AccountScope | WorkspaceScope<WorkspaceAction> | ProjectScope | AdministratorScope
+
+/** The receipt of a keyed command, whose authority is derived from its proof's scope and never passed. */
+export const receiptOf = (proof: Admitted<ReceiptScope>): Receipted => {
+  const { scope } = proof
+  switch (scope.kind) {
+    case 'account': return receipted(proof.tx, { kind: 'account', accountId: scope.accountId })
+    case 'workspace':
+    case 'project': return receipted(proof.tx, { kind: 'workspace', workspaceId: scope.workspaceId, accountId: scope.accountId })
+    case 'installation-administrator': return receipted(proof.tx, { kind: 'installation', accountId: scope.accountId })
+  }
+}
 
 /** @public Frozen by spec 0015 section 3; the jobs and the project purge admit through it. */
 export const admitSystem = <J extends JobName>(gate: CommandGate, job: J): Promise<Admitted<SystemScope<J>>> => {
