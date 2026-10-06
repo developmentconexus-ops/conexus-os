@@ -104,8 +104,8 @@ the agent.
 - **Integration** (Integração). A company system connected to Conexus. In code, a connector is the
   kind of system and a connection is one configured account of it.
 - **Model account** (Conta de modelo). An AI account a person or the installation connects, never
-  called a connection. The model is chosen per conversation, over an installation default and a
-  personal one.
+  called a connection. The model is chosen per conversation; a new conversation starts on the
+  person's default, else the installation's. The personal default is not built.
 - **Publication** (Publicação). Only an explicit act publishes an app to its users. Destination.
 
 ## 5. Journeys
@@ -129,8 +129,9 @@ aplicado e nada foi sobrescrito."
    integration to a Project. With no model account, nothing is sent, and the screen says where to
    connect one.
 4. **Build.** A person asks, follows the real work, uses the Preview, and continues the same
-   conversation. A failed build still advances the source and shows the error for the next request
-   to repair. When the source moved during the run, nothing is applied. A stopped run is cancelled.
+   conversation. When the app fails its check, the agent repairs it in the same run, a few
+   times at most. An app that still fails is not applied: the Project keeps its last good version
+   and the files stay in the conversation. When the source moved during the run, nothing is applied. A stopped run is cancelled.
 5. **Use an app.** An owner gives a person access, and they open the app's address and sign in. Once
    access is removed, their next request is refused.
 6. **Empty first time.** A Workspace with no Project, a Project with no conversation, or an Account

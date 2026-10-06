@@ -229,7 +229,7 @@ on screen.
 
 `platform` and `http` import no application module, and the composition root imports only what
 `scripts/check-import-law.mjs` allows. A module reaches another only through its public module
-constructor, never by a deep import.
+constructor, never by a deep import. The imports that still break this are departures in section 11.
 
 ## 6. Runtime view
 
@@ -273,8 +273,9 @@ state.
 
 ### A Hub restart
 
-When the Hub stops, every open run ends `INTERRUPTED` with `HUB_RESTART`. `main` holds only admitted
-revisions, so no admitted work is lost. The next request starts from the current source.
+When the Hub stops, recovery ends a run that has no recorded candidate `INTERRUPTED` with `HUB_RESTART`.
+A run with a recorded candidate is reconciled against Git and settled by whether admission occurred.
+`main` holds only admitted revisions, so no admitted work is lost. The next request starts from the current source.
 
 ## 7. Deployment view
 
@@ -367,10 +368,10 @@ The four goals of section 1.2 are the quality requirements. Each has scenarios b
 | Security | The Builder's sandbox looks for a Hub or connector credential | It finds none |
 | Truth | A company system read fails | The consumer receives a failure, never empty data |
 | Truth | The screen missed live events while offline | On reconnect it shows the owners' current state |
-| Recovery | The Hub restarts during a run | The run ends `INTERRUPTED`, and no admitted source is lost |
+| Recovery | The Hub restarts during a run | A run with no recorded candidate ends `INTERRUPTED`, a run with one is settled by whether it was admitted, and no admitted source is lost |
 | Recovery | `main` moved while a run worked | The run's result is not applied, and nothing is overwritten |
 | Recovery | The Applications cluster fills up | The Hub keeps serving its own screens and APIs |
-| Evolution | A module deep-imports another, or `platform` imports a module | `scripts/check-import-law.mjs` fails the build |
+| Evolution | A module deep-imports another, or `platform` imports a module | `scripts/check-import-law.mjs` fails the build; the exemptions it still allows are departures in section 11 |
 
 ## 11. Risks and technical debt
 
@@ -380,25 +381,29 @@ pull request that fixes one deletes its line.
 | Departure or risk | Wave |
 | --- | --- |
 | `apps/hub/src/platform/receipt.ts` imports `identity-access`, and the import checker allows it | S1 |
+| `http/access.ts` and `builder/run-operation.ts` import the session and admission contracts of `identity-access` and `app-runner` directly, and the import checker exempts the session, admission and application-server contracts | Hub base, after S1 |
+| The sandbox keepalive in `builder/sandbox.ts` and the sign-in expiry in `builder/google-ai-pro/login.ts` run their own timers, outside `platform/jobs.ts` | Hub base, after S1 |
+| `CON-02` and `CON-09` take no `Idempotency-Key` and deduplicate by domain identity (`connectionId`, the binding name) | Hub base, after S1 |
 | `apps/web/src/generated/iam-client.ts` calls the Hub with `fetch`, outside `http.ts` | S1 |
 | The first access is refused: `admitBootstrap` is not built | S1, part 6 |
 | Model accounts and the Mastra instance live in `builder`, not in the core | Hub base, after S1 |
 | Nothing bounds one Project's storage in the Applications cluster | Hub base, after S1 |
 | An `archived` Project state exists that nothing produces | Project lifecycle, after S1 |
 | `ProjectPurged` is told apart by `projectRevision: ''`, and `archived` and `deleting` are booleans | Project lifecycle, after S1 |
-| Rows read without a schema, response bodies cast with `as`, and ids typed `string` in module ports (counted by `scripts/census-boundaries.mjs`) | S1 |
+| Rows read without a schema and response bodies read with `json()` outside the allowed edges (counted by `scripts/census-boundaries.mjs`) | S1 |
+| Response bodies cast with `as` and ids typed `string` in module ports, which that script does not count | S1 |
 | `startHub`, `createHttpApp` and the Builder module stay past the function size limit by suppression | Hub base, after S1 |
 | `Scope` in `apps/hub/src/connectors/scope.ts` is a class with mutable state | Hub base, after S1 |
-| About 400 named top-level functions are `const` arrows, eight class fields use `#private` outside secret values, and six types are `interface` without augmenting a library | Hub base, after S1 |
-| `app-runner/http.ts` reads a failure code from `error.message` | Hub base, after S1 |
+| Named top-level functions are `const` arrows, some class fields use `#private` outside secret values, and some types are `interface` without augmenting a library | Hub base, after S1 |
+| `app-runner/http.ts` and the sandbox keepalive in `builder/sandbox.ts` read a failure from `error.message` | Hub base, after S1 |
 | Ten operations are still declared in YAML, and `identity-access/routes.ts` parses `Idempotency-Key` by hand | S1 |
 | `GET .../workspaces/{workspaceId}/projects` returns a top-level array, and lists that grow have no continuation token | Hub base, after S1 |
 | Stores not yet ported run as `hub_runtime` (`unportedPool`, the instance lock session), with `legacy` roles, `legacy_owner` and `legacy_runtime` policies, and SQL functions that hold business rules | S1, parts 4 to 6 |
-| Three migrations drop with `CASCADE` | S1 reset |
 | Tests read production source text (`builder-harness.test.mjs`, `builder-template-pins.test.mjs`, `builder-check-bundle.test.mjs`, `connector-adapter-source.test.mjs`) | Hub base, after S1 |
+| Tests in the unsuffixed `tests/implementation` group open a socket or write to disk (`application-host.test.mjs`, `builder-conexus-git.test.mjs`) although that group is Small | Hub base, after S1 |
 | PostgreSQL tests skip without an `opt-in:` reason when no database is configured, and `keycloak-theme:check` is outside CI | Hub base, after S1 |
 | The Hub swallows a failed run publish and the screen polls instead, and `liveRuns` and the session `subscriptions` share module state | S5 |
-| No route lets a person or an administrator end sessions, and a restore has no step that ends them | Hub base, after S1 |
+| Beyond signing out of the current session, no route lets a person manage their other sessions or an administrator end another person's sessions, and a restore has no step that ends them | Hub base, after S1 |
 | The Hub has no rate limit, and the realm has no brute-force protection | Hub base, after S1 |
 | Keys have no rotation procedure | Hub base, after S1 |
 | Screen stylesheets write values by hand: radii (`14px`, `999px` and others), shadows and the overlay as raw `rgb()`, shadows at rest (`styles.css`, `projects-home.css`, `lens-surfaces.css`, `construir.css`), a gradient texture in `.cx-thumb-placeholder`, and about 49 unused selectors in `styles.css` that carry them | Web style, after S1 |

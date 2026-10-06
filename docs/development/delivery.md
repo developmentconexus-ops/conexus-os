@@ -174,7 +174,8 @@ phone.
 - Before each commit, the builder **must** run `npm run verify:quick` and the tests the change
   touches or that consume a changed contract, at most two groups at once.
 - CI runs the whole graph in `scripts/conexus-verify.mjs`. `verify` is the one required check. A
-  change of only Markdown files runs `npm run verify:docs`.
+  pull request changing only Markdown under `docs/`, `.agents/` or the repository root runs
+  `npm run verify:docs`. Other Markdown changes and pushes to main run the full graph.
 - Required CI **must** protect objective properties of every change, never taste or document shape.
 - A pull request **must** leave draft as soon as the build ends, so CI and the Factory run while
   verification goes on.

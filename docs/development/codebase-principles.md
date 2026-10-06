@@ -26,7 +26,7 @@ general method lives in the pstack skills `typescript-best-practices`, `principl
 - Code **must not** export a mutable binding (`export let`).
 - A module is a function that returns a frozen object of its operations.
   Its state lives in the closure. A module reaches another only through that object, never by a
-  deep import (`scripts/check-import-law.mjs`).
+  deep import ([the architecture guide](../reference/architecture.md) owns the import boundary).
 - A function **must not** run a whole lifecycle, and a wrapper with one caller **must not** exist.
   A file or function **must not** grow under a size suppression.
 
@@ -95,7 +95,8 @@ arguments of the same type compile and fail at runtime.
 - Optional properties **should** be rare. A field that exists in one state belongs to that state's
   variant (Effective TypeScript, "Limit the use of optional properties").
 - Code **must not** use `any` (use `unknown`), `as`, or the non-null assertion `!`. Biome refuses
-  them.
+  `any`, the non-null assertion and unsafe assertions (`noUnsafeTypeAssertion`). `as const` is
+  allowed. Any other `as` is the cast departure in the architecture guide.
 - Code **must** use `type`. `interface` appears only where TypeScript requires it: to augment a
   library or global declaration (`declare module`, `declare global`).
 - A fact **must** have one owner: each type, state, contract, failure code and constant lives in one

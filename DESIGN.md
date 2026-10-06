@@ -190,8 +190,8 @@ mono.
   radius and no shadow. Hairlines separate them.
 - Conexus designs its own screens, structure and page patterns. `@mastra/playground-ui` supplies
   parts only (C-031).
-- Each need **must** have one way. A second way beside the first, such as a native `title` beside
-  `Tooltip`, is a defect.
+- Each need **must** have one way, as [the code guide](docs/development/codebase-principles.md)
+  requires. For a screen, that is the one Conexus part for each need.
 
 **Why.** The person's app is the content. The frame around it stays quiet so it never competes, and
 one way per need makes every screen read the same.
@@ -386,7 +386,9 @@ their trust.
 - A model change **must not** touch an active run.
 - The Preview **must** stay usable while new work runs, and an older launch never replaces a newer
   one.
-- A failed source **must** stay current with a safe diagnostic, with no automatic repair loop.
+- An app that fails its check **must** never replace the last good version; the agent repairs it in
+  the same run ([the architecture guide](docs/reference/architecture.md#a-request-to-the-builder)).
+  Source that passed and then fails to build its Preview **must** stay current with a safe diagnostic.
 - Code and Changes **must** be read-only. Changes compares a run's base with its result.
 - A reload **must** rebuild the conversation, the run, the source and the Preview from the server.
 
