@@ -16,13 +16,6 @@
       }
     },
     {
-      "role": "hub_iam_runtime",
-      "capability": "identity-and-access",
-      "passwordFileVariable": "CONEXUS_DB_IAM_RUNTIME_PASSWORD_FILE",
-      "connectsFrom": [],
-      "legacy": true
-    },
-    {
       "role": "hub_builder_ingress",
       "capability": "builder-request",
       "passwordFileVariable": "CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE",
@@ -53,13 +46,6 @@
     }
   ],
   "ownerRoles": [
-    "iam_owner",
-    "workspace_owner",
-    "project_owner",
-    "registry_owner",
-    "builder_owner",
-    "connector_owner",
-    "model_owner",
     "conexus_owner"
   ],
   "transactionRoles": [
