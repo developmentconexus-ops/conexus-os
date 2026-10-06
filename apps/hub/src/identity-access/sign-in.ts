@@ -13,7 +13,7 @@ import { admitAccount, admitApplication, admitBootstrap } from './admission.js'
 import type { ConfiguredIdentity } from './admission.js'
 import { grantFirstTenure, tenureGranted } from './administrators.js'
 import { grantClaimed } from './application-access.js'
-import { claimInvitations, lookupByDigest, lookupIdentity, lookupSlug, provisionIdentity, refreshEmail, startOidc } from './authentication.js'
+import { claimInvitations, consumeOidcState, lookupIdentity, lookupSlug, provisionIdentity, refreshEmail, startOidc } from './authentication.js'
 import type { Claim, KnownAccount } from './authentication.js'
 import type { OidcAdapter, SignInClaims } from './oidc.js'
 import { joinClaimed } from './roster.js'
@@ -191,7 +191,7 @@ export const createSignIn = ({ database, oidc, sessions, configured, origin, app
       const { state: queryState, error } = request.query
       const state = presentedToken(queryState)
       if (!state || queryState !== readCookie(request, 'oidcState')) return answer(refusedAt(hub, 'SIGN_IN_EXPIRED'), 'STATE_MISMATCH')
-      const transaction = await database.authenticate((gate) => lookupByDigest(gate, { kind: 'oidc-state', digest: digest(state) }))
+      const transaction = await database.authenticate((gate) => consumeOidcState(gate, digest(state)))
       if (!transaction) return answer(refusedAt(hub, 'SIGN_IN_EXPIRED'), 'STATE_UNKNOWN')
       const venue: Venue = transaction.application_project_id && transaction.application_slug && applicationOrigin
         ? { kind: 'APPLICATION', projectId: transaction.application_project_id, origin: applicationOrigin(transaction.application_slug) }

@@ -10,28 +10,6 @@ import { WORKSPACE_ROLES } from './admission.js'
 import type { Admitted, BootstrapScope, ProviderIdentity } from './admission.js'
 import type { SignInClaims } from './oidc.js'
 
-/** A credential presented to the Hub, by the one value that finds its row. */
-export type DigestKey =
-  | Readonly<{ kind: 'oidc-state'; digest: Digest }>
-  | Readonly<{ kind: 'hub-session'; digest: Digest }>
-  | Readonly<{ kind: 'application-session'; digest: Digest; slug: ApplicationSlug }>
-  | Readonly<{ kind: 'preview-session'; digest: Digest; artifactRevisionId: ArtifactRevisionIdType }>
-  | Readonly<{ kind: 'application-handoff'; digest: Digest; slug: ApplicationSlug; bindingDigest: Digest }>
-  | Readonly<{ kind: 'preview-handoff'; digest: Digest; artifactRevisionId: ArtifactRevisionIdType }>
-
-/**
- * What each lookup does to its row: a one use credential is consumed, a row the step then writes is locked, a served request only reads.
- * @public Frozen by spec 0015 part iam section 5; the lookups below follow it.
- */
-export const DIGEST_EFFECT = {
-  'oidc-state': 'consume',
-  'hub-session': 'lock',
-  'application-session': 'read',
-  'preview-session': 'read',
-  'application-handoff': 'consume',
-  'preview-handoff': 'consume',
-} as const satisfies Record<DigestKey['kind'], 'consume' | 'lock' | 'read'>
-
 const Liveness = z.enum(['LIVE', 'IDLE_EXPIRED', 'ABSOLUTE_EXPIRED'])
 const Person = { account_id: AccountId, display_name: z.string(), email: EmailAddress.nullable(), subject: z.string() }
 const Standing = { liveness: Liveness, recheck_due: z.boolean(), sealed_token: z.string().nullable(), checked_at: z.string().nullable() }
@@ -70,25 +48,31 @@ const bound = <R extends Readonly<{ account_id: AccountId }>>(gate: Authenticati
   return row
 }
 
-const consumeOidcState = (tx: WriteTx, key: Digest) => tx.maybe(OidcState, sql`
+// Each lookup below finds the row of one presented credential by its digest, and binds the account a row carries to the gate.
+
+/** Consumes a sign in in flight: one use, within its deadline. */
+export const consumeOidcState = (gate: AuthenticationGate, key: Digest): Promise<OidcStateRow | null> => txOf(gate).maybe(OidcState, sql`
   DELETE FROM iam.oidc_transaction WHERE state_digest = ${key} AND expires_at > now()
   RETURNING pkce_verifier, nonce, application_project_id, sign_in_binding_digest,
     (SELECT application.slug FROM iam.application AS application WHERE application.project_id = oidc_transaction.application_project_id) AS application_slug`)
 
-const lockHubSession = (tx: WriteTx, key: Digest) => tx.maybe(HubSessionRow, sql`
+/** Reads a Hub session and its standing, locking the row the request then writes. */
+export const lockHubSession = async (gate: AuthenticationGate, key: Digest): Promise<HubSessionRow | null> => bound(gate, await txOf(gate).maybe(HubSessionRow, sql`
   SELECT ${personColumns}, ${standingColumns(hubLiveness)}, person.active, ${hubEntry(sql`person`)} AS hub_entry
   FROM iam.host_session AS session JOIN iam.account AS person ON person.account_id = session.account_id
   WHERE session.token_digest = ${key} AND session.kind = 'HUB'
-  FOR UPDATE OF session`)
+  FOR UPDATE OF session`))
 
-const readApplicationSession = (tx: WriteTx, key: Digest, slug: ApplicationSlug) => tx.maybe(ApplicationSessionRow, sql`
+/** Reads an application session of one application's host, with no lock. */
+export const readApplicationSession = async (gate: AuthenticationGate, key: Digest, slug: ApplicationSlug): Promise<ApplicationSessionRow | null> => bound(gate, await txOf(gate).maybe(ApplicationSessionRow, sql`
   SELECT ${personColumns}, ${standingColumns(absoluteLiveness)}, session.project_id
   FROM iam.host_session AS session
   JOIN iam.application AS application ON application.project_id = session.project_id AND application.slug = ${slug}
   JOIN iam.account AS person ON person.account_id = session.account_id
-  WHERE session.token_digest = ${key} AND session.kind = 'APPLICATION'`)
+  WHERE session.token_digest = ${key} AND session.kind = 'APPLICATION'`))
 
-const readPreviewSession = (tx: WriteTx, key: Digest, artifactRevisionId: ArtifactRevisionIdType) => tx.maybe(PreviewSessionRow, sql`
+/** Reads a Preview session of one revision and its parent Hub session's standing, with no lock. */
+export const readPreviewSession = async (gate: AuthenticationGate, key: Digest, artifactRevisionId: ArtifactRevisionIdType): Promise<PreviewSessionRow | null> => bound(gate, await txOf(gate).maybe(PreviewSessionRow, sql`
   SELECT ${personColumns}, session.project_id, session.artifact_revision_id, ${absoluteLiveness} AS liveness, session.absolute_expires_at AS expires_at,
     parent.token_digest AS parent_digest,
     CASE WHEN parent.absolute_expires_at <= now() THEN 'ABSOLUTE_EXPIRED' WHEN parent.idle_expires_at <= now() THEN 'IDLE_EXPIRED' ELSE 'LIVE' END AS parent_liveness,
@@ -98,57 +82,36 @@ const readPreviewSession = (tx: WriteTx, key: Digest, artifactRevisionId: Artifa
   FROM iam.host_session AS session
   JOIN iam.host_session AS parent ON parent.token_digest = session.parent_digest AND parent.account_id = session.account_id
   JOIN iam.account AS person ON person.account_id = session.account_id
-  WHERE session.token_digest = ${key} AND session.kind = 'PREVIEW' AND session.artifact_revision_id = ${artifactRevisionId}`)
+  WHERE session.token_digest = ${key} AND session.kind = 'PREVIEW' AND session.artifact_revision_id = ${artifactRevisionId}`))
 
-const consumeApplicationHandoff = (tx: WriteTx, key: Digest, slug: ApplicationSlug, bindingDigest: Digest) => tx.maybe(ApplicationHandoffRow, sql`
+/** Consumes an application handoff once, on its own host and from the browser that holds its binding. */
+export const consumeApplicationHandoff = async (gate: AuthenticationGate, key: Digest, slug: ApplicationSlug, bindingDigest: Digest): Promise<ApplicationHandoffRow | null> => bound(gate, await txOf(gate).maybe(ApplicationHandoffRow, sql`
   DELETE FROM iam.handoff AS handoff USING iam.application AS application
   WHERE handoff.handoff_digest = ${key} AND handoff.kind = 'APPLICATION' AND handoff.expires_at > now()
     AND application.project_id = handoff.project_id AND application.slug = ${slug} AND handoff.binding_digest = ${bindingDigest}
-  RETURNING handoff.account_id, handoff.project_id, handoff.minted_at::text AS minted_at, handoff.provider_refresh_token AS sealed_token`)
+  RETURNING handoff.account_id, handoff.project_id, handoff.minted_at::text AS minted_at, handoff.provider_refresh_token AS sealed_token`))
 
 const ProjectOf = z.object({ project_id: ProjectId })
 
-// The Project row first, as the purge takes it: a redeem and a purge then wait in the same order and never deadlock.
-const consumePreviewHandoff = async (tx: WriteTx, key: Digest, artifactRevisionId: ArtifactRevisionIdType) => {
+/**
+ * Consumes a Preview handoff once, while its parent Hub session is alive. The Project row comes first, as
+ * the purge takes it: a redeem and a purge then wait in the same order and never deadlock.
+ */
+export const consumePreviewHandoff = async (gate: AuthenticationGate, key: Digest, artifactRevisionId: ArtifactRevisionIdType): Promise<PreviewHandoffRow | null> => {
+  const tx = txOf(gate)
   const pending = await tx.maybe(ProjectOf, sql`SELECT project_id FROM iam.handoff WHERE handoff_digest = ${key} AND kind = 'PREVIEW'`)
   if (!pending) return null
   if (!(await tx.maybe(ProjectOf, sql`
     SELECT project_id FROM project.project AS stored WHERE project_id = ${pending.project_id}
       AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = stored.project_id)
     FOR SHARE`))) return null
-  return tx.maybe(PreviewHandoffRow, sql`
+  return bound(gate, await tx.maybe(PreviewHandoffRow, sql`
     DELETE FROM iam.handoff AS handoff
     WHERE handoff.handoff_digest = ${key} AND handoff.kind = 'PREVIEW' AND handoff.artifact_revision_id = ${artifactRevisionId} AND handoff.expires_at > now()
       AND EXISTS (SELECT 1 FROM iam.host_session AS parent JOIN iam.account AS person ON person.account_id = parent.account_id
         WHERE parent.token_digest = handoff.parent_digest AND parent.account_id = handoff.account_id
           AND parent.absolute_expires_at > now() AND parent.idle_expires_at > now() AND person.active AND ${hubEntry(sql`person`)})
-    RETURNING handoff.account_id, handoff.project_id, handoff.artifact_revision_id, handoff.parent_digest, handoff.session_expires_at::text AS session_expires_at`)
-}
-
-type OidcStateKey = Extract<DigestKey, { kind: 'oidc-state' }>
-type HubSessionKey = Extract<DigestKey, { kind: 'hub-session' }>
-type ApplicationSessionKey = Extract<DigestKey, { kind: 'application-session' }>
-type PreviewSessionKey = Extract<DigestKey, { kind: 'preview-session' }>
-type ApplicationHandoffKey = Extract<DigestKey, { kind: 'application-handoff' }>
-type PreviewHandoffKey = Extract<DigestKey, { kind: 'preview-handoff' }>
-
-/** The row a presented credential names, read with its DIGEST_EFFECT; a row with an account binds it to the gate. */
-export function lookupByDigest(gate: AuthenticationGate, key: OidcStateKey): Promise<OidcStateRow | null>
-export function lookupByDigest(gate: AuthenticationGate, key: HubSessionKey): Promise<HubSessionRow | null>
-export function lookupByDigest(gate: AuthenticationGate, key: ApplicationSessionKey): Promise<ApplicationSessionRow | null>
-export function lookupByDigest(gate: AuthenticationGate, key: PreviewSessionKey): Promise<PreviewSessionRow | null>
-export function lookupByDigest(gate: AuthenticationGate, key: ApplicationHandoffKey): Promise<ApplicationHandoffRow | null>
-export function lookupByDigest(gate: AuthenticationGate, key: PreviewHandoffKey): Promise<PreviewHandoffRow | null>
-export async function lookupByDigest(gate: AuthenticationGate, key: DigestKey): Promise<OidcStateRow | HubSessionRow | ApplicationSessionRow | PreviewSessionRow | ApplicationHandoffRow | PreviewHandoffRow | null> {
-  const tx = txOf(gate)
-  switch (key.kind) {
-    case 'oidc-state': return consumeOidcState(tx, key.digest)
-    case 'hub-session': return bound(gate, await lockHubSession(tx, key.digest))
-    case 'application-session': return bound(gate, await readApplicationSession(tx, key.digest, key.slug))
-    case 'preview-session': return bound(gate, await readPreviewSession(tx, key.digest, key.artifactRevisionId))
-    case 'application-handoff': return bound(gate, await consumeApplicationHandoff(tx, key.digest, key.slug, key.bindingDigest))
-    case 'preview-handoff': return bound(gate, await consumePreviewHandoff(tx, key.digest, key.artifactRevisionId))
-  }
+    RETURNING handoff.account_id, handoff.project_id, handoff.artifact_revision_id, handoff.parent_digest, handoff.session_expires_at::text AS session_expires_at`))
 }
 
 const KnownAccount = z.object({ account_id: AccountId, active: z.boolean() })

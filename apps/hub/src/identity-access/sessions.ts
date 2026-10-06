@@ -15,7 +15,7 @@ import { mintToken } from '../platform/opaque-token.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { admitAccount, admitApplication, checkApplication, checkProject, isInstallationAdministrator } from './admission.js'
 import type { AccountScope, Admitted, ApplicationScope, Checked, ProjectScope } from './admission.js'
-import { endCredential, lookupByDigest, lookupSlug, recordProviderCheck, slideHubSession } from './authentication.js'
+import { consumeApplicationHandoff, consumePreviewHandoff, endCredential, lockHubSession, lookupSlug, readApplicationSession, readPreviewSession, recordProviderCheck, slideHubSession } from './authentication.js'
 import type { HubSessionRow } from './authentication.js'
 import type { CurrentSession, HubSessionDigest } from './current-session.js'
 import type { OidcAdapter, ProviderRefusal } from './oidc.js'
@@ -144,7 +144,7 @@ export const createSessions = ({ database, envelope, provider }: Readonly<{
 
   const resolveHub = async (key: HubSessionDigest): Promise<CurrentSession | null> => {
     const outcome = await settle<CurrentSession>('HUB', (recheckAllowed) => database.authenticate(async (gate): Promise<Step<CurrentSession>> => {
-      const row = await lookupByDigest(gate, { kind: 'hub-session', digest: key })
+      const row = await lockHubSession(gate, key)
       if (!row) return { kind: 'absent' }
       const ending = hubEnding(row)
       if (ending) return ended(gate, key, 'HUB', ending)
@@ -170,7 +170,7 @@ export const createSessions = ({ database, envelope, provider }: Readonly<{
   const withApplicationRequest = <T>(presented: Readonly<{ slug: ApplicationSlug; token: RawToken }>, serve: (request: ApplicationRequest) => Promise<T>): Promise<ApplicationOutcome<T>> => {
     const key = digest(presented.token)
     return settle<T>('APPLICATION', (recheckAllowed) => database.authenticate(async (gate): Promise<Step<T>> => {
-      const row = await lookupByDigest(gate, { kind: 'application-session', digest: key, slug: presented.slug })
+      const row = await readApplicationSession(gate, key, presented.slug)
       if (!row) return { kind: 'absent' }
       const standing = standingOf(row)
       if (standing.kind === 'ended') return ended(gate, key, 'APPLICATION', standing.reason)
@@ -189,7 +189,7 @@ export const createSessions = ({ database, envelope, provider }: Readonly<{
   const redeemApplication = (input: Readonly<{ handoff: RawToken; slug: ApplicationSlug; binding: RawToken }>): Promise<Redeemed | null> =>
     database.authenticate(async (gate) => {
       if (!(await lookupSlug(gate, input.slug))) return null
-      const handoff = await lookupByDigest(gate, { kind: 'application-handoff', digest: digest(input.handoff), slug: input.slug, bindingDigest: digest(input.binding) })
+      const handoff = await consumeApplicationHandoff(gate, digest(input.handoff), input.slug, digest(input.binding))
       if (!handoff) return null
       const proof = await admitApplication(gate, handoff.project_id).catch((error: unknown) => {
         if (error instanceof Failure && error.id === 'APPLICATION_NOT_FOUND') return null
@@ -222,7 +222,7 @@ export const createSessions = ({ database, envelope, provider }: Readonly<{
 
   const redeemPreview = (input: Readonly<{ handoff: RawToken; artifactRevisionId: ArtifactRevisionId }>): Promise<Redeemed | null> =>
     database.authenticate(async (gate) => {
-      const handoff = await lookupByDigest(gate, { kind: 'preview-handoff', digest: digest(input.handoff), artifactRevisionId: input.artifactRevisionId })
+      const handoff = await consumePreviewHandoff(gate, digest(input.handoff), input.artifactRevisionId)
       if (!handoff) return null
       const proof = await admitAccount(gate)
       const sessionToken = mintToken()
@@ -242,7 +242,7 @@ export const createSessions = ({ database, envelope, provider }: Readonly<{
   const withPreviewRequest = <T>(presented: Readonly<{ artifactRevisionId: ArtifactRevisionId; token: RawToken }>, serve: (request: PreviewRequest) => Promise<T>): Promise<ApplicationOutcome<T>> => {
     const key = digest(presented.token)
     return settle<T>('HUB', (recheckAllowed) => database.authenticate(async (gate): Promise<Step<T>> => {
-      const row = await lookupByDigest(gate, { kind: 'preview-session', digest: key, artifactRevisionId: presented.artifactRevisionId })
+      const row = await readPreviewSession(gate, key, presented.artifactRevisionId)
       if (!row) return { kind: 'absent' }
       if (row.liveness !== 'LIVE') return ended(gate, key, 'PREVIEW', 'ABSOLUTE_EXPIRED')
       if (row.parent_liveness !== 'LIVE' || !row.parent_entry) return ended(gate, row.parent_digest, 'HUB', row.parent_liveness === 'LIVE' ? 'HUB_ENTRY_WITHDRAWN' : row.parent_liveness)
