@@ -125,7 +125,7 @@ proof, so a served read that takes one would push the admission into every calle
 // registry/module.ts: the public constructor, a frozen object of these operations
 export function createRegistryModule(deps: Readonly<{ database: Database }>): RegistryModule
 export type RegistryModule = Readonly<{
-  seal(outcome: Readonly<{ compiledApplication: CompiledApplication; thumbnail: CompiledApplicationThumbnail | null }>): SealedApplication
+  seal(outcome: Readonly<{ compiledApplication: CompiledApplication; thumbnail: CompiledApplicationThumbnail | null }>, run: Readonly<{ projectId: ProjectId; builderRunId: BuilderRunId; sourceRevision: SourceRevision }>): SealedApplication
   retain(proof: Admitted<RunScope>, sealed: SealedApplication): Promise<Readonly<{ artifactRevisionId: ArtifactRevisionId; digest: ArtifactDigest }>>
   purge(proof: Admitted<SystemScope<'project-purge'>>, projectId: ProjectId): Promise<void>
   readLaunch(proof: Admitted<ProjectScope<'project.build'>>): Promise<ServedLaunch | null>
@@ -145,7 +145,7 @@ type ServedFile = Readonly<{ ok: true; artifactRevisionId: ArtifactRevisionId; f
   | Readonly<{ ok: false; reason: 'NOT_SERVED' | 'NOT_FOUND' }>
 type PinnedFile = ServedFile | Readonly<{ ok: false; reason: 'STALE_PIN' }>
 // SealedApplication: a nominal type whose constructor stays in registry/ (the idiom of Checked in
-// identity-access/admission.ts). It exposes only `digest`; it carries no Project and no source.
+// identity-access/admission.ts). It exposes `projectId`, `sourceRevision` and `digest`; the payload stays inside.
 ```
 
 **The seal.** `seal` is pure and runs before the runner. It carries every check of today's TypeScript
@@ -158,10 +158,17 @@ and the 13 SQL payload checks of `reg.retain_application_execution`
 A failed check throws `APPLICATION_ARTIFACT_INPUT_REFUSED` before the runner. The thumbnail rule of
 `apps/hub/src/builder/application-artifact-runtime.ts:167-178` moves here unchanged and is its only
 copy: an invalid thumbnail (not a PNG, 0 or over 512000 bytes) is dropped and never fails the build,
-as today. The digest is SHA-256 of the canonical JSON of the payload (section 6). The payload carries
-no Project and no source: `retain` writes `project_id` from `proof.scope.projectId` and
-`source_revision` from the run's verified result source, read in the same transaction, so the two
-can never disagree.
+as today. The payload has six keys: `format`, `profile`, `templateRef`, `recipeSha256`, `entryPath`
+and `files`; the digest is SHA-256 of its canonical JSON (section 6). The Project and the source are
+columns, not payload keys, so the SQL key count of eight and the two SQL identity comparisons
+(`apps/hub/migrations/0054_compiler_template_failures_gen.sql:33-48`) go, and the identity is checked
+twice against its authority instead. First, `seal` compares the compiled result's own `projectId`,
+`executionId` and `sourceRevision` with the run it is given (today's comparison at
+`apps/hub/src/builder/application-build.ts:121-123`) and refuses a mismatch with
+`APPLICATION_ARTIFACT_INPUT_REFUSED`. Second, `retain` compares the sealed `projectId` and
+`sourceRevision` with `proof.scope.projectId` and the run's `result_source_revision` read in the
+settlement transaction (the verified source check of section 3) and refuses a mismatch with
+`BUILDER_RUN_TRANSITION_REFUSED`; it writes the columns from the proof and the run.
 
 **One pointer statement.** One private statement in `registry/` joins the Project's served pointer to
 its revision and resolves three states: no pointer, served, or broken. Every served read (manifest,
@@ -185,13 +192,13 @@ file (`apps/hub/src/mar/application-invoker.ts:154`).
 Not chosen: one whole server tree per runner call (Opus candidate). It changes MAR's failure codes and
 timing with no seen failure behind it, in a part whose design closed at #512.
 
-A module is a frozen object of its operations ([code](../../development/codebase-principles.md#1-source-files-and-modules)). A module reaches another only through that object ([architecture](../../reference/architecture.md#layers); `scripts/check-import-law.mjs:246-259` lets only the composition root import `registry/module.ts`). So `createRegistryModule` is the one door: the composition root hands the Builder `seal`, `retain` and `readLaunch`, Project `purge` and `readProjectThumbnail`, and MAR `readPreviewFile` and the served reads (replacing the pass throughs of `apps/hub/src/hub.ts:111-132`). No file outside `registry/` imports a `registry/` file, and the import law gets no new entry: each consumer declares the structural port type it needs, as `ProjectDeletionPorts` does (`apps/hub/src/project/deletion.ts:14-22`). The one module wired by `database` replaces the two stores `createApplicationArtifactStore` and `createServedApplicationReader` (`apps/hub/src/registry/module.ts:1-2`). Delete `RegistryQueryClient` (`apps/hub/src/registry/store.ts:1-3`), `application-artifact-store.ts`, `served-application.ts`, `UnboundBuilderApplicationArtifacts` and the optional methods of `BuilderApplicationArtifacts` (`apps/hub/src/builder/application-build.ts:50-78`). Delete the binding to `runtimePool` (`apps/hub/src/builder/module.ts:132-139`), the `service.getApplicationBySource` and `readApplicationFileBySource` pass throughs (`apps/hub/src/builder/service.ts:37-38`, `:206-207`), their re-export in the module's returned object (`apps/hub/src/builder/module.ts:338-339`) and the `MAR_REGISTRY_READER_UNAVAILABLE` throws (`apps/hub/src/hub.ts:112`, `:125`, `:129`). The Builder Preview route reads the source manifest through the reader it receives (`apps/hub/src/builder/routes.ts:81`).
+A module is a frozen object of its operations ([code](../../development/codebase-principles.md#1-source-files-and-modules)). A module reaches another only through that object ([architecture](../../reference/architecture.md#layers); `scripts/check-import-law.mjs:246-259` lets only the composition root import `registry/module.ts`). So `createRegistryModule` is the one door: the composition root hands the Builder `seal`, `retain` and `readLaunch`, Project `purge` and `readProjectThumbnail`, and MAR `readPreviewFile` and the served reads (replacing the pass throughs of `apps/hub/src/hub.ts:111-132`). No file outside `registry/` imports a `registry/` file, and the import law gets no new entry: each consumer declares the structural port type it needs, as `ProjectDeletionPorts` does (`apps/hub/src/project/deletion.ts:14-22`). The one module wired by `database` replaces the two stores `createApplicationArtifactStore` and `createServedApplicationReader` (`apps/hub/src/registry/module.ts:1-2`). Delete `RegistryQueryClient` (`apps/hub/src/registry/store.ts:1-3`), `application-artifact-store.ts`, `served-application.ts`, `UnboundBuilderApplicationArtifacts` and the optional methods of `BuilderApplicationArtifacts` (`apps/hub/src/builder/application-build.ts:50-78`). Delete the binding to `runtimePool` (`apps/hub/src/builder/module.ts:132-139`), the `service.getApplicationBySource` and `readApplicationFileBySource` pass throughs (`apps/hub/src/builder/service.ts:37-38`, `:206-207`), their re-export in the module's returned object (`apps/hub/src/builder/module.ts:338-339`) and the `MAR_REGISTRY_READER_UNAVAILABLE` throws (`apps/hub/src/hub.ts:112`, `:125`, `:129`). The Builder Preview route uses the `ServedLaunch` that `readLaunchSubject` returns and makes no source manifest read (`apps/hub/src/builder/routes.ts:79-83`).
 
 **Types.** Inputs are `AccountId`, `ProjectId`, `SourceRevision`, `ArtifactRevisionId`, `ArtifactDigest` (part 1, step 2) and a branded `ApplicationFilePath`. `ApplicationFilePath` is a new brand in `packages/contract/src/ids.ts`, built from today's path grammar (`apps/hub/src/registry/application-artifact-store.ts:11`). One sha256 schema replaces the copies (`apps/hub/src/registry/application-artifact-store.ts:9`, `apps/hub/src/registry/served-application.ts:49`, `:57`). Callers parse at their edge. No `safeParse` that turns a bad id into `null` stays inside a reader (`apps/hub/src/registry/served-application.ts:61-62`). `ServedFile` and `PinnedFile` are unions on `ok`, the success carrying `artifactRevisionId: ArtifactRevisionId`. The artifact digest keeps part 1's `ArtifactDigest`; a file's SHA-256 is a `Sha256` brand and its media type a `MediaType` brand in the contract.
 
 **Retention and settlement, one transaction.** Part 4 edits part 1's settlement after part 1 merges. Part 1 stays as built until then. The order in `settleAdmittedSource` (`apps/hub/src/builder/run/admit.ts:61-119`) becomes:
 
-1. `registry.seal({ compiledApplication, thumbnail })` runs before the runner, as retention does today (`apps/hub/src/builder/run/admit.ts:86-91`). An invalid payload still fails before the Preview database migrates. The payload carries no Project and no source; `retain` takes them from the proof and the run. So `prepareBuilderRunApplicationArtifact` and its `BUILDER_APPLICATION_REQUEST_REFUSED` and `BUILDER_APPLICATION_RESULT_SCOPE_REFUSED` checks go (`apps/hub/src/builder/application-build.ts:112-125`).
+1. `registry.seal({ compiledApplication, thumbnail: outcome.thumbnail ?? null }, { projectId, builderRunId, sourceRevision })` runs before the runner, with the run's coordinates from its admission, as retention does today (`apps/hub/src/builder/run/admit.ts:86-91`). An invalid payload still fails before the Preview database migrates. The payload carries no Project and no source; `seal` checks the compiled identity and `retain` writes the columns. So `prepareBuilderRunApplicationArtifact` and its two refusal codes go, its comparison moving into `seal` (`apps/hub/src/builder/application-build.ts:112-125`).
 2. `prepareApplicationServer` runs as today (`apps/hub/src/builder/run/admit.ts:91-92`).
 3. `settleBuilderRunBuild` with `kind: 'BUILT'` carries the `SealedApplication`, not `artifactRevisionId` and `artifactDigest` (`apps/hub/src/builder/run-lifecycle.ts:120-123`). The two `.parse` calls that brand them in the caller go with them (`apps/hub/src/builder/run/admit.ts:108-109`). In one `system('builder-executor')` transaction with one `admitRun` it runs: the verified source check, the working state lock, `retain` (revision, then the thumbnail when the sealed build has one), the working state update with the returned ids, and the run end. The matcher call and its `Matches` row go (`apps/hub/src/builder/run-lifecycle.ts:146`, `:240-243`).
 
