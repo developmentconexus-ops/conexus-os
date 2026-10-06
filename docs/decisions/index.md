@@ -185,7 +185,7 @@ vendor. The gap is reviewed before the first external customer.
   operation of a Connection for a Project.
 - The phrase of C-021 by which an enterprise connection reaches a Project "as authorized
   capabilities".
-- The Project Grant of [contract section 7](../product/contract.md#7-approved-destination) that
+- The Project Grant of the C-021 destination that
   selects operations.
 
 ## Decided on 2026-09-23
