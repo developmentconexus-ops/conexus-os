@@ -36,6 +36,14 @@ const lint = (path, text) => {
   return result.stdout + result.stderr
 }
 
+const lintReal = (path) => {
+  const result = spawnSync(resolve(root, 'node_modules/.bin/biome'), ['lint', '--colors=off', path], {
+    cwd: root,
+    encoding: 'utf8',
+  })
+  return result.stdout + result.stderr
+}
+
 test('openGate is importable by admission.ts only', () => {
   const probe = 'apps/hub/src/workspace/gate-import-probe.ts'
   const probeCode = "import { openGate } from '../platform/db.js'\n\nexport const opened = openGate\n"
@@ -43,6 +51,7 @@ test('openGate is importable by admission.ts only', () => {
 
   const admissionCode = "import { openGate } from '../platform/db.js'\n\nexport const opened = openGate\n"
   assert.ok(!lint('apps/hub/src/identity-access/admission.ts', admissionCode).includes(MESSAGE))
+  assert.ok(!lintReal('apps/hub/src/identity-access/admission.ts').includes(MESSAGE))
 })
 
 test('a pg import fires in every Hub source file except the database edge, and openGate beside it still fires', () => {
@@ -54,4 +63,5 @@ test('a pg import fires in every Hub source file except the database edge, and o
   assert.ok(lint('apps/hub/src/identity-access/pg-import-probe.ts', "import pg from 'pg'\n\nexport const used = pg\n").includes(PG))
   assert.ok(!lint('apps/hub/src/project/store.ts.probe.ts', "import { sql } from '../platform/db.js'\n\nexport const used = sql\n").includes(PG))
   assert.ok(lint('apps/hub/src/platform/db.ts', "import pg from 'pg'\n\nexport const used = pg\n").includes(PG) === false)
+  assert.ok(lintReal('apps/hub/src/platform/db.ts').includes(PG) === false)
 })
