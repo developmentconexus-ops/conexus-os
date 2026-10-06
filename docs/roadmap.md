@@ -192,7 +192,10 @@ and the sandbox tools, and widened S1; the operator approved that order.
 
 Beside the waves, each when its area is touched: one idempotent command and one transaction helper
 in the Hub, with a project started by one command; typed tests, after a design pass; and one
-migration baseline after S2.
+migration baseline after S2. After S1, two waves: the Hub base (the configuration as one schema,
+the composition root as a list of modules, model accounts and the Mastra instance in the core, one
+sign-in per model provider, and storage bounded per Project) and the Project lifecycle (the
+`archived` state that nothing produces leaves).
 
 A known defect waits for its own fix, found on 2026-10-04 while verifying S3: when the Builder
 cannot open its sandbox (E2B unreachable), the turn ends as `INTERNAL_UNEXPECTED`, and the person
