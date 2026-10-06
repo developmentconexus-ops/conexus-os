@@ -169,8 +169,10 @@ uses the words of [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119): **must** a
 defects in review, **should** and **should not** need a stated reason to break, and **may** is a
 free choice.
 
-`packages/brand/src/tokens.css` **must** define every token the front matter names, with the same
-value. The guide states the target. Code that departs from it is listed in
+`packages/brand/src/tokens.css` **must** define every color and radius the front matter names, with
+the same value. The front matter's type, spacing and component sizes are the values the stylesheets
+use. The format's `primary` is our `ink`, and the front matter does not repeat it under a second
+name. The guide states the target. Code that departs from it is listed in
 [architecture section 11](docs/reference/architecture.md#11-risks-and-technical-debt) with the wave
 that removes it. Owners next door: the [product guide](docs/product/contract.md) for what a screen
 means, [testing](docs/development/testing.md#8-screens) for how a screen is proved,

@@ -16,7 +16,7 @@ export const GUIDES = Object.freeze({
   H: { path: 'docs/product/wire-contract.md', kib: 12 },
   S: { path: 'docs/reference/security-and-authority.md', kib: 12 },
   P: { path: 'docs/product/contract.md', kib: 12 },
-  V: { path: 'DESIGN.md', kib: 16 },
+  V: { path: 'DESIGN.md', kib: 20 },
   T: { path: 'docs/development/testing.md', kib: 10 },
 })
 const GUIDE_PATHS = new Set(Object.values(GUIDES).map(guide => guide.path))
