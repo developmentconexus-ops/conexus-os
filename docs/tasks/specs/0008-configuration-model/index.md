@@ -1,6 +1,7 @@
 # 0008. The configuration model: one home per fact, a settings registry and a reconciler
 
 **Date**: 2026-10-01
+**Sources**: a document named by path is cited as it stood before the nine guides replaced it. Read it with `git show 58444763:<path>`.
 **Status**: Proposed
 **Changes**: the Proposed specs [0005](../0005-app-access-perfis/index.md),
 [0006](../0006-people-and-sign-in/index.md) and 0007 (telemetry, branch `docs/telemetry-spec`), as
@@ -294,7 +295,7 @@ Fresh install (slice 1)
 settings registry, one Postgres row per explicit value, one audited write path, and a reconciler per
 external enforcer, enforced going forward and proved first on the session limit.
 
-Leandro decided on 2026-10-01, and this spec records:
+The operator decided on 2026-10-01, and this spec records:
 1. Security settings (sign-in source, session lifetime, email sender, anything that can lock the
    company out) are changed only by the Conexus operator, through the operator tool, with a required
    reason. The company administrator will see them read-only on a later page.

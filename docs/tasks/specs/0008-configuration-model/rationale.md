@@ -2,7 +2,7 @@
 
 ## Context
 
-On 2026-10-01 Leandro decided that a login lasts at most 1 hour for everyone (the leaver decision Q2
+On 2026-10-01 the operator decided that a login lasts at most 1 hour for everyone (the leaver decision Q2
 of the user lifecycle study). Applying that one number showed how Conexus keeps configuration
 today. The session length lives in three places that nobody keeps in step: Keycloak's realm (10 hour
 max, 40 minute idle), the Hub's SQL (8 hours and 30 minutes as literals in the functions and in table
