@@ -190,8 +190,9 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
       await page.goto(`${origin}/no-access?reason=${reason}`)
       await page.getByRole('heading', { name: title }).waitFor()
       await page.getByText(text, { exact: true }).waitFor()
-      assert.equal(await page.getByRole('link', { name: 'Entrar com outra conta' }).getAttribute('href'), '/protocol/oidc/login')
+      assert.equal(await page.getByRole('link', { name: 'Entrar com outra conta' }).count(), 0, reason)
       assert.equal(await page.getByRole('link', { name: 'Entrar de novo' }).count(), offersRetry ? 1 : 0, reason)
+      if (offersRetry) assert.equal(await page.getByRole('link', { name: 'Entrar de novo' }).getAttribute('href'), '/protocol/oidc/login')
       await shoot(page, `02-no-access-${reason.toLowerCase()}`)
     }
     for (const search of ['?reason=NOPE', '']) {

@@ -47,7 +47,6 @@ export function NoAccess({ reason }: Readonly<{ reason: HubNoAccessReason }>) {
   return <EntryFrame title={NO_ACCESS_TITLE[reason]}>
     <p>{failureText(new HubFailure(reason, null))}</p>
     {FAILURES[reason].action === 'SIGN_IN_AGAIN' && <Button as="a" href={SIGN_IN_URL} variant="primary" size="lg">Entrar de novo</Button>}
-    <Button as="a" href={SIGN_IN_URL} variant="outline" size="lg">Entrar com outra conta</Button>
   </EntryFrame>
 }
 
