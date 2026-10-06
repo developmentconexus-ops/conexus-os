@@ -67,7 +67,7 @@ async function mockHub(page, hub) {
     const p = url.pathname
     if (p === '/api/session' && method === 'GET') {
       if (hub.accessStatus !== 200) return route.fulfill({ status: hub.accessStatus, contentType: 'application/problem+json', body: JSON.stringify({ type: 'urn:conexus:problem:AUTHENTICATION_REQUIRED', title: 'AUTHENTICATION_REQUIRED', status: hub.accessStatus, code: 'AUTHENTICATION_REQUIRED' }) })
-      return json(route, 200, { account: { accountId: ids.account, displayName: 'Marina Alves' }, administrator: false, workspaces: hub.workspaces })
+      return json(route, 200, { account: { accountId: ids.account, displayName: 'Marina Alves', email: 'marina@empresa.com.br' }, administrator: false, workspaces: hub.workspaces })
     }
     if (p === '/api/session' && method === 'DELETE') return route.fulfill({ status: 204 })
     if (p === '/api/control/model-accounts/models' && hub.modelsStatus !== 200) return json(route, hub.modelsStatus, { type: 'unavailable' })
@@ -292,6 +292,7 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
     await page.keyboard.press('Escape')
     await page.getByRole('button', { name: 'Conta de Marina Alves' }).click()
     await page.getByRole('menuitem', { name: 'Sair do Conexus' }).waitFor()
+    await page.getByText('marina@empresa.com.br').waitFor()
     await shoot(page, '08-account-menu')
     await page.keyboard.press('Escape')
 

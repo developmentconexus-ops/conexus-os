@@ -1,3 +1,4 @@
+import type { SessionAccount } from '@conexus/contract'
 import { Button } from '@mastra/playground-ui/components/Button'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
@@ -5,7 +6,7 @@ import { PageHeader } from './page-header'
 import { SectionEmpty, StatusLine } from './states'
 
 export function AccountScreen({ account, workspaces }: Readonly<{
-  account: Readonly<{ accountId: string; displayName: string }>
+  account: SessionAccount
   workspaces: readonly Readonly<{ workspaceId: string; name: string }>[]
 }>) {
   const [copied, setCopied] = useState(false)
@@ -23,6 +24,7 @@ export function AccountScreen({ account, workspaces }: Readonly<{
       <h2 id="cxs-account-title" className="cxs-sr-only">Dados da conta</h2>
       <dl className="cxs-definition-list">
         <div><dt>Nome</dt><dd>{account.displayName}</dd></div>
+        {account.email && <div><dt>E-mail</dt><dd>{account.email}</dd></div>}
       </dl>
       <details className="cxs-disclosure">
         <summary>Identificador da conta</summary>

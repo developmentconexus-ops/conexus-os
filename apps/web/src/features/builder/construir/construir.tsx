@@ -9,6 +9,7 @@ import { PanelSeparator } from '@mastra/playground-ui/resize/separator'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppWindow, MessageSquare, SquarePen } from 'lucide-react'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useAttemptKey } from '../../../app/attempt-key'
 import { Panel, useDefaultLayout } from 'react-resizable-panels'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { type BuilderRun, cancelBuilderRun, compareProjectSource, sendBuilderMessage } from '../api'
@@ -168,13 +169,13 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
 
   // A send whose outcome is unknown keeps its key, so an identical retry lands on the run the first
   // attempt may have created; a clean refusal took no effect and its key is dropped.
-  const retainedKey = useRef<Readonly<{ key: string; content: string }> | null>(null)
+  const messageKey = useAttemptKey()
   // The message of the last send that failed, shown unsent until the person sends again.
   const unsent = useRef<string | null>(null)
   const send = useMutation({
     mutationFn: ({ content, key }: Readonly<{ content: string; key: string }>) => sendBuilderMessage(projectId, conversationId, content, key),
     onSuccess: async (accepted, { key }) => {
-      retainedKey.current = null
+      messageKey.settled()
       unsent.current = null
       setSendError(null)
       setLocalSend({ runId: accepted.builderRun.builderRunId, localId: localMessageId(key) })
@@ -187,14 +188,13 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
       unsent.current = localMessageId(key)
       // The words go back to the composer, so sending again is one click.
       setDraft((current) => current === '' ? content : current)
-      if (!unknown) retainedKey.current = null
+      if (!unknown) messageKey.settled()
       setSendError(failureText(error))
     },
   })
   // The message joins the thread the moment it is sent; the thread confirms it once the Hub has it.
   const sendMessage = (content: string): void => {
-    const key = retainedKey.current?.content === content ? retainedKey.current.key : crypto.randomUUID()
-    retainedKey.current = { key, content }
+    const key = messageKey.keyFor(content)
     if (unsent.current && unsent.current !== localMessageId(key)) dispatch({ type: 'dropLocalUser', id: unsent.current })
     unsent.current = null
     dispatch({ type: 'localUser', id: localMessageId(key), text: content })

@@ -199,7 +199,7 @@ function AccountMenu({ context }: Readonly<{ context: Session }>) {
       signOutInFlight.current = false
     },
   })
-  const { displayName } = context.account
+  const { displayName, email } = context.account
   return <div className="cx-account">
     <DropdownMenu>
       <DropdownMenu.Trigger className="cx-account-trigger" aria-label={`Conta de ${displayName}`}>
@@ -208,6 +208,7 @@ function AccountMenu({ context }: Readonly<{ context: Session }>) {
       <DropdownMenu.Content align="end" className="cx-menu cx-account-menu">
         <div className="cx-account-who">
           <strong>{displayName}</strong>
+          {email && <span>{email}</span>}
         </div>
         <DropdownMenu.Separator />
         <DropdownMenu.Item onClick={() => void navigate({ to: '/settings/account' })}>Configurações</DropdownMenu.Item>
