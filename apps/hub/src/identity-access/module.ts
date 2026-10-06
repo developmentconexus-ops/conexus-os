@@ -13,7 +13,7 @@ import { iamReaperJob } from './expiry.js'
 import { createOidcAdapter } from './oidc.js'
 import { registerRosterRoutes } from './roster.js'
 import { createSessions } from './sessions.js'
-import type { WorkspaceReader } from './sessions.js'
+import type { WorkspaceReader } from './hub-session.js'
 import { createSignIn } from './sign-in.js'
 
 export const createIdentityAccessModule = async ({

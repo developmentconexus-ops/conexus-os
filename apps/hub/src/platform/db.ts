@@ -150,6 +150,8 @@ type DatabaseFailureRule = Readonly<{ sqlstate: string; constraint: string | nul
 export const DATABASE_FAILURES: readonly DatabaseFailureRule[] = Object.freeze([
   { sqlstate: '23503', constraint: 'workspace_membership_workspace_id_fkey', failure: 'WORKSPACE_NOT_FOUND' },
   { sqlstate: '23503', constraint: 'connection_workspace_id_fkey', failure: 'CONNECTOR_WORKSPACE_NOT_FOUND' },
+  // A Preview launch whose Hub session was signed out after the request resolved it.
+  { sqlstate: '23503', constraint: 'handoff_parent_pair_fkey', failure: 'AUTHENTICATION_REQUIRED' },
   // lock_timeout and statement_timeout on hub_runtime: one named 503 for a wait or a statement that ran out of time.
   { sqlstate: '55P03', constraint: null, failure: 'DATABASE_BUSY' },
   { sqlstate: '57014', constraint: null, failure: 'DATABASE_BUSY' },

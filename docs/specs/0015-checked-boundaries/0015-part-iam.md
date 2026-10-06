@@ -194,8 +194,12 @@ Step 1 is newer than the spike's 16 of 16: `spike/12-migration.sql` with the see
 | `admission.ts` (floor, edited) | gains `application.manage`, the body of `admitBootstrap` and `receiptOf`; `admitApplication` and `checkApplication` accept an authentication gate with a bound account; gains `checkProject(gate, projectId)` for the Preview request, the same shape as `checkApplication` over the Project's Workspace membership (decision 13) |
 | `authentication.ts` | the only other file that opens a gate: the six named credential lookups, the identity steps, and the claim's two `DELETE ... RETURNING` statements; no flow |
 | `oidc.ts` (kept, edited) | the Keycloak adapter; claims parsed at the boundary into `SignInClaims` with a `ClaimedEmail`; scope `openid email profile` |
-| `sign-in.ts` | the two protocol routes and the callback's one decision, `SignInOutcome`; `NO_ACCESS` and `locationOf` |
-| `sessions.ts` | the three session kinds and the two handoffs: open, resolve, slide, recheck, end, redeem; `standingOf`, `mayEnterHub`; `getSession` and `endSession`; `withApplicationRequest` |
+| `sign-in.ts` | the begin route, the callback route and the callback's one decision, each its own function; `SignInOutcome`, `NO_ACCESS` and `locationOf` |
+| `session-core.ts` | what every session kind shares: `standingOf`, the Keycloak recheck, ending a session once, and `settle`, the entry that runs again after a recheck |
+| `hub-session.ts` | the Hub session: resolve, slide, open, sign out; `mayEnterHub`; `getSession` and `endSession` |
+| `application-session.ts` | the application session and its handoff: `withApplicationRequest`, redeem, sign out, mint |
+| `preview-session.ts` | the Preview session and its handoff: open, redeem, `withPreviewRequest` |
+| `sessions.ts` | `createSessions`, the three kinds over one core |
 | `roster.ts` | the five roster operations, `lastOwnerStays`, `invitationState`, and `joinClaimed(proof, claim)`, which inserts the memberships a claim returned |
 | `application-access.ts` | the four application access operations, `slugFor`, `grantClaimed(proof, claim)`, the presence lock and the Project purge port |
 | `administrators.ts` | the three administrator operations, `lastAdministratorStays`, and `grantFirstTenure(proof)`, which the callback calls with the bootstrap proof |

@@ -106,15 +106,7 @@
         "apps/**",
         "!apps/hub/src/platform/db.ts",
         "!apps/hub/src/app-runner/worker.ts",
-        "!apps/hub/src/app-runner/supervisor.ts",
-        "!apps/hub/src/builder/store.ts",
-        "!apps/hub/src/connectors/store.ts",
-        "!apps/hub/src/identity-access/application-access.ts",
-        "!apps/hub/src/identity-access/host-sessions.ts",
-        "!apps/hub/src/identity-access/installation-administration.ts",
-        "!apps/hub/src/identity-access/store.ts",
-        "!apps/hub/src/project/deletion.ts",
-        "!apps/hub/src/project/store.ts"
+        "!apps/hub/src/app-runner/supervisor.ts"
       ],
       "linter": {
         "rules": {
@@ -206,15 +198,7 @@
         "!apps/hub/src/identity-access/authentication.ts",
         "!apps/hub/src/platform/db.ts",
         "!apps/hub/src/app-runner/worker.ts",
-        "!apps/hub/src/app-runner/supervisor.ts",
-        "!apps/hub/src/builder/store.ts",
-        "!apps/hub/src/connectors/store.ts",
-        "!apps/hub/src/identity-access/application-access.ts",
-        "!apps/hub/src/identity-access/host-sessions.ts",
-        "!apps/hub/src/identity-access/installation-administration.ts",
-        "!apps/hub/src/identity-access/store.ts",
-        "!apps/hub/src/project/deletion.ts",
-        "!apps/hub/src/project/store.ts"
+        "!apps/hub/src/app-runner/supervisor.ts"
       ],
       "linter": {
         "rules": {

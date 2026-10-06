@@ -408,7 +408,6 @@ export const LOG_CODES: ReadonlySet<string> = new Set([
   "PROVIDER_USER_DISABLED",
   "QUESTION_ENDED",
   "REACT_VITE_V2",
-  "RECHECK_REPEATED",
   "RED_APP",
   "RED_PLATFORM",
   "REFRESH_TOKEN_MISSING",

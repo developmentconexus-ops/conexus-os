@@ -374,3 +374,10 @@ for (const order of ['racer first', 'purge first']) {
     }
   })
 }
+
+test('a Preview launch whose Hub session was signed out after the request resolved it answers AUTHENTICATION_REQUIRED, not a 500', async (t) => {
+  const { hub, launch } = await estate(t, 'conexus_iam_preview_launch_signed_out')
+  const token = await hub.openHubSession(MEMBER)
+  await hub.sql('DELETE FROM iam.host_session WHERE token_digest = $1', [digestOf(token)])
+  await assert.rejects(launch(MEMBER, token), { id: 'AUTHENTICATION_REQUIRED' })
+})
