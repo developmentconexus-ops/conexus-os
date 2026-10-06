@@ -32,7 +32,7 @@ Launch starts a throwaway CA, PostgreSQL 17 with the migrations and the two prov
 
 ## Drive
 
-Start every drive with `node $C sign-in`. It submits Keycloak's form for the run's person, or returns at once while Keycloak still holds a session. Signing out from the account menu ends that session, so the next `sign-in` shows the form again. On the first sign-in it also creates the account at `/setup`. Then use these commands:
+Start every drive with `node $C sign-in`. It submits Keycloak's form for the run's person, or returns at once while Keycloak still holds a session. Signing out from the account menu ends that session, so the next `sign-in` shows the form again. On the first sign-in the callback also creates the account. Then use these commands:
 
 | Command | Does |
 | --- | --- |

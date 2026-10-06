@@ -30,7 +30,7 @@ Each feature file starts with an H1 and one paragraph on the user-visible behavi
 
 ## Features
 
-- [Sign-in and first account](./sign-in.md) covers Keycloak sign-in, the first account at `/setup`, the entry redirect and sign-out.
+- [Sign-in and first account](./sign-in.md) covers Keycloak sign-in, the first account created in the sign-in callback, the entry redirect and sign-out.
 - [Workspaces and Projects](./projects.md) covers creating a Workspace, starting a Project from the composer or the form, the Projects list, and the Workspace's people.
 - [Construir](./construir.md) covers the conversation screen: send a message, the turn's outcome, reasoning, question and plan cards, and the model and reasoning picker.
 - [Settings and model accounts](./settings-models.md) covers Settings: `Minha conta`, `Administradores`, and connecting Google AI Pro through the fake proxy.

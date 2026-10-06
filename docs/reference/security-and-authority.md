@@ -46,10 +46,9 @@ ASVS V8.
   and its current state.
 - Authority **must not** be inferred from a Keycloak role, group or claim, or from a provider,
   model, Mastra or E2B identity.
-- A principal **must** be one of four classes. `HUMAN_ACCOUNT_SESSION` is an authenticated human
-  mapped to one Account and one opaque Conexus session. `TRUSTED_BOOTSTRAP_CONTEXT` is the transient
-  pre-Account context for the one server-preconfigured OIDC subject; it may self-provision only that
-  Account through `provisionAccount` and is invalid afterwards. `SYSTEM_OWNER_TRANSITION` is an
+- A principal **must** be one of three classes. `HUMAN_ACCOUNT_SESSION` is an authenticated human
+  mapped to one Account and one opaque Conexus session; the first Account of the configured subject
+  is created in its sign-in callback. `SYSTEM_OWNER_TRANSITION` is an
   owner-internal transition after an admitted command, with no public operation and no Permission.
   `APPLICATION_SESSION` is a human Account acting in exactly one application on that application's
   own host, and it reaches no Product operation. A Keycloak role, group or organization, a Mastra
@@ -82,8 +81,8 @@ ASVS V6.8 and V10.
 - `email_verified` **must** be accepted only as the boolean `true`. A verified `(issuer, subject)`
   resolves one Account. Email is never identity.
 - A claim **must** be parsed at the boundary. A malformed claim fails closed and logs no value.
-- The bootstrap identity **must** provision only the preconfigured subject, once, and reach no
-  ordinary route.
+- The sign-in callback **must** create the first Account only for the configured subject, only
+  when no Account exists.
 - A change to the realm **must** state its effect on every client.
 
 **Why.** Keycloak proves who the person is. Everything Conexus grants comes from its own records,
@@ -98,7 +97,7 @@ so a change in Keycloak never grants a right by itself.
 ASVS V7.
 
 - Every session **must** be one row of `iam.host_session`, one per cookie, of kind `HUB`,
-  `APPLICATION` or `PREVIEW`. Lifetimes live in `iam.session_lifetimes()` and
+  `APPLICATION` or `PREVIEW`. Lifetimes live in
   `platform/lifetimes.ts`.
 - The Hub cookie **must** be `__Host-conexus_session`, `Secure`, `HttpOnly`, `SameSite=Lax`, path
   `/`, with no domain.

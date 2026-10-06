@@ -418,7 +418,7 @@ const browserCommand = async ([action, ...args]) => {
   if (!['pages', 'close-page'].includes(action)) console.log(page.url())
 }
 
-// The repeated first stretch of every drive: Keycloak's form, then /setup on the first sign-in.
+// The repeated first stretch of every drive: Keycloak's form, which also creates the first account on the first sign-in.
 export const signIn = async (page, state) => {
   logAction(state, 'sign-in')
   await page.goto(new URL('/protocol/oidc/login', state.origin).href)
@@ -432,15 +432,6 @@ export const signIn = async (page, state) => {
     await page.waitForURL((url) => url.origin === state.origin, { timeout: 30_000 })
   }
   await page.waitForLoadState('networkidle')
-  if (new URL(page.url()).pathname === '/setup') {
-    await page.getByLabel('Seu nome').fill(`${PERSON.firstName} ${PERSON.lastName}`)
-    await page.getByRole('button', { name: 'Criar minha conta' }).click()
-    await page.getByRole('heading', { name: 'Conta criada' }).waitFor({ timeout: 30_000 })
-    await page.screenshot({ path: evidence(state, 'screens', 'sign-in-account-created.png') })
-    await page.getByRole('link', { name: 'Entrar' }).click()
-    await page.waitForURL((url) => url.origin === state.origin && url.pathname !== '/setup', { timeout: 30_000 })
-    await page.waitForLoadState('networkidle')
-  }
   await page.screenshot({ path: evidence(state, 'screens', 'sign-in-landed.png') })
 }
 
