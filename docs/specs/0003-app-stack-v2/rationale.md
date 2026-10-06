@@ -101,7 +101,7 @@ the manifest; `conexus_check` in Construir only; AC-27 eval after slice 6; dev s
 - Spec 0002 (AC-1, AC-6, AC-10, AC-14, AC-27, Tool contract).
 - `docs/decisions/index.md`: C-020 amendment, C-028.
 - Hub web `package.json` and `apps/web/src/app/router.tsx` (versions and code routes).
-- `apps/hub/src/hosting/preview-routes.ts` (the Prévia CSP), `apps/hub/src/builder/application-starter.ts`,
+- `apps/hub/src/mar/preview-routes.ts` (the Prévia CSP), `apps/hub/src/builder/application-starter.ts`,
   `application-artifact-runtime.ts`, `run-runtime.ts`, `migrations/0014_agent_user_template.sql`.
 - Studies 14, 15 and 17.
 

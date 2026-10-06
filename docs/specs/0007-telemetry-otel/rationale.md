@@ -19,7 +19,7 @@ The telemetry study of the same day mapped what exists at `f01f2d72`:
 - The app path (application host, invoker, runner, worker, handler, app database) has no trace and
   no structured log. The Fastify logger is off (`http/app.ts:34`), the error handler converts
   errors to problem+json without recording them (`http/app.ts:44`), and the application host's
-  `catch {}` (`hosting/application-host-routes.ts:164`) drops the cause and answers 503.
+  `catch {}` (`mar/application-host-routes.ts:164`) drops the cause and answers 503.
 - No browser error is reported, from the Hub web or from a generated app.
 - No `@opentelemetry/*` package is a dependency.
 
@@ -178,7 +178,7 @@ Probes run on 2026-10-01 in a scratch directory outside the repository, with `@m
   F22, `hub-oom/diagnosis.md`).
 - `docs/decisions/index.md`: C-029 (the connector record), C-033.
 - `docs/roadmap.md` *Technology baseline*; `docs/development/delivery.md` *Technology rule*.
-- `apps/hub/src/http/app.ts`, `apps/hub/src/hosting/{application-host-routes,application-invoker,preview-routes}.ts`,
+- `apps/hub/src/http/app.ts`, `apps/hub/src/mar/{application-host-routes,application-invoker,preview-routes}.ts`,
   `apps/hub/src/app-runner/{http,module,supervisor,sandbox,worker,main}.ts`,
   `apps/hub/src/connectors/{record,broker,handler-port,module}.ts`,
   `apps/hub/src/builder/{module,service,run-runtime,mastra-session-routes}.ts`,

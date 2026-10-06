@@ -118,7 +118,7 @@ everyone while the administrator catches up.
   `IAM-11` to `IAM-13`.
 - `apps/hub/src/app-runner/{supervisor,data-plane,pg-relay,worker,requests,server-manifest}.ts`,
   `apps/hub/src/platform/caller.ts`, `apps/hub/src/identity-access/host-sessions.ts`,
-  `apps/hub/src/hosting/application-host-routes.ts`, `apps/hub/src/builder/application-check.ts`,
+  `apps/hub/src/mar/application-host-routes.ts`, `apps/hub/src/builder/application-check.ts`,
   `apps/hub/compiler-template/generate-client.mjs`, migrations 0022 to 0030 and 0042,
   `scripts/provision-application-database.mjs`, `builder-skills/conexus-server/SKILL.md`.
 

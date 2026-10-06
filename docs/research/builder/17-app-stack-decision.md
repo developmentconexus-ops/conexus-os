@@ -57,7 +57,7 @@ Marks: **[measured]** means I ran it in the probe. **[read]** means I read it in
 - App platform: `WT/apps/hub/compiler-template/*`, `WT/scripts/builder-e2b-template.mjs`,
   `WT/apps/hub/src/builder/{application-starter,application-artifact-runtime,run-runtime}.ts`,
   `WT/apps/hub/src/registry/application-artifact-store.ts`, `WT/apps/hub/migrations/0014_agent_user_template.sql`,
-  `WT/apps/hub/src/hosting/preview-routes.ts`, `WT/builder-skills/conexus-server/SKILL.md`,
+  `WT/apps/hub/src/mar/preview-routes.ts`, `WT/builder-skills/conexus-server/SKILL.md`,
   `WT/apps/hub/src/builder/harness/{modes,tools,controller}.ts`,
   `WT/apps/web/src/features/builder/construir/tool-sentences.ts`.
 - Mastra: `createTool` execution context (`WT/node_modules/@mastra/core/dist/docs/references/reference-tools-create-tool.md:36-88`;

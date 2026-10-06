@@ -131,7 +131,7 @@ Logs
   message and stack, records the exception on the active span and sets its status to `ERROR`. A 4xx
   is not logged. The answer body is unchanged. The stdout record holds the message; the export
   holds what *Redaction* lets through. [`hub-http-errors`]
-- **AC-15**: The `catch` at `hosting/application-host-routes.ts:164` logs the cause (type, message,
+- **AC-15**: The `catch` at `mar/application-host-routes.ts:164` logs the cause (type, message,
   `conexus.project_id`, `conexus.operation`) and records it on the span, then answers 503
   `APPLICATION_RUNNER_UNAVAILABLE` as today. The message stays on stdout, as in AC-14.
   [`application-host`]
@@ -239,7 +239,7 @@ Reasoning and options: see [rationale.md](rationale.md).
 | HTTP server spans | `@fastify/otel` and `instrumentation-http` | Hub (three Fastify apps), runner |
 | HTTP client spans (Hub to runner, model providers, E2B, Keycloak) | `instrumentation-http`, `instrumentation-undici` | Hub |
 | Hub Postgres spans | `instrumentation-pg` | Hub, runner (provisioner and relay pools) |
-| `conexus.app.invoke`, `conexus.app.handler`, `db.query` | our code (`hosting/application-invoker.ts`, `app-runner/supervisor.ts`) | Hub, runner |
+| `conexus.app.invoke`, `conexus.app.handler`, `db.query` | our code (`mar/application-invoker.ts`, `app-runner/supervisor.ts`) | Hub, runner |
 | Builder agent, model, tool, processor spans | Mastra through `OtelBridge` | Hub |
 | `connector.*` spans | Mastra through `OtelBridge` (`connectors/broker.ts:300,317,334`) | Hub |
 | Logs | pino through `instrumentation-pino` | Hub, runner |
@@ -312,7 +312,7 @@ its `tee`.
 
 ```
 browser ── POST /__conexus/api/listDeals ──▶ Hub application host (Fastify server span)
-  └ conexus.app.invoke             hosting/application-invoker.ts: admission wait, port open, runner call
+  └ conexus.app.invoke             mar/application-invoker.ts: admission wait, port open, runner call
      └ POST /v1/invoke (client)    app-runner/module.ts:30, traceparent header on the unix socket
         └ POST /v1/invoke (server) runner Fastify, traceparent extracted
            └ conexus.app.handler   supervisor.ts:273, sandbox run; job.traceparent = this span
@@ -446,7 +446,7 @@ has no log table, and Mastra's internal logs are out of scope here.
 | `conexus.builder.runs.active` | observable gauge | `builderActive.size` (`builder/service.ts:87`) |
 | `conexus.builder.streams.open` | up-down counter | the projected stream (`builder/mastra-session-routes.ts:82-92`): +1 on start, -1 on cancel or close |
 | `conexus.db.pool.connections` (`conexus.pool`, `state`: `total`, `idle`, `waiting`) | observable gauge | every pool made by `platform/postgres.ts:33`, registered by name |
-| `conexus.app.invocations.in_flight`, `conexus.app.invocations.queued` | observable gauges | the two gates of `hosting/application-invoker.ts:122,128` |
+| `conexus.app.invocations.in_flight`, `conexus.app.invocations.queued` | observable gauges | the two gates of `mar/application-invoker.ts:122,128` |
 | `conexus.runner.sandboxes.running` | observable gauge | the `running` count checked at `app-runner/supervisor.ts:266` |
 | `conexus.telemetry.attributes_dropped` (`key`) | counter | `redactAttributes` |
 | `conexus.settings.drifted` | observable gauge | Hub only; `settings.drift_count(p_now)` (0008 AC-30) |

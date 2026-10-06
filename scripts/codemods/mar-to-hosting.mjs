@@ -51,7 +51,16 @@ const marIdentifierWhitelistedFiles = new Set([
 
 let changed = 0
 
-for (const file of tracked('packages', 'apps', 'scripts', 'tests', 'contracts', 'docs')) {
+for (const file of tracked(
+  'packages',
+  'apps',
+  'scripts',
+  'tests',
+  'contracts',
+  'docs/specs/0015-checked-boundaries',
+  'docs/reference',
+  'docs/development',
+)) {
   if (skipped.test(file) || !extensions.test(file)) continue
   const fullPath = join(root, file)
   if (!existsSync(fullPath)) continue
