@@ -2,7 +2,9 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import { useQuery } from '@tanstack/react-query'
 import { createRoute, Link } from '@tanstack/react-router'
+import { ProjectId } from '@conexus/contract'
 import { AccessGate } from '../app/access-gate'
+import { routeParam } from '../app/route-params'
 import { Shell } from '../app/shell'
 import { ApplicationAccess } from '../features/identity-access/components/application-access'
 import { projectQuery } from '../features/project/api'
@@ -18,7 +20,7 @@ export const projectSettingsAccessRoute = createRoute({
 })
 
 function ProjectSettingsAccessRoute() {
-  const { projectId } = projectSettingsAccessRoute.useParams()
+  const projectId = routeParam(ProjectId, projectSettingsAccessRoute.useParams().projectId)
   const project = useQuery(projectQuery(projectId))
   return <AccessGate>{(context) => {
     const workspace = project.data && context.workspaces.find((candidate) => candidate.workspaceId === project.data.workspaceId)

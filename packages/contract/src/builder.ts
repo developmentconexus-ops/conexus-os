@@ -152,7 +152,7 @@ export const sendBuilderMessage = operation({
   body: z.object({ content: z.string().min(1).max(20_000).regex(/\S/), conversationId: ConversationId }).strict(),
   success: { 201: BuilderMessageAccepted, 200: BuilderMessageAccepted },
   effects: [],
-  failures: ['IDEMPOTENCY_CONFLICT', 'CONVERSATION_NOT_FOUND', 'BUILDER_CAPACITY_FULL', 'PROJECT_BUILD_DENIED', 'ACCOUNT_INACTIVE', 'BUILDER_MESSAGE_REFUSED',
+  failures: ['BUILDER_CAPACITY_FULL', 'PROJECT_BUILD_DENIED', 'ACCOUNT_INACTIVE',
     'BUILDER_RUN_CREATE_FAILED', 'BUILDER_BUSY', 'PROJECT_BUSY', 'BUILDER_SOURCE_UNAVAILABLE'],
   malformed: { projectId: 'PROJECT_NOT_FOUND', content: 'BUILDER_MESSAGE_REFUSED', conversationId: 'CONVERSATION_NOT_FOUND' },
 })
@@ -161,7 +161,7 @@ export const cancelBuilderRun = operation({
   id: 'cancelBuilderRun', summary: 'Cancel a Builder run; repeating the request changes nothing.', access: 'session', method: 'POST', path: '/api/control/projects/:projectId/builder-session/runs/:builderRunId/cancel',
   params: runParams, query: null, headers: null, body: noBody,
   success: { 200: BuilderMessageAccepted },
-  effects: [], failures: ['BUILDER_RUN_NOT_FOUND', 'PROJECT_BUILD_DENIED', 'ACCOUNT_INACTIVE'],
+  effects: [], failures: ['PROJECT_BUILD_DENIED', 'ACCOUNT_INACTIVE'],
   malformed: { projectId: 'PROJECT_NOT_FOUND', builderRunId: 'BUILDER_RUN_NOT_FOUND' },
 })
 
@@ -169,7 +169,7 @@ export const getBuilderRunTrace = operation({
   id: 'getBuilderRunTrace', summary: 'Read the safe trace projection of one Builder run.', access: 'session', method: 'GET', path: '/api/control/projects/:projectId/builder-session/runs/:builderRunId/trace',
   params: runParams, query: null, headers: null, body: null,
   success: { 200: BuilderTraceSummary },
-  effects: [], failures: ['BUILDER_RUN_NOT_FOUND', 'BUILDER_TRACE_UNAVAILABLE', 'PROJECT_BUILD_DENIED'],
+  effects: [], failures: ['BUILDER_TRACE_UNAVAILABLE', 'PROJECT_BUILD_DENIED'],
   malformed: { projectId: 'PROJECT_NOT_FOUND', builderRunId: 'BUILDER_RUN_NOT_FOUND' },
 })
 

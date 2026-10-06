@@ -29,7 +29,7 @@ function GrantForm({ onGranted }: Readonly<{ onGranted: () => void }>) {
   const grant = useMutation({
     mutationFn: (parsed: EmailAddress) => addAdministrator(parsed, key.keyFor(parsed)),
     onSuccess: () => { key.settled(); setEmail(''); setMessage(null); onGranted() },
-    onError: (error) => setMessage(failureText(error)),
+    onError: (error) => { key.failed(error); setMessage(failureText(error)) },
   })
   const submit = (event: FormEvent) => {
     event.preventDefault()

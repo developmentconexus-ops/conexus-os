@@ -14,5 +14,5 @@ export const createWorkspace = operation({
     headers: z.looseObject({ 'idempotency-key': IdempotencyKey }),
     body: z.object({ name: WorkspaceName }).strict(),
     success: { 201: WorkspaceCreated },
-    effects: [], failures: ['IDEMPOTENCY_CONFLICT', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'], malformed: null,
+    effects: [], failures: ['ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'], malformed: null,
 });

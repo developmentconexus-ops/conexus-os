@@ -10,7 +10,7 @@ import type { UseMutationResult } from '@tanstack/react-query'
 import { Link2 } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useId, useState } from 'react'
-import type { ApplicationInvitationEntry, EmailAddress } from '@conexus/contract'
+import type { ApplicationAccess as ApplicationAccessBody, ApplicationGrantEntry, ApplicationInvitationEntry, EmailAddress, ProjectId } from '@conexus/contract'
 import { parseEmail } from '../api'
 import {
   applicationAccessQuery,
@@ -18,7 +18,6 @@ import {
   isApplicationAccessForbidden,
   removeApplicationAccessEntry,
 } from '../application-access-api'
-import type { GrantEntry, InvitationEntry } from '../application-access-api'
 import '../people.css'
 import { INVITATION_STATE } from '../invitation-state'
 import { useAttemptKey } from '../../../app/attempt-key'
@@ -40,9 +39,9 @@ async function copyAddress(address: string) {
 
 type Grant = UseMutationResult<ApplicationInvitationEntry, Error, EmailAddress>
 
-type Pending = Readonly<{ kind: 'grant'; entry: GrantEntry } | { kind: 'invitation'; entry: InvitationEntry }>
+type Pending = Readonly<{ kind: 'grant'; entry: ApplicationGrantEntry } | { kind: 'invitation'; entry: ApplicationInvitationEntry }>
 
-export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>) {
+export function ApplicationAccess({ projectId }: Readonly<{ projectId: ProjectId }>) {
   const queryClient = useQueryClient()
   const [message, setMessage] = useState('')
   const [pending, setPending] = useState<Pending | null>(null)
@@ -54,15 +53,16 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
   const fail = (error: unknown) => setMessage(failureText(error))
 
   const revoke = useMutation({
-    mutationFn: (entry: GrantEntry | InvitationEntry) => removeApplicationAccessEntry(projectId, entry),
+    mutationFn: (entry: ApplicationAccessBody['entries'][number]) => removeApplicationAccessEntry(projectId, entry),
     onSuccess: async () => { setMessage(''); setPending(null); await refresh() },
     onError: fail,
   })
 
   // The one grant call: the form and the row of an expired invitation both use it.
   const grant = useMutation({
-    mutationFn: (email: EmailAddress) => grantApplicationAccess(projectId, email, grantKey.keyFor(email)),
+    mutationFn: (email: EmailAddress) => grantApplicationAccess(projectId, email, grantKey.keyFor(`${projectId}:${email}`)),
     onSuccess: async (invitation) => { grantKey.settled(); await refresh(); setOutcome(`Convite criado para ${invitation.email}.`) },
+    onError: (error) => grantKey.failed(error),
   })
 
   if (access.isPending) {
@@ -80,8 +80,8 @@ export function ApplicationAccess({ projectId }: Readonly<{ projectId: string }>
     return <FailureState title="Não foi possível carregar o acesso" error={access.error} onRetry={() => void access.refetch()} />
   }
 
-  const grants = access.data.entries.filter((entry): entry is GrantEntry => entry.kind === 'grant')
-  const invitations = access.data.entries.filter((entry): entry is InvitationEntry => entry.kind === 'invitation')
+  const grants = access.data.entries.filter((entry): entry is ApplicationGrantEntry => entry.kind === 'grant')
+  const invitations = access.data.entries.filter((entry): entry is ApplicationInvitationEntry => entry.kind === 'invitation')
   const address = access.data.address
   const busy = revoke.isPending || grant.isPending
 

@@ -62,7 +62,7 @@ export const getProject = operation({
     id: 'getProject', summary: 'Read one Project the Account may open.', access: 'session', method: 'GET', path: '/api/control/projects/:projectId',
     params: projectParam, query: null, headers: null, body: null,
     success: { 200: ProjectDetail },
-    effects: [], failures: ['PROJECT_NOT_FOUND'], malformed: { projectId: 'PROJECT_NOT_FOUND' },
+    effects: [], failures: [], malformed: { projectId: 'PROJECT_NOT_FOUND' },
 });
 export const createProject = operation({
     id: 'createProject', summary: 'Create a Project with its source and initial access, once per idempotency key.', access: 'session', method: 'POST', path: '/api/control/workspaces/:workspaceId/projects',
@@ -71,7 +71,7 @@ export const createProject = operation({
     body: z.object({ name: ProjectName, sourceBootstrap: ProjectSourceBootstrap }).strict(),
     success: { 201: ProjectCreated },
     effects: [],
-    failures: ['PROJECT_CREATE_DENIED', 'IDEMPOTENCY_CONFLICT', 'PROJECT_SOURCE_REFUSED', 'PROJECT_REPOSITORY_UNAVAILABLE', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
+    failures: ['PROJECT_CREATE_DENIED', 'PROJECT_SOURCE_REFUSED', 'PROJECT_REPOSITORY_UNAVAILABLE', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
     malformed: { workspaceId: 'WORKSPACE_NOT_FOUND' },
 });
 export const deleteProject = operation({
@@ -79,7 +79,7 @@ export const deleteProject = operation({
     params: projectParam, query: z.object({ confirmName: z.string().min(1) }), headers: null, body: null,
     success: { 204: null },
     effects: [],
-    failures: ['PROJECT_DELETE_DENIED', 'PROJECT_NOT_FOUND', 'PROJECT_NAME_MISMATCH', 'PROJECT_BUSY', 'PROJECT_DELETION_INCOMPLETE'],
+    failures: ['PROJECT_DELETE_DENIED', 'PROJECT_NAME_MISMATCH', 'PROJECT_BUSY', 'PROJECT_DELETION_INCOMPLETE'],
     malformed: { projectId: 'PROJECT_NOT_FOUND' },
 });
 export const listProjectSummaries = operation({

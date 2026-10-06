@@ -66,7 +66,7 @@ const emit = () => {
         if (binary && body.cache === 'revalidate-private') responses[status].headers = { ETag: { schema: { type: 'string' } }, 'Cache-Control': { schema: { type: 'string', enum: ['private, no-cache'] } } }
       }
     }
-    const failureCodes = [...new Set([...common, ...op.failures, ...Object.values(op.malformed ?? {}), ...(op.headers?.shape?.['idempotency-key'] ? ['IDEMPOTENCY_KEY_REQUIRED'] : [])])]
+    const failureCodes = [...new Set([...common, ...op.failures, ...Object.values(op.malformed ?? {}), ...(op.headers?.shape?.['idempotency-key'] ? ['IDEMPOTENCY_KEY_REQUIRED', 'IDEMPOTENCY_CONFLICT'] : [])])]
     for (const code of failureCodes) {
       const status = FAILURE_STATUS[code]
       if (status === undefined) throw new Error(`OPENAPI_UNKNOWN_FAILURE: ${code}`)

@@ -117,7 +117,7 @@ export declare const getProject: {
         }, z.core.$strip>]>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_NOT_FOUND"];
+    readonly failures: readonly [];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
@@ -154,7 +154,7 @@ export declare const createProject: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_CREATE_DENIED", "IDEMPOTENCY_CONFLICT", "PROJECT_SOURCE_REFUSED", "PROJECT_REPOSITORY_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly failures: readonly ["PROJECT_CREATE_DENIED", "PROJECT_SOURCE_REFUSED", "PROJECT_REPOSITORY_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly workspaceId: "WORKSPACE_NOT_FOUND";
     };
@@ -177,7 +177,7 @@ export declare const deleteProject: {
         readonly 204: null;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_DELETE_DENIED", "PROJECT_NOT_FOUND", "PROJECT_NAME_MISMATCH", "PROJECT_BUSY", "PROJECT_DELETION_INCOMPLETE"];
+    readonly failures: readonly ["PROJECT_DELETE_DENIED", "PROJECT_NAME_MISMATCH", "PROJECT_BUSY", "PROJECT_DELETION_INCOMPLETE"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };

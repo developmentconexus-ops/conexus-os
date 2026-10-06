@@ -59,28 +59,28 @@ export const createWorkspaceConnection = operation({
     ]),
     success: { 201: ConnectorConnection, 200: ConnectorConnection },
     effects: [],
-    failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED', 'CONNECTOR_WORKSPACE_NOT_FOUND', 'CONNECTOR_LABEL_REFUSED', 'CONNECTOR_CREDENTIAL_REFUSED', 'CONNECTOR_CONNECTION_CONFLICT'],
+    failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED', 'CONNECTOR_CONNECTION_CONFLICT'],
     malformed: { workspaceId: 'CONNECTOR_WORKSPACE_NOT_FOUND', label: 'CONNECTOR_LABEL_REFUSED', credential: 'CONNECTOR_CREDENTIAL_REFUSED' },
 });
 export const checkWorkspaceConnection = operation({
     id: 'checkWorkspaceConnection', summary: 'Check a Connection by running the allow-listed authentication of its Connector; installation administrator only.', access: 'session', method: 'POST', path: '/api/control/workspaces/:workspaceId/connections/:connectionId/authentication-check',
     params: workspaceConnectionParams, query: null, headers: null, body: null,
     success: { 200: z.object({ outcome: ConnectionCheckOutcome }) },
-    effects: [], failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED', 'CONNECTOR_CONNECTION_NOT_FOUND', 'CONNECTOR_PLATFORM_FAILED'],
+    effects: [], failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED', 'CONNECTOR_PLATFORM_FAILED'],
     malformed: { workspaceId: 'CONNECTOR_CONNECTION_NOT_FOUND', connectionId: 'CONNECTOR_CONNECTION_NOT_FOUND' },
 });
 export const disableWorkspaceConnection = operation({
     id: 'disableWorkspaceConnection', summary: 'Disable a Connection and end its open bindings; installation administrator only.', access: 'session', method: 'DELETE', path: '/api/control/workspaces/:workspaceId/connections/:connectionId',
     params: workspaceConnectionParams, query: null, headers: null, body: null,
     success: { 204: null },
-    effects: [], failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED', 'CONNECTOR_CONNECTION_NOT_FOUND'],
+    effects: [], failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED'],
     malformed: { workspaceId: 'CONNECTOR_CONNECTION_NOT_FOUND', connectionId: 'CONNECTOR_CONNECTION_NOT_FOUND' },
 });
 export const listProjectConnectionBindings = operation({
     id: 'listProjectConnectionBindings', summary: 'List the open bindings of a Project and the Connections it could still bind; Workspace Owner only.', access: 'session', method: 'GET', path: '/api/control/projects/:projectId/connection-bindings',
     params: projectParam, query: null, headers: null, body: null,
     success: { 200: z.object({ entries: z.array(ConnectionBindingEntry) }) },
-    effects: [], failures: ['PROJECT_NOT_FOUND', 'CONNECTOR_BINDING_MANAGE_REQUIRED'],
+    effects: [], failures: ['CONNECTOR_BINDING_MANAGE_REQUIRED'],
     malformed: { projectId: 'PROJECT_NOT_FOUND' },
 });
 export const bindProjectConnection = operation({
@@ -89,13 +89,13 @@ export const bindProjectConnection = operation({
     body: z.object({ connectionId: ConnectionId, name: BindingName }).strict(),
     success: { 201: ConnectionBinding, 200: ConnectionBinding },
     effects: [],
-    failures: ['PROJECT_NOT_FOUND', 'CONNECTOR_BINDING_MANAGE_REQUIRED', 'CONNECTOR_CONNECTION_NOT_AVAILABLE', 'CONNECTOR_BINDING_CONFLICT', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
+    failures: ['CONNECTOR_BINDING_MANAGE_REQUIRED', 'CONNECTOR_CONNECTION_NOT_AVAILABLE', 'CONNECTOR_BINDING_CONFLICT', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
     malformed: { projectId: 'PROJECT_NOT_FOUND' },
 });
 export const unbindProjectConnection = operation({
     id: 'unbindProjectConnection', summary: 'End the binding of a Connection to a Project; Workspace Owner only.', access: 'session', method: 'DELETE', path: '/api/control/projects/:projectId/connection-bindings/:bindingId',
     params: projectBindingParams, query: null, headers: null, body: null,
     success: { 204: null },
-    effects: [], failures: ['PROJECT_NOT_FOUND', 'CONNECTOR_BINDING_MANAGE_REQUIRED', 'CONNECTOR_BINDING_NOT_FOUND', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
+    effects: [], failures: ['CONNECTOR_BINDING_MANAGE_REQUIRED', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
     malformed: { projectId: 'PROJECT_NOT_FOUND', bindingId: 'CONNECTOR_BINDING_NOT_FOUND' },
 });

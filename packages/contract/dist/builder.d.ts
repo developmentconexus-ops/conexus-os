@@ -5650,7 +5650,7 @@ export declare const sendBuilderMessage: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["IDEMPOTENCY_CONFLICT", "CONVERSATION_NOT_FOUND", "BUILDER_CAPACITY_FULL", "PROJECT_BUILD_DENIED", "ACCOUNT_INACTIVE", "BUILDER_MESSAGE_REFUSED", "BUILDER_RUN_CREATE_FAILED", "BUILDER_BUSY", "PROJECT_BUSY", "BUILDER_SOURCE_UNAVAILABLE"];
+    readonly failures: readonly ["BUILDER_CAPACITY_FULL", "PROJECT_BUILD_DENIED", "ACCOUNT_INACTIVE", "BUILDER_RUN_CREATE_FAILED", "BUILDER_BUSY", "PROJECT_BUSY", "BUILDER_SOURCE_UNAVAILABLE"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
         readonly content: "BUILDER_MESSAGE_REFUSED";
@@ -6273,7 +6273,7 @@ export declare const cancelBuilderRun: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["BUILDER_RUN_NOT_FOUND", "PROJECT_BUILD_DENIED", "ACCOUNT_INACTIVE"];
+    readonly failures: readonly ["PROJECT_BUILD_DENIED", "ACCOUNT_INACTIVE"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
         readonly builderRunId: "BUILDER_RUN_NOT_FOUND";
@@ -6330,7 +6330,7 @@ export declare const getBuilderRunTrace: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["BUILDER_RUN_NOT_FOUND", "BUILDER_TRACE_UNAVAILABLE", "PROJECT_BUILD_DENIED"];
+    readonly failures: readonly ["BUILDER_TRACE_UNAVAILABLE", "PROJECT_BUILD_DENIED"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
         readonly builderRunId: "BUILDER_RUN_NOT_FOUND";
