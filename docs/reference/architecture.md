@@ -396,6 +396,8 @@ pull request that fixes one deletes its line.
 | `GET .../workspaces/{workspaceId}/projects` returns a top-level array, and lists that grow have no continuation token | Hub base, after S1 |
 | Stores not yet ported run as `hub_runtime` (`unportedPool`, the instance lock session), with `legacy` roles, `legacy_owner` and `legacy_runtime` policies, and SQL functions that hold business rules | S1, parts 4 to 6 |
 | Three migrations drop with `CASCADE` | S1 reset |
+| Tests read production source text (`builder-harness.test.mjs`, `builder-template-pins.test.mjs`, `builder-check-bundle.test.mjs`, `connector-adapter-source.test.mjs`) | Hub base, after S1 |
+| PostgreSQL tests skip without an `opt-in:` reason when no database is configured, and `keycloak-theme:check` is outside CI | Hub base, after S1 |
 | The Hub swallows a failed run publish and the screen polls instead, and `liveRuns` and the session `subscriptions` share module state | S5 |
 | No route lets a person or an administrator end sessions, and a restore has no step that ends them | Hub base, after S1 |
 | The Hub has no rate limit, and the realm has no brute-force protection | Hub base, after S1 |

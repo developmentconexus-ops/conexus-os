@@ -1,69 +1,148 @@
-# Testing
+# Testing guide
 
-What counts as proof for a change in this repository. Owners next door:
-[delivery](delivery.md) for CI and the merge gate, [`scripts/conexus-verify.mjs`](../../scripts/conexus-verify.mjs)
-for the exact test graph, the [`verify`](../../.agents/skills/verify/SKILL.md) skill for driving
-screens, [Builder eval](builder-eval.md) for Builder experiments, and
-[evidence](../../.agents/skills/conexus-development/references/evidence.md) for where facts are
-found. General method: `principle-test-behavior-not-implementation`, `principle-prove-it-works`.
+What counts as proof for a change. This guide adapts the automated testing section of the
+[Microsoft Code With Engineering Playbook](https://github.com/microsoft/code-with-engineering-playbook/tree/main/docs/automated-testing)
+(CC BY 4.0) and Google's [test sizes](https://testing.googleblog.com/2010/12/test-sizes.html). Each
+rule uses the words of [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119): **must** and **must not**
+are defects in review, **should** and **should not** need a stated reason to break, and **may** is
+a free choice.
 
-## A test asserts behavior
+The guide states the target. Tests that depart from it are listed in
+[architecture section 11](../reference/architecture.md#11-risks-and-technical-debt) with the wave
+that removes them. Owners next door: [delivery](delivery.md) for CI and the merge gate,
+[`scripts/conexus-verify.mjs`](../../scripts/conexus-verify.mjs) for the exact test graph, the
+[`verify`](../../.agents/skills/verify/SKILL.md) skill for driving screens, and
+[security](../reference/security-and-authority.md) for escape tests.
 
-- A test calls the code as its user does and compares with a literal value the code computes,
-  never one that restates a hand-maintained constant, digest or prompt. A value an owner outside the
-  code approved, such as a brand token in [`DESIGN.md`](../../DESIGN.md), is not a restatement.
-  Enforced by review.
-- No test reads production source text, and no test asserts only truthiness. Enforced by review.
-- A route behavior change has an HTTP test that sends the request and asserts the literal status and
-  body. Enforced by review.
-- Only an `opt-in:` reason skips a test or leaves it todo. Enforced by `scripts/check-test-skips.mjs`.
+## 1. A test asserts behavior
 
-## Where a test lives
+- A test **must** call the code the way its user does and compare the result with a literal value.
+- A test **must not** read production source text, and **must not** assert only that a value is
+  truthy.
+- A test **should** follow arrange, act, assert, with one behavior per test.
 
-A test joins a group by its folder and suffix, never by a list: `*.browser.test.mjs` drives a real
-browser, `*.postgres.test.mjs` needs PostgreSQL, `tests/live` boots a whole Conexus of its own, and
-`tests/manual` runs by hand. Enforced by `scripts/conexus-verify.mjs` and
-`tests/repository/conexus-verify.test.mjs`, which a change to the graph updates. A harness that runs
-in parallel or in a sandbox binds port 0 and reads the port back. Enforced by review.
+**Why.** A test that reads the source or checks only truthiness still passes when the behavior
+breaks.
 
-Expected output changes only through the explicit generation command (`npm run generate`), never by
-hand to hide drift. Enforced by the clean tree check after `npm run generate`, and review.
+**Right.** `assert.deepEqual(await grant(input), { ok: false, reason: 'FORBIDDEN' })`.
 
-## Real dependencies
+**Wrong.** `assert.ok(source.includes('FORBIDDEN'))`.
 
-- A mock proves only the mocked boundary. A claim about a real provider, model, E2B, Sankhya,
-  browser, persistence or runtime needs evidence from that dependency. A test that fakes the boundary
-  executing generated code proves nothing about that code: parse or run the generated artifact.
-  Enforced by review.
-- A live provider, model, E2B or Sankhya run needs explicit authority for that proof; a green
-  repository gate never implies it. Enforced by review.
-- A claim about Keycloak behavior (refresh, logout, token exchange) cites the documentation or source
-  at the pilot's version, or asks for a probe. Enforced by review.
+## 2. Test sizes
 
-## Negative proof
+Every test **must** fit one size, and its group **must** follow from its folder and suffix:
 
-- Each refusal a change adds has a negative case: another Workspace, another Project, an expired or
-  revoked session, a missing or foreign `Origin`. A test of only the allowed path fails. Enforced by
-  review.
-- A security claim about the runner, the sandbox or the data plane tries each escape on the direct
-  path with the other layers off, on the real configuration. A check that cannot fail is not proof.
-  Enforced by review.
+| Size | May touch | Group |
+| --- | --- | --- |
+| Small | Memory only: no network, database or disk | `tests/repository`, and `tests/implementation` without a suffix |
+| Medium | Services on this machine: PostgreSQL, a browser, a local Hub | `*.postgres.test.mjs`, `*.browser.test.mjs` |
+| Large | Real outside services: a model, E2B, Keycloak | `tests/live`, `tests/manual` |
 
-## Screens
+- A test joins a group by its folder and suffix, never by a list.
+- A harness that runs in parallel **must** bind port 0 and read the port back.
+- A test **must** create and remove what it uses, and **must not** sleep to wait for a result.
 
-A screen is proved in a real browser against a real Hub with the `verify` skill, in light and dark,
-against the accessibility rules of [`DESIGN.md`](../../DESIGN.md). The `verify` model and E2B are
-fake, so it cannot prove a Builder turn; the browser suites and `npm run test:live` cover what it
-cannot. CI runs the `browser` group; a browser test skipped without an `opt-in:` reason fails
-`scripts/check-test-skips.mjs`. The
-sign-in theme has no browser suite: its proof is `npm run keycloak-theme:check` output and
-screenshots. Enforced by the `browser` group, `npm run web:style:check`, and review.
+**Why.** A size says what a test needs and how long it may take, so a fast check stays fast and a
+slow one runs where its services exist.
 
-## Builder proof
+**Right.** A new store test that needs PostgreSQL is named `project-store.postgres.test.mjs`.
 
-A hand-written example can prove a platform mechanism. It cannot close an application-architecture
-gate. Where a gate concerns the generated-application programming model, the deciding proof includes
-a real Project, a product-language request, the real model path, the Builder finding the paved-road
-guidance unaided, Builder-written source, the Project's own check, a Conexus build and Preview,
-browser interaction, and the gate's negative proof. Record repair iterations and failures. A Builder
-turn is proved on the local Conexus with a real model and a real E2B sandbox. Enforced by review.
+**Wrong.** A test in the Small group that opens a TCP port on a fixed number.
+
+## 3. A test that does not run
+
+- Only an `opt-in:` reason **may** skip a test or leave it todo.
+- A test **must not** pass silently when the service it needs is missing. It fails, or it is skipped
+  with an `opt-in:` reason.
+
+**Why.** A skipped test reports green and proves nothing.
+
+**Right.** `test.skip('opt-in: needs a real E2B key')`.
+
+**Wrong.** A PostgreSQL test that returns early when no database is configured.
+
+## 4. Doubles and real dependencies
+
+- A double **must** prove only the boundary it replaces. A claim about a real provider, model, E2B,
+  Keycloak, browser, persistence or runtime **must** have evidence from that dependency.
+- A fake of a protocol **should** be preferred over a mock of a function.
+- A test of generated code **must** parse or run the generated artifact.
+- A run against a live provider, model, E2B or company system **must** have explicit authority for
+  that proof.
+
+**Why.** A mock proves the code calls the mock. Only the real dependency proves the system works.
+
+**Right.** A Keycloak refresh claim cites a probe against the pilot's Keycloak version.
+
+**Wrong.** A green test with a mocked model offered as proof that the Builder can build an app.
+
+## 5. Generated output
+
+- Expected output **must** change only through `npm run generate`, never by hand.
+
+**Why.** A hand edit hides drift between the source and what it generates.
+
+**Right.** A new failure row, then `npm run generate`, then a clean tree.
+
+**Wrong.** A test fixture edited to match a generator's new output.
+
+## 6. Negative cases
+
+- Each refusal a change adds **must** have a negative test: another Workspace, another Project, an
+  expired or revoked session, a missing or foreign `Origin`.
+- An escape test for the runner, the sandbox or the data plane **must** try the direct path with the
+  other layers off, on the real configuration.
+
+**Why.** A test of only the allowed path cannot fail when the check is removed.
+
+**Right.** A test where a member of another Workspace reads the Project and gets 404.
+
+**Wrong.** A new access rule tested only with the owner.
+
+## 7. Routes
+
+- A route behavior change **must** have an HTTP test that sends the request and asserts the literal
+  status and body.
+
+**Why.** The HTTP test is the contract seen from the caller, including parsing and access.
+
+**Right.** `POST` with a malformed id, asserting 404 and the `code`.
+
+**Wrong.** A test that calls the handler function and skips the route.
+
+## 8. Screens
+
+- A screen **must** be proved in a real browser against a real Hub with the `verify` skill, in light
+  and dark, against the accessibility rules of [`DESIGN.md`](../../DESIGN.md).
+- What `verify` cannot prove, a Builder turn with a real model, **must** be proved by `tests/live` or
+  on the local Conexus.
+
+**Why.** A person sees the screen, not the component. Only a real browser shows what they see.
+
+**Right.** The `verify` recipe opens the Project, sends a request, and checks the Preview.
+
+**Wrong.** A component test with a stubbed fetch offered as proof of the screen.
+
+## 9. Builder proof
+
+- A Builder turn **must** be proved on the local Conexus with a real model and a real E2B sandbox.
+- A gate about the generated app's programming model **must** be closed by a real Project: a
+  request in product language, the real model, Builder-written source, the Project's own check, a
+  Preview, browser interaction, and the gate's negative case.
+
+**Why.** A hand-written example proves a platform mechanism, not that the Builder finds and uses it.
+
+**Right.** A person asks for an app in Portuguese, and the Preview works in the browser.
+
+**Wrong.** A gate closed by an app the developer wrote by hand.
+
+## 10. From change to proof
+
+| Change | Proof |
+| --- | --- |
+| A function or module | Small tests of its behavior |
+| A store or a migration | Medium tests against PostgreSQL |
+| A route | An HTTP test, with its negative cases |
+| A screen | `verify` in a real browser, light and dark |
+| A Builder or agent change | A real turn on the local Conexus |
+| A security rule | Negative cases and the escape test |

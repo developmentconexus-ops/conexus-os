@@ -162,7 +162,7 @@ components:
 
 How Conexus looks, moves and speaks. `packages/brand/src/tokens.css` owns every value and outranks
 the frontmatter above; the [product contract](docs/product/contract.md) owns what screens mean;
-[testing](docs/development/testing.md#screens) owns how a screen is proved. Rules marked "check" fail
+[testing](docs/development/testing.md#8-screens) owns how a screen is proved. Rules marked "check" fail
 `npm run web:style:check` or a test; the rest are judged in review.
 
 ## 1. Overview

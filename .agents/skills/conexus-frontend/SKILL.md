@@ -16,7 +16,7 @@ Redesign. This skill holds no rule; the guides do.
   voice, how a surface is approved, and the Build surface.
 - [Product contract](../../../docs/product/contract.md): who the screen serves, its journeys, and
   what a screen never does.
-- [Testing](../../../docs/development/testing.md#screens): how a screen is proved.
+- [Testing](../../../docs/development/testing.md#8-screens): how a screen is proved.
 - [Architecture](../../../docs/reference/architecture.md#the-web-app): what the web app may own.
 - The code is the reference: read the nearest screen. `packages/brand/src/tokens.css` wins over any
   text.

@@ -128,7 +128,7 @@ Deferred until a real consumer needs them: Kysely, Prisma, Drizzle, Hono, oRPC; 
 Composio; Airbyte, Debezium; pg-boss, Mastra Workflows, Inngest, Trigger.dev, Temporal; Novu, Knock;
 Cloud Run, Fly, Kubernetes and per-Project deployment.
 
-Every application-architecture gate follows the [Builder proof rule](development/testing.md#builder-proof).
+Every application-architecture gate follows the [Builder proof rule](development/testing.md#9-builder-proof).
 
 ## Explicitly deferred until after Stage 2 evidence
 
