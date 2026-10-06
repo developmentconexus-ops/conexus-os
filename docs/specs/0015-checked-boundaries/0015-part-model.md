@@ -1,6 +1,8 @@
 # 0015. Child: part 5, the model account owner
 
-**Status**: Proposed (stage 3 revision of 2026-10-06; approval below)
+**Status**: Approved
+
+**Approval**: approved by the planning session under the operator's delegation for the night of 2026-10-06 (HQ-D017), commit dd2744a1
 
 Part of [spec 0015](index.md), revision 5.3 (design 4, the split wall). This child uses the rules of the admission child ([0015-admission.md](0015-admission.md)), sections 1, 2 and 4 to 11, and the table register of the data child ([0015-data.md](0015-data.md)). It brings the approved child (revision 3 under the old per table policy model) to the umbrella's revision 5.3, and realigns it to the S1 standard as main (#512, #513) and part 1 build it. It keeps every behavior, refusal code and test that does not depend on the mechanisms 5.2 deleted. It cuts the two `INSERT` and `UPDATE` policy rows, the `S` branches and the `HELD` branch of the `SELECT` rows, and the reader row of the sharing history table (HQ decision, rule 6). This child uses the latest body of each model function. Every `file:line` is a line of `origin/main` at `8b5af79a`, refreshed on 2026-10-06 against the nine guides ([code](../../development/codebase-principles.md), [architecture](../../reference/architecture.md), [database](../../reference/database.md), [security](../../reference/security-and-authority.md), [API](../../product/wire-contract.md), [testing](../../development/testing.md), [delivery](../../development/delivery.md)). Study notes named by path (`explain/`, `part5/review/`) are not in this repository.
 
