@@ -88,13 +88,15 @@ test('the recheck: a disabled user ends the session; Keycloak unreachable keeps 
   assert.equal(after.fresh, true)
 
   await age(recheckDue)
+  await hub.sql(`CREATE TABLE public.checks (n int NOT NULL); INSERT INTO public.checks VALUES (0);
+    CREATE FUNCTION public.count_check() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$
+      BEGIN IF NEW.provider_checked_at IS DISTINCT FROM OLD.provider_checked_at THEN UPDATE public.checks SET n = n + 1; END IF; RETURN NEW; END $$;
+    CREATE TRIGGER count_check AFTER UPDATE ON iam.host_session FOR EACH ROW EXECUTE FUNCTION public.count_check()`)
   const before = hub.oidc.refreshCalls
-  const [seen] = await hub.sql('SELECT provider_checked_at::text AS at FROM iam.host_session WHERE token_digest = $1', [digestOf(token)])
   const answers = await Promise.all([read(), read()])
   assert.deepEqual(answers.map((answer) => answer.statusCode), [200, 200])
-  assert.ok(hub.oidc.refreshCalls - before >= 1)
-  const [moved] = await hub.sql('SELECT provider_checked_at::text <> $2 AS moved FROM iam.host_session WHERE token_digest = $1', [digestOf(token), seen.at])
-  assert.equal(moved.moved, true)
+  assert.ok([1, 2].includes(hub.oidc.refreshCalls - before), 'each request asks Keycloak at most once')
+  assert.equal((await hub.sql('SELECT n FROM public.checks'))[0].n, 1, 'the check is recorded exactly once')
 
   await age(recheckDue)
   hub.oidc.refreshes.push({ kind: 'REFUSED', reason: 'USER_DISABLED' })

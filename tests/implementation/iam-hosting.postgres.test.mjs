@@ -316,6 +316,9 @@ for (const order of ['racer first', 'purge first']) {
   test(`the purge against an application callback, an application redeem, a Preview redeem and a sign in begin, ${order}`, { timeout: 60_000 }, async (t) => {
     const binding = 'B'.repeat(43)
     const bindingParam = digestOf(binding).toString('base64url')
+    // A redeem held inside its entry holds the Project, so it commits before the purge; a redeem that
+    // starts after the tombstone commits is refused by it.
+    const redeemed = order === 'racer first' ? 303 : 403
     const racers = [
       ['application callback', /INSERT INTO iam\.handoff/, async ({ hub }) => {
         const callback = await hub.signInWith(person('caio', { email: 'caio@x.com' }), { application: SLUG, binding: bindingParam })
@@ -329,10 +332,10 @@ for (const order of ['racer first', 'purge first']) {
       ['application redeem', /INSERT INTO iam\.host_session/, async ({ hub, applicationApp }) => {
         const callback = await hub.signInWith(person('caio', { email: 'caio@x.com' }), { application: SLUG, binding: bindingParam })
         const complete = new URL(callback.headers.location)
-        const redeemed = await applicationApp.inject({ method: 'GET', url: `${complete.pathname}${complete.search}`, headers: { host: APP_HOST, ...NAVIGATE, cookie: `__Host-conexus_app_signin=${binding}` } })
-        return [303, 403].includes(redeemed.statusCode)
+        const answer = await applicationApp.inject({ method: 'GET', url: `${complete.pathname}${complete.search}`, headers: { host: APP_HOST, ...NAVIGATE, cookie: `__Host-conexus_app_signin=${binding}` } })
+        return answer.statusCode === redeemed
       }],
-      ['Preview redeem', /INSERT INTO iam\.host_session/, async ({ enter }, prepared) => [303, 403].includes((await enter(prepared)).statusCode), 'preview'],
+      ['Preview redeem', /INSERT INTO iam\.host_session/, async ({ enter }, prepared) => (await enter(prepared)).statusCode === redeemed, 'preview'],
       ['sign in begin', /INSERT INTO iam\.oidc_transaction/, async ({ hub }) => {
         const begin = await hub.app.inject({ method: 'GET', url: `/protocol/oidc/login?application=${SLUG}&binding=${bindingParam}` })
         return begin.statusCode === 302 || (begin.statusCode === 303 && /no-access\?reason=NOT_GRANTED/.test(begin.headers.location))
