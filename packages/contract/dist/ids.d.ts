@@ -56,4 +56,4 @@ export declare const MediaType: z.core.$ZodBranded<z.ZodEnum<{
     "text/plain; charset=utf-8": "text/plain; charset=utf-8";
 }>, "MediaType", "out">;
 export type MediaType = z.output<typeof MediaType>;
-export declare const mediaTypeOfPath: (path: string) => MediaType | null;
+export declare function mediaTypeOfPath(path: string): MediaType | null;

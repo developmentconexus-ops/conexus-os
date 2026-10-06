@@ -3,6 +3,7 @@ import { canonicalBytes } from '../../../../packages/canonical-json/src/index.mj
 import { ApplicationFilePath, ArtifactDigest, Sha256, mediaTypeOfPath, type BuilderRunId, type MediaType, type ProjectId, type SourceRevision } from '../../../../packages/contract/dist/index.js'
 import { CURRENT_TEMPLATE_PIN } from '../platform/application-template-pins.js'
 import { Failure } from '../platform/failure.js'
+import { SealedApplication } from '../platform/sealed-application.js'
 
 const MAX_FILES = 256
 const MAX_TOTAL_BYTES = 12 * 1024 * 1024
@@ -24,19 +25,13 @@ type Thumbnail = Readonly<{ bytes: Uint8Array; sha256: Sha256 }>
 type Contents = Readonly<{ payloadJson: string; thumbnail: Thumbnail | null }>
 const contents = new WeakMap<SealedApplication, Contents>()
 
-/** A build checked and hashed before the runner. Only `seal` makes one, so `retain` writes nothing else. */
-class SealedApplication {
-  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: type identity is the use
-  readonly #sealed = true
-  constructor(readonly projectId: ProjectId, readonly sourceRevision: SourceRevision, readonly digest: ArtifactDigest) {}
-}
-export type { SealedApplication }
+class SealedBuild extends SealedApplication {}
 
-const refused = (): never => {
+function refused(): never {
   throw new Failure('APPLICATION_ARTIFACT_INPUT_REFUSED')
 }
 
-const sealFile = (file: FileInput): PayloadFile => {
+function sealFile(file: FileInput): PayloadFile {
   const path = ApplicationFilePath.safeParse(file.path)
   const mediaType = mediaTypeOfPath(file.path)
   if (!path.success || mediaType === null || mediaType !== file.mediaType) return refused()
@@ -45,7 +40,7 @@ const sealFile = (file: FileInput): PayloadFile => {
   return { path: path.data, mediaType, byteLength: file.bytes.byteLength, sha256: Sha256.parse(sha256), base64: Buffer.from(file.bytes).toString('base64') }
 }
 
-const sealFiles = (files: readonly FileInput[]): readonly PayloadFile[] => {
+function sealFiles(files: readonly FileInput[]): readonly PayloadFile[] {
   if (files.length < 1 || files.length > MAX_FILES) return refused()
   const sealed = files.map(sealFile).sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0))
   const total = sealed.reduce((sum, file) => sum + file.byteLength, 0)
@@ -54,7 +49,7 @@ const sealFiles = (files: readonly FileInput[]): readonly PayloadFile[] => {
   return sealed
 }
 
-const sealThumbnail = (thumbnail: SealOutcome['thumbnail']): Thumbnail | null => {
+function sealThumbnail(thumbnail: SealOutcome['thumbnail']): Thumbnail | null {
   if (thumbnail === null) return null
   const { bytes } = thumbnail
   if (bytes.byteLength === 0 || bytes.byteLength > THUMBNAIL_MAX_BYTES || !PNG_MAGIC.every((value, index) => bytes[index] === value)) return null
@@ -65,7 +60,7 @@ const sealThumbnail = (thumbnail: SealOutcome['thumbnail']): Thumbnail | null =>
  * Checks the compiled build against the run it came from and the template pin, then builds the
  * payload and hashes its canonical JSON. Pure: a refusal throws before the runner is called.
  */
-export const seal = ({ compiledApplication, thumbnail }: SealOutcome, run: SealRun): SealedApplication => {
+export function seal({ compiledApplication, thumbnail }: SealOutcome, run: SealRun): SealedApplication {
   const { projectId, executionId, sourceRevision, templateRef, recipeSha256, files } = compiledApplication
   if (projectId !== run.projectId || executionId !== run.builderRunId || sourceRevision !== run.sourceRevision
     || templateRef !== CURRENT_TEMPLATE_PIN.templateRef || recipeSha256 !== CURRENT_TEMPLATE_PIN.recipeSha256) return refused()
@@ -78,12 +73,12 @@ export const seal = ({ compiledApplication, thumbnail }: SealOutcome, run: SealR
     files: sealFiles(files),
   }
   const bytes = canonicalBytes(payload)
-  const sealed = new SealedApplication(run.projectId, run.sourceRevision, ArtifactDigest.parse(createHash('sha256').update(bytes).digest('hex')))
+  const sealed = new SealedBuild(run.projectId, run.sourceRevision, ArtifactDigest.parse(createHash('sha256').update(bytes).digest('hex')))
   contents.set(sealed, { payloadJson: bytes.toString('utf8'), thumbnail: sealThumbnail(thumbnail) })
   return sealed
 }
 
-export const contentsOf = (sealed: SealedApplication): Contents => {
+export function contentsOf(sealed: SealedApplication): Contents {
   const found = contents.get(sealed)
   if (found === undefined) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'SEALED_APPLICATION_NOT_SEALED' } })
   return found

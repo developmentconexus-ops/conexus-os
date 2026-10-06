@@ -65,8 +65,8 @@ GRANT SELECT, INSERT ON reg.application_thumbnail TO hub_command;
 REVOKE EXECUTE ON FUNCTION iam.visible_projects(uuid), iam.has_application_access(uuid, uuid) FROM registry_owner;
 REVOKE REFERENCES ON project.project, workspace.workspace FROM registry_owner;
 
--- The last functions granted to the legacy executor role are gone.
-DROP OWNED BY hub_builder_executor;
+-- Its function grants went with the dropped functions; the schema usage is all it still holds, and a dependency left behind fails the DROP.
+REVOKE USAGE ON SCHEMA builder, reg FROM hub_builder_executor;
 DROP ROLE hub_builder_executor;
 
 COMMIT;

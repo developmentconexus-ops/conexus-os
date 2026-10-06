@@ -4,8 +4,7 @@ import type { CompiledApplication, CompiledApplicationThumbnail } from './applic
 import type { PrepareResult } from '../app-runner/server-manifest.js'
 import type { CandidateOperationPorts } from './run-operation.js'
 import { Failure } from '../platform/failure.js'
-
-export type SealedApplication = Readonly<{ projectId: ProjectId; sourceRevision: SourceRevision; digest: ArtifactDigest }>
+import type { SealedApplication } from '../platform/sealed-application.js'
 
 export type ServedLaunch = Readonly<{
   sourceRevision: SourceRevision
@@ -15,11 +14,11 @@ export type ServedLaunch = Readonly<{
   files: ReadonlyArray<Readonly<{ path: ApplicationFilePath; mediaType: MediaType }>>
 }>
 
-/** The registry owner's part in a Builder run, as the Builder declares it. The methods are bivariant on purpose: the registry's sealed type is nominal and the Builder's is its shape. */
+/** The registry owner's part in a Builder run, as the Builder declares it. The sealed build is the platform's nominal type, so the Builder can pass back only what `seal` made. */
 export type BuilderRegistry = Readonly<{
-  seal(outcome: Readonly<{ compiledApplication: CompiledApplication; thumbnail: CompiledApplicationThumbnail | null }>, run: Readonly<{ projectId: ProjectId; builderRunId: BuilderRunId; sourceRevision: SourceRevision }>): SealedApplication
-  retain(proof: Admitted<RunScope>, sealed: SealedApplication): Promise<Readonly<{ artifactRevisionId: ArtifactRevisionId; digest: ArtifactDigest }>>
-  readLaunch(proof: Admitted<ProjectScope<'project.build'>>): Promise<ServedLaunch | null>
+  seal: (outcome: Readonly<{ compiledApplication: CompiledApplication; thumbnail: CompiledApplicationThumbnail | null }>, run: Readonly<{ projectId: ProjectId; builderRunId: BuilderRunId; sourceRevision: SourceRevision }>) => SealedApplication
+  retain: (proof: Admitted<RunScope>, sealed: SealedApplication) => Promise<Readonly<{ artifactRevisionId: ArtifactRevisionId; digest: ArtifactDigest }>>
+  readLaunch: (proof: Admitted<ProjectScope<'project.build'>>) => Promise<ServedLaunch | null>
 }>
 
 // The application runner, as the Builder needs it: converge a Project's Preview schema on a built

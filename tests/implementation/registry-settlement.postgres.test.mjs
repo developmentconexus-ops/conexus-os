@@ -8,17 +8,11 @@ import { OWNER } from './builder-fixture.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { query } from './hub-database.mjs'
 import { PASSWORD, ID } from './project-fixture.mjs'
-import { B, CURRENT_PIN, D_E, F, P, PNG_T2, SOURCE_E, world } from './registry-fixture.mjs'
-import { waitUntilBlocked } from './race.mjs'
+import { B, CURRENT_PIN, D_E, F, P, PNG_T2, SOURCE_E, deferred, world } from './registry-fixture.mjs'
+import { waitUntilBackends, waitUntilBlocked } from './race.mjs'
 
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
 const { settleTakenOverCandidate } = await import(hubModuleUrl('builder/run/admit.js'))
-
-const deferred = () => {
-  let resolve
-  const promise = new Promise((done) => { resolve = done })
-  return { promise, resolve }
-}
 
 const pausingRetain = (registry, { reached, release }) => ({
   ...registry,
@@ -122,6 +116,11 @@ test('a settlement that arrives after the purge answers BUILDER_RUN_NOT_ADMITTED
   assert.deepEqual(await rows(projectId), { revisions: 0, thumbnails: 0 })
 })
 
+async function backendCount(connection) {
+  const rows = await query(connection, "SELECT count(*)::integer AS n FROM pg_stat_activity WHERE datname = $1 AND usename = 'hub_runtime'", [connection.database])
+  return rows.rows[0].n
+}
+
 test('a process killed after the runner and before the commit leaves nothing, and the takeover ends the run FAILED with the last Preview kept', async (t) => {
   const { connection, database, onCleanup, seedBuilderProject, registry, runFor, runRow, rows, pointer } = await world(t, 'conexus_settlement_crash')
   const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
@@ -131,6 +130,7 @@ test('a process killed after the runner and before the commit leaves nothing, an
   const passwordFile = resolve(directory, 'password')
   writeFileSync(passwordFile, PASSWORD)
   chmodSync(passwordFile, 0o600)
+  const backendsBefore = await backendCount(connection)
   const child = spawnSync(process.execPath, [resolve(import.meta.dirname, 'registry-crash-child.mjs')], {
     env: { ...process.env, CRASH_INPUT: JSON.stringify({
       connection: { host: connection.host, port: connection.port, database: connection.database },
@@ -147,12 +147,9 @@ test('a process killed after the runner and before the commit leaves nothing, an
   assert.deepEqual(await rows(projectId), { revisions: 0, thumbnails: 0 })
   assert.deepEqual(await pointer(projectId), { source: null, revision: null, digest: null })
 
+  await waitUntilBackends(connection, { role: 'hub_runtime', count: backendsBefore })
   const sweeper = createBuilderStore({ database, ownerId: '0f000000-0000-4000-8000-000000000001', registry })
-  let taken = []
-  for (let attempt = 0; attempt < 100 && taken.length === 0; attempt += 1) {
-    taken = await sweeper.renewRunLease({ liveRunIds: [], staleAfterMs: 0 })
-    if (taken.length === 0) await new Promise((resolve) => setTimeout(resolve, 50))
-  }
+  const taken = await sweeper.renewRunLease({ liveRunIds: [], staleAfterMs: 0 })
   assert.deepEqual(taken.map((run) => run.builderRunId), [builderRunId])
   await settleTakenOverCandidate({ store: sweeper, git: { mainContains: async () => true } }, { ...taken[0], candidateRevision: SOURCE_E })
   const ended = await runRow(builderRunId)

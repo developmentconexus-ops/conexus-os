@@ -125,7 +125,9 @@ const refusal = (code: FailureCode): Readonly<{ status: number; body: unknown }>
   return Object.freeze({ status: problem.status, body: problem })
 }
 
-const missingFile = (): Failure => new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'APPLICATION_SERVER_FILE_MISSING' } })
+function missingFile(): Failure {
+  return new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'APPLICATION_SERVER_FILE_MISSING' } })
+}
 
 export const createApplicationInvoker = (dependencies: ApplicationFileReads & Readonly<{
   invoke: ApplicationRunnerInvoke

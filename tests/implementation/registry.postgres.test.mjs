@@ -8,7 +8,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { query } from './hub-database.mjs'
 import { waitUntilBlocked } from './race.mjs'
 import { ID } from './project-fixture.mjs'
-import { B, DIGEST_1, DIGEST_2, D_E, F, OLD, PNG_T1, P, PNG_T2, SHA_F, SHA_T2, SOURCE_1, SOURCE_2, SOURCE_E, SOURCE_OLD, fileOf, invariant, payloadOf, seedRevision, seedRevisionThumbnail, world } from './registry-fixture.mjs'
+import { B, DIGEST_1, DIGEST_2, D_E, F, OLD, PNG_T1, P, PNG_T2, SHA_F, SHA_T2, SOURCE_1, SOURCE_2, SOURCE_E, SOURCE_OLD, deferred, fileOf, invariant, payloadOf, seedRevision, seedRevisionThumbnail, world } from './registry-fixture.mjs'
 
 const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
 const { admitProject, admitRun, admitSystem, checkApplication } = await import(hubModuleUrl('identity-access/admission.js'))
@@ -167,32 +167,41 @@ test('retention writes one revision for one source, returns it again to every ru
   assert.deepEqual(await pointer(projectId), stored)
 })
 
-test('two sessions that retain the same build at once converge on one revision, and a rollback of the first lets the second insert', async (t) => {
-  const { database, seedBuilderProject, registry, rows, runFor, sealFor } = await world(t, 'conexus_registry_concurrent')
-  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
-  const builderRunId = await runFor(projectId)
-  const sealed = sealFor(projectId, builderRunId, [F], { thumbnail: { bytes: PNG_T2 } })
-  const session = (after) => database.system('builder-executor', async (gate) => {
+async function retainTwice({ connection, database, registry, builderRunId, sealed, firstEnds }) {
+  const inserted = deferred()
+  const release = deferred()
+  const session = (holding) => database.system('builder-executor', async (gate) => {
     const retained = await registry.retain(await admitRun(gate, builderRunId, { ownerId: OWNER }), sealed)
-    await after()
+    if (holding) {
+      inserted.resolve()
+      await release.promise
+      if (firstEnds === 'ROLLBACK') throw new Error('FIRST_ROLLS_BACK')
+    }
     return retained
   })
-  const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-  const both = await Promise.all([session(() => pause(300)), session(async () => {})])
-  assert.deepEqual(both[0], both[1])
-  assert.equal(both[0].digest, D_E)
-  assert.deepEqual(await rows(projectId), { revisions: 1, thumbnails: 1 })
+  const first = session(true)
+  await inserted.promise
+  const second = session(false)
+  await waitUntilBlocked(connection)
+  release.resolve()
+  return Promise.allSettled([first, second])
+}
+
+test('two sessions that retain the same build serialize on the run, converge on one revision, and a rollback of the first lets the second insert', async (t) => {
+  const committed = await world(t, 'conexus_registry_concurrent')
+  const projectId = await committed.seedBuilderProject('Atlas', ID.workspace, P)
+  const builderRunId = await committed.runFor(projectId)
+  const sealed = committed.sealFor(projectId, builderRunId, [F], { thumbnail: { bytes: PNG_T2 } })
+  const both = await retainTwice({ ...committed, builderRunId, sealed, firstEnds: 'COMMIT' })
+  assert.deepEqual(both.map((outcome) => outcome.status), ['fulfilled', 'fulfilled'])
+  assert.deepEqual(both[0].value, both[1].value)
+  assert.equal(both[0].value.digest, D_E)
+  assert.deepEqual(await committed.rows(projectId), { revisions: 1, thumbnails: 1 })
 
   const rolledBack = await world(t, 'conexus_registry_concurrent_rollback')
   const second = await rolledBack.seedBuilderProject('Borealis', ID.workspace, B)
   const secondRun = await rolledBack.runFor(second)
-  const secondSealed = rolledBack.sealFor(second, secondRun, [F])
-  const racing = (after) => rolledBack.database.system('builder-executor', async (gate) => {
-    const retained = await rolledBack.registry.retain(await admitRun(gate, secondRun, { ownerId: OWNER }), secondSealed)
-    await after()
-    return retained
-  })
-  const outcomes = await Promise.allSettled([racing(async () => { await pause(300); throw new Error('FIRST_ROLLS_BACK') }), racing(async () => {})])
+  const outcomes = await retainTwice({ ...rolledBack, builderRunId: secondRun, sealed: rolledBack.sealFor(second, secondRun, [F]), firstEnds: 'ROLLBACK' })
   assert.deepEqual(outcomes.map((outcome) => outcome.status), ['rejected', 'fulfilled'])
   assert.deepEqual(await rolledBack.rows(second), { revisions: 1, thumbnails: 0 })
 })

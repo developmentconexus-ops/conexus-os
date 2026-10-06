@@ -46,7 +46,7 @@ const MEDIA_TYPE_BY_EXTENSION = {
     '.woff': 'font/woff',
     '.woff2': 'font/woff2',
 };
-export const mediaTypeOfPath = (path) => {
+export function mediaTypeOfPath(path) {
     const parsed = MediaType.safeParse(MEDIA_TYPE_BY_EXTENSION[path.slice(path.lastIndexOf('.')).toLowerCase()]);
     return parsed.success ? parsed.data : null;
-};
+}

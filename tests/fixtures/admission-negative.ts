@@ -1,9 +1,10 @@
 import { z } from 'zod'
-import type { AccountId, ProjectId, WorkspaceId } from '../../packages/contract/dist/index.js'
+import type { AccountId, ArtifactDigest, ProjectId, SourceRevision, WorkspaceId } from '../../packages/contract/dist/index.js'
 import { admitAccount, admitApplication, checkApplication, admitProject, admitSystem, admitWorkspace, grantCreatorMembership } from '../../apps/hub/src/identity-access/admission.js'
-import type { Admitted, AccountScope, ApplicationScope, Checked, ProjectScope, SystemScope, WorkspaceScope } from '../../apps/hub/src/identity-access/admission.js'
+import type { Admitted, AccountScope, RunScope, ApplicationScope, Checked, ProjectScope, SystemScope, WorkspaceScope } from '../../apps/hub/src/identity-access/admission.js'
 import type { AuthenticationGate, CommandGate, ReadTx, RawToken, WriteTx } from '../../apps/hub/src/platform/db.js'
 import { digest, sql } from '../../apps/hub/src/platform/db.js'
+import { SealedApplication } from '../../apps/hub/src/platform/sealed-application.js'
 import type { RegistryModule } from '../../apps/hub/src/registry/module.js'
 
 declare const account: AccountId
@@ -22,6 +23,9 @@ declare const writeTx: WriteTx
 declare const presented: RawToken
 declare const gate: CommandGate
 declare const registry: RegistryModule
+declare const runProof: Admitted<RunScope>
+declare const sourceRevision: SourceRevision
+declare const artifactDigest: ArtifactDigest
 declare const authentication: AuthenticationGate
 
 // @ts-expect-error A proof cannot be constructed as an object.
@@ -69,6 +73,10 @@ void registry.purge(reaper, project)
 // @ts-expect-error The registry purge takes a purge proof, not a build proof.
 void registry.purge(builder, project)
 void registry.purge(purge, project)
+// @ts-expect-error An object with the sealed build's fields is not a sealed build: only seal makes one.
+void registry.retain(runProof, { projectId: project, sourceRevision, digest: artifactDigest })
+// @ts-expect-error The sealed build is an abstract class, so no caller builds one.
+void new SealedApplication(project, sourceRevision, artifactDigest)
 // @ts-expect-error A served read proof has a read transaction, so it cannot write.
 checked.tx.run(sql`SELECT 1`)
 // @ts-expect-error A served read proof cannot stand in for a write proof: no command port accepts it.

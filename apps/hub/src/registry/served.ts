@@ -20,7 +20,8 @@ const FileColumns = { path: ApplicationFilePath, media_type: MediaType, sha256: 
  * (no pointer, or no working state left), BROKEN (a pointer no revision of the Project matches),
  * MISSING (the revision lacks what the reader joined to it) or SERVED.
  */
-const pointerStatement = (projectId: ProjectId, { columns, joins, absent }: Readonly<{ columns: Sql; joins: Sql; absent: Sql }>): Sql => sql`
+function pointerStatement(projectId: ProjectId, { columns, joins, absent }: Readonly<{ columns: Sql; joins: Sql; absent: Sql }>): Sql {
+  return sql`
   SELECT CASE
       WHEN working.last_preview_artifact_revision_id IS NULL THEN 'NONE'
       WHEN revision.artifact_revision_id IS NULL THEN 'BROKEN'
@@ -36,26 +37,33 @@ const pointerStatement = (projectId: ProjectId, { columns, joins, absent }: Read
     AND revision.digest = working.last_preview_artifact_digest
   ${joins}
   WHERE working.project_id = ${projectId}`
+}
 
-const pointerRow = <S extends z.ZodRawShape>(served: S) => z.discriminatedUnion('state', [
-  z.object({ state: z.literal('NONE') }),
-  z.object({ state: z.literal('BROKEN') }),
-  z.object({ state: z.literal('MISSING'), revision_id: ArtifactRevisionId }),
-  z.object({ state: z.literal('SERVED'), revision_id: ArtifactRevisionId, ...served }),
-])
+function pointerRow<S extends z.ZodRawShape>(served: S) {
+  return z.discriminatedUnion('state', [
+    z.object({ state: z.literal('NONE') }),
+    z.object({ state: z.literal('BROKEN') }),
+    z.object({ state: z.literal('MISSING'), revision_id: ArtifactRevisionId }),
+    z.object({ state: z.literal('SERVED'), revision_id: ArtifactRevisionId, ...served }),
+  ])
+}
 
 const FILES_OF_REVISION = sql`(SELECT jsonb_agg(jsonb_build_object('path', value->>'path', 'mediaType', value->>'mediaType')
   ORDER BY value->>'path' COLLATE "C") FROM jsonb_array_elements(revision.payload->'files') AS files_list(value))`
 
-const fileOf = (path: ApplicationFilePath): Readonly<{ columns: Sql; joins: Sql; absent: Sql }> => ({
+function fileOf(path: ApplicationFilePath): Readonly<{ columns: Sql; joins: Sql; absent: Sql }> {
+  return {
   columns: sql`file->>'path' AS path, file->>'mediaType' AS media_type, file->>'sha256' AS sha256, decode(file->>'base64', 'base64') AS bytes`,
   joins: sql`LEFT JOIN LATERAL jsonb_path_query_first(revision.payload, '$.files[*] ? (@.path == $path)', jsonb_build_object('path', ${path}::text)) AS file ON true`,
-  absent: sql`file IS NULL`,
-})
+    absent: sql`file IS NULL`,
+  }
+}
 
-const brokenPointer = (): Failure => new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'SERVED_POINTER_BROKEN' } })
+function brokenPointer(): Failure {
+  return new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'SERVED_POINTER_BROKEN' } })
+}
 
-export const readManifest = async (tx: TxQueries, projectId: ProjectId): Promise<ServedManifest | null> => {
+export async function readManifest(tx: TxQueries, projectId: ProjectId): Promise<ServedManifest | null> {
   const row = await tx.maybe(pointerRow({ files: ManifestFiles }), pointerStatement(projectId, { columns: sql`${FILES_OF_REVISION} AS files`, joins: sql``, absent: sql`FALSE` }))
   if (row === null || row.state === 'NONE') return null
   if (row.state !== 'SERVED') throw brokenPointer()
@@ -67,7 +75,7 @@ type FileRead =
   | Readonly<{ kind: 'MISSING'; artifactRevisionId: ArtifactRevisionId }>
   | Readonly<{ kind: 'FILE'; artifactRevisionId: ArtifactRevisionId; file: ApplicationFile }>
 
-const readFile = async (tx: TxQueries, projectId: ProjectId, path: ApplicationFilePath): Promise<FileRead> => {
+async function readFile(tx: TxQueries, projectId: ProjectId, path: ApplicationFilePath): Promise<FileRead> {
   const row = await tx.maybe(pointerRow(FileColumns), pointerStatement(projectId, fileOf(path)))
   if (row === null || row.state === 'NONE') return { kind: 'NONE' }
   if (row.state === 'BROKEN') throw brokenPointer()
@@ -75,13 +83,13 @@ const readFile = async (tx: TxQueries, projectId: ProjectId, path: ApplicationFi
   return { kind: 'FILE', artifactRevisionId: row.revision_id, file: { path: row.path, mediaType: row.media_type, sha256: row.sha256, bytes: row.bytes } }
 }
 
-export const readServedFileOf = async (tx: TxQueries, projectId: ProjectId, path: ApplicationFilePath): Promise<ServedFile> => {
+export async function readServedFileOf(tx: TxQueries, projectId: ProjectId, path: ApplicationFilePath): Promise<ServedFile> {
   const read = await readFile(tx, projectId, path)
   if (read.kind === 'NONE') return { ok: false, reason: 'NOT_SERVED' }
   return read.kind === 'MISSING' ? { ok: false, reason: 'NOT_FOUND' } : { ok: true, artifactRevisionId: read.artifactRevisionId, file: read.file }
 }
 
-export const readPinnedFileOf = async (tx: TxQueries, projectId: ProjectId, path: ApplicationFilePath, pin: ArtifactRevisionId): Promise<PinnedFile> => {
+export async function readPinnedFileOf(tx: TxQueries, projectId: ProjectId, path: ApplicationFilePath, pin: ArtifactRevisionId): Promise<PinnedFile> {
   const read = await readFile(tx, projectId, path)
   if (read.kind === 'NONE') return { ok: false, reason: 'NOT_SERVED' }
   if (read.artifactRevisionId !== pin) return { ok: false, reason: 'STALE_PIN' }
@@ -98,7 +106,7 @@ const LaunchColumns = {
   files: ManifestFiles,
 }
 
-export const readLaunchOf = async (tx: TxQueries, projectId: ProjectId): Promise<ServedLaunch | null> => {
+export async function readLaunchOf(tx: TxQueries, projectId: ProjectId): Promise<ServedLaunch | null> {
   const row = await tx.maybe(pointerRow(LaunchColumns), pointerStatement(projectId, {
     columns: sql`revision.source_revision AS source_revision, revision.digest AS digest, revision.payload->>'entryPath' AS entry_path,
       revision.payload->>'profile' AS profile, revision.payload->>'templateRef' AS template_ref, revision.payload->>'recipeSha256' AS recipe_sha256, ${FILES_OF_REVISION} AS files`,
@@ -111,7 +119,7 @@ export const readLaunchOf = async (tx: TxQueries, projectId: ProjectId): Promise
   return { sourceRevision: row.source_revision, artifactRevisionId: row.revision_id, digest: row.digest, entryPath: row.entry_path, files: row.files }
 }
 
-export const readThumbnailOf = async (tx: TxQueries, projectId: ProjectId): Promise<ServedThumbnail | null> => {
+export async function readThumbnailOf(tx: TxQueries, projectId: ProjectId): Promise<ServedThumbnail | null> {
   const row = await tx.maybe(pointerRow({ bytes: z.instanceof(Uint8Array) }), pointerStatement(projectId, {
     columns: sql`thumbnail.bytes AS bytes`,
     joins: sql`LEFT JOIN reg.application_thumbnail AS thumbnail ON thumbnail.artifact_revision_id = revision.artifact_revision_id`,
@@ -124,12 +132,13 @@ export const readThumbnailOf = async (tx: TxQueries, projectId: ProjectId): Prom
 
 const PreviewFileRow = z.object(FileColumns)
 
-export const readPreviewFileOf = (tx: TxQueries, input: Readonly<{ projectId: ProjectId; sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId; path: ApplicationFilePath }>): Promise<ApplicationFile | null> =>
-  tx.maybe(PreviewFileRow, sql`
+export async function readPreviewFileOf(tx: TxQueries, input: Readonly<{ projectId: ProjectId; sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId; path: ApplicationFilePath }>): Promise<ApplicationFile | null> {
+  const row = await tx.maybe(PreviewFileRow, sql`
     SELECT file->>'path' AS path, file->>'mediaType' AS media_type, file->>'sha256' AS sha256, decode(file->>'base64', 'base64') AS bytes
     FROM reg.artifact_revision AS revision
     CROSS JOIN LATERAL jsonb_path_query_first(revision.payload, '$.files[*] ? (@.path == $path)', jsonb_build_object('path', ${input.path}::text)) AS file
     WHERE revision.project_id = ${input.projectId} AND revision.artifact_revision_id = ${input.artifactRevisionId} AND revision.source_revision = ${input.sourceRevision}
       AND revision.payload->>'profile' = ${CURRENT_TEMPLATE_PIN.profile} AND revision.payload->>'templateRef' = ${CURRENT_TEMPLATE_PIN.templateRef}
       AND revision.payload->>'recipeSha256' = ${CURRENT_TEMPLATE_PIN.recipeSha256} AND file IS NOT NULL`)
-    .then((row) => (row === null ? null : { path: row.path, mediaType: row.media_type, sha256: row.sha256, bytes: row.bytes }))
+  return row === null ? null : { path: row.path, mediaType: row.media_type, sha256: row.sha256, bytes: row.bytes }
+}

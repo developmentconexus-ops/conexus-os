@@ -5,7 +5,8 @@ import { admitProject, admitRun, admitSystem, type Admitted, type ProjectScope, 
 import { BUILDER_RUN_STATES, OPEN_RUN_STATES, type OpenRunState, type BuilderRunPhase, } from '../generated/builder-run-vocabulary.js'
 import { sql, type Database, } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
-import type { BuilderRegistry, SealedApplication } from './application-build.js'
+import type { BuilderRegistry } from './application-build.js'
+import type { SealedApplication } from '../platform/sealed-application.js'
 import { RUN_COLUMNS, RunRow, runSummary, type BuilderRunSummary } from './run-row.js'
 
 /** Who a run's write acts as: its author's account before the candidate, the executor for everything it settles. */

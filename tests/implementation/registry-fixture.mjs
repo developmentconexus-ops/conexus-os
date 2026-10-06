@@ -91,3 +91,9 @@ export const invariant = (name) => (error) => {
 
 export const P = '33333333-3333-4333-8333-333333333333'
 export const B = '44444444-4444-4444-8444-444444444444'
+
+export function deferred() {
+  let resolve
+  const promise = new Promise((done) => { resolve = done })
+  return { promise, resolve }
+}

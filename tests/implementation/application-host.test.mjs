@@ -468,7 +468,7 @@ const operation = async (t, options) => {
   return { status: response.statusCode, code: response.json().code }
 }
 
-test('a grant revoked between the manifest and the pinned server file read answers 404 APPLICATION_NOT_FOUND, and the runner receives nothing', async (t) => {
+test('a pinned server file read the registry refuses as APPLICATION_NOT_FOUND answers 404 and the runner receives nothing', async (t) => {
   const { Failure } = await import(hubModuleUrl('platform/failure.js'))
   const answer = await operation(t, {
     runner: recordingRunner(async () => ({ status: 200, body: {} })),

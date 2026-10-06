@@ -69,7 +69,7 @@ const MEDIA_TYPE_BY_EXTENSION: Readonly<Record<string, (typeof MEDIA_TYPES)[numb
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
 }
-export const mediaTypeOfPath = (path: string): MediaType | null => {
+export function mediaTypeOfPath(path: string): MediaType | null {
   const parsed = MediaType.safeParse(MEDIA_TYPE_BY_EXTENSION[path.slice(path.lastIndexOf('.')).toLowerCase()])
   return parsed.success ? parsed.data : null
 }
