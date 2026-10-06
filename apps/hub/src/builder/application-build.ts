@@ -29,7 +29,7 @@ export type BuilderRegistry = Readonly<{
 // operation for `conexus_run_operation`.
 export type ApplicationServerPort = Readonly<{
   invoke: CandidateOperationPorts['invoke']
-  prepare(input: Readonly<{ projectId: string; files: readonly Readonly<{ path: string; sha256: string; content: string }>[] }>): Promise<PrepareResult>
+  prepare(input: Readonly<{ projectId: ProjectId; files: readonly Readonly<{ path: string; sha256: string; content: string }>[] }>): Promise<PrepareResult>
 }>
 
 const SERVER_ROOT = 'conexus-server/'
