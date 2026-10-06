@@ -383,7 +383,6 @@ pull request that fixes one deletes its line.
 | `apps/web/src/generated/iam-client.ts` calls the Hub with `fetch`, outside `http.ts` | S1 |
 | The first access is refused: `admitBootstrap` is not built | S1, part 6 |
 | Model accounts and the Mastra instance live in `builder`, not in the core | Hub base, after S1 |
-| Model accounts are stored as `model_connection.connection`, a second meaning of "connection" | Hub base, after S1 |
 | Nothing bounds one Project's storage in the Applications cluster | Hub base, after S1 |
 | An `archived` Project state exists that nothing produces | Project lifecycle, after S1 |
 | The Builder's sandbox has open internet egress (C-023) | Accepted risk |
