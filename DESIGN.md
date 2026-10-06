@@ -260,3 +260,15 @@ approved before the pieces that inherit it. Styling may not change reading order
 where actions sit, density, navigation or phone behavior without that approval. Values on a screen
 match the issue's literal numbers and copy. A screen the operator asked to see carries
 `needs:aprovo`.
+
+## 10. The Build surface
+
+The app is the main area and the conversation sits beside it; both survive resizing, collapsing and
+a narrow screen. Enter sends, Shift+Enter breaks a line, and input methods are safe. While a
+question waits, Enter answers it, Stop is its own control, and the screen says "Esperando a sua
+resposta" with no countdown. The conversation follows new messages only while the reader stays at
+its end. A model change never touches an active run. The Preview stays usable while new work runs,
+and an older launch never replaces a newer one. A failed source stays current with a safe
+diagnostic, and there is no automatic repair loop. Code and Changes are read-only, and Changes
+compares a run's base with its result. Reload reconciles conversation, run, source and Preview from
+the server.
