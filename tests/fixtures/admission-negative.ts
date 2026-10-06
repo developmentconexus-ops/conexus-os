@@ -12,6 +12,8 @@ import { SealedApplication } from '../../apps/hub/src/platform/sealed-applicatio
 import type { RegistryModule } from '../../apps/hub/src/registry/module.js'
 import { purgeProject } from '../../apps/hub/src/identity-access/application-access.js'
 import { provisionIdentity } from '../../apps/hub/src/identity-access/authentication.js'
+import { joinClaimed } from '../../apps/hub/src/identity-access/roster.js'
+import { grantClaimed } from '../../apps/hub/src/identity-access/application-access.js'
 import type { SignInClaims } from '../../apps/hub/src/identity-access/oidc.js'
 
 declare const account: AccountId
@@ -156,3 +158,7 @@ const unlawful: Lawful = { provider: 'openai-codex', kind: 'api_key' }
 const missingPrefix: ModelRoutes = { anthropic: anthropicRoute, 'google-ai-pro': googleRoute }
 
 void [purgedByAccount, positiveIdentityPurge, provisionedBare, positiveAuthenticatedCheck, positiveAuthenticatedAdmission, positivePreviewCheck, positiveReceipt, positiveKeyed, positiveBootstrap, unlawful, missingPrefix, literalGate, spreadGate, positiveAuthentication, positiveDigest, positiveOwner, positiveRead, positiveGrant, positivePurge, positiveSystem, positiveChecked, positiveCheckedRead, checkedAsAdmitted, admittedAsChecked, copiedChecked, writeMode, wrongJob, forged, copied, wrongScope, wrongAction, wrongProject, wrongMode]
+// @ts-expect-error A claim is made only by claimInvitations: a literal cannot make an account an owner.
+joinClaimed(accountProof, { workspaces: [{ workspace_id: workspace, role: 'owner', invited_by: account }], applications: [] })
+// @ts-expect-error A claim is made only by claimInvitations: a literal cannot grant an application.
+grantClaimed(accountProof, { workspaces: [], applications: [{ project_id: project, invited_by: account, created_at: '' }] })

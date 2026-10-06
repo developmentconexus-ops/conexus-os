@@ -134,8 +134,16 @@ export const lookupIdentity = async (gate: AuthenticationGate, identity: Provide
 
 const WorkspaceClaim = z.object({ workspace_id: WorkspaceId, role: z.enum(WORKSPACE_ROLES), invited_by: AccountId })
 const ApplicationClaim = z.object({ project_id: ProjectId, invited_by: AccountId, created_at: z.string() })
-/** The invitations one verified email took: never empty, since an empty claim is null. */
-export type Claim = Readonly<{ workspaces: readonly z.output<typeof WorkspaceClaim>[]; applications: readonly z.output<typeof ApplicationClaim>[] }>
+/**
+ * The invitations one verified email took: never empty, since an empty claim is null. It is the only
+ * authority for the memberships and grants a claim inserts, so only claimInvitations makes one.
+ */
+class Claim {
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: type identity is the use
+  readonly #claimed = true
+  constructor(readonly workspaces: readonly z.output<typeof WorkspaceClaim>[], readonly applications: readonly z.output<typeof ApplicationClaim>[]) {}
+}
+export type { Claim }
 
 /** Takes every open invitation of the verified email of this sign in. Each DELETE is the claim and the consumption, so a cancel and a claim of one invitation never both win. */
 export const claimInvitations = async (gate: AuthenticationGate, email: EmailAddress): Promise<Claim | null> => {
@@ -146,7 +154,7 @@ export const claimInvitations = async (gate: AuthenticationGate, email: EmailAdd
   const applications = await tx.rows(ApplicationClaim, sql`
     DELETE FROM iam.application_invitation WHERE email = ${email} AND expires_at > now()
     RETURNING project_id, invited_by, created_at::text AS created_at`)
-  return workspaces.length + applications.length === 0 ? null : { workspaces, applications }
+  return workspaces.length + applications.length === 0 ? null : new Claim(workspaces, applications)
 }
 
 /** What lets an unknown identity become an account: the founding of the installation, or a claim of its verified email. */
