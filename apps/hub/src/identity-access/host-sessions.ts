@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { QueryResultRow } from 'pg'
+import { ArtifactDigest, ArtifactRevisionId } from '../../../../packages/contract/dist/index.js'
 import { parseCaller } from '../platform/caller.js'
 import { parseApplicationSlug } from '../platform/application-slug.js'
 import { digest, opaqueToken as opaque, parseOpaqueToken } from '../platform/opaque-token.js'
@@ -29,8 +30,8 @@ export type PreviewLaunch = Readonly<{
   accountId: string
   projectId: string
   sourceRevision: string
-  artifactRevisionId: string
-  artifactDigest: string
+  artifactRevisionId: ArtifactRevisionId
+  artifactDigest: ArtifactDigest
   exactHost: string
   manifest: PreviewManifest
 }>
@@ -306,7 +307,7 @@ export const createHostSessions = ({
         kind: 'SIGNED_IN',
         binding: Object.freeze({
           accountId: row.account_id, projectId: row.project_id, sourceRevision: row.source_revision,
-          artifactRevisionId: row.artifact_revision_id, artifactDigest: row.artifact_digest, exactHost,
+          artifactRevisionId: ArtifactRevisionId.parse(row.artifact_revision_id), artifactDigest: ArtifactDigest.parse(row.artifact_digest), exactHost,
           manifest: row.manifest, expiresAt: row.expires_at.getTime(), caller: callerOf(row),
         }),
       }

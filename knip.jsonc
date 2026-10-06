@@ -18,6 +18,7 @@
     "tests/live/harness.mjs",
     "tests/live/hub-entry.mjs",
     "tests/implementation/check-lock-child.mjs",
+    "tests/implementation/registry-crash-child.mjs",
     "tests/implementation/builder-google-ai-pro-fake-cliproxy.mjs",
     "tests/implementation/sandbox-probe/network_egress.mjs",
     "tests/implementation/sandbox-probe/read_proc.mjs",

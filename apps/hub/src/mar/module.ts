@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import { ArtifactRevisionId } from '../../../../packages/contract/dist/index.js'
 import type { HeaderFact } from '../http/access.js'
 import type { ListenerPolicy } from '../http/access.js'
 import { applicationHostContentSecurityPolicy, previewContentSecurityPolicy } from '../platform/application-csp.js'
@@ -16,7 +17,7 @@ type HostPolicy = Extract<ListenerPolicy, Readonly<{ listener: 'preview' | 'appl
 
 export type MarModule = Readonly<{
   /** Where a Preview of this artifact revision is served: its own host on the Preview port. */
-  previewAddress(artifactRevisionId: string): Readonly<{ exactHost: string; entryUrl: string; previewUrl: string }>
+  previewAddress(artifactRevisionId: ArtifactRevisionId): Readonly<{ exactHost: string; entryUrl: string; previewUrl: string }>
   previewPolicy: HostPolicy
   registerPreviewRoutes(app: FastifyInstance): Promise<readonly ['MAR-Preview']>
   /** Each application on its own host; absent when the installation serves no applications. */
@@ -29,7 +30,7 @@ export type MarRegistry = ApplicationFileReads & ApplicationHostReader & Readonl
 const PREVIEW_DOMAIN = 'conexus.localhost'
 const PREVIEW_HOST = /^preview-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.conexus\.localhost(?::\d+)?$/
 
-const previewHost = (artifactRevisionId: string, previewPort: number): PreviewHost & Readonly<{ authority: string }> => {
+const previewHost = (artifactRevisionId: ArtifactRevisionId, previewPort: number): PreviewHost & Readonly<{ authority: string }> => {
   const hostAuthority = authority({ port: previewPort, domain: PREVIEW_DOMAIN }, `preview-${artifactRevisionId}`)
   return { artifactRevisionId, exactHost: `preview-${artifactRevisionId}.${PREVIEW_DOMAIN}`, origin: `https://${hostAuthority}`, authority: hostAuthority }
 }
@@ -37,9 +38,9 @@ const previewHost = (artifactRevisionId: string, previewPort: number): PreviewHo
 /** @public */
 export const previewHostOf = (host: HeaderFact, previewPort: number): PreviewHost | null => {
   if (typeof host !== 'string') return null
-  const artifactRevisionId = PREVIEW_HOST.exec(host)?.[1]
-  if (!artifactRevisionId) return null
-  const { authority: expected, ...parsed } = previewHost(artifactRevisionId, previewPort)
+  const named = ArtifactRevisionId.safeParse(PREVIEW_HOST.exec(host)?.[1])
+  if (!named.success) return null
+  const { authority: expected, ...parsed } = previewHost(named.data, previewPort)
   return host === expected ? Object.freeze(parsed) : null
 }
 
@@ -73,7 +74,7 @@ export const createMarModule = ({
   const dependencies: PreviewRouteDependencies = {
     sessions, registryReader: registry.readPreviewFile, ...(invokeApplication ? { invokeApplication } : {}), previewHostOf: previewHostOfRequest, pendingRequests, isClosed: () => closed,
   }
-  const previewAddress = (artifactRevisionId: string) => {
+  const previewAddress = (artifactRevisionId: ArtifactRevisionId) => {
     const { exactHost, origin } = previewHost(artifactRevisionId, previewPort)
     return Object.freeze({ exactHost, entryUrl: `${origin}/__conexus/preview-entry`, previewUrl: `${origin}/` })
   }

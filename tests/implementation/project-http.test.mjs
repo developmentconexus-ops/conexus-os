@@ -91,3 +91,10 @@ test('PRJ-THUMBNAIL streams the PNG with its ETag and cache header, and names 40
   assert.equal(problem(await get(app, url)), '503 PROJECT_THUMBNAIL_UNAVAILABLE')
 })
 
+
+test('PRJ-THUMBNAIL answers 503 PROJECT_THUMBNAIL_UNAVAILABLE for a broken served pointer', async (t) => {
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
+  const broken = new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'SERVED_POINTER_BROKEN' } })
+  const app = await listener(t, { thumbnailReader: { readProjectThumbnail: async () => { throw broken } } })
+  assert.equal(problem(await get(app, `/api/control/projects/${PROJECT}/thumbnail`)), '503 PROJECT_THUMBNAIL_UNAVAILABLE')
+})

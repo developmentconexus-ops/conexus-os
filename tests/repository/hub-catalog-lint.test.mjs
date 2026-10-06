@@ -263,3 +263,56 @@ test('a reader grant on a credential column of connector.connection is named', (
     `${CONNECTION} gives hub_reader SELECT(connection_id,connector_id,created_at,created_by,credential_sealed,disabled_at,disabled_by,label,workspace_id), and the reader may only SELECT(connection_id,connector_id,created_at,created_by,disabled_at,disabled_by,label,workspace_id)`,
   ])
 })
+
+const REVISION = 'reg.artifact_revision'
+const THUMBNAIL = 'reg.application_thumbnail'
+const registryCatalog = (input, { constraints = true } = {}) => {
+  const reader = [['hub_reader', 'SELECT']]
+  input.catalog.relation = [
+    relation(REVISION, [...reader, ['hub_command', 'DELETE'], ['hub_command', 'INSERT'], ['hub_command', 'SELECT']]),
+    relation(THUMBNAIL, [...reader, ['hub_command', 'INSERT'], ['hub_command', 'SELECT']]),
+  ]
+  input.catalog.column = [column(REVISION, 'artifact_revision_id', []), column(REVISION, 'project_id', []), column(THUMBNAIL, 'artifact_revision_id', [])]
+  input.catalog.constraint = constraints
+    ? [`constraint ${REVISION}.artifact_revision_project_id_fkey FOREIGN KEY (project_id) REFERENCES project.project(project_id)`, `constraint ${THUMBNAIL}.application_thumbnail_revision_fkey FOREIGN KEY (artifact_revision_id) REFERENCES reg.artifact_revision(artifact_revision_id) ON DELETE CASCADE`]
+    : []
+  input.catalog.policy = [
+    policy(REVISION, 'reader', 'r', 'hub_reader', 'rls.acting_account() IS NOT NULL'), policy(REVISION, 'command', '*', 'hub_command'),
+    policy(THUMBNAIL, 'reader', 'r', 'hub_reader', 'rls.acting_account() IS NOT NULL'), policy(THUMBNAIL, 'command', '*', 'hub_command'),
+  ]
+  input.census.register.split = [
+    row(REVISION, { command: ['DELETE', 'INSERT', 'SELECT'], compositeKeys: ['artifact_revision_project_id_fkey'], keyColumns: ['artifact_revision_id', 'project_id'] }),
+    row(THUMBNAIL, { command: ['INSERT', 'SELECT'], compositeKeys: ['application_thumbnail_revision_fkey'], keyColumns: ['artifact_revision_id'] }),
+  ]
+}
+
+test('the two registry register rows pass with their keys and their command verbs', () => {
+  assert.deepEqual(lint((input) => registryCatalog(input)), [])
+})
+
+test('a registry register row whose key constraint is missing from the catalog is named, for each of the two keys', () => {
+  assert.deepEqual(lint((input) => registryCatalog(input, { constraints: false })), [
+    `${REVISION} register names composite key artifact_revision_project_id_fkey, which does not exist`,
+    `${THUMBNAIL} register names composite key application_thumbnail_revision_fkey, which does not exist`,
+  ])
+})
+
+test('a registry revision that the command role may UPDATE, or a thumbnail it may DELETE, is named', () => {
+  const problems = lint((input) => {
+    registryCatalog(input)
+    input.catalog.relation[0] = relation(REVISION, [['hub_reader', 'SELECT'], ['hub_command', 'DELETE'], ['hub_command', 'INSERT'], ['hub_command', 'SELECT'], ['hub_command', 'UPDATE']])
+    input.catalog.relation[1] = relation(THUMBNAIL, [['hub_reader', 'SELECT'], ['hub_command', 'DELETE'], ['hub_command', 'INSERT'], ['hub_command', 'SELECT']])
+  })
+  assert.deepEqual(problems, [
+    `${REVISION} gives hub_command DELETE, INSERT, SELECT, UPDATE, and its register row says DELETE, INSERT, SELECT`,
+    `${THUMBNAIL} gives hub_command DELETE, INSERT, SELECT, and its register row says INSERT, SELECT`,
+  ])
+})
+
+test('a function the register no longer lists, as the dropped registry matcher, is named while it still has an EXECUTE grant', () => {
+  const problems = lint((input) => {
+    input.catalog.function.push(fn('reg.matches_application_artifact', 'p_project_id uuid', ['hub_command']))
+  })
+  assert.equal(problems.length > 0, true)
+  assert.match(problems[0], /reg\.matches_application_artifact/)
+})

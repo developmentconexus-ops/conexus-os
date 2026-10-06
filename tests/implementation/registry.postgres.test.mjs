@@ -8,7 +8,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { query } from './hub-database.mjs'
 import { waitUntilBlocked } from './race.mjs'
 import { ID } from './project-fixture.mjs'
-import { CURRENT_PIN as CURRENT, seedRevision, seedRevisionThumbnail } from './registry-fixture.mjs'
+import { B, DIGEST_1, DIGEST_2, D_E, F, OLD, PNG_T1, P, PNG_T2, SHA_F, SHA_T2, SOURCE_1, SOURCE_2, SOURCE_E, SOURCE_OLD, fileOf, invariant, payloadOf, seedRevision, seedRevisionThumbnail, world } from './registry-fixture.mjs'
 
 const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
@@ -16,69 +16,9 @@ const { admitProject, admitRun, admitSystem, checkApplication } = await import(h
 const { readServedFileOf } = await import(hubModuleUrl('registry/served.js'))
 const { sql } = await import(hubModuleUrl('platform/db.js'))
 
-const OLD = { profile: 'REACT_VITE_V1', templateRef: '537fnzf4c16x9d7oz21k:5591435e-3021-436b-926b-366ddc7e7189', recipeSha256: '74a04791ab9691c48e3f4fbff7aa84e8e3ef1b600d38a585e243fff21e5adebf' }
-const SOURCE_1 = 'a'.repeat(40)
-const SOURCE_2 = 'b'.repeat(40)
-const SOURCE_OLD = 'f'.repeat(40)
-const SOURCE_E = 'e'.repeat(40)
-const DIGEST_1 = 'c'.repeat(64)
-const DIGEST_2 = 'd'.repeat(64)
-const D_E = '6f54e6f0ca33c0e20da4dd7fdd7ed10b89cb6a282d38768aed2c64329c11e36b'
-const SHA_F = 'b633a587c652d02386c4f16f8c6f6aab7352d97f16367c3c40576214372dd628'
-const PNG_T2 = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-const SHA_T2 = '4c4b6a3be1314ab86138bef4314dde022e600960d8689a2c8f8631802d20dab6'
-const PNG_T1 = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00])
-
-const fileOf = (path, mediaType, text) => {
-  const bytes = Buffer.from(text)
-  return { path, mediaType, bytes, sha256: createHash('sha256').update(bytes).digest('hex') }
-}
-const F = fileOf('index.html', 'text/html; charset=utf-8', '<html></html>')
-const payloadOf = (files, pin = CURRENT) => ({
-  format: 'application-payload-v1', ...pin, entryPath: 'index.html',
-  files: files.map((file) => ({ path: file.path, mediaType: file.mediaType, byteLength: file.bytes.byteLength, sha256: file.sha256, base64: Buffer.from(file.bytes).toString('base64') })),
-})
-
-const world = async (t, prefix) => {
-  const fixture = await setupBuilder(t, prefix)
-  const { database, connection, seedRun } = fixture
-  const registry = createRegistryModule({ database })
-  const store = createBuilderStore({ database, ownerId: OWNER, registry })
-  const grant = async (projectId, accountId = ID.outsider) => {
-    await query(connection, 'INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [projectId, `app-${projectId.slice(0, 8)}`, ID.owner])
-    await query(connection, 'INSERT INTO iam.application_grant(project_id, account_id, granted_by) VALUES ($1, $2, $3)', [projectId, accountId, ID.owner])
-  }
-  const point = (projectId, revisionId, sourceRevision, digest) => query(connection, 'UPDATE builder.project_working_state SET last_preview_source_revision = $2, last_preview_artifact_revision_id = $3, last_preview_artifact_digest = $4 WHERE project_id = $1', [projectId, sourceRevision, revisionId, digest])
-  const served = async (projectId) => {
-    await grant(projectId)
-    const first = await seedRevision(connection, projectId, { sourceRevision: SOURCE_1, digest: DIGEST_1, payload: payloadOf([F]) })
-    const second = await seedRevision(connection, projectId, { sourceRevision: SOURCE_2, digest: DIGEST_2, payload: payloadOf([F]) })
-    await point(projectId, second, SOURCE_2, DIGEST_2)
-    return { first, second }
-  }
-  const rows = async (projectId) => (await query(connection, `SELECT
-    (SELECT count(*)::integer FROM reg.artifact_revision WHERE project_id = $1) AS revisions,
-    (SELECT count(*)::integer FROM reg.application_thumbnail WHERE artifact_revision_id IN (SELECT artifact_revision_id FROM reg.artifact_revision WHERE project_id = $1)) AS thumbnails`, [projectId])).rows[0]
-  const pointer = async (projectId) => (await query(connection, 'SELECT last_preview_source_revision AS source, last_preview_artifact_revision_id AS revision, last_preview_artifact_digest AS digest FROM builder.project_working_state WHERE project_id = $1', [projectId])).rows[0]
-  const sealFor = (projectId, builderRunId, files, { sourceRevision = SOURCE_E, thumbnail = null } = {}) => registry.seal(
-    { compiledApplication: { projectId, executionId: builderRunId, sourceRevision, templateRef: CURRENT.templateRef, recipeSha256: CURRENT.recipeSha256, files }, thumbnail },
-    { projectId, builderRunId, sourceRevision },
-  )
-  const runFor = (projectId, options = {}) => seedRun(projectId, { state: 'RUNNING', candidate: SOURCE_E, result: SOURCE_E, ...options })
-  const settle = (projectId, builderRunId, files = [F], { sourceRevision = SOURCE_E, thumbnail = null } = {}) =>
-    store.settleBuilderRunBuild({ builderRunId, sourceRevision, kind: 'BUILT', sealed: sealFor(projectId, builderRunId, files, { sourceRevision, thumbnail }) })
-  return { ...fixture, registry, store, grant, point, served, rows, pointer, sealFor, runFor, settle }
-}
-
-const invariant = (name) => (error) => {
-  assert.equal(error.id, 'INTERNAL_UNEXPECTED')
-  assert.equal(error.details?.invariant, name)
-  return true
-}
-
 test('a member reads the source revisions on the current pin, a grantee reads only what is served, and nobody else reads either', async (t) => {
   const { database, connection, seedBuilderProject, registry, served, point } = await world(t, 'conexus_registry_reads')
-  const projectId = await seedBuilderProject('Atlas')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   const { first, second } = await served(projectId)
   const old = await seedRevision(connection, projectId, { sourceRevision: SOURCE_OLD, digest: 'e'.repeat(64), payload: payloadOf([F], OLD) })
   const at = (artifactRevisionId, sourceRevision) => ({ projectId, sourceRevision, artifactRevisionId, path: 'index.html' })
@@ -105,7 +45,7 @@ test('a member reads the source revisions on the current pin, a grantee reads on
 
 test('the served reads answer the manifest, a file, a missing path, a stale pin and a project that serves nothing', async (t) => {
   const { connection, database, seedBuilderProject, registry, served, point } = await world(t, 'conexus_registry_served')
-  const projectId = await seedBuilderProject('Atlas')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   const { first, second } = await served(projectId)
   const bare = await seedBuilderProject('Bare')
   await query(connection, "INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'bare', $2)", [bare, ID.owner])
@@ -137,7 +77,7 @@ test('the served reads answer the manifest, a file, a missing path, a stale pin 
 
 test('a purge that commits between the access check and the read answers NOT_SERVED, never a broken pointer', async (t) => {
   const { connection, database, seedBuilderProject, served } = await world(t, 'conexus_registry_purge_race')
-  const projectId = await seedBuilderProject('Atlas')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   await served(projectId)
   const answer = await database.transaction(ID.outsider, async (gate) => {
     const { tx } = await checkApplication(gate, projectId)
@@ -157,10 +97,10 @@ test('a purge that commits between the access check and the read answers NOT_SER
 })
 
 test('the application check refuses a revoked grant, a removed membership, a deletion and an inactive account, and a member of another workspace reads nothing', async (t) => {
-  const { connection, seedBuilderProject, registry, served } = await world(t, 'conexus_registry_access')
-  const projectId = await seedBuilderProject('Atlas')
-  const other = await seedBuilderProject('Borealis', ID.otherWorkspace)
-  await served(projectId)
+  const { connection, database, seedBuilderProject, registry, served } = await world(t, 'conexus_registry_access')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
+  const other = await seedBuilderProject('Borealis', ID.otherWorkspace, B)
+  const { second } = await served(projectId)
   await served(other)
   const refused = (accountId, id = projectId) => assert.rejects(registry.readServedFile(accountId, id, 'index.html'), { id: 'APPLICATION_NOT_FOUND' })
 
@@ -179,11 +119,15 @@ test('the application check refuses a revoked grant, a removed membership, a del
   await query(connection, "INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Atlas', $3)", [projectId, ID.workspace, ID.administrator])
   await refused(ID.owner)
   await refused(ID.administrator)
+  const Visible = z.object({ n: z.number() })
+  const visible = (await database.read(ID.owner, (tx) => tx.one(Visible, sql`SELECT count(*)::integer AS n FROM project.project WHERE project_id = ${projectId}`, 'INTERNAL_UNEXPECTED'))).n === 1
+  const source = await registry.readPreviewFile(ID.owner, { projectId, sourceRevision: SOURCE_2, artifactRevisionId: second, path: 'index.html' })
+  assert.equal(source !== null, visible, 'the source read follows the reader policy of the Project')
 })
 
 test('retention writes one revision for one source, returns it again to every run that seals the same bytes, and refuses different bytes', async (t) => {
   const { database, connection, seedBuilderProject, registry, rows, pointer, runFor, settle, sealFor, runRow } = await world(t, 'conexus_registry_retain')
-  const projectId = await seedBuilderProject('Atlas')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
 
   const first = await runFor(projectId)
   assert.equal(sealFor(projectId, first, [F]).digest, D_E)
@@ -226,7 +170,7 @@ test('retention writes one revision for one source, returns it again to every ru
 
 test('two sessions that retain the same build at once converge on one revision, and a rollback of the first lets the second insert', async (t) => {
   const { database, seedBuilderProject, registry, rows, runFor, sealFor } = await world(t, 'conexus_registry_concurrent')
-  const projectId = await seedBuilderProject('Atlas')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   const builderRunId = await runFor(projectId)
   const sealed = sealFor(projectId, builderRunId, [F], { thumbnail: { bytes: PNG_T2 } })
   const session = (after) => database.system('builder-executor', async (gate) => {
@@ -241,7 +185,7 @@ test('two sessions that retain the same build at once converge on one revision, 
   assert.deepEqual(await rows(projectId), { revisions: 1, thumbnails: 1 })
 
   const rolledBack = await world(t, 'conexus_registry_concurrent_rollback')
-  const second = await rolledBack.seedBuilderProject('Borealis')
+  const second = await rolledBack.seedBuilderProject('Borealis', ID.workspace, B)
   const secondRun = await rolledBack.runFor(second)
   const secondSealed = rolledBack.sealFor(second, secondRun, [F])
   const racing = (after) => rolledBack.database.system('builder-executor', async (gate) => {
@@ -274,7 +218,7 @@ test('a settlement is refused for an ended run, a run another owner holds, a run
 
 test('a stop requested after the source was admitted does not stop the settlement', async (t) => {
   const { connection, seedBuilderProject, rows, pointer, runFor, settle, runRow } = await world(t, 'conexus_registry_stop')
-  const projectId = await seedBuilderProject('Atlas')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   const builderRunId = await runFor(projectId)
   await query(connection, "UPDATE builder.builder_run SET cancellation_requested_at = now(), cancellation_reason = 'USER_CANCELLED' WHERE builder_run_id = $1", [builderRunId])
   await settle(projectId, builderRunId, [F], { thumbnail: { bytes: PNG_T2 } })
@@ -285,7 +229,7 @@ test('a stop requested after the source was admitted does not stop the settlemen
 
 test('the settlement of a build of 12 MiB holds the run row for less than the heartbeat lock timeout', async (t) => {
   const { seedBuilderProject, runFor, settle } = await world(t, 'conexus_registry_size')
-  const projectId = await seedBuilderProject('Atlas')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   const builderRunId = await runFor(projectId)
   const chunk = 'x'.repeat(1024 * 1024)
   const small = fileOf('index.html', 'text/html; charset=utf-8', '<html></html>')
@@ -298,8 +242,8 @@ test('the settlement of a build of 12 MiB holds the run row for less than the he
 
 test('the project purge removes every revision and thumbnail of the project and no other, twice, and rolls back as one', async (t) => {
   const { connection, database, seedBuilderProject, registry, served, rows } = await world(t, 'conexus_registry_purge')
-  const projectId = await seedBuilderProject('Atlas')
-  const other = await seedBuilderProject('Borealis')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
+  const other = await seedBuilderProject('Borealis', ID.workspace, B)
   const { second } = await served(projectId)
   await served(other)
   await seedRevisionThumbnail(connection, second, PNG_T2)
@@ -317,7 +261,7 @@ test('the project purge removes every revision and thumbnail of the project and 
 
 test('the roles hold only the privileges the registry grants them', async (t) => {
   const { connection, seedBuilderProject, served } = await world(t, 'conexus_registry_privileges')
-  const projectId = await seedBuilderProject('Atlas')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   const { second } = await served(projectId)
   await seedRevisionThumbnail(connection, second, PNG_T2)
   const as = async (role, statement) => {
@@ -350,7 +294,7 @@ test('the roles hold only the privileges the registry grants them', async (t) =>
 
 test('two raw sessions race the revision insert: the second waits on the unique index, then reads the first row or inserts after its rollback', async (t) => {
   const { connection, seedBuilderProject } = await world(t, 'conexus_registry_index_race')
-  const projectId = await seedBuilderProject('Atlas')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   const insert = "INSERT INTO reg.artifact_revision(artifact_revision_id, project_id, source_revision, digest, payload) VALUES (gen_random_uuid(), $1, $2, $3, '{}'::jsonb) ON CONFLICT (project_id, source_revision) DO NOTHING"
   const reread = 'SELECT digest FROM reg.artifact_revision WHERE project_id = $1 AND source_revision = $2'
   const session = async () => {
@@ -380,11 +324,99 @@ test('two raw sessions race the revision insert: the second waits on the unique 
 
 test('a build sealed for one Project is refused under the proof of a run of another, and writes nothing in either', async (t) => {
   const { seedBuilderProject, rows, runFor, sealFor, store } = await world(t, 'conexus_registry_foreign_seal')
-  const projectA = await seedBuilderProject('Atlas')
-  const projectB = await seedBuilderProject('Borealis')
+  const projectA = await seedBuilderProject('Atlas', ID.workspace, P)
+  const projectB = await seedBuilderProject('Borealis', ID.workspace, B)
   const runA = await runFor(projectA)
   const runB = await runFor(projectB)
   const sealedForA = sealFor(projectA, runA, [F], { thumbnail: { bytes: PNG_T2 } })
   await assert.rejects(store.settleBuilderRunBuild({ builderRunId: runB, sourceRevision: SOURCE_E, kind: 'BUILT', sealed: sealedForA }), { id: 'BUILDER_RUN_TRANSITION_REFUSED' })
   assert.deepEqual([await rows(projectA), await rows(projectB)], [{ revisions: 0, thumbnails: 0 }, { revisions: 0, thumbnails: 0 }])
+})
+
+test('a call with no account, an outsider with no filter and a member of another workspace read none of the registry rows', async (t) => {
+  const { connection, database, seedBuilderProject, served } = await world(t, 'conexus_registry_no_account')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
+  const { second } = await served(projectId)
+  const stranger = '10000000-0000-4000-8000-0000000000c1'
+  await query(connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'stranger', 'Stranger')", [stranger])
+  await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'member')", [stranger, ID.otherWorkspace])
+  const Count = z.object({ n: z.number() })
+  const unfiltered = (accountId) => database.read(accountId, (tx) => tx.one(Count, sql`SELECT (SELECT count(*) FROM reg.artifact_revision)::integer + (SELECT count(*) FROM reg.application_thumbnail)::integer AS n`, 'INTERNAL_UNEXPECTED'))
+  assert.deepEqual([await unfiltered(ID.outsider), await unfiltered(stranger), await unfiltered(ID.administrator)], [{ n: 0 }, { n: 0 }, { n: 0 }])
+  await seedRevisionThumbnail(connection, second, PNG_T2)
+  assert.deepEqual(await unfiltered(ID.member), { n: 3 })
+  assert.deepEqual(await unfiltered(stranger), { n: 0 })
+
+  const client = new pg.Client(connection)
+  await client.connect()
+  try {
+    await client.query('SET ROLE hub_reader')
+    const none = await client.query('SELECT (SELECT count(*) FROM reg.artifact_revision)::integer AS revisions, (SELECT count(*) FROM reg.application_thumbnail)::integer AS thumbnails')
+    assert.deepEqual(none.rows, [{ revisions: 0, thumbnails: 0 }])
+  } finally {
+    await client.end()
+  }
+})
+
+test('an application grantee gets the literal source, id and digest of the served revision on the command role, and a registry fault keeps its own code', async (t) => {
+  const { database, seedBuilderProject, served } = await world(t, 'conexus_registry_command_read')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
+  const { second } = await served(projectId)
+  const Pointer = z.object({ source: z.string(), revision: z.string(), digest: z.string() })
+  const pointer = await database.transaction(ID.outsider, async (gate) => {
+    const { tx } = await checkApplication(gate, projectId)
+    return tx.one(Pointer, sql`SELECT last_preview_source_revision AS source, last_preview_artifact_revision_id AS revision, last_preview_artifact_digest AS digest FROM builder.project_working_state WHERE project_id = ${projectId}`, 'INTERNAL_UNEXPECTED')
+  })
+  assert.deepEqual(pointer, { source: SOURCE_2, revision: second, digest: DIGEST_2 })
+
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
+  const busy = createRegistryModule({ database: { ...database, transaction: () => Promise.reject(new Failure('DATABASE_BUSY')), read: () => Promise.reject(new Failure('DATABASE_BUSY')) } })
+  await assert.rejects(busy.readServedFile(ID.outsider, projectId, 'index.html'), { id: 'DATABASE_BUSY' })
+  await assert.rejects(busy.readPinnedServedFile(ID.outsider, projectId, second, 'index.html'), { id: 'DATABASE_BUSY' })
+  await assert.rejects(busy.readProjectThumbnail(ID.member, projectId), { id: 'DATABASE_BUSY' })
+})
+
+test('a served read takes no table lock beyond ACCESS SHARE and clearing the pointer answers NOT_SERVED while access remains', async (t) => {
+  const { connection, database, seedBuilderProject, registry, served } = await world(t, 'conexus_registry_locks')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
+  await served(projectId)
+  const Locks = z.object({ mode: z.string() })
+  const held = await database.transaction(ID.outsider, async (gate) => {
+    const checked = await checkApplication(gate, projectId)
+    await readServedFileOf(checked.tx, projectId, 'index.html')
+    return checked.tx.rows(Locks, sql`SELECT DISTINCT mode FROM pg_locks WHERE pid = pg_backend_pid() AND locktype = 'relation' AND mode <> 'AccessShareLock' ORDER BY 1`)
+  })
+  assert.deepEqual(held, [])
+  await query(connection, 'UPDATE builder.project_working_state SET last_preview_source_revision = NULL, last_preview_artifact_revision_id = NULL, last_preview_artifact_digest = NULL WHERE project_id = $1', [projectId])
+  assert.deepEqual(await registry.readServedFile(ID.outsider, projectId, 'index.html'), { ok: false, reason: 'NOT_SERVED' })
+  assert.equal(await registry.readServedManifest(ID.outsider, projectId), null)
+})
+
+test('a file request of a revision of 12 MiB transfers only the bytes of the requested file', async (t) => {
+  const { connection, seedBuilderProject, grant, point } = await world(t, 'conexus_registry_transfer')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
+  await grant(projectId)
+  const chunk = 'x'.repeat(1024 * 1024)
+  const small = fileOf('index.html', 'text/html; charset=utf-8', '<html></html>')
+  const parts = Array.from({ length: 11 }, (_, number) => fileOf(`part-${number}.txt`, 'text/plain; charset=utf-8', chunk))
+  const filler = fileOf('part-11.txt', 'text/plain; charset=utf-8', 'x'.repeat(1024 * 1024 - small.bytes.byteLength))
+  const revision = await seedRevision(connection, projectId, { sourceRevision: SOURCE_2, digest: DIGEST_2, payload: payloadOf([small, ...parts, filler]) })
+  await point(projectId, revision, SOURCE_2, DIGEST_2)
+
+  const client = new pg.Client(connection)
+  await client.connect()
+  try {
+    const tx = { maybe: async (schema, statement) => {
+      const row = (await client.query(statement.text, [...statement.values])).rows[0]
+      return row ? schema.parse(row) : null
+    } }
+    const before = client.connection.stream.bytesRead
+    const answer = await readServedFileOf(tx, projectId, 'index.html')
+    const transferred = client.connection.stream.bytesRead - before
+    assert.equal(answer.ok, true)
+    assert.equal(Buffer.from(answer.file.bytes).toString(), '<html></html>')
+    assert.ok(transferred < 4096, `${transferred} bytes crossed the wire for a 13 byte file`)
+  } finally {
+    await client.end()
+  }
 })

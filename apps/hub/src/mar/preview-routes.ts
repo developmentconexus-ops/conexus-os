@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { AccountId, ApplicationFilePath, ArtifactRevisionId, ProjectId, SourceRevision, type MediaType, type Sha256 } from '../../../../packages/contract/dist/index.js'
+import { AccountId, ApplicationFilePath, ArtifactRevisionId, ProjectId, SourceRevision, type ArtifactDigest, type MediaType, type Sha256 } from '../../../../packages/contract/dist/index.js'
 import { classifyAppPath, SERVER_ROOT } from '../platform/application-path.js'
 import type { Caller } from '../platform/caller.js'
 import { Failure } from '../platform/failure.js'
@@ -9,7 +9,7 @@ import { routes } from '../http/access.js'
 import type { HeaderFact } from '../http/access.js'
 import { readCookie, setCookie } from '../http/cookies.js'
 
-export type PreviewHost = Readonly<{ artifactRevisionId: string; exactHost: string; origin: string }>
+export type PreviewHost = Readonly<{ artifactRevisionId: ArtifactRevisionId; exactHost: string; origin: string }>
 
 type ManifestFile = Readonly<{ path: string; mediaType: string }>
 type Manifest = Readonly<{ entryPath: 'index.html'; files: readonly ManifestFile[] }>
@@ -19,8 +19,8 @@ type PreviewBinding = Readonly<{
   accountId: string
   projectId: string
   sourceRevision: string
-  artifactRevisionId: string
-  artifactDigest: string
+  artifactRevisionId: ArtifactRevisionId
+  artifactDigest: ArtifactDigest
   exactHost: string
   manifest: Manifest
   expiresAt: number
@@ -60,7 +60,7 @@ const subjectOf = (binding: PreviewBinding) => ({
   accountId: AccountId.parse(binding.accountId),
   projectId: ProjectId.parse(binding.projectId),
   sourceRevision: SourceRevision.parse(binding.sourceRevision),
-  artifactRevisionId: ArtifactRevisionId.parse(binding.artifactRevisionId),
+  artifactRevisionId: binding.artifactRevisionId,
 })
 
 export const OPERATION = /^[a-z][A-Za-z0-9]{0,63}$/

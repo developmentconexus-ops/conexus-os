@@ -283,3 +283,15 @@ test('a platform-side prepare fault settles as a platform failure, not a build f
     ['note', 'APPLICATION_SERVER_REFUSED', 'PLATFORM_FAILED', 'connect ECONNREFUSED 127.0.0.1:5432'],
   ])
 })
+
+test('a build the registry refuses to seal never reaches the runner, and the run settles as a failed build', async () => {
+  let prepared = 0
+  const { calls, outcome } = await settle({
+    applicationBuild: { kind: 'BUILT', compiledApplication: withServerTree() },
+    registry: { seal: () => { throw new Failure('APPLICATION_ARTIFACT_INPUT_REFUSED') } },
+    applicationServer: { prepare: async () => { prepared += 1; return { state: 'READY', reset: false } } },
+  })
+  assert.equal(outcome, 'APPLICATION_ARTIFACT_INPUT_REFUSED')
+  assert.equal(prepared, 0)
+  assert.deepEqual(calls.filter(([name]) => name === 'build-settle'), [['build-settle', 'APPLICATION_ARTIFACT_INPUT_REFUSED', null]])
+})
