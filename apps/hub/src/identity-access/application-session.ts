@@ -1,10 +1,8 @@
-import type { AccountId, ProjectId } from '@conexus/contract'
 import type { ApplicationSlug } from '../platform/application-slug.js'
-import type { Caller } from '../platform/caller.js'
 import { digest, sql } from '../platform/db.js'
 import type { Digest, RawToken } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
-import type { HostOutcome } from '../platform/host-outcome.js'
+import type { HostOutcome, HostRequest } from '../platform/host-outcome.js'
 import { APPLICATION_ABSOLUTE_SECONDS, APPLICATION_HANDOFF_SECONDS } from '../platform/lifetimes.js'
 import { mintToken } from '../platform/opaque-token.js'
 import { admitApplication, checkApplication } from './admission.js'
@@ -13,12 +11,10 @@ import { consumeApplicationHandoff, endCredential, readApplicationSession } from
 import { callerOf, dueOf, MaxAge, sessionEnded, standingOf } from './session-core.js'
 import type { Redeemed, SessionCore, SessionDependencies, Step } from './session-core.js'
 
-export type ApplicationRequest = Readonly<{ caller: Caller; checked: Checked<ApplicationScope>; accountId: AccountId; projectId: ProjectId }>
-
 /** The application session: redeemed from a handoff, checked on every request of its host, ended by sign out. */
 export const createApplicationSessions = ({ database, envelope }: SessionDependencies, { ended, settle }: SessionCore) => {
   /** The application request: the session, its standing and the access check in one entry with the served reads, which never write. */
-  const withApplicationRequest = <T>(presented: Readonly<{ slug: ApplicationSlug; token: RawToken }>, serve: (request: ApplicationRequest) => Promise<T>): Promise<HostOutcome<T>> => {
+  const withApplicationRequest = <T>(presented: Readonly<{ slug: ApplicationSlug; token: RawToken }>, serve: (request: HostRequest<Checked<ApplicationScope>>) => Promise<T>): Promise<HostOutcome<T>> => {
     const key = digest(presented.token)
     return settle<T>('APPLICATION', (recheckAllowed) => database.authenticate(async (gate): Promise<Step<T>> => {
       const row = await readApplicationSession(gate, key, presented.slug)
@@ -31,7 +27,7 @@ export const createApplicationSessions = ({ database, envelope }: SessionDepende
         throw error
       })
       if (!checked) return ended(gate, key, 'APPLICATION', 'ACCESS_REFUSED')
-      return { kind: 'done', value: await serve({ caller: callerOf(row), checked, accountId: row.account_id, projectId: row.project_id }) }
+      return { kind: 'done', value: await serve({ caller: callerOf(row), checked }) }
     }))
   }
 

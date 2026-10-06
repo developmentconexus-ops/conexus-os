@@ -21,7 +21,7 @@ async function hostOver(t, { registry, database, projectId, runnerCalls }) {
     withApplicationRequest: async ({ slug, token }, serve) => {
       if (slug !== 'caderno-de-compras' || token !== TOKEN) return { kind: 'SIGN_IN_REQUIRED' }
       return { kind: 'SERVED', value: await database.transaction(caller.accountId, async (gate) =>
-        serve({ caller, checked: await checkApplication(gate, projectId), accountId: caller.accountId, projectId })) }
+        serve({ caller, checked: await checkApplication(gate, projectId) })) }
     },
     redeem: async () => null,
     signOut: async () => undefined,
@@ -39,7 +39,7 @@ async function hostOver(t, { registry, database, projectId, runnerCalls }) {
   return app
 }
 
-test('a grant revoked between the host manifest read and its pinned server file read answers 404 APPLICATION_NOT_FOUND and the runner receives nothing', async (t) => {
+test('a grant revoked after the entry checked access leaves that request on the files its check admitted, and the next request is refused before any read', async (t) => {
   const { connection, database, registry, seedBuilderProject, grant, point } = await world(t, 'conexus_host_revoke')
   const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   await grant(projectId)
@@ -67,10 +67,15 @@ test('a grant revoked between the host manifest read and its pinned server file 
   await query(connection, 'UPDATE iam.application_grant SET revoked_at = now(), revoked_by = $2 WHERE project_id = $1', [projectId, ID.owner])
   revoked.resolve()
   const response = await answering
-  assert.deepEqual([response.statusCode, response.json().code, runnerCalls.length], [404, 'APPLICATION_NOT_FOUND', 0])
+  assert.deepEqual([response.statusCode, runnerCalls.length, runnerCalls[0]?.files.map((file) => file.path)], [200, 1, ['conexus-server/manifest.json']])
+  const next = await app.inject({
+    method: 'POST', url: '/__conexus/api/addNote', cookies: { '__Host-conexus_app': TOKEN }, payload: {},
+    headers: { host: HOST, 'content-type': 'application/json', origin: `https://${HOST}` },
+  })
+  assert.deepEqual([next.statusCode, next.json().code, runnerCalls.length], [404, 'APPLICATION_NOT_FOUND', 1])
 })
 
-test('the same request with the grant intact reaches the runner with the pinned server file', async (t) => {
+test('the same request with the grant intact reaches the runner with the served server file', async (t) => {
   const { connection, database, registry, seedBuilderProject, grant, point } = await world(t, 'conexus_host_granted')
   const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   await grant(projectId)

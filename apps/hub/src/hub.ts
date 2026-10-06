@@ -103,9 +103,8 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     exactHubOrigin: config.origin,
     previewPort: config.preview.port,
     registry,
-    // The runner receives the admitted artifact's server tree as the registry holds it, never a path.
-    // The hosting module bounds in-flight work and the tree's total size before any file is read, ahead of
-    // the runner's own concurrency cap (apps/hub/src/hosting/application-invoker.ts).
+    // The runner receives the server tree as the request's entry read it, never a path. The hosting
+    // module bounds the tree's total size and the in-flight work, ahead of the runner's own concurrency cap.
     ...(applicationRunner ? {
       applicationRunner: {
         invoke: applicationRunner.invoke,

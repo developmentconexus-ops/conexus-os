@@ -262,22 +262,29 @@ export type SignInOutcome =
 **The application request** (operator decision 5B).
 
 ```ts
-// identity-access/sessions.ts
-export type ApplicationRequest = Readonly<{ caller: Caller; checked: Checked<ApplicationScope> }>
-export type ApplicationOutcome<T> =
+// platform/host-outcome.ts: one outcome and one request shape for both hosts
+export type HostOutcome<T> =
   | Readonly<{ kind: 'SERVED'; value: T }>
   | Readonly<{ kind: 'SIGN_IN_REQUIRED' }>          // no session, an ended one, or a refusal that ended it
   | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
-export function withApplicationRequest<T>(presented: Readonly<{ slug: ApplicationSlug; token: RawToken }>, serve: (request: ApplicationRequest) => Promise<T>): Promise<ApplicationOutcome<T>>
+export type HostRequest<C> = Readonly<{ caller: Caller; checked: C }>
+export type ScopedProof = Readonly<{ scope: Readonly<{ accountId: AccountId; projectId: ProjectId }> }>
 
-// hosting/application-host-routes.ts: the ports, generic over the proof, so mar names no identity-access type
+// identity-access/application-session.ts
+export function withApplicationRequest<T>(presented: Readonly<{ slug: ApplicationSlug; token: RawToken }>, serve: (request: HostRequest<Checked<ApplicationScope>>) => Promise<T>): Promise<HostOutcome<T>>
+
+// hosting/application-host-routes.ts: the ports, generic over the proof, so hosting names no identity-access type
 export type ApplicationHostSessions<C> = Readonly<{
-  withApplicationRequest<T>(presented: Readonly<{ slug: ApplicationSlug; token: RawToken }>, serve: (request: Readonly<{ caller: Caller; checked: C }>) => Promise<T>): Promise<ApplicationOutcome<T>>
+  withApplicationRequest<T>(presented: Readonly<{ slug: ApplicationSlug; token: RawToken }>, serve: (request: HostRequest<C>) => Promise<T>): Promise<HostOutcome<T>>
   redeem(input: Readonly<{ handoff: RawToken; slug: ApplicationSlug; binding: RawToken }>): Promise<Readonly<{ sessionToken: RawToken; maxAgeSeconds: number }> | null>
   signOut(token: RawToken): Promise<void>
 }>
 export type ApplicationHostReader<C> = Readonly<{ readServedManifest(checked: C): ...; readServedFile(checked: C, path: ApplicationFilePath): ... }>
-// hub.ts instantiates both with C = Checked<ApplicationScope>
+// hub.ts instantiates both with C = Checked<ApplicationScope>; the routes take C extends ScopedProof, so the runner's
+// account and Project come from checked.scope
+
+// the operation handler: the manifest and the server tree are read in the one callback, under the proof that admitted
+// the request, before the entry commits; the runner is called after it
 
 // the serve handler: both reads of a client route (the file, then the SPA fallback to index.html) run in the one callback
 const outcome = await sessions.withApplicationRequest({ slug, token }, async ({ checked }) => {
@@ -319,7 +326,7 @@ const outcome = await sessions.withApplicationRequest({ slug, token }, async ({ 
 
 **Handoff redeem.** One `authenticate`: `consumeApplicationHandoff(gate, digest, slug, bindingDigest)` takes the Project row `FOR SHARE` by slug inside the lookup, so no caller can skip it, then a `DELETE ... RETURNING` with the deadline in the predicate, then the APPLICATION session insert (8 hours from the mint). One use, one browser, 60 s.
 
-**Preview.** The Builder's launch calls `openPreview(proof, hubSessionDigest, artifactRevisionId)` with its `Admitted<ProjectScope<'project.read'>>`, so the launch cannot disagree with the admission. It inserts a PREVIEW handoff (30 s, the parent Hub session, `session_expires_at` 15 minutes on). Redeem takes the Project row `FOR SHARE`, deletes the handoff where its revision matches the host and the parent is alive, then inserts the PREVIEW session. Each Preview request resolves the session and its parent's standing, runs the parent's due recheck by the same three steps as the Hub request (guide S section 4), and ends the parent, and the Preview by cascade, on a refusal. It returns `{ accountId, projectId, artifactRevisionId, expiresAt, caller }`. A Preview request does not slide the parent. In the same entry it runs `checkProject(gate, projectId)` (operator decision 13), the Preview's twin of `checkApplication`: no lock, a `Checked` proof, the Project's Workspace membership of the session's account and no deletion row. A refusal deletes the PREVIEW session only, since the person may keep the Hub, and the Preview host answers as for an ended Preview session. So removing a member ends their Previews on the next request, as guide S section 2 requires ("Removing a roster entry must withdraw every right it gave"); it adds one statement to an entry that already reads the session and its parent. `hosting` reads the manifest from the registry by artifact revision.
+**Preview.** The Builder's launch calls `openPreview(proof, hubSessionDigest, artifactRevisionId)` with its `Admitted<ProjectScope<'project.read'>>`, so the launch cannot disagree with the admission. It inserts a PREVIEW handoff (30 s, the parent Hub session, `session_expires_at` 15 minutes on). Redeem takes the Project row `FOR SHARE`, deletes the handoff where its revision matches the host and the parent is alive, then inserts the PREVIEW session. Each Preview request resolves the session and its parent's standing, runs the parent's due recheck by the same three steps as the Hub request (guide S section 4), and ends the parent, and the Preview by cascade, on a refusal. It hands hosting the caller and the `Checked` proof, as the application request does. A Preview request does not slide the parent. In the same entry it runs `checkProject(gate, projectId)` (operator decision 13), the Preview's twin of `checkApplication`: no lock, a `Checked` proof, the Project's Workspace membership of the session's account and no deletion row. A refusal deletes the PREVIEW session only, since the person may keep the Hub, and the Preview host answers as for an ended Preview session. So removing a member ends their Previews on the next request, as guide S section 2 requires ("Removing a roster entry must withdraw every right it gave"); it adds one statement to an entry that already reads the session and its parent. `hosting` reads the manifest from the registry by artifact revision.
 
 **Session end.** Sign out: `authenticate`, `DELETE ... WHERE token_digest = $1 AND kind = 'HUB' RETURNING provider_refresh_token`; Preview sessions and handoffs go by cascade; then the Keycloak logout outside the transaction (guide S section 4 order). Idle, absolute, refused recheck and lost custody end the same way, each with a `SESSION_ENDED` line and its reason. The reaper writes one `IAM_REAPED` line per rule with its count.
 
@@ -479,7 +486,7 @@ Recorded at the build (2026-10-06), each accepted by HQ:
 17. A claim inserts no grant for an application invitation older than a revoke of that person on that Project; a grant given again after a revoke refreshes the invitation's `created_at`, so it is newer and claims.
 18. `listInstallationAdministrators` filters no `active` column: `hub_reader` reads only the person columns of `iam.account`.
 19. Two owners demoting each other, or two administrators revoking each other, in parallel: one succeeds and the other answers 403, since it no longer holds the authority; the 409 last holder races are two holders each stepping down (tests 4 and 8).
-20. The application and Preview requests also hand hosting `accountId` and `projectId`, which the runner invoke needs and which hosting cannot read from the opaque proof.
+20. Superseded at the stage 6 review: the application and Preview requests hand hosting only the caller and the `Checked` proof, as section 5 shows. Hosting reads the account and the Project from `checked.scope` through the structural `ScopedProof`, so it still names no identity-access type, and no second copy of the ids can disagree with the proof (review 6, R5 F4).
 21. `applicationSlugOfHost` returns an `ApplicationSlug`.
 22. The Preview redeem refuses a Project with a deletion row, as the application begin does, so a redeem never waits on a purge that holds the Project.
 23. 0070 drops the eight roles tolerantly: `DROP ROLE IF EXISTS` with `dependent_objects_still_exist` (2BP01) ignored, since another database of the cluster may still depend on them; the last database to migrate drops them (as 0010 does, [data child](0015-data.md), "Dropping a role").
@@ -494,69 +501,4 @@ Recorded at the stage 6 review (2026-10-06), each accepted by HQ:
 29. Each SQL rule has one spelling: `liveness(alias)`, `recheckDue(alias)` and `hubEntry(alias)` in `authentication.ts` (the reaper and the Hub entry check use them too), and `notInDeletion(alias)` in `admission.ts`, which `authentication.ts` imports. `lockLiveProject` is the one Project `FOR SHARE` and second read that `admitProject`, `admitApplication` and the run admission share. A Workspace command reads the actor's membership with no lock first and refuses an outsider there, so an outsider never takes a Workspace's owner rows; the membership is a plain read, not `FOR SHARE`, because a member that held its own row `FOR SHARE` and then took the owner rows `FOR UPDATE` would deadlock against a second owner doing the same (review 6, R4 finding 7, X F3 and F13).
 30. An application sign in callback takes the Project `FOR SHARE` as its first statement, before `identify` claims the Project's invitations and inserts its grants, and `consumeApplicationHandoff` takes it inside the lookup. Before, the claim locked the Project's children before the Project, the reverse of the purge, so a tombstone committed between the callback's unlocked read and its `FOR SHARE` closed a lock cycle that ended in 40P01 and a 500 (review 6, X F1 and R4 finding 8). A purge racer whose identity claims an application invitation of the Project is in test 9.
 31. One owner per fact and no field that is always set but typed optional: `WorkspaceRole` and `WORKSPACE_ROLES` come from the contract; one `ActiveAccount` and one `Present` row schema; every row reads `display_name` as the contract's `DisplayName`, so the caller of a served request is built from the typed row with no second parse; `CurrentSession.account` is the contract's `SessionAccount`; the Workspace and application invitation lists share one row and one set of entry fields. A Hub or application session row reads its sealed token and last check as non null, as the `host_session` CHECKs guarantee, so no missing value can skip a recheck. The founding account rides on the `account` variant of the entrant, the OIDC completion has a `no-refresh-token` variant instead of a nullable token, the application venue carries its binding digest, and a tenure entry row is one of two variants, with or without a grantor. A Preview whose account is inactive ends its parent as `ACCOUNT_INACTIVE`, the same reason the Hub request gives (review 6, R4 findings 3, 4 and 6, X F6 and F11, R1 F6).
-
-## References
-
-Each mechanism against the reference code, from `study.md` and `request-auth.md` (the reference repositories cloned for the study, `file:line` there):
-
-| Mechanism | Reference | Verdict |
-| --- | --- | --- |
-| Provider pair as identity, email presentation only | GoTrue `identities_provider_id_provider_unique`; Documenso `@@unique([provider, providerAccountId])` | follows |
-| Account created in the callback from claims | Better Auth `oauth2/link-account.ts:542-561`; GoTrue `internal/api/external.go:216-261` | follows |
-| First administrator only while empty | cal.com `apps/web/app/api/auth/setup/route.ts:29-32` | follows, with the table lock cal.com lacks |
-| One use state by `DELETE ... RETURNING` | GoTrue `oauth_client_state.go:34`; Better Auth `consumeVerificationValue` (`internal-adapter.ts:1376-1390`) | follows |
-| Invitation claim as a guarded transition | Better Auth `crud-invites.ts:742-746`; Basejump and Documenso read then write and race | follows the guarded one |
-| Session ended by delete, reason in a log | Documenso `session.ts:129-161`; GoTrue `logout.go:46-65` | follows |
-| No lock on a read of a session | Documenso `session.ts:71`; Better Auth `api/routes/session.ts:290`; GoTrue locks only on refresh (`sessions.go:269-289`) | follows, the Hub session too |
-| A session's expiry written only when due | Better Auth `updateAge` (`api/routes/session.ts:325-345`); Documenso `session/session.ts:106-115` | follows: the Hub slide writes at most once per 5 minutes |
-| Session and permission in one transaction | PostgREST `MainTx.hs` (`BEGIN`, one `set_config`, the query, `COMMIT`) and Supabase RLS | follows; Conexus adds the session lookup and keeps the check in one owner |
-| Revocation on the next request, no signed claim | GoTrue and cal.com JWTs give it up for speed | differs on purpose: contract section 5.5 |
-| Expiry batches with `SKIP LOCKED` | GoTrue `cleanup.go:47-60` | follows |
-| Administrator tenure history | not found in the five references | kept from the floor (F7) |
-| Presence lock across prepare | GoTrue `indexworker.go:83-105`, a session advisory lock for long work | kept as a rule; held at session level (decision 6) |
-
-## Owner reconciliation
-
-What changes in other documents if this part is accepted. The pull request carries each change. Every path is under `docs/specs/0015-checked-boundaries/` unless it says otherwise.
-
-- `0015-data.md:89-105`, "The authentication gate": the paragraph becomes: "`authenticate` resolves a presented token before any account is known. Its gate carries no method. `identity-access/authentication.ts` holds one named lookup per presented credential (`consumeOidcState`, `readHubSession`, `readApplicationSession`, `readPreviewSession`, `consumeApplicationHandoff`, `consumePreviewHandoff`), each stating its effect on the row in its own statement: consume (one `DELETE ... RETURNING` with the deadline in the predicate) or read (no lock). It also holds the identity steps `lookupIdentity`, `provisionIdentity`, `refreshEmail`, `claimInvitations`, `lookupSlug`, `startOidc` and `endCredential`, each one exact statement keyed by one value. A step that finds or creates an account binds it with `bindAccount`, importable only by that file, so `admitAccount(gate)`, `admitApplication(gate, projectId)` and `checkApplication(gate, projectId)` read it from the gate's actor. Part 6 holds the full list (`0015-part-iam.md`, section 5)."
-- `0015-data.md:127` (the entry table): `authenticate(fn)` keeps READ COMMITTED; the purpose cell adds "and an application request's check and served read (part 6, decision 5B)".
-- `0015-admission.md:192`: an inactive account is `ACCOUNT_INACTIVE` on a command; on a read the membership policy hides its memberships, so it gets the action's outsider code (section 3, the read admission).
-- `0015-admission.md:376`: `session` also takes the blocking shared lock for presence, beside `pg_try_advisory_lock` for the instance lock.
-- `0015-data.md:128` (the `session(fn)` row): it becomes `session(name, fn)`, and its lock handle gains the blocking shared lock and its release, for the presence lock (decision 6).
-- `0015-data.md:139-142`: the `system` callers add `identity-access/application-access.ts` for `'application-presence'` (decision 6) and `identity-access/expiry.ts`; the `authenticate` callers are `sign-in.ts` and `sessions.ts`.
-- `0015-data.md:186,196,204,219-221,242-249,375`: the receipt column comment becomes `account_id uuid NOT NULL REFERENCES iam.account`; the bootstrap CHECK line goes; `idempotent`, `reserve` and `complete` take a `Receipted` from `receiptOf(proof)` (part 6, section 5); the authority list replaces "`bootstrap:<issuer>:<subject>` for the bootstrap scope" with "`installation:account:<id>` for an administrator scope"; the paragraph "IAM-03 (operator bootstrap)" is deleted; the register row's authority cell drops "or bootstrap issuer and subject".
-- `0015-admission.md:62,75`: the `bootstrap` scope stays for `admitBootstrap`'s proof, with `issuer` and `subject` from a `ConfiguredIdentity`; it is no longer a receipt scope.
-- `0015-admission.md:144-145`: `admitApplication(gate: CommandGate | AuthenticationGate, projectId)` and `checkApplication(gate: CommandGate | AuthenticationGate, projectId)`, each with the comment "an authentication gate must have bound an account (part 6)".
-- `0015-admission.md:147`: `admitBootstrap(gate: AuthenticationGate, identity: ConfiguredIdentity): Promise<Admitted<BootstrapScope> | null>`.
-- `0015-admission.md:294`: after "the application host's manifest and file reads", add "in the request's one `authenticate` entry (part 6)". The sentence "A caller that writes in the same transaction calls `admitApplication`" stays; the application sign in callback is that caller.
-- `0015-admission.md:540-542` (composite keys): the `iam.preview` row is deleted; the `iam.host_session` row becomes "`(parent_digest, account_id)` to `iam.host_session (token_digest, account_id)` `ON DELETE CASCADE`; `project_id` to `project.project`"; the `iam.handoff` row becomes "the same pair key as `iam.host_session`, and `project_id` to `project.project`; no `preview_id`".
-- `0015-admission.md:615`: "`transaction(grantHolder, fn)` with `checkApplication(gate, projectId)`" becomes "for the application host, one `authenticate(fn)` with the session lookup and `checkApplication(gate, projectId)`; for the connector broker, `transaction(grantHolder, fn)` with `checkApplication`".
-- `0015-admission.md:616-617`: the session row lists the steps of the data child as amended above and drops `hasOpenInvitation`, `mintContext` and `consumeOidcState`; the operator bootstrap row becomes "the sign in callback with `admitBootstrap(gate, identity)`, which takes the administrators' table lock and returns a proof only when no account exists".
-- `index.md:575-600`, build plan item 9: replace "IAM-03 on the bootstrap authority", "`hasOpenInvitation`, `mintContext`, `consumeOidcState`", "the `iam.preview` key" and "application access on the `admitApplication` part 0b built" with "the first account in the sign in callback", "`claimInvitations` and the named credential lookups", "the Preview session's link to its artifact revision" and "application access under `admitProject(..., 'application.manage')`, `admitApplication` for the sign in and `checkApplication` for served reads"; the item points to `0015-part-iam.md` for the rest.
-- `0015-part-registry.md` section 5: the served manifest and file reads take a `Checked<ApplicationScope>` proof, since they now run inside identity access's transaction, by the module's own rule ("a function takes a proof only when it runs inside another owner's transaction"); `readPinnedServedFile` keeps the account and Project form, since the runner calls it outside any entry. The sentence "MAR and `hub.ts` cannot make a `Checked` proof, so a served read that takes one would push the admission into every caller" becomes "identity access makes the `Checked` proof inside `withApplicationRequest` and hands it to the served read".
-- `docs/reference/security-and-authority.md` section 2 (the principal classes #539 moved there): `TRUSTED_BOOTSTRAP_CONTEXT` is deleted; the classes become three, and `HUMAN_ACCOUNT_SESSION` says the first Account of the configured subject is created in its sign in callback.
-- `docs/product/wire-contract.md` section 1 (moved by #539): "Setting the first installation administrator is an operator shell step, `npm run iam:bootstrap-installation-administrator`" becomes "The first installation administrator is the configured subject's first sign in; every later one is `addInstallationAdministrator`."
-- `docs/reference/security-and-authority.md` section 4: "Lifetimes live in `iam.session_lifetimes()` and `platform/lifetimes.ts`" becomes "Lifetimes live in `platform/lifetimes.ts`".
-- `docs/reference/architecture.md` section 11: the rows of section 11.
-
-## Changes in this revision
-
-Revision 2 answers the spec review of 2026-10-06 (`interrogate-spec/opus.md` and `sonnet.md`, both "request changes"):
-
-- Security: `setWorkspaceMemberRole` always needs `members.manage` (both reviewers); a member could make themselves owner. `Receipted` is branded with a restricted maker (Opus).
-- The migration deletes ended sessions and consumed states, which revision 1 would have failed on or revived (both).
-- A refusal on the application host ends the session and sends the person to sign in, so access given again works (Opus); entries return outcomes as values and commit before the caller refuses (Sonnet).
-- `admitApplication` stays for the sign in callback, which closes the purge race to a 500 (Sonnet, Opus); begin runs `lookupSlug` and `startOidc` in one entry and refuses a Project in deletion.
-- The writer rule is per module, the first tenure and the claim's inserts have owners (both).
-- The callback names every outcome: Keycloak error, exchange failure, `admitBootstrap` null with no account, a missing `name` claim, and a claim that commits before a refusal (both).
-- The Preview runs its parent's due recheck and keeps the account pair keys (Opus).
-- Section 7, the web, is new; the shapes table is new; the tests say how they meet time and where they sit; the isolation test reads the server log; the hosting ports are generic over the proof; the handoff keys by slug (both).
-- The presence lock as decided cannot hold across a prepare longer than 60 s; the decision returns to the operator with a recommendation (HQ, from the review's finding and `PREPARE_TIMEOUT_MS`).
-- The owner role drop is run as the runner login in a two database cluster before the merge (Opus).
-
-Revision 2.1 answers the confirmation review (`interrogate-spec/sonnet-confirm-r2.md`): every redeem and the begin take the Project row `FOR SHARE` first, which removes a deadlock with the purge (N1) and the begin's 23503 (N7); the migration spike is rerun with ended rows (N2); the presence recommendation names its floor edits, its order and the 5 s answer (N3); the application's `SIGN_IN_FAILED` text (N4); and the nits N5, N6, N8, N9 and N10.
-
-Revision 2.2 records the operator's decision 6 (2026-10-06): the presence lock is held at session level on a dedicated connection across the whole prepare.
-
-Revision 2.3 (2026-10-06) took the outsider column correction and the unknown id test from #538 and recorded the operator's decision 11. Revision 2.4 also takes the operator's decision 13 (the Preview checks Project access on each request, guide S section 2). It answers the confirmation of 2.3 and its own confirmation (`interrogate-spec/sonnet-confirm-r24.md`: the roster read as `hub_reader` in test 4, two admission child lines, the key's type, the second entry, the lock timeout) (`interrogate-spec/opus-confirm-r23.md`): by the operator's decision 12 the outsider work and decision 11 move to #543; the read overload of `admitWorkspace` reads only the membership, like `admitProject`'s; the presence lock takes its key from one SQL expression, names its connection, reads presence before it locks, gets a test, and states its lost connection window.
+32. The application and Preview hosts read the server tree in the request's entry, under the `Checked` proof that admitted it, with the same readers as the served files, and the invoker takes the files already read. Before, the invoker read each server file again through `readPinnedServedFile` (a new entry and `checkApplication` per file) or `readPreviewFile` (`database.read` under the reader policy, with no `checkProject`), so two readers solved one problem and the Preview one skipped the Project check (review 6, R5 F3). A served file read whose revision is not the manifest's, or a pointer gone, answers 503 `APPLICATION_NOT_READY`, the old stale pin's answer; `ServedFile`'s `NOT_FOUND` carries its revision so a moved pointer is told from a missing file. The 8 MiB limit and the stop at the first file over it stay (`hosting/server-tree.ts`); the read now precedes the admission line, so a Project's waiters each hold their tree, at most (line limit plus concurrency) times 8 MiB per Project. A revoke that commits after the entry's check leaves that request served, as test 6 states for the served files. The two hosts share `HostOutcome` and `HostRequest`, the Preview host branches on the outcome's kind instead of bare status numbers, an ended Preview answers a page with the `PREVIEW_REFUSED` text (test 7), and the application no access page takes its reason through the contract's `ApplicationNoAccessReason` and its text from `APPLICATION_NO_ACCESS_TEXT`, so `SIGN_IN_FAILED` shows its own text (review 6, R5 F5 and F9, R1 F1, X F2, test 11 defect A and item 4).

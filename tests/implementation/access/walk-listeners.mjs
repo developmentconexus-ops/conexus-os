@@ -142,7 +142,7 @@ export const walkListeners = async () => {
       redeem: async ({ handoff }) => { calls.push('previewSessions.redeem'); return handoff === ENTRY_GRANT ? { sessionToken: opaque('walk preview'), maxAgeSeconds: 900 } : null },
       withPreviewRequest: async () => { calls.push('previewSessions.withPreviewRequest'); return { kind: 'SIGN_IN_REQUIRED' } },
     },
-    registry: spy('registry', calls, { readPreviewFile: async () => null }),
+    registry: spy('registry', calls),
     applicationRunner: { invoke: spy('runner', calls).invoke },
     exactHubOrigin: HUB_ORIGIN,
     previewPort: PREVIEW_PORT,

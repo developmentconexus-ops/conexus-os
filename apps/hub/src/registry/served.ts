@@ -9,8 +9,10 @@ export type ServedManifest = Readonly<{ artifactRevisionId: ArtifactRevisionId; 
 export type ServedLaunch = Readonly<{ sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId; digest: ArtifactDigest; entryPath: 'index.html'; files: ServedManifest['files'] }>
 export type PreviewManifest = Readonly<{ sourceRevision: SourceRevision; entryPath: 'index.html'; files: ServedManifest['files'] }>
 export type ServedThumbnail = Readonly<{ artifactRevisionId: ArtifactRevisionId; bytes: Uint8Array }>
-export type ServedFile = Readonly<{ ok: true; artifactRevisionId: ArtifactRevisionId; file: ApplicationFile }> | Readonly<{ ok: false; reason: 'NOT_SERVED' | 'NOT_FOUND' }>
-export type PinnedFile = ServedFile | Readonly<{ ok: false; reason: 'STALE_PIN' }>
+export type ServedFile =
+  | Readonly<{ ok: true; artifactRevisionId: ArtifactRevisionId; file: ApplicationFile }>
+  | Readonly<{ ok: false; reason: 'NOT_FOUND'; artifactRevisionId: ArtifactRevisionId }>
+  | Readonly<{ ok: false; reason: 'NOT_SERVED' }>
 
 const ManifestFiles = z.array(z.object({ path: ApplicationFilePath, mediaType: MediaType }))
 const FileColumns = { path: ApplicationFilePath, media_type: MediaType, sha256: Sha256, bytes: z.instanceof(Uint8Array) }
@@ -87,14 +89,7 @@ async function readFile(tx: TxQueries, projectId: ProjectId, path: ApplicationFi
 export async function readServedFileOf(tx: TxQueries, projectId: ProjectId, path: ApplicationFilePath): Promise<ServedFile> {
   const read = await readFile(tx, projectId, path)
   if (read.kind === 'NONE') return { ok: false, reason: 'NOT_SERVED' }
-  return read.kind === 'MISSING' ? { ok: false, reason: 'NOT_FOUND' } : { ok: true, artifactRevisionId: read.artifactRevisionId, file: read.file }
-}
-
-export async function readPinnedFileOf(tx: TxQueries, projectId: ProjectId, path: ApplicationFilePath, pin: ArtifactRevisionId): Promise<PinnedFile> {
-  const read = await readFile(tx, projectId, path)
-  if (read.kind === 'NONE') return { ok: false, reason: 'NOT_SERVED' }
-  if (read.artifactRevisionId !== pin) return { ok: false, reason: 'STALE_PIN' }
-  return read.kind === 'MISSING' ? { ok: false, reason: 'NOT_FOUND' } : { ok: true, artifactRevisionId: read.artifactRevisionId, file: read.file }
+  return read.kind === 'MISSING' ? { ok: false, reason: 'NOT_FOUND', artifactRevisionId: read.artifactRevisionId } : { ok: true, artifactRevisionId: read.artifactRevisionId, file: read.file }
 }
 
 const LaunchColumns = {

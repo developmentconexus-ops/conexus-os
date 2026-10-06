@@ -8,10 +8,11 @@ import type { ApplicationAddress } from '../platform/config.js'
 import { registerApplicationHostRoutes } from './application-host-routes.js'
 import type { ApplicationHostReader, ApplicationHostSessions } from './application-host-routes.js'
 import { createApplicationInvoker } from './application-invoker.js'
-import type { ApplicationFileReads, ApplicationRunnerInvoke, ConnectorPortOpener } from './application-invoker.js'
+import type { ApplicationRunnerInvoke, ConnectorPortOpener } from './application-invoker.js'
 import { registerPreviewRoutes } from './preview-routes.js'
 import type { PreviewHost, PreviewReader, PreviewRouteDependencies, PreviewSessions } from './preview-routes.js'
 import { Failure } from '../platform/failure.js'
+import type { ScopedProof } from '../platform/host-outcome.js'
 
 type HostPolicy = Extract<ListenerPolicy, Readonly<{ listener: 'preview' | 'application' }>>
 
@@ -25,7 +26,7 @@ export type HostingModule = Readonly<{
   close(): Promise<void>
 }>
 
-export type HostingRegistry<A, P> = ApplicationFileReads & ApplicationHostReader<A> & PreviewReader<P>
+export type HostingRegistry<A, P> = ApplicationHostReader<A> & PreviewReader<P>
 
 const PREVIEW_DOMAIN = 'conexus.localhost'
 const PREVIEW_HOST = /^preview-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.conexus\.localhost(?::\d+)?$/
@@ -44,7 +45,7 @@ export const previewHostOf = (host: HeaderFact, previewPort: number): PreviewHos
   return host === expected ? Object.freeze(parsed) : null
 }
 
-export const createHostingModule = <A, P>({
+export const createHostingModule = <A extends ScopedProof, P extends ScopedProof>({
   sessions,
   registry,
   applicationRunner,
@@ -68,7 +69,7 @@ export const createHostingModule = <A, P>({
   let closing: Promise<void> | null = null
   // One admission budget for both listeners: a busy application cannot starve every Preview, nor the reverse.
   const invokeApplication = applicationRunner
-    ? createApplicationInvoker({ ...applicationRunner, readPreviewFile: registry.readPreviewFile, readPinnedServedFile: registry.readPinnedServedFile })
+    ? createApplicationInvoker(applicationRunner)
     : undefined
   const previewHostOfRequest = (host: HeaderFact): PreviewHost | null => previewHostOf(host, previewPort)
   const dependencies: PreviewRouteDependencies<P> = {

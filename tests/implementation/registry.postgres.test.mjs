@@ -11,12 +11,13 @@ import { ID } from './project-fixture.mjs'
 import { B, DIGEST_1, DIGEST_2, D_E, F, OLD, PNG_T1, P, PNG_T2, SHA_F, SHA_T2, SOURCE_1, SOURCE_2, SOURCE_E, SOURCE_OLD, deferred, fileOf, invariant, payloadOf, seedRevision, seedRevisionThumbnail, world } from './registry-fixture.mjs'
 
 const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
-const { admitProject, admitRun, admitSystem, checkApplication } = await import(hubModuleUrl('identity-access/admission.js'))
+const { admitProject, admitRun, admitSystem, checkApplication, checkProject } = await import(hubModuleUrl('identity-access/admission.js'))
 const { readServedFileOf } = await import(hubModuleUrl('registry/served.js'))
 const { sql } = await import(hubModuleUrl('platform/db.js'))
 
 const servedManifest = (database, accountId, projectId) => database.transaction(accountId, async (gate) => createRegistryModule({ database }).readServedManifest(await checkApplication(gate, projectId)))
 const servedFile = (database, accountId, projectId, path) => database.transaction(accountId, async (gate) => createRegistryModule({ database }).readServedFile(await checkApplication(gate, projectId), path))
+const previewFile = (database, accountId, { projectId, ...at }) => database.transaction(accountId, async (gate) => createRegistryModule({ database }).readPreviewRevisionFile(await checkProject(gate, projectId), at))
 
 test('a member reads the source revisions on the current pin, a grantee reads only what is served, and nobody else reads either', async (t) => {
   const { database, connection, seedBuilderProject, registry, served, point } = await world(t, 'conexus_registry_reads')
@@ -25,13 +26,13 @@ test('a member reads the source revisions on the current pin, a grantee reads on
   const old = await seedRevision(connection, projectId, { sourceRevision: SOURCE_OLD, digest: 'e'.repeat(64), payload: payloadOf([F], OLD) })
   const at = (artifactRevisionId, sourceRevision) => ({ projectId, sourceRevision, artifactRevisionId, path: 'index.html' })
 
-  const file = await registry.readPreviewFile(ID.member, at(first, SOURCE_1))
+  const file = await previewFile(database, ID.member, at(first, SOURCE_1))
   assert.deepEqual({ ...file, bytes: Buffer.from(file.bytes).toString() }, { path: 'index.html', mediaType: 'text/html; charset=utf-8', sha256: SHA_F, bytes: '<html></html>' })
-  assert.equal((await registry.readPreviewFile(ID.member, at(second, SOURCE_2))).sha256, SHA_F)
-  assert.equal(await registry.readPreviewFile(ID.member, at(old, SOURCE_OLD)), null, 'a revision retained on an older template pin is not a Preview source')
-  assert.equal(await registry.readPreviewFile(ID.member, at(first, SOURCE_2)), null, 'the pair of ids must match')
-  assert.equal(await registry.readPreviewFile(ID.outsider, at(second, SOURCE_2)), null, 'a grantee reads no registry row directly')
-  assert.equal(await registry.readPreviewFile(ID.administrator, at(second, SOURCE_2)), null)
+  assert.equal((await previewFile(database, ID.member, at(second, SOURCE_2))).sha256, SHA_F)
+  assert.equal(await previewFile(database, ID.member, at(old, SOURCE_OLD)), null, 'a revision retained on an older template pin is not a Preview source')
+  assert.equal(await previewFile(database, ID.member, at(first, SOURCE_2)), null, 'the pair of ids must match')
+  await assert.rejects(previewFile(database, ID.outsider, at(second, SOURCE_2)), { id: 'PROJECT_NOT_FOUND' }, 'a grantee is no member of the Project')
+  await assert.rejects(previewFile(database, ID.administrator, at(second, SOURCE_2)), { id: 'PROJECT_NOT_FOUND' })
   const Count = z.object({ n: z.number() })
   const direct = (accountId, statement) => database.read(accountId, (tx) => tx.one(Count, statement, 'INTERNAL_UNEXPECTED'))
   assert.deepEqual(await direct(ID.outsider, sql`SELECT count(*)::integer AS n FROM reg.artifact_revision`), { n: 0 })
@@ -45,7 +46,7 @@ test('a member reads the source revisions on the current pin, a grantee reads on
   assert.equal((await servedManifest(database, ID.outsider, projectId)).artifactRevisionId, old, 'an old revision still serves to its grantee')
 })
 
-test('the served reads answer the manifest, a file, a missing path, a stale pin and a project that serves nothing', async (t) => {
+test('the served reads answer the manifest, a file, a missing path with its revision, and a project that serves nothing', async (t) => {
   const { connection, database, seedBuilderProject, registry, served, point } = await world(t, 'conexus_registry_served')
   const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   const { first, second } = await served(projectId)
@@ -56,10 +57,7 @@ test('the served reads answer the manifest, a file, a missing path, a stale pin 
   assert.deepEqual(await servedManifest(database, ID.outsider, projectId), { artifactRevisionId: second, files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8' }] })
   const read = await servedFile(database, ID.outsider, projectId, 'index.html')
   assert.deepEqual({ ...read, file: { ...read.file, bytes: Buffer.from(read.file.bytes).toString() } }, { ok: true, artifactRevisionId: second, file: { path: 'index.html', mediaType: 'text/html; charset=utf-8', sha256: SHA_F, bytes: '<html></html>' } })
-  assert.deepEqual(await servedFile(database, ID.outsider, projectId, 'missing.js'), { ok: false, reason: 'NOT_FOUND' })
-  assert.deepEqual(await registry.readPinnedServedFile(ID.outsider, projectId, first, 'index.html'), { ok: false, reason: 'STALE_PIN' })
-  assert.equal((await registry.readPinnedServedFile(ID.outsider, projectId, second, 'index.html')).ok, true)
-  assert.deepEqual(await registry.readPinnedServedFile(ID.outsider, projectId, second, 'missing.js'), { ok: false, reason: 'NOT_FOUND' })
+  assert.deepEqual(await servedFile(database, ID.outsider, projectId, 'missing.js'), { ok: false, reason: 'NOT_FOUND', artifactRevisionId: second })
   assert.equal(await servedManifest(database, ID.outsider, bare), null)
   assert.deepEqual(await servedFile(database, ID.outsider, bare, 'index.html'), { ok: false, reason: 'NOT_SERVED' })
 
@@ -73,7 +71,6 @@ test('the served reads answer the manifest, a file, a missing path, a stale pin 
   await assert.rejects(servedManifest(database, ID.outsider, projectId), invariant('SERVED_POINTER_BROKEN'))
   await assert.rejects(servedFile(database, ID.outsider, projectId, 'index.html'), invariant('SERVED_POINTER_BROKEN'))
   await assert.rejects(registry.readProjectThumbnail(ID.member, projectId), invariant('SERVED_POINTER_BROKEN'))
-  await assert.rejects(registry.readPinnedServedFile(ID.outsider, projectId, second, 'index.html'), invariant('SERVED_POINTER_BROKEN'))
   await assert.rejects(database.transaction(ID.member, async (gate) => registry.readLaunch(await admitProject(gate, projectId, 'project.build'))), invariant('SERVED_POINTER_BROKEN'))
 })
 
@@ -121,10 +118,7 @@ test('the application check refuses a revoked grant, a removed membership, a del
   await query(connection, "INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Atlas', $3)", [projectId, ID.workspace, ID.administrator])
   await refused(ID.owner)
   await refused(ID.administrator)
-  const Visible = z.object({ n: z.number() })
-  const visible = (await database.read(ID.owner, (tx) => tx.one(Visible, sql`SELECT count(*)::integer AS n FROM project.project WHERE project_id = ${projectId}`, 'INTERNAL_UNEXPECTED'))).n === 1
-  const source = await registry.readPreviewFile(ID.owner, { projectId, sourceRevision: SOURCE_2, artifactRevisionId: second, path: 'index.html' })
-  assert.equal(source !== null, visible, 'the source read follows the reader policy of the Project')
+  await assert.rejects(previewFile(database, ID.owner, { projectId, sourceRevision: SOURCE_2, artifactRevisionId: second, path: 'index.html' }), { id: 'PROJECT_NOT_FOUND' }, 'the Preview check refuses a Project in deletion')
 })
 
 test('a subclass of the sealed build that seal did not make is refused by retention and leaves no row', async (t) => {
@@ -394,7 +388,6 @@ test('an application grantee reads the served revision through the registry on t
 
   const { Failure } = await import(hubModuleUrl('platform/failure.js'))
   const busy = createRegistryModule({ database: { ...database, transaction: () => Promise.reject(new Failure('DATABASE_BUSY')), read: () => Promise.reject(new Failure('DATABASE_BUSY')) } })
-  await assert.rejects(busy.readPinnedServedFile(ID.outsider, projectId, second, 'index.html'), { id: 'DATABASE_BUSY' })
   await assert.rejects(busy.readProjectThumbnail(ID.member, projectId), { id: 'DATABASE_BUSY' })
 })
 

@@ -68,16 +68,14 @@ const application = { port: 3445, domain: 'conexus.localhost' }
 const hostSessions = {
   withApplicationRequest: async (_presented, serve) => ({ kind: 'SERVED', value: await serve({
     caller: { accountId: '44444444-4444-4444-8444-444444444444', email: 'a@example.test', displayName: 'A' },
-    checked: { projectId: PROJECT }, accountId: '44444444-4444-4444-8444-444444444444', projectId: PROJECT,
+    checked: { scope: { accountId: '44444444-4444-4444-8444-444444444444', projectId: PROJECT } },
   }) }),
   redeem: async () => null,
   signOut: async () => {},
 }
 const registry = {
   readServedManifest: async () => ({ artifactRevisionId: '33333333-3333-4333-8333-333333333333', files: [{ path: 'conexus-server/manifest.json', mediaType: 'application/json; charset=utf-8' }, { path: 'conexus-server/listDeals.mjs', mediaType: 'text/javascript; charset=utf-8' }] }),
-  readServedFile: async () => ({ ok: false, reason: 'NOT_FOUND' }),
-  readPreviewFile: async () => null,
-  readPinnedServedFile: async (_account, _project, artifactRevisionId, path) => ({ ok: true, artifactRevisionId, file: { path, sha256: 'e'.repeat(64), bytes: new Uint8Array(4) } }),
+  readServedFile: async (_checked, path) => ({ ok: true, artifactRevisionId: '33333333-3333-4333-8333-333333333333', file: { path, mediaType: 'text/javascript; charset=utf-8', sha256: 'e'.repeat(64), bytes: new Uint8Array(4) } }),
 }
 const hosting = createHostingModule({
   sessions: { redeem: async () => null, withPreviewRequest: async () => ({ kind: 'SIGN_IN_REQUIRED' }) },

@@ -1,10 +1,9 @@
 import { z } from 'zod'
-import type { AccountId, ArtifactRevisionId, ProjectId } from '@conexus/contract'
-import type { Caller } from '../platform/caller.js'
+import type { ArtifactRevisionId } from '@conexus/contract'
 import { digest, sql } from '../platform/db.js'
 import type { RawToken } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
-import type { HostOutcome } from '../platform/host-outcome.js'
+import type { HostOutcome, HostRequest } from '../platform/host-outcome.js'
 import { PREVIEW_HANDOFF_SECONDS, PREVIEW_SECONDS } from '../platform/lifetimes.js'
 import { mintToken } from '../platform/opaque-token.js'
 import { admitAccount, checkProject } from './admission.js'
@@ -13,8 +12,6 @@ import { consumePreviewHandoff, readPreviewSession } from './authentication.js'
 import type { HubSessionDigest } from './current-session.js'
 import { callerOf, MaxAge } from './session-core.js'
 import type { Redeemed, SessionCore, SessionDependencies, Step } from './session-core.js'
-
-export type PreviewRequest = Readonly<{ caller: Caller; checked: Checked<ProjectScope<'project.read'>>; accountId: AccountId; projectId: ProjectId; artifactRevisionId: ArtifactRevisionId; expiresAt: Date }>
 
 const Expiry = z.object({ expires_at: z.date() })
 
@@ -50,7 +47,7 @@ export const createPreviewSessions = ({ database }: SessionDependencies, { ended
    * membership, in one entry with the served reads. A Preview does not slide its parent. A refused
    * check ends the Preview only; an ended parent ends both.
    */
-  const withPreviewRequest = <T>(presented: Readonly<{ artifactRevisionId: ArtifactRevisionId; token: RawToken }>, serve: (request: PreviewRequest) => Promise<T>): Promise<HostOutcome<T>> => {
+  const withPreviewRequest = <T>(presented: Readonly<{ artifactRevisionId: ArtifactRevisionId; token: RawToken }>, serve: (request: HostRequest<Checked<ProjectScope<'project.read'>>>) => Promise<T>): Promise<HostOutcome<T>> => {
     const key = digest(presented.token)
     return settle<T>('HUB', (recheckAllowed) => database.authenticate(async (gate): Promise<Step<T>> => {
       const row = await readPreviewSession(gate, key, presented.artifactRevisionId)
@@ -67,7 +64,7 @@ export const createPreviewSessions = ({ database }: SessionDependencies, { ended
         throw error
       })
       if (!checked) return ended(gate, key, 'PREVIEW', 'ACCESS_REFUSED')
-      return { kind: 'done', value: await serve({ caller: callerOf(row), checked, accountId: row.account_id, projectId: row.project_id, artifactRevisionId: row.artifact_revision_id, expiresAt: row.expires_at }) }
+      return { kind: 'done', value: await serve({ caller: callerOf(row), checked }) }
     }))
   }
 

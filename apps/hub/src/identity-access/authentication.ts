@@ -21,7 +21,7 @@ const OidcState = z.object({
 const HubSessionRow = z.object({ ...Person, ...Standing, active: z.boolean(), hub_entry: z.boolean() })
 const ApplicationSessionRow = z.object({ ...Person, ...Standing, project_id: ProjectId })
 const PreviewSessionRow = z.object({
-  ...Person, project_id: ProjectId, artifact_revision_id: ArtifactRevisionId, liveness: Liveness, expires_at: z.date(),
+  ...Person, project_id: ProjectId, liveness: Liveness,
   parent_digest: Digest, parent_liveness: Liveness, parent_active: z.boolean(), parent_entry: z.boolean(), parent_recheck_due: z.boolean(), parent_sealed_token: z.string(), parent_checked_at: z.string(),
 })
 const ApplicationHandoffRow = z.object({ account_id: AccountId, project_id: ProjectId, minted_at: z.string(), sealed_token: z.string() })
@@ -75,7 +75,7 @@ export const readApplicationSession = async (gate: AuthenticationGate, key: Dige
 
 /** Reads a Preview session of one revision and its parent Hub session's standing, with no lock. */
 export const readPreviewSession = async (gate: AuthenticationGate, key: Digest, artifactRevisionId: ArtifactRevisionIdType): Promise<PreviewSessionRow | null> => bound(gate, await txOf(gate).maybe(PreviewSessionRow, sql`
-  SELECT ${personColumns}, session.project_id, session.artifact_revision_id, ${liveness(sql`session`)} AS liveness, session.absolute_expires_at AS expires_at,
+  SELECT ${personColumns}, session.project_id, ${liveness(sql`session`)} AS liveness,
     parent.token_digest AS parent_digest,
     ${liveness(sql`parent`)} AS parent_liveness,
     person.active AS parent_active, ${hubEntry(sql`person`)} AS parent_entry,
