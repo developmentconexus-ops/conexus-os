@@ -1,6 +1,7 @@
 # 0008. The configuration model: one home per fact, a settings registry and a reconciler
 
 **Date**: 2026-10-01
+**Sources**: a document named by path is cited as it stood before the nine guides replaced it. Read it with `git show 58444763:<path>`.
 **Status**: Proposed
 **Changes**: the Proposed specs [0005](../0005-app-access-perfis/index.md),
 [0006](../0006-people-and-sign-in/index.md) and 0007 (telemetry, branch `docs/telemetry-spec`), as
@@ -907,7 +908,7 @@ Records to amend, each needing the operator's approval before this spec is Accep
 - [ ] New decision (next free number after the ones 0005 to 0007 propose): the configuration model
       of this spec, with decisions 1 to 6.
 - [ ] Amend specs 0005, 0006 and 0007 as listed above.
-- [ ] `docs/reference/architecture.md`: the sorting rule line (slice 1).
+- [ ] `docs/development/review/platform.md`: the sorting rule line (slice 1).
 - [ ] `infra/keycloak/README.md` and `infra/pilot/README.md`: the break-glass account, the
       `conexus-settings` service account and its realm-wide role, the operator secrets directory,
       `settings-check.sh`, the *Fresh install order* and the slice 1 release note (slice 1).

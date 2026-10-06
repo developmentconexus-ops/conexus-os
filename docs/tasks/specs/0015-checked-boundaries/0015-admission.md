@@ -41,7 +41,7 @@ where a workspace proof is due all fail `tsc` (spike 2, cases 17 to 33). A symbo
 copyable by spread, so it is not used. The mode is real structure: `WriteTx` has `run` and
 `mode: 'write'`, `ReadTx` has neither, so a read proof is not assignable where a write proof is due
 (a write proof may be used for a read). Only a cast passes, and Biome's `noUnsafeTypeAssertion`
-refuses it. `docs/development/codebase-principles.md` allows a class only for `Error`,
+refuses it. `.agents/skills/conexus-development/references/shapes.md` allows a class only for `Error`,
 `Failure` or a library base; it gains "or a nominal proof whose constructor is private to its module".
 
 ```ts

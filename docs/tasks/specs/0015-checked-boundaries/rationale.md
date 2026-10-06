@@ -403,10 +403,10 @@ section 6).
 
 **Project sources**:
 - `docs/development/codebase-principles.md` (principles 1, 2, 3, 6, 7 and their "Enforced by" lines)
-- `docs/development/codebase-principles.md` (decided shapes, the class rule, the reaper line)
+- `.agents/skills/conexus-development/references/shapes.md` (decided shapes, the class rule, the reaper line)
 - spec 0014 (the access kinds, the definer, the route ledger), spec 0013 (the job executor), spec 0009
   (the failure table)
-- `docs/reference/security-and-authority.md`, `docs/reference/database.md`,
+- `docs/reference/security-and-authority.md`, `docs/reference/hub-database-roles.md`,
   `contracts/technical/hub-database-roles.json`
 - `scripts/hub-catalog.mjs` (`assertRoleInvariants`, the `BYPASSRLS` refusal, the catalog snapshot)
 

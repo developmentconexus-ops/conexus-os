@@ -1,6 +1,7 @@
 # 0006. People and sign-in: the people screen, Keycloak behind it, Microsoft sign-in
 
 **Date**: 2026-10-01
+**Sources**: a document named by path is cited as it stood before the nine guides replaced it. Read it with `git show 58444763:<path>`.
 **Status**: Proposed
 **Amends**: the Hub sign-in (`identity-access/store.ts`, `routes.ts`, `host-sessions.ts`), IAM-03 and
 IAM-05, `infra/keycloak`. [0005](../0005-app-access-perfis/index.md) depends on this spec for every
