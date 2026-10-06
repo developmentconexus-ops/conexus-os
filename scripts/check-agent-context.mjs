@@ -12,7 +12,7 @@ export const GUIDES = Object.freeze({
   C: { path: 'docs/development/codebase-principles.md', kib: 12 },
   A: { path: 'docs/reference/architecture.md', kib: 24 },
   L: { path: 'docs/development/delivery.md', kib: 10 },
-  D: { path: 'docs/reference/database.md', kib: 8 },
+  D: { path: 'docs/reference/database.md', kib: 12 },
   H: { path: 'docs/product/wire-contract.md', kib: 12 },
   S: { path: 'docs/reference/security-and-authority.md', kib: 12 },
   P: { path: 'docs/product/contract.md', kib: 12 },

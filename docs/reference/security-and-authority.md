@@ -1,7 +1,7 @@
 # Security and authority
 
 Who may do what, how a person proves who they are, where secrets live and what may leave. Owners
-next door: [database](database.md#roles) for how PostgreSQL bounds each transaction,
+next door: [database](database.md#6-roles-and-transactions) for how PostgreSQL bounds each transaction,
 [API](../product/wire-contract.md) for the wire, [architecture](architecture.md) for where code runs.
 Code owns the exact facts: `identity-access/admission.ts`, `http/access.ts`, `platform/lifetimes.ts`.
 
