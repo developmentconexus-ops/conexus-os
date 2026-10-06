@@ -12,7 +12,7 @@ import type { UseMutationResult } from '@tanstack/react-query'
 import { Link2, MoreHorizontal } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useId, useState } from 'react'
-import type { AccountId, EmailAddress, InvitationId, WorkspaceInvitationEntry, WorkspaceRole } from '@conexus/contract'
+import type { AccountId, EmailAddress, InvitationId, WorkspaceId, WorkspaceInvitationEntry, WorkspaceMemberEntry, WorkspaceRole } from '@conexus/contract'
 import { parseEmail, sessionQueryKey } from '../api'
 import {
   cancelWorkspaceInvitation,
@@ -21,7 +21,6 @@ import {
   setWorkspaceMemberRole,
   workspaceRosterQuery,
 } from '../membership-api'
-import type { InvitationEntry, MemberEntry } from '../membership-api'
 import '../people.css'
 import { INVITATION_STATE } from '../invitation-state'
 import { useAttemptKey } from '../../../app/attempt-key'
@@ -49,14 +48,14 @@ async function copyEntryLink(email?: string) {
 
 type Invite = UseMutationResult<WorkspaceInvitationEntry, Error, InviteInput>
 
-type Pending = Readonly<{ kind: 'remove'; member: MemberEntry } | { kind: 'leave'; member: MemberEntry }>
+type Pending = Readonly<{ kind: 'remove'; member: WorkspaceMemberEntry } | { kind: 'leave'; member: WorkspaceMemberEntry }>
 
 export function WorkspaceMembers({
   workspaceId,
   currentAccountId,
   onLeft,
 }: {
-  workspaceId: string
+  workspaceId: WorkspaceId
   currentAccountId: string
   onLeft: () => void
 }) {
@@ -89,8 +88,9 @@ export function WorkspaceMembers({
   })
   // The one invite call: the form and the row of an expired invitation both use it.
   const invite = useMutation({
-    mutationFn: ({ email, role }: InviteInput) => inviteWorkspaceMember(workspaceId, email, role, inviteKey.keyFor(`${email}:${role}`)),
+    mutationFn: ({ email, role }: InviteInput) => inviteWorkspaceMember(workspaceId, email, role, inviteKey.keyFor(`${workspaceId}:${email}:${role}`)),
     onSuccess: async () => { inviteKey.settled(); await refresh() },
+    onError: (error) => inviteKey.failed(error),
   })
   const cancelInvitation = useMutation({
     mutationFn: (invitationId: InvitationId) => cancelWorkspaceInvitation(workspaceId, invitationId),
@@ -110,8 +110,8 @@ export function WorkspaceMembers({
 
   // The server tells which role the viewer holds and refuses anything that role may not do.
   const viewerIsOwner = roster.data.viewerRole === 'owner'
-  const members = roster.data.entries.filter((entry): entry is MemberEntry => entry.kind === 'member')
-  const invitations = roster.data.entries.filter((entry): entry is InvitationEntry => entry.kind === 'invitation')
+  const members = roster.data.entries.filter((entry): entry is WorkspaceMemberEntry => entry.kind === 'member')
+  const invitations = roster.data.entries.filter((entry): entry is WorkspaceInvitationEntry => entry.kind === 'invitation')
   const busy = changeRole.isPending || removeMember.isPending || cancelInvitation.isPending || invite.isPending
 
   return <div className="cx-people">

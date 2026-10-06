@@ -168,7 +168,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
   }, [dispatch, localSend, localSettled, refetchHistory])
 
   // A send whose outcome is unknown keeps its key, so an identical retry lands on the run the first
-  // attempt may have created; a clean refusal took no effect and its key is dropped.
+  // attempt may have created; a 4xx refusal took no effect and its key is dropped.
   const messageKey = useAttemptKey()
   // The message of the last send that failed, shown unsent until the person sends again.
   const unsent = useRef<string | null>(null)
@@ -188,7 +188,7 @@ export function Construir({ projectId, conversationId, accountId, lens, onLensCh
       unsent.current = localMessageId(key)
       // The words go back to the composer, so sending again is one click.
       setDraft((current) => current === '' ? content : current)
-      if (!unknown) messageKey.settled()
+      messageKey.failed(error)
       setSendError(failureText(error))
     },
   })

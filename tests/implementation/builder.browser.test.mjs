@@ -576,10 +576,10 @@ test('a send the Hub refused reads Não enviado and takes a fresh key on a resen
     preview: { workingSourceRevision: null, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
     runHistory: [],
   }) }))
-  // The Hub answers the first attempt with a refusal, so the message certainly did not take.
+  // The Hub answers the first attempt with a 4xx refusal, so the message certainly did not take.
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
     keys.push(route.request().headers()['idempotency-key'])
-    return keys.length === 1 ? route.fulfill(problem(500, 'INTERNAL_UNEXPECTED')) : route.fulfill({
+    return keys.length === 1 ? route.fulfill(problem(409, 'PROJECT_BUSY')) : route.fulfill({
       status: 201, contentType: 'application/json',
       body: JSON.stringify({ builderRun: runOf({ builderRunId: '70000000-0000-4000-8000-000000000083', projectId, state: 'QUEUED', phase: null, baseSourceRevision: '5'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null }) }),
     })
@@ -588,7 +588,7 @@ test('a send the Hub refused reads Não enviado and takes a fresh key on a resen
   await page.goto(`${origin}/projects/${projectId}`)
   await page.getByLabel('Mensagem para o agente').fill('Crie um contador')
   await page.getByRole('button', { name: 'Enviar' }).click()
-  await page.getByText('O Conexus falhou de um jeito que não esperávamos. A falha foi registrada.', { exact: true }).waitFor()
+  await page.getByText('O Projeto está processando um pedido agora. Espere terminar.', { exact: true }).waitFor()
   const user = page.locator('.cx-messages .builder-turn-user-row')
   await user.getByText('Não enviado', { exact: true }).waitFor()
   assert.equal(await user.getByText('Sem confirmação', { exact: true }).count(), 0)

@@ -164,3 +164,28 @@ test('an email the Hub would refuse is refused on the page before any request', 
   await page.getByText('Esse e-mail não é válido.').waitFor()
   assert.equal(posted, false)
 })
+
+test('a 4xx refusal drops the attempt key and an unreachable Hub keeps it', async (t) => {
+  const { page, origin } = await withServer(t)
+  await routeSession(page, { accountId: '10000000-0000-4000-8000-000000000006', displayName: 'Ana Beatriz Cardoso' })
+  await routeProject(page)
+  const keys = []
+  const answers = [
+    (route) => route.fulfill({ status: 400, contentType: 'application/problem+json', body: JSON.stringify({ type: 'urn:conexus:problem:EMAIL_INVALID', title: 'EMAIL_INVALID', status: 400, code: 'EMAIL_INVALID' }) }),
+    (route) => route.abort('connectionreset'),
+    (route) => route.abort('connectionreset'),
+  ]
+  await page.route(`**/api/control/projects/${PROJECT_ID}/application-access`, (route) => {
+    if (route.request().method() !== 'POST') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ entries: [] }) })
+    keys.push(route.request().headers()['idempotency-key'])
+    return answers[keys.length - 1](route)
+  })
+  await page.goto(`${origin}/projects/${PROJECT_ID}/settings/access`)
+  await page.getByLabel('Email').fill('nova.pessoa@example.com')
+  for (const sent of [1, 2, 3]) {
+    await page.getByRole('button', { name: 'Convidar' }).click()
+    while (keys.length < sent) await page.waitForTimeout(50)
+  }
+  assert.notEqual(keys[0], keys[1], 'a 4xx refusal starts the next attempt fresh')
+  assert.equal(keys[1], keys[2], 'an unreachable Hub keeps the key for the identical retry')
+})

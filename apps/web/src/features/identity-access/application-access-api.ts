@@ -1,24 +1,19 @@
 import {
-  ProjectId, cancelApplicationInvitation as cancelApplicationInvitationOperation, getApplicationAccess,
+  cancelApplicationInvitation as cancelApplicationInvitationOperation, getApplicationAccess,
   grantApplicationAccess as grantApplicationAccessOperation, revokeApplicationGrant as revokeApplicationGrantOperation,
-  type ApplicationGrantEntry, type ApplicationInvitationEntry, type EmailAddress, type IdempotencyKey,
+  type ApplicationAccess, type EmailAddress, type IdempotencyKey, type ProjectId,
 } from '@conexus/contract'
 import { call, isFailure, query } from '../../app/http'
-import { routeParam } from '../../app/route-params'
-
-export type GrantEntry = ApplicationGrantEntry
-export type InvitationEntry = ApplicationInvitationEntry
-export type AccessEntry = GrantEntry | InvitationEntry
 
 const noInput = { query: undefined, headers: undefined, body: undefined } as const
-const projectParams = (projectId: string) => ({ projectId: routeParam(ProjectId, projectId) })
+const projectParams = (projectId: ProjectId) => ({ projectId })
 
-export const applicationAccessQuery = (projectId: string) => query(getApplicationAccess, { params: projectParams(projectId), ...noInput })
+export const applicationAccessQuery = (projectId: ProjectId) => query(getApplicationAccess, { params: projectParams(projectId), ...noInput })
 
-export const grantApplicationAccess = (projectId: string, email: EmailAddress, idempotencyKey: IdempotencyKey) =>
+export const grantApplicationAccess = (projectId: ProjectId, email: EmailAddress, idempotencyKey: IdempotencyKey) =>
   call(grantApplicationAccessOperation, { params: projectParams(projectId), query: undefined, headers: { 'idempotency-key': idempotencyKey }, body: { email } })
 
-export const removeApplicationAccessEntry = (projectId: string, entry: AccessEntry) =>
+export const removeApplicationAccessEntry = (projectId: ProjectId, entry: ApplicationAccess['entries'][number]) =>
   entry.kind === 'grant'
     ? call(revokeApplicationGrantOperation, { params: { ...projectParams(projectId), grantId: entry.grantId }, ...noInput })
     : call(cancelApplicationInvitationOperation, { params: { ...projectParams(projectId), invitationId: entry.invitationId }, ...noInput })
