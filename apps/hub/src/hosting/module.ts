@@ -15,17 +15,17 @@ import { Failure } from '../platform/failure.js'
 
 type HostPolicy = Extract<ListenerPolicy, Readonly<{ listener: 'preview' | 'application' }>>
 
-export type MarModule = Readonly<{
+export type HostingModule = Readonly<{
   /** Where a Preview of this artifact revision is served: its own host on the Preview port. */
   previewAddress(artifactRevisionId: ArtifactRevisionId): Readonly<{ exactHost: string; entryUrl: string; previewUrl: string }>
   previewPolicy: HostPolicy
-  registerPreviewRoutes(app: FastifyInstance): Promise<readonly ['MAR-Preview']>
+  registerPreviewRoutes(app: FastifyInstance): Promise<readonly ['Hosting-Preview']>
   /** Each application on its own host; absent when the installation serves no applications. */
-  applicationHost: Readonly<{ policy: HostPolicy; registerRoutes(app: FastifyInstance): Promise<readonly ['MAR-Application']> }> | undefined
+  applicationHost: Readonly<{ policy: HostPolicy; registerRoutes(app: FastifyInstance): Promise<readonly ['Hosting-Application']> }> | undefined
   close(): Promise<void>
 }>
 
-export type MarRegistry = ApplicationFileReads & ApplicationHostReader & Readonly<{ readPreviewFile: PreviewRouteDependencies['registryReader'] }>
+export type HostingRegistry = ApplicationFileReads & ApplicationHostReader & Readonly<{ readPreviewFile: PreviewRouteDependencies['registryReader'] }>
 
 const PREVIEW_DOMAIN = 'conexus.localhost'
 const PREVIEW_HOST = /^preview-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.conexus\.localhost(?::\d+)?$/
@@ -44,7 +44,7 @@ export const previewHostOf = (host: HeaderFact, previewPort: number): PreviewHos
   return host === expected ? Object.freeze(parsed) : null
 }
 
-export const createMarModule = ({
+export const createHostingModule = ({
   sessions,
   registry,
   applicationRunner,
@@ -53,15 +53,15 @@ export const createMarModule = ({
   applicationHost,
 }: Readonly<{
   sessions: PreviewSessions
-  registry: MarRegistry
+  registry: HostingRegistry
   applicationRunner?: Readonly<{ invoke: ApplicationRunnerInvoke; openConnectorPort?: ConnectorPortOpener }>
   exactHubOrigin: string
   previewPort: number
   applicationHost?: Readonly<{ sessions: ApplicationHostSessions; application: ApplicationAddress }>
-}>): MarModule => {
+}>): HostingModule => {
   if (!Number.isSafeInteger(previewPort) || previewPort < 1 || previewPort > 65_535 ||
     !/^https:\/\//.test(exactHubOrigin)) {
-    throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'MAR_CONFIG_REFUSED' } })
+    throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'HOSTING_CONFIG_REFUSED' } })
   }
   const pendingRequests = new Set<Promise<unknown>>()
   let closed = false

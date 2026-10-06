@@ -61,7 +61,7 @@ export type ApplicationAdmissionLimits = Readonly<{
 
 const DEFAULT_ADMISSION_LIMITS: ApplicationAdmissionLimits = Object.freeze({
   // The runner's own cap (DEFAULT_LIMITS.concurrency in app-runner/supervisor.ts, 4), so the Hub never
-  // admits more work than the runner could service at once. The import law keeps the MAR owner from
+  // admits more work than the runner could service at once. The import law keeps the hosting owner from
   // importing the runner's supervisor, so the number is restated here.
   globalConcurrency: 4,
   // Half the global bound: one flooding Preview cannot occupy the whole shared admission budget.

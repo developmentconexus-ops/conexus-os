@@ -134,7 +134,7 @@ Conexus is a common core with creations on top of it. The core owns what every c
 - who a person is and what they may do (`identity-access`),
 - the connected systems (`connectors`),
 - the model accounts,
-- where generated code runs and is hosted (`app-runner`, `registry`, `mar`),
+- where generated code runs and is hosted (`app-runner`, `registry`, `hosting`),
 - periodic work (`platform/jobs.ts`).
 
 Each creation uses the core through a port and never holds its own copy of it. The creation built
@@ -193,7 +193,7 @@ Level 2, the Hub:
 | `builder` | The Builder harness, runs, conversations and Conexus Git |
 | `connectors` | Integrators, connections, bindings and the integration executor |
 | `registry` | Built apps and their artifacts |
-| `mar` | Serving Previews and apps on their own hosts |
+| `hosting` | Serving Previews and apps on their own hosts |
 | `app-runner` | The Hub's client of the application runner, and the runner itself |
 | `telemetry` | Metrics and log codes |
 | `platform`, `http` | Shared technical layers every module may use |

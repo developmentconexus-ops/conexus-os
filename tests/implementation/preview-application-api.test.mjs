@@ -6,8 +6,8 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { hubModuleUrl } from './hub-build.mjs'
 import { testListener } from './access/test-listener.mjs'
 
-const { createMarModule, previewHostOf } = await import(hubModuleUrl('mar/module.js'))
-const { registerPreviewRoutes } = await import(hubModuleUrl('mar/preview-routes.js'))
+const { createHostingModule, previewHostOf } = await import(hubModuleUrl('hosting/module.js'))
+const { registerPreviewRoutes } = await import(hubModuleUrl('hosting/preview-routes.js'))
 
 const PORT = 3444
 const HOST = 'preview-11111111-1111-4111-8111-111111111111.conexus.localhost'
@@ -32,9 +32,9 @@ const preview = async (t, invokeApplication) => {
     previewAuthority: async ({ sessionToken, exactHost }) => (sessionToken === 'valid' && exactHost === HOST ? { kind: 'SIGNED_IN', binding } : { kind: 'SIGN_IN_REQUIRED' }),
   }
   const registryReader = async (_accountId, { path }) => ({ path, mediaType: binding.manifest.files.find((file) => file.path === path)?.mediaType, bytes: new Uint8Array(), sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' })
-  const mar = createMarModule({ sessions, registry: { readPreviewFile: registryReader }, exactHubOrigin: 'https://hub.conexus.localhost:3443', previewPort: PORT })
+  const hosting = createHostingModule({ sessions, registry: { readPreviewFile: registryReader }, exactHubOrigin: 'https://hub.conexus.localhost:3443', previewPort: PORT })
   const { app } = await testListener({
-    policy: mar.previewPolicy,
+    policy: hosting.previewPolicy,
     registerRoutes: (server) => registerPreviewRoutes(server, {
       sessions,
       registryReader,

@@ -29,7 +29,7 @@ type PreviewBinding = Readonly<{
 
 type Refused = Readonly<{ kind: 'SIGN_IN_REQUIRED' }> | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
 
-// The session port this host needs, declared structurally: the MAR owner does not import identity-access.
+// The session port this host needs, declared structurally: the hosting owner does not import identity-access.
 export type PreviewSessions = Readonly<{
   redeem(input: Readonly<{ handoff: string; target: Readonly<{ kind: 'PREVIEW'; exactHost: string }> }>): Promise<Readonly<{ sessionToken: string; maxAgeSeconds: number }> | null>
   previewAuthority(input: Readonly<{ sessionToken: string | undefined; exactHost: string }>): Promise<Readonly<{ kind: 'SIGNED_IN'; binding: PreviewBinding }> | Refused>
@@ -72,7 +72,7 @@ export const callerLeft = (reply: FastifyReply): AbortSignal => {
 export const registerPreviewRoutes = async (
   app: FastifyInstance,
   dependencies: PreviewRouteDependencies,
-): Promise<readonly ['MAR-Preview']> => {
+): Promise<readonly ['Hosting-Preview']> => {
   const route = routes(app)
   const tracked = <Request extends FastifyRequest>(handler: (request: Request, reply: FastifyReply) => Promise<unknown>) =>
     async (request: Request, reply: FastifyReply): Promise<unknown> => {
@@ -180,5 +180,5 @@ export const registerPreviewRoutes = async (
   }) })
   route.navigation({ url: '/', handler: tracked(serve) })
   route.navigation({ url: '/*', handler: tracked(serve) })
-  return ['MAR-Preview']
+  return ['Hosting-Preview']
 }

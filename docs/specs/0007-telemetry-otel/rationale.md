@@ -178,7 +178,7 @@ Probes run on 2026-10-01 in a scratch directory outside the repository, with `@m
   F22, `hub-oom/diagnosis.md`).
 - `docs/decisions/index.md`: C-029 (the connector record), C-033.
 - `docs/roadmap.md` *Technology baseline*; `docs/development/delivery.md` *Technology rule*.
-- `apps/hub/src/http/app.ts`, `apps/hub/src/mar/{application-host-routes,application-invoker,preview-routes}.ts`,
+- `apps/hub/src/http/app.ts`, `apps/hub/src/hosting/{application-host-routes,application-invoker,preview-routes}.ts`,
   `apps/hub/src/app-runner/{http,module,supervisor,sandbox,worker,main}.ts`,
   `apps/hub/src/connectors/{record,broker,handler-port,module}.ts`,
   `apps/hub/src/builder/{module,service,run-runtime,mastra-session-routes}.ts`,

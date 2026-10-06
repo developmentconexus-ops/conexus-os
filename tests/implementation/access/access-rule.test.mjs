@@ -3,7 +3,7 @@ import test from 'node:test'
 import { hubModuleUrl } from '../hub-build.mjs'
 
 const { ACCESS, authentic, requestFacts } = await import(hubModuleUrl('http/access.js'))
-const { previewHostOf } = await import(hubModuleUrl('mar/module.js'))
+const { previewHostOf } = await import(hubModuleUrl('hosting/module.js'))
 
 const HUB = 'https://hub.conexus.test'
 const OWN = 'https://sales.apps.conexus.test'
