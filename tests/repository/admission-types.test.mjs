@@ -19,3 +19,11 @@ test('the Git snapshot helpers reject a Project id, a plain string and an unpars
   { cwd: root, encoding: 'utf8' })
   assert.equal(result.status, 0, result.stdout + result.stderr)
 })
+
+test('the operation registry rejects a key that differs from the id of its operation', () => {
+  const result = spawnSync(process.execPath, [resolve(root, 'node_modules/typescript/bin/tsc'),
+    '--noEmit', '--strict', '--skipLibCheck', '--target', 'ES2022', '--module', 'NodeNext',
+    '--moduleResolution', 'NodeNext', resolve(root, 'tests/fixtures/operation-registry-negative.ts')],
+  { cwd: root, encoding: 'utf8' })
+  assert.equal(result.status, 0, result.stdout + result.stderr)
+})

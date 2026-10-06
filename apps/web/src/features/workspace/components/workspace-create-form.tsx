@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
-import { IdempotencyKey, WS01, type WorkspaceCreated } from '../../../../../../packages/contract/dist/index.js'
+import { IdempotencyKey, createWorkspace, type WorkspaceCreated } from '../../../../../../packages/contract/dist/index.js'
 import { accessContextQueryKey } from '../../identity-access/api'
 import { call, failureText } from '../../../app/http'
 
@@ -28,7 +28,7 @@ export function WorkspaceCreateForm({
   const nameInput = useRef<HTMLInputElement>(null)
   const [message, setMessage] = useState('')
   const mutation = useMutation({
-    mutationFn: ({ name, idempotencyKey }: Attempt) => call(WS01, {
+    mutationFn: ({ name, idempotencyKey }: Attempt) => call(createWorkspace, {
       params: undefined,
       query: undefined,
       headers: { 'idempotency-key': idempotencyKey },

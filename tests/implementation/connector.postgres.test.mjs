@@ -78,7 +78,7 @@ const seedConnection = async (connection, { connectionId = randomUUID(), workspa
   return connectionId
 }
 
-test('CON-01 and CON-02: administrator only, idempotent create, conflicts, absent Workspace, sealed at rest', { skip }, async (t) => {
+test('listWorkspaceConnections and createWorkspaceConnection: administrator only, idempotent create, conflicts, absent Workspace, sealed at rest', { skip }, async (t) => {
   const { connection, store, database } = await setupConnectors(t, 'connector_admin')
   await seedConnection(connection, { connectionId: SEEDED, label: 'ERP' })
   assert.deepEqual(await store.listConnections({ accountId: ID.administrator, workspaceId: ID.workspace }), [{ connectionId: SEEDED, connectorId: 'sankhya', label: 'ERP', createdAt: SEEDED_AT }])
@@ -111,7 +111,7 @@ test('CON-01 and CON-02: administrator only, idempotent create, conflicts, absen
   assert.deepEqual(await labelsOf(database, ID.administrator), ['ERP', 'ERP filial'])
 })
 
-test('CON-03 and CON-04: the credential read and the disable are administrator commands that end every open binding', { skip }, async (t) => {
+test('checkWorkspaceConnection and disableWorkspaceConnection: the credential read and the disable are administrator commands that end every open binding', { skip }, async (t) => {
   const { connection, store, addConnection, bind, disable, seedProject, brokerStore, scopeOf } = await setupConnectors(t, 'connector_check')
   const projectId = await seedProject('Atlas')
   const erp = await addConnection('sankhya', 'ERP', CREDENTIAL)
@@ -134,7 +134,7 @@ test('CON-03 and CON-04: the credential read and the disable are administrator c
   await assert.rejects(disable(erp, ID.otherWorkspace), { id: 'CONNECTOR_CONNECTION_NOT_FOUND' })
 })
 
-test('CON-03 over the real routes: the administrator transaction is committed while the provider call runs', { skip }, async (t) => {
+test('checkWorkspaceConnection over the real routes: the administrator transaction is committed while the provider call runs', { skip }, async (t) => {
   const fixture = await setupConnectors(t, 'connector_check_route')
   const { connection, store, addConnection, onCleanup } = fixture
   const { createConnectionCheck } = await import(hubModuleUrl('connectors/module.js'))
@@ -168,7 +168,7 @@ test('CON-03 over the real routes: the administrator transaction is committed wh
   assert.equal((await check()).statusCode, 403)
 })
 
-test('CON-08, CON-09 and CON-10: owner only, ordered entries, conflicts, a foreign or disabled Connection, a tombstoned or archived Project', { skip }, async (t) => {
+test('listProjectConnectionBindings, bindProjectConnection and unbindProjectConnection: owner only, ordered entries, conflicts, a foreign or disabled Connection, a tombstoned or archived Project', { skip }, async (t) => {
   const { connection, store, addConnection, bind, unbind, archive, seedProject } = await setupConnectors(t, 'connector_bindings')
   const projectId = await seedProject('Atlas')
   const erp = await addConnection('sankhya', 'ERP', CREDENTIAL)
@@ -334,7 +334,7 @@ test('broker refusals are NOT_GRANTED and a store fault is CONNECTOR_PLATFORM_FA
   assert.equal(failing.fake.requests.length, 0, 'a store fault reaches no provider')
 })
 
-test('CON-09 against CON-04, CON-10 and the Project purge in both lock orders, with no deadlock', { skip }, async (t) => {
+test('bindProjectConnection against disableWorkspaceConnection, unbindProjectConnection and the Project purge in both lock orders, with no deadlock', { skip }, async (t) => {
   const { connection, database, store, addConnection, bind, disable, seedProject, onCleanup } = await setupConnectors(t, 'connector_locks')
   const bindIn = async (projectId, connectionId, name) => (await store.bindConnection({ accountId: ID.owner, projectId, body: { connectionId, name } })).binding
 
@@ -405,7 +405,7 @@ test('CON-09 against CON-04, CON-10 and the Project purge in both lock orders, w
   assert.equal(await openBindings(connection, dryad), 1, 'and no other Project loses a binding')
 })
 
-test('administrator revocation against CON-02 and CON-04: a revocation that commits first is refused, one that starts later waits', { skip }, async (t) => {
+test('administrator revocation against createWorkspaceConnection and disableWorkspaceConnection: a revocation that commits first is refused, one that starts later waits', { skip }, async (t) => {
   const { connection, store, addConnection, disable, onCleanup } = await setupConnectors(t, 'connector_revocation')
   const erp = await addConnection('sankhya', 'ERP', CREDENTIAL)
   const revoke = (accountId) => query(connection, 'UPDATE iam.installation_administrator SET revoked_at = now(), revoked_by = $2 WHERE account_id = $1', [accountId, ID.administrator])

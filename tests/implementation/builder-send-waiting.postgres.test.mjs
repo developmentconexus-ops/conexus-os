@@ -16,7 +16,7 @@ const SUSPENDED = { reason: 'suspended', userMessageId: 'user-message', toolCall
 const TOKENS = { outsider: opaque('outsider'), removed: opaque('removed'), grantee: opaque('grantee') }
 const CALLERS = { outsider: ID.outsider, removed: ID.member, grantee: ID.administrator }
 
-test('BLD-24 answers 403 PROJECT_BUILD_DENIED to an outsider, a removed member and an application grantee while the run waits, and leaves the waiting inbox open and empty', async (t) => {
+test('sendBuilderMessage answers 403 PROJECT_BUILD_DENIED to an outsider, a removed member and an application grantee while the run waits, and leaves the waiting inbox open and empty', async (t) => {
   const { connection, database, seedBuilderProject } = await setupBuilder(t, 'conexus_bld24_waiting')
   const store = createBuilderStore({ database, ownerId: HUB })
   const visible = await seedBuilderProject('Atlas')

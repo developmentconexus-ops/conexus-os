@@ -11,7 +11,7 @@ const SESSION_TOKEN = opaque('ana')
 const ana = '22222222-2222-4222-8222-222222222222'
 const authentic = { headers: hubJsonWrite, cookies: { '__Host-conexus_session': SESSION_TOKEN } }
 const UNKNOWN_LOGIN = '77777777-7777-4777-8777-777777777777'
-const MDL = ['MDL-01', 'MDL-02', 'MDL-03', 'MDL-04', 'MDL-05', 'MDL-06', 'MDL-07', 'MDL-08', 'MDL-09', 'MDL-10', 'MDL-11']
+const MDL = ['listAvailableModels', 'listModelAccounts', 'setModelAccountApiKey', 'startClaudeModelLogin', 'completeClaudeModelLogin', 'startCodexModelLogin', 'pollCodexModelLogin', 'getGoogleModelConnection', 'startGoogleModelLogin', 'completeGoogleModelLogin', 'getGoogleModelLoginStatus']
 const problem = (reply) => reply.json().type.replace('urn:conexus:problem:', '')
 
 const createApp = async (t, dependencies = {}, modelAccounts = fakeModelAccounts().modelAccounts) => {
@@ -31,7 +31,7 @@ const claudeAuthorization = { start: async () => ({ url: 'https://claude.ai/oaut
 const claude = '/api/control/model-accounts/anthropic/oauth'
 const google = '/api/control/model-accounts/google-ai-pro'
 
-test('the model routes register exactly MDL-01 to MDL-11, and no offered model carries hasApiKey', async (t) => {
+test('the model routes register exactly listAvailableModels to getGoogleModelLoginStatus, and no offered model carries hasApiKey', async (t) => {
   const { app, registered } = await createApp(t)
   assert.deepEqual(registered, MDL)
   const models = await app.inject({ method: 'GET', url: '/api/control/model-accounts/models', ...authentic })

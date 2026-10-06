@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { BLD08, BLD09, BLD23, BLD24, BLD25, BLD26, BLD29, BLD30, type AccountId, type BuilderRunId, type BuilderRunSummary, type BuilderSession, type BuilderTraceSummary, type PreviewLaunch, type ProjectId } from '../../../../packages/contract/dist/index.js'
+import { listProjectSourceTree, getProjectSourceFile, getBuilderSession, sendBuilderMessage, cancelBuilderRun, getBuilderRunTrace, compareProjectSourceRevisions, launchBuilderPreview, type AccountId, type BuilderRunId, type BuilderRunSummary, type BuilderSession, type BuilderTraceSummary, type PreviewLaunch, type ProjectId } from '../../../../packages/contract/dist/index.js'
 import { Failure } from '../platform/failure.js'
 import type { BuilderService } from './service.js'
 import type { BuilderStore } from './store.js'
@@ -7,7 +7,7 @@ import type { ServedLaunch } from './application-build.js'
 import type { HubSessionDigest } from '../identity-access/current-session.js'
 import { routes } from '../http/access.js'
 
-export type BuilderOperationId = 'BLD-08' | 'BLD-09' | 'BLD-23' | 'BLD-24' | 'BLD-25' | 'BLD-26' | 'BLD-29' | 'BLD-30'
+export type BuilderOperationId = 'listProjectSourceTree' | 'getProjectSourceFile' | 'getBuilderSession' | 'sendBuilderMessage' | 'cancelBuilderRun' | 'getBuilderRunTrace' | 'compareProjectSourceRevisions' | 'launchBuilderPreview'
 export type BuilderSessionPort = Readonly<{
   read(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<Readonly<{ preview: BuilderSession['preview']; runHistory: readonly BuilderRunSummary[] }>>
   readTrace(input: Readonly<{ accountId: AccountId; projectId: ProjectId; builderRunId: BuilderRunId }>): Promise<BuilderTraceSummary>
@@ -26,7 +26,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
 }>): Promise<readonly BuilderOperationId[]> => {
   const route = routes(app)
 
-  route.operation(BLD23, async ({ params }, session) => {
+  route.operation(getBuilderSession, async ({ params }, session) => {
     const accountId = session.account.accountId
     const { projectId } = params
     const snapshot = await dependencies.session.read({ accountId, projectId })
@@ -47,7 +47,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     }
   })
 
-  route.operation(BLD24, async ({ params, headers, body }, session) => {
+  route.operation(sendBuilderMessage, async ({ params, headers, body }, session) => {
     const { builderRun, created } = await dependencies.service.sendBuilderMessage({
       accountId: session.account.accountId, projectId: params.projectId,
       conversationId: body.conversationId,
@@ -56,11 +56,11 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     return created ? { status: 201 as const, body: { builderRun } } : { status: 200 as const, body: { builderRun } }
   })
 
-  route.operation(BLD25, async ({ params }, session) => ({
+  route.operation(cancelBuilderRun, async ({ params }, session) => ({
     builderRun: await dependencies.service.cancelBuilderRun({ accountId: session.account.accountId, projectId: params.projectId, builderRunId: params.builderRunId }),
   }))
 
-  route.operation(BLD26, async ({ params }, session) => {
+  route.operation(getBuilderRunTrace, async ({ params }, session) => {
     const accountId = session.account.accountId
     const { projectId, builderRunId } = params
     if (!await dependencies.store.readPreviewSubject({ accountId, projectId })) throw new Failure('PROJECT_BUILD_DENIED')
@@ -69,7 +69,7 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     return dependencies.session.readTrace({ accountId, projectId, builderRunId })
   })
 
-  route.operation(BLD30, async ({ params }, session) => {
+  route.operation(launchBuilderPreview, async ({ params }, session) => {
     const accountId = session.account.accountId
     const { launchPreview } = dependencies
     if (!launchPreview) throw new Failure('PREVIEW_UNAVAILABLE')
@@ -79,17 +79,17 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     return launchPreview(session.digest, { accountId, projectId, launch })
   })
 
-  route.operation(BLD08, ({ params, query }, session) =>
+  route.operation(listProjectSourceTree, ({ params, query }, session) =>
     dependencies.service.listSourceTree({ accountId: session.account.accountId, projectId: params.projectId, sourceRevision: query.sourceRevision }))
 
-  route.operation(BLD09, ({ params, query }, session) =>
+  route.operation(getProjectSourceFile, ({ params, query }, session) =>
     dependencies.service.getSourceFile({ accountId: session.account.accountId, projectId: params.projectId, sourceRevision: query.sourceRevision, path: query.path }))
 
-  route.operation(BLD29, ({ params, query }, session) =>
+  route.operation(compareProjectSourceRevisions, ({ params, query }, session) =>
     dependencies.service.compareSourceRevisions({
       accountId: session.account.accountId, projectId: params.projectId,
       baseSourceRevision: query.baseSourceRevision, resultSourceRevision: query.resultSourceRevision,
     }))
 
-  return ['BLD-08', 'BLD-09', 'BLD-23', 'BLD-24', 'BLD-25', 'BLD-26', 'BLD-29', 'BLD-30']
+  return ['listProjectSourceTree', 'getProjectSourceFile', 'getBuilderSession', 'sendBuilderMessage', 'cancelBuilderRun', 'getBuilderRunTrace', 'compareProjectSourceRevisions', 'launchBuilderPreview']
 }

@@ -26,7 +26,7 @@ const setup = async (t) => {
   return { ...fixture, store: createWorkspaceStore(fixture.database) }
 }
 
-test('WS-01 creates one workspace and owner, replays its answer, and refuses a changed request', async (t) => {
+test('createWorkspace creates one workspace and owner, replays its answer, and refuses a changed request', async (t) => {
   const { connection, store } = await setup(t)
   const first = await store.createWorkspace({ accountId: ACCOUNT, idempotencyKey: 'one', body: { name: 'Operations' } })
   assert.equal(first.replayed, false)
@@ -41,7 +41,7 @@ test('WS-01 creates one workspace and owner, replays its answer, and refuses a c
   assert.deepEqual(await store.list(OUTSIDER), [])
 })
 
-test('WS-01 rolls back both inserts and the receipt after a failed membership insert', async (t) => {
+test('createWorkspace rolls back both inserts and the receipt after a failed membership insert', async (t) => {
   const { connection, store } = await setup(t)
   await query(connection, 'REVOKE INSERT ON iam.workspace_membership FROM hub_command')
   await assert.rejects(store.createWorkspace({ accountId: ACCOUNT, idempotencyKey: 'failed', body: { name: 'Failed' } }), refusedByPostgres)
@@ -126,7 +126,7 @@ test('an admission reads its actor from the gate and refuses a gate of another k
   await assert.rejects(proof.tx.rows(z.object({ one: z.number() }), sql`SELECT 1 AS one`), { id: 'INTERNAL_UNEXPECTED' })
 })
 
-test('concurrent WS-01 calls with one key replay one answer for one body and conflict for another', async (t) => {
+test('concurrent createWorkspace calls with one key replay one answer for one body and conflict for another', async (t) => {
   const { connection, store } = await setup(t)
   const same = await Promise.all([1, 2].map(() => store.createWorkspace({ accountId: ACCOUNT, idempotencyKey: 'race', body: { name: 'Operations' } })))
   assert.deepEqual(same.map((call) => call.replayed).sort(), [false, true])

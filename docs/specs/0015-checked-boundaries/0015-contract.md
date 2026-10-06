@@ -49,7 +49,7 @@ change, unproven).
 
 ```ts
 type Operation<Id, Access, Params, Query, Headers, Body, Success, Failures> = {
-  readonly id: Id                          // 'WS-01', the operation ledger id
+  readonly id: Id                          // 'createWorkspace', the operation ledger id
   readonly access: Access                  // an S3 access kind (spec 0014, section 1)
   readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   readonly path: string                    // Fastify form, '/api/control/workspaces/:workspaceId'
@@ -82,8 +82,8 @@ Absent parts are `null`, never optional. Each operation is a frozen literal (`op
 `O['id']` and `O['access']` are literal types. Example, in `src/workspace.ts`:
 
 ```ts
-export const WS01 = operation({
-  id: 'WS-01', access: 'session', method: 'POST', path: '/api/control/workspaces',
+export const createWorkspace = operation({
+  id: 'createWorkspace', access: 'session', method: 'POST', path: '/api/control/workspaces',
   params: null, query: null,
   headers: z.looseObject({ 'idempotency-key': IdempotencyKey }),
   body: z.object({ name: WorkspaceName }),
@@ -246,7 +246,7 @@ temporary file and fails on any difference with the committed one; it runs in `v
 the walk reads from `OPERATIONS`.
 
 **Route ledger.** Each `/api` row of `tests/implementation/access/route-ledger.mjs` gains
-`operation: 'WS-01'`. The walk test asserts by table: every entry of `OPERATIONS` has exactly one row,
+`operation: 'createWorkspace'`. The walk test asserts by table: every entry of `OPERATIONS` has exactly one row,
 and the row's kind equals `operation.access`; signed in, the sample answer parses with the success
 schema or is a `Problem` whose code is declared or common; every list read, called as an outsider with
 a seeded second tenant, returns an empty list or the 404 (umbrella AC-9).
@@ -296,5 +296,5 @@ their real grammar, never a uuid check by assumption. Local React keys stay `str
 | emitted OpenAPI | each status and code | the keys of `op.success`, `op.failures` plus the common set, status from the failure table |
 | `call` | the URL | `op.path` with `input.params`, `input.query` |
 | `query` | the cache key | `[op.id, input]` |
-| WS-01 | `creatorAccountId` | the session grant's parsed `AccountId` |
-| WS-01 | `workspaceId` | minted by the Hub through `WorkspaceId.parse(randomUUID())` |
+| `createWorkspace` | `creatorAccountId` | the session grant's parsed `AccountId` |
+| `createWorkspace` | `workspaceId` | minted by the Hub through `WorkspaceId.parse(randomUUID())` |

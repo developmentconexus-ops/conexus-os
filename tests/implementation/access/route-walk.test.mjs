@@ -90,7 +90,7 @@ test('the ledger names every route of the three listeners, with its kind, and no
 })
 
 test('each declared operation has one route with its access kind', () => {
-  for (const operation of OPERATIONS) {
+  for (const operation of Object.values(OPERATIONS)) {
     assert.deepEqual(
       LEDGER.filter((row) => row.operation === operation.id).map(({ method, url, kind }) => ({ method, url, kind })),
       [{ method: operation.method, url: operation.path, kind: operation.access }],

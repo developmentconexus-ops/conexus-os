@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { FAILURES } from '../../../../../../packages/contract/dist/failures.generated.js'
-import { MDL06, MDL07, type ModelLoginId } from '../../../../../../packages/contract/dist/index.js'
+import { startCodexModelLogin, pollCodexModelLogin, type ModelLoginId } from '../../../../../../packages/contract/dist/index.js'
 import { call } from '../../../app/http'
 import { accountsQueryKey, noInput, ownKind, readAccounts } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
@@ -39,7 +39,7 @@ function DeviceCode({ login, onDone, onCancel }: Readonly<{ login: Login; onDone
   useEffect(() => {
     let stopped = false
     const timer = setInterval(async () => {
-      const { state } = await call(MDL07, { ...noInput, query: { loginId: login.loginId } }).catch(() => ({ state: 'waiting' as const }))
+      const { state } = await call(pollCodexModelLogin, { ...noInput, query: { loginId: login.loginId } }).catch(() => ({ state: 'waiting' as const }))
       if (!stopped && state !== 'waiting') { stopped = true; clearInterval(timer); finish.current(state) }
     }, Math.max(login.intervalMs, 2000))
     return () => { stopped = true; clearInterval(timer) }
@@ -73,7 +73,7 @@ export function ChatGptAccount() {
     queryClient.invalidateQueries({ queryKey: ['builder-models'] }),
   ])
   const start = useMutation({
-    mutationFn: () => call(MDL06, noInput),
+    mutationFn: () => call(startCodexModelLogin, noInput),
     onSuccess: (started) => { setMessage(null); setLogin(started) },
     onError: () => setMessage({ text: 'Não foi possível iniciar a entrada com o ChatGPT agora.', failed: true }),
   })

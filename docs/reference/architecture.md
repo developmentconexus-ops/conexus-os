@@ -384,7 +384,7 @@ pull request that fixes one deletes its line.
 | `http/access.ts` and `builder/run-operation.ts` import the session and admission contracts of `identity-access` and `app-runner` directly, and the import checker exempts the session, admission and application-server contracts | Hub base, after S1 |
 | The sandbox keepalive in `builder/sandbox.ts` and the sign-in expiry in `builder/google-ai-pro/login.ts` run their own timers, outside `platform/jobs.ts` | Hub base, after S1 |
 | The model routes keep verb segments (`/oauth/start`, `/login/complete`), the Google sign-in status is a `POST` named for a read, and the three `start` `POST`s take no `Idempotency-Key` | Hub base, after S1 |
-| `CON-02` and `CON-09` take no `Idempotency-Key` and deduplicate by domain identity (`connectionId`, the binding name) | Hub base, after S1 |
+| `createWorkspaceConnection` and `bindProjectConnection` take no `Idempotency-Key` and deduplicate by domain identity (`connectionId`, the binding name) | Hub base, after S1 |
 | `apps/web/src/generated/iam-client.ts` calls the Hub with `fetch`, outside `http.ts` | S1, part 6 |
 | The first access is refused: `admitBootstrap` is not built | S1, part 6 |
 | Model accounts and the Mastra instance live in `builder`, not in the core | Hub base, after S1 |

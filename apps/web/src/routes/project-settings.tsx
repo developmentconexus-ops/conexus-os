@@ -9,7 +9,7 @@ import { KeyRound } from 'lucide-react'
 import { useId, useState } from 'react'
 import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
-import { PRJ_SUMMARIES, type ProjectDetail } from '../../../../packages/contract/dist/index.js'
+import { listProjectSummaries, type ProjectDetail } from '../../../../packages/contract/dist/index.js'
 import { deleteProject, projectQuery } from '../features/project/api'
 import { useInstallation } from '../features/settings/use-installation'
 import '../features/project/project-settings.css'
@@ -107,7 +107,7 @@ function DeletionRecovery({ project }: Readonly<{ project: ProjectDetail }>) {
   const retry = useMutation({
     mutationFn: () => deleteProject(project.projectId, project.name),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [PRJ_SUMMARIES.id] })
+      await queryClient.invalidateQueries({ queryKey: [listProjectSummaries.id] })
       await navigate({ to: '/workspaces/$workspaceId/projects', params: { workspaceId: project.workspaceId } })
     },
     onError: (error) => setMessage(failureText(error)),
@@ -138,7 +138,7 @@ function DangerZone({ project }: Readonly<{ project: ProjectDetail }>) {
   const remove = useMutation({
     mutationFn: () => deleteProject(project.projectId, confirmName),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [PRJ_SUMMARIES.id] })
+      await queryClient.invalidateQueries({ queryKey: [listProjectSummaries.id] })
       await navigate({ to: '/workspaces/$workspaceId/projects', params: { workspaceId: project.workspaceId } })
     },
     onError: (error) => setMessage(failureText(error)),

@@ -82,10 +82,10 @@ const buildRoutes = async ({ current = OPERATOR, storeOverrides = {} } = {}) => 
   return { app, calls }
 }
 
-test('WS-01 declares and checks workspace creation', async (t) => {
+test('createWorkspace declares and checks workspace creation', async (t) => {
   const { app, calls } = await buildRoutes()
   t.after(() => app.close())
-  assert.deepEqual(app.routeCensus(), ['WS-01'])
+  assert.deepEqual(app.routeCensus(), ['createWorkspace'])
 
   const created = await app.inject({ method: 'POST', url: '/api/control/workspaces', headers: authenticHeaders, payload: { name: 'Operations' } })
   assert.equal(created.statusCode, 201)
@@ -104,7 +104,7 @@ test('WS-01 declares and checks workspace creation', async (t) => {
 
 })
 
-test('WS-01 refuses unauthenticated, authenticity failures and caller-selected authority', async (t) => {
+test('createWorkspace refuses unauthenticated, authenticity failures and caller-selected authority', async (t) => {
   const unauthenticated = await buildRoutes({ current: null })
   t.after(() => unauthenticated.app.close())
   const noSession = await unauthenticated.app.inject({ method: 'POST', url: '/api/control/workspaces', headers: authenticHeaders, payload: { name: 'Operations' } })
@@ -119,7 +119,7 @@ test('WS-01 refuses unauthenticated, authenticity failures and caller-selected a
   assert.equal(operator.calls.length, 0)
 })
 
-test('WS-01 names a missing or empty idempotency key', async (t) => {
+test('createWorkspace names a missing or empty idempotency key', async (t) => {
   const { app, calls } = await buildRoutes()
   t.after(() => app.close())
   for (const headers of [
@@ -133,7 +133,7 @@ test('WS-01 names a missing or empty idempotency key', async (t) => {
   assert.deepEqual(calls, [])
 })
 
-test('WS-01 admits any authenticated Account, who becomes the Workspace owner', async (t) => {
+test('createWorkspace admits any authenticated Account, who becomes the Workspace owner', async (t) => {
   const member = await buildRoutes({ current: MEMBER })
   t.after(() => member.app.close())
   const created = await member.app.inject({ method: 'POST', url: '/api/control/workspaces', headers: authenticHeaders, payload: { name: 'Operations' } })
@@ -141,7 +141,7 @@ test('WS-01 admits any authenticated Account, who becomes the Workspace owner', 
   assert.equal(member.calls[0][1].accountId, MEMBER.account.accountId)
 })
 
-test('WS-01 maps the failures its store declares to their status without leaking internals', async (t) => {
+test('createWorkspace maps the failures its store declares to their status without leaking internals', async (t) => {
   for (const [code, status] of [['IDEMPOTENCY_CONFLICT', 409], ['ACCOUNT_INACTIVE', 403], ['ACCOUNT_NOT_FOUND', 404]]) {
     const { app } = await buildRoutes({ storeOverrides: { createWorkspace: async () => { throw new Failure(code) } } })
     t.after(() => app.close())
@@ -151,7 +151,7 @@ test('WS-01 maps the failures its store declares to their status without leaking
   }
 })
 
-test('WS-01 hides unexpected store failures', async (t) => {
+test('createWorkspace hides unexpected store failures', async (t) => {
   const unexpectedCreate = await buildRoutes({
     storeOverrides: { createWorkspace: async () => { throw new Error('create-driver-secret') } },
   })

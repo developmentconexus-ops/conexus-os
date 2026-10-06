@@ -46,14 +46,14 @@ const workspaceParam = z.object({ workspaceId: WorkspaceId });
 const workspaceConnectionParams = z.object({ workspaceId: WorkspaceId, connectionId: ConnectionId });
 const projectParam = z.object({ projectId: ProjectId });
 const projectBindingParams = z.object({ projectId: ProjectId, bindingId: BindingId });
-export const CON01 = operation({
-    id: 'CON-01', access: 'session', method: 'GET', path: '/api/control/workspaces/:workspaceId/connections',
+export const listWorkspaceConnections = operation({
+    id: 'listWorkspaceConnections', summary: 'List the Connections of a Workspace without any credential field; installation administrator only.', access: 'session', method: 'GET', path: '/api/control/workspaces/:workspaceId/connections',
     params: workspaceParam, query: null, headers: null, body: null,
     success: { 200: z.object({ entries: z.array(ConnectorConnection) }) },
     effects: [], failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED'], malformed: { workspaceId: 'WORKSPACE_NOT_FOUND' },
 });
-export const CON02 = operation({
-    id: 'CON-02', access: 'session', method: 'POST', path: '/api/control/workspaces/:workspaceId/connections',
+export const createWorkspaceConnection = operation({
+    id: 'createWorkspaceConnection', summary: 'Create a Connection of a Workspace, idempotent on its client-chosen id; installation administrator only.', access: 'session', method: 'POST', path: '/api/control/workspaces/:workspaceId/connections',
     params: workspaceParam, query: null, headers: null,
     body: z.discriminatedUnion('connectorId', [
         z.strictObject({ connectionId: ConnectionId, connectorId: z.literal(ConnectorId.enum.sankhya), label: ConnectionLabel, credential: CONNECTOR_CREDENTIALS.sankhya }),
@@ -63,29 +63,29 @@ export const CON02 = operation({
     failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED', 'CONNECTOR_WORKSPACE_NOT_FOUND', 'CONNECTOR_LABEL_REFUSED', 'CONNECTOR_CREDENTIAL_REFUSED', 'CONNECTOR_CONNECTION_CONFLICT'],
     malformed: { workspaceId: 'CONNECTOR_WORKSPACE_NOT_FOUND' },
 });
-export const CON03 = operation({
-    id: 'CON-03', access: 'session', method: 'POST', path: '/api/control/workspaces/:workspaceId/connections/:connectionId/authentication-check',
+export const checkWorkspaceConnection = operation({
+    id: 'checkWorkspaceConnection', summary: 'Check a Connection by running the allow-listed authentication of its Connector; installation administrator only.', access: 'session', method: 'POST', path: '/api/control/workspaces/:workspaceId/connections/:connectionId/authentication-check',
     params: workspaceConnectionParams, query: null, headers: null, body: null,
     success: { 200: z.object({ outcome: ConnectionCheckOutcome }) },
     effects: [], failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED', 'CONNECTOR_CONNECTION_NOT_FOUND', 'CONNECTOR_PLATFORM_FAILED'],
     malformed: { workspaceId: 'CONNECTOR_CONNECTION_NOT_FOUND', connectionId: 'CONNECTOR_CONNECTION_NOT_FOUND' },
 });
-export const CON04 = operation({
-    id: 'CON-04', access: 'session', method: 'DELETE', path: '/api/control/workspaces/:workspaceId/connections/:connectionId',
+export const disableWorkspaceConnection = operation({
+    id: 'disableWorkspaceConnection', summary: 'Disable a Connection and end its open bindings; installation administrator only.', access: 'session', method: 'DELETE', path: '/api/control/workspaces/:workspaceId/connections/:connectionId',
     params: workspaceConnectionParams, query: null, headers: null, body: null,
     success: { 204: null },
     effects: [], failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED', 'CONNECTOR_CONNECTION_NOT_FOUND'],
     malformed: { workspaceId: 'CONNECTOR_CONNECTION_NOT_FOUND', connectionId: 'CONNECTOR_CONNECTION_NOT_FOUND' },
 });
-export const CON08 = operation({
-    id: 'CON-08', access: 'session', method: 'GET', path: '/api/control/projects/:projectId/connection-bindings',
+export const listProjectConnectionBindings = operation({
+    id: 'listProjectConnectionBindings', summary: 'List the open bindings of a Project and the Connections it could still bind; Workspace Owner only.', access: 'session', method: 'GET', path: '/api/control/projects/:projectId/connection-bindings',
     params: projectParam, query: null, headers: null, body: null,
     success: { 200: z.object({ entries: z.array(ConnectionBindingEntry) }) },
     effects: [], failures: ['PROJECT_NOT_FOUND', 'CONNECTOR_BINDING_MANAGE_REQUIRED'],
     malformed: { projectId: 'PROJECT_NOT_FOUND' },
 });
-export const CON09 = operation({
-    id: 'CON-09', access: 'session', method: 'POST', path: '/api/control/projects/:projectId/connection-bindings',
+export const bindProjectConnection = operation({
+    id: 'bindProjectConnection', summary: 'Bind an enabled Connection of the Workspace to a Project under a Project-local name; Workspace Owner only.', access: 'session', method: 'POST', path: '/api/control/projects/:projectId/connection-bindings',
     params: projectParam, query: null, headers: null,
     body: z.object({ connectionId: ConnectionId, name: BindingName }).strict(),
     success: { 201: ConnectionBinding, 200: ConnectionBinding },
@@ -93,8 +93,8 @@ export const CON09 = operation({
     failures: ['PROJECT_NOT_FOUND', 'CONNECTOR_BINDING_MANAGE_REQUIRED', 'CONNECTOR_CONNECTION_NOT_AVAILABLE', 'CONNECTOR_BINDING_CONFLICT', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
     malformed: { projectId: 'PROJECT_NOT_FOUND' },
 });
-export const CON10 = operation({
-    id: 'CON-10', access: 'session', method: 'DELETE', path: '/api/control/projects/:projectId/connection-bindings/:bindingId',
+export const unbindProjectConnection = operation({
+    id: 'unbindProjectConnection', summary: 'End the binding of a Connection to a Project; Workspace Owner only.', access: 'session', method: 'DELETE', path: '/api/control/projects/:projectId/connection-bindings/:bindingId',
     params: projectBindingParams, query: null, headers: null, body: null,
     success: { 204: null },
     effects: [], failures: ['PROJECT_NOT_FOUND', 'CONNECTOR_BINDING_MANAGE_REQUIRED', 'CONNECTOR_BINDING_NOT_FOUND', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],

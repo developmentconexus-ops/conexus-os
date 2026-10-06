@@ -9,8 +9,7 @@ free choice.
 
 The guide states the target. Code that departs from it is listed in
 [architecture section 11](../reference/architecture.md#11-risks-and-technical-debt) with the wave
-that removes it. Owners next door: the [operation ledger](operation-ledger.md) lists every
-operation, [security](../reference/security-and-authority.md) decides who may call and how the
+that removes it. Owners next door: the contract is the census of operations, [security](../reference/security-and-authority.md) decides who may call and how the
 session travels, [product](contract.md) owns the journeys, and [database](../reference/database.md)
 the SQL.
 
@@ -20,8 +19,26 @@ the SQL.
   access, method, path, params, query, body, successes and failures.
 - `contracts/api/product/openapi.json` **must** be emitted from that declaration, never written by
   hand. The Hub's route types and the web client **must** derive from it.
-- Every operation **must** have one ledger row, and the contract and the ledger **must** change in
-  the same pull request.
+- The contract is the census. `OPERATIONS` and the emitted `contracts/api/product/openapi.json`
+  list every fixed Product operation, and no table beside them does.
+- An operation **must** be named by its verb and noun in camelCase (`deleteProject`). That one string
+  is its export, its `id`, its OpenAPI `operationId`, its log field, its query key and its receipt key.
+  The registry key **must** equal the `id`, and a mismatch fails to compile. Every operation **must**
+  carry a one-sentence `summary`, which the emitted `summary` repeats.
+- Every Product operation **must** enter through one ingress. `CONTROL_PLANE` is an authenticated
+  Control Plane interaction, and every current operation uses it. `SYSTEM` is an owner-internal
+  transition and `APPLICATION_HOST` is a request to one application's own host (its files, its sign-in
+  handoff, its sign-out, its manifest-declared operations); neither is a Product operation, and an
+  application's operations belong to its own manifest. An OIDC callback, a provider token refresh, a
+  model provider call, an E2B call, Git transport and static byte transport are mechanics, not
+  operations. Setting the first installation administrator is an operator shell step,
+  `npm run iam:bootstrap-installation-administrator`.
+- An operation **must** have a real consumer. These stay rejected: `execute(anySlug, anyInput)`,
+  `execute(anySql)`, `execute(anyProviderOperation)`, a caller-selected connection, a
+  caller-selected target URL, `GetBlob(storageKey)` and `UploadAnyFile`. The wire gate refuses a
+  Product path containing `{operationSlug}` or a segment `execute`. A screen, a button, a persona or
+  an internal function does not create an operation, and internal dispatch by identifier is
+  mechanism, not authority.
 - A surface that is not built **must not** have a contract.
 - The live stream of a Builder run is technical ingress, declared apart in
   `contracts/api/technical/openapi.yaml`. A Mastra id **must not** be a product identity, and the

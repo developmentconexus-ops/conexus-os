@@ -7,8 +7,9 @@ export declare const WorkspaceCreated: z.ZodObject<{
     initialAccessEstablished: z.ZodLiteral<true>;
 }, z.core.$strip>;
 export type WorkspaceCreated = z.output<typeof WorkspaceCreated>;
-export declare const WS01: {
-    readonly id: "WS-01";
+export declare const createWorkspace: {
+    readonly id: "createWorkspace";
+    readonly summary: "Create a Workspace; the creator becomes its owner.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/workspaces";

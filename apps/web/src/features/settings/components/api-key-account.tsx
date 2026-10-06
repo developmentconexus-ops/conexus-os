@@ -2,7 +2,7 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useId, useState } from 'react'
-import { MDL03 } from '../../../../../../packages/contract/dist/index.js'
+import { setModelAccountApiKey } from '../../../../../../packages/contract/dist/index.js'
 import { accountsQueryKey, noInput, ownKind, readAccounts } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
 import { call, failureText } from '../../../app/http'
@@ -23,7 +23,7 @@ export function ApiKeyAccount({ provider }: Readonly<{ provider: keyof typeof AP
   const [key, setKey] = useState('')
   const [message, setMessage] = useState<Readonly<{ text: string; failed: boolean }> | null>(null)
   const save = useMutation({
-    mutationFn: () => call(MDL03, { ...noInput, params: { provider }, body: { key } }),
+    mutationFn: () => call(setModelAccountApiKey, { ...noInput, params: { provider }, body: { key } }),
     onSuccess: () => {
       setKey('')
       setMessage({ text: 'Chave salva. Os modelos da sua conta já aparecem no Builder.', failed: false })

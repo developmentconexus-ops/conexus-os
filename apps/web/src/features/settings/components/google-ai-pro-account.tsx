@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
 import { FAILURES } from '../../../../../../packages/contract/dist/failures.generated.js'
 import { call, failureText, isFailure } from '../../../app/http'
-import { MDL08, MDL09, MDL10, MDL11, type ModelLoginId } from '../../../../../../packages/contract/dist/index.js'
+import { getGoogleModelConnection, startGoogleModelLogin, completeGoogleModelLogin, getGoogleModelLoginStatus, type ModelLoginId } from '../../../../../../packages/contract/dist/index.js'
 import { noInput, ownKind } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
 
@@ -31,13 +31,13 @@ function SignIn({ login, autoOpened, onDone }: Readonly<{ login: Login; autoOpen
   useEffect(() => {
     let stopped = false
     const timer = setInterval(async () => {
-      const { state } = await call(MDL11, { ...noInput, params: { loginId: login.loginId } }).catch((error: unknown) => (isFailure(error, 'MODEL_LOGIN_NOT_FOUND') ? { state: 'expired' as const } : { state: 'waiting' as const }))
+      const { state } = await call(getGoogleModelLoginStatus, { ...noInput, params: { loginId: login.loginId } }).catch((error: unknown) => (isFailure(error, 'MODEL_LOGIN_NOT_FOUND') ? { state: 'expired' as const } : { state: 'waiting' as const }))
       if (!stopped && state !== 'waiting') { stopped = true; clearInterval(timer); finish.current(state) }
     }, 2000)
     return () => { stopped = true; clearInterval(timer) }
   }, [login])
   const complete = useMutation({
-    mutationFn: () => call(MDL10, { ...noInput, body: { loginId: login.loginId, callbackUrl: pasted.trim() } }),
+    mutationFn: () => call(completeGoogleModelLogin, { ...noInput, body: { loginId: login.loginId, callbackUrl: pasted.trim() } }),
     onSuccess: ({ state }) => { if (state !== 'waiting') onDone(state) },
     onError: setRefusal,
   })
@@ -61,7 +61,7 @@ function SignIn({ login, autoOpened, onDone }: Readonly<{ login: Login; autoOpen
 export function GoogleAiProAccount() {
   const queryClient = useQueryClient()
   const titleId = useId()
-  const connection = useQuery({ queryKey: connectionQueryKey, queryFn: () => call(MDL08, noInput), retry: false })
+  const connection = useQuery({ queryKey: connectionQueryKey, queryFn: () => call(getGoogleModelConnection, noInput), retry: false })
   const [login, setLogin] = useState<Login | null>(null)
   const [autoOpened, setAutoOpened] = useState(true)
   const [message, setMessage] = useState<Readonly<{ text: string; failed: boolean }> | null>(null)
@@ -78,7 +78,7 @@ export function GoogleAiProAccount() {
       const tab = window.open('about:blank', '_blank')
       if (tab) tab.opener = null
       try {
-        const started = await call(MDL09, noInput)
+        const started = await call(startGoogleModelLogin, noInput)
         return { started, tab }
       } catch (error) {
         tab?.close()

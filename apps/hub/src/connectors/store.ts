@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import {
   BindingId, BindingName, ConnectionId, ConnectorIdText, type ProjectId,
-  type AccountId, type CON02, type FailureCode, type CON09, type ConnectionBinding, type ConnectionBindingEntry, type ConnectorConnection, type Input, type WorkspaceId,
+  type AccountId, type createWorkspaceConnection, type FailureCode, type bindProjectConnection, type ConnectionBinding, type ConnectionBindingEntry, type ConnectorConnection, type Input, type WorkspaceId,
 } from '../../../../packages/contract/dist/index.js'
 import {
   admitInstallationAdministrator, admitProject, checkApplication, isInstallationAdministrator,
@@ -66,12 +66,12 @@ const requireOpenProject = async (tx: TxQueries, projectId: ProjectId): Promise<
 
 export type ConnectorStore = Readonly<{
   listConnections(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId }>): Promise<ConnectorConnection[]>
-  createConnection(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId; body: Input<typeof CON02>['body'] }>): Promise<Readonly<{ connection: ConnectorConnection; created: boolean }>>
+  createConnection(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId; body: Input<typeof createWorkspaceConnection>['body'] }>): Promise<Readonly<{ connection: ConnectorConnection; created: boolean }>>
   /** The sealed credential of an enabled Connection, read in the administrator's own transaction, which ends before any provider call. */
   readCredentialForCheck(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId; connectionId: ConnectionId }>): Promise<Readonly<{ connectorId: string; sealed: string }>>
   disableConnection(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId; connectionId: ConnectionId }>): Promise<void>
   listProjectBindings(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<ConnectionBindingEntry[]>
-  bindConnection(input: Readonly<{ accountId: AccountId; projectId: ProjectId; body: Input<typeof CON09>['body'] }>): Promise<Readonly<{ binding: ConnectionBinding; created: boolean }>>
+  bindConnection(input: Readonly<{ accountId: AccountId; projectId: ProjectId; body: Input<typeof bindProjectConnection>['body'] }>): Promise<Readonly<{ binding: ConnectionBinding; created: boolean }>>
   unbindConnection(input: Readonly<{ accountId: AccountId; projectId: ProjectId; bindingId: BindingId }>): Promise<void>
 }>
 

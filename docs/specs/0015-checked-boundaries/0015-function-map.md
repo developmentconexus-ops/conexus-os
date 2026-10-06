@@ -58,7 +58,7 @@ deletion ports the composition root already passes (`hub.ts`).
   reads `builder.builder_run` and `builder.project_working_state`; connector functions read
   `project.project`; the `iam.admit_*` and `iam.visible_*` functions are called from every owner.
 - **A ported owner calls an unported one through its SQL function, then through a port.** When part
-  3 ports PRJ-03 and the purge, its TypeScript still calls `builder.register_project_repository` and the
+  3 ports `createProject` and the purge, its TypeScript still calls `builder.register_project_repository` and the
   four owner purges as SQL on `proof.tx`, so nothing changes for those owners yet. Until each purge
   becomes a port, it keeps its guard on `conexus.job`, which only `system('project-purge', ...)` sets
   (admission child, section 6). The owner's own part
@@ -72,7 +72,7 @@ deletion ports the composition root already passes (`hub.ts`).
   caller graph lists this read so the builder part sees it.
 - **`iam` last.** Parts 1 to 5 call `iam.admit_*` and `iam.visible_*` from their own bodies until
   they are ported, so the `iam` functions leave in part 6. `iam.establish_workspace_creator_access`
-  is replaced in part 0 (WS-01) and dropped there, since only `workspace.create_workspace` calls it.
+  is replaced in part 0 (`createWorkspace`) and dropped there, since only `workspace.create_workspace` calls it.
   `workspace.list_visible_workspace_summaries` stays until part 6, since `identity-access/store.ts`
   still calls it.
 - **The trigger.** Before part 1 drops `builder.clear_builder_run_phase`, a test drives every run

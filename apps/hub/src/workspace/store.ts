@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { WorkspaceId, WorkspaceName, WS01, type AccountId, type Input, type Reply } from '../../../../packages/contract/dist/index.js'
+import { WorkspaceId, WorkspaceName, createWorkspace, type AccountId, type Input, type Reply } from '../../../../packages/contract/dist/index.js'
 import { admitAccount, grantCreatorMembership } from '../identity-access/admission.js'
 import type { Database } from '../platform/db.js'
 import { sql } from '../platform/db.js'
@@ -10,9 +10,9 @@ export type WorkspaceStore = Readonly<{
   list(accountId: AccountId): Promise<readonly z.output<typeof WorkspaceRow>[]>
   createWorkspace(input: Readonly<{
     accountId: AccountId
-    idempotencyKey: Input<typeof WS01>['headers']['idempotency-key']
-    body: Input<typeof WS01>['body']
-  }>): Promise<Readonly<{ replayed: boolean; reply: z.output<typeof WS01.success[201]> }>>
+    idempotencyKey: Input<typeof createWorkspace>['headers']['idempotency-key']
+    body: Input<typeof createWorkspace>['body']
+  }>): Promise<Readonly<{ replayed: boolean; reply: z.output<typeof createWorkspace.success[201]> }>>
 }>
 
 export const createWorkspaceStore = (database: Database): WorkspaceStore => Object.freeze({
@@ -20,7 +20,7 @@ export const createWorkspaceStore = (database: Database): WorkspaceStore => Obje
     tx.rows(WorkspaceRow, sql`SELECT workspace_id, name FROM workspace.workspace ORDER BY name, workspace_id`)),
   createWorkspace: ({ accountId, idempotencyKey, body }) => database.transaction(accountId, async (gate) => {
     const creator = await admitAccount(gate)
-    return idempotent(creator, WS01, idempotencyKey, { params: undefined, query: undefined, body }, WorkspaceId, async (workspaceId): Promise<Reply<typeof WS01>> => {
+    return idempotent(creator, createWorkspace, idempotencyKey, { params: undefined, query: undefined, body }, WorkspaceId, async (workspaceId): Promise<Reply<typeof createWorkspace>> => {
       await creator.tx.run(sql`INSERT INTO workspace.workspace (workspace_id, name) VALUES (${workspaceId}, ${body.name})`)
       await grantCreatorMembership(creator, workspaceId)
       return { workspaceId, name: body.name, creatorAccountId: accountId, initialAccessEstablished: true }

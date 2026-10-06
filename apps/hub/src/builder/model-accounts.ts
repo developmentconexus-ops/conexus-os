@@ -5,7 +5,7 @@ import { getAvailableThinkingLevelsForModel, THINKING_LEVEL_VALUES, type Thinkin
 import { getProviderConfig } from '@mastra/core/llm'
 import type { FastifyInstance } from 'fastify'
 import {
-  MDL01, MDL02, MDL03, MDL04, MDL05, MDL06, MDL07, MDL08, MDL09, MDL10, MDL11,
+  listAvailableModels, listModelAccounts, setModelAccountApiKey, startClaudeModelLogin, completeClaudeModelLogin, startCodexModelLogin, pollCodexModelLogin, getGoogleModelConnection, startGoogleModelLogin, completeGoogleModelLogin, getGoogleModelLoginStatus,
   ModelLoginId, type AccountId, type ModelAccountProvider, type OfferedModel,
 } from '../../../../packages/contract/dist/index.js'
 import { Failure } from '../platform/failure.js'
@@ -103,7 +103,7 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { modelAc
   claudeAuthorization?: ClaudeAuthorization
   // Present when the Hub runs CLIProxyAPI; then a person signs in to Google AI Pro from Settings.
   googleAiPro?: Pick<CliproxyPool, 'startLogin'>
-}>): Promise<readonly ['MDL-01', 'MDL-02', 'MDL-03', 'MDL-04', 'MDL-05', 'MDL-06', 'MDL-07', 'MDL-08', 'MDL-09', 'MDL-10', 'MDL-11']> => {
+}>): Promise<readonly ['listAvailableModels', 'listModelAccounts', 'setModelAccountApiKey', 'startClaudeModelLogin', 'completeClaudeModelLogin', 'startCodexModelLogin', 'pollCodexModelLogin', 'getGoogleModelConnection', 'startGoogleModelLogin', 'completeGoogleModelLogin', 'getGoogleModelLoginStatus']> => {
   const route = routes(app)
   const claudeLogin = createClaudeLogin<Caller>({
     connect: ({ accountId }, tokens) => modelAccounts.connect({ accountId, credential: { provider: 'anthropic', kind: 'oauth' }, secret: serializeClaudeTokens(tokens) }),
@@ -123,7 +123,7 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { modelAc
   }
   const unavailable = (error: unknown): never => { throw new Failure('MODEL_LOGIN_UNAVAILABLE', { cause: error }) }
 
-  route.operation(MDL01, async ({ query }, session) => {
+  route.operation(listAvailableModels, async ({ query }, session) => {
     const standing = await modelAccounts.standing(session.account.accountId)
     const usable = (provider: ModelAccountProvider): boolean =>
       standing[provider].shared || (query.scope !== 'installation' && standing[provider].own.state === 'connected')
@@ -132,37 +132,37 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { modelAc
   })
 
   // The caller's accounts for the providers this Hub signs in to, never their secrets.
-  route.operation(MDL02, async (_input, session) => {
+  route.operation(listModelAccounts, async (_input, session) => {
     const standing = await modelAccounts.standing(session.account.accountId)
     return { accounts: LISTED_PROVIDERS.map((provider) => ({ provider, providerName: MODEL_PROVIDERS[provider].name, ...standing[provider] })) }
   })
 
   // A key the person pastes becomes their own `api_key` row, sealed. The key is never sent back.
-  route.operation(MDL03, async ({ params, body }, session) => {
+  route.operation(setModelAccountApiKey, async ({ params, body }, session) => {
     if (!MODEL_PROVIDERS[params.provider].keyShape.test(body.key)) throw new Failure('MODEL_ACCOUNT_KEY_REFUSED')
     await modelAccounts.write({ accountId: session.account.accountId, credential: { provider: params.provider, kind: 'api_key' }, secret: body.key })
     return undefined
   })
 
-  route.operation(MDL04, async (_input, session) => claudeLogin.start(session.account).then(
+  route.operation(startClaudeModelLogin, async (_input, session) => claudeLogin.start(session.account).then(
     ({ expiresAt, ...handoff }) => ({ ...handoff, expiresAt: new Date(expiresAt).toISOString() }), unavailable))
-  route.operation(MDL05, async ({ body }, session) => ({ state: await claudeLogin.complete(session.account, body.loginId, body.code) }))
+  route.operation(completeClaudeModelLogin, async ({ body }, session) => ({ state: await claudeLogin.complete(session.account, body.loginId, body.code) }))
 
-  route.operation(MDL06, async (_input, session) => codexLogin.start(session.account).then(
+  route.operation(startCodexModelLogin, async (_input, session) => codexLogin.start(session.account).then(
     ({ expiresAt, ...handoff }) => ({ ...handoff, expiresAt: new Date(expiresAt).toISOString() }), unavailable))
-  route.operation(MDL07, async ({ query }, session) => {
+  route.operation(pollCodexModelLogin, async ({ query }, session) => {
     const loginId = ModelLoginId.safeParse(query.loginId)
     return { state: loginId.success ? await codexLogin.poll(session.account, loginId.data) : 'expired' as const }
   })
 
-  route.operation(MDL08, async (_input, session) => {
+  route.operation(getGoogleModelConnection, async (_input, session) => {
     google()
     const { own, shared } = (await modelAccounts.standing(session.account.accountId))['google-ai-pro']
     return { own, shared }
   })
-  route.operation(MDL09, async (_input, session) => google().start(session.account))
-  route.operation(MDL10, async ({ body }, session) => ({ state: await google().complete(session.account, body.loginId, body.callbackUrl) }))
-  route.operation(MDL11, async ({ params }, session) => ({ state: await google().status(session.account, params.loginId) }))
+  route.operation(startGoogleModelLogin, async (_input, session) => google().start(session.account))
+  route.operation(completeGoogleModelLogin, async ({ body }, session) => ({ state: await google().complete(session.account, body.loginId, body.callbackUrl) }))
+  route.operation(getGoogleModelLoginStatus, async ({ params }, session) => ({ state: await google().status(session.account, params.loginId) }))
 
-  return ['MDL-01', 'MDL-02', 'MDL-03', 'MDL-04', 'MDL-05', 'MDL-06', 'MDL-07', 'MDL-08', 'MDL-09', 'MDL-10', 'MDL-11']
+  return ['listAvailableModels', 'listModelAccounts', 'setModelAccountApiKey', 'startClaudeModelLogin', 'completeClaudeModelLogin', 'startCodexModelLogin', 'pollCodexModelLogin', 'getGoogleModelConnection', 'startGoogleModelLogin', 'completeGoogleModelLogin', 'getGoogleModelLoginStatus']
 }

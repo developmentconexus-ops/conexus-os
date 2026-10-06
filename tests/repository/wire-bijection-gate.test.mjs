@@ -5,13 +5,10 @@ import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
-// The gate passed at 21 of 21 while an operation sat in a leaf contract file with no $ref in
-// openapi.yaml, and while a census row whose id had a letter suffix was skipped without a word.
+// The gate passed while an operation sat in a leaf contract file with no $ref in openapi.yaml.
 // Each test here plants one of those faults in a controlled copy and requires the gate to fail,
 // because a gate is only worth its runtime if it can be shown to catch what it missed.
 const gate = resolve(import.meta.dirname, '../../scripts/check-wire-bijection.mjs')
-
-const censusRow = (id, operationId) => `| \`${id}\` | \`${operationId}\` | Thing | exact authority | command |`
 
 const leafOperation = (path, operationId, fourAId) => `  ${path}:
     post:
@@ -24,22 +21,10 @@ const leafOperation = (path, operationId, fourAId) => `  ${path}:
         '204': { description: Done. }
 `
 
-const buildFixture = (t, { rows, leafOperations, bundledOperations }) => {
+const buildFixture = (t, { leafOperations, bundledOperations }) => {
   const root = mkdtempSync(resolve(tmpdir(), 'conexus-wire-gate-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
-  mkdirSync(resolve(root, 'docs/product'), { recursive: true })
   mkdirSync(resolve(root, 'contracts/api/product'), { recursive: true })
-
-  writeFileSync(resolve(root, 'docs/product/operation-ledger.md'), `# Ledger
-
-# 5. Current fixed Product census
-
-| ID | Operation | Owner | Consumer / authority root | Class |
-| --- | --- | --- | --- | --- |
-${rows.join('\n')}
-
-# 5A. Broader retained historical/platform ledger
-`)
 
   writeFileSync(resolve(root, 'contracts/api/product/thing-paths.yaml'), `paths:
 ${leafOperations.join('')}components:
@@ -67,132 +52,73 @@ const runGate = ({ root, bundlePath }) => spawnSync(process.execPath, [gate], {
   env: { ...process.env, CONEXUS_PRODUCT_OAS_BUNDLE: bundlePath },
 })
 
-test('the gate passes on a census, leaf file and bundle that agree', (t) => {
+test('the gate passes on a leaf file and a bundle that agree', (t) => {
   const result = runGate(buildFixture(t, {
-    rows: [censusRow('THG-01', 'ShareThing')],
-    leafOperations: [leafOperation('/api/thing', 'ShareThing', 'THG-01')],
-    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'THG-01' }],
+    leafOperations: [leafOperation('/api/thing', 'ShareThing', 'thingOne')],
+    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'thingOne' }],
   }))
   assert.equal(result.status, 0, result.stderr)
-  assert.match(result.stdout, /bijection passed \(1 fixed Product operations/)
+  assert.match(result.stdout, /wire bijection passed \(1 Product operations/)
 })
 
 test('the gate fails when a current operation is defined in a leaf file but never bundled', (t) => {
   // Exactly the shape a real operation once had, before openapi.yaml gained its $ref.
   const result = runGate(buildFixture(t, {
-    rows: [censusRow('THG-01', 'ShareThing'), censusRow('THG-07', 'UnshareThing')],
     leafOperations: [
-      leafOperation('/api/thing', 'ShareThing', 'THG-01'),
-      leafOperation('/api/thing/unshare', 'UnshareThing', 'THG-07'),
+      leafOperation('/api/thing', 'ShareThing', 'thingOne'),
+      leafOperation('/api/thing/unshare', 'UnshareThing', 'thingSeven'),
     ],
-    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'THG-01' }],
+    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'thingOne' }],
   }))
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /THG-07 POST \/api\/thing\/unshare \(thing-paths\.yaml\)/)
+  assert.match(result.stderr, /thingSeven POST \/api\/thing\/unshare \(thing-paths\.yaml\)/)
   assert.match(result.stderr, /add a \$ref in openapi\.yaml/)
 })
 
-test('a leaf path retained for a surface the census does not admit fails the gate', (t) => {
-  // The bijection is unconditional: there is no longer a retained-for-later category that may
-  // stay unbundled, so a leaf path outside the census must fail rather than pass silently.
+test('a leaf path that no bundle lists fails the gate, whatever surface it serves', (t) => {
   const result = runGate(buildFixture(t, {
-    rows: [censusRow('THG-01', 'ShareThing')],
     leafOperations: [
-      leafOperation('/api/thing', 'ShareThing', 'THG-01'),
-      leafOperation('/api/control/workspaces/{workspaceId}/areas', 'ListAreas', 'IAM-09'),
+      leafOperation('/api/thing', 'ShareThing', 'thingOne'),
+      leafOperation('/api/control/workspaces/{workspaceId}/areas', 'ListAreas', 'listAreas'),
     ],
-    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'THG-01' }],
+    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'thingOne' }],
   }))
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /IAM-09 POST \/api\/control\/workspaces\/\{workspaceId\}\/areas \(thing-paths\.yaml\)/)
+  assert.match(result.stderr, /listAreas POST \/api\/control\/workspaces\/\{workspaceId\}\/areas \(thing-paths\.yaml\)/)
   assert.match(result.stderr, /add a \$ref in openapi\.yaml/)
 })
 
-test('a new leaf path whose 4A id the census does not list cannot pass unbundled', (t) => {
-  // The hole the previous gate had: matching by 4A id let a leaf path with an id absent from the
-  // census skip the unbundled check entirely. Planting exactly that (a ZZZ-99 id, no census row)
-  // must now fail because the bijection no longer looks at the id to decide whether to check.
+test('a new leaf path with an unknown 4A id cannot pass unbundled', (t) => {
+  // Matching by 4A id once let a leaf path with an unlisted id skip the unbundled check entirely.
   const result = runGate(buildFixture(t, {
-    rows: [censusRow('THG-01', 'ShareThing')],
     leafOperations: [
-      leafOperation('/api/thing', 'ShareThing', 'THG-01'),
-      leafOperation('/api/control/projects/{projectId}/never-wired', 'NeverWired', 'ZZZ-99'),
+      leafOperation('/api/thing', 'ShareThing', 'thingOne'),
+      leafOperation('/api/control/projects/{projectId}/never-wired', 'NeverWired', 'neverWired'),
     ],
-    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'THG-01' }],
+    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'thingOne' }],
   }))
   assert.equal(result.status, 1)
-  assert.match(result.stderr, /ZZZ-99 POST \/api\/control\/projects\/\{projectId\}\/never-wired \(thing-paths\.yaml\)/)
+  assert.match(result.stderr, /neverWired POST \/api\/control\/projects\/\{projectId\}\/never-wired \(thing-paths\.yaml\)/)
 })
 
 test('a bundled operation with no leaf contract source fails the gate', (t) => {
   // The reverse direction of the same absolute bijection: openapi.yaml cannot $ref a path that no
   // leaf *-paths.yaml file defines.
   const result = runGate(buildFixture(t, {
-    rows: [censusRow('THG-01', 'ShareThing')],
-    leafOperations: [leafOperation('/api/thing', 'ShareThing', 'THG-01')],
+    leafOperations: [leafOperation('/api/thing', 'ShareThing', 'thingOne')],
     bundledOperations: [
-      { path: '/api/thing', operationId: 'ShareThing', fourAId: 'THG-01' },
-      { path: '/api/ghost', operationId: 'GhostThing', fourAId: 'THG-02' },
+      { path: '/api/thing', operationId: 'ShareThing', fourAId: 'thingOne' },
+      { path: '/api/ghost', operationId: 'GhostThing', fourAId: 'thingTwo' },
     ],
   }))
   assert.equal(result.status, 1)
   assert.match(result.stderr, /bundled Product OAS operations with no leaf contract source: POST \/api\/ghost/)
 })
 
-test('a census id with a letter suffix is counted, not silently skipped', (t) => {
-  // The old row pattern required a purely numeric suffix, so this row vanished and the two sides
-  // agreed one lower. Now it is counted, and the bundle missing it is a mismatch.
-  const result = runGate(buildFixture(t, {
-    rows: [censusRow('THG-01', 'ShareThing'), censusRow('THG-05B', 'UnshareThing')],
-    leafOperations: [leafOperation('/api/thing', 'ShareThing', 'THG-01')],
-    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'THG-01' }],
-  }))
-  assert.equal(result.status, 1)
-  assert.match(result.stderr, /ledger has 2 fixed operations, wire has 1/)
-})
-
-test('a census row the gate cannot parse fails instead of being dropped', (t) => {
-  const result = runGate(buildFixture(t, {
-    rows: [censusRow('THG-01', 'ShareThing'), '| `THG-X` | `Malformed` | Thing | exact | command |'],
-    leafOperations: [leafOperation('/api/thing', 'ShareThing', 'THG-01')],
-    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'THG-01' }],
-  }))
-  assert.equal(result.status, 1)
-  assert.match(result.stderr, /unparsable 4A census row in operation ledger: \| `THG-X`/)
-})
-
-test('the census is found under any section number and ends at the next top-level heading', (t) => {
-  // The gate used to hardcode "# 5." and the exact heading of the section that followed it.
-  // Renumbering the ledger, or deleting that successor section, broke the gate for a reason
-  // that has nothing to do with the wire. The census is located by name now, and a row under
-  // a later heading must stay outside it.
-  const fixture = buildFixture(t, {
-    rows: [censusRow('THG-01', 'ShareThing')],
-    leafOperations: [leafOperation('/api/thing', 'ShareThing', 'THG-01')],
-    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'THG-01' }],
-  })
-  writeFileSync(resolve(fixture.root, 'docs/product/operation-ledger.md'), `# Ledger
-
-# 3. Current fixed Product census
-
-| ID | Operation | Owner | Consumer / authority root | Class |
-| --- | --- | --- | --- | --- |
-${censusRow('THG-01', 'ShareThing')}
-
-# 4. What is not an operation
-
-${censusRow('THG-02', 'NotCounted')}
-`)
-  const result = runGate(fixture)
-  assert.equal(result.status, 0, result.stderr)
-  assert.match(result.stdout, /bijection passed \(1 fixed Product operations/)
-})
-
 test('a leaf contract file the scanner cannot read fails instead of reporting nothing', (t) => {
   const fixture = buildFixture(t, {
-    rows: [censusRow('THG-01', 'ShareThing')],
-    leafOperations: [leafOperation('/api/thing', 'ShareThing', 'THG-01')],
-    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'THG-01' }],
+    leafOperations: [leafOperation('/api/thing', 'ShareThing', 'thingOne')],
+    bundledOperations: [{ path: '/api/thing', operationId: 'ShareThing', fourAId: 'thingOne' }],
   })
   writeFileSync(resolve(fixture.root, 'contracts/api/product/thing-paths.yaml'), 'components:\n  schemas: {}\n')
   const result = runGate(fixture)
@@ -201,9 +127,8 @@ test('a leaf contract file the scanner cannot read fails instead of reporting no
 })
 
 const connectorFixture = (t, { contractState, schemas }) => buildFixture(t, {
-  rows: [censusRow('CON-02', 'CreateConnection')],
-  leafOperations: [leafOperation('/api/connections', 'CreateConnection', 'CON-02')],
-  bundledOperations: [{ path: '/api/connections', operationId: 'CreateConnection', fourAId: 'CON-02', contractState, schemas }],
+  leafOperations: [leafOperation('/api/connections', 'CreateConnection', 'createWorkspaceConnection')],
+  bundledOperations: [{ path: '/api/connections', operationId: 'CreateConnection', fourAId: 'createWorkspaceConnection', contractState, schemas }],
 })
 
 const request = (properties) => ({ requestBody: { content: { 'application/json': { schema: { properties } } } } })
@@ -227,4 +152,25 @@ test('a credential field in a success response fails the gate, however deep', (t
   const result = runGate(connectorFixture(t, { schemas: response({ items: { items: { properties: { xToken: { type: 'string' } } } } }) }))
   assert.equal(result.status, 1)
   assert.match(result.stderr, /successful response schema of CreateConnection carries the credential field xToken/)
+})
+
+test('two bundled operations that share an operationId fail the gate', (t) => {
+  const result = runGate(buildFixture(t, {
+    leafOperations: [leafOperation('/api/thing', 'ShareThing', 'thingOne'), leafOperation('/api/other', 'ShareThing', 'thingTwo')],
+    bundledOperations: [
+      { path: '/api/thing', operationId: 'ShareThing', fourAId: 'thingOne' },
+      { path: '/api/other', operationId: 'ShareThing', fourAId: 'thingTwo' },
+    ],
+  }))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /duplicate operationId: ShareThing/)
+})
+
+test('a generic executor-shaped path fails the gate', (t) => {
+  const result = runGate(buildFixture(t, {
+    leafOperations: [leafOperation('/api/execute', 'RunAnything', 'thingOne')],
+    bundledOperations: [{ path: '/api/execute', operationId: 'RunAnything', fourAId: 'thingOne' }],
+  }))
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /forbidden generic executor-shaped Product path: \/api\/execute/)
 })

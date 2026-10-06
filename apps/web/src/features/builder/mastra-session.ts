@@ -3,7 +3,7 @@ import { MastraClient, MastraClientError } from '@mastra/client-js'
 import type { SubmitPlanResumeData } from '@mastra/core/tools'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useReducer } from 'react'
-import { MDL01, type OfferedModel } from '../../../../../packages/contract/dist/index.js'
+import { listAvailableModels, type OfferedModel } from '../../../../../packages/contract/dist/index.js'
 import { call, hubFetch } from '../../app/http'
 import { parseRunState } from './api'
 import { builderSessionKey, writeStreamedRun } from './builder-session'
@@ -78,7 +78,7 @@ export type BuilderModel = OfferedModel
  */
 export const useBuilderModels = (scope?: 'installation') => useQuery({
   queryKey: ['builder-models', scope ?? 'mine'],
-  queryFn: () => call(MDL01, { params: undefined, query: scope ? { scope } : {}, headers: undefined, body: undefined }),
+  queryFn: () => call(listAvailableModels, { params: undefined, query: scope ? { scope } : {}, headers: undefined, body: undefined }),
 })
 
 /** Mastra Code's own thinking levels, lowest first; the Hub offers each model the ones it honors. */

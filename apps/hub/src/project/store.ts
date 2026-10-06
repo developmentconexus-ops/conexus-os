@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import {
-  ProjectCard, ProjectId, ProjectName, ProjectRevision, WorkspaceId, PRJ03,
+  ProjectCard, ProjectId, ProjectName, ProjectRevision, WorkspaceId, createProject,
   type AccountId, type SourceRevision, type IdempotencyKey, type Input, type ProjectCreated, type ProjectDetail, type ProjectListItem,
 } from '../../../../packages/contract/dist/index.js'
 import { admitWorkspace, isInstallationAdministrator, type Admitted, type WorkspaceScope } from '../identity-access/admission.js'
@@ -29,7 +29,7 @@ type CreateProjectInput = Readonly<{
   accountId: AccountId
   workspaceId: WorkspaceId
   idempotencyKey: IdempotencyKey
-  body: Input<typeof PRJ03>['body']
+  body: Input<typeof createProject>['body']
 }>
 type CreateProjectResult = Readonly<{ replayed: boolean; reply: ProjectCreated }>
 
@@ -72,7 +72,7 @@ export const createProjectStore = ({
   builder: BuilderProjectPorts
   mintRevision?: () => string
 }>): ProjectStore => {
-  const createProject = async ({ accountId, workspaceId, idempotencyKey, body }: CreateProjectInput): Promise<CreateProjectResult> => {
+  const create = async ({ accountId, workspaceId, idempotencyKey, body }: CreateProjectInput): Promise<CreateProjectResult> => {
     // Starting from an existing repository is not offered yet, and never from the host Git path.
     if (body.sourceBootstrap.mode !== 'NEW') throw new Failure('PROJECT_SOURCE_REFUSED')
     const projectRevision = ProjectRevision.parse(mintRevision())
@@ -81,7 +81,7 @@ export const createProjectStore = ({
     // The reserved receipt is the intent: a retry with the same key reaches the same Project id, and
     // so the repository this call may already have created.
     const reserved = await database.transaction(accountId, async (gate) =>
-      reserve(await admitWorkspace(gate, workspaceId, 'project.create'), PRJ03, idempotencyKey, receiptInput, ProjectId))
+      reserve(await admitWorkspace(gate, workspaceId, 'project.create'), createProject, idempotencyKey, receiptInput, ProjectId))
     if (reserved.kind === 'replay') return { replayed: true, reply: reserved.reply }
     const projectId = reserved.resourceId
 
@@ -89,7 +89,7 @@ export const createProjectStore = ({
 
     return database.transaction(accountId, async (gate) => {
       const proof = await admitWorkspace(gate, workspaceId, 'project.create')
-      const receipt = await reserve(proof, PRJ03, idempotencyKey, receiptInput, ProjectId)
+      const receipt = await reserve(proof, createProject, idempotencyKey, receiptInput, ProjectId)
       if (receipt.kind === 'replay') return { replayed: true, reply: receipt.reply }
       if (receipt.resourceId !== projectId) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_RECEIPT_RESOURCE_CHANGED' } })
       await proof.tx.run(sql`
@@ -97,13 +97,13 @@ export const createProjectStore = ({
         VALUES (${projectId}, ${workspaceId}, ${body.name}, 'NEW', ${starterRevision}, ${projectRevision})`)
       await builder.register(proof, projectId)
       const reply: ProjectCreated = { projectId, workspaceId, name: body.name, projectRevision, archived: false }
-      await complete(proof, PRJ03, idempotencyKey, receiptInput, projectId, reply)
+      await complete(proof, createProject, idempotencyKey, receiptInput, projectId, reply)
       return { replayed: false, reply }
     })
   }
 
   return Object.freeze({
-    createProject,
+    createProject: create,
     listProjects: ({ accountId, workspaceId }) => database.read(accountId, async (tx) =>
       (await tx.rows(SummaryRow, sql`
         SELECT project_id, workspace_id, name, archived FROM project.project

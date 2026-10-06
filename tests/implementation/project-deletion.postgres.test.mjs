@@ -40,7 +40,7 @@ const seedEverything = async (connection, projectId) => {
   await query(connection, "INSERT INTO connector.project_binding(workspace_id, project_id, environment, connection_id, name, bound_by) VALUES ($1, $2, 'preview', $3, 'erp', $4)", [ID.workspace, projectId, connectionId, ID.owner])
   for (const accountId of [ID.owner, ID.member]) {
     await query(connection, `INSERT INTO platform.operation_receipt(operation_id, authority, account_id, key_digest, request_digest, resource_id, state)
-      VALUES ('PRJ-03', $1, $2, $3, $3, $4, 'reserved')`, [`workspace:${ID.workspace}:account:${accountId}`, accountId, randomBytes(32), projectId])
+      VALUES ('createProject', $1, $2, $3, $3, $4, 'reserved')`, [`workspace:${ID.workspace}:account:${accountId}`, accountId, randomBytes(32), projectId])
   }
   return { revisionId, previewId, hub, connectionId }
 }

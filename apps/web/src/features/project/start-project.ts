@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRef } from 'react'
 import { sendBuilderMessage } from '../builder/api'
 import { applyThreadSettings, openConversation, type ReasoningLevel } from '../builder/mastra-session'
-import { IdempotencyKey, PRJ01, PRJ_SUMMARIES, type ProjectCreated } from '../../../../../packages/contract/dist/index.js'
+import { IdempotencyKey, listProjects, listProjectSummaries, type ProjectCreated } from '../../../../../packages/contract/dist/index.js'
 import { createProject } from './api'
 import { failureText, isFailure } from '../../app/http'
 
@@ -36,8 +36,8 @@ export function useStartProject(workspaceId: string) {
     onSuccess: async () => {
       attempt.current = undefined
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: [PRJ_SUMMARIES.id] }),
-        queryClient.invalidateQueries({ queryKey: [PRJ01.id] }),
+        queryClient.invalidateQueries({ queryKey: [listProjectSummaries.id] }),
+        queryClient.invalidateQueries({ queryKey: [listProjects.id] }),
       ])
     },
     onSettled: () => {

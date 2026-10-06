@@ -85,25 +85,25 @@ header gets `REQUEST_VALIDATION_FAILED`, except a missing or empty idempotency k
 
 | Id | Method and path | Access | Success | Failures beyond the common set | `malformed` |
 | --- | --- | --- | --- | --- | --- |
-| BLD-08 | `GET /api/control/projects/:projectId/source/tree` | session | 200 source tree | `SOURCE_REVISION_NOT_FOUND`, `BUILDER_SOURCE_UNAVAILABLE`, `BUILDER_SOURCE_READ_REFUSED`, `BUILDER_SOURCE_READ_TREE_TOO_LARGE`, `BUILDER_SOURCE_READ_UNSAFE_ENTRY` | `projectId: PROJECT_NOT_FOUND` |
-| BLD-09 | `GET /api/control/projects/:projectId/source/file` | session | 200 exact file | `SOURCE_REVISION_NOT_FOUND`, `SOURCE_FILE_NOT_FOUND`, `BUILDER_SOURCE_UNAVAILABLE` | `projectId: PROJECT_NOT_FOUND` |
-| BLD-23 | `GET /api/control/projects/:projectId/builder-session` | session | 200 session projection | `BUILDER_SESSION_UNAVAILABLE`, `PROJECT_BUILD_DENIED` | `projectId: PROJECT_NOT_FOUND` |
-| BLD-24 | `POST /api/control/projects/:projectId/builder-session/messages` | session | 201 new or replayed run; 200 message taken by a waiting run | `IDEMPOTENCY_KEY_REQUIRED`, `IDEMPOTENCY_CONFLICT`, `CONVERSATION_NOT_FOUND`, `BUILDER_CAPACITY_FULL`, `PROJECT_BUILD_DENIED`, `ACCOUNT_INACTIVE`, `BUILDER_MESSAGE_REFUSED`, `BUILDER_RUN_CREATE_FAILED`, `BUILDER_BUSY`, `PROJECT_BUSY`, `BUILDER_UNAVAILABLE` | `projectId: PROJECT_NOT_FOUND` |
-| BLD-25 | `POST /api/control/projects/:projectId/builder-session/runs/:builderRunId/cancel` | session | 200 run projection | `BUILDER_RUN_NOT_FOUND`, `PROJECT_BUILD_DENIED`, `ACCOUNT_INACTIVE`, `BUILDER_CANCELLATION_UNAVAILABLE` | `projectId: PROJECT_NOT_FOUND`; `builderRunId: BUILDER_RUN_NOT_FOUND` |
-| BLD-26 | `GET /api/control/projects/:projectId/builder-session/runs/:builderRunId/trace` | session | 200 safe native trace | `BUILDER_RUN_NOT_FOUND`, `BUILDER_TRACE_UNAVAILABLE`, `PROJECT_BUILD_DENIED` | `projectId: PROJECT_NOT_FOUND`; `builderRunId: BUILDER_RUN_NOT_FOUND` |
-| BLD-29 | `GET /api/control/projects/:projectId/source/compare` | session | 200 changed paths | `SOURCE_REVISION_NOT_FOUND`, `BUILDER_SOURCE_UNAVAILABLE`, `BUILDER_SOURCE_READ_REFUSED`, `BUILDER_SOURCE_READ_TREE_TOO_LARGE`, `BUILDER_SOURCE_READ_UNSAFE_ENTRY` | `projectId: PROJECT_NOT_FOUND` |
-| BLD-30 | `POST /api/control/projects/:projectId/builder-session/preview` | session | 201 Preview launch | `PREVIEW_SUBJECT_NOT_FOUND`, `PROJECT_BUILD_DENIED`, `PREVIEW_UNAVAILABLE` | `projectId: PROJECT_NOT_FOUND` |
+| `listProjectSourceTree` | `GET /api/control/projects/:projectId/source/tree` | session | 200 source tree | `SOURCE_REVISION_NOT_FOUND`, `BUILDER_SOURCE_UNAVAILABLE`, `BUILDER_SOURCE_READ_REFUSED`, `BUILDER_SOURCE_READ_TREE_TOO_LARGE`, `BUILDER_SOURCE_READ_UNSAFE_ENTRY` | `projectId: PROJECT_NOT_FOUND` |
+| `getProjectSourceFile` | `GET /api/control/projects/:projectId/source/file` | session | 200 exact file | `SOURCE_REVISION_NOT_FOUND`, `SOURCE_FILE_NOT_FOUND`, `BUILDER_SOURCE_UNAVAILABLE` | `projectId: PROJECT_NOT_FOUND` |
+| `getBuilderSession` | `GET /api/control/projects/:projectId/builder-session` | session | 200 session projection | `BUILDER_SESSION_UNAVAILABLE`, `PROJECT_BUILD_DENIED` | `projectId: PROJECT_NOT_FOUND` |
+| `sendBuilderMessage` | `POST /api/control/projects/:projectId/builder-session/messages` | session | 201 new or replayed run; 200 message taken by a waiting run | `IDEMPOTENCY_KEY_REQUIRED`, `IDEMPOTENCY_CONFLICT`, `CONVERSATION_NOT_FOUND`, `BUILDER_CAPACITY_FULL`, `PROJECT_BUILD_DENIED`, `ACCOUNT_INACTIVE`, `BUILDER_MESSAGE_REFUSED`, `BUILDER_RUN_CREATE_FAILED`, `BUILDER_BUSY`, `PROJECT_BUSY`, `BUILDER_UNAVAILABLE` | `projectId: PROJECT_NOT_FOUND` |
+| `cancelBuilderRun` | `POST /api/control/projects/:projectId/builder-session/runs/:builderRunId/cancel` | session | 200 run projection | `BUILDER_RUN_NOT_FOUND`, `PROJECT_BUILD_DENIED`, `ACCOUNT_INACTIVE`, `BUILDER_CANCELLATION_UNAVAILABLE` | `projectId: PROJECT_NOT_FOUND`; `builderRunId: BUILDER_RUN_NOT_FOUND` |
+| `getBuilderRunTrace` | `GET /api/control/projects/:projectId/builder-session/runs/:builderRunId/trace` | session | 200 safe native trace | `BUILDER_RUN_NOT_FOUND`, `BUILDER_TRACE_UNAVAILABLE`, `PROJECT_BUILD_DENIED` | `projectId: PROJECT_NOT_FOUND`; `builderRunId: BUILDER_RUN_NOT_FOUND` |
+| `compareProjectSourceRevisions` | `GET /api/control/projects/:projectId/source/compare` | session | 200 changed paths | `SOURCE_REVISION_NOT_FOUND`, `BUILDER_SOURCE_UNAVAILABLE`, `BUILDER_SOURCE_READ_REFUSED`, `BUILDER_SOURCE_READ_TREE_TOO_LARGE`, `BUILDER_SOURCE_READ_UNSAFE_ENTRY` | `projectId: PROJECT_NOT_FOUND` |
+| `launchBuilderPreview` | `POST /api/control/projects/:projectId/builder-session/preview` | session | 201 Preview launch | `PREVIEW_SUBJECT_NOT_FOUND`, `PROJECT_BUILD_DENIED`, `PREVIEW_UNAVAILABLE` | `projectId: PROJECT_NOT_FOUND` |
 
 The source tree and comparison keep the Git limits and sorted paths
 (`apps/hub/src/builder/source.ts:30`, `apps/hub/src/builder/source.ts:54`,
-`apps/hub/src/builder/source.ts:73`). BLD-23 keeps `latestBuilderRun`, `latestCodeChangingRun`,
+`apps/hub/src/builder/source.ts:73`). `getBuilderSession` keeps `latestBuilderRun`, `latestCodeChangingRun`,
 `preview` and `runHistory`; only the latest live run gains `pendingCalls`
-(`apps/hub/src/builder/routes.ts:86`, `contracts/api/product/builder-paths.yaml:271`). BLD-24 keeps
+(`apps/hub/src/builder/routes.ts:86`, `contracts/api/product/builder-paths.yaml:271`). `sendBuilderMessage` keeps
 the status union. A row key replay returns the current run summary and still answers 201 because the
 service sets `created: true` on that path; 200 means a waiting run took a message
 (`apps/hub/src/builder/store.ts:114`, `apps/hub/src/builder/service.ts:159`,
 `apps/hub/src/builder/service.ts:176`, `apps/hub/src/builder/routes.ts:119`). The key is a header,
-and the body keeps `content` and `conversationId` (`apps/hub/src/builder/routes.ts:107`). BLD-25
+and the body keeps `content` and `conversationId` (`apps/hub/src/builder/routes.ts:107`). `cancelBuilderRun`
 keeps an empty JSON body (`apps/hub/src/builder/routes.ts:122`). The trace keeps Mastra usage detail
 when present, with null totals when unavailable (`apps/hub/src/builder/routes.ts:34`,
 `apps/hub/src/builder/module.ts:277`, `contracts/api/product/builder-paths.yaml:296`).
@@ -118,28 +118,28 @@ Project and conversation guard and its problem response (`apps/hub/src/builder/m
 `apps/web/src/features/builder/construir/pending-card.tsx:15`,
 `apps/web/src/features/builder/transcript.ts:323`).
 
-BLD-30 declares the current Preview POST and adds its operation ledger row. It answers 201 with `entryUrl`,
+`launchBuilderPreview` declares the current Preview POST and adds its operation ledger row. It answers 201 with `entryUrl`,
 `previewUrl`, `entryGrant`, `artifactRevisionId`, `artifactDigest` and `expiresAt`; its named failures
 are `PREVIEW_SUBJECT_NOT_FOUND`, `PROJECT_BUILD_DENIED` and `PREVIEW_UNAVAILABLE`
 (`apps/hub/src/builder/routes.ts:145`, `apps/hub/src/builder/routes.ts:153`,
-`apps/web/src/features/builder/api.ts:112`). Its body is the empty JSON object. BLD-08 remains
+`apps/web/src/features/builder/api.ts:112`). Its body is the empty JSON object. `listProjectSourceTree` remains
 ListProjectSourceTree, and the retired BLD-27 and BLD-28 stay unused
 (`contracts/api/product/builder-paths.yaml:12`, `docs/product/operation-ledger.md:102`).
-The BLD-30 ledger row names `LaunchBuilderPreview`, owned by Builder, for an authorized Project's
+The `launchBuilderPreview` ledger row names `LaunchBuilderPreview`, owned by Builder, for an authorized Project's
 last good Preview artifact. It is a command. The umbrella count becomes eight BLD operations.
 
-**Changes from today.** For an outsider, removed member or inactive account, BLD-24 now returns
+**Changes from today.** For an outsider, removed member or inactive account, `sendBuilderMessage` now returns
 403 `PROJECT_BUILD_DENIED` or `ACCOUNT_INACTIVE`, where the current route can wrap the refusal as
-503 `BUILDER_UNAVAILABLE`. BLD-25 makes the same change from 503
+503 `BUILDER_UNAVAILABLE`. `cancelBuilderRun` makes the same change from 503
 `BUILDER_CANCELLATION_UNAVAILABLE`. Under a held Project proof, a missing working state or
 repository marker is an invariant breach: it answers `INTERNAL_UNEXPECTED` (500) with
 `details.invariant` `BUILDER_PROJECT_ROWS_MISSING`, because a refusal names a person's access and this is not
-about access; `BUILDER_SUBJECT_NOT_FOUND` no longer exists. A hidden Project (tombstoned or no longer visible) answers BLD-25 with 403
+about access; `BUILDER_SUBJECT_NOT_FOUND` no longer exists. A hidden Project (tombstoned or no longer visible) answers `cancelBuilderRun` with 403
 `PROJECT_BUILD_DENIED` from the shared admission, as for an outsider; HQ dropped the 404 promise of
 its decision 3, because part 3's step 5 refuses before any run lookup. Preserve the named 503 failures for other unavailable causes
 (`apps/hub/src/builder/routes.ts:118`, `apps/hub/src/builder/routes.ts:128`,
-`builder-bodies.sql:143`). BLD-23 and BLD-26 return `PROJECT_BUILD_DENIED` when the Preview subject
-read returns null for a hidden Project or missing working row. BLD-26 serves only the latest run;
+`builder-bodies.sql:143`). `getBuilderSession` and `getBuilderRunTrace` return `PROJECT_BUILD_DENIED` when the Preview subject
+read returns null for a hidden Project or missing working row. `getBuilderRunTrace` serves only the latest run;
 an older run id answers 404 `BUILDER_RUN_NOT_FOUND` (`apps/hub/src/builder/routes.ts:138`).
 
 These codes need one row of `ACTION_REFUSALS` changed by this part: `'project.build'` answers
@@ -205,11 +205,11 @@ id, such as a run id in a cancel, is only a second condition beside it (admissio
 
 | Command, read or store write | Entry and proof | Locks in order |
 | --- | --- | --- |
-| BLD-23, BLD-26, BLD-08, BLD-09, BLD-29 and member Preview reads | `read(accountId)`. The `reader` policies limit each read to the acting account's Projects. | None. |
-| BLD-24, before any conversation lookup or inbox access | `transaction(accountId)`; `admitProject(gate, projectId, 'project.build')`; commit. An outsider or removed member gets 403 `PROJECT_BUILD_DENIED`, with no inbox message. | Account and membership `FOR SHARE`; Project `FOR SHARE`; fresh read. No Builder row lock (`apps/hub/src/builder/service.ts:159`). |
-| BLD-24, a new run | `transaction(accountId)`; `admitProject(gate, projectId, 'project.build')`. The earlier admission does not replace this proof. | Account and membership `FOR SHARE`; Project `FOR SHARE`; fresh read; working state `FOR UPDATE` where `project_id` is the proof's; nonlocking row key lookup and active run lookup, both by the proof's Project; insert with the proof's Project and account. `readBase` runs while these locks are held (`apps/hub/src/builder/store.ts:116`, `builder-bodies.sql:143`). |
-| BLD-24, waiting message | Use the committed admission before `waiting.message`, then read the current run summary under `read(accountId)`. | No Builder SQL row lock. The live inbox owns the message (`apps/hub/src/builder/service.ts:159`). |
-| BLD-25 | `transaction(accountId)`; `admitProject(gate, projectId, 'project.build')`. | Account and membership `FOR SHARE`; Project `FOR SHARE`; the run `FOR UPDATE` where `builder_run_id` is the argument and `project_id` and `account_id` are the proof's. A missing run or another author's run is `BUILDER_RUN_NOT_FOUND` (`builder-bodies.sql:453`). |
+| `getBuilderSession`, `getBuilderRunTrace`, `listProjectSourceTree`, `getProjectSourceFile`, `compareProjectSourceRevisions` and member Preview reads | `read(accountId)`. The `reader` policies limit each read to the acting account's Projects. | None. |
+| `sendBuilderMessage`, before any conversation lookup or inbox access | `transaction(accountId)`; `admitProject(gate, projectId, 'project.build')`; commit. An outsider or removed member gets 403 `PROJECT_BUILD_DENIED`, with no inbox message. | Account and membership `FOR SHARE`; Project `FOR SHARE`; fresh read. No Builder row lock (`apps/hub/src/builder/service.ts:159`). |
+| `sendBuilderMessage`, a new run | `transaction(accountId)`; `admitProject(gate, projectId, 'project.build')`. The earlier admission does not replace this proof. | Account and membership `FOR SHARE`; Project `FOR SHARE`; fresh read; working state `FOR UPDATE` where `project_id` is the proof's; nonlocking row key lookup and active run lookup, both by the proof's Project; insert with the proof's Project and account. `readBase` runs while these locks are held (`apps/hub/src/builder/store.ts:116`, `builder-bodies.sql:143`). |
+| `sendBuilderMessage`, waiting message | Use the committed admission before `waiting.message`, then read the current run summary under `read(accountId)`. | No Builder SQL row lock. The live inbox owns the message (`apps/hub/src/builder/service.ts:159`). |
+| `cancelBuilderRun` | `transaction(accountId)`; `admitProject(gate, projectId, 'project.build')`. | Account and membership `FOR SHARE`; Project `FOR SHARE`; the run `FOR UPDATE` where `builder_run_id` is the argument and `project_id` and `account_id` are the proof's. A missing run or another author's run is `BUILDER_RUN_NOT_FOUND` (`builder-bodies.sql:453`). |
 | Claim, step 1: learn the queued row | `system('builder-executor')`; `admitSystem(gate)`; a read of the queued row by run id; commit. No Project proof. | None. |
 | Claim, step 2 | `transaction(run.accountId)`; `admitProject(gate, row.projectId, 'project.build')`, then the claim in the same transaction. A nested entry is refused, so step 1 has already ended. | Account and membership `FOR SHARE`; Project `FOR SHARE`; fresh read; run `FOR UPDATE` where `project_id` and `account_id` are the proof's; reread state; conditional `QUEUED` update sets `owner_id` (`builder-bodies.sql:98`). |
 | Refused claim, `failUnclaimed` | `system('builder-executor')`; `admitSystem(gate)`. No Project proof. | Conditional update of `builder_run_id = $1 AND state = 'QUEUED' AND owner_id IS NULL`. Store `FAILED`, `BUILDER_RUN_NOT_ADMITTED` and finish time. Zero rows means a claim or cancellation won (`builder-bodies.sql:160`, `apps/hub/src/builder/run/run.ts:334`). |
@@ -229,7 +229,7 @@ id, such as a run id in a cancel, is only a second condition beside it (admissio
 | `endMirror`, through `record_conversation_session` | `system('builder-executor')`; `admitRun`. | The same upsert (`apps/hub/src/builder/run/run.ts:156`, `builder-bodies.sql:389`). |
 | Conversation sandbox read | `read(accountId)` after the Mastra mount's Project guard, or `read(run.accountId)` for run work. | None. The mount must pass its parsed account into the conversation opener (`apps/hub/src/builder/mastra-session-routes.ts:286`, `apps/hub/src/builder/conversation.ts:39`, `apps/hub/src/builder/conversation.ts:78`). |
 | Register working state and repository markers | The Project creation transaction and its workspace proof, `Admitted<WorkspaceScope<'project.create'>>`. | Project row, then working state insert, then repository insert, each selected from the Project row of the proof's workspace; a Project outside it inserts nothing (`builder-bodies.sql:411`, `apps/hub/migrations/0032_conexus_git.sql:87`, `apps/hub/migrations/0032_conexus_git.sql:94`). |
-| BLD-30, Preview launch | `transaction(accountId)`; `admitProject(gate, projectId, 'project.build')`; the Preview subject read on `proof.tx`, filtered by `proof.scope.projectId`; commit. Then `getApplicationBySource` under `read(accountId)` and `launchPreview` in its own entry, with the account and Project taken from the committed proof. `iam.open_preview` stays SQL until part 6 ports it. An outsider, removed member, missing or tombstoned Project gets 403 `PROJECT_BUILD_DENIED` from `admitProject`, before any subject read. The `APPLICATION_SUBJECT_REFUSED` message match in the route is deleted. | Account and membership `FOR SHARE`; Project `FOR SHARE`; fresh read. No Builder row lock (`apps/hub/src/builder/routes.ts:146`). |
+| `launchBuilderPreview`, Preview launch | `transaction(accountId)`; `admitProject(gate, projectId, 'project.build')`; the Preview subject read on `proof.tx`, filtered by `proof.scope.projectId`; commit. Then `getApplicationBySource` under `read(accountId)` and `launchPreview` in its own entry, with the account and Project taken from the committed proof. `iam.open_preview` stays SQL until part 6 ports it. An outsider, removed member, missing or tombstoned Project gets 403 `PROJECT_BUILD_DENIED` from `admitProject`, before any subject read. The `APPLICATION_SUBJECT_REFUSED` message match in the route is deleted. | Account and membership `FOR SHARE`; Project `FOR SHARE`; fresh read. No Builder row lock (`apps/hub/src/builder/routes.ts:146`). |
 | Purge run rows, working state and repository | The Project purge's `system('project-purge')` transaction and its `Admitted<SystemScope<'project-purge'>>` (the umbrella's `WriteTx` is `proof.tx`). A proof of another job fails `tsc`, so the port has no runtime job check. | Live Project `FOR UPDATE` first (built by part 0b), busy read, then run delete, working state delete, repository delete. A missing Project row after an earlier purge is a successful retry (`builder-bodies.sql:227`). |
 
 A zero row result from a conversation upsert (a conversation of another Project) is
@@ -412,7 +412,7 @@ request digest, request text and trimmed conversation id. The working state lock
 and idempotency. A different input is `IDEMPOTENCY_CONFLICT` (409); an equal input returns the current
 summary, even when the run has ended (`apps/hub/migrations/0001_baseline.sql:2265`,
 `apps/hub/src/builder/store.ts:115`, `builder-bodies.sql:130`). A replay must pass current Project
-admission before it reads the row. No operation receipt is made for BLD-24.
+admission before it reads the row. No operation receipt is made for `sendBuilderMessage`.
 
 **Project ports.** Repository registration runs after Project insert, on the Project creation
 transaction, and makes exactly one working state marker and one repository marker. The Project
@@ -489,11 +489,11 @@ its held lookup (`apps/hub/src/builder/module.ts:162`, `builder-bodies.sql:355`,
    generated cross tenant read test of the admission child, section 10, runs over the three reader tables
    with seeded rows in two workspaces, a positive control and its administrator variant, which sees
    none of them.
-2. Start BLD-24 with key `k` and content `hello`. Expect 201 and `state: 'QUEUED'`. Repeat with the
+2. Start `sendBuilderMessage` with key `k` and content `hello`. Expect 201 and `state: 'QUEUED'`. Repeat with the
    same key after it has succeeded. Expect 201 and `state: 'SUCCEEDED'` with the same `builderRunId`.
    Change content to `goodbye` with key `k`. Expect 409 `IDEMPOTENCY_CONFLICT`. Use the same key in a
    second Project. Expect a different id. Remove membership before replay. Expect 403
-   `PROJECT_BUILD_DENIED` and no run summary. For an outsider and removed member, BLD-24 returns
+   `PROJECT_BUILD_DENIED` and no run summary. For an outsider and removed member, `sendBuilderMessage` returns
    403 before `conversations.ownerOf` or `waiting.message`. The waiting inbox stays empty. An
    inactive account gets 403 `ACCOUNT_INACTIVE`. A missing working state or repository marker under
    a held Project proof gets 403 `PROJECT_BUILD_DENIED` (`builder-bodies.sql:130`,
@@ -567,13 +567,13 @@ its held lookup (`apps/hub/src/builder/module.ts:162`, `builder-bodies.sql:355`,
    each answers its refusal (`PROJECT_BUILD_DENIED`, `BUILDER_RUN_NOT_FOUND` or `PROJECT_NOT_FOUND`),
    and a digest of B's rows is unchanged. A grantee's `read()` from working state returns zero rows. Part 4 tests the served pointer after
    `checkApplication`.
-10. Run the route walk for all eight declared BLD operations as a member and outsider. BLD-30 as an
+10. Run the route walk for all eight declared BLD operations as a member and outsider. `launchBuilderPreview` as an
     outsider, a removed member and on a tombstoned Project answers 403 `PROJECT_BUILD_DENIED` with
     no Preview session row created; it is in the per operation cross tenant test of test 9. Check
-    BLD-30's current 201 body, BLD-24's 201 and 200 union, missing and malformed ids, missing
-    idempotency header, trace with null totals, and exact source projection. For BLD-23 and BLD-26,
+    `launchBuilderPreview`'s current 201 body, `sendBuilderMessage`'s 201 and 200 union, missing and malformed ids, missing
+    idempotency header, trace with null totals, and exact source projection. For `getBuilderSession` and `getBuilderRunTrace`,
     a null Preview subject from a hidden Project or missing working row returns
-    `PROJECT_BUILD_DENIED`. BLD-26 returns 404 `BUILDER_RUN_NOT_FOUND` for an older run id. Run
+    `PROJECT_BUILD_DENIED`. `getBuilderRunTrace` returns 404 `BUILDER_RUN_NOT_FOUND` for an older run id. Run
     `contract:check`, `wire:bijection`, `db:catalog:check` (the five register rows) and the caller
     graph at the part 1 head. The migration drops 29 exact signatures without `CASCADE` and keeps the
     two registry callers' Builder functions. The full suite and local Conexus path close the part.
@@ -593,7 +593,7 @@ the migration (subtract before add). Remove their `EXECUTE` grants, including th
 `builder.register_project_repository` that part 0b gave `hub_command`. Keep
 `builder.admit_verified_application_source` and `builder.served_preview_revision`, their grants, and
 the two bridges they need until part 4 ports the registry callers. Replace the seven old BLD YAML paths
-and add BLD-30. Remove `scripts/generate-builder-contracts.mjs` with its generated files; remove the
+and add `launchBuilderPreview`. Remove `scripts/generate-builder-contracts.mjs` with its generated files; remove the
 hand written route and web BLD types, the eight `builder/api.ts` response casts, `JsonRow<T>` and the
 Builder SQL message matching (`apps/hub/src/builder/routes.ts:21`,
 `apps/web/src/features/builder/api.ts:76`, `apps/hub/src/builder/store.ts:95`). Part 0 already moved
@@ -659,7 +659,7 @@ remain until part 6, as the data child requires.
 - The builder runs the `ADD FOREIGN KEY` on `builder.builder_run.account_id` against a copy of the
   local data before the pull request (section 4).
 - The umbrella counts (rows, tables, operations) are HQ's to fix. This child does not restate them.
-- Review of 5.3 (HQ, 2026-10-05). BLD-30 gets its own admission row: `admitProject` with
+- Review of 5.3 (HQ, 2026-10-05). `launchBuilderPreview` gets its own admission row: `admitProject` with
   `project.build`, committed before the launch, so the route no longer depends on a SQL message.
   `admitRun` gets step 0, an unlocked pre read and a recheck under the lock. The run to session
   conversation compare is text. The purge guard moves from SQL to the TypeScript job check, which is
@@ -677,7 +677,7 @@ the cap. `BuilderStore` stays the one object `service.ts` and `run/run.ts` read,
 | File | Subject |
 | --- | --- |
 | `builder/run-row.ts` | the parsed run row, the pure `runSummary` presenter, the shared summary and vocabulary types |
-| `builder/run-start.ts` | run start (BLD-24 new run), cancellation (BLD-25) and `bindBuilderRunMessage`: the commands a person's account runs |
+| `builder/run-start.ts` | run start (`sendBuilderMessage` new run), cancellation (`cancelBuilderRun`) and `bindBuilderRunMessage`: the commands a person's account runs |
 | `builder/run-steps.ts` | the executor's transitions of an owned run (claim, `failUnclaimed`, phase, candidate, payer, settle, advance, `settleBuilderRunBuild`, fail, interrupt, sandbox bind) |
 | `builder/run-reads.ts` | the parsed reads (latest run, list, latest code changing run, Preview subject, source admission, open run conversations) |
 | `builder/run-lease.ts` | the heartbeat and the takeover |

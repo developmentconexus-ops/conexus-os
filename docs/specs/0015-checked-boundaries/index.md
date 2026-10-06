@@ -45,7 +45,7 @@ ports one owner whole, then one part per owner in parallel, `iam` last.
 | --- | --- |
 | [0015-contract.md](0015-contract.md) | the operation declared once in Zod, the Hub registration and output check, the web `call`, the emitted OpenAPI and its checks, branded ids, the package build |
 | [0015-data.md](0015-data.md) | the one module that imports `pg`, the transaction entries, the database error table, the one receipt, the runtime role and the register |
-| [0015-admission.md](0015-admission.md) | the typed proof, the gate, the admission functions and lock order, WS-01 and the concurrent revoke, the split wall (reader policies, the command role, the run time refusal of a role switch and the second wall on writes), the purge guard, the bridges during the parts, what revision 5 deleted and what revisions 5.1 and 5.2 changed |
+| [0015-admission.md](0015-admission.md) | the typed proof, the gate, the admission functions and lock order, `createWorkspace` and the concurrent revoke, the split wall (reader policies, the command role, the run time refusal of a role switch and the second wall on writes), the purge guard, the bridges during the parts, what revision 5 deleted and what revisions 5.1 and 5.2 changed |
 | [0015-function-map.md](0015-function-map.md) | where each of the 118 functions goes, what stays in SQL, how they leave |
 | `0015-part-<owner>.md` (one per part 1 to 6, written when the part starts) | that part's reader policies, table register rows, composite keys, lock order, refusal codes and fixtures, derived from the bodies it ports under the rules of the admission child, sections 4 and 5 |
 
@@ -83,7 +83,7 @@ the parts and their order.
   databases; every Hub row is read through a Zod schema (79 unparsed reads today, zero after); one
   transaction helper; database errors map by SQLSTATE and constraint, and no code reads a database
   error's message.
-- **AC-6**: One receipt table for WS-01, PRJ-03 and IAM-03, keyed by the proof's authority. A replay
+- **AC-6**: One receipt table for `createWorkspace`, `createProject` and IAM-03, keyed by the proof's authority. A replay
   returns the first answer; the same key with a different input answers `IDEMPOTENCY_CONFLICT`; the same
   key and body sent to another workspace creates there and does not replay; a project creation that
   crashed between Git and completion reaches the same project id on retry; a retry after the account
@@ -199,7 +199,7 @@ rows the command locked.
 | `scripts/emit-openapi.mjs` | `contracts/api/product/openapi.json` | `contract:check`, Redocly, bijection |
 | `scripts/census-boundaries.mjs` | the census rules that need the type checker | `verify:quick` |
 
-"What does WS-01 accept and return" is answered in one file; "who may call it" by `access` and the
+"What does `createWorkspace` accept and return" is answered in one file; "who may call it" by `access` and the
 first line of the store function; "where does this row come from" by the schema in the call that read
 it.
 
@@ -309,7 +309,7 @@ is added); the audit trail of who changed what is not changed by this spec.
 
 ### 8. Critical test scenarios
 
-- Happy path: on the local Conexus, sign in, create a workspace (WS-01), a project (PRJ-03), run the
+- Happy path: on the local Conexus, sign in, create a workspace (`createWorkspace`), a project (`createProject`), run the
   Builder, open the application; the route walk parses every sample answer, verifies **AC-2**, **AC-4**,
   **AC-15**.
 - Drift: change a field in a declaration without emitting; `contract:check` fails. Return an extra
@@ -362,7 +362,7 @@ here. The real dependencies come from the caller graph script
    and `platform.operation_receipt`, per command and with no bridge;
    `scripts/function-callers.mjs`; the catalog lint with its permanent and pending lists; the census
    rules with ceilings taken from the checker's own count and `check-enforced-by.mjs`; the negative type
-   fixtures for the proof and the transaction modes. Port workspace whole: WS-01 on the new path, its
+   fixtures for the proof and the transaction modes. Port workspace whole: `createWorkspace` on the new path, its
    four functions and `iam.establish_workspace_creator_access` dropped, `workspace.operation_idempotency`
    dropped, the workspace YAML section, its generator and generated files and
    `features/workspace/api.ts` deleted. Move every Hub pool to `hub_runtime` (with `EXECUTE` on every
@@ -372,16 +372,16 @@ here. The real dependencies come from the caller graph script
    `Workspace`) with a field of the conversation's sandbox record, which already creates that
    `Workspace`. Rewrite `security-and-authority.md` section 2, `hub-database-roles.md` and
    `data-migrations.md` for the new model. Satisfies **AC-1** to **AC-3** (for workspace), **AC-5**,
-   **AC-6** (WS-01), **AC-7**, **AC-10** (runtime role), **AC-12**, **AC-13**, **AC-14**. Built under
+   **AC-6** (`createWorkspace`), **AC-7**, **AC-10** (runtime role), **AC-12**, **AC-13**, **AC-14**. Built under
    revision 4; part 0b removes its `created_by`, its receipt and system branches and its `iam.acting_*`
    helpers.
-2. **Part 3, project** (10 functions, merged second, alone). PRJ-03 on `reserve` and `complete` under
+2. **Part 3, project** (10 functions, merged second, alone). `createProject` on `reserve` and `complete` under
    the workspace authority, still calling `builder.register_project_repository` as SQL; `admitProject`
    with the parent row lock; the project purge orchestrator in `system('project-purge', fn)`, one
    `WriteTx` across the owners, still calling their SQL purges, and deleting the project's receipts;
    `project.list_project_summaries_with_activity` as one query in `project/store.ts`; its policies, locks and refusal codes per `0015-part-project.md`; the `project-summaries` and thumbnail routes declared (thumbnail
    as `Binary`); `project.operation_idempotency`, the 42501 checks and `generate-project-contracts.mjs`
-   deleted; the revoke race on PRJ-03 against today's `iam.remove_workspace_member`. Satisfies
+   deleted; the revoke race on `createProject` against today's `iam.remove_workspace_member`. Satisfies
    **AC-1** to **AC-6**, **AC-8** (revoke), **AC-9**, **AC-11**. Built under revision 4; part 0b moves
    its tombstone step to the administrator's transaction and removes its `S` branches.
 3. **Part 7, the other JSON input** (built, PR 511). The suppressions on JSON that is neither HTTP, a row nor Mastra
@@ -522,7 +522,7 @@ here. The real dependencies come from the caller graph script
    read with the deletion predicate, admission child, section 2) with the column grant on
    `builder.builder_run` its row lock needs, and the run's deletion race tests; a run reads its held
    credential after `admitRun`, filtered by the run from the proof. Every command read follows the
-   scoped read rule, proven by the per operation cross tenant test for the BLD operations. Declares the eight BLD operations (with BLD-30, Preview) and the Mastra mount schemas; deletes the
+   scoped read rule, proven by the per operation cross tenant test for the BLD operations. Declares the eight BLD operations (with `launchBuilderPreview`, Preview) and the Mastra mount schemas; deletes the
    hand written BLD types on both sides (`builder/routes.ts`, `features/builder/api.ts`) and
    `JsonRow<T>` (`builder/store.ts`); parses the Mastra output the Hub and the web read
    (`mastra-session-routes.ts`, `transcript.ts`, `pending-card.tsx`, `mastra-session.ts`); keeps the
@@ -535,7 +535,7 @@ here. The real dependencies come from the caller graph script
 6. **Part 2, connectors** (11). Its reader policies, register rows, locks and refusal codes per
    `0015-part-connectors.md`. Cut from that draft: the six `INSERT`, `UPDATE` and `DELETE` rows; the
    `S` and `G` branches of the two `SELECT` rows; `connector.enabled_connection` with its `iam_rls`
-   grants; `admitElevated` (CON-02 and CON-04 become `admitInstallationAdministrator` with
+   grants; `admitElevated` (`createWorkspaceConnection` and `disableWorkspaceConnection` become `admitInstallationAdministrator` with
    `connection.manage` in the person's transaction); `admitConnection`; the section "If the amendment
    is refused". It keeps the connection `SELECT` (with `ADMIN`) and the binding `SELECT` as reader
    policies, restated so neither reads the other table under its policy. They use the three `rls`
@@ -544,9 +544,9 @@ here. The real dependencies come from the caller graph script
    through `admitProject`, for listing, binding and unbinding a project's connections
    (`connectors/routes.ts:118-147`), which borrow `members.manage` through
    `connector.admit_project_owner` today (`0029_connector.sql:134-151`). `ReadAction` gains
-   `'connections.bind'` and the read overload of `admitProject` takes it, so CON-08 stays an owner only
-   `read()`, as today. CON-01 asks the shared `isInstallationAdministrator(tx)` of
-   `admission.ts`, which part 6 uses too. CON-03 is a command after `admitInstallationAdministrator`
+   `'connections.bind'` and the read overload of `admitProject` takes it, so `listProjectConnectionBindings` stays an owner only
+   `read()`, as today. `listWorkspaceConnections` asks the shared `isInstallationAdministrator(tx)` of
+   `admission.ts`, which part 6 uses too. `checkWorkspaceConnection` is a command after `admitInstallationAdministrator`
    with `connection.manage`, and `hub_reader` gets no credential column. The grantee's bound
    connection is read after `checkApplication` (built in part 0b; `admitApplication` when the broker transaction writes), filtered by
    `proof.scope.projectId`; the broker reads under the grant holder's account on that proof; `connector.purge_project` as a port; the message text
@@ -568,7 +568,7 @@ here. The real dependencies come from the caller graph script
    `0015-part-model.md`. Cut from that draft: the two `INSERT` and `UPDATE` rows, the `S` branches and
    the `HELD` branch; a run reads the credential it holds after `admitRun`, filtered by the run from
    the proof. It keeps the
-   person branches of two `SELECT` rows (`model.model_account`, `model.installation_default`) and the column grant `UPDATE (kind, secret, updated_at)`; `model.model_account_sharing_history` gets no reader policy and no reader grant, since no route lists it (rule 6, decided by HQ); `take(held)`, `hold(held, tokens)` and `track(key, held)` take the held handle, which carries its run `{ builderRunId, accountId }`, where they took the payer; the eleven model account routes (MDL-01 to MDL-11)
+   person branches of two `SELECT` rows (`model.model_account`, `model.installation_default`) and the column grant `UPDATE (kind, secret, updated_at)`; `model.model_account_sharing_history` gets no reader policy and no reader grant, since no route lists it (rule 6, decided by HQ); `take(held)`, `hold(held, tokens)` and `track(key, held)` take the held handle, which carries its run `{ builderRunId, accountId }`, where they took the payer; the eleven model account routes (`listAvailableModels` to `getGoogleModelLoginStatus`)
    declared and registered through `route.operation`, with the `UNDECLARED_OPERATIONS` rows deleted; `hasApiKey` and `administrator` dropped from the answers; the four argument call to `model.upsert_model_account` fixed in the port; a run's refresh
    of a shared credential tested with sharing withdrawn mid run. Satisfies **AC-1**, **AC-4**, **AC-5**,
    **AC-9**, **AC-11**.
@@ -684,10 +684,10 @@ from the bodies); two parts' drop migrations that depend on each other (builder 
   account_id)`, and `iam.preview` takes the `project_id` key.
 - [x] The tenure grant and the application grant are `UPDATE (revoked_at, revoked_by)` from part 6.
   Part 0b keeps its one column for the row lock.
-- [x] Part 4: `PRJ-THUMBNAIL` drops the application row condition. `RunScope` gains `projectId`
+- [x] Part 4: `getProjectThumbnail` drops the application row condition. `RunScope` gains `projectId`
   (part 1 adds it). The served pointer is read directly from `builder.project_working_state`.
 - [x] Part 2: `ReadAction` gains `'connections.bind'` with the read overload. One shared
-  `isInstallationAdministrator(tx)` in `admission.ts` serves CON-01, CON-03 and part 6. CON-08 stays
+  `isInstallationAdministrator(tx)` in `admission.ts` serves `listWorkspaceConnections`, `checkWorkspaceConnection` and part 6. `listProjectConnectionBindings` stays
   owner only.
 - [x] Part 6: the `AuthenticationGate` gets a second closed family of eight typed steps (six keyed by one
   exact value, and `consumeOidcState()` and `endCredential(reason)` on the row a lookup bound). `ReadAction` gains `'application.manage'`. IAM-15's grantor name stays, by widening
@@ -707,7 +707,7 @@ from the bodies); two parts' drop migrations that depend on each other (builder 
   sign in still reads it through `unportedPool` (`identity-access/store.ts:100,143,192`);
   `iam.workspace_membership` has no unported reader and no bridge (decided by HQ on revision 5.2).
 
-- [ ] Four mismatches between the YAML and the running Hub (IAM-01, IAM-04, IAM-11, CON-09): the owner
+- [ ] Four mismatches between the YAML and the running Hub (IAM-01, IAM-04, IAM-11, `bindProjectConnection`): the owner
   part reads the handler and its web consumer, and the declaration follows the running behavior unless
   it is a Hub bug, which the part fixes.
 - [ ] The application databases (`app-runner/worker.ts`, `supervisor.ts`) keep their own `pg` until the

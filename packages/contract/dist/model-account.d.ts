@@ -70,7 +70,7 @@ export declare const ModelAccountEntry: z.ZodObject<{
     shared: z.ZodBoolean;
 }, z.core.$strip>;
 export type ModelAccountEntry = z.output<typeof ModelAccountEntry>;
-export declare const MDL01: {
+export declare const listAvailableModels: {
     readonly query: z.ZodObject<{
         scope: z.ZodOptional<z.ZodLiteral<"installation">>;
     }, z.core.$strict>;
@@ -106,12 +106,13 @@ export declare const MDL01: {
     readonly malformed: null;
     readonly params: null;
     readonly headers: null;
-    readonly id: "MDL-01";
+    readonly id: "listAvailableModels";
+    readonly summary: "List the models the Builder picker offers the current Account.";
     readonly access: "session";
     readonly method: "GET";
     readonly path: "/api/control/model-accounts/models";
 };
-export declare const MDL02: {
+export declare const listModelAccounts: {
     readonly query: null;
     readonly body: null;
     readonly success: {
@@ -142,13 +143,15 @@ export declare const MDL02: {
     readonly malformed: null;
     readonly params: null;
     readonly headers: null;
-    readonly id: "MDL-02";
+    readonly id: "listModelAccounts";
+    readonly summary: "List the model accounts of the current Account.";
     readonly access: "session";
     readonly method: "GET";
     readonly path: "/api/control/model-accounts";
 };
-export declare const MDL03: {
-    readonly id: "MDL-03";
+export declare const setModelAccountApiKey: {
+    readonly id: "setModelAccountApiKey";
+    readonly summary: "Store the API key of the current Account for a provider.";
     readonly access: "session";
     readonly method: "PUT";
     readonly path: "/api/control/model-accounts/:provider/api-key";
@@ -171,7 +174,7 @@ export declare const MDL03: {
         readonly provider: "MODEL_ACCOUNT_PROVIDER_UNKNOWN";
     };
 };
-export declare const MDL04: {
+export declare const startClaudeModelLogin: {
     readonly query: null;
     readonly body: null;
     readonly success: {
@@ -186,12 +189,13 @@ export declare const MDL04: {
     readonly malformed: null;
     readonly params: null;
     readonly headers: null;
-    readonly id: "MDL-04";
+    readonly id: "startClaudeModelLogin";
+    readonly summary: "Start the Claude sign-in of the current Account.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/model-accounts/anthropic/oauth/start";
 };
-export declare const MDL05: {
+export declare const completeClaudeModelLogin: {
     readonly query: null;
     readonly body: z.ZodObject<{
         loginId: z.core.$ZodBranded<z.ZodString, "ModelLoginId", "out">;
@@ -211,12 +215,13 @@ export declare const MDL05: {
     readonly malformed: null;
     readonly params: null;
     readonly headers: null;
-    readonly id: "MDL-05";
+    readonly id: "completeClaudeModelLogin";
+    readonly summary: "Complete a Claude sign-in attempt of the current Account.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/model-accounts/anthropic/oauth/complete";
 };
-export declare const MDL06: {
+export declare const startCodexModelLogin: {
     readonly query: null;
     readonly body: null;
     readonly success: {
@@ -233,12 +238,13 @@ export declare const MDL06: {
     readonly malformed: null;
     readonly params: null;
     readonly headers: null;
-    readonly id: "MDL-06";
+    readonly id: "startCodexModelLogin";
+    readonly summary: "Start the ChatGPT sign-in of the current Account.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/model-accounts/openai-codex/oauth/start";
 };
-export declare const MDL07: {
+export declare const pollCodexModelLogin: {
     readonly query: z.ZodObject<{
         loginId: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>;
@@ -258,12 +264,13 @@ export declare const MDL07: {
     readonly malformed: null;
     readonly params: null;
     readonly headers: null;
-    readonly id: "MDL-07";
+    readonly id: "pollCodexModelLogin";
+    readonly summary: "Poll a ChatGPT sign-in attempt of the current Account.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/model-accounts/openai-codex/oauth/poll";
 };
-export declare const MDL08: {
+export declare const getGoogleModelConnection: {
     readonly query: null;
     readonly body: null;
     readonly success: {
@@ -286,12 +293,13 @@ export declare const MDL08: {
     readonly malformed: null;
     readonly params: null;
     readonly headers: null;
-    readonly id: "MDL-08";
+    readonly id: "getGoogleModelConnection";
+    readonly summary: "Read the Google connection of the current Account.";
     readonly access: "session";
     readonly method: "GET";
     readonly path: "/api/control/model-accounts/google-ai-pro/connection";
 };
-export declare const MDL09: {
+export declare const startGoogleModelLogin: {
     readonly query: null;
     readonly body: null;
     readonly success: {
@@ -305,12 +313,13 @@ export declare const MDL09: {
     readonly malformed: null;
     readonly params: null;
     readonly headers: null;
-    readonly id: "MDL-09";
+    readonly id: "startGoogleModelLogin";
+    readonly summary: "Start the Google sign-in of the current Account.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/model-accounts/google-ai-pro/login/start";
 };
-export declare const MDL10: {
+export declare const completeGoogleModelLogin: {
     readonly query: null;
     readonly body: z.ZodObject<{
         loginId: z.core.$ZodBranded<z.ZodString, "ModelLoginId", "out">;
@@ -331,13 +340,15 @@ export declare const MDL10: {
     readonly malformed: null;
     readonly params: null;
     readonly headers: null;
-    readonly id: "MDL-10";
+    readonly id: "completeGoogleModelLogin";
+    readonly summary: "Complete a Google sign-in attempt of the current Account.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/model-accounts/google-ai-pro/login/complete";
 };
-export declare const MDL11: {
-    readonly id: "MDL-11";
+export declare const getGoogleModelLoginStatus: {
+    readonly id: "getGoogleModelLoginStatus";
+    readonly summary: "Read the status of a Google sign-in attempt of the current Account.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/model-accounts/google-ai-pro/login/:loginId";

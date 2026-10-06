@@ -3162,8 +3162,9 @@ export declare const PreviewLaunch: z.ZodObject<{
     expiresAt: z.ZodISODateTime;
 }, z.core.$strip>;
 export type PreviewLaunch = z.output<typeof PreviewLaunch>;
-export declare const BLD08: {
-    readonly id: "BLD-08";
+export declare const listProjectSourceTree: {
+    readonly id: "listProjectSourceTree";
+    readonly summary: "List the source tree of a Project at one exact source revision.";
     readonly access: "session";
     readonly method: "GET";
     readonly path: "/api/control/projects/:projectId/source/tree";
@@ -3193,8 +3194,9 @@ export declare const BLD08: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
 };
-export declare const BLD09: {
-    readonly id: "BLD-09";
+export declare const getProjectSourceFile: {
+    readonly id: "getProjectSourceFile";
+    readonly summary: "Read one source file of a Project at one exact source revision.";
     readonly access: "session";
     readonly method: "GET";
     readonly path: "/api/control/projects/:projectId/source/file";
@@ -3220,8 +3222,9 @@ export declare const BLD09: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
 };
-export declare const BLD23: {
-    readonly id: "BLD-23";
+export declare const getBuilderSession: {
+    readonly id: "getBuilderSession";
+    readonly summary: "Read the Builder session of a Project: its thread and its latest run and Preview.";
     readonly access: "session";
     readonly method: "GET";
     readonly path: "/api/control/projects/:projectId/builder-session";
@@ -4469,8 +4472,9 @@ export declare const BLD23: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
 };
-export declare const BLD24: {
-    readonly id: "BLD-24";
+export declare const sendBuilderMessage: {
+    readonly id: "sendBuilderMessage";
+    readonly summary: "Send a message to the Builder of a Project, which starts a run.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/projects/:projectId/builder-session/messages";
@@ -5705,8 +5709,9 @@ export declare const BLD24: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
 };
-export declare const BLD25: {
-    readonly id: "BLD-25";
+export declare const cancelBuilderRun: {
+    readonly id: "cancelBuilderRun";
+    readonly summary: "Cancel a Builder run; repeating the request changes nothing.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/projects/:projectId/builder-session/runs/:builderRunId/cancel";
@@ -6332,8 +6337,9 @@ export declare const BLD25: {
         readonly builderRunId: "BUILDER_RUN_NOT_FOUND";
     };
 };
-export declare const BLD26: {
-    readonly id: "BLD-26";
+export declare const getBuilderRunTrace: {
+    readonly id: "getBuilderRunTrace";
+    readonly summary: "Read the safe trace projection of one Builder run.";
     readonly access: "session";
     readonly method: "GET";
     readonly path: "/api/control/projects/:projectId/builder-session/runs/:builderRunId/trace";
@@ -6388,8 +6394,9 @@ export declare const BLD26: {
         readonly builderRunId: "BUILDER_RUN_NOT_FOUND";
     };
 };
-export declare const BLD29: {
-    readonly id: "BLD-29";
+export declare const compareProjectSourceRevisions: {
+    readonly id: "compareProjectSourceRevisions";
+    readonly summary: "Compare two source revisions of a Project, without file content.";
     readonly access: "session";
     readonly method: "GET";
     readonly path: "/api/control/projects/:projectId/source/compare";
@@ -6424,8 +6431,9 @@ export declare const BLD29: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
 };
-export declare const BLD30: {
-    readonly id: "BLD-30";
+export declare const launchBuilderPreview: {
+    readonly id: "launchBuilderPreview";
+    readonly summary: "Launch the Preview of the last good build of a Project.";
     readonly access: "session";
     readonly method: "POST";
     readonly path: "/api/control/projects/:projectId/builder-session/preview";

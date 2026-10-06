@@ -54,7 +54,7 @@ const bodyHasNoCredential = (payload) => {
 test('routeCensus is exactly the seven Connector operations', async (t) => {
   const app = await makeApp(makeStore())
   t.after(() => app.close())
-  assert.deepEqual(app.routeCensus(), ['CON-01', 'CON-02', 'CON-03', 'CON-04', 'CON-08', 'CON-09', 'CON-10'])
+  assert.deepEqual(app.routeCensus(), ['bindProjectConnection', 'checkWorkspaceConnection', 'createWorkspaceConnection', 'disableWorkspaceConnection', 'listProjectConnectionBindings', 'listWorkspaceConnections', 'unbindProjectConnection'])
 })
 
 test('an installation administrator lists, creates and disables a Workspace Connection; the credential never comes back', async (t) => {

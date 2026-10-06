@@ -83,7 +83,7 @@ const seedTenantB = async ({ connection, seedProject }, projectId, sealed) => {
   await query(connection, `INSERT INTO connector.project_binding(binding_id, workspace_id, project_id, environment, connection_id, name, bound_by) VALUES
     ($1, $2, $3, 'preview', $4, 'erp', $5)`, [BINDING_B, ID.otherWorkspace, projectId, CONNECTION.b, OTHER.owner])
   await query(connection, `INSERT INTO platform.operation_receipt(operation_id, authority, account_id, key_digest, request_digest, resource_id, state)
-    VALUES ('PRJ-03', 'account:b', $1, $2, $3, $4, 'reserved')`, [OTHER.owner, Buffer.from('k'), Buffer.from('r'), projectId])
+    VALUES ('createProject', 'account:b', $1, $2, $3, $4, 'reserved')`, [OTHER.owner, Buffer.from('k'), Buffer.from('r'), projectId])
   const privateOfB = (await query(connection, `INSERT INTO model.model_account(owner_account_id, provider, kind, secret) VALUES
     ($1, 'anthropic', 'api_key', $2), ($1, 'google-ai-pro', 'google_ai_pro', $2) RETURNING model_account_id`, [OTHER.owner, await sealed('private-of-b')])).rows[0].model_account_id
   await query(connection, "INSERT INTO model.model_account_sharing_history(model_account_id, previous_sharing, new_sharing, changed_by_account_id) VALUES ($1, 'just_me', 'everyone', $2)", [privateOfB, OTHER.owner])
@@ -105,7 +105,7 @@ const seedThumbnail = async (connection, projectId, bytes) => {
 const TENANT_PARAMETERS = Object.freeze(['workspaceId', 'projectId'])
 // A provider name and a sign-in handle that only the person who started it can see: neither names a tenant's row.
 const NON_TENANT_PARAMETERS = Object.freeze(['provider', 'loginId'])
-const IN_MEMORY = Object.freeze(['MDL-04', 'MDL-06', 'MDL-09'])
+const IN_MEMORY = Object.freeze(['startClaudeModelLogin', 'startCodexModelLogin', 'startGoogleModelLogin'])
 const childParameters = (operation) => [...operation.path.matchAll(/:(\w+)/g)].map((found) => found[1]).filter((name) => ![...TENANT_PARAMETERS, ...NON_TENANT_PARAMETERS].includes(name))
 
 const digestOfB = async (connection, projectId) => {
@@ -157,22 +157,22 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   let bindingOfA
   const ABSENT = { own: { state: 'absent' }, shared: false }
   const attempts = {
-    'MDL-01': {
+    'listAvailableModels': {
       own: async () => assert.deepEqual((await modelAccounts.standing(member))['openai-codex'], { own: { state: 'connected', kind: 'oauth' }, shared: false }),
       cross: async () => assert.deepEqual((await modelAccounts.standing(member)).anthropic, ABSENT),
       child: null,
     },
-    'MDL-02': {
+    'listModelAccounts': {
       own: async () => assert.deepEqual(await modelAccounts.standing(member), { anthropic: ABSENT, 'openai-codex': { own: { state: 'connected', kind: 'oauth' }, shared: false }, 'google-ai-pro': ABSENT }),
       cross: async () => assert.deepEqual((await modelAccounts.standing(member)).anthropic, ABSENT),
       child: null,
     },
-    'MDL-08': {
+    'getGoogleModelConnection': {
       own: async () => assert.deepEqual((await modelAccounts.standing(member))['google-ai-pro'], ABSENT),
       cross: async () => assert.deepEqual((await modelAccounts.standing(member))['google-ai-pro'].own, { state: 'absent' }),
       child: null,
     },
-    'MDL-03': {
+    'setModelAccountApiKey': {
       own: async () => {
         await modelAccounts.write({ accountId: member, credential: KEY, secret: 'key-of-member' })
         assert.deepEqual((await query(connection, "SELECT provider, kind, sharing FROM model.model_account WHERE owner_account_id = $1 AND provider = 'anthropic'", [member])).rows, [{ provider: 'anthropic', kind: 'api_key', sharing: 'just_me' }])
@@ -180,27 +180,27 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       cross: () => assert.rejects(modelAccounts.write({ accountId: randomUUID(), credential: KEY, secret: 'intruder' }), { id: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
-    'MDL-05': {
+    'completeClaudeModelLogin': {
       own: async () => assert.deepEqual(await modelAccounts.connect({ accountId: member, credential: { provider: 'anthropic', kind: 'oauth' }, secret: 'tokens' }), { ok: true }),
       cross: async () => assert.deepEqual(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'anthropic', kind: 'oauth' }, secret: 'tokens' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
-    'MDL-10': {
+    'completeGoogleModelLogin': {
       own: async () => assert.deepEqual(await modelAccounts.connect({ accountId: member, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: true }),
       cross: async () => assert.deepEqual(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
-    'MDL-07': {
+    'pollCodexModelLogin': {
       own: async () => assert.deepEqual(await modelAccounts.connect({ accountId: member, credential: { provider: 'openai-codex', kind: 'oauth' }, secret: 'tokens' }), { ok: true }),
       cross: async () => assert.deepEqual(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'openai-codex', kind: 'oauth' }, secret: 'tokens' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
-    'MDL-11': {
+    'getGoogleModelLoginStatus': {
       own: async () => assert.deepEqual(await modelAccounts.connect({ accountId: member, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: true }),
       cross: async () => assert.deepEqual(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
-    'WS-01': {
+    'createWorkspace': {
       own: async () => {
         const created = await workspaces.createWorkspace({ accountId: member, idempotencyKey: 'tenant', body: { name: 'Mine' } })
         assert.equal(created.reply.creatorAccountId, member)
@@ -209,17 +209,17 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       cross: null,
       child: null,
     },
-    'PRJ-01': {
+    'listProjects': {
       own: async () => assert.deepEqual(await projects.listProjects({ accountId: member, workspaceId: ID.workspace }), [cardA, cardBuilds, cardDoomed]),
       cross: async () => assert.deepEqual(await projects.listProjects({ accountId: member, workspaceId: ID.otherWorkspace }), []),
       child: null,
     },
-    'PRJ-02': {
+    'getProject': {
       own: async () => assert.deepEqual(await projects.getProject({ accountId: member, projectId: projectA }), { ...cardA, projectRevision: revisionOfA, deleting: false }),
       cross: async () => assert.equal(await projects.getProject({ accountId: member, projectId: projectB }), null),
       child: null,
     },
-    'PRJ-03': {
+    'createProject': {
       own: async () => {
         const created = await projects.createProject({ accountId: member, workspaceId: ID.workspace, idempotencyKey: 'own', body: { name: 'Mine', sourceBootstrap: { mode: 'NEW' } } })
         assert.deepEqual({ replayed: created.replayed, name: created.reply.name, workspaceId: created.reply.workspaceId }, { replayed: false, name: 'Mine', workspaceId: ID.workspace })
@@ -227,7 +227,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       cross: () => assert.rejects(projects.createProject({ accountId: member, workspaceId: ID.otherWorkspace, idempotencyKey: 'intruder', body: BODY }), { id: 'PROJECT_CREATE_DENIED' }),
       child: null,
     },
-    'PRJ-04': {
+    'deleteProject': {
       own: async () => {
         await projects.deleteProject({ accountId: ID.administrator, projectId: doomedA, confirmName: 'Doomed A' })
         assert.deepEqual((await query(connection, 'SELECT project_id, name, requested_by FROM project.project_deletion WHERE project_id = $1', [doomedA])).rows, [{ project_id: doomedA, name: 'Doomed A', requested_by: ID.administrator }])
@@ -235,7 +235,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       cross: () => assert.rejects(projects.deleteProject({ accountId: member, projectId: projectB, confirmName: 'Borealis' }), { id: 'PROJECT_DELETE_DENIED' }),
       child: null,
     },
-    'PRJ-SUMMARIES': {
+    'listProjectSummaries': {
       own: async () => {
         const summaries = withoutActivity(await projects.listProjectSummariesWithActivity({ accountId: member, workspaceId: ID.workspace }))
         assert.deepEqual(summaries.map((summary) => summary.name).sort(), ['Atlas', 'Builds', 'Mine'])
@@ -244,27 +244,27 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       cross: async () => assert.deepEqual(await projects.listProjectSummariesWithActivity({ accountId: member, workspaceId: ID.otherWorkspace }), []),
       child: null,
     },
-    'BLD-08': {
+    'listProjectSourceTree': {
       own: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectA, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), true),
       cross: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), false),
       child: null,
     },
-    'BLD-09': {
+    'getProjectSourceFile': {
       own: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectA, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), true),
       cross: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), false),
       child: null,
     },
-    'BLD-29': {
+    'compareProjectSourceRevisions': {
       own: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectA, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), true),
       cross: async () => assert.equal(await builder.admitSourceRevision({ accountId: member, projectId: projectB, sourceRevision: FOREIGN_BASE, readMain: async () => FOREIGN_BASE }), false),
       child: null,
     },
-    'BLD-23': {
+    'getBuilderSession': {
       own: async () => assert.deepEqual(await builder.readBuilderRun({ accountId: member, projectId: projectA }), null),
       cross: async () => assert.deepEqual(await builder.readBuilderRun({ accountId: member, projectId: projectB }), null),
       child: null,
     },
-    'BLD-24': {
+    'sendBuilderMessage': {
       own: async () => {
         const run = await builder.createBuilderRun({ accountId: member, projectId: projectBuild, conversationId: '33333333-3333-4333-8333-333333333333', idempotencyKey: 'own', content: 'build', readBase: async () => FOREIGN_BASE })
         assert.deepEqual({ state: run.state, baseSourceRevision: run.baseSourceRevision, requestText: run.requestText }, { state: 'QUEUED', baseSourceRevision: FOREIGN_BASE, requestText: 'build' })
@@ -272,7 +272,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       cross: () => assert.rejects(builder.createBuilderRun({ accountId: member, projectId: projectB, conversationId: '33333333-3333-4333-8333-333333333333', idempotencyKey: 'intruder', content: 'build', readBase: async () => FOREIGN_BASE }), { id: 'PROJECT_BUILD_DENIED' }),
       child: null,
     },
-    'BLD-25': {
+    'cancelBuilderRun': {
       own: async () => {
         const ownRun = (await query(connection, 'SELECT builder_run_id FROM builder.builder_run WHERE project_id = $1', [projectBuild])).rows[0].builder_run_id
         const cancelled = await builder.requestBuilderRunCancellation({ accountId: member, projectId: projectBuild, builderRunId: ownRun })
@@ -281,17 +281,17 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       cross: () => assert.rejects(builder.requestBuilderRunCancellation({ accountId: member, projectId: projectB, builderRunId: runOfB }), { id: 'PROJECT_BUILD_DENIED' }),
       child: () => assert.rejects(builder.requestBuilderRunCancellation({ accountId: member, projectId: projectBuild, builderRunId: runOfB }), { id: 'BUILDER_RUN_NOT_FOUND' }),
     },
-    'BLD-26': {
+    'getBuilderRunTrace': {
       own: async () => assert.deepEqual((await builder.listBuilderRuns({ accountId: member, projectId: projectBuild })).map((run) => run.state), ['INTERRUPTED']),
       cross: async () => assert.equal(await builder.readBuilderRun({ accountId: member, projectId: projectB }), null),
       child: async () => assert.notEqual((await builder.readBuilderRun({ accountId: member, projectId: projectBuild })).builderRunId, runOfB),
     },
-    'BLD-30': {
+    'launchBuilderPreview': {
       own: async () => assert.deepEqual(await builder.readLaunchSubject({ accountId: member, projectId: projectA }), { sourceRevision: STARTER, artifactRevisionId: revisionA, digest: 'd'.repeat(64), entryPath: 'index.html', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8' }] }),
       cross: () => assert.rejects(builder.readLaunchSubject({ accountId: member, projectId: projectB }), { id: 'PROJECT_BUILD_DENIED' }),
       child: null,
     },
-    'PRJ-THUMBNAIL': {
+    'getProjectThumbnail': {
       own: async () => {
         const thumbnail = await registry.readProjectThumbnail(member, projectA)
         assert.deepEqual({ revision: thumbnail.artifactRevisionId, bytes: Buffer.from(thumbnail.bytes).toString() }, { revision: revisionA, bytes: 'thumbnail-of-a' })
@@ -299,7 +299,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       cross: async () => assert.equal(await registry.readProjectThumbnail(member, projectB), null),
       child: null,
     },
-    'CON-01': {
+    'listWorkspaceConnections': {
       own: async () => assert.deepEqual(await connectors.listConnections({ accountId: ID.administrator, workspaceId: ID.workspace }), [
         { connectionId: CONNECTION.a, connectorId: 'sankhya', label: 'ERP', createdAt: (await query(connection, 'SELECT created_at FROM connector.connection WHERE connection_id = $1', [CONNECTION.a])).rows[0].created_at.toISOString() },
         { connectionId: CONNECTION.spare, connectorId: 'sankhya', label: 'Spare', createdAt: (await query(connection, 'SELECT created_at FROM connector.connection WHERE connection_id = $1', [CONNECTION.spare])).rows[0].created_at.toISOString() },
@@ -307,7 +307,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       cross: () => assert.rejects(connectors.listConnections({ accountId: member, workspaceId: ID.otherWorkspace }), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' }),
       child: null,
     },
-    'CON-02': {
+    'createWorkspaceConnection': {
       own: async () => {
         const created = await connectors.createConnection({ accountId: ID.administrator, workspaceId: ID.workspace, body: { connectionId: CONNECTION.created, connectorId: 'sankhya', label: 'Mine', credential: { clientId: 'c', clientSecret: 's', xToken: 'x' } } })
         assert.deepEqual({ created: created.created, label: created.connection.label, connectionId: created.connection.connectionId }, { created: true, label: 'Mine', connectionId: CONNECTION.created })
@@ -315,12 +315,12 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       cross: () => assert.rejects(connectors.createConnection({ accountId: member, workspaceId: ID.otherWorkspace, body: { connectionId: randomUUID(), connectorId: 'sankhya', label: 'Intruder', credential: { clientId: 'c', clientSecret: 's', xToken: 'x' } } }), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' }),
       child: null,
     },
-    'CON-03': {
+    'checkWorkspaceConnection': {
       own: async () => assert.deepEqual(await connectors.readCredentialForCheck({ accountId: ID.administrator, workspaceId: ID.workspace, connectionId: CONNECTION.a }), { connectorId: 'sankhya', sealed: SEALED }),
       cross: () => assert.rejects(connectors.readCredentialForCheck({ accountId: member, workspaceId: ID.otherWorkspace, connectionId: CONNECTION.b }), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' }),
       child: () => assert.rejects(connectors.readCredentialForCheck({ accountId: ID.administrator, workspaceId: ID.workspace, connectionId: CONNECTION.b }), { id: 'CONNECTOR_CONNECTION_NOT_FOUND' }),
     },
-    'CON-04': {
+    'disableWorkspaceConnection': {
       own: async () => {
         await connectors.disableConnection({ accountId: ID.administrator, workspaceId: ID.workspace, connectionId: CONNECTION.spare })
         assert.deepEqual((await query(connection, 'SELECT disabled_at IS NOT NULL AS disabled FROM connector.connection WHERE connection_id = $1', [CONNECTION.spare])).rows, [{ disabled: true }])
@@ -328,7 +328,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       cross: () => assert.rejects(connectors.disableConnection({ accountId: member, workspaceId: ID.otherWorkspace, connectionId: CONNECTION.b }), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' }),
       child: () => assert.rejects(connectors.disableConnection({ accountId: ID.administrator, workspaceId: ID.workspace, connectionId: CONNECTION.b }), { id: 'CONNECTOR_CONNECTION_NOT_FOUND' }),
     },
-    'CON-08': {
+    'listProjectConnectionBindings': {
       own: async () => assert.deepEqual(await connectors.listProjectBindings({ accountId: ID.owner, projectId: projectA }), [
         { kind: 'bindable', connectionId: CONNECTION.a, connectorId: 'sankhya', label: 'ERP' },
         { kind: 'bindable', connectionId: CONNECTION.created, connectorId: 'sankhya', label: 'Mine' },
@@ -336,7 +336,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       cross: () => assert.rejects(connectors.listProjectBindings({ accountId: ID.owner, projectId: projectB }), { id: 'PROJECT_NOT_FOUND' }),
       child: null,
     },
-    'CON-09': {
+    'bindProjectConnection': {
       own: async () => {
         const { binding: bound, created } = await connectors.bindConnection({ accountId: ID.owner, projectId: projectA, body: { connectionId: CONNECTION.a, name: 'erp' } })
         bindingOfA = bound.bindingId
@@ -348,7 +348,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       },
       child: null,
     },
-    'CON-10': {
+    'unbindProjectConnection': {
       own: async () => {
         await connectors.unbindConnection({ accountId: ID.owner, projectId: projectA, bindingId: bindingOfA })
         assert.deepEqual((await query(connection, 'SELECT unbound_at IS NOT NULL AS unbound FROM connector.project_binding WHERE binding_id = $1', [bindingOfA])).rows, [{ unbound: true }])
@@ -357,14 +357,14 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       child: () => assert.rejects(connectors.unbindConnection({ accountId: ID.owner, projectId: projectA, bindingId: BINDING_B }), { id: 'CONNECTOR_BINDING_NOT_FOUND' }),
     },
   }
-  assert.deepEqual(Object.keys(attempts).sort(), OPERATIONS.map((operation) => operation.id).filter((id) => !IN_MEMORY.includes(id)).sort(), 'every operation of the contract has its attempts')
+  assert.deepEqual(Object.keys(attempts).sort(), Object.values(OPERATIONS).map((operation) => operation.id).filter((id) => !IN_MEMORY.includes(id)).sort(), 'every operation of the contract has its attempts')
 
-  for (const operation of OPERATIONS) {
+  for (const operation of Object.values(OPERATIONS)) {
     if (IN_MEMORY.includes(operation.id)) continue
     const attempt = attempts[operation.id]
     if (childParameters(operation).length > 0) assert.equal(typeof attempt.child, 'function', `${operation.id} takes a child id (${childParameters(operation).join(', ')}) and needs the attempt that passes a child of another tenant`)
     else assert.equal(attempt.child, null, `${operation.id} takes no child id, so it has no child attempt`)
-    if (operation.id !== 'WS-01') assert.equal(typeof attempt.cross, 'function', `${operation.id} has a cross tenant attempt`)
+    if (operation.id !== 'createWorkspace') assert.equal(typeof attempt.cross, 'function', `${operation.id} has a cross tenant attempt`)
     for (const [kind, run] of [['own', attempt.own], ['cross', attempt.cross], ['child', attempt.child]]) {
       if (run === null) continue
       entries.length = 0
