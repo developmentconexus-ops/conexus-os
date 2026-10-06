@@ -83,7 +83,7 @@ the parts and their order.
   databases; every Hub row is read through a Zod schema (79 unparsed reads today, zero after); one
   transaction helper; database errors map by SQLSTATE and constraint, and no code reads a database
   error's message.
-- **AC-6**: One receipt table for `createWorkspace`, `createProject` and IAM-03, keyed by the proof's authority. A replay
+- **AC-6**: One receipt table for `createWorkspace`, `createProject`, `inviteWorkspaceMember`, `grantApplicationAccess` and `addInstallationAdministrator`, keyed by the proof's authority. A replay
   returns the first answer; the same key with a different input answers `IDEMPOTENCY_CONFLICT`; the same
   key and body sent to another workspace creates there and does not replay; a project creation that
   crashed between Git and completion reaches the same project id on retry; a retry after the account
