@@ -229,7 +229,7 @@ on screen.
 
 `platform` and `http` import no application module, and the composition root imports only what
 `scripts/check-import-law.mjs` allows. A module reaches another only through its public module
-constructor, never by a deep import, except the shared contracts listed in section 11.
+constructor, never by a deep import. The imports that still break this are departures in section 11.
 
 ## 6. Runtime view
 
@@ -371,7 +371,7 @@ The four goals of section 1.2 are the quality requirements. Each has scenarios b
 | Recovery | The Hub restarts during a run | A run with no recorded candidate ends `INTERRUPTED`, a run with one is settled by whether it was admitted, and no admitted source is lost |
 | Recovery | `main` moved while a run worked | The run's result is not applied, and nothing is overwritten |
 | Recovery | The Applications cluster fills up | The Hub keeps serving its own screens and APIs |
-| Evolution | A module deep-imports another, or `platform` imports a module | `scripts/check-import-law.mjs` fails the build, except the shared contracts listed in section 11 |
+| Evolution | A module deep-imports another, or `platform` imports a module | `scripts/check-import-law.mjs` fails the build; the exemptions it still allows are departures in section 11 |
 
 ## 11. Risks and technical debt
 

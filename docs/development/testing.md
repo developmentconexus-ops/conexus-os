@@ -129,6 +129,9 @@ slow one runs where its services exist.
 - A gate about the generated app's programming model **must** be closed by a real Project: a
   request in product language, the real model, Builder-written source, the Hub-owned check run against the Project's source, a
   Preview, browser interaction, and the gate's negative case.
+- A change meant to make the Builder better, such as a prompt, a skill or a model, **should** be
+  measured with an experiment ([Builder eval](builder-eval.md)) before and after. It runs outside CI
+  and spends model calls.
 
 **Why.** A hand-written example proves a platform mechanism, not that the Builder finds and uses it.
 
