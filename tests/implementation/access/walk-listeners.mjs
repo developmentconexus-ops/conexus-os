@@ -25,7 +25,6 @@ const { createBuilderController } = await module('builder/harness/controller.js'
 const { createHostingModule } = await module('hosting/module.js')
 
 const ACCOUNT = '22222222-2222-4222-8222-222222222222'
-const PROJECT = '33333333-3333-4333-8333-333333333333'
 const CONVERSATION = '77777777-7777-4777-8777-777777777777'
 const ARTIFACT = '0f8fad5b-d9cb-469f-a165-70867728950e'
 export const PREVIEW_PORT = 8444
@@ -141,7 +140,7 @@ export const walkListeners = async () => {
   const hosting = createHostingModule({
     sessions: {
       redeem: async ({ handoff }) => { calls.push('previewSessions.redeem'); return handoff === ENTRY_GRANT ? { sessionToken: opaque('walk preview'), maxAgeSeconds: 900 } : null },
-      previewAuthority: async () => { calls.push('previewSessions.previewAuthority'); return { kind: 'SIGN_IN_REQUIRED' } },
+      withPreviewRequest: async () => { calls.push('previewSessions.withPreviewRequest'); return { kind: 'SIGN_IN_REQUIRED' } },
     },
     registry: spy('registry', calls, { readPreviewFile: async () => null }),
     applicationRunner: { invoke: spy('runner', calls).invoke },
@@ -149,8 +148,7 @@ export const walkListeners = async () => {
     previewPort: PREVIEW_PORT,
     applicationHost: {
       sessions: {
-        applicationBySlug: async (slug) => { calls.push('applicationHost.applicationBySlug'); return slug === APPLICATION_SLUG ? PROJECT : null },
-        applicationAuthority: async () => { calls.push('applicationHost.applicationAuthority'); return { kind: 'SIGN_IN_REQUIRED' } },
+        withApplicationRequest: async () => { calls.push('applicationHost.withApplicationRequest'); return { kind: 'SIGN_IN_REQUIRED' } },
         redeem: async () => { calls.push('applicationHost.redeem'); return null },
         signOut: async () => { calls.push('applicationHost.signOut') },
       },

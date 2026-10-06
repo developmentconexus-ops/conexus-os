@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { endSession, getSession } from '@conexus/contract'
-import type { AccountId, ArtifactRevisionId, Session, WorkspaceId } from '@conexus/contract'
+import type { AccountId, ArtifactRevisionId, ProjectId, Session, WorkspaceId } from '@conexus/contract'
 import { routes } from '../http/access.js'
 import type { ApplicationSlug } from '../platform/application-slug.js'
 import { parseCaller } from '../platform/caller.js'
@@ -48,8 +48,8 @@ export type ApplicationOutcome<T> =
   | Readonly<{ kind: 'SERVED'; value: T }>
   | Readonly<{ kind: 'SIGN_IN_REQUIRED' }>
   | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
-export type ApplicationRequest = Readonly<{ caller: Caller; checked: Checked<ApplicationScope> }>
-export type PreviewRequest = Readonly<{ caller: Caller; checked: Checked<ProjectScope<'project.read'>>; artifactRevisionId: ArtifactRevisionId; expiresAt: Date }>
+export type ApplicationRequest = Readonly<{ caller: Caller; checked: Checked<ApplicationScope>; accountId: AccountId; projectId: ProjectId }>
+export type PreviewRequest = Readonly<{ caller: Caller; checked: Checked<ProjectScope<'project.read'>>; accountId: AccountId; projectId: ProjectId; artifactRevisionId: ArtifactRevisionId; expiresAt: Date }>
 export type Redeemed = Readonly<{ sessionToken: RawToken; maxAgeSeconds: number }>
 
 type Due = Readonly<{ digest: Digest; seen: string; sealedToken: string; subject: string }>
@@ -181,7 +181,7 @@ export const createSessions = ({ database, envelope, provider }: Readonly<{
         throw error
       })
       if (!checked) return ended(gate, key, 'APPLICATION', 'ACCESS_REFUSED')
-      return { kind: 'done', value: await serve({ caller: callerOf(row), checked }) }
+      return { kind: 'done', value: await serve({ caller: callerOf(row), checked, accountId: row.account_id, projectId: row.project_id }) }
     }))
   }
 
@@ -255,7 +255,7 @@ export const createSessions = ({ database, envelope, provider }: Readonly<{
         throw error
       })
       if (!checked) return ended(gate, key, 'PREVIEW', 'ACCESS_REFUSED')
-      return { kind: 'done', value: await serve({ caller: callerOf(row), checked, artifactRevisionId: row.artifact_revision_id, expiresAt: row.expires_at }) }
+      return { kind: 'done', value: await serve({ caller: callerOf(row), checked, accountId: row.account_id, projectId: row.project_id, artifactRevisionId: row.artifact_revision_id, expiresAt: row.expires_at }) }
     }))
   }
 

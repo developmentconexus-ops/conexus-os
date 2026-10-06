@@ -1,10 +1,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import type { AccountId, ApplicationFilePath, ProjectId, SourceRevision, ArtifactDigest, ArtifactRevisionId, MediaType, Sha256 } from '@conexus/contract'
+import type { AccountId, ApplicationFilePath, ProjectId, SourceRevision, ArtifactRevisionId, MediaType, Sha256 } from '@conexus/contract'
 import { classifyAppPath, SERVER_ROOT } from '../platform/application-path.js'
 import type { Caller } from '../platform/caller.js'
 import { Failure } from '../platform/failure.js'
 import type { ApplicationInvoker } from './application-invoker.js'
-import { digest } from '../platform/opaque-token.js'
+import { digest, presentedToken } from '../platform/opaque-token.js'
+import type { RawToken } from '../platform/db.js'
 import { routes } from '../http/access.js'
 import type { HeaderFact } from '../http/access.js'
 import { readCookie, setCookie } from '../http/cookies.js'
@@ -12,49 +13,36 @@ import { readCookie, setCookie } from '../http/cookies.js'
 export type PreviewHost = Readonly<{ artifactRevisionId: ArtifactRevisionId; exactHost: string; origin: string }>
 
 type ManifestFile = Readonly<{ path: ApplicationFilePath; mediaType: MediaType }>
-type Manifest = Readonly<{ entryPath: 'index.html'; files: readonly ManifestFile[] }>
+type PreviewManifest = Readonly<{ sourceRevision: SourceRevision; entryPath: 'index.html'; files: readonly ManifestFile[] }>
+type PreviewFile = Readonly<{ path: ApplicationFilePath; mediaType: MediaType; sha256: Sha256; bytes: Uint8Array }>
 
-// A Preview's binding, as the session port resolves it: the launch it shows and its author as the caller.
-type PreviewBinding = Readonly<{
-  accountId: AccountId
-  projectId: ProjectId
-  sourceRevision: SourceRevision
-  artifactRevisionId: ArtifactRevisionId
-  artifactDigest: ArtifactDigest
-  exactHost: string
-  manifest: Manifest
-  expiresAt: number
-  caller: Caller
+type Outcome<T> =
+  | Readonly<{ kind: 'SERVED'; value: T }>
+  | Readonly<{ kind: 'SIGN_IN_REQUIRED' }>
+  | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
+
+// A Preview request as the session port resolves it: the revision it shows, its author as the caller, and the access proof.
+type PreviewRequest<C> = Readonly<{ caller: Caller; checked: C; accountId: AccountId; projectId: ProjectId; artifactRevisionId: ArtifactRevisionId }>
+
+// The ports this host needs, generic over the access proof: the hosting owner names no identity-access type.
+export type PreviewSessions<C> = Readonly<{
+  redeem(input: Readonly<{ handoff: RawToken; artifactRevisionId: ArtifactRevisionId }>): Promise<Readonly<{ sessionToken: RawToken; maxAgeSeconds: number }> | null>
+  withPreviewRequest<T>(presented: Readonly<{ artifactRevisionId: ArtifactRevisionId; token: RawToken }>, serve: (request: PreviewRequest<C>) => Promise<T>): Promise<Outcome<T>>
 }>
 
-type Refused = Readonly<{ kind: 'SIGN_IN_REQUIRED' }> | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
-
-// The session port this host needs, declared structurally: the hosting owner does not import identity-access.
-export type PreviewSessions = Readonly<{
-  redeem(input: Readonly<{ handoff: string; target: Readonly<{ kind: 'PREVIEW'; exactHost: string }> }>): Promise<Readonly<{ sessionToken: string; maxAgeSeconds: number }> | null>
-  previewAuthority(input: Readonly<{ sessionToken: string | undefined; exactHost: string }>): Promise<Readonly<{ kind: 'SIGNED_IN'; binding: PreviewBinding }> | Refused>
+export type PreviewReader<C> = Readonly<{
+  readPreviewManifest(checked: C, artifactRevisionId: ArtifactRevisionId): Promise<PreviewManifest | null>
+  readPreviewRevisionFile(checked: C, at: Readonly<{ sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId; path: ApplicationFilePath }>): Promise<PreviewFile | null>
 }>
 
-type RegistryReader = (accountId: AccountId, at: Readonly<{
-  projectId: ProjectId
-  sourceRevision: SourceRevision
-  artifactRevisionId: ArtifactRevisionId
-  path: ApplicationFilePath
-}>) => Promise<Readonly<{ path: ApplicationFilePath; mediaType: MediaType; sha256: Sha256; bytes: Uint8Array }> | null>
-
-export type PreviewRouteDependencies = Readonly<{
-  sessions: PreviewSessions
-  registryReader: RegistryReader
+export type PreviewRouteDependencies<C> = Readonly<{
+  sessions: PreviewSessions<C>
+  reader: PreviewReader<C>
   invokeApplication?: ApplicationInvoker
   previewHostOf(host: HeaderFact): PreviewHost | null
   pendingRequests: Set<Promise<unknown>>
   isClosed: () => boolean
 }>
-
-const sameBinding = (left: PreviewBinding, right: PreviewBinding): boolean => (
-  left.accountId === right.accountId && left.projectId === right.projectId && left.sourceRevision === right.sourceRevision &&
-  left.artifactRevisionId === right.artifactRevisionId && left.artifactDigest === right.artifactDigest && left.exactHost === right.exactHost
-)
 
 export const OPERATION = /^[a-z][A-Za-z0-9]{0,63}$/
 export const API_BODY_LIMIT = 64 * 1024
@@ -68,11 +56,11 @@ export const callerLeft = (reply: FastifyReply): AbortSignal => {
   return left.signal
 }
 
-// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
-export const registerPreviewRoutes = async (
+export const registerPreviewRoutes = async <C>(
   app: FastifyInstance,
-  dependencies: PreviewRouteDependencies,
+  dependencies: PreviewRouteDependencies<C>,
 ): Promise<readonly ['Hosting-Preview']> => {
+  const { sessions, reader } = dependencies
   const route = routes(app)
   const tracked = <Request extends FastifyRequest>(handler: (request: Request, reply: FastifyReply) => Promise<unknown>) =>
     async (request: Request, reply: FastifyReply): Promise<unknown> => {
@@ -101,13 +89,9 @@ export const registerPreviewRoutes = async (
     handler: tracked<FastifyRequest<{ Body: { entryGrant: string } }>>(async (request, reply) => {
       if (request.headers['content-type']?.split(';', 1)[0]?.trim() !== 'application/x-www-form-urlencoded') return reply.code(415).send()
       const host = dependencies.previewHostOf(request.headers.host)
-      if (!host) return reply.code(403).send()
-      let redeemed: Awaited<ReturnType<PreviewSessions['redeem']>>
-      try {
-        redeemed = await dependencies.sessions.redeem({ handoff: request.body.entryGrant, target: { kind: 'PREVIEW', exactHost: host.exactHost } })
-      } catch {
-        return reply.code(503).send()
-      }
+      const handoff = presentedToken(request.body.entryGrant)
+      if (!host || !handoff) return reply.code(403).send()
+      const redeemed = await sessions.redeem({ handoff, artifactRevisionId: host.artifactRevisionId })
       if (!redeemed) return reply.code(403).send()
       return setCookie(reply, 'previewSession', redeemed.sessionToken, redeemed.maxAgeSeconds)
         .code(303)
@@ -116,65 +100,50 @@ export const registerPreviewRoutes = async (
     }),
   })
 
-  // The Preview this request's cookie is bound to on this host, or the status that refuses it.
-  const activePreview = async (request: FastifyRequest): Promise<Readonly<{ binding: PreviewBinding; cookie: string }> | number> => {
+  // One entry per request: the session, its parent's standing, the Project check and every read it serves.
+  const withPreview = async <T>(request: FastifyRequest, serve: (preview: PreviewRequest<C>) => Promise<T>): Promise<T | number> => {
     const host = dependencies.previewHostOf(request.headers.host)
     if (!host) return 404
-    const cookie = readCookie(request, 'previewSession')
-    if (!cookie) return 403
-    let authority: Awaited<ReturnType<PreviewSessions['previewAuthority']>>
-    try {
-      authority = await dependencies.sessions.previewAuthority({ sessionToken: cookie, exactHost: host.exactHost })
-    } catch {
-      return 503
-    }
-    if (authority.kind === 'PROVIDER_UNAVAILABLE') return 503
-    return authority.kind === 'SIGNED_IN' ? { binding: authority.binding, cookie } : 403
+    const token = presentedToken(readCookie(request, 'previewSession'))
+    if (!token) return 403
+    const outcome = await sessions.withPreviewRequest({ artifactRevisionId: host.artifactRevisionId, token }, serve)
+    if (outcome.kind === 'PROVIDER_UNAVAILABLE') return 503
+    return outcome.kind === 'SERVED' ? outcome.value : 403
   }
 
   const serve = async (request: FastifyRequest, reply: FastifyReply): Promise<unknown> => {
     const pathname = request.url.split('?', 1)[0] ?? ''
     if (classifyAppPath(request.method, pathname, () => true).kind === 'not-found') throw new Failure('NOT_FOUND')
-    const active = await activePreview(request)
-    if (typeof active === 'number') return reply.code(active).send()
-    const { binding: before, cookie } = active
-    // The server tree is retained with the artifact for the runner; the classifier never serves it.
-    const served = classifyAppPath(request.method, pathname, (candidate) => before.manifest.files.some((file) => file.path === candidate))
-    if (served.kind === 'not-found') return reply.code(404).send()
-    const path = served.kind === 'file' ? served.path : before.manifest.entryPath
-    const declared = before.manifest.files.find((file) => file.path === path)
-    if (!declared) return reply.code(404).send()
-    let file: Awaited<ReturnType<RegistryReader>>
-    try {
-      file = await dependencies.registryReader(before.accountId, { projectId: before.projectId, sourceRevision: before.sourceRevision, artifactRevisionId: before.artifactRevisionId, path: declared.path })
-    } catch {
-      return reply.code(503).send()
-    }
-    if (dependencies.isClosed()) return reply.code(503).send()
-    // The binding is checked again after the asynchronous read: a session that ended meanwhile gets nothing.
-    let after: Awaited<ReturnType<PreviewSessions['previewAuthority']>>
-    try {
-      after = await dependencies.sessions.previewAuthority({ sessionToken: cookie, exactHost: before.exactHost })
-    } catch {
-      return reply.code(503).send()
-    }
-    if (!file || after.kind !== 'SIGNED_IN' || !sameBinding(before, after.binding) ||
-      file.path !== path || file.mediaType !== declared.mediaType || digest(file.bytes).toString('hex') !== file.sha256) return reply.code(403).send()
-    return reply.type(file.mediaType).send(Buffer.from(file.bytes))
+    const served = await withPreview(request, async ({ checked, artifactRevisionId }) => {
+      const manifest = await reader.readPreviewManifest(checked, artifactRevisionId)
+      if (!manifest) return 404
+      // The server tree is retained with the artifact for the runner; the classifier never serves it.
+      const classified = classifyAppPath(request.method, pathname, (candidate) => manifest.files.some((file) => file.path === candidate))
+      if (classified.kind === 'not-found') return 404
+      const path = classified.kind === 'file' ? classified.path : manifest.entryPath
+      const declared = manifest.files.find((file) => file.path === path)
+      if (!declared) return 404
+      const file = await reader.readPreviewRevisionFile(checked, { sourceRevision: manifest.sourceRevision, artifactRevisionId, path: declared.path })
+      return file && file.path === path && file.mediaType === declared.mediaType && digest(file.bytes).toString('hex') === file.sha256 ? file : 403
+    })
+    if (typeof served === 'number') return reply.code(served).send()
+    return reply.type(served.mediaType).send(Buffer.from(served.bytes))
   }
 
   type ApiRequest = FastifyRequest<{ Params: { operation: string }; Body: unknown }>
   route['host-write']<{ Params: { operation: string }; Body: unknown }>({ method: 'POST', url: '/__conexus/api/:operation', bodyLimit: API_BODY_LIMIT, handler: tracked<ApiRequest>(async (request, reply) => {
     if (request.headers['content-type']?.split(';', 1)[0]?.trim() !== 'application/json') throw new Failure('CONTENT_TYPE_REFUSED')
-    const active = await activePreview(request)
+    const active = await withPreview(request, async ({ checked, caller, accountId, projectId, artifactRevisionId }) =>
+      ({ caller, accountId, projectId, artifactRevisionId, manifest: await reader.readPreviewManifest(checked, artifactRevisionId) }))
     if (typeof active === 'number') throw new Failure(active === 503 ? 'IDENTITY_PROVIDER_UNAVAILABLE' : 'PREVIEW_REFUSED')
-    const { binding } = active
-    const serverFiles = binding.manifest.files.map((file) => file.path).filter((path) => path.startsWith(SERVER_ROOT))
-    if (!OPERATION.test(request.params.operation) || serverFiles.length === 0) throw new Failure('OPERATION_NOT_FOUND')
+    const { manifest } = active
+    const serverFiles = manifest?.files.map((file) => file.path).filter((path) => path.startsWith(SERVER_ROOT)) ?? []
+    if (!manifest || !OPERATION.test(request.params.operation) || serverFiles.length === 0) throw new Failure('OPERATION_NOT_FOUND')
     if (!dependencies.invokeApplication) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE')
+    // The entry has committed: the invocation holds no database connection.
     const result = await dependencies.invokeApplication({
-      source: { via: 'PREVIEW', accountId: binding.accountId, projectId: binding.projectId, sourceRevision: binding.sourceRevision, artifactRevisionId: binding.artifactRevisionId },
-      serverFiles, operation: request.params.operation, input: request.body, caller: binding.caller, callerLeft: callerLeft(reply),
+      source: { via: 'PREVIEW', accountId: active.accountId, projectId: active.projectId, sourceRevision: manifest.sourceRevision, artifactRevisionId: active.artifactRevisionId },
+      serverFiles, operation: request.params.operation, input: request.body, caller: active.caller, callerLeft: callerLeft(reply),
     })
     return reply.code(result.status).type('application/problem+json').send(JSON.stringify(result.body))
   }) })

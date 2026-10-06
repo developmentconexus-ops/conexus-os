@@ -1,9 +1,9 @@
 import type { AccountId, ApplicationFilePath, ArtifactRevisionId, ProjectId, SourceRevision } from '@conexus/contract'
-import { checkApplication, type Admitted, type ProjectScope } from '../identity-access/admission.js'
+import { checkApplication, type Admitted, type ApplicationScope, type Checked, type ProjectScope } from '../identity-access/admission.js'
 import type { Database } from '../platform/db.js'
 import { purge, retain } from './retain.js'
 import { seal } from './seal.js'
-import { readLaunchOf, readManifest, readPinnedFileOf, readPreviewFileOf, readServedFileOf, readThumbnailOf, type ApplicationFile, type PinnedFile, type ServedFile, type ServedLaunch, type ServedManifest, type ServedThumbnail } from './served.js'
+import { readLaunchOf, readManifest, readPinnedFileOf, readPreviewFileOf, readPreviewManifestOf, readServedFileOf, readThumbnailOf, type ApplicationFile, type PinnedFile, type PreviewManifest, type ServedFile, type ServedLaunch, type ServedManifest, type ServedThumbnail } from './served.js'
 
 export type RegistryModule = Readonly<{
   seal: typeof seal
@@ -11,8 +11,10 @@ export type RegistryModule = Readonly<{
   purge: typeof purge
   readLaunch(proof: Admitted<ProjectScope<'project.build'>>): Promise<ServedLaunch | null>
   readPreviewFile(accountId: AccountId, at: Readonly<{ projectId: ProjectId; sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId; path: ApplicationFilePath }>): Promise<ApplicationFile | null>
-  readServedManifest(accountId: AccountId, projectId: ProjectId): Promise<ServedManifest | null>
-  readServedFile(accountId: AccountId, projectId: ProjectId, path: ApplicationFilePath): Promise<ServedFile>
+  readPreviewManifest(checked: Checked<ProjectScope<'project.read'>>, artifactRevisionId: ArtifactRevisionId): Promise<PreviewManifest | null>
+  readPreviewRevisionFile(checked: Checked<ProjectScope<'project.read'>>, at: Readonly<{ sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId; path: ApplicationFilePath }>): Promise<ApplicationFile | null>
+  readServedManifest(checked: Checked<ApplicationScope>): Promise<ServedManifest | null>
+  readServedFile(checked: Checked<ApplicationScope>, path: ApplicationFilePath): Promise<ServedFile>
   readPinnedServedFile(accountId: AccountId, projectId: ProjectId, artifactRevisionId: ArtifactRevisionId, path: ApplicationFilePath): Promise<PinnedFile>
   readProjectThumbnail(accountId: AccountId, projectId: ProjectId): Promise<ServedThumbnail | null>
 }>
@@ -31,8 +33,10 @@ export function createRegistryModule({ database }: Readonly<{ database: Database
     purge,
     readLaunch: ({ tx, scope }) => readLaunchOf(tx, scope.projectId),
     readPreviewFile: (accountId, at) => database.read(accountId, (tx) => readPreviewFileOf(tx, at)),
-    readServedManifest: (accountId, projectId) => served(accountId, projectId, ({ tx, scope }) => readManifest(tx, scope.projectId)),
-    readServedFile: (accountId, projectId, path) => served(accountId, projectId, ({ tx, scope }) => readServedFileOf(tx, scope.projectId, path)),
+    readPreviewManifest: ({ tx, scope }, artifactRevisionId) => readPreviewManifestOf(tx, scope.projectId, artifactRevisionId),
+    readPreviewRevisionFile: ({ tx, scope }, at) => readPreviewFileOf(tx, { projectId: scope.projectId, ...at }),
+    readServedManifest: ({ tx, scope }) => readManifest(tx, scope.projectId),
+    readServedFile: ({ tx, scope }, path) => readServedFileOf(tx, scope.projectId, path),
     readPinnedServedFile: (accountId, projectId, artifactRevisionId, path) => served(accountId, projectId, ({ tx, scope }) => readPinnedFileOf(tx, scope.projectId, path, artifactRevisionId)),
     readProjectThumbnail: (accountId, projectId) => database.read(accountId, (tx) => readThumbnailOf(tx, projectId)),
   })

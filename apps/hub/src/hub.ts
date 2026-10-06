@@ -99,16 +99,8 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   })
   let builder: ReturnType<typeof createConfiguredBuilderModule> | undefined
   const applicationRunner = config.appRunner ? createApplicationRunnerClient(config.appRunner.socketPath) : undefined
-  // The application and Preview hosts move onto the identity ports with the hosting commit; until then every host request reads as signed out.
-  const signedOutHosts = {
-    applicationBySlug: async () => null,
-    applicationAuthority: async () => ({ kind: 'SIGN_IN_REQUIRED' }) as const,
-    redeem: async () => null,
-    signOut: async () => undefined,
-    previewAuthority: async () => ({ kind: 'SIGN_IN_REQUIRED' }) as const,
-  }
   const hosting = config.preview ? createHostingModule({
-    sessions: signedOutHosts,
+    sessions: identityAccess.previewHost,
     exactHubOrigin: config.origin,
     previewPort: config.preview.port,
     registry,
@@ -123,7 +115,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
       },
     } : {}),
     ...(config.application ? {
-      applicationHost: { sessions: signedOutHosts, application: config.application },
+      applicationHost: { sessions: identityAccess.applicationHost, application: config.application },
     } : {}),
   }) : undefined
   type LaunchPreview = NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>

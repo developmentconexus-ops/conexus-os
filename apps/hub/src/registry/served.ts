@@ -7,6 +7,7 @@ import { sql, type Sql, type TxQueries } from '../platform/db.js'
 export type ApplicationFile = Readonly<{ path: ApplicationFilePath; mediaType: MediaType; sha256: Sha256; bytes: Uint8Array }>
 export type ServedManifest = Readonly<{ artifactRevisionId: ArtifactRevisionId; files: ReadonlyArray<Readonly<{ path: ApplicationFilePath; mediaType: MediaType }>> }>
 export type ServedLaunch = Readonly<{ sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId; digest: ArtifactDigest; entryPath: 'index.html'; files: ServedManifest['files'] }>
+export type PreviewManifest = Readonly<{ sourceRevision: SourceRevision; entryPath: 'index.html'; files: ServedManifest['files'] }>
 export type ServedThumbnail = Readonly<{ artifactRevisionId: ArtifactRevisionId; bytes: Uint8Array }>
 export type ServedFile = Readonly<{ ok: true; artifactRevisionId: ArtifactRevisionId; file: ApplicationFile }> | Readonly<{ ok: false; reason: 'NOT_SERVED' | 'NOT_FOUND' }>
 export type PinnedFile = ServedFile | Readonly<{ ok: false; reason: 'STALE_PIN' }>
@@ -131,6 +132,19 @@ export async function readThumbnailOf(tx: TxQueries, projectId: ProjectId): Prom
 }
 
 const PreviewFileRow = z.object(FileColumns)
+const PreviewManifestRow = z.object({ source_revision: SourceRevision, entry_path: z.literal('index.html'), files: ManifestFiles })
+
+const CURRENT_PIN = sql`revision.payload->>'profile' = ${CURRENT_TEMPLATE_PIN.profile} AND revision.payload->>'templateRef' = ${CURRENT_TEMPLATE_PIN.templateRef}
+      AND revision.payload->>'recipeSha256' = ${CURRENT_TEMPLATE_PIN.recipeSha256}`
+
+/** The manifest of one revision of the Project on the current template pin, by its id: what a Preview of it serves. */
+export async function readPreviewManifestOf(tx: TxQueries, projectId: ProjectId, artifactRevisionId: ArtifactRevisionId): Promise<PreviewManifest | null> {
+  const row = await tx.maybe(PreviewManifestRow, sql`
+    SELECT revision.source_revision, revision.payload->>'entryPath' AS entry_path, ${FILES_OF_REVISION} AS files
+    FROM reg.artifact_revision AS revision
+    WHERE revision.project_id = ${projectId} AND revision.artifact_revision_id = ${artifactRevisionId} AND ${CURRENT_PIN}`)
+  return row === null ? null : { sourceRevision: row.source_revision, entryPath: row.entry_path, files: row.files }
+}
 
 export async function readPreviewFileOf(tx: TxQueries, input: Readonly<{ projectId: ProjectId; sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId; path: ApplicationFilePath }>): Promise<ApplicationFile | null> {
   const row = await tx.maybe(PreviewFileRow, sql`
@@ -138,7 +152,6 @@ export async function readPreviewFileOf(tx: TxQueries, input: Readonly<{ project
     FROM reg.artifact_revision AS revision
     CROSS JOIN LATERAL jsonb_path_query_first(revision.payload, '$.files[*] ? (@.path == $path)', jsonb_build_object('path', ${input.path}::text)) AS file
     WHERE revision.project_id = ${input.projectId} AND revision.artifact_revision_id = ${input.artifactRevisionId} AND revision.source_revision = ${input.sourceRevision}
-      AND revision.payload->>'profile' = ${CURRENT_TEMPLATE_PIN.profile} AND revision.payload->>'templateRef' = ${CURRENT_TEMPLATE_PIN.templateRef}
-      AND revision.payload->>'recipeSha256' = ${CURRENT_TEMPLATE_PIN.recipeSha256} AND file IS NOT NULL`)
+      AND ${CURRENT_PIN} AND file IS NOT NULL`)
   return row === null ? null : { path: row.path, mediaType: row.media_type, sha256: row.sha256, bytes: row.bytes }
 }

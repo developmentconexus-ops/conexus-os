@@ -35,32 +35,38 @@ const files = {
   'conexus-server/manifest.json': { mediaType: 'application/json; charset=utf-8', text: '{}' },
 }
 
-const harness = async (t, { authorityFor, application = APPLICATION, invokeApplication, runner, registryOverrides = {} } = {}) => {
+const APPLICATIONS = Object.freeze({ 'caderno-de-compras': PROJECT_A, 'outro-app': PROJECT_B })
+const BINDING = 'g'.repeat(43)
+const MINTED = 'n'.repeat(43)
+
+const harness = async (t, { outcomeFor, application = APPLICATION, invokeApplication, runner, registryOverrides = {} } = {}) => {
   const calls = []
   const reads = []
   const sessions = new Map([[TOKEN_A, PROJECT_A]])
-  const handoffs = new Map([[HANDOFF, { projectId: PROJECT_A, binding: 'binding-1' }], [SECOND_HANDOFF, { projectId: PROJECT_A, binding: 'binding-1' }]])
+  const handoffs = new Map([[HANDOFF, { projectId: PROJECT_A, binding: BINDING }], [SECOND_HANDOFF, { projectId: PROJECT_A, binding: BINDING }]])
   const hostSessions = {
-    async applicationBySlug(slug) { return { 'caderno-de-compras': PROJECT_A, 'outro-app': PROJECT_B }[slug] ?? null },
-    async applicationAuthority({ sessionToken, projectId }) {
-      if (authorityFor) return authorityFor({ sessionToken, projectId })
-      return sessionToken && sessions.get(sessionToken) === projectId ? { kind: 'SIGNED_IN', accountId: EMPLOYEE.accountId, caller: EMPLOYEE } : { kind: 'SIGN_IN_REQUIRED' }
+    async withApplicationRequest({ slug, token }, serve) {
+      const early = outcomeFor ? await outcomeFor({ slug, token }) : undefined
+      if (early) return early
+      const projectId = APPLICATIONS[slug]
+      if (!projectId || sessions.get(token) !== projectId) return { kind: 'SIGN_IN_REQUIRED' }
+      return { kind: 'SERVED', value: await serve({ caller: EMPLOYEE, checked: { projectId }, accountId: EMPLOYEE.accountId, projectId }) }
     },
-    async redeem({ handoff, target: { projectId, binding } }) {
+    async redeem({ handoff, slug, binding }) {
       const found = handoffs.get(handoff)
-      if (!found || found.projectId !== projectId || found.binding !== binding) return null
+      if (!found || found.projectId !== APPLICATIONS[slug] || found.binding !== binding) return null
       handoffs.delete(handoff)
-      sessions.set('n'.repeat(43), projectId)
-      return { sessionToken: 'n'.repeat(43), maxAgeSeconds: 28_800 }
+      sessions.set(MINTED, found.projectId)
+      return { sessionToken: MINTED, maxAgeSeconds: 28_800 }
     },
     async signOut(sessionToken) { calls.push({ name: 'signOut', sessionToken }); sessions.delete(sessionToken) },
   }
   const registry = {
-    async readServedManifest(_accountId, projectId) {
+    async readServedManifest({ projectId }) {
       reads.push('served')
       return projectId === PROJECT_A ? { artifactRevisionId: ARTIFACT, files: Object.entries(files).map(([path, file]) => ({ path, mediaType: file.mediaType })) } : null
     },
-    async readServedFile(_accountId, projectId, path) {
+    async readServedFile({ projectId }, path) {
       reads.push(`readServedFile ${path}`)
       if (projectId !== PROJECT_A) return { ok: false, reason: 'NOT_SERVED' }
       const file = files[path]
@@ -74,7 +80,7 @@ const harness = async (t, { authorityFor, application = APPLICATION, invokeAppli
   }
   const recordInvocation = async ({ callerLeft: _callerLeft, ...input }) => { calls.push({ name: 'invoke', input }); return { status: 200, body: { ok: true } } }
   const hosting = createHostingModule({
-    sessions: { redeem: async () => null, previewAuthority: async () => ({ kind: 'SIGN_IN_REQUIRED' }) },
+    sessions: { redeem: async () => null, withPreviewRequest: async () => ({ kind: 'SIGN_IN_REQUIRED' }) },
     registry,
     ...(runner ? { applicationRunner: runner } : {}),
     exactHubOrigin: HUB,
@@ -207,7 +213,7 @@ test('only a document navigation starts a sign-in; any other request without a s
 test('parallel navigations share one binding, and every handoff they bring back redeems, even after one fails', async (t) => {
   const { app } = await harness(t)
   // The browser's cookie jar for the application host, updated from each answer.
-  const jar = new Map([['__Host-conexus_app_signin', 'binding-1']])
+  const jar = new Map([['__Host-conexus_app_signin', BINDING]])
   const complete = async (handoff) => {
     const response = await app.inject({ method: 'GET', url: `/__conexus/sign-in/complete?handoff=${handoff}`, headers: { host: HOST_A }, cookies: Object.fromEntries(jar) })
     for (const cookie of response.cookies) {
@@ -235,17 +241,17 @@ test('a handoff is refused without its binding or on another host, then redeems 
   const { app } = await harness(t)
   const complete = (host, cookies) => app.inject({ method: 'GET', url: `/__conexus/sign-in/complete?handoff=${HANDOFF}`, headers: { host }, cookies })
   assert.equal((await complete(HOST_A, {})).statusCode, 403, 'no binding cookie')
-  assert.equal((await complete(HOST_A, { '__Host-conexus_app_signin': 'another-browser' })).statusCode, 403, 'another browser')
-  assert.equal((await complete(HOST_B, { '__Host-conexus_app_signin': 'binding-1' })).statusCode, 403, 'another application')
-  assert.equal((await complete(HOST_A, { '__Host-conexus_app_signin': 'binding-1' })).statusCode, 303, 'the refusals did not consume it')
-  assert.equal((await complete(HOST_A, { '__Host-conexus_app_signin': 'binding-1' })).statusCode, 403, 'redeemed once')
+  assert.equal((await complete(HOST_A, { '__Host-conexus_app_signin': 'a'.repeat(43) })).statusCode, 403, 'another browser')
+  assert.equal((await complete(HOST_B, { '__Host-conexus_app_signin': BINDING })).statusCode, 403, 'another application')
+  assert.equal((await complete(HOST_A, { '__Host-conexus_app_signin': BINDING })).statusCode, 303, 'the refusals did not consume it')
+  assert.equal((await complete(HOST_A, { '__Host-conexus_app_signin': BINDING })).statusCode, 403, 'redeemed once')
 })
 
 test('a redeemed handoff sets a host-only session cookie that replaces any value chosen before sign-in', async (t) => {
   const { app } = await harness(t)
   const response = await app.inject({
     method: 'GET', url: `/__conexus/sign-in/complete?handoff=${HANDOFF}`, headers: { host: HOST_A },
-    cookies: { '__Host-conexus_app_signin': 'binding-1', '__Host-conexus_app': 'x'.repeat(43) },
+    cookies: { '__Host-conexus_app_signin': BINDING, '__Host-conexus_app': 'x'.repeat(43) },
   })
   assert.equal(response.statusCode, 303)
   assert.equal(response.headers.location, '/')
@@ -255,7 +261,7 @@ test('a redeemed handoff sets a host-only session cookie that replaces any value
   assert.equal(session.httpOnly && session.secure && session.path === '/' && session.domain === undefined, true)
   assert.equal(session.maxAge, 28_800)
   assert.equal(response.cookies.find((cookie) => cookie.name === '__Host-conexus_app_signin'), undefined, 'the binding stays for the other handoffs in flight')
-  const replay = await app.inject({ method: 'GET', url: `/__conexus/sign-in/complete?handoff=${HANDOFF}`, headers: { host: HOST_A }, cookies: { '__Host-conexus_app_signin': 'binding-1' } })
+  const replay = await app.inject({ method: 'GET', url: `/__conexus/sign-in/complete?handoff=${HANDOFF}`, headers: { host: HOST_A }, cookies: { '__Host-conexus_app_signin': BINDING } })
   assert.equal(replay.statusCode, 403)
 })
 
@@ -278,7 +284,7 @@ test('a signed-in person gets the served files, never the server tree, and the p
   assert.equal((await app.inject({ method: 'GET', url: '/assets/app.js', headers: { host: HOST_A }, ...signedIn })).statusCode, 200)
   assert.equal((await app.inject({ method: 'GET', url: '/conexus-server/manifest.json', headers: { host: HOST_A }, ...signedIn })).statusCode, 404)
   assert.equal((await app.inject({ method: 'GET', url: '/missing.js', headers: { host: HOST_A }, ...signedIn })).statusCode, 404)
-  assert.equal((await app.inject({ method: 'GET', url: '/', headers: { host: 'nobody.conexus.localhost:3445' }, ...signedIn })).statusCode, 404)
+  assert.equal((await app.inject({ method: 'GET', url: '/', headers: { host: 'nobody.conexus.localhost:3445' }, ...signedIn })).statusCode, 401, 'a host naming no application is answered by the port as no session')
 })
 
 test('a session for one application is no session on another application host', async (t) => {
@@ -362,10 +368,10 @@ test('a caller that disconnects before its call reaches the invoker hands the in
   const authorized = Promise.withResolvers()
   const invoked = Promise.withResolvers()
   const { app } = await harness(t, {
-    authorityFor: async () => {
+    outcomeFor: async () => {
       authorizing.resolve()
       await authorized.promise
-      return { kind: 'SIGNED_IN', accountId: EMPLOYEE.accountId, caller: EMPLOYEE }
+      return undefined
     },
     invokeApplication: async ({ callerLeft }) => {
       invoked.resolve(callerLeft.aborted)
@@ -383,7 +389,7 @@ test('a caller that disconnects before its call reaches the invoker hands the in
 })
 
 test('Keycloak unreachable when a check is due refuses with 503 and keeps nothing open', async (t) => {
-  const { app } = await harness(t, { authorityFor: () => ({ kind: 'PROVIDER_UNAVAILABLE' }) })
+  const { app } = await harness(t, { outcomeFor: () => ({ kind: 'PROVIDER_UNAVAILABLE' }) })
   assert.equal((await app.inject(api('addNote'))).statusCode, 503)
   assert.equal((await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A }, ...signedIn })).statusCode, 503)
 })
@@ -400,7 +406,7 @@ test('sign-out from the application ends its session and clears its cookie', asy
 
 test('sign-out clears the sign-in binding too, so a handoff still in flight cannot sign the person back in', async (t) => {
   const { app, sessions } = await harness(t)
-  const jar = new Map([['__Host-conexus_app', TOKEN_A], ['__Host-conexus_app_signin', 'binding-1']])
+  const jar = new Map([['__Host-conexus_app', TOKEN_A], ['__Host-conexus_app_signin', BINDING]])
   const replay = (response) => {
     for (const cookie of response.cookies) {
       if (cookie.value === '') jar.delete(cookie.name)

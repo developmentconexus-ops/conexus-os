@@ -66,8 +66,10 @@ const PROJECT = '11111111-1111-4111-8111-111111111111'
 const HOST = 'caderno.conexus.localhost:3445'
 const application = { port: 3445, domain: 'conexus.localhost' }
 const hostSessions = {
-  applicationBySlug: async () => PROJECT,
-  applicationAuthority: async () => ({ kind: 'SIGNED_IN', accountId: '44444444-4444-4444-8444-444444444444', caller: { accountId: '44444444-4444-4444-8444-444444444444', email: 'a@example.test', displayName: 'A' } }),
+  withApplicationRequest: async (_presented, serve) => ({ kind: 'SERVED', value: await serve({
+    caller: { accountId: '44444444-4444-4444-8444-444444444444', email: 'a@example.test', displayName: 'A' },
+    checked: { projectId: PROJECT }, accountId: '44444444-4444-4444-8444-444444444444', projectId: PROJECT,
+  }) }),
   redeem: async () => null,
   signOut: async () => {},
 }
@@ -78,7 +80,7 @@ const registry = {
   readPinnedServedFile: async (_account, _project, artifactRevisionId, path) => ({ ok: true, artifactRevisionId, file: { path, sha256: 'e'.repeat(64), bytes: new Uint8Array(4) } }),
 }
 const hosting = createHostingModule({
-  sessions: { redeem: async () => null, previewAuthority: async () => ({ kind: 'SIGN_IN_REQUIRED' }) },
+  sessions: { redeem: async () => null, withPreviewRequest: async () => ({ kind: 'SIGN_IN_REQUIRED' }) },
   registry,
   applicationRunner: { invoke: async () => { throw new Error('runner socket refused: PLANTED_RUNNER_CAUSE') } },
   exactHubOrigin: 'https://hub.conexus.localhost:3443',

@@ -112,7 +112,10 @@ const ProjectOf = z.object({ project_id: ProjectId })
 const consumePreviewHandoff = async (tx: WriteTx, key: Digest, artifactRevisionId: ArtifactRevisionIdType) => {
   const pending = await tx.maybe(ProjectOf, sql`SELECT project_id FROM iam.handoff WHERE handoff_digest = ${key} AND kind = 'PREVIEW'`)
   if (!pending) return null
-  if (!(await tx.maybe(ProjectOf, sql`SELECT project_id FROM project.project WHERE project_id = ${pending.project_id} FOR SHARE`))) return null
+  if (!(await tx.maybe(ProjectOf, sql`
+    SELECT project_id FROM project.project AS stored WHERE project_id = ${pending.project_id}
+      AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = stored.project_id)
+    FOR SHARE`))) return null
   return tx.maybe(PreviewHandoffRow, sql`
     DELETE FROM iam.handoff AS handoff
     WHERE handoff.handoff_digest = ${key} AND handoff.kind = 'PREVIEW' AND handoff.artifact_revision_id = ${artifactRevisionId} AND handoff.expires_at > now()

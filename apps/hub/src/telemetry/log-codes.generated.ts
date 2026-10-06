@@ -462,7 +462,6 @@ export const LOG_CODES: ReadonlySet<string> = new Set([
   "SESSION_LIMIT",
   "SESSION_STATE_REFUSED",
   "SETTLE_LOST",
-  "SIGNED_IN",
   "SIGNED_OUT",
   "SIGN_IN",
   "SIGN_IN_BINDING_MISSING",

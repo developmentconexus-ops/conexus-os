@@ -1,5 +1,6 @@
 import { Failure } from './failure.js'
 import { parseApplicationSlug } from './application-slug.js'
+import type { ApplicationSlug } from './application-slug.js'
 
 export type HubConfig = Readonly<{
   origin: string
@@ -56,7 +57,7 @@ export const authority = ({ port, domain }: ApplicationAddress, slug: string): s
 export const applicationOrigin = (address: ApplicationAddress, slug: string): string => `https://${authority(address, slug)}`
 
 /** The Host header is the only application selector, and it must be exactly one application's authority. */
-export const applicationSlugOfHost = (address: ApplicationAddress, host: string | undefined): string | null => {
+export const applicationSlugOfHost = (address: ApplicationAddress, host: string | undefined): ApplicationSlug | null => {
   const suffix = authority(address, '')
   if (typeof host !== 'string' || !host.endsWith(suffix)) return null
   return parseApplicationSlug(host.slice(0, -suffix.length))
