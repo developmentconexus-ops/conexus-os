@@ -91,8 +91,10 @@ Three grafts from Sonnet:
 2. A row is marked refused only on a dead grant: 400 `invalid_grant` or 401 at refresh, and 401 at call time (not 403, which can mean a model the plan lacks).
 3. The migration stops when `model.model_account` has rows.
 
+Rejected from Sonnet at first, then taken after the spec review:
+- the run port (`openRun`). The arena first kept the registry's rule that the caller passes its proof. Both spec reviewers showed that a refresh runs after the call's transaction ended, so only a port keeps today's guarantee that a deactivated person or an ended run cannot reread a secret.
+
 Rejected from Sonnet:
-- the run proof closure, since the registry's rule is that the caller passes its proof;
 - the Builder table join;
 - the five minute Google capture (one minute here);
 - the migration deleting sessions and handoffs, which the reset covers.
@@ -106,6 +108,19 @@ Rejected from Sonnet:
 - A stale value of the same row still opens, so the compare and swap stays.
 - A retired key still opens.
 - A throwaway PostgreSQL 17 refused every illegal row with its SQLSTATE: 23514 for scope, owner, pair, provider and prefix; 23505 for duplicates; 23503 for an unknown owner. It accepted every legal row.
+
+**Spec review (interrogate, Opus and Sonnet, 2026-10-06).** 27 findings, three critical on both sides, all taken:
+- a refusal mark written inside the run's transaction rolled back with the failure, so `markRefused` gets its own committed system transaction;
+- the live name through `iam.account` exposed the whole account row, `email` included, so the name is copied to the row;
+- a Google ticket deleted per request turned an SDK retry into a 401 that would refuse the company row, so the ticket lives with the generation and the router never answers 401 for its own faults.
+
+Also taken:
+- each model call picks its account again (today's rule, `0038:3-6`), which corrects the mid run cases inferred in the design conversation;
+- an OAuth 401 forces one refresh before marking;
+- a missing key id is a configuration fault, not a custody loss;
+- the migration guard covers connections, and sessions are deleted;
+- the attempt key includes scope;
+- a remove needs `scope`.
 
 **Spike 2, run against the installed packages, no network.**
 - A 401 and a 403 reach a `wrapLanguageModel` middleware as `APICallError` with `statusCode` on all four model kinds, with no retry. A 500 and a dropped connection are retried twice.
