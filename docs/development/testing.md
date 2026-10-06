@@ -127,7 +127,7 @@ slow one runs where its services exist.
 
 - A Builder turn **must** be proved on the local Conexus with a real model and a real E2B sandbox.
 - A gate about the generated app's programming model **must** be closed by a real Project: a
-  request in product language, the real model, Builder-written source, the Project's own check, a
+  request in product language, the real model, Builder-written source, the Hub-owned check run against the Project's source, a
   Preview, browser interaction, and the gate's negative case.
 
 **Why.** A hand-written example proves a platform mechanism, not that the Builder finds and uses it.

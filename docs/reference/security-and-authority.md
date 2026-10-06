@@ -53,7 +53,8 @@ ASVS V8.
 - An invitation **must** be claimed only by signing in with its verified email. Removing a roster
   entry **must** withdraw every right it gave.
 - A refusal **must** log its reason (`OUTSIDER`, `FORBIDDEN`, `TOMBSTONE`, `INACTIVE`), and the
-  response **must** carry only the code.
+  response **must** carry the problem fields
+  [the API guide](../product/wire-contract.md) declares and no private refusal detail.
 
 **Why.** One rule in one place, rechecked on every operation, leaves no path where a stale or
 forged right still works.
@@ -111,7 +112,8 @@ a stolen cookie is worth.
 ASVS V3.
 
 - Every route of the three listeners **must** declare one access kind from `http/access.ts`, its one
-  enforcer. Only `access.ts` and `http/cookies.ts` read headers and cookies.
+  enforcer. Only `access.ts` and `http/cookies.ts` read credential cookies and the protected `Origin`,
+  `Cookie` and `Sec-Fetch-*` request headers.
 - Every write **must** carry the exact `Origin` its access kind names. Hub API requests carry
   `Sec-Fetch-Site` `same-origin` or none. There is no CSRF token.
 - The Hub **must** send its security headers: a Content Security Policy with a nonce, a strict
@@ -187,7 +189,8 @@ ASVS V16.
 - A security event (sign-in, refusal, session end, administrator change) **must** leave a log line
   with its code and trace id.
 - A log line **must not** carry a secret, a token or a claim value.
-- An error response **must** carry only its code, never a stack trace or an internal message.
+- An error response **must** carry the problem fields [the API guide](../product/wire-contract.md)
+  declares, never a stack trace or an internal message.
 
 **Why.** An incident is investigated from the logs. A log that leaks a token creates the next
 incident.

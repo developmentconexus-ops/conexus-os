@@ -35,8 +35,9 @@ Project's code can never reach Conexus data.
 
 ## 2. Migrations
 
-- Every change to a schema, a role or reference data **must** be a migration: a new numbered file in
-  `apps/hub/migrations`, applied only by `scripts/run-hub-migrations.mjs`. Nobody changes a live
+- Every change to a Conexus-owned Hub schema, Hub role or Hub reference data **must** be a migration:
+  a new numbered file in `apps/hub/migrations`, applied only by `scripts/run-hub-migrations.mjs`.
+  A Project's migrations belong to its repository ([the architecture guide](architecture.md)). Nobody changes a live
   database by hand.
 - An applied migration **must not** change. The runner pins each file by SHA-256 and records it in
   `iam.schema_migration`. A migration change commits the regenerated catalog snapshot
@@ -63,7 +64,7 @@ same way everywhere.
   migrations.
 - A test **must not** change a role on a cluster that hosts a protected database. Roles are
   cluster-global.
-- The Hub **must** refuse to start on a database whose schema is not current
+- The Hub **must** refuse to start on a database that lacks a migration shipped with it
   (`assertSchemaCurrent`).
 
 **Why.** A shared database hides which change broke it. A database built from migrations proves the

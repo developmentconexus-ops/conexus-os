@@ -190,8 +190,8 @@ mono.
   radius and no shadow. Hairlines separate them.
 - Conexus designs its own screens, structure and page patterns. `@mastra/playground-ui` supplies
   parts only (C-031).
-- Each need **must** have one way. A second way beside the first, such as a native `title` beside
-  `Tooltip`, is a defect.
+- Each need **must** have one way, as [the code guide](docs/development/codebase-principles.md)
+  requires. For a screen, that is the one Conexus part for each need.
 
 **Why.** The person's app is the content. The frame around it stays quiet so it never competes, and
 one way per need makes every screen read the same.
