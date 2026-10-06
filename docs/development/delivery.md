@@ -104,7 +104,7 @@ own branch, never merges, and counts as gate proof only when declared so before 
 ## Proof and verification
 
 - Before each commit run `npm run verify:quick` (typechecks, repository check, generators and
-  contract check, web style, `knip`, `biome ci`, import law, access owner, censuses, enforced-by; no
+  contract check, web style, `knip`, `biome ci`, import law, access owner, censuses; no
   Docker, browser or network) and the tests the change
   touches or that consume a changed contract, at most two groups at once. CI enforces the static checks on the head.
 - CI runs the whole graph in `scripts/conexus-verify.mjs` as eight jobs (`browser` in four
