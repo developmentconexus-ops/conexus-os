@@ -7,7 +7,7 @@ import type { ApplicationAddress } from '../platform/config.js'
 import { registerApplicationHostRoutes } from './application-host-routes.js'
 import type { ApplicationHostReader, ApplicationHostSessions } from './application-host-routes.js'
 import { createApplicationInvoker } from './application-invoker.js'
-import type { ApplicationFileReader, ApplicationRunnerInvoke, ConnectorPortOpener } from './application-invoker.js'
+import type { ApplicationFileReads, ApplicationRunnerInvoke, ConnectorPortOpener } from './application-invoker.js'
 import { registerPreviewRoutes } from './preview-routes.js'
 import type { PreviewHost, PreviewRouteDependencies, PreviewSessions } from './preview-routes.js'
 import { Failure } from '../platform/failure.js'
@@ -24,7 +24,8 @@ export type MarModule = Readonly<{
   close(): Promise<void>
 }>
 
-type RegistryReader = PreviewRouteDependencies['registryReader']
+/** What the MAR owner reads of the registry, declared structurally. */
+export type MarRegistry = ApplicationFileReads & ApplicationHostReader & Readonly<{ readPreviewFile: PreviewRouteDependencies['registryReader'] }>
 
 const PREVIEW_DOMAIN = 'conexus.localhost'
 const PREVIEW_HOST = /^preview-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.conexus\.localhost(?::\d+)?$/
@@ -45,19 +46,19 @@ export const previewHostOf = (host: HeaderFact, previewPort: number): PreviewHos
 
 export const createMarModule = ({
   sessions,
-  registryReader,
+  registry,
   applicationRunner,
   exactHubOrigin,
   previewPort,
   applicationHost,
 }: Readonly<{
   sessions: PreviewSessions
-  registryReader: RegistryReader
-  /** The runner's invoke and the registry read of server files; the module bounds admission to them. */
-  applicationRunner?: Readonly<{ invoke: ApplicationRunnerInvoke; readFile: ApplicationFileReader; openConnectorPort?: ConnectorPortOpener }>
+  registry: MarRegistry
+  /** The runner's invoke; the module bounds admission to it and reads the server tree from the registry. */
+  applicationRunner?: Readonly<{ invoke: ApplicationRunnerInvoke; openConnectorPort?: ConnectorPortOpener }>
   exactHubOrigin: string
   previewPort: number
-  applicationHost?: Readonly<{ sessions: ApplicationHostSessions; reader: ApplicationHostReader; application: ApplicationAddress }>
+  applicationHost?: Readonly<{ sessions: ApplicationHostSessions; application: ApplicationAddress }>
 }>): MarModule => {
   if (!Number.isSafeInteger(previewPort) || previewPort < 1 || previewPort > 65_535 ||
     !/^https:\/\//.test(exactHubOrigin)) {
@@ -67,10 +68,12 @@ export const createMarModule = ({
   let closed = false
   let closing: Promise<void> | null = null
   // One admission budget for both listeners: a busy application cannot starve every Preview, nor the reverse.
-  const invokeApplication = applicationRunner ? createApplicationInvoker(applicationRunner) : undefined
+  const invokeApplication = applicationRunner
+    ? createApplicationInvoker({ ...applicationRunner, readPreviewFile: registry.readPreviewFile, readPinnedServedFile: registry.readPinnedServedFile })
+    : undefined
   const previewHostOfRequest = (host: HeaderFact): PreviewHost | null => previewHostOf(host, previewPort)
   const dependencies: PreviewRouteDependencies = {
-    sessions, registryReader, ...(invokeApplication ? { invokeApplication } : {}), previewHostOf: previewHostOfRequest, pendingRequests, isClosed: () => closed,
+    sessions, registryReader: registry.readPreviewFile, ...(invokeApplication ? { invokeApplication } : {}), previewHostOf: previewHostOfRequest, pendingRequests, isClosed: () => closed,
   }
   const previewAddress = (artifactRevisionId: string) => {
     const { exactHost, origin } = previewHost(artifactRevisionId, previewPort)
@@ -120,7 +123,7 @@ export const createMarModule = ({
         },
       } satisfies HostPolicy),
       registerRoutes: (app: FastifyInstance) => registerApplicationHostRoutes(app, {
-        ...applicationHost, ...(invokeApplication ? { invokeApplication } : {}), exactHubOrigin,
+        ...applicationHost, reader: registry, ...(invokeApplication ? { invokeApplication } : {}), exactHubOrigin,
       }),
     }) : undefined,
     close,

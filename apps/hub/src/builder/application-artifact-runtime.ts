@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { FileType } from 'e2b'
 import type { CommandResult, EntryInfo, Sandbox } from 'e2b'
-import { mediaTypeOfPath, type MediaType } from '../../../../packages/contract/dist/index.js'
+import { mediaTypeOfPath, type BuilderRunId, type MediaType, type ProjectId, type SourceRevision } from '../../../../packages/contract/dist/index.js'
 import { checkCommand, readCheckReport } from './application-check.js'
 import type { CheckBundle } from './check-delivery.js'
 import type { Caller } from './check/command.js'
@@ -31,16 +31,16 @@ type CompiledApplicationFile = Readonly<{
   sha256: string
 }>
 
-/** A by-product of the check, retained beside the compiled application and never part of it. */
+/** A by-product of the check, retained beside the compiled application and never part of it. The registry's seal decides whether it is a picture worth keeping. */
 export type CompiledApplicationThumbnail = Readonly<{ mediaType: 'image/png'; bytes: Uint8Array }>
 
 export type CompiledApplication = Readonly<{
-  projectId: string
-  sourceRevision: string
+  projectId: ProjectId
+  sourceRevision: SourceRevision
   templateRef: string
   recipeSha256: string
   files: readonly CompiledApplicationFile[]
-  executionId: string
+  executionId: BuilderRunId
 }>
 
 const mediaTypeForPath = (path: string): MediaType => {
@@ -143,13 +143,9 @@ const collectOutput = async (sandbox: Sandbox, place: BuildPlace): Promise<reado
   return Object.freeze(output)
 }
 
-const THUMBNAIL_MAX_BYTES = 512_000
-const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47]
-
 const readThumbnail = async (sandbox: Sandbox, place: BuildPlace, path: string): Promise<CompiledApplicationThumbnail | null> => {
   try {
     const bytes = await sandbox.files.read(path, { format: 'bytes', ...requestOptions(place) })
-    if (bytes.byteLength === 0 || bytes.byteLength > THUMBNAIL_MAX_BYTES || !PNG_MAGIC.every((value, index) => bytes[index] === value)) return null
     return Object.freeze({ mediaType: 'image/png' as const, bytes: new Uint8Array(bytes) })
   } catch {
     return null

@@ -1,9 +1,9 @@
 import type { FastifyInstance } from 'fastify'
-import { BLD08, BLD09, BLD23, BLD24, BLD25, BLD26, BLD29, BLD30, type AccountId, type ArtifactDigest, type ArtifactRevisionId, type BuilderRunId, type BuilderRunSummary, type BuilderSession, type BuilderTraceSummary, type PreviewLaunch, type ProjectId } from '../../../../packages/contract/dist/index.js'
+import { BLD08, BLD09, BLD23, BLD24, BLD25, BLD26, BLD29, BLD30, type AccountId, type BuilderRunId, type BuilderRunSummary, type BuilderSession, type BuilderTraceSummary, type PreviewLaunch, type ProjectId } from '../../../../packages/contract/dist/index.js'
 import { Failure } from '../platform/failure.js'
 import type { BuilderService } from './service.js'
 import type { BuilderStore } from './store.js'
-import type { ApplicationArtifactMetadata } from './application-build.js'
+import type { ServedLaunch } from './application-build.js'
 import type { HubSessionDigest } from '../identity-access/current-session.js'
 import { routes } from '../http/access.js'
 
@@ -15,9 +15,7 @@ export type BuilderSessionPort = Readonly<{
 export type BuilderLaunchPreviewPort = (hubSessionDigest: HubSessionDigest, input: Readonly<{
   accountId: AccountId
   projectId: ProjectId
-  artifactRevisionId: ArtifactRevisionId
-  artifactDigest: ArtifactDigest
-  artifact: ApplicationArtifactMetadata
+  launch: ServedLaunch
 }>) => Promise<PreviewLaunch>
 
 export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: Readonly<{
@@ -76,11 +74,9 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     const { launchPreview } = dependencies
     if (!launchPreview) throw new Failure('PREVIEW_UNAVAILABLE')
     const { projectId } = params
-    const subject = await dependencies.store.readLaunchSubject({ accountId, projectId })
-    if (!subject?.lastPreviewSourceRevision || !subject.lastPreviewArtifactRevisionId || !subject.lastPreviewArtifactDigest) throw new Failure('PREVIEW_SUBJECT_NOT_FOUND')
-    const artifact = await dependencies.service.getApplicationBySource({ accountId, projectId, sourceRevision: subject.lastPreviewSourceRevision })
-    if (!artifact || artifact.artifactRevisionId !== subject.lastPreviewArtifactRevisionId || artifact.artifactDigest !== subject.lastPreviewArtifactDigest) throw new Failure('PREVIEW_SUBJECT_NOT_FOUND')
-    return launchPreview(session.digest, { accountId, projectId, artifactRevisionId: subject.lastPreviewArtifactRevisionId, artifactDigest: subject.lastPreviewArtifactDigest, artifact })
+    const launch = await dependencies.store.readLaunchSubject({ accountId, projectId })
+    if (!launch) throw new Failure('PREVIEW_SUBJECT_NOT_FOUND')
+    return launchPreview(session.digest, { accountId, projectId, launch })
   })
 
   route.operation(BLD08, ({ params, query }, session) =>

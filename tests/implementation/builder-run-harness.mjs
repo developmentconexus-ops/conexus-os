@@ -332,14 +332,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
   const service = createBuilderService({
     store,
     ...(applicationServer ? { applicationServer } : {}),
-    applicationArtifacts: {
-      retainApplication: async ({ compiled }) => ({
-        artifactRevisionId: '77777777-7777-4777-8777-777777777777', artifactDigest: 'a'.repeat(64),
-        projectId: compiled.projectId, sourceRevision: compiled.sourceRevision,
-        profile: 'REACT_VITE_V2', templateRef: compiled.templateRef, recipeSha256: compiled.recipeSha256,
-        entryPath: 'index.html', files: [],
-      }),
-    },
+    registry: { seal: ({ compiledApplication }) => ({ projectId: compiledApplication.projectId, sourceRevision: compiledApplication.sourceRevision, digest: 'a'.repeat(64) }) },
     runs: {
       ports,
       git,

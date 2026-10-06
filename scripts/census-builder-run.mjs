@@ -121,7 +121,6 @@ const collectionsAcrossModules = hits(builderSource, /^\s+[A-Za-z0-9_]+\??:\s*(?
 const BRANDED_FIELDS = 'projectId|accountId|builderRunId|runId|conversationId|sourceRevision|baseSourceRevision|resultSourceRevision|modelAccountId|executionId|revision|base|candidate|turnStart|parent|expected|next|result|unchangedFrom|sameAs'
 const NOT_THE_BUILDER_PORTS = /^apps\/hub\/src\/builder\/(application-build\.ts|application-artifact-runtime\.ts|openai-codex\/credential\.ts)$/
 const plainPortIds = hits(builderSource.filter((path) => !NOT_THE_BUILDER_PORTS.test(rel(path))), new RegExp(`\\b(?:${BRANDED_FIELDS})\\??: (?:string|readonly string)\\b`))
-  .filter((at) => !readFileSync(join(repo, at.split(':')[0]), 'utf8').split('\n')[Number(at.split(':')[1]) - 1].includes('readApplicationFileBySource'))
 // The source reads take one object, so a Project id and a revision cannot swap places.
 const positionalSourceReads = hits(builderSource.filter((path) => rel(path) === 'apps/hub/src/builder/source.ts'), /^\s+(?:listSourceTree|readSourceFile|compareRevisions): async \((?!\{)/)
 

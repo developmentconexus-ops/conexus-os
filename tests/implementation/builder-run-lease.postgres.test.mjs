@@ -32,7 +32,7 @@ const leaseHarness = async (t, name) => {
   }
   const serviceFor = (over) => createBuilderService({
     store: over,
-    applicationArtifacts: {},
+    registry: {},
     runs: {
       ports: { checkModel, log: () => {} },
       git: { readMain: async () => BASE, mainContains: async () => false },
@@ -151,7 +151,7 @@ test('a source read checks that the account sees the Project before it reads Git
   const { Failure } = await import(built('platform/failure.js'))
   const service = createBuilderService({
     store: h.store,
-    applicationArtifacts: {},
+    registry: {},
     runs: {
       ports: {},
       git: { readMain: async () => { throw new Failure('CONEXUS_GIT_FAILED') }, mainContains: async () => false },

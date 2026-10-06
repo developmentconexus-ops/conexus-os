@@ -1,3 +1,4 @@
+import type { AccountId, ApplicationFilePath, ArtifactRevisionId, ProjectId, SourceRevision } from '../../../../packages/contract/dist/index.js'
 import { failureProblem } from '../http/problem.js'
 import { Failure } from '../platform/failure.js'
 import type { FailureCode } from '../platform/failures.generated.js'
@@ -12,11 +13,19 @@ type ServerFile = Readonly<{ path: string; sha256: string; content: string }>
  * artifact it serves).
  */
 type ArtifactSource =
-  | Readonly<{ via: 'PREVIEW'; accountId: string; projectId: string; sourceRevision: string; artifactRevisionId: string }>
-  | Readonly<{ via: 'APPLICATION'; accountId: string; projectId: string; artifactRevisionId: string }>
+  | Readonly<{ via: 'PREVIEW'; accountId: AccountId; projectId: ProjectId; sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId }>
+  | Readonly<{ via: 'APPLICATION'; accountId: AccountId; projectId: ProjectId; artifactRevisionId: ArtifactRevisionId }>
 
-export type ApplicationFileReader = (input: Readonly<{ source: ArtifactSource; path: string }>) =>
-  Promise<Readonly<{ path: string; sha256: string; bytes: Uint8Array }> | null>
+type ReadServerFile = Readonly<{ path: ApplicationFilePath; sha256: string; bytes: Uint8Array }>
+
+/** The registry's reads of a server tree, declared structurally: the MAR owner does not import the registry. */
+export type ApplicationFileReads = Readonly<{
+  readPreviewFile(accountId: AccountId, at: Readonly<{ projectId: ProjectId; sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId; path: ApplicationFilePath }>): Promise<ReadServerFile | null>
+  readPinnedServedFile(accountId: AccountId, projectId: ProjectId, artifactRevisionId: ArtifactRevisionId, path: ApplicationFilePath): Promise<
+    | Readonly<{ ok: true; artifactRevisionId: ArtifactRevisionId; file: ReadServerFile }>
+    | Readonly<{ ok: false; reason: 'NOT_SERVED' | 'NOT_FOUND' | 'STALE_PIN' }>
+  >
+}>
 
 export type ApplicationRunnerInvoke = (input: Readonly<{
   projectId: string
@@ -36,7 +45,7 @@ export type ConnectorPortOpener = (source: ArtifactSource) => Promise<Readonly<{
 
 export type ApplicationInvoker = (input: Readonly<{
   source: ArtifactSource
-  serverFiles: readonly string[]
+  serverFiles: readonly ApplicationFilePath[]
   operation: string
   input: unknown
   caller: Caller
@@ -117,8 +126,9 @@ const refusal = (code: FailureCode): Readonly<{ status: number; body: unknown }>
   return Object.freeze({ status: problem.status, body: problem })
 }
 
-export const createApplicationInvoker = (dependencies: Readonly<{
-  readFile: ApplicationFileReader
+const missingFile = (): Failure => new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'APPLICATION_SERVER_FILE_MISSING' } })
+
+export const createApplicationInvoker = (dependencies: ApplicationFileReads & Readonly<{
   invoke: ApplicationRunnerInvoke
   openConnectorPort?: ConnectorPortOpener
   limits?: ApplicationAdmissionLimits
@@ -126,6 +136,21 @@ export const createApplicationInvoker = (dependencies: Readonly<{
   const limits = dependencies.limits ?? DEFAULT_ADMISSION_LIMITS
   const runner = createGate(limits.globalConcurrency, limits.admissionQueueLimit)
   const projects = new Map<string, Gate>()
+
+  // A Preview serves its launch revision. An application serves what it serves now: a pin the served
+  // revision moved past, or an unserved Project, answers NOT_READY, and the next request reads the new one.
+  const readFile = async (source: ArtifactSource, path: ApplicationFilePath): Promise<ReadServerFile> => {
+    if (source.via === 'PREVIEW') {
+      const { projectId, sourceRevision, artifactRevisionId } = source
+      const file = await dependencies.readPreviewFile(source.accountId, { projectId, sourceRevision, artifactRevisionId, path })
+      if (!file) throw missingFile()
+      return file
+    }
+    const read = await dependencies.readPinnedServedFile(source.accountId, source.projectId, source.artifactRevisionId, path)
+    if (read.ok) return read.file
+    if (read.reason === 'NOT_FOUND') throw missingFile()
+    throw new Failure('APPLICATION_NOT_READY')
+  }
 
   return async (input) => {
     const { projectId } = input.source
@@ -150,8 +175,7 @@ export const createApplicationInvoker = (dependencies: Readonly<{
       let totalBytes = 0
       const reads: { path: string; sha256: string; bytes: Uint8Array }[] = []
       for (const path of input.serverFiles) {
-        const file = await dependencies.readFile({ source: input.source, path })
-        if (!file) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'APPLICATION_SERVER_FILE_MISSING' } })
+        const file = await readFile(input.source, path)
         totalBytes += file.bytes.byteLength
         if (totalBytes > limits.maxServerTreeBytes) return refusal('SERVER_TREE_TOO_LARGE')
         reads.push({ path, sha256: file.sha256, bytes: file.bytes })
@@ -162,6 +186,8 @@ export const createApplicationInvoker = (dependencies: Readonly<{
         return await dependencies.invoke({
           projectId, operation: input.operation, input: input.input, files, caller: input.caller, ...(port ? { connectorSocket: port.socketPath } : {}),
         })
+      } catch (error) {
+        throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: error, details: { project: projectId, operation: input.operation } })
       } finally {
         await port?.close()
       }

@@ -511,13 +511,12 @@ test('a failure the Builder routes cannot name is a 500, and a trace store failu
     },
     store: {
       readBuilderRun: async () => ({ builderRunId: runId }),
-      readLaunchSubject: async () => ({ lastPreviewSourceRevision: 'a'.repeat(40), lastPreviewArtifactRevisionId: runId, lastPreviewArtifactDigest: 'd'.repeat(64) }),
+      readLaunchSubject: async () => ({ artifactRevisionId: runId, digest: 'd'.repeat(64), sourceRevision: 'a'.repeat(40), entryPath: 'index.html', files: [] }),
       readPreviewSubject: async () => ({ lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null }),
     },
     service: {
       cancelBuilderRun: async () => { throw new Error('CANCEL_SERVICE_FAIL') },
       sendBuilderMessage: async () => { throw new Error('unused') },
-      getApplicationBySource: async () => ({ artifactRevisionId: runId, artifactDigest: 'd'.repeat(64) }),
       listSourceTree: async () => { throw new Error('TREE_SERVICE_FAIL') },
       getSourceFile: async () => { throw new Error('FILE_SERVICE_FAIL') },
     },

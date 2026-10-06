@@ -8,6 +8,12 @@ const { createApplicationInvoker } = await import(hubModuleUrl('mar/application-
 
 const bytes = (length) => new Uint8Array(length)
 
+// The invoker reads a Preview's server tree through the registry's two reads; these tests drive the Preview one.
+const reads = (readFile) => ({
+  readPreviewFile: (_accountId, at) => readFile(at),
+  readPinnedServedFile: async () => ({ ok: false, reason: 'NOT_SERVED' }),
+})
+
 // A `readFile` that never resolves until the test releases it, so several invocations can be made to
 // overlap on purpose instead of racing the event loop.
 const deferredReader = () => {
@@ -47,7 +53,7 @@ const limits = (overrides) => ({
 
 const admission = (overrides) => {
   const reader = deferredReader()
-  const invoker = createApplicationInvoker({ readFile: reader.readFile, invoke: spyInvoke().invoke, limits: limits(overrides) })
+  const invoker = createApplicationInvoker({ ...reads(reader.readFile), invoke: spyInvoke().invoke, limits: limits(overrides) })
   return { reader, invoker, admissionOrder: () => reader.calls.map((read) => read.path) }
 }
 
@@ -240,7 +246,7 @@ test('an admission slot is freed for the next request once its call finishes', a
   const reader = deferredReader()
   const runner = spyInvoke()
   const invoker = createApplicationInvoker({
-    readFile: reader.readFile, invoke: runner.invoke,
+    ...reads(reader.readFile), invoke: runner.invoke,
     limits: limits({ globalConcurrency: 1, perProjectConcurrency: 1 }),
   })
   const first = call(invoker, 'p1')
@@ -259,7 +265,7 @@ test('a server tree over the total byte limit is refused as soon as the running 
   const reader = immediateReader(bytes(600))
   const runner = spyInvoke()
   const invoker = createApplicationInvoker({
-    readFile: reader.readFile, invoke: runner.invoke,
+    ...reads(reader.readFile), invoke: runner.invoke,
     limits: limits({ maxServerTreeBytes: 1000 }),
   })
   const result = await invoker({
@@ -276,7 +282,7 @@ test('a server tree at or under the total byte limit reaches the runner', async 
   const reader = immediateReader(bytes(400))
   const runner = spyInvoke()
   const invoker = createApplicationInvoker({
-    readFile: reader.readFile, invoke: runner.invoke,
+    ...reads(reader.readFile), invoke: runner.invoke,
     limits: limits({ maxServerTreeBytes: 1000 }),
   })
   const result = await invoker({
@@ -292,13 +298,57 @@ test('a server tree at or under the total byte limit reaches the runner', async 
 test('a missing file still refuses by throwing, as the Preview API layer expects', async () => {
   const runner = spyInvoke()
   const invoker = createApplicationInvoker({
-    readFile: async () => null, invoke: runner.invoke,
+    ...reads(async () => null), invoke: runner.invoke,
     limits: limits({ maxServerTreeBytes: 1000 }),
   })
   await assert.rejects(
     () => call(invoker, 'p1', 'x'),
     invariant('APPLICATION_SERVER_FILE_MISSING'),
   )
+})
+
+const APPLICATION_SOURCE = Object.freeze({ via: 'APPLICATION', accountId: 'acct', projectId: 'p1', artifactRevisionId: 'artifact' })
+const applicationCall = (invoker) => invoker({
+  source: APPLICATION_SOURCE, serverFiles: ['conexus-server/a.mjs'], operation: 'op', input: {}, caller: CALLER, callerLeft: new AbortController().signal,
+})
+
+test('an application reads its server tree pinned to the revision it listed, and a moved or missing pin is the next request\'s to answer', async () => {
+  const runner = spyInvoke()
+  const answers = {
+    ok: { ok: true, artifactRevisionId: 'artifact', file: { path: 'conexus-server/a.mjs', sha256: 'sha', bytes: bytes(4) } },
+    stale: { ok: false, reason: 'STALE_PIN' },
+    unserved: { ok: false, reason: 'NOT_SERVED' },
+    missing: { ok: false, reason: 'NOT_FOUND' },
+  }
+  const seen = []
+  let next = answers.ok
+  const invoker = createApplicationInvoker({
+    readPreviewFile: async () => null,
+    readPinnedServedFile: async (...input) => { seen.push(input); return next },
+    invoke: runner.invoke,
+  })
+  assert.deepEqual(await applicationCall(invoker), OK)
+  assert.deepEqual(seen, [['acct', 'p1', 'artifact', 'conexus-server/a.mjs']])
+  for (const answer of [answers.stale, answers.unserved]) {
+    next = answer
+    await assert.rejects(() => applicationCall(invoker), (error) => error.id === 'APPLICATION_NOT_READY')
+  }
+  next = answers.missing
+  await assert.rejects(() => applicationCall(invoker), invariant('APPLICATION_SERVER_FILE_MISSING'))
+  assert.equal(runner.calls.length, 1, 'the runner received a file only when the pin held')
+})
+
+test('only the runner call maps its failure to APPLICATION_RUNNER_UNAVAILABLE; a failed registry read keeps its own code', async () => {
+  const unreachable = createApplicationInvoker({
+    ...reads(immediateReader(bytes(16)).readFile),
+    invoke: async () => { throw new Error('socket refused') },
+  })
+  await assert.rejects(() => call(unreachable, 'p1'), (error) => error.id === 'APPLICATION_RUNNER_UNAVAILABLE' && error.details.project === 'p1' && error.details.operation === 'op')
+  const busyDatabase = createApplicationInvoker({
+    ...reads(async () => { throw Object.assign(new Error('DATABASE_BUSY'), { id: 'DATABASE_BUSY' }) }),
+    invoke: spyInvoke().invoke,
+  })
+  await assert.rejects(() => call(busyDatabase, 'p1'), (error) => error.id === 'DATABASE_BUSY')
 })
 
 // The connector port lives exactly as long as one invocation: opened for its source before the
@@ -317,7 +367,7 @@ test('the connector port is opened for the source, named to the runner and close
   const ports = portOpener()
   const calls = []
   const invoker = createApplicationInvoker({
-    readFile: reader.readFile, openConnectorPort: ports.openConnectorPort,
+    ...reads(reader.readFile), openConnectorPort: ports.openConnectorPort,
     invoke: async (input) => { calls.push(input); ports.events.push(['invoke', input.connectorSocket]); return { status: 200, body: { ok: true } } },
   })
   assert.deepEqual(await call(invoker, 'p1'), { status: 200, body: { ok: true } })
@@ -328,7 +378,7 @@ test('the connector port is opened for the source, named to the runner and close
 test('the connector port is closed when the runner fails or times out', async () => {
   const ports = portOpener()
   const invoker = createApplicationInvoker({
-    readFile: immediateReader(bytes(16)).readFile, openConnectorPort: ports.openConnectorPort,
+    ...reads(immediateReader(bytes(16)).readFile), openConnectorPort: ports.openConnectorPort,
     invoke: async () => { throw new Error('APPLICATION_RUNNER_UNAVAILABLE') },
   })
   await assert.rejects(() => call(invoker, 'p1'), /APPLICATION_RUNNER_UNAVAILABLE/)
@@ -337,7 +387,7 @@ test('the connector port is closed when the runner fails or times out', async ()
 
 test('with no connector port the runner is called without a socket', async () => {
   const runner = spyInvoke()
-  const invoker = createApplicationInvoker({ readFile: immediateReader(bytes(16)).readFile, invoke: runner.invoke, openConnectorPort: async () => null })
+  const invoker = createApplicationInvoker({ ...reads(immediateReader(bytes(16)).readFile), invoke: runner.invoke, openConnectorPort: async () => null })
   assert.equal((await call(invoker, 'p1')).status, 200)
   assert.equal(Object.hasOwn(runner.calls[0], 'connectorSocket'), false)
 })

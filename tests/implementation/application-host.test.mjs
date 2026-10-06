@@ -55,32 +55,34 @@ const harness = async (t, { authorityFor, application = APPLICATION, invokeAppli
     },
     async signOut(sessionToken) { calls.push({ name: 'signOut', sessionToken }); sessions.delete(sessionToken) },
   }
-  const reader = {
-    async served({ projectId }) {
+  const registry = {
+    async readServedManifest(_accountId, projectId) {
       reads.push('served')
       return projectId === PROJECT_A ? { artifactRevisionId: ARTIFACT, files: Object.entries(files).map(([path, file]) => ({ path, mediaType: file.mediaType })) } : null
     },
-    async readServedFile({ projectId, path }) {
+    async readServedFile(_accountId, projectId, path) {
       reads.push(`readServedFile ${path}`)
-      if (projectId !== PROJECT_A) return { kind: 'NOT_SERVED' }
+      if (projectId !== PROJECT_A) return { ok: false, reason: 'NOT_SERVED' }
       const file = files[path]
       return file
-        ? { kind: 'FILE', artifactRevisionId: ARTIFACT, file: { path, mediaType: file.mediaType, bytes: Buffer.from(file.text), sha256: sha(file.text).toString('hex') } }
-        : { kind: 'NOT_FOUND', artifactRevisionId: ARTIFACT }
+        ? { ok: true, artifactRevisionId: ARTIFACT, file: { path, mediaType: file.mediaType, bytes: Buffer.from(file.text), sha256: sha(file.text).toString('hex') } }
+        : { ok: false, reason: 'NOT_FOUND' }
     },
+    readPreviewFile: async () => null,
+    readPinnedServedFile: async () => ({ ok: false, reason: 'NOT_SERVED' }),
   }
   const recordInvocation = async ({ callerLeft: _callerLeft, ...input }) => { calls.push({ name: 'invoke', input }); return { status: 200, body: { ok: true } } }
   const mar = createMarModule({
     sessions: { redeem: async () => null, previewAuthority: async () => ({ kind: 'SIGN_IN_REQUIRED' }) },
-    registryReader: async () => null,
+    registry,
     exactHubOrigin: HUB,
     previewPort: 3444,
-    applicationHost: { sessions: hostSessions, reader, application },
+    applicationHost: { sessions: hostSessions, application },
   })
   const { app } = await testListener({
     policy: mar.applicationHost.policy,
     registerRoutes: (server) => registerApplicationHostRoutes(server, {
-      exactHubOrigin: HUB, application, sessions: hostSessions, reader, invokeApplication: invokeApplication ?? recordInvocation,
+      exactHubOrigin: HUB, application, sessions: hostSessions, reader: registry, invokeApplication: invokeApplication ?? recordInvocation,
     }),
   })
   t.after(() => app.close())

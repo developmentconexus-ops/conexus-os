@@ -1,6 +1,6 @@
 // GENERATED from contracts/technical/hub-database-roles.json by scripts/generate-hub-role-register.mjs. Do not edit.
 
-export const HUB_ROLE_REGISTER_DIGEST = "7dc5aae03f30c11fea86edbb407e911a9e005cbdf6141062f579e5a30d20d376"
+export const HUB_ROLE_REGISTER_DIGEST = "d381ba7f43366124dc39a60eeb8f06c69e7d9f98614aa3d2cc436b54701b8d4c"
 
 export type HubRoleRow = Readonly<{
   role: string

@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import { AccountId, ApplicationFilePath, ProjectId, type ArtifactRevisionId, type MediaType, type Sha256 } from '../../../../packages/contract/dist/index.js'
 import type { Caller } from '../platform/caller.js'
 import { applicationSlugOfHost } from '../platform/config.js'
 import type { ApplicationAddress } from '../platform/config.js'
@@ -28,14 +29,13 @@ export type ApplicationHostSessions = Readonly<{
 }>
 
 export type ApplicationHostReader = Readonly<{
-  served(input: Readonly<{ accountId: string; projectId: string }>): Promise<Readonly<{
-    artifactRevisionId: string
-    files: readonly Readonly<{ path: string; mediaType: string }>[]
+  readServedManifest(accountId: AccountId, projectId: ProjectId): Promise<Readonly<{
+    artifactRevisionId: ArtifactRevisionId
+    files: ReadonlyArray<Readonly<{ path: ApplicationFilePath; mediaType: MediaType }>>
   }> | null>
-  readServedFile(input: Readonly<{ accountId: string; projectId: string; path: string }>): Promise<
-    | Readonly<{ kind: 'NOT_SERVED' }>
-    | Readonly<{ kind: 'NOT_FOUND'; artifactRevisionId: string }>
-    | Readonly<{ kind: 'FILE'; artifactRevisionId: string; file: Readonly<{ path: string; mediaType: string; bytes: Uint8Array; sha256: string }> }>
+  readServedFile(accountId: AccountId, projectId: ProjectId, path: ApplicationFilePath): Promise<
+    | Readonly<{ ok: true; artifactRevisionId: ArtifactRevisionId; file: Readonly<{ path: ApplicationFilePath; mediaType: MediaType; sha256: Sha256; bytes: Uint8Array }> }>
+    | Readonly<{ ok: false; reason: 'NOT_SERVED' | 'NOT_FOUND' }>
   >
 }>
 
@@ -126,24 +126,21 @@ export const registerApplicationHostRoutes = async (
     const authority = await dependencies.sessions.applicationAuthority({ sessionToken: readCookie(request, 'applicationSession'), projectId: target.projectId, now: now() })
     if (authority.kind === 'PROVIDER_UNAVAILABLE') throw new Failure('IDENTITY_PROVIDER_UNAVAILABLE')
     if (authority.kind === 'SIGN_IN_REQUIRED') throw new Failure('APPLICATION_SIGN_IN_REQUIRED')
-    const served = await dependencies.reader.served({ accountId: authority.caller.accountId, projectId: target.projectId })
+    const accountId = AccountId.parse(authority.caller.accountId)
+    const projectId = ProjectId.parse(target.projectId)
+    const served = await dependencies.reader.readServedManifest(accountId, projectId)
     if (!served) throw new Failure('APPLICATION_NOT_READY')
     const serverFiles = served.files.map((file) => file.path).filter((path) => path.startsWith(SERVER_ROOT))
     if (!OPERATION.test(request.params.operation) || serverFiles.length === 0) throw new Failure('OPERATION_NOT_FOUND')
     if (!dependencies.invokeApplication) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE')
-    let result: Awaited<ReturnType<ApplicationInvoker>>
-    try {
-      result = await dependencies.invokeApplication({
-        source: { via: 'APPLICATION', accountId: authority.caller.accountId, projectId: target.projectId, artifactRevisionId: served.artifactRevisionId },
-        serverFiles,
-        operation: request.params.operation,
-        input: request.body,
-        caller: authority.caller,
-        callerLeft: callerLeft(reply),
-      })
-    } catch (error) {
-      throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: error, details: { project: target.projectId, operation: request.params.operation } })
-    }
+    const result = await dependencies.invokeApplication({
+      source: { via: 'APPLICATION', accountId, projectId, artifactRevisionId: served.artifactRevisionId },
+      serverFiles,
+      operation: request.params.operation,
+      input: request.body,
+      caller: authority.caller,
+      callerLeft: callerLeft(reply),
+    })
     return reply.code(result.status).type('application/problem+json').send(JSON.stringify(result.body))
   } })
 
@@ -158,16 +155,23 @@ export const registerApplicationHostRoutes = async (
     if (authority.kind === 'SIGN_IN_REQUIRED') {
       return document ? startSignIn(request, reply, target.slug) : sendFailure(reply, new Failure('APPLICATION_SIGN_IN_REQUIRED'))
     }
+    const accountId = AccountId.parse(authority.caller.accountId)
+    const projectId = ProjectId.parse(target.projectId)
+    // A path the registry cannot hold is a file that is not there.
+    const readFile = async (path: string) => {
+      const parsed = ApplicationFilePath.safeParse(path)
+      return parsed.success ? dependencies.reader.readServedFile(accountId, projectId, parsed.data) : { ok: false, reason: 'NOT_FOUND' } as const
+    }
     let requested = served.kind === 'file' ? served.path : ENTRY_PATH
-    let read = await dependencies.reader.readServedFile({ accountId: authority.caller.accountId, projectId: target.projectId, path: requested })
-    if (read.kind === 'NOT_FOUND' && served.kind === 'file') {
+    let read = await readFile(requested)
+    if (!read.ok && read.reason === 'NOT_FOUND' && served.kind === 'file') {
       served = classifyAppPath(request.method, pathname, () => false)
       if (served.kind !== 'app-shell') return reply.code(404).send()
       requested = ENTRY_PATH
-      read = await dependencies.reader.readServedFile({ accountId: authority.caller.accountId, projectId: target.projectId, path: requested })
+      read = await readFile(requested)
     }
-    if (read.kind === 'NOT_SERVED') return html(reply, 503, NOT_READY)
-    if (read.kind === 'NOT_FOUND' || read.file.path !== requested || digest(read.file.bytes).toString('hex') !== read.file.sha256) return reply.code(404).send()
+    if (!read.ok && read.reason === 'NOT_SERVED') return html(reply, 503, NOT_READY)
+    if (!read.ok || read.file.path !== requested || digest(read.file.bytes).toString('hex') !== read.file.sha256) return reply.code(404).send()
     return reply.type(read.file.mediaType).send(Buffer.from(read.file.bytes))
   }
   route.navigation({ url: '/', handler: serve })

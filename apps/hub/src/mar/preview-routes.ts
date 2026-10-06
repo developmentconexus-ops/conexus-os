@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import { AccountId, ApplicationFilePath, ArtifactRevisionId, ProjectId, SourceRevision, type MediaType, type Sha256 } from '../../../../packages/contract/dist/index.js'
 import { classifyAppPath, SERVER_ROOT } from '../platform/application-path.js'
 import type { Caller } from '../platform/caller.js'
 import { Failure } from '../platform/failure.js'
@@ -34,13 +35,13 @@ export type PreviewSessions = Readonly<{
   previewAuthority(input: Readonly<{ sessionToken: string | undefined; exactHost: string }>): Promise<Readonly<{ kind: 'SIGNED_IN'; binding: PreviewBinding }> | Refused>
 }>
 
-type RegistryReader = (input: Readonly<{
-  accountId: string
-  projectId: string
-  sourceRevision: string
-  artifactRevisionId: string
-  path: string
-}> ) => Promise<Readonly<{ path: string; mediaType: string; bytes: Uint8Array; sha256: string }> | null>
+/** The registry's read of one file of the exact revision a Preview launched on, declared structurally: the MAR owner does not import the registry. */
+type RegistryReader = (accountId: AccountId, at: Readonly<{
+  projectId: ProjectId
+  sourceRevision: SourceRevision
+  artifactRevisionId: ArtifactRevisionId
+  path: ApplicationFilePath
+}>) => Promise<Readonly<{ path: ApplicationFilePath; mediaType: MediaType; sha256: Sha256; bytes: Uint8Array }> | null>
 
 export type PreviewRouteDependencies = Readonly<{
   sessions: PreviewSessions
@@ -55,6 +56,14 @@ const sameBinding = (left: PreviewBinding, right: PreviewBinding): boolean => (
   left.accountId === right.accountId && left.projectId === right.projectId && left.sourceRevision === right.sourceRevision &&
   left.artifactRevisionId === right.artifactRevisionId && left.artifactDigest === right.artifactDigest && left.exactHost === right.exactHost
 )
+
+// The binding comes from a Preview session row; the registry takes it as branded ids.
+const subjectOf = (binding: PreviewBinding) => ({
+  accountId: AccountId.parse(binding.accountId),
+  projectId: ProjectId.parse(binding.projectId),
+  sourceRevision: SourceRevision.parse(binding.sourceRevision),
+  artifactRevisionId: ArtifactRevisionId.parse(binding.artifactRevisionId),
+})
 
 export const OPERATION = /^[a-z][A-Za-z0-9]{0,63}$/
 export const API_BODY_LIMIT = 64 * 1024
@@ -146,13 +155,8 @@ export const registerPreviewRoutes = async (
     if (!declared) return reply.code(404).send()
     let file: Awaited<ReturnType<RegistryReader>>
     try {
-      file = await dependencies.registryReader({
-        accountId: before.accountId,
-        projectId: before.projectId,
-        sourceRevision: before.sourceRevision,
-        artifactRevisionId: before.artifactRevisionId,
-        path,
-      })
+      const { accountId, ...at } = subjectOf(before)
+      file = await dependencies.registryReader(accountId, { ...at, path: ApplicationFilePath.parse(path) })
     } catch {
       return reply.code(503).send()
     }
@@ -178,18 +182,10 @@ export const registerPreviewRoutes = async (
     const serverFiles = binding.manifest.files.map((file) => file.path).filter((path) => path.startsWith(SERVER_ROOT))
     if (!OPERATION.test(request.params.operation) || serverFiles.length === 0) throw new Failure('OPERATION_NOT_FOUND')
     if (!dependencies.invokeApplication) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE')
-    let result: Awaited<ReturnType<ApplicationInvoker>>
-    try {
-      result = await dependencies.invokeApplication({
-        source: {
-          via: 'PREVIEW', accountId: binding.accountId, projectId: binding.projectId,
-          sourceRevision: binding.sourceRevision, artifactRevisionId: binding.artifactRevisionId,
-        },
-        serverFiles, operation: request.params.operation, input: request.body, caller: binding.caller, callerLeft: callerLeft(reply),
-      })
-    } catch (error) {
-      throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: error })
-    }
+    const result = await dependencies.invokeApplication({
+      source: { via: 'PREVIEW', ...subjectOf(binding) },
+      serverFiles: serverFiles.map((path) => ApplicationFilePath.parse(path)), operation: request.params.operation, input: request.body, caller: binding.caller, callerLeft: callerLeft(reply),
+    })
     return reply.code(result.status).type('application/problem+json').send(JSON.stringify(result.body))
   }) })
   route.navigation({ url: '/', handler: tracked(serve) })

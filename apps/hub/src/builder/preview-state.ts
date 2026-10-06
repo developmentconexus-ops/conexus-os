@@ -4,6 +4,7 @@ import { BUILDER_RUN_RESULT_KINDS } from '../generated/builder-run-vocabulary.js
 import { admitProject } from '../identity-access/admission.js'
 import { sql, type Database, type TxQueries } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
+import type { BuilderRegistry, ServedLaunch } from './application-build.js'
 import { CODE_CHANGING_RESULT_KINDS } from './run-row.js'
 
 type BuilderCodeChangingRun = Readonly<{
@@ -38,8 +39,8 @@ const PreviewRow = z.object({
 export type PreviewState = Readonly<{
   readLatestCodeChangingBuilderRun(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<BuilderCodeChangingRun | null>
   readPreviewSubject(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<BuilderPreview | null>
-  /** The Preview subject of a launch: the account is admitted to build in the Project first, so a person who cannot build gets PROJECT_BUILD_DENIED before any read. */
-  readLaunchSubject(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<BuilderPreview | null>
+  /** The revision a launch shows: the account is admitted to build in the Project first, so a person who cannot build gets PROJECT_BUILD_DENIED before any read. */
+  readLaunchSubject(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<ServedLaunch | null>
   /** `readMain` reads `main` from the Conexus Git, and runs only once the account is known to see the Project. */
   admitSourceRevision(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType; sourceRevision: SourceRevision; readMain(): Promise<SourceRevision> }>): Promise<boolean>
 }>
@@ -55,7 +56,7 @@ const previewOf = async (tx: TxQueries, projectId: ProjectIdType): Promise<Build
   } : null
 }
 
-export const createPreviewState = ({ database }: Readonly<{ database: Database }>): PreviewState => {
+export const createPreviewState = ({ database, registry }: Readonly<{ database: Database; registry: Pick<BuilderRegistry, 'readLaunch'> }>): PreviewState => {
   const latestChange = (tx: TxQueries, projectId: ProjectIdType) => tx.maybe(CodeChangingRow, sql`
     SELECT run.builder_run_id, run.project_id, run.conversation_id, run.base_source_revision, run.result_source_revision, run.result_kind
     FROM builder.builder_run AS run
@@ -74,10 +75,7 @@ export const createPreviewState = ({ database }: Readonly<{ database: Database }
       } : null
     }),
     readPreviewSubject: ({ accountId, projectId }) => database.read(accountId, (tx) => previewOf(tx, projectId)),
-    readLaunchSubject: ({ accountId, projectId }) => database.transaction(accountId, async (gate) => {
-      const { tx, scope } = await admitProject(gate, projectId, 'project.build')
-      return previewOf(tx, scope.projectId)
-    }),
+    readLaunchSubject: ({ accountId, projectId }) => database.transaction(accountId, async (gate) => registry.readLaunch(await admitProject(gate, projectId, 'project.build'))),
     admitSourceRevision: ({ accountId, projectId, sourceRevision, readMain }) =>
       database.read(accountId, async (tx) => {
         const { scope } = await admitProject(tx, projectId, 'project.read')

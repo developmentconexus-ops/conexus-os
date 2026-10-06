@@ -10,6 +10,7 @@ const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
 const { createProjectDeletion } = await import(hubModuleUrl('project/deletion.js'))
 const { builderProjectPorts, purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
 const { purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
+const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
 
 export const ID = Object.freeze({
   owner: '10000000-0000-4000-8000-000000000001',
@@ -54,6 +55,7 @@ export const setupProjects = async (t, prefix, { repository } = {}) => {
     killSandboxes: async () => { events.push('kill') },
     deleteRepository: async () => { events.push('repository') },
     purgeConnectorBindings: purgeProjectBindings,
+    purgeRegistry: createRegistryModule({ database }).purge,
     purgeBuilder: purgeProjectBuilder,
   }
   const repositoryPort = repository ?? { prepare: async () => STARTER }

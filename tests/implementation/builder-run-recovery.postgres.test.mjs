@@ -73,7 +73,7 @@ const recoveryHarness = async (t, name, crashes) => {
   const outage = { active: false }
   const service = createBuilderService({
     store: sweeper,
-    applicationArtifacts: {},
+    registry: {},
     runs: {
       ports: {},
       git: {
@@ -154,11 +154,10 @@ test('a run that started in Planejar and built after the plan approval records, 
 
   await store.recordBuilderRunCandidate({ builderRunId, accountId: owner, sourceRevision: candidate })
   await store.advanceBuilderRunSource({ builderRunId, sourceRevision: candidate })
-  const [admitted] = (await query(connectionString, 'SELECT builder.admit_verified_application_source($1,$2,$3,$4) AS value', [owner, projectId, builderRunId, candidate])).rows
   await store.settleBuilderRunBuild({ builderRunId, sourceRevision: candidate, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
   const [row] = (await query(connectionString, 'SELECT state, result_kind, result_source_revision, failure_code FROM builder.builder_run WHERE builder_run_id = $1', [builderRunId])).rows
-  assert.deepEqual({ admitted: admitted.value, ...row }, {
-    admitted: true, state: 'FAILED', result_kind: 'SOURCE_CHANGED_BUILD_FAILED', result_source_revision: candidate, failure_code: 'BUILDER_PREVIEW_NOT_BUILT',
+  assert.deepEqual(row, {
+    state: 'FAILED', result_kind: 'SOURCE_CHANGED_BUILD_FAILED', result_source_revision: candidate, failure_code: 'BUILDER_PREVIEW_NOT_BUILT',
   })
 })
 

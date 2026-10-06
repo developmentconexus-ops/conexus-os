@@ -17,7 +17,7 @@ import { mountLogFilter, mountValidationFailure, registerBuilderSessionRoutes } 
 import type { ToolPayloadProjection } from './mastra-session-routes.js'
 import type { BuilderLaunchPreviewPort, BuilderSessionPort } from './routes.js'
 import { createBuilderService } from './service.js'
-import type { ApplicationServerPort, ApplicationSourceCoordinates, BuilderApplicationArtifacts, UnboundBuilderApplicationArtifacts } from './application-build.js'
+import type { ApplicationServerPort, BuilderRegistry } from './application-build.js'
 import { createBuilderStore } from './store.js'
 export { builderProjectPorts, purgeProjectBuilder } from './project-ports.js'
 import { buildTraceSummary, UNAVAILABLE_TRACE_SUMMARY } from './trace-summary.js'
@@ -92,7 +92,7 @@ const DAY_MS = 24 * HOUR_MS
 const RUN_LEASE_EVERY_MS = 10_000
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
-export const createConfiguredBuilderModule = ({ data, database, runtimePool, builder, factory, secretKey, googleAiPro, applicationArtifacts, applicationServer, launchPreview, isInstallationAdministrator, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
+export const createConfiguredBuilderModule = ({ data, database, runtimePool, builder, factory, secretKey, googleAiPro, registry, applicationServer, launchPreview, isInstallationAdministrator, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
   data: Database
   database: Readonly<{ host: string; port: number; database: string }>
   runtimePool: PostgresPool
@@ -105,7 +105,7 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
   factory: Pick<FactoryRuntimeConfig, 'databasePasswordFile'>
   secretKey: InstallationSecretKey
   googleAiPro?: GoogleAiProRuntimeConfig
-  applicationArtifacts: UnboundBuilderApplicationArtifacts
+  registry: BuilderRegistry
   applicationServer?: ApplicationServerPort
   launchPreview?: BuilderLaunchPreviewPort
   isInstallationAdministrator(account: AccountId): Promise<boolean>
@@ -119,7 +119,7 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
   assertBuilderSkillsAvailable()
   const check = loadCheckBundle()
   const log = logLine
-  const store = createBuilderStore({ database: data, ownerId: randomUUID() })
+  const store = createBuilderStore({ database: data, ownerId: randomUUID(), registry })
   // Google AI Pro's credential lives in model.model_account (spec 0002), sealed with the same
   // envelope every Conexus secret uses.
   const modelAccounts = createModelAccountStore({
@@ -129,15 +129,6 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
   const googleAiProAccounts = createGoogleAiProAccounts(modelAccounts)
   const readDefault = async (role: ModelRole): Promise<string | null> =>
     (await runtimePool.query<{ model_id: string | null }>('SELECT model.read_installation_default($1) AS model_id', [role])).rows[0]?.model_id ?? null
-  const getApplicationBySource = applicationArtifacts.getApplicationBySource
-  const readApplicationFileBySource = applicationArtifacts.readApplicationFileBySource
-  const retainApplicationThumbnail = applicationArtifacts.retainApplicationThumbnail
-  const boundApplicationArtifacts: BuilderApplicationArtifacts = Object.freeze({
-    ...(getApplicationBySource ? { getApplicationBySource: (input: ApplicationSourceCoordinates) => getApplicationBySource(runtimePool, input) } : {}),
-    retainApplication: (input) => applicationArtifacts.retainApplication(runtimePool, input),
-    ...(retainApplicationThumbnail ? { retainApplicationThumbnail: (input: Parameters<NonNullable<typeof retainApplicationThumbnail>>[1]) => retainApplicationThumbnail(runtimePool, input) } : {}),
-    ...(readApplicationFileBySource ? { readApplicationFileBySource: (input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>) => readApplicationFileBySource(runtimePool, input) } : {}),
-  })
   const git = createConexusGit({ root: builder.gitRoot, starter: [...fixedApplicationStarterFiles(), ...APPLICATION_SHAPE_FILES, ...starterProjectFiles()] })
   const storagePool = openFactoryPool({ ...database, user: 'hub_factory', passwordFile: factory.databasePasswordFile, options: '-c search_path=factory', max: 20, connectionTimeoutMillis: AGENT_STORAGE_CONNECT_TIMEOUT_MS })
   const storage = createBuilderStorage(storagePool)
@@ -251,7 +242,7 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
     questionWaitMs: builder.questionWaitMs,
   })
   const service = createBuilderService({
-    store, applicationArtifacts: boundApplicationArtifacts, ...(applicationServer ? { applicationServer } : {}), runs,
+    store, registry, ...(applicationServer ? { applicationServer } : {}), runs,
   })
   // The first lease pass runs at start: the runs a stopped Hub left in flight are settled once their heartbeat is stale.
   const jobs: readonly Job[] = [
@@ -335,8 +326,6 @@ export const createConfiguredBuilderModule = ({ data, database, runtimePool, bui
       await liveConversations.drop(projectId, conversationIds)
       await git.deleteRepository(projectId)
     },
-    readApplicationFileBySource: service.readApplicationFileBySource,
-    getApplicationBySource: service.getApplicationBySource,
     close: async () => {
       // The Hub closed its jobs first, so no pass reads what closes below.
       try {

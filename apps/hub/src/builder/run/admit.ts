@@ -1,7 +1,7 @@
-import { ArtifactDigest, ArtifactRevisionId, SourceRevision as SourceRevisionSchema, type AccountId, type BuilderRunId, type ProjectId, type SourceRevision } from '../../../../../packages/contract/dist/index.js'
+import { SourceRevision as SourceRevisionSchema, type BuilderRunId, type ProjectId, type SourceRevision } from '../../../../../packages/contract/dist/index.js'
 import { RECIPE_SHA256, TEMPLATE_REF } from '../application-artifact-runtime.js'
-import { prepareApplicationServer, prepareBuilderRunApplicationArtifact } from '../application-build.js'
-import type { ApplicationServerPort, BuilderApplicationArtifacts } from '../application-build.js'
+import { prepareApplicationServer } from '../application-build.js'
+import type { ApplicationServerPort, BuilderRegistry } from '../application-build.js'
 import type { CandidateVerdict } from '../candidate-gate.js'
 import type { ConexusGit } from '../conexus-git.js'
 import type { createRunTiming } from '../run-timing.js'
@@ -50,17 +50,15 @@ export const admitCandidate = async ({ git, projectId, executionId, base, verdic
   return { admitted, applicationBuild }
 }
 
-type AdmittedRun = Readonly<{ accountId: AccountId; projectId: ProjectId; conversationId: ConversationId; builderRunId: BuilderRunId }>
-
-const THUMBNAIL_LIMIT_BYTES = 512_000
+type AdmittedRun = Readonly<{ projectId: ProjectId; conversationId: ConversationId; builderRunId: BuilderRunId }>
 
 /**
  * The source is on `main`, so a stop arriving now is too late: the run records it and settles
  * admitted, with its Preview, or with the build failure and the last good Preview kept.
  */
-export const settleAdmittedSource = async ({ store, applicationArtifacts, applicationServer, appendDiagnostic, finalizing }: Readonly<{
+export const settleAdmittedSource = async ({ store, registry, applicationServer, appendDiagnostic, finalizing }: Readonly<{
   store: Pick<BuilderStore, 'advanceBuilderRunSource' | 'settleBuilderRunBuild'>
-  applicationArtifacts: BuilderApplicationArtifacts
+  registry: Pick<BuilderRegistry, 'seal'>
   applicationServer: ApplicationServerPort | undefined
   appendDiagnostic: DiagnosticAppender
   /** The database refuses a phase once a stop is requested; an admitted run still settles. */
@@ -83,30 +81,15 @@ export const settleAdmittedSource = async ({ store, applicationArtifacts, applic
     return
   }
   try {
-    const artifact = await prepareBuilderRunApplicationArtifact({ applicationArtifacts }, {
-      accountId: run.accountId, projectId: run.projectId, builderRunId: run.builderRunId,
-      sourceRevision: admitted,
-      compiledApplication: applicationBuild.compiledApplication,
-    })
+    // Sealed before the runner: an invalid build fails here, before the Preview database migrates.
+    const sealed = registry.seal(
+      { compiledApplication: applicationBuild.compiledApplication, thumbnail: applicationBuild.thumbnail ?? null },
+      { projectId: run.projectId, builderRunId: run.builderRunId, sourceRevision: admitted },
+    )
     const server = await prepareApplicationServer(applicationServer, applicationBuild.compiledApplication)
     if (server?.reset) await note('APPLICATION_PREVIEW_DATA_RESET', 'PREVIEW_DATA_RESET')
-    // The registry admits a thumbnail only for a run that is still working, so it is retained before the settlement.
-    const thumbnail = applicationBuild.thumbnail
-    if (thumbnail && applicationArtifacts.retainApplicationThumbnail && thumbnail.bytes.byteLength > 0 && thumbnail.bytes.byteLength <= THUMBNAIL_LIMIT_BYTES) {
-      // A thumbnail that is not retained never fails the settlement.
-      await applicationArtifacts.retainApplicationThumbnail({
-        accountId: run.accountId,
-        projectId: run.projectId,
-        executionId: applicationBuild.compiledApplication.executionId,
-        sourceRevision: admitted,
-        artifactRevisionId: artifact.artifactRevisionId,
-        mediaType: thumbnail.mediaType,
-        bytes: thumbnail.bytes,
-      }).catch(() => undefined)
-    }
     await finalizing()
-    await store.settleBuilderRunBuild({ kind: 'BUILT', builderRunId: run.builderRunId, sourceRevision: admitted,
-      artifactRevisionId: ArtifactRevisionId.parse(artifact.artifactRevisionId), artifactDigest: ArtifactDigest.parse(artifact.artifactDigest) })
+    await store.settleBuilderRunBuild({ kind: 'BUILT', builderRunId: run.builderRunId, sourceRevision: admitted, sealed })
     if (applicationBuild.bootProblems) await note('APPLICATION_BOOT_PROBLEMS', 'BOOT_PROBLEMS', applicationBuild.bootProblems)
   } catch (error) {
     const code = toFailure(error).id

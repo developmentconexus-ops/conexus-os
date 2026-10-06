@@ -1,80 +1,27 @@
-import { z } from 'zod'
-import type { ApplicationProfile } from '../platform/application-template-pins.js'
-import type { CompiledApplication } from './application-artifact-runtime.js'
+import type { ApplicationFilePath, ArtifactDigest, ArtifactRevisionId, BuilderRunId, MediaType, ProjectId, SourceRevision } from '../../../../packages/contract/dist/index.js'
+import type { Admitted, ProjectScope, RunScope } from '../identity-access/admission.js'
+import type { CompiledApplication, CompiledApplicationThumbnail } from './application-artifact-runtime.js'
 import type { PrepareResult } from '../app-runner/server-manifest.js'
 import type { CandidateOperationPorts } from './run-operation.js'
 import { Failure } from '../platform/failure.js'
 
-export type BuilderRunApplicationBuildRequest = Readonly<{
-  accountId: string
-  projectId: string
-  builderRunId: string
-  sourceRevision: string
-  compiledApplication: CompiledApplication
-}>
+/** A build sealed by the registry before the runner: the Project, the source and the digest it will be retained under. */
+export type SealedApplication = Readonly<{ projectId: ProjectId; sourceRevision: SourceRevision; digest: ArtifactDigest }>
 
-export type ApplicationSourceCoordinates = Readonly<{
-  accountId: string
-  projectId: string
-  sourceRevision: string
-}>
-
-type ApplicationArtifactClient = Readonly<{
-  query(statement: string, values?: readonly unknown[]): Promise<{ rows: Record<string, unknown>[] }>
-}>
-
-export type ApplicationArtifactMetadata = Readonly<{
-  artifactRevisionId: string
-  artifactDigest: string
-  projectId: string
-  sourceRevision: string
-  profile: ApplicationProfile
-  templateRef: string
-  recipeSha256: string
+/** What the Preview launch needs of the revision the Project serves. */
+export type ServedLaunch = Readonly<{
+  sourceRevision: SourceRevision
+  artifactRevisionId: ArtifactRevisionId
+  digest: ArtifactDigest
   entryPath: 'index.html'
-  files: readonly Readonly<{
-    path: string
-    mediaType: string
-    byteLength: number
-    sha256: string
-  }>[]
+  files: ReadonlyArray<Readonly<{ path: ApplicationFilePath; mediaType: MediaType }>>
 }>
 
-export type ApplicationArtifactReadResult = Readonly<{
-  path: string
-  mediaType: string
-  bytes: Uint8Array
-  sha256: string
-}>
-
-export type BuilderApplicationArtifacts = Readonly<{
-  getApplicationBySource?(input: ApplicationSourceCoordinates): Promise<ApplicationArtifactMetadata | null>
-  retainApplication(input: Readonly<{ accountId: string; compiled: CompiledApplication }>): Promise<ApplicationArtifactMetadata>
-  retainApplicationThumbnail?(input: Readonly<{
-    accountId: string
-    projectId: string
-    executionId: string
-    sourceRevision: string
-    artifactRevisionId: string
-    mediaType: 'image/png'
-    bytes: Uint8Array
-  }>): Promise<unknown>
-  readApplicationFileBySource?(input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
-}>
-
-export type UnboundBuilderApplicationArtifacts = Readonly<{
-  getApplicationBySource?(client: ApplicationArtifactClient, input: ApplicationSourceCoordinates): Promise<ApplicationArtifactMetadata | null>
-  retainApplication(client: ApplicationArtifactClient, input: Readonly<{ accountId: string; compiled: unknown }>): Promise<ApplicationArtifactMetadata>
-  retainApplicationThumbnail?(client: ApplicationArtifactClient, input: Readonly<{
-    accountId: string
-    projectId: string
-    executionId: string
-    sourceRevision: string
-    artifactRevisionId: string
-    mediaType: 'image/png'
-    bytes: Uint8Array
-  }>): Promise<unknown>
-  readApplicationFileBySource?(client: ApplicationArtifactClient, input: ApplicationSourceCoordinates & Readonly<{ artifactRevisionId: string; path: string }>): Promise<ApplicationArtifactReadResult | null>
+/** The registry owner's part in a Builder run, as the Builder declares it. The methods are bivariant on purpose: the registry's sealed type is nominal and the Builder's is its shape. */
+export type BuilderRegistry = Readonly<{
+  seal(outcome: Readonly<{ compiledApplication: CompiledApplication; thumbnail: CompiledApplicationThumbnail | null }>, run: Readonly<{ projectId: ProjectId; builderRunId: BuilderRunId; sourceRevision: SourceRevision }>): SealedApplication
+  retain(proof: Admitted<RunScope>, sealed: SealedApplication): Promise<Readonly<{ artifactRevisionId: ArtifactRevisionId; digest: ArtifactDigest }>>
+  readLaunch(proof: Admitted<ProjectScope<'project.build'>>): Promise<ServedLaunch | null>
 }>
 
 // The application runner, as the Builder needs it: converge a Project's Preview schema on a built
@@ -107,19 +54,4 @@ export const prepareApplicationServer = async (
   if (prepared.state === 'MIGRATION_FAILED') throw new Failure('APPLICATION_MIGRATION_FAILED', { cause: prepared.detail })
   if (prepared.state === 'MIGRATION_HISTORY_DIVERGED') throw new Failure('APPLICATION_MIGRATION_HISTORY_DIVERGED', { cause: prepared.detail })
   return { reset: prepared.reset }
-}
-
-export const prepareBuilderRunApplicationArtifact = async (
-  dependencies: Readonly<{ applicationArtifacts: BuilderApplicationArtifacts }>,
-  input: BuilderRunApplicationBuildRequest,
-): Promise<ApplicationArtifactMetadata> => {
-  if (!z.uuid().safeParse(input.accountId).success || !z.uuid().safeParse(input.projectId).success ||
-    !z.uuid().safeParse(input.builderRunId).success || !/^[0-9a-f]{40}$/i.test(input.sourceRevision)) {
-    throw new Failure('BUILDER_APPLICATION_REQUEST_REFUSED')
-  }
-  const result = input.compiledApplication
-  if (result.projectId !== input.projectId || result.executionId !== input.builderRunId || result.sourceRevision !== input.sourceRevision) {
-    throw new Failure('BUILDER_APPLICATION_RESULT_SCOPE_REFUSED')
-  }
-  return dependencies.applicationArtifacts.retainApplication({ accountId: input.accountId, compiled: result })
 }

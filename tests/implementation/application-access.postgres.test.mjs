@@ -992,54 +992,6 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
       await holder.end()
     }
   })
-
-  await t.test('one read serves a file of the served artifact, and reads only that file', async () => {
-    const { createServedApplicationReader } = await import(hubModuleUrl('registry/served-application.js'))
-    // The served functions answer only for the account the read acts as, which the Hub's read entry sets.
-    const reader = createServedApplicationReader({ read: async (account, fn) => {
-      const reading = await pool.connect()
-      try {
-        await reading.query("SELECT set_config('conexus.account_id', $1, false)", [account])
-        return await fn({
-          maybe: async (schema, statement) => {
-            const row = (await reading.query(statement.text, [...statement.values])).rows[0]
-            return row ? schema.parse(row) : null
-          },
-        })
-      } finally {
-        reading.release()
-      }
-    } })
-    const artifactId = randomUUID()
-    const revisionId = randomUUID()
-    const file = (path, mediaType, text) => ({ path, mediaType, base64: Buffer.from(text).toString('base64'), sha256: createHash('sha256').update(text).digest('hex') })
-    const payload = { entryPath: 'index.html', files: [file('index.html', 'text/html; charset=utf-8', '<!doctype html><title>Caderno</title>'), file('assets/app.js', 'text/javascript; charset=utf-8', 'console.log(1)')] }
-    await client.query("INSERT INTO reg.artifact(artifact_id, kind, semantic_name, project_id) VALUES ($1, 'application', 'caderno', $2)", [artifactId, projectId])
-    await client.query("INSERT INTO reg.artifact_revision(artifact_revision_id, artifact_id, source_revision, digest, payload, availability) VALUES ($1, $2, $3, $4, $5, 'AVAILABLE')",
-      [revisionId, artifactId, 'e'.repeat(40), 'f'.repeat(64), payload])
-    await client.query(`INSERT INTO builder.project_working_state(project_id, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest)
-      VALUES ($1, $2, $3, $4)`, [projectId, 'e'.repeat(40), revisionId, 'f'.repeat(64)])
-
-    const served = await reader.readServedFile({ accountId: owner, projectId, path: 'assets/app.js' })
-    assert.deepEqual({ ...served, file: { ...served.file, bytes: Buffer.from(served.file.bytes).toString() } }, {
-      kind: 'FILE', artifactRevisionId: revisionId,
-      file: { path: 'assets/app.js', mediaType: 'text/javascript; charset=utf-8', bytes: 'console.log(1)', sha256: createHash('sha256').update('console.log(1)').digest('hex') },
-    })
-    assert.deepEqual(await reader.readServedFile({ accountId: owner, projectId, path: 'missing.js' }), { kind: 'NOT_FOUND', artifactRevisionId: revisionId })
-    assert.deepEqual(await reader.readServedFile({ accountId: control, projectId, path: 'index.html' }), { kind: 'NOT_SERVED' }, 'no access, nothing served')
-    assert.deepEqual(await reader.readServedFile({ accountId: owner, projectId: otherProject, path: 'index.html' }), { kind: 'NOT_SERVED' }, 'no Preview built')
-    assert.equal(Buffer.from((await reader.readFile({ accountId: owner, projectId, artifactRevisionId: revisionId, path: 'index.html' })).bytes).toString(), '<!doctype html><title>Caderno</title>')
-    assert.equal(await reader.readFile({ accountId: owner, projectId, artifactRevisionId: randomUUID(), path: 'index.html' }), null, 'a pinned revision that is no longer served reads nothing')
-  })
-
-  await t.test('the served artifact is read only through application access', async () => {
-    const reads = async (accountId) => {
-      await client.query("SELECT set_config('conexus.account_id', $1, false)", [accountId])
-      return (await client.query('SELECT * FROM reg.get_served_application($1,$2)', [accountId, otherProject])).rows
-    }
-    assert.deepEqual(await reads(control), [])
-    assert.deepEqual(await reads(owner), [], 'no Preview has been built, so nothing is served')
-  })
 })
 
 test('the Hub seals in the envelope the database CHECK constraints require', { skip: configured ? false : 'real PostgreSQL configuration not supplied' }, async (t) => {

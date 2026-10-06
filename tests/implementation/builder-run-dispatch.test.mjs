@@ -71,7 +71,7 @@ test('a message hands the store a base read from main in the Conexus Git', async
     close: async () => {},
   }
   const runs = { ...makeRuns(), git: { readMain: async (id) => { reads.push(id); return main }, mainContains: async () => false } }
-  const service = createBuilderService({ store, runs, applicationArtifacts: {} })
+  const service = createBuilderService({ store, runs, registry: {} })
   const { builderRun, created } = await send(service)
   await service.close()
   assert.equal(builderRun.baseSourceRevision, main)
@@ -83,7 +83,7 @@ test('a failure before the agent keeps the request on the run and fails it with 
   const calls = []
   const store = makeStore(calls)
   const service = createBuilderService({
-    store, runs: makeRuns({ checkModel: async () => { throw new Failure('BUILDER_MODEL_NOT_SELECTED') } }), applicationArtifacts: {},
+    store, runs: makeRuns({ checkModel: async () => { throw new Failure('BUILDER_MODEL_NOT_SELECTED') } }), registry: {},
   })
   const { builderRun } = await send(service)
   await service.close()
@@ -94,7 +94,7 @@ test('a failure before the agent keeps the request on the run and fails it with 
 test('a stop records the request, stops the run and interrupts it once as the person\'s', async () => {
   const calls = []
   const hold = held()
-  const service = createBuilderService({ store: makeStore(calls), runs: makeRuns({ checkModel: hold.checkModel }), applicationArtifacts: {} })
+  const service = createBuilderService({ store: makeStore(calls), runs: makeRuns({ checkModel: hold.checkModel }), registry: {} })
   await send(service)
   await hold.atCheck
   await service.cancelBuilderRun({ accountId, projectId, builderRunId: runId })
@@ -106,7 +106,7 @@ test('a stop records the request, stops the run and interrupts it once as the pe
 test('a Hub that stops its runs interrupts a working one as HUB_RESTART, never as the person\'s stop', async () => {
   const calls = []
   const hold = held()
-  const service = createBuilderService({ store: makeStore(calls), runs: makeRuns({ checkModel: hold.checkModel }), applicationArtifacts: {} })
+  const service = createBuilderService({ store: makeStore(calls), runs: makeRuns({ checkModel: hold.checkModel }), registry: {} })
   await send(service)
   await hold.atCheck
   service.stopRuns()
@@ -121,7 +121,7 @@ test('a browser following the conversation is handed the run as the builder-sess
   const service = createBuilderService({
     store: makeStore([]),
     runs: makeRuns({ checkModel: hold.checkModel, publishRun: async (run) => { published.push([run.state, run.phase, run.cancellationRequested === true]) } }),
-    applicationArtifacts: {},
+    registry: {},
   })
   await send(service)
   await hold.atCheck
@@ -138,7 +138,7 @@ test('a browser following the conversation is handed the run as the builder-sess
 test('a phase the database refuses, as it does once a stop is requested, interrupts the run instead of failing it', async () => {
   const calls = []
   const store = makeStore(calls, { setBuilderRunPhase: async ({ phase }) => { calls.push(['phase', phase]); return null }, readBuilderRun: async () => ({ builderRunId: runId, projectId, conversationId, state: 'RUNNING', cancellationRequested: true }) })
-  const service = createBuilderService({ store, runs: makeRuns(), applicationArtifacts: {} })
+  const service = createBuilderService({ store, runs: makeRuns(), registry: {} })
   await send(service)
   await service.close()
   assert.deepEqual(calls, ['claim', ['phase', 'PREPARING'], ['interrupt', 'USER_CANCELLED']])
@@ -151,7 +151,7 @@ test("a conversation that is not the Project's is refused before a run exists", 
     createBuilderRun: async (input) => { created.push(input.conversationId); throw new Error('STOP_AFTER_CREATE') },
     close: async () => {},
   }
-  const service = createBuilderService({ store, runs: makeRuns(), applicationArtifacts: {} })
+  const service = createBuilderService({ store, runs: makeRuns(), registry: {} })
   const attempt = (conversation) => send(service, conversation, conversation).catch((error) => error.message)
   assert.deepEqual([await attempt(conversationId), await attempt('conv-missing')], ['STOP_AFTER_CREATE', 'CONVERSATION_NOT_FOUND'])
   assert.deepEqual(created, [conversationId])
@@ -174,7 +174,7 @@ const settleHarness = async ({ failures }) => {
     renewRunLease: async ({ liveRunIds: liveIds }) => (liveIds.includes(runId) || written.length > 0 ? [] : [{ builderRunId: runId, projectId, conversationId, candidateRevision: null, resultSourceRevision: null, previousOwnerId: store.ownerId }]),
   })
   const service = createBuilderService({
-    store, runs: makeRuns({ checkModel: async () => { throw new Failure('BUILDER_MODEL_INCOMPLETE') } }), applicationArtifacts: {},
+    store, runs: makeRuns({ checkModel: async () => { throw new Failure('BUILDER_MODEL_INCOMPLETE') } }), registry: {},
   })
   await send(service)
   const until = async (done) => { for (let i = 0; i < 400 && !done(); i++) await new Promise((wake) => { setTimeout(wake, 5) }) }
@@ -214,7 +214,7 @@ test('near the heap limit a new run is refused before any row exists; at the lim
   const service = createBuilderService({
     store,
     runs: { ...makeRuns({ checkModel: async () => { throw new Failure('BUILDER_MODEL_NOT_SELECTED') } }), heapUsedRatio: () => ratio },
-    applicationArtifacts: {},
+    registry: {},
   })
   await assert.rejects(send(service), { message: 'BUILDER_CAPACITY_FULL' })
   assert.deepEqual({ rows, warnings }, { rows: [], warnings: ['BUILDER_RUN_HEAP_PRESSURE:0.860'] })
@@ -227,14 +227,14 @@ test('near the heap limit a new run is refused before any row exists; at the lim
 // The admitted source's settlement, from `main` holding the candidate to the run's last write.
 const admitted = 'c'.repeat(40)
 const admittedRun = { accountId, projectId, conversationId, builderRunId: runId }
-const settle = async ({ applicationBuild, applicationArtifacts = {}, applicationServer }) => {
+const settle = async ({ applicationBuild, registry = {}, applicationServer }) => {
   const calls = []
   const store = {
     advanceBuilderRunSource: async ({ sourceRevision: revision }) => calls.push(['advance', revision]),
-    settleBuilderRunBuild: async (input) => calls.push(['build-settle', input.failureCode ?? null, input.artifactRevisionId ?? null]),
+    settleBuilderRunBuild: async (input) => calls.push(['build-settle', input.failureCode ?? null, input.sealed?.digest ?? null]),
   }
   const outcome = await settleAdmittedSource({
-    store, applicationArtifacts, applicationServer,
+    store, registry, applicationServer,
     appendDiagnostic: async (note) => calls.push(['note', note.code, note.outcome, note.detail]),
     finalizing: async () => calls.push(['phase', 'FINALIZING']),
   }, admittedRun, admitted, applicationBuild).then(() => 'SETTLED', (error) => error.message)
@@ -242,18 +242,18 @@ const settle = async ({ applicationBuild, applicationArtifacts = {}, application
 }
 const compiled = (files = []) => ({ projectId, executionId: runId, sourceRevision: admitted, templateRef: 'x', recipeSha256: 'y', files })
 const withServerTree = () => compiled([{ path: 'conexus-server/manifest.json', mediaType: 'application/json', bytes: new Uint8Array(), sha256: 'a'.repeat(64) }])
-const retained = { retainApplication: async () => ({ artifactRevisionId: '77777777-7777-4777-8777-777777777777', artifactDigest: 'd'.repeat(64) }) }
+const retained = { seal: () => ({ digest: 'd'.repeat(64) }) }
 
 test('an admitted source advances, retains its build and settles the Preview', async () => {
-  const { calls, outcome } = await settle({ applicationBuild: { kind: 'BUILT', compiledApplication: compiled() }, applicationArtifacts: retained })
+  const { calls, outcome } = await settle({ applicationBuild: { kind: 'BUILT', compiledApplication: compiled() }, registry: retained })
   assert.equal(outcome, 'SETTLED')
-  assert.deepEqual(calls, [['advance', admitted], ['phase', 'FINALIZING'], ['build-settle', null, '77777777-7777-4777-8777-777777777777']])
+  assert.deepEqual(calls, [['advance', admitted], ['phase', 'FINALIZING'], ['build-settle', null, 'd'.repeat(64)]])
 })
 
 test('a page that did not render still advances the source, and settles the build failure with a note for the agent', async () => {
   const { calls } = await settle({
     applicationBuild: { kind: 'UNRENDERED', code: 'APPLICATION_SMOKE_FAILED', detail: 'boot failed:\nBOOT_NO_ROOT_CHILD nada na tela' },
-    applicationArtifacts: { retainApplication: async () => { throw new Error('must not retain a build-failed compile') } },
+    registry: { seal: () => { throw new Error('must not seal a build-failed compile') } },
   })
   assert.deepEqual(calls, [
     ['advance', admitted], ['phase', 'FINALIZING'], ['build-settle', 'APPLICATION_SMOKE_FAILED', null],
@@ -263,7 +263,7 @@ test('a page that did not render still advances the source, and settles the buil
 
 test("a source-shape refusal from the application server settles with the runner's own code, as a build failure the agent can read", async () => {
   const { calls, outcome } = await settle({
-    applicationBuild: { kind: 'BUILT', compiledApplication: withServerTree() }, applicationArtifacts: retained,
+    applicationBuild: { kind: 'BUILT', compiledApplication: withServerTree() }, registry: retained,
     applicationServer: { prepare: async () => { throw new Failure('SERVER_TREE_REFUSED', { cause: 'SERVER_TREE_REFUSED' }) } },
   })
   assert.equal(outcome, 'SERVER_TREE_REFUSED')
@@ -275,7 +275,7 @@ test("a source-shape refusal from the application server settles with the runner
 
 test('a platform-side prepare fault settles as a platform failure, not a build failure, and still carries its reason', async () => {
   const { calls } = await settle({
-    applicationBuild: { kind: 'BUILT', compiledApplication: withServerTree() }, applicationArtifacts: retained,
+    applicationBuild: { kind: 'BUILT', compiledApplication: withServerTree() }, registry: retained,
     applicationServer: { prepare: async () => { throw new Failure('APPLICATION_SERVER_REFUSED', { cause: 'connect ECONNREFUSED 127.0.0.1:5432' }) } },
   })
   assert.deepEqual(calls, [

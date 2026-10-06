@@ -62,7 +62,6 @@ test('request logging is off: a served request writes no record of its own', asy
 const HOST_FAILURE = `
 const { createHttpApp } = await import(process.env.HUB_BUILD + '/http/app.js')
 const { createMarModule } = await import(process.env.HUB_BUILD + '/mar/module.js')
-const { registerApplicationHostRoutes } = await import(process.env.HUB_BUILD + '/mar/application-host-routes.js')
 const PROJECT = '11111111-1111-4111-8111-111111111111'
 const HOST = 'caderno.conexus.localhost:3445'
 const application = { port: 3445, domain: 'conexus.localhost' }
@@ -72,24 +71,21 @@ const hostSessions = {
   redeem: async () => null,
   signOut: async () => {},
 }
-const reader = {
-  served: async () => ({ artifactRevisionId: '33333333-3333-4333-8333-333333333333', files: [{ path: 'conexus-server/manifest.json', mediaType: 'application/json' }, { path: 'conexus-server/listDeals.ts', mediaType: 'text/plain' }] }),
-  readServedFile: async () => ({ kind: 'NOT_FOUND' }),
+const registry = {
+  readServedManifest: async () => ({ artifactRevisionId: '33333333-3333-4333-8333-333333333333', files: [{ path: 'conexus-server/manifest.json', mediaType: 'application/json; charset=utf-8' }, { path: 'conexus-server/listDeals.mjs', mediaType: 'text/javascript; charset=utf-8' }] }),
+  readServedFile: async () => ({ ok: false, reason: 'NOT_FOUND' }),
+  readPreviewFile: async () => null,
+  readPinnedServedFile: async (_account, _project, artifactRevisionId, path) => ({ ok: true, artifactRevisionId, file: { path, sha256: 'e'.repeat(64), bytes: new Uint8Array(4) } }),
 }
 const mar = createMarModule({
   sessions: { redeem: async () => null, previewAuthority: async () => ({ kind: 'SIGN_IN_REQUIRED' }) },
-  registryReader: async () => null,
+  registry,
+  applicationRunner: { invoke: async () => { throw new Error('runner socket refused: PLANTED_RUNNER_CAUSE') } },
   exactHubOrigin: 'https://hub.conexus.localhost:3443',
   previewPort: 3444,
-  applicationHost: { sessions: hostSessions, reader, application },
+  applicationHost: { sessions: hostSessions, application },
 })
-const app = await createHttpApp({ policy: mar.applicationHost.policy, staticRoot: null, registerRoutes: (server) => registerApplicationHostRoutes(server, {
-  exactHubOrigin: 'https://hub.conexus.localhost:3443',
-  application,
-  sessions: hostSessions,
-  reader,
-  invokeApplication: async () => { throw new Error('runner socket refused: PLANTED_RUNNER_CAUSE') },
-}) })
+const app = await createHttpApp({ policy: mar.applicationHost.policy, staticRoot: null, registerRoutes: mar.applicationHost.registerRoutes })
 const answer = await app.inject({ method: 'POST', url: '/__conexus/api/listDeals', cookies: { '__Host-conexus_app': 't'.repeat(43) }, payload: {},
   headers: { host: HOST, 'content-type': 'application/json', origin: 'https://' + HOST } })
 console.log(JSON.stringify({ answer: [answer.statusCode, answer.json()] }))
