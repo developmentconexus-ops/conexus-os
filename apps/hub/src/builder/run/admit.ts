@@ -88,7 +88,7 @@ export const settleAdmittedSource = async ({ store, registry, applicationServer,
     const server = await prepareApplicationServer(applicationServer, applicationBuild.compiledApplication)
     if (server?.reset) await note('APPLICATION_PREVIEW_DATA_RESET', 'PREVIEW_DATA_RESET')
     await finalizing()
-    await store.settleBuilderRunBuild({ kind: 'BUILT', builderRunId: run.builderRunId, sourceRevision: admitted, sealed })
+    await store.settleBuilderRunBuild({ kind: 'BUILT', builderRunId: run.builderRunId, sealed })
     if (applicationBuild.bootProblems) await note('APPLICATION_BOOT_PROBLEMS', 'BOOT_PROBLEMS', applicationBuild.bootProblems)
   } catch (error) {
     const code = toFailure(error).id

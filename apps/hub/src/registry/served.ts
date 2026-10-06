@@ -102,7 +102,7 @@ const LaunchColumns = {
   entry_path: z.literal('index.html'),
   profile: z.string(),
   template_ref: z.string(),
-  recipe_sha256: z.string(),
+  recipe_sha256: Sha256,
   files: ManifestFiles,
 }
 

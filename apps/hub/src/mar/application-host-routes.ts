@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { AccountId, ApplicationFilePath, ProjectId, type ArtifactRevisionId, type MediaType, type Sha256 } from '../../../../packages/contract/dist/index.js'
+import { ApplicationFilePath, type AccountId, type ArtifactRevisionId, type ProjectId, type MediaType, type Sha256 } from '../../../../packages/contract/dist/index.js'
 import type { Caller } from '../platform/caller.js'
 import { applicationSlugOfHost } from '../platform/config.js'
 import type { ApplicationAddress } from '../platform/config.js'
@@ -22,7 +22,7 @@ type Authority =
 
 // The ports this host needs, declared structurally: the MAR owner does not import identity-access.
 export type ApplicationHostSessions = Readonly<{
-  applicationBySlug(slug: string): Promise<string | null>
+  applicationBySlug(slug: string): Promise<ProjectId | null>
   applicationAuthority(input: Readonly<{ sessionToken: string | undefined; projectId: string; now?: Date }>): Promise<Authority>
   redeem(input: Readonly<{ handoff: string; target: Readonly<{ kind: 'APPLICATION'; projectId: string; binding: string }>; now?: Date }>): Promise<Readonly<{ sessionToken: string; maxAgeSeconds: number }> | null>
   signOut(sessionToken: string): Promise<void>
@@ -65,7 +65,7 @@ export const registerApplicationHostRoutes = async (
   const now = dependencies.now ?? (() => new Date())
   const route = routes(app)
 
-  type Resolved = Readonly<{ slug: string; projectId: string }>
+  type Resolved = Readonly<{ slug: string; projectId: ProjectId }>
   const application = async (request: FastifyRequest): Promise<Resolved | null> => {
     const slug = applicationSlugOfHost(dependencies.application, request.headers.host)
     if (!slug) return null
@@ -126,8 +126,8 @@ export const registerApplicationHostRoutes = async (
     const authority = await dependencies.sessions.applicationAuthority({ sessionToken: readCookie(request, 'applicationSession'), projectId: target.projectId, now: now() })
     if (authority.kind === 'PROVIDER_UNAVAILABLE') throw new Failure('IDENTITY_PROVIDER_UNAVAILABLE')
     if (authority.kind === 'SIGN_IN_REQUIRED') throw new Failure('APPLICATION_SIGN_IN_REQUIRED')
-    const accountId = AccountId.parse(authority.caller.accountId)
-    const projectId = ProjectId.parse(target.projectId)
+    const accountId = authority.caller.accountId
+    const projectId = target.projectId
     const served = await dependencies.reader.readServedManifest(accountId, projectId)
     if (!served) throw new Failure('APPLICATION_NOT_READY')
     const serverFiles = served.files.map((file) => file.path).filter((path) => path.startsWith(SERVER_ROOT))
@@ -155,8 +155,8 @@ export const registerApplicationHostRoutes = async (
     if (authority.kind === 'SIGN_IN_REQUIRED') {
       return document ? startSignIn(request, reply, target.slug) : sendFailure(reply, new Failure('APPLICATION_SIGN_IN_REQUIRED'))
     }
-    const accountId = AccountId.parse(authority.caller.accountId)
-    const projectId = ProjectId.parse(target.projectId)
+    const accountId = authority.caller.accountId
+    const projectId = target.projectId
     const readFile = async (path: string) => {
       const parsed = ApplicationFilePath.safeParse(path)
       return parsed.success ? dependencies.reader.readServedFile(accountId, projectId, parsed.data) : { ok: false, reason: 'NOT_FOUND' } as const

@@ -1,6 +1,5 @@
 import { z } from 'zod'
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+import { AccountId } from '../../../../packages/contract/dist/index.js'
 
 /**
  * The person an application request acts for. The platform builds it from a resolved session (the
@@ -9,7 +8,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
  * the email and the account owns the name, so neither is judged again here.
  */
 export const callerSchema = z.object({
-  accountId: z.string().regex(UUID),
+  accountId: AccountId,
   email: z.string().min(1).nullable(),
   displayName: z.string().min(1),
 }).strict().readonly()

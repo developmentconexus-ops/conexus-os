@@ -49,7 +49,9 @@ test('seal keeps a PNG of 1 to 512000 bytes and drops anything else without fail
 test('seal gives the digest of the canonical payload of one file whatever the thumbnail', () => {
   const html = fileOf('index.html', 'text/html; charset=utf-8', '<html></html>')
   const digest = (thumbnail) => seal({ ...outcome([html]), thumbnail }, run).digest
-  assert.equal(digest(null), digest({ bytes: Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0]) }))
+  const D_E = '6f54e6f0ca33c0e20da4dd7fdd7ed10b89cb6a282d38768aed2c64329c11e36b'
+  assert.equal(digest(null), D_E)
+  assert.equal(digest({ bytes: Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0]) }), D_E)
 })
 
 test('seal refuses a build of 12582913 bytes and accepts one of 12582912', () => {

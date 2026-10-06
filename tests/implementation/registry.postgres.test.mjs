@@ -124,6 +124,18 @@ test('the application check refuses a revoked grant, a removed membership, a del
   assert.equal(source !== null, visible, 'the source read follows the reader policy of the Project')
 })
 
+test('a subclass of the sealed build that seal did not make is refused by retention and leaves no row', async (t) => {
+  const { store, seedBuilderProject, runFor, runRow, rows } = await world(t, 'conexus_registry_forged')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
+  const builderRunId = await runFor(projectId)
+  const { SealedApplication } = await import(hubModuleUrl('platform/sealed-application.js'))
+  class Forged extends SealedApplication {}
+  const forged = new Forged(projectId, SOURCE_E, D_E)
+  await assert.rejects(store.settleBuilderRunBuild({ builderRunId, kind: 'BUILT', sealed: forged }), invariant('SEALED_APPLICATION_NOT_SEALED'))
+  assert.deepEqual(await rows(projectId), { revisions: 0, thumbnails: 0 })
+  assert.equal((await runRow(builderRunId)).state, 'RUNNING')
+})
+
 test('retention writes one revision for one source, returns it again to every run that seals the same bytes, and refuses different bytes', async (t) => {
   const { database, connection, seedBuilderProject, registry, rows, pointer, runFor, settle, sealFor, runRow } = await world(t, 'conexus_registry_retain')
   const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
@@ -235,7 +247,7 @@ test('a stop requested after the source was admitted does not stop the settlemen
   assert.equal((await pointer(projectId)).digest, D_E)
 })
 
-test('the settlement of a build of 12 MiB holds the run row for less than the heartbeat lock timeout', async (t) => {
+test('the settlement of a build of 12 MiB takes less than the heartbeat lock timeout, an upper bound on how long it holds the run row', async (t) => {
   const { seedBuilderProject, runFor, settle } = await world(t, 'conexus_registry_size')
   const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   const builderRunId = await runFor(projectId)
@@ -337,7 +349,7 @@ test('a build sealed for one Project is refused under the proof of a run of anot
   const runA = await runFor(projectA)
   const runB = await runFor(projectB)
   const sealedForA = sealFor(projectA, runA, [F], { thumbnail: { bytes: PNG_T2 } })
-  await assert.rejects(store.settleBuilderRunBuild({ builderRunId: runB, sourceRevision: SOURCE_E, kind: 'BUILT', sealed: sealedForA }), { id: 'BUILDER_RUN_TRANSITION_REFUSED' })
+  await assert.rejects(store.settleBuilderRunBuild({ builderRunId: runB, kind: 'BUILT', sealed: sealedForA }), { id: 'BUILDER_RUN_TRANSITION_REFUSED' })
   assert.deepEqual([await rows(projectA), await rows(projectB)], [{ revisions: 0, thumbnails: 0 }, { revisions: 0, thumbnails: 0 }])
 })
 
@@ -366,16 +378,16 @@ test('a call with no account, an outsider with no filter and a member of another
   }
 })
 
-test('an application grantee gets the literal source, id and digest of the served revision on the command role, and a registry fault keeps its own code', async (t) => {
-  const { database, seedBuilderProject, served } = await world(t, 'conexus_registry_command_read')
+test('an application grantee reads the served revision through the registry on the command role, and a registry fault keeps its own code', async (t) => {
+  const { database, seedBuilderProject, registry, served } = await world(t, 'conexus_registry_command_read')
   const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   const { second } = await served(projectId)
-  const Pointer = z.object({ source: z.string(), revision: z.string(), digest: z.string() })
-  const pointer = await database.transaction(ID.outsider, async (gate) => {
-    const { tx } = await checkApplication(gate, projectId)
-    return tx.one(Pointer, sql`SELECT last_preview_source_revision AS source, last_preview_artifact_revision_id AS revision, last_preview_artifact_digest AS digest FROM builder.project_working_state WHERE project_id = ${projectId}`, 'INTERNAL_UNEXPECTED')
-  })
-  assert.deepEqual(pointer, { source: SOURCE_2, revision: second, digest: DIGEST_2 })
+  const manifest = await registry.readServedManifest(ID.outsider, projectId)
+  assert.equal(manifest?.artifactRevisionId, second)
+  const file = await registry.readServedFile(ID.outsider, projectId, 'index.html')
+  assert.equal(file.ok && file.artifactRevisionId, second)
+  const launch = await database.transaction(ID.member, async (gate) => registry.readLaunch(await admitProject(gate, projectId, 'project.build')))
+  assert.deepEqual({ source: launch?.sourceRevision, revision: launch?.artifactRevisionId, digest: launch?.digest }, { source: SOURCE_2, revision: second, digest: DIGEST_2 })
 
   const { Failure } = await import(hubModuleUrl('platform/failure.js'))
   const busy = createRegistryModule({ database: { ...database, transaction: () => Promise.reject(new Failure('DATABASE_BUSY')), read: () => Promise.reject(new Failure('DATABASE_BUSY')) } })

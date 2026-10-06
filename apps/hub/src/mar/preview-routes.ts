@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { AccountId, ApplicationFilePath, ProjectId, SourceRevision, type ArtifactDigest, type ArtifactRevisionId, type MediaType, type Sha256 } from '../../../../packages/contract/dist/index.js'
+import type { AccountId, ApplicationFilePath, ProjectId, SourceRevision, ArtifactDigest, ArtifactRevisionId, MediaType, Sha256 } from '../../../../packages/contract/dist/index.js'
 import { classifyAppPath, SERVER_ROOT } from '../platform/application-path.js'
 import type { Caller } from '../platform/caller.js'
 import { Failure } from '../platform/failure.js'
@@ -11,14 +11,14 @@ import { readCookie, setCookie } from '../http/cookies.js'
 
 export type PreviewHost = Readonly<{ artifactRevisionId: ArtifactRevisionId; exactHost: string; origin: string }>
 
-type ManifestFile = Readonly<{ path: string; mediaType: string }>
+type ManifestFile = Readonly<{ path: ApplicationFilePath; mediaType: MediaType }>
 type Manifest = Readonly<{ entryPath: 'index.html'; files: readonly ManifestFile[] }>
 
 // A Preview's binding, as the session port resolves it: the launch it shows and its author as the caller.
 type PreviewBinding = Readonly<{
-  accountId: string
-  projectId: string
-  sourceRevision: string
+  accountId: AccountId
+  projectId: ProjectId
+  sourceRevision: SourceRevision
   artifactRevisionId: ArtifactRevisionId
   artifactDigest: ArtifactDigest
   exactHost: string
@@ -55,13 +55,6 @@ const sameBinding = (left: PreviewBinding, right: PreviewBinding): boolean => (
   left.accountId === right.accountId && left.projectId === right.projectId && left.sourceRevision === right.sourceRevision &&
   left.artifactRevisionId === right.artifactRevisionId && left.artifactDigest === right.artifactDigest && left.exactHost === right.exactHost
 )
-
-const subjectOf = (binding: PreviewBinding) => ({
-  accountId: AccountId.parse(binding.accountId),
-  projectId: ProjectId.parse(binding.projectId),
-  sourceRevision: SourceRevision.parse(binding.sourceRevision),
-  artifactRevisionId: binding.artifactRevisionId,
-})
 
 export const OPERATION = /^[a-z][A-Za-z0-9]{0,63}$/
 export const API_BODY_LIMIT = 64 * 1024
@@ -153,8 +146,7 @@ export const registerPreviewRoutes = async (
     if (!declared) return reply.code(404).send()
     let file: Awaited<ReturnType<RegistryReader>>
     try {
-      const { accountId, ...at } = subjectOf(before)
-      file = await dependencies.registryReader(accountId, { ...at, path: ApplicationFilePath.parse(path) })
+      file = await dependencies.registryReader(before.accountId, { projectId: before.projectId, sourceRevision: before.sourceRevision, artifactRevisionId: before.artifactRevisionId, path: declared.path })
     } catch {
       return reply.code(503).send()
     }
@@ -181,8 +173,8 @@ export const registerPreviewRoutes = async (
     if (!OPERATION.test(request.params.operation) || serverFiles.length === 0) throw new Failure('OPERATION_NOT_FOUND')
     if (!dependencies.invokeApplication) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE')
     const result = await dependencies.invokeApplication({
-      source: { via: 'PREVIEW', ...subjectOf(binding) },
-      serverFiles: serverFiles.map((path) => ApplicationFilePath.parse(path)), operation: request.params.operation, input: request.body, caller: binding.caller, callerLeft: callerLeft(reply),
+      source: { via: 'PREVIEW', accountId: binding.accountId, projectId: binding.projectId, sourceRevision: binding.sourceRevision, artifactRevisionId: binding.artifactRevisionId },
+      serverFiles, operation: request.params.operation, input: request.body, caller: binding.caller, callerLeft: callerLeft(reply),
     })
     return reply.code(result.status).type('application/problem+json').send(JSON.stringify(result.body))
   }) })

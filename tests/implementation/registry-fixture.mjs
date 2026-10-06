@@ -78,7 +78,7 @@ export const world = async (t, prefix) => {
   )
   const runFor = (projectId, options = {}) => seedRun(projectId, { state: 'RUNNING', candidate: SOURCE_E, result: SOURCE_E, ...options })
   const settle = (projectId, builderRunId, files = [F], { sourceRevision = SOURCE_E, thumbnail = null } = {}) =>
-    store.settleBuilderRunBuild({ builderRunId, sourceRevision, kind: 'BUILT', sealed: sealFor(projectId, builderRunId, files, { sourceRevision, thumbnail }) })
+    store.settleBuilderRunBuild({ builderRunId, kind: 'BUILT', sealed: sealFor(projectId, builderRunId, files, { sourceRevision, thumbnail }) })
   return { ...fixture, registry, store, grant, point, served, rows, pointer, sealFor, runFor, settle }
 }
 

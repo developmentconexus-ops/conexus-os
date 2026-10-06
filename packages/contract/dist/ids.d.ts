@@ -56,4 +56,7 @@ export declare const MediaType: z.core.$ZodBranded<z.ZodEnum<{
     "text/plain; charset=utf-8": "text/plain; charset=utf-8";
 }>, "MediaType", "out">;
 export type MediaType = z.output<typeof MediaType>;
+/** The most files and bytes one built application holds: the compiler's output reader and the registry's seal both enforce them. */
+export declare const APPLICATION_MAX_FILES = 256;
+export declare const APPLICATION_MAX_TOTAL_BYTES: number;
 export declare function mediaTypeOfPath(path: string): MediaType | null;

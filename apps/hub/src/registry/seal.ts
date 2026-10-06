@@ -1,12 +1,10 @@
 import { createHash } from 'node:crypto'
 import { canonicalBytes } from '../../../../packages/canonical-json/src/index.mjs'
-import { ApplicationFilePath, ArtifactDigest, Sha256, mediaTypeOfPath, type BuilderRunId, type MediaType, type ProjectId, type SourceRevision } from '../../../../packages/contract/dist/index.js'
+import { APPLICATION_MAX_FILES, APPLICATION_MAX_TOTAL_BYTES, ApplicationFilePath, ArtifactDigest, Sha256, mediaTypeOfPath, type BuilderRunId, type MediaType, type ProjectId, type SourceRevision } from '../../../../packages/contract/dist/index.js'
 import { CURRENT_TEMPLATE_PIN } from '../platform/application-template-pins.js'
 import { Failure } from '../platform/failure.js'
 import { SealedApplication } from '../platform/sealed-application.js'
 
-const MAX_FILES = 256
-const MAX_TOTAL_BYTES = 12 * 1024 * 1024
 const THUMBNAIL_MAX_BYTES = 512_000
 const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47]
 const ENTRY_PATH = 'index.html'
@@ -41,11 +39,11 @@ function sealFile(file: FileInput): PayloadFile {
 }
 
 function sealFiles(files: readonly FileInput[]): readonly PayloadFile[] {
-  if (files.length < 1 || files.length > MAX_FILES) return refused()
+  if (files.length < 1 || files.length > APPLICATION_MAX_FILES) return refused()
   const sealed = files.map(sealFile).sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0))
   const total = sealed.reduce((sum, file) => sum + file.byteLength, 0)
   const paths = new Set(sealed.map((file) => file.path))
-  if (paths.size !== sealed.length || !paths.has(ApplicationFilePath.parse(ENTRY_PATH)) || total > MAX_TOTAL_BYTES) return refused()
+  if (paths.size !== sealed.length || !paths.has(ApplicationFilePath.parse(ENTRY_PATH)) || total > APPLICATION_MAX_TOTAL_BYTES) return refused()
   return sealed
 }
 

@@ -73,9 +73,9 @@ void registry.purge(reaper, project)
 // @ts-expect-error The registry purge takes a purge proof, not a build proof.
 void registry.purge(builder, project)
 void registry.purge(purge, project)
-// @ts-expect-error An object with the sealed build's fields is not a sealed build: only seal makes one.
+// @ts-expect-error An object with the sealed build's fields is not a sealed build (an accidental structural value).
 void registry.retain(runProof, { projectId: project, sourceRevision, digest: artifactDigest })
-// @ts-expect-error The sealed build is an abstract class, so no caller builds one.
+// @ts-expect-error The sealed build is an abstract class, so it cannot be built by accident.
 void new SealedApplication(project, sourceRevision, artifactDigest)
 // @ts-expect-error A served read proof has a read transaction, so it cannot write.
 checked.tx.run(sql`SELECT 1`)

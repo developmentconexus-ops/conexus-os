@@ -69,6 +69,10 @@ const MEDIA_TYPE_BY_EXTENSION: Readonly<Record<string, (typeof MEDIA_TYPES)[numb
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
 }
+/** The most files and bytes one built application holds: the compiler's output reader and the registry's seal both enforce them. */
+export const APPLICATION_MAX_FILES = 256
+export const APPLICATION_MAX_TOTAL_BYTES = 12 * 1024 * 1024
+
 export function mediaTypeOfPath(path: string): MediaType | null {
   const parsed = MediaType.safeParse(MEDIA_TYPE_BY_EXTENSION[path.slice(path.lastIndexOf('.')).toLowerCase()])
   return parsed.success ? parsed.data : null

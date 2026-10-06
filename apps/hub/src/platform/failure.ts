@@ -74,7 +74,7 @@ const stackOf = (error: unknown): string | undefined => {
 export const logFailure = (log: Pick<FastifyBaseLogger, 'error' | 'warn' | 'info'>, failure: Failure, fields: Attributes = {}): void => {
   const details = Object.fromEntries(Object.entries(failure.details ?? {}).map(([key, value]) => [`failure.details.${key}`, value]))
   const cause = failure.cause ?? failure
-  const named = cause instanceof Failure ? { 'failure.cause.code': cause.id, ...Object.fromEntries(Object.entries(cause.details ?? {}).map(([key, value]) => [`failure.cause.${key}`, value])) } : {}
+  const named = cause instanceof Failure ? { ...Object.fromEntries(Object.entries(cause.details ?? {}).map(([key, value]) => [`failure.cause.${key}`, value])), 'failure.cause.code': cause.id } : {}
   const type = cause instanceof Error ? cause.name : typeof cause
   const level = LEVEL_BY_CATEGORY[failureRow(failure).category]
   const stack = level === 'error' ? stackOf(cause) : undefined

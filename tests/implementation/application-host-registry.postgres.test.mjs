@@ -4,7 +4,7 @@ import { testListener } from './access/test-listener.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { query } from './hub-database.mjs'
 import { ID } from './project-fixture.mjs'
-import { DIGEST_2, F, P, SOURCE_2, fileOf, payloadOf, seedRevision, world } from './registry-fixture.mjs'
+import { DIGEST_2, F, P, SOURCE_2, deferred, fileOf, payloadOf, seedRevision, world } from './registry-fixture.mjs'
 
 const { createMarModule } = await import(hubModuleUrl('mar/module.js'))
 
@@ -13,12 +13,6 @@ const APPLICATION = Object.freeze({ port: 3445, domain: 'conexus.localhost' })
 const HOST = 'caderno-de-compras.conexus.localhost:3445'
 const TOKEN = 't'.repeat(43)
 const SERVER_MANIFEST = fileOf('conexus-server/manifest.json', 'application/json; charset=utf-8', '{}')
-
-function deferred() {
-  let resolve
-  const promise = new Promise((done) => { resolve = done })
-  return { promise, resolve }
-}
 
 async function hostOver(t, { registry, projectId, runnerCalls }) {
   const caller = { accountId: ID.outsider, email: 'funcionaria@example.test', displayName: 'Funcionária' }

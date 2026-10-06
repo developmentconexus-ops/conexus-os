@@ -38,7 +38,7 @@ const SUCCEEDED_WITH_POINTER = { state: 'SUCCEEDED', digest: D_E, source: SOURCE
 
 test('a cancellation request and a settlement race in both lock orders: the run ends SUCCEEDED with its pointer and neither deadlocks', async (t) => {
   const { connection, database, seedBuilderProject, registry, runFor, sealFor, runRow, pointer } = await world(t, 'conexus_settlement_cancel_race')
-  const settleOf = (store, projectId, builderRunId) => store.settleBuilderRunBuild({ builderRunId, sourceRevision: SOURCE_E, kind: 'BUILT', sealed: sealFor(projectId, builderRunId, [F]) })
+  const settleOf = (store, projectId, builderRunId) => store.settleBuilderRunBuild({ builderRunId, kind: 'BUILT', sealed: sealFor(projectId, builderRunId, [F]) })
   const outcome = async (projectId, builderRunId) => ({ state: (await runRow(builderRunId)).state, ...(({ digest, source }) => ({ digest, source }))(await pointer(projectId)) })
 
   const settlingFirst = await seedBuilderProject('Atlas', ID.workspace, P)
@@ -96,7 +96,7 @@ test('a deletion that meets a settlement in flight waits for it, then purges eve
   const builderRunId = await runFor(projectId)
   const held = { reached: deferred(), release: deferred() }
   const holder = createBuilderStore({ database, ownerId: OWNER, registry: pausingRetain(registry, held) })
-  const settling = holder.settleBuilderRunBuild({ builderRunId, sourceRevision: SOURCE_E, kind: 'BUILT', sealed: sealFor(projectId, builderRunId, [F], { thumbnail: { bytes: PNG_T2 } }) })
+  const settling = holder.settleBuilderRunBuild({ builderRunId, kind: 'BUILT', sealed: sealFor(projectId, builderRunId, [F], { thumbnail: { bytes: PNG_T2 } }) })
   await held.reached.promise
   const deleting = deletion.deleteProject({ accountId: ID.administrator, projectId, confirmName: 'Atlas' })
   await waitUntilBlocked(connection)

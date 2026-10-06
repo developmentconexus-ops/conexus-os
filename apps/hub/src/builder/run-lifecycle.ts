@@ -118,10 +118,9 @@ export const createRunStart = ({ database, mintIdentity }: Readonly<{ database: 
 /** An ending without a result: the run failed, or a stop interrupted it. */
 export type StoppedEnding = Exclude<RunEnding, Readonly<{ state: 'SUCCEEDED' }>>
 
-type BuildSettlement = Readonly<{ builderRunId: BuilderRunId; sourceRevision: SourceRevision }> & (
-  | Readonly<{ kind: 'BUILT'; sealed: SealedApplication }>
-  | Readonly<{ kind: 'FAILED'; failureCode: FailureCode }>
-)
+type BuildSettlement =
+  | Readonly<{ kind: 'BUILT'; builderRunId: BuilderRunId; sealed: SealedApplication }>
+  | Readonly<{ kind: 'FAILED'; builderRunId: BuilderRunId; sourceRevision: SourceRevision; failureCode: FailureCode }>
 
 export type RunSteps = Readonly<{
   /** Starts a queued run under this Hub, after the Project admits its author; a refused, unclaimed row ends FAILED. */
@@ -235,12 +234,13 @@ export const createRunSteps = ({ database, ownerId, registry }: Readonly<{ datab
     settleBuilderRunBuild: (settlement) => withRun(database, ownerId, settlement.builderRunId, executor, async (proof) => {
       const run = await proof.tx.maybe(Candidates, sql`
         SELECT run.state, run.candidate_revision, run.result_source_revision FROM builder.builder_run AS run WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId}`)
-      if (run?.state !== 'RUNNING' || run.result_source_revision !== settlement.sourceRevision) throw transitionRefused('build settlement')
+      const sourceRevision = settlement.kind === 'BUILT' ? settlement.sealed.sourceRevision : settlement.sourceRevision
+      if (run?.state !== 'RUNNING' || run.result_source_revision !== sourceRevision) throw transitionRefused('build settlement')
       await lockWorking(proof, 'build settlement')
       if (settlement.kind === 'BUILT') {
         const retained = await registry.retain(proof, settlement.sealed)
         await proof.tx.run(sql`
-          UPDATE builder.project_working_state SET current_state = 'PREVIEW_READY', last_preview_source_revision = ${settlement.sourceRevision},
+          UPDATE builder.project_working_state SET current_state = 'PREVIEW_READY', last_preview_source_revision = ${sourceRevision},
             last_preview_artifact_revision_id = ${retained.artifactRevisionId}, last_preview_artifact_digest = ${retained.digest}, updated_at = clock_timestamp()
           WHERE project_id = ${proof.scope.projectId}`)
         await endRun(proof, { ...proof.scope, ending: { state: 'SUCCEEDED', resultKind: 'SOURCE_CHANGED', failureCode: null }, from: 'running' })

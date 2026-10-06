@@ -17,4 +17,4 @@ const sealed = registry.seal({
   compiledApplication: { ...input.build, files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8', bytes, sha256: input.fileSha256 }] },
   thumbnail: { bytes: Uint8Array.from(input.thumbnail) },
 }, { projectId: input.build.projectId, builderRunId: input.build.executionId, sourceRevision: input.build.sourceRevision })
-await store.settleBuilderRunBuild({ builderRunId: input.build.executionId, sourceRevision: input.build.sourceRevision, kind: 'BUILT', sealed })
+await store.settleBuilderRunBuild({ builderRunId: input.build.executionId, kind: 'BUILT', sealed })

@@ -26,3 +26,11 @@ test('a failure whose cause is not a failure adds no cause fields', () => {
   logFailure(log, new Failure('PROJECT_THUMBNAIL_UNAVAILABLE', { cause: new Error('DATABASE_DOWN') }))
   assert.deepEqual(Object.keys(lines[0].fields).filter((key) => key.startsWith('failure.cause.')), [])
 })
+
+test('a cause whose details carry a code keeps its own id as the cause code', () => {
+  const { lines, log } = recorded()
+  const cause = new Failure('CONNECTOR_PLATFORM_FAILED', { details: { code: 'UPSTREAM_X', status: 502 } })
+  logFailure(log, new Failure('INTERNAL_UNEXPECTED', { cause }))
+  assert.equal(lines[0].fields['failure.cause.code'], 'CONNECTOR_PLATFORM_FAILED')
+  assert.equal(lines[0].fields['failure.cause.status'], 502)
+})
