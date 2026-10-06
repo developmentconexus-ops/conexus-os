@@ -98,7 +98,7 @@ test('a revoke waits for an admitted writer and the next admission is refused', 
   await assert.rejects(database.transaction(MEMBER, (gate) => admitWorkspace(gate, workspaceId, 'workspace.read')), { id: 'WORKSPACE_NOT_FOUND' })
 })
 
-test('hub_command holds EXECUTE on the tenure lock, and hub_runtime holds none of it', async (t) => {
+test('hub_command holds EXECUTE on the tenure lock, and hub_runtime and hub_reader hold none of it', async (t) => {
   const { connection } = await setup(t)
   const held = (role) => query(connection, `SELECT proc.oid::regprocedure::text AS signature FROM pg_proc proc
     JOIN pg_namespace namespace ON namespace.oid = proc.pronamespace
@@ -108,7 +108,7 @@ test('hub_command holds EXECUTE on the tenure lock, and hub_runtime holds none o
     'iam.lock_administrators()',
   ])
   assert.deepEqual(await held('hub_runtime'), [])
-  assert.deepEqual(await held('project_owner'), [])
+  assert.deepEqual(await held('hub_reader'), [])
 })
 
 test('an admission reads its actor from the gate and refuses a gate of another kind', async (t) => {
