@@ -91,8 +91,8 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
   await installedAdmin.query('DELETE FROM iam.account')
   await installedAdmin.end()
   const bootstrapToken = await store.createProvisioningContext({ issuer: 'https://issuer.test', subject: 'subject-1', verifiedEmail: null, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1' })
-  const first = await store.provisionBootstrap({ bootstrapToken, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1', idempotencyKey: 'same-key', displayName: 'Leandro', email: 'leandro@example.test' })
-  const replay = await store.provisionBootstrap({ bootstrapToken, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1', idempotencyKey: 'same-key', displayName: 'Leandro', email: 'leandro@example.test' })
+  const first = await store.provisionBootstrap({ bootstrapToken, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1', idempotencyKey: 'same-key', displayName: 'Rita', email: 'rita@example.test' })
+  const replay = await store.provisionBootstrap({ bootstrapToken, configuredIssuer: 'https://issuer.test', configuredSubject: 'subject-1', idempotencyKey: 'same-key', displayName: 'Rita', email: 'rita@example.test' })
   assert.equal(first.accountId, replay.accountId)
   assert.equal(replay.replayed, true)
   const verifyAdmin = new Client(installed)
@@ -124,7 +124,7 @@ test('real PostgreSQL migration enforces owner isolation and restart-safe IAM-03
   hubPool = testPool(runtimeConnection)
   let hub = createHostSessions({ pool: hubPool, envelope, refresh: async () => ({ kind: 'UNAVAILABLE' }) })
   const established = await hub.openHub({ accountId: first.accountId, refreshToken: 'refresh-1' })
-  const signedIn = { account: { accountId: first.accountId, displayName: 'Leandro', email: 'leandro@example.test' }, issuer: 'https://issuer.test', subject: 'subject-1' }
+  const signedIn = { account: { accountId: first.accountId, displayName: 'Rita', email: 'rita@example.test' }, issuer: 'https://issuer.test', subject: 'subject-1' }
   const sessionDigest = createHash('sha256').update(established.sessionToken).digest()
   assert.deepEqual(await hub.resolveHub(sessionDigest), signedIn)
   assert.equal(await hub.resolveHub(createHash('sha256').update('w'.repeat(43)).digest()), null, 'a digest no session has')

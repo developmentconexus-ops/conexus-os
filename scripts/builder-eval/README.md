@@ -167,8 +167,8 @@ node scripts/builder-eval/run.mjs --case scripts/builder-eval/cases/bakeoff/h1.j
   come from the sheet. A question the sheet does not cover gets "Não sei." in text, or on an option card
   the option that says "não sei" or "tanto faz", else "Não sei." typed in the card's own answer field. A
   rule no option says is answered in the sheet's words in that field. It approves the plan and never sees the arm; the approval card does not reach it.
-  The person runs on Claude Opus 5.5 through the Claude subscription, with no API key: Mastra's claude-max
-  provider (`@mastra/code-sdk`) reads Mastra Code's own credential store (`auth.json` under
+  The person runs on a subscription model with no API key: the `@mastra/code-sdk` provider reads its own
+  credential store (`auth.json` under
   `MASTRA_APP_DATA_DIR`, else the default app data dir), so the Hub and its accounts are not involved. Sign the
   subscription in once with `node scripts/builder-eval/login.mjs start`, which prints an address to open in a
   browser, then `node scripts/builder-eval/login.mjs complete <code>` with the code the page shows. The verifier

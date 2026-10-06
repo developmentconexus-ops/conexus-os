@@ -1,6 +1,7 @@
 # 0005. Who may do what inside an app: cargos, perfis and a platform row floor
 
 **Date**: 2026-10-01
+**Sources**: a document named by path is cited as it stood before the nine guides replaced it. Read it with `git show 58444763:<path>`.
 **Status**: Proposed
 **Amends**: [0003](../0003-app-stack-v2/index.md) AC-4 (two more generated files) and AC-7 (two more
 `boot` stubs); the `conexus-server` Builder skill. The records it reopens are listed under

@@ -49,7 +49,7 @@ lists feed [`log-codes.generated.ts`](../../../../apps/hub/src/telemetry/log-cod
 - How Mastra's products do it: the `mastracode/` folder of the Mastra repository (Factory and Mastra
   Code). Read it before designing a mechanism Mastra's products already have.
 - Any other library: Context7, when the session has it; otherwise the installed package.
-- Prior research: [`docs/research/`](../../../../docs/research/), Mitra included.
+- Prior research: [Mitra](../../../../docs/research/mitra/index.md). Older studies are in Git history.
 
 ## Code health
 

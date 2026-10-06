@@ -2,7 +2,7 @@
 
 **Status**: Approved (by HQ on 2026-10-05, under the operator's delegation; revision 3.1)
 
-Part of [spec 0015](index.md). Written from the code at the stacked head `~/wt-s1-part3` (head `68d324a7`, parts 0 and
+Part of [spec 0015](index.md). Written from the code at the stacked part 3 head (head `68d324a7`, parts 0 and
 3 built). The census reads 89 at this head. It decides inside the umbrella (index.md build plan item 7, AC-13,
 section 4 rules 3 and 8). It changes nothing the part 0 surface froze.
 

@@ -146,7 +146,6 @@ without Conexus ever holding it, and one sender means one SMTP setting.
 **Project sources**:
 - `docs/decisions/index.md`: C-015, C-024, C-026, and the line "Multi-account lands at the minimum
   that is correct".
-- `docs/tasks/single-session-qualification.md` sections 9 and 10 (the non-goal and its STOP law).
 - `docs/reference/security-and-authority.md` sections 3 and 4.
 - `infra/keycloak/{provision.sh,create-first-user.sh,realm-conexus.json,README.md,AGENTS.md}`.
 - `apps/hub/src/identity-access/{oidc,store,routes,host-sessions,installation-administration,installation-routes}.ts`,

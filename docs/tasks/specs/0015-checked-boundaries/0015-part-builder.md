@@ -360,7 +360,7 @@ encode these values (`apps/hub/migrations/0056_builder_question_waits_in_the_run
 `apps/web/src/features/builder/api.ts:2`). Keep spec 0011's rule that a waiting question belongs to
 the same run, and the next message either ends the wait or starts a new run. The run summary's
 `cancellationRequested` is derived from `cancellation_requested_at`, never a second state
-(`builder-bodies.sql:478`, `docs/tasks/specs/0011-builder-run-one-state-machine/index.md:176`).
+(`builder-bodies.sql:478`; spec 0011 is built and its file is in Git history).
 Before dropping the trigger, drive each state and cancellation transition against today's trigger
 and record the literal phase it leaves. Then drive the TypeScript transition and CHECK against those
 same rows. A final, cancelled or interrupted row has `phase: null`; a running uncancelled row may

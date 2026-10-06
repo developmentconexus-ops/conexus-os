@@ -66,7 +66,7 @@ const setupFixture = async (t) => {
   const adminAccountId = ID.memberAdministrator // installation administrator, Workspace member, not Owner
   const ownerAccountId = ID.owner // Workspace Owner, not an installation administrator
   const bothAccountId = ID.administrator // both
-  const accounts = { [adminAccountId]: 'Administrador', [ownerAccountId]: 'Dona do Workspace', [bothAccountId]: 'Leandro' }
+  const accounts = { [adminAccountId]: 'Administrador', [ownerAccountId]: 'Dona do Workspace', [bothAccountId]: 'Rita' }
   for (const [id, name] of Object.entries(accounts)) await query(connection, 'UPDATE iam.account SET display_name = $2 WHERE account_id = $1', [id, name])
   await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [bothAccountId, ID.workspace])
   const workspaceId = ID.workspace

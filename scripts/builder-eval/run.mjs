@@ -570,7 +570,7 @@ async function sendAndSettle(page, options, caseFile, result) {
 
   const usable = await readUsableModels(page)
   if (usable.models.length === 0) {
-    fail(`STOP: the test operator has no usable Factory model account (models endpoint status ${usable.status}). Leandro must connect or share one.`)
+    fail(`STOP: the test operator has no usable model account (models endpoint status ${usable.status}). Connect one in Settings first.`)
   }
   if (options.model && !usable.models.some((model) => model.id === options.model)) {
     fail(`--model ${options.model} is not usable; available: ${usable.models.map((model) => model.id).join(', ')}`)

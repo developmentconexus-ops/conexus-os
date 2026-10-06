@@ -13,7 +13,7 @@ The Keycloakify sign-in theme for the `conexus` realm. It uses the brand from `p
 
 ```bash
 npm run keycloak-theme:check   # typecheck and Vite build; needs the theme's own node_modules
-npm run web:style:check        # no raw hex, only the three brand fonts
+npm run web:style:check        # every class has a CSS rule
 node --test tests/implementation/brand-wordmark-csp.browser.test.mjs
 ```
 
