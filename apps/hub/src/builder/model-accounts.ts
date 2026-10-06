@@ -14,7 +14,7 @@ import { createClaudeLogin, type ClaudeAuthorization } from './anthropic/login.j
 import { createGoogleAiProLogin } from './google-ai-pro/login.js'
 import type { CliproxyPool } from './google-ai-pro/pool.js'
 import type { ModelAccounts } from './model-account/accounts.js'
-import { MODEL_PROVIDERS } from './model-account/providers.js'
+import { MODEL_PROVIDERS, type RouterPrefix } from './model-account/providers.js'
 import { serializeCodexTokens } from './openai-codex/credential.js'
 import { createCodexLogin, type CodexDevice } from './openai-codex/login.js'
 import { routes } from '../http/access.js'
@@ -51,7 +51,7 @@ const thinkingLevelsOf = async (modelId: string, optionAt: (level: ThinkingLevel
 // on a subscription. The catalog carries no capability field, so the ones that cannot chat are
 // left out by name, as the Hub did for the Factory catalog, with the retired ones the catalog marks.
 const NON_CHAT_MODEL = /(^|[-_.])(image|dall-?e|embed|embedding|tts|whisper|transcribe|realtime|rerank|moderation)([-_.]|$)/i
-const chatModelsOf = (provider: string): readonly string[] => {
+const chatModelsOf = (provider: RouterPrefix): readonly string[] => {
   const catalog = getProviderConfig(provider)
   const retired = new Set(catalog?.deprecatedModels ?? [])
   return (catalog?.models ?? []).filter((model) => !retired.has(model) && !NON_CHAT_MODEL.test(model))
