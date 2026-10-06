@@ -32,7 +32,7 @@ to its spec.
 For a roadmap wave or a shape that keeps breaking. The census, the redesign and the spec are done
 before code by the session that plans the work, and the operator approves the spec. Here you build it.
 
-1. Read the approved spec in `docs/tasks/specs/`: what it deletes, what stays and why. It is the
+1. Read the approved spec in `docs/specs/`: what it deletes, what stays and why. It is the
    contract; do not redesign it.
 2. Build as in Build. Migrate every instance of the shape the spec replaces, not only the lines the
    change touches, and delete the old shape in the same wave.
@@ -65,7 +65,20 @@ before code by the session that plans the work, and the operator approves the sp
 
 ## Frontend
 
-On top of the flow above: load [`conexus-frontend`](../../conexus-frontend/SKILL.md), read the
-[Build surface](../../../../DESIGN.md#the-build-surface) and the rest of
-[`DESIGN.md`](../../../../DESIGN.md), and prove the screen as
-[testing](../../../../docs/development/testing.md#8-screens) says.
+On top of the flow above, for any change under `apps/web`, `packages/brand` or
+`apps/keycloak-theme`, or any screen, copy, color, font, spacing, layout, icon or motion:
+
+1. Read [`DESIGN.md`](../../../../DESIGN.md), the [product contract](../../../../docs/product/contract.md)
+   and [what the web app may own](../../../../docs/reference/architecture.md#the-web-app).
+   `packages/brand/src/tokens.css` wins over any text.
+2. For a surface that does not exist yet, walk [product-surfaces.md](product-surfaces.md) before any
+   code.
+3. Build with the nearest screen's pattern, if it follows the guides, and the Mastra part that
+   already does the job.
+4. Run `npm run web:style:check` and fix what it prints.
+5. Prove the screen with the [`verify`](../../verify/SKILL.md) skill as
+   [testing](../../../../docs/development/testing.md#8-screens) says. For the sign-in theme run
+   `npm run keycloak-theme:check` and take screenshots; never type the operator's password.
+
+[`apps/web/AGENTS.md`](../../../../apps/web/AGENTS.md) has the commands and
+[`verify/features`](../../verify/features/README.md) the screens by feature.

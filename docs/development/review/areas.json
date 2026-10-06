@@ -72,9 +72,9 @@
       "tests/implementation/connection-census.test.mjs",
       "tests/implementation/protected-cluster*",
       "tests/implementation/workspace-reads.postgres.test.mjs",
-      "docs/tasks/specs/0005-app-access-perfis/**",
-      "docs/tasks/specs/0006-people-and-sign-in/**",
-      "docs/tasks/specs/0008-configuration-model/**"
+      "docs/specs/0005-app-access-perfis/**",
+      "docs/specs/0006-people-and-sign-in/**",
+      "docs/specs/0008-configuration-model/**"
     ],
     "guides": ["D"],
     "flows": []
@@ -248,13 +248,13 @@
       "tests/implementation/project-*",
       "tests/implementation/workspace-*",
       "tests/implementation/shell-browser-boundary.test.mjs",
-      "docs/tasks/specs/0007-telemetry-otel/**",
+      "docs/specs/0007-telemetry-otel/**",
       "apps/hub/src/telemetry/**",
       "infra/telemetry/**",
       "infra/pilot/**",
       "tests/implementation/telemetry-*",
       "tests/implementation/hub-launch-flags.test.mjs",
-      "docs/tasks/specs/0008-configuration-model/**"
+      "docs/specs/0008-configuration-model/**"
     ],
     "guides": ["A", "T"],
     "flows": [

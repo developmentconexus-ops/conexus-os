@@ -90,7 +90,7 @@ the manifest; `conexus_check` in Construir only; AC-27 eval after slice 6; dev s
 
 - Study 15, `15-app-stack-and-check.md` in the operator's study notes: the three check
   defects, the "Teste" rows traced to Prévia use, the overclaim "3 operações validadas".
-- Study 17, [17-app-stack-decision.md](../../../research/builder/17-app-stack-decision.md): the pinned picks,
+- Study 17, [17-app-stack-decision.md](../../research/builder/17-app-stack-decision.md): the pinned picks,
   the probe app under the Prévia CSP, bundle and image sizes, the deep link 404 and its fix, the
   check design, the skill outline.
 - Probe app: session scratchpad `stack-proto` (not kept; the study records its results).

@@ -10,7 +10,7 @@ description: Drive the real Conexus app the way a person does, to prove a change
 - **Model.** The Hub's Google AI Pro proxy binary is `scripts/fake-cliproxy.mjs`. It serves the Google sign-in and readiness routes, so a model account can be connected. It does not answer model calls. No provider is called and no real credential exists.
 - **E2B.** The Hub's E2B SDK points at a closed loopback port. A Builder turn opens its sandbox before the model's first token, so every turn ends with `BUILDER_PREPARATION_FAILED`. The streamed answer can't be proven here yet. See [the Construir feature](features/construir.md).
 
-Never drive another instance: the branch Hub, the pilot (port 3443), the operator's Chromium (CDP 9333 and 9334), the Factory (port 5873), or the `conexus-keycloak` container. Each run has its own ports, containers named `conexus-verify-*-<run>`, and state in `~/.cache/conexus-verify/<run>/`.
+Never drive an instance this run did not start: another Hub, the pilot, the operator's own browser, or a container the run did not create. Each run has its own ports, containers named `conexus-verify-*-<run>`, and state in `~/.cache/conexus-verify/<run>/`.
 
 ## Launch
 

@@ -1,6 +1,6 @@
 ---
 name: conexus-development
-description: This skill should be used for any development session in the Conexus OS repository, when resuming, investigating, fixing, building, redesigning, verifying, reviewing, delegating or handing off work. Triggers include "pick up issue #N", "build this", "fix this bug", "why is this slow", "review this PR", "open a PR", "hand this off", "spawn a subagent", and any work in a conexus-os worktree.
+description: This skill should be used for any development session in the Conexus OS repository, when resuming, investigating, fixing, building, redesigning, verifying, reviewing, delegating or handing off work. Triggers include "pick up issue #N", "build this", "fix this bug", "why is this slow", "review this PR", "open a PR", "hand this off", "spawn a subagent", any work in a conexus-os worktree, and any change to a screen, `apps/web`, `packages/brand` or `apps/keycloak-theme`: "nova tela", "tela de login", "Keycloak theme", "redesign", "layout", "cor", "ícone", "texto da interface", "dark mode", "responsivo", "acessibilidade", "Construir".
 ---
 
 # Conexus development

@@ -495,7 +495,7 @@ here. The real dependencies come from the caller graph script
    `openGate` (`admission.ts` and `authentication.ts`). A repository test: `purge_project` only in `project/deletion.ts`.
    `docs/reference/security-and-authority.md` section 2, `docs/reference/hub-database-roles.md` and
    `docs/development/review/data-migrations.md` restated for the split, with rollback forward only (a new migration, not a revert), and
-   `docs/tasks/specs/0015-checked-boundaries/0015-part-project.md` updated in the same pull request.
+   `docs/specs/0015-checked-boundaries/0015-part-project.md` updated in the same pull request.
 
    **Tests.** The pooled client facts, the run time text refusal with the three proved bypasses and the
    plain `SET`, `DO` and `CALL` fixtures, the role invariants, the type

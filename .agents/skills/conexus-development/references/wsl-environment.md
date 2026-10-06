@@ -44,16 +44,6 @@ Remove worktrees only with `npm run worktree:reap`. It prints what it would remo
 
 Build and test only in WSL. The `node_modules` of a WSL worktree is a Linux install, and Vite fails on Windows with a missing `rolldown-binding.win32-x64-msvc.node`. Edit WSL files from Windows tools through `\\wsl.localhost\Ubuntu\home\...`.
 
-## Keep the disk from filling
-
-The Ubuntu disk is `D:\WSL\Ubuntu\ext4.vhdx`. It only grows. Deleting files inside WSL returns no space to D:. When D: fills, the ext4 file system turns read-only and Ubuntu refuses to start.
-
-- Before work that pulls Docker images, runs `npm ci` in a new worktree, or builds templates, check D: from PowerShell with `(Get-Volume -DriveLetter D).SizeRemaining`. Below 20 GB, stop and tell the operator.
-- `npm run worktree:new` reclaims merged/closed worktrees automatically before creating the next one, so space returns the next time you start new work. Each worktree's `node_modules` takes about 1.5 GB; run `npm run worktree:reap -- --apply` directly if you need space back sooner.
-- To return space to D:, the operator compacts the disk as administrator: `wsl --shutdown`, then in `diskpart` run `select vdisk file=D:\WSL\Ubuntu\ext4.vhdx`, `attach vdisk readonly`, `compact vdisk`, and `detach vdisk`.
-- Do not force a sparse disk with `wsl --manage Ubuntu --set-sparse true --allow-unsafe`. WSL refuses it because of possible data corruption.
-- If Conexus feels slow, measure the disk before blaming the code.
-
 ## Bootstrap a worktree
 
 Within that same WSL shell:
