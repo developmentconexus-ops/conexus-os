@@ -178,7 +178,6 @@ const beginSignIn = ({ database, oidc, applicationOrigin }: SignInPorts): QueryH
   return setCookie(reply, 'oidcState', begun.state).redirect(begun.location, 302)
 }
 
-/** Keycloak's redirect back: the state, the code exchange, then the one decision. */
 const completeSignIn = ({ database, oidc, origin, applicationOrigin }: SignInPorts, decide: ReturnType<typeof decideWith>): QueryHandler => async (request, reply) => {
   clearCookie(reply, 'oidcState')
   const answer = (outcome: SignInOutcome, cause: string | null) => {

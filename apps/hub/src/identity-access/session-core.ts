@@ -47,7 +47,6 @@ const PROVIDER_ENDING: Readonly<Record<ProviderRefusal, SessionEndReason>> = Obj
 
 export type SessionDependencies = Readonly<{
   database: Database
-  /** Seals the Keycloak refresh token every Hub and application session keeps, with the installation's credential key. */
   envelope: SecretEnvelope
   provider: Pick<OidcAdapter, 'refresh' | 'endProviderSession'>
 }>

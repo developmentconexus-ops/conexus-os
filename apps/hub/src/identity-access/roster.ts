@@ -29,9 +29,7 @@ export const lastOwnerStays = (owners: readonly OwnerRow[], change: OwnerChange)
 /** An invitation's state, from whether the database's clock still finds it open. */
 const invitationState = (row: Readonly<{ open: boolean }>): InvitationState => (row.open ? 'PENDING' : 'EXPIRED')
 
-/** The columns every invitation list reads, a Workspace's and an application's. */
 export const InvitationRow = z.object({ invitation_id: InvitationId, email: EmailAddress, invited_at: z.date(), expires_at: z.date(), open: z.boolean() })
-/** The entry fields both invitation lists share. */
 /** Whether an invitation upsert inserted (`xmax = 0`) or refreshed the existing invitation. */
 export const inserted = { inserted: z.boolean() }
 export const invitationFields = (row: z.output<typeof InvitationRow>) => ({

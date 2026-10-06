@@ -53,7 +53,6 @@ const bound = <R extends Readonly<{ account_id: AccountId }>>(gate: Authenticati
 
 // Each lookup below finds the row of one presented credential by its digest, and binds the account a row carries to the gate.
 
-/** Consumes a sign in in flight: one use, within its deadline. */
 export const consumeOidcState = (gate: AuthenticationGate, key: Digest): Promise<OidcStateRow | null> => txOf(gate).maybe(OidcState, sql`
   DELETE FROM iam.oidc_transaction WHERE state_digest = ${key} AND expires_at > now()
   RETURNING pkce_verifier, nonce, application_project_id, sign_in_binding_digest,
@@ -65,7 +64,6 @@ export const readHubSession = async (gate: AuthenticationGate, key: Digest): Pro
   FROM iam.host_session AS session JOIN iam.account AS person ON person.account_id = session.account_id
   WHERE session.token_digest = ${key} AND session.kind = 'HUB'`))
 
-/** Reads an application session of one application's host, with no lock. */
 export const readApplicationSession = async (gate: AuthenticationGate, key: Digest, slug: ApplicationSlug): Promise<ApplicationSessionRow | null> => bound(gate, await txOf(gate).maybe(ApplicationSessionRow, sql`
   SELECT ${personColumns}, ${standingColumns}, session.project_id
   FROM iam.host_session AS session

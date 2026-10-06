@@ -19,7 +19,6 @@ import type { SessionCore, SessionDependencies, Step } from './session-core.js'
 
 const Entry = z.object({ entry: z.boolean() })
 
-/** Whether the admitted account enters the Hub, by the one Hub entry rule. */
 export const mayEnterHub = async (proof: Admitted<AccountScope>): Promise<boolean> =>
   (await proof.tx.one(Entry, sql`SELECT ${hubEntry(sql`account`)} AS entry FROM iam.account AS account WHERE account.account_id = ${proof.scope.accountId}`, 'INTERNAL_UNEXPECTED')).entry
 
