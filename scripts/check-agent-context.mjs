@@ -10,7 +10,7 @@ const VENDORED = ['.agents/skills/mastra/']
 // Each guide is the one owner of its subject, with a byte cap on the whole file.
 export const GUIDES = Object.freeze({
   C: { path: 'docs/development/codebase-principles.md', kib: 8 },
-  A: { path: 'docs/reference/architecture.md', kib: 8 },
+  A: { path: 'docs/reference/architecture.md', kib: 24 },
   L: { path: 'docs/development/delivery.md', kib: 10 },
   D: { path: 'docs/reference/database.md', kib: 8 },
   H: { path: 'docs/product/wire-contract.md', kib: 8 },

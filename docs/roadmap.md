@@ -84,7 +84,11 @@ This order changes no gate status. Work follows the
 
 1. **Finish S1** (above), then the structural follow-ups, each when its area is touched: S5 (the
    Builder screen holds one record of the conversation; browser tests against a real Hub), one
-   idempotent command and one transaction helper in the Hub, typed tests after a design pass. The
+   idempotent command and one transaction helper in the Hub, typed tests after a design pass. Two more
+   waves follow S1: the Hub base (the configuration as one schema, the composition root as a list of
+   modules, model accounts and the Mastra instance in the core, one sign-in per model provider, and
+   storage bounded per Project) and the Project lifecycle (the `archived` state that nothing produces
+   leaves). The
    Builder then moves out of the Hub process, as the runner already is; its design depends on how
    the sandbox and the session belong to each conversation.
 2. **The screen check.** The Builder checks the screens it built as a person would, in a browser
