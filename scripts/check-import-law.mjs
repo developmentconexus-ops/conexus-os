@@ -246,7 +246,7 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/builder/module.ts',
           'apps/hub/src/connectors/module.ts',
           'apps/hub/src/identity-access/module.ts',
-          'apps/hub/src/mar/module.ts',
+          'apps/hub/src/hosting/module.ts',
           'apps/hub/src/platform/config.ts',
           'apps/hub/src/platform/connection-census.ts',
           'apps/hub/src/platform/failure.ts',

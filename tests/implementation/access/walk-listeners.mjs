@@ -22,7 +22,7 @@ const { registerBuilderSessionRoutes } = await module('builder/mastra-session-ro
 const { registerModelAccountRoutes } = await module('builder/model-accounts.js')
 const { registerConnectorRoutes } = await module('connectors/routes.js')
 const { createBuilderController } = await module('builder/harness/controller.js')
-const { createMarModule } = await module('mar/module.js')
+const { createHostingModule } = await module('hosting/module.js')
 
 const ACCOUNT = '22222222-2222-4222-8222-222222222222'
 const PROJECT = '33333333-3333-4333-8333-333333333333'
@@ -138,7 +138,7 @@ export const walkListeners = async () => {
       return []
     },
   })
-  const mar = createMarModule({
+  const hosting = createHostingModule({
     sessions: {
       redeem: async ({ handoff }) => { calls.push('previewSessions.redeem'); return handoff === ENTRY_GRANT ? { sessionToken: opaque('walk preview'), maxAgeSeconds: 900 } : null },
       previewAuthority: async () => { calls.push('previewSessions.previewAuthority'); return { kind: 'SIGN_IN_REQUIRED' } },
@@ -157,15 +157,15 @@ export const walkListeners = async () => {
       application: applicationAddress,
     },
   })
-  const preview = await testListener({ policy: mar.previewPolicy, registerRoutes: (server) => { record('preview', server); return mar.registerPreviewRoutes(server) } })
-  const application = await testListener({ policy: mar.applicationHost.policy, registerRoutes: (server) => { record('application', server); return mar.applicationHost.registerRoutes(server) } })
+  const preview = await testListener({ policy: hosting.previewPolicy, registerRoutes: (server) => { record('preview', server); return hosting.registerPreviewRoutes(server) } })
+  const application = await testListener({ policy: hosting.applicationHost.policy, registerRoutes: (server) => { record('application', server); return hosting.applicationHost.registerRoutes(server) } })
   return {
     listeners: { hub: hub.app, preview: preview.app, application: application.app },
     calls,
     routes: () => records.flatMap(({ listener, route }) => [route.method].flat().map((method) => ({ listener, method, url: route.url, kind: route.config?.access }))),
     close: async () => {
       await Promise.all([hub.app.close(), preview.app.close(), application.app.close()])
-      await mar.close()
+      await hosting.close()
       await mount.close()
       rmSync(root, { recursive: true, force: true })
     },
