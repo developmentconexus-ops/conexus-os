@@ -18,10 +18,18 @@ export declare const AccountSummary: z.ZodObject<{
     displayName: z.ZodString;
 }, z.core.$strip>;
 export type AccountSummary = z.output<typeof AccountSummary>;
+/** The signed in person's own account, with the email of their latest verified sign in. */
+export declare const SessionAccount: z.ZodObject<{
+    accountId: z.core.$ZodBranded<z.ZodUUID, "AccountId", "out">;
+    displayName: z.ZodString;
+    email: z.ZodOptional<z.core.$ZodBranded<z.ZodPipe<z.ZodString, z.ZodEmail>, "EmailAddress", "out">>;
+}, z.core.$strip>;
+export type SessionAccount = z.output<typeof SessionAccount>;
 export declare const Session: z.ZodObject<{
     account: z.ZodObject<{
         accountId: z.core.$ZodBranded<z.ZodUUID, "AccountId", "out">;
         displayName: z.ZodString;
+        email: z.ZodOptional<z.core.$ZodBranded<z.ZodPipe<z.ZodString, z.ZodEmail>, "EmailAddress", "out">>;
     }, z.core.$strip>;
     administrator: z.ZodBoolean;
     workspaces: z.ZodArray<z.ZodObject<{
@@ -189,6 +197,7 @@ export declare const getSession: {
             account: z.ZodObject<{
                 accountId: z.core.$ZodBranded<z.ZodUUID, "AccountId", "out">;
                 displayName: z.ZodString;
+                email: z.ZodOptional<z.core.$ZodBranded<z.ZodPipe<z.ZodString, z.ZodEmail>, "EmailAddress", "out">>;
             }, z.core.$strip>;
             administrator: z.ZodBoolean;
             workspaces: z.ZodArray<z.ZodObject<{

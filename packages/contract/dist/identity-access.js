@@ -7,8 +7,10 @@ export const DisplayName = z.string().min(1).regex(/\S/).meta({ id: 'DisplayName
 export const WorkspaceRole = z.enum(['owner', 'member']).meta({ id: 'WorkspaceRole' });
 export const InvitationState = z.enum(['PENDING', 'EXPIRED']).meta({ id: 'InvitationState' });
 export const AccountSummary = z.object({ accountId: AccountId, displayName: DisplayName }).meta({ id: 'AccountSummary' });
+/** The signed in person's own account, with the email of their latest verified sign in. */
+export const SessionAccount = z.object({ accountId: AccountId, displayName: DisplayName, email: EmailAddress.optional() }).meta({ id: 'SessionAccount' });
 export const Session = z.object({
-    account: AccountSummary,
+    account: SessionAccount,
     administrator: z.boolean(),
     workspaces: z.array(z.object({ workspaceId: WorkspaceId, name: z.string().min(1).regex(/\S/) })),
 }).meta({ id: 'Session' });
