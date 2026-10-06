@@ -36,6 +36,7 @@
     "contract:build": "node node_modules/typescript/bin/tsc --project packages/contract/tsconfig.json --pretty false",
     "contract:emit": "node scripts/emit-openapi.mjs",
     "contract:check": "node scripts/emit-openapi.mjs --check",
+    "contract:dist:check": "node scripts/check-contract-dist.mjs",
     "typecheck:hub": "node node_modules/typescript/bin/tsc --project apps/hub/tsconfig.json --pretty false",
     "test:import-law": "node --test --test-concurrency=1 tests/repository/import-law.test.mjs",
     "builder:starter:components": "node scripts/generate-starter-components.mjs",
