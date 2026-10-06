@@ -13,132 +13,12 @@
         }
       }
     ],
-    "pending": [
-      {
-        "table": "iam.application",
-        "part": 6,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": [
-            "SELECT"
-          ]
-        }
-      },
-      {
-        "table": "iam.application_grant",
-        "part": 6,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": [
-            "SELECT",
-            "UPDATE(revoked_at)"
-          ]
-        }
-      },
-      {
-        "table": "iam.application_invitation",
-        "part": 6,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": []
-        }
-      },
-      {
-        "table": "iam.bootstrap_context",
-        "part": 6,
-        "privileges": {
-          "hub_runtime": [
-            "INSERT",
-            "SELECT",
-            "UPDATE"
-          ],
-          "hub_reader": [],
-          "hub_command": []
-        }
-      },
-      {
-        "table": "iam.handoff",
-        "part": 6,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": []
-        }
-      },
-      {
-        "table": "iam.host_session",
-        "part": 6,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": []
-        }
-      },
-      {
-        "table": "iam.installation_administrator",
-        "part": 6,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": [
-            "SELECT",
-            "UPDATE(revoked_at)"
-          ]
-        }
-      },
-      {
-        "table": "iam.oidc_transaction",
-        "part": 6,
-        "privileges": {
-          "hub_runtime": [
-            "INSERT",
-            "SELECT",
-            "UPDATE"
-          ],
-          "hub_reader": [],
-          "hub_command": []
-        }
-      },
-      {
-        "table": "iam.operation_idempotency",
-        "part": 6,
-        "privileges": {
-          "hub_runtime": [
-            "INSERT",
-            "SELECT",
-            "UPDATE"
-          ],
-          "hub_reader": [],
-          "hub_command": []
-        }
-      },
-      {
-        "table": "iam.preview",
-        "part": 6,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": []
-        }
-      },
-      {
-        "table": "iam.workspace_invitation",
-        "part": 6,
-        "privileges": {
-          "hub_runtime": [],
-          "hub_reader": [],
-          "hub_command": []
-        }
-      }
-    ]
+    "pending": []
   },
   "ceilings": {
-    "ruleFunctions": 45,
-    "legacyOwnerPolicies": 4,
-    "runtimePrivileges": 46
+    "ruleFunctions": 0,
+    "legacyOwnerPolicies": 0,
+    "runtimePrivileges": 1
   },
   "register": {
     "split": [
@@ -274,26 +154,153 @@
           "email"
         ],
         "command": [
-          "SELECT",
-          "UPDATE(created_at)"
-        ],
-        "runtime": [
           "INSERT",
           "SELECT",
-          "UPDATE"
+          "UPDATE(created_at,email)"
         ],
+        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "account_id"
         ]
       },
       {
-        "table": "iam.workspace_membership",
+        "table": "iam.application",
+        "reader": true,
+        "command": [
+          "DELETE",
+          "INSERT",
+          "SELECT"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "project_id"
+        ]
+      },
+      {
+        "table": "iam.application_grant",
+        "reader": true,
+        "command": [
+          "DELETE",
+          "INSERT",
+          "SELECT",
+          "UPDATE(revoked_at,revoked_by)"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "account_id",
+          "grant_id",
+          "project_id"
+        ]
+      },
+      {
+        "table": "iam.application_invitation",
+        "reader": true,
+        "command": [
+          "DELETE",
+          "INSERT",
+          "SELECT",
+          "UPDATE(created_at,expires_at,invited_by)"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "invitation_id",
+          "project_id"
+        ]
+      },
+      {
+        "table": "iam.handoff",
+        "reader": false,
+        "command": [
+          "DELETE",
+          "INSERT",
+          "SELECT"
+        ],
+        "runtime": [],
+        "compositeKeys": [
+          "handoff_parent_pair_fkey"
+        ],
+        "keyColumns": [
+          "account_id",
+          "handoff_digest",
+          "project_id"
+        ]
+      },
+      {
+        "table": "iam.host_session",
+        "reader": false,
+        "command": [
+          "DELETE",
+          "INSERT",
+          "SELECT",
+          "UPDATE(idle_expires_at,provider_checked_at,provider_refresh_token)"
+        ],
+        "runtime": [],
+        "compositeKeys": [
+          "host_session_parent_pair_fkey"
+        ],
+        "keyColumns": [
+          "account_id",
+          "project_id",
+          "token_digest"
+        ]
+      },
+      {
+        "table": "iam.installation_administrator",
         "reader": true,
         "command": [
           "INSERT",
           "SELECT",
-          "UPDATE(created_at)"
+          "UPDATE(revoked_at,revoked_by)"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "account_id",
+          "tenure_id"
+        ]
+      },
+      {
+        "table": "iam.oidc_transaction",
+        "reader": false,
+        "command": [
+          "DELETE",
+          "INSERT",
+          "SELECT"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "state_digest"
+        ]
+      },
+      {
+        "table": "iam.workspace_invitation",
+        "reader": true,
+        "command": [
+          "DELETE",
+          "INSERT",
+          "SELECT",
+          "UPDATE(created_at,expires_at,invited_by,role)"
+        ],
+        "runtime": [],
+        "compositeKeys": [],
+        "keyColumns": [
+          "invitation_id",
+          "workspace_id"
+        ]
+      },
+      {
+        "table": "iam.workspace_membership",
+        "reader": true,
+        "command": [
+          "DELETE",
+          "INSERT",
+          "SELECT",
+          "UPDATE(created_at,role)"
         ],
         "runtime": [],
         "compositeKeys": [],
@@ -449,8 +456,7 @@
         "rls.acting_workspaces()"
       ],
       "hub_command": [
-        "iam.lock_administrators()",
-        "iam.purge_project(p_project_id uuid)"
+        "iam.lock_administrators()"
       ]
     }
   }

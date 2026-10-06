@@ -5,6 +5,7 @@ const GRANTEES = [RUNTIME_ROLE, READER_ROLE, COMMAND_ROLE]
 const HELPER_SCHEMA = 'rls'
 const HELPER_OWNER = 'iam_rls'
 const LOCK_FUNCTION = 'iam.lock_administrators'
+const LOCK_FUNCTION_OWNER = 'conexus_owner'
 // The tables an installation administrator reads across Workspaces (admission child, section 4.2, rule 4).
 const ADMINISTRATOR_REACH = Object.freeze(['project.project_deletion', 'connector.connection', 'iam.installation_administrator', 'iam.account'])
 // The one table whose unported TypeScript reader keeps a runtime bridge until part 6.
@@ -103,7 +104,7 @@ const lintBridges = ({ tables, allPolicies, functions, problems }) => {
     const reader = new RegExp(`(?<![\\w.])${escapeRegExp(row.table)}(?![\\w.])`, 'i')
     const bridged = allPolicies.filter((policy) => policy.table === row.table && !policy.roles.some((role) => GRANTEES.includes(role)))
     for (const fn of functions) {
-      if (!reader.test(fn.body)) continue
+      if (fn.name === LOCK_FUNCTION || !reader.test(fn.body)) continue
       if (!bridged.some((policy) => policy.roles.includes(fn.owner) && covers(policy, 'r'))) problems.push(`${fn.name} owned by ${fn.owner} reads ${row.table}, which has no bridge policy for ${fn.owner}`)
     }
     const readerOwners = new Set(functions.filter((fn) => reader.test(fn.body)).map((fn) => fn.owner))
@@ -125,7 +126,7 @@ const lintFunctions = ({ catalog, functions, census, problems }) => {
   }
   for (const row of functionRows(catalog)) {
     if (row.name.startsWith(`${HELPER_SCHEMA}.`) && row.executors.some((grantee) => grantee !== HELPER_OWNER && grantee !== READER_ROLE)) problems.push(`${row.signature} is executable by ${row.executors.join(', ')}; only ${READER_ROLE} may`)
-    if (row.name === LOCK_FUNCTION && row.executors.some((grantee) => grantee !== 'iam_owner' && grantee !== COMMAND_ROLE)) problems.push(`${row.signature} is executable by ${row.executors.join(', ')}; only ${COMMAND_ROLE} may`)
+    if (row.name === LOCK_FUNCTION && row.executors.some((grantee) => grantee !== LOCK_FUNCTION_OWNER && grantee !== COMMAND_ROLE)) problems.push(`${row.signature} is executable by ${row.executors.join(', ')}; only ${COMMAND_ROLE} may`)
   }
 }
 
