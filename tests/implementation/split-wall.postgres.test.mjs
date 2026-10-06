@@ -121,9 +121,9 @@ test('the role invariants fail on a membership option, an extra membership, a ro
   await assert.rejects(assertRoleInvariants(client), /MIGRATION_ROLE_MEMBERSHIP_OPTION_REFUSED:hub_command/)
   await client.query('REVOKE ADMIN OPTION FOR hub_command FROM hub_runtime')
   await assertRoleInvariants(client)
-  await client.query('GRANT hub_reader TO hub_iam_runtime')
+  await client.query('GRANT hub_reader TO hub_command')
   await assert.rejects(assertRoleInvariants(client), /MIGRATION_ROLE_MEMBERSHIP_REFUSED/)
-  await client.query('REVOKE hub_reader FROM hub_iam_runtime')
+  await client.query('REVOKE hub_reader FROM hub_command')
   await client.query("ALTER ROLE hub_runtime SET role = 'hub_command'")
   await assert.rejects(assertRoleInvariants(client), /MIGRATION_ROLE_SETTING_REFUSED:hub_runtime role=hub_command/)
   await client.query('ALTER ROLE hub_runtime RESET role')
@@ -182,17 +182,14 @@ test('an admitted command is refused every tenant column, and the login role rea
   }
 })
 
-test('hub_reader reads the person columns of iam.account and none of the identity columns, and hub_iam_runtime holds nothing on it', async (t) => {
-  const { connection, database } = await openRuntimeFixture(t, 'conexus_split_account_columns', { accounts: [[ACCOUNT, 'a']] })
+test('hub_reader reads the person columns of iam.account and none of the identity columns', async (t) => {
+  const { database } = await openRuntimeFixture(t, 'conexus_split_account_columns', { accounts: [[ACCOUNT, 'a']] })
   const Person = z.object({ account_id: z.string(), display_name: z.string(), email: z.string().nullable() })
   assert.deepEqual((await database.read(ACCOUNT, (tx) => tx.rows(Person, sql`SELECT account_id, display_name, email FROM iam.account`))).map((row) => row.account_id), [ACCOUNT])
   for (const column of ['issuer', 'external_subject', 'origin', 'active']) {
     await assert.rejects(database.read(ACCOUNT, (tx) => tx.rows(z.object({}).passthrough(), sql`SELECT ${sql.identifier(column)} FROM iam.account`)), (error) => code(error) === '42501', column)
   }
   await assert.rejects(database.read(ACCOUNT, (tx) => tx.rows(z.object({}).passthrough(), sql`SELECT * FROM iam.account`)), (error) => code(error) === '42501', 'select *')
-  const held = await query(connection, `SELECT has_table_privilege('hub_iam_runtime', 'iam.account', 'SELECT, INSERT, UPDATE') AS table_level,
-    has_any_column_privilege('hub_iam_runtime', 'iam.account', 'SELECT, INSERT, UPDATE') AS column_level`)
-  assert.deepEqual(held.rows, [{ table_level: false, column_level: false }])
 })
 
 test('the purge admission refuses a reaper and a person, and a project purge job deletes the Project\'s application rows', async (t) => {
