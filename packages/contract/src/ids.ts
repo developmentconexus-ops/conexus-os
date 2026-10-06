@@ -35,3 +35,41 @@ export const ModelLoginId = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{
 export type ModelLoginId = z.output<typeof ModelLoginId>
 export const IdempotencyKey = z.string().min(1).brand<'IdempotencyKey'>().meta({ id: 'IdempotencyKey' }).register(fieldFailures, { failureCode: 'IDEMPOTENCY_KEY_REQUIRED' })
 export type IdempotencyKey = z.output<typeof IdempotencyKey>
+export const ApplicationFilePath = z.string().min(1).max(1024).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/).brand<'ApplicationFilePath'>().meta({ id: 'ApplicationFilePath' })
+export type ApplicationFilePath = z.output<typeof ApplicationFilePath>
+export const Sha256 = z.string().regex(/^[a-f0-9]{64}$/).brand<'Sha256'>().meta({ id: 'Sha256' })
+export type Sha256 = z.output<typeof Sha256>
+
+const MEDIA_TYPES = [
+  'application/json; charset=utf-8', 'application/wasm', 'font/otf', 'font/woff', 'font/woff2', 'image/avif', 'image/gif', 'image/jpeg', 'image/png',
+  'image/svg+xml', 'image/webp', 'image/x-icon', 'text/css; charset=utf-8', 'text/html; charset=utf-8', 'text/javascript; charset=utf-8', 'text/plain; charset=utf-8',
+] as const
+export const MediaType = z.enum(MEDIA_TYPES).brand<'MediaType'>().meta({ id: 'MediaType' })
+export type MediaType = z.output<typeof MediaType>
+
+/** The media type of each file extension an application may serve; a path with another extension has none. */
+const MEDIA_TYPE_BY_EXTENSION: Readonly<Record<string, (typeof MEDIA_TYPES)[number]>> = {
+  '.avif': 'image/avif',
+  '.cjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.gif': 'image/gif',
+  '.html': 'text/html; charset=utf-8',
+  '.ico': 'image/x-icon',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.otf': 'font/otf',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.txt': 'text/plain; charset=utf-8',
+  '.wasm': 'application/wasm',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+}
+export const mediaTypeOfPath = (path: string): MediaType | null => {
+  const parsed = MediaType.safeParse(MEDIA_TYPE_BY_EXTENSION[path.slice(path.lastIndexOf('.')).toLowerCase()])
+  return parsed.success ? parsed.data : null
+}

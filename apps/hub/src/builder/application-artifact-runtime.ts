@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { FileType } from 'e2b'
 import type { CommandResult, EntryInfo, Sandbox } from 'e2b'
+import { mediaTypeOfPath, type MediaType } from '../../../../packages/contract/dist/index.js'
 import { checkCommand, readCheckReport } from './application-check.js'
 import type { CheckBundle } from './check-delivery.js'
 import type { Caller } from './check/command.js'
@@ -25,7 +26,7 @@ const SAFE_ABSOLUTE_PATH = /^\/[A-Za-z0-9_./-]+$/
 
 type CompiledApplicationFile = Readonly<{
   path: string
-  mediaType: string
+  mediaType: MediaType
   bytes: Uint8Array
   sha256: string
 }>
@@ -42,30 +43,8 @@ export type CompiledApplication = Readonly<{
   executionId: string
 }>
 
-const mediaTypeForPath = (path: string): string => {
-  const extension = path.slice(path.lastIndexOf('.')).toLowerCase()
-  const mediaTypes: Readonly<Record<string, string>> = {
-    '.avif': 'image/avif',
-    '.cjs': 'text/javascript; charset=utf-8',
-    '.css': 'text/css; charset=utf-8',
-    '.gif': 'image/gif',
-    '.html': 'text/html; charset=utf-8',
-    '.ico': 'image/x-icon',
-    '.jpeg': 'image/jpeg',
-    '.jpg': 'image/jpeg',
-    '.js': 'text/javascript; charset=utf-8',
-    '.json': 'application/json; charset=utf-8',
-    '.mjs': 'text/javascript; charset=utf-8',
-    '.otf': 'font/otf',
-    '.png': 'image/png',
-    '.svg': 'image/svg+xml',
-    '.txt': 'text/plain; charset=utf-8',
-    '.wasm': 'application/wasm',
-    '.webp': 'image/webp',
-    '.woff': 'font/woff',
-    '.woff2': 'font/woff2',
-  }
-  const mediaType = mediaTypes[extension]
+const mediaTypeForPath = (path: string): MediaType => {
+  const mediaType = mediaTypeOfPath(path)
   if (!mediaType) throw new Failure('APPLICATION_COMPILER_OUTPUT_MEDIA_TYPE_REFUSED')
   return mediaType
 }

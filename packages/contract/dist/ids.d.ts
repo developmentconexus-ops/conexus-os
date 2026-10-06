@@ -33,3 +33,27 @@ export declare const ModelLoginId: z.core.$ZodBranded<z.ZodString, "ModelLoginId
 export type ModelLoginId = z.output<typeof ModelLoginId>;
 export declare const IdempotencyKey: z.core.$ZodBranded<z.ZodString, "IdempotencyKey", "out">;
 export type IdempotencyKey = z.output<typeof IdempotencyKey>;
+export declare const ApplicationFilePath: z.core.$ZodBranded<z.ZodString, "ApplicationFilePath", "out">;
+export type ApplicationFilePath = z.output<typeof ApplicationFilePath>;
+export declare const Sha256: z.core.$ZodBranded<z.ZodString, "Sha256", "out">;
+export type Sha256 = z.output<typeof Sha256>;
+export declare const MediaType: z.core.$ZodBranded<z.ZodEnum<{
+    "application/json; charset=utf-8": "application/json; charset=utf-8";
+    "application/wasm": "application/wasm";
+    "font/otf": "font/otf";
+    "font/woff": "font/woff";
+    "font/woff2": "font/woff2";
+    "image/avif": "image/avif";
+    "image/gif": "image/gif";
+    "image/jpeg": "image/jpeg";
+    "image/png": "image/png";
+    "image/svg+xml": "image/svg+xml";
+    "image/webp": "image/webp";
+    "image/x-icon": "image/x-icon";
+    "text/css; charset=utf-8": "text/css; charset=utf-8";
+    "text/html; charset=utf-8": "text/html; charset=utf-8";
+    "text/javascript; charset=utf-8": "text/javascript; charset=utf-8";
+    "text/plain; charset=utf-8": "text/plain; charset=utf-8";
+}>, "MediaType", "out">;
+export type MediaType = z.output<typeof MediaType>;
+export declare const mediaTypeOfPath: (path: string) => MediaType | null;
