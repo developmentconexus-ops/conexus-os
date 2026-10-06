@@ -36,7 +36,7 @@ test('every import-law RED control fires its named rule', async (suite) => {
     ['IMPORT_COMPUTED_DYNAMIC createRequire branch', {
       'apps/hub/src/platform/config.ts': 'import { createRequire } from "node:module"; createRequire(import.meta.url)',
     }],
-    ['IMPORT_ABSOLUTE', { 'apps/hub/src/server.ts': 'import "/apps/hub/src/identity-access/store.js"' }],
+    ['IMPORT_ABSOLUTE', { 'apps/hub/src/server.ts': 'import "/apps/hub/src/identity-access/sessions.js"' }],
     ['IMPORT_RELATIVE_ESCAPE', { 'apps/hub/src/server.ts': 'import "../../../../outside.js"' }],
     ['IMPORT_UNRESOLVED_RELATIVE', { 'apps/web/src/main.ts': 'import "./missing.js"' }],
     ['IMPORT_CASE_MISMATCH', {
@@ -63,20 +63,12 @@ test('every import-law RED control fires its named rule', async (suite) => {
       'apps/hub/src/server.ts': 'import "@conexus/contract/dist/index.js"',
     }],
     ['IMPORT_LAYER_MATRIX server branch', {
-      'apps/hub/src/server.ts': 'import "./identity-access/store.js"',
-      'apps/hub/src/identity-access/store.ts': '',
+      'apps/hub/src/server.ts': 'import "./identity-access/sessions.js"',
+      'apps/hub/src/identity-access/sessions.ts': '',
     }],
     ['IMPORT_LAYER_MATRIX http branch', {
       'apps/hub/src/http/app.ts': 'import "../platform/db.js"',
       'apps/hub/src/platform/db.ts': '',
-    }],
-    ['IMPORT_LAYER_MATRIX routes branch', {
-      'apps/hub/src/identity-access/routes.ts': 'import "../platform/db.js"',
-      'apps/hub/src/platform/db.ts': '',
-    }],
-    ['IMPORT_LAYER_MATRIX store branch', {
-      'apps/hub/src/identity-access/store.ts': 'import "../http/problem.js"',
-      'apps/hub/src/http/problem.ts': '',
     }],
     ['IMPORT_LAYER_MATRIX workspace routes branch', {
       'apps/hub/src/workspace/routes.ts': 'import "../platform/db.js"',
@@ -117,27 +109,23 @@ test('the access edges: HTTP reads the session contract, the token and the lifet
     'apps/hub/src/identity-access/current-session.ts': '',
     'apps/hub/src/platform/opaque-token.ts': '',
     'apps/hub/src/platform/lifetimes.ts': '',
-    'apps/hub/src/identity-access/routes.ts': 'import "../http/access.js"; import "../http/cookies.js"',
     'apps/hub/src/workspace/routes.ts': 'import "../http/access.js"; import "../http/cookies.js"',
     'apps/hub/src/http/cookies.ts': '',
-    'apps/hub/src/identity-access/store.ts': 'import "../platform/lifetimes.js"',
   }), [])
   assert.deepEqual(layerViolations({
     'apps/hub/src/http/app.ts': 'import "../mar/module.js"; import "../platform/application-csp.js"',
-    'apps/hub/src/http/access.ts': 'import "../identity-access/store.js"',
+    'apps/hub/src/http/access.ts': 'import "../identity-access/sessions.js"',
     'apps/hub/src/hub.ts': 'import "./http/access.js"',
-    'apps/hub/src/identity-access/routes.ts': 'import "../platform/origin.js"',
     'apps/hub/src/workspace/routes.ts': 'import "../platform/origin.js"',
     'apps/hub/src/mar/module.ts': '',
     'apps/hub/src/platform/application-csp.ts': '',
-    'apps/hub/src/identity-access/store.ts': '',
+    'apps/hub/src/identity-access/sessions.ts': '',
     'apps/hub/src/platform/origin.ts': '',
   }).sort(), [
-    'apps/hub/src/http/access.ts -> ../identity-access/store.js',
+    'apps/hub/src/http/access.ts -> ../identity-access/sessions.js',
     'apps/hub/src/http/app.ts -> ../mar/module.js',
     'apps/hub/src/http/app.ts -> ../platform/application-csp.js',
     'apps/hub/src/hub.ts -> ./http/access.js',
-    'apps/hub/src/identity-access/routes.ts -> ../platform/origin.js',
     'apps/hub/src/workspace/routes.ts -> ../platform/origin.js',
   ])
 })

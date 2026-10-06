@@ -45,7 +45,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   const workspace = createWorkspaceModule({ database })
   const registry = createRegistryModule({ database })
   const identityAccessDependencies = {
-    pool,
+    database,
     workspaceReader: workspace,
     origin: config.origin,
     issuer: config.oidc.issuer,
@@ -90,6 +90,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
         if (!builder) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'CONEXUS_GIT_NOT_CONFIGURED' } })
         return builder.deleteProjectRepository(projectId)
       },
+      purgeIdentityAccess: identityAccess.purgeProject,
       purgeConnectorBindings: connectors.purgeProjectBindings,
       purgeRegistry: registry.purge,
       purgeBuilder: purgeProjectBuilder,
@@ -98,8 +99,16 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   })
   let builder: ReturnType<typeof createConfiguredBuilderModule> | undefined
   const applicationRunner = config.appRunner ? createApplicationRunnerClient(config.appRunner.socketPath) : undefined
+  // The application and Preview hosts move onto the identity ports with the hosting commit; until then every host request reads as signed out.
+  const signedOutHosts = {
+    applicationBySlug: async () => null,
+    applicationAuthority: async () => ({ kind: 'SIGN_IN_REQUIRED' }) as const,
+    redeem: async () => null,
+    signOut: async () => undefined,
+    previewAuthority: async () => ({ kind: 'SIGN_IN_REQUIRED' }) as const,
+  }
   const mar = config.preview ? createMarModule({
-    sessions: identityAccess.hostSessions,
+    sessions: signedOutHosts,
     exactHubOrigin: config.origin,
     previewPort: config.preview.port,
     registry,
@@ -114,29 +123,21 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
       },
     } : {}),
     ...(config.application ? {
-      applicationHost: { sessions: identityAccess.hostSessions, application: config.application },
+      applicationHost: { sessions: signedOutHosts, application: config.application },
     } : {}),
   }) : undefined
   type LaunchPreview = NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>
   const launchPreview: LaunchPreview | undefined = mar ? async (hubSessionDigest, input) => {
     const { launch } = input
     const address = mar.previewAddress(launch.artifactRevisionId)
-    const opened = await identityAccess.openPreview(hubSessionDigest, {
-      accountId: input.accountId,
-      projectId: input.projectId,
-      sourceRevision: launch.sourceRevision,
-      artifactRevisionId: launch.artifactRevisionId,
-      artifactDigest: launch.digest,
-      exactHost: address.exactHost,
-      manifest: { entryPath: launch.entryPath, files: launch.files },
-    })
+    const opened = await identityAccess.openPreview(hubSessionDigest, { accountId: input.accountId, projectId: input.projectId, artifactRevisionId: launch.artifactRevisionId })
     return {
       entryUrl: address.entryUrl,
       previewUrl: address.previewUrl,
       entryGrant: opened.entryGrant,
       artifactRevisionId: launch.artifactRevisionId,
       artifactDigest: launch.digest,
-      expiresAt: new Date(opened.expiresAt).toISOString(),
+      expiresAt: opened.expiresAt.toISOString(),
     }
   } : undefined
   let preparing: Promise<unknown> = Promise.resolve()
@@ -184,11 +185,11 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     policy: {
       listener: 'hub',
       hubOrigin: config.origin,
-      resolveHubSession: identityAccess.resolveHubSession,
+      resolveHubSession: identityAccess.hub.resolve,
       ...(config.preview ? { previewCspSource: `https://*.conexus.localhost:${config.preview.port}` } : {}),
     },
     registerRoutes: async (server) => [
-      ...await identityAccess.registerIdentityAccessRoutes(server),
+      ...await identityAccess.registerRoutes(server),
       ...(workspace ? await workspace.registerWorkspaceRoutes(server) : []),
       ...(project ? await project.registerProjectRoutes(server) : []),
       ...(builder ? await builder.registerBuilderRoutes(server) : []),

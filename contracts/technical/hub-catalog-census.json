@@ -207,6 +207,7 @@
         "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
+          "email",
           "invitation_id",
           "project_id"
         ]
@@ -274,6 +275,7 @@
         "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
+          "application_project_id",
           "state_digest"
         ]
       },
@@ -289,6 +291,7 @@
         "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
+          "email",
           "invitation_id",
           "workspace_id"
         ]

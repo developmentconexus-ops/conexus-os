@@ -37,14 +37,14 @@ const probe = (path, text) => {
 test('bindAccount is importable by authentication.ts only', () => {
   const text = "import { bindAccount } from '../platform/db.js'\n\nexport const bound = bindAccount\n"
   assert.ok(probe('apps/hub/src/workspace/bind-import-probe.ts', text).includes(BIND))
-  assert.ok(probe('apps/hub/src/identity-access/authentication.ts', text).includes(BIND) === false)
+  assert.ok(lint('apps/hub/src/identity-access/authentication.ts').includes(BIND) === false)
   assert.ok(probe('apps/hub/src/identity-access/sessions-bind-probe.ts', text).includes(BIND))
 })
 
 test('receipted is importable by admission.ts only', () => {
   const text = "import { receipted } from '../platform/receipt.js'\n\nexport const made = receipted\n"
   assert.ok(probe('apps/hub/src/workspace/receipt-import-probe.ts', text).includes(RECEIPT))
-  assert.ok(probe('apps/hub/src/identity-access/authentication.ts', text).includes(RECEIPT))
+  assert.ok(probe('apps/hub/src/identity-access/authentication-receipt-probe.ts', text).includes(RECEIPT))
   assert.ok(!lint('apps/hub/src/identity-access/admission.ts').includes(RECEIPT))
 })
 

@@ -8,7 +8,8 @@ import { ID, PASSWORD, STARTER, setupProjects } from './project-fixture.mjs'
 
 const { Failure } = await import(hubModuleUrl('platform/failure.js'))
 const { sql } = await import(hubModuleUrl('platform/db.js'))
-const { admitAccount } = await import(hubModuleUrl('identity-access/admission.js'))
+const { admitSystem } = await import(hubModuleUrl('identity-access/admission.js'))
+const { purgeProject } = await import(hubModuleUrl('identity-access/application-access.js'))
 
 const NEW = { name: 'Atlas', sourceBootstrap: { mode: 'NEW' } }
 const create = (store, accountId, key, body = NEW, workspaceId = ID.workspace) => store.createProject({ accountId, workspaceId, idempotencyKey: key, body })
@@ -73,7 +74,7 @@ test('a revoke that commits first refuses createProject', async (t) => {
   await revoker.connect()
   onCleanup(() => revoker.end())
   await revoker.query('BEGIN')
-  await revoker.query('SELECT iam.remove_workspace_member($1, $2, $3)', [ID.owner, ID.workspace, ID.member])
+  await revoker.query('DELETE FROM iam.workspace_membership WHERE workspace_id = $1 AND account_id = $2', [ID.workspace, ID.member])
   let settled = false
   const waiting = create(store, ID.member, 'revoked-first').finally(() => { settled = true })
   waiting.catch(() => undefined)
@@ -98,7 +99,7 @@ test('a revoke waits for an admitted createProject and the next admission is ref
   creating.then(() => { creation.settled = true }, () => { creation.settled = true })
   await new Promise((resolve) => setTimeout(resolve, 300))
   assert.equal(creation.settled, false, 'the second transaction is admitted and waits on its receipt')
-  const revoking = query(connection, 'SELECT iam.remove_workspace_member($1, $2, $3)', [ID.owner, ID.workspace, ID.member])
+  const revoking = query(connection, 'DELETE FROM iam.workspace_membership WHERE workspace_id = $1 AND account_id = $2', [ID.workspace, ID.member])
   const revocation = { settled: false }
   revoking.then(() => { revocation.settled = true }, () => { revocation.settled = true })
   await new Promise((resolve) => setTimeout(resolve, 300))
@@ -211,13 +212,8 @@ test('the login role alone reads nothing, and the reader without an account set 
 test('a person transaction cannot run a project purge, and the rows stay', async (t) => {
   const { connection, database, seedProject } = await setupProjects(t, 'conexus_prj_purge_guard')
   const projectId = await seedProject('Atlas')
-  const refused = (error) => { assert.equal(error.cause.code, '42501'); assert.match(error.cause.message, /PURGE_REQUIRES_SYSTEM/); return true }
-  const purges = {
-    iam: sql`SELECT iam.purge_project(${projectId}::uuid)`,
-  }
-  for (const [schema, statement] of Object.entries(purges)) {
-    await assert.rejects(database.transaction(ID.member, async (gate) => (await admitAccount(gate)).tx.run(statement)), refused, schema)
-  }
+  const refused = (error) => error.id === 'INTERNAL_UNEXPECTED' && error.details?.invariant === 'GATE_ACTOR_REFUSED'
+  await assert.rejects(database.transaction(ID.member, async (gate) => purgeProject(await admitSystem(gate, 'project-purge'), projectId)), refused)
   assert.deepEqual((await query(connection, 'SELECT (SELECT count(*)::integer FROM builder.project_working_state WHERE project_id = $1) AS working, (SELECT count(*)::integer FROM builder.project_repository WHERE project_id = $1) AS repository', [projectId])).rows, [{ working: 1, repository: 1 }])
 })
 

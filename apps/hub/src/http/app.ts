@@ -45,7 +45,6 @@ const namedFailure = (error: unknown): Failure | null => {
   return code ? new Failure(code, { cause: error }) : null
 }
 
-// biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
 export const createHttpApp = async ({
   policy,
   registerRoutes,
@@ -117,7 +116,6 @@ export const createHttpApp = async ({
     const indexHtml = readFileSync(join(staticRoot, 'index.html'), 'utf8')
     const spaRoutes = [
       '/',
-      '/setup',
       '/workspaces',
       '/workspaces/new',
       '/workspaces/:workspaceId/projects',

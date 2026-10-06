@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
+import { z } from 'zod'
 import { assertRoleInvariants } from '../../scripts/hub-catalog.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { buildHubDatabase, query } from './hub-database.mjs'
@@ -9,6 +10,7 @@ import { setupBuilder } from './builder-fixture.mjs'
 import { ID } from './project-fixture.mjs'
 
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
+const { sql } = await import(hubModuleUrl('platform/db.js'))
 
 const BASE = 'a'.repeat(40)
 const send = (store, accountId, projectId, key) => store.createBuilderRun({ accountId, projectId, conversationId: projectId, idempotencyKey: key, content: 'pedido', readBase: async () => BASE })
@@ -42,7 +44,7 @@ test('removing the member stops the next claim and still records the work alread
   const queuedRun = await send(store, ID.member, queued, 'two')
   assert.equal((await store.claimBuilderRun({ builderRunId: runningRun.builderRunId })).state, 'RUNNING')
 
-  await query(connection, 'SELECT iam.remove_workspace_member($1,$2,$3)', [ID.owner, ID.workspace, ID.member])
+  await query(connection, 'DELETE FROM iam.workspace_membership WHERE workspace_id = $1 AND account_id = $2', [ID.workspace, ID.member])
 
   await assert.rejects(store.claimBuilderRun({ builderRunId: queuedRun.builderRunId }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
 
@@ -51,7 +53,7 @@ test('removing the member stops the next claim and still records the work alread
   assert.deepEqual((await query(connection, 'SELECT state, result_kind FROM builder.builder_run WHERE builder_run_id = $1', [runningRun.builderRunId])).rows,
     [{ state: 'SUCCEEDED', result_kind: 'RESPONSE_ONLY' }])
 
-  assert.deepEqual((await query(connection, 'SELECT project_id FROM iam.visible_projects($1)', [ID.member])).rows, [])
+  assert.deepEqual(await database.read(ID.member, (tx) => tx.rows(z.object({ project_id: z.string() }), sql`SELECT project_id FROM project.project`)), [])
 })
 
 test('an inactive account is refused everywhere, including Preview and source read', async (t) => {
@@ -66,7 +68,7 @@ test('an inactive account is refused everywhere, including Preview and source re
   assert.equal(await admits(), false)
   assert.equal(await store.readPreviewSubject({ accountId: ID.member, projectId }), null)
   assert.equal(await store.readBuilderRun({ accountId: ID.member, projectId }), null)
-  assert.deepEqual((await query(connection, 'SELECT project_id FROM iam.visible_projects($1)', [ID.member])).rows, [])
+  assert.deepEqual(await database.read(ID.member, (tx) => tx.rows(z.object({ project_id: z.string() }), sql`SELECT project_id FROM project.project`)), [])
   await assert.rejects(send(store, ID.member, projectId, 'one'), { id: 'ACCOUNT_INACTIVE' })
 })
 
@@ -79,9 +81,9 @@ test('the runner refuses a database where PUBLIC may execute a Hub function', as
   await client.connect()
   try {
     await assertRoleInvariants(client)
-    await client.query('GRANT EXECUTE ON FUNCTION iam.remove_workspace_member(uuid, uuid, uuid) TO PUBLIC')
+    await client.query('GRANT EXECUTE ON FUNCTION iam.lock_administrators() TO PUBLIC')
     await assert.rejects(assertRoleInvariants(client),
-      /MIGRATION_FUNCTION_PUBLIC_EXECUTE_REFUSED:iam\.remove_workspace_member\(p_actor uuid, p_workspace_id uuid, p_member uuid\)/)
+      /MIGRATION_FUNCTION_PUBLIC_EXECUTE_REFUSED:iam\.lock_administrators\(\)/)
   } finally {
     await client.end()
   }

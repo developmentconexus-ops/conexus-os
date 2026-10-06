@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -9,7 +9,7 @@ const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 export const stripComments = (sql) => sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ')
 
 export const hubSources = () => execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard', 'apps/hub/src'], { cwd: repo, encoding: 'utf8' })
-  .split('\0').filter((path) => path.endsWith('.ts') && !path.endsWith('.generated.ts'))
+  .split('\0').filter((path) => path.endsWith('.ts') && !path.endsWith('.generated.ts') && existsSync(join(repo, path)))
   .map((path) => ({ path, owner: path.split('/').slice(0, 4).join('/'), text: stripComments(readFileSync(join(repo, path), 'utf8')) }))
 
 const SQL_TAG_IMPORT = /import\s*(?:type\s*)?\{[^}]*\bsql\b[^}]*\}\s*from\s*'[^']*platform\/db\.js'/

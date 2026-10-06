@@ -5,6 +5,8 @@ import { test } from 'node:test'
 
 const root = resolve(import.meta.dirname, '../..')
 const MAY_CALL_SYSTEM = [
+  'apps/hub/src/identity-access/application-access.ts',
+  'apps/hub/src/identity-access/expiry.ts',
   'apps/hub/src/builder/conversation-store.ts',
   'apps/hub/src/builder/model-account/accounts.ts',
   'apps/hub/src/builder/run-lease.ts',
@@ -13,7 +15,7 @@ const MAY_CALL_SYSTEM = [
   'apps/hub/src/project/deletion.ts',
 ]
 
-test('only the project purge and the Builder executor open a system transaction', () => {
+test('only the project purge, the Builder executor and the IAM presence check and expiry open a system transaction', () => {
   const callers = globSync('apps/hub/src/**/*.ts', { cwd: root })
     .filter((file) => file !== 'apps/hub/src/platform/db.ts')
     .filter((file) => /\.system\(/.test(readFileSync(resolve(root, file), 'utf8')))
@@ -22,8 +24,8 @@ test('only the project purge and the Builder executor open a system transaction'
   assert.deepEqual(unexpected, [])
 })
 
-test('the project purge functions are named only by the project deletion', () => {
+test('no SQL purge_project function is named: the project purge is TypeScript ports', () => {
   const files = globSync('apps/hub/src/**/*.ts', { cwd: root })
     .filter((file) => /purge_project/.test(readFileSync(resolve(root, file), 'utf8')))
-  assert.deepEqual(files, ['apps/hub/src/project/deletion.ts'])
+  assert.deepEqual(files, [])
 })

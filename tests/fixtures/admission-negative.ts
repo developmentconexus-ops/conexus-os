@@ -10,6 +10,9 @@ import type { ModelRoute, ModelRoutes } from '../../apps/hub/src/builder/model-r
 import { digest, sql } from '../../apps/hub/src/platform/db.js'
 import { SealedApplication } from '../../apps/hub/src/platform/sealed-application.js'
 import type { RegistryModule } from '../../apps/hub/src/registry/module.js'
+import { purgeProject } from '../../apps/hub/src/identity-access/application-access.js'
+import { provisionIdentity } from '../../apps/hub/src/identity-access/authentication.js'
+import type { SignInClaims } from '../../apps/hub/src/identity-access/oidc.js'
 
 declare const account: AccountId
 declare const workspace: WorkspaceId
@@ -137,6 +140,14 @@ const positivePurge: Admitted<SystemScope<'project-purge'>> = purge
 const positiveSystem: Promise<Admitted<SystemScope<'project-purge'>>> = admitSystem(gate, 'project-purge')
 const positiveGrant: Promise<void> = grantCreatorMembership(await admitAccount(gate), workspace)
 
+declare const accountProof: Admitted<AccountScope>
+declare const claims: SignInClaims
+// @ts-expect-error The identity purge takes the purge job's proof, never an account's.
+const purgedByAccount: Promise<void> = purgeProject(accountProof, project)
+const positiveIdentityPurge: Promise<void> = purgeProject(purge, project)
+// @ts-expect-error An identity is provisioned only on a basis: the founding proof or a claim.
+const provisionedBare = provisionIdentity(authentication, claims)
+
 declare const anthropicRoute: ModelRoute<'anthropic'>
 declare const googleRoute: ModelRoute<'google-ai-pro'>
 // @ts-expect-error A Lawful credential of openai-codex cannot hold the api_key kind.
@@ -144,4 +155,4 @@ const unlawful: Lawful = { provider: 'openai-codex', kind: 'api_key' }
 // @ts-expect-error A ModelRoutes missing the router prefix openai does not compile.
 const missingPrefix: ModelRoutes = { anthropic: anthropicRoute, 'google-ai-pro': googleRoute }
 
-void [positiveAuthenticatedCheck, positiveAuthenticatedAdmission, positivePreviewCheck, positiveReceipt, positiveKeyed, positiveBootstrap, unlawful, missingPrefix, literalGate, spreadGate, positiveAuthentication, positiveDigest, positiveOwner, positiveRead, positiveGrant, positivePurge, positiveSystem, positiveChecked, positiveCheckedRead, checkedAsAdmitted, admittedAsChecked, copiedChecked, writeMode, wrongJob, forged, copied, wrongScope, wrongAction, wrongProject, wrongMode]
+void [purgedByAccount, positiveIdentityPurge, provisionedBare, positiveAuthenticatedCheck, positiveAuthenticatedAdmission, positivePreviewCheck, positiveReceipt, positiveKeyed, positiveBootstrap, unlawful, missingPrefix, literalGate, spreadGate, positiveAuthentication, positiveDigest, positiveOwner, positiveRead, positiveGrant, positivePurge, positiveSystem, positiveChecked, positiveCheckedRead, checkedAsAdmitted, admittedAsChecked, copiedChecked, writeMode, wrongJob, forged, copied, wrongScope, wrongAction, wrongProject, wrongMode]

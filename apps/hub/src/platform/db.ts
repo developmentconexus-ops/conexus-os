@@ -30,11 +30,12 @@ const isSql = (value: unknown): value is Sql => typeof value === 'object' && val
 export const RawToken = z.string().min(1).brand<'RawToken'>()
 /** @public Frozen by spec 0015 section 3. */
 export type RawToken = z.output<typeof RawToken>
-const DigestBytes = z.instanceof(Buffer).brand<'Digest'>()
+/** The SHA-256 of a RawToken, as a column stores it; its schema reads one back from a row. */
+export const Digest = z.instanceof(Buffer).refine((bytes) => bytes.length === 32).brand<'Digest'>()
 /** @public Frozen by spec 0015 section 3. */
-export type Digest = z.output<typeof DigestBytes>
+export type Digest = z.output<typeof Digest>
 /** @public Frozen by spec 0015 section 3; the one way to a Digest. */
-export const digest = (raw: RawToken): Digest => DigestBytes.parse(createHash('sha256').update(raw).digest())
+export const digest = (raw: RawToken): Digest => Digest.parse(createHash('sha256').update(raw).digest())
 type NoRawToken<V extends readonly unknown[]> = { readonly [K in keyof V]: V[K] extends RawToken ? never : V[K] }
 
 export const sql = Object.assign(<V extends readonly unknown[]>(strings: TemplateStringsArray, ...interpolations: V & NoRawToken<V>): Sql => {

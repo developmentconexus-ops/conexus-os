@@ -6,20 +6,20 @@ import type { AnyOperation, EffectsOf, Input, Out, Reply } from '@conexus/contra
 import type { z } from 'zod'
 import { z as zod } from 'zod'
 import { clearCookie } from './cookies.js'
-import { bootstrapToken, hubSessionDigest } from '../identity-access/current-session.js'
-import type { BootstrapToken, CurrentSession, HubSession, HubSessionDigest } from '../identity-access/current-session.js'
+import { hubSessionDigest } from '../identity-access/current-session.js'
+import type { CurrentSession, HubSession, HubSessionDigest } from '../identity-access/current-session.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
-import { parseOpaqueToken } from '../platform/opaque-token.js'
+import { presentedToken } from '../platform/opaque-token.js'
 import { readCredentialCookie } from './cookies.js'
 
-export type AccessKind = 'navigation' | 'sign-in' | 'session' | 'sign-out' | 'bootstrap' | 'host-write' | 'hub-entry'
+export type AccessKind = 'navigation' | 'sign-in' | 'session' | 'sign-out' | 'host-write' | 'hub-entry'
 type Methods = 'PAGE' | 'GET' | 'WRITE' | 'ANY'
 type AccessRow = Readonly<{
   methods: Methods
   fetchSite: 'SAME_ORIGIN_OR_NONE' | 'ANY'
   mode: 'NAVIGATE' | 'NOT_NAVIGATE' | 'ANY'
   origin: 'NONE' | 'HUB_WHEN_PRESENT_REQUIRED_ON_WRITE' | 'HUB_ALWAYS' | 'HUB_ALWAYS_ON_OWN_HOST' | 'OWN_ALWAYS'
-  credential: 'NONE' | 'HUB_SESSION' | 'HUB_SESSION_COOKIE' | 'BOOTSTRAP_COOKIE'
+  credential: 'NONE' | 'HUB_SESSION' | 'HUB_SESSION_COOKIE'
 }>
 
 /** @public */
@@ -28,7 +28,6 @@ export const ACCESS: Readonly<Record<AccessKind, AccessRow>> = Object.freeze({
   'sign-in': { methods: 'GET', fetchSite: 'ANY', mode: 'NAVIGATE', origin: 'NONE', credential: 'NONE' },
   session: { methods: 'ANY', fetchSite: 'SAME_ORIGIN_OR_NONE', mode: 'NOT_NAVIGATE', origin: 'HUB_WHEN_PRESENT_REQUIRED_ON_WRITE', credential: 'HUB_SESSION' },
   'sign-out': { methods: 'WRITE', fetchSite: 'SAME_ORIGIN_OR_NONE', mode: 'NOT_NAVIGATE', origin: 'HUB_ALWAYS', credential: 'HUB_SESSION_COOKIE' },
-  bootstrap: { methods: 'WRITE', fetchSite: 'SAME_ORIGIN_OR_NONE', mode: 'NOT_NAVIGATE', origin: 'HUB_ALWAYS', credential: 'BOOTSTRAP_COOKIE' },
   'host-write': { methods: 'WRITE', fetchSite: 'SAME_ORIGIN_OR_NONE', mode: 'ANY', origin: 'OWN_ALWAYS', credential: 'NONE' },
   'hub-entry': { methods: 'WRITE', fetchSite: 'ANY', mode: 'ANY', origin: 'HUB_ALWAYS_ON_OWN_HOST', credential: 'NONE' },
 })
@@ -39,7 +38,7 @@ export type ListenerPolicy =
 
 type Listener = ListenerPolicy['listener']
 const LISTENER_KINDS: Readonly<Record<Listener, ReadonlySet<AccessKind>>> = Object.freeze({
-  hub: new Set<AccessKind>(['navigation', 'sign-in', 'session', 'sign-out', 'bootstrap']),
+  hub: new Set<AccessKind>(['navigation', 'sign-in', 'session', 'sign-out']),
   preview: new Set<AccessKind>(['navigation', 'sign-in', 'host-write', 'hub-entry']),
   application: new Set<AccessKind>(['navigation', 'sign-in', 'host-write', 'hub-entry']),
 })
@@ -126,7 +125,6 @@ type Credential =
   | Readonly<{ type: 'NONE' }>
   | Readonly<{ type: 'HUB_SESSION'; session: HubSession }>
   | Readonly<{ type: 'HUB_SESSION_COOKIE'; digest: HubSessionDigest }>
-  | Readonly<{ type: 'BOOTSTRAP_COOKIE'; token: BootstrapToken }>
 
 const NO_CREDENTIAL: Credential = Object.freeze({ type: 'NONE' })
 const NOTHING = Object.freeze({})
@@ -136,7 +134,6 @@ export type Grants = {
   'sign-in': Readonly<Record<never, never>>
   session: HubSession
   'sign-out': Readonly<{ digest: HubSessionDigest }>
-  bootstrap: Readonly<{ token: BootstrapToken }>
   'host-write': Readonly<Record<never, never>>
   'hub-entry': Readonly<Record<never, never>>
 }
@@ -146,7 +143,6 @@ const GRANT: { readonly [Kind in AccessKind]: (credential: Credential, facts: Re
   'sign-in': () => NOTHING,
   session: (credential: Credential) => credential.type === 'HUB_SESSION' ? credential.session : null,
   'sign-out': (credential: Credential) => credential.type === 'HUB_SESSION_COOKIE' ? { digest: credential.digest } : null,
-  bootstrap: (credential: Credential) => credential.type === 'BOOTSTRAP_COOKIE' ? { token: credential.token } : null,
   'host-write': () => NOTHING,
   'hub-entry': () => NOTHING,
 })
@@ -179,7 +175,7 @@ export const grantOf = <Kind extends AccessKind>(request: FastifyRequest, kind: 
 }
 
 const hubSessionOf = async (request: FastifyRequest, policy: ListenerPolicy): Promise<Credential> => {
-  const token = parseOpaqueToken(readCredentialCookie(request, 'hubSession'))
+  const token = presentedToken(readCredentialCookie(request, 'hubSession'))
   if (!token) throw new Failure('AUTHENTICATION_REQUIRED')
   if (policy.listener !== 'hub') throw missing('ACCESS_KIND_FOREIGN')
   const digest = hubSessionDigest(token)
@@ -193,34 +189,13 @@ const credentialOf = async (rule: AccessRow['credential'], request: FastifyReque
     case 'NONE': return NO_CREDENTIAL
     case 'HUB_SESSION': return hubSessionOf(request, policy)
     case 'HUB_SESSION_COOKIE': {
-      const token = parseOpaqueToken(readCredentialCookie(request, 'hubSession'))
+      const token = presentedToken(readCredentialCookie(request, 'hubSession'))
       if (!token) throw new Failure('AUTHENTICATION_REQUIRED')
       return { type: 'HUB_SESSION_COOKIE', digest: hubSessionDigest(token) }
-    }
-    case 'BOOTSTRAP_COOKIE': {
-      const token = bootstrapToken(readCredentialCookie(request, 'bootstrap'))
-      if (!token) throw new Failure('BOOTSTRAP_REQUIRED')
-      return { type: 'BOOTSTRAP_COOKIE', token }
     }
     default: return rule satisfies never
   }
 }
-
-const UNDECLARED_OPERATIONS: ReadonlySet<string> = new Set([
-  'GET /api/control/access-context',
-  'POST /api/control/accounts',
-  'GET /api/control/workspaces/:workspaceId/members',
-  'POST /api/control/workspaces/:workspaceId/invitations',
-  'PUT /api/control/workspaces/:workspaceId/members/:accountId',
-  'DELETE /api/control/workspaces/:workspaceId/roster/:entryKind/:entryId',
-  'GET /api/control/projects/:projectId/application-access',
-  'POST /api/control/projects/:projectId/application-access',
-  'DELETE /api/control/projects/:projectId/application-access/:entryKind/:entryId',
-  'GET /api/control/installation',
-  'GET /api/control/installation/administrators',
-  'POST /api/control/installation/administrators',
-  'DELETE /api/control/installation/administrators/:accountId',
-])
 
 type RouteRecord = Readonly<{ method: string | readonly string[]; url: string; config?: RouteOptions['config'] }>
 
@@ -231,8 +206,7 @@ const bootRefusal = (record: RouteRecord, listener: Listener): string | null => 
   if (!LISTENER_KINDS[listener].has(kind)) return 'ROUTE_ACCESS_FOREIGN'
   const methods = typeof record.method === 'string' ? [record.method] : record.method
   if (listener === 'hub' && (record.url.startsWith('/api/control') || record.url.startsWith('/api/builder')) &&
-      record.config?.operation === undefined && record.config?.foreignOperation !== true &&
-      !methods.every((method) => UNDECLARED_OPERATIONS.has(`${method} ${record.url}`))) return 'ROUTE_OPERATION_UNDECLARED'
+      record.config?.operation === undefined && record.config?.foreignOperation !== true) return 'ROUTE_OPERATION_UNDECLARED'
   return methods.every((method) => METHODS[ACCESS[kind].methods].has(method)) ? null : 'ROUTE_ACCESS_METHOD'
 }
 
@@ -306,7 +280,6 @@ export const routes = (app: FastifyInstance) => {
       handler: async (request, reply) => {
         const effects = {
           'clear-session-cookie': () => { clearCookie(reply, 'hubSession') },
-          'clear-bootstrap-cookie': () => { clearCookie(reply, 'bootstrap') },
         }
         const result = await handler({
           params: parsedPart<O['params']>(op.params, request.params),
@@ -352,7 +325,6 @@ export const routes = (app: FastifyInstance) => {
     'sign-in': <Generic extends RouteGenericInterface = RouteGenericInterface>(route: Declared<Generic, 'sign-in'>) => declare('sign-in', 'GET', route),
     session: <Generic extends RouteGenericInterface = RouteGenericInterface>(route: WithMethod<Generic, 'session'>) => declare('session', route.method, route),
     'sign-out': <Generic extends RouteGenericInterface = RouteGenericInterface>(route: WithMethod<Generic, 'sign-out'>) => declare('sign-out', route.method, route),
-    bootstrap: <Generic extends RouteGenericInterface = RouteGenericInterface>(route: WithMethod<Generic, 'bootstrap'>) => declare('bootstrap', route.method, route),
     'host-write': <Generic extends RouteGenericInterface = RouteGenericInterface>(route: WithMethod<Generic, 'host-write'>) => declare('host-write', route.method, route),
     'hub-entry': <Generic extends RouteGenericInterface = RouteGenericInterface>(route: WithMethod<Generic, 'hub-entry'>) => declare('hub-entry', route.method, route),
   })

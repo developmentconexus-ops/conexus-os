@@ -29,7 +29,7 @@ const listener = async (t) => {
 
 test('a malformed value of each path param answers the code its operation names, before the handler', async (t) => {
   const app = await listener(t)
-  assert.equal(withParams.length, 23)
+  assert.equal(withParams.length, 33)
   for (const op of withParams) {
     const good = Object.fromEntries(Object.entries(op.params.shape).map(([name, schema]) => [name, wellFormed(schema)]))
     for (const [name, schema] of Object.entries(op.params.shape)) {

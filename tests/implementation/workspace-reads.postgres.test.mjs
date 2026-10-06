@@ -8,18 +8,12 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { hubSessionCookie, opaque, testListener } from './access/test-listener.mjs'
 
 const { openDatabase } = await import(hubModuleUrl('platform/db.js'))
-const { createIdentityAccessStore } = await import(hubModuleUrl('identity-access/store.js'))
 const { createWorkspaceModule } = await import(hubModuleUrl('workspace/module.js'))
-const { registerIdentityAccessRoutes } = await import(hubModuleUrl('identity-access/routes.js'))
+const { createSessions } = await import(hubModuleUrl('identity-access/sessions.js'))
 const ACCOUNT = '11111111-1111-4111-8111-111111111111'
 const OTHER = '22222222-2222-4222-8222-222222222222'
 const WORKSPACE = '33333333-3333-4333-8333-333333333333'
 const TOKEN = opaque('operator')
-
-const oidc = Object.freeze({
-  begin: async () => { throw new Error('not used') },
-  complete: async () => { throw new Error('not used') },
-})
 
 test('IAM-01 lists only active memberships through the workspace policy', async (t) => {
   const fixture = await buildHubDatabase(t, 'conexus_workspace_reads')
@@ -35,22 +29,20 @@ test('IAM-01 lists only active memberships through the workspace policy', async 
     VALUES ($1, 'https://issuer.test', 'owner', 'Owner'), ($2, 'https://issuer.test', 'other', 'Other')`, [ACCOUNT, OTHER])
   await query(fixture.connection, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'Operations')", [WORKSPACE])
   await query(fixture.connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [ACCOUNT, WORKSPACE])
-  const store = createIdentityAccessStore({ pool: {}, workspaceReader: createWorkspaceModule({ database }) })
+  const store = createWorkspaceModule({ database })
   assert.deepEqual(await store.listAccessibleWorkspaces(ACCOUNT), [{ workspaceId: WORKSPACE, name: 'Operations' }])
   assert.deepEqual(await store.listAccessibleWorkspaces(OTHER), [])
 
   const current = Object.freeze({ account: { accountId: ACCOUNT, displayName: 'Owner' }, issuer: 'https://issuer.test', subject: 'owner' })
   const { app } = await testListener({
     sessions: { [TOKEN]: current },
-    registerRoutes: (server) => registerIdentityAccessRoutes(server, {
-      store, workspaceReader: store, oidc,
-      config: { origin: 'https://conexus.test', bootstrapIssuer: current.issuer, bootstrapSubject: current.subject },
-    }),
+    registerRoutes: (server) => createSessions({ database, envelope: {}, provider: {} }).registerRoutes(server, store),
   })
   t.after(() => app.close())
-  const response = await app.inject({ method: 'GET', url: '/api/control/access-context', headers: { cookie: hubSessionCookie(TOKEN) } })
+  const response = await app.inject({ method: 'GET', url: '/api/session', headers: { cookie: hubSessionCookie(TOKEN) } })
   assert.equal(response.statusCode, 200)
   assert.deepEqual(response.json().workspaces, [{ workspaceId: WORKSPACE, name: 'Operations' }])
+  assert.equal(response.json().administrator, false)
 
   await query(fixture.connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ACCOUNT])
   assert.deepEqual(await store.listAccessibleWorkspaces(ACCOUNT), [], 'a deactivated account lists nothing although its membership remains')

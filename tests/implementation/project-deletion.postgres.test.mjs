@@ -23,18 +23,14 @@ const seedEverything = async (connection, projectId) => {
   await query(connection, 'INSERT INTO iam.application_grant(project_id, account_id, granted_by) VALUES ($1, $2, $3)', [projectId, ID.outsider, ID.owner])
   const revisionId = await seedRevision(connection, projectId, { sourceRevision: HEAD, digest: digest('3') })
   await seedRevisionThumbnail(connection, revisionId)
-  const previewId = randomUUID()
   const opened = new Date()
-  await query(connection, `INSERT INTO iam.preview(preview_id, account_id, project_id, source_revision, artifact_revision_id, artifact_digest, exact_host, manifest, opened_at, expires_at)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9::timestamptz + interval '15 minutes')`,
-  [previewId, ID.owner, projectId, HEAD, revisionId, digest('3'), `preview-${revisionId}.example.test`, JSON.stringify({ entryPath: 'index.html', files: [] }), opened])
   const hub = randomBytes(32)
   await query(connection, `INSERT INTO iam.host_session(token_digest, kind, account_id, started_at, absolute_expires_at, provider_refresh_token, provider_checked_at, idle_expires_at)
     VALUES ($1, 'HUB', $2, $3, $3::timestamptz + interval '8 hours', 'mastra:factory-secret:v1:hub-token', $3, $3::timestamptz + interval '30 minutes')`, [hub, ID.owner, opened])
-  await query(connection, "INSERT INTO iam.host_session(token_digest, kind, account_id, started_at, absolute_expires_at, preview_id, parent_digest) VALUES ($1, 'PREVIEW', $2, $3, $3::timestamptz + interval '10 minutes', $4, $5)", [randomBytes(32), ID.owner, opened, previewId, hub])
   await query(connection, `INSERT INTO iam.host_session(token_digest, kind, account_id, started_at, absolute_expires_at, project_id, provider_refresh_token, provider_checked_at)
     VALUES ($1, 'APPLICATION', $2, $3, $3::timestamptz + interval '8 hours', $4, 'mastra:factory-secret:v1:application-token', $3)`, [randomBytes(32), ID.outsider, opened, projectId])
-  await query(connection, "INSERT INTO iam.handoff(handoff_digest, kind, account_id, preview_id, parent_digest, minted_at, expires_at) VALUES ($1, 'PREVIEW', $2, $3, $4, now(), now() + interval '30 seconds')", [randomBytes(32), ID.owner, previewId, hub])
+  await query(connection, "INSERT INTO iam.handoff(handoff_digest, kind, account_id, project_id, binding_digest, provider_refresh_token, minted_at, expires_at) VALUES ($1, 'APPLICATION', $2, $3, $4, 'mastra:factory-secret:v1:handoff-token', now(), now() + interval '30 seconds')", [randomBytes(32), ID.outsider, projectId, randomBytes(32)])
+  await query(connection, "INSERT INTO iam.oidc_transaction(state_digest, pkce_verifier, nonce, expires_at, application_project_id, sign_in_binding_digest) VALUES ($1, 'verifier', 'nonce', now() + interval '10 minutes', $2, $3)", [randomBytes(32), projectId, randomBytes(32)])
   const connectionId = randomUUID()
   await query(connection, "INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by) VALUES ($1, $2, 'sankhya', 'ERP', 'mastra:factory-secret:v1:connection', $3, $4)", [connectionId, ID.workspace, digest('4'), ID.owner])
   await query(connection, "INSERT INTO connector.project_binding(workspace_id, project_id, environment, connection_id, name, bound_by) VALUES ($1, $2, 'preview', $3, 'erp', $4)", [ID.workspace, projectId, connectionId, ID.owner])
@@ -42,10 +38,10 @@ const seedEverything = async (connection, projectId) => {
     await query(connection, `INSERT INTO platform.operation_receipt(operation_id, authority, account_id, key_digest, request_digest, resource_id, state)
       VALUES ('createProject', $1, $2, $3, $3, $4, 'reserved')`, [`workspace:${ID.workspace}:account:${accountId}`, accountId, randomBytes(32), projectId])
   }
-  return { revisionId, previewId, hub, connectionId }
+  return { revisionId, hub, connectionId }
 }
 
-const counts = async (connection, projectId, { revisionId, previewId }) => (await query(connection, `SELECT
+const counts = async (connection, projectId, { revisionId }) => (await query(connection, `SELECT
   (SELECT count(*)::integer FROM project.project WHERE project_id = $1) AS project,
   (SELECT count(*)::integer FROM builder.project_working_state WHERE project_id = $1) AS working_state,
   (SELECT count(*)::integer FROM builder.project_repository WHERE project_id = $1) AS repository,
@@ -55,17 +51,17 @@ const counts = async (connection, projectId, { revisionId, previewId }) => (awai
   (SELECT count(*)::integer FROM iam.application_grant WHERE project_id = $1) AS grant_row,
   (SELECT count(*)::integer FROM reg.artifact_revision WHERE project_id = $1) AS revision,
   (SELECT count(*)::integer FROM reg.application_thumbnail WHERE artifact_revision_id = $2) AS thumbnail,
-  (SELECT count(*)::integer FROM iam.preview WHERE project_id = $1) AS preview,
-  (SELECT count(*)::integer FROM iam.host_session WHERE project_id = $1 OR preview_id = $3) AS host_session,
-  (SELECT count(*)::integer FROM iam.handoff WHERE preview_id = $3) AS handoff,
+  (SELECT count(*)::integer FROM iam.host_session WHERE project_id = $1) AS host_session,
+  (SELECT count(*)::integer FROM iam.handoff WHERE project_id = $1) AS handoff,
+  (SELECT count(*)::integer FROM iam.oidc_transaction WHERE application_project_id = $1) AS oidc_transaction,
   (SELECT count(*)::integer FROM connector.project_binding WHERE project_id = $1) AS binding,
-  (SELECT count(*)::integer FROM platform.operation_receipt WHERE resource_id = $1) AS receipts`, [projectId, revisionId, previewId])).rows[0]
+  (SELECT count(*)::integer FROM platform.operation_receipt WHERE resource_id = $1) AS receipts`, [projectId, revisionId])).rows[0]
 
 test('deleting a project clears every row that names it across the schemas and keeps what is not the project', async (t) => {
   const { connection, store, seedProject, events } = await setupProjects(t, 'conexus_prj_purge')
   const projectId = await seedProject('Atlas')
   const seeded = await seedEverything(connection, projectId)
-  const full = { project: 1, working_state: 1, repository: 1, run: 1, application: 1, invitation: 1, grant_row: 1, revision: 1, thumbnail: 1, preview: 1, host_session: 2, handoff: 1, binding: 1, receipts: 2 }
+  const full = { project: 1, working_state: 1, repository: 1, run: 1, application: 1, invitation: 1, grant_row: 1, revision: 1, thumbnail: 1, host_session: 1, handoff: 1, oidc_transaction: 1, binding: 1, receipts: 2 }
   assert.deepEqual(await counts(connection, projectId, seeded), full)
 
   await remove(store, ID.administrator, projectId)
@@ -101,7 +97,8 @@ test('a deletion that fails after the purge resumes on retry, and a crash inside
   const { createProjectDeletion } = await import(hubModuleUrl('project/deletion.js'))
   const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
   const { purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
-  const ports = { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => { if (failing.repository++ === 0) throw new Error('GITHUB_DOWN') }, purgeConnectorBindings: purgeProjectBindings, purgeRegistry: (proof, id) => { if (failing.registry++ === 0) throw new Error('REGISTRY_DOWN'); return registry.purge(proof, id) }, purgeBuilder: purgeProjectBuilder }
+  const { purgeProject } = await import(hubModuleUrl('identity-access/application-access.js'))
+  const ports = { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => { if (failing.repository++ === 0) throw new Error('GITHUB_DOWN') }, purgeIdentityAccess: purgeProject, purgeConnectorBindings: purgeProjectBindings, purgeRegistry: (proof, id) => { if (failing.registry++ === 0) throw new Error('REGISTRY_DOWN'); return registry.purge(proof, id) }, purgeBuilder: purgeProjectBuilder }
   const registry = createRegistryModule({ database })
   const deletion = createProjectDeletion({ database, ports })
   const projectId = await seedProject('Atlas')

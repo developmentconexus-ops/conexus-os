@@ -159,10 +159,10 @@ test('a column grant is read as UPDATE(column) in the register', () => {
 
 test('an EXECUTE that the register does not list is named', () => {
   assert.deepEqual(lint((input) => {
-    input.catalog.function.push(fn('iam.purge_project', 'p_project_id uuid', ['hub_command']))
-    input.functions.push({ name: 'iam.purge_project', owner: 'iam_owner', body: '' })
+    input.catalog.function.push(fn('workspace.some_function', 'p_id uuid', ['hub_command']))
+    input.functions.push({ name: 'workspace.some_function', owner: 'iam_owner', body: '' })
     input.census.ceilings.ruleFunctions = 1
-  }), ['hub_command may EXECUTE iam.purge_project(p_project_id uuid), and the register says nothing'])
+  }), ['hub_command may EXECUTE workspace.some_function(p_id uuid), and the register says nothing'])
 })
 
 test('a helper outside schema rls and an rls function with the wrong owner are named', () => {
@@ -311,7 +311,7 @@ test('a registry revision that the command role may UPDATE, or a thumbnail it ma
 
 test('a function the register no longer lists, as the dropped registry matcher, is named while it still has an EXECUTE grant', () => {
   const problems = lint((input) => {
-    input.catalog.function.push(fn('reg.matches_application_artifact', 'p_project_id uuid', ['hub_command']))
+    input.catalog.function.push(fn('reg.matches_application_artifact', 'p_id uuid', ['hub_command']))
   })
   assert.equal(problems.length > 0, true)
   assert.match(problems[0], /reg\.matches_application_artifact/)

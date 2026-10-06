@@ -10,6 +10,7 @@ import { refuseProtectedCluster } from './protected-cluster.mjs'
 
 const { sql, unportedPool } = await import(hubModuleUrl('platform/db.js'))
 const { admitAccount, admitSystem } = await import(hubModuleUrl('identity-access/admission.js'))
+const { purgeProject } = await import(hubModuleUrl('identity-access/application-access.js'))
 
 const ACCOUNT = '10000000-0000-4000-8000-0000000000c1'
 const OTHER = '10000000-0000-4000-8000-0000000000c2'
@@ -155,7 +156,7 @@ test('the role invariants fail on a membership option, an extra membership, a ro
   await assertRoleInvariants(client)
 })
 
-test('an admitted command is refused every tenant column, and the login role reads iam.account but not the membership', async (t) => {
+test('an admitted command is refused every tenant column, and the login role reads neither iam.account nor the membership', async (t) => {
   const { connection, database, runtime } = await openRuntimeFixture(t, 'conexus_split_columns', { accounts: [[ACCOUNT, 'a'], [OTHER, 'b']] })
   await query(connection, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'W')", [WORKSPACE])
   await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'owner')", [ACCOUNT, WORKSPACE])
@@ -166,7 +167,6 @@ test('an admitted command is refused every tenant column, and the login role rea
     sql`UPDATE iam.workspace_membership SET workspace_id = ${PROJECT}::uuid WHERE account_id = ${ACCOUNT}`,
     sql`UPDATE iam.installation_administrator SET account_id = ${OTHER} WHERE account_id = ${ACCOUNT}`,
     sql`UPDATE iam.account SET active = false WHERE account_id = ${ACCOUNT}`,
-    sql`UPDATE iam.workspace_membership SET role = 'owner' WHERE account_id = ${ACCOUNT}`,
     sql`UPDATE project.project SET workspace_id = ${PROJECT}::uuid WHERE project_id = ${PROJECT}`,
     sql`UPDATE workspace.workspace SET name = 'x' WHERE workspace_id = ${WORKSPACE}`,
   ]) await assert.rejects(inCommand(database, ACCOUNT, statement), (error) => code(error) === '42501', statement.text)
@@ -175,7 +175,7 @@ test('an admitted command is refused every tenant column, and the login role rea
   const login = new pg.Client(runtime)
   await login.connect()
   try {
-    assert.equal((await login.query('SELECT 1 FROM iam.account')).rowCount, 2)
+    await assert.rejects(login.query('SELECT 1 FROM iam.account'), { code: '42501' })
     await assert.rejects(login.query('SELECT 1 FROM iam.workspace_membership'), { code: '42501' })
   } finally {
     await login.end()
@@ -195,13 +195,18 @@ test('hub_reader reads the person columns of iam.account and none of the identit
   assert.deepEqual(held.rows, [{ table_level: false, column_level: false }])
 })
 
-test('the purge guard refuses a reaper and a person, and a project purge job runs the purge', async (t) => {
-  const { database } = await openRuntimeFixture(t, 'conexus_split_purge', { accounts: [[ACCOUNT, 'a']] })
-  const purge = sql`SELECT iam.purge_project(${PROJECT}::uuid)`
-  const refused = (error) => code(error) === '42501' && /PURGE_REQUIRES_SYSTEM/.test(error.cause?.message ?? '')
-  await assert.rejects(inCommand(database, ACCOUNT, purge), refused)
-  await assert.rejects(database.system('iam-reaper', async (gate) => (await admitSystem(gate, 'iam-reaper')).tx.run(purge)), refused)
-  assert.equal(await database.system('project-purge', async (gate) => (await admitSystem(gate, 'project-purge')).tx.run(purge)), 1)
+test('the purge admission refuses a reaper and a person, and a project purge job deletes the Project\'s application rows', async (t) => {
+  const { connection, database } = await openRuntimeFixture(t, 'conexus_split_purge', { accounts: [[ACCOUNT, 'a']] })
+  await query(connection, "INSERT INTO workspace.workspace(workspace_id, name) VALUES ($1, 'W')", [WORKSPACE])
+  await query(connection, "INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision) VALUES ($1, $2, 'P', 'NEW', $3, $4)", [PROJECT, WORKSPACE, 'a'.repeat(40), '40000000-0000-4000-8000-0000000000c1'])
+  await query(connection, "INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'caderno', $2)", [PROJECT, ACCOUNT])
+  const invariant = (name) => (error) => error.id === 'INTERNAL_UNEXPECTED' && error.details?.invariant === name
+  await assert.rejects(database.transaction(ACCOUNT, async (gate) => purgeProject(await admitSystem(gate, 'project-purge'), PROJECT)), invariant('GATE_ACTOR_REFUSED'))
+  await assert.rejects(database.system('iam-reaper', async (gate) => purgeProject(await admitSystem(gate, 'project-purge'), PROJECT)), invariant('GATE_JOB_MISMATCH'))
+  const applications = () => query(connection, 'SELECT count(*)::integer AS count FROM iam.application WHERE project_id = $1', [PROJECT]).then((result) => result.rows)
+  assert.deepEqual(await applications(), [{ count: 1 }])
+  await database.system('project-purge', async (gate) => purgeProject(await admitSystem(gate, 'project-purge'), PROJECT))
+  assert.deepEqual(await applications(), [{ count: 0 }])
 })
 
 test('iam.lock_administrators takes the table lock as the command role and is refused to every other', async (t) => {

@@ -56,18 +56,17 @@ test('the read entry has no write method and a retained transaction stops at its
   await assert.rejects(retained.rows(z.object({ value: z.number() }), sql`SELECT 1 AS value`), { id: 'INTERNAL_UNEXPECTED' })
 })
 
-test('the runtime role can call the functions its old roles held but cannot change schema, assume an owner, or read factory', async (t) => {
+test('the runtime role cannot call the tenure lock, lock or read iam tables, change schema, assume an owner, or read factory', async (t) => {
   const { database, connection } = await setup(t)
   await query(connection, 'CREATE TABLE factory.s1_private (value integer)')
   const pool = unportedPool(database)
   const sqlstate = (statement) => pool.query(statement).then(() => 'OK', (error) => error.code)
-  assert.equal(await sqlstate("SELECT iam.is_installation_administrator('10000000-0000-4000-8000-00000000000a')"), 'OK')
-  assert.equal(await sqlstate('SELECT iam.session_lifetimes()'), '42501')
+  assert.equal(await sqlstate('SELECT iam.lock_administrators()'), '42501')
   assert.equal(await sqlstate('CREATE TABLE workspace.s1_forbidden (id integer)'), '42501')
   assert.equal(await sqlstate('ALTER TABLE iam.account ADD COLUMN s1_forbidden integer'), '42501')
   assert.equal(await sqlstate('SET ROLE iam_owner'), '42501')
   assert.equal(await sqlstate('SELECT * FROM factory.s1_private'), '42501')
-  assert.equal(await sqlstate('SELECT 1 FROM iam.account FOR SHARE'), 'OK')
+  assert.equal(await sqlstate('SELECT 1 FROM iam.account FOR SHARE'), '42501')
 })
 
 test('every mapped database failure names a real constraint and a registered failure', async (t) => {

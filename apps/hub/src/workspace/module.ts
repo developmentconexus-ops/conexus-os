@@ -1,12 +1,12 @@
 import type { FastifyInstance } from 'fastify'
-import type { AccountId } from '@conexus/contract'
+import type { AccountId, WorkspaceId } from '@conexus/contract'
 import type { Database } from '../platform/db.js'
 import { registerWorkspaceRoutes } from './routes.js'
 import { createWorkspaceStore } from './store.js'
 
 export type WorkspaceModule = Readonly<{
   registerWorkspaceRoutes(app: FastifyInstance): Promise<readonly ['createWorkspace']>
-  listAccessibleWorkspaces(accountId: AccountId): Promise<readonly { workspaceId: string; name: string }[]>
+  listAccessibleWorkspaces(accountId: AccountId): Promise<readonly { workspaceId: WorkspaceId; name: string }[]>
 }>
 
 export const createWorkspaceModule = ({ database }: Readonly<{ database: Database }>): WorkspaceModule => {

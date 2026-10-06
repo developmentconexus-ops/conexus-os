@@ -44,8 +44,8 @@ test('session refuses a navigation on every method and a form media type on a wr
   assert.equal(decide('session', 'GET', { 'sec-fetch-mode': 'cors', 'content-type': 'text/plain' }), 'ALLOW')
 })
 
-test('sign-out and bootstrap always need the exact Hub origin', () => {
-  for (const kind of ['sign-out', 'bootstrap']) {
+test('sign-out always needs the exact Hub origin', () => {
+  for (const kind of ['sign-out']) {
     assert.equal(decide(kind, 'POST', { ...json, origin: HUB, 'sec-fetch-site': 'same-origin' }), 'ALLOW', kind)
     assert.equal(decide(kind, 'DELETE', {}), 'DENY', kind)
     assert.equal(decide(kind, 'POST', { origin: HUB, 'content-type': 'text/plain' }), 'DENY', kind)
@@ -82,7 +82,7 @@ test('hub-entry is a cross-site form from the Hub page: only the Hub origin coun
 
 test('every condition wrong at once is refused', () => {
   const wrong = { origin: 'https://evil.test', 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate', 'content-type': 'text/plain' }
-  for (const kind of ['session', 'sign-out', 'bootstrap']) assert.equal(decide(kind, 'POST', wrong), 'DENY', kind)
+  for (const kind of ['session', 'sign-out']) assert.equal(decide(kind, 'POST', wrong), 'DENY', kind)
   assert.equal(decide('host-write', 'POST', wrong, hostListener), 'DENY')
 })
 

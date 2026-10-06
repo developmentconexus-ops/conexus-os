@@ -19,7 +19,6 @@
     "db:roles:check": "node scripts/generate-hub-role-register.mjs --check",
     "db:roles:census": "node scripts/provision-hub-roles.mjs --check",
     "db:roles:provision": "node scripts/provision-hub-roles.mjs",
-    "iam:bootstrap-installation-administrator": "node scripts/bootstrap-installation-administrator.mjs",
     "db:roles:postgres": "node --test --test-concurrency=1 tests/implementation/provision-hub-roles.postgres.test.mjs tests/implementation/protected-cluster-coverage.test.mjs",
     "db:baseline:generate": "node scripts/generate-hub-baseline.mjs",
     "db:baseline:check": "node scripts/generate-hub-baseline.mjs --check",

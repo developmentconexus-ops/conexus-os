@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { OPERATIONS } from '@conexus/contract'
 import { LEDGER } from './route-ledger.mjs'
-import { HUB_ORIGIN, bootstrapCookie, hubSessionCookie } from './test-listener.mjs'
+import { HUB_ORIGIN, hubSessionCookie } from './test-listener.mjs'
 import {
-  APPLICATION_HOST, APPLICATION_ORIGIN, BOOTSTRAP_TOKEN, ENTRY_GRANT, PREVIEW_HOST, PREVIEW_ORIGIN, PREVIEW_PORT, SESSION_TOKEN, walkListeners,
+  APPLICATION_HOST, APPLICATION_ORIGIN, ENTRY_GRANT, PREVIEW_HOST, PREVIEW_ORIGIN, PREVIEW_PORT, SESSION_TOKEN, walkListeners,
 } from './walk-listeners.mjs'
 
 const HOST = Object.freeze({ hub: undefined, preview: PREVIEW_HOST, application: APPLICATION_HOST })
@@ -12,7 +12,7 @@ const OWN = Object.freeze({ hub: HUB_ORIGIN, preview: PREVIEW_ORIGIN, applicatio
 const SIBLING = Object.freeze({ hub: APPLICATION_ORIGIN, preview: `https://preview-11111111-1111-4111-8111-111111111111.conexus.localhost:${PREVIEW_PORT}`, application: 'https://outro.conexus.localhost:8445' })
 const WRITES = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const DOCUMENT = Object.freeze({ 'sec-fetch-site': 'none', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' })
-const REFUSED = new Set(['REQUEST_AUTHENTICITY_DENIED', 'AUTHENTICATION_REQUIRED', 'BOOTSTRAP_REQUIRED', 'REQUEST_VALIDATION_FAILED', 'REQUEST_JSON_INVALID', 'REQUEST_MEDIA_TYPE_UNSUPPORTED', 'NOT_FOUND'])
+const REFUSED = new Set(['REQUEST_AUTHENTICITY_DENIED', 'AUTHENTICATION_REQUIRED', 'REQUEST_VALIDATION_FAILED', 'REQUEST_JSON_INVALID', 'REQUEST_MEDIA_TYPE_UNSUPPORTED', 'NOT_FOUND'])
 
 const walk = await walkListeners()
 test.after(() => walk.close())
@@ -61,8 +61,7 @@ const refusals = (row) => {
       ['every condition wrong at once', allWrong, { contentType: 'application/json', payload: '{' }],
     ]
     case 'session':
-    case 'sign-out':
-    case 'bootstrap': {
+    case 'sign-out': {
       const site = [
         ['same-site', { ...right, 'sec-fetch-site': 'same-site' }],
         ['cross-site', { ...right, 'sec-fetch-site': 'cross-site' }],
@@ -81,7 +80,7 @@ const refusals = (row) => {
   }
 }
 
-const credentialOf = (row) => ({ session: hubSessionCookie(SESSION_TOKEN), 'sign-out': hubSessionCookie(SESSION_TOKEN), bootstrap: bootstrapCookie(BOOTSTRAP_TOKEN) })[row.kind]
+const credentialOf = (row) => ({ session: hubSessionCookie(SESSION_TOKEN), 'sign-out': hubSessionCookie(SESSION_TOKEN) })[row.kind]
 
 test('the ledger names every route of the three listeners, with its kind, and nothing else', () => {
   const recorded = walk.routes().map((route) => `${key(route)} ${route.kind}`).sort()

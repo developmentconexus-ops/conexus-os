@@ -3,13 +3,12 @@ import { createHash } from 'node:crypto'
 import { connect } from 'node:net'
 import test from 'node:test'
 import { hubModuleUrl } from '../hub-build.mjs'
-import { HUB_ORIGIN, bootstrapCookie, hubJsonWrite, hubSessionCookie, hubWrite, opaque, testListener } from './test-listener.mjs'
+import { HUB_ORIGIN, hubJsonWrite, hubSessionCookie, hubWrite, opaque, testListener } from './test-listener.mjs'
 
 const { foreignRoutes, grantOf, routes } = await import(hubModuleUrl('http/access.js'))
 
 const ALICE = Object.freeze({ account: { accountId: '11111111-1111-4111-8111-111111111111', displayName: 'Alice' }, issuer: 'https://issuer.test', subject: 'alice' })
 const ALICE_TOKEN = opaque('alice')
-const BOOTSTRAP_TOKEN = opaque('bootstrap')
 
 const bootRefusal = async (registerRoutes) => {
   try {
@@ -30,8 +29,6 @@ test('a listener does not start with a route outside the table, and names the ro
     'INTERNAL_UNEXPECTED ROUTE_OPERATION_UNDECLARED POST /api/control/projects/:projectId/builder-session/messages')
   assert.equal(await bootRefusal(async (app) => { app.route({ method: 'POST', url: '/page', config: { access: 'navigation' }, handler: async () => 'x' }); return [] }),
     'INTERNAL_UNEXPECTED ROUTE_ACCESS_METHOD POST /page')
-  assert.equal(await bootRefusal(async (app) => { routes(app).bootstrap({ method: 'GET', url: '/setup-read', handler: async () => 'x' }); return [] }),
-    'INTERNAL_UNEXPECTED ROUTE_ACCESS_METHOD GET /setup-read')
   assert.equal(await bootRefusal(async (app) => { routes(app).session({ method: 'HEAD', url: '/api/x', handler: async () => 'x' }); return [] }),
     'INTERNAL_UNEXPECTED ROUTE_ACCESS_METHOD HEAD /api/x')
   assert.equal(await bootRefusal(async (app) => { routes(app)['host-write']({ method: 'POST', url: '/__conexus/x', handler: async () => 'x' }); return [] }),
@@ -78,7 +75,6 @@ const toyHub = async ({ sessions = { [ALICE_TOKEN]: ALICE }, onRequest } = {}) =
       })
       route.session({ method: 'GET', url: '/api/test/things', handler: async () => ({ things: [] }) })
       route.session({ method: 'DELETE', url: '/api/test/things/:id', handler: async (request, reply) => { ran.push(request.body); return reply.code(204).send() } })
-      route.bootstrap({ method: 'POST', url: '/api/control/accounts', handler: async (_request, _reply, { token }) => ({ token }) })
       route['sign-out']({ method: 'DELETE', url: '/api/session', handler: async (_request, reply, { digest }) => reply.code(200).send({ digest: digest.toString('hex') }) })
       route['sign-in']({ url: '/protocol/oidc/login', handler: async () => 'signing in' })
       route.navigation({ url: '/', handler: async (_request, reply) => reply.type('text/html').send('<html>shell</html>') })
@@ -133,7 +129,7 @@ test('an empty JSON body is no body on every method; a route that needs one answ
   assert.equal(problem(await app.inject({ method: 'POST', url: '/api/test/things', headers: { ...hubJsonWrite, cookie }, payload: '  \n' })), '400 REQUEST_VALIDATION_FAILED')
 })
 
-test('sign-out takes the cookie unresolved; bootstrap takes its own cookie', async (t) => {
+test('sign-out takes the cookie unresolved', async (t) => {
   const { app, resolved } = await toyHub()
   t.after(() => app.close())
   assert.equal(problem(await app.inject({ method: 'DELETE', url: '/api/session', headers: hubWrite })), '401 AUTHENTICATION_REQUIRED')
@@ -141,11 +137,6 @@ test('sign-out takes the cookie unresolved; bootstrap takes its own cookie', asy
   assert.deepEqual(signedOut.json(), { digest: createHash('sha256').update(ALICE_TOKEN).digest('hex') })
   assert.equal(problem(await app.inject({ method: 'DELETE', url: '/api/session', headers: { cookie: hubSessionCookie(ALICE_TOKEN) } })), '403 REQUEST_AUTHENTICITY_DENIED')
   assert.deepEqual(resolved, [], 'sign-out never resolves the session')
-
-  assert.equal(problem(await app.inject({ method: 'POST', url: '/api/control/accounts', headers: hubJsonWrite, payload: {} })), '401 BOOTSTRAP_REQUIRED')
-  assert.equal(problem(await app.inject({ method: 'POST', url: '/api/control/accounts', headers: { ...hubJsonWrite, origin: 'https://evil.test', cookie: bootstrapCookie(BOOTSTRAP_TOKEN) }, payload: {} })), '403 REQUEST_AUTHENTICITY_DENIED')
-  const bootstrapped = await app.inject({ method: 'POST', url: '/api/control/accounts', headers: { ...hubJsonWrite, cookie: bootstrapCookie(BOOTSTRAP_TOKEN) }, payload: {} })
-  assert.deepEqual(bootstrapped.json(), { token: BOOTSTRAP_TOKEN })
 })
 
 test('only a page answers HEAD; anything unmatched is 404 with the Hub headers', async (t) => {

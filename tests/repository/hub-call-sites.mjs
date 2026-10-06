@@ -11,57 +11,9 @@ export const registeredRoles = new Set([...roleRegister.roles, ...roleRegister.t
 // what stops a new call being added without saying who runs it, and a row here with no call site
 // fails too, so the table cannot outlive the code it describes.
 export const ROLE_BY_CALL_SITE = Object.freeze({
-  'identity-access/reaper.ts': Object.freeze({
-    'iam.reap_expired': 'hub_iam_runtime',
-  }),
-  'identity-access/application-access.ts': Object.freeze({
-    'iam.list_application_access': 'hub_iam_runtime',
-    'iam.grant_application_access': 'hub_iam_runtime',
-    'iam.cancel_application_invitation': 'hub_iam_runtime',
-    'iam.revoke_application_grant': 'hub_iam_runtime',
-    'iam.application_slug': 'hub_iam_runtime',
-  }),
-  'identity-access/host-sessions.ts': Object.freeze({
-    'iam.open_hub_session': 'hub_iam_runtime',
-    'iam.resolve_hub_session': 'hub_iam_runtime',
-    'iam.end_hub_session': 'hub_iam_runtime',
-    'iam.application_slug': 'hub_iam_runtime',
-    'iam.application_by_slug': 'hub_iam_runtime',
-    'iam.provision_application_account': 'hub_iam_runtime',
-    'iam.claim_application_invitations': 'hub_iam_runtime',
-    'iam.mint_application_handoff': 'hub_iam_runtime',
-    'iam.open_preview': 'hub_iam_runtime',
-    'iam.redeem_handoff': 'hub_iam_runtime',
-    'iam.resolve_application_session': 'hub_iam_runtime',
-    'iam.resolve_preview_session': 'hub_iam_runtime',
-    'iam.end_host_session': 'hub_iam_runtime',
-    'iam.record_provider_check': 'hub_iam_runtime',
-  }),
-  'identity-access/installation-administration.ts': Object.freeze({
-    'iam.is_installation_administrator': 'hub_iam_runtime',
-    'iam.grant_installation_administrator': 'hub_iam_runtime',
-    'iam.revoke_installation_administrator': 'hub_iam_runtime',
-    'iam.list_installation_administrators': 'hub_iam_runtime',
-    'iam.grant_installation_administrator_by_email': 'hub_iam_runtime',
-  }),
-  'identity-access/membership.ts': Object.freeze({
-    'iam.invite_workspace_member': 'hub_iam_runtime',
-    'iam.list_workspace_roster': 'hub_iam_runtime',
-    'iam.cancel_workspace_invitation': 'hub_iam_runtime',
-    'iam.set_workspace_member_role': 'hub_iam_runtime',
-    'iam.remove_workspace_member': 'hub_iam_runtime',
-  }),
-  'identity-access/store.ts': Object.freeze({
-    'iam.email_has_open_invitation': 'hub_iam_runtime',
-    'iam.claim_invitations': 'hub_iam_runtime',
-    'iam.grant_first_installation_administrator': 'hub_iam_runtime',
-  }),
   'identity-access/admission.ts': Object.freeze({
     'iam.lock_administrators': 'hub_command',
     'rls.acting_installation_administrator': 'hub_reader',
-  }),
-  'project/deletion.ts': Object.freeze({
-    'iam.purge_project': 'hub_command',
   }),
 })
 
