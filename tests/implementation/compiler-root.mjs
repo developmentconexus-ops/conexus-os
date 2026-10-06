@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs'
-import { spawnSync } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { resolve } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { BUILDER_TEMPLATE_COMPILER_FILES } from '../../scripts/builder-e2b-template.mjs'
@@ -38,14 +38,20 @@ export const ensureCompilerRoot = async () => {
     rmSync(partial, { recursive: true, force: true })
     mkdirSync(partial)
     for (const name of BUILDER_TEMPLATE_COMPILER_FILES) cpSync(resolve(template, name), resolve(partial, name))
-    const run = (command, args) => {
-      const result = spawnSync(command, args, { cwd: partial, encoding: 'utf8' })
-      if (result.status !== 0) throw new Error(`COMPILER_ROOT_INSTALL_FAILED ${command} ${args.join(' ')}\n${result.stdout}\n${result.stderr}`)
-    }
-    run('npm', ['ci', '--no-audit', '--no-fund'])
+    // Never a synchronous child: the live suite calls this inside the Hub's process, whose event loop
+    // must keep answering requests and settling database connects while the install runs.
+    const run = (command, args) => new Promise((settle, fail) => {
+      const child = spawn(command, args, { cwd: partial, stdio: ['ignore', 'pipe', 'pipe'] })
+      let output = ''
+      child.stdout.on('data', (piece) => { output += piece })
+      child.stderr.on('data', (piece) => { output += piece })
+      child.once('error', fail)
+      child.once('close', (code) => (code === 0 ? settle() : fail(new Error(`COMPILER_ROOT_INSTALL_FAILED ${command} ${args.join(' ')}\n${output}`))))
+    })
+    await run('npm', ['ci', '--no-audit', '--no-fund'])
     mkdirSync(resolve(partial, 'full'))
     renameSync(resolve(partial, 'node_modules'), resolve(partial, 'full/node_modules'))
-    run(process.execPath, ['allowlist.mjs', 'link', '.'])
+    await run(process.execPath, ['allowlist.mjs', 'link', '.'])
     renameSync(partial, ready)
     return ready
   } finally {
