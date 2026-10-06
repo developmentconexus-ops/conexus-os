@@ -390,7 +390,7 @@ pull request that fixes one deletes its line.
 | Rows read without a schema, response bodies cast with `as`, and ids typed `string` in module ports (counted by `scripts/census-boundaries.mjs`) | S1 |
 | `startHub`, `createHttpApp` and the Builder module stay past the function size limit by suppression | Hub base, after S1 |
 | `Scope` in `apps/hub/src/connectors/scope.ts` is a class with mutable state | Hub base, after S1 |
-| About 400 named top-level functions are `const` arrows, and eight class fields use `#private` outside secret values | Hub base, after S1 |
+| About 400 named top-level functions are `const` arrows, eight class fields use `#private` outside secret values, and six types are `interface` without augmenting a library | Hub base, after S1 |
 | `app-runner/http.ts` reads a failure code from `error.message` | Hub base, after S1 |
 | The Hub swallows a failed run publish and the screen polls instead, and `liveRuns` and the session `subscriptions` share module state | S5 |
 | The Builder's sandbox has open internet egress (C-023) | Accepted risk |

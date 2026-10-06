@@ -5,8 +5,7 @@ How Conexus code is written. This guide adapts the
 follows its order. Where this guide is silent, the Google guide applies. Biome owns formatting.
 Each rule uses the words of [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119): **must** and
 **must not** are defects in review, **should** and **should not** need a stated reason to break,
-and **may** is a free choice. A rule marked **Conexus decision** departs from or adds to the Google
-guide, and says why.
+and **may** is a free choice.
 
 The guide states the target. Code that departs from it is a defect, listed in
 [architecture section 11](../reference/architecture.md#11-risks-and-technical-debt) with the wave
@@ -25,7 +24,7 @@ general method lives in the pstack skills `typescript-best-practices`, `principl
 - Code **must** use named exports. It **must not** use default exports, except where a tool
   requires one (a config file or a route file).
 - Code **must not** export a mutable binding (`export let`).
-- **Conexus decision.** A module is a function that returns a frozen object of its operations.
+- A module is a function that returns a frozen object of its operations.
   Its state lives in the closure. A module reaches another only through that object, never by a
   deep import (`scripts/check-import-law.mjs`).
 - A function **must not** run a whole lifecycle, and a wrapper with one caller **must not** exist.
@@ -49,19 +48,15 @@ by a `biome-ignore`.
 
 ## 2. Classes
 
-- **Conexus decision.** A class **must** be one of four kinds:
+- A class **must** be one of four kinds:
   - an error that extends `Error` or `Failure`,
   - a subclass of a library base (for example the E2B `Sandbox`),
   - a nominal type with a `private` member that only its own module constructs (`Admitted`,
     `Checked`, `Gate`),
   - a value that hides a secret (`Redacted`, `AccessToken`).
 - A class **must not** exist only to group static members (Google).
-- Class members **must** use TypeScript's `private`, not `#private` (Google). A `private` member
-  already makes the type nominal for the compiler.
-- **Conexus decision.** A value that hides a secret keeps it in a `#value` field. Google forbids
-  `#private` for its cost when compiled below ES2022 and because static types already enforce
-  visibility. Conexus compiles to ES2022, so the first reason does not apply, and the second does
-  not cover a secret: a `private` field still appears in `JSON.stringify` and in logs.
+- A value that hides a secret **must** keep it in a `#value` field. Every other private member
+  **must** use TypeScript's `private`.
 
 **Why.** better-auth, Documenso and the TypeScript compiler write the same rule: functions and
 closures, classes only where the language needs one. Mastra uses classes because its users extend
@@ -75,9 +70,8 @@ object with `live()`, `spend()` and `revoke()`.
 
 ## 3. Functions
 
-- A named top-level function **should** be a function declaration (Google). An arrow **may** be
-  used inside another function, for a callback, for an operation in a module's frozen object, or
-  when the function needs an explicit type annotation.
+- A named top-level function **must** be a function declaration. An arrow is used only inside
+  another function, for a callback, or for an operation in a module's frozen object.
 - A function **should** take one object when it takes more than two parameters, and **must not**
   take two neighboring parameters of the same type that a caller can swap (Effective TypeScript,
   "Avoid repeated parameters of the same type").
@@ -102,10 +96,8 @@ arguments of the same type compile and fail at runtime.
   variant (Effective TypeScript, "Limit the use of optional properties").
 - Code **must not** use `any` (use `unknown`), `as`, or the non-null assertion `!`. Biome refuses
   them.
-- **Conexus decision.** Code **should** use `type` for every type, where the Google guide prefers
-  `interface` for object shapes. Google's own reason is to choose one of two nearly equal forms.
-  Conexus must use `type` for unions and for the types Zod infers with `z.infer`, so `type` is the
-  one form that covers everything. An `interface` **may** declare a shape a library asks to extend.
+- Code **must** use `type`. `interface` appears only where TypeScript requires it: to augment a
+  library or global declaration (`declare module`, `declare global`).
 - A fact **must** have one owner: each type, state, contract, failure code and constant lives in one
   place, and the rest is generated or derived from it. A consumer reads a fact from its owner or
   from an event that carries it, never infers it from a phase change, timing or message text.
