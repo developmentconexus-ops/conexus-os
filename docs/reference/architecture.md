@@ -402,7 +402,7 @@ pull request that fixes one deletes its line.
 | `GET .../workspaces/{workspaceId}/projects` returns a top-level array, and lists that grow have no continuation token | Hub base, after S1 |
 | Stores not yet ported run as `hub_runtime` (`unportedPool`, the instance lock session), with `legacy` roles, `legacy_owner` and `legacy_runtime` policies, and SQL functions that hold business rules | S1, part 6 |
 | Tests read production source text (`builder-harness.test.mjs`, `builder-template-pins.test.mjs`, `builder-check-bundle.test.mjs`, `connector-adapter-source.test.mjs`) | Hub base, after S1 |
-| Tests in the unsuffixed `tests/implementation` group open a socket or write to disk (`application-host.test.mjs`, `builder-conexus-git.test.mjs`) although that group is Small | Hub base, after S1 |
+| Tests in the Small group open a socket or write to disk (`application-host.test.mjs`, `builder-conexus-git.test.mjs`, `gate-import-rule.test.mjs`) although that group is in-memory | Hub base, after S1 |
 | PostgreSQL tests skip without an `opt-in:` reason when no database is configured, and `keycloak-theme:check` is outside CI | Hub base, after S1 |
 | A sandbox that cannot open ends the Builder turn as `INTERNAL_UNEXPECTED`, with no failure row of its own | Before the screen check |
 | The no-access page names the wrong reason when Keycloak reports an unverified email | S1, part 6 |
