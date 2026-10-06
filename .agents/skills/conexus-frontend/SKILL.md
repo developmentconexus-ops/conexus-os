@@ -13,7 +13,7 @@ Redesign. This skill holds no rule; the guides do.
 ## Read first
 
 - [`DESIGN.md`](../../../DESIGN.md): color, type, shape, motion, interaction, accessibility, icons,
-  voice, how a surface is approved, and the Build surface.
+  voice, and the Build surface.
 - [Product contract](../../../docs/product/contract.md): who the screen serves, its journeys, and
   what a screen never does.
 - [Testing](../../../docs/development/testing.md#8-screens): how a screen is proved.

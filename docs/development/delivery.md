@@ -117,6 +117,23 @@ nothing writes. Fix: the state leaves the type."
 
 **Wrong.** A gated change merged because CI is green.
 
+## Approve a new surface from something usable
+
+- Only the operator **may** approve the structure of a new surface: a new route, a new region of a
+  screen, or a new material interaction. The approval comes from something usable, a clickable
+  prototype or the real screen on stubbed data, never a static picture.
+- The structural piece **must** be approved before the pieces that inherit it.
+- Styling **must not** change reading order, region priority, where actions sit, density,
+  navigation or phone behavior without that approval.
+- Values on a screen **must** match the issue's literal numbers and copy.
+
+**Why.** A person judges a screen by using it. A picture hides the flow, the empty states and the
+phone.
+
+**Right.** The operator clicks through a new invitation screen on stubbed data and answers "Aprovo".
+
+**Wrong.** A restyle that moves the main action into a menu, merged as a style change.
+
 ## Stop, then escalate
 
 - Work **must** stop before building when it creates a product requirement, a semantic owner or a

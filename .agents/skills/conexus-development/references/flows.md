@@ -66,6 +66,6 @@ before code by the session that plans the work, and the operator approves the sp
 ## Frontend
 
 On top of the flow above: load [`conexus-frontend`](../../conexus-frontend/SKILL.md), read the
-[Build surface](../../../../DESIGN.md#10-the-build-surface) and the rest of
+[Build surface](../../../../DESIGN.md#the-build-surface) and the rest of
 [`DESIGN.md`](../../../../DESIGN.md), and prove the screen as
 [testing](../../../../docs/development/testing.md#8-screens) says.
