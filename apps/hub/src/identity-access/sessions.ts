@@ -15,7 +15,7 @@ import { mintToken } from '../platform/opaque-token.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { admitAccount, admitApplication, checkApplication, checkProject, isInstallationAdministrator } from './admission.js'
 import type { AccountScope, Admitted, ApplicationScope, Checked, ProjectScope } from './admission.js'
-import { consumeApplicationHandoff, consumePreviewHandoff, endCredential, lockHubSession, lookupSlug, readApplicationSession, readPreviewSession, recordProviderCheck, slideHubSession } from './authentication.js'
+import { consumeApplicationHandoff, consumePreviewHandoff, endCredential, endExpiredHubSession, lookupSlug, readApplicationSession, readHubSession, readPreviewSession, recordProviderCheck, slideHubSession } from './authentication.js'
 import type { HubSessionRow } from './authentication.js'
 import type { CurrentSession, HubSessionDigest } from './current-session.js'
 import type { OidcAdapter, ProviderRefusal } from './oidc.js'
@@ -73,13 +73,6 @@ const currentOf = (row: HubSessionRow): CurrentSession => ({
 
 const dueOf = (key: Digest, row: Readonly<{ sealed_token: string | null; checked_at: string | null; subject: string }>): Due | null =>
   row.sealed_token && row.checked_at ? { digest: key, seen: row.checked_at, sealedToken: row.sealed_token, subject: row.subject } : null
-
-const hubEnding = (row: HubSessionRow): SessionEndReason | null => {
-  const standing = standingOf(row)
-  if (standing.kind === 'ended') return standing.reason
-  if (!row.active) return 'ACCOUNT_INACTIVE'
-  return row.hub_entry ? null : 'HUB_ENTRY_WITHDRAWN'
-}
 
 const MaxAge = z.object({ max_age: z.number().int() })
 const Expiry = z.object({ expires_at: z.date() })
@@ -144,11 +137,13 @@ export const createSessions = ({ database, envelope, provider }: Readonly<{
 
   const resolveHub = async (key: HubSessionDigest): Promise<CurrentSession | null> => {
     const outcome = await settle<CurrentSession>('HUB', (recheckAllowed) => database.authenticate(async (gate): Promise<Step<CurrentSession>> => {
-      const row = await lockHubSession(gate, key)
+      const row = await readHubSession(gate, key)
       if (!row) return { kind: 'absent' }
-      const ending = hubEnding(row)
-      if (ending) return ended(gate, key, 'HUB', ending)
-      await slideHubSession(gate, key, HUB_IDLE_SECONDS)
+      const standing = standingOf(row)
+      if (standing.kind === 'ended') return (await endExpiredHubSession(gate, key)) ? { kind: 'ended', ended: 'HUB', reason: standing.reason } : { kind: 'absent' }
+      if (!row.active) return ended(gate, key, 'HUB', 'ACCOUNT_INACTIVE')
+      if (!row.hub_entry) return ended(gate, key, 'HUB', 'HUB_ENTRY_WITHDRAWN')
+      await slideHubSession(gate, key)
       const due = recheckAllowed && row.recheck_due ? dueOf(key, row) : null
       return due ? { kind: 'due', due } : { kind: 'done', value: currentOf(row) }
     }))

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
+import pg from 'pg'
 import { HUB_ORIGIN, W, captureLines, digestOf, hubWrite, iamHub, problemOf, sessionCookie } from './iam-fixture.mjs'
 
 const ANA = '10000000-0000-4000-8000-000000000002'
@@ -45,6 +46,34 @@ test('a live request slides the idle limit, never past the absolute one', async 
   assert.equal((await read()).statusCode, 200)
   const [capped] = await hub.sql('SELECT idle_expires_at = absolute_expires_at AS capped FROM iam.host_session WHERE token_digest = $1', [digestOf(token)])
   assert.equal(capped.capped, true)
+})
+
+test('parallel Hub requests of one session take no row lock, and the idle limit moves at most once per slide window', async (t) => {
+  const { hub, read, token, age } = await signedIn(t, 'conexus_iam_hub_parallel')
+  await hub.sql(`CREATE TABLE public.slides (n int NOT NULL); INSERT INTO public.slides VALUES (0);
+    CREATE FUNCTION public.count_slide() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$
+      BEGIN IF NEW.idle_expires_at IS DISTINCT FROM OLD.idle_expires_at THEN UPDATE public.slides SET n = n + 1; END IF; RETURN NEW; END $$;
+    CREATE TRIGGER count_slide AFTER UPDATE ON iam.host_session FOR EACH ROW EXECUTE FUNCTION public.count_slide()`)
+  const slides = async () => (await hub.sql('SELECT n FROM public.slides'))[0].n
+  const holder = new pg.Client(hub.connection)
+  await holder.connect()
+  await holder.query('BEGIN')
+  await holder.query('SELECT 1 FROM iam.host_session WHERE token_digest = $1 FOR UPDATE', [digestOf(token)])
+  const started = Date.now()
+  const held = await Promise.all(Array.from({ length: 5 }, read))
+  assert.deepEqual(held.map((answer) => answer.statusCode), [200, 200, 200, 200, 200])
+  assert.ok(Date.now() - started < 2000, 'no request waited on the row a transaction outside the Hub holds')
+  await holder.query('ROLLBACK')
+  await holder.end()
+  assert.equal(await slides(), 0)
+
+  await age("UPDATE iam.host_session SET idle_expires_at = now() + interval '20 minutes' WHERE token_digest = $1")
+  await hub.sql('UPDATE public.slides SET n = 0')
+  const due = await Promise.all(Array.from({ length: 5 }, read))
+  assert.deepEqual(due.map((answer) => answer.statusCode), [200, 200, 200, 200, 200])
+  assert.equal(await slides(), 1)
+  const [slid] = await hub.sql("SELECT idle_expires_at > now() + interval '29 minutes' AS slid FROM iam.host_session WHERE token_digest = $1", [digestOf(token)])
+  assert.equal(slid.slid, true)
 })
 
 test('the recheck: a disabled user ends the session; Keycloak unreachable keeps it and answers 503; two requests record once', async (t) => {

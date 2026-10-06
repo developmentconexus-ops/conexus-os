@@ -5,7 +5,7 @@ import { ApplicationSlug } from '../platform/application-slug.js'
 import { bindAccount, Digest, openGate, sql } from '../platform/db.js'
 import type { AuthenticationGate, Sql, WriteTx } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
-import { OIDC_TRANSACTION_SECONDS, PROVIDER_RECHECK_SECONDS } from '../platform/lifetimes.js'
+import { HUB_IDLE_SECONDS, HUB_SLIDE_EVERY_SECONDS, OIDC_TRANSACTION_SECONDS, PROVIDER_RECHECK_SECONDS } from '../platform/lifetimes.js'
 import { WORKSPACE_ROLES } from './admission.js'
 import type { Admitted, BootstrapScope, ProviderIdentity } from './admission.js'
 import type { SignInClaims } from './oidc.js'
@@ -37,6 +37,7 @@ const txOf = (gate: AuthenticationGate): WriteTx => openGate(gate).tx
 
 // Deadlines are compared with the database's now(), so no TypeScript clock decides whether a credential is alive.
 const hubLiveness = sql`CASE WHEN session.absolute_expires_at <= now() THEN 'ABSOLUTE_EXPIRED' WHEN session.idle_expires_at <= now() THEN 'IDLE_EXPIRED' ELSE 'LIVE' END`
+const hubLive = sql`(session.absolute_expires_at > now() AND session.idle_expires_at > now())`
 const absoluteLiveness = sql`CASE WHEN session.absolute_expires_at <= now() THEN 'ABSOLUTE_EXPIRED' ELSE 'LIVE' END`
 const recheckDue = sql`coalesce(session.provider_checked_at <= now() - make_interval(secs => ${PROVIDER_RECHECK_SECONDS}), false)`
 const hubEntry = (account: Sql) => sql`(${account}.origin = 'CONTROL_PLANE' OR EXISTS (SELECT 1 FROM iam.workspace_membership AS membership WHERE membership.account_id = ${account}.account_id))`
@@ -56,12 +57,11 @@ export const consumeOidcState = (gate: AuthenticationGate, key: Digest): Promise
   RETURNING pkce_verifier, nonce, application_project_id, sign_in_binding_digest,
     (SELECT application.slug FROM iam.application AS application WHERE application.project_id = oidc_transaction.application_project_id) AS application_slug`)
 
-/** Reads a Hub session and its standing, locking the row the request then writes. */
-export const lockHubSession = async (gate: AuthenticationGate, key: Digest): Promise<HubSessionRow | null> => bound(gate, await txOf(gate).maybe(HubSessionRow, sql`
+/** Reads a Hub session and its standing, with no lock: the slide and the end are each one guarded statement. */
+export const readHubSession = async (gate: AuthenticationGate, key: Digest): Promise<HubSessionRow | null> => bound(gate, await txOf(gate).maybe(HubSessionRow, sql`
   SELECT ${personColumns}, ${standingColumns(hubLiveness)}, person.active, ${hubEntry(sql`person`)} AS hub_entry
   FROM iam.host_session AS session JOIN iam.account AS person ON person.account_id = session.account_id
-  WHERE session.token_digest = ${key} AND session.kind = 'HUB'
-  FOR UPDATE OF session`))
+  WHERE session.token_digest = ${key} AND session.kind = 'HUB'`))
 
 /** Reads an application session of one application's host, with no lock. */
 export const readApplicationSession = async (gate: AuthenticationGate, key: Digest, slug: ApplicationSlug): Promise<ApplicationSessionRow | null> => bound(gate, await txOf(gate).maybe(ApplicationSessionRow, sql`
@@ -207,12 +207,20 @@ export const endCredential = async (gate: AuthenticationGate, credential: Readon
   return ended ? { sealedToken: ended.sealed_token } : null
 }
 
-/** A live Hub request moves the idle limit, never past the absolute one. The row is locked by its lookup. */
-export const slideHubSession = async (gate: AuthenticationGate, key: Digest, idleSeconds: number): Promise<void> => {
+/**
+ * A live Hub request moves the idle limit, never past the absolute one, and only once it is due: one
+ * write per HUB_SLIDE_EVERY_SECONDS, so parallel requests of one browser neither wait on nor repeat it.
+ */
+export const slideHubSession = async (gate: AuthenticationGate, key: Digest): Promise<void> => {
   await txOf(gate).run(sql`
-    UPDATE iam.host_session SET idle_expires_at = least(now() + make_interval(secs => ${idleSeconds}), absolute_expires_at)
-    WHERE token_digest = ${key} AND kind = 'HUB'`)
+    UPDATE iam.host_session AS session SET idle_expires_at = least(now() + make_interval(secs => ${HUB_IDLE_SECONDS}), session.absolute_expires_at)
+    WHERE session.token_digest = ${key} AND session.kind = 'HUB' AND ${hubLive}
+      AND session.idle_expires_at < now() + make_interval(secs => ${HUB_IDLE_SECONDS - HUB_SLIDE_EVERY_SECONDS})`)
 }
+
+/** Ends a Hub session its lookup found expired, only while it still is; null when a parallel request ended it first. */
+export const endExpiredHubSession = async (gate: AuthenticationGate, key: Digest): Promise<'ENDED' | null> =>
+  (await txOf(gate).run(sql`DELETE FROM iam.host_session AS session WHERE session.token_digest = ${key} AND session.kind = 'HUB' AND NOT ${hubLive}`)) === 1 ? 'ENDED' : null
 
 const Present = z.object({ present: z.literal(1) })
 
