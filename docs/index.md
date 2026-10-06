@@ -14,7 +14,7 @@ Each guide owns one subject, and a rule lives in one of them.
 | A | [Architecture](reference/architecture.md) | The twelve arc42 sections: goals, constraints, context, the core, blocks and owners, runtime, deployment, concepts, decisions, quality, debt, glossary |
 | P | [Product contract](product/contract.md) | Purpose and capabilities, people, scope, concepts, journeys, what it never does |
 | D | [Database](reference/database.md) | Stores, roles, where a rule lives, migrations |
-| H | [Wire contract](product/wire-contract.md) | Operations, parsing, errors, retries on the wire |
+| H | [API guide](product/wire-contract.md) | The Zalando guidelines adapted: contract, URLs, methods, payload, errors, headers, pagination, compatibility |
 | S | [Security and authority](reference/security-and-authority.md) | Who may act, sign-in, sessions, secrets, egress |
 | V | [`DESIGN.md`](../DESIGN.md) | Look, motion, accessibility, icons, voice |
 | T | [Testing](development/testing.md) | What counts as proof |

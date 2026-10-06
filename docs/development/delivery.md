@@ -144,6 +144,6 @@ A pull request is ready when these hold at its exact head SHA, plus the lane's g
 - A pull request links its issue, says what changes and for whom, and does only what the issue
   asks. Use conventional commits.
 - Migrations follow [database](../reference/database.md#migrations).
-- Contract changes follow the [wire contract](../product/wire-contract.md#one-declaration-per-operation).
+- Contract changes follow the [wire contract](../product/wire-contract.md#1-contract-first).
 - `scripts/check-agent-context.mjs` (`npm run repository:check`) checks cited scripts, links, size
   caps and the two workflow guards.

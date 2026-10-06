@@ -392,6 +392,8 @@ pull request that fixes one deletes its line.
 | `Scope` in `apps/hub/src/connectors/scope.ts` is a class with mutable state | Hub base, after S1 |
 | About 400 named top-level functions are `const` arrows, eight class fields use `#private` outside secret values, and six types are `interface` without augmenting a library | Hub base, after S1 |
 | `app-runner/http.ts` reads a failure code from `error.message` | Hub base, after S1 |
+| Ten operations are still declared in YAML, and `identity-access/routes.ts` parses `Idempotency-Key` by hand | S1 |
+| `GET .../workspaces/{workspaceId}/projects` returns a top-level array, and lists that grow have no continuation token | Hub base, after S1 |
 | The Hub swallows a failed run publish and the screen polls instead, and `liveRuns` and the session `subscriptions` share module state | S5 |
 | The Builder's sandbox has open internet egress (C-023) | Accepted risk |
 | One Mastra crossing remains in `apps/hub/src/builder/mastra-leftovers.ts` until mastra-ai/mastra#25903 | Accepted risk |
