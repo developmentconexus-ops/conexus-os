@@ -10,7 +10,8 @@ and **may** is a free choice.
 
 Subject rules live in the other guides ([code](codebase-principles.md), [testing](testing.md),
 [architecture](../reference/architecture.md) and their neighbors). [The roadmap](../roadmap.md) owns
-status. Units of work live here as issues from the [templates](../../.github/ISSUE_TEMPLATE/).
+status. Workstreams and ideas live in the private `conexus-hq` repository. Units of work live here
+as issues from the [templates](../../.github/ISSUE_TEMPLATE/).
 
 ## Pick the lane by risk
 
@@ -195,11 +196,11 @@ A pull request is ready when these hold at its exact head SHA, plus its lane's g
   base, so with no run at the head, merge `main` and push again.
 - The Factory reviews every pull request, and the merger **must** wait for its `approve`. On a pull
   request the Factory did not build, a finding that is not a leak or a security gap goes to the
-  author once and does not block.
+  author once and does not block, and the operator **may** dismiss that review for that head.
 - A wave's verification and review **must** have passed on this head, each naming the head it
   judged.
 - The person who merges **must** have read the diff. A plan, an artifact or a Preview grant is not
-  product acceptance.
+  product acceptance. The operator does not test pull requests on the pilot.
 
 **Why.** A gate checked on an older head proves nothing about the code that lands.
 
