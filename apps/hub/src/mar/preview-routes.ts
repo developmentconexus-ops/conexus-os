@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { AccountId, ApplicationFilePath, ArtifactRevisionId, ProjectId, SourceRevision, type ArtifactDigest, type MediaType, type Sha256 } from '../../../../packages/contract/dist/index.js'
+import { AccountId, ApplicationFilePath, ProjectId, SourceRevision, type ArtifactDigest, type ArtifactRevisionId, type MediaType, type Sha256 } from '../../../../packages/contract/dist/index.js'
 import { classifyAppPath, SERVER_ROOT } from '../platform/application-path.js'
 import type { Caller } from '../platform/caller.js'
 import { Failure } from '../platform/failure.js'

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
 import { z } from 'zod'
-import { OTHER_OWNER, OWNER, setupBuilder } from './builder-fixture.mjs'
+import { OTHER_OWNER, OWNER } from './builder-fixture.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { query } from './hub-database.mjs'
 import { waitUntilBlocked } from './race.mjs'
@@ -11,7 +11,6 @@ import { ID } from './project-fixture.mjs'
 import { B, DIGEST_1, DIGEST_2, D_E, F, OLD, PNG_T1, P, PNG_T2, SHA_F, SHA_T2, SOURCE_1, SOURCE_2, SOURCE_E, SOURCE_OLD, fileOf, invariant, payloadOf, seedRevision, seedRevisionThumbnail, world } from './registry-fixture.mjs'
 
 const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
-const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
 const { admitProject, admitRun, admitSystem, checkApplication } = await import(hubModuleUrl('identity-access/admission.js'))
 const { readServedFileOf } = await import(hubModuleUrl('registry/served.js'))
 const { sql } = await import(hubModuleUrl('platform/db.js'))
