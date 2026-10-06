@@ -7,8 +7,8 @@ WSL environment (after `nvm use`), then read
 [`.agents/skills/conexus-development/SKILL.md`](.agents/skills/conexus-development/SKILL.md). It
 picks the flow and the guides your task needs; the
 [codebase principles](docs/development/codebase-principles.md) apply to every change. For Mastra
-work, also load `.agents/skills/mastra/SKILL.md`; for a screen, the
-[`conexus-frontend`](.agents/skills/conexus-frontend/SKILL.md) skill.
+work, also load `.agents/skills/mastra/SKILL.md`; for a screen, the Frontend flow of
+[`conexus-development`](.agents/skills/conexus-development/references/flows.md#frontend).
 
 Chat and handoffs are orientation only. **Global coverage does not require global context.**
 

@@ -1,7 +1,7 @@
 # Telemetry
 
 The Hub and the app runner export traces, logs and metrics over OTLP/HTTP to one Collector per
-installation. Spec: [0007](../../docs/tasks/specs/0007-telemetry-otel/index.md).
+installation. Spec: [0007](../../docs/specs/0007-telemetry-otel/index.md).
 
 - `collector.yaml`: the Collector. It listens on `127.0.0.1:4318`, limits memory to 256 MiB, adds
   `conexus.installation` and forwards to the backend named by `CONEXUS_TELEMETRY_BACKEND`.

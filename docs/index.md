@@ -27,7 +27,7 @@ Each guide owns one subject, and a rule lives in one of them.
 | Decisions in force and how to reopen one | [Decision register](decisions/index.md) |
 | The operation census | [Operation ledger](product/operation-ledger.md) |
 | Which SQL function calls which | [Function callers](reference/function-callers.md), generated |
-| Specs of waves not yet built or in progress | `docs/tasks/specs/` |
+| Specs of waves not yet built or in progress | `docs/specs/` |
 
 ## Runbooks and references
 

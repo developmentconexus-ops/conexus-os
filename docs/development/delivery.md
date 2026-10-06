@@ -30,6 +30,7 @@ A change is in the qualification lane when any Q trigger is true:
 | `lane:shaped` | A new user-visible capability or a change across modules. Inside accepted direction. No Q trigger | A wave: one spec, one pull request | Fast-lane gates, verification and review on the same head | The operator |
 | `lane:qualification` | Any Q trigger | A wave whose spec also names the deciding proof | Shaped gates, evidence, and the operator's verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | The operator |
 
+- The manager is the planning session that runs the waves and the Factory queue for the operator.
 - A change found mid-work to carry a higher-lane trigger **must** stop and change its lane label.
 - The Factory **must not** merge.
 
@@ -41,8 +42,8 @@ A change is in the qualification lane when any Q trigger is true:
 
 ## Waves
 
-- A wave that will be built **must** have one spec in `docs/tasks/specs/NNNN-title/`, no child
-  specs, and one pull request. Parts run in sequence inside it, one green commit per part.
+- A wave that will be built **must** have one spec in `docs/specs/NNNN-title/`, no child specs,
+  and one pull request. Parts run in sequence inside it, one green commit per part.
 - Every decision **must** go into the spec or a guide when it is made. No decision file grows beside
   them.
 - A spec over 800 lines or a plan over 70 product files **must** say in one sentence why it does not
@@ -51,6 +52,8 @@ A change is in the qualification lane when any Q trigger is true:
   decisions**, **What breaks the premise**, **Owner reconciliation** and a **Stop rule**.
 - The planning session writes the scope, the Status and the approval line,
   `**Approval**: approved by the operator on <date>, commit <sha>`. The builder ticks the Build plan.
+- A wave has three states, one meaning each. **Approved** is the approval line. **Proved** is
+  verification and review passing on the same head. **Done** is the real merge.
 - A wave that lays a base for others **must** prove its contract with at least one real consumer
   before merge. A later wave that breaks that contract opens a corrective wave.
 
@@ -77,6 +80,11 @@ disagree:
 | `jm-develop` follows `ui-guide` and `logical-guide` | Guides C, T and V. The jm guides only as procedure where ours are silent |
 | jm writes the scope and the spec Status | Only the planning session writes scope, Status and approval |
 | `jm-check review`, `jm-test`, `jm-debug`, thermo-nuclear review | Out of the flow. Review is `/pstack:interrogate` |
+| jm moves the spec's `Status` through `Proposed`, `In Progress` and `Accepted` | Approved, Proved and Done above decide. `jm-sync` only mirrors them |
+| `jm-scope` sets a workflow tier, from Prototype to GA | The lane decides the rigor |
+| `jm-develop` does no Git without a `## Git` section in `AGENTS.md` | The builder makes one green commit per part. The planning session pushes and opens the pull request |
+| `jm-audit` and `jm-sync` write rules into `AGENTS.md` and add `CLAUDE.md` pointers | Rules live only in the guides. `AGENTS.md` routes, and no `CLAUDE.md` is written |
+| `/pstack:interrogate` has its own verdict format | The verdict of the Review flow in `conexus-development` |
 
 ## Review loop
 
