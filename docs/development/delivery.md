@@ -75,7 +75,7 @@ disagree:
 | `jm-develop` forbids delegating; the Feature playbook delegates | The planning session delegates to one builder. The builder does not delegate code |
 | Feature and Refactoring start by exploring the design | In the build, the approved spec is the design. It is not reopened |
 | `jm-develop` offers to build on an `Assumed` spec | Never. Go back to the spec |
-| `jm-architect` takes every choice to the engineer | The planning session answers the technical ones. The operator decides spec, merge and product |
+| `jm-architect` takes every choice to the engineer | The operator decides each load-bearing technical choice with the planning session, which brings the options and a recommendation grounded in the guides and the reference code. The operator also decides spec, merge and product. Implementation details inside an approved spec stay with the planning session and the builder |
 | `jm-architect` allows child specs | Only for a standard with no build |
 | `jm-develop` follows `ui-guide` and `logical-guide` | Guides C, T and V. The jm guides only as procedure where ours are silent |
 | jm writes the scope and the spec Status | Only the planning session writes scope, Status and approval |
