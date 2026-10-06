@@ -118,10 +118,9 @@ No command updates a registry row, so no `UPDATE` is granted and no command can 
 in the study notes as `arena/synthesis.md`) and fixed by the spec review (`review-spec/verdict.md`).
 One rule sets every signature: a registry function takes a proof only when it runs inside another
 owner's transaction (retention in the run settlement, the purge in the Project purge, the Preview
-launch inside its `project.build` admission). Every other read takes the account and the Project and
+launch inside its `project.build` admission). The served manifest and file reads take a `Checked<ApplicationScope>` proof, since they now run inside identity access's transaction, by that rule. `readPinnedServedFile` keeps the account and Project form, since the runner calls it outside any entry. Every other read takes the account and the Project and
 opens its own entry, with `checkApplication` inside, the way the connector broker does
-(`apps/hub/src/connectors/store.ts:211-220`, `asConsumer`). MAR and `hub.ts` cannot make a `Checked`
-proof, so a served read that takes one would push the admission into every caller.
+(`apps/hub/src/connectors/store.ts:211-220`, `asConsumer`). Identity access makes the `Checked` proof inside `withApplicationRequest` and hands it to the served read.
 
 ```ts
 // registry/module.ts: the public constructor, a frozen object of these operations
@@ -132,8 +131,8 @@ export type RegistryModule = Readonly<{
   purge(proof: Admitted<SystemScope<'project-purge'>>, projectId: ProjectId): Promise<void>
   readLaunch(proof: Admitted<ProjectScope<'project.build'>>): Promise<ServedLaunch | null>
   readPreviewFile(accountId: AccountId, at: Readonly<{ projectId: ProjectId; sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId; path: ApplicationFilePath }>): Promise<ApplicationFile | null>
-  readServedManifest(accountId: AccountId, projectId: ProjectId): Promise<ServedManifest | null>
-  readServedFile(accountId: AccountId, projectId: ProjectId, path: ApplicationFilePath): Promise<ServedFile>
+  readServedManifest(proof: Checked<ApplicationScope>): Promise<ServedManifest | null>
+  readServedFile(proof: Checked<ApplicationScope>, path: ApplicationFilePath): Promise<ServedFile>
   readPinnedServedFile(accountId: AccountId, projectId: ProjectId, artifactRevisionId: ArtifactRevisionId, path: ApplicationFilePath): Promise<PinnedFile>
   readProjectThumbnail(accountId: AccountId, projectId: ProjectId): Promise<ServedThumbnail | null>
 }>

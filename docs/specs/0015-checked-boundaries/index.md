@@ -83,7 +83,7 @@ the parts and their order.
   databases; every Hub row is read through a Zod schema (79 unparsed reads today, zero after); one
   transaction helper; database errors map by SQLSTATE and constraint, and no code reads a database
   error's message.
-- **AC-6**: One receipt table for `createWorkspace`, `createProject` and IAM-03, keyed by the proof's authority. A replay
+- **AC-6**: One receipt table for `createWorkspace`, `createProject`, `inviteWorkspaceMember`, `grantApplicationAccess` and `addInstallationAdministrator`, keyed by the proof's authority. A replay
   returns the first answer; the same key with a different input answers `IDEMPOTENCY_CONFLICT`; the same
   key and body sent to another workspace creates there and does not replay; a project creation that
   crashed between Git and completion reaches the same project id on retry; a retry after the account
@@ -589,13 +589,12 @@ here. The real dependencies come from the caller graph script
    grantor name, as today); keeps part 0b's `iam.workspace_membership` policy; adds
    `iam.workspace_invitation`, `iam.installation_administrator` (`ADMIN`, with its `iam_rls` policy),
    `iam.application`, `iam.application_invitation` and `iam.application_grant`, and the
-   `iam.preview` key, and the account pair keys of `iam.host_session` and `iam.handoff`; `ReadAction` gains `'application.manage'` (IAM-11 stays an owner only `read()`); IAM-14 and IAM-15 use `isInstallationAdministrator(tx)`; IAM-12 and IAM-13 take no owner set lock; the first administrator rule stays in TypeScript; `authenticate` with its
-   `AuthenticationGate`, the closed `key` union of digest kinds for `lookupByDigest(key)`, the eight typed
-   steps of the gate's second family in `identity-access/authentication.ts` (`lookupIdentity`, `provisionIdentity`, `lookupSlug`,
-   `hasOpenInvitation`, `startOidc`, `mintContext`, `consumeOidcState`, `endCredential`), and the body of `admitBootstrap`; IAM-03 on the bootstrap authority with the first administrator under the table
-   lock and the full tenure history; sessions, invitations, roster (`removeMember`, `leaveWorkspace`
+   Preview session's link to its artifact revision, and the account pair keys of `iam.host_session` and `iam.handoff`; `ReadAction` gains `'application.manage'` (IAM-11 stays an owner only `read()`); IAM-14 and IAM-15 use `isInstallationAdministrator(tx)`; IAM-12 and IAM-13 take no owner set lock; the first administrator rule stays in TypeScript; `authenticate` with its
+   `AuthenticationGate`, the closed `key` union of digest kinds for `lookupByDigest(key)`, the typed
+   steps in `identity-access/authentication.ts` (`lookupIdentity`, `provisionIdentity`, `refreshEmail`, `lookupSlug`,
+   `startOidc`, `endCredential`), `claimInvitations` and the `DIGEST_EFFECT` table, and the body of `admitBootstrap`; the first account in the sign in callback; sessions, invitations, roster (`removeMember`, `leaveWorkspace`
    with the owner set lock and the acting membership `FOR UPDATE`, and the `DELETE` grant on
-   `iam.workspace_membership`), application access on the `admitApplication` part 0b built,
+   `iam.workspace_membership`), application access under `admitProject(..., 'application.manage')`, `admitApplication` for the sign in and `checkApplication` for served reads,
    installation administration (with the table lock), `iam.purge_project` as a port, `reap_expired`
    as `EXPIRY_RULES`; `iam.operation_idempotency`, every bridge (the `legacy_runtime` bridge on `iam.account`, with
    `unportedPool`), the seven `*_owner` roles (objects moved to

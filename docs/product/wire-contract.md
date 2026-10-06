@@ -31,8 +31,8 @@ the SQL.
   handoff, its sign-out, its manifest-declared operations); neither is a Product operation, and an
   application's operations belong to its own manifest. An OIDC callback, a provider token refresh, a
   model provider call, an E2B call, Git transport and static byte transport are mechanics, not
-  operations. Setting the first installation administrator is an operator shell step,
-  `npm run iam:bootstrap-installation-administrator`.
+  operations. The first installation administrator is the configured subject's first sign in; every
+  later one is `addInstallationAdministrator`.
 - An operation **must** have a real consumer. These stay rejected: `execute(anySlug, anyInput)`,
   `execute(anySql)`, `execute(anyProviderOperation)`, a caller-selected connection, a
   caller-selected target URL, `GetBlob(storageKey)` and `UploadAnyFile`. The wire gate refuses a
