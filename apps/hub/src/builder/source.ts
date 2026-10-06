@@ -1,5 +1,5 @@
 import type { ConexusGit } from './conexus-git.js'
-import type { ProjectId, SourceComparison, SourceFile, SourceRevision, SourceTree } from '../../../../packages/contract/dist/index.js'
+import type { ProjectId, SourceComparison, SourceFile, SourceRevision, SourceTree } from '@conexus/contract'
 import { Failure } from '../platform/failure.js'
 import { gitUnavailableAs } from '../platform/git-failure.js'
 

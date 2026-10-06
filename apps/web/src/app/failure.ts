@@ -1,8 +1,7 @@
 // What a refusal is on the page: one failure with a code, and the words the failure table gives it.
 // The Hub names the code in its problem body; nothing else about a refusal is read.
 
-import { FAILURE_ACTIONS, FAILURE_STATUS, FAILURES, type FailureCode } from '../../../../packages/contract/dist/failures.generated.js'
-import { Problem } from '../../../../packages/contract/dist/index.js'
+import { FAILURE_ACTIONS, FAILURE_STATUS, FAILURES, Problem, type FailureCode } from '@conexus/contract'
 
 /** A refusal the Hub, or the road to it, gave. Its words come from the failure table, never from here. */
 export class HubFailure extends Error {
@@ -29,15 +28,20 @@ export async function readFailure(response: Response): Promise<HubFailure> {
   const parsed = Problem.safeParse(body)
   if (!parsed.success) return new HubFailure('HUB_RESPONSE_UNREADABLE', response.status)
   const { code, traceId } = parsed.data
-  return new HubFailure(isFailureCode(code) ? code : 'HUB_RESPONSE_UNREADABLE', response.status, traceId ?? null)
+  return new HubFailure(code, response.status, traceId ?? null)
 }
 
 /** Whether an error is the Hub's failure with one of these codes, or any code when none is named. */
 export const isFailure = (error: unknown, ...codes: readonly FailureCode[]): boolean =>
   error instanceof HubFailure && (codes.length === 0 || codes.includes(error.code))
 
+const hasRow = (code: FailureCode): code is keyof typeof FAILURES => Object.hasOwn(FAILURES, code)
+
+/** The table's row for a code; the operator's codes have none, and answer with the unexpected failure's. */
+const rowOf = (code: FailureCode) => FAILURES[hasRow(code) ? code : 'INTERNAL_UNEXPECTED']
+
 const sentence = (code: FailureCode): string => {
-  const row = Object.entries(FAILURES).find(([key]) => key === code)?.[1] ?? FAILURES.INTERNAL_UNEXPECTED
+  const row = rowOf(code)
   const action = FAILURE_ACTIONS[row.action]
   return action === null ? row.message : `${row.message} ${action}`
 }
@@ -56,4 +60,4 @@ export const failureCodeText = (code: string | null | undefined): string => sent
 
 /** Whether the row tells the person to try again later: only a failure outside the Conexus code can. */
 export const isRetryable = (error: unknown): boolean =>
-  (Object.entries(FAILURES).find(([key]) => key === (error instanceof HubFailure ? error.code : 'HUB_RESPONSE_UNREADABLE'))?.[1] ?? FAILURES.INTERNAL_UNEXPECTED).action === 'RETRY_LATER'
+  rowOf(error instanceof HubFailure ? error.code : 'HUB_RESPONSE_UNREADABLE').action === 'RETRY_LATER'

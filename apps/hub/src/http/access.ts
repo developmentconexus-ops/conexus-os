@@ -2,15 +2,14 @@ import type {
   FastifyInstance, onRequestHookHandler, FastifyRequest, FastifySchema, HTTPMethods, RawReplyDefaultExpression, RawRequestDefaultExpression, RawServerDefault,
   RouteGenericInterface, RouteHandlerMethod, RouteOptions,
 } from 'fastify'
-import { fieldFailures } from '../../../../packages/contract/dist/index.js'
-import type { AnyOperation, EffectsOf, Input, Out, Reply } from '../../../../packages/contract/dist/index.js'
+import { FAILURE_STATUS as HUB_FAILURES, fieldFailures } from '@conexus/contract'
+import type { AnyOperation, EffectsOf, Input, Out, Reply } from '@conexus/contract'
 import type { z } from 'zod'
 import { z as zod } from 'zod'
 import { clearCookie } from './cookies.js'
 import { bootstrapToken, hubSessionDigest } from '../identity-access/current-session.js'
 import type { BootstrapToken, CurrentSession, HubSession, HubSessionDigest } from '../identity-access/current-session.js'
 import { Failure } from '../platform/failure.js'
-import { FAILURE_STATUS as HUB_FAILURES } from '../../../../packages/contract/dist/failures.generated.js'
 import { parseOpaqueToken } from '../platform/opaque-token.js'
 import { readCredentialCookie } from './cookies.js'
 

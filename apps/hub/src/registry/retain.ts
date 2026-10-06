@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { ArtifactDigest, ArtifactRevisionId, SourceRevision, type ProjectId } from '../../../../packages/contract/dist/index.js'
+import { ArtifactDigest, ArtifactRevisionId, SourceRevision, type ProjectId } from '@conexus/contract'
 import type { Admitted, RunScope, SystemScope } from '../identity-access/admission.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'

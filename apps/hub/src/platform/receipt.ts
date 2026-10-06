@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { canonicalBytes } from '../../../../packages/canonical-json/src/index.mjs'
-import type { IdempotencyKey, Input, JsonOperation, Reply } from '../../../../packages/contract/dist/index.js'
+import type { IdempotencyKey, Input, JsonOperation, Reply } from '@conexus/contract'
 import type { Admitted, AccountScope, BootstrapScope, ProjectScope, WorkspaceAction, WorkspaceScope } from '../identity-access/admission.js'
 import { sql } from './db.js'
 import { Failure } from './failure.js'

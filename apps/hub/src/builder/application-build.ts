@@ -1,4 +1,4 @@
-import type { ApplicationFilePath, ArtifactDigest, ArtifactRevisionId, BuilderRunId, MediaType, ProjectId, SourceRevision } from '../../../../packages/contract/dist/index.js'
+import type { ApplicationFilePath, ArtifactDigest, ArtifactRevisionId, BuilderRunId, MediaType, ProjectId, SourceRevision } from '@conexus/contract'
 import type { Admitted, ProjectScope, RunScope } from '../identity-access/admission.js'
 import type { CompiledApplication, CompiledApplicationThumbnail } from './application-artifact-runtime.js'
 import type { PrepareResult } from '../app-runner/server-manifest.js'

@@ -1,4 +1,4 @@
-import type { AccountId, BuilderRunId, ConversationId, ProjectId, SourceRevision } from '../../../../../packages/contract/dist/index.js'
+import type { AccountId, BuilderRunId, ConversationId, ProjectId, SourceRevision } from '@conexus/contract'
 import type { RequestContext } from '@mastra/core/request-context'
 import type { CommandResult, ExecuteCommandOptions, SandboxFileInput, Workspace } from '@mastra/core/workspace'
 import type { ApplicationCheckRun } from '../application-artifact-runtime.js'

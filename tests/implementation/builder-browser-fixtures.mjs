@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { BuilderRunView } from '../../packages/contract/dist/index.js'
+import { BuilderRunView } from '@conexus/contract'
 // What the browser suites share: the Builder controller's routes stubbed for a page, and the thread messages they serve.
 export const BUILDER_CONTROLLER = '**/api/builder/agent-controller/conexus-builder'
 // The model and a conversation's own state are the controller's, so the screen reads

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { operation, operationRegistry } from '../../packages/contract/dist/index.js'
+import { operation, operationRegistry } from '@conexus/contract'
 
 const getThing = operation({
   id: 'getThing', summary: 'Read a thing.', access: 'session', method: 'GET', path: '/api/control/things',

@@ -1,4 +1,4 @@
-import type { BuilderRunId, ConversationId, ProjectId } from '../../../../packages/contract/dist/index.js'
+import type { BuilderRunId, ConversationId, ProjectId } from '@conexus/contract'
 /**
  * Where a Builder run's time goes outside the agent: one `BUILDER_RUN_TIMING` event per run.
  * A stage's time runs from the previous mark, so the marks partition the run and their sum is the

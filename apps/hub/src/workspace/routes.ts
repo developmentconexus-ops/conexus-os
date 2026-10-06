@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { createWorkspace } from '../../../../packages/contract/dist/index.js'
+import { createWorkspace } from '@conexus/contract'
 import type { WorkspaceStore } from './store.js'
 import { routes } from '../http/access.js'
 

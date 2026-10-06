@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import type { AccountId } from '../../../../packages/contract/dist/index.js'
+import type { AccountId } from '@conexus/contract'
 import type { Database } from '../platform/db.js'
 import { registerWorkspaceRoutes } from './routes.js'
 import { createWorkspaceStore } from './store.js'

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { FAILURE_TEXT } from '../platform/failure-text.generated.js'
 import { projectResourceId } from './conversations.js'
 import type { ControllerSession, RunNote, SettledNote } from './run/ports.js'
-import type { BuilderRunId, ConversationId, ProjectId, SourceRevision } from '../../../../packages/contract/dist/index.js'
+import type { BuilderRunId, ConversationId, ProjectId, SourceRevision } from '@conexus/contract'
 
 // Deterministic on run+code so a retried call collapses onto the same message instead of
 // appending a duplicate diagnostic.

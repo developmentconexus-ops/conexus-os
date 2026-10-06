@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { THINKING_LEVEL_VALUES } from '@mastra/code-sdk/thinking'
-import { THINKING_LEVELS, ThinkingLevel } from '../../packages/contract/dist/index.js'
+import { THINKING_LEVELS, ThinkingLevel } from '@conexus/contract'
 
 test('the contract lists exactly the thinking levels of Mastra Code, lowest first', () => {
   assert.deepEqual([...THINKING_LEVELS], ['off', 'low', 'medium', 'high', 'xhigh', 'max'])

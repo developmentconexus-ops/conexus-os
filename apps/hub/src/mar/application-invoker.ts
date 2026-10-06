@@ -1,4 +1,4 @@
-import type { AccountId, ApplicationFilePath, ArtifactRevisionId, ProjectId, SourceRevision } from '../../../../packages/contract/dist/index.js'
+import type { AccountId, ApplicationFilePath, ArtifactRevisionId, ProjectId, SourceRevision } from '@conexus/contract'
 import { failureProblem } from '../http/problem.js'
 import { Failure } from '../platform/failure.js'
 import type { FailureCode } from '../platform/failures.generated.js'

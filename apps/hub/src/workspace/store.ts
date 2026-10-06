@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { WorkspaceId, WorkspaceName, createWorkspace, type AccountId, type Input, type Reply } from '../../../../packages/contract/dist/index.js'
+import { WorkspaceId, WorkspaceName, createWorkspace, type AccountId, type Input, type Reply } from '@conexus/contract'
 import { admitAccount, grantCreatorMembership } from '../identity-access/admission.js'
 import type { Database } from '../platform/db.js'
 import { sql } from '../platform/db.js'

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { Failure } from '../../platform/failure.js'
 import { encodeKey, type GoogleAiProKey, isAuthFileName } from './credential.js'
 import type { CliproxyPool, LoginInstance } from './pool.js'
-import { ModelLoginId, type AccountId } from '../../../../../packages/contract/dist/index.js'
+import { ModelLoginId, type AccountId } from '@conexus/contract'
 import type { ConnectResult } from '../model-account/accounts.js'
 
 type LoginState = 'waiting' | 'succeeded' | 'failed' | 'expired'

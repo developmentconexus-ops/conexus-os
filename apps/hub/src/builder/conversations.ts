@@ -1,5 +1,5 @@
 import type { MemoryStorage } from '@mastra/core/storage'
-import { ConversationId, type ProjectId } from '../../../../packages/contract/dist/index.js'
+import { ConversationId, type ProjectId } from '@conexus/contract'
 
 /**
  * A Project's conversations are Mastra threads under one resource per Project, shared by every

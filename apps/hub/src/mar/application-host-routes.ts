@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { ApplicationFilePath, type AccountId, type ArtifactRevisionId, type ProjectId, type MediaType, type Sha256 } from '../../../../packages/contract/dist/index.js'
+import { ApplicationFilePath, type AccountId, type ArtifactRevisionId, type ProjectId, type MediaType, type Sha256 } from '@conexus/contract'
 import type { Caller } from '../platform/caller.js'
 import { applicationSlugOfHost } from '../platform/config.js'
 import type { ApplicationAddress } from '../platform/config.js'

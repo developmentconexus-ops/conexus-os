@@ -4,7 +4,7 @@ import { useState } from 'react'
 import type { AnswerOutcome, PendingReply } from '../mastra-session'
 import type { PromptEntry } from '../transcript'
 import { PlanPt } from './plan-pt'
-import { FAILURES } from '../../../../../../packages/contract/dist/failures.generated.js'
+import { FAILURES } from '@conexus/contract'
 
 // submit_plan's suspend payload carries the plan it points at; like ask_user's, it is untrusted
 // wire data, so only a string field is shown.

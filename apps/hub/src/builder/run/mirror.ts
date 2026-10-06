@@ -1,4 +1,4 @@
-import type { ConversationId, ProjectId, SourceRevision } from '../../../../../packages/contract/dist/index.js'
+import type { ConversationId, ProjectId, SourceRevision } from '@conexus/contract'
 import type { Workspace } from '@mastra/core/workspace'
 import { mirrorSnapshot, pullSnapshot } from '../conexus-git.js'
 import type { ConexusGit, RunSourceSandbox } from '../conexus-git.js'

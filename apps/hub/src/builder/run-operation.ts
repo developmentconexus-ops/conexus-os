@@ -5,7 +5,7 @@ import type { ValueSchema } from '../app-runner/server-manifest.js'
 import type { Caller } from '../platform/caller.js'
 import { problemBody } from '../http/problem.js'
 import { commandEvidence } from './application-starter.js'
-import type { ProjectId } from '../../../../packages/contract/dist/index.js'
+import type { ProjectId } from '@conexus/contract'
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 

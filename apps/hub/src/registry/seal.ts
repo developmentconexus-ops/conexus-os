@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { canonicalBytes } from '../../../../packages/canonical-json/src/index.mjs'
-import { APPLICATION_MAX_FILES, APPLICATION_MAX_TOTAL_BYTES, ApplicationFilePath, ArtifactDigest, Sha256, mediaTypeOfPath, type BuilderRunId, type MediaType, type ProjectId, type SourceRevision } from '../../../../packages/contract/dist/index.js'
+import { APPLICATION_MAX_FILES, APPLICATION_MAX_TOTAL_BYTES, ApplicationFilePath, ArtifactDigest, Sha256, mediaTypeOfPath, type BuilderRunId, type MediaType, type ProjectId, type SourceRevision } from '@conexus/contract'
 import { CURRENT_TEMPLATE_PIN } from '../platform/application-template-pins.js'
 import { Failure } from '../platform/failure.js'
 import { SealedApplication } from '../platform/sealed-application.js'

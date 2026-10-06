@@ -1,4 +1,4 @@
-import type { ProjectId } from '../../../../packages/contract/dist/index.js'
+import type { ProjectId } from '@conexus/contract'
 import type { Admitted, SystemScope, WorkspaceScope } from '../identity-access/admission.js'
 import { sql } from '../platform/db.js'
 

@@ -3,8 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { z } from 'zod'
-import { OPERATIONS, Problem } from '../packages/contract/dist/index.js'
-import { FAILURE_STATUS } from '../packages/contract/dist/failures.generated.js'
+import { FAILURE_STATUS, OPERATIONS, Problem } from '@conexus/contract'
 
 const root = resolve(import.meta.dirname, '..')
 const target = resolve(root, 'contracts/api/product/openapi.json')

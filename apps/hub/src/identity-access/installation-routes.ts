@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { Failure } from '../platform/failure.js'
-import { AccountId } from '../../../../packages/contract/dist/index.js'
+import { AccountId } from '@conexus/contract'
 import type { HubSession } from './current-session.js'
 import { isAccountEmailAmbiguous, isAccountNotFound, isLastInstallationAdministrator } from './current-session.js'
 import type { InstallationAdministration, InstallationAdministrator } from './installation-administration.js'

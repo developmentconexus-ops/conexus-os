@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { ApiKeyProvider } from '../../packages/contract/dist/index.js'
+import { ApiKeyProvider } from '@conexus/contract'
 import { hubModuleUrl } from './hub-build.mjs'
 
 const { LawfulCredential, MODEL_PROVIDERS, isRouterPrefix } = await import(hubModuleUrl('builder/model-account/providers.js'))

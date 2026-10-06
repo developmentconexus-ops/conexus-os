@@ -1,4 +1,4 @@
-import type { ExecutionId, ProjectId, SourceRevision } from '../../../../../packages/contract/dist/index.js'
+import type { ExecutionId, ProjectId, SourceRevision } from '@conexus/contract'
 import { checkSummary, failedBootStep } from '../application-check.js'
 import { classifyCheck, createCandidateGate, GATE_RED_BUDGET, type CandidateGate, type CandidateVerdict } from '../candidate-gate.js'
 import { candidateSnapshot, pullSnapshot, quoted } from '../conexus-git.js'

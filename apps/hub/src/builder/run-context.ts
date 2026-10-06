@@ -1,6 +1,6 @@
 import type { RequestContext } from '@mastra/core/request-context'
 import { z } from 'zod'
-import { AccountId, BuilderRunId, ConversationId } from '../../../../packages/contract/dist/index.js'
+import { AccountId, BuilderRunId, ConversationId } from '@conexus/contract'
 import { Failure } from '../platform/failure.js'
 
 /** What a run's turn carries in Mastra's request context: its id, the account that pays for its calls, and its conversation. */

@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import type { AccountId, BuilderRunId, ProjectId, WorkspaceId } from '../../../../packages/contract/dist/index.js'
-import { AccountId as AccountIdSchema, ProjectId as ProjectIdSchema, WorkspaceId as WorkspaceIdSchema } from '../../../../packages/contract/dist/index.js'
+import type { AccountId, BuilderRunId, ProjectId, WorkspaceId } from '@conexus/contract'
+import { AccountId as AccountIdSchema, ProjectId as ProjectIdSchema, WorkspaceId as WorkspaceIdSchema } from '@conexus/contract'
 import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
 import type { AuthenticationGate, CommandGate, Digest, JobName, Mode, ReadTx, Sql, TxQueries, WriteTx } from '../platform/db.js'
 import { openGate, readOnlyView, sql } from '../platform/db.js'

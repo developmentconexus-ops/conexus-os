@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ArtifactDigest, ArtifactRevisionId, BuilderRunId, ConversationId, ProjectId, SourceRevision, type AccountId, type ProjectId as ProjectIdType } from '../../../../packages/contract/dist/index.js'
+import { ArtifactDigest, ArtifactRevisionId, BuilderRunId, ConversationId, ProjectId, SourceRevision, type AccountId, type ProjectId as ProjectIdType } from '@conexus/contract'
 import { BUILDER_RUN_RESULT_KINDS } from '../generated/builder-run-vocabulary.js'
 import { admitProject } from '../identity-access/admission.js'
 import { sql, type Database, type TxQueries } from '../platform/db.js'

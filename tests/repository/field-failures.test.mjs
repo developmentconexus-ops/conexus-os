@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { z } from 'zod'
-import { fieldFailures } from '../../packages/contract/dist/index.js'
+import { fieldFailures } from '@conexus/contract'
 
 test('a field failure stays out of the emitted JSON Schema, and a property named failureCode stays in it', () => {
   const refused = z.string().min(1).register(fieldFailures, { failureCode: 'CONNECTOR_LABEL_REFUSED' })

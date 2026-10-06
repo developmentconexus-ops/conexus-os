@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import type { AccountId, ProjectId } from '../../../../packages/contract/dist/index.js'
+import type { AccountId, ProjectId } from '@conexus/contract'
 import type { Database } from '../platform/db.js'
 import { registerProjectRoutes } from './routes.js'
 import type { ProjectThumbnailReader } from './routes.js'

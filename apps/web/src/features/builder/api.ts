@@ -4,7 +4,7 @@ import {
   getBuilderSession as getBuilderSessionOperation, sendBuilderMessage as sendBuilderMessageOperation, listProjectSourceTree as listProjectSourceTreeOperation, getProjectSourceFile as getProjectSourceFileOperation, launchBuilderPreview as launchBuilderPreviewOperation, cancelBuilderRun as cancelBuilderRunOperation, getBuilderRunTrace as getBuilderRunTraceOperation,
   compareProjectSourceRevisions, BuilderRunId, ConversationId, BuilderRunView, IdempotencyKey, ProjectId, SourceRevision,
   type BuilderRunSummary, type BuilderSession, type BuilderTraceSummary, type PreviewLaunch, type SourceComparison, type SourceFile, type SourceTree,
-} from '../../../../../packages/contract/dist/index.js'
+} from '@conexus/contract'
 
 export type { BuilderSession, BuilderTraceSummary, PreviewLaunch, SourceComparison, SourceFile, SourceTree }
 export type SourceChange = SourceComparison['files'][number]

@@ -1,6 +1,6 @@
-// Rewrites every relative specifier into the contract's build (`../../packages/contract/dist/index.js` and
+// Rewrites every relative specifier into the contract's build (the `dist/index.js` and
 // `.../dist/failures.generated.js`) to the package name `@conexus/contract`, which re-exports both.
-// Static imports, `export ... from`, dynamic `import()` and `vi`-style mocks all quote the specifier, so the
+// Static imports, `export ... from` and dynamic `import()` all quote the specifier, so the
 // quoted string is what is rewritten. The build itself and this directory are skipped. Rerunning changes nothing.
 // A file left with two statements from the package is listed at the end; merge those by hand.
 import { execFileSync } from 'node:child_process'
