@@ -16,7 +16,7 @@ import { API_BODY_LIMIT, callerLeft, OPERATION } from './preview-routes.js'
 const ENTRY_PATH = 'index.html'
 
 type Authority =
-  | Readonly<{ kind: 'SIGNED_IN'; caller: Caller }>
+  | Readonly<{ kind: 'SIGNED_IN'; accountId: AccountId; caller: Caller }>
   | Readonly<{ kind: 'SIGN_IN_REQUIRED' }>
   | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
 
@@ -126,7 +126,7 @@ export const registerApplicationHostRoutes = async (
     const authority = await dependencies.sessions.applicationAuthority({ sessionToken: readCookie(request, 'applicationSession'), projectId: target.projectId, now: now() })
     if (authority.kind === 'PROVIDER_UNAVAILABLE') throw new Failure('IDENTITY_PROVIDER_UNAVAILABLE')
     if (authority.kind === 'SIGN_IN_REQUIRED') throw new Failure('APPLICATION_SIGN_IN_REQUIRED')
-    const accountId = authority.caller.accountId
+    const { accountId } = authority
     const projectId = target.projectId
     const served = await dependencies.reader.readServedManifest(accountId, projectId)
     if (!served) throw new Failure('APPLICATION_NOT_READY')
@@ -155,7 +155,7 @@ export const registerApplicationHostRoutes = async (
     if (authority.kind === 'SIGN_IN_REQUIRED') {
       return document ? startSignIn(request, reply, target.slug) : sendFailure(reply, new Failure('APPLICATION_SIGN_IN_REQUIRED'))
     }
-    const accountId = authority.caller.accountId
+    const { accountId } = authority
     const projectId = target.projectId
     const readFile = async (path: string) => {
       const parsed = ApplicationFilePath.safeParse(path)

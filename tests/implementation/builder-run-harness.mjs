@@ -315,7 +315,7 @@ export const harness = async (t, { turn, build, report, onCheck, repairs = [], s
       calls.push(['advance', revision])
       row.result = revision
     },
-    settleBuilderRunBuild: async (input) => { calls.push(['settleBuild', input.sourceRevision, input.failureCode ?? null]); row.running = false },
+    settleBuilderRunBuild: async (input) => { calls.push(['settleBuild', input.sealed?.sourceRevision ?? input.sourceRevision, input.failureCode ?? null]); row.running = false },
     readLatestCodeChangingBuilderRun: async () => null,
     readBuilderRun: async () => (persisted ? persisted(claimed) : claimed),
     endUnclaimedBuilderRun: async ({ ending }) => { calls.push(['endUnclaimed', ending.state, ending.failureCode]); row.running = false },

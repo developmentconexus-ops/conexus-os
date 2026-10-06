@@ -67,7 +67,7 @@ const HOST = 'caderno.conexus.localhost:3445'
 const application = { port: 3445, domain: 'conexus.localhost' }
 const hostSessions = {
   applicationBySlug: async () => PROJECT,
-  applicationAuthority: async () => ({ kind: 'SIGNED_IN', caller: { accountId: '44444444-4444-4444-8444-444444444444', email: 'a@example.test', displayName: 'A' } }),
+  applicationAuthority: async () => ({ kind: 'SIGNED_IN', accountId: '44444444-4444-4444-8444-444444444444', caller: { accountId: '44444444-4444-4444-8444-444444444444', email: 'a@example.test', displayName: 'A' } }),
   redeem: async () => null,
   signOut: async () => {},
 }

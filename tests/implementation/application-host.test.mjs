@@ -44,7 +44,7 @@ const harness = async (t, { authorityFor, application = APPLICATION, invokeAppli
     async applicationBySlug(slug) { return { 'caderno-de-compras': PROJECT_A, 'outro-app': PROJECT_B }[slug] ?? null },
     async applicationAuthority({ sessionToken, projectId }) {
       if (authorityFor) return authorityFor({ sessionToken, projectId })
-      return sessionToken && sessions.get(sessionToken) === projectId ? { kind: 'SIGNED_IN', caller: EMPLOYEE } : { kind: 'SIGN_IN_REQUIRED' }
+      return sessionToken && sessions.get(sessionToken) === projectId ? { kind: 'SIGNED_IN', accountId: EMPLOYEE.accountId, caller: EMPLOYEE } : { kind: 'SIGN_IN_REQUIRED' }
     },
     async redeem({ handoff, target: { projectId, binding } }) {
       const found = handoffs.get(handoff)
@@ -365,7 +365,7 @@ test('a caller that disconnects before its call reaches the invoker hands the in
     authorityFor: async () => {
       authorizing.resolve()
       await authorized.promise
-      return { kind: 'SIGNED_IN', caller: EMPLOYEE }
+      return { kind: 'SIGNED_IN', accountId: EMPLOYEE.accountId, caller: EMPLOYEE }
     },
     invokeApplication: async ({ callerLeft }) => {
       invoked.resolve(callerLeft.aborted)

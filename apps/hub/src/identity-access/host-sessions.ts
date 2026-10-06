@@ -21,7 +21,7 @@ type HostAuthority<Signed> =
   // The Keycloak check was due and Keycloak could not answer. Refuse, and keep the session.
   | Readonly<{ kind: 'PROVIDER_UNAVAILABLE' }>
 
-type ApplicationAuthority = HostAuthority<{ caller: Caller }>
+type ApplicationAuthority = HostAuthority<{ accountId: AccountId; caller: Caller }>
 
 const PreviewManifest = z.object({ entryPath: z.literal('index.html'), files: z.array(z.object({ path: ApplicationFilePath, mediaType: MediaType })).readonly() }).readonly()
 type PreviewManifest = z.infer<typeof PreviewManifest>
@@ -290,7 +290,7 @@ export const createHostSessions = ({
         const refused = await checkProvider({ sessionDigest, subject: row.subject, checkedAt: row.provider_checked_at, sealed: row.due_provider_refresh_token, now })
         if (refused) return refused
       }
-      return { kind: 'SIGNED_IN', caller: callerOf(row) }
+      return { kind: 'SIGNED_IN', accountId: AccountId.parse(row.account_id), caller: callerOf(row) }
     },
 
     async previewAuthority({ sessionToken, exactHost, now = new Date() }) {

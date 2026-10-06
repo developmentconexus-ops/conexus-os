@@ -377,7 +377,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
 
   await t.test('a session resolves to its caller only on its own application and before eight hours', async () => {
     assert.deepEqual(await sessions.applicationAuthority({ sessionToken: token, projectId, now: at(60_000) }),
-      { kind: 'SIGNED_IN', caller: { accountId: employeeId, email: 'funcionaria@application.test', displayName: 'Funcionária Teste' } })
+      { kind: 'SIGNED_IN', accountId: employeeId, caller: { accountId: employeeId, email: 'funcionaria@application.test', displayName: 'Funcionária Teste' } })
     assert.deepEqual(await sessions.applicationAuthority({ sessionToken: token, projectId: otherProject, now: at(60_000) }), { kind: 'SIGN_IN_REQUIRED' })
     assert.deepEqual(await sessions.applicationAuthority({ sessionToken: 'x'.repeat(43), projectId, now: at(60_000) }), { kind: 'SIGN_IN_REQUIRED' })
     assert.deepEqual(refreshes, [], 'no Keycloak check inside five minutes')
@@ -949,7 +949,7 @@ test('application sessions: sign-in, handoff, per-request authority, the Keycloa
     const sessionToken = (await sessions.redeem({ handoff, target: { kind: 'APPLICATION', projectId, binding }, now: at(1_000) })).sessionToken
     const authority = await sessions.applicationAuthority({ sessionToken, projectId, now: at(2_000) })
     const accountId = (await client.query("SELECT account_id FROM iam.account WHERE external_subject = 'fiscal-sub'")).rows[0].account_id
-    assert.deepEqual(authority, { kind: 'SIGNED_IN', caller: { accountId, email: 'compras&fiscal@empresa.com.br', displayName } })
+    assert.deepEqual(authority, { kind: 'SIGNED_IN', accountId, caller: { accountId, email: 'compras&fiscal@empresa.com.br', displayName } })
     const parsed = invokeBody.safeParse({ projectId, operation: 'listNotes', input: {}, files: [{ path: 'conexus-server/manifest.json', sha256: '0'.repeat(64), content: '' }], caller: authority.caller })
     assert.deepEqual(parsed.data?.caller, { accountId, email: 'compras&fiscal@empresa.com.br', displayName })
   })

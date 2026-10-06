@@ -18,7 +18,7 @@ async function hostOver(t, { registry, projectId, runnerCalls }) {
   const caller = { accountId: ID.outsider, email: 'funcionaria@example.test', displayName: 'Funcionária' }
   const sessions = {
     applicationBySlug: async (slug) => (slug === 'caderno-de-compras' ? projectId : null),
-    applicationAuthority: async ({ sessionToken }) => (sessionToken === TOKEN ? { kind: 'SIGNED_IN', caller } : { kind: 'SIGN_IN_REQUIRED' }),
+    applicationAuthority: async ({ sessionToken }) => (sessionToken === TOKEN ? { kind: 'SIGNED_IN', accountId: caller.accountId, caller } : { kind: 'SIGN_IN_REQUIRED' }),
     redeem: async () => null,
     signOut: async () => undefined,
   }
