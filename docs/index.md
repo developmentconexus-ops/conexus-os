@@ -27,10 +27,9 @@ Each guide owns one subject, and a rule lives in one of them.
 | Decisions in force and how to reopen one | [Decision register](decisions/index.md) |
 | The operation census | [Operation ledger](product/operation-ledger.md) |
 | Which SQL function calls which | [Function callers](reference/function-callers.md), generated |
-| Specs and qualification tasks | `docs/tasks/specs/` and `docs/tasks/` |
-| Evidence a gate closed on | `docs/evidence/` |
+| Specs of waves not yet built or in progress | `docs/tasks/specs/` |
 
-## Runbooks and evidence
+## Runbooks and references
 
 | Need | Owner |
 | --- | --- |
@@ -38,7 +37,7 @@ Each guide owns one subject, and a rule lives in one of them.
 | Running the pilot Hub and runner under systemd | [Pilot supervision](reference/pilot-supervision.md) and [Pilot](../infra/pilot/README.md) |
 | Measuring a Builder change with an experiment | [Builder eval](development/builder-eval.md) |
 | Mastra evidence: where the Hub meets Mastra beyond its plain API | [Mastra reference](reference/mastra/index.md) |
-| Research behind past decisions (not execution authority) | [Stage 2](research/stage2/README.md), [Builder](research/builder/index.md), [Mitra](research/mitra/index.md), [functional references](research/functional-references/index.md), [platform vision](research/integrated-enterprise-platform-vision.md) |
+| A study of a comparable product (not execution authority) | [Mitra](research/mitra/index.md) |
 
-Evidence, tests, runtime output and Git history establish claim-specific facts. They do not
-silently replace a guide, the decision register or the roadmap.
+Closed waves, their specs and their evidence are in Git history. Code, tests and runtime output may
+challenge a guide; they do not silently replace it.

@@ -1,6 +1,7 @@
 # 0015. The data checked at every Hub boundary, the contract in Zod, the rules in TypeScript
 
 **Date**: 2026-10-04
+**Sources**: a document named by path is cited as it stood before the nine guides replaced it. Read it with `git show 58444763:<path>`.
 **Status**: Revision 5.3, approved (design 4 chosen by the operator on 2026-10-05; revision approved by HQ the same day under the operator's delegation; reviews B and C decided by HQ on 2026-10-05)
 **Lane**: `lane:shaped`
 **Depends on**: spec 0014 (merged in #507), whose definer `routes(app)[kind]` and route ledger this spec

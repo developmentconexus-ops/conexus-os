@@ -6,7 +6,7 @@ import { hubJsonWrite, hubWrite, opaque, testListener } from './access/test-list
 const built = hubModuleUrl
 const { registerMembershipRoutes } = await import(built('identity-access/membership.js'))
 
-const SESSION_TOKEN = opaque('leandro')
+const SESSION_TOKEN = opaque('rita')
 const workspaceId = '11111111-1111-4111-8111-111111111111'
 const ownerAccountId = '22222222-2222-4222-8222-222222222222'
 const memberAccountId = '33333333-3333-4333-8333-333333333333'
@@ -17,8 +17,8 @@ const lastOwner = () => Object.assign(new Error('LAST_OWNER'), { code: '42501' }
 const ownerEntry = {
   kind: 'member',
   accountId: ownerAccountId,
-  displayName: 'Leandro',
-  email: 'leandro@example.test',
+  displayName: 'Rita',
+  email: 'rita@example.test',
   role: 'owner',
   since: '2026-09-01T00:00:00.000Z',
 }
@@ -70,7 +70,7 @@ const makeStore = (overrides = {}) => {
 }
 
 const createHubApp = async (store, { accountId = ownerAccountId, signedIn = true } = {}) => (await testListener({
-  sessions: { [SESSION_TOKEN]: signedIn ? { account: { accountId, displayName: 'Leandro' }, issuer: 'https://issuer.test', subject: 'subject-1' } : null },
+  sessions: { [SESSION_TOKEN]: signedIn ? { account: { accountId, displayName: 'Rita' }, issuer: 'https://issuer.test', subject: 'subject-1' } : null },
   registerRoutes: (app) => registerMembershipRoutes(app, { store }),
 })).app
 

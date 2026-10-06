@@ -10,7 +10,7 @@ const CSRF_HEADER = ['x-conexus', 'csrf'].join('-')
 const COOKIE_OPTION_KEYS = new Set(['path', 'secure', 'httpOnly', 'sameSite'])
 const TEXT_SCANS = [
   { predicate: 'TEXT_DOCUMENT_COOKIE', needle: 'document.cookie', roots: ['apps/web/src'] },
-  { predicate: 'TEXT_CSRF_HEADER', needle: CSRF_HEADER, roots: ['apps', 'packages', 'scripts', 'tests', 'contracts', 'docs/evidence'] },
+  { predicate: 'TEXT_CSRF_HEADER', needle: CSRF_HEADER, roots: ['apps', 'packages', 'scripts', 'tests', 'contracts'] },
 ]
 const SKIPPED_DIRECTORIES = new Set(['node_modules', '.git', 'dist'])
 const SKIPPED_PATHS = new Set([FIXTURES, 'apps/hub/public'])
