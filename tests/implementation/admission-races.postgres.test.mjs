@@ -7,7 +7,18 @@ import { query } from './hub-database.mjs'
 import { ID, setupProjects } from './project-fixture.mjs'
 import { waitUntilBlocked } from './race.mjs'
 
-const { admitApplication, admitInstallationAdministrator, admitWorkspace } = await import(hubModuleUrl('identity-access/admission.js'))
+const { admitApplication, admitInstallationAdministrator, admitWorkspace, isInstallationAdministrator } = await import(hubModuleUrl('identity-access/admission.js'))
+const { createWorkspaceModule } = await import(hubModuleUrl('workspace/module.js'))
+
+test('current characterization: an active nonmember administrator cannot read an existing Workspace under hub_reader', async (t) => {
+  const { database } = await setupProjects(t, 'conexus_admin_nonmember_reader')
+  const workspaces = createWorkspaceModule({ database })
+
+  assert.equal(await database.read(ID.administrator, isInstallationAdministrator), true)
+  assert.deepEqual(await workspaces.listAccessibleWorkspaces(ID.administrator), [])
+  await assert.rejects(database.read(ID.administrator, (tx) => admitWorkspace(tx, ID.workspace, 'workspace.read')), { id: 'WORKSPACE_NOT_FOUND' })
+  assert.deepEqual(await workspaces.listAccessibleWorkspaces(ID.owner), [{ workspaceId: ID.workspace, name: 'Operations' }])
+})
 
 const pending = (promise) => {
   const state = { settled: false }
