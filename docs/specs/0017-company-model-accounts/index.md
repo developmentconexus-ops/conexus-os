@@ -4,7 +4,7 @@
 
 **Status**: Approved
 
-**Approval**: approved by the operator on 2026-10-06, commit 9528c5e8
+**Approval**: approved by the operator on 2026-10-06, commit 7f2a347c (9528c5e8 before the rebase onto main 017133fc; the content is the same)
 
 **Lane**: `lane:qualification` (Q-b: a new authority, the installation administrator writing a credential every person's run pays with; Q-c: the proof is a real Builder turn). The migration carries `needs:aprovo` ([delivery](../../development/delivery.md)).
 
