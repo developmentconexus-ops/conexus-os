@@ -1,9 +1,9 @@
+import type {} from '@fastify/cookie'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { APPLICATION_SIGN_IN_COOKIE_SECONDS } from '../platform/lifetimes.js'
 
 const NAMES = Object.freeze({
   hubSession: '__Host-conexus_session',
-  bootstrap: '__Host-conexus_bootstrap',
   oidcState: '__Host-conexus_oidc_state',
   applicationSession: '__Host-conexus_app',
   applicationSignIn: '__Host-conexus_app_signin',
@@ -12,7 +12,7 @@ const NAMES = Object.freeze({
 
 export type CookieKey = keyof typeof NAMES
 type RowLived = 'applicationSession' | 'previewSession'
-type CredentialCookie = 'hubSession' | 'bootstrap'
+type CredentialCookie = 'hubSession'
 
 const OPTIONS = Object.freeze({ path: '/', secure: true, httpOnly: true, sameSite: 'lax' } as const)
 

@@ -12,23 +12,23 @@ import type { UseMutationResult } from '@tanstack/react-query'
 import { Link2, MoreHorizontal } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useId, useState } from 'react'
-import { accessContextQueryKey } from '../api'
+import type { AccountId, EmailAddress, InvitationId, WorkspaceId, WorkspaceInvitationEntry, WorkspaceMemberEntry, WorkspaceRole } from '@conexus/contract'
+import { parseEmail, sessionQueryKey } from '../api'
 import {
   cancelWorkspaceInvitation,
-  getWorkspaceRoster,
   inviteWorkspaceMember,
   removeWorkspaceMember,
   setWorkspaceMemberRole,
-  workspaceRosterQueryKey,
+  workspaceRosterQuery,
 } from '../membership-api'
-import type { InvitationEntry, MemberEntry } from '../membership-api'
-import type { InviteWorkspaceMemberInput, WorkspaceInvitation } from '../../../generated/iam-client'
 import '../people.css'
 import { INVITATION_STATE } from '../invitation-state'
+import { useAttemptKey } from '../../../app/attempt-key'
 import { failureText } from '../../../app/http'
 import { FailureState } from '../../../app/failure-state'
 
-type Role = InviteWorkspaceMemberInput['role']
+type Role = WorkspaceRole
+type InviteInput = Readonly<{ email: EmailAddress; role: Role }>
 const ROLE_LABEL: Record<Role, string> = { owner: 'Owner', member: 'Membro' }
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })
 const formatDate = (value: string) => date.format(new Date(value))
@@ -46,37 +46,39 @@ async function copyEntryLink(email?: string) {
   }
 }
 
-type Invite = UseMutationResult<WorkspaceInvitation, Error, InviteWorkspaceMemberInput>
+type Invite = UseMutationResult<WorkspaceInvitationEntry, Error, InviteInput>
 
-type Pending = Readonly<{ kind: 'remove'; member: MemberEntry } | { kind: 'leave'; member: MemberEntry }>
+type Pending = Readonly<{ kind: 'remove'; member: WorkspaceMemberEntry } | { kind: 'leave'; member: WorkspaceMemberEntry }>
 
 export function WorkspaceMembers({
   workspaceId,
   currentAccountId,
   onLeft,
 }: {
-  workspaceId: string
+  workspaceId: WorkspaceId
   currentAccountId: string
   onLeft: () => void
 }) {
   const queryClient = useQueryClient()
   const [message, setMessage] = useState('')
   const [pending, setPending] = useState<Pending | null>(null)
-  const roster = useQuery({ queryKey: workspaceRosterQueryKey(workspaceId), queryFn: () => getWorkspaceRoster(workspaceId) })
-  const refresh = () => queryClient.invalidateQueries({ queryKey: workspaceRosterQueryKey(workspaceId) })
+  const rosterQuery = workspaceRosterQuery(workspaceId)
+  const roster = useQuery(rosterQuery)
+  const refresh = () => queryClient.invalidateQueries({ queryKey: rosterQuery.queryKey })
+  const inviteKey = useAttemptKey()
   const fail = (error: unknown) => setMessage(failureText(error))
 
   const changeRole = useMutation({
-    mutationFn: ({ accountId, role }: { accountId: string; role: Role }) => setWorkspaceMemberRole(workspaceId, accountId, role),
+    mutationFn: ({ accountId, role }: { accountId: AccountId; role: Role }) => setWorkspaceMemberRole(workspaceId, accountId, role),
     onSuccess: async () => { setMessage(''); await refresh() },
     onError: fail,
   })
   const removeMember = useMutation({
-    mutationFn: (accountId: string) => removeWorkspaceMember(workspaceId, accountId),
+    mutationFn: (accountId: AccountId) => removeWorkspaceMember(workspaceId, accountId),
     onSuccess: async (_result, accountId) => {
       setMessage('')
       if (accountId === currentAccountId) {
-        await queryClient.invalidateQueries({ queryKey: accessContextQueryKey })
+        await queryClient.invalidateQueries({ queryKey: sessionQueryKey })
         onLeft()
         return
       }
@@ -86,11 +88,12 @@ export function WorkspaceMembers({
   })
   // The one invite call: the form and the row of an expired invitation both use it.
   const invite = useMutation({
-    mutationFn: (input: InviteWorkspaceMemberInput) => inviteWorkspaceMember(workspaceId, input),
-    onSuccess: refresh,
+    mutationFn: ({ email, role }: InviteInput) => inviteWorkspaceMember(workspaceId, email, role, inviteKey.keyFor(`${workspaceId}:${email}:${role}`)),
+    onSuccess: async () => { inviteKey.settled(); await refresh() },
+    onError: (error) => inviteKey.failed(error),
   })
   const cancelInvitation = useMutation({
-    mutationFn: (invitationId: string) => cancelWorkspaceInvitation(workspaceId, invitationId),
+    mutationFn: (invitationId: InvitationId) => cancelWorkspaceInvitation(workspaceId, invitationId),
     onSuccess: async () => { setMessage(''); await refresh() },
     onError: fail,
   })
@@ -107,8 +110,8 @@ export function WorkspaceMembers({
 
   // The server tells which role the viewer holds and refuses anything that role may not do.
   const viewerIsOwner = roster.data.viewerRole === 'owner'
-  const members = roster.data.entries.filter((entry): entry is MemberEntry => entry.kind === 'member')
-  const invitations = roster.data.entries.filter((entry): entry is InvitationEntry => entry.kind === 'invitation')
+  const members = roster.data.entries.filter((entry): entry is WorkspaceMemberEntry => entry.kind === 'member')
+  const invitations = roster.data.entries.filter((entry): entry is WorkspaceInvitationEntry => entry.kind === 'invitation')
   const busy = changeRole.isPending || removeMember.isPending || cancelInvitation.isPending || invite.isPending
 
   return <div className="cx-people">
@@ -218,13 +221,18 @@ function InviteForm({ invite }: Readonly<{ invite: Invite }>) {
     event.preventDefault()
     if (invite.isPending) return
     const form = event.currentTarget
-    const email = String(new FormData(form).get('email') ?? '').trim()
-    if (!email) {
+    const raw = String(new FormData(form).get('email') ?? '').trim()
+    if (!raw) {
       setMessage('Escreva o email da pessoa.')
       return
     }
+    const parsed = parseEmail(raw)
+    if ('message' in parsed) {
+      setMessage(parsed.message)
+      return
+    }
     setInvited(null)
-    invite.mutate({ email, role }, {
+    invite.mutate({ email: parsed.email, role }, {
       onSuccess: (invitation) => { setMessage(''); setInvited(invitation.email); form.reset() },
       onError: (error) => setMessage(failureText(error)),
     })

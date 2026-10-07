@@ -17,7 +17,6 @@
       "apps/hub/src/hosting/preview-routes.ts",
       "apps/hub/src/platform/caller.ts",
       "infra/keycloak/**",
-      "scripts/bootstrap-installation-administrator.mjs",
       "scripts/keycloak-refresh-probe.mjs",
       "tests/implementation/identity-access-*",
       "tests/implementation/application-access-*",

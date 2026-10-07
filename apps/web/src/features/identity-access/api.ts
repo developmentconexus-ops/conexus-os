@@ -1,34 +1,26 @@
-import { hubCall, isFailure } from '../../app/http'
+import { EmailAddress, endSession as endSessionOperation, getSession } from '@conexus/contract'
+import { call, failureText, isFailure, query } from '../../app/http'
+import { HubFailure } from '../../app/failure'
 import { clearAuthorityCache, confirmAuthority } from '../../app/query-client'
-import type {
-  AccessContext,
-  AccountSummary,
-  ProvisionAccountInput,
-} from '../../generated/iam-client'
-import { iamClient } from '../../generated/iam-client'
 
-export const accessContextQueryKey = ['identity-access', 'access-context'] as const
+const noInput = { params: undefined, query: undefined, headers: undefined, body: undefined } as const
 
-export async function getAccessContext(): Promise<AccessContext> {
-  const response = await hubCall(iamClient.getAccessContext())
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  const context = await response.json() as AccessContext
-  confirmAuthority()
-  return context
-}
+const sessionRead = query(getSession, noInput)
 
-export async function provisionCurrentAccount(
-  input: ProvisionAccountInput,
-  idempotencyKey: string,
-): Promise<AccountSummary> {
-  const response = await hubCall(iamClient.provisionAccount(input, idempotencyKey), 201)
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  return response.json() as Promise<AccountSummary>
+export const sessionQueryKey = sessionRead.queryKey
+
+export const sessionQuery = {
+  queryKey: sessionQueryKey,
+  queryFn: async (context: { signal: AbortSignal }) => {
+    const session = await sessionRead.queryFn(context)
+    confirmAuthority()
+    return session
+  },
 }
 
 export async function endCurrentSession(): Promise<void> {
   try {
-    await hubCall(iamClient.endSession(), 204)
+    await call(endSessionOperation, noInput)
   } catch (error) {
     if (!isFailure(error, 'AUTHENTICATION_REQUIRED')) throw error
   }
@@ -37,4 +29,10 @@ export async function endCurrentSession(): Promise<void> {
 
 export function isAuthenticationRequired(error: unknown) {
   return isFailure(error, 'AUTHENTICATION_REQUIRED')
+}
+
+/** An email typed into a form, parsed once where it enters; a refusal carries the table's sentence for it. */
+export function parseEmail(raw: string): Readonly<{ email: EmailAddress }> | Readonly<{ message: string }> {
+  const parsed = EmailAddress.safeParse(raw)
+  return parsed.success ? { email: parsed.data } : { message: failureText(new HubFailure('EMAIL_INVALID', null)) }
 }

@@ -1,8 +1,8 @@
 import type { z } from 'zod'
 import type { FailureCode } from './failures.generated.js'
 
-export type AccessKind = 'navigation' | 'sign-in' | 'session' | 'sign-out' | 'bootstrap' | 'host-write' | 'hub-entry'
-export type Effect = 'clear-session-cookie' | 'clear-bootstrap-cookie'
+export type AccessKind = 'navigation' | 'sign-in' | 'session' | 'sign-out' | 'host-write' | 'hub-entry'
+export type Effect = 'clear-session-cookie'
 export type Binary = Readonly<{ mediaType: 'image/png'; maxBytes: number; cache?: 'revalidate-private' }>
 export type NoContent = null
 type Part = z.ZodType | null

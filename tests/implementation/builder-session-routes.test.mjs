@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test } from 'node:test'
@@ -54,15 +54,9 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
   const sessions = testConversations(controller, () => undefined, { now: () => clock.now })
   await controller.createSession({ resourceId: `project:${projectA}`, scope: `conversation:${conversationA}`, threadId: conversationA })
   const reachedContexts = []
-  const { createHostSessions } = await import(hubModuleUrl('identity-access/host-sessions.js'))
-  const keycloakDown = createHostSessions({
-    pool: { query: async () => ({ rows: [{ account_id: accountId, issuer: 'https://issuer.test', subject: 'subject-1', display_name: 'Operator', email: null, provider_checked_at: new Date(0), due_provider_refresh_token: 'sealed-refresh-token' }] }) },
-    refresh: async () => ({ kind: 'UNAVAILABLE' }),
-    envelope: { open: async () => 'refresh-token', seal: async (value) => value },
-  })
   const operator = { account: { accountId, displayName: 'Operator' }, issuer: 'https://issuer.test', subject: 'subject-1' }
   const { app } = await testListener({
-    sessions: { [SESSION_TOKEN]: providerDown ? () => keycloakDown.resolveHub(createHash('sha256').update(SESSION_TOKEN).digest()) : operator },
+    sessions: { [SESSION_TOKEN]: providerDown ? () => { throw new Failure('IDENTITY_PROVIDER_UNAVAILABLE') } : operator },
     registerRoutes: async (instance) => {
       instance.addHook('onResponse', async (request) => {
         if (request.requestContext) reachedContexts.push({ url: request.url, user: request.requestContext.get('user') })
@@ -512,7 +506,7 @@ test('a failure the Builder routes cannot name is a 500, and a trace store failu
     },
     store: {
       readBuilderRun: async () => ({ builderRunId: runId }),
-      readLaunchSubject: async () => ({ artifactRevisionId: runId, digest: 'd'.repeat(64), sourceRevision: 'a'.repeat(40), entryPath: 'index.html', files: [] }),
+      openLaunch: async (_input, open) => open({}, { artifactRevisionId: runId, digest: 'd'.repeat(64), sourceRevision: 'a'.repeat(40), entryPath: 'index.html', files: [] }),
       readPreviewSubject: async () => ({ lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null }),
     },
     service: {

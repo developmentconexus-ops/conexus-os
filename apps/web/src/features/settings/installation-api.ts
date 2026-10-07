@@ -1,37 +1,16 @@
-import { z } from 'zod'
-import { hubCall, hubFetch } from '../../app/http'
+import {
+  addInstallationAdministrator as addInstallationAdministratorOperation, listInstallationAdministrators,
+  removeInstallationAdministrator as removeInstallationAdministratorOperation,
+  type AccountId, type EmailAddress, type IdempotencyKey,
+} from '@conexus/contract'
+import { call, query } from '../../app/http'
 
-async function request<T>(method: 'GET' | 'PUT' | 'POST' | 'DELETE', url: string, schema: z.ZodType<T>, body?: unknown): Promise<T> {
-  const response = await hubCall(hubFetch(url, {
-    method,
-    headers: body === undefined ? {} : { 'content-type': 'application/json' },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  }))
-  // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-  if (response.status === 204) return undefined as T
-  return schema.parse(await response.json())
-}
+const noInput = { params: undefined, query: undefined, headers: undefined, body: undefined } as const
 
-const installationStatusSchema = z.object({ administrator: z.boolean() })
+export const administratorsQuery = query(listInstallationAdministrators, noInput)
 
-const administratorSchema = z.object({
-  accountId: z.string(),
-  displayName: z.string(),
-  email: z.string().nullable(),
-  grantedVia: z.enum(['OPERATOR_BOOTSTRAP', 'ADMINISTRATOR']),
-  grantedBy: z.object({ accountId: z.string(), displayName: z.string() }).nullable(),
-  grantedAt: z.string(),
-})
-export type Administrator = z.infer<typeof administratorSchema>
-const administratorsSchema = z.object({ administrators: z.array(administratorSchema) })
+export const addAdministrator = (email: EmailAddress, idempotencyKey: IdempotencyKey) =>
+  call(addInstallationAdministratorOperation, { params: undefined, query: undefined, headers: { 'idempotency-key': idempotencyKey }, body: { email } })
 
-export const installationQueryKey = ['installation'] as const
-export const administratorsQueryKey = ['installation', 'administrators'] as const
-
-export const getInstallationStatus = () => request('GET', '/api/control/installation', installationStatusSchema)
-
-export const listAdministrators = () => request('GET', '/api/control/installation/administrators', administratorsSchema)
-export const grantAdministrator = (email: string) =>
-  request('POST', '/api/control/installation/administrators', z.object({ administrator: administratorSchema }), { email })
-export const revokeAdministrator = (accountId: string) =>
-  request('DELETE', `/api/control/installation/administrators/${encodeURIComponent(accountId)}`, z.unknown())
+export const removeAdministrator = (accountId: AccountId) =>
+  call(removeInstallationAdministratorOperation, { params: { accountId }, query: undefined, headers: undefined, body: undefined })

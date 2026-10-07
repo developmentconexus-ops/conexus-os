@@ -53,6 +53,20 @@ const seed = async (fixture) => {
   await seedRevisionThumbnail(connection, revisions.a)
   await seedRevisionThumbnail(connection, revisions.b)
   const runs = async (projectId) => (await query(connection, 'SELECT builder_run_id::text AS key FROM builder.builder_run WHERE project_id = $1', [projectId])).rows.map((row) => row.key)
+  const slugs = { a: 'atlas-app', b: 'borealis-app' }
+  await query(connection, `INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, $3, $5), ($2, $4, $6)`, [projects.a, projects.b, slugs.a, slugs.b, ID.owner, OTHER.owner])
+  const grants = { a: '66666666-6666-4666-8666-0000000000a1', b: '66666666-6666-4666-8666-0000000000b1' }
+  await query(connection, `INSERT INTO iam.application_grant(grant_id, project_id, account_id, granted_by) VALUES ($1, $3, $5, $7), ($2, $4, $6, $8)`,
+    [grants.a, grants.b, projects.a, projects.b, ID.outsider, OTHER.member, ID.owner, OTHER.owner])
+  const applicationInvitations = { a: '77777777-7777-4777-8777-0000000000a1', b: '77777777-7777-4777-8777-0000000000b1' }
+  await query(connection, `INSERT INTO iam.application_invitation(invitation_id, project_id, email, invited_by, expires_at) VALUES
+    ($1, $3, 'guest-a@example.test', $5, now() + interval '1 day'), ($2, $4, 'guest-b@example.test', $6, now() + interval '1 day')`,
+  [applicationInvitations.a, applicationInvitations.b, projects.a, projects.b, ID.owner, OTHER.owner])
+  const workspaceInvitations = { a: '88888888-8888-4888-8888-0000000000a1', b: '88888888-8888-4888-8888-0000000000b1' }
+  await query(connection, `INSERT INTO iam.workspace_invitation(invitation_id, workspace_id, email, role, invited_by, expires_at) VALUES
+    ($1, $3, 'invitee-a@example.test', 'member', $5, now() + interval '1 day'), ($2, $4, 'invitee-b@example.test', 'member', $6, now() + interval '1 day')`,
+  [workspaceInvitations.a, workspaceInvitations.b, ID.workspace, ID.otherWorkspace, ID.owner, OTHER.owner])
+  const tenures = (await query(connection, 'SELECT tenure_id::text AS key FROM iam.installation_administrator ORDER BY account_id')).rows.map((row) => row.key)
   const memberKeys = { a: [ID.owner, ID.member, ID.memberAdministrator], b: [OTHER.owner, OTHER.member] }
   return {
     'workspace.workspace': { a: [ID.workspace], b: [ID.otherWorkspace] },
@@ -63,6 +77,11 @@ const seed = async (fixture) => {
     'builder.conversation_session': sessions,
     'iam.workspace_membership': memberKeys,
     'iam.account': memberKeys,
+    'iam.application': { a: [projects.a], b: [projects.b] },
+    'iam.application_grant': { a: [grants.a], b: [grants.b] },
+    'iam.application_invitation': { a: [applicationInvitations.a], b: [applicationInvitations.b] },
+    'iam.workspace_invitation': { a: [workspaceInvitations.a], b: [workspaceInvitations.b] },
+    'iam.installation_administrator': { a: tenures.slice(0, 1), b: tenures.slice(1) },
     'connector.connection': { a: [connections.a], b: [connections.b] },
     'reg.artifact_revision': { a: [revisions.a], b: [revisions.b] },
     'reg.application_thumbnail': { a: [revisions.a], b: [revisions.b] },
@@ -72,7 +91,8 @@ const seed = async (fixture) => {
   }
 }
 
-const OWNER_ONLY = Object.freeze(['connector.connection', 'connector.project_binding'])
+const OWNER_ONLY = Object.freeze(['connector.connection', 'connector.project_binding', 'iam.application', 'iam.application_grant', 'iam.application_invitation'])
+const ADMINISTRATOR_ONLY = Object.freeze(['iam.installation_administrator'])
 const EVERYONE = Object.freeze(['model.installation_default'])
 const readerOf = (table, workspace) => (OWNER_ONLY.includes(table) ? { a: ID.owner, b: OTHER.owner }[workspace] : { a: ID.member, b: OTHER.member }[workspace])
 
@@ -85,6 +105,11 @@ const KEY_COLUMN = {
   'builder.conversation_session': 'conversation_id',
   'iam.workspace_membership': 'account_id',
   'iam.account': 'account_id',
+  'iam.application': 'project_id',
+  'iam.application_grant': 'grant_id',
+  'iam.application_invitation': 'invitation_id',
+  'iam.workspace_invitation': 'invitation_id',
+  'iam.installation_administrator': 'tenure_id',
   'connector.connection': 'connection_id',
   'reg.artifact_revision': 'artifact_revision_id',
   'reg.application_thumbnail': 'artifact_revision_id',
@@ -112,18 +137,24 @@ test('every table hub_reader can SELECT is seeded, and a member of one workspace
     const { a, b } = seeded[table]
     assert.ok(a.length > 0 && b.length > 0, `${table} is seeded in both workspaces`)
     const whole = [...a, ...b].sort()
+    if (ADMINISTRATOR_ONLY.includes(table)) {
+      for (const reader of [ID.member, ID.owner, OTHER.owner]) assert.deepEqual(await visibleKeys(fixture.database, reader, table), [], `${table}: a Workspace reader who is not an installation administrator reads nothing`)
+      continue
+    }
     assert.deepEqual(await visibleKeys(fixture.database, readerOf(table, 'a'), table), EVERYONE.includes(table) ? whole : [...a].sort(), `${table}: a reader of A reads exactly A's rows`)
     assert.deepEqual(await visibleKeys(fixture.database, readerOf(table, 'b'), table), EVERYONE.includes(table) ? whole : [...b].sort(), `${table}: a reader of B reads exactly B's rows`)
     if (OWNER_ONLY.includes(table)) assert.deepEqual(await visibleKeys(fixture.database, ID.member, table), [], `${table}: a member who is not an owner reads nothing`)
   }
 })
 
-test('an installation administrator who belongs to neither workspace reads the deletions of both and no other tenant row', async (t) => {
+// An installation administrator reads every account, to find a person to make administrator (spec 0015 part iam section 4).
+test('an installation administrator who belongs to neither workspace reads the deletions of both, every account, and no other tenant row', async (t) => {
   const fixture = await setupProjects(t, 'conexus_cross_tenant_admin')
   const seeded = await seed(fixture)
+  const accounts = (await query(fixture.connection, 'SELECT account_id::text AS key FROM iam.account ORDER BY 1')).rows.map((row) => row.key)
   const REACH = ['project.project_deletion', 'connector.connection']
   for (const table of await readableTables(fixture.connection)) {
-    const expected = REACH.includes(table) || EVERYONE.includes(table) ? [...seeded[table].a, ...seeded[table].b].sort() : table === 'iam.account' ? [ID.administrator] : []
+    const expected = REACH.includes(table) || EVERYONE.includes(table) || ADMINISTRATOR_ONLY.includes(table) ? [...seeded[table].a, ...seeded[table].b].sort() : table === 'iam.account' ? accounts : []
     assert.deepEqual(await visibleKeys(fixture.database, ID.administrator, table), expected, table)
   }
 })

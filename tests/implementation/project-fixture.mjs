@@ -10,6 +10,7 @@ const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
 const { createProjectDeletion } = await import(hubModuleUrl('project/deletion.js'))
 const { builderProjectPorts, purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
 const { purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
+const { purgeProject } = await import(hubModuleUrl('identity-access/application-access.js'))
 const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
 
 export const ID = Object.freeze({
@@ -54,6 +55,7 @@ export const setupProjects = async (t, prefix, { repository } = {}) => {
     releaseApplicationData: async () => { events.push('release') },
     killSandboxes: async () => { events.push('kill') },
     deleteRepository: async () => { events.push('repository') },
+    purgeIdentityAccess: purgeProject,
     purgeConnectorBindings: purgeProjectBindings,
     purgeRegistry: createRegistryModule({ database }).purge,
     purgeBuilder: purgeProjectBuilder,

@@ -3,13 +3,12 @@ import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
 import { hubModuleUrl } from './hub-build.mjs'
-import { query } from './hub-database.mjs'
+import { loginPoolOf, query } from './hub-database.mjs'
 import { OWNER, setupBuilder } from './builder-fixture.mjs'
 import { ID } from './project-fixture.mjs'
 
 const { createModelAccounts } = await import(hubModuleUrl('builder/model-account/accounts.js'))
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
-const { unportedPool } = await import(hubModuleUrl('platform/db.js'))
 const { admitAccount } = await import(hubModuleUrl('identity-access/admission.js'))
 
 const KEY = 'ab'.repeat(32)
@@ -310,7 +309,7 @@ test('a pooled client is hub_runtime with no grant on the model tables after a c
   const { openRuntimeDatabase, seedRow } = await setup(t, 'conexus_model_pooled')
   const single = openRuntimeDatabase({ max: 1 })
   const pooled = createModelAccounts({ database: single, envelope, ownerId: OWNER })
-  const pool = unportedPool(single)
+  const pool = await loginPoolOf(single)
   const refusedOnEveryTable = async (when) => {
     assert.deepEqual((await pool.query('SELECT current_user AS who')).rows, [{ who: 'hub_runtime' }], when)
     for (const table of ['model_account', 'installation_default', 'model_account_sharing_history']) {

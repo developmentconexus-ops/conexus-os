@@ -96,12 +96,6 @@ export const withClient = async (connectionString, body) => {
   }
 }
 
-const PURGES = { iam: 'SELECT iam.purge_project($1)' }
-export const purgeAsSystem = (connectionString, schema, projectId) => withClient(connectionString, async (client) => {
-  await client.query("SELECT set_config('conexus.job', 'project-purge', false)")
-  await client.query(PURGES[schema], [projectId])
-})
-
 export const catalogOf = (connectionString) => withClient(connectionString, readCatalog)
 
 // node-postgres requires every Pool to carry an 'error' listener: a client the pool already
@@ -125,4 +119,25 @@ export const query = async (connection, statement, values = []) => {
   } finally {
     await client.end()
   }
+}
+
+/**
+ * The login pool behind a Database, reached the way node-postgres hands it out: the first pool that
+ * connects while the ledger is read. The Hub exports no pool; a test that must look at the login
+ * connection between entries (its role, its settings, a dead client) finds it here.
+ */
+export const loginPoolOf = async (database) => {
+  const connect = pg.Pool.prototype.connect
+  let found
+  pg.Pool.prototype.connect = function (...args) {
+    found ??= this
+    return connect.apply(this, args)
+  }
+  try {
+    await database.appliedMigrations()
+  } finally {
+    pg.Pool.prototype.connect = connect
+  }
+  if (!found) throw new Error('LOGIN_POOL_NOT_FOUND')
+  return found
 }

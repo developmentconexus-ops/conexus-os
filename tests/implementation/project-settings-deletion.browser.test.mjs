@@ -11,10 +11,10 @@ const withServer = async (t) => {
   return { page, origin }
 }
 
-const routeAccessContext = (page, account) =>
-  page.route('**/api/control/access-context', (route) => route.fulfill({
+const routeSession = (page, account) =>
+  page.route('**/api/session', (route) => route.fulfill({
     status: 200, contentType: 'application/json',
-    body: JSON.stringify({ account, workspaces: [WORKSPACE], projects: [] }),
+    body: JSON.stringify({ account, workspaces: [WORKSPACE], administrator: false }),
   }))
 
 const routeProject = (page, project) =>
@@ -28,7 +28,7 @@ const routeProject = (page, project) =>
 // true to that: neither claims the GitHub repository still exists or is already gone.
 test('an incomplete deletion before the Hub purge does not claim any GitHub state', async (t) => {
   const { page, origin } = await withServer(t)
-  await routeAccessContext(page, { accountId: 'a1', displayName: 'Ana Beatriz Cardoso', email: 'ana@example.com' })
+  await routeSession(page, { accountId: '10000000-0000-4000-8000-000000000001', displayName: 'Ana Beatriz Cardoso' })
   await routeProject(page, {
     projectId: PROJECT_ID, workspaceId: WORKSPACE.workspaceId, name: 'Faturamento',
     projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: true,
@@ -43,7 +43,7 @@ test('an incomplete deletion before the Hub purge does not claim any GitHub stat
 
 test('an incomplete deletion after the Hub purge does not claim the GitHub repository still exists or is gone', async (t) => {
   const { page, origin } = await withServer(t)
-  await routeAccessContext(page, { accountId: 'a1', displayName: 'Ana Beatriz Cardoso', email: 'ana@example.com' })
+  await routeSession(page, { accountId: '10000000-0000-4000-8000-000000000001', displayName: 'Ana Beatriz Cardoso' })
   await routeProject(page, {
     projectId: PROJECT_ID, workspaceId: WORKSPACE.workspaceId, name: 'Faturamento',
     projectRevision: '', archived: false, deleting: true,

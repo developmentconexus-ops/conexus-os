@@ -30,6 +30,6 @@ export declare const createWorkspace: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["IDEMPOTENCY_CONFLICT", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly failures: readonly ["ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: null;
 };

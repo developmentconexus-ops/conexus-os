@@ -12,7 +12,7 @@ export type ApplicationRunnerClient = Readonly<{
    * without an application until this settles: a reset starts only within RESET_WINDOW_MS and its
    * DROP is bounded, so it cannot still be running once the call times out.
    */
-  prepare(input: Readonly<{ projectId: string; files: readonly ServerFile[]; onDivergence: 'RESET' | 'REFUSE' }>): Promise<PrepareResult>
+  prepare(input: Readonly<{ projectId: string; files: readonly ServerFile[]; onDivergence: 'RESET' | 'REFUSE'; signal?: AbortSignal }>): Promise<PrepareResult>
   invoke(input: InvokeInput): Promise<Reply>
   /** Drops a Project's Preview schema and roles for good. Called once, when the Project itself is deleted. */
   release(input: Readonly<{ projectId: string }>): Promise<void>
@@ -28,10 +28,10 @@ const RESET_WINDOW_MS = PREPARE_TIMEOUT_MS - RESET_STATEMENT_TIMEOUT_MS - 40_000
 // runner's own generic PREPARE_FAILED, is not something the source caused, so it collapses to the
 // generic code below (a platform row, like APPLICATION_RUNNER_UNAVAILABLE, not a build failure).
 
-const call = (socketPath: string, path: string, body: unknown, timeoutMs: number): Promise<Reply> => new Promise((resolve, reject) => {
+const call = (socketPath: string, path: string, body: unknown, timeoutMs: number, signal?: AbortSignal): Promise<Reply> => new Promise((resolve, reject) => {
   const payload = Buffer.from(JSON.stringify(body))
   const outgoing = request({
-    socketPath, path, method: 'POST', timeout: timeoutMs,
+    socketPath, path, method: 'POST', timeout: timeoutMs, ...(signal ? { signal } : {}),
     headers: { 'content-type': 'application/json', 'content-length': payload.byteLength },
   }, (response) => {
     const chunks: Buffer[] = []
@@ -51,9 +51,9 @@ const call = (socketPath: string, path: string, body: unknown, timeoutMs: number
 })
 
 export const createApplicationRunnerClient = (socketPath: string): ApplicationRunnerClient => Object.freeze({
-  prepare: async (input) => {
+  prepare: async ({ signal, ...input }) => {
     const onDivergence: OnDivergence = input.onDivergence === 'RESET' ? { resetBefore: Date.now() + RESET_WINDOW_MS } : 'REFUSE'
-    const reply = await call(socketPath, '/v1/prepare', { ...input, onDivergence }, PREPARE_TIMEOUT_MS)
+    const reply = await call(socketPath, '/v1/prepare', { ...input, onDivergence }, PREPARE_TIMEOUT_MS, signal)
     if (reply.status === 200) {
       const result = prepareResult.safeParse(reply.body)
       if (!result.success) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: result.error })

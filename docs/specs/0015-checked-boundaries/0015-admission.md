@@ -59,7 +59,7 @@ type Scope =
   | { readonly kind: 'project'; readonly accountId: AccountId; readonly workspaceId: WorkspaceId; readonly projectId: ProjectId; readonly action: ProjectAction }
   | { readonly kind: 'application'; readonly accountId: AccountId; readonly projectId: ProjectId; readonly via: 'grant' | 'membership' }
   | { readonly kind: 'run'; readonly builderRunId: BuilderRunId; readonly accountId: AccountId; readonly projectId: ProjectId; readonly owner: RunOwner; readonly via: 'account' | 'executor' }
-  | { readonly kind: 'bootstrap'; readonly issuer: string; readonly subject: string }
+  | { readonly kind: 'bootstrap'; readonly issuer: string; readonly subject: string }   // from a ConfiguredIdentity; not a receipt scope
   | { readonly kind: 'system'; readonly job: JobName }
 ```
 
@@ -141,10 +141,10 @@ export function admitProject<A extends ProjectAction>(gate: CommandGate, project
 export function admitProject<A extends ReadAction & ProjectAction>(tx: ReadTx, projectId: ProjectId, action: A): Promise<Admitted<ProjectScope<A>, 'read'>>
 export function admitInstallationAdministrator<A extends AdministratorAction>(gate: CommandGate, action: A): Promise<Admitted<AdministratorScope<A>>>
 export function isInstallationAdministrator(tx: ReadTx): Promise<boolean>   // a fact, not a proof: listWorkspaceConnections (part 2), IAM-14 and IAM-15 (part 6)
-export function admitApplication(gate: CommandGate, projectId: ProjectId): Promise<Admitted<ApplicationScope>>   // built in part 0b
-export function checkApplication(gate: CommandGate, projectId: ProjectId): Promise<Checked<ApplicationScope>>   // built in part 0b: served reads, no row lock, ReadTx only
+export function admitApplication(gate: CommandGate | AuthenticationGate, projectId: ProjectId): Promise<Admitted<ApplicationScope>>   // built in part 0b; an authentication gate must have bound an account (part 6)
+export function checkApplication(gate: CommandGate | AuthenticationGate, projectId: ProjectId): Promise<Checked<ApplicationScope>>   // an authentication gate must have bound an account (part 6); built in part 0b: served reads, no row lock, ReadTx only
 export function admitRun(gate: CommandGate, builderRunId: BuilderRunId, owner: RunOwner): Promise<Admitted<RunScope>>   // body in part 1
-export function admitBootstrap(gate: AuthenticationGate, digest: Digest): Promise<Admitted<BootstrapScope>>   // part 6
+export function admitBootstrap(gate: AuthenticationGate, identity: ConfiguredIdentity): Promise<Admitted<BootstrapScope> | null>   // part 6
 export function admitSystem<J extends JobName>(gate: CommandGate, job: J): Promise<Admitted<SystemScope<J>>>
 export const ROLE_ALLOWS: { readonly [R in WorkspaceRole]: readonly WorkspaceAction[] }  // iam.role_allows as a table
 export const CHANGES_OWNER_SET = ['members.manage', 'members.leave'] as const satisfies readonly WorkspaceAction[]
@@ -291,7 +291,7 @@ existing code (`hosting/application-host-routes.ts:124`); the host answers `APPL
 null served read today (`hosting/application-host-routes.ts:130`), and parts 2 and 4 keep each caller's
 answer when they move it onto this admission.
 
-**The served read.** `checkApplication(gate, projectId)` makes a `Checked<ApplicationScope>` for a request that changes nothing: the application host's manifest and file reads, and the connector broker when it writes nothing in that transaction. It runs the same access and deletion predicates as `admitApplication` (active account, the membership or the open grant, the `iam.application` row, a Project that is not archived, no deletion row) in one statement and takes no row lock, not even `FOR SHARE`. `via` records which path admitted. The proof's `tx` is a `ReadTx`, so only read ports accept it. The reason is that the lock exists to serialize a write with a tombstone or a revoke. A served read changes nothing, and today's served read takes no lock. The application host calls it once per asset, and the locking form measured about 3 times slower serial and about 2 times at 16 clients on a local run (review C, Q3.1). A revoke or tombstone that commits during the read is seen by the next request, as today. A caller that writes in the same transaction calls `admitApplication`.
+**The served read.** `checkApplication(gate, projectId)` makes a `Checked<ApplicationScope>` for a request that changes nothing: the application host's manifest and file reads in the request's one `authenticate` entry (part 6), and the connector broker when it writes nothing in that transaction. It runs the same access and deletion predicates as `admitApplication` (active account, the membership or the open grant, the `iam.application` row, a Project that is not archived, no deletion row) in one statement and takes no row lock, not even `FOR SHARE`. `via` records which path admitted. The proof's `tx` is a `ReadTx`, so only read ports accept it. The reason is that the lock exists to serialize a write with a tombstone or a revoke. A served read changes nothing, and today's served read takes no lock. The application host calls it once per asset, and the locking form measured about 3 times slower serial and about 2 times at 16 clients on a local run (review C, Q3.1). A revoke or tombstone that commits during the read is seen by the next request, as today. A caller that writes in the same transaction calls `admitApplication`.
 
 **The run.** `admitRun(gate, builderRunId, owner)` serves two callers. Under `system('builder-executor', ...)`
 it takes the project `FOR SHARE`, then the run `FOR UPDATE`, checks `owner_id` and that the run has
@@ -373,7 +373,7 @@ nothing (42501). Every transaction entry's first statement after `BEGIN` is `SET
 | `transaction(accountId, fn)` | `hub_command` |
 | `system(job, fn)` | `hub_command`, then the transaction local `conexus.job` set to the job (section 6) |
 | `authenticate(fn)` (part 6) | `hub_command` |
-| `session(fn)` | none: one held client outside the pool that runs only `pg_try_advisory_lock`, as the login role |
+| `session(name, fn)` | none: one held client outside the pool that runs only `pg_try_advisory_lock` and the blocking shared lock for presence, as the login role |
 
 The spike measured each fact this rests on, on `postgres:17.10` with node `pg` and one pooled client
 (`authz-redesign/spike/spike.md:10-64`): after `COMMIT`, after `ROLLBACK`, and after an error then
@@ -537,9 +537,8 @@ table, and the table register (section 7) records it:
 | --- | --- | --- |
 | `reg.artifact` | dropped by part 4; `reg.artifact_revision` carries `project_id` with one key to `project.project` | 4 |
 | `reg.application_thumbnail` | keyed by `artifact_revision_id`, key to `reg.artifact_revision` `ON DELETE CASCADE`; no `project_id` | 4 |
-| `iam.preview` | `project_id` to `project.project` | 6 |
-| `iam.host_session` | `(preview_id, account_id)` to `iam.preview (preview_id, account_id)`, and `(parent_digest, account_id)` to `iam.host_session (token_digest, account_id)` | 6 |
-| `iam.handoff` | the same two as `iam.host_session` | 6 |
+| `iam.host_session` | `(parent_digest, account_id)` to `iam.host_session (token_digest, account_id)` `ON DELETE CASCADE`; `project_id` to `project.project` | 6 |
+| `iam.handoff` | the same pair key as `iam.host_session`, and `project_id` to `project.project`; no `preview_id` | 6 |
 | `builder.builder_run` | `account_id` to `iam.account` (a reach to a person with no constraint today) | 1 |
 
 A key `(preview_id, project_id)` is not assigned: a Preview session and a Preview handoff have
@@ -612,9 +611,9 @@ the write is. Each refusal has a fixture that must be found.
 | a job of `platform/jobs.ts` (reaper, purge) | `system(job, fn)`, then `admitSystem(gate, job)` | `Admitted<SystemScope<J>>` |
 | project deletion | the tombstone in the administrator's own `transaction(accountId, ...)` after `admitInstallationAdministrator(gate, 'project.delete')`, in the order of section 2; the purge and its completion in `system('project-purge', fn)` after `admitSystem`, which first takes the project `FOR UPDATE` while its row exists (a retry after the row is gone goes on), then checks the tombstone and the busy runs, then passes one `WriteTx` to every owner's purge port, so the five purges stay one transaction as today; each port deletes its rows, and the receipt rows whose `resource_id` is the project | administrator, then system |
 | the Builder executor | claims a queued run in two steps (a system read of the run's account and project, then `transaction(run.accountId)` with `admitProject` sets the owner; a queued run has no owner, so the claim is not an `admitRun`), and renews, ends, fails and reconciles a run it owns in `system('builder-executor', fn)` with `admitRun`, which locks the project, then the run, and checks `owner_id` and that the run has not ended, as the claim and heartbeat functions do today; the run's own work (model turns, source writes) runs in `transaction(run.accountId, fn)` after `admitProject` or `admitRun`, so a run whose account lost the project fails its next work step, and the executor settles it under `system` | run |
-| the application host and the connector broker | `transaction(grantHolder, fn)` with `checkApplication(gate, projectId)`, or `admitApplication` when the transaction writes (section 2); then the served revision, its artifact and the bound connection are read on `proof.tx`, each filtered by `proof.scope.projectId` (section 1). The served pointer is the three `last_preview_*` columns of `builder.project_working_state`, read directly on the admitted Project (part 4), with no SQL function and no Builder port There is no grantee list and no grantee policy | application |
-| session and sign in resolution | `authenticate(fn)`, importable only by the identity session and sign in modules; it hands an `AuthenticationGate` with two closed families of exact steps (data child, section 1): `lookupByDigest`, every lookup by the digest of the presented token, and the typed steps: the identity steps (`lookupIdentity`, `provisionIdentity`, `lookupSlug`, `hasOpenInvitation`, `startOidc`, `mintContext`), each keyed by one exact value, and `consumeOidcState()` and `endCredential(reason)`, which act only on the row the gate's lookup bound, take no digest argument and need no active account. Neither family lists. A lookup that finds an account, and `provisionIdentity`, bind it to the gate for `admitAccount`. `consumeOidcState()` consumes the bound `oidc-state` row once; `endCredential(reason)` ends the bound session or handoff with today's predicates (part 6) | bootstrap or account |
-| the operator bootstrap | `authenticate(fn)` with `admitBootstrap(gate, digest)`, which locks the bootstrap context found by that digest; the first administrator takes the table lock and checks the full tenure history, revoked rows included, in the same transaction | bootstrap |
+| the application host and the connector broker | for the application host, one `authenticate(fn)` with the session lookup and `checkApplication(gate, projectId)`; for the connector broker, `transaction(grantHolder, fn)` with `checkApplication`, or `admitApplication` when the transaction writes (section 2); then the served revision, its artifact and the bound connection are read on `proof.tx`, each filtered by `proof.scope.projectId` (section 1). The served pointer is the three `last_preview_*` columns of `builder.project_working_state`, read directly on the admitted Project (part 4), with no SQL function and no Builder port There is no grantee list and no grantee policy | application |
+| session and sign in resolution | `authenticate(fn)`, importable only by the identity session and sign in modules; it hands an `AuthenticationGate` with two families of exact steps (data child, section 1): the six named lookups by the digest of the presented token (`consumeOidcState`, `readHubSession`, `readApplicationSession`, `readPreviewSession`, `consumeApplicationHandoff` and `consumePreviewHandoff`), and the typed steps: the identity steps (`lookupIdentity`, `provisionIdentity`, `refreshEmail`, `claimInvitations`, `lookupSlug`, `startOidc`), each keyed by one exact value, and `endCredential(reason)`, which acts only on the row the gate's lookup bound, takes no digest argument and needs no active account. Neither family lists. A lookup that finds an account, and `provisionIdentity`, bind it to the gate for `admitAccount`. `endCredential(reason)` ends the bound session or handoff with today's predicates (part 6) | bootstrap or account |
+| the operator bootstrap | the sign in callback with `admitBootstrap(gate, identity)`, which takes the administrators' table lock and returns a proof only when no account exists | bootstrap |
 
 **The purge guard.** Revision 5 removed the `PURGE_REQUIRES_SYSTEM` guard of the four purge
 functions (`0064_project_owner.sql:73-75,95-97,107-109,121-123`) on the premise that `hub_command`
@@ -872,7 +871,7 @@ What changed from revision 5, and why. Two reviewers on different models interro
   `role`, which is a column every admission reads. Revision 5.2 replaces this match (see below).
 - **Every command read is scoped, and a test per operation proves it** (decision 2; Sonnet B2).
   Revision 5 moved exact id reads to a role with no filter and named no check. Section 1, the scoped
-  read rule, and section 10. `authenticate` hands two closed families of exact steps (`lookupByDigest(key)` and the eight typed steps), not a `WriteTx`.
+  read rule, and section 10. `authenticate` hands two families of exact steps (the six named lookups and the typed steps), not a `WriteTx`.
 - **The purge guard is back, on `conexus.job`** (decision 3; both reviewers). Revision 5 removed it
   on a false premise. Section 6. `builder.register_project_repository` gets no job guard, because its
   caller is a person's command; why it needs none is in section 6.
@@ -957,7 +956,7 @@ spec's text above.
 - The `AuthenticationGate` has a second closed family of typed steps (data child, section 1; section 6).
   It also holds `consumeOidcState()` and `endCredential(reason)`, which act only on the row the
   gate's lookup bound and need no active account (section 6; part 6). The family is eight steps.
-  `lookupByDigest(key)` takes a closed `key` union per kind, not `(kind, digest)`, because the
+  Each of the six named lookups takes its own key, not `(kind, digest)`, because the
   handoff kind is keyed by more than the digest (data child, section 1).
 - The administrator reach list widens `iam.account` to the grantors of open tenures (section 4.2).
 - `reg.artifact` is dropped by part 4, so it gets none, and the session keys are the account pairs (section 5).

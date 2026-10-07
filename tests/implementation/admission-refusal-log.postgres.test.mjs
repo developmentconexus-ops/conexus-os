@@ -59,13 +59,11 @@ test('a database error logs its SQLSTATE, constraint and table, and a refused co
   assert.deepEqual({ id: orphan.id, ...orphan.details }, { id: 'WORKSPACE_NOT_FOUND', sqlstate: '23503', constraint: 'workspace_membership_workspace_id_fkey', table: 'workspace_membership' })
 })
 
-test('a SQL function that raises a failure row code answers that row through the command transaction', async (t) => {
+test('a SQL function that raises a failure row code is a fault nobody named: no RAISE names a row since spec 0015', async (t) => {
   const { connection, database } = await setupProjects(t, 'conexus_raised_row')
   await query(connection, `CREATE FUNCTION platform.raise_row(p_code text) RETURNS void LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION '%', p_code; END $$;
     GRANT EXECUTE ON FUNCTION platform.raise_row(text) TO hub_command`)
   const raise = (code) => database.transaction(ID.owner, async (gate) => (await admitAccount(gate)).tx.run(sql`SELECT platform.raise_row(${code})`)).catch((error) => error)
   const named = await raise('PROJECT_NOT_FOUND')
-  assert.deepEqual({ id: named.id, sqlstate: named.details.sqlstate }, { id: 'PROJECT_NOT_FOUND', sqlstate: 'P0001' })
-  const unnamed = await raise('NOT_A_ROW_CODE')
-  assert.deepEqual({ id: unnamed.id, sqlstate: unnamed.details.sqlstate }, { id: 'INTERNAL_UNEXPECTED', sqlstate: 'P0001' })
+  assert.deepEqual({ id: named.id, sqlstate: named.details.sqlstate }, { id: 'INTERNAL_UNEXPECTED', sqlstate: 'P0001' })
 })

@@ -15,8 +15,3 @@ export const callerSchema = z.object({
 }).strict().readonly()
 
 export type Caller = z.infer<typeof callerSchema>
-
-export const parseCaller = (value: unknown): Caller | null => {
-  const parsed = callerSchema.safeParse(value)
-  return parsed.success ? Object.freeze(parsed.data) : null
-}

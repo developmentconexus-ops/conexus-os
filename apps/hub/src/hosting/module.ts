@@ -8,10 +8,11 @@ import type { ApplicationAddress } from '../platform/config.js'
 import { registerApplicationHostRoutes } from './application-host-routes.js'
 import type { ApplicationHostReader, ApplicationHostSessions } from './application-host-routes.js'
 import { createApplicationInvoker } from './application-invoker.js'
-import type { ApplicationFileReads, ApplicationRunnerInvoke, ConnectorPortOpener } from './application-invoker.js'
+import type { ApplicationRunnerInvoke, ConnectorPortOpener } from './application-invoker.js'
 import { registerPreviewRoutes } from './preview-routes.js'
-import type { PreviewHost, PreviewRouteDependencies, PreviewSessions } from './preview-routes.js'
+import type { PreviewHost, PreviewReader, PreviewRouteDependencies, PreviewSessions } from './preview-routes.js'
 import { Failure } from '../platform/failure.js'
+import type { ScopedProof } from '../platform/host-outcome.js'
 
 type HostPolicy = Extract<ListenerPolicy, Readonly<{ listener: 'preview' | 'application' }>>
 
@@ -25,7 +26,7 @@ export type HostingModule = Readonly<{
   close(): Promise<void>
 }>
 
-export type HostingRegistry = ApplicationFileReads & ApplicationHostReader & Readonly<{ readPreviewFile: PreviewRouteDependencies['registryReader'] }>
+export type HostingRegistry<A, P> = ApplicationHostReader<A> & PreviewReader<P>
 
 const PREVIEW_DOMAIN = 'conexus.localhost'
 const PREVIEW_HOST = /^preview-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.conexus\.localhost(?::\d+)?$/
@@ -44,7 +45,7 @@ export const previewHostOf = (host: HeaderFact, previewPort: number): PreviewHos
   return host === expected ? Object.freeze(parsed) : null
 }
 
-export const createHostingModule = ({
+export const createHostingModule = <A extends ScopedProof, P extends ScopedProof>({
   sessions,
   registry,
   applicationRunner,
@@ -52,12 +53,12 @@ export const createHostingModule = ({
   previewPort,
   applicationHost,
 }: Readonly<{
-  sessions: PreviewSessions
-  registry: HostingRegistry
+  sessions: PreviewSessions<P>
+  registry: HostingRegistry<A, P>
   applicationRunner?: Readonly<{ invoke: ApplicationRunnerInvoke; openConnectorPort?: ConnectorPortOpener }>
   exactHubOrigin: string
   previewPort: number
-  applicationHost?: Readonly<{ sessions: ApplicationHostSessions; application: ApplicationAddress }>
+  applicationHost?: Readonly<{ sessions: ApplicationHostSessions<A>; application: ApplicationAddress }>
 }>): HostingModule => {
   if (!Number.isSafeInteger(previewPort) || previewPort < 1 || previewPort > 65_535 ||
     !/^https:\/\//.test(exactHubOrigin)) {
@@ -68,11 +69,11 @@ export const createHostingModule = ({
   let closing: Promise<void> | null = null
   // One admission budget for both listeners: a busy application cannot starve every Preview, nor the reverse.
   const invokeApplication = applicationRunner
-    ? createApplicationInvoker({ ...applicationRunner, readPreviewFile: registry.readPreviewFile, readPinnedServedFile: registry.readPinnedServedFile })
+    ? createApplicationInvoker(applicationRunner)
     : undefined
   const previewHostOfRequest = (host: HeaderFact): PreviewHost | null => previewHostOf(host, previewPort)
-  const dependencies: PreviewRouteDependencies = {
-    sessions, registryReader: registry.readPreviewFile, ...(invokeApplication ? { invokeApplication } : {}), previewHostOf: previewHostOfRequest, pendingRequests, isClosed: () => closed,
+  const dependencies: PreviewRouteDependencies<P> = {
+    sessions, reader: registry, ...(invokeApplication ? { invokeApplication } : {}), previewHostOf: previewHostOfRequest, pendingRequests, isClosed: () => closed,
   }
   const previewAddress = (artifactRevisionId: ArtifactRevisionId) => {
     const { exactHost, origin } = previewHost(artifactRevisionId, previewPort)

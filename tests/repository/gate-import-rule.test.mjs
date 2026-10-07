@@ -6,7 +6,9 @@ import { dirname, resolve } from 'node:path'
 import { after, before, test } from 'node:test'
 
 const root = resolve(import.meta.dirname, '../..')
-const MESSAGE = 'A gate is opened only by identity-access/admission.ts.'
+const MESSAGE = 'A gate is opened only by identity-access/admission.ts and authentication.ts.'
+const BIND = 'An account is bound to an authentication gate only by identity-access/authentication.ts.'
+const RECEIPT = 'A receipt is made only by receiptOf in identity-access/admission.ts.'
 const PG = 'Only the database edge may import pg.'
 
 let sandboxDir
@@ -44,7 +46,7 @@ const lintReal = (path) => {
   return result.stdout + result.stderr
 }
 
-test('openGate is importable by admission.ts only', () => {
+test('openGate is importable by admission.ts and authentication.ts only', () => {
   const probe = 'apps/hub/src/workspace/gate-import-probe.ts'
   const probeCode = "import { openGate } from '../platform/db.js'\n\nexport const opened = openGate\n"
   assert.ok(lint(probe, probeCode).includes(MESSAGE))
@@ -52,6 +54,24 @@ test('openGate is importable by admission.ts only', () => {
   const admissionCode = "import { openGate } from '../platform/db.js'\n\nexport const opened = openGate\n"
   assert.ok(!lint('apps/hub/src/identity-access/admission.ts', admissionCode).includes(MESSAGE))
   assert.ok(!lintReal('apps/hub/src/identity-access/admission.ts').includes(MESSAGE))
+  assert.ok(!lint('apps/hub/src/identity-access/authentication.ts', probeCode).includes(MESSAGE))
+  assert.ok(!lintReal('apps/hub/src/identity-access/authentication.ts').includes(MESSAGE))
+})
+
+test('bindAccount is importable by authentication.ts only', () => {
+  const text = "import { bindAccount } from '../platform/db.js'\n\nexport const bound = bindAccount\n"
+  assert.ok(lint('apps/hub/src/workspace/bind-import-probe.ts', text).includes(BIND))
+  assert.ok(lint('apps/hub/src/identity-access/sessions-bind-probe.ts', text).includes(BIND))
+  assert.ok(!lint('apps/hub/src/identity-access/authentication.ts', text).includes(BIND))
+  assert.ok(!lintReal('apps/hub/src/identity-access/authentication.ts').includes(BIND))
+})
+
+test('receipted is importable by admission.ts only', () => {
+  const text = "import { receipted } from '../platform/receipt.js'\n\nexport const made = receipted\n"
+  assert.ok(lint('apps/hub/src/workspace/receipt-import-probe.ts', text).includes(RECEIPT))
+  assert.ok(lint('apps/hub/src/identity-access/authentication.ts', text).includes(RECEIPT))
+  assert.ok(!lint('apps/hub/src/identity-access/admission.ts', text).includes(RECEIPT))
+  assert.ok(!lintReal('apps/hub/src/identity-access/admission.ts').includes(RECEIPT))
 })
 
 test('a pg import fires in every Hub source file except the database edge, and openGate beside it still fires', () => {

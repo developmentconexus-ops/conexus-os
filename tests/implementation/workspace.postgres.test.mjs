@@ -90,7 +90,7 @@ test('a revoke waits for an admitted writer and the next admission is refused', 
   })
   await entered
   let revoked = false
-  const revoke = query(connection, 'SELECT iam.remove_workspace_member($1, $2, $3)', [ACCOUNT, workspaceId, MEMBER]).then(() => { revoked = true })
+  const revoke = query(connection, 'DELETE FROM iam.workspace_membership WHERE workspace_id = $1 AND account_id = $2', [workspaceId, MEMBER]).then(() => { revoked = true })
   await waitUntilBlocked(connection)
   assert.equal(revoked, false)
   release()
@@ -98,18 +98,17 @@ test('a revoke waits for an admitted writer and the next admission is refused', 
   await assert.rejects(database.transaction(MEMBER, (gate) => admitWorkspace(gate, workspaceId, 'workspace.read')), { id: 'WORKSPACE_NOT_FOUND' })
 })
 
-test('hub_command holds EXECUTE on the project purges and the tenure lock, and hub_runtime holds none of them', async (t) => {
+test('hub_command holds EXECUTE on the tenure lock, and hub_runtime and hub_reader hold none of it', async (t) => {
   const { connection } = await setup(t)
   const held = (role) => query(connection, `SELECT proc.oid::regprocedure::text AS signature FROM pg_proc proc
     JOIN pg_namespace namespace ON namespace.oid = proc.pronamespace
-    WHERE (proc.proname = 'purge_project' AND namespace.nspname IN ('iam', 'builder', 'connector', 'reg')
-      OR proc.proname = 'lock_administrators' AND namespace.nspname = 'iam')
+    WHERE proc.proname = 'lock_administrators' AND namespace.nspname = 'iam'
       AND has_function_privilege($1, proc.oid, 'EXECUTE') ORDER BY 1`, [role]).then((result) => result.rows.map((row) => row.signature))
   assert.deepEqual(await held('hub_command'), [
-    'iam.lock_administrators()', 'iam.purge_project(uuid)',
+    'iam.lock_administrators()',
   ])
   assert.deepEqual(await held('hub_runtime'), [])
-  assert.deepEqual(await held('project_owner'), [])
+  assert.deepEqual(await held('hub_reader'), [])
 })
 
 test('an admission reads its actor from the gate and refuses a gate of another kind', async (t) => {
@@ -147,7 +146,7 @@ test('a revoke that commits first makes the waiting admission refuse', async (t)
   await revoker.connect()
   onCleanup(() => revoker.end())
   await revoker.query('BEGIN')
-  await revoker.query('SELECT iam.remove_workspace_member($1, $2, $3)', [ACCOUNT, workspaceId, MEMBER])
+  await revoker.query('DELETE FROM iam.workspace_membership WHERE workspace_id = $1 AND account_id = $2', [workspaceId, MEMBER])
   let settled = false
   const admission = database.transaction(MEMBER, (gate) => admitWorkspace(gate, workspaceId, 'workspace.read')).finally(() => { settled = true })
   admission.catch(() => undefined)

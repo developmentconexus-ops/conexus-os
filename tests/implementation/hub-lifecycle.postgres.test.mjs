@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { loadHubMigrationFiles } from '../../scripts/run-hub-migrations.mjs'
 import { failureOf } from './failure-matchers.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
-import { buildHubDatabase, createEmptyDatabase, givePasswordToHubRuntime, query, testPool } from './hub-database.mjs'
+import { buildHubDatabase, givePasswordToHubRuntime, query } from './hub-database.mjs'
 import { testListener } from './access/test-listener.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
@@ -35,18 +35,17 @@ const runtimeDatabase = async (connection, onCleanup) => {
 
 test('a database one migration behind the code refuses to serve and names the missing version', async (t) => {
   const { connection, connectionString, onCleanup } = await buildHubDatabase(t, 'conexus_lifecycle_behind')
-  const pool = testPool({ ...connection, max: 2 })
-  onCleanup(() => pool.end())
-  await assertSchemaCurrent(pool, migrationsRoot)
+  const { database } = await runtimeDatabase(connection, onCleanup)
+  await assertSchemaCurrent(database, migrationsRoot)
   await query(connectionString, 'DELETE FROM iam.schema_migration WHERE version = $1', [latestVersion])
-  await assert.rejects(assertSchemaCurrent(pool, migrationsRoot), failureOf('HUB_SCHEMA_BEHIND', { versions: latestVersion }))
+  await assert.rejects(assertSchemaCurrent(database, migrationsRoot), failureOf('HUB_SCHEMA_BEHIND', { versions: latestVersion }))
 })
 
 test('a database with no ledger at all is behind by every migration', async (t) => {
-  const { connection, onCleanup } = await createEmptyDatabase(t, 'conexus_lifecycle_empty')
-  const pool = testPool({ ...connection, max: 2 })
-  onCleanup(() => pool.end())
-  await assert.rejects(assertSchemaCurrent(pool, migrationsRoot), (error) => error.id === 'HUB_SCHEMA_BEHIND' && error.details.versions.startsWith('0001,0002,') && error.details.versions.endsWith(`,${latestVersion}`))
+  const { connection, connectionString, onCleanup } = await buildHubDatabase(t, 'conexus_lifecycle_empty')
+  const { database } = await runtimeDatabase(connection, onCleanup)
+  await query(connectionString, 'DROP TABLE iam.schema_migration')
+  await assert.rejects(assertSchemaCurrent(database, migrationsRoot), (error) => error.id === 'HUB_SCHEMA_BEHIND' && error.details.versions.startsWith('0001,0002,') && error.details.versions.endsWith(`,${latestVersion}`))
 })
 
 test('a second Hub on the same database is refused until the first lets go', async (t) => {
@@ -223,11 +222,10 @@ test('SIGTERM with the real instance lock and pool ends the close and exits 0 we
   const started = Date.now()
   const { status, output } = await runFixture('real-close', `
 const config = ${JSON.stringify(config)}
-const { openDatabase, unportedPool } = await import(${JSON.stringify(hubModuleUrl('platform/db.js'))})
+const { openDatabase } = await import(${JSON.stringify(hubModuleUrl('platform/db.js'))})
 const database = openDatabase(config)
-const pool = unportedPool(database)
 const releaseInstanceLock = await lifecycle.takeInstanceLock(database, () => undefined)
-await pool.query('SELECT 1')
+await database.appliedMigrations()
 lifecycle.exitOnSignals(async () => {
   await releaseInstanceLock()
   await database.close()

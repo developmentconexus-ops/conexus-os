@@ -5,6 +5,7 @@ import type { BuilderService } from './service.js'
 import type { BuilderStore } from './store.js'
 import type { ServedLaunch } from './application-build.js'
 import type { HubSessionDigest } from '../identity-access/current-session.js'
+import type { Admitted, ProjectScope } from '../identity-access/admission.js'
 import { routes } from '../http/access.js'
 
 export type BuilderOperationId = 'listProjectSourceTree' | 'getProjectSourceFile' | 'getBuilderSession' | 'sendBuilderMessage' | 'cancelBuilderRun' | 'getBuilderRunTrace' | 'compareProjectSourceRevisions' | 'launchBuilderPreview'
@@ -12,11 +13,8 @@ export type BuilderSessionPort = Readonly<{
   read(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<Readonly<{ preview: BuilderSession['preview']; runHistory: readonly BuilderRunSummary[] }>>
   readTrace(input: Readonly<{ accountId: AccountId; projectId: ProjectId; builderRunId: BuilderRunId }>): Promise<BuilderTraceSummary>
 }>
-export type BuilderLaunchPreviewPort = (hubSessionDigest: HubSessionDigest, input: Readonly<{
-  accountId: AccountId
-  projectId: ProjectId
-  launch: ServedLaunch
-}>) => Promise<PreviewLaunch>
+/** Opens the Preview of a launch inside the launch's own admission, so the two cannot disagree. */
+export type BuilderLaunchPreviewPort = (hubSessionDigest: HubSessionDigest, proof: Admitted<ProjectScope<'project.build'>>, launch: ServedLaunch) => Promise<PreviewLaunch>
 
 export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: Readonly<{
   store: BuilderStore
@@ -73,10 +71,9 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
     const accountId = session.account.accountId
     const { launchPreview } = dependencies
     if (!launchPreview) throw new Failure('PREVIEW_UNAVAILABLE')
-    const { projectId } = params
-    const launch = await dependencies.store.readLaunchSubject({ accountId, projectId })
-    if (!launch) throw new Failure('PREVIEW_SUBJECT_NOT_FOUND')
-    return launchPreview(session.digest, { accountId, projectId, launch })
+    const opened = await dependencies.store.openLaunch({ accountId, projectId: params.projectId }, (proof, launch) => launchPreview(session.digest, proof, launch))
+    if (!opened) throw new Failure('PREVIEW_SUBJECT_NOT_FOUND')
+    return opened
   })
 
   route.operation(listProjectSourceTree, ({ params, query }, session) =>

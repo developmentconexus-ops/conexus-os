@@ -29,7 +29,7 @@ const listener = async (t) => {
 
 test('a malformed value of each path param answers the code its operation names, before the handler', async (t) => {
   const app = await listener(t)
-  assert.equal(withParams.length, 23)
+  assert.equal(withParams.length, Object.values(OPERATIONS).filter((op) => op.path.includes(':')).length)
   for (const op of withParams) {
     const good = Object.fromEntries(Object.entries(op.params.shape).map(([name, schema]) => [name, wellFormed(schema)]))
     for (const [name, schema] of Object.entries(op.params.shape)) {
@@ -62,4 +62,11 @@ test('a refused body field and a missing Idempotency-Key answer the codes the op
   assert.deepEqual(await answer(await send({ content: 'oi', conversationId: 'not-a-uuid' }, keyed)), [FAILURE_STATUS.CONVERSATION_NOT_FOUND, 'CONVERSATION_NOT_FOUND'])
   assert.deepEqual(await answer(await send({ content: 'oi', conversationId: UUID })), [FAILURE_STATUS.IDEMPOTENCY_KEY_REQUIRED, 'IDEMPOTENCY_KEY_REQUIRED'])
   assert.deepEqual(await answer(await send({ content: 'oi', conversationId: UUID }, { 'idempotency-key': '' })), [FAILURE_STATUS.IDEMPOTENCY_KEY_REQUIRED, 'IDEMPOTENCY_KEY_REQUIRED'])
+})
+
+test('an operation declares a failure once: not in failures when malformed or its key header already implies it', () => {
+  for (const op of Object.values(OPERATIONS)) {
+    const implied = new Set([...Object.values(op.malformed ?? {}), ...(op.headers?.shape?.['idempotency-key'] ? ['IDEMPOTENCY_CONFLICT'] : [])])
+    assert.deepEqual(op.failures.filter((code) => implied.has(code)), [], op.id)
+  }
 })

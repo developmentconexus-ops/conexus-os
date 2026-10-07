@@ -17,12 +17,10 @@ test('a run ends with the code of the Failure it threw, and a fault nobody named
   assert.equal(failure.cause, raw)
 })
 
-test('a RAISE of a row code in our own database is that row, with the database error as its cause', () => {
+test('a RAISE in the database is a fault nobody named, even when its message spells a row code', () => {
   const raised = Object.assign(new Error('BUILDER_CHECK_FAILED'), { code: 'P0001' })
-  assert.equal(toFailure(raised).id, 'BUILDER_CHECK_FAILED')
+  assert.equal(toFailure(raised).id, 'INTERNAL_UNEXPECTED')
   assert.equal(toFailure(raised).cause, raised)
-  assert.equal(toFailure(Object.assign(new Error('BUILDER_CHECK_FAILED'), { code: '23505' })).id, 'INTERNAL_UNEXPECTED')
-  assert.equal(toFailure(Object.assign(new Error('SOMETHING_NOBODY_DECLARED'), { code: 'P0001' })).id, 'INTERNAL_UNEXPECTED')
 })
 
 test('every code a run can end with is a row, and a Conexus fault never tells the person to try again', () => {

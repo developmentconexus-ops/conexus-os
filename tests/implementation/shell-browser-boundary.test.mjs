@@ -36,7 +36,7 @@ test('every SPA path answers with the shell page', async (t) => {
 
   const id = '10000000-0000-4000-8000-000000000001'
   for (const url of [
-    '/', '/setup', '/workspaces', '/workspaces/new', `/workspaces/${id}/projects`, `/workspaces/${id}/projects/new`,
+    '/', '/workspaces', '/workspaces/new', `/workspaces/${id}/projects`, `/workspaces/${id}/projects/new`,
     `/workspaces/${id}/settings/people`, `/projects/${id}`, `/projects/${id}/c/${id}`, `/projects/${id}/settings`,
     `/projects/${id}/settings/access`, `/projects/${id}/integrations`, '/settings', '/settings/account', '/settings/models',
     '/settings/installation/admins', '/signed-out', '/no-access',

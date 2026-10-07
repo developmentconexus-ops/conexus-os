@@ -12,11 +12,12 @@ const { registerPreviewRoutes } = await import(hubModuleUrl('hosting/preview-rou
 const PORT = 3444
 const HOST = 'preview-11111111-1111-4111-8111-111111111111.conexus.localhost'
 const ORIGIN = `https://${HOST}:${PORT}`
+const VALID = 'v'.repeat(43)
+const FORGED = 'f'.repeat(43)
 const binding = Object.freeze({
   accountId: '22222222-2222-4222-8222-222222222222',
   projectId: '33333333-3333-4333-8333-333333333333', sourceRevision: 'e'.repeat(40),
-  artifactRevisionId: '11111111-1111-4111-8111-111111111111', artifactDigest: 'f'.repeat(64), exactHost: HOST,
-  expiresAt: Date.now() + 600_000,
+  artifactRevisionId: '11111111-1111-4111-8111-111111111111',
   caller: { accountId: '22222222-2222-4222-8222-222222222222', email: 'dev@example.com', displayName: 'Dev' },
   manifest: { entryPath: 'index.html', files: [
     { path: 'index.html', mediaType: 'text/html; charset=utf-8' },
@@ -29,15 +30,20 @@ const preview = async (t, invokeApplication) => {
   const calls = []
   const sessions = {
     redeem: async () => null,
-    previewAuthority: async ({ sessionToken, exactHost }) => (sessionToken === 'valid' && exactHost === HOST ? { kind: 'SIGNED_IN', binding } : { kind: 'SIGN_IN_REQUIRED' }),
+    withPreviewRequest: async ({ artifactRevisionId, token }, serve) => token === VALID && artifactRevisionId === binding.artifactRevisionId
+      ? { kind: 'SERVED', value: await serve({ caller: binding.caller, checked: { scope: { accountId: binding.accountId, projectId: binding.projectId } } }) }
+      : { kind: 'SIGN_IN_REQUIRED' },
   }
-  const registryReader = async (_accountId, { path }) => ({ path, mediaType: binding.manifest.files.find((file) => file.path === path)?.mediaType, bytes: new Uint8Array(), sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' })
-  const hosting = createHostingModule({ sessions, registry: { readPreviewFile: registryReader }, exactHubOrigin: 'https://hub.conexus.localhost:3443', previewPort: PORT })
+  const reader = {
+    readPreviewManifest: async () => ({ sourceRevision: binding.sourceRevision, ...binding.manifest }),
+    readPreviewRevisionFile: async (_checked, { path }) => ({ path, mediaType: binding.manifest.files.find((file) => file.path === path)?.mediaType, bytes: new Uint8Array(), sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' }),
+  }
+  const hosting = createHostingModule({ sessions, registry: reader, exactHubOrigin: 'https://hub.conexus.localhost:3443', previewPort: PORT })
   const { app } = await testListener({
     policy: hosting.previewPolicy,
     registerRoutes: (server) => registerPreviewRoutes(server, {
       sessions,
-      registryReader,
+      reader,
       ...(invokeApplication === undefined ? {} : { invokeApplication: async (input) => { const { callerLeft: _callerLeft, ...recorded } = input; calls.push(recorded); return invokeApplication(input) } }),
       previewHostOf: (host) => previewHostOf(host, PORT),
       pendingRequests: new Set(),
@@ -47,7 +53,7 @@ const preview = async (t, invokeApplication) => {
   t.after(() => app.close())
   const call = (operation, overrides = {}) => app.inject({
     method: 'POST', url: `/__conexus/api/${operation}`,
-    headers: { host: `${HOST}:${PORT}`, origin: ORIGIN, 'content-type': 'application/json', cookie: '__Host-conexus_preview=valid', ...overrides.headers },
+    headers: { host: `${HOST}:${PORT}`, origin: ORIGIN, 'content-type': 'application/json', cookie: `__Host-conexus_preview=${VALID}`, ...overrides.headers },
     payload: overrides.payload ?? JSON.stringify({ purchaseOrderId: 'PO-1' }),
   })
   return { app, call, calls }
@@ -66,8 +72,8 @@ test('the Preview API passes the binding identity, the developer as caller and t
   assert.deepEqual(answered.json(), [{ id: 1 }])
   assert.match(answered.headers['content-security-policy'], /connect-src 'self';/)
   assert.deepEqual(calls, [{
-    source: { via: 'PREVIEW', accountId: binding.accountId, projectId: binding.projectId, sourceRevision: binding.sourceRevision, artifactRevisionId: binding.artifactRevisionId },
-    serverFiles: ['conexus-server/manifest.json', 'conexus-server/handlers/notes.mjs'], operation: 'listNotes',
+    source: { via: 'PREVIEW', accountId: binding.accountId, projectId: binding.projectId },
+    files: ['conexus-server/manifest.json', 'conexus-server/handlers/notes.mjs'].map((path) => ({ path, sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', content: '' })), operation: 'listNotes',
     input: { purchaseOrderId: 'PO-1', projectId: 'someone-else', caller: { accountId: '99999999-9999-4999-8999-999999999999', displayName: 'Someone else' } },
     caller: { accountId: '22222222-2222-4222-8222-222222222222', email: 'dev@example.com', displayName: 'Dev' },
   }])
@@ -82,7 +88,7 @@ test('the Preview API refuses another origin, a missing cookie, a non-JSON body 
   await refused('listNotes', { origin: 'https://preview-other.conexus.localhost:3444' }, 403, 'REQUEST_AUTHENTICITY_DENIED')
   await refused('listNotes', { origin: 'https://hub.conexus.localhost:3443' }, 403, 'REQUEST_AUTHENTICITY_DENIED')
   await refused('listNotes', { cookie: '' }, 403, 'PREVIEW_REFUSED')
-  await refused('listNotes', { cookie: '__Host-conexus_preview=forged' }, 403, 'PREVIEW_REFUSED')
+  await refused('listNotes', { cookie: `__Host-conexus_preview=${FORGED}` }, 403, 'PREVIEW_REFUSED')
   await refused('listNotes', { 'content-type': 'text/plain' }, 415, 'CONTENT_TYPE_REFUSED')
   await refused('..%2Fhandlers%2Fnotes', {}, 404, 'OPERATION_NOT_FOUND')
   await refused('ListNotes', {}, 404, 'OPERATION_NOT_FOUND')
@@ -98,10 +104,10 @@ test('the Preview API says the runner is unavailable when it is not configured',
 test('the retained server tree is never served to the browser', async (t) => {
   const { app } = await preview(t, async () => ({ status: 200, body: {} }))
   for (const path of ['/conexus-server/manifest.json', '/conexus-server/handlers/notes.mjs']) {
-    const answer = await app.inject({ method: 'GET', url: path, headers: { host: `${HOST}:${PORT}`, cookie: '__Host-conexus_preview=valid' } })
+    const answer = await app.inject({ method: 'GET', url: path, headers: { host: `${HOST}:${PORT}`, cookie: `__Host-conexus_preview=${VALID}` } })
     assert.equal(answer.statusCode, 404, path)
   }
-  const page = await app.inject({ method: 'GET', url: '/index.html', headers: { host: `${HOST}:${PORT}`, cookie: '__Host-conexus_preview=valid' } })
+  const page = await app.inject({ method: 'GET', url: '/index.html', headers: { host: `${HOST}:${PORT}`, cookie: `__Host-conexus_preview=${VALID}` } })
   assert.equal(page.statusCode, 200)
 })
 
@@ -114,7 +120,7 @@ test('a page that disconnects while its call waits aborts that call\'s signal', 
   await app.listen({ host: '127.0.0.1', port: 0 })
   const client = request({
     host: '127.0.0.1', port: app.server.address().port, method: 'POST', path: '/__conexus/api/listNotes',
-    headers: { host: `${HOST}:${PORT}`, origin: ORIGIN, 'content-type': 'application/json', cookie: '__Host-conexus_preview=valid' },
+    headers: { host: `${HOST}:${PORT}`, origin: ORIGIN, 'content-type': 'application/json', cookie: `__Host-conexus_preview=${VALID}` },
   })
   client.on('error', () => {})
   client.end('{}')
@@ -127,7 +133,7 @@ test('a page that disconnects while its call waits aborts that call\'s signal', 
 
 test('the Preview answers a deep link with the app index and the same CSP, and a missing file with 404', async (t) => {
   const { app } = await preview(t, async () => ({ status: 200, body: {} }))
-  const headers = { host: `${HOST}:${PORT}`, cookie: '__Host-conexus_preview=valid' }
+  const headers = { host: `${HOST}:${PORT}`, cookie: `__Host-conexus_preview=${VALID}` }
   const index = await app.inject({ method: 'GET', url: '/index.html', headers })
   for (const [method, url] of [['GET', '/notas'], ['GET', '/notas/'], ['GET', '/notas/42'], ['HEAD', '/notas']]) {
     const answer = await app.inject({ method, url, headers })
@@ -143,7 +149,7 @@ test('the Preview answers a deep link with the app index and the same CSP, and a
 
 test('the Preview grants the Hub page the same CORS answer on GET and HEAD, and varies on nothing', async (t) => {
   const { app } = await preview(t, async () => ({ status: 200, body: {} }))
-  const headers = { host: `${HOST}:${PORT}`, cookie: '__Host-conexus_preview=valid' }
+  const headers = { host: `${HOST}:${PORT}`, cookie: `__Host-conexus_preview=${VALID}` }
   for (const method of ['GET', 'HEAD']) {
     const answer = await app.inject({ method, url: '/index.html', headers })
     assert.equal(answer.statusCode, 200, method)
@@ -153,4 +159,15 @@ test('the Preview grants the Hub page the same CORS answer on GET and HEAD, and 
   }
   const write = await app.inject({ method: 'POST', url: '/__conexus/api/listNotes', headers: { ...headers, origin: ORIGIN, 'content-type': 'application/json' }, payload: '{}' })
   assert.equal(write.headers['access-control-allow-origin'], undefined, 'a write carries no grant')
+})
+
+test('a Preview page request whose session ended, or that never entered, answers the ended Preview page', async (t) => {
+  const { app } = await preview(t)
+  for (const cookie of [undefined, `__Host-conexus_preview=${FORGED}`]) {
+    const answer = await app.inject({ method: 'GET', url: '/', headers: { host: `${HOST}:${PORT}`, ...(cookie ? { cookie } : {}) } })
+    assert.equal(answer.statusCode, 403, String(cookie))
+    assert.equal(answer.headers['content-type'], 'text/html; charset=utf-8')
+    assert.match(answer.body, /<title>Prévia encerrada<\/title>.*Esta prévia não aceita o pedido\./s)
+  }
+  assert.equal((await app.inject({ method: 'GET', url: '/', headers: { host: `${HOST}:${PORT}`, cookie: `__Host-conexus_preview=${VALID}` } })).statusCode, 200)
 })

@@ -3,11 +3,11 @@ import { expect } from '@playwright/test'
 import { liveFlow } from './harness.mjs'
 
 liveFlow({ id: 'identity.sign-out-asks-password', nome: 'Sair do Conexus e entrar de novo pede a senha' }, async ({ page, hub }) => {
-  // A browser of its own, so signing out ends this sign-in's sessions and leaves the suite's alone.
+  // A browser of its own, so signing out ends this sign-in's sessions and leaves the suite's alone. An ended session's row is deleted.
   await page.context().clearCookies()
   await hub.signIn(page)
   const [{ account_id: accountId }] = await hub.db("select account_id from iam.account where display_name = 'Verify Operator'")
-  const openHubSessions = () => hub.db(`select count(*)::int as open from iam.host_session where kind = 'HUB' and account_id = '${accountId}' and ended_at is null`)
+  const openHubSessions = () => hub.db(`select count(*)::int as open from iam.host_session where kind = 'HUB' and account_id = '${accountId}'`)
   const [{ open: before }] = await openHubSessions()
 
   await page.getByRole('button', { name: 'Conta de Verify Operator' }).click()

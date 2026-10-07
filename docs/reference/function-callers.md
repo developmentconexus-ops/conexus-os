@@ -12,52 +12,7 @@ None.
 
 | Function | Owner role | Called by functions | Called from TypeScript |
 | --- | --- | --- | --- |
-| `iam.account_access_scope` | iam_owner | `iam.hub_session_live`, `iam.open_hub_session`, `iam.resolve_hub_session` | - |
-| `iam.admit_application_owner` | iam_owner | `iam.cancel_application_invitation`, `iam.grant_application_access`, `iam.list_application_access`, `iam.revoke_application_grant` | - |
-| `iam.admit_project` | iam_owner | - | - |
-| `iam.admit_workspace` | iam_owner | `iam.admit_application_owner`, `iam.admit_project`, `iam.cancel_workspace_invitation`, `iam.invite_workspace_member`, `iam.remove_workspace_member`, `iam.set_workspace_member_role` | - |
-| `iam.application_by_slug` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
-| `iam.application_slug` | iam_owner | - | `apps/hub/src/identity-access/application-access.ts`, `apps/hub/src/identity-access/host-sessions.ts` |
-| `iam.application_slug_base` | iam_owner | `iam.grant_application_access` | - |
-| `iam.bootstrap_installation_administrator` | iam_owner | - | - |
-| `iam.cancel_application_invitation` | iam_owner | - | `apps/hub/src/identity-access/application-access.ts` |
-| `iam.cancel_workspace_invitation` | iam_owner | - | `apps/hub/src/identity-access/membership.ts` |
-| `iam.claim_application_invitations` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
-| `iam.claim_invitations` | iam_owner | - | `apps/hub/src/identity-access/store.ts` |
-| `iam.email_has_open_invitation` | iam_owner | - | `apps/hub/src/identity-access/store.ts` |
-| `iam.end_host_session` | iam_owner | `iam.end_hub_session`, `iam.reap_expired`, `iam.resolve_application_session`, `iam.resolve_hub_session`, `iam.resolve_preview_session` | `apps/hub/src/identity-access/host-sessions.ts` |
-| `iam.end_hub_session` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
-| `iam.grant_application_access` | iam_owner | - | `apps/hub/src/identity-access/application-access.ts` |
-| `iam.grant_first_installation_administrator` | iam_owner | - | `apps/hub/src/identity-access/store.ts` |
-| `iam.grant_installation_administrator` | iam_owner | - | `apps/hub/src/identity-access/installation-administration.ts` |
-| `iam.grant_installation_administrator_by_email` | iam_owner | - | `apps/hub/src/identity-access/installation-administration.ts` |
-| `iam.has_application_access` | iam_owner | `iam.mint_application_handoff`, `iam.redeem_handoff`, `iam.resolve_application_session`, `iam.revoke_application_grant` | - |
-| `iam.hub_session_live` | iam_owner | `iam.open_preview`, `iam.redeem_handoff`, `iam.resolve_preview_session` | - |
-| `iam.invite_workspace_member` | iam_owner | - | `apps/hub/src/identity-access/membership.ts` |
-| `iam.is_installation_administrator` | iam_owner | `iam.admit_project`, `iam.bootstrap_installation_administrator`, `iam.grant_installation_administrator_by_email`, `iam.grant_installation_administrator`, `iam.list_installation_administrators`, `iam.revoke_installation_administrator`, `iam.visible_projects` | `apps/hub/src/identity-access/installation-administration.ts` |
-| `iam.list_application_access` | iam_owner | - | `apps/hub/src/identity-access/application-access.ts` |
-| `iam.list_installation_administrators` | iam_owner | - | `apps/hub/src/identity-access/installation-administration.ts` |
-| `iam.list_workspace_roster` | iam_owner | - | `apps/hub/src/identity-access/membership.ts` |
-| `iam.lock_administrators` | iam_owner | - | `apps/hub/src/identity-access/admission.ts` |
-| `iam.mint_application_handoff` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
-| `iam.open_hub_session` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
-| `iam.open_preview` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
-| `iam.provision_application_account` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
-| `iam.purge_project` | iam_owner | - | `apps/hub/src/project/deletion.ts` |
-| `iam.reap_expired` | iam_owner | - | `apps/hub/src/identity-access/reaper.ts` |
-| `iam.record_provider_check` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
-| `iam.redeem_handoff` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
-| `iam.remove_workspace_member` | iam_owner | - | `apps/hub/src/identity-access/membership.ts` |
-| `iam.resolve_application_session` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
-| `iam.resolve_hub_session` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
-| `iam.resolve_preview_session` | iam_owner | - | `apps/hub/src/identity-access/host-sessions.ts` |
-| `iam.revoke_application_grant` | iam_owner | - | `apps/hub/src/identity-access/application-access.ts` |
-| `iam.revoke_installation_administrator` | iam_owner | - | `apps/hub/src/identity-access/installation-administration.ts` |
-| `iam.role_allows` | iam_owner | `iam.admit_workspace` | - |
-| `iam.session_lifetimes` | iam_owner | `iam.mint_application_handoff`, `iam.open_hub_session`, `iam.open_preview`, `iam.redeem_handoff`, `iam.resolve_application_session`, `iam.resolve_hub_session`, `iam.resolve_preview_session` | - |
-| `iam.set_workspace_member_role` | iam_owner | - | `apps/hub/src/identity-access/membership.ts` |
-| `iam.visible_projects` | iam_owner | - | - |
-| `iam.visible_workspaces` | iam_owner | `iam.admit_application_owner`, `iam.list_workspace_roster`, `iam.visible_projects` | - |
+| `iam.lock_administrators` | conexus_owner | - | `apps/hub/src/identity-access/admission.ts` |
 | `rls.acting_account` | iam_rls | `rls.acting_installation_administrator`, `rls.acting_workspaces` | - |
 | `rls.acting_installation_administrator` | iam_rls | - | `apps/hub/src/identity-access/admission.ts` |
 | `rls.acting_workspaces` | iam_rls | - | - |

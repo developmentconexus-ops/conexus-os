@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
@@ -7,12 +7,19 @@ import { OPERATIONS } from '@conexus/contract'
 import { hubModuleUrl } from './hub-build.mjs'
 import { query } from './hub-database.mjs'
 import { ID, STARTER, setupProjects } from './project-fixture.mjs'
+import { hubJsonWrite, hubSessionCookie, hubWrite, opaque, testListener } from './access/test-listener.mjs'
 import { launchablePayload, seedRevision, seedRevisionThumbnail } from './registry-fixture.mjs'
 
 const { createProjectStore } = await import(hubModuleUrl('project/store.js'))
 const { builderProjectPorts, purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
 const { createConnectorStore, purgeProjectBindings } = await import(hubModuleUrl('connectors/store.js'))
+const { purgeProject } = await import(hubModuleUrl('identity-access/application-access.js'))
+const { registerRosterRoutes } = await import(hubModuleUrl('identity-access/roster.js'))
+const { createApplicationAccess } = await import(hubModuleUrl('identity-access/application-access.js'))
+const { registerAdministratorRoutes } = await import(hubModuleUrl('identity-access/administrators.js'))
+const { createSessions } = await import(hubModuleUrl('identity-access/sessions.js'))
+const { createWorkspaceModule } = await import(hubModuleUrl('workspace/module.js'))
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
 const { createModelAccounts } = await import(hubModuleUrl('builder/model-account/accounts.js'))
 const { createWorkspaceStore } = await import(hubModuleUrl('workspace/store.js'))
@@ -56,6 +63,14 @@ const TENANT_B = Object.freeze({
   'connector.project_binding': 'workspace_id = $1',
   'iam.account': 'account_id IN (SELECT account_id FROM iam.workspace_membership WHERE workspace_id = $1)',
   'iam.workspace_membership': 'workspace_id = $1',
+  'iam.workspace_invitation': 'workspace_id = $1',
+  'iam.installation_administrator': 'account_id IN (SELECT account_id FROM iam.workspace_membership WHERE workspace_id = $1)',
+  'iam.application': 'project_id = $2',
+  'iam.application_grant': 'project_id = $2',
+  'iam.application_invitation': 'project_id = $2',
+  'iam.handoff': 'project_id = $2',
+  'iam.oidc_transaction': 'application_project_id = $2',
+  'iam.host_session': 'account_id IN (SELECT account_id FROM iam.workspace_membership WHERE workspace_id = $1)',
 })
 
 const registerTables = () => CENSUS.register.split.map((entry) => entry.table).sort()
@@ -90,6 +105,25 @@ const seedTenantB = async ({ connection, seedProject }, projectId, sealed) => {
   await query(connection, "INSERT INTO model.installation_default(role, model_id, updated_by) VALUES ('build', 'anthropic/claude-sonnet-5', $1)", [OTHER.owner])
 }
 
+// The identity rows of tenant B: its Workspace invitation and administrator tenure, a Hub session of its owner, and what an application of its Project holds.
+const seedIdentityOfB = async (connection, projectId) => {
+  await query(connection, "INSERT INTO iam.workspace_invitation(invitation_id, workspace_id, email, role, invited_by, expires_at) VALUES ($1, $2, 'invitee-b@example.test', 'member', $3, now() + interval '1 day')", [randomUUID(), ID.otherWorkspace, OTHER.owner])
+  await query(connection, "INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')", [OTHER.member])
+  await query(connection, "INSERT INTO iam.application_invitation(invitation_id, project_id, email, invited_by, expires_at) VALUES ($1, $2, 'guest-b@example.test', $3, now() + interval '1 day')", [randomUUID(), projectId, OTHER.owner])
+  await query(connection, 'INSERT INTO iam.application_grant(project_id, account_id, granted_by) VALUES ($1, $2, $3)', [projectId, OTHER.member, OTHER.owner])
+  await query(connection, "INSERT INTO iam.handoff(handoff_digest, kind, account_id, project_id, binding_digest, provider_refresh_token, minted_at, expires_at) VALUES ($1, 'APPLICATION', $2, $3, $4, $5, now(), now() + interval '30 seconds')", [randomBytes(32), OTHER.member, projectId, randomBytes(32), SEALED])
+  await query(connection, "INSERT INTO iam.oidc_transaction(state_digest, pkce_verifier, nonce, expires_at, application_project_id, sign_in_binding_digest) VALUES ($1, 'verifier', 'nonce', now() + interval '10 minutes', $2, $3)", [randomBytes(32), projectId, randomBytes(32)])
+  const opened = new Date()
+  await query(connection, `INSERT INTO iam.host_session(token_digest, kind, account_id, started_at, absolute_expires_at, provider_refresh_token, provider_checked_at, idle_expires_at)
+    VALUES ($1, 'HUB', $2, $3, $3::timestamptz + interval '8 hours', $4, $3, $3::timestamptz + interval '30 minutes')`, [randomBytes(32), OTHER.owner, opened, SEALED])
+  const one = async (text, values) => (await query(connection, text, values)).rows[0].id
+  return {
+    workspaceInvitation: await one('SELECT invitation_id AS id FROM iam.workspace_invitation WHERE workspace_id = $1', [ID.otherWorkspace]),
+    applicationInvitation: await one('SELECT invitation_id AS id FROM iam.application_invitation WHERE project_id = $1', [projectId]),
+    grant: await one('SELECT grant_id AS id FROM iam.application_grant WHERE project_id = $1', [projectId]),
+  }
+}
+
 // A thumbnail needs a served revision, an application and a retained image: seeded here by SQL for one Project.
 const seedThumbnail = async (connection, projectId, bytes) => {
   const revisionId = await seedRevision(connection, projectId, { sourceRevision: STARTER, digest: 'd'.repeat(64), payload: launchablePayload() })
@@ -106,6 +140,8 @@ const TENANT_PARAMETERS = Object.freeze(['workspaceId', 'projectId'])
 // A provider name and a sign-in handle that only the person who started it can see: neither names a tenant's row.
 const NON_TENANT_PARAMETERS = Object.freeze(['provider', 'loginId'])
 const IN_MEMORY = Object.freeze(['startClaudeModelLogin', 'startCodexModelLogin', 'startGoogleModelLogin'])
+// Ends the Hub session named by the caller's own cookie and touches no tenant row; its database work is an authentication entry, which the entry recording does not see.
+const OWN_COOKIE_ONLY = Object.freeze(['endSession'])
 const childParameters = (operation) => [...operation.path.matchAll(/:(\w+)/g)].map((found) => found[1]).filter((name) => ![...TENANT_PARAMETERS, ...NON_TENANT_PARAMETERS].includes(name))
 
 const digestOfB = async (connection, projectId) => {
@@ -130,11 +166,12 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
     ($1, $3, 'sankhya', 'ERP', $5, $6, $4), ($2, $3, 'sankhya', 'Spare', $5, $6, $4)`, [CONNECTION.a, CONNECTION.spare, ID.workspace, ID.administrator, SEALED, 'd'.repeat(64)])
   const revisionA = await seedThumbnail(connection, projectA, thumbnailA)
   await seedThumbnail(connection, projectB, Buffer.from('thumbnail-of-b'))
+  const identityOfB = await seedIdentityOfB(connection, projectB)
   for (const [table, rows] of await rowsOfB(connection, projectB)) assert.ok(rows.length > 0, `${table} has a seeded row of tenant B`)
   const entries = []
   const database = recording(fixture.database, entries)
   const registry = createRegistryModule({ database })
-  const projects = createProjectStore({ database, repository: { prepare: async () => STARTER }, deletion: { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => undefined, purgeRegistry: registry.purge, purgeConnectorBindings: purgeProjectBindings, purgeBuilder: purgeProjectBuilder }, builder: builderProjectPorts })
+  const projects = createProjectStore({ database, repository: { prepare: async () => STARTER }, deletion: { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => undefined, purgeIdentityAccess: purgeProject, purgeRegistry: registry.purge, purgeConnectorBindings: purgeProjectBindings, purgeBuilder: purgeProjectBuilder }, builder: builderProjectPorts })
   const workspaces = createWorkspaceStore(database)
   const builder = createBuilderStore({ database, ownerId: randomUUID(), registry })
   const runOfB = (await query(connection, 'SELECT builder_run_id FROM builder.builder_run WHERE project_id = $1', [projectB])).rows[0].builder_run_id
@@ -154,9 +191,141 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   // own: admission passes on the tenant's own ids and the answer holds the tenant's literal rows.
   // cross: the same call with the ids of tenant B answers its refusal and nothing of B.
   // child: null while no operation takes a child id of a tenant.
+  const people = { owner: ID.owner, member: ID.member, administrator: ID.administrator }
+  const tokens = Object.fromEntries(Object.keys(people).map((name) => [name, opaque(`cross-tenant ${name}`)]))
+  const { app } = await testListener({
+    sessions: Object.fromEntries(Object.entries(people).map(([name, accountId]) => [tokens[name], { account: { accountId, displayName: name }, issuer: 'https://issuer.test', subject: name }])),
+    registerRoutes: async (server) => {
+      await createSessions({ database, envelope: {}, provider: {} }).registerRoutes(server, createWorkspaceModule({ database }))
+      await registerRosterRoutes(server, database)
+      await createApplicationAccess({ database, addressOf: () => null }).registerRoutes(server)
+      await registerAdministratorRoutes(server, database)
+      return []
+    },
+  })
+  t.after(() => app.close())
+  const call = async (who, method, url, body) => {
+    const response = await app.inject({
+      method, url, headers: { ...(body === undefined ? hubWrite : hubJsonWrite), cookie: hubSessionCookie(tokens[who]), 'idempotency-key': randomUUID() },
+      ...(body === undefined ? {} : { payload: body }),
+    })
+    return { status: response.statusCode, code: response.statusCode >= 400 ? response.json().code : undefined, body: response.statusCode === 204 ? undefined : response.json() }
+  }
+  const refused = async (who, method, url, status, code, body) => assert.deepEqual(await call(who, method, url, body).then(({ status: got, code: gotCode }) => ({ status: got, code: gotCode })), { status, code })
+  const W = (workspaceId) => `/api/control/workspaces/${workspaceId}`
+  const P = (projectId) => `/api/control/projects/${projectId}/application-access`
+  const ADMINISTRATORS = '/api/control/installation/administrators'
   let bindingOfA
+  let administratorAdded
   const ABSENT = { own: { state: 'absent' }, shared: false }
   const attempts = {
+    'getSession': {
+      own: async () => {
+        const answered = await call('member', 'GET', '/api/session')
+        assert.deepEqual({ status: answered.status, administrator: answered.body.administrator, workspaces: answered.body.workspaces }, { status: 200, administrator: false, workspaces: [{ workspaceId: ID.workspace, name: 'Operations' }] })
+      },
+      cross: async () => assert.deepEqual((await call('administrator', 'GET', '/api/session')).body.workspaces, []),
+      child: null,
+    },
+    'getWorkspaceRoster': {
+      own: async () => {
+        const answered = await call('member', 'GET', `${W(ID.workspace)}/roster`)
+        assert.deepEqual({ status: answered.status, viewerRole: answered.body.viewerRole, members: answered.body.entries.map((entry) => entry.accountId).sort() }, { status: 200, viewerRole: 'member', members: [ID.owner, ID.member, ID.memberAdministrator].sort() })
+      },
+      cross: () => refused('member', 'GET', `${W(ID.otherWorkspace)}/roster`, 404, 'WORKSPACE_NOT_FOUND'),
+      child: null,
+    },
+    'inviteWorkspaceMember': {
+      own: async () => {
+        const answered = await call('owner', 'POST', `${W(ID.workspace)}/invitations`, { email: 'newcomer@example.test', role: 'member' })
+        assert.deepEqual({ status: answered.status, email: answered.body.email, role: answered.body.role }, { status: 201, email: 'newcomer@example.test', role: 'member' })
+      },
+      cross: () => refused('owner', 'POST', `${W(ID.otherWorkspace)}/invitations`, 404, 'WORKSPACE_NOT_FOUND', { email: 'intruder@example.test', role: 'member' }),
+      child: null,
+    },
+    'removeWorkspaceMember': {
+      own: async () => {
+        const leaver = randomUUID()
+        await query(connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', $2, 'Leaver')", [leaver, `leaver-${leaver}`])
+        await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'member')", [leaver, ID.workspace])
+        assert.equal((await call('owner', 'DELETE', `${W(ID.workspace)}/members/${leaver}`)).status, 204)
+        assert.deepEqual((await query(connection, 'SELECT count(*)::integer AS count FROM iam.workspace_membership WHERE account_id = $1', [leaver])).rows, [{ count: 0 }])
+      },
+      cross: () => refused('owner', 'DELETE', `${W(ID.otherWorkspace)}/members/${OTHER.member}`, 404, 'WORKSPACE_NOT_FOUND'),
+      child: () => refused('owner', 'DELETE', `${W(ID.workspace)}/members/${OTHER.member}`, 404, 'ROSTER_ENTRY_NOT_FOUND'),
+    },
+    'cancelWorkspaceInvitation': {
+      own: async () => {
+        const invited = await call('owner', 'POST', `${W(ID.workspace)}/invitations`, { email: 'withdrawn@example.test', role: 'member' })
+        assert.equal((await call('owner', 'DELETE', `${W(ID.workspace)}/invitations/${invited.body.invitationId}`)).status, 204)
+      },
+      cross: () => refused('owner', 'DELETE', `${W(ID.otherWorkspace)}/invitations/${identityOfB.workspaceInvitation}`, 404, 'WORKSPACE_NOT_FOUND'),
+      child: () => refused('owner', 'DELETE', `${W(ID.workspace)}/invitations/${identityOfB.workspaceInvitation}`, 404, 'ROSTER_ENTRY_NOT_FOUND'),
+    },
+    'setWorkspaceMemberRole': {
+      own: async () => {
+        const answered = await call('owner', 'PUT', `${W(ID.workspace)}/members/${ID.member}`, { role: 'owner' })
+        assert.deepEqual({ status: answered.status, accountId: answered.body.accountId, role: answered.body.role }, { status: 200, accountId: ID.member, role: 'owner' })
+      },
+      cross: () => refused('owner', 'PUT', `${W(ID.otherWorkspace)}/members/${OTHER.member}`, 404, 'WORKSPACE_NOT_FOUND', { role: 'owner' }),
+      child: () => refused('owner', 'PUT', `${W(ID.workspace)}/members/${OTHER.member}`, 404, 'ROSTER_ENTRY_NOT_FOUND', { role: 'owner' }),
+    },
+    'getApplicationAccess': {
+      own: async () => assert.deepEqual({ ...(await call('owner', 'GET', P(projectA))), body: undefined }, { status: 200, code: undefined, body: undefined }),
+      cross: () => refused('owner', 'GET', P(projectB), 404, 'PROJECT_NOT_FOUND'),
+      child: null,
+    },
+    'grantApplicationAccess': {
+      own: async () => {
+        const answered = await call('owner', 'POST', P(projectA), { email: 'guest@example.test' })
+        assert.deepEqual({ status: answered.status, email: answered.body.email }, { status: 201, email: 'guest@example.test' })
+      },
+      cross: () => refused('owner', 'POST', P(projectB), 404, 'PROJECT_NOT_FOUND', { email: 'intruder@example.test' }),
+      child: null,
+    },
+    'revokeApplicationGrant': {
+      own: async () => {
+        const grantId = (await query(connection, 'INSERT INTO iam.application_grant(project_id, account_id, granted_by) VALUES ($1, $2, $3) RETURNING grant_id', [projectA, ID.outsider, ID.owner])).rows[0].grant_id
+        assert.equal((await call('owner', 'DELETE', `${P(projectA)}/grants/${grantId}`)).status, 204)
+        assert.deepEqual((await query(connection, 'SELECT revoked_at IS NOT NULL AS revoked FROM iam.application_grant WHERE grant_id = $1', [grantId])).rows, [{ revoked: true }])
+      },
+      cross: () => refused('owner', 'DELETE', `${P(projectB)}/grants/${identityOfB.grant}`, 404, 'PROJECT_NOT_FOUND'),
+      child: () => refused('owner', 'DELETE', `${P(projectA)}/grants/${identityOfB.grant}`, 404, 'APPLICATION_ACCESS_ENTRY_NOT_FOUND'),
+    },
+    'cancelApplicationInvitation': {
+      own: async () => {
+        const invited = await call('owner', 'POST', P(projectA), { email: 'withdrawn-guest@example.test' })
+        assert.equal((await call('owner', 'DELETE', `${P(projectA)}/invitations/${invited.body.invitationId}`)).status, 204)
+      },
+      cross: () => refused('owner', 'DELETE', `${P(projectB)}/invitations/${identityOfB.applicationInvitation}`, 404, 'PROJECT_NOT_FOUND'),
+      child: () => refused('owner', 'DELETE', `${P(projectA)}/invitations/${identityOfB.applicationInvitation}`, 404, 'APPLICATION_ACCESS_ENTRY_NOT_FOUND'),
+    },
+    'listInstallationAdministrators': {
+      own: async () => {
+        const answered = await call('administrator', 'GET', ADMINISTRATORS)
+        assert.deepEqual({ status: answered.status, accounts: answered.body.administrators.map((entry) => entry.accountId).sort() }, { status: 200, accounts: [ID.administrator, ID.memberAdministrator, OTHER.member].sort() })
+      },
+      cross: () => refused('member', 'GET', ADMINISTRATORS, 403, 'INSTALLATION_ADMINISTRATOR_REQUIRED'),
+      child: null,
+    },
+    'addInstallationAdministrator': {
+      own: async () => {
+        administratorAdded = randomUUID()
+        await query(connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name, email) VALUES ($1, 'https://issuer.test', $2, 'Newly made', 'newly-made@example.test')", [administratorAdded, `made-${administratorAdded}`])
+        const answered = await call('administrator', 'POST', ADMINISTRATORS, { email: 'newly-made@example.test' })
+        assert.deepEqual({ status: answered.status, accountId: answered.body.accountId, grantedVia: answered.body.grantedVia }, { status: 201, accountId: administratorAdded, grantedVia: 'ADMINISTRATOR' })
+      },
+      cross: () => refused('member', 'POST', ADMINISTRATORS, 403, 'INSTALLATION_ADMINISTRATOR_REQUIRED', { email: 'newly-made@example.test' }),
+      child: null,
+    },
+    'removeInstallationAdministrator': {
+      own: async () => {
+        assert.equal((await call('administrator', 'DELETE', `${ADMINISTRATORS}/${administratorAdded}`)).status, 204)
+        assert.deepEqual((await query(connection, 'SELECT revoked_at IS NOT NULL AS revoked FROM iam.installation_administrator WHERE account_id = $1', [administratorAdded])).rows, [{ revoked: true }])
+      },
+      cross: () => refused('member', 'DELETE', `${ADMINISTRATORS}/${ID.administrator}`, 403, 'INSTALLATION_ADMINISTRATOR_REQUIRED'),
+      child: () => refused('administrator', 'DELETE', `${ADMINISTRATORS}/${OTHER.owner}`, 404, 'INSTALLATION_ADMINISTRATOR_NOT_FOUND'),
+    },
     'listAvailableModels': {
       own: async () => assert.deepEqual((await modelAccounts.standing(member))['openai-codex'], { own: { state: 'connected', kind: 'oauth' }, shared: false }),
       cross: async () => assert.deepEqual((await modelAccounts.standing(member)).anthropic, ABSENT),
@@ -287,8 +456,8 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       child: async () => assert.notEqual((await builder.readBuilderRun({ accountId: member, projectId: projectBuild })).builderRunId, runOfB),
     },
     'launchBuilderPreview': {
-      own: async () => assert.deepEqual(await builder.readLaunchSubject({ accountId: member, projectId: projectA }), { sourceRevision: STARTER, artifactRevisionId: revisionA, digest: 'd'.repeat(64), entryPath: 'index.html', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8' }] }),
-      cross: () => assert.rejects(builder.readLaunchSubject({ accountId: member, projectId: projectB }), { id: 'PROJECT_BUILD_DENIED' }),
+      own: async () => assert.deepEqual(await builder.openLaunch({ accountId: member, projectId: projectA }, async (_proof, launch) => launch), { sourceRevision: STARTER, artifactRevisionId: revisionA, digest: 'd'.repeat(64), entryPath: 'index.html', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8' }] }),
+      cross: () => assert.rejects(builder.openLaunch({ accountId: member, projectId: projectB }, async () => assert.fail('a refused admission opens nothing')), { id: 'PROJECT_BUILD_DENIED' }),
       child: null,
     },
     'getProjectThumbnail': {
@@ -357,10 +526,10 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       child: () => assert.rejects(connectors.unbindConnection({ accountId: ID.owner, projectId: projectA, bindingId: BINDING_B }), { id: 'CONNECTOR_BINDING_NOT_FOUND' }),
     },
   }
-  assert.deepEqual(Object.keys(attempts).sort(), Object.values(OPERATIONS).map((operation) => operation.id).filter((id) => !IN_MEMORY.includes(id)).sort(), 'every operation of the contract has its attempts')
+  assert.deepEqual(Object.keys(attempts).sort(), Object.values(OPERATIONS).map((operation) => operation.id).filter((id) => !IN_MEMORY.includes(id) && !OWN_COOKIE_ONLY.includes(id)).sort(), 'every operation of the contract has its attempts')
 
   for (const operation of Object.values(OPERATIONS)) {
-    if (IN_MEMORY.includes(operation.id)) continue
+    if (IN_MEMORY.includes(operation.id) || OWN_COOKIE_ONLY.includes(operation.id)) continue
     const attempt = attempts[operation.id]
     if (childParameters(operation).length > 0) assert.equal(typeof attempt.child, 'function', `${operation.id} takes a child id (${childParameters(operation).join(', ')}) and needs the attempt that passes a child of another tenant`)
     else assert.equal(attempt.child, null, `${operation.id} takes no child id, so it has no child attempt`)

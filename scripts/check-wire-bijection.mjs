@@ -6,78 +6,9 @@ const bundledProductOas = () => {
   return JSON.parse(fs.readFileSync('contracts/api/product/openapi.json', 'utf8'));
 };
 
-const productDirectory = 'contracts/api/product';
-const httpMethods = new Set(['get', 'put', 'post', 'delete', 'patch', 'head', 'options', 'trace']);
-
-const leafDefinedOperations = () => {
-  const operations = [];
-  const files = fs.readdirSync(productDirectory).filter((name) => name.endsWith('-paths.yaml')).sort();
-  if (files.length === 0) throw new Error(`no leaf contract files found under ${productDirectory}`);
-  for (const file of files) {
-    const lines = fs.readFileSync(`${productDirectory}/${file}`, 'utf8').split('\n');
-    const pathsIndex = lines.indexOf('paths:');
-    if (pathsIndex < 0) throw new Error(`leaf contract file has no top-level paths block: ${file}`);
-    let currentPath = null;
-    let current = null;
-    let pathCount = 0;
-    const close = () => { if (current) operations.push(current); current = null; };
-    for (const line of lines.slice(pathsIndex + 1)) {
-      if (line.trim() !== '' && /^\S/.test(line)) break;
-      const pathMatch = /^ {2}(\/\S*):\s*$/.exec(line);
-      if (pathMatch) {
-        close();
-        currentPath = pathMatch[1];
-        pathCount += 1;
-        continue;
-      }
-      const methodMatch = /^ {4}([a-z]+):\s*$/.exec(line);
-      if (methodMatch && httpMethods.has(methodMatch[1])) {
-        close();
-        if (currentPath === null) throw new Error(`operation before any path in ${file}: ${line.trim()}`);
-        current = { file, method: methodMatch[1].toUpperCase(), path: currentPath, fourAId: null };
-        continue;
-      }
-      const idMatch = /^ {6}x-conexus-4a-id:\s*(\S+)\s*$/.exec(line);
-      if (idMatch && current) current.fourAId = idMatch[1];
-    }
-    close();
-    if (pathCount === 0) throw new Error(`no paths parsed from ${file}; the scanner does not understand its shape`);
-  }
-  return operations;
-};
+const methods = new Set(['get', 'put', 'post', 'delete', 'patch', 'head', 'options', 'trace']);
 
 const oas = bundledProductOas();
-const methods = httpMethods;
-
-const bundledMethodPaths = new Set();
-for (const [path, pathItem] of Object.entries(oas.paths ?? {})) {
-  for (const method of Object.keys(pathItem ?? {})) {
-    if (methods.has(method)) bundledMethodPaths.add(`${method.toUpperCase()} ${path}`);
-  }
-}
-const leafOperations = leafDefinedOperations();
-const leafMethodPaths = new Set(leafOperations.map((operation) => `${operation.method} ${operation.path}`));
-const declaredOperations = new Map(Object.values(OPERATIONS).map((operation) => [
-  `${operation.method} ${operation.path.replace(/:(\w+)/g, '{$1}')}`, operation,
-]));
-
-const unbundled = leafOperations
-  .filter((operation) => !bundledMethodPaths.has(`${operation.method} ${operation.path}`))
-  .map((operation) => `${operation.fourAId ?? '<no 4A id>'} ${operation.method} ${operation.path} (${operation.file})`);
-if (unbundled.length > 0) {
-  throw new Error(`leaf contract operations missing from the bundled Product OAS, add a $ref in openapi.yaml: ${unbundled.join(', ')}`);
-}
-
-const unsourced = [...bundledMethodPaths].filter((methodPath) => {
-  if (leafMethodPaths.has(methodPath)) return false;
-  const declared = declaredOperations.get(methodPath);
-  if (!declared) return true;
-  const [method, path] = methodPath.split(' ', 2);
-  return oas.paths?.[path]?.[method.toLowerCase()]?.operationId !== declared.id;
-});
-if (unsourced.length > 0) {
-  throw new Error(`bundled Product OAS operations with no leaf contract source: ${unsourced.join(', ')}`);
-}
 
 const seenOperationIds = new Set();
 const seenMethodPath = new Set();
@@ -97,6 +28,17 @@ for (const [path, pathItem] of Object.entries(oas.paths ?? {})) {
     seenMethodPath.add(methodPath);
     operationCount += 1;
   }
+}
+
+const declaredOperations = new Map(Object.values(OPERATIONS).map((operation) => [
+  `${operation.method} ${operation.path.replace(/:(\w+)/g, '{$1}')}`, operation.id,
+]));
+const unsourced = [...seenMethodPath].filter((methodPath) => {
+  const [method, path] = methodPath.split(' ', 2);
+  return oas.paths[path][method.toLowerCase()].operationId !== declaredOperations.get(methodPath);
+});
+if (unsourced.length > 0) {
+  throw new Error(`Product OAS operations with no declared operation in @conexus/contract: ${unsourced.join(', ')}`);
 }
 
 const CREDENTIAL_FIELDS = new Set(['clientId', 'clientSecret', 'xToken', 'credential', 'credentialSealed']);
@@ -124,4 +66,4 @@ for (const pathItem of Object.values(oas.paths ?? {})) {
   }
 }
 
-console.log(`wire bijection passed (${operationCount} Product operations; 0 unbundled; 0 unsourced; 0 duplicate).`);
+console.log(`wire bijection passed (${operationCount} Product operations; 0 unsourced; 0 duplicate).`);

@@ -146,19 +146,13 @@ test('the committed snapshot is the catalog the baseline and forward migration b
   assert.deepEqual(await ledgerOf(connectionString), corpusLedger)
 })
 
-test('after the forward migrations the action enum holds exactly the four live values, and role_allows is unchanged', async (t) => {
+test('after the forward migrations the action enum and role_allows are gone: the action vocabulary lives in the Hub', async (t) => {
   const { connectionString } = await buildHubDatabase(t, 'conexus_mig')
-  const labels = (await query(
-    connectionString,
-    "SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = 'action' ORDER BY e.enumsortorder",
-  )).rows.map((row) => row.enumlabel)
-  assert.deepEqual(labels, ['workspace.read', 'members.manage', 'project.create', 'project.build'])
-
-  const allows = async (role, action) =>
-    (await query(connectionString, 'SELECT iam.role_allows($1, $2) AS allowed', [role, action])).rows[0].allowed
-  for (const action of labels) assert.equal(await allows('owner', action), true, action)
-  assert.equal(await allows('member', 'members.manage'), false)
-  for (const action of labels.filter((action) => action !== 'members.manage')) assert.equal(await allows('member', action), true, action)
+  const present = (await query(connectionString, `
+    SELECT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'action' AND typnamespace = 'iam'::regnamespace) AS action_type,
+      EXISTS (SELECT 1 FROM pg_proc WHERE proname IN ('role_allows', 'admit_workspace', 'admit_project') AND pronamespace = 'iam'::regnamespace) AS admission_function
+  `)).rows[0]
+  assert.deepEqual(present, { action_type: false, admission_function: false })
 })
 
 test('after the forward migrations nothing of the model-connection subsystem is left in the database', async (t) => {

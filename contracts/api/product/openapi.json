@@ -1,15 +1,15 @@
 {
   "openapi": "3.1.2",
+  "jsonSchemaDialect": "https://spec.openapis.org/oas/3.1/dialect/2024-11-10",
   "info": {
     "title": "Conexus Product API",
-    "version": "4b-candidate",
-    "description": "Canonical machine-readable HTTP wire for accepted Conexus Product operations. Product semantics remain owned by accepted 4A authority; this description may not invent operations, permissions, owners, or trust boundaries."
+    "version": "1.0.0",
+    "description": "The Product HTTP API, emitted from the operations of @conexus/contract."
   },
-  "jsonSchemaDialect": "https://spec.openapis.org/oas/3.1/dialect/2024-11-10",
   "servers": [
     {
       "url": "/",
-      "description": "Relative Product API root; deployment origin remains outside 4B."
+      "description": "Relative Product API root."
     }
   ],
   "security": [
@@ -18,138 +18,268 @@
     }
   ],
   "paths": {
-    "/api/control/access-context": {
+    "/api/session": {
       "get": {
-        "summary": "GetControlPlaneAccessContext",
-        "operationId": "GetControlPlaneAccessContext",
+        "operationId": "getSession",
+        "summary": "Read the signed in account, whether it administers the installation, and its Workspaces.",
+        "parameters": [],
         "responses": {
           "200": {
-            "description": "Current disclosable Control Plane access context resolved from server-owned authority.",
+            "description": "Success 200",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "account",
-                    "workspaces",
-                    "projects"
-                  ],
-                  "properties": {
-                    "account": {
-                      "$ref": "#/components/schemas/AccountSummary"
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
                     },
-                    "workspaces": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": [
-                          "workspaceId",
-                          "name"
-                        ],
-                        "properties": {
-                          "workspaceId": {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          "name": {
-                            "type": "string",
-                            "minLength": 1,
-                            "pattern": ".*\\S.*",
-                            "description": "Human-readable Workspace identity; presentation-only and never authorization."
-                          }
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
                         }
                       }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
                     },
-                    "projects": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ProjectSummary"
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
                       }
                     }
-                  }
+                  ]
                 }
               }
             }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          }
-        }
-      }
-    },
-    "/api/session": {
-      "delete": {
-        "summary": "EndSession",
-        "operationId": "EndSession",
-        "responses": {
-          "204": {
-            "description": "Current opaque Conexus session ended. Keycloak is then asked, bounded, to end the SSO session behind it; its answer is not reported, and this does not claim global Keycloak SSO logout."
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          }
-        }
-      }
-    },
-    "/api/control/accounts": {
-      "post": {
-        "summary": "ProvisionAccount",
-        "operationId": "ProvisionAccount",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/IdempotencyKey"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BootstrapProvisionAccountRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Conexus Account provisioned or the same admitted intake resolved to its already-created Account; Account presentation is returned without exposing provider authorization state.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AccountSummary"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
           },
           "403": {
-            "$ref": "#/components/responses/Problem403"
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
-          "409": {
-            "$ref": "#/components/responses/Problem409"
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
-          "422": {
-            "$ref": "#/components/responses/Problem422"
+          "503": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "IDENTITY_PROVIDER_UNAVAILABLE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "endSession",
+        "summary": "End the Hub session of this browser, its Previews with it, and ask Keycloak to end its own.",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Success 204"
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
     },
-    "/api/control/workspaces/{workspaceId}/members": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/WorkspaceId"
-        }
-      ],
+    "/api/control/workspaces/{workspaceId}/roster": {
       "get": {
-        "summary": "ListWorkspaceMembers",
-        "operationId": "ListWorkspaceMembers",
+        "operationId": "getWorkspaceRoster",
+        "summary": "Read the members and the invitations of a Workspace, and the reader's own role.",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WorkspaceId"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Current Workspace roster. Members and invitations with their state are one server-resolved projection, and the caller's own role is stated so the browser can hide controls the server would refuse anyway.",
+            "description": "Success 200",
             "content": {
               "application/json": {
                 "schema": {
@@ -158,103 +288,177 @@
               }
             }
           },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem404"
-          }
-        }
-      }
-    },
-    "/api/control/workspaces/{workspaceId}/members/{accountId}": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/WorkspaceId"
-        },
-        {
-          "$ref": "#/components/parameters/AccountId"
-        }
-      ],
-      "put": {
-        "summary": "SetWorkspaceMemberRole",
-        "operationId": "SetWorkspaceMemberRole",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "role"
-                ],
-                "properties": {
-                  "role": {
-                    "$ref": "#/components/schemas/WorkspaceRole"
-                  }
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": "The member now holds this role. Setting the same role again is the same answer."
           },
           "401": {
-            "$ref": "#/components/responses/Problem401"
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "403": {
-            "$ref": "#/components/responses/Problem403"
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/Problem404"
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "WORKSPACE_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
-          "409": {
-            "$ref": "#/components/responses/Problem409"
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
     },
     "/api/control/workspaces/{workspaceId}/invitations": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/WorkspaceId"
-        }
-      ],
       "post": {
-        "summary": "InviteWorkspaceMember",
-        "operationId": "InviteWorkspaceMember",
+        "operationId": "inviteWorkspaceMember",
+        "summary": "Invite an email into a Workspace with a role; the pair is the natural key, so a new invitation of the same email refreshes it and answers 200; a new one answers 201. Owner only.",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WorkspaceId"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/IdempotencyKey"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "email",
-                  "role"
-                ],
                 "properties": {
                   "email": {
-                    "type": "string",
-                    "format": "email",
-                    "minLength": 3,
-                    "description": "Verified-email address the invited person must sign in with. It is the natural key of the invitation and never Account identity or authorization."
+                    "type": "string"
                   },
                   "role": {
                     "$ref": "#/components/schemas/WorkspaceRole"
                   }
-                }
+                },
+                "required": [
+                  "email",
+                  "role"
+                ],
+                "additionalProperties": false
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Current invitation for this exact Workspace and email. The pair is the natural key, so repeating the same request answers the same invitation rather than creating a second one.",
+            "description": "Success 200",
             "content": {
               "application/json": {
                 "schema": {
@@ -263,84 +467,716 @@
               }
             }
           },
+          "201": {
+            "description": "Success 201",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceInvitationEntry"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED",
+                            "EMAIL_INVALID",
+                            "IDEMPOTENCY_KEY_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "401": {
-            "$ref": "#/components/responses/Problem401"
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "403": {
-            "$ref": "#/components/responses/Problem403"
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "MEMBERS_MANAGE_REQUIRED",
+                            "ACCOUNT_INACTIVE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/Problem404"
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "ACCOUNT_NOT_FOUND",
+                            "WORKSPACE_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
-          "422": {
-            "$ref": "#/components/responses/Problem422"
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_CONFLICT"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
     },
-    "/api/control/workspaces/{workspaceId}/roster/{entryKind}/{entryId}": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/WorkspaceId"
-        },
-        {
-          "name": "entryKind",
-          "in": "path",
-          "required": true,
-          "description": "Which kind of roster entry this request withdraws.",
-          "schema": {
-            "type": "string",
-            "enum": [
-              "member",
-              "invitation"
-            ]
-          }
-        },
-        {
-          "name": "entryId",
-          "in": "path",
-          "required": true,
-          "description": "Untrusted reference to the exact roster entry; containment and authority are resolved server-side.",
-          "schema": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      ],
+    "/api/control/workspaces/{workspaceId}/members/{accountId}": {
       "delete": {
-        "summary": "RemoveWorkspaceRosterEntry",
-        "operationId": "RemoveWorkspaceRosterEntry",
+        "operationId": "removeWorkspaceMember",
+        "summary": "Remove a member from a Workspace, which withdraws every right the membership gave. An owner removes anyone; a member removes only themselves.",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WorkspaceId"
+            }
+          },
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/AccountId"
+            }
+          }
+        ],
         "responses": {
           "204": {
-            "description": "The roster entry is gone. Removing a member withdraws every right that derived from that membership row."
+            "description": "Success 204"
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "401": {
-            "$ref": "#/components/responses/Problem401"
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "403": {
-            "$ref": "#/components/responses/Problem403"
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "MEMBERS_MANAGE_REQUIRED",
+                            "ACCOUNT_INACTIVE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/Problem404"
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "ACCOUNT_NOT_FOUND",
+                            "WORKSPACE_NOT_FOUND",
+                            "ROSTER_ENTRY_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "409": {
-            "$ref": "#/components/responses/Problem409"
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "LAST_OWNER"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setWorkspaceMemberRole",
+        "summary": "Set the role of a member of a Workspace; the Workspace keeps at least one owner. Owner only.",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WorkspaceId"
+            }
+          },
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/AccountId"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "$ref": "#/components/schemas/WorkspaceRole"
+                  }
+                },
+                "required": [
+                  "role"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceMemberEntry"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "MEMBERS_MANAGE_REQUIRED",
+                            "ACCOUNT_INACTIVE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "ACCOUNT_NOT_FOUND",
+                            "WORKSPACE_NOT_FOUND",
+                            "ROSTER_ENTRY_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "LAST_OWNER"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control/workspaces/{workspaceId}/invitations/{invitationId}": {
+      "delete": {
+        "operationId": "cancelWorkspaceInvitation",
+        "summary": "Cancel an invitation into a Workspace that nobody has claimed. Owner only.",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/WorkspaceId"
+            }
+          },
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/InvitationId"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Success 204"
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "MEMBERS_MANAGE_REQUIRED",
+                            "ACCOUNT_INACTIVE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "ACCOUNT_NOT_FOUND",
+                            "WORKSPACE_NOT_FOUND",
+                            "ROSTER_ENTRY_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
     },
     "/api/control/projects/{projectId}/application-access": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/ProjectId"
-        }
-      ],
       "get": {
-        "summary": "ListApplicationAccess",
-        "operationId": "ListApplicationAccess",
+        "operationId": "getApplicationAccess",
+        "summary": "Read the address of a Project's application and who may use it besides the members of its Workspace. Owner only.",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Who may use the Project's application besides the members of its Workspace. Open grants and invitations with their state are one server-resolved projection. Only an Owner of the Project's Workspace reads it.",
+            "description": "Success 200",
             "content": {
               "application/json": {
                 "schema": {
@@ -349,54 +1185,24 @@
               }
             }
           },
-          "401": {
-            "$ref": "#/components/responses/Problem401"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem403"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem404"
-          }
-        }
-      },
-      "post": {
-        "summary": "GrantApplicationAccess",
-        "operationId": "GrantApplicationAccess",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "email"
-                ],
-                "properties": {
-                  "email": {
-                    "type": "string",
-                    "format": "email",
-                    "minLength": 3,
-                    "description": "Verified-email address the person must sign in with. With the Project it is the natural key of the invitation, and it is never Account identity or authorization."
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Current access for this exact Project and email. A person who already holds an open grant keeps it, and the answer is that grant; nothing new is opened. Otherwise the answer is the application invitation, and repeating the request answers the same invitation. The first grant also fixes the application's address, derived from the Project name.",
+          "400": {
+            "description": "Problem",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "oneOf": [
+                  "allOf": [
                     {
-                      "$ref": "#/components/schemas/ApplicationGrantEntry"
+                      "$ref": "#/components/schemas/Problem"
                     },
                     {
-                      "$ref": "#/components/schemas/ApplicationInvitationEntry"
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
+                        }
+                      }
                     }
                   ]
                 }
@@ -404,64 +1210,1140 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Problem401"
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "403": {
-            "$ref": "#/components/responses/Problem403"
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "APPLICATION_ACCESS_MANAGE_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/Problem404"
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "PROJECT_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
-          "422": {
-            "$ref": "#/components/responses/Problem422"
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "grantApplicationAccess",
+        "summary": "Invite an email to a Project's application; the first grant fixes the application's address. The person's next sign in claims it. A new invitation answers 201, a refreshed one 200. Owner only.",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/IdempotencyKey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "email"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationInvitationEntry"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Success 201",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationInvitationEntry"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED",
+                            "EMAIL_INVALID",
+                            "IDEMPOTENCY_KEY_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "APPLICATION_ACCESS_MANAGE_REQUIRED",
+                            "ACCOUNT_INACTIVE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "ACCOUNT_NOT_FOUND",
+                            "PROJECT_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "IDEMPOTENCY_CONFLICT"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "DATABASE_BUSY"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
     },
-    "/api/control/projects/{projectId}/application-access/{entryKind}/{entryId}": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/ProjectId"
-        },
-        {
-          "name": "entryKind",
-          "in": "path",
-          "required": true,
-          "description": "Which kind of application access entry this request withdraws.",
-          "schema": {
-            "type": "string",
-            "enum": [
-              "grant",
-              "invitation"
-            ]
-          }
-        },
-        {
-          "name": "entryId",
-          "in": "path",
-          "required": true,
-          "description": "Untrusted reference to the exact access entry; containment and authority are resolved server-side.",
-          "schema": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      ],
+    "/api/control/projects/{projectId}/application-access/grants/{grantId}": {
       "delete": {
-        "summary": "RevokeApplicationAccessEntry",
-        "operationId": "RevokeApplicationAccessEntry",
+        "operationId": "revokeApplicationGrant",
+        "summary": "Revoke a person's grant to a Project's application; their next request to it is refused. Owner only.",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "grantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/GrantId"
+            }
+          }
+        ],
         "responses": {
           "204": {
-            "description": "The access entry is gone. A revoked grant stops the person at their next request to the application."
+            "description": "Success 204"
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "401": {
-            "$ref": "#/components/responses/Problem401"
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "403": {
-            "$ref": "#/components/responses/Problem403"
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "APPLICATION_ACCESS_MANAGE_REQUIRED",
+                            "ACCOUNT_INACTIVE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "404": {
-            "$ref": "#/components/responses/Problem404"
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "ACCOUNT_NOT_FOUND",
+                            "PROJECT_NOT_FOUND",
+                            "APPLICATION_ACCESS_ENTRY_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control/projects/{projectId}/application-access/invitations/{invitationId}": {
+      "delete": {
+        "operationId": "cancelApplicationInvitation",
+        "summary": "Cancel an invitation to a Project's application that nobody has claimed. Owner only.",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProjectId"
+            }
+          },
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/InvitationId"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Success 204"
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "APPLICATION_ACCESS_MANAGE_REQUIRED",
+                            "ACCOUNT_INACTIVE"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "ACCOUNT_NOT_FOUND",
+                            "PROJECT_NOT_FOUND",
+                            "APPLICATION_ACCESS_ENTRY_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control/installation/administrators": {
+      "get": {
+        "operationId": "listInstallationAdministrators",
+        "summary": "List the installation administrators and how each became one; installation administrator only.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "administrators": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AdministratorEntry"
+                      }
+                    }
+                  },
+                  "required": [
+                    "administrators"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "INSTALLATION_ADMINISTRATOR_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "addInstallationAdministrator",
+        "summary": "Make the one active account with this email an installation administrator: 201 when it gets a tenure, 200 with the tenure it already holds. Installation administrator only.",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/IdempotencyKey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "email"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success 200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdministratorEntry"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Success 201",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdministratorEntry"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED",
+                            "EMAIL_INVALID",
+                            "IDEMPOTENCY_KEY_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "INSTALLATION_ADMINISTRATOR_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "ACCOUNT_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "ACCOUNT_EMAIL_AMBIGUOUS",
+                            "IDEMPOTENCY_CONFLICT"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/control/installation/administrators/{accountId}": {
+      "delete": {
+        "operationId": "removeInstallationAdministrator",
+        "summary": "End an account's tenure as installation administrator; the installation keeps at least one. Installation administrator only.",
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/AccountId"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Success 204"
+          },
+          "400": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_VALIDATION_FAILED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "AUTHENTICATION_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "REQUEST_AUTHENTICITY_DENIED",
+                            "INSTALLATION_ADMINISTRATOR_REQUIRED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INSTALLATION_ADMINISTRATOR_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "LAST_INSTALLATION_ADMINISTRATOR"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_UNEXPECTED"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
@@ -2787,9 +4669,9 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "PROJECT_NOT_FOUND",
                             "CONNECTOR_CONNECTION_NOT_AVAILABLE",
-                            "ACCOUNT_NOT_FOUND"
+                            "ACCOUNT_NOT_FOUND",
+                            "PROJECT_NOT_FOUND"
                           ]
                         }
                       }
@@ -2964,9 +4846,9 @@
                       "properties": {
                         "code": {
                           "enum": [
+                            "ACCOUNT_NOT_FOUND",
                             "PROJECT_NOT_FOUND",
-                            "CONNECTOR_BINDING_NOT_FOUND",
-                            "ACCOUNT_NOT_FOUND"
+                            "CONNECTOR_BINDING_NOT_FOUND"
                           ]
                         }
                       }
@@ -3711,8 +5593,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "CONVERSATION_NOT_FOUND",
-                            "PROJECT_NOT_FOUND"
+                            "PROJECT_NOT_FOUND",
+                            "CONVERSATION_NOT_FOUND"
                           ]
                         }
                       }
@@ -3736,9 +5618,9 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "IDEMPOTENCY_CONFLICT",
                             "BUILDER_BUSY",
-                            "PROJECT_BUSY"
+                            "PROJECT_BUSY",
+                            "IDEMPOTENCY_CONFLICT"
                           ]
                         }
                       }
@@ -3958,8 +5840,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "BUILDER_RUN_NOT_FOUND",
-                            "PROJECT_NOT_FOUND"
+                            "PROJECT_NOT_FOUND",
+                            "BUILDER_RUN_NOT_FOUND"
                           ]
                         }
                       }
@@ -4116,8 +5998,8 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "BUILDER_RUN_NOT_FOUND",
-                            "PROJECT_NOT_FOUND"
+                            "PROJECT_NOT_FOUND",
+                            "BUILDER_RUN_NOT_FOUND"
                           ]
                         }
                       }
@@ -6309,312 +8191,10 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "__Host-conexus_session",
-        "description": "Opaque server-owned Conexus iam.session carriage. Keycloak tokens, roles, groups, and organizations are not accepted as Product authorization. The server-issued cookie MUST be Secure, HttpOnly, SameSite=Lax, Path=/, and MUST NOT include a Domain attribute."
+        "description": "Opaque server-owned Conexus session. The cookie is Secure, HttpOnly, SameSite=Lax, Path=/, with no Domain attribute."
       }
     },
     "schemas": {
-      "AccountSummary": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "accountId",
-          "displayName"
-        ],
-        "properties": {
-          "accountId": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Stable Conexus Account identity; presentation values never replace this identity."
-          },
-          "displayName": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": ".*\\S.*",
-            "description": "I&A-owned human presentation; never authentication or authorization."
-          },
-          "email": {
-            "type": "string",
-            "format": "email",
-            "description": "Optional presentation/contact data; never Account identity or authorization."
-          }
-        }
-      },
-      "ProjectSummary": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "projectId",
-          "workspaceId",
-          "name",
-          "archived"
-        ],
-        "properties": {
-          "projectId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "workspaceId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": ".*\\S.*",
-            "description": "Human-readable Project identity; not a stable identifier, uniqueness guarantee, or authorization source."
-          },
-          "archived": {
-            "type": "boolean"
-          }
-        }
-      },
-      "BootstrapProvisionAccountRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "displayName"
-        ],
-        "description": "One-shot self-provisioning intake. The external subject is resolved from the exact trusted provisioning context and is never accepted from browser input, and an invited Account's email comes from the verified provider claim rather than from this body.",
-        "properties": {
-          "displayName": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": ".*\\S.*",
-            "description": "Required Conexus-owned human presentation for the exact provisioning subject."
-          },
-          "email": {
-            "type": "string",
-            "format": "email",
-            "description": "Optional human presentation/contact value; never Account identity or authorization."
-          }
-        }
-      },
-      "WorkspaceRole": {
-        "type": "string",
-        "enum": [
-          "owner",
-          "member"
-        ],
-        "description": "The whole of what a membership row confers. An owner may also administer the roster; a member may not."
-      },
-      "WorkspaceMemberEntry": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "kind",
-          "accountId",
-          "displayName",
-          "role",
-          "since"
-        ],
-        "properties": {
-          "kind": {
-            "const": "member"
-          },
-          "accountId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "displayName": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": ".*\\S.*",
-            "description": "I&A-owned human presentation; never authentication or authorization."
-          },
-          "email": {
-            "type": "string",
-            "format": "email",
-            "description": "Optional presentation/contact data; never Account identity or authorization."
-          },
-          "role": {
-            "$ref": "#/components/schemas/WorkspaceRole"
-          },
-          "since": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "WorkspaceInvitationEntry": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "kind",
-          "invitationId",
-          "email",
-          "role",
-          "invitedAt",
-          "expiresAt",
-          "state"
-        ],
-        "properties": {
-          "kind": {
-            "const": "invitation"
-          },
-          "invitationId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "email": {
-            "type": "string",
-            "format": "email",
-            "description": "Address the invited person must sign in with, verified by the identity provider. It is never Account identity or authorization."
-          },
-          "role": {
-            "$ref": "#/components/schemas/WorkspaceRole"
-          },
-          "invitedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "state": {
-            "type": "string",
-            "enum": [
-              "PENDING",
-              "EXPIRED"
-            ],
-            "description": "Decided by the database clock when the list is read, never by the browser. An expired invitation stays listed for 30 days so the person can be invited again."
-          }
-        }
-      },
-      "WorkspaceRoster": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "viewerRole",
-          "entries"
-        ],
-        "properties": {
-          "viewerRole": {
-            "$ref": "#/components/schemas/WorkspaceRole"
-          },
-          "entries": {
-            "type": "array",
-            "items": {
-              "oneOf": [
-                {
-                  "$ref": "#/components/schemas/WorkspaceMemberEntry"
-                },
-                {
-                  "$ref": "#/components/schemas/WorkspaceInvitationEntry"
-                }
-              ]
-            }
-          }
-        }
-      },
-      "ApplicationGrantEntry": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "kind",
-          "grantId",
-          "accountId",
-          "displayName",
-          "grantedAt"
-        ],
-        "properties": {
-          "kind": {
-            "const": "grant"
-          },
-          "grantId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "accountId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "displayName": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": ".*\\S.*",
-            "description": "I&A-owned human presentation; never authentication or authorization."
-          },
-          "email": {
-            "type": "string",
-            "format": "email",
-            "description": "Optional presentation/contact data; never Account identity or authorization."
-          },
-          "grantedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "ApplicationInvitationEntry": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "kind",
-          "invitationId",
-          "email",
-          "invitedAt",
-          "expiresAt",
-          "state"
-        ],
-        "properties": {
-          "kind": {
-            "const": "invitation"
-          },
-          "invitationId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "email": {
-            "type": "string",
-            "format": "email",
-            "description": "Address the person must sign in with, verified by the identity provider. It is never Account identity or authorization."
-          },
-          "invitedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "state": {
-            "type": "string",
-            "enum": [
-              "PENDING",
-              "EXPIRED"
-            ],
-            "description": "Decided by the database clock when the list is read, never by the browser. An expired invitation stays listed for 30 days so the person can be invited again."
-          }
-        }
-      },
-      "ApplicationAccess": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "entries"
-        ],
-        "properties": {
-          "address": {
-            "type": "string",
-            "format": "uri",
-            "description": "The application's own address. Absent until the first grant fixes it."
-          },
-          "entries": {
-            "type": "array",
-            "items": {
-              "oneOf": [
-                {
-                  "$ref": "#/components/schemas/ApplicationGrantEntry"
-                },
-                {
-                  "$ref": "#/components/schemas/ApplicationInvitationEntry"
-                }
-              ]
-            }
-          }
-        }
-      },
       "Problem": {
         "type": "object",
         "properties": {
@@ -6645,12 +8225,11 @@
               "OUTCOME_UNKNOWN",
               "DATABASE_BUSY",
               "IDENTITY_PROVIDER_UNAVAILABLE",
-              "BOOTSTRAP_REQUIRED",
-              "BOOTSTRAP_SEALED",
+              "SIGN_IN_EXPIRED",
+              "SIGN_IN_FAILED",
+              "IDENTITY_EMAIL_NOT_VERIFIED",
               "IDENTITY_NOT_ELIGIBLE",
-              "ACCOUNT_CONFLICT",
               "ACCOUNT_INACTIVE",
-              "OIDC_IDENTITY_MISSING",
               "WORKSPACE_NOT_FOUND",
               "PROJECT_NOT_FOUND",
               "PROJECT_CREATE_DENIED",
@@ -6688,16 +8267,15 @@
               "TOOL_ANSWER_ALREADY_GIVEN",
               "QUESTION_ENDED",
               "APPLICATION_ACCESS_MANAGE_REQUIRED",
-              "INVITATION_NOT_ACCEPTABLE",
               "APPLICATION_ACCESS_ENTRY_NOT_FOUND",
               "MEMBERS_MANAGE_REQUIRED",
-              "ROLE_NOT_ACCEPTABLE",
               "LAST_OWNER",
               "ROSTER_ENTRY_NOT_FOUND",
               "INSTALLATION_ADMINISTRATOR_REQUIRED",
-              "INSTALLATION_ADMINISTRATOR_EMAIL_INVALID",
+              "EMAIL_INVALID",
               "ACCOUNT_NOT_FOUND",
               "ACCOUNT_EMAIL_AMBIGUOUS",
+              "INSTALLATION_ADMINISTRATOR_NOT_FOUND",
               "LAST_INSTALLATION_ADMINISTRATOR",
               "CONNECTOR_CONNECTION_NOT_AVAILABLE",
               "CONNECTOR_BINDING_CONFLICT",
@@ -6892,7 +8470,6 @@
               "HUB_SHUTDOWN_FAILED",
               "HUB_FATAL",
               "OIDC_BEGIN_FAILED",
-              "OIDC_APPLICATION_SIGN_IN_UNAVAILABLE",
               "OIDC_REFRESH_TOKEN_MISSING",
               "OIDC_CALLBACK_FAILED"
             ]
@@ -6908,6 +8485,410 @@
           "code"
         ],
         "additionalProperties": {}
+      },
+      "Session": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/SessionAccount"
+          },
+          "administrator": {
+            "type": "boolean"
+          },
+          "workspaces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workspaceId": {
+                  "$ref": "#/components/schemas/WorkspaceId"
+                },
+                "name": {
+                  "$ref": "#/components/schemas/WorkspaceName"
+                }
+              },
+              "required": [
+                "workspaceId",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "account",
+          "administrator",
+          "workspaces"
+        ],
+        "additionalProperties": false
+      },
+      "SessionAccount": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "displayName": {
+            "$ref": "#/components/schemas/DisplayName"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          }
+        },
+        "required": [
+          "accountId",
+          "displayName"
+        ],
+        "additionalProperties": false
+      },
+      "AccountId": {
+        "type": "string",
+        "format": "uuid",
+        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+      },
+      "DisplayName": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      },
+      "WorkspaceId": {
+        "type": "string",
+        "format": "uuid",
+        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+      },
+      "WorkspaceName": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      },
+      "WorkspaceRoster": {
+        "type": "object",
+        "properties": {
+          "viewerRole": {
+            "$ref": "#/components/schemas/WorkspaceRole"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/WorkspaceMemberEntry"
+                },
+                {
+                  "$ref": "#/components/schemas/WorkspaceInvitationEntry"
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "viewerRole",
+          "entries"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceRole": {
+        "type": "string",
+        "enum": [
+          "owner",
+          "member"
+        ]
+      },
+      "WorkspaceMemberEntry": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "member"
+          },
+          "accountId": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "displayName": {
+            "$ref": "#/components/schemas/DisplayName"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "role": {
+            "$ref": "#/components/schemas/WorkspaceRole"
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "kind",
+          "accountId",
+          "displayName",
+          "role",
+          "since"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceInvitationEntry": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "invitation"
+          },
+          "invitationId": {
+            "$ref": "#/components/schemas/InvitationId"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "role": {
+            "$ref": "#/components/schemas/WorkspaceRole"
+          },
+          "invitedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "state": {
+            "$ref": "#/components/schemas/InvitationState"
+          }
+        },
+        "required": [
+          "kind",
+          "invitationId",
+          "email",
+          "role",
+          "invitedAt",
+          "expiresAt",
+          "state"
+        ],
+        "additionalProperties": false
+      },
+      "InvitationId": {
+        "type": "string",
+        "format": "uuid",
+        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+      },
+      "InvitationState": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "EXPIRED"
+        ]
+      },
+      "IdempotencyKey": {
+        "type": "string",
+        "minLength": 1
+      },
+      "ApplicationAccess": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "format": "uri"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ApplicationGrantEntry"
+                },
+                {
+                  "$ref": "#/components/schemas/ApplicationInvitationEntry"
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "additionalProperties": false
+      },
+      "ApplicationGrantEntry": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "grant"
+          },
+          "grantId": {
+            "$ref": "#/components/schemas/GrantId"
+          },
+          "accountId": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "displayName": {
+            "$ref": "#/components/schemas/DisplayName"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "grantedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "kind",
+          "grantId",
+          "accountId",
+          "displayName",
+          "grantedAt"
+        ],
+        "additionalProperties": false
+      },
+      "GrantId": {
+        "type": "string",
+        "format": "uuid",
+        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+      },
+      "ApplicationInvitationEntry": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "invitation"
+          },
+          "invitationId": {
+            "$ref": "#/components/schemas/InvitationId"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "invitedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "state": {
+            "$ref": "#/components/schemas/InvitationState"
+          }
+        },
+        "required": [
+          "kind",
+          "invitationId",
+          "email",
+          "invitedAt",
+          "expiresAt",
+          "state"
+        ],
+        "additionalProperties": false
+      },
+      "ProjectId": {
+        "type": "string",
+        "format": "uuid",
+        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+      },
+      "AdministratorEntry": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "accountId": {
+                "$ref": "#/components/schemas/AccountId"
+              },
+              "displayName": {
+                "$ref": "#/components/schemas/DisplayName"
+              },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              "grantedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "grantedVia": {
+                "type": "string",
+                "const": "OPERATOR_BOOTSTRAP"
+              }
+            },
+            "required": [
+              "accountId",
+              "displayName",
+              "grantedAt",
+              "grantedVia"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "accountId": {
+                "$ref": "#/components/schemas/AccountId"
+              },
+              "displayName": {
+                "$ref": "#/components/schemas/DisplayName"
+              },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              "grantedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "grantedVia": {
+                "type": "string",
+                "const": "ADMINISTRATOR"
+              },
+              "grantedBy": {
+                "$ref": "#/components/schemas/AccountSummary"
+              }
+            },
+            "required": [
+              "accountId",
+              "displayName",
+              "grantedAt",
+              "grantedVia",
+              "grantedBy"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "AccountSummary": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "$ref": "#/components/schemas/AccountId"
+          },
+          "displayName": {
+            "$ref": "#/components/schemas/DisplayName"
+          }
+        },
+        "required": [
+          "accountId",
+          "displayName"
+        ],
+        "additionalProperties": false
       },
       "WorkspaceCreated": {
         "type": "object",
@@ -6934,25 +8915,6 @@
         ],
         "additionalProperties": false
       },
-      "WorkspaceId": {
-        "type": "string",
-        "format": "uuid",
-        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-      },
-      "WorkspaceName": {
-        "type": "string",
-        "minLength": 1,
-        "pattern": "\\S"
-      },
-      "AccountId": {
-        "type": "string",
-        "format": "uuid",
-        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-      },
-      "IdempotencyKey": {
-        "type": "string",
-        "minLength": 1
-      },
       "ProjectListItem": {
         "type": "object",
         "properties": {
@@ -6976,11 +8938,6 @@
           "archived"
         ],
         "additionalProperties": false
-      },
-      "ProjectId": {
-        "type": "string",
-        "format": "uuid",
-        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
       },
       "ProjectName": {
         "type": "string",
@@ -7950,12 +9907,11 @@
           "OUTCOME_UNKNOWN",
           "DATABASE_BUSY",
           "IDENTITY_PROVIDER_UNAVAILABLE",
-          "BOOTSTRAP_REQUIRED",
-          "BOOTSTRAP_SEALED",
+          "SIGN_IN_EXPIRED",
+          "SIGN_IN_FAILED",
+          "IDENTITY_EMAIL_NOT_VERIFIED",
           "IDENTITY_NOT_ELIGIBLE",
-          "ACCOUNT_CONFLICT",
           "ACCOUNT_INACTIVE",
-          "OIDC_IDENTITY_MISSING",
           "WORKSPACE_NOT_FOUND",
           "PROJECT_NOT_FOUND",
           "PROJECT_CREATE_DENIED",
@@ -7993,16 +9949,15 @@
           "TOOL_ANSWER_ALREADY_GIVEN",
           "QUESTION_ENDED",
           "APPLICATION_ACCESS_MANAGE_REQUIRED",
-          "INVITATION_NOT_ACCEPTABLE",
           "APPLICATION_ACCESS_ENTRY_NOT_FOUND",
           "MEMBERS_MANAGE_REQUIRED",
-          "ROLE_NOT_ACCEPTABLE",
           "LAST_OWNER",
           "ROSTER_ENTRY_NOT_FOUND",
           "INSTALLATION_ADMINISTRATOR_REQUIRED",
-          "INSTALLATION_ADMINISTRATOR_EMAIL_INVALID",
+          "EMAIL_INVALID",
           "ACCOUNT_NOT_FOUND",
           "ACCOUNT_EMAIL_AMBIGUOUS",
+          "INSTALLATION_ADMINISTRATOR_NOT_FOUND",
           "LAST_INSTALLATION_ADMINISTRATOR",
           "CONNECTOR_CONNECTION_NOT_AVAILABLE",
           "CONNECTOR_BINDING_CONFLICT",
@@ -8197,7 +10152,6 @@
           "HUB_SHUTDOWN_FAILED",
           "HUB_FATAL",
           "OIDC_BEGIN_FAILED",
-          "OIDC_APPLICATION_SIGN_IN_UNAVAILABLE",
           "OIDC_REFRESH_TOKEN_MISSING",
           "OIDC_CALLBACK_FAILED"
         ]
@@ -9145,129 +11099,6 @@
       "ModelLoginId": {
         "type": "string",
         "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-      }
-    },
-    "parameters": {
-      "IdempotencyKey": {
-        "name": "Idempotency-Key",
-        "in": "header",
-        "required": true,
-        "description": "Conexus-owned repeatable-intake identity for operations whose accepted IC3/IC4 wire mapping requires a caller-supplied retry identity. The header value never replaces owner/effect identity or authorizes replay of an unresolved external effect.",
-        "schema": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "WorkspaceId": {
-        "name": "workspaceId",
-        "in": "path",
-        "required": true,
-        "description": "Untrusted Workspace reference only; current containment, disclosure and authority are resolved server-side.",
-        "schema": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "AccountId": {
-        "name": "accountId",
-        "in": "path",
-        "required": true,
-        "description": "Untrusted Account reference only; current identity, containment, disclosure and authority are resolved server-side.",
-        "schema": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "ProjectId": {
-        "name": "projectId",
-        "in": "path",
-        "required": true,
-        "description": "Untrusted Project reference only; current containment and authority are resolved server-side.",
-        "schema": {
-          "type": "string",
-          "minLength": 1
-        }
-      }
-    },
-    "headers": {
-      "ETag": {
-        "description": "Strong representation validator where an accepted current-state contract requires it.",
-        "schema": {
-          "type": "string",
-          "minLength": 1
-        }
-      }
-    },
-    "responses": {
-      "Problem400": {
-        "description": "The request does not match the operation's schema, for example an identifier that is not a UUID.",
-        "content": {
-          "application/problem+json": {
-            "schema": {
-              "$ref": "#/components/schemas/Problem"
-            }
-          }
-        }
-      },
-      "Problem401": {
-        "description": "No valid current Conexus principal/session for the protected human surface.",
-        "content": {
-          "application/problem+json": {
-            "schema": {
-              "$ref": "#/components/schemas/Problem"
-            }
-          }
-        }
-      },
-      "Problem403": {
-        "description": "Subject is legitimately disclosable to the current caller, but required action authority is denied.",
-        "content": {
-          "application/problem+json": {
-            "schema": {
-              "$ref": "#/components/schemas/Problem"
-            }
-          }
-        }
-      },
-      "Problem404": {
-        "description": "Subject is absent or current disclosure policy intentionally does not reveal its existence.",
-        "content": {
-          "application/problem+json": {
-            "schema": {
-              "$ref": "#/components/schemas/Problem"
-            }
-          }
-        }
-      },
-      "Problem409": {
-        "description": "Current owner-state, uniqueness, single-flight, or equivalent admitted conflict.",
-        "content": {
-          "application/problem+json": {
-            "schema": {
-              "$ref": "#/components/schemas/Problem"
-            }
-          }
-        }
-      },
-      "Problem422": {
-        "description": "Authorized request violates the operation's admitted semantic or business-input contract.",
-        "content": {
-          "application/problem+json": {
-            "schema": {
-              "$ref": "#/components/schemas/Problem"
-            }
-          }
-        }
-      },
-      "Problem503": {
-        "description": "Required current provider, source, or runtime dependency is unavailable.",
-        "content": {
-          "application/problem+json": {
-            "schema": {
-              "$ref": "#/components/schemas/Problem"
-            }
-          }
-        }
       }
     }
   }

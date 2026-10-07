@@ -1,221 +1,181 @@
-import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
-import type { QueryResultRow } from 'pg'
-import { IAM_GENERATED_ROUTES } from '../generated/iam-routes.js'
-import type { ApplicationAccessEntryParams, Iam12Body, ProjectParams, IamOwnerId } from '../generated/iam-routes.js'
 import { z } from 'zod'
+import {
+  AccountId, DisplayName, EmailAddress, GrantId, InvitationId,
+  cancelApplicationInvitation, getApplicationAccess, grantApplicationAccess, revokeApplicationGrant,
+} from '@conexus/contract'
+import type { ApplicationAccess, ApplicationGrantEntry, ApplicationInvitationEntry, ProjectId } from '@conexus/contract'
+import { routes } from '../http/access.js'
+import { ApplicationSlug, SLUG_LENGTH, slugBase } from '../platform/application-slug.js'
+import { sql } from '../platform/db.js'
+import type { Database, Sql, WriteTx } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import { INVITATION_DAYS } from '../platform/lifetimes.js'
-import type { PostgresPool } from '../platform/db.js'
-import { isNotAdmitted, parseEmailAddress } from './current-session.js'
-import type { AccountId, EmailAddress } from './current-session.js'
-import { routes } from '../http/access.js'
+import { idempotent } from '../platform/receipt.js'
+import { admitProject, admitSystem, receiptOf } from './admission.js'
+import type { AccountScope, Admitted, ProjectScope, SystemScope } from './admission.js'
+import type { Claim } from './authentication.js'
+import { inserted, InvitationRow, invitationFields } from './roster.js'
 
-const uuid = { type: 'string', format: 'uuid' } as const
-const projectParamsSchema = { type: 'object', additionalProperties: false, required: ['projectId'], properties: { projectId: uuid } } as const
-// entryKind stays a plain string so an unknown kind answers 404 like an unknown entry, not 400.
-const entryParamsSchema = { type: 'object', additionalProperties: false, required: ['projectId', 'entryKind', 'entryId'], properties: { projectId: uuid, entryKind: { type: 'string' }, entryId: uuid } } as const
-
-type ApplicationGrantEntry = Readonly<{
-  kind: 'grant'
-  grantId: string
-  accountId: string
-  displayName: string
-  email?: string
-  grantedAt: string
-}>
-
-type ApplicationInvitationEntry = Readonly<{
-  kind: 'invitation'
-  invitationId: string
-  email: string
-  invitedAt: string
-  expiresAt: string
-  state: 'PENDING' | 'EXPIRED'
-}>
-
-type ApplicationAccessEntry = ApplicationGrantEntry | ApplicationInvitationEntry
-type ApplicationAccess = Readonly<{ slug: string | null; entries: readonly ApplicationAccessEntry[] }>
-
-/** Every refusal means the same two things to a caller: not told the Project exists, or not an Owner. */
-export type ApplicationAccessStore = Readonly<{
-  list(input: Readonly<{ actor: AccountId; projectId: string }>): Promise<ApplicationAccess>
-  /** The email's current access: a new or renewed invitation, or the open grant the person already holds. */
-  grant(input: Readonly<{ actor: AccountId; projectId: string; email: EmailAddress; now?: Date }>): Promise<ApplicationAccessEntry>
-  cancelInvitation(input: Readonly<{ actor: AccountId; projectId: string; invitationId: string }>): Promise<boolean>
-  revokeGrant(input: Readonly<{ actor: AccountId; projectId: string; grantId: string }>): Promise<boolean>
-  /**
-   * Runs `work` with whether the Project has an application; a platform read, not scoped to an actor.
-   * While `work` runs for a Project without one, no application can be created for it, so an
-   * answer of false still holds when `work` acts on it.
-   */
-  withApplicationPresence<Result>(projectId: string, work: (hasApplication: boolean) => Promise<Result>): Promise<Result>
-}>
-
-const accessRows = z.array(z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('application'), slug: z.string() }),
-  z.object({ kind: z.literal('grant'), entry_id: z.string(), account_id: z.string(), display_name: z.string(), email: z.string().nullable(), since: z.date() }),
-  z.object({ kind: z.literal('invitation'), entry_id: z.string(), email: z.string(), since: z.date(), expires_at: z.date(), state: z.enum(['PENDING', 'EXPIRED']) }),
-]))
-
-const settledRow = z.object({ kind: z.enum(['grant', 'invitation']), entry_id: z.string() })
-
-const LIST_SQL = 'SELECT kind, entry_id, account_id, display_name, email, since, expires_at, slug, state FROM iam.list_application_access($1, $2)'
-
-const accessOf = (rows: z.infer<typeof accessRows>): ApplicationAccess => {
-  const entries: ApplicationAccessEntry[] = []
-  let slug: string | null = null
-  for (const row of rows) {
-    if (row.kind === 'application') slug = row.slug
-    else if (row.kind === 'grant') {
-      entries.push({
-        kind: 'grant',
-        grantId: row.entry_id,
-        accountId: row.account_id,
-        displayName: row.display_name,
-        ...(row.email ? { email: row.email } : {}),
-        grantedAt: row.since.toISOString(),
-      })
-    } else {
-      entries.push({
-        kind: 'invitation',
-        invitationId: row.entry_id,
-        email: row.email,
-        invitedAt: row.since.toISOString(),
-        expiresAt: row.expires_at.toISOString(),
-        state: row.state,
-      })
-    }
-  }
-  return { slug, entries }
+/**
+ * The address label of a Project's application: the base from its name, then `-2`, `-3` and so on, inside the 40 characters a label may have.
+ * @public Tests call it through the built Hub.
+ */
+export const slugFor = (projectName: string, attempt: number): ApplicationSlug => {
+  const base = slugBase(projectName)
+  if (attempt === 1) return ApplicationSlug.parse(base)
+  const suffix = `-${attempt}`
+  return ApplicationSlug.parse(`${base.slice(0, SLUG_LENGTH - suffix.length).replace(/-+$/, '')}${suffix}`)
 }
 
-const readAccess = async (pool: PostgresPool, actor: AccountId, projectId: string): Promise<ApplicationAccess> =>
-  accessOf(accessRows.parse((await pool.query(LIST_SQL, [actor, projectId])).rows))
+// One expression names the presence lock of an application, for the grant's exclusive lock and the
+// prepare's shared one, so the two can never disagree. The prefix is a parameter: SQL text never
+// spells the installation's own name.
+const APPLICATION_LOCK_PREFIX = 'conexus:application:'
+const applicationLockKey = (projectId: ProjectId): Sql => sql`hashtextextended(${APPLICATION_LOCK_PREFIX}::text || ${projectId}::text, 0)`
 
-// Creating an application takes this Project-keyed lock exclusively; a decision that relies on the
-// Project having none holds it shared for as long as it acts.
-const APPLICATION_LOCK_KEY = "hashtextextended('conexus:application:' || $1::text, 0)"
+const PresenceRow = z.object({ present: z.boolean(), lock_key: z.string().regex(/^-?\d+$/) })
 
-const isApplicationNotFound = (error: unknown): boolean =>
-  typeof error === 'object' && error !== null && 'code' in error && error.code === 'P0002' &&
-  'message' in error && error.message === 'APPLICATION_NOT_FOUND'
+/** What a prepare runs on: a Project with an application, or one without, held so while `lockLost` has not aborted. */
+export type Presence = Readonly<{ hasApplication: true }> | Readonly<{ hasApplication: false; lockLost: AbortSignal }>
+const Named = z.object({ name: z.string() })
+const Slug = z.object({ slug: ApplicationSlug })
+const GrantRow = z.object({ grant_id: GrantId, account_id: AccountId, display_name: DisplayName, email: EmailAddress.nullable(), granted_at: z.date() })
 
-export const createApplicationAccessStore = ({ pool }: Readonly<{ pool: PostgresPool }>): ApplicationAccessStore => Object.freeze({
-  async list({ actor, projectId }) {
-    return readAccess(pool, actor, projectId)
-  },
-  async grant({ actor, projectId, email, now = new Date() }) {
-    const client = await pool.connect()
-    let settledEntry: z.infer<typeof settledRow> | undefined
-    try {
-      await client.query('BEGIN')
-      await client.query(`SELECT pg_advisory_xact_lock(${APPLICATION_LOCK_KEY})`, [projectId])
-      const settled = await client.query(
-        'SELECT kind, entry_id FROM iam.grant_application_access($1, $2, $3, $4, $5)',
-        [actor, projectId, randomUUID(), email, new Date(now.getTime() + INVITATION_DAYS * 24 * 60 * 60 * 1000)])
-      await client.query('COMMIT')
-      settledEntry = settledRow.parse(settled.rows[0])
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => undefined)
-      throw error
-    } finally {
-      client.release()
-    }
-    const entry = (await readAccess(pool, actor, projectId)).entries
-      .find((candidate) => candidate.kind === settledEntry.kind &&
-        (candidate.kind === 'grant' ? candidate.grantId : candidate.invitationId) === settledEntry.entry_id)
-    if (!entry) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'APPLICATION_ACCESS_ENTRY_NOT_READABLE' } })
-    return entry
-  },
-  async cancelInvitation({ actor, projectId, invitationId }) {
-    const result = await pool.query<QueryResultRow & { found: boolean }>(
-      'SELECT iam.cancel_application_invitation($1, $2, $3) AS found', [actor, projectId, invitationId])
-    return result.rows[0]?.found === true
-  },
-  async revokeGrant({ actor, projectId, grantId }) {
-    const result = await pool.query<QueryResultRow & { found: boolean }>(
-      'SELECT iam.revoke_application_grant($1, $2, $3) AS found', [actor, projectId, grantId])
-    return result.rows[0]?.found === true
-  },
-  async withApplicationPresence(projectId, work) {
-    const client = await pool.connect()
-    let held = false
-    try {
-      await client.query('BEGIN')
-      held = true
-      await client.query(`SELECT pg_advisory_xact_lock_shared(${APPLICATION_LOCK_KEY})`, [projectId])
-      const result = await client.query<QueryResultRow & { present: boolean }>(
-        'SELECT iam.application_slug($1) IS NOT NULL AS present', [projectId])
-      const present = result.rows[0]?.present === true
-      // An application is never taken away from a Project that keeps existing, so true needs no lock.
-      if (present) {
-        await client.query('COMMIT')
-        held = false
-      }
-      const outcome = await work(present)
-      if (held) await client.query('COMMIT')
-      held = false
-      return outcome
-    } finally {
-      if (held) await client.query('ROLLBACK').catch(() => undefined)
-      client.release()
-    }
-  },
+const grantEntry = (row: z.output<typeof GrantRow>): ApplicationGrantEntry => ({
+  kind: 'grant', grantId: row.grant_id, accountId: row.account_id, displayName: row.display_name, ...(row.email ? { email: row.email } : {}), grantedAt: row.granted_at.toISOString(),
 })
 
-export type ApplicationAccessRouteDependencies = Readonly<{
-  store: ApplicationAccessStore
-  config: Readonly<{ applicationAddress: (slug: string) => string | null }>
-}>
+const invitationEntry = (row: z.output<typeof InvitationRow>): ApplicationInvitationEntry => ({ kind: 'invitation', ...invitationFields(row) })
 
-export const registerApplicationAccessRoutes = async (
-  app: FastifyInstance,
-  { store, config }: ApplicationAccessRouteDependencies,
-): Promise<readonly IamOwnerId[]> => {
-  const route = routes(app)
-  const refused = (error: unknown): never => {
-    if (isApplicationNotFound(error)) throw new Failure('PROJECT_NOT_FOUND')
-    if (isNotAdmitted(error)) throw new Failure('APPLICATION_ACCESS_MANAGE_REQUIRED')
-    throw error
+// The first grant fixes the address: the base label, then the next free suffix. A label another
+// Project took meanwhile conflicts on the slug key and the next suffix is tried.
+const ensureApplication = async (proof: Admitted<ProjectScope<'application.manage'>>): Promise<void> => {
+  const { tx, scope } = proof
+  if (await tx.maybe(Slug, sql`SELECT slug FROM iam.application WHERE project_id = ${scope.projectId}`)) return
+  const { name } = await tx.one(Named, sql`SELECT name FROM project.project WHERE project_id = ${scope.projectId}`, 'PROJECT_NOT_FOUND')
+  for (let attempt = 1; ; attempt += 1) {
+    const created = await tx.run(sql`
+      INSERT INTO iam.application (project_id, slug, created_by) VALUES (${scope.projectId}, ${slugFor(name, attempt)}, ${scope.accountId})
+      ON CONFLICT (slug) DO NOTHING`)
+    if (created === 1) return
+  }
+}
+
+/**
+ * Inserts the grants a sign in's claim took, each granted by its inviter. An invitation older than a
+ * revoke of the same person on the same Project grants nothing: the revoke came after it.
+ */
+export const grantClaimed = async (proof: Admitted<AccountScope>, claim: Claim): Promise<void> => {
+  for (const invitation of claim.applications) {
+    await proof.tx.run(sql`
+      INSERT INTO iam.application_grant (project_id, account_id, granted_by)
+      SELECT ${invitation.project_id}::uuid, ${proof.scope.accountId}::uuid, ${invitation.invited_by}::uuid
+      WHERE NOT EXISTS (
+        SELECT 1 FROM iam.application_grant AS revoked
+        WHERE revoked.project_id = ${invitation.project_id} AND revoked.account_id = ${proof.scope.accountId}
+          AND revoked.revoked_at >= ${invitation.created_at}::timestamptz)
+      ON CONFLICT (project_id, account_id) WHERE revoked_at IS NULL DO NOTHING`)
+  }
+}
+
+/** Deletes every IAM row of a purged Project, children first, in the purge's own transaction that holds the Project row. */
+export const purgeProject = async (proof: Admitted<SystemScope<'project-purge'>>, projectId: ProjectId): Promise<void> => {
+  const { tx } = proof
+  await tx.run(sql`DELETE FROM iam.handoff WHERE project_id = ${projectId}`)
+  await tx.run(sql`DELETE FROM iam.host_session WHERE project_id = ${projectId}`)
+  await tx.run(sql`DELETE FROM iam.oidc_transaction WHERE application_project_id = ${projectId}`)
+  await tx.run(sql`DELETE FROM iam.application_invitation WHERE project_id = ${projectId}`)
+  await tx.run(sql`DELETE FROM iam.application_grant WHERE project_id = ${projectId}`)
+  await tx.run(sql`DELETE FROM iam.application WHERE project_id = ${projectId}`)
+}
+
+const lockApplication = (tx: WriteTx, projectId: ProjectId) => tx.run(sql`SELECT pg_advisory_xact_lock(${applicationLockKey(projectId)})`)
+
+export const createApplicationAccess = ({ database, addressOf }: Readonly<{
+  database: Database
+  /** The origin URL of an application, when this installation serves applications. */
+  addressOf: (slug: ApplicationSlug) => string | null
+}>) => {
+  const readPresence = (projectId: ProjectId) => database.system('application-presence', async (gate) => {
+    const { tx } = await admitSystem(gate, 'application-presence')
+    return tx.one(PresenceRow, sql`
+      SELECT EXISTS (SELECT 1 FROM iam.application WHERE project_id = ${projectId}) AS present, ${applicationLockKey(projectId)}::text AS lock_key`, 'INTERNAL_UNEXPECTED')
+  })
+
+  /**
+   * Runs work on whether the Project has an application. With none, the shared presence lock is held at
+   * session level, with no transaction open, for as long as the work runs, so a grant cannot create the
+   * application meanwhile; closing the connection releases it. The work gets the signal that aborts when
+   * that connection is lost, the moment the lock stops excluding a grant. An application, once present,
+   * is never taken from a Project that keeps existing.
+   */
+  const withApplicationPresence = async <T>(projectId: ProjectId, work: (presence: Presence) => Promise<T>): Promise<T> => {
+    const first = await readPresence(projectId)
+    if (first.present) return work({ hasApplication: true })
+    const held = await database.session('conexus-hub:application-presence', async (lock, lost) => {
+      await lock.advisoryLockShared(BigInt(first.lock_key))
+      const again = await readPresence(projectId)
+      return again.present ? { ran: false as const } : { ran: true as const, value: await work({ hasApplication: false, lockLost: lost }) }
+    })
+    return held.ran ? held.value : work({ hasApplication: true })
   }
 
-  route.session<{ Params: ProjectParams }>({
-    ...IAM_GENERATED_ROUTES['IAM-11'],
-    schema: { ...IAM_GENERATED_ROUTES['IAM-11'].schema, params: projectParamsSchema },
-    handler: async (request, _reply, session) => {
-      const actor = session.account.accountId
-      const { slug, entries } = await store.list({ actor, projectId: request.params.projectId }).catch(refused)
-      const address = slug ? config.applicationAddress(slug) : null
-      return { ...(address ? { address } : {}), entries }
-    },
-  })
+  const registerRoutes = async (app: FastifyInstance) => {
+    const route = routes(app)
 
-  route.session<{ Params: ProjectParams; Body: Iam12Body }>({
-    ...IAM_GENERATED_ROUTES['IAM-12'],
-    schema: { ...IAM_GENERATED_ROUTES['IAM-12'].schema, params: projectParamsSchema },
-    handler: async (request, _reply, session) => {
-      const actor = session.account.accountId
-      const email = parseEmailAddress(request.body.email)
-      if (!email) throw new Failure('INVITATION_NOT_ACCEPTABLE')
-      return store.grant({ actor, projectId: request.params.projectId, email }).catch(refused)
-    },
-  })
+    route.operation(getApplicationAccess, ({ params }, session): Promise<ApplicationAccess> => database.read(session.account.accountId, async (tx) => {
+      const proof = await admitProject(tx, params.projectId, 'application.manage')
+      const application = await tx.maybe(Slug, sql`SELECT slug FROM iam.application WHERE project_id = ${proof.scope.projectId}`)
+      const grants = await tx.rows(GrantRow, sql`
+        SELECT access_grant.grant_id, grantee.account_id, grantee.display_name, grantee.email, access_grant.granted_at
+        FROM iam.application_grant AS access_grant JOIN iam.account AS grantee ON grantee.account_id = access_grant.account_id
+        WHERE access_grant.project_id = ${proof.scope.projectId} AND access_grant.revoked_at IS NULL
+        ORDER BY access_grant.granted_at, access_grant.grant_id`)
+      const invitations = await tx.rows(InvitationRow, sql`
+        SELECT invitation_id, email, created_at AS invited_at, expires_at, expires_at > now() AS open
+        FROM iam.application_invitation WHERE project_id = ${proof.scope.projectId}
+        ORDER BY created_at, invitation_id`)
+      const address = application ? addressOf(application.slug) : null
+      return { ...(address ? { address } : {}), entries: [...grants.map(grantEntry), ...invitations.map(invitationEntry)] }
+    }))
 
-  route.session<{ Params: ApplicationAccessEntryParams }>({
-    ...IAM_GENERATED_ROUTES['IAM-13'],
-    schema: { ...IAM_GENERATED_ROUTES['IAM-13'].schema, params: entryParamsSchema },
-    handler: async (request, reply, session) => {
-      const actor = session.account.accountId
-      const { projectId, entryKind, entryId } = request.params
-      if (entryKind !== 'grant' && entryKind !== 'invitation') throw new Failure('APPLICATION_ACCESS_ENTRY_NOT_FOUND')
-      const found = await (entryKind === 'grant'
-        ? store.revokeGrant({ actor, projectId, grantId: entryId })
-        : store.cancelInvitation({ actor, projectId, invitationId: entryId })).catch(refused)
-      if (!found) throw new Failure('APPLICATION_ACCESS_ENTRY_NOT_FOUND')
-      return reply.code(204).send()
-    },
-  })
+    // Granting always invites: the person's next sign in claims it, as a no op when a grant already exists.
+    route.operation(grantApplicationAccess, ({ params, headers, body }, session) => database.transaction(session.account.accountId, async (gate) => {
+      const proof = await admitProject(gate, params.projectId, 'application.manage')
+      await lockApplication(proof.tx, proof.scope.projectId)
+      const { reply } = await idempotent(receiptOf(proof), grantApplicationAccess, headers['idempotency-key'], { params, query: undefined, body }, InvitationId, async (invitationId) => {
+        await ensureApplication(proof)
+        const row = await proof.tx.one(InvitationRow.extend(inserted), sql`
+          INSERT INTO iam.application_invitation (invitation_id, project_id, email, invited_by, expires_at)
+          VALUES (${invitationId}, ${proof.scope.projectId}, ${body.email}, ${proof.scope.accountId}, now() + make_interval(days => ${INVITATION_DAYS}))
+          ON CONFLICT (project_id, email) DO UPDATE SET invited_by = EXCLUDED.invited_by, expires_at = EXCLUDED.expires_at, created_at = clock_timestamp()
+          WHERE application_invitation.project_id = ${proof.scope.projectId}
+          RETURNING invitation_id, email, created_at AS invited_at, expires_at, expires_at > now() AS open, xmax = 0 AS inserted`, 'INTERNAL_UNEXPECTED')
+        return { status: row.inserted ? 201 : 200, body: invitationEntry(row) } as const
+      })
+      return reply
+    }))
 
-  return ['IAM-11', 'IAM-12', 'IAM-13']
+    route.operation(revokeApplicationGrant, ({ params }, session) => database.transaction(session.account.accountId, async (gate) => {
+      const proof = await admitProject(gate, params.projectId, 'application.manage')
+      const revoked = await proof.tx.run(sql`
+        UPDATE iam.application_grant SET revoked_at = clock_timestamp(), revoked_by = ${proof.scope.accountId}
+        WHERE grant_id = ${params.grantId} AND project_id = ${proof.scope.projectId} AND revoked_at IS NULL`)
+      if (revoked !== 1) throw new Failure('APPLICATION_ACCESS_ENTRY_NOT_FOUND')
+      return undefined
+    }))
+
+    route.operation(cancelApplicationInvitation, ({ params }, session) => database.transaction(session.account.accountId, async (gate) => {
+      const proof = await admitProject(gate, params.projectId, 'application.manage')
+      const cancelled = await proof.tx.run(sql`
+        DELETE FROM iam.application_invitation WHERE invitation_id = ${params.invitationId} AND project_id = ${proof.scope.projectId}`)
+      if (cancelled !== 1) throw new Failure('APPLICATION_ACCESS_ENTRY_NOT_FOUND')
+      return undefined
+    }))
+
+    return ['getApplicationAccess', 'grantApplicationAccess', 'revokeApplicationGrant', 'cancelApplicationInvitation'] as const
+  }
+
+  return Object.freeze({ withApplicationPresence, registerRoutes })
 }

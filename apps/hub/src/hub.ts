@@ -8,7 +8,7 @@ import { createHostingModule } from './hosting/module.js'
 import { startJobs } from './platform/jobs.js'
 import { readHubConfig } from './platform/config.js'
 import { censusConnections, reportConnectionCensus } from './platform/connection-census.js'
-import { openDatabase, unportedPool } from './platform/db.js'
+import { openDatabase } from './platform/db.js'
 import { assertSchemaCurrent, exitOnLostInstanceLock, takeInstanceLock } from './platform/lifecycle.js'
 import { logLine } from './platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from './platform/secrets.js'
@@ -37,15 +37,14 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     passwordFile: config.database.passwordFile,
   }
   const database = openDatabase(mainConnection)
-  const pool = unportedPool(database)
   // Before anything that touches shared state (handler sockets, runs): a second Hub, or a database
   // behind this code, ends here with a named line and leaves the live Hub alone.
   const releaseInstanceLock = await takeInstanceLock(database, exitOnLostInstanceLock())
-  await assertSchemaCurrent(pool, resolve(import.meta.dirname, '../migrations'))
+  await assertSchemaCurrent(database, resolve(import.meta.dirname, '../migrations'))
   const workspace = createWorkspaceModule({ database })
   const registry = createRegistryModule({ database })
   const identityAccessDependencies = {
-    pool,
+    database,
     workspaceReader: workspace,
     origin: config.origin,
     issuer: config.oidc.issuer,
@@ -90,6 +89,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
         if (!builder) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'CONEXUS_GIT_NOT_CONFIGURED' } })
         return builder.deleteProjectRepository(projectId)
       },
+      purgeIdentityAccess: identityAccess.purgeProject,
       purgeConnectorBindings: connectors.purgeProjectBindings,
       purgeRegistry: registry.purge,
       purgeBuilder: purgeProjectBuilder,
@@ -99,13 +99,12 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   let builder: ReturnType<typeof createConfiguredBuilderModule> | undefined
   const applicationRunner = config.appRunner ? createApplicationRunnerClient(config.appRunner.socketPath) : undefined
   const hosting = config.preview ? createHostingModule({
-    sessions: identityAccess.hostSessions,
+    sessions: identityAccess.previewHost,
     exactHubOrigin: config.origin,
     previewPort: config.preview.port,
     registry,
-    // The runner receives the admitted artifact's server tree as the registry holds it, never a path.
-    // The hosting module bounds in-flight work and the tree's total size before any file is read, ahead of
-    // the runner's own concurrency cap (apps/hub/src/hosting/application-invoker.ts).
+    // The runner receives the server tree as the request's entry read it, never a path. The hosting
+    // module bounds the tree's total size and the in-flight work, ahead of the runner's own concurrency cap.
     ...(applicationRunner ? {
       applicationRunner: {
         invoke: applicationRunner.invoke,
@@ -114,29 +113,20 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
       },
     } : {}),
     ...(config.application ? {
-      applicationHost: { sessions: identityAccess.hostSessions, application: config.application },
+      applicationHost: { sessions: identityAccess.applicationHost, application: config.application },
     } : {}),
   }) : undefined
   type LaunchPreview = NonNullable<Parameters<typeof createConfiguredBuilderModule>[0]['launchPreview']>
-  const launchPreview: LaunchPreview | undefined = hosting ? async (hubSessionDigest, input) => {
-    const { launch } = input
+  const launchPreview: LaunchPreview | undefined = hosting ? async (hubSessionDigest, proof, launch) => {
     const address = hosting.previewAddress(launch.artifactRevisionId)
-    const opened = await identityAccess.openPreview(hubSessionDigest, {
-      accountId: input.accountId,
-      projectId: input.projectId,
-      sourceRevision: launch.sourceRevision,
-      artifactRevisionId: launch.artifactRevisionId,
-      artifactDigest: launch.digest,
-      exactHost: address.exactHost,
-      manifest: { entryPath: launch.entryPath, files: launch.files },
-    })
+    const opened = await identityAccess.openPreview(proof, hubSessionDigest, launch.artifactRevisionId)
     return {
       entryUrl: address.entryUrl,
       previewUrl: address.previewUrl,
       entryGrant: opened.entryGrant,
       artifactRevisionId: launch.artifactRevisionId,
       artifactDigest: launch.digest,
-      expiresAt: new Date(opened.expiresAt).toISOString(),
+      expiresAt: opened.expiresAt.toISOString(),
     }
   } : undefined
   let preparing: Promise<unknown> = Promise.resolve()
@@ -160,7 +150,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
         invoke: applicationRunner.invoke,
         prepare: (input) => {
           const prepared = preparing.catch(() => undefined).then(() => identityAccess.withApplicationPresence(input.projectId,
-            (hasApplication) => applicationRunner.prepare({ ...input, onDivergence: hasApplication ? 'REFUSE' : 'RESET' })))
+            (presence) => applicationRunner.prepare(presence.hasApplication ? { ...input, onDivergence: 'REFUSE' } : { ...input, onDivergence: 'RESET', signal: presence.lockLost })))
           preparing = prepared
           return prepared
         },
@@ -184,11 +174,11 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     policy: {
       listener: 'hub',
       hubOrigin: config.origin,
-      resolveHubSession: identityAccess.resolveHubSession,
+      resolveHubSession: identityAccess.hub.resolve,
       ...(config.preview ? { previewCspSource: `https://*.conexus.localhost:${config.preview.port}` } : {}),
     },
     registerRoutes: async (server) => [
-      ...await identityAccess.registerIdentityAccessRoutes(server),
+      ...await identityAccess.registerRoutes(server),
       ...(workspace ? await workspace.registerWorkspaceRoutes(server) : []),
       ...(project ? await project.registerProjectRoutes(server) : []),
       ...(builder ? await builder.registerBuilderRoutes(server) : []),

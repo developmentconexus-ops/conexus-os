@@ -106,15 +106,7 @@
         "apps/**",
         "!apps/hub/src/platform/db.ts",
         "!apps/hub/src/app-runner/worker.ts",
-        "!apps/hub/src/app-runner/supervisor.ts",
-        "!apps/hub/src/builder/store.ts",
-        "!apps/hub/src/connectors/store.ts",
-        "!apps/hub/src/identity-access/application-access.ts",
-        "!apps/hub/src/identity-access/host-sessions.ts",
-        "!apps/hub/src/identity-access/installation-administration.ts",
-        "!apps/hub/src/identity-access/store.ts",
-        "!apps/hub/src/project/deletion.ts",
-        "!apps/hub/src/project/store.ts"
+        "!apps/hub/src/app-runner/supervisor.ts"
       ],
       "linter": {
         "rules": {
@@ -163,7 +155,8 @@
       "includes": [
         "apps/*/src/**",
         "packages/*/src/**",
-        "!apps/hub/src/identity-access/admission.ts"
+        "!apps/hub/src/identity-access/admission.ts",
+        "!apps/hub/src/identity-access/authentication.ts"
       ],
       "linter": {
         "rules": {
@@ -179,7 +172,17 @@
                   {
                     "group": ["**/platform/db", "**/platform/db.js"],
                     "importNamePattern": "openGate",
-                    "message": "A gate is opened only by identity-access/admission.ts."
+                    "message": "A gate is opened only by identity-access/admission.ts and authentication.ts."
+                  },
+                  {
+                    "group": ["**/platform/db", "**/platform/db.js"],
+                    "importNamePattern": "bindAccount",
+                    "message": "An account is bound to an authentication gate only by identity-access/authentication.ts."
+                  },
+                  {
+                    "group": ["**/platform/receipt", "**/platform/receipt.js"],
+                    "importNamePattern": "receipted",
+                    "message": "A receipt is made only by receiptOf in identity-access/admission.ts."
                   }
                 ]
               }
@@ -192,17 +195,10 @@
       "includes": [
         "apps/*/src/**",
         "!apps/hub/src/identity-access/admission.ts",
+        "!apps/hub/src/identity-access/authentication.ts",
         "!apps/hub/src/platform/db.ts",
         "!apps/hub/src/app-runner/worker.ts",
-        "!apps/hub/src/app-runner/supervisor.ts",
-        "!apps/hub/src/builder/store.ts",
-        "!apps/hub/src/connectors/store.ts",
-        "!apps/hub/src/identity-access/application-access.ts",
-        "!apps/hub/src/identity-access/host-sessions.ts",
-        "!apps/hub/src/identity-access/installation-administration.ts",
-        "!apps/hub/src/identity-access/store.ts",
-        "!apps/hub/src/project/deletion.ts",
-        "!apps/hub/src/project/store.ts"
+        "!apps/hub/src/app-runner/supervisor.ts"
       ],
       "linter": {
         "rules": {
@@ -221,7 +217,17 @@
                   {
                     "group": ["**/platform/db", "**/platform/db.js"],
                     "importNamePattern": "openGate",
-                    "message": "A gate is opened only by identity-access/admission.ts."
+                    "message": "A gate is opened only by identity-access/admission.ts and authentication.ts."
+                  },
+                  {
+                    "group": ["**/platform/db", "**/platform/db.js"],
+                    "importNamePattern": "bindAccount",
+                    "message": "An account is bound to an authentication gate only by identity-access/authentication.ts."
+                  },
+                  {
+                    "group": ["**/platform/receipt", "**/platform/receipt.js"],
+                    "importNamePattern": "receipted",
+                    "message": "A receipt is made only by receiptOf in identity-access/admission.ts."
                   }
                 ]
               }
@@ -245,6 +251,39 @@
                   {
                     "group": ["**/tests/**", "**/scripts/**"],
                     "message": "Production code cannot import tests or scripts."
+                  },
+                  {
+                    "group": ["**/platform/db", "**/platform/db.js"],
+                    "importNamePattern": "bindAccount",
+                    "message": "An account is bound to an authentication gate only by identity-access/authentication.ts."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/hub/src/identity-access/authentication.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "pg": "Only the database edge may import pg."
+                },
+                "patterns": [
+                  {
+                    "group": ["**/tests/**", "**/scripts/**"],
+                    "message": "Production code cannot import tests or scripts."
+                  },
+                  {
+                    "group": ["**/platform/receipt", "**/platform/receipt.js"],
+                    "importNamePattern": "receipted",
+                    "message": "A receipt is made only by receiptOf in identity-access/admission.ts."
                   }
                 ]
               }

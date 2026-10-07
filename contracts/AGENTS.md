@@ -4,7 +4,7 @@ The wire contracts. `api/product/` is the Product HTTP API in OpenAPI, `api/tech
 
 ## Traps
 
-- `api/product/openapi.yaml` lists every path by an explicit `$ref`. An operation added to a `*-paths.yaml` file alone is invisible. `npm run wire:bijection` fails on it.
+- `api/product/openapi.json` is emitted from the operations of `@conexus/contract` by `npm run contract:emit`; never edit it by hand.
 - `technical/builder-run-vocabulary.json` is the one list of Builder run states, phases and result kinds. The Hub and the web import the copies `node scripts/generate-builder-run-vocabulary.mjs` writes into their `src/generated/`; a change also needs a migration for the matching `builder_run` CHECK constraint, and `tests/repository/builder-run-vocabulary.test.mjs` names every list still behind.
 - `technical/hub-catalog-snapshot.json` is written only by `npm run db:catalog:snapshot`. `technical/hub-database-roles.json` is the one role register. After you change it, run `npm run db:roles:generate`.
 

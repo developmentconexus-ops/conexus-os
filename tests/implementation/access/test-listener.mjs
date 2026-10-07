@@ -8,7 +8,6 @@ export const HUB_ORIGIN = 'https://hub.conexus.test'
 export const opaque = (label) => createHash('sha256').update(label).digest('base64url')
 
 export const hubSessionCookie = (token) => `__Host-conexus_session=${token}`
-export const bootstrapCookie = (token) => `__Host-conexus_bootstrap=${token}`
 
 export const hubWrite = Object.freeze({ origin: HUB_ORIGIN, 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors' })
 export const hubJsonWrite = Object.freeze({ ...hubWrite, 'content-type': 'application/json' })

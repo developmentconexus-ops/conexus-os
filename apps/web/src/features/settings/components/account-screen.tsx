@@ -1,3 +1,4 @@
+import type { SessionAccount } from '@conexus/contract'
 import { Button } from '@mastra/playground-ui/components/Button'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
@@ -5,7 +6,7 @@ import { PageHeader } from './page-header'
 import { SectionEmpty, StatusLine } from './states'
 
 export function AccountScreen({ account, workspaces }: Readonly<{
-  account: Readonly<{ accountId: string; displayName: string; email?: string }>
+  account: SessionAccount
   workspaces: readonly Readonly<{ workspaceId: string; name: string }>[]
 }>) {
   const [copied, setCopied] = useState(false)

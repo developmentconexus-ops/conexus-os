@@ -2,20 +2,17 @@ import * as oidc from 'openid-client'
 import type { CustomFetch } from 'openid-client'
 import { lookup } from 'node:dns'
 import { Agent, fetch as undiciFetch } from 'undici'
-import { parseEmailAddress } from './current-session.js'
-import type { EmailAddress } from './current-session.js'
-import { Failure } from '../platform/failure.js'
+import { EmailAddress } from '@conexus/contract'
 import { logLine } from '../platform/logger.js'
+import type { ProviderIdentity } from './admission.js'
 
-export type OidcIdentity = Readonly<{ issuer: string; subject: string }>
-/**
- * `verifiedEmail` is null both when the claim says unverified and when it says verified but the
- * address is missing or unparseable. `emailVerified` keeps that second case distinguishable: it is
- * the raw `email_verified === true` claim, regardless of whether an address came with it.
- */
-export type VerifiedIdentity = OidcIdentity & Readonly<{ verifiedEmail: EmailAddress | null; emailVerified: boolean }>
-/** What a completed sign-in carries besides the identity: the provider's name claim and refresh token. */
-export type CompletedSignIn = VerifiedIdentity & Readonly<{ displayName: string | null; refreshToken: string | null }>
+/** The email a sign in carries: verified by the provider, present but not verified, or absent. Only a verified one claims an invitation. */
+type ClaimedEmail = Readonly<{ kind: 'verified'; email: EmailAddress }> | Readonly<{ kind: 'unverified' }> | Readonly<{ kind: 'absent' }>
+/** The claims of a completed sign in, parsed at the provider boundary. */
+export type SignInClaims = Readonly<{ identity: ProviderIdentity; email: ClaimedEmail; displayName: string; refreshToken: string }>
+/** A completed exchange whose claims parsed, or the name (never the value) of the claim that did not. */
+// A sign in with no refresh token has nothing to keep each session's Keycloak check with.
+type Completion = Readonly<{ kind: 'claims'; claims: SignInClaims }> | Readonly<{ kind: 'malformed'; claim: 'iss' | 'sub' | 'name' }> | Readonly<{ kind: 'no-refresh-token' }>
 /**
  * Why Keycloak refused a refresh, as far as its answer says: the user is disabled, the SSO session
  * ended (idle or maximum lifetime, or signed out in Keycloak), or anything else (a stale or reused
@@ -24,7 +21,7 @@ export type CompletedSignIn = VerifiedIdentity & Readonly<{ displayName: string 
  */
 export type ProviderRefusal = 'USER_DISABLED' | 'SESSION_ENDED' | 'REFUSED'
 /** Keycloak's answer to a refresh: the person is still signed in, was refused, or could not be asked. */
-export type ProviderCheck =
+type ProviderCheck =
   | Readonly<{ kind: 'ACTIVE'; refreshToken: string }>
   | Readonly<{ kind: 'REFUSED'; reason: ProviderRefusal }>
   | Readonly<{ kind: 'UNAVAILABLE' }>
@@ -41,11 +38,11 @@ const providerRefusal = (description: string | undefined): ProviderRefusal => {
  * it means nobody knows.
  */
 type ProviderLogout = 'ENDED' | 'UNCONFIRMED'
-export type OidcTransaction = Readonly<{ state: string; nonce: string; pkceVerifier: string; location: string }>
+type OidcTransaction = Readonly<{ state: string; nonce: string; pkceVerifier: string; location: string }>
 type OidcCompletion = Readonly<{ currentUrl: string; pkceVerifier: string; expectedState: string; expectedNonce: string }>
 export type OidcAdapter = Readonly<{
   begin(): Promise<OidcTransaction>
-  complete(input: OidcCompletion): Promise<CompletedSignIn>
+  complete(input: OidcCompletion): Promise<Completion>
   refresh(input: Readonly<{ refreshToken: string; expectedSubject: string }>): Promise<ProviderCheck>
   /** Asks Keycloak to end the SSO session the refresh token belongs to. Never throws. */
   endProviderSession(input: Readonly<{ refreshToken: string; signal: AbortSignal }>): Promise<ProviderLogout>
@@ -65,6 +62,30 @@ const isEmailVerifiedClaim = (claims: Record<string, unknown>): boolean => {
     logLine('OIDC_EMAIL_VERIFIED_UNEXPECTED_TYPE', { claimType: typeof claims.email_verified }, 'warn')
   }
   return claims.email_verified === true
+}
+
+const claimedEmail = (claims: Record<string, unknown>): ClaimedEmail => {
+  const verified = isEmailVerifiedClaim(claims)
+  const email = EmailAddress.safeParse(claims.email)
+  if (!email.success) return { kind: 'absent' }
+  return verified ? { kind: 'verified', email: email.data } : { kind: 'unverified' }
+}
+
+const nonBlank = (value: unknown): string | null => (typeof value === 'string' && /\S/.test(value) ? value.trim().slice(0, 200) : null)
+
+/**
+ * The claims of an ID token: the provider pair, the email, and the name, else the username Keycloak sends with the profile scope.
+ * @public Tests call it through the built Hub.
+ */
+export const parseSignInClaims = (claims: Record<string, unknown>, refreshToken: string | null): Completion => {
+  const issuer = nonBlank(claims.iss)
+  if (!issuer) return { kind: 'malformed', claim: 'iss' }
+  const subject = nonBlank(claims.sub)
+  if (!subject) return { kind: 'malformed', claim: 'sub' }
+  const displayName = nonBlank(claims.name) ?? nonBlank(claims.preferred_username)
+  if (!displayName) return { kind: 'malformed', claim: 'name' }
+  if (!refreshToken) return { kind: 'no-refresh-token' }
+  return { kind: 'claims', claims: { identity: { issuer, subject }, email: claimedEmail(claims), displayName, refreshToken } }
 }
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
@@ -122,7 +143,7 @@ export const createOidcAdapter = async ({
       const nonce = oidc.randomNonce()
       const location = oidc.buildAuthorizationUrl(configuration, {
         redirect_uri: redirectUri,
-        scope: 'openid email',
+        scope: 'openid email profile',
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
         state,
@@ -130,21 +151,14 @@ export const createOidcAdapter = async ({
       })
       return { state, nonce, pkceVerifier, location: location.href }
     },
-    async complete({ currentUrl, pkceVerifier, expectedState, expectedNonce }: OidcCompletion): Promise<CompletedSignIn> {
+    async complete({ currentUrl, pkceVerifier, expectedState, expectedNonce }: OidcCompletion): Promise<Completion> {
       const tokens = await oidc.authorizationCodeGrant(configuration, new URL(currentUrl), {
         pkceCodeVerifier: pkceVerifier,
         expectedState,
         expectedNonce,
         idTokenExpected: true,
       })
-      const claims = tokens.claims()
-      if (!claims?.iss || !claims.sub) throw new Failure('OIDC_IDENTITY_MISSING')
-      // An unverified address, or a realm that asserts no address at all, is not an error.
-      // It only means this identity can claim no invitation.
-      const emailVerified = isEmailVerifiedClaim(claims)
-      const verifiedEmail = emailVerified ? parseEmailAddress(claims.email) : null
-      const name = typeof claims.name === 'string' && /\S/.test(claims.name) ? claims.name.trim().slice(0, 200) : null
-      return { issuer: claims.iss, subject: claims.sub, verifiedEmail, emailVerified, displayName: name, refreshToken: tokens.refresh_token ?? null }
+      return parseSignInClaims(tokens.claims() ?? {}, tokens.refresh_token ?? null)
     },
     // Keycloak answers invalid_grant for a disabled user, an ended SSO session or a stale token.
     // Anything that is not an answer from Keycloak leaves the person's standing unknown.

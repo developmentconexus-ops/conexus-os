@@ -139,7 +139,7 @@ export declare const createWorkspaceConnection: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "CONNECTOR_WORKSPACE_NOT_FOUND", "CONNECTOR_LABEL_REFUSED", "CONNECTOR_CREDENTIAL_REFUSED", "CONNECTOR_CONNECTION_CONFLICT"];
+    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "CONNECTOR_CONNECTION_CONFLICT"];
     readonly malformed: {
         readonly workspaceId: "CONNECTOR_WORKSPACE_NOT_FOUND";
         readonly label: "CONNECTOR_LABEL_REFUSED";
@@ -172,7 +172,7 @@ export declare const checkWorkspaceConnection: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "CONNECTOR_CONNECTION_NOT_FOUND", "CONNECTOR_PLATFORM_FAILED"];
+    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "CONNECTOR_PLATFORM_FAILED"];
     readonly malformed: {
         readonly workspaceId: "CONNECTOR_CONNECTION_NOT_FOUND";
         readonly connectionId: "CONNECTOR_CONNECTION_NOT_FOUND";
@@ -195,7 +195,7 @@ export declare const disableWorkspaceConnection: {
         readonly 204: null;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "CONNECTOR_CONNECTION_NOT_FOUND"];
+    readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED"];
     readonly malformed: {
         readonly workspaceId: "CONNECTOR_CONNECTION_NOT_FOUND";
         readonly connectionId: "CONNECTOR_CONNECTION_NOT_FOUND";
@@ -232,7 +232,7 @@ export declare const listProjectConnectionBindings: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_NOT_FOUND", "CONNECTOR_BINDING_MANAGE_REQUIRED"];
+    readonly failures: readonly ["CONNECTOR_BINDING_MANAGE_REQUIRED"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
@@ -273,7 +273,7 @@ export declare const bindProjectConnection: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_NOT_FOUND", "CONNECTOR_BINDING_MANAGE_REQUIRED", "CONNECTOR_CONNECTION_NOT_AVAILABLE", "CONNECTOR_BINDING_CONFLICT", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly failures: readonly ["CONNECTOR_BINDING_MANAGE_REQUIRED", "CONNECTOR_CONNECTION_NOT_AVAILABLE", "CONNECTOR_BINDING_CONFLICT", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
@@ -295,7 +295,7 @@ export declare const unbindProjectConnection: {
         readonly 204: null;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_NOT_FOUND", "CONNECTOR_BINDING_MANAGE_REQUIRED", "CONNECTOR_BINDING_NOT_FOUND", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly failures: readonly ["CONNECTOR_BINDING_MANAGE_REQUIRED", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
         readonly bindingId: "CONNECTOR_BINDING_NOT_FOUND";

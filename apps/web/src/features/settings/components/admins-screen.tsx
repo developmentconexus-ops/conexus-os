@@ -5,32 +5,42 @@ import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { type FormEvent, useId, useState } from 'react'
-import { accessContextQueryKey, getAccessContext } from '../../identity-access/api'
+import type { AccountId, AdministratorEntry, EmailAddress } from '@conexus/contract'
+import { useSession } from '../../../app/access-gate'
+import { useAttemptKey } from '../../../app/attempt-key'
 import { failureText } from '../../../app/http'
-import {
-  type Administrator, administratorsQueryKey, grantAdministrator, installationQueryKey,
-  listAdministrators, revokeAdministrator,
-} from '../installation-api'
+import { parseEmail, sessionQueryKey } from '../../identity-access/api'
+import { addAdministrator, administratorsQuery, removeAdministrator } from '../installation-api'
 import { PageHeader } from './page-header'
 import { SectionError, SectionLoading, StatusLine } from './states'
 
 const dateFormat = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })
 
-function GrantedBy({ administrator }: Readonly<{ administrator: Administrator }>) {
+function GrantedBy({ administrator }: Readonly<{ administrator: AdministratorEntry }>) {
   if (administrator.grantedVia === 'OPERATOR_BOOTSTRAP') return <span>Definido pelo operador na instalação</span>
-  return <span>Concedido por {administrator.grantedBy?.displayName ?? 'alguém'} em {dateFormat.format(new Date(administrator.grantedAt))}</span>
+  return <span>Concedido por {administrator.grantedBy.displayName} em {dateFormat.format(new Date(administrator.grantedAt))}</span>
 }
 
 function GrantForm({ onGranted }: Readonly<{ onGranted: () => void }>) {
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const emailId = useId()
+  const key = useAttemptKey()
   const grant = useMutation({
-    mutationFn: () => grantAdministrator(email.trim()),
-    onSuccess: () => { setEmail(''); setMessage(null); onGranted() },
-    onError: (error) => setMessage(failureText(error)),
+    mutationFn: (parsed: EmailAddress) => addAdministrator(parsed, key.keyFor(parsed)),
+    onSuccess: () => { key.settled(); setEmail(''); setMessage(null); onGranted() },
+    onError: (error) => { key.failed(error); setMessage(failureText(error)) },
   })
-  return <form className="cxs-form" onSubmit={(event: FormEvent) => { event.preventDefault(); grant.mutate() }}>
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    const parsed = parseEmail(email)
+    if ('message' in parsed) {
+      setMessage(parsed.message)
+      return
+    }
+    grant.mutate(parsed.email)
+  }
+  return <form className="cxs-form" onSubmit={submit}>
     <label htmlFor={emailId}>E-mail</label>
     <Input id={emailId} type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="off" />
     <Button type="submit" variant="primary" disabled={!email.trim() || grant.isPending}>Tornar administrador</Button>
@@ -39,21 +49,21 @@ function GrantForm({ onGranted }: Readonly<{ onGranted: () => void }>) {
 }
 
 export function AdminsScreen() {
-  const access = useQuery({ queryKey: accessContextQueryKey, queryFn: getAccessContext })
-  const administrators = useQuery({ queryKey: administratorsQueryKey, queryFn: listAdministrators })
+  const session = useSession()
+  const administrators = useQuery(administratorsQuery)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [revokeMessage, setRevokeMessage] = useState<string | null>(null)
-  const refresh = () => {
-    void queryClient.invalidateQueries({ queryKey: administratorsQueryKey })
-    void queryClient.invalidateQueries({ queryKey: installationQueryKey })
-  }
+  const refresh = () => void queryClient.invalidateQueries({ queryKey: administratorsQuery.queryKey })
   const revoke = useMutation({
-    mutationFn: (accountId: string) => revokeAdministrator(accountId),
+    mutationFn: (accountId: AccountId) => removeAdministrator(accountId),
     onSuccess: (_data, accountId) => {
       setRevokeMessage(null)
       refresh()
-      if (accountId === access.data?.account.accountId) void navigate({ to: '/settings/account' })
+      if (accountId === session.data?.account.accountId) {
+        void queryClient.invalidateQueries({ queryKey: sessionQueryKey })
+        void navigate({ to: '/settings/account' })
+      }
     },
     onError: (error) => setRevokeMessage(failureText(error)),
   })
@@ -64,7 +74,7 @@ export function AdminsScreen() {
     {administrators.isError && <SectionError error={administrators.error} description="Não foi possível consultar os administradores." onRetry={() => void administrators.refetch()} />}
     {administrators.isSuccess && <ul className="cxs-list">
       {administrators.data.administrators.map((administrator) => {
-        const isViewer = administrator.accountId === access.data?.account.accountId
+        const isViewer = administrator.accountId === session.data?.account.accountId
         return <li key={administrator.accountId}>
           <Avatar name={administrator.displayName} size="sm" />
           <div className="cxs-row-main">

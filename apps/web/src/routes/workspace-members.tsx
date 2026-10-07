@@ -1,5 +1,7 @@
 import { createRoute, useNavigate } from '@tanstack/react-router'
+import { WorkspaceId } from '@conexus/contract'
 import { AccessGate } from '../app/access-gate'
+import { routeParam } from '../app/route-params'
 import { Shell } from '../app/shell'
 import { WorkspaceMembers } from '../features/identity-access/components/workspace-members'
 import { WorkspaceUnavailable } from '../features/workspace/components/workspace-unavailable'
@@ -12,7 +14,7 @@ export const workspaceMembersRoute = createRoute({
 })
 
 function WorkspaceMembersRoute() {
-  const { workspaceId } = workspaceMembersRoute.useParams()
+  const workspaceId = routeParam(WorkspaceId, workspaceMembersRoute.useParams().workspaceId)
   const navigate = useNavigate()
   return <AccessGate>{(context) => {
     const workspace = context.workspaces.find((candidate) => candidate.workspaceId === workspaceId)

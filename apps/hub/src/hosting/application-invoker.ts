@@ -1,30 +1,12 @@
-import type { AccountId, ApplicationFilePath, ArtifactRevisionId, ProjectId, SourceRevision } from '@conexus/contract'
+import type { AccountId, ProjectId } from '@conexus/contract'
 import { failureProblem } from '../http/problem.js'
 import { Failure } from '../platform/failure.js'
 import type { FailureCode } from '../platform/failures.generated.js'
 import type { Caller } from '../platform/caller.js'
+import type { ServerFile } from './server-tree.js'
 
-/** One file of the admitted artifact's `conexus-server/` tree, exactly as the runner expects it. */
-type ServerFile = Readonly<{ path: string; sha256: string; content: string }>
-
-/**
- * Which artifact a request's server tree is read from, and on whose authority: a developer's Preview
- * (Project visibility, exact source revision) or an application host (access to the application, the
- * artifact it serves).
- */
-type ArtifactSource =
-  | Readonly<{ via: 'PREVIEW'; accountId: AccountId; projectId: ProjectId; sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId }>
-  | Readonly<{ via: 'APPLICATION'; accountId: AccountId; projectId: ProjectId; artifactRevisionId: ArtifactRevisionId }>
-
-type ReadServerFile = Readonly<{ path: ApplicationFilePath; sha256: string; bytes: Uint8Array }>
-
-export type ApplicationFileReads = Readonly<{
-  readPreviewFile(accountId: AccountId, at: Readonly<{ projectId: ProjectId; sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId; path: ApplicationFilePath }>): Promise<ReadServerFile | null>
-  readPinnedServedFile(accountId: AccountId, projectId: ProjectId, artifactRevisionId: ArtifactRevisionId, path: ApplicationFilePath): Promise<
-    | Readonly<{ ok: true; artifactRevisionId: ArtifactRevisionId; file: ReadServerFile }>
-    | Readonly<{ ok: false; reason: 'NOT_SERVED' | 'NOT_FOUND' | 'STALE_PIN' }>
-  >
-}>
+/** On whose authority a request reaches the runner: a developer's Preview or an application host. */
+type ArtifactSource = Readonly<{ via: 'PREVIEW' | 'APPLICATION'; accountId: AccountId; projectId: ProjectId }>
 
 export type ApplicationRunnerInvoke = (input: Readonly<{
   projectId: string
@@ -44,7 +26,7 @@ export type ConnectorPortOpener = (source: ArtifactSource) => Promise<Readonly<{
 
 export type ApplicationInvoker = (input: Readonly<{
   source: ArtifactSource
-  serverFiles: readonly ApplicationFilePath[]
+  files: readonly ServerFile[]
   operation: string
   input: unknown
   caller: Caller
@@ -54,7 +36,6 @@ export type ApplicationInvoker = (input: Readonly<{
 export type ApplicationAdmissionLimits = Readonly<{
   globalConcurrency: number
   perProjectConcurrency: number
-  maxServerTreeBytes: number
   admissionQueueTimeoutMs: number
   admissionQueueLimit: number
 }>
@@ -66,8 +47,6 @@ const DEFAULT_ADMISSION_LIMITS: ApplicationAdmissionLimits = Object.freeze({
   globalConcurrency: 4,
   // Half the global bound: one flooding Preview cannot occupy the whole shared admission budget.
   perProjectConcurrency: 2,
-  // Generous for source code, far under the runner's own worst case (128 files * 4 MiB = 512 MiB).
-  maxServerTreeBytes: 8 * 1024 * 1024,
   // On the pilot a page's Connector read held its slot for up to 2 s; a call queued behind it runs.
   admissionQueueTimeoutMs: 3000,
   // Each Project's line and the runner's line hold up to this many. A page opens with a handful of calls,
@@ -125,11 +104,7 @@ const refusal = (code: FailureCode): Readonly<{ status: number; body: unknown }>
   return Object.freeze({ status: problem.status, body: problem })
 }
 
-function missingFile(): Failure {
-  return new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'APPLICATION_SERVER_FILE_MISSING' } })
-}
-
-export const createApplicationInvoker = (dependencies: ApplicationFileReads & Readonly<{
+export const createApplicationInvoker = (dependencies: Readonly<{
   invoke: ApplicationRunnerInvoke
   openConnectorPort?: ConnectorPortOpener
   limits?: ApplicationAdmissionLimits
@@ -137,19 +112,6 @@ export const createApplicationInvoker = (dependencies: ApplicationFileReads & Re
   const limits = dependencies.limits ?? DEFAULT_ADMISSION_LIMITS
   const runner = createGate(limits.globalConcurrency, limits.admissionQueueLimit)
   const projects = new Map<string, Gate>()
-
-  const readFile = async (source: ArtifactSource, path: ApplicationFilePath): Promise<ReadServerFile> => {
-    if (source.via === 'PREVIEW') {
-      const { projectId, sourceRevision, artifactRevisionId } = source
-      const file = await dependencies.readPreviewFile(source.accountId, { projectId, sourceRevision, artifactRevisionId, path })
-      if (!file) throw missingFile()
-      return file
-    }
-    const read = await dependencies.readPinnedServedFile(source.accountId, source.projectId, source.artifactRevisionId, path)
-    if (read.ok) return read.file
-    if (read.reason === 'NOT_FOUND') throw missingFile()
-    throw new Failure('APPLICATION_NOT_READY')
-  }
 
   return async (input) => {
     const { projectId } = input.source
@@ -168,22 +130,10 @@ export const createApplicationInvoker = (dependencies: ApplicationFileReads & Re
       return refusal('APPLICATION_RUNNER_BUSY')
     }
     try {
-      // Sequential, not Promise.all: an oversized tree is refused as soon as the running total crosses
-      // the limit, so memory per request is bounded by the limit plus at most one file, not the whole
-      // tree.
-      let totalBytes = 0
-      const reads: { path: string; sha256: string; bytes: Uint8Array }[] = []
-      for (const path of input.serverFiles) {
-        const file = await readFile(input.source, path)
-        totalBytes += file.bytes.byteLength
-        if (totalBytes > limits.maxServerTreeBytes) return refusal('SERVER_TREE_TOO_LARGE')
-        reads.push({ path, sha256: file.sha256, bytes: file.bytes })
-      }
-      const files = reads.map((file) => ({ path: file.path, sha256: file.sha256, content: Buffer.from(file.bytes).toString('base64') }))
       const port = dependencies.openConnectorPort ? await dependencies.openConnectorPort(input.source) : null
       try {
         return await dependencies.invoke({
-          projectId, operation: input.operation, input: input.input, files, caller: input.caller, ...(port ? { connectorSocket: port.socketPath } : {}),
+          projectId, operation: input.operation, input: input.input, files: input.files, caller: input.caller, ...(port ? { connectorSocket: port.socketPath } : {}),
         })
       } catch (error) {
         throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: error, details: { project: projectId, operation: input.operation } })

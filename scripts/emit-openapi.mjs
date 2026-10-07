@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -7,28 +6,7 @@ import { FAILURE_STATUS, OPERATIONS, Problem } from '@conexus/contract'
 
 const root = resolve(import.meta.dirname, '..')
 const target = resolve(root, 'contracts/api/product/openapi.json')
-const cli = resolve(root, 'node_modules/@redocly/cli/bin/cli.js')
 const common = ['AUTHENTICATION_REQUIRED', 'REQUEST_AUTHENTICITY_DENIED', 'REQUEST_VALIDATION_FAILED', 'INTERNAL_UNEXPECTED']
-
-const bundleYaml = () => {
-  const directory = mkdtempSync(join(tmpdir(), 'conexus-oas-'))
-  try {
-    const output = join(directory, 'bundle.json')
-    const result = spawnSync(process.execPath, [cli, 'bundle', 'contracts/api/product/openapi.yaml', '--output', output, '--ext', 'json'], { cwd: root, encoding: 'utf8' })
-    if (result.status !== 0) throw new Error(`OPENAPI_YAML_BUNDLE_FAILED: ${result.stderr}${result.stdout}`)
-    return JSON.parse(readFileSync(output, 'utf8'))
-  } finally {
-    rmSync(directory, { recursive: true, force: true })
-  }
-}
-
-const noExtensions = (value) => {
-  if (Array.isArray(value)) return value.map(noExtensions)
-  if (value === null || typeof value !== 'object') return value
-  return Object.fromEntries(Object.entries(value)
-    .filter(([key]) => !key.startsWith('x-conexus-'))
-    .map(([key, entry]) => [key, noExtensions(entry)]))
-}
 
 const asComponent = (schema, components, io) => {
   const json = z.toJSONSchema(schema, { io })
@@ -53,25 +31,26 @@ const parameters = (part, location, components) => {
 }
 
 const emit = () => {
-  const bundled = bundleYaml()
-  const yamlIds = new Set()
-  const yamlOperationIds = new Set()
-  for (const path of Object.values(bundled.paths)) {
-    for (const entry of Object.values(path)) {
-      if (entry && typeof entry === 'object' && entry['x-conexus-4a-id']) {
-        const id = entry['x-conexus-4a-id']
-        if (yamlIds.has(id)) throw new Error(`OPENAPI_DUPLICATE_OPERATION: ${id}`)
-        yamlIds.add(id)
-        yamlOperationIds.add(entry.operationId)
-      }
-    }
+  const components = {}
+  const document = {
+    openapi: '3.1.2',
+    jsonSchemaDialect: 'https://spec.openapis.org/oas/3.1/dialect/2024-11-10',
+    info: { title: 'Conexus Product API', version: '1.0.0', description: 'The Product HTTP API, emitted from the operations of @conexus/contract.' },
+    servers: [{ url: '/', description: 'Relative Product API root.' }],
+    security: [{ ConexusSession: [] }],
+    paths: {},
+    components: {
+      securitySchemes: {
+        ConexusSession: {
+          type: 'apiKey', in: 'cookie', name: '__Host-conexus_session',
+          description: 'Opaque server-owned Conexus session. The cookie is Secure, HttpOnly, SameSite=Lax, Path=/, with no Domain attribute.',
+        },
+      },
+      schemas: components,
+    },
   }
-  const document = noExtensions(bundled)
-  const components = document.components.schemas
-  delete components.Problem
   asComponent(Problem, components, 'output')
   for (const op of Object.values(OPERATIONS)) {
-    if (yamlOperationIds.has(op.id)) throw new Error(`OPENAPI_DUPLICATE_OPERATION: ${op.id}`)
     const path = op.path.replace(/:(\w+)/g, '{$1}')
     const method = op.method.toLowerCase()
     document.paths[path] ??= {}
@@ -87,7 +66,7 @@ const emit = () => {
         if (binary && body.cache === 'revalidate-private') responses[status].headers = { ETag: { schema: { type: 'string' } }, 'Cache-Control': { schema: { type: 'string', enum: ['private, no-cache'] } } }
       }
     }
-    const failureCodes = [...new Set([...common, ...op.failures, ...Object.values(op.malformed ?? {}), ...(op.headers?.shape?.['idempotency-key'] ? ['IDEMPOTENCY_KEY_REQUIRED'] : [])])]
+    const failureCodes = [...new Set([...common, ...op.failures, ...Object.values(op.malformed ?? {}), ...(op.headers?.shape?.['idempotency-key'] ? ['IDEMPOTENCY_KEY_REQUIRED', 'IDEMPOTENCY_CONFLICT'] : [])])]
     for (const code of failureCodes) {
       const status = FAILURE_STATUS[code]
       if (status === undefined) throw new Error(`OPENAPI_UNKNOWN_FAILURE: ${code}`)

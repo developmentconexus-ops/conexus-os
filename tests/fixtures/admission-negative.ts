@@ -1,13 +1,20 @@
 import { z } from 'zod'
 import type { AccountId, ArtifactDigest, ProjectId, SourceRevision, WorkspaceId } from '@conexus/contract'
-import { admitAccount, admitApplication, checkApplication, admitProject, admitSystem, admitWorkspace, grantCreatorMembership } from '../../apps/hub/src/identity-access/admission.js'
-import type { Admitted, AccountScope, RunScope, ApplicationScope, Checked, ProjectScope, SystemScope, WorkspaceScope } from '../../apps/hub/src/identity-access/admission.js'
+import { admitAccount, admitApplication, admitBootstrap, checkApplication, checkProject, admitProject, admitSystem, admitWorkspace, configuredIdentity, grantCreatorMembership, receiptOf } from '../../apps/hub/src/identity-access/admission.js'
+import type { Admitted, AccountScope, RunScope, ApplicationScope, Checked, ProjectScope, ProviderIdentity, SystemScope, WorkspaceScope } from '../../apps/hub/src/identity-access/admission.js'
+import { idempotent, type Receipted } from '../../apps/hub/src/platform/receipt.js'
+import { createWorkspace, type IdempotencyKey, WorkspaceId as WorkspaceIdSchema } from '@conexus/contract'
 import type { AuthenticationGate, CommandGate, ReadTx, RawToken, WriteTx } from '../../apps/hub/src/platform/db.js'
 import type { Lawful } from '../../apps/hub/src/builder/model-account/providers.js'
 import type { ModelRoute, ModelRoutes } from '../../apps/hub/src/builder/model-routing.js'
 import { digest, sql } from '../../apps/hub/src/platform/db.js'
 import { SealedApplication } from '../../apps/hub/src/platform/sealed-application.js'
 import type { RegistryModule } from '../../apps/hub/src/registry/module.js'
+import { purgeProject } from '../../apps/hub/src/identity-access/application-access.js'
+import { provisionIdentity } from '../../apps/hub/src/identity-access/authentication.js'
+import { joinClaimed } from '../../apps/hub/src/identity-access/roster.js'
+import { grantClaimed } from '../../apps/hub/src/identity-access/application-access.js'
+import type { SignInClaims } from '../../apps/hub/src/identity-access/oidc.js'
 
 declare const account: AccountId
 declare const workspace: WorkspaceId
@@ -96,6 +103,26 @@ grantCreatorMembership(account, workspace)
 // @ts-expect-error Undefined is not a proof.
 grantCreatorMembership(undefined, workspace)
 
+declare const identity: ProviderIdentity
+declare const key: IdempotencyKey
+declare const receipt: Receipted
+const input = { params: undefined, query: undefined, body: { name: 'W' } }
+const reply = async () => ({ workspaceId: workspace, name: 'W', creatorAccountId: account, initialAccessEstablished: true as const })
+// @ts-expect-error A served read proof is not a receipt: a read cannot be keyed.
+void idempotent(checked, createWorkspace, key, input, WorkspaceIdSchema, reply)
+// @ts-expect-error A receipt is branded: an object literal with its fields is not one.
+void idempotent({ tx: writeTx, authority: { kind: 'account', accountId: account } }, createWorkspace, key, input, WorkspaceIdSchema, reply)
+// @ts-expect-error An admitted proof is not a receipt until receiptOf derives its authority.
+void idempotent(owner, createWorkspace, key, input, WorkspaceIdSchema, reply)
+// @ts-expect-error A read proof has no receipt: its transaction cannot write.
+receiptOf(reader)
+// @ts-expect-error The founding admission takes the configured identity, never a plain provider pair.
+void admitBootstrap(authentication, identity)
+// @ts-expect-error The founding admission takes an authentication gate, never a command gate.
+void admitBootstrap(gate, configuredIdentity(identity))
+// @ts-expect-error The Preview check takes a gate, not a read transaction.
+void checkProject(readTx, project)
+
 // @ts-expect-error A raw token is never a query value; only its digest is.
 sql`SELECT ${presented}`
 
@@ -104,10 +131,24 @@ const positiveDigest = sql`SELECT ${digest(presented)}, ${'plain'}`
 const positiveOwner: Admitted<WorkspaceScope<'members.manage'>> = owner
 const positiveRead: Admitted<WorkspaceScope<'workspace.read'>, 'read'> = reader
 const positiveChecked: Promise<Checked<ApplicationScope>> = checkApplication(gate, project)
+const positiveAuthenticatedCheck: Promise<Checked<ApplicationScope>> = checkApplication(authentication, project)
+const positiveAuthenticatedAdmission: Promise<Admitted<ApplicationScope>> = admitApplication(authentication, project)
+const positivePreviewCheck: Promise<Checked<ProjectScope<'project.read'>>> = checkProject(authentication, project)
+const positiveReceipt: Receipted = receiptOf(owner)
+const positiveKeyed = idempotent(receipt, createWorkspace, key, input, WorkspaceIdSchema, reply)
+const positiveBootstrap = admitBootstrap(authentication, configuredIdentity(identity))
 const positiveCheckedRead: Promise<readonly unknown[]> = checked.tx.rows(z.unknown(), sql`SELECT 1`)
 const positivePurge: Admitted<SystemScope<'project-purge'>> = purge
 const positiveSystem: Promise<Admitted<SystemScope<'project-purge'>>> = admitSystem(gate, 'project-purge')
 const positiveGrant: Promise<void> = grantCreatorMembership(await admitAccount(gate), workspace)
+
+declare const accountProof: Admitted<AccountScope>
+declare const claims: SignInClaims
+// @ts-expect-error The identity purge takes the purge job's proof, never an account's.
+const purgedByAccount: Promise<void> = purgeProject(accountProof, project)
+const positiveIdentityPurge: Promise<void> = purgeProject(purge, project)
+// @ts-expect-error An identity is provisioned only on a basis: the founding proof or a claim.
+const provisionedBare = provisionIdentity(authentication, claims)
 
 declare const anthropicRoute: ModelRoute<'anthropic'>
 declare const googleRoute: ModelRoute<'google-ai-pro'>
@@ -116,4 +157,8 @@ const unlawful: Lawful = { provider: 'openai-codex', kind: 'api_key' }
 // @ts-expect-error A ModelRoutes missing the router prefix openai does not compile.
 const missingPrefix: ModelRoutes = { anthropic: anthropicRoute, 'google-ai-pro': googleRoute }
 
-void [unlawful, missingPrefix, literalGate, spreadGate, positiveAuthentication, positiveDigest, positiveOwner, positiveRead, positiveGrant, positivePurge, positiveSystem, positiveChecked, positiveCheckedRead, checkedAsAdmitted, admittedAsChecked, copiedChecked, writeMode, wrongJob, forged, copied, wrongScope, wrongAction, wrongProject, wrongMode]
+void [purgedByAccount, positiveIdentityPurge, provisionedBare, positiveAuthenticatedCheck, positiveAuthenticatedAdmission, positivePreviewCheck, positiveReceipt, positiveKeyed, positiveBootstrap, unlawful, missingPrefix, literalGate, spreadGate, positiveAuthentication, positiveDigest, positiveOwner, positiveRead, positiveGrant, positivePurge, positiveSystem, positiveChecked, positiveCheckedRead, checkedAsAdmitted, admittedAsChecked, copiedChecked, writeMode, wrongJob, forged, copied, wrongScope, wrongAction, wrongProject, wrongMode]
+// @ts-expect-error A claim is made only by claimInvitations: a literal cannot make an account an owner.
+joinClaimed(accountProof, { workspaces: [{ workspace_id: workspace, role: 'owner', invited_by: account }], applications: [] })
+// @ts-expect-error A claim is made only by claimInvitations: a literal cannot grant an application.
+grantClaimed(accountProof, { workspaces: [], applications: [{ project_id: project, invited_by: account, created_at: '' }] })

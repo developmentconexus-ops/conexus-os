@@ -10,10 +10,11 @@ import { testConversations } from '../builder-conversation-fixture.mjs'
 import { HUB_ORIGIN, opaque, testListener } from './test-listener.mjs'
 
 const module = (path) => import(hubModuleUrl(path))
-const { registerIdentityAccessRoutes } = await module('identity-access/routes.js')
-const { registerMembershipRoutes } = await module('identity-access/membership.js')
-const { registerApplicationAccessRoutes } = await module('identity-access/application-access.js')
-const { registerInstallationRoutes } = await module('identity-access/installation-routes.js')
+const { registerRosterRoutes } = await module('identity-access/roster.js')
+const { createApplicationAccess } = await module('identity-access/application-access.js')
+const { registerAdministratorRoutes } = await module('identity-access/administrators.js')
+const { createSessions } = await module('identity-access/sessions.js')
+const { createSignIn } = await module('identity-access/sign-in.js')
 const { registerWorkspaceRoutes } = await module('workspace/routes.js')
 const { registerProjectRoutes } = await module('project/routes.js')
 const { registerBuilderRoutes } = await module('builder/routes.js')
@@ -24,7 +25,6 @@ const { createBuilderController } = await module('builder/harness/controller.js'
 const { createHostingModule } = await module('hosting/module.js')
 
 const ACCOUNT = '22222222-2222-4222-8222-222222222222'
-const PROJECT = '33333333-3333-4333-8333-333333333333'
 const CONVERSATION = '77777777-7777-4777-8777-777777777777'
 const ARTIFACT = '0f8fad5b-d9cb-469f-a165-70867728950e'
 export const PREVIEW_PORT = 8444
@@ -35,7 +35,6 @@ export const PREVIEW_ORIGIN = `https://${PREVIEW_HOST}`
 export const APPLICATION_HOST = `${APPLICATION_SLUG}.conexus.localhost:${APPLICATION_PORT}`
 export const APPLICATION_ORIGIN = `https://${APPLICATION_HOST}`
 export const SESSION_TOKEN = opaque('walk session')
-export const BOOTSTRAP_TOKEN = opaque('walk bootstrap')
 export const ENTRY_GRANT = opaque('walk entry grant')
 const SESSION = Object.freeze({ account: { accountId: ACCOUNT, displayName: 'Walker' }, issuer: 'https://issuer.test', subject: 'walker' })
 
@@ -105,17 +104,21 @@ export const walkListeners = async () => {
     previewCspSource: `https://*.conexus.localhost:${PREVIEW_PORT}`,
     registerRoutes: async (server) => {
       record('hub', server)
-      await registerIdentityAccessRoutes(server, {
-        store: spy('identityStore', calls, { createOidcTransaction: async () => undefined }),
-        workspaceReader: spy('workspaceReader', calls),
-        oidc: { begin: async () => { calls.push('oidc.begin'); return { state: 'walk', nonce: 'walk', pkceVerifier: 'walk', location: 'https://issuer.test/auth' } } },
-        config: { origin: HUB_ORIGIN, bootstrapIssuer: 'https://issuer.test', bootstrapSubject: 'walker' },
-        hubSessions: spy('hubSessions', calls),
-        applications: { sessions: spy('applicationSessions', calls), origin: (slug) => `https://${slug}.conexus.localhost:${APPLICATION_PORT}` },
+      const database = spy('database', calls, { authenticate: async () => true })
+      const sessions = createSessions({ database, envelope: spy('envelope', calls), provider: spy('provider', calls) })
+      const signIn = createSignIn({
+        database,
+        oidc: { begin: async () => { calls.push('oidc.begin'); return { state: opaque('walk state'), nonce: 'walk', pkceVerifier: 'walk', location: 'https://issuer.test/auth' } } },
+        sessions,
+        configured: { issuer: 'https://issuer.test', subject: 'walker' },
+        origin: HUB_ORIGIN,
+        applicationOrigin: (slug) => `https://${slug}.conexus.localhost:${APPLICATION_PORT}`,
       })
-      await registerMembershipRoutes(server, { store: spy('membership', calls) })
-      await registerApplicationAccessRoutes(server, { store: spy('applicationAccess', calls), config: { applicationAddress: () => null } })
-      await registerInstallationRoutes(server, { installationAdministration: spy('installationAdministration', calls) })
+      await sessions.registerRoutes(server, spy('workspaceReader', calls))
+      await signIn.registerRoutes(server)
+      await registerRosterRoutes(server, database)
+      await createApplicationAccess({ database, addressOf: () => null }).registerRoutes(server)
+      await registerAdministratorRoutes(server, database)
       await registerWorkspaceRoutes(server, { store: spy('workspace', calls) })
       await registerProjectRoutes(server, { store: spy('project', calls), thumbnailReader: spy('thumbnails', calls) })
       await registerBuilderRoutes(server, { store: spy('builderStore', calls), service: spy('builderService', calls), session: spy('builderSession', calls), launchPreview: async () => { calls.push('launchPreview'); throw new Error('stub launchPreview') } })
@@ -137,16 +140,15 @@ export const walkListeners = async () => {
   const hosting = createHostingModule({
     sessions: {
       redeem: async ({ handoff }) => { calls.push('previewSessions.redeem'); return handoff === ENTRY_GRANT ? { sessionToken: opaque('walk preview'), maxAgeSeconds: 900 } : null },
-      previewAuthority: async () => { calls.push('previewSessions.previewAuthority'); return { kind: 'SIGN_IN_REQUIRED' } },
+      withPreviewRequest: async () => { calls.push('previewSessions.withPreviewRequest'); return { kind: 'SIGN_IN_REQUIRED' } },
     },
-    registry: spy('registry', calls, { readPreviewFile: async () => null }),
+    registry: spy('registry', calls),
     applicationRunner: { invoke: spy('runner', calls).invoke },
     exactHubOrigin: HUB_ORIGIN,
     previewPort: PREVIEW_PORT,
     applicationHost: {
       sessions: {
-        applicationBySlug: async (slug) => { calls.push('applicationHost.applicationBySlug'); return slug === APPLICATION_SLUG ? PROJECT : null },
-        applicationAuthority: async () => { calls.push('applicationHost.applicationAuthority'); return { kind: 'SIGN_IN_REQUIRED' } },
+        withApplicationRequest: async () => { calls.push('applicationHost.withApplicationRequest'); return { kind: 'SIGN_IN_REQUIRED' } },
         redeem: async () => { calls.push('applicationHost.redeem'); return null },
         signOut: async () => { calls.push('applicationHost.signOut') },
       },
