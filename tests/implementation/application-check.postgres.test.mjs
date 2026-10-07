@@ -8,7 +8,7 @@ import { query } from './hub-database.mjs'
 import { ID, setupProjects } from './project-fixture.mjs'
 
 const { sql } = await import(hubModuleUrl('platform/db.js'))
-const { admitApplication, checkApplication } = await import(hubModuleUrl('identity-access/admission.js'))
+const { admitApplication, admitProject, checkApplication } = await import(hubModuleUrl('identity-access/admission.js'))
 
 const refused = { id: 'APPLICATION_NOT_FOUND' }
 const check = (database, accountId, projectId) => database.transaction(accountId, (gate) => checkApplication(gate, projectId))
@@ -98,7 +98,7 @@ test('a checked transaction and a read entry refuse a write and a row lock befor
   ]
   for (const statement of statements) {
     await assert.rejects(database.transaction(ID.member, async (gate) => (await checkApplication(gate, projectId)).tx.rows(Slug, statement)), refusedText, statement.text)
-    await assert.rejects(database.read(ID.member, (tx) => tx.rows(Slug, statement)), refusedText, statement.text)
+    await assert.rejects(database.read(ID.member, async (gate) => (await admitProject(gate, { projectId, action: 'project.read' })).tx.rows(Slug, statement)), refusedText, statement.text)
   }
   assert.deepEqual(await slugs(), [slugBefore])
   const read = await database.transaction(ID.member, async (gate) => (await checkApplication(gate, projectId)).tx.rows(Slug, sql`SELECT slug FROM iam.application WHERE project_id = ${projectId}`))

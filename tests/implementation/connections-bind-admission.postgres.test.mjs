@@ -8,7 +8,7 @@ const { admitProject } = await import(hubModuleUrl('identity-access/admission.js
 test('connections.bind is an owner only action, as a read and as a command, refused with the codes the Connector routes map', async (t) => {
   const { database, seedProject } = await setupProjects(t, 'conexus_connections_bind')
   const projectId = await seedProject('Atlas')
-  const asRead = (accountId) => database.read(accountId, (tx) => admitProject(tx, projectId, 'connections.bind'))
+  const asRead = (accountId) => database.read(accountId, (gate) => admitProject(gate, { projectId, action: 'connections.bind' }))
   const asCommand = (accountId) => database.transaction(accountId, (gate) => admitProject(gate, { projectId: projectId, action: 'connections.bind' }))
 
   assert.equal((await asRead(ID.owner)).scope.workspaceId, ID.workspace)

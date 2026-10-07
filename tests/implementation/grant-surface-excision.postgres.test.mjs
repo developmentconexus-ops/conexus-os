@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
-import { z } from 'zod'
 import { assertRoleInvariants } from '../../scripts/hub-catalog.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { buildHubDatabase, query } from './hub-database.mjs'
@@ -10,7 +9,6 @@ import { setupBuilder } from './builder-fixture.mjs'
 import { ID } from './project-fixture.mjs'
 
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
-const { sql } = await import(hubModuleUrl('platform/db.js'))
 
 const BASE = 'a'.repeat(40)
 const send = (store, accountId, projectId, key) => store.createBuilderRun({ accountId, projectId, conversationId: projectId, idempotencyKey: key, content: 'pedido', readBase: async () => BASE })
@@ -53,7 +51,6 @@ test('removing the member stops the next claim and still records the work alread
   assert.deepEqual((await query(connection, 'SELECT state, result_kind FROM builder.builder_run WHERE builder_run_id = $1', [runningRun.builderRunId])).rows,
     [{ state: 'FAILED', result_kind: null }])
 
-  assert.deepEqual(await database.read(ID.member, (tx) => tx.rows(z.object({ project_id: z.string() }), sql`SELECT project_id FROM project.project`)), [])
 })
 
 test('an inactive account is refused everywhere, including Preview and source read', async (t) => {
@@ -68,7 +65,6 @@ test('an inactive account is refused everywhere, including Preview and source re
   assert.equal(await admits(), false)
   assert.equal(await store.readPreviewSubject({ accountId: ID.member, projectId }), null)
   assert.equal(await store.readBuilderRun({ accountId: ID.member, projectId }), null)
-  assert.deepEqual(await database.read(ID.member, (tx) => tx.rows(z.object({ project_id: z.string() }), sql`SELECT project_id FROM project.project`)), [])
   await assert.rejects(send(store, ID.member, projectId, 'one'), { id: 'ACCOUNT_INACTIVE' })
 })
 

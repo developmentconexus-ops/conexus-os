@@ -16,7 +16,7 @@ const readSource = () => {
   const digest = createHash('sha256').update(text).digest('hex')
   const parsed = JSON.parse(text)
   if (!Array.isArray(parsed.roles) || parsed.roles.length === 0) fail('ROLE_REGISTER_EMPTY', sourcePath)
-  return { digest, roles: parsed.roles, policyRoles: parsed.policyRoles ?? [], transactionRoles: parsed.transactionRoles ?? [] }
+  return { digest, roles: parsed.roles }
 }
 
 const refuseDuplicates = (roles) => {
@@ -38,15 +38,8 @@ const refuseIncompleteRow = (roles) => {
     if (!row.role?.startsWith('hub_')) fail('ROLE_REGISTER_ROLE_NAME_REFUSED', String(row.role))
     if (!row.capability) fail('ROLE_REGISTER_CAPABILITY_MISSING', row.role)
     if (!row.passwordFileVariable?.startsWith('CONEXUS_DB_')) fail('ROLE_REGISTER_PASSWORD_FILE_REFUSED', row.role)
-    if (!Array.isArray(row.connectsFrom) || (!row.legacy && row.connectsFrom.length === 0)) fail('ROLE_REGISTER_CONNECTS_FROM_MISSING', row.role)
+    if (!Array.isArray(row.connectsFrom) || row.connectsFrom.length === 0) fail('ROLE_REGISTER_CONNECTS_FROM_MISSING', row.role)
     if (row.optional !== undefined && row.optional !== true) fail('ROLE_REGISTER_OPTIONAL_REFUSED', row.role)
-    if (row.legacy !== undefined && row.legacy !== true) fail('ROLE_REGISTER_LEGACY_REFUSED', row.role)
-  }
-}
-
-const refuseTransactionRoles = (transactionRoles) => {
-  for (const row of transactionRoles) {
-    if (!row.role?.startsWith('hub_') || !row.purpose) fail('ROLE_REGISTER_TRANSACTION_ROLE_REFUSED', String(row.role))
   }
 }
 
@@ -62,11 +55,10 @@ const renderRow = (row) => {
   return `  Object.freeze({ ${members.join(', ')} }),`
 }
 
-export const renderRegister = ({ digest, roles, policyRoles = [], transactionRoles = [] }) => {
+export const renderRegister = ({ digest, roles }) => {
   refuseIncompleteRow(roles)
-  refuseTransactionRoles(transactionRoles)
   refuseDuplicates(roles)
-  const activeRoles = roles.filter((row) => !row.legacy)
+  const activeRoles = roles
   const capabilities = activeRoles.map((row) => `  ${row.role}: ${JSON.stringify(row.capability)},`).join('\n')
   return [
     `// GENERATED from ${sourcePath} by scripts/generate-hub-role-register.mjs. Do not edit.`,
@@ -90,10 +82,6 @@ export const renderRegister = ({ digest, roles, policyRoles = [], transactionRol
     'export const CAPABILITY_BY_ROLE: Readonly<Record<string, string>> = Object.freeze({',
     capabilities,
     '})',
-    '',
-    `export const POLICY_ROLES = ${JSON.stringify(policyRoles)} as const`,
-    '',
-    `export const TRANSACTION_ROLES = ${JSON.stringify(transactionRoles.map((row) => row.role))} as const`,
     '',
   ].join('\n')
 }

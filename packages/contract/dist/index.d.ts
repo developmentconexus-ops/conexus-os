@@ -680,7 +680,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["PROJECT_SUMMARIES_UNAVAILABLE"];
+        readonly failures: readonly [];
         readonly malformed: {
             readonly workspaceId: "WORKSPACE_NOT_FOUND";
         };
@@ -705,7 +705,7 @@ export declare const OPERATIONS: {
             };
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["PROJECT_THUMBNAIL_NOT_FOUND", "PROJECT_THUMBNAIL_UNAVAILABLE"];
+        readonly failures: readonly ["PROJECT_THUMBNAIL_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };
@@ -779,7 +779,7 @@ export declare const OPERATIONS: {
         readonly effects: readonly [];
         readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "CONNECTOR_CONNECTION_CONFLICT"];
         readonly malformed: {
-            readonly workspaceId: "CONNECTOR_WORKSPACE_NOT_FOUND";
+            readonly workspaceId: "WORKSPACE_NOT_FOUND";
             readonly label: "CONNECTOR_LABEL_REFUSED";
             readonly credential: "CONNECTOR_CREDENTIAL_REFUSED";
         };

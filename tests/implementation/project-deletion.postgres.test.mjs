@@ -8,7 +8,7 @@ import { HEAD, ID, setupProjects } from './project-fixture.mjs'
 import { waitUntilBlocked } from './race.mjs'
 import { seedRevision, seedRevisionThumbnail } from './registry-fixture.mjs'
 
-const { admitProject, isInstallationAdministrator } = await import(hubModuleUrl('identity-access/admission.js'))
+const { admitAccount, admitProject, readAdministratorFlag } = await import(hubModuleUrl('identity-access/admission.js'))
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
 const { purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
 const digest = (character) => character.repeat(64)
@@ -193,7 +193,7 @@ test('admitProject admits a member, refuses an outsider and a tombstoned project
   const projectId = await seedProject('Atlas')
   const admit = (accountId, action = 'project.build') => database.transaction(accountId, (gate) => admitProject(gate, { projectId, action }))
   assert.equal((await admit(ID.member)).scope.workspaceId, ID.workspace)
-  assert.equal((await database.read(ID.member, (tx) => admitProject(tx, projectId, 'project.read'))).scope.kind, 'project')
+  assert.equal((await database.read(ID.member, (gate) => admitProject(gate, { projectId, action: 'project.read' }))).scope.kind, 'project')
   await assert.rejects(admit(ID.outsider), { id: 'PROJECT_NOT_FOUND' })
   await assert.rejects(admit(ID.administrator), { id: 'PROJECT_NOT_FOUND' })
   await assert.rejects(database.system('project-purge', (gate) => admitProject(gate, { projectId, action: 'project.build' })), { id: 'INTERNAL_UNEXPECTED', details: { invariant: 'GATE_ACTOR_REFUSED' } })
@@ -276,12 +276,15 @@ test('a deletion and a run start serialize in both orders without a deadlock', {
   await assert.rejects(refused, { id: 'PROJECT_DELETING' })
 })
 
-test('isInstallationAdministrator is true for an active account with an open tenure and for nobody else', async (t) => {
+test('the admitted account proof reads whether it has an open administrator tenure', async (t) => {
   const { connection, database } = await setupProjects(t, 'conexus_is_administrator')
   const answers = async () => Object.fromEntries(await Promise.all([['administrator', ID.administrator], ['memberAdministrator', ID.memberAdministrator], ['member', ID.member], ['outsider', ID.outsider]]
-    .map(async ([name, accountId]) => [name, await database.read(accountId, (tx) => isInstallationAdministrator(tx))])))
+    .map(async ([name, accountId]) => [name, await database.read(accountId, async (gate) => readAdministratorFlag(await admitAccount(gate)))])))
   assert.deepEqual(await answers(), { administrator: true, memberAdministrator: true, member: false, outsider: false })
   await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.administrator])
   await query(connection, 'UPDATE iam.installation_administrator SET revoked_at = now(), revoked_by = $2 WHERE account_id = $1', [ID.memberAdministrator, ID.administrator])
-  assert.deepEqual(await answers(), { administrator: false, memberAdministrator: false, member: false, outsider: false })
+  await assert.rejects(database.read(ID.administrator, async (gate) => readAdministratorFlag(await admitAccount(gate))), { id: 'ACCOUNT_INACTIVE' })
+  const remaining = Object.fromEntries(await Promise.all([['memberAdministrator', ID.memberAdministrator], ['member', ID.member], ['outsider', ID.outsider]]
+    .map(async ([name, accountId]) => [name, await database.read(accountId, async (gate) => readAdministratorFlag(await admitAccount(gate)))])))
+  assert.deepEqual(remaining, { memberAdministrator: false, member: false, outsider: false })
 })

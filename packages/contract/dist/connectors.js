@@ -60,7 +60,7 @@ export const createWorkspaceConnection = operation({
     success: { 201: ConnectorConnection, 200: ConnectorConnection },
     effects: [],
     failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED', 'CONNECTOR_CONNECTION_CONFLICT'],
-    malformed: { workspaceId: 'CONNECTOR_WORKSPACE_NOT_FOUND', label: 'CONNECTOR_LABEL_REFUSED', credential: 'CONNECTOR_CREDENTIAL_REFUSED' },
+    malformed: { workspaceId: SUBJECT_NOT_FOUND.workspaceId, label: 'CONNECTOR_LABEL_REFUSED', credential: 'CONNECTOR_CREDENTIAL_REFUSED' },
 });
 export const checkWorkspaceConnection = operation({
     id: 'checkWorkspaceConnection', summary: 'Check a Connection by running the allow-listed authentication of its Connector; installation administrator only.', access: 'session', method: 'POST', path: '/api/control/workspaces/:workspaceId/connections/:connectionId/authentication-check',

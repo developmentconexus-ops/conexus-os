@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
+import { admitProject } from '../identity-access/admission.js'
 import { ConversationId, ProjectId, type AccountId, type BuilderRunId, type SourceRevision } from '@conexus/contract'
 import { admitSystem } from '../identity-access/admission.js'
 import { sql, type Database } from '../platform/db.js'
@@ -74,9 +75,12 @@ export const createConversationStore = ({ database, ownerId }: Readonly<{ databa
     })
   },
   readConversationSandbox: async ({ accountId, projectId, conversationId }) => {
-    return database.read(accountId, async (tx) => (await tx.maybe(SandboxRow, sql`
+    return database.read(accountId, async (gate) => {
+      const proof = await admitProject(gate, { projectId, action: 'project.read' })
+      return (await proof.tx.maybe(SandboxRow, sql`
       SELECT provider_sandbox_id FROM builder.conversation_session
-      WHERE conversation_id = ${conversationId} AND project_id = ${projectId}`))?.provider_sandbox_id ?? null)
+      WHERE conversation_id = ${conversationId} AND project_id = ${proof.scope.projectId}`))?.provider_sandbox_id ?? null
+    })
   },
   readProjectSandboxes: (projectId) => database.system('project-purge', async (gate) => {
     const { tx } = await admitSystem(gate, 'project-purge')

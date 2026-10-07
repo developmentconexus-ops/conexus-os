@@ -105,12 +105,12 @@ export const listProjectSummaries = operation({
   id: 'listProjectSummaries', summary: 'List the Projects of a Workspace with their latest Builder activity and whether a Preview exists.', access: 'session', method: 'GET', path: '/api/control/workspaces/:workspaceId/project-summaries',
   params: workspaceParam, query: null, headers: null, body: null,
   success: { 200: z.object({ projects: z.array(ProjectCard) }) },
-  effects: [], failures: ['PROJECT_SUMMARIES_UNAVAILABLE'], malformed: { workspaceId: SUBJECT_NOT_FOUND.workspaceId },
+  effects: [], failures: [], malformed: { workspaceId: SUBJECT_NOT_FOUND.workspaceId },
 })
 
 export const getProjectThumbnail = operation({
   id: 'getProjectThumbnail', summary: 'Read the captured thumbnail of a Project application, as an image.', access: 'session', method: 'GET', path: '/api/control/projects/:projectId/thumbnail',
   params: projectParam, query: null, headers: null, body: null,
   success: { 200: { mediaType: 'image/png', maxBytes: 512_000, cache: 'revalidate-private' } },
-  effects: [], failures: ['PROJECT_THUMBNAIL_NOT_FOUND', 'PROJECT_THUMBNAIL_UNAVAILABLE'], malformed: { projectId: SUBJECT_NOT_FOUND.projectId },
+  effects: [], failures: ['PROJECT_THUMBNAIL_NOT_FOUND'], malformed: { projectId: SUBJECT_NOT_FOUND.projectId },
 })

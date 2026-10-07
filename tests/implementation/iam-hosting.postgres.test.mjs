@@ -111,7 +111,7 @@ const estate = async (t, prefix, { invoke } = {}) => {
 const backendsBusy = async (hub) => (await hub.sql(
   "SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = $1 AND usename = 'hub_runtime' AND state <> 'idle'", [hub.connection.database]))[0].n
 
-test('one served request is one entry on one connection: BEGIN, one set_config, the lookup, the check, the read, COMMIT; no cookie sends nothing', async (t) => {
+test('one served request is one entry on one connection: BEGIN, the lookup, the check, the read, COMMIT; no cookie sends nothing', async (t) => {
   const { fetchFile, page, sessionOf } = await estate(t, 'conexus_iam_host_entry')
   const token = await sessionOf(CAIO)
   const log = statements(t)
@@ -119,7 +119,7 @@ test('one served request is one entry on one connection: BEGIN, one set_config, 
   assert.equal(served.statusCode, 200)
   assert.equal(served.body, '<html></html>')
   assert.equal(new Set(log.sent.map((entry) => entry.pid)).size, 1)
-  assert.deepEqual(log.sent.map((entry) => entry.text.trim().split(/\s+/).slice(0, 2).join(' ')), ['BEGIN', 'SELECT set_config($1,', 'SELECT person.account_id,', 'SELECT EXISTS', 'SELECT CASE', 'COMMIT'])
+  assert.deepEqual(log.sent.map((entry) => entry.text.trim().split(/\s+/).slice(0, 2).join(' ')), ['BEGIN', 'SELECT person.account_id,', 'SELECT EXISTS', 'SELECT CASE', 'COMMIT'])
   log.sent.length = 0
   const signIn = await page(null)
   assert.equal(signIn.statusCode, 303)

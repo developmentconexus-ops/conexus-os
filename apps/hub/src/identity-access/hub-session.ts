@@ -9,7 +9,7 @@ import { Failure } from '../platform/failure.js'
 import { HUB_ABSOLUTE_SECONDS, HUB_IDLE_SECONDS, PROVIDER_LOGOUT_TIMEOUT_MS } from '../platform/lifetimes.js'
 import { logLine } from '../platform/logger.js'
 import { mintToken } from '../platform/opaque-token.js'
-import { isInstallationAdministrator } from './admission.js'
+import { admitAccount, readAdministratorFlag } from './admission.js'
 import type { AccountScope, Admitted } from './admission.js'
 import { endCredential, endExpiredHubSession, hubEntry, readHubSession, slideHubSession } from './authentication.js'
 import type { HubSessionRow } from './authentication.js'
@@ -70,7 +70,9 @@ export const createHubSessions = ({ database, envelope, provider }: SessionDepen
     route.operation(getSession, async (_input, session): Promise<Session> => {
       const { accountId } = session.account
       const workspaces = await workspaceReader.listAccessibleWorkspaces(accountId)
-      const administrator = await database.read(accountId, isInstallationAdministrator)
+      const administrator = await database.read(accountId, async (gate) => {
+        return readAdministratorFlag(await admitAccount(gate))
+      })
       return { account: session.account, administrator, workspaces: workspaces.map(({ workspaceId, name }) => ({ workspaceId, name })) }
     })
     route.operation(endSession, async (_input, { digest: key }, effects) => {

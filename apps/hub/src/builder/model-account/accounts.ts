@@ -93,12 +93,13 @@ export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ 
   }
 
   return Object.freeze({
-    standing: (accountId) => database.read(accountId, async (tx) => {
+    standing: (accountId) => database.read(accountId, async (gate) => {
+      const { tx, scope } = await admitAccount(gate)
       const rows = await tx.rows(StandingRow, sql`
         SELECT provider, kind, owner_account_id, sharing FROM model.model_account
-        WHERE owner_account_id = ${accountId} OR sharing = 'everyone'`)
+        WHERE owner_account_id = ${scope.accountId} OR sharing = 'everyone'`)
       const of = (provider: ModelAccountProvider): ModelStanding[ModelAccountProvider] => {
-        const own = rows.find((row) => row.provider === provider && row.owner_account_id === accountId)
+        const own = rows.find((row) => row.provider === provider && row.owner_account_id === scope.accountId)
         return { own: own ? { state: 'connected', kind: own.kind } : { state: 'absent' }, shared: rows.some((row) => row.provider === provider && row.sharing === 'everyone') }
       }
       return { anthropic: of('anthropic'), 'openai-codex': of('openai-codex'), 'google-ai-pro': of('google-ai-pro') }
@@ -111,8 +112,10 @@ export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ 
         throw error
       },
     ),
-    readDefault: (accountId, role) => database.read(accountId, async (tx) =>
-      (await tx.maybe(DefaultRow, sql`SELECT model_id FROM model.installation_default WHERE role = ${role}`))?.model_id ?? null),
+    readDefault: (accountId, role) => database.read(accountId, async (gate) => {
+      const { tx } = await admitAccount(gate)
+      return (await tx.maybe(DefaultRow, sql`SELECT model_id FROM model.installation_default WHERE role = ${role}`))?.model_id ?? null
+    }),
     usable: async (accountId, provider) => {
       const row = await readUsable(accountId, provider)
       if (!row) return false

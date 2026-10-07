@@ -13,265 +13,1990 @@
     "ASK_INVITE": "Peça um convite a quem cuida do seu Workspace, com este mesmo e-mail."
   },
   "failures": [
-    { "code": "INTERNAL_UNEXPECTED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus falhou de um jeito que não esperávamos. A falha foi registrada.", "action": "NONE" },
-    { "code": "NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos o que você procurou.", "action": "NONE" },
-    { "code": "REQUEST_VALIDATION_FAILED", "category": "USER", "status": 400, "audience": "person", "message": "Alguns dados do pedido não são válidos.", "action": "NONE" },
-    { "code": "REQUEST_JSON_INVALID", "category": "USER", "status": 400, "audience": "person", "message": "O pedido chegou ao Conexus ilegível.", "action": "NONE" },
-    { "code": "REQUEST_BODY_TOO_LARGE", "category": "USER", "status": 413, "audience": "person", "message": "O pedido é maior do que o Conexus aceita.", "action": "NONE" },
-    { "code": "REQUEST_MEDIA_TYPE_UNSUPPORTED", "category": "USER", "status": 415, "audience": "person", "message": "O Conexus não aceita esse formato de pedido.", "action": "NONE" },
-    { "code": "AUTHENTICATION_REQUIRED", "category": "USER", "status": 401, "audience": "person", "message": "Você precisa entrar para continuar.", "action": "SIGN_IN" },
-    { "code": "REQUEST_AUTHENTICITY_DENIED", "category": "USER", "status": 403, "audience": "person", "message": "O Conexus não conseguiu confirmar que o pedido veio de você. Recarregue a página.", "action": "NONE" },
-    { "code": "IDEMPOTENCY_KEY_REQUIRED", "category": "SYSTEM", "status": 400, "audience": "person", "message": "O pedido saiu sem o identificador que o Conexus exige. A falha foi registrada.", "action": "NONE" },
-    { "code": "IDEMPOTENCY_CONFLICT", "category": "USER", "status": 409, "audience": "person", "message": "Já existe um pedido igual a este, com dados diferentes.", "action": "NONE" },
-    { "code": "OUTCOME_UNKNOWN", "category": "SYSTEM", "status": 409, "audience": "person", "message": "O Conexus não conseguiu confirmar se o pedido anterior terminou. A falha foi registrada.", "action": "NONE" },
-    { "code": "DATABASE_BUSY", "category": "SYSTEM", "status": 503, "audience": "person", "message": "O Conexus está ocupado e não terminou o pedido. A falha foi registrada.", "action": "NONE" },
-    { "code": "IDENTITY_PROVIDER_UNAVAILABLE", "category": "THIRD_PARTY", "status": 503, "audience": "person+app", "message": "O serviço de login não respondeu agora. Sua sessão continua aberta.", "action": "RETRY_LATER" },
-    { "code": "SIGN_IN_EXPIRED", "category": "USER", "status": 401, "audience": "person", "message": "O login demorou demais ou foi aberto em outra aba.", "action": "SIGN_IN_AGAIN" },
-    { "code": "SIGN_IN_FAILED", "category": "THIRD_PARTY", "status": 502, "audience": "person", "message": "O serviço de login não concluiu a entrada.", "action": "SIGN_IN_AGAIN" },
-    { "code": "IDENTITY_EMAIL_NOT_VERIFIED", "category": "USER", "status": 403, "audience": "person", "message": "O seu provedor de login informou que o e-mail desta conta ainda não foi verificado.", "action": "CONFIRM_EMAIL" },
-    { "code": "IDENTITY_NOT_ELIGIBLE", "category": "USER", "status": 403, "audience": "person", "message": "Você entrou, mas ninguém convidou este e-mail para o Conexus.", "action": "ASK_INVITE" },
-    { "code": "ACCOUNT_INACTIVE", "category": "USER", "status": 403, "audience": "person", "message": "Esta conta foi desativada no Conexus.", "action": "ASK_ADMIN" },
-    { "code": "WORKSPACE_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos esse Workspace.", "action": "NONE" },
-    { "code": "PROJECT_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos esse Projeto.", "action": "NONE" },
-    { "code": "PROJECT_SOURCE_REFUSED", "category": "USER", "status": 422, "audience": "person", "message": "O Conexus não aceitou o código inicial deste Projeto.", "action": "NONE" },
-    { "code": "PROJECT_REPOSITORY_UNAVAILABLE", "category": "SYSTEM", "status": 503, "audience": "person", "message": "O Conexus não conseguiu usar o repositório do Projeto. A falha foi registrada.", "action": "NONE" },
-    { "code": "PROJECT_DELETE_DENIED", "category": "USER", "status": 403, "audience": "person", "message": "Só uma pessoa proprietária do Workspace pode excluir este Projeto.", "action": "ASK_CHANGE" },
-    { "code": "PROJECT_DELETING", "category": "USER", "status": 409, "audience": "person", "message": "Este Projeto está sendo excluído.", "action": "NONE" },
-    { "code": "PROJECT_NAME_MISMATCH", "category": "USER", "status": 409, "audience": "person", "message": "O nome digitado não é o nome do Projeto. Digite exatamente como aparece.", "action": "NONE" },
-    { "code": "PROJECT_BUSY", "category": "USER", "status": 409, "audience": "person", "message": "O Projeto está processando um pedido agora. Espere terminar.", "action": "NONE" },
-    { "code": "PROJECT_DELETION_INCOMPLETE", "category": "SYSTEM", "status": 503, "audience": "person", "message": "A exclusão do Projeto não terminou. O que já foi apagado não volta atrás. A falha foi registrada.", "action": "NONE" },
-    { "code": "PROJECT_SUMMARIES_UNAVAILABLE", "category": "SYSTEM", "status": 503, "audience": "person", "message": "O Conexus não conseguiu listar os Projetos. A falha foi registrada.", "action": "NONE" },
-    { "code": "PROJECT_THUMBNAIL_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Este Projeto ainda não tem miniatura.", "action": "NONE" },
-    { "code": "PROJECT_THUMBNAIL_UNAVAILABLE", "category": "SYSTEM", "status": 503, "audience": "person", "message": "O Conexus não conseguiu carregar a miniatura do Projeto. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_SESSION_UNAVAILABLE", "category": "SYSTEM", "status": 503, "audience": "person", "message": "O Conexus não conseguiu abrir a sessão do Builder. A falha foi registrada.", "action": "NONE" },
-    { "code": "PROJECT_BUILD_DENIED", "category": "USER", "status": 403, "audience": "person", "message": "Você não tem permissão para construir neste Projeto.", "action": "ASK_ADMIN" },
-    { "code": "CONVERSATION_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos essa conversa.", "action": "NONE" },
-    { "code": "BUILDER_CAPACITY_FULL", "category": "USER", "status": 503, "audience": "person", "message": "O Conexus está com muitas execuções abertas agora.", "action": "RETRY_LATER" },
-    { "code": "BUILDER_MESSAGE_REFUSED", "category": "USER", "status": 422, "audience": "person", "message": "O Conexus não aceitou essa mensagem.", "action": "NONE" },
-    { "code": "BUILDER_UNAVAILABLE", "category": "SYSTEM", "status": 503, "audience": "person", "message": "O Builder não está disponível agora. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_RUN_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos essa execução.", "action": "NONE" },
-    { "code": "BUILDER_TRACE_UNAVAILABLE", "category": "SYSTEM", "status": 503, "audience": "person", "message": "O Conexus não conseguiu carregar o detalhe da execução. A falha foi registrada.", "action": "NONE" },
-    { "code": "PREVIEW_UNAVAILABLE", "category": "SYSTEM", "status": 503, "audience": "person", "message": "O Conexus não conseguiu abrir a Prévia. A falha foi registrada.", "action": "NONE" },
-    { "code": "PREVIEW_SUBJECT_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos o que a Prévia mostraria.", "action": "NONE" },
-    { "code": "PREVIEW_FORM_REFUSED", "category": "USER", "status": 400, "audience": "person", "message": "A Prévia não aceitou esse formulário.", "action": "NONE" },
-    { "code": "SOURCE_REVISION_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos essa versão do código.", "action": "NONE" },
-    { "code": "SOURCE_FILE_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos esse arquivo.", "action": "NONE" },
-    { "code": "BUILDER_SOURCE_UNAVAILABLE", "category": "SYSTEM", "status": 503, "audience": "person", "message": "O Conexus não conseguiu ler o código do Projeto. A falha foi registrada.", "action": "NONE" },
-    { "code": "REQUEST_CONTEXT_REFUSED", "category": "USER", "status": 400, "audience": "person", "message": "O pedido trouxe um contexto que só o Conexus pode definir.", "action": "NONE" },
-    { "code": "TOOL_ANSWER_REFUSED", "category": "USER", "status": 400, "audience": "person", "message": "Só é possível aprovar ou recusar uma ação pendente do agente.", "action": "NONE" },
-    { "code": "SESSION_STATE_REFUSED", "category": "USER", "status": 400, "audience": "person", "message": "Só o nível de raciocínio pode ser alterado aqui.", "action": "NONE" },
-    { "code": "BUILDER_SESSION_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos essa sessão do Builder.", "action": "NONE" },
-    { "code": "CONVERSATION_SESSION_REFUSED", "category": "USER", "status": 400, "audience": "person", "message": "A sessão de uma conversa só abre na própria conversa.", "action": "NONE" },
-    { "code": "CONVERSATION_CONFLICT", "category": "USER", "status": 409, "audience": "person", "message": "Esse identificador de conversa já está em uso.", "action": "NONE" },
-    { "code": "BUILDER_BUSY", "category": "USER", "status": 409, "audience": "person", "message": "O modelo só muda quando o Builder está parado.", "action": "NONE" },
-    { "code": "BUILDER_RUN_STOP_REFUSED", "category": "USER", "status": 409, "audience": "person", "message": "Uma execução só para pelo botão de parar.", "action": "NONE" },
-    { "code": "TOOL_ANSWER_ALREADY_GIVEN", "category": "USER", "status": 409, "audience": "person", "message": "Esta pergunta já foi respondida.", "action": "NONE" },
-    { "code": "QUESTION_ENDED", "category": "USER", "status": 409, "audience": "person", "message": "Esta pergunta já foi encerrada. A resposta pode ir na próxima mensagem.", "action": "NONE" },
-    { "code": "APPLICATION_ACCESS_MANAGE_REQUIRED", "category": "USER", "status": 403, "audience": "person", "message": "Você não tem permissão para gerenciar quem acessa este aplicativo.", "action": "ASK_ADMIN" },
-    { "code": "APPLICATION_ACCESS_ENTRY_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos esse acesso ao aplicativo.", "action": "NONE" },
-    { "code": "MEMBERS_MANAGE_REQUIRED", "category": "USER", "status": 403, "audience": "person", "message": "Você não tem permissão para gerenciar as pessoas deste Workspace.", "action": "ASK_ADMIN" },
-    { "code": "LAST_OWNER", "category": "USER", "status": 409, "audience": "person", "message": "O Workspace ficaria sem dono. Torne outra pessoa dona antes.", "action": "NONE" },
-    { "code": "ROSTER_ENTRY_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos essa pessoa na lista.", "action": "NONE" },
-    { "code": "INSTALLATION_ADMINISTRATOR_REQUIRED", "category": "USER", "status": 403, "audience": "person", "message": "Só quem administra o Conexus pode fazer isso.", "action": "ASK_ADMIN" },
-    { "code": "EMAIL_INVALID", "category": "USER", "status": 400, "audience": "person", "message": "Esse e-mail não é válido.", "action": "NONE" },
-    { "code": "ACCOUNT_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Nenhuma conta ativa usa este e-mail. A pessoa precisa entrar no Conexus uma vez antes.", "action": "NONE" },
-    { "code": "ACCOUNT_EMAIL_AMBIGUOUS", "category": "USER", "status": 409, "audience": "person", "message": "Mais de uma conta usa este e-mail. Fale com quem opera o Conexus.", "action": "ASK_ADMIN" },
-    { "code": "INSTALLATION_ADMINISTRATOR_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Essa pessoa não administra o Conexus.", "action": "NONE" },
-    { "code": "LAST_INSTALLATION_ADMINISTRATOR", "category": "USER", "status": 409, "audience": "person", "message": "Não é possível revogar o último administrador. Torne outra pessoa administradora antes.", "action": "NONE" },
-    { "code": "CONNECTOR_CONNECTION_NOT_AVAILABLE", "category": "USER", "status": 404, "audience": "person", "message": "Esta conexão não está disponível para o Projeto.", "action": "NONE" },
-    { "code": "CONNECTOR_BINDING_CONFLICT", "category": "USER", "status": 409, "audience": "person", "message": "Este nome já está em uso neste Projeto, ou esta conexão já está vinculada com outro nome.", "action": "NONE" },
-    { "code": "CONNECTOR_BINDING_MANAGE_REQUIRED", "category": "USER", "status": 403, "audience": "person", "message": "Você não tem permissão para gerenciar as conexões deste Projeto.", "action": "ASK_ADMIN" },
-    { "code": "CONNECTOR_WORKSPACE_NOT_FOUND", "category": "USER", "status": 422, "audience": "person", "message": "Não encontramos o Workspace dessa conexão.", "action": "NONE" },
-    { "code": "CONNECTOR_LABEL_REFUSED", "category": "USER", "status": 422, "audience": "person", "message": "O Conexus não aceitou esse nome para a conexão.", "action": "NONE" },
-    { "code": "CONNECTOR_CREDENTIAL_REFUSED", "category": "USER", "status": 422, "audience": "person", "message": "O Conexus não aceitou essas credenciais.", "action": "NONE" },
-    { "code": "CONNECTOR_CONNECTION_CONFLICT", "category": "USER", "status": 409, "audience": "person", "message": "Já existe uma conexão com esses dados.", "action": "NONE" },
-    { "code": "CONNECTOR_CONNECTION_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos essa conexão.", "action": "NONE" },
-    { "code": "CONNECTOR_BINDING_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos essa ligação do Projeto com a conexão.", "action": "NONE" },
-    { "code": "MODEL_ACCOUNT_PROVIDER_UNKNOWN", "category": "USER", "status": 404, "audience": "person", "message": "Este provedor não aceita chave de API.", "action": "NONE" },
-    { "code": "MODEL_ACCOUNT_KEY_REFUSED", "category": "USER", "status": 400, "audience": "person", "message": "Essa não é uma chave de API deste provedor.", "action": "NONE" },
-    { "code": "MODEL_LOGIN_UNAVAILABLE", "category": "THIRD_PARTY", "status": 503, "audience": "person", "message": "A entrada na conta do modelo não está disponível agora.", "action": "RETRY_LATER" },
-    { "code": "MODEL_LOGIN_BUSY", "category": "USER", "status": 409, "audience": "person", "message": "Outra entrada na conta do modelo está em andamento.", "action": "RETRY_LATER" },
-    { "code": "MODEL_LOGIN_CALLBACK_REFUSED", "category": "USER", "status": 400, "audience": "person", "message": "O Conexus não aceitou esse endereço de retorno da entrada.", "action": "NONE" },
-    { "code": "MODEL_LOGIN_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos essa entrada na conta do modelo.", "action": "NONE" },
-    { "code": "HUB_UNREACHABLE", "category": "THIRD_PARTY", "status": 503, "audience": "person", "message": "A tela não conseguiu falar com o Conexus agora.", "action": "RETRY_LATER" },
-    { "code": "HUB_RESPONSE_UNREADABLE", "category": "THIRD_PARTY", "status": 502, "audience": "person", "message": "A resposta que chegou à tela não veio do Conexus.", "action": "RETRY_LATER" },
-    { "code": "ANTHROPIC_STORED_RECORD_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "O Conexus não conseguiu ler a credencial salva desta conta de modelo.", "action": "CONNECT_MODEL_ACCOUNT" },
-    { "code": "APPLICATION_ARTIFACT_INPUT_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu guardar o aplicativo compilado. A falha foi registrada.", "action": "NONE" },
-    { "code": "APPLICATION_CHECK_REPORT_UNREADABLE", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "APPLICATION_CHECK_TIMEOUT", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "APPLICATION_CHECK_UNREADABLE", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "APPLICATION_COMPILER_OUTPUT_ENTRYPOINT_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "Os arquivos do aplicativo têm um formato que o Conexus não aceita.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "O aplicativo passou do tamanho que o Conexus aceita.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_COMPILER_OUTPUT_MEDIA_TYPE_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "Os arquivos do aplicativo têm um formato que o Conexus não aceita.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_COMPILER_OUTPUT_PATH_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "Os arquivos do aplicativo têm um formato que o Conexus não aceita.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_COMPILER_OUTPUT_SIZE_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "O aplicativo passou do tamanho que o Conexus aceita.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_COMPILER_WORKSPACE_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "APPLICATION_ENTRYPOINT_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "Os arquivos do aplicativo têm um formato que o Conexus não aceita.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_FILE_COUNT_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "O aplicativo passou do tamanho que o Conexus aceita.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_FILE_DUPLICATE_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "Os arquivos do aplicativo não passaram na verificação de integridade.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_FILE_ENCODING_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "Os arquivos do aplicativo não passaram na verificação de integridade.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_FILE_HASH_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "Os arquivos do aplicativo não passaram na verificação de integridade.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_FILE_ORDER_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "Os arquivos do aplicativo não passaram na verificação de integridade.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_FILE_PATH_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "Os arquivos do aplicativo têm um formato que o Conexus não aceita.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_FILE_SHAPE_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "Os arquivos do aplicativo não passaram na verificação de integridade.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_FILE_SIZE_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "O aplicativo passou do tamanho que o Conexus aceita.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_MEDIA_TYPE_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "Os arquivos do aplicativo têm um formato que o Conexus não aceita.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_MIGRATION_FAILED", "category": "USER", "status": 500, "audience": "person+app", "message": "A mudança nos dados do aplicativo não foi aplicada.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_MIGRATION_HISTORY_DIVERGED", "category": "USER", "status": 500, "audience": "person", "message": "As mudanças nos dados do aplicativo não batem com as que já foram aplicadas.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_PAYLOAD_PIN_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "Os arquivos do aplicativo não passaram na verificação de integridade.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_PAYLOAD_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "Os arquivos do aplicativo não passaram na verificação de integridade.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_RUNNER_UNAVAILABLE", "category": "SYSTEM", "status": 503, "audience": "person+app", "message": "O Conexus não conseguiu alcançar o servidor de aplicativos. A falha foi registrada.", "action": "NONE" },
-    { "code": "APPLICATION_SERVER_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu alcançar o servidor de aplicativos. A falha foi registrada.", "action": "NONE" },
-    { "code": "APPLICATION_SMOKE_FAILED", "category": "USER", "status": 500, "audience": "person", "message": "O aplicativo compilou, mas não abriu na checagem do Conexus.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_TOTAL_SIZE_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "O aplicativo passou do tamanho que o Conexus aceita.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "BOOT_BROWSER_UNAVAILABLE", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_AGENT_COMPLETION_UNAVAILABLE", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Builder terminou sem entregar uma resposta. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_AGENT_PLATFORM_FAILED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "Uma falha do Conexus, e não do modelo, interrompeu a execução. As alterações desta execução não foram aplicadas. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_AGENT_STALLED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O agente parou de responder por uma falha do Conexus, e não do modelo, então a execução foi encerrada. As alterações desta execução não foram aplicadas. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_AGENT_TRIPWIRE", "category": "SYSTEM", "status": 500, "audience": "person", "message": "Um controle interno do Builder encerrou a execução. As alterações desta execução não foram aplicadas. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_APPLICATION_SOURCE_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "Os arquivos do aplicativo não passaram na verificação de integridade.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "BUILDER_APP_NOT_FIXED", "category": "USER", "status": 500, "audience": "person", "message": "O agente tentou corrigir o app e a verificação do Conexus ainda falha. O que quebrou está na conversa, acima. A versão em uso não mudou, e os arquivos ficaram nesta conversa para o próximo pedido.", "action": "NONE" },
-    { "code": "BUILDER_CANDIDATE_UNPACK_FAILED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_CHECK_FAILED", "category": "USER", "status": 500, "audience": "person", "message": "O código novo quebrou as regras do próprio Projeto, então foi recusado. O Projeto continua no código anterior.", "action": "NONE" },
-    { "code": "BUILDER_CHECK_IDENTITY_MISMATCH", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_CHECK_INSTALL_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_CONVERSATIONS_UNAVAILABLE", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus falhou ao executar o Builder. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_GATEWAY_MODEL_REFUSED", "category": "THIRD_PARTY", "status": 500, "audience": "person", "message": "O provedor não aceita esse modelo.", "action": "CHOOSE_OTHER_MODEL" },
-    { "code": "BUILDER_LATE_RESULT_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "Execução interrompida por você.", "action": "NONE" },
-    { "code": "BUILDER_MESSAGE_ID_UNAVAILABLE", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Builder terminou sem entregar uma resposta. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_MODEL_AUTH_FAILED", "category": "USER", "status": 500, "audience": "person", "message": "Nenhuma conta sua ou compartilhada atende este modelo, ou o provedor a recusou.", "action": "CONNECT_MODEL_ACCOUNT" },
-    { "code": "BUILDER_MODEL_CONTENT_FILTERED", "category": "THIRD_PARTY", "status": 500, "audience": "person", "message": "O provedor do modelo bloqueou a resposta.", "action": "CHOOSE_OTHER_MODEL" },
-    { "code": "BUILDER_MODEL_CONTEXT_LENGTH", "category": "USER", "status": 500, "audience": "person", "message": "A conversa ficou maior do que o modelo aceita.", "action": "CHOOSE_OTHER_MODEL" },
-    { "code": "BUILDER_MODEL_INCOMPLETE", "category": "THIRD_PARTY", "status": 500, "audience": "person", "message": "O provedor do modelo recusou ou interrompeu o pedido.", "action": "CHOOSE_OTHER_MODEL" },
-    { "code": "BUILDER_MODEL_NOT_SELECTED", "category": "USER", "status": 500, "audience": "person", "message": "Nenhuma conta sua ou compartilhada atende este modelo, ou o provedor a recusou.", "action": "CONNECT_MODEL_ACCOUNT" },
-    { "code": "BUILDER_MODEL_RATE_LIMITED", "category": "THIRD_PARTY", "status": 500, "audience": "person", "message": "O provedor do modelo está limitando os pedidos.", "action": "RETRY_LATER" },
-    { "code": "BUILDER_MODEL_STEP_TIMEOUT", "category": "THIRD_PARTY", "status": 500, "audience": "person", "message": "O modelo passou tempo demais gerando uma única resposta, então o Conexus encerrou a execução. As alterações desta execução não foram aplicadas.", "action": "RETRY_LATER" },
-    { "code": "BUILDER_MODEL_STREAM_FAILED", "category": "THIRD_PARTY", "status": 500, "audience": "person", "message": "O provedor do modelo recusou ou interrompeu o pedido.", "action": "CHOOSE_OTHER_MODEL" },
-    { "code": "BUILDER_PREVIEW_NOT_BUILT", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O código novo foi aceito, mas o Conexus reiniciou antes de gerar a Prévia. A última Prévia boa continua disponível. O reinício foi registrado.", "action": "NONE" },
-    { "code": "BUILDER_RESULT_BUNDLE_TOO_LARGE", "category": "USER", "status": 500, "audience": "person", "message": "O código novo proposto foi recusado. O Projeto continua no código anterior.", "action": "NONE" },
-    { "code": "BUILDER_RESULT_CONTENT_TOO_LARGE", "category": "USER", "status": 500, "audience": "person", "message": "O código novo proposto foi recusado. O Projeto continua no código anterior.", "action": "NONE" },
-    { "code": "BUILDER_RESULT_MATERIALIZATION_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "O código novo proposto foi recusado. O Projeto continua no código anterior.", "action": "NONE" },
-    { "code": "BUILDER_RUNTIME_INPUT_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_RUNTIME_RESULT_SCOPE_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "O código novo proposto foi recusado. O Projeto continua no código anterior.", "action": "NONE" },
-    { "code": "BUILDER_RUN_CANCELLED", "category": "USER", "status": 500, "audience": "person", "message": "Execução interrompida por você.", "action": "NONE" },
-    { "code": "BUILDER_CONVERSATION_SESSION_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu registrar o estado da conversa. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_RUN_CREATE_FAILED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_RUN_INPUT_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_RUN_NOT_ADMITTED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_RUN_TRANSITION_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_RUN_PHASE_UPDATE_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_SANDBOX_AGENT_USER_REQUIRED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_SANDBOX_EGRESS_COLLECT_TIMEOUT", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_SANDBOX_EGRESS_POLL_FAILED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_SANDBOX_EGRESS_START_FAILED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_SANDBOX_FILE_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_SANDBOX_ID_UNAVAILABLE", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_SANDBOX_INCARNATION_CHANGED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_SANDBOX_KEEPALIVE_FAILED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_SESSION_DELETE_FAILED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_SOURCE_BASE_MOVED", "category": "USER", "status": 500, "audience": "person", "message": "O código do Projeto mudou enquanto esta execução trabalhava, então o resultado não foi aplicado e nada foi sobrescrito.", "action": "NONE" },
-    { "code": "BUILDER_SOURCE_BASE_PIN_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_SOURCE_READ_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu ler o código do Projeto. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_SOURCE_READ_TREE_TOO_LARGE", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu ler o código do Projeto. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_SOURCE_READ_UNSAFE_ENTRY", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu ler o código do Projeto. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_STARTER_ENTRY_INSPECTION_FAILED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_STARTER_ENTRY_UNSAFE", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_STARTER_ROOT_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "CONEXUS_APP_ROOT_MISSING", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "CONEXUS_GIT_FAILED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "CONEXUS_GIT_MAIN_MISSING", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "CONEXUS_GIT_MERGE_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "CONEXUS_GIT_PROJECT_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "CONEXUS_GIT_REF_MOVED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "CONEXUS_GIT_REF_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "CONEXUS_GIT_STARTER_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.", "action": "NONE" },
-    { "code": "GOOGLE_AI_PRO_ACCOUNT_UNAVAILABLE", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu usar a conta Google AI Pro. A falha foi registrada.", "action": "NONE" },
-    { "code": "GOOGLE_AI_PRO_BINARY_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu usar a conta Google AI Pro. A falha foi registrada.", "action": "NONE" },
-    { "code": "GOOGLE_AI_PRO_POOL_CLOSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu usar a conta Google AI Pro. A falha foi registrada.", "action": "NONE" },
-    { "code": "GOOGLE_AI_PRO_PORT_UNAVAILABLE", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu usar a conta Google AI Pro. A falha foi registrada.", "action": "NONE" },
-    { "code": "GOOGLE_AI_PRO_PROXY_START_FAILED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu usar a conta Google AI Pro. A falha foi registrada.", "action": "NONE" },
-    { "code": "GOOGLE_AI_PRO_RECORD_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "O Conexus não conseguiu ler a credencial salva desta conta de modelo.", "action": "CONNECT_MODEL_ACCOUNT" },
-    { "code": "GOOGLE_AI_PRO_ROUTER_UNAVAILABLE", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu usar a conta Google AI Pro. A falha foi registrada.", "action": "NONE" },
-    { "code": "GOOGLE_AI_PRO_STORED_RECORD_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "O Conexus não conseguiu ler a credencial salva desta conta de modelo.", "action": "CONNECT_MODEL_ACCOUNT" },
-    { "code": "HUB_RESTART", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus reiniciou durante a execução. O reinício foi registrado.", "action": "NONE" },
-    { "code": "MANIFEST_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "O servidor do aplicativo tem uma definição que o Conexus não aceita.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "MODEL_ACCOUNT_PROBE_NOT_CALLABLE", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus falhou ao executar o Builder. A falha foi registrada.", "action": "NONE" },
-    { "code": "OPENAI_CODEX_MODEL_REFUSED", "category": "THIRD_PARTY", "status": 500, "audience": "person", "message": "O provedor não aceita esse modelo.", "action": "CHOOSE_OTHER_MODEL" },
-    { "code": "OPENAI_CODEX_STORED_RECORD_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "O Conexus não conseguiu ler a credencial salva desta conta de modelo.", "action": "CONNECT_MODEL_ACCOUNT" },
-    { "code": "SERVER_TREE_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "O servidor do aplicativo tem arquivos que o Conexus não aceita.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "USER_CANCELLED", "category": "USER", "status": 500, "audience": "person", "message": "Execução interrompida por você.", "action": "NONE" },
-    { "code": "BUILDER_QUESTION_EXPIRED", "category": "USER", "status": 500, "audience": "person", "message": "A pergunta ficou sem resposta e foi encerrada. A sua próxima mensagem continua o trabalho.", "action": "NONE" },
-    { "code": "BUILDER_QUESTION_NOT_RELEASED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Builder não conseguiu encerrar a pergunta. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_SOURCE_ADMISSION_FAILED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "A mudança não entrou no app. A falha foi registrada.", "action": "NONE" },
-    { "code": "BUILDER_RUN_SETTLE_LOST", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus perdeu o fim deste trabalho. A falha foi registrada.", "action": "NONE" },
-    { "code": "APPLICATION_COMPILER_OUTPUT_SYMLINK_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "Os arquivos do aplicativo têm um formato que o Conexus não aceita.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_COMPILER_OUTPUT_NON_REGULAR_REFUSED", "category": "USER", "status": 500, "audience": "person", "message": "Os arquivos do aplicativo têm um formato que o Conexus não aceita.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "APPLICATION_RUNNER_RELEASE_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person", "message": "O Conexus não conseguiu alcançar o servidor de aplicativos. A falha foi registrada.", "action": "NONE" },
-    { "code": "RUNNER_REQUEST_REFUSED", "category": "SYSTEM", "status": 400, "audience": "operator" },
-    { "code": "INPUT_REFUSED", "category": "USER", "status": 400, "audience": "person+app", "message": "Algum campo tem um valor que o app não aceita.", "action": "NONE" },
-    { "code": "INPUT_TOO_LARGE", "category": "USER", "status": 413, "audience": "person+app", "message": "Os dados enviados são grandes demais.", "action": "NONE" },
-    { "code": "OPERATION_NOT_FOUND", "category": "USER", "status": 404, "audience": "person+app", "message": "Essa operação não existe neste app.", "action": "NONE" },
-    { "code": "HANDLER_TIMEOUT", "category": "USER", "status": 504, "audience": "person+app", "message": "A operação demorou mais que o permitido.", "action": "RETRY_LATER" },
-    { "code": "RESPONSE_TOO_LARGE", "category": "USER", "status": 502, "audience": "person+app", "message": "Há resultados demais para mostrar. Use um filtro para reduzir a lista.", "action": "NONE" },
-    { "code": "DATABASE_UNAVAILABLE", "category": "SYSTEM", "status": 503, "audience": "person+app", "message": "Os dados salvos do app estão indisponíveis. A falha foi registrada.", "action": "NONE" },
-    { "code": "APPLICATION_RUNNER_BUSY", "category": "USER", "status": 429, "audience": "person+app", "message": "O app está ocupado com outros pedidos agora.", "action": "RETRY_LATER" },
-    { "code": "APPLICATION_PROJECT_BUSY", "category": "USER", "status": 429, "audience": "person+app", "message": "Este app já tem pedidos demais em andamento.", "action": "RETRY_LATER" },
-    { "code": "SERVER_TREE_TOO_LARGE", "category": "USER", "status": 413, "audience": "person+app", "message": "O aplicativo passou do tamanho que o Conexus aceita.", "action": "FIX_IN_CONVERSATION" },
-    { "code": "HANDLER_FAILED", "category": "USER", "status": 500, "audience": "person+app", "message": "Esta operação do app falhou.", "action": "NONE" },
-    { "code": "HANDLER_LOAD_FAILED", "category": "USER", "status": 500, "audience": "person+app", "message": "Esta operação do app falhou.", "action": "NONE" },
-    { "code": "HANDLER_EXPORT_MISSING", "category": "USER", "status": 500, "audience": "person+app", "message": "Esta operação do app falhou.", "action": "NONE" },
-    { "code": "HANDLER_OUTPUT_UNSERIALIZABLE", "category": "USER", "status": 500, "audience": "person+app", "message": "Esta operação do app falhou.", "action": "NONE" },
-    { "code": "HANDLER_OUTPUT_REFUSED", "category": "USER", "status": 502, "audience": "person+app", "message": "Esta operação do app falhou.", "action": "NONE" },
-    { "code": "HANDLER_CRASHED", "category": "USER", "status": 500, "audience": "person+app", "message": "Esta operação do app falhou.", "action": "NONE" },
-    { "code": "WORKER_FAILED", "category": "SYSTEM", "status": 500, "audience": "person+app", "message": "O Conexus falhou ao executar o app. A falha foi registrada.", "action": "NONE" },
-    { "code": "WORKER_JOB_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person+app", "message": "O Conexus falhou ao executar o app. A falha foi registrada.", "action": "NONE" },
-    { "code": "CONNECTOR_SOCKET_REFUSED", "category": "SYSTEM", "status": 500, "audience": "person+app", "message": "O Conexus falhou ao executar o app. A falha foi registrada.", "action": "NONE" },
-    { "code": "CONTENT_TYPE_REFUSED", "category": "USER", "status": 415, "audience": "person+app", "message": "O Conexus não aceitou o formato deste pedido.", "action": "NONE" },
-    { "code": "APPLICATION_NOT_FOUND", "category": "USER", "status": 404, "audience": "person+app", "message": "Não encontramos este app.", "action": "NONE" },
-    { "code": "MEMORY_OBSERVATION_FAILED", "category": "THIRD_PARTY", "status": 502, "audience": "person", "message": "Não foi possível guardar as mensagens na memória. O Builder refaz isso na próxima mensagem.", "action": "NONE" },
-    { "code": "MEMORY_REFLECTION_FAILED", "category": "THIRD_PARTY", "status": 502, "audience": "person", "message": "Não foi possível resumir as observações. O Builder refaz isso na próxima mensagem.", "action": "NONE" },
-    { "code": "MODEL_LOGIN_OPENAI_REFUSED", "category": "THIRD_PARTY", "status": 502, "audience": "person", "message": "A OpenAI recusou a entrada.", "action": "NONE" },
-    { "code": "MODEL_LOGIN_ANTHROPIC_REFUSED", "category": "THIRD_PARTY", "status": 502, "audience": "person", "message": "A Anthropic recusou esse código. Pode ser que ele não tenha sido copiado inteiro.", "action": "NONE" },
-    { "code": "MODEL_LOGIN_GOOGLE_REFUSED", "category": "THIRD_PARTY", "status": 502, "audience": "person", "message": "O Google recusou a entrada.", "action": "NONE" },
-    { "code": "APPLICATION_NO_ACCESS", "category": "USER", "status": 403, "audience": "person", "message": "Você não tem acesso a este aplicativo.", "action": "ASK_ADMIN" },
-    { "code": "APPLICATION_EMAIL_NOT_VERIFIED", "category": "USER", "status": 403, "audience": "person", "message": "Você não tem acesso a este aplicativo porque seu e-mail ainda não foi verificado.", "action": "NONE" },
-    { "code": "APPLICATION_SIGN_IN_FAILED", "category": "USER", "status": 403, "audience": "person", "message": "O serviço de login não concluiu a entrada.", "action": "SIGN_IN_AGAIN" },
-    { "code": "APPLICATION_NOT_READY", "category": "USER", "status": 503, "audience": "person+app", "message": "Este app ainda não está pronto para receber pedidos.", "action": "NONE" },
-    { "code": "APPLICATION_SIGN_IN_REQUIRED", "category": "USER", "status": 401, "audience": "person+app", "message": "Você precisa entrar no Conexus para usar este app.", "action": "SIGN_IN" },
-    { "code": "PREVIEW_REFUSED", "category": "USER", "status": 403, "audience": "person+app", "message": "Esta prévia não aceita o pedido.", "action": "NONE" },
-    { "code": "NOT_GRANTED", "category": "USER", "status": 403, "audience": "person+app", "message": "Este app perdeu o acesso ao sistema da empresa. Quem administra o Workspace precisa vincular a Conexão outra vez.", "action": "ASK_ADMIN" },
-    { "code": "CONNECTOR_UNCONFIGURED", "category": "SYSTEM", "status": 503, "audience": "person+app", "message": "A integração com o sistema da empresa não está configurada. A falha foi registrada.", "action": "NONE" },
-    { "code": "CREDENTIAL_REFUSED", "category": "USER", "status": 502, "audience": "person+app", "message": "O sistema da empresa recusou o acesso. Avise quem administra a integração.", "action": "ASK_ADMIN" },
-    { "code": "PROVIDER_TIMEOUT", "category": "THIRD_PARTY", "status": 504, "audience": "person+app", "message": "O sistema da empresa não respondeu a tempo.", "action": "RETRY_LATER" },
-    { "code": "PROVIDER_UNAVAILABLE", "category": "THIRD_PARTY", "status": 503, "audience": "person+app", "message": "O sistema da empresa está indisponível agora.", "action": "RETRY_LATER" },
-    { "code": "PROVIDER_ERROR", "category": "THIRD_PARTY", "status": 502, "audience": "person+app", "message": "O sistema da empresa respondeu com um erro.", "action": "NONE" },
-    { "code": "RESPONSE_REFUSED", "category": "THIRD_PARTY", "status": 502, "audience": "person+app", "message": "O Conexus não aceitou a resposta do sistema da empresa.", "action": "NONE" },
-    { "code": "CALL_LIMIT", "category": "USER", "status": 429, "audience": "person+app", "message": "Este app fez chamadas demais ao sistema da empresa.", "action": "RETRY_LATER" },
-    { "code": "SERVICE_REFUSED", "category": "USER", "status": 403, "audience": "person+app", "message": "Esta operação não é permitida pela conexão com o sistema da empresa.", "action": "NONE" },
-    { "code": "CONNECTOR_PLATFORM_FAILED", "category": "SYSTEM", "status": 500, "audience": "person+app", "message": "O Conexus falhou ao ler o sistema da empresa. A falha foi registrada.", "action": "NONE" },
-    { "code": "CONFIG_MISSING", "category": "SYSTEM", "audience": "operator" },
-    { "code": "CONFIG_INVALID", "category": "SYSTEM", "audience": "operator" },
-    { "code": "HUB_ALREADY_RUNNING", "category": "SYSTEM", "audience": "operator" },
-    { "code": "HUB_SCHEMA_BEHIND", "category": "SYSTEM", "audience": "operator" },
-    { "code": "BUILDER_RUN_SETTLE_FAILED", "category": "SYSTEM", "audience": "operator" },
-    { "code": "BUILDER_RUN_SWEEP_SETTLE_FAILED", "category": "SYSTEM", "audience": "operator" },
-    { "code": "BUILDER_SESSION_RELEASE_FAILED", "category": "SYSTEM", "audience": "operator" },
-    { "code": "BUILDER_MIRROR_FAILED", "category": "SYSTEM", "audience": "operator" },
-    { "code": "BUILDER_SESSION_CLOSE_FAILED", "category": "SYSTEM", "audience": "operator" },
-    { "code": "BUILDER_AGENT_PROCESSES_KILL_FAILED", "category": "SYSTEM", "audience": "operator" },
-    { "code": "BUILDER_SANDBOX_KILL_FAILED", "category": "THIRD_PARTY", "audience": "operator" },
-    { "code": "BUILDER_SANDBOX_PAUSE_FAILED", "category": "THIRD_PARTY", "audience": "operator" },
-    { "code": "BUILDER_SANDBOX_EGRESS_COLLECT_FAILED", "category": "SYSTEM", "audience": "operator" },
-    { "code": "JOB_FAILED", "category": "SYSTEM", "audience": "operator" },
-    { "code": "HUB_POOL_ERROR", "category": "SYSTEM", "audience": "operator" },
-    { "code": "HUB_INSTANCE_LOCK_LOST", "category": "SYSTEM", "audience": "operator" },
-    { "code": "HUB_SHUTDOWN_FORCED", "category": "SYSTEM", "audience": "operator" },
-    { "code": "HUB_SHUTDOWN_TIMEOUT", "category": "SYSTEM", "audience": "operator" },
-    { "code": "HUB_SHUTDOWN_FAILED", "category": "SYSTEM", "audience": "operator" },
-    { "code": "HUB_FATAL", "category": "SYSTEM", "audience": "operator" },
-    { "code": "OIDC_BEGIN_FAILED", "category": "THIRD_PARTY", "audience": "operator" },
-    { "code": "OIDC_REFRESH_TOKEN_MISSING", "category": "THIRD_PARTY", "audience": "operator" },
-    { "code": "OIDC_CALLBACK_FAILED", "category": "THIRD_PARTY", "audience": "operator" }
+    {
+      "code": "INTERNAL_UNEXPECTED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus falhou de um jeito que não esperávamos. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Não encontramos o que você procurou.",
+      "action": "NONE"
+    },
+    {
+      "code": "REQUEST_VALIDATION_FAILED",
+      "category": "USER",
+      "status": 400,
+      "audience": "person",
+      "message": "Alguns dados do pedido não são válidos.",
+      "action": "NONE"
+    },
+    {
+      "code": "REQUEST_JSON_INVALID",
+      "category": "USER",
+      "status": 400,
+      "audience": "person",
+      "message": "O pedido chegou ao Conexus ilegível.",
+      "action": "NONE"
+    },
+    {
+      "code": "REQUEST_BODY_TOO_LARGE",
+      "category": "USER",
+      "status": 413,
+      "audience": "person",
+      "message": "O pedido é maior do que o Conexus aceita.",
+      "action": "NONE"
+    },
+    {
+      "code": "REQUEST_MEDIA_TYPE_UNSUPPORTED",
+      "category": "USER",
+      "status": 415,
+      "audience": "person",
+      "message": "O Conexus não aceita esse formato de pedido.",
+      "action": "NONE"
+    },
+    {
+      "code": "AUTHENTICATION_REQUIRED",
+      "category": "USER",
+      "status": 401,
+      "audience": "person",
+      "message": "Você precisa entrar para continuar.",
+      "action": "SIGN_IN"
+    },
+    {
+      "code": "REQUEST_AUTHENTICITY_DENIED",
+      "category": "USER",
+      "status": 403,
+      "audience": "person",
+      "message": "O Conexus não conseguiu confirmar que o pedido veio de você. Recarregue a página.",
+      "action": "NONE"
+    },
+    {
+      "code": "IDEMPOTENCY_KEY_REQUIRED",
+      "category": "SYSTEM",
+      "status": 400,
+      "audience": "person",
+      "message": "O pedido saiu sem o identificador que o Conexus exige. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "IDEMPOTENCY_CONFLICT",
+      "category": "USER",
+      "status": 409,
+      "audience": "person",
+      "message": "Já existe um pedido igual a este, com dados diferentes.",
+      "action": "NONE"
+    },
+    {
+      "code": "OUTCOME_UNKNOWN",
+      "category": "SYSTEM",
+      "status": 409,
+      "audience": "person",
+      "message": "O Conexus não conseguiu confirmar se o pedido anterior terminou. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "DATABASE_BUSY",
+      "category": "SYSTEM",
+      "status": 503,
+      "audience": "person",
+      "message": "O Conexus está ocupado e não terminou o pedido. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "IDENTITY_PROVIDER_UNAVAILABLE",
+      "category": "THIRD_PARTY",
+      "status": 503,
+      "audience": "person+app",
+      "message": "O serviço de login não respondeu agora. Sua sessão continua aberta.",
+      "action": "RETRY_LATER"
+    },
+    {
+      "code": "SIGN_IN_EXPIRED",
+      "category": "USER",
+      "status": 401,
+      "audience": "person",
+      "message": "O login demorou demais ou foi aberto em outra aba.",
+      "action": "SIGN_IN_AGAIN"
+    },
+    {
+      "code": "SIGN_IN_FAILED",
+      "category": "THIRD_PARTY",
+      "status": 502,
+      "audience": "person",
+      "message": "O serviço de login não concluiu a entrada.",
+      "action": "SIGN_IN_AGAIN"
+    },
+    {
+      "code": "IDENTITY_EMAIL_NOT_VERIFIED",
+      "category": "USER",
+      "status": 403,
+      "audience": "person",
+      "message": "O seu provedor de login informou que o e-mail desta conta ainda não foi verificado.",
+      "action": "CONFIRM_EMAIL"
+    },
+    {
+      "code": "IDENTITY_NOT_ELIGIBLE",
+      "category": "USER",
+      "status": 403,
+      "audience": "person",
+      "message": "Você entrou, mas ninguém convidou este e-mail para o Conexus.",
+      "action": "ASK_INVITE"
+    },
+    {
+      "code": "ACCOUNT_INACTIVE",
+      "category": "USER",
+      "status": 403,
+      "audience": "person",
+      "message": "Esta conta foi desativada no Conexus.",
+      "action": "ASK_ADMIN"
+    },
+    {
+      "code": "WORKSPACE_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Não encontramos esse Workspace.",
+      "action": "NONE"
+    },
+    {
+      "code": "PROJECT_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Não encontramos esse Projeto.",
+      "action": "NONE"
+    },
+    {
+      "code": "PROJECT_SOURCE_REFUSED",
+      "category": "USER",
+      "status": 422,
+      "audience": "person",
+      "message": "O Conexus não aceitou o código inicial deste Projeto.",
+      "action": "NONE"
+    },
+    {
+      "code": "PROJECT_REPOSITORY_UNAVAILABLE",
+      "category": "SYSTEM",
+      "status": 503,
+      "audience": "person",
+      "message": "O Conexus não conseguiu usar o repositório do Projeto. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "PROJECT_DELETE_DENIED",
+      "category": "USER",
+      "status": 403,
+      "audience": "person",
+      "message": "Só uma pessoa proprietária do Workspace pode excluir este Projeto.",
+      "action": "ASK_CHANGE"
+    },
+    {
+      "code": "PROJECT_DELETING",
+      "category": "USER",
+      "status": 409,
+      "audience": "person",
+      "message": "Este Projeto está sendo excluído.",
+      "action": "NONE"
+    },
+    {
+      "code": "PROJECT_NAME_MISMATCH",
+      "category": "USER",
+      "status": 409,
+      "audience": "person",
+      "message": "O nome digitado não é o nome do Projeto. Digite exatamente como aparece.",
+      "action": "NONE"
+    },
+    {
+      "code": "PROJECT_BUSY",
+      "category": "USER",
+      "status": 409,
+      "audience": "person",
+      "message": "O Projeto está processando um pedido agora. Espere terminar.",
+      "action": "NONE"
+    },
+    {
+      "code": "PROJECT_DELETION_INCOMPLETE",
+      "category": "SYSTEM",
+      "status": 503,
+      "audience": "person",
+      "message": "A exclusão do Projeto não terminou. O que já foi apagado não volta atrás. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "PROJECT_THUMBNAIL_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Este Projeto ainda não tem miniatura.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SESSION_UNAVAILABLE",
+      "category": "SYSTEM",
+      "status": 503,
+      "audience": "person",
+      "message": "O Conexus não conseguiu abrir a sessão do Builder. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "PROJECT_BUILD_DENIED",
+      "category": "USER",
+      "status": 403,
+      "audience": "person",
+      "message": "Você não tem permissão para construir neste Projeto.",
+      "action": "ASK_ADMIN"
+    },
+    {
+      "code": "CONVERSATION_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Não encontramos essa conversa.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_CAPACITY_FULL",
+      "category": "USER",
+      "status": 503,
+      "audience": "person",
+      "message": "O Conexus está com muitas execuções abertas agora.",
+      "action": "RETRY_LATER"
+    },
+    {
+      "code": "BUILDER_MESSAGE_REFUSED",
+      "category": "USER",
+      "status": 422,
+      "audience": "person",
+      "message": "O Conexus não aceitou essa mensagem.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_UNAVAILABLE",
+      "category": "SYSTEM",
+      "status": 503,
+      "audience": "person",
+      "message": "O Builder não está disponível agora. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_RUN_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Não encontramos essa execução.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_TRACE_UNAVAILABLE",
+      "category": "SYSTEM",
+      "status": 503,
+      "audience": "person",
+      "message": "O Conexus não conseguiu carregar o detalhe da execução. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "PREVIEW_UNAVAILABLE",
+      "category": "SYSTEM",
+      "status": 503,
+      "audience": "person",
+      "message": "O Conexus não conseguiu abrir a Prévia. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "PREVIEW_SUBJECT_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Não encontramos o que a Prévia mostraria.",
+      "action": "NONE"
+    },
+    {
+      "code": "PREVIEW_FORM_REFUSED",
+      "category": "USER",
+      "status": 400,
+      "audience": "person",
+      "message": "A Prévia não aceitou esse formulário.",
+      "action": "NONE"
+    },
+    {
+      "code": "SOURCE_REVISION_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Não encontramos essa versão do código.",
+      "action": "NONE"
+    },
+    {
+      "code": "SOURCE_FILE_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Não encontramos esse arquivo.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SOURCE_UNAVAILABLE",
+      "category": "SYSTEM",
+      "status": 503,
+      "audience": "person",
+      "message": "O Conexus não conseguiu ler o código do Projeto. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "REQUEST_CONTEXT_REFUSED",
+      "category": "USER",
+      "status": 400,
+      "audience": "person",
+      "message": "O pedido trouxe um contexto que só o Conexus pode definir.",
+      "action": "NONE"
+    },
+    {
+      "code": "TOOL_ANSWER_REFUSED",
+      "category": "USER",
+      "status": 400,
+      "audience": "person",
+      "message": "Só é possível aprovar ou recusar uma ação pendente do agente.",
+      "action": "NONE"
+    },
+    {
+      "code": "SESSION_STATE_REFUSED",
+      "category": "USER",
+      "status": 400,
+      "audience": "person",
+      "message": "Só o nível de raciocínio pode ser alterado aqui.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SESSION_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Não encontramos essa sessão do Builder.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONVERSATION_SESSION_REFUSED",
+      "category": "USER",
+      "status": 400,
+      "audience": "person",
+      "message": "A sessão de uma conversa só abre na própria conversa.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONVERSATION_CONFLICT",
+      "category": "USER",
+      "status": 409,
+      "audience": "person",
+      "message": "Esse identificador de conversa já está em uso.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_BUSY",
+      "category": "USER",
+      "status": 409,
+      "audience": "person",
+      "message": "O modelo só muda quando o Builder está parado.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_RUN_STOP_REFUSED",
+      "category": "USER",
+      "status": 409,
+      "audience": "person",
+      "message": "Uma execução só para pelo botão de parar.",
+      "action": "NONE"
+    },
+    {
+      "code": "TOOL_ANSWER_ALREADY_GIVEN",
+      "category": "USER",
+      "status": 409,
+      "audience": "person",
+      "message": "Esta pergunta já foi respondida.",
+      "action": "NONE"
+    },
+    {
+      "code": "QUESTION_ENDED",
+      "category": "USER",
+      "status": 409,
+      "audience": "person",
+      "message": "Esta pergunta já foi encerrada. A resposta pode ir na próxima mensagem.",
+      "action": "NONE"
+    },
+    {
+      "code": "APPLICATION_ACCESS_MANAGE_REQUIRED",
+      "category": "USER",
+      "status": 403,
+      "audience": "person",
+      "message": "Você não tem permissão para gerenciar quem acessa este aplicativo.",
+      "action": "ASK_ADMIN"
+    },
+    {
+      "code": "APPLICATION_ACCESS_ENTRY_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Não encontramos esse acesso ao aplicativo.",
+      "action": "NONE"
+    },
+    {
+      "code": "MEMBERS_MANAGE_REQUIRED",
+      "category": "USER",
+      "status": 403,
+      "audience": "person",
+      "message": "Você não tem permissão para gerenciar as pessoas deste Workspace.",
+      "action": "ASK_ADMIN"
+    },
+    {
+      "code": "LAST_OWNER",
+      "category": "USER",
+      "status": 409,
+      "audience": "person",
+      "message": "O Workspace ficaria sem dono. Torne outra pessoa dona antes.",
+      "action": "NONE"
+    },
+    {
+      "code": "ROSTER_ENTRY_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Não encontramos essa pessoa na lista.",
+      "action": "NONE"
+    },
+    {
+      "code": "INSTALLATION_ADMINISTRATOR_REQUIRED",
+      "category": "USER",
+      "status": 403,
+      "audience": "person",
+      "message": "Só quem administra o Conexus pode fazer isso.",
+      "action": "ASK_ADMIN"
+    },
+    {
+      "code": "EMAIL_INVALID",
+      "category": "USER",
+      "status": 400,
+      "audience": "person",
+      "message": "Esse e-mail não é válido.",
+      "action": "NONE"
+    },
+    {
+      "code": "ACCOUNT_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Nenhuma conta ativa usa este e-mail. A pessoa precisa entrar no Conexus uma vez antes.",
+      "action": "NONE"
+    },
+    {
+      "code": "ACCOUNT_EMAIL_AMBIGUOUS",
+      "category": "USER",
+      "status": 409,
+      "audience": "person",
+      "message": "Mais de uma conta usa este e-mail. Fale com quem opera o Conexus.",
+      "action": "ASK_ADMIN"
+    },
+    {
+      "code": "INSTALLATION_ADMINISTRATOR_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Essa pessoa não administra o Conexus.",
+      "action": "NONE"
+    },
+    {
+      "code": "LAST_INSTALLATION_ADMINISTRATOR",
+      "category": "USER",
+      "status": 409,
+      "audience": "person",
+      "message": "Não é possível revogar o último administrador. Torne outra pessoa administradora antes.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONNECTOR_CONNECTION_NOT_AVAILABLE",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Esta conexão não está disponível para o Projeto.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONNECTOR_BINDING_CONFLICT",
+      "category": "USER",
+      "status": 409,
+      "audience": "person",
+      "message": "Este nome já está em uso neste Projeto, ou esta conexão já está vinculada com outro nome.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONNECTOR_BINDING_MANAGE_REQUIRED",
+      "category": "USER",
+      "status": 403,
+      "audience": "person",
+      "message": "Você não tem permissão para gerenciar as conexões deste Projeto.",
+      "action": "ASK_ADMIN"
+    },
+    {
+      "code": "CONNECTOR_LABEL_REFUSED",
+      "category": "USER",
+      "status": 422,
+      "audience": "person",
+      "message": "O Conexus não aceitou esse nome para a conexão.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONNECTOR_CREDENTIAL_REFUSED",
+      "category": "USER",
+      "status": 422,
+      "audience": "person",
+      "message": "O Conexus não aceitou essas credenciais.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONNECTOR_CONNECTION_CONFLICT",
+      "category": "USER",
+      "status": 409,
+      "audience": "person",
+      "message": "Já existe uma conexão com esses dados.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONNECTOR_CONNECTION_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Não encontramos essa conexão.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONNECTOR_BINDING_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Não encontramos essa ligação do Projeto com a conexão.",
+      "action": "NONE"
+    },
+    {
+      "code": "MODEL_ACCOUNT_PROVIDER_UNKNOWN",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Este provedor não aceita chave de API.",
+      "action": "NONE"
+    },
+    {
+      "code": "MODEL_ACCOUNT_KEY_REFUSED",
+      "category": "USER",
+      "status": 400,
+      "audience": "person",
+      "message": "Essa não é uma chave de API deste provedor.",
+      "action": "NONE"
+    },
+    {
+      "code": "MODEL_LOGIN_UNAVAILABLE",
+      "category": "THIRD_PARTY",
+      "status": 503,
+      "audience": "person",
+      "message": "A entrada na conta do modelo não está disponível agora.",
+      "action": "RETRY_LATER"
+    },
+    {
+      "code": "MODEL_LOGIN_BUSY",
+      "category": "USER",
+      "status": 409,
+      "audience": "person",
+      "message": "Outra entrada na conta do modelo está em andamento.",
+      "action": "RETRY_LATER"
+    },
+    {
+      "code": "MODEL_LOGIN_CALLBACK_REFUSED",
+      "category": "USER",
+      "status": 400,
+      "audience": "person",
+      "message": "O Conexus não aceitou esse endereço de retorno da entrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "MODEL_LOGIN_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person",
+      "message": "Não encontramos essa entrada na conta do modelo.",
+      "action": "NONE"
+    },
+    {
+      "code": "HUB_UNREACHABLE",
+      "category": "THIRD_PARTY",
+      "status": 503,
+      "audience": "person",
+      "message": "A tela não conseguiu falar com o Conexus agora.",
+      "action": "RETRY_LATER"
+    },
+    {
+      "code": "HUB_RESPONSE_UNREADABLE",
+      "category": "THIRD_PARTY",
+      "status": 502,
+      "audience": "person",
+      "message": "A resposta que chegou à tela não veio do Conexus.",
+      "action": "RETRY_LATER"
+    },
+    {
+      "code": "ANTHROPIC_STORED_RECORD_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu ler a credencial salva desta conta de modelo.",
+      "action": "CONNECT_MODEL_ACCOUNT"
+    },
+    {
+      "code": "APPLICATION_ARTIFACT_INPUT_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu guardar o aplicativo compilado. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "APPLICATION_CHECK_REPORT_UNREADABLE",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "APPLICATION_CHECK_TIMEOUT",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "APPLICATION_CHECK_UNREADABLE",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "APPLICATION_COMPILER_OUTPUT_ENTRYPOINT_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Os arquivos do aplicativo têm um formato que o Conexus não aceita.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_COMPILER_OUTPUT_LIMIT_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O aplicativo passou do tamanho que o Conexus aceita.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_COMPILER_OUTPUT_MEDIA_TYPE_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Os arquivos do aplicativo têm um formato que o Conexus não aceita.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_COMPILER_OUTPUT_PATH_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Os arquivos do aplicativo têm um formato que o Conexus não aceita.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_COMPILER_OUTPUT_SIZE_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O aplicativo passou do tamanho que o Conexus aceita.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_COMPILER_WORKSPACE_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "APPLICATION_ENTRYPOINT_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Os arquivos do aplicativo têm um formato que o Conexus não aceita.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_FILE_COUNT_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O aplicativo passou do tamanho que o Conexus aceita.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_FILE_DUPLICATE_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Os arquivos do aplicativo não passaram na verificação de integridade.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_FILE_ENCODING_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Os arquivos do aplicativo não passaram na verificação de integridade.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_FILE_HASH_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Os arquivos do aplicativo não passaram na verificação de integridade.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_FILE_ORDER_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Os arquivos do aplicativo não passaram na verificação de integridade.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_FILE_PATH_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Os arquivos do aplicativo têm um formato que o Conexus não aceita.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_FILE_SHAPE_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Os arquivos do aplicativo não passaram na verificação de integridade.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_FILE_SIZE_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O aplicativo passou do tamanho que o Conexus aceita.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_MEDIA_TYPE_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Os arquivos do aplicativo têm um formato que o Conexus não aceita.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_MIGRATION_FAILED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person+app",
+      "message": "A mudança nos dados do aplicativo não foi aplicada.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_MIGRATION_HISTORY_DIVERGED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "As mudanças nos dados do aplicativo não batem com as que já foram aplicadas.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_PAYLOAD_PIN_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Os arquivos do aplicativo não passaram na verificação de integridade.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_PAYLOAD_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Os arquivos do aplicativo não passaram na verificação de integridade.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_RUNNER_UNAVAILABLE",
+      "category": "SYSTEM",
+      "status": 503,
+      "audience": "person+app",
+      "message": "O Conexus não conseguiu alcançar o servidor de aplicativos. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "APPLICATION_SERVER_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu alcançar o servidor de aplicativos. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "APPLICATION_SMOKE_FAILED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O aplicativo compilou, mas não abriu na checagem do Conexus.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_TOTAL_SIZE_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O aplicativo passou do tamanho que o Conexus aceita.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "BOOT_BROWSER_UNAVAILABLE",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_AGENT_COMPLETION_UNAVAILABLE",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Builder terminou sem entregar uma resposta. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_AGENT_PLATFORM_FAILED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "Uma falha do Conexus, e não do modelo, interrompeu a execução. As alterações desta execução não foram aplicadas. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_AGENT_STALLED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O agente parou de responder por uma falha do Conexus, e não do modelo, então a execução foi encerrada. As alterações desta execução não foram aplicadas. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_AGENT_TRIPWIRE",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "Um controle interno do Builder encerrou a execução. As alterações desta execução não foram aplicadas. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_APPLICATION_SOURCE_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Os arquivos do aplicativo não passaram na verificação de integridade.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "BUILDER_APP_NOT_FIXED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O agente tentou corrigir o app e a verificação do Conexus ainda falha. O que quebrou está na conversa, acima. A versão em uso não mudou, e os arquivos ficaram nesta conversa para o próximo pedido.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_CANDIDATE_UNPACK_FAILED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_CHECK_FAILED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O código novo quebrou as regras do próprio Projeto, então foi recusado. O Projeto continua no código anterior.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_CHECK_IDENTITY_MISMATCH",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_CHECK_INSTALL_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_CONVERSATIONS_UNAVAILABLE",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus falhou ao executar o Builder. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_GATEWAY_MODEL_REFUSED",
+      "category": "THIRD_PARTY",
+      "status": 500,
+      "audience": "person",
+      "message": "O provedor não aceita esse modelo.",
+      "action": "CHOOSE_OTHER_MODEL"
+    },
+    {
+      "code": "BUILDER_LATE_RESULT_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Execução interrompida por você.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_MESSAGE_ID_UNAVAILABLE",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Builder terminou sem entregar uma resposta. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_MODEL_AUTH_FAILED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Nenhuma conta sua ou compartilhada atende este modelo, ou o provedor a recusou.",
+      "action": "CONNECT_MODEL_ACCOUNT"
+    },
+    {
+      "code": "BUILDER_MODEL_CONTENT_FILTERED",
+      "category": "THIRD_PARTY",
+      "status": 500,
+      "audience": "person",
+      "message": "O provedor do modelo bloqueou a resposta.",
+      "action": "CHOOSE_OTHER_MODEL"
+    },
+    {
+      "code": "BUILDER_MODEL_CONTEXT_LENGTH",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "A conversa ficou maior do que o modelo aceita.",
+      "action": "CHOOSE_OTHER_MODEL"
+    },
+    {
+      "code": "BUILDER_MODEL_INCOMPLETE",
+      "category": "THIRD_PARTY",
+      "status": 500,
+      "audience": "person",
+      "message": "O provedor do modelo recusou ou interrompeu o pedido.",
+      "action": "CHOOSE_OTHER_MODEL"
+    },
+    {
+      "code": "BUILDER_MODEL_NOT_SELECTED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Nenhuma conta sua ou compartilhada atende este modelo, ou o provedor a recusou.",
+      "action": "CONNECT_MODEL_ACCOUNT"
+    },
+    {
+      "code": "BUILDER_MODEL_RATE_LIMITED",
+      "category": "THIRD_PARTY",
+      "status": 500,
+      "audience": "person",
+      "message": "O provedor do modelo está limitando os pedidos.",
+      "action": "RETRY_LATER"
+    },
+    {
+      "code": "BUILDER_MODEL_STEP_TIMEOUT",
+      "category": "THIRD_PARTY",
+      "status": 500,
+      "audience": "person",
+      "message": "O modelo passou tempo demais gerando uma única resposta, então o Conexus encerrou a execução. As alterações desta execução não foram aplicadas.",
+      "action": "RETRY_LATER"
+    },
+    {
+      "code": "BUILDER_MODEL_STREAM_FAILED",
+      "category": "THIRD_PARTY",
+      "status": 500,
+      "audience": "person",
+      "message": "O provedor do modelo recusou ou interrompeu o pedido.",
+      "action": "CHOOSE_OTHER_MODEL"
+    },
+    {
+      "code": "BUILDER_PREVIEW_NOT_BUILT",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O código novo foi aceito, mas o Conexus reiniciou antes de gerar a Prévia. A última Prévia boa continua disponível. O reinício foi registrado.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_RESULT_BUNDLE_TOO_LARGE",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O código novo proposto foi recusado. O Projeto continua no código anterior.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_RESULT_CONTENT_TOO_LARGE",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O código novo proposto foi recusado. O Projeto continua no código anterior.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_RESULT_MATERIALIZATION_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O código novo proposto foi recusado. O Projeto continua no código anterior.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_RUNTIME_INPUT_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_RUNTIME_RESULT_SCOPE_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O código novo proposto foi recusado. O Projeto continua no código anterior.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_RUN_CANCELLED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Execução interrompida por você.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_CONVERSATION_SESSION_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu registrar o estado da conversa. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_RUN_CREATE_FAILED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_RUN_INPUT_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_RUN_NOT_ADMITTED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_RUN_TRANSITION_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_RUN_PHASE_UPDATE_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu registrar o andamento da execução. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SANDBOX_AGENT_USER_REQUIRED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SANDBOX_COMMAND_INTERFACE_REQUIRED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SANDBOX_EGRESS_COLLECT_TIMEOUT",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SANDBOX_EGRESS_POLL_FAILED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SANDBOX_EGRESS_START_FAILED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SANDBOX_FILE_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SANDBOX_ID_UNAVAILABLE",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SANDBOX_INCARNATION_CHANGED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SANDBOX_KEEPALIVE_FAILED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SESSION_DELETE_FAILED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SOURCE_BASE_MOVED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O código do Projeto mudou enquanto esta execução trabalhava, então o resultado não foi aplicado e nada foi sobrescrito.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SOURCE_BASE_PIN_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SOURCE_READ_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu ler o código do Projeto. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SOURCE_READ_TREE_TOO_LARGE",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu ler o código do Projeto. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SOURCE_READ_UNSAFE_ENTRY",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu ler o código do Projeto. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_STARTER_ENTRY_INSPECTION_FAILED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_STARTER_ENTRY_UNSAFE",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_STARTER_ROOT_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONEXUS_APP_ROOT_MISSING",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONEXUS_GIT_FAILED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONEXUS_GIT_MAIN_MISSING",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONEXUS_GIT_MERGE_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONEXUS_GIT_PROJECT_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONEXUS_GIT_REF_MOVED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONEXUS_GIT_REF_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONEXUS_GIT_STARTER_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "GOOGLE_AI_PRO_ACCOUNT_UNAVAILABLE",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu usar a conta Google AI Pro. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "GOOGLE_AI_PRO_BINARY_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu usar a conta Google AI Pro. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "GOOGLE_AI_PRO_POOL_CLOSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu usar a conta Google AI Pro. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "GOOGLE_AI_PRO_PORT_UNAVAILABLE",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu usar a conta Google AI Pro. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "GOOGLE_AI_PRO_PROXY_START_FAILED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu usar a conta Google AI Pro. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "GOOGLE_AI_PRO_RECORD_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu ler a credencial salva desta conta de modelo.",
+      "action": "CONNECT_MODEL_ACCOUNT"
+    },
+    {
+      "code": "GOOGLE_AI_PRO_ROUTER_UNAVAILABLE",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu usar a conta Google AI Pro. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "GOOGLE_AI_PRO_STORED_RECORD_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu ler a credencial salva desta conta de modelo.",
+      "action": "CONNECT_MODEL_ACCOUNT"
+    },
+    {
+      "code": "HUB_RESTART",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus reiniciou durante a execução. O reinício foi registrado.",
+      "action": "NONE"
+    },
+    {
+      "code": "MANIFEST_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O servidor do aplicativo tem uma definição que o Conexus não aceita.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "MODEL_ACCOUNT_PROBE_NOT_CALLABLE",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus falhou ao executar o Builder. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "OPENAI_CODEX_MODEL_REFUSED",
+      "category": "THIRD_PARTY",
+      "status": 500,
+      "audience": "person",
+      "message": "O provedor não aceita esse modelo.",
+      "action": "CHOOSE_OTHER_MODEL"
+    },
+    {
+      "code": "OPENAI_CODEX_STORED_RECORD_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu ler a credencial salva desta conta de modelo.",
+      "action": "CONNECT_MODEL_ACCOUNT"
+    },
+    {
+      "code": "SERVER_TREE_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "O servidor do aplicativo tem arquivos que o Conexus não aceita.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "USER_CANCELLED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Execução interrompida por você.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_QUESTION_EXPIRED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "A pergunta ficou sem resposta e foi encerrada. A sua próxima mensagem continua o trabalho.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_QUESTION_NOT_RELEASED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Builder não conseguiu encerrar a pergunta. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_SOURCE_ADMISSION_FAILED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "A mudança não entrou no app. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "BUILDER_RUN_SETTLE_LOST",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus perdeu o fim deste trabalho. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "APPLICATION_COMPILER_OUTPUT_SYMLINK_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Os arquivos do aplicativo têm um formato que o Conexus não aceita.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_COMPILER_OUTPUT_NON_REGULAR_REFUSED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person",
+      "message": "Os arquivos do aplicativo têm um formato que o Conexus não aceita.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "APPLICATION_RUNNER_RELEASE_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person",
+      "message": "O Conexus não conseguiu alcançar o servidor de aplicativos. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "RUNNER_REQUEST_REFUSED",
+      "category": "SYSTEM",
+      "status": 400,
+      "audience": "operator"
+    },
+    {
+      "code": "INPUT_REFUSED",
+      "category": "USER",
+      "status": 400,
+      "audience": "person+app",
+      "message": "Algum campo tem um valor que o app não aceita.",
+      "action": "NONE"
+    },
+    {
+      "code": "INPUT_TOO_LARGE",
+      "category": "USER",
+      "status": 413,
+      "audience": "person+app",
+      "message": "Os dados enviados são grandes demais.",
+      "action": "NONE"
+    },
+    {
+      "code": "OPERATION_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person+app",
+      "message": "Essa operação não existe neste app.",
+      "action": "NONE"
+    },
+    {
+      "code": "HANDLER_TIMEOUT",
+      "category": "USER",
+      "status": 504,
+      "audience": "person+app",
+      "message": "A operação demorou mais que o permitido.",
+      "action": "RETRY_LATER"
+    },
+    {
+      "code": "RESPONSE_TOO_LARGE",
+      "category": "USER",
+      "status": 502,
+      "audience": "person+app",
+      "message": "Há resultados demais para mostrar. Use um filtro para reduzir a lista.",
+      "action": "NONE"
+    },
+    {
+      "code": "DATABASE_UNAVAILABLE",
+      "category": "SYSTEM",
+      "status": 503,
+      "audience": "person+app",
+      "message": "Os dados salvos do app estão indisponíveis. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "APPLICATION_RUNNER_BUSY",
+      "category": "USER",
+      "status": 429,
+      "audience": "person+app",
+      "message": "O app está ocupado com outros pedidos agora.",
+      "action": "RETRY_LATER"
+    },
+    {
+      "code": "APPLICATION_PROJECT_BUSY",
+      "category": "USER",
+      "status": 429,
+      "audience": "person+app",
+      "message": "Este app já tem pedidos demais em andamento.",
+      "action": "RETRY_LATER"
+    },
+    {
+      "code": "SERVER_TREE_TOO_LARGE",
+      "category": "USER",
+      "status": 413,
+      "audience": "person+app",
+      "message": "O aplicativo passou do tamanho que o Conexus aceita.",
+      "action": "FIX_IN_CONVERSATION"
+    },
+    {
+      "code": "HANDLER_FAILED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person+app",
+      "message": "Esta operação do app falhou.",
+      "action": "NONE"
+    },
+    {
+      "code": "HANDLER_LOAD_FAILED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person+app",
+      "message": "Esta operação do app falhou.",
+      "action": "NONE"
+    },
+    {
+      "code": "HANDLER_EXPORT_MISSING",
+      "category": "USER",
+      "status": 500,
+      "audience": "person+app",
+      "message": "Esta operação do app falhou.",
+      "action": "NONE"
+    },
+    {
+      "code": "HANDLER_OUTPUT_UNSERIALIZABLE",
+      "category": "USER",
+      "status": 500,
+      "audience": "person+app",
+      "message": "Esta operação do app falhou.",
+      "action": "NONE"
+    },
+    {
+      "code": "HANDLER_OUTPUT_REFUSED",
+      "category": "USER",
+      "status": 502,
+      "audience": "person+app",
+      "message": "Esta operação do app falhou.",
+      "action": "NONE"
+    },
+    {
+      "code": "HANDLER_CRASHED",
+      "category": "USER",
+      "status": 500,
+      "audience": "person+app",
+      "message": "Esta operação do app falhou.",
+      "action": "NONE"
+    },
+    {
+      "code": "WORKER_FAILED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person+app",
+      "message": "O Conexus falhou ao executar o app. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "WORKER_JOB_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person+app",
+      "message": "O Conexus falhou ao executar o app. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONNECTOR_SOCKET_REFUSED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person+app",
+      "message": "O Conexus falhou ao executar o app. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONTENT_TYPE_REFUSED",
+      "category": "USER",
+      "status": 415,
+      "audience": "person+app",
+      "message": "O Conexus não aceitou o formato deste pedido.",
+      "action": "NONE"
+    },
+    {
+      "code": "APPLICATION_NOT_FOUND",
+      "category": "USER",
+      "status": 404,
+      "audience": "person+app",
+      "message": "Não encontramos este app.",
+      "action": "NONE"
+    },
+    {
+      "code": "MEMORY_OBSERVATION_FAILED",
+      "category": "THIRD_PARTY",
+      "status": 502,
+      "audience": "person",
+      "message": "Não foi possível guardar as mensagens na memória. O Builder refaz isso na próxima mensagem.",
+      "action": "NONE"
+    },
+    {
+      "code": "MEMORY_REFLECTION_FAILED",
+      "category": "THIRD_PARTY",
+      "status": 502,
+      "audience": "person",
+      "message": "Não foi possível resumir as observações. O Builder refaz isso na próxima mensagem.",
+      "action": "NONE"
+    },
+    {
+      "code": "MODEL_LOGIN_OPENAI_REFUSED",
+      "category": "THIRD_PARTY",
+      "status": 502,
+      "audience": "person",
+      "message": "A OpenAI recusou a entrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "MODEL_LOGIN_ANTHROPIC_REFUSED",
+      "category": "THIRD_PARTY",
+      "status": 502,
+      "audience": "person",
+      "message": "A Anthropic recusou esse código. Pode ser que ele não tenha sido copiado inteiro.",
+      "action": "NONE"
+    },
+    {
+      "code": "MODEL_LOGIN_GOOGLE_REFUSED",
+      "category": "THIRD_PARTY",
+      "status": 502,
+      "audience": "person",
+      "message": "O Google recusou a entrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "APPLICATION_NO_ACCESS",
+      "category": "USER",
+      "status": 403,
+      "audience": "person",
+      "message": "Você não tem acesso a este aplicativo.",
+      "action": "ASK_ADMIN"
+    },
+    {
+      "code": "APPLICATION_EMAIL_NOT_VERIFIED",
+      "category": "USER",
+      "status": 403,
+      "audience": "person",
+      "message": "Você não tem acesso a este aplicativo porque seu e-mail ainda não foi verificado.",
+      "action": "NONE"
+    },
+    {
+      "code": "APPLICATION_SIGN_IN_FAILED",
+      "category": "USER",
+      "status": 403,
+      "audience": "person",
+      "message": "O serviço de login não concluiu a entrada.",
+      "action": "SIGN_IN_AGAIN"
+    },
+    {
+      "code": "APPLICATION_NOT_READY",
+      "category": "USER",
+      "status": 503,
+      "audience": "person+app",
+      "message": "Este app ainda não está pronto para receber pedidos.",
+      "action": "NONE"
+    },
+    {
+      "code": "APPLICATION_SIGN_IN_REQUIRED",
+      "category": "USER",
+      "status": 401,
+      "audience": "person+app",
+      "message": "Você precisa entrar no Conexus para usar este app.",
+      "action": "SIGN_IN"
+    },
+    {
+      "code": "PREVIEW_REFUSED",
+      "category": "USER",
+      "status": 403,
+      "audience": "person+app",
+      "message": "Esta prévia não aceita o pedido.",
+      "action": "NONE"
+    },
+    {
+      "code": "NOT_GRANTED",
+      "category": "USER",
+      "status": 403,
+      "audience": "person+app",
+      "message": "Este app perdeu o acesso ao sistema da empresa. Quem administra o Workspace precisa vincular a Conexão outra vez.",
+      "action": "ASK_ADMIN"
+    },
+    {
+      "code": "CONNECTOR_UNCONFIGURED",
+      "category": "SYSTEM",
+      "status": 503,
+      "audience": "person+app",
+      "message": "A integração com o sistema da empresa não está configurada. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "CREDENTIAL_REFUSED",
+      "category": "USER",
+      "status": 502,
+      "audience": "person+app",
+      "message": "O sistema da empresa recusou o acesso. Avise quem administra a integração.",
+      "action": "ASK_ADMIN"
+    },
+    {
+      "code": "PROVIDER_TIMEOUT",
+      "category": "THIRD_PARTY",
+      "status": 504,
+      "audience": "person+app",
+      "message": "O sistema da empresa não respondeu a tempo.",
+      "action": "RETRY_LATER"
+    },
+    {
+      "code": "PROVIDER_UNAVAILABLE",
+      "category": "THIRD_PARTY",
+      "status": 503,
+      "audience": "person+app",
+      "message": "O sistema da empresa está indisponível agora.",
+      "action": "RETRY_LATER"
+    },
+    {
+      "code": "PROVIDER_ERROR",
+      "category": "THIRD_PARTY",
+      "status": 502,
+      "audience": "person+app",
+      "message": "O sistema da empresa respondeu com um erro.",
+      "action": "NONE"
+    },
+    {
+      "code": "RESPONSE_REFUSED",
+      "category": "THIRD_PARTY",
+      "status": 502,
+      "audience": "person+app",
+      "message": "O Conexus não aceitou a resposta do sistema da empresa.",
+      "action": "NONE"
+    },
+    {
+      "code": "CALL_LIMIT",
+      "category": "USER",
+      "status": 429,
+      "audience": "person+app",
+      "message": "Este app fez chamadas demais ao sistema da empresa.",
+      "action": "RETRY_LATER"
+    },
+    {
+      "code": "SERVICE_REFUSED",
+      "category": "USER",
+      "status": 403,
+      "audience": "person+app",
+      "message": "Esta operação não é permitida pela conexão com o sistema da empresa.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONNECTOR_PLATFORM_FAILED",
+      "category": "SYSTEM",
+      "status": 500,
+      "audience": "person+app",
+      "message": "O Conexus falhou ao ler o sistema da empresa. A falha foi registrada.",
+      "action": "NONE"
+    },
+    {
+      "code": "CONFIG_MISSING",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "CONFIG_INVALID",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "HUB_ALREADY_RUNNING",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "HUB_SCHEMA_BEHIND",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "BUILDER_RUN_SETTLE_FAILED",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "BUILDER_RUN_SWEEP_SETTLE_FAILED",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "BUILDER_SESSION_RELEASE_FAILED",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "BUILDER_MIRROR_FAILED",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "BUILDER_SESSION_CLOSE_FAILED",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "BUILDER_AGENT_PROCESSES_KILL_FAILED",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "BUILDER_SANDBOX_KILL_FAILED",
+      "category": "THIRD_PARTY",
+      "audience": "operator"
+    },
+    {
+      "code": "BUILDER_SANDBOX_PAUSE_FAILED",
+      "category": "THIRD_PARTY",
+      "audience": "operator"
+    },
+    {
+      "code": "BUILDER_SANDBOX_EGRESS_COLLECT_FAILED",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "JOB_FAILED",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "HUB_POOL_ERROR",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "HUB_INSTANCE_LOCK_LOST",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "HUB_SHUTDOWN_FORCED",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "HUB_SHUTDOWN_TIMEOUT",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "HUB_SHUTDOWN_FAILED",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "HUB_FATAL",
+      "category": "SYSTEM",
+      "audience": "operator"
+    },
+    {
+      "code": "OIDC_BEGIN_FAILED",
+      "category": "THIRD_PARTY",
+      "audience": "operator"
+    },
+    {
+      "code": "OIDC_REFRESH_TOKEN_MISSING",
+      "category": "THIRD_PARTY",
+      "audience": "operator"
+    },
+    {
+      "code": "OIDC_CALLBACK_FAILED",
+      "category": "THIRD_PARTY",
+      "audience": "operator"
+    }
   ]
 }

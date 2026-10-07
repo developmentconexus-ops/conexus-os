@@ -82,7 +82,7 @@ export const createWorkspaceConnection = operation({
   success: { 201: ConnectorConnection, 200: ConnectorConnection },
   effects: [],
   failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED', 'CONNECTOR_CONNECTION_CONFLICT'],
-  malformed: { workspaceId: 'CONNECTOR_WORKSPACE_NOT_FOUND', label: 'CONNECTOR_LABEL_REFUSED', credential: 'CONNECTOR_CREDENTIAL_REFUSED' },
+  malformed: { workspaceId: SUBJECT_NOT_FOUND.workspaceId, label: 'CONNECTOR_LABEL_REFUSED', credential: 'CONNECTOR_CREDENTIAL_REFUSED' },
 })
 
 export const checkWorkspaceConnection = operation({
