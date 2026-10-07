@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, readFileSync } from 'node:fs'
+import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
@@ -114,10 +114,8 @@ const GRAPH_STEPS = Object.freeze([
 
 export const CANDIDATE_GRAPH = GRAPH_STEPS
 
-// CI runs the graph as jobs, each on its own machine with its own PostgreSQL and CPU. A step's
-// group follows from its class: rest (static checks and the suites that need nothing), postgres,
-// browser, live, backup. Two steps belong to every group: the Hub build, which publishes the compiled Hub
-// the suites import, and the skip check, which reads the ledger of the job it runs in.
+// Local groups build their own Hub. CI groups consume the build from their run's prerequisite job.
+// The skip ledger stays independent in each group.
 export const VERIFY_GROUPS = Object.freeze(['browser', 'postgres', 'rest', 'live', 'backup'])
 const GROUP_OF_CLASS = Object.freeze({ browser: 'browser', postgres: 'postgres', static: 'rest', live: 'live', backup: 'backup' })
 const EVERY_GROUP = new Set([hubBuildStep.scope, 'only-opt-in-skips'])
@@ -145,7 +143,7 @@ export const QUICK_CHECK_SCOPES = Object.freeze(['web-typecheck', 'hub-typecheck
 export const QUICK_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => QUICK_CHECK_SCOPES.includes(step.scope)))
 
 
-const GRAPHS = Object.freeze({ candidate: CANDIDATE_GRAPH, 'candidate-docs': DOCS_GRAPH, 'candidate-quick': QUICK_GRAPH })
+const GRAPHS = Object.freeze({ candidate: CANDIDATE_GRAPH, 'candidate-build': Object.freeze([hubBuildStep]), 'candidate-docs': DOCS_GRAPH, 'candidate-quick': QUICK_GRAPH })
 
 // Descriptive aliases make the manifest easy to discover for tests and small
 // callers without creating another mutable allowlist.
@@ -321,7 +319,7 @@ export function commandArguments(entry) {
 }
 
 const LEDGER_REPORTER = resolve(repositoryRoot, 'scripts/test-ledger-reporter.mjs')
-const LEDGER_REPORTER_OPTIONS = `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${LEDGER_REPORTER} --test-reporter-destination=stdout`
+const LEDGER_REPORTER_OPTIONS = `--test-reporter=tap --test-reporter-destination=stdout --test-reporter=${LEDGER_REPORTER} --test-reporter-destination=stdout`
 
 // Every step records its skipped tests for the only-opt-in-skips leaf. A fresh ledger per run keeps
 // apart two runs that share node_modules through a worktree symlink, and a test that calls
@@ -425,8 +423,16 @@ export function runVerification({
   const scripts = packageScripts ?? loadPackageScripts(root)
   const requestedEntries = resolveScopes(scopes, scripts)
   assertExecutionEnvironment(requestedEntries, { platform, dryRun })
+  if (group && processEnvironment.CONEXUS_HUB_BUILD && !dryRun) {
+    for (const file of ['server.js', 'app-check/main.mjs']) {
+      if (!existsSync(resolve(processEnvironment.CONEXUS_HUB_BUILD, file))) {
+        throw new VerificationCliError(`shared Hub build is missing ${file}`)
+      }
+    }
+  }
   const graphEntries = requestedEntries.flatMap(entry => own(GRAPHS, entry.graph ?? '') ? GRAPHS[entry.graph] : [entry])
-  const grouped = group ? graphForGroup(graphEntries, group) : graphEntries
+  const grouped = group ? graphForGroup(graphEntries, group)
+    .filter(entry => entry !== hubBuildStep || !processEnvironment.CONEXUS_HUB_BUILD) : graphEntries
   if (shard && !grouped.some(entry => entry.shardCommand)) throw new VerificationCliError(`--shard needs a group with a shardable step; ${group ?? 'the selected scope'} has none`)
   const entries = shard ? grouped.map(entry => entry.shardCommand ? { ...entry, command: entry.shardCommand(shard) } : entry) : grouped
   const records = []

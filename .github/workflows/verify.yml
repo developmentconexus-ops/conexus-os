@@ -15,25 +15,12 @@ permissions:
   contents: read
 
 jobs:
-  group:
-    name: verify (${{ matrix.group }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }})
-    strategy:
-      matrix:
-        # The browser group is the longest, and its files stay one after another, so it is divided
-        # across machines: each runs a quarter of the files by position (node --test-shard).
-        include:
-          - { group: browser, shard: 1/4 }
-          - { group: browser, shard: 2/4 }
-          - { group: browser, shard: 3/4 }
-          - { group: browser, shard: 4/4 }
-          - { group: postgres }
-          - { group: rest }
-          - { group: live }
-          - { group: backup }
-    # A draft is work in progress: its author runs the touched suites locally and pushes as often as
-    # needed. CI runs once, when the pull request is marked ready for review, and on every push after.
+  build:
+    name: verify (build)
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-24.04
+    outputs:
+      docs_only: ${{ steps.scope.outputs.docs_only }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,7 +29,6 @@ jobs:
         id: node
         with:
           node-version-file: .nvmrc
-          cache: npm
       # A pull request that changes only documentation runs only the checks that read documentation.
       # The test is a diff inside this job, not a workflow-level paths filter, so the required `verify`
       # check always reports. A push to main has no base and runs everything.
@@ -70,36 +56,89 @@ jobs:
         with:
           path: node_modules
           key: ${{ steps.modules.outputs.cache-primary-key }}
+      - name: Build the Hub once
+        if: steps.scope.outputs.docs_only != 'true'
+        run: npm run conexus:verify -- --scope candidate-build
+      - name: Share the Hub build
+        if: steps.scope.outputs.docs_only != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hub-build
+          path: node_modules/.cache/conexus-hub-build
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  group:
+    name: verify (${{ matrix.group }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }})
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        # The browser group is the longest, and its files stay one after another, so it is divided
+        # across machines: each runs a quarter of the files by position (node --test-shard).
+        include:
+          - { group: browser, shard: 1/4 }
+          - { group: browser, shard: 2/4 }
+          - { group: browser, shard: 3/4 }
+          - { group: browser, shard: 4/4 }
+          - { group: postgres }
+          - { group: rest }
+          - { group: live }
+          - { group: backup }
+    # A draft is work in progress: its author runs the touched suites locally and pushes as often as
+    # needed. CI runs once, when the pull request is marked ready for review, and on every push after.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        id: node
+        with:
+          node-version-file: .nvmrc
+      - name: Restore node_modules
+        id: modules
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json', 'package.json') }}
+      - name: Install dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
+        run: node scripts/ci-install.mjs
+      - name: Read the Hub build from this run
+        if: needs.build.outputs.docs_only != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: hub-build
+          path: node_modules/.cache/conexus-hub-build
       # The browser download is cached on the installed Playwright version. The OS libraries it needs
       # live outside the cache, so they are installed on every run.
       - name: Playwright version
         id: playwright
-        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'live')
+        if: needs.build.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'live')
         run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Restore the Playwright browser
-        id: browser
-        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'live')
+        if: needs.build.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'live')
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
-      - name: Install Playwright Chromium
-        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'live') && steps.browser.outputs.cache-hit != 'true'
+      - name: Install Playwright Chromium and OS dependencies
+        if: needs.build.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'live')
         run: npx --no-install playwright install --with-deps chromium
-      - name: Install Playwright OS dependencies
-        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'live') && steps.browser.outputs.cache-hit == 'true'
-        run: npx --no-install playwright install-deps chromium
       # The application runner's worker is a rootless bubblewrap sandbox, and the runner refuses to
       # start without unprivileged user namespaces. ubuntu-24.04 restricts them through AppArmor.
       - name: Rootless sandbox for the application runner suite
-        if: steps.scope.outputs.docs_only != 'true' && matrix.group == 'postgres'
+        if: needs.build.outputs.docs_only != 'true' && matrix.group == 'postgres'
         run: |
           command -v bwrap || { sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends bubblewrap; }
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       # The baseline check reads the schema back with pg_dump, which must be at least the server's
       # version. The container's own pg_dump always is, so no client is installed here.
       - name: Start the Hub PostgreSQL
-        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'postgres' || matrix.group == 'browser')
+        if: needs.build.outputs.docs_only != 'true' && (matrix.group == 'postgres' || matrix.group == 'browser')
         run: |
           docker run --rm --detach --name conexus-ci-hub -p 5432:5432 -e POSTGRES_DB=conexus_test -e POSTGRES_PASSWORD=s6-ci-test-only postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f
           for attempt in $(seq 1 60); do docker exec conexus-ci-hub pg_isready -U postgres -d conexus_test -h 127.0.0.1 && break; sleep 1; done
@@ -108,7 +147,7 @@ jobs:
       # passwordless sudo, so the test Applications cluster gets the same dedicated, mounted
       # filesystem an installation gets, at a fraction of the size, instead of an ordinary directory.
       - name: Start the Applications PostgreSQL test cluster
-        if: steps.scope.outputs.docs_only != 'true' && matrix.group == 'postgres'
+        if: needs.build.outputs.docs_only != 'true' && matrix.group == 'postgres'
         run: |
           sudo bash scripts/mount-application-cluster-storage.sh install "$RUNNER_TEMP/conexus-apps.img" 1024 "$RUNNER_TEMP/conexus-apps"
           printf '%s' s6-ci-test-only > "$RUNNER_TEMP/conexus-apps-password"
@@ -118,15 +157,16 @@ jobs:
       # Project roles log in only with the application runner's certificate. The test cluster gets the
       # TLS files and pg_hba rules an installation gets; the Project role suites prove them.
       - name: Confine application roles on the test Applications cluster
-        if: steps.scope.outputs.docs_only != 'true' && matrix.group == 'postgres'
+        if: needs.build.outputs.docs_only != 'true' && matrix.group == 'postgres'
         run: node scripts/confine-application-cluster.mjs --container conexus-ci-apps --authority-dir "$RUNNER_TEMP/conexus-app-authority" --tls-dir "$RUNNER_TEMP/conexus-app-tls" --database '/^conexus_apps_[0-9a-f]{12}$'
       - name: Verify the documentation checks only
-        if: steps.scope.outputs.docs_only == 'true' && matrix.group == 'rest'
+        if: needs.build.outputs.docs_only == 'true' && matrix.group == 'rest'
         run: npm run verify:docs
       - name: Verify the ${{ matrix.group }} group
         run: npm run conexus:verify -- --scope candidate --group ${{ matrix.group }}${{ matrix.shard && format(' --shard {0}', matrix.shard) || '' }}
-        if: steps.scope.outputs.docs_only != 'true'
+        if: needs.build.outputs.docs_only != 'true'
         env:
+          CONEXUS_HUB_BUILD: ${{ github.workspace }}/node_modules/.cache/conexus-hub-build
           # The live group's evidence (screenshots, the page console, the Hub's log) is kept on failure, below.
           CONEXUS_VERIFY_EVIDENCE: ${{ runner.temp }}/conexus-verify-evidence
           CONEXUS_VERIFY_STATE: ${{ runner.temp }}/conexus-verify-state
@@ -143,6 +183,16 @@ jobs:
           name: live-evidence
           path: ${{ runner.temp }}/conexus-verify-evidence
           if-no-files-found: ignore
+      - name: PostgreSQL diagnostics
+        if: failure() && needs.build.outputs.docs_only != 'true' && (matrix.group == 'postgres' || matrix.group == 'browser')
+        run: |
+          docker logs conexus-ci-hub
+          if [ '${{ matrix.group }}' = postgres ]; then docker logs conexus-ci-apps; fi
+      - name: Stop the test clusters
+        if: always() && needs.build.outputs.docs_only != 'true' && (matrix.group == 'postgres' || matrix.group == 'browser')
+        run: |
+          docker stop conexus-ci-hub
+          if [ '${{ matrix.group }}' = postgres ]; then docker stop conexus-ci-apps; fi
       - run: git diff --check
       # A guard that fails without naming what it found costs a whole CI cycle to diagnose.
       - name: The working tree is unchanged by verification
@@ -158,13 +208,15 @@ jobs:
   # a single name, `verify`, and a group that fails or is cancelled fails it.
   verify:
     name: verify
-    needs: group
+    needs: [build, group]
     if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     runs-on: ubuntu-24.04
     steps:
       - name: Every group passed
         env:
+          BUILD_RESULT: ${{ needs.build.result }}
           GROUPS_RESULT: ${{ needs.group.result }}
         run: |
-          echo "groups: $GROUPS_RESULT"
+          echo "build: $BUILD_RESULT; groups: $GROUPS_RESULT"
+          test "$BUILD_RESULT" = success
           test "$GROUPS_RESULT" = success

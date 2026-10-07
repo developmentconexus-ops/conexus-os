@@ -437,7 +437,7 @@ test('candidate graph labels execution environments and passes shell argv correc
   )
 })
 
-const REPORTER_OPTIONS = `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=${resolve(repositoryRoot, 'scripts/test-ledger-reporter.mjs')} --test-reporter-destination=stdout`
+const REPORTER_OPTIONS = `--test-reporter=tap --test-reporter-destination=stdout --test-reporter=${resolve(repositoryRoot, 'scripts/test-ledger-reporter.mjs')} --test-reporter-destination=stdout`
 
 test('every step records its skips into one fresh ledger per run', () => {
   const ledger = { root: '/work/conexus-os', file: '/tmp/conexus-test-ledger-fixture.jsonl' }
