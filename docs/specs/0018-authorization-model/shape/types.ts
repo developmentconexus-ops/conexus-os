@@ -4,14 +4,16 @@ import type { JobName, ReadTx, WriteTx } from '../../../../apps/hub/src/platform
 export type Mode = 'read' | 'write'
 export type WorkspaceAction = 'workspace.read' | 'members.manage' | 'members.leave' | 'project.create'
 export type ProjectAction = 'project.read' | 'project.build' | 'connections.bind' | 'application.manage' | 'project.delete'
+export type WorkspaceReadAction = 'workspace.read'
+export type ProjectReadAction = Exclude<ProjectAction, 'project.delete'>
 export type OwnerRow = Readonly<{ accountId: AccountId; active: boolean }>
 export type AccountScope = Readonly<{ kind: 'account'; accountId: AccountId }>
 type WorkspaceBase = Readonly<{ kind: 'workspace'; accountId: AccountId; workspaceId: WorkspaceId; role: WorkspaceRole }>
-type WorkspaceScopes = {
+type WorkspaceScopes<M extends Mode> = {
   [A in WorkspaceAction]: WorkspaceBase & Readonly<{ action: A }> &
-    (A extends 'members.manage' | 'members.leave' ? Readonly<{ owners: readonly OwnerRow[] }> : object)
+    (M extends 'write' ? (A extends 'members.manage' | 'members.leave' ? Readonly<{ owners: readonly OwnerRow[] }> : object) : object)
 }[WorkspaceAction]
-export type WorkspaceScope<A extends WorkspaceAction> = Extract<WorkspaceScopes, { action: A }>
+export type WorkspaceScope<A extends WorkspaceAction, M extends Mode = 'write'> = Extract<WorkspaceScopes<M>, { action: A }>
 export type ProjectScope<A extends ProjectAction> = Readonly<{
   kind: 'project'; accountId: AccountId; workspaceId: WorkspaceId; projectId: ProjectId; role: WorkspaceRole; action: A
 }>
@@ -50,3 +52,6 @@ export type ProjectState =
   | Readonly<{ state: 'live'; projectRevision: ProjectRevision; archived: boolean }>
   | Readonly<{ state: 'deleting' }>
 export type ProjectDetail = ProjectIdentity & ProjectState
+
+export type ProjectListRow = ProjectIdentity & (Readonly<{ state: 'live'; archived: boolean }> | Readonly<{ state: 'deleting' }>)
+export type ProjectCard = Pick<ProjectIdentity, 'projectId' | 'name'> & (Readonly<{ state: 'live'; archived: boolean; lastActivityAt: string; latestRun: import('@conexus/contract').ProjectCard['latestRun']; hasPreview: boolean }> | Readonly<{ state: 'deleting' }>)

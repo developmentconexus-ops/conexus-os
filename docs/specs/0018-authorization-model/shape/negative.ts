@@ -1,5 +1,5 @@
 import type { AccountId, ProjectId, ProjectRevision, WorkspaceId } from '@conexus/contract'
-import { admitProject, admitInstallationAdministrator } from './admission.js'
+import { admitProject, admitWorkspace, admitInstallationAdministrator } from './admission.js'
 import { beginDeletion, listProjects } from './data.js'
 import type { Admitted, CommandGate, ProjectScope, ReadGate, WorkspaceScope, ProjectDetail, Checked, ApplicationScope, RunScope, SystemScope } from './types.js'
 import type { Malformed, RoleCells } from './catalog.js'
@@ -8,7 +8,7 @@ declare const accountId: AccountId
 declare const workspaceId: WorkspaceId
 declare const revision: ProjectRevision
 declare const projectId: ProjectId
-declare const read: Admitted<ProjectScope<'project.delete'>, 'read'>
+declare const read: Admitted<ProjectScope<'project.read'>, 'read'>
 declare const view: Checked<ApplicationScope>
 declare const systemProof: Admitted<SystemScope>
 // @ts-expect-error A closed gate has no SQL method.
@@ -43,3 +43,8 @@ const deleting: ProjectDetail = { projectId, workspaceId, name: 'Example', state
 const missingOwners: WorkspaceScope<'members.manage'> = { kind: 'workspace', accountId, workspaceId, role: 'owner', action: 'members.manage' }
 // @ts-expect-error A system proof cannot become an executor-owned run proof.
 const forgedRun: Admitted<RunScope> = systemProof
+
+// @ts-expect-error Read admission cannot authorize deletion.
+admitProject(gate, { projectId, action: 'project.delete' })
+// @ts-expect-error Read admission cannot manage the owner set.
+admitWorkspace(gate, { workspaceId, action: 'members.manage' })
