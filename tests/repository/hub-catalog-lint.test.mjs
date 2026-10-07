@@ -39,6 +39,7 @@ test('unexpected runtime verbs and retired role grants are named', () => {
   }), [
     `${WORKSPACE} gives hub_runtime DELETE, INSERT, SELECT, and its register row says INSERT, SELECT`,
     `${WORKSPACE} still grants hub_reader SELECT`,
+    'runtimePrivileges is 4, above its ceiling 3',
   ])
 })
 
@@ -78,6 +79,7 @@ test('the register names missing or extra catalog tables', () => {
   ])
   assert.deepEqual(lint((input) => { input.census.register.tables.push(row('gone.table')) }), [
     'the register names gone.table, which is not a table of the catalog',
+    'gone.table gives hub_runtime nothing, and its register row says INSERT, SELECT',
   ])
 })
 
@@ -97,5 +99,6 @@ test('unexpected functions and execution grants are named', () => {
     'hub_runtime may EXECUTE iam.lock_administrators(), workspace.extra(), and the register says iam.lock_administrators()',
     'workspace.extra() is executable by conexus_owner, hub_runtime, and only conexus_owner may',
     'ruleFunctions is 1, above its ceiling 0',
+    'runtimePrivileges is 4, above its ceiling 3',
   ])
 })
