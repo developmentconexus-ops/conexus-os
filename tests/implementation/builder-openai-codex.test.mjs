@@ -330,7 +330,12 @@ test('a ChatGPT model calls the Codex endpoint with the person\'s bearer and acc
   const model = await codexModel('gpt-5.1', live)
   assert.equal(model.provider, 'openai.responses')
   const { stream } = await model.doStream({ prompt, maxOutputTokens: 1234 })
-  assert.deepEqual(await drain(stream), ['stream-start', 'response-metadata', 'reasoning-start', 'reasoning-delta', 'reasoning-end', 'text-start', 'text-delta', 'text-end', 'finish'])
+  const parts = []
+  for await (const part of stream) parts.push(part)
+  assert.deepEqual(parts.map(({ type }) => type), ['stream-start', 'response-metadata', 'reasoning-start', 'reasoning-delta', 'reasoning-end', 'text-start', 'text-delta', 'text-end', 'finish'])
+  assert.deepEqual(parts.filter(({ type }) => type === 'reasoning-delta').map(({ delta }) => delta), ['pensando'])
+  assert.deepEqual(parts.filter(({ type }) => type === 'text-delta').map(({ delta }) => delta), ['oi'])
+  assert.equal(parts.find(({ type }) => type === 'finish').finishReason.unified, 'stop')
   assert.equal(seen.length, 1)
   const { url, authorization, account, originator, body } = seen[0]
   assert.deepEqual({ url, authorization, account, originator }, {
@@ -437,14 +442,14 @@ test("a session with no model is refused at the call; the start check falls back
 })
 
 test("a run's Builder calls and its memory calls each pay with their own model's account and record both", async () => {
-  const { modelAccounts, seed, rows } = fakeModelAccounts()
+  const { modelAccounts, seed } = fakeModelAccounts()
   await seed(ana, 'openai-codex', 'oauth', 'ana-secret')
   await seed(ana, 'google-ai-pro', 'google_ai_pro', 'ana-google-secret')
   const { call, memoryCall, recorded } = await routingOver({ modelAccounts, defaults: { memory: 'google-ai-pro/gemini-3-flash' } })
 
   assert.deepEqual(await call(RUN['run-1'], ana, 'openai/gpt-5.6-sol'), { called: 'gpt-5.6-sol', with: 'ana-secret' })
   assert.deepEqual(await memoryCall(RUN['run-1'], ana), { called: 'gemini-3-flash', with: 'ana-google-secret' })
-  assert.deepEqual(recorded, [[RUN['run-1'], rows.get(`${ana}:openai-codex`).id], [RUN['run-1'], rows.get(`${ana}:google-ai-pro`).id]])
+  assert.deepEqual(recorded, [[RUN['run-1'], 'row-1'], [RUN['run-1'], 'row-2']])
 })
 
 test('a ChatGPT token refreshed on one call is written back once, and the next call reads it from the row', async () => {
