@@ -10,6 +10,8 @@ every item.
 1. Every type, contract and value the card uses exists at the head you started from, or this unit
    creates it. One fact has one owner (C §4).
 2. Your code will match the `shape/` files the card names: the same names, unions and signatures.
+   If a `shape/` file conflicts with a guide, stop and report the conflict with both `file:line`s;
+   do not choose one ([L, Stop, then escalate](../../../../docs/development/delivery.md#stop-then-escalate)).
 3. You read each reference the card copies, at its `file:line`.
 4. You read the guide sections the card cites and the `AGENTS.md` of each area you touch.
 
