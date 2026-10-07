@@ -75,8 +75,11 @@ Not verified: <list>
 
 ## 7. Findings against the guides
 
-| Finding | Guide section | `file:line` |
-| --- | --- | --- |
+Every existing mechanism the wave touches gets KEEP, REPLACE or DELETE with all three proofs.
+State what was not verified.
+
+| Mechanism / finding (`file:line`) | Verdict (KEEP / REPLACE / DELETE) | Works (test or census) | Guide section, and why it is right against the references | What the references do (`file:line`, version) |
+| --- | --- | --- | --- | --- |
 
 ## 8. What the wave wants
 

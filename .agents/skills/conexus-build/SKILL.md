@@ -72,5 +72,5 @@ request targets `main`, and its body says what the change deletes, measured by
 - a **must not** rule of [guide C](../../../docs/development/codebase-principles.md) would break, or a
   [stop condition](../../../docs/development/delivery.md#stop-then-escalate) holds.
 
-Stop means no more code, a comment on the issue or a report with the evidence, and the question for
-the operator.
+Stop means no more code, a comment on the issue or a report with the evidence. Before a question
+goes to the operator, analyze the choice with [`conexus-decide`](../conexus-decide/SKILL.md).

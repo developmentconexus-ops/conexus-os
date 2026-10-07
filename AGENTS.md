@@ -6,7 +6,8 @@ Before relying on chat, a handoff, or remembered state, run `npm run conexus:pre
 WSL environment (after `nvm use`; see [environment](docs/development/environment.md)), then load the
 skill for your task from `.agents/skills/`:
 
-- a question, or the study of a wave: [`conexus-study`](.agents/skills/conexus-study/SKILL.md);
+- a question, or the study of a wave: [`conexus-study`](.agents/skills/conexus%2Dstudy/SKILL.md);
+- a choice for the operator: [`conexus-decide`](.agents/skills/conexus-decide/SKILL.md);
 - a wave's spec, or a sweep: [`conexus-spec`](.agents/skills/conexus-spec/SKILL.md);
 - a wave unit, a small change or a screen: [`conexus-build`](.agents/skills/conexus-build/SKILL.md);
 - the proof of a wave: [`conexus-prove`](.agents/skills/conexus-prove/SKILL.md);

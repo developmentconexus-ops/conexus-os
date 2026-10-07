@@ -26,9 +26,14 @@ beside it.
    it is listed as not verified. Falsifiable claims only.
 5. **The guides measure.** Each finding names the guide section it breaks.
 6. **Reuse.** Start from earlier studies; correct them where the code says otherwise.
-7. **Decisions go to the operator** through the planning session, with options, a recommendation
-   and the reference behind it. A fact you can observe is not a decision: observe it.
-8. **The repository is public.** The report, the census and every query follow
+7. **Decisions go to the operator** through the planning session, after
+   [`conexus-decide`](../conexus-decide/SKILL.md) analyzes the choice. A fact you can observe is not
+   a decision: observe it.
+8. **Every existing mechanism the wave touches gets a verdict:** KEEP, REPLACE or DELETE, with
+   three proofs: it works (a test or the census); it follows the guide and the guide is right against
+   the references; what the references do (`file:line`, version). Record them in the report's findings
+   section, including what was not verified.
+9. **The repository is public.** The report, the census and every query follow
    [the company data rule](../../../docs/reference/security-and-authority.md#7-data-protection-and-egress).
 
 ## Parts

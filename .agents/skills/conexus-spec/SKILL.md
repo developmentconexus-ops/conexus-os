@@ -51,9 +51,9 @@ beside it.
    spec states today's number and the target, and the unit that reaches the target adds the check to
    CI.
 10. **The operator decides the load-bearing choices.** Each one goes to the operator through the
-    planning session, one at a time, with the options, the recommendation and its reference, before
-    the spec is written. The operator may also answer you directly in your session. The spec records
-    the answer and does not reopen it.
+    planning session, one at a time, after [`conexus-decide`](../conexus-decide/SKILL.md) analyzes
+    the choice, before the spec is written. The operator may also answer you directly in your
+    session. The spec records the answer and does not reopen it.
 11. **Size.** A wave holds at most 8 units or 70 product files. Past that it splits into two waves.
 12. **`shape/` is temporary.** The wave's last unit deletes `shape/`: once the code exists, it is the
     only owner of the shape.

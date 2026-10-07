@@ -56,9 +56,13 @@ for the operator, not for the builder>
 
 ## Deletes and census
 
-| What | Today | Target | Check that holds it |
-| --- | --- | --- | --- |
-| <e.g. reads that skip admission> | 15 | 0 | <script or lint rule, and its CI step> |
+Every existing mechanism the wave touches gets KEEP, REPLACE or DELETE with three proofs: it
+works (a test or the census); it follows the guide and the guide is right against the references;
+what the references do. State what was not verified.
+
+| What | Verdict (KEEP / REPLACE / DELETE) | Works (test or census) | Guide section, and why it is right against the references | What the references do (`file:line`, version) | Today | Target | Check that holds it |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| <e.g. reads that skip admission> | REPLACE | <test or census, and result> | <section and reference evidence> | <reference behavior and source> | 15 | 0 | <script or lint rule, and its CI step> |
 
 Delete list: <files, exports, functions, tables, failure codes, tests>
 

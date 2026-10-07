@@ -37,3 +37,5 @@ never the author's summary. It does not fix the code it reviews. The verdict fol
    [review loop](../../../docs/development/delivery.md#review-loop): symptom, evidence, the guide
    section; a preference starts with `Nit:` and does not block. An independent reviewer has seen no
    draft of the work; a timeout or a missing report is an incomplete review, not a pass.
+   When a finding needs a choice from the operator, analyze it with
+   [`conexus-decide`](../conexus-decide/SKILL.md) before sending the question.
