@@ -1,6 +1,6 @@
 # apps/web
 
-The Conexus web app: React, strict TypeScript, Vite, TanStack Router and Query, composed from `@mastra/playground-ui`. The Hub serves the built files. For any change here, follow the Frontend flow of [`conexus-development`](../../.agents/skills/conexus-development/references/flows.md#frontend).
+The Conexus web app: React, strict TypeScript, Vite, TanStack Router and Query, composed from `@mastra/playground-ui`. The Hub serves the built files. For any change here, follow [screens](../../.agents/skills/conexus-build/references/screens.md) of the `conexus-build` skill.
 
 ## Run and test
 
