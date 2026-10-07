@@ -14,20 +14,20 @@ export type ApplicationRunnerSupervisor = Readonly<{
   release(input: Readonly<{ projectId: string }>): Promise<void>
 }>
 
-const recordRunnerException = (failure: Failure): void => {
+function recordRunnerException(failure: Failure): void {
   const span = trace.getActiveSpan()
   if (!span) return
   span.recordException(failure.cause instanceof Error ? failure.cause : failure)
   if (failure.category === 'SYSTEM') span.setStatus({ code: SpanStatusCode.ERROR })
 }
 
-const escapedFailure = (reply: FastifyReply, error: unknown): FastifyReply => {
+function escapedFailure(reply: FastifyReply, error: unknown): FastifyReply {
   const failure = toFailure(error)
   recordRunnerException(failure)
   return sendFailureResponse(reply, failureResponse({ code: failure.id, traceId: currentTraceReference() }))
 }
 
-const refusedRequest = (reply: FastifyReply): FastifyReply => {
+function refusedRequest(reply: FastifyReply): FastifyReply {
   const failure = new Failure('RUNNER_REQUEST_REFUSED')
   recordRunnerException(failure)
   return sendFailureResponse(reply, failureResponse({ code: failure.id, traceId: currentTraceReference() }))

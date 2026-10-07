@@ -84,9 +84,15 @@ const finish = (result: WorkerAnswer): never => {
   process.exit(0)
 }
 
-const refuse = (error: WorkerRefusal): never => finish(Object.freeze({ ok: false, error: Object.freeze(error) }))
-const accept = (result: unknown): never => finish(Object.freeze({ ok: true, result }))
-const sqlstate = (error: unknown) => {
+function refuse(error: WorkerRefusal): never {
+  return finish(Object.freeze({ ok: false, error: Object.freeze(error) }))
+}
+
+function accept(result: unknown): never {
+  return finish(Object.freeze({ ok: true, result }))
+}
+
+function sqlstate(error: unknown) {
   if (typeof error !== 'object' || error === null || !('code' in error)) return null
   const parsed = sqlStateSchema.safeParse(error.code)
   return parsed.success ? parsed.data : null

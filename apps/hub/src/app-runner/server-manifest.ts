@@ -59,30 +59,35 @@ export type InvokeRefusal =
     | 'OPERATION_NOT_FOUND' | 'INPUT_TOO_LARGE' | 'CONNECTOR_SOCKET_REFUSED' | 'APPLICATION_RUNNER_BUSY' | 'HANDLER_TIMEOUT' | 'APPLICATION_PROJECT_BUSY'>
 export type InvokeAnswer = Result<unknown, InvokeRefusal>
 
-const refuseManifest = (where: string, diagnostic: string): ManifestRefusal => Object.freeze({ code: 'MANIFEST_REFUSED', where, diagnostic })
-const refuseTree = (where: string, diagnostic: string): TreeRefusal => Object.freeze({ code: 'SERVER_TREE_REFUSED', where, diagnostic })
+function refuseManifest({ where, diagnostic }: Readonly<{ where: string; diagnostic: string }>): ManifestRefusal {
+  return Object.freeze({ code: 'MANIFEST_REFUSED', where, diagnostic })
+}
+
+function refuseTree({ where, diagnostic }: Readonly<{ where: string; diagnostic: string }>): TreeRefusal {
+  return Object.freeze({ code: 'SERVER_TREE_REFUSED', where, diagnostic })
+}
 
 function isRecord(candidate: unknown): candidate is Record<string, unknown> {
   return typeof candidate === 'object' && candidate !== null && !Array.isArray(candidate)
 }
 
 function onlyKeys(record: Record<string, unknown>, allowed: readonly string[], where: string): ManifestRefusal | null {
-  for (const key of Object.keys(record)) if (!allowed.includes(key)) return refuseManifest(where, `unknown key "${key}"`)
+  for (const key of Object.keys(record)) if (!allowed.includes(key)) return refuseManifest({ where, diagnostic: `unknown key "${key}"` })
   return null
 }
 
 function bound(record: Record<string, unknown>, key: string, where: string, integer: boolean): ManifestRefusal | null {
   const limit = record[key]
   if (limit === undefined) return null
-  if (typeof limit !== 'number' || !Number.isFinite(limit) || (integer && (!Number.isSafeInteger(limit) || limit < 0))) return refuseManifest(where, `"${key}" must be a ${integer ? 'non-negative integer' : 'finite number'}`)
+  if (typeof limit !== 'number' || !Number.isFinite(limit) || (integer && (!Number.isSafeInteger(limit) || limit < 0))) return refuseManifest({ where, diagnostic: `"${key}" must be a ${integer ? 'non-negative integer' : 'finite number'}` })
   return null
 }
 
 const PROPERTY = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/
 
 function assertSchema(candidate: unknown, where: string, depth: number): ManifestRefusal | null {
-  if (depth > 6) return refuseManifest(where, 'nested deeper than 6 levels')
-  if (!isRecord(candidate)) return refuseManifest(where, 'must be an object with a "type"')
+  if (depth > 6) return refuseManifest({ where, diagnostic: 'nested deeper than 6 levels' })
+  if (!isRecord(candidate)) return refuseManifest({ where, diagnostic: 'must be an object with a "type"' })
   switch (candidate.type) {
     case 'string': {
       const stringKeys = onlyKeys(candidate, ['type', 'enum', 'minLength', 'maxLength'], where)
@@ -90,9 +95,9 @@ function assertSchema(candidate: unknown, where: string, depth: number): Manifes
       if (candidate.enum !== undefined) {
         const values = candidate.enum
         if (!Array.isArray(values) || values.length < 1 || values.length > 64 || new Set(values).size !== values.length || !values.every((value) => typeof value === 'string' && value.length <= 200)) {
-          return refuseManifest(where, '"enum" must list between 1 and 64 distinct strings of at most 200 characters')
+          return refuseManifest({ where, diagnostic: '"enum" must list between 1 and 64 distinct strings of at most 200 characters' })
         }
-        if (candidate.minLength !== undefined || candidate.maxLength !== undefined) return refuseManifest(where, '"enum" cannot be combined with "minLength" or "maxLength"')
+        if (candidate.minLength !== undefined || candidate.maxLength !== undefined) return refuseManifest({ where, diagnostic: '"enum" cannot be combined with "minLength" or "maxLength"' })
       }
       return bound(candidate, 'minLength', where, true) ?? bound(candidate, 'maxLength', where, true)
     }
@@ -107,19 +112,19 @@ function assertSchema(candidate: unknown, where: string, depth: number): Manifes
     case 'object': {
       const objectKeys = onlyKeys(candidate, ['type', 'properties', 'required', 'additionalProperties'], where)
       if (objectKeys) return objectKeys
-      if (candidate.additionalProperties !== false) return refuseManifest(where, '"additionalProperties" must be false')
+      if (candidate.additionalProperties !== false) return refuseManifest({ where, diagnostic: '"additionalProperties" must be false' })
       const properties = candidate.properties
-      if (!isRecord(properties)) return refuseManifest(where, '"properties" must be an object')
+      if (!isRecord(properties)) return refuseManifest({ where, diagnostic: '"properties" must be an object' })
       const names = Object.keys(properties)
-      if (names.length > 64) return refuseManifest(where, 'more than 64 properties')
+      if (names.length > 64) return refuseManifest({ where, diagnostic: 'more than 64 properties' })
       for (const name of names) {
-        if (!PROPERTY.test(name)) return refuseManifest(where, `property name "${name}" is not an identifier`)
+        if (!PROPERTY.test(name)) return refuseManifest({ where, diagnostic: `property name "${name}" is not an identifier` })
         const refusal = assertSchema(properties[name], `${where}.properties.${name}`, depth + 1)
         if (refusal) return refusal
       }
       if (candidate.required !== undefined) {
         if (!Array.isArray(candidate.required) || !candidate.required.every((name) => typeof name === 'string' && names.includes(name))) {
-          return refuseManifest(where, '"required" must list declared properties')
+          return refuseManifest({ where, diagnostic: '"required" must list declared properties' })
         }
       }
       return null
@@ -132,7 +137,7 @@ function assertSchema(candidate: unknown, where: string, depth: number): Manifes
       return assertSchema(candidate.items, `${where}.items`, depth + 1)
     }
     default:
-      return refuseManifest(where, '"type" must be one of string, integer, number, boolean, object, array')
+      return refuseManifest({ where, diagnostic: '"type" must be one of string, integer, number, boolean, object, array' })
   }
 }
 
@@ -146,51 +151,51 @@ const MIGRATION = /^[0-9]{3,6}_[a-z0-9_]{1,60}\.sql$/
 export const isMigrationName = (candidate: unknown): candidate is string => typeof candidate === 'string' && MIGRATION.test(candidate)
 
 function assertManifest(value: unknown, stage: 'source' | 'server'): ManifestRefusal | null {
-  if (!isRecord(value)) return refuseManifest('manifest', 'must be a JSON object')
+  if (!isRecord(value)) return refuseManifest({ where: 'manifest', diagnostic: 'must be a JSON object' })
   const manifestKeys = onlyKeys(value, stage === 'source' ? ['operations'] : ['version', 'operations', 'migrations'], 'manifest')
   if (manifestKeys) return manifestKeys
-  if (stage === 'server' && value.version !== 1) return refuseManifest('manifest', '"version" must be 1')
+  if (stage === 'server' && value.version !== 1) return refuseManifest({ where: 'manifest', diagnostic: '"version" must be 1' })
   const operations = value.operations
-  if (!isRecord(operations)) return refuseManifest('operations', 'must be an object')
+  if (!isRecord(operations)) return refuseManifest({ where: 'operations', diagnostic: 'must be an object' })
   const ids = Object.keys(operations)
-  if (ids.length === 0 || ids.length > 32) return refuseManifest('operations', 'must declare between 1 and 32 operations')
+  if (ids.length === 0 || ids.length > 32) return refuseManifest({ where: 'operations', diagnostic: 'must declare between 1 and 32 operations' })
   for (const id of ids) {
     const where = `operations.${id}`
-    if (!OPERATION.test(id)) return refuseManifest(where, 'an operation id is camelCase letters and digits, starting lowercase')
+    if (!OPERATION.test(id)) return refuseManifest({ where, diagnostic: 'an operation id is camelCase letters and digits, starting lowercase' })
     const entry = operations[id]
-    if (!isRecord(entry)) return refuseManifest(where, 'must be an object')
+    if (!isRecord(entry)) return refuseManifest({ where, diagnostic: 'must be an object' })
     const pathKey = stage === 'source' ? 'handler' : 'module'
     const entryKeys = onlyKeys(entry, [pathKey, 'export', 'input', 'output'], where)
     if (entryKeys) return entryKeys
     const path = entry[pathKey]
     if (typeof path !== 'string' || !(stage === 'source' ? HANDLER : MODULE).test(path)) {
-      return refuseManifest(where, stage === 'source' ? '"handler" must be a path like handlers/notes.ts inside conexus/' : '"module" must be a bundled handler path')
+      return refuseManifest({ where, diagnostic: stage === 'source' ? '"handler" must be a path like handlers/notes.ts inside conexus/' : '"module" must be a bundled handler path' })
     }
-    if (typeof entry.export !== 'string' || !EXPORT.test(entry.export)) return refuseManifest(where, '"export" must name the handler function')
+    if (typeof entry.export !== 'string' || !EXPORT.test(entry.export)) return refuseManifest({ where, diagnostic: '"export" must name the handler function' })
     const input = entry.input
     const inputRefusal = assertSchema(input, `${where}.input`, 0)
     if (inputRefusal) return inputRefusal
-    if (!isRecord(input) || input.type !== 'object') return refuseManifest(`${where}.input`, 'an operation input must be an object schema')
+    if (!isRecord(input) || input.type !== 'object') return refuseManifest({ where: `${where}.input`, diagnostic: 'an operation input must be an object schema' })
     const outputRefusal = assertSchema(entry.output, `${where}.output`, 0)
     if (outputRefusal) return outputRefusal
   }
   if (stage === 'server') {
     const migrations = value.migrations
-    if (!Array.isArray(migrations) || migrations.length > 64) return refuseManifest('migrations', 'must be a list of at most 64 migrations')
+    if (!Array.isArray(migrations) || migrations.length > 64) return refuseManifest({ where: 'migrations', diagnostic: 'must be a list of at most 64 migrations' })
     const names = new Set<string>()
     for (const [index, migration] of migrations.entries()) {
       const where = `migrations[${index}]`
-      if (!isRecord(migration)) return refuseManifest(where, 'must be an object')
+      if (!isRecord(migration)) return refuseManifest({ where, diagnostic: 'must be an object' })
       const migrationKeys = onlyKeys(migration, ['name', 'sha256', 'sql'], where)
       if (migrationKeys) return migrationKeys
-      if (!isMigrationName(migration.name) || names.has(migration.name)) return refuseManifest(where, 'a migration is named like 001_create_notes.sql, once')
+      if (!isMigrationName(migration.name) || names.has(migration.name)) return refuseManifest({ where, diagnostic: 'a migration is named like 001_create_notes.sql, once' })
       names.add(migration.name)
-      if (typeof migration.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(migration.sha256)) return refuseManifest(where, '"sha256" must be a hex digest')
-      if (typeof migration.sql !== 'string' || migration.sql.length === 0 || migration.sql.length > 256 * 1024) return refuseManifest(where, '"sql" must be 1 byte to 256 KiB')
+      if (typeof migration.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(migration.sha256)) return refuseManifest({ where, diagnostic: '"sha256" must be a hex digest' })
+      if (typeof migration.sql !== 'string' || migration.sql.length === 0 || migration.sql.length > 256 * 1024) return refuseManifest({ where, diagnostic: '"sql" must be 1 byte to 256 KiB' })
     }
     let previous: string | undefined
     for (const name of names) {
-      if (previous !== undefined && name <= previous) return refuseManifest('migrations', 'must be in name order')
+      if (previous !== undefined && name <= previous) return refuseManifest({ where: 'migrations', diagnostic: 'must be in name order' })
       previous = name
     }
   }
@@ -212,7 +217,7 @@ export function admitManifest(value: unknown, stage: 'source' | 'server'): Resul
     refusal = assertManifest(candidate, stage)
     return refusal === null
   }).safeParse(value)
-  if (!parsed.success) return Object.freeze({ ok: false, error: refusal ?? refuseManifest('manifest', 'must be a JSON object') })
+  if (!parsed.success) return Object.freeze({ ok: false, error: refusal ?? refuseManifest({ where: 'manifest', diagnostic: 'must be a JSON object' }) })
   return Object.freeze({ ok: true, result: parsed.data })
 }
 
@@ -249,41 +254,41 @@ export function admitServerTree(files: readonly ServerFile[], sha256: (bytes: Bu
   const DIRECTORY = /^[a-z0-9][A-Za-z0-9_.-]{0,127}$/
   const NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/
   const entries: readonly ServerFile[] = files
-  if (!Array.isArray(files) || entries.length === 0 || entries.length > MAX_FILES) return Object.freeze({ ok: false, error: refuseTree('tree', `must hold between 1 and ${MAX_FILES} files`) })
+  if (!Array.isArray(files) || entries.length === 0 || entries.length > MAX_FILES) return Object.freeze({ ok: false, error: refuseTree({ where: 'tree', diagnostic: `must hold between 1 and ${MAX_FILES} files` }) })
   const modules = new Map<string, Buffer>()
   let manifest: ServerManifest | null = null
   for (const file of entries) {
-    if (typeof file?.path !== 'string' || typeof file.content !== 'string' || typeof file.sha256 !== 'string') return Object.freeze({ ok: false, error: refuseTree('tree', 'every file needs a path, content and sha256') })
+    if (typeof file?.path !== 'string' || typeof file.content !== 'string' || typeof file.sha256 !== 'string') return Object.freeze({ ok: false, error: refuseTree({ where: 'tree', diagnostic: 'every file needs a path, content and sha256' }) })
     const parts = file.path.split('/')
     const name = parts.at(-1)
-    if (name === undefined || parts[0] !== ROOT || parts.length < 2 || parts.length > 8) return Object.freeze({ ok: false, error: refuseTree(file.path, `must sit at most 7 levels under ${ROOT}/`) })
+    if (name === undefined || parts[0] !== ROOT || parts.length < 2 || parts.length > 8) return Object.freeze({ ok: false, error: refuseTree({ where: file.path, diagnostic: `must sit at most 7 levels under ${ROOT}/` }) })
     const directories = parts.slice(1, -1)
     if (directories.some((part) => part === '..' || part === '.' || !DIRECTORY.test(part))) {
-      return Object.freeze({ ok: false, error: refuseTree(file.path, 'a directory is ASCII letters, digits, "_", "." or "-" and starts with a lowercase letter or digit') })
+      return Object.freeze({ ok: false, error: refuseTree({ where: file.path, diagnostic: 'a directory is ASCII letters, digits, "_", "." or "-" and starts with a lowercase letter or digit' }) })
     }
-    if (!NAME.test(name)) return Object.freeze({ ok: false, error: refuseTree(file.path, 'a file name is ASCII letters, digits, "_", "." or "-" and starts with a letter or digit') })
+    if (!NAME.test(name)) return Object.freeze({ ok: false, error: refuseTree({ where: file.path, diagnostic: 'a file name is ASCII letters, digits, "_", "." or "-" and starts with a letter or digit' }) })
     const bytes = Buffer.from(file.content, 'base64')
-    if (bytes.byteLength > MAX_FILE_BYTES) return Object.freeze({ ok: false, error: refuseTree(file.path, 'larger than 4 MiB') })
-    if (sha256(bytes) !== file.sha256) return Object.freeze({ ok: false, error: refuseTree(file.path, 'content does not match its sha256') })
+    if (bytes.byteLength > MAX_FILE_BYTES) return Object.freeze({ ok: false, error: refuseTree({ where: file.path, diagnostic: 'larger than 4 MiB' }) })
+    if (sha256(bytes) !== file.sha256) return Object.freeze({ ok: false, error: refuseTree({ where: file.path, diagnostic: 'content does not match its sha256' }) })
     const relative = file.path.slice(ROOT.length + 1)
     if (relative === 'manifest.json') {
       let parsed: unknown
       try {
         parsed = JSON.parse(bytes.toString('utf8'))
       } catch {
-          return Object.freeze({ ok: false, error: refuseTree(file.path, 'is not valid JSON') })
+          return Object.freeze({ ok: false, error: refuseTree({ where: file.path, diagnostic: 'is not valid JSON' }) })
       }
       const admitted = admitManifest(parsed, 'server')
       if (!admitted.ok) return admitted
       manifest = admitted.result
-    } else if (!relative.endsWith('.mjs')) return Object.freeze({ ok: false, error: refuseTree(file.path, 'only .mjs modules and manifest.json may be in the tree') })
-    else if (modules.has(relative)) return Object.freeze({ ok: false, error: refuseTree(file.path, 'appears twice') })
+    } else if (!relative.endsWith('.mjs')) return Object.freeze({ ok: false, error: refuseTree({ where: file.path, diagnostic: 'only .mjs modules and manifest.json may be in the tree' }) })
+    else if (modules.has(relative)) return Object.freeze({ ok: false, error: refuseTree({ where: file.path, diagnostic: 'appears twice' }) })
     else modules.set(relative, bytes)
   }
-  if (!manifest) return Object.freeze({ ok: false, error: refuseTree(`${ROOT}/manifest.json`, 'is missing') })
+  if (!manifest) return Object.freeze({ ok: false, error: refuseTree({ where: `${ROOT}/manifest.json`, diagnostic: 'is missing' }) })
   const admitted = manifest
   for (const [id, operation] of Object.entries(admitted.operations)) {
-    if (!modules.has(operation.module)) return Object.freeze({ ok: false, error: refuseTree(`operations.${id}`, `module ${ROOT}/${operation.module} is not in the tree`) })
+    if (!modules.has(operation.module)) return Object.freeze({ ok: false, error: refuseTree({ where: `operations.${id}`, diagnostic: `module ${ROOT}/${operation.module} is not in the tree` }) })
   }
   return Object.freeze({ ok: true, result: Object.freeze({ manifest: admitted, modules }) })
 }

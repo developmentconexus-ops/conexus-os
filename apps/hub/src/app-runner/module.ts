@@ -22,40 +22,47 @@ export type ApplicationRunnerClient = Readonly<{
 const PREPARE_TIMEOUT_MS = 120_000
 const RESET_WINDOW_MS = PREPARE_TIMEOUT_MS - RESET_STATEMENT_TIMEOUT_MS - 40_000
 
-const call = (socketPath: string, path: string, body: unknown, timeoutMs: number, signal?: AbortSignal): Promise<Response> => new Promise((resolve, reject) => {
-  const rejectTransport = (cause: unknown): void => {
-    if (cause instanceof DOMException && cause.name === 'AbortError') {
-      reject(cause)
-      return
+function call(socketPath: string, path: string, body: unknown, timeoutMs: number, signal?: AbortSignal): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const rejectTransport = (cause: unknown): void => {
+      if (cause instanceof DOMException && cause.name === 'AbortError') {
+        reject(cause)
+        return
+      }
+      reject(cause instanceof Failure ? cause : new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause }))
     }
-    reject(cause instanceof Failure ? cause : new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause }))
-  }
-  const payload = Buffer.from(JSON.stringify(body))
-  const outgoing = http.request({
-    socketPath, path, method: 'POST', timeout: timeoutMs, ...(signal ? { signal } : {}),
-    headers: { 'content-type': 'application/json', 'content-length': payload.byteLength },
-  }, (response) => {
-    const chunks: Buffer[] = []
-    response.on('data', (chunk: Buffer) => chunks.push(chunk))
-    response.on('end', () => {
-      const contentType = response.headers['content-type']
-      resolve(new Response(Buffer.concat(chunks), {
-        status: response.statusCode ?? 502,
-        ...(typeof contentType === 'string' ? { headers: { 'content-type': contentType } } : {}),
-      }))
+    const payload = Buffer.from(JSON.stringify(body))
+    const outgoing = http.request({
+      socketPath, path, method: 'POST', timeout: timeoutMs, ...(signal ? { signal } : {}),
+      headers: { 'content-type': 'application/json', 'content-length': payload.byteLength },
+    }, (response) => {
+      const chunks: Buffer[] = []
+      response.on('data', (chunk: Buffer) => chunks.push(chunk))
+      response.on('end', () => {
+        const contentType = response.headers['content-type']
+        resolve(new Response(Buffer.concat(chunks), {
+          status: response.statusCode ?? 502,
+          ...(typeof contentType === 'string' ? { headers: { 'content-type': contentType } } : {}),
+        }))
+      })
+      response.on('error', rejectTransport)
+      response.on('aborted', () => rejectTransport(new Failure('APPLICATION_RUNNER_UNAVAILABLE')))
     })
-    response.on('error', rejectTransport)
-    response.on('aborted', () => rejectTransport(new Failure('APPLICATION_RUNNER_UNAVAILABLE')))
+    outgoing.on('timeout', () => outgoing.destroy(new Failure('APPLICATION_RUNNER_UNAVAILABLE')))
+    outgoing.on('error', rejectTransport)
+    outgoing.end(payload)
   })
-  outgoing.on('timeout', () => outgoing.destroy(new Failure('APPLICATION_RUNNER_UNAVAILABLE')))
-  outgoing.on('error', rejectTransport)
-  outgoing.end(payload)
-})
+}
 
-const responseJson = async (response: Response): Promise<unknown> => response.json().catch(() => null)
-const mediaType = (response: Response): string | null => response.headers.get('content-type')?.split(';', 1)[0]?.trim() ?? null
+async function responseJson(response: Response): Promise<unknown> {
+  return response.json().catch(() => null)
+}
 
-const nativeFailure = async (response: Response): Promise<Failure> => {
+function mediaType(response: Response): string | null {
+  return response.headers.get('content-type')?.split(';', 1)[0]?.trim() ?? null
+}
+
+async function nativeFailure(response: Response): Promise<Failure> {
   if (mediaType(response) !== 'application/problem+json') return new Failure('APPLICATION_RUNNER_UNAVAILABLE')
   const problem = Problem.safeParse(await responseJson(response))
   if (!problem.success || problem.data.status !== response.status) return new Failure('APPLICATION_RUNNER_UNAVAILABLE')

@@ -87,7 +87,7 @@ const DETAIL_CHARS = 300
 const refused = (operation: string, code: string, detail?: string): OperationRunReport =>
   detail ? { ok: false, operation, code, detail: detail.slice(0, DETAIL_CHARS) } : { ok: false, operation, code }
 
-const refusalDetail = (error: InvokeRefusal): string | undefined => {
+function refusalDetail(error: InvokeRefusal): string | undefined {
   switch (error.code) {
     case 'INPUT_REFUSED':
     case 'HANDLER_OUTPUT_REFUSED':
@@ -102,8 +102,23 @@ const refusalDetail = (error: InvokeRefusal): string | undefined => {
     case 'HANDLER_LOAD_FAILED':
     case 'DATABASE_UNAVAILABLE':
       return error.sqlstate === null ? undefined : `SQLSTATE ${error.sqlstate}`
-    default:
+    case 'MANIFEST_REFUSED':
+    case 'SERVER_TREE_REFUSED':
+    case 'HANDLER_OUTPUT_UNSERIALIZABLE':
+    case 'WORKER_FAILED':
+    case 'WORKER_JOB_REFUSED':
+    case 'RESPONSE_TOO_LARGE':
+    case 'OPERATION_NOT_FOUND':
+    case 'INPUT_TOO_LARGE':
+    case 'CONNECTOR_SOCKET_REFUSED':
+    case 'APPLICATION_RUNNER_BUSY':
+    case 'HANDLER_TIMEOUT':
+    case 'APPLICATION_PROJECT_BUSY':
       return undefined
+    default: {
+      const exhaustive: never = error
+      return exhaustive
+    }
   }
 }
 
