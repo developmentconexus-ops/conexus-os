@@ -1,21 +1,22 @@
 import type { ModelAccountId } from '@conexus/contract'
 import type { Credential } from './credential.js'
-import type { HeldAccount, OpenRun } from './store.js'
-import type { WaveFailure, Result } from './dependencies.js'
-import type { MastraModelConfig } from '@mastra/core/llm'
-export type ModelBuilders = { [P in Credential['provider']]: { [K in Extract<Credential, { provider: P }>['kind']]:
-  (credential: Extract<Credential, { provider: P; kind: K }>, openRun: OpenRun) => Promise<MastraModelConfig>
-} }
-export type OAuthCredential = Extract<Credential, { kind: 'oauth' }>
-export declare function refresh(input: Readonly<{ held: HeldAccount; openRun: OpenRun; force: boolean }>): Promise<Result<Credential, WaveFailure>>
-export declare function refreshAtProvider(credential: OAuthCredential): Promise<Result<OAuthCredential, WaveFailure>>
-export type Generation = Readonly<{ modelAccountId: ModelAccountId; connectedAt: Date }>
-export type GoogleCredential = Extract<Credential, { provider: 'google-ai-pro' }>
-export type GoogleLease = Readonly<{ baseURL: string; ticket: string; release(): Promise<void> }>
-export type AcquireError = Readonly<{ code: 'GOOGLE_AI_PRO_ROUTER_UNAVAILABLE'; reason: 'GENERATION_RETIRED' | 'ROUTER_UNAVAILABLE' }>
+import type { ConnectionGenerationId, HeldAccount } from './store.js'
+import type { Result, WaveFailure } from './dependencies.js'
+export type OAuthCredential = Extract<Credential,{kind:'oauth'}>
+export type RefreshAnswer = Readonly<{state:'tokens';credential:OAuthCredential}> | Readonly<{state:'provider-refused'}> | Readonly<{state:'unavailable'}>
+export declare function refreshAtProvider(credential:OAuthCredential):Promise<RefreshAnswer>
+export type Generation = Readonly<{modelAccountId:ModelAccountId;generationId:ConnectionGenerationId}>
+export type GoogleCredential = Extract<Credential,{provider:'google-ai-pro'}>
+declare const ticketBrand: unique symbol
+export type GoogleTicket = string & Readonly<{[ticketBrand]:true}>
+export type GoogleLease = Readonly<{baseURL:string;ticket:GoogleTicket;release():Promise<void>}>
 export type GoogleAiProPool = Readonly<{
-  acquire(input: Readonly<{ generation: Generation; credential: GoogleCredential }>): Promise<Result<GoogleLease, AcquireError>>
-  retire(generation: Generation): Promise<void>
-  capture(): Promise<void>
-  close(): Promise<void>
+ acquire(held:HeldAccount<GoogleCredential>):Promise<Result<GoogleLease,WaveFailure>>
+ retire(generation:Generation):Promise<void>
+ capture(signal:AbortSignal):Promise<void>
+ close():Promise<void>
 }>
+
+// This wave owns this narrow provider-call boundary; 0019 supplies Failure/Result, not vendor classifiers.
+export type ProviderCallFact = Readonly<{state:'provider-refused'}> | Readonly<{state:'other'}>
+export declare function classifyProviderCall(error:unknown,provider:OAuthCredential['provider']):ProviderCallFact
