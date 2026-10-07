@@ -167,13 +167,20 @@ ASVS V14 and V15.
   by configuration: Keycloak, E2B, Context7 and the integration executor.
 - There **must not** be a privileged `fetch(url, secret)`. `web_fetch` carries no credential and
   goes through the Hub's guard.
+- The repository is public. Code, tests, fixtures, docs, commits, pull requests and web searches
+  **must not** carry company data (customer names, tables, figures or any other data of a company),
+  a secret, or a path on a person's machine. Examples use invented names, and evidence stays outside
+  the repository.
 
 **Why.** Every outbound call with a credential is a door. Pinning each door to one destination
 makes it reviewable.
 
+A public repository is a door too: what lands in it, or in a search sent to the web, is published.
+
 **Right.** The integration executor calls the vendor host pinned in its configuration.
 
-**Wrong.** A helper that takes any URL and attaches the connection's token.
+**Wrong.** A helper that takes any URL and attaches the connection's token, or a fixture copied from
+a customer's table.
 
 ## 8. Untrusted code
 

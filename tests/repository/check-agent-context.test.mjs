@@ -103,8 +103,8 @@ test('a nested AGENTS.md passes at 1800 characters and fails at 1801', context =
   assert.equal(failed.stderr, 'error apps/web/AGENTS.md: 1801 characters exceeds the cap of 1800 (about 500 tokens)\n')
 })
 
-test('a skill over 90 lines fails, the conexus-development skill included', context => {
-  const skill = '.agents/skills/conexus-development/SKILL.md'
+test('a skill over 90 lines fails, the conexus-build skill included', context => {
+  const skill = '.agents/skills/conexus-build/SKILL.md'
   const candidate = fixture(context, { [skill]: lines(91) })
   const result = run(candidate)
   assert.equal(result.status, 1)

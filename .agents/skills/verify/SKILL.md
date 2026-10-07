@@ -48,7 +48,7 @@ Prefer roles and accessible names. The pt-BR names are in each feature file. [`f
 
 ## Evidence
 
-Each run writes to `~/conexus-study/verify-evidence/<local date>/<runId>/`. Set `CONEXUS_VERIFY_EVIDENCE` to change the root. The directory holds `actions.log` (every command), `hub.log`, `browser.log` (page console), `keycloak.log`, `diagnostics/` (the Hub's heap snapshot or fatal-error report, if any), `screens/`, `aria/`, `db/`, `run.json` and, after cleanup, `cleanup.json`.
+Each run writes to `<root>/<local date>/<runId>/`. The root is `CONEXUS_VERIFY_EVIDENCE` when set, and `~/.cache/conexus-verify/evidence` otherwise; keep evidence outside the repository. The directory holds `actions.log` (every command), `hub.log`, `browser.log` (page console), `keycloak.log`, `diagnostics/` (the Hub's heap snapshot or fatal-error report, if any), `screens/`, `aria/`, `db/`, `run.json` and, after cleanup, `cleanup.json`.
 
 A proof drives the user path, never an API call or internal setter for the feature under test. It captures the action and the resulting screen, and reads the side effect back from the database. It names the boundary that was replaced. A console error in `browser.log` that no feature file lists as expected is a finding.
 

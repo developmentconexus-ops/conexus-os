@@ -3,12 +3,19 @@
 ## Start
 
 Before relying on chat, a handoff, or remembered state, run `npm run conexus:preflight` in the pinned
-WSL environment (after `nvm use`), then read
-[`.agents/skills/conexus-development/SKILL.md`](.agents/skills/conexus-development/SKILL.md). It
-picks the flow and the guides your task needs; the
-[codebase principles](docs/development/codebase-principles.md) apply to every change. For Mastra
-work, also load `.agents/skills/mastra/SKILL.md`; for a screen, the Frontend flow of
-[`conexus-development`](.agents/skills/conexus-development/references/flows.md#frontend).
+WSL environment (after `nvm use`; see [environment](docs/development/environment.md)), then load the
+skill for your task from `.agents/skills/`:
+
+- a question, or the study of a wave: [`conexus-study`](.agents/skills/conexus-study/SKILL.md);
+- a wave's spec, or a sweep: [`conexus-spec`](.agents/skills/conexus-spec/SKILL.md);
+- a wave unit, a small change or a screen: [`conexus-build`](.agents/skills/conexus-build/SKILL.md);
+- the proof of a wave: [`conexus-prove`](.agents/skills/conexus-prove/SKILL.md);
+- a pull request to judge: [`conexus-review`](.agents/skills/conexus-review/SKILL.md);
+- wrong behavior someone saw: [`conexus-fix`](.agents/skills/conexus-fix/SKILL.md).
+
+The guides a task needs come from [`areas.json`](docs/development/review/areas.json) by the paths
+it touches; the [codebase principles](docs/development/codebase-principles.md) apply to every
+change. For Mastra work, also load `.agents/skills/mastra/SKILL.md`.
 
 Chat and handoffs are orientation only. **Global coverage does not require global context.**
 
@@ -26,3 +33,6 @@ Chat and handoffs are orientation only. **Global coverage does not require globa
 
 [Delivery](docs/development/delivery.md) owns the lanes, the stop conditions, Git, the local checks
 and the merge gate. Never merge unless it names you as the one who merges.
+
+The repository is public: no company data, secret or machine path in it, per
+[security §7](docs/reference/security-and-authority.md#7-data-protection-and-egress).
