@@ -82,6 +82,7 @@ const GRAPH_STEPS = Object.freeze([
   candidateStep('import-law-check', 'node scripts/check-import-law.mjs'),
   candidateStep('access-owner-check', 'node scripts/check-access-owner.mjs'),
   candidateStep('census-builder-run', 'node scripts/census-builder-run.mjs'),
+  candidateStep('census-error-model', 'node scripts/census-error-model.mjs --check'),
   candidateStep('census-boundaries', 'node scripts/census-boundaries.mjs'),
   candidateStep('contract-dist-check', 'npm run contract:dist:check'),
   candidateStep('generators', 'npm run generate'),
@@ -140,7 +141,7 @@ export const DOCS_CHECK_SCOPES = Object.freeze([
 
 export const DOCS_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => DOCS_CHECK_SCOPES.includes(step.scope)))
 
-export const QUICK_CHECK_SCOPES = Object.freeze(['web-typecheck', 'hub-typecheck', 'repository-check', 'contract-dist-check', 'generators', 'contract-check', 'web-style', 'knip', 'biome', 'import-law-check', 'access-owner-check', 'census-builder-run', 'census-boundaries'])
+export const QUICK_CHECK_SCOPES = Object.freeze(['web-typecheck', 'hub-typecheck', 'repository-check', 'contract-dist-check', 'generators', 'contract-check', 'web-style', 'knip', 'biome', 'import-law-check', 'access-owner-check', 'census-builder-run', 'census-error-model', 'census-boundaries'])
 
 export const QUICK_GRAPH = Object.freeze(CANDIDATE_GRAPH.filter(step => QUICK_CHECK_SCOPES.includes(step.scope)))
 
