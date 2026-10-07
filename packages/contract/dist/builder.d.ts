@@ -4383,7 +4383,7 @@ export declare const getBuilderSession: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["BUILDER_SESSION_UNAVAILABLE", "PROJECT_BUILD_DENIED", "PROJECT_NOT_FOUND", "PROJECT_DELETING", "BUILDER_SOURCE_UNAVAILABLE"];
+    readonly failures: readonly ["BUILDER_SESSION_UNAVAILABLE", "PROJECT_BUILD_DENIED", "PROJECT_DELETING", "BUILDER_SOURCE_UNAVAILABLE"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
@@ -5596,7 +5596,7 @@ export declare const sendBuilderMessage: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["BUILDER_CAPACITY_FULL", "PROJECT_BUILD_DENIED", "PROJECT_NOT_FOUND", "PROJECT_DELETING", "ACCOUNT_INACTIVE", "BUILDER_RUN_CREATE_FAILED", "BUILDER_BUSY", "PROJECT_BUSY", "BUILDER_SOURCE_UNAVAILABLE"];
+    readonly failures: readonly ["BUILDER_CAPACITY_FULL", "PROJECT_BUILD_DENIED", "PROJECT_DELETING", "ACCOUNT_INACTIVE", "BUILDER_RUN_CREATE_FAILED", "BUILDER_BUSY", "PROJECT_BUSY", "BUILDER_SOURCE_UNAVAILABLE"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
         readonly content: "BUILDER_MESSAGE_REFUSED";
@@ -6213,7 +6213,7 @@ export declare const cancelBuilderRun: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_BUILD_DENIED", "PROJECT_NOT_FOUND", "PROJECT_DELETING", "ACCOUNT_INACTIVE"];
+    readonly failures: readonly ["PROJECT_BUILD_DENIED", "PROJECT_DELETING", "ACCOUNT_INACTIVE"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
         readonly builderRunId: "BUILDER_RUN_NOT_FOUND";
@@ -6336,7 +6336,7 @@ export declare const launchBuilderPreview: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PREVIEW_SUBJECT_NOT_FOUND", "PROJECT_BUILD_DENIED", "PROJECT_NOT_FOUND", "PROJECT_DELETING", "PREVIEW_UNAVAILABLE"];
+    readonly failures: readonly ["PREVIEW_SUBJECT_NOT_FOUND", "PROJECT_BUILD_DENIED", "PROJECT_DELETING", "PREVIEW_UNAVAILABLE"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
