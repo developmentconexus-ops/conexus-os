@@ -220,12 +220,12 @@ const recordKeyUpstream = (t) => {
 }
 
 test('an Anthropic key pays on the Messages endpoint with the caller\'s key, and the run records the row', async (t) => {
-  const { modelAccounts, rows } = fakeModelAccounts()
+  const { modelAccounts } = fakeModelAccounts()
   await write(modelAccounts, ana, 'api_key', fakeKey)
   const seen = recordKeyUpstream(t)
   const { call, recorded } = routingOver({ modelAccounts })
   await assert.rejects((await call(RUN_1, ana, 'anthropic/claude-sonnet-5')).doStream({ prompt }))
-  assert.deepEqual(recorded, [[RUN_1, rows.get(`${ana}:anthropic`).id]])
+  assert.deepEqual(recorded, [[RUN_1, 'row-1']])
   await assert.rejects(call(RUN_2, bia, 'anthropic/claude-sonnet-5'), /BUILDER_MODEL_NOT_SELECTED/, 'a person without an Anthropic account is told to connect one')
   assert.deepEqual(seen, [{ url: 'https://api.anthropic.com/v1/messages', apiKey: fakeKey, model: 'claude-sonnet-5' }])
 })

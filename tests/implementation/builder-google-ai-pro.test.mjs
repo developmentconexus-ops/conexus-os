@@ -235,6 +235,31 @@ test('a refreshed auth file is captured and written back before an idle proxy\'s
   assert.deepEqual(JSON.parse(Buffer.from(stored.bytes).toString()), { type: 'antigravity', refresh_token: 'refreshed-token' })
 })
 
+test('explicit pool and router close stop the proxy, write refreshed bytes, remove state, and close the listener', async (t) => {
+  const { binary, stateDir } = scratch(t)
+  const pool = openPool(t, { binary, stateDir })
+  const router = await openRouter(t, pool)
+  const key = encodeKey(record('ana@example.com'))
+  const refreshed = []
+  const lease = await pool.acquire(key, async (refreshedKey) => { refreshed.push(refreshedKey) })
+  const { pid } = await (await fetch(`${lease.url}/v1/models`, { headers: { authorization: `Bearer ${lease.proxyKey}` } })).json()
+  const instanceDir = join(stateDir, instanceIdOf(key))
+  const refreshedBytes = JSON.stringify({ type: 'antigravity', refresh_token: 'refreshed-at-close' })
+  writeFileSync(join(instanceDir, 'auth', 'antigravity-ana@example.com.json'), refreshedBytes)
+  lease.release()
+
+  await pool.close()
+  assert.equal(alive(pid), false)
+  assert.equal(existsSync(instanceDir), false)
+  assert.equal(refreshed.length, 1)
+  const stored = decodeKey(refreshed[0])
+  assert.equal(stored.fileName, 'antigravity-ana@example.com.json')
+  assert.equal(Buffer.from(stored.bytes).toString(), refreshedBytes)
+
+  await router.close()
+  await assert.rejects(fetch(`${router.url}/v1beta/models`), (error) => error.cause?.code === 'ECONNREFUSED')
+})
+
 test("a call through the router writes the refreshed record back to the caller's model account row by id, once (AC-22)", async (t) => {
   const { binary, stateDir } = scratch(t)
   const rewrites = []
