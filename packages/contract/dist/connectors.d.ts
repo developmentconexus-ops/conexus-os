@@ -141,7 +141,7 @@ export declare const createWorkspaceConnection: {
     readonly effects: readonly [];
     readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "CONNECTOR_CONNECTION_CONFLICT"];
     readonly malformed: {
-        readonly workspaceId: "CONNECTOR_WORKSPACE_NOT_FOUND";
+        readonly workspaceId: "WORKSPACE_NOT_FOUND";
         readonly label: "CONNECTOR_LABEL_REFUSED";
         readonly credential: "CONNECTOR_CREDENTIAL_REFUSED";
     };

@@ -96,7 +96,7 @@ test('the wall admits a run row lock and refuses a column no grant covers', asyn
     await client.connect()
     try {
       await client.query('BEGIN')
-      await client.query('SET LOCAL ROLE hub_command')
+      await client.query('SET LOCAL ROLE hub_runtime')
       await client.query(statement, values)
       return null
     } catch (error) { return error.code } finally { await client.query('ROLLBACK'); await client.end() }

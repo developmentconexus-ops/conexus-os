@@ -4,7 +4,7 @@ import {
   ProjectCard, ProjectId, ProjectName, ProjectRevision, WorkspaceId, createProject,
   type AccountId, type SourceRevision, type IdempotencyKey, type Input, type ProjectCreated, type ProjectDetail, type ProjectListItem,
 } from '@conexus/contract'
-import { admitWorkspace, isInstallationAdministrator, receiptOf, type Admitted, type WorkspaceScope } from '../identity-access/admission.js'
+import { admitProject, admitWorkspace, receiptOf, type Admitted, type WorkspaceScope } from '../identity-access/admission.js'
 import type { Database } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
@@ -43,7 +43,6 @@ export type ProjectStore = Readonly<{
 
 const SummaryRow = z.object({ project_id: ProjectId, workspace_id: WorkspaceId, name: ProjectName, archived: z.boolean() })
 const DetailRow = SummaryRow.extend({ project_revision: ProjectRevision, deleting: z.boolean() })
-const TombstoneRow = z.object({ project_id: ProjectId, workspace_id: WorkspaceId, name: ProjectName })
 const CardRow = z.object({
   project_id: ProjectId, name: ProjectName, archived: z.boolean(), last_activity_at: z.string(),
   run_state: z.string().nullable(), run_result_kind: z.string().nullable(), has_preview: z.boolean(), deleting: z.boolean(),
@@ -104,29 +103,28 @@ export const createProjectStore = ({
 
   return Object.freeze({
     createProject: create,
-    listProjects: ({ accountId, workspaceId }) => database.read(accountId, async (tx) =>
-      (await tx.rows(SummaryRow, sql`
+    listProjects: ({ accountId, workspaceId }) => database.read(accountId, async (gate) => {
+      const proof = await admitWorkspace(gate, { workspaceId, action: 'workspace.read' })
+      return (await proof.tx.rows(SummaryRow, sql`
         SELECT project_id, workspace_id, name, archived FROM project.project
-        WHERE workspace_id = ${workspaceId} ORDER BY name, project_id`))
-        .map((row) => ({ projectId: row.project_id, workspaceId: row.workspace_id, name: row.name, archived: row.archived }))),
-    getProject: ({ accountId, projectId }) => database.read(accountId, async (tx): Promise<ProjectDetail | null> => {
-      const live = await tx.maybe(DetailRow, sql`
+        WHERE workspace_id = ${proof.scope.workspaceId} ORDER BY name, project_id`))
+        .map((row) => ({ projectId: row.project_id, workspaceId: row.workspace_id, name: row.name, archived: row.archived }))
+    }),
+    getProject: ({ accountId, projectId }) => database.read(accountId, async (gate): Promise<ProjectDetail | null> => {
+      const proof = await admitProject(gate, { projectId, action: 'project.read' })
+      const live = await proof.tx.maybe(DetailRow, sql`
         SELECT project_id, workspace_id, name, project_revision, archived,
           EXISTS (SELECT 1 FROM project.project_deletion AS deletion
             WHERE deletion.project_id = project.project_id AND deletion.completed_at IS NULL) AS deleting
-        FROM project.project WHERE project_id = ${projectId}`)
+        FROM project.project WHERE project_id = ${proof.scope.projectId}`)
       if (live) {
         return { projectId: live.project_id, workspaceId: live.workspace_id, name: live.name, projectRevision: live.project_revision, archived: live.archived, deleting: live.deleting }
       }
-      const administrator = await isInstallationAdministrator(tx)
-      const purged = await tx.maybe(TombstoneRow, sql`
-        SELECT project_id, workspace_id, name FROM project.project_deletion
-        WHERE project_id = ${projectId} AND completed_at IS NULL AND ${administrator}`)
-      return purged ? { projectId: purged.project_id, workspaceId: purged.workspace_id, name: purged.name, projectRevision: '', archived: false, deleting: true } : null
+      return null
     }),
-    listProjectSummariesWithActivity: ({ accountId, workspaceId }) => database.read(accountId, async (tx) => {
-      const administrator = await isInstallationAdministrator(tx)
-      return (await tx.rows(CardRow, sql`
+    listProjectSummariesWithActivity: ({ accountId, workspaceId }) => database.read(accountId, async (gate) => {
+      const proof = await admitWorkspace(gate, { workspaceId, action: 'workspace.read' })
+      return (await proof.tx.rows(CardRow, sql`
         SELECT * FROM (
           SELECT stored.project_id, stored.name, stored.archived,
             to_char(coalesce(latest.created_at, stored.created_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS last_activity_at,
@@ -142,14 +140,7 @@ export const createProjectStore = ({
           ) AS latest ON true
           LEFT JOIN builder.project_working_state AS working ON working.project_id = stored.project_id
           LEFT JOIN project.project_deletion AS deletion ON deletion.project_id = stored.project_id AND deletion.completed_at IS NULL
-          WHERE stored.workspace_id = ${workspaceId}
-          UNION ALL
-          SELECT tombstone.project_id, tombstone.name, false,
-            to_char(tombstone.requested_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-            tombstone.requested_at, NULL, NULL, false, true
-          FROM project.project_deletion AS tombstone
-          WHERE tombstone.workspace_id = ${workspaceId} AND tombstone.completed_at IS NULL AND tombstone.purged_at IS NOT NULL
-            AND ${administrator}
+          WHERE stored.workspace_id = ${proof.scope.workspaceId}
         ) AS combined ORDER BY sort_at DESC, project_id`)).map(toProjectCard)
     }),
     deleteProject: createProjectDeletion({ database, ports: deletion }).deleteProject,

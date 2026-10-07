@@ -37,7 +37,6 @@
         "tests/fixtures/builder-brands-negative.ts",
         "tests/fixtures/operation-registry-negative.ts",
         "tests/fixtures/result-negative.ts",
-        "tests/fixtures/biome/session-setting-in-sql.ts",
         "tests/fixtures/census-boundaries/pg-rows.ts",
         "tests/fixtures/census-boundaries/web-json.ts",
         "tests/fixtures/census-boundaries/sql-writes.ts",

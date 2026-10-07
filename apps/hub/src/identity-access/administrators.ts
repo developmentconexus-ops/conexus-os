@@ -4,12 +4,12 @@ import { AccountId, DisplayName, EmailAddress, addInstallationAdministrator, lis
 import type { AdministratorEntry } from '@conexus/contract'
 import { routes } from '../http/access.js'
 import { sql } from '../platform/db.js'
-import type { Database, Sql, TxQueries } from '../platform/db.js'
+import type { Database, Mode, Sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import { logLine } from '../platform/logger.js'
 import { idempotent } from '../platform/receipt.js'
-import { ActiveAccount, admitInstallationAdministrator, isInstallationAdministrator, receiptOf } from './admission.js'
-import type { Admitted, BootstrapScope } from './admission.js'
+import { ActiveAccount, admitInstallationAdministrator, receiptOf } from './admission.js'
+import type { Admitted, AdministratorScope, BootstrapScope } from './admission.js'
 
 /** An open tenure, as the administrators' table lock holds the set. */
 type Tenure = Readonly<{ accountId: AccountId; active: boolean }>
@@ -36,7 +36,7 @@ const entryOf = (row: z.output<typeof EntryRow>): AdministratorEntry => {
 }
 
 // The reader role sees an account's id, name and email only, so the list shows every open tenure; a command reads the tenure it wrote.
-const entries = (tx: TxQueries, only: Sql) => tx.rows(EntryRow, sql`
+const entries = (proof: Admitted<AdministratorScope<'administrators.manage'>, Mode>, only: Sql) => proof.tx.rows(EntryRow, sql`
   SELECT person.account_id, person.display_name, person.email, tenure.granted_via, tenure.granted_at, tenure.granted_by, grantor.display_name AS granted_by_name
   FROM iam.installation_administrator AS tenure
   JOIN iam.account AS person ON person.account_id = tenure.account_id
@@ -57,9 +57,9 @@ export const tenureGranted = (accountId: AccountId, grantedVia: AdministratorEnt
 export const registerAdministratorRoutes = async (app: FastifyInstance, database: Database) => {
   const route = routes(app)
 
-  route.operation(listInstallationAdministrators, (_input, session) => database.read(session.account.accountId, async (tx) => {
-    if (!(await isInstallationAdministrator(tx))) throw new Failure('INSTALLATION_ADMINISTRATOR_REQUIRED')
-    return { administrators: (await entries(tx, sql``)).map(entryOf) }
+  route.operation(listInstallationAdministrators, (_input, session) => database.read(session.account.accountId, async (gate) => {
+    const proof = await admitInstallationAdministrator(gate, { action: 'administrators.manage' })
+    return { administrators: (await entries(proof, sql``)).map(entryOf) }
   }))
 
   // An email names one active account or none: two active accounts with the same email are refused, never guessed between.
@@ -76,7 +76,7 @@ export const registerAdministratorRoutes = async (app: FastifyInstance, database
           INSERT INTO iam.installation_administrator (account_id, granted_via, granted_by) VALUES (${match.account_id}, 'ADMINISTRATOR', ${proof.scope.accountId})
           ON CONFLICT (account_id) WHERE revoked_at IS NULL DO NOTHING
           RETURNING account_id`)
-        const [entry] = await entries(proof.tx, sql` AND tenure.account_id = ${match.account_id}`)
+        const [entry] = await entries(proof, sql` AND tenure.account_id = ${match.account_id}`)
         if (!entry) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'TENURE_NOT_READABLE' } })
         return granted ? { status: 201 as const, body: entryOf(entry) } : { status: 200 as const, body: entryOf(entry) }
       })

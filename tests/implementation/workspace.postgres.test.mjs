@@ -14,6 +14,7 @@ const { admitAccount, admitSystem, admitWorkspace } = await import(hubModuleUrl(
 const ACCOUNT = '10000000-0000-4000-8000-000000000001'
 const MEMBER = '10000000-0000-4000-8000-000000000002'
 const OUTSIDER = '10000000-0000-4000-8000-000000000003'
+const ADMINISTRATOR = '10000000-0000-4000-8000-000000000004'
 
 const refusedByPostgres = (error) => {
   assert.equal(error.id, 'INTERNAL_UNEXPECTED')
@@ -22,7 +23,8 @@ const refusedByPostgres = (error) => {
 }
 
 const setup = async (t) => {
-  const fixture = await openRuntimeFixture(t, 'conexus_workspace', { accounts: [[ACCOUNT, 'owner'], [MEMBER, 'member'], [OUTSIDER, 'outsider']] })
+  const fixture = await openRuntimeFixture(t, 'conexus_workspace', { accounts: [[ACCOUNT, 'owner'], [MEMBER, 'member'], [OUTSIDER, 'outsider'], [ADMINISTRATOR, 'administrator']] })
+  await query(fixture.connection, "INSERT INTO iam.installation_administrator(account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')", [ADMINISTRATOR])
   return { ...fixture, store: createWorkspaceStore(fixture.database) }
 }
 
@@ -43,7 +45,7 @@ test('createWorkspace creates one workspace and owner, replays its answer, and r
 
 test('createWorkspace rolls back both inserts and the receipt after a failed membership insert', async (t) => {
   const { connection, store } = await setup(t)
-  await query(connection, 'REVOKE INSERT ON iam.workspace_membership FROM hub_command')
+  await query(connection, 'REVOKE INSERT ON iam.workspace_membership FROM hub_runtime')
   await assert.rejects(store.createWorkspace({ accountId: ACCOUNT, idempotencyKey: 'failed', body: { name: 'Failed' } }), refusedByPostgres)
   const rows = await query(connection, `SELECT
     (SELECT count(*)::integer FROM workspace.workspace) AS workspaces,
@@ -51,17 +53,17 @@ test('createWorkspace rolls back both inserts and the receipt after a failed mem
   assert.deepEqual(rows.rows, [{ workspaces: 0, receipts: 0 }])
 })
 
-test('a workspace read shows only the workspaces of the acting account, and the login role alone reads nothing', async (t) => {
-  const { database, runtime, store } = await setup(t)
+test('a workspace read scopes members while an administrator can list every workspace', async (t) => {
+  const { runtime, store } = await setup(t)
   await store.createWorkspace({ accountId: ACCOUNT, idempotencyKey: 'policy', body: { name: 'Operations' } })
-  const rows = z.object({ workspace_id: z.string() })
-  assert.deepEqual(await database.read(OUTSIDER, (tx) => tx.rows(rows, sql`SELECT workspace_id FROM workspace.workspace`)), [])
-  assert.equal((await database.read(ACCOUNT, (tx) => tx.rows(rows, sql`SELECT workspace_id FROM workspace.workspace`))).length, 1)
-  await assert.rejects(query(runtime, 'SELECT count(*) FROM workspace.workspace'), { code: '42501' })
-  await assert.rejects(query(runtime, 'SELECT count(*) FROM platform.operation_receipt'), { code: '42501' })
+  assert.deepEqual(await store.list(OUTSIDER), [])
+  assert.equal((await store.list(ACCOUNT)).length, 1)
+  assert.deepEqual(await store.list(ADMINISTRATOR), [{ workspace_id: (await store.list(ACCOUNT))[0].workspace_id, name: 'Operations' }])
+  assert.equal((await query(runtime, 'SELECT count(*)::integer AS n FROM workspace.workspace')).rows[0].n, 1)
+  assert.equal((await query(runtime, 'SELECT count(*)::integer AS n FROM platform.operation_receipt')).rows[0].n, 1)
 })
 
-test('the command role cannot update or delete a workspace, change a receipt key, or read the receipt as a reader', async (t) => {
+test('the runtime command path cannot update or delete a workspace or change a receipt key', async (t) => {
   const { connection, database, store } = await setup(t)
   const created = await store.createWorkspace({ accountId: ACCOUNT, idempotencyKey: 'commands', body: { name: 'Operations' } })
   const workspaceId = created.reply.workspaceId
@@ -71,7 +73,6 @@ test('the command role cannot update or delete a workspace, change a receipt key
   await assert.rejects(inCommand(sql`UPDATE workspace.workspace SET name = 'Taken' WHERE workspace_id = ${workspaceId}`), refusedByPostgres)
   await assert.rejects(inCommand(sql`UPDATE platform.operation_receipt SET account_id = ${OUTSIDER} WHERE resource_id = ${workspaceId}`), refusedByPostgres)
   assert.deepEqual(await named(), [{ name: 'Operations' }])
-  await assert.rejects(database.read(ACCOUNT, (tx) => tx.rows(z.object({ state: z.string() }), sql`SELECT state FROM platform.operation_receipt`)), refusedByPostgres)
 })
 
 test('a revoke waits for an admitted writer and the next admission is refused', async (t) => {
@@ -98,17 +99,15 @@ test('a revoke waits for an admitted writer and the next admission is refused', 
   await assert.rejects(database.transaction(MEMBER, (gate) => admitWorkspace(gate, { workspaceId: workspaceId, action: 'workspace.read' })), { id: 'WORKSPACE_NOT_FOUND' })
 })
 
-test('hub_command holds EXECUTE on the tenure lock, and hub_runtime and hub_reader hold none of it', async (t) => {
+test('hub_runtime holds EXECUTE on the tenure lock used by administrator admission', async (t) => {
   const { connection } = await setup(t)
   const held = (role) => query(connection, `SELECT proc.oid::regprocedure::text AS signature FROM pg_proc proc
     JOIN pg_namespace namespace ON namespace.oid = proc.pronamespace
     WHERE proc.proname = 'lock_administrators' AND namespace.nspname = 'iam'
       AND has_function_privilege($1, proc.oid, 'EXECUTE') ORDER BY 1`, [role]).then((result) => result.rows.map((row) => row.signature))
-  assert.deepEqual(await held('hub_command'), [
+  assert.deepEqual(await held('hub_runtime'), [
     'iam.lock_administrators()',
   ])
-  assert.deepEqual(await held('hub_runtime'), [])
-  assert.deepEqual(await held('hub_reader'), [])
 })
 
 test('an admission reads its actor from the gate and refuses a gate of another kind', async (t) => {

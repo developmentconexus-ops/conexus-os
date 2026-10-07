@@ -387,14 +387,14 @@ pull request that fixes one deletes its line.
 | Model accounts and the Mastra instance live in `builder`, not in the core | Hub base, after S1 |
 | Nothing bounds one Project's storage in the Applications cluster | Hub base, after S1 |
 | An `archived` Project state exists that nothing produces | Project lifecycle, after S1 |
-| `ProjectPurged` is told apart by `projectRevision: ''`, and `archived` and `deleting` are booleans | Project lifecycle, after S1 |
+| The Hub no longer synthesizes a purged Project with an empty revision; the wire still uses `archived` and `deleting` booleans, and the web's empty-revision branch stays until U5 replaces that shape | Authorization model, after U4 |
 | `startHub`, `createHttpApp` and the Builder module stay past the function size limit by suppression | Hub base, after S1 |
 | `Scope` in `apps/hub/src/connectors/scope.ts` is a class with mutable state | Hub base, after S1 |
 | Named top-level functions are `const` arrows, some class fields use `#private` outside secret values, and some types are `interface` without augmenting a library | Hub base, after S1 |
 | `app-runner/http.ts` and the sandbox keepalive in `builder/sandbox.ts` read a failure from `error.message` | Hub base, after S1 |
 | The sealed build is a nominal type the Builder can still subclass; the registry refuses an unsealed one at run time | Hub base, after S1 |
 | Two connections run as `hub_runtime` outside any transaction, with no role switch ([database](database.md#6-roles-and-transactions)): the instance lock session and the application presence session, each holding a session level advisory lock (`session` in `platform/db.ts`) | Hub base, after S1 |
-| The application and Preview hosts read the served files and the server tree inside `authenticate` as `hub_command`, whose policies on the served tables pass every row, so their only authority is the `Checked` proof and its Project filter, not a reader policy ([database](database.md#6-roles-and-transactions)). Accepted by operator decision 5B | Accepted risk |
+| Hub reads and commands share `hub_runtime` and no table has row-level policies. A missed admission or query filter can expose another person's rows; closed gates, scoped proofs, native verb/column grants and representative tests are the backstops ([database](database.md#6-roles-and-transactions)). Accepted by operator decision C-039 | Accepted risk |
 | `GET .../workspaces/{workspaceId}/projects` returns a top-level array, and lists that grow have no continuation token | Hub base, after S1 |
 | Tests read production source text (`builder-harness.test.mjs`, `builder-template-pins.test.mjs`, `builder-check-bundle.test.mjs`, `connector-adapter-source.test.mjs`) | Hub base, after S1 |
 | Tests in the Small group open a socket or write to disk (`application-host.test.mjs`, `builder-conexus-git.test.mjs`, `gate-import-rule.test.mjs`) although that group is in-memory | Hub base, after S1 |

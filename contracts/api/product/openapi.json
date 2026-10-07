@@ -3519,30 +3519,6 @@
                 }
               }
             }
-          },
-          "503": {
-            "description": "Problem",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Problem"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "enum": [
-                            "PROJECT_SUMMARIES_UNAVAILABLE"
-                          ]
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
           }
         }
       }
@@ -3701,30 +3677,6 @@
                         "code": {
                           "enum": [
                             "INTERNAL_UNEXPECTED"
-                          ]
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Problem",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Problem"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "enum": [
-                            "PROJECT_THUMBNAIL_UNAVAILABLE"
                           ]
                         }
                       }
@@ -4042,6 +3994,30 @@
               }
             }
           },
+          "404": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "WORKSPACE_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "409": {
             "description": "Problem",
             "content": {
@@ -4080,7 +4056,6 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "CONNECTOR_WORKSPACE_NOT_FOUND",
                             "CONNECTOR_LABEL_REFUSED",
                             "CONNECTOR_CREDENTIAL_REFUSED"
                           ]

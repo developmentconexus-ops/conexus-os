@@ -2,8 +2,8 @@ import { z } from 'zod'
 import type { AccountId, BuilderRunId, ProjectId, WorkspaceId } from '@conexus/contract'
 import { AccountId as AccountIdSchema, ProjectId as ProjectIdSchema, SUBJECT_NOT_FOUND, WorkspaceId as WorkspaceIdSchema, WorkspaceRole } from '@conexus/contract'
 import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
-import type { AuthenticationGate, CommandGate, JobName, Mode, ReadTx, Sql, TxQueries, WriteTx } from '../platform/db.js'
-import { openGate, readOnlyView, sql } from '../platform/db.js'
+import type { AuthenticationGate, CommandGate, JobName, Mode, ReadGate, ReadTx, Sql, TxQueries, WriteTx } from '../platform/db.js'
+import { openGate, openReadGate, readOnlyView, sql } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
 import { type Receipted, receipted } from '../platform/receipt.js'
 
@@ -116,12 +116,13 @@ const accountGate = (gate: CommandGate | AuthenticationGate): Readonly<{ tx: Wri
 }
 
 // A read admission takes the actor from the read's own account; it has no transaction to lock with.
-const subjectOf = (subject: CommandGate | ReadTx): Readonly<{ tx: ReadTx | WriteTx; writer: WriteTx | null; accountId: AccountId }> => {
-  if ('mode' in subject) {
-    if (subject.accountId === null) throw refusedActor()
-    return { tx: subject, writer: null, accountId: subject.accountId }
+const subjectOf = (gate: ReadGate | CommandGate): Readonly<{ tx: ReadTx | WriteTx; writer: WriteTx | null; accountId: AccountId }> => {
+  if (gate.mode === 'read') {
+    const tx = openReadGate(gate)
+    if (tx.accountId === null) throw refusedActor()
+    return { tx, writer: null, accountId: tx.accountId }
   }
-  const { tx, accountId } = accountGate(subject)
+  const { tx, accountId } = accountGate(gate)
   return { tx, writer: tx, accountId }
 }
 
@@ -134,7 +135,19 @@ const lockActiveAccount = async (tx: WriteTx, accountId: AccountId): Promise<voi
   if (!account.active) throw new Failure('ACCOUNT_INACTIVE')
 }
 
-export const admitAccount = async (gate: CommandGate | AuthenticationGate): Promise<Admitted<AccountScope>> => {
+export function admitAccount(gate: ReadGate): Promise<Admitted<AccountScope, 'read'>>
+export function admitAccount(gate: CommandGate | AuthenticationGate): Promise<Admitted<AccountScope>>
+export async function admitAccount(gate: ReadGate): Promise<Admitted<AccountScope, 'read'>>
+export async function admitAccount(gate: CommandGate | AuthenticationGate): Promise<Admitted<AccountScope>>
+export async function admitAccount(gate: ReadGate | CommandGate | AuthenticationGate): Promise<Admitted<AccountScope, Mode>> {
+  if (gate.mode === 'read') {
+    const tx = openReadGate(gate)
+    if (tx.accountId === null) throw refusedActor()
+    const account = await tx.maybe(ActiveAccount, sql`SELECT account_id, active FROM iam.account WHERE account_id = ${tx.accountId}`)
+    if (!account) throw new Failure('ACCOUNT_NOT_FOUND')
+    if (!account.active) throw new Failure('ACCOUNT_INACTIVE')
+    return new Proof({ kind: 'account', accountId: tx.accountId }, tx)
+  }
   const { tx, actor } = openGate(gate)
   const accountId = actor.kind === 'job' ? null : actor.accountId
   if (accountId === null) throw refusedActor()
@@ -159,26 +172,18 @@ const lockOwners = async (tx: WriteTx, workspaceId: WorkspaceId): Promise<readon
 const memberOf = (tx: TxQueries, accountId: AccountId, workspaceId: WorkspaceId, lock: Sql) =>
   tx.maybe(Member, sql`SELECT role FROM iam.workspace_membership WHERE account_id = ${accountId} AND workspace_id = ${workspaceId}${lock}`)
 
+export function admitWorkspace<A extends ReadAction & WorkspaceAction>(gate: ReadGate, input: Readonly<{ workspaceId: WorkspaceId; action: A }>): Promise<Admitted<WorkspaceScope<A>, 'read'>>
 export function admitWorkspace<A extends WorkspaceAction>(gate: CommandGate, input: Readonly<{ workspaceId: WorkspaceId; action: A }>): Promise<Admitted<WorkspaceScope<A>>>
-export function admitWorkspace<A extends ReadAction & WorkspaceAction>(tx: ReadTx, workspaceId: WorkspaceId, action: A): Promise<Admitted<WorkspaceScope<A>, 'read'>>
-export async function admitWorkspace(...args: [CommandGate, Readonly<{ workspaceId: WorkspaceId; action: WorkspaceAction }>] | [ReadTx, WorkspaceId, ReadAction & WorkspaceAction]): Promise<Admitted<Scope, Mode>> {
-  const subject = args[0]
-  let workspaceId: WorkspaceId
-  let action: WorkspaceAction
-  if (args.length === 2) {
-    workspaceId = args[1].workspaceId
-    action = args[1].action
-  } else {
-    workspaceId = args[1]
-    action = args[2]
-  }
-  const { tx, writer, accountId } = subjectOf(subject)
+export async function admitWorkspace(gate: ReadGate | CommandGate, input: Readonly<{ workspaceId: WorkspaceId; action: WorkspaceAction }>): Promise<Admitted<Scope, Mode>> {
+  const { tx, writer, accountId } = subjectOf(gate)
+  const { workspaceId, action } = input
   const rule = ACTIONS[action]
   // An outsider is refused before any lock, so it never holds a Workspace's owner rows; the locked read below decides.
   if (writer && !(await memberOf(writer, accountId, workspaceId, sql``))) throw refuse(SUBJECT_NOT_FOUND.workspaceId, 'OUTSIDER')
   const owners = writer && CHANGES_OWNER_SET.some((candidate) => candidate === action) ? await lockOwners(writer, workspaceId) : null
   // A read leaves the account to the membership policy, which hides an inactive account's memberships, so it reads as an outsider.
   if (writer) await lockActiveAccount(writer, accountId)
+  else await requireActiveReadAccount(tx, accountId)
   // A leaving member deletes its own row, so it takes it for update; every other action reads it.
   const lock = !writer ? sql`` : action === 'members.leave' ? sql` FOR UPDATE` : sql` FOR SHARE`
   const member = await memberOf(tx, accountId, workspaceId, lock)
@@ -190,6 +195,12 @@ export async function admitWorkspace(...args: [CommandGate, Readonly<{ workspace
     return new Proof({ kind: 'workspace', accountId, workspaceId, role: member.role, action, owners }, tx)
   }
   return new Proof({ kind: 'workspace', accountId, workspaceId, role: member.role, action }, tx)
+}
+
+const requireActiveReadAccount = async (tx: TxQueries, accountId: AccountId): Promise<void> => {
+  const account = await tx.maybe(ActiveAccount, sql`SELECT account_id, active FROM iam.account WHERE account_id = ${accountId}`)
+  if (!account) throw new Failure('ACCOUNT_NOT_FOUND')
+  if (!account.active) throw new Failure('ACCOUNT_INACTIVE')
 }
 
 export const grantCreatorMembership = async (creator: Admitted<AccountScope>, workspaceId: WorkspaceId): Promise<void> => {
@@ -226,14 +237,12 @@ const lockLiveProject = async (tx: WriteTx, projectId: ProjectId): Promise<boole
 }
 
 export function admitProject<A extends ProjectAction>(gate: CommandGate, input: Readonly<{ projectId: ProjectId; action: A }>): Promise<Admitted<ProjectScope<A>>>
-export function admitProject<A extends ReadAction & ProjectAction>(tx: ReadTx, projectId: ProjectId, action: A): Promise<Admitted<ProjectScope<A>, 'read'>>
-export async function admitProject(subject: CommandGate | ReadTx, input: Readonly<{ projectId: ProjectId; action: ProjectAction }> | ProjectId, readAction?: ProjectAction): Promise<Admitted<Scope, Mode>> {
-  if (typeof input === 'string' && !('mode' in subject)) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'COMMAND_ADMISSION_INPUT_REQUIRED' } })
-  const projectId = typeof input === 'string' ? input : input.projectId
-  const action = typeof input === 'string' ? readAction : input.action
-  if (!action) throw new Failure('INTERNAL_UNEXPECTED')
-  const { tx, writer, accountId } = subjectOf(subject)
+export function admitProject<A extends ReadAction & ProjectAction>(gate: ReadGate, input: Readonly<{ projectId: ProjectId; action: A }>): Promise<Admitted<ProjectScope<A>, 'read'>>
+export async function admitProject(gate: ReadGate | CommandGate, input: Readonly<{ projectId: ProjectId; action: ProjectAction }>): Promise<Admitted<Scope, Mode>> {
+  const { tx, writer, accountId } = subjectOf(gate)
+  const { projectId, action } = input
   if (writer) await lockActiveAccount(writer, accountId)
+  else await requireActiveReadAccount(tx, accountId)
   const rule = ACTIONS[action]
   if (rule.on !== 'project') throw new Failure('INTERNAL_UNEXPECTED')
   const found = await tx.maybe(ProjectSubject, projectSubject(projectId, sql``))
@@ -248,30 +257,43 @@ export async function admitProject(subject: CommandGate | ReadTx, input: Readonl
   return new Proof({ kind: 'project', accountId, workspaceId: current.workspace_id, projectId, role: member.role, action }, tx)
 }
 
-/** Whether the acting account of a read holds an open tenure and is active: the one owner of that fact for a read, which the reader policies answer through rls.acting_installation_administrator(). */
-export const isInstallationAdministrator = async (tx: ReadTx): Promise<boolean> =>
-  (await tx.one(z.object({ administrator: z.boolean() }), sql`SELECT rls.acting_installation_administrator() AS administrator`, 'INTERNAL_UNEXPECTED')).administrator
-
 export function admitInstallationAdministrator(gate: CommandGate, input: Extract<AdministratorInput, { action: 'administrators.manage' }>): Promise<Admitted<AdministratorScope<'administrators.manage'>>>
 export function admitInstallationAdministrator(gate: CommandGate, input: Extract<AdministratorInput, { action: 'connection.manage' }>): Promise<Admitted<AdministratorScope<'connection.manage'>>>
-export async function admitInstallationAdministrator(gate: CommandGate, input: AdministratorInput): Promise<Admitted<AdministratorScope>> {
+export function admitInstallationAdministrator(gate: ReadGate, input: Extract<AdministratorInput, { action: 'administrators.manage' }>): Promise<Admitted<AdministratorScope<'administrators.manage'>, 'read'>>
+export function admitInstallationAdministrator(gate: ReadGate, input: Extract<AdministratorInput, { action: 'connection.manage' }>): Promise<Admitted<AdministratorScope<'connection.manage'>, 'read'>>
+export async function admitInstallationAdministrator(gate: ReadGate | CommandGate, input: AdministratorInput): Promise<Admitted<Scope, Mode>> {
   const { action } = input
   const refusal = ACTIONS[action].refusal
-  const { tx, accountId } = accountGate(gate)
-  if (action === 'administrators.manage') await tx.run(sql`SELECT iam.lock_administrators()`)
-  const account = await lockAccount(tx, accountId)
+  const { tx, writer, accountId } = subjectOf(gate)
+  if (!writer) {
+    await requireActiveReadAccount(tx, accountId)
+    const tenure = await tx.maybe(Present, sql`SELECT 1 AS present FROM iam.installation_administrator WHERE account_id = ${accountId} AND revoked_at IS NULL`)
+    if (!tenure) throw refuse(refusal, 'OUTSIDER')
+    if (action === 'connection.manage') {
+      const exists = await tx.maybe(Present, sql`SELECT 1 AS present FROM workspace.workspace WHERE workspace_id = ${input.workspaceId}`)
+      if (!exists) throw refuse(SUBJECT_NOT_FOUND.workspaceId, 'OUTSIDER')
+      return new Proof({ kind: 'installation-administrator', accountId, action, workspaceId: input.workspaceId }, tx)
+    }
+    return new Proof({ kind: 'installation-administrator', accountId, action }, tx)
+  }
+  const commandTx = writer
+  if (action === 'administrators.manage') await commandTx.run(sql`SELECT iam.lock_administrators()`)
+  const account = await lockAccount(commandTx, accountId)
   if (!account?.active) throw refuse(refusal, 'INACTIVE')
   // A revoke that commits while this waits makes the row fail its predicate when it is read again.
-  const tenure = await tx.maybe(Present, sql`
+  const tenure = await commandTx.maybe(Present, sql`
     SELECT 1 AS present FROM iam.installation_administrator WHERE account_id = ${accountId} AND revoked_at IS NULL FOR SHARE`)
   if (!tenure) throw refuse(refusal, 'OUTSIDER')
   if (action === 'connection.manage') {
-    const exists = await tx.maybe(Present, sql`SELECT 1 AS present FROM workspace.workspace WHERE workspace_id = ${input.workspaceId}`)
+    const exists = await commandTx.maybe(Present, sql`SELECT 1 AS present FROM workspace.workspace WHERE workspace_id = ${input.workspaceId}`)
     if (!exists) throw refuse(SUBJECT_NOT_FOUND.workspaceId, 'OUTSIDER')
     return new Proof({ kind: 'installation-administrator', accountId, action, workspaceId: input.workspaceId }, tx)
   }
   return new Proof({ kind: 'installation-administrator', accountId, action }, tx)
 }
+
+export const readAdministratorFlag = async (proof: Admitted<AccountScope, 'read'>): Promise<boolean> =>
+  (await proof.tx.maybe(Present, sql`SELECT 1 AS present FROM iam.installation_administrator WHERE account_id = ${proof.scope.accountId} AND revoked_at IS NULL`)) !== null
 
 const applicationAccess = (accountId: AccountId, projectId: ProjectId) => sql`
   SELECT

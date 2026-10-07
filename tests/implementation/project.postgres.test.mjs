@@ -1,14 +1,12 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import pg from 'pg'
-import { z } from 'zod'
-import { query } from './hub-database.mjs'
+import { loginPoolOf, query } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
-import { ID, PASSWORD, STARTER, setupProjects } from './project-fixture.mjs'
+import { ID, STARTER, setupProjects } from './project-fixture.mjs'
 
 const { Failure } = await import(hubModuleUrl('platform/failure.js'))
-const { sql } = await import(hubModuleUrl('platform/db.js'))
-const { admitSystem } = await import(hubModuleUrl('identity-access/admission.js'))
+const { admitSystem, admitWorkspace } = await import(hubModuleUrl('identity-access/admission.js'))
 const { purgeProject } = await import(hubModuleUrl('identity-access/application-access.js'))
 
 const NEW = { name: 'Atlas', sourceBootstrap: { mode: 'NEW' } }
@@ -121,9 +119,6 @@ const states = {
     await query(connection, 'DELETE FROM project.project WHERE project_id = $1', [projectId])
     await query(connection, 'UPDATE project.project_deletion SET purged_at = now() WHERE project_id = $1', [projectId])
   },
-  completed: async ({ connection }, projectId) => {
-    await query(connection, 'UPDATE project.project_deletion SET completed_at = clock_timestamp() WHERE project_id = $1', [projectId])
-  },
 }
 
 const readsOf = async ({ store }, accountId, projectId) => ({
@@ -138,75 +133,37 @@ test('reads follow the project through its life: live, tombstoned, purged and co
   const detail = (revision, deleting) => ({ projectId, workspaceId: ID.workspace, name: 'Atlas', projectRevision: revision, archived: false, deleting })
   const revision = (await query(fixture.connection, 'SELECT project_revision FROM project.project')).rows[0].project_revision
   const expectations = {
-    live: {
-      member: { list: ['Atlas'], detail: detail(revision, false), cards: ['Atlas:false'] },
-      outsider: { list: [], detail: null, cards: [] },
-      administrator: { list: [], detail: null, cards: [] },
-      memberAdministrator: { list: ['Atlas'], detail: detail(revision, false), cards: ['Atlas:false'] },
-    },
-    tombstoned: {
-      member: { list: [], detail: null, cards: [] },
-      outsider: { list: [], detail: null, cards: [] },
-      administrator: { list: [], detail: detail('', true), cards: [] },
-      memberAdministrator: { list: ['Atlas'], detail: detail(revision, true), cards: ['Atlas:true'] },
-    },
-    purged: {
-      member: { list: [], detail: null, cards: [] },
-      outsider: { list: [], detail: null, cards: [] },
-      administrator: { list: [], detail: detail('', true), cards: ['Atlas:true'] },
-      memberAdministrator: { list: [], detail: detail('', true), cards: ['Atlas:true'] },
-    },
-    completed: {
-      member: { list: [], detail: null, cards: [] },
-      outsider: { list: [], detail: null, cards: [] },
-      administrator: { list: [], detail: null, cards: [] },
-      memberAdministrator: { list: [], detail: null, cards: [] },
-    },
+    live: { list: ['Atlas'], detail: detail(revision, false), cards: ['Atlas:false'] },
+    tombstoned: { list: ['Atlas'], detail: detail(revision, true), cards: ['Atlas:true'] },
+    purged: { list: [], error: 'PROJECT_NOT_FOUND', cards: [] },
   }
   for (const [state, enter] of Object.entries(states)) {
     await enter(fixture, projectId)
-    for (const [who, expected] of Object.entries(expectations[state])) {
-      assert.deepEqual(await readsOf(fixture, ID[who], projectId), expected, `${state} as ${who}`)
+    const expected = expectations[state]
+    for (const who of ['member', 'memberAdministrator']) {
+      if (expected.error) {
+        await assert.rejects(fixture.store.getProject({ accountId: ID[who], projectId }), { id: expected.error }, `${state} as ${who}`)
+        assert.deepEqual(names(await fixture.store.listProjects({ accountId: ID[who], workspaceId: ID.workspace })), expected.list, `${state} list as ${who}`)
+        assert.deepEqual((await fixture.store.listProjectSummariesWithActivity({ accountId: ID[who], workspaceId: ID.workspace })).map((card) => `${card.name}:${card.deleting}`), expected.cards, `${state} cards as ${who}`)
+      } else {
+        assert.deepEqual(await readsOf(fixture, ID[who], projectId), expected, `${state} as ${who}`)
+      }
+    }
+    for (const hidden of ['outsider', 'administrator']) {
+      await assert.rejects(fixture.store.listProjects({ accountId: ID[hidden], workspaceId: ID.workspace }), { id: 'WORKSPACE_NOT_FOUND' }, `${state} workspace as ${hidden}`)
+      await assert.rejects(fixture.store.getProject({ accountId: ID[hidden], projectId }), { id: 'PROJECT_NOT_FOUND' }, `${state} project as ${hidden}`)
     }
   }
 })
 
-test('a list whose WHERE is deleted still returns only the acting account projects', async (t) => {
-  const { database, seedProject } = await setupProjects(t, 'conexus_prj_leak')
-  await seedProject('Atlas')
-  await seedProject('Elsewhere', ID.otherWorkspace)
-  const all = z.object({ name: z.string() })
-  const read = (accountId) => database.read(accountId, (tx) => tx.rows(all, sql`SELECT name FROM project.project ORDER BY name`))
-  assert.deepEqual(await read(ID.member), [{ name: 'Atlas' }])
-  assert.deepEqual(await read(ID.outsider), [])
-  assert.deepEqual(await read(ID.administrator), [])
-})
-
-test('the login role alone reads nothing, and the reader without an account set shows and changes nothing', async (t) => {
-  const { connection, seedProject, database } = await setupProjects(t, 'conexus_prj_noaccount')
+test('the runtime role holds native read grants while stores scope person reads with admission', async (t) => {
+  const { seedProject, database } = await setupProjects(t, 'conexus_prj_noaccount')
   const projectId = await seedProject('Atlas')
-  await query(connection, `INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Atlas', $3)`, [projectId, ID.workspace, ID.administrator])
-  const runtime = { ...connection, user: 'hub_runtime', password: PASSWORD }
-  const tables = ['project.project', 'project.project_deletion', 'builder.builder_run', 'builder.project_working_state']
-  for (const table of tables) {
-    await assert.rejects(query(runtime, `SELECT count(*)::integer AS count FROM ${table}`), { code: '42501' }, table)
-  }
-  const client = new pg.Client(runtime)
-  await client.connect()
-  try {
-    await client.query('BEGIN')
-    await client.query('SET LOCAL ROLE hub_reader')
-    for (const table of tables) {
-      assert.deepEqual((await client.query(`SELECT count(*)::integer AS count FROM ${table}`)).rows, [{ count: 0 }], table)
-    }
-    await client.query('ROLLBACK')
-  } finally {
-    await client.end()
-  }
-  const rows = z.object({ project_id: z.string() })
-  assert.deepEqual(await database.read(ID.outsider, (tx) => tx.rows(rows, sql`SELECT project_id FROM builder.builder_run`)), [])
-  assert.deepEqual(await database.read(ID.outsider, (tx) => tx.rows(rows, sql`SELECT project_id FROM builder.project_working_state`)), [])
-  assert.equal((await database.read(ID.member, (tx) => tx.rows(rows, sql`SELECT project_id FROM builder.project_working_state`))).length, 0)
+  const otherId = await seedProject('Elsewhere', ID.otherWorkspace)
+  const runtime = await loginPoolOf(database)
+  assert.deepEqual((await runtime.query('SELECT project_id FROM project.project ORDER BY project_id')).rows.map((row) => row.project_id).sort(), [projectId, otherId].sort())
+  assert.equal((await database.read(ID.member, (gate) => admitWorkspace(gate, { workspaceId: ID.workspace, action: 'workspace.read' }))).scope.workspaceId, ID.workspace)
+  await assert.rejects(runtime.query('SELECT * FROM factory.project'), { code: '42501' })
 })
 
 test('a person transaction cannot run a project purge, and the rows stay', async (t) => {
@@ -215,15 +172,6 @@ test('a person transaction cannot run a project purge, and the rows stay', async
   const refused = (error) => error.id === 'INTERNAL_UNEXPECTED' && error.details?.invariant === 'GATE_ACTOR_REFUSED'
   await assert.rejects(database.transaction(ID.member, async (gate) => purgeProject(await admitSystem(gate, 'project-purge'), projectId)), refused)
   assert.deepEqual((await query(connection, 'SELECT (SELECT count(*)::integer FROM builder.project_working_state WHERE project_id = $1) AS working, (SELECT count(*)::integer FROM builder.project_repository WHERE project_id = $1) AS repository', [projectId])).rows, [{ working: 1, repository: 1 }])
-})
-
-test('the policy helper is false for an administrator whose account is not active', async (t) => {
-  const { connection, database } = await setupProjects(t, 'conexus_prj_helper')
-  const flag = z.object({ administrator: z.boolean() })
-  const read = () => database.read(ID.administrator, (tx) => tx.one(flag, sql`SELECT rls.acting_installation_administrator() AS administrator`, 'INTERNAL_UNEXPECTED'))
-  assert.deepEqual(await read(), { administrator: true })
-  await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.administrator])
-  assert.deepEqual(await read(), { administrator: false })
 })
 
 test('an outsider is refused at admission before any project write is reachable', async (t) => {

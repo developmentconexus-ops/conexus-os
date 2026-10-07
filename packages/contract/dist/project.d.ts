@@ -221,7 +221,7 @@ export declare const listProjectSummaries: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_SUMMARIES_UNAVAILABLE"];
+    readonly failures: readonly [];
     readonly malformed: {
         readonly workspaceId: "WORKSPACE_NOT_FOUND";
     };
@@ -246,7 +246,7 @@ export declare const getProjectThumbnail: {
         };
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_THUMBNAIL_NOT_FOUND", "PROJECT_THUMBNAIL_UNAVAILABLE"];
+    readonly failures: readonly ["PROJECT_THUMBNAIL_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };

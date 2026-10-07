@@ -59,6 +59,8 @@ ASVS V8.
   principals.
 - A command **must** write only with the `Admitted` proof an admission function returns after
   locking the rows it read. A served read uses `Checked`, which no command accepts.
+- A person read **must** use a closed `ReadGate` and obtain an action-specific read proof before it
+  queries rows. A raw read transaction **must not** escape `platform/db.ts`.
 - The acting Account **must** come from the session, never from the request. A route that acts on a
   child by id **must** check the child belongs to the parent in its path.
 - An invitation **must** be claimed only by signing in with its verified email. Removing a roster

@@ -2,258 +2,103 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { lintCatalog } from '../../scripts/hub-catalog-lint.mjs'
 
-const relation = (table, acl = [], { rls = true } = {}) => `relation ${table} kind=r owner=conexus_owner rls=${rls} forcerls=${rls} disabled_triggers=0 acl=${acl.map(([role, privilege]) => `${role}:${privilege}:false`).join(',')}`
+const relation = (table, acl = [], { rls = false } = {}) => `relation ${table} kind=r owner=conexus_owner rls=${rls} forcerls=${rls} disabled_triggers=0 acl=${acl.map(([role, privilege]) => `${role}:${privilege}:false`).join(',')}`
 const column = (table, name, acl) => `column ${table}.${name} text notnull=false default= acl=${acl.map(([role, privilege]) => `${role}:${privilege}:false`).join(',')}`
-const policy = (table, name, command, roles, using = roles === 'hub_reader' ? 'rls.acting_account() IS NOT NULL' : 'true', check = 'true') => `policy ${table}.${name} cmd=${command} permissive=true roles=${roles} using=${using} check=${check}`
-const fn = (name, args, acl) => `function ${name}(${args}) returns void acl=${acl.map((role) => `${role}:EXECUTE:false`).join(',')} body=SELECT 1`
+const fn = (name, args, owner, acl) => `function ${name}(${args}) returns void kind=f owner=${owner} secdef=true volatility=v config=search_path=pg_catalog,pg_temp acl=${acl.map((role) => `${role}:EXECUTE:false`).join(',')} body=SELECT 1`
 
 const WORKSPACE = 'workspace.workspace'
-const DELETION = 'project.project_deletion'
-const row = (table, extra = {}) => ({ table, reader: true, command: ['INSERT', 'SELECT'], runtime: [], compositeKeys: [], ...extra })
-
+const LOCK = 'iam.lock_administrators'
+const row = (table, privileges = ['INSERT', 'SELECT'], extra = {}) => ({ table, privileges, compositeKeys: [], keyColumns: [], ...extra })
 const base = () => ({
   catalog: {
-    column: [],
-    constraint: [],
-    relation: [relation(WORKSPACE, [['hub_reader', 'SELECT'], ['hub_command', 'INSERT'], ['hub_command', 'SELECT']])],
-    policy: [policy(WORKSPACE, 'reader', 'r', 'hub_reader', 'rls.acting_account() IS NOT NULL'), policy(WORKSPACE, 'command', '*', 'hub_command')],
-    function: [fn('rls.acting_account', '', ['iam_rls', 'hub_reader'])],
+    column: [], constraint: [],
+    relation: [relation(WORKSPACE, [['hub_runtime', 'INSERT'], ['hub_runtime', 'SELECT']])],
+    policy: [],
+    function: [fn(LOCK, '', 'conexus_owner', ['conexus_owner', 'hub_runtime'])],
   },
-  functions: [{ name: 'rls.acting_account', owner: 'iam_rls', body: '' }],
+  functions: [{ name: LOCK, owner: 'conexus_owner', body: '' }],
   census: {
     unscoped: { permanent: [] },
-    register: { split: [row(WORKSPACE)], functions: { hub_reader: ['rls.acting_account()'], hub_command: [] } },
-    ceilings: { ruleFunctions: 0, runtimePrivileges: 0 },
+    register: { tables: [row(WORKSPACE)], functions: { hub_runtime: [`${LOCK}()`] } },
+    ceilings: { ruleFunctions: 0, runtimePrivileges: 3 },
   },
 })
-
-const lint = (mutate) => {
+const lint = (mutate = () => undefined) => {
   const input = base()
   mutate(input)
   return lintCatalog(input).problems
 }
 
-test('a split table with a true command policy, a named reader policy and exact grants passes', () => {
-  assert.deepEqual(lint(() => undefined), [])
+test('native grants pass with RLS and policies removed', () => {
+  assert.deepEqual(lint(), [])
 })
 
-test('a command policy that is not true is named', () => {
-  assert.deepEqual(lint((input) => { input.catalog.policy[1] = policy(WORKSPACE, 'command', '*', 'hub_command', 'false') }), [
-    `${WORKSPACE} must have exactly one policy TO hub_command, FOR ALL, USING (true) WITH CHECK (true)`,
-  ])
-})
-
-test('a reader grant without a reader policy is named', () => {
-  assert.deepEqual(lint((input) => { input.catalog.policy.splice(0, 1) }), [
-    `${WORKSPACE} must have a reader policy named reader if and only if hub_reader holds SELECT`,
-  ])
-})
-
-test('a verb the register does not list for the command role is named', () => {
-  assert.deepEqual(lint((input) => { input.catalog.relation[0] = relation(WORKSPACE, [['hub_reader', 'SELECT'], ['hub_command', 'INSERT'], ['hub_command', 'SELECT'], ['hub_command', 'DELETE']]) }), [
-    `${WORKSPACE} gives hub_command DELETE, INSERT, SELECT, and its register row says INSERT, SELECT`,
-  ])
-})
-
-test('a reader that holds more than SELECT is named', () => {
-  assert.deepEqual(lint((input) => { input.catalog.relation[0] = relation(WORKSPACE, [['hub_reader', 'SELECT'], ['hub_reader', 'UPDATE'], ['hub_command', 'INSERT'], ['hub_command', 'SELECT']]) }), [
-    `${WORKSPACE} gives hub_reader SELECT, UPDATE, and the reader may only SELECT`,
-  ])
-})
-
-test('a register row with readerColumns allows exactly that column list and refuses a table level reader grant', () => {
-  const columns = (input) => { input.catalog.column.push(column(WORKSPACE, 'name', [['hub_reader', 'SELECT']]), column(WORKSPACE, 'workspace_id', [['hub_reader', 'SELECT']])) }
+test('unexpected runtime verbs and retired role grants are named', () => {
   assert.deepEqual(lint((input) => {
-    input.catalog.relation[0] = relation(WORKSPACE, [['hub_command', 'INSERT'], ['hub_command', 'SELECT']])
-    columns(input)
-    input.census.register.split[0].readerColumns = ['name', 'workspace_id']
+    input.catalog.relation[0] = relation(WORKSPACE, [['hub_runtime', 'DELETE'], ['hub_runtime', 'INSERT'], ['hub_runtime', 'SELECT'], ['hub_reader', 'SELECT']])
+  }), [
+    `${WORKSPACE} gives hub_runtime DELETE, INSERT, SELECT, and its register row says INSERT, SELECT`,
+    `${WORKSPACE} still grants hub_reader SELECT`,
+    'runtimePrivileges is 4, above its ceiling 3',
+  ])
+})
+
+test('policies and enabled row security are refused', () => {
+  assert.deepEqual(lint((input) => {
+    input.catalog.relation[0] = relation(WORKSPACE, [['hub_runtime', 'INSERT'], ['hub_runtime', 'SELECT']], { rls: true })
+    input.catalog.policy.push('policy workspace.workspace.reader cmd=r permissive=true roles=hub_reader using=true check=')
+  }), [`${WORKSPACE} must have row level security disabled`, 'the catalog has 1 row security policies; none are registered'])
+})
+
+test('column grants preserve the exact native privilege surface', () => {
+  assert.deepEqual(lint((input) => {
+    input.catalog.relation[0] = relation(WORKSPACE, [['hub_runtime', 'INSERT']])
+    input.catalog.column.push(column(WORKSPACE, 'name', [['hub_runtime', 'SELECT']]))
+    input.census.register.tables[0] = row(WORKSPACE, ['INSERT', 'SELECT(name)'])
   }), [])
   assert.deepEqual(lint((input) => {
-    columns(input)
-    input.census.register.split[0].readerColumns = ['name', 'workspace_id']
-  }), [`${WORKSPACE} gives hub_reader SELECT, and the reader may only SELECT(name,workspace_id)`])
-  assert.deepEqual(lint((input) => {
-    input.catalog.relation[0] = relation(WORKSPACE, [['hub_command', 'INSERT'], ['hub_command', 'SELECT']])
-    columns(input)
-    input.census.register.split[0].readerColumns = ['name']
-  }), [`${WORKSPACE} gives hub_reader SELECT(name,workspace_id), and the reader may only SELECT(name)`])
+    input.catalog.relation[0] = relation(WORKSPACE, [['hub_runtime', 'INSERT']])
+    input.catalog.column.push(column(WORKSPACE, 'name', [['hub_runtime', 'SELECT']]), column(WORKSPACE, 'workspace_id', [['hub_runtime', 'SELECT']]))
+    input.census.register.tables[0] = row(WORKSPACE, ['INSERT', 'SELECT(name)'])
+  }), [`${WORKSPACE} gives hub_runtime INSERT, SELECT(name,workspace_id), and its register row says INSERT, SELECT(name)`])
 })
 
-test('a misnamed reader policy is named', () => {
-  assert.deepEqual(lint((input) => { input.catalog.policy[0] = policy(WORKSPACE, 'read', 'r', 'hub_reader') }), [
-    `${WORKSPACE} must have a reader policy named reader if and only if hub_reader holds SELECT`,
-    `${WORKSPACE} has a reader policy named read, which is neither reader nor reader_admin`,
-  ])
-})
-
-test('a reader_admin policy off the administrator reach list is named', () => {
-  assert.deepEqual(lint((input) => {
-    input.catalog.policy.push(policy(WORKSPACE, 'reader_admin', 'r', 'hub_reader'))
-    input.census.register.split[0].readerAdmin = true
-  }), [`${WORKSPACE} has reader_admin but is not on the administrator reach list`])
-})
-
-test('a reader_admin policy on the reach list passes, and one the register does not name is named', () => {
-  const input = base()
-  input.catalog.relation = [relation(DELETION, [['hub_reader', 'SELECT'], ['hub_command', 'INSERT'], ['hub_command', 'SELECT']])]
-  input.catalog.policy = [policy(DELETION, 'reader', 'r', 'hub_reader'), policy(DELETION, 'reader_admin', 'r', 'hub_reader'), policy(DELETION, 'command', '*', 'hub_command')]
-  input.census.register.split = [row(DELETION, { readerAdmin: true })]
-  assert.deepEqual(lintCatalog(input).problems, [])
-  input.census.register.split = [row(DELETION)]
-  assert.deepEqual(lintCatalog(input).problems, [`${DELETION} must have a reader_admin policy if and only if its register row says readerAdmin`])
-})
-
-test('a policy TO hub_runtime and a legacy policy are named', () => {
-  assert.deepEqual(lint((input) => { input.catalog.policy.push(policy(WORKSPACE, 'runtime', '*', 'hub_runtime')) }), [
-    `${WORKSPACE} has a policy runtime TO hub_runtime; no policy names it`,
-  ])
-  assert.deepEqual(lint((input) => { input.catalog.policy.push(policy(WORKSPACE, 'legacy_owner', '*', 'conexus_owner')) }), [
-    `${WORKSPACE} has a policy legacy_owner; no legacy policy remains`,
-  ])
-})
-
-test('an EXECUTE that the register does not list is named', () => {
-  assert.deepEqual(lint((input) => {
-    input.catalog.function.push(fn('workspace.some_function', 'p_id uuid', ['hub_command']))
-    input.functions.push({ name: 'workspace.some_function', owner: 'iam_owner', body: '' })
-    input.census.ceilings.ruleFunctions = 1
-  }), ['hub_command may EXECUTE workspace.some_function(p_id uuid), and the register says nothing'])
-})
-
-test('a helper outside schema rls and an rls function with the wrong owner are named', () => {
-  assert.deepEqual(lint((input) => {
-    input.functions.push({ name: 'iam.acting_other', owner: 'iam_rls', body: '' }, { name: 'rls.acting_other', owner: 'iam_owner', body: '' })
-    input.census.ceilings.ruleFunctions = 2
-  }), [
-    'iam.acting_other is owned by iam_rls; a helper lives in schema rls',
-    'rls.acting_other must be owned by iam_rls, not iam_owner',
-  ])
-})
-
-test('an rls helper executable by another role is named', () => {
-  assert.deepEqual(lint((input) => { input.catalog.function[0] = fn('rls.acting_account', '', ['iam_rls', 'hub_reader', 'hub_command']) }), [
-    'hub_command may EXECUTE rls.acting_account(), and the register says nothing',
-    'rls.acting_account() is executable by iam_rls, hub_reader, hub_command; only hub_reader may',
-  ])
-})
-
-test('a table in no list and a ceiling that went up are named', () => {
-  assert.deepEqual(lint((input) => {
-    input.catalog.relation.push(relation('builder.builder_run', [], { rls: false }))
-    input.functions.push({ name: 'iam.other', owner: 'iam_owner', body: '' })
-  }), [
-    'builder.builder_run is in no list of the register: it is not split or permanent',
-    'ruleFunctions is 1, above its ceiling 0',
-  ])
-})
-
-test('a register row for a table that does not exist is named', () => {
-  assert.deepEqual(lint((input) => { input.census.register.split.push(row('gone.table')) }), ['the register names gone.table, which is not a table of the catalog'])
-})
-
-test('a reader policy that does not call rls.acting_account() is named', () => {
-  assert.deepEqual(lint((input) => { input.catalog.policy[0] = policy(WORKSPACE, 'reader', 'r', 'hub_reader', 'true') }), [
-    `${WORKSPACE} reader policy reader must call rls.acting_account()`,
-  ])
-})
-
-test('a Hub role grant on a permanent table is named, and a permanent table with none passes', () => {
-  const permanent = (input, acl) => {
-    input.catalog.relation.push(relation('iam.schema_migration', acl, { rls: false }))
-    input.census.unscoped.permanent.push({ table: 'iam.schema_migration', reason: 'Migration bookkeeping.' })
-  }
-  assert.deepEqual(lint((input) => permanent(input, [])), [])
-  assert.deepEqual(lint((input) => permanent(input, [['hub_reader', 'SELECT']])), ['iam.schema_migration is permanent but gives hub_reader SELECT, and its register row says nothing'])
-  assert.deepEqual(lint((input) => {
-    permanent(input, [['hub_runtime', 'SELECT']])
-    input.census.unscoped.permanent[0].privileges = { hub_runtime: ['SELECT'] }
-    input.census.ceilings.runtimePrivileges = 1
-  }), [])
-})
-
-test('a register key column that is not a column of the table is named', () => {
+test('a missing key column or composite key is named', () => {
   assert.deepEqual(lint((input) => {
     input.catalog.column.push(column(WORKSPACE, 'workspace_id', []))
-    input.census.register.split[0].keyColumns = ['workspace_id', 'tenant_id']
-  }), [`${WORKSPACE} register names key column tenant_id, which does not exist`])
-})
-
-const CONNECTION = 'connector.connection'
-const CONNECTION_COLUMNS = ['connection_id', 'workspace_id', 'connector_id', 'label', 'created_by', 'created_at', 'disabled_by', 'disabled_at']
-const connectorCatalog = (input, { readerColumns = CONNECTION_COLUMNS } = {}) => {
-  const commandColumns = new Set(['disabled_at', 'disabled_by'])
-  input.catalog.relation = [relation(CONNECTION, [['hub_command', 'INSERT'], ['hub_command', 'SELECT']])]
-  input.catalog.column = [...new Set([...readerColumns, ...commandColumns])].map((name) => column(CONNECTION, name, [
-    ...(readerColumns.includes(name) ? [['hub_reader', 'SELECT']] : []),
-    ...(commandColumns.has(name) ? [['hub_command', 'UPDATE']] : []),
-  ]))
-  input.catalog.policy = [
-    policy(CONNECTION, 'reader', 'r', 'hub_reader', 'rls.acting_account() IS NOT NULL'),
-    policy(CONNECTION, 'reader_admin', 'r', 'hub_reader', 'rls.acting_account() IS NOT NULL'),
-    policy(CONNECTION, 'command', '*', 'hub_command'),
-  ]
-  input.census.register.split = [{ table: CONNECTION, reader: true, readerAdmin: true, readerColumns: CONNECTION_COLUMNS, command: ['INSERT', 'SELECT', 'UPDATE(disabled_at,disabled_by)'], runtime: [], compositeKeys: [], keyColumns: ['connection_id', 'workspace_id'] }]
-}
-
-test('the Connector register row passes with a column reader grant and its two reader policies', () => {
-  assert.deepEqual(lint((input) => connectorCatalog(input)), [])
-})
-
-test('a reader grant on a credential column of connector.connection is named', () => {
-  assert.deepEqual(lint((input) => connectorCatalog(input, { readerColumns: [...CONNECTION_COLUMNS, 'credential_sealed'] })), [
-    `${CONNECTION} gives hub_reader SELECT(connection_id,connector_id,created_at,created_by,credential_sealed,disabled_at,disabled_by,label,workspace_id), and the reader may only SELECT(connection_id,connector_id,created_at,created_by,disabled_at,disabled_by,label,workspace_id)`,
+    input.census.register.tables[0] = row(WORKSPACE, ['INSERT', 'SELECT'], { keyColumns: ['workspace_id', 'tenant_id'], compositeKeys: ['workspace_tenant_fkey'] })
+  }), [
+    `${WORKSPACE} register names key column tenant_id, which does not exist`,
+    `${WORKSPACE} register names composite key workspace_tenant_fkey, which does not exist`,
   ])
 })
 
-const REVISION = 'reg.artifact_revision'
-const THUMBNAIL = 'reg.application_thumbnail'
-const registryCatalog = (input, { constraints = true } = {}) => {
-  const reader = [['hub_reader', 'SELECT']]
-  input.catalog.relation = [
-    relation(REVISION, [...reader, ['hub_command', 'DELETE'], ['hub_command', 'INSERT'], ['hub_command', 'SELECT']]),
-    relation(THUMBNAIL, [...reader, ['hub_command', 'INSERT'], ['hub_command', 'SELECT']]),
-  ]
-  input.catalog.column = [column(REVISION, 'artifact_revision_id', []), column(REVISION, 'project_id', []), column(THUMBNAIL, 'artifact_revision_id', [])]
-  input.catalog.constraint = constraints
-    ? [`constraint ${REVISION}.artifact_revision_project_id_fkey FOREIGN KEY (project_id) REFERENCES project.project(project_id)`, `constraint ${THUMBNAIL}.application_thumbnail_revision_fkey FOREIGN KEY (artifact_revision_id) REFERENCES reg.artifact_revision(artifact_revision_id) ON DELETE CASCADE`]
-    : []
-  input.catalog.policy = [
-    policy(REVISION, 'reader', 'r', 'hub_reader', 'rls.acting_account() IS NOT NULL'), policy(REVISION, 'command', '*', 'hub_command'),
-    policy(THUMBNAIL, 'reader', 'r', 'hub_reader', 'rls.acting_account() IS NOT NULL'), policy(THUMBNAIL, 'command', '*', 'hub_command'),
-  ]
-  input.census.register.split = [
-    row(REVISION, { command: ['DELETE', 'INSERT', 'SELECT'], compositeKeys: ['artifact_revision_project_id_fkey'], keyColumns: ['artifact_revision_id', 'project_id'] }),
-    row(THUMBNAIL, { command: ['INSERT', 'SELECT'], compositeKeys: ['application_thumbnail_revision_fkey'], keyColumns: ['artifact_revision_id'] }),
-  ]
-}
-
-test('the two registry register rows pass with their keys and their command verbs', () => {
-  assert.deepEqual(lint((input) => registryCatalog(input)), [])
-})
-
-test('a registry register row whose key constraint is missing from the catalog is named, for each of the two keys', () => {
-  assert.deepEqual(lint((input) => registryCatalog(input, { constraints: false })), [
-    `${REVISION} register names composite key artifact_revision_project_id_fkey, which does not exist`,
-    `${THUMBNAIL} register names composite key application_thumbnail_revision_fkey, which does not exist`,
+test('the register names missing or extra catalog tables', () => {
+  assert.deepEqual(lint((input) => { input.catalog.relation.push(relation('builder.builder_run')) }), [
+    'builder.builder_run is in no list of the register: it is not runtime or permanent',
+  ])
+  assert.deepEqual(lint((input) => { input.census.register.tables.push(row('gone.table')) }), [
+    'the register names gone.table, which is not a table of the catalog',
+    'gone.table gives hub_runtime nothing, and its register row says INSERT, SELECT',
   ])
 })
 
-test('a registry revision that the command role may UPDATE, or a thumbnail it may DELETE, is named', () => {
-  const problems = lint((input) => {
-    registryCatalog(input)
-    input.catalog.relation[0] = relation(REVISION, [['hub_reader', 'SELECT'], ['hub_command', 'DELETE'], ['hub_command', 'INSERT'], ['hub_command', 'SELECT'], ['hub_command', 'UPDATE']])
-    input.catalog.relation[1] = relation(THUMBNAIL, [['hub_reader', 'SELECT'], ['hub_command', 'DELETE'], ['hub_command', 'INSERT'], ['hub_command', 'SELECT']])
-  })
-  assert.deepEqual(problems, [
-    `${REVISION} gives hub_command DELETE, INSERT, SELECT, UPDATE, and its register row says DELETE, INSERT, SELECT`,
-    `${THUMBNAIL} gives hub_command DELETE, INSERT, SELECT, and its register row says INSERT, SELECT`,
-  ])
+test('a table outside the register stays permanently scoped with its registered grants', () => {
+  assert.deepEqual(lint((input) => {
+    input.catalog.relation.push(relation('iam.schema_migration', [['hub_runtime', 'SELECT']], { rls: false }))
+    input.census.unscoped.permanent.push({ table: 'iam.schema_migration', reason: 'Migration ledger.', privileges: ['SELECT'] })
+    input.census.ceilings.runtimePrivileges = 4
+  }), [])
 })
 
-test('a function the register no longer lists, as the dropped registry matcher, is named while it still has an EXECUTE grant', () => {
-  const problems = lint((input) => {
-    input.catalog.function.push(fn('reg.matches_application_artifact', 'p_id uuid', ['hub_command']))
-  })
-  assert.equal(problems.length > 0, true)
-  assert.match(problems[0], /reg\.matches_application_artifact/)
+test('unexpected functions and execution grants are named', () => {
+  assert.deepEqual(lint((input) => {
+    input.catalog.function.push(fn('workspace.extra', '', 'conexus_owner', ['conexus_owner', 'hub_runtime']))
+    input.functions.push({ name: 'workspace.extra', owner: 'conexus_owner', body: '' })
+  }), [
+    'hub_runtime may EXECUTE iam.lock_administrators(), workspace.extra(), and the register says iam.lock_administrators()',
+    'workspace.extra() is executable by conexus_owner, hub_runtime, and only conexus_owner may',
+    'ruleFunctions is 1, above its ceiling 0',
+    'runtimePrivileges is 4, above its ceiling 3',
+  ])
 })

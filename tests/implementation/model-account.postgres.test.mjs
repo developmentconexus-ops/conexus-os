@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
-import pg from 'pg'
 import { hubModuleUrl } from './hub-build.mjs'
 import { loginPoolOf, query } from './hub-database.mjs'
 import { OWNER, setupBuilder } from './builder-fixture.mjs'
 import { ID } from './project-fixture.mjs'
 
 const { createModelAccounts } = await import(hubModuleUrl('builder/model-account/accounts.js'))
+const { createRunSteps } = await import(hubModuleUrl('builder/run-lifecycle.js'))
+const { createTokenHolds } = await import(hubModuleUrl('builder/oauth-holds.js'))
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
 const { admitAccount } = await import(hubModuleUrl('identity-access/admission.js'))
 
@@ -33,30 +34,6 @@ const setup = async (t, prefix) => {
   const secretOf = async (modelAccountId) => envelope.open((await query(fixture.connection, 'SELECT secret FROM model.model_account WHERE model_account_id = $1', [modelAccountId])).rows[0].secret)
   const recordFor = (builderRunId, modelAccountId) => query(fixture.connection, 'INSERT INTO builder.builder_run_model_account(builder_run_id, model_account_id) VALUES ($1, $2)', [builderRunId, modelAccountId])
   return { ...fixture, accounts, seedRow, rowsOf, secretOf, recordFor }
-}
-
-const ENTRY = {
-  read: (accountId) => ({ begin: 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY', role: 'hub_reader', settings: accountId === undefined ? [] : [['conexus.account_id', accountId]] }),
-  command: () => ({ begin: 'BEGIN', role: 'hub_command', settings: [] }),
-  readerWrite: (accountId) => ({ begin: 'BEGIN', role: 'hub_reader', settings: [['conexus.account_id', accountId]] }),
-  runtime: () => ({ begin: 'BEGIN', role: 'hub_runtime', settings: [] }),
-}
-const sqlstate = async (connection, entry, text, values = []) => {
-  const client = new pg.Client(connection)
-  await client.connect()
-  try {
-    await client.query(entry.begin)
-    const pairs = [['role', entry.role], ...entry.settings]
-    await client.query(`SELECT ${pairs.map((_pair, index) => `set_config($${index * 2 + 1}, $${index * 2 + 2}, true)`).join(', ')}`, pairs.flat())
-    const result = await client.query(text, values)
-    await client.query('ROLLBACK')
-    return { state: 'OK', rows: result.rows }
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => undefined)
-    return { state: error.code ?? String(error) }
-  } finally {
-    await client.end()
-  }
 }
 
 test('select returns the caller\'s own row, else the one shared with everyone, and nothing once sharing is withdrawn', async (t) => {
@@ -233,6 +210,31 @@ test('the refresh persists after the run ends, and a deleted row makes the syste
   assert.equal(await held.persist('into-nothing'), false)
 })
 
+test('a local model hold rereads current Project authority and closes the run after membership is revoked', async (t) => {
+  const { accounts, seedRow, recordFor, connection, database, seedBuilderProject, seedRun, runRow } = await setup(t, 'conexus_model_revoked_terminal')
+  const projectId = await seedBuilderProject()
+  const builderRunId = await seedRun(projectId, { accountId: A })
+  const row = await seedRow(A, 'openai-codex', 'oauth', JSON.stringify({ expires: 1, refresh: 'old' }))
+  await recordFor(builderRunId, row)
+  const held = await accounts.select({ builderRunId, accountId: A }, 'openai-codex')
+  let refreshes = 0
+  const tokens = createTokenHolds({
+    parse: JSON.parse,
+    serialize: JSON.stringify,
+    refresh: async (stored) => { refreshes++; return { ...stored, expires: 100 } },
+    now: () => 10,
+  }).hold(held, { expires: 1, refresh: 'old' })
+
+  await query(connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [A, ID.workspace])
+  await assert.rejects(tokens(), { id: 'BUILDER_MODEL_NOT_SELECTED' })
+  assert.equal(refreshes, 0, 'a refused reread never reaches the provider refresh')
+
+  const runs = createRunSteps({ database, ownerId: OWNER, registry: { retain: async () => { throw new Error('unexpected registry call') } } })
+  await runs.failBuilderRun({ builderRunId, failureCode: 'BUILDER_MODEL_NOT_SELECTED' })
+  const ended = await runRow(builderRunId)
+  assert.deepEqual({ state: ended.state, failure_code: ended.failure_code }, { state: 'FAILED', failure_code: 'BUILDER_MODEL_NOT_SELECTED' })
+})
+
 test('a key pasted while a run refreshes an OAuth row wins: the refresh persists false and the row opens to the key', async (t) => {
   const { accounts, seedRow, rowsOf, secretOf } = await setup(t, 'conexus_model_kind_race')
   const row = await seedRow(A, 'anthropic', 'oauth', 'oauth-tokens')
@@ -243,88 +245,27 @@ test('a key pasted while a run refreshes an OAuth row wins: the refresh persists
   assert.deepEqual((await rowsOf()).map((entry) => entry.kind), ['api_key'])
 })
 
-test('the wall: hub_command updates kind, secret and updated_at only, inserts four columns, deletes nothing and sees no history or default', async (t) => {
-  const { connection, seedRow } = await setup(t, 'conexus_model_wall')
-  const id = await seedRow(A, 'anthropic', 'api_key', 'k')
-  const sealed = await sealedOf('x')
-  const code = async (text, values = []) => (await sqlstate(connection, ENTRY.command(), text, values)).state
-  for (const [column, value] of [['kind', "'oauth'"], ['secret', `'${sealed}'`], ['updated_at', 'clock_timestamp()']]) {
-    assert.equal(await code(`UPDATE model.model_account SET ${column} = ${value} WHERE model_account_id = $1`, [id]), 'OK', column)
-  }
-  for (const [column, value] of [['sharing', "'everyone'"], ['owner_account_id', `'${B}'`], ['provider', "'openai-codex'"], ['model_account_id', 'gen_random_uuid()'], ['created_at', 'clock_timestamp()']]) {
-    assert.equal(await code(`UPDATE model.model_account SET ${column} = ${value} WHERE model_account_id = $1`, [id]), '42501', column)
-  }
-  assert.equal(await code("INSERT INTO model.model_account (owner_account_id, provider, kind, secret, sharing) VALUES ($1, 'openai-codex', 'oauth', $2, 'everyone')", [A, sealed]), '42501')
-  assert.equal(await code("INSERT INTO model.model_account (owner_account_id, provider, kind, secret) VALUES ($1, 'openai-codex', 'oauth', $2)", [A, sealed]), 'OK')
-  assert.equal(await code("INSERT INTO model.model_account (owner_account_id, provider, kind, secret) VALUES ($1, 'openai', 'api_key', 'plain')", [A]), '23514', 'the sealed check still refuses a plain secret')
-  assert.equal(await code('DELETE FROM model.model_account WHERE model_account_id = $1', [id]), '42501')
-  assert.equal(await code('SELECT 1 FROM model.model_account_sharing_history'), '42501')
-  assert.equal(await code('SELECT 1 FROM model.installation_default'), '42501')
-  assert.equal(await code("INSERT INTO model.model_account_sharing_history (model_account_id, new_sharing, changed_by_account_id) VALUES ($1, 'everyone', $2)", [id, A]), '42501')
-})
 
-test('the reader wall: hub_reader never reads the secret, reads every other column of own and shared rows, and reads zero rows without an account', async (t) => {
-  const { connection, seedRow } = await setup(t, 'conexus_model_reader')
-  await seedRow(A, 'anthropic', 'api_key', 'own-of-a')
-  await seedRow(B, 'google-ai-pro', 'google_ai_pro', 'shared-by-b', 'everyone')
-  await seedRow(B, 'anthropic', 'api_key', 'private-of-b')
-  await query(connection, "INSERT INTO model.installation_default(role, model_id, updated_by) VALUES ('build', 'anthropic/x', $1)", [ID.administrator])
-  const read = (accountId) => ENTRY.read(accountId)
-  for (const text of ['SELECT secret FROM model.model_account', 'SELECT * FROM model.model_account', 'SELECT model_account_id FROM model.model_account WHERE secret IS NOT NULL']) {
-    assert.equal((await sqlstate(connection, read(A), text)).state, '42501', text)
-  }
-  const visible = await sqlstate(connection, read(A), 'SELECT provider, owner_account_id = $1 AS mine, sharing FROM model.model_account ORDER BY provider, mine DESC', [A])
-  assert.deepEqual(visible.rows, [{ provider: 'anthropic', mine: true, sharing: 'just_me' }, { provider: 'google-ai-pro', mine: false, sharing: 'everyone' }], 'a non owner sees no private row')
-  const columns = 'model_account_id, owner_account_id, provider, kind, sharing, created_at, updated_at'
-  assert.equal((await sqlstate(connection, read(A), `SELECT ${columns} FROM model.model_account`)).state, 'OK')
-  for (const text of ['SELECT model_account_id FROM model.model_account FOR SHARE', 'SELECT model_account_id FROM model.model_account FOR UPDATE', "UPDATE model.model_account SET kind = 'oauth'"]) {
-    assert.equal((await sqlstate(connection, read(A), text)).state, '25006', `${text} inside read() answers 25006`)
-  }
-  for (const text of ['SELECT model_account_id FROM model.model_account FOR SHARE', 'SELECT model_account_id FROM model.model_account FOR UPDATE', "UPDATE model.model_account SET kind = 'oauth'", 'DELETE FROM model.model_account']) {
-    assert.equal((await sqlstate(connection, ENTRY.readerWrite(A), text)).state, '42501', `${text} outside READ ONLY answers 42501`)
-  }
-  assert.equal((await sqlstate(connection, read(A), 'SELECT 1 FROM model.model_account_sharing_history')).state, '42501')
-  assert.deepEqual((await sqlstate(connection, read(B), 'SELECT model_id FROM model.installation_default WHERE role = $1', ['build'])).rows, [{ model_id: 'anthropic/x' }], 'every account reads the default')
-  assert.deepEqual((await sqlstate(connection, read(undefined), 'SELECT count(*)::int AS n FROM model.model_account')).rows, [{ n: 0 }])
-  assert.deepEqual((await sqlstate(connection, read(undefined), 'SELECT count(*)::int AS n FROM model.installation_default')).rows, [{ n: 0 }])
-})
-
-test('the catalog: three forced tables, no model function, no retired role, and hub_runtime holds nothing', async (t) => {
-  const { connection } = await setup(t, 'conexus_model_catalog')
-  const flags = (await query(connection, "SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relnamespace = 'model'::regnamespace AND relkind = 'r' ORDER BY 1")).rows
-  assert.deepEqual(flags.map((row) => [row.relname, row.relrowsecurity, row.relforcerowsecurity]), [['installation_default', true, true], ['model_account', true, true], ['model_account_sharing_history', true, true]])
-  assert.deepEqual((await query(connection, "SELECT count(*)::int AS n FROM pg_proc WHERE pronamespace = 'model'::regnamespace")).rows, [{ n: 0 }])
-  assert.deepEqual((await query(connection, "SELECT count(*)::int AS n FROM pg_roles WHERE rolname = 'hub_model_account'")).rows, [{ n: 0 }])
-  assert.deepEqual((await query(connection, "SELECT tablename || ':' || policyname || ':' || roles::text AS policy FROM pg_policies WHERE schemaname = 'model' ORDER BY 1")).rows.map((row) => row.policy), [
-    'installation_default:command:{hub_command}', 'installation_default:reader:{hub_reader}',
-    'model_account:command:{hub_command}', 'model_account:reader:{hub_reader}',
-    'model_account_sharing_history:command:{hub_command}',
-  ])
-  for (const table of ['model_account', 'installation_default', 'model_account_sharing_history']) {
-    assert.equal((await sqlstate(connection, ENTRY.runtime(), `SELECT 1 FROM model.${table}`)).state, '42501', `hub_runtime on ${table}`)
-  }
-})
-
-test('a pooled client is hub_runtime with no grant on the model tables after a commit, a rollback and a throw', async (t) => {
+test('the pooled client remains hub_runtime while the account reader scopes the model standing', async (t) => {
   const { openRuntimeDatabase, seedRow } = await setup(t, 'conexus_model_pooled')
   const single = openRuntimeDatabase({ max: 1 })
   const pooled = createModelAccounts({ database: single, envelope, ownerId: OWNER })
   const pool = await loginPoolOf(single)
-  const refusedOnEveryTable = async (when) => {
+  const runtimeCanRead = async (when) => {
     assert.deepEqual((await pool.query('SELECT current_user AS who')).rows, [{ who: 'hub_runtime' }], when)
-    for (const table of ['model_account', 'installation_default', 'model_account_sharing_history']) {
-      await assert.rejects(pool.query(`SELECT 1 FROM model.${table}`), { code: '42501' }, `${when}: ${table}`)
+    for (const table of ['model_account', 'installation_default']) {
+      assert.equal((await pool.query(`SELECT count(*)::integer AS n FROM model.${table}`)).rowCount, 1, `${when}: ${table}`)
     }
   }
   await seedRow(B, 'anthropic', 'api_key', 'shared-by-b', 'everyone')
   await pooled.write({ accountId: A, credential: ANTHROPIC_KEY, secret: 'committed' })
-  await refusedOnEveryTable('after a commit')
+  await runtimeCanRead('after a commit')
   await assert.rejects(pooled.write({ accountId: randomUUID(), credential: ANTHROPIC_KEY, secret: 'k' }), { id: 'ACCOUNT_NOT_FOUND' })
-  await refusedOnEveryTable('after a rollback')
+  await runtimeCanRead('after a rollback')
   await assert.rejects(single.transaction(A, async (gate) => { await admitAccount(gate); throw new Error('thrown') }), { message: 'thrown' })
-  await refusedOnEveryTable('after a throw')
+  await runtimeCanRead('after a throw')
   assert.equal((await pooled.standing(A)).anthropic.shared, true)
-  await refusedOnEveryTable('after a read')
+  await runtimeCanRead('after a read')
 })
 
 test('concurrent upserts beside the unported IAM paths never deadlock under a short deadlock_timeout', async (t) => {

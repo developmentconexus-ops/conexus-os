@@ -1,18 +1,15 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
-import pg from 'pg'
-import { z } from 'zod'
 import { hubModuleUrl } from './hub-build.mjs'
-import { loginPoolOf, query } from './hub-database.mjs'
+import { query } from './hub-database.mjs'
 import { OWNER, setupBuilder } from './builder-fixture.mjs'
 import { HEAD, ID } from './project-fixture.mjs'
 import { waitUntilBlocked } from './race.mjs'
 
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
 const { purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
-const { admitAccount, admitSystem } = await import(hubModuleUrl('identity-access/admission.js'))
-const { sql } = await import(hubModuleUrl('platform/db.js'))
+const { admitSystem } = await import(hubModuleUrl('identity-access/admission.js'))
 
 const CANDIDATE = 'b'.repeat(40)
 const OTHER = 'c'.repeat(40)
@@ -287,15 +284,15 @@ test('the lists and reads answer a member their Project only, newest first, and 
   assert.equal((await store.readBuilderRun({ accountId: ID.member, projectId })).builderRunId, newest, 'the latest read may be another author run')
   assert.deepEqual([...await store.readOpenRunConversations()].sort(), ['55555555-5555-4555-8555-555555555555', '66666666-6666-4666-8666-666666666666'])
   for (const hidden of [ID.outsider, ID.administrator]) {
-    assert.deepEqual(await store.listBuilderRuns({ accountId: hidden, projectId }), [])
-    assert.equal(await store.readBuilderRun({ accountId: hidden, projectId }), null)
+    await assert.rejects(store.listBuilderRuns({ accountId: hidden, projectId }), { id: 'PROJECT_NOT_FOUND' })
+    await assert.rejects(store.readBuilderRun({ accountId: hidden, projectId }), { id: 'PROJECT_NOT_FOUND' })
   }
   await query(connection, "INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'atlas', $2)", [projectId, ID.owner])
   await query(connection, 'INSERT INTO iam.application_grant(project_id, account_id, granted_by) VALUES ($1, $2, $3)', [projectId, ID.outsider, ID.owner])
-  assert.deepEqual(await store.listBuilderRuns({ accountId: ID.outsider, projectId }), [], 'an application grant is not Builder access')
+  await assert.rejects(store.listBuilderRuns({ accountId: ID.outsider, projectId }), { id: 'PROJECT_NOT_FOUND' }, 'an application grant is not Builder access')
   await query(connection, 'UPDATE builder.project_working_state SET last_preview_source_revision = $2, last_preview_artifact_revision_id = $3, last_preview_artifact_digest = $4 WHERE project_id = $1', [projectId, HEAD, '30000000-0000-4000-8000-000000000001', 'e'.repeat(64)])
   assert.deepEqual(await store.readPreviewSubject({ accountId: ID.member, projectId }), { lastPreviewSourceRevision: HEAD, lastPreviewArtifactRevisionId: '30000000-0000-4000-8000-000000000001', lastPreviewArtifactDigest: 'e'.repeat(64) })
-  assert.equal(await store.readPreviewSubject({ accountId: ID.outsider, projectId }), null)
+  await assert.rejects(store.readPreviewSubject({ accountId: ID.outsider, projectId }), { id: 'PROJECT_NOT_FOUND' })
 })
 
 test('a conversation session and its sandbox belong to the run Project, and a purge removes them with the run', async (t) => {
@@ -322,7 +319,7 @@ test('a conversation session and its sandbox belong to the run Project, and a pu
   await assert.rejects(store.recordConversationSandbox({ builderRunId, conversationId: foreign, providerSandboxId: 'ivm3third' }), { id: 'BUILDER_CONVERSATION_SESSION_REFUSED' })
   assert.equal(await store.readConversationSandbox({ accountId: ID.member, projectId, conversationId }), 'ivm2second')
   assert.equal(await store.readConversationSandbox({ accountId: ID.member, projectId: otherProject, conversationId }), null)
-  assert.equal(await store.readConversationSandbox({ accountId: ID.outsider, projectId, conversationId }), null)
+  await assert.rejects(store.readConversationSandbox({ accountId: ID.outsider, projectId, conversationId }), { id: 'PROJECT_NOT_FOUND' })
   await store.recordConversationSandbox({ builderRunId: foreignRun, conversationId: foreign, providerSandboxId: 'ivm4other' })
   assert.deepEqual(await store.readProjectSandboxes(projectId), ['ivm2second'])
 
@@ -335,132 +332,6 @@ test('a conversation session and its sandbox belong to the run Project, and a pu
 })
 
 // One statement per table and verb: `valid` is a statement the role's grant covers, `forbidden` each one it does not.
-const WALL = {
-  'builder.builder_run': { key: 'builder_run_id', touch: 'state' },
-  'builder.project_working_state': { key: 'project_id', touch: 'updated_at' },
-  'builder.project_repository': { key: 'project_id', touch: 'created_at' },
-  'builder.conversation_session': { key: 'conversation_id', touch: 'provider_sandbox_id' },
-  'builder.builder_run_model_account': { key: 'builder_run_id', touch: 'model_account_id' },
-}
-const BUILDER_TABLES = Object.keys(WALL)
-const READER_TABLES = ['builder.builder_run', 'builder.project_working_state', 'builder.conversation_session']
-
-const inRole = async (connection, role, statements) => {
-  const client = new pg.Client(connection)
-  await client.connect()
-  try {
-    const codes = []
-    for (const statement of statements) {
-      await client.query('BEGIN')
-      await client.query(`SET LOCAL ROLE ${role}`)
-      try {
-        await client.query(statement.text, statement.values ?? [])
-        codes.push(null)
-      } catch (error) {
-        codes.push(error.code)
-      } finally {
-        await client.query('ROLLBACK')
-      }
-    }
-    return codes
-  } finally {
-    await client.end()
-  }
-}
-
-test('the wall on the Builder tables: hub_runtime holds none after a commit, a rollback and a throw, the reader reads three and writes none, the command role writes only what its grant names', async (t) => {
-  const { connection, openRuntimeDatabase, seedRun, seedBuilderProject } = await harness(t, 'conexus_builder_wall')
-  const projectId = await seedBuilderProject('Atlas')
-  const conversationId = randomUUID()
-  const builderRunId = await seedRun(projectId, { conversationId })
-  await query(connection, 'INSERT INTO builder.conversation_session(conversation_id, project_id) VALUES ($1, $2)', [conversationId, projectId])
-  await query(connection, 'INSERT INTO builder.builder_run_model_account(builder_run_id, model_account_id) VALUES ($1, $2)', [builderRunId, randomUUID()])
-  const keys = { 'builder.builder_run': builderRunId, 'builder.project_working_state': projectId, 'builder.project_repository': projectId, 'builder.conversation_session': conversationId, 'builder.builder_run_model_account': builderRunId }
-
-  const single = openRuntimeDatabase({ max: 1 })
-  const pool = await loginPoolOf(single)
-  const backendInTransaction = async (gate) => (await backendOf((await admitAccount(gate)).tx)).pid
-  const backendOf = (tx) => tx.one(z.object({ pid: z.number() }), sql`SELECT pg_backend_pid()::integer AS pid`, 'INTERNAL_UNEXPECTED')
-  const backends = []
-  // Every probe runs on one client taken out of the pool and handed back whole, so a refusal is the privilege of the
-  // connection the transactions ran on and never of a replacement.
-  const refusedOnEveryTable = async (when) => {
-    const client = await pool.connect()
-    try {
-      backends.push((await client.query('SELECT pg_backend_pid()::integer AS pid')).rows[0].pid)
-      for (const table of BUILDER_TABLES) await assert.rejects(client.query(`SELECT count(*) FROM ${table}`), { code: '42501' }, `${table} ${when}`)
-      assert.deepEqual((await client.query('SELECT current_user AS who')).rows, [{ who: 'hub_runtime' }], when)
-    } finally {
-      client.release()
-    }
-  }
-  await refusedOnEveryTable('before any transaction')
-  backends.push(await single.transaction(ID.owner, backendInTransaction))
-  await refusedOnEveryTable('after a commit')
-  await assert.rejects(single.transaction(ID.owner, async (gate) => { backends.push(await backendInTransaction(gate)); throw new Error('rolled back') }), { message: 'rolled back' })
-  await refusedOnEveryTable('after a throw')
-  backends.push((await single.read(ID.owner, backendOf)).pid)
-  await refusedOnEveryTable('after a read')
-  assert.equal(new Set(backends).size, 1, 'one backend served every transaction and every probe')
-  assert.equal(backends.length, 7)
-
-  const where = (table) => `WHERE ${WALL[table].key} = $1`
-  const verbs = (table) => ({
-    select: { text: `SELECT 1 FROM ${table} ${where(table)}`, values: [keys[table]] },
-    share: { text: `SELECT 1 FROM ${table} ${where(table)} FOR SHARE`, values: [keys[table]] },
-    lock: { text: `SELECT 1 FROM ${table} ${where(table)} FOR UPDATE`, values: [keys[table]] },
-    update: { text: `UPDATE ${table} SET ${WALL[table].touch} = ${WALL[table].touch} ${where(table)}`, values: [keys[table]] },
-    delete: { text: `DELETE FROM ${table} ${where(table)}`, values: [keys[table]] },
-  })
-  const reader = {}
-  for (const table of BUILDER_TABLES) {
-    const v = verbs(table)
-    reader[table] = await inRole(connection, 'hub_reader', [v.select, v.share, v.lock, v.update, v.delete])
-  }
-  assert.deepEqual(reader, {
-    'builder.builder_run': [null, '42501', '42501', '42501', '42501'],
-    'builder.project_working_state': [null, '42501', '42501', '42501', '42501'],
-    'builder.project_repository': ['42501', '42501', '42501', '42501', '42501'],
-    'builder.conversation_session': [null, '42501', '42501', '42501', '42501'],
-    'builder.builder_run_model_account': ['42501', '42501', '42501', '42501', '42501'],
-  })
-  assert.equal(READER_TABLES.length, 3)
-  const inserts = {
-    'builder.builder_run': "INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, base_source_revision) VALUES (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), repeat('a', 64), repeat('b', 64), repeat('a', 40))",
-    'builder.project_working_state': 'INSERT INTO builder.project_working_state(project_id) VALUES (gen_random_uuid())',
-    'builder.project_repository': 'INSERT INTO builder.project_repository(project_id) VALUES (gen_random_uuid())',
-    'builder.conversation_session': 'INSERT INTO builder.conversation_session(conversation_id, project_id) VALUES (gen_random_uuid(), gen_random_uuid())',
-    'builder.builder_run_model_account': 'INSERT INTO builder.builder_run_model_account(builder_run_id, model_account_id) VALUES (gen_random_uuid(), gen_random_uuid())',
-  }
-  assert.deepEqual(await inRole(connection, 'hub_reader', Object.values(inserts).map((text) => ({ text }))), ['42501', '42501', '42501', '42501', '42501'], 'the reader inserts into none')
-
-  const command = {}
-  for (const table of BUILDER_TABLES) {
-    const v = verbs(table)
-    command[table] = await inRole(connection, 'hub_command', [v.select, v.share, v.lock, v.update, v.delete])
-  }
-  assert.deepEqual(command, {
-    'builder.builder_run': [null, null, null, null, null],
-    'builder.project_working_state': [null, null, null, null, null],
-    'builder.project_repository': [null, '42501', '42501', '42501', null],
-    'builder.conversation_session': [null, null, null, null, '42501'],
-    'builder.builder_run_model_account': [null, '42501', '42501', '42501', '42501'],
-  })
-  const moved = await inRole(connection, 'hub_command', [
-    { text: 'UPDATE builder.builder_run SET project_id = $1 WHERE builder_run_id = $2', values: [randomUUID(), builderRunId] },
-    { text: 'UPDATE builder.builder_run SET account_id = $1 WHERE builder_run_id = $2', values: [ID.member, builderRunId] },
-    { text: 'UPDATE builder.conversation_session SET project_id = $1 WHERE conversation_id = $2', values: [randomUUID(), conversationId] },
-    { text: 'UPDATE builder.project_working_state SET project_id = $1 WHERE project_id = $2', values: [randomUUID(), projectId] },
-  ])
-  assert.deepEqual(moved, ['42501', '42501', '42501', '42501'], 'no grant moves a row to another Project or account')
-  const [runInsert] = await inRole(connection, 'hub_command', [{ text: inserts['builder.builder_run'] }])
-  assert.equal(runInsert, '23503', 'a run for a Project that does not exist is refused by its key')
-
-  await query(connection, 'DELETE FROM builder.builder_run WHERE project_id = $1', [projectId])
-  await query(connection, 'DELETE FROM builder.project_working_state WHERE project_id = $1', [projectId])
-  await query(connection, 'DELETE FROM builder.project_repository WHERE project_id = $1', [projectId])
-  assert.equal((await query(connection, 'SELECT count(*)::integer AS count FROM builder.conversation_session WHERE conversation_id = $1', [conversationId])).rows[0].count, 0, 'the repository delete cascades the session')
-})
 
 test('the working state refuses a state, a revision and a digest outside their shapes', async (t) => {
   const { connection, seedBuilderProject } = await harness(t, 'conexus_builder_working_checks')

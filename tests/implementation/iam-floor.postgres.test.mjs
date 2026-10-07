@@ -22,7 +22,7 @@ const gateRefused = { details: { invariant: 'GATE_ACTOR_REFUSED' } }
 const seedApplication = (connection, projectId) =>
   query(connection, 'INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, $2, $3)', [projectId, `app-${randomUUID().slice(0, 8)}`, ID.owner])
 
-test('authenticate runs as hub_command in READ COMMITTED and admits only once an account is bound, and only one account', async (t) => {
+test('authenticate runs as hub_runtime in READ COMMITTED and admits only once an account is bound, and only one account', async (t) => {
   const { connection, database, seedProject } = await setupProjects(t, 'conexus_iam_authenticate')
   const projectId = await seedProject('Atlas')
   await seedApplication(connection, projectId)
@@ -38,7 +38,7 @@ test('authenticate runs as hub_command in READ COMMITTED and admits only once an
     seen = await entryOf(proof.tx)
     assert.deepEqual((await checkApplication(gate, projectId)).scope, { kind: 'application', accountId: ID.member, projectId, via: 'membership' })
   })
-  assert.deepEqual(seen, { role: 'hub_command', isolation: 'read committed' })
+  assert.deepEqual(seen, { role: 'hub_runtime', isolation: 'read committed' })
   await database.transaction(ID.member, async (gate) => {
     assert.throws(() => bindAccount(gate, ID.member), gateRefused)
   })
@@ -61,9 +61,9 @@ test('checkProject admits a member of the Project\'s Workspace and refuses an ou
   await assert.rejects(check(ID.member), refused)
 })
 
-test('the read admission of a Workspace answers an inactive member as an outsider, under hub_reader, and a command still answers ACCOUNT_INACTIVE', async (t) => {
+test('the read admission of a Workspace answers an inactive member as an outsider, and a command still answers ACCOUNT_INACTIVE', async (t) => {
   const { connection, database } = await setupProjects(t, 'conexus_iam_read_admission')
-  const read = (accountId) => database.read(accountId, async (tx) => (await admitWorkspace(tx, ID.workspace, 'workspace.read')).scope.role)
+  const read = (accountId) => database.read(accountId, async (gate) => (await admitWorkspace(gate, { workspaceId: ID.workspace, action: 'workspace.read' })).scope.role)
   assert.equal(await read(ID.member), 'member')
   await assert.rejects(read(ID.outsider), { id: 'WORKSPACE_NOT_FOUND' })
   await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.member])

@@ -55,10 +55,6 @@
       "plugins": ["./biome/plugins/no-error-code.grit"]
     },
     {
-      "includes": ["apps/hub/src/**", "!apps/hub/src/platform/db.ts"],
-      "plugins": ["./biome/plugins/no-session-setting-in-sql.grit"]
-    },
-    {
       "includes": [
         "apps/web/src/**",
         "packages/*/src/**"

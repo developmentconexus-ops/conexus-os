@@ -65,14 +65,14 @@ export const joinClaimed = async (proof: Admitted<AccountScope>, claim: Claim): 
 export const registerRosterRoutes = async (app: FastifyInstance, database: Database) => {
   const route = routes(app)
 
-  route.operation(getWorkspaceRoster, ({ params }, session): Promise<WorkspaceRoster> => database.read(session.account.accountId, async (tx) => {
-    const proof = await admitWorkspace(tx, params.workspaceId, 'workspace.read')
-    const members = await tx.rows(MemberRow, sql`
+  route.operation(getWorkspaceRoster, ({ params }, session): Promise<WorkspaceRoster> => database.read(session.account.accountId, async (gate) => {
+    const proof = await admitWorkspace(gate, { workspaceId: params.workspaceId, action: 'workspace.read' })
+    const members = await proof.tx.rows(MemberRow, sql`
       SELECT member.account_id, member.display_name, member.email, membership.role, membership.created_at AS since
       FROM iam.workspace_membership AS membership JOIN iam.account AS member ON member.account_id = membership.account_id
       WHERE membership.workspace_id = ${proof.scope.workspaceId}
       ORDER BY membership.created_at, membership.account_id`)
-    const invitations = await tx.rows(WorkspaceInvitationRow, sql`
+    const invitations = await proof.tx.rows(WorkspaceInvitationRow, sql`
       SELECT invitation_id, email, role, created_at AS invited_at, expires_at, expires_at > now() AS open
       FROM iam.workspace_invitation WHERE workspace_id = ${proof.scope.workspaceId}
       ORDER BY created_at, invitation_id`)

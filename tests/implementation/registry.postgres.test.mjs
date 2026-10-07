@@ -33,12 +33,6 @@ test('a member reads the source revisions on the current pin, a grantee reads on
   assert.equal(await previewFile(database, ID.member, at(first, SOURCE_2)), null, 'the pair of ids must match')
   await assert.rejects(previewFile(database, ID.outsider, at(second, SOURCE_2)), { id: 'PROJECT_NOT_FOUND' }, 'a grantee is no member of the Project')
   await assert.rejects(previewFile(database, ID.administrator, at(second, SOURCE_2)), { id: 'PROJECT_NOT_FOUND' })
-  const Count = z.object({ n: z.number() })
-  const direct = (accountId, statement) => database.read(accountId, (tx) => tx.one(Count, statement, 'INTERNAL_UNEXPECTED'))
-  assert.deepEqual(await direct(ID.outsider, sql`SELECT count(*)::integer AS n FROM reg.artifact_revision`), { n: 0 })
-  assert.deepEqual(await direct(ID.outsider, sql`SELECT count(*)::integer AS n FROM reg.application_thumbnail`), { n: 0 })
-  assert.deepEqual(await direct(ID.member, sql`SELECT count(*)::integer AS n FROM reg.artifact_revision`), { n: 3 })
-
   const launch = await database.transaction(ID.member, async (gate) => registry.readLaunch(await admitProject(gate, { projectId: projectId, action: 'project.build' })))
   assert.deepEqual(launch, { sourceRevision: SOURCE_2, artifactRevisionId: second, digest: DIGEST_2, entryPath: 'index.html', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8' }] })
   await point(projectId, old, SOURCE_OLD, 'e'.repeat(64))
@@ -79,7 +73,7 @@ test('a purge that commits between the access check and the read answers NOT_SER
   const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   await served(projectId)
   const answer = await database.transaction(ID.outsider, async (gate) => {
-    const { tx } = await checkApplication(gate, projectId)
+    const proof = await checkApplication(gate, projectId)
     const purger = new pg.Client(connection)
     await purger.connect()
     try {
@@ -90,7 +84,7 @@ test('a purge that commits between the access check and the read answers NOT_SER
     } finally {
       await purger.end()
     }
-    return readServedFileOf(tx, projectId, 'index.html')
+    return readServedFileOf(proof, 'index.html')
   })
   assert.deepEqual(answer, { ok: false, reason: 'NOT_SERVED' })
 })
@@ -106,7 +100,7 @@ test('the application check refuses a revoked grant, a removed membership, a del
   await refused(ID.member, other)
   await refused(ID.administrator)
   assert.equal((await servedFile(database, ID.member, projectId, 'index.html')).ok, true)
-  assert.equal(await registry.readProjectThumbnail(ID.member, other), null)
+  await assert.rejects(registry.readProjectThumbnail(ID.member, other), { id: 'PROJECT_NOT_FOUND' })
 
   await query(connection, 'UPDATE iam.application_grant SET revoked_at = now(), revoked_by = $2 WHERE project_id = $1', [projectId, ID.owner])
   await refused(ID.outsider)
@@ -285,39 +279,6 @@ test('the project purge removes every revision and thumbnail of the project and 
   assert.deepEqual(await rows(other), { revisions: 2, thumbnails: 0 })
 })
 
-test('the roles hold only the privileges the registry grants them', async (t) => {
-  const { connection, seedBuilderProject, served } = await world(t, 'conexus_registry_privileges')
-  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
-  const { second } = await served(projectId)
-  await seedRevisionThumbnail(connection, second, PNG_T2)
-  const as = async (role, statement) => {
-    const client = new pg.Client(connection)
-    await client.connect()
-    try {
-      await client.query(`SET ROLE ${role}`)
-      await client.query(statement)
-      return null
-    } catch (error) {
-      return error.code
-    } finally {
-      await client.end()
-    }
-  }
-  const refusals = [
-    ['hub_command', 'UPDATE reg.artifact_revision SET digest = digest'],
-    ['hub_command', 'UPDATE reg.application_thumbnail SET byte_length = byte_length'],
-    ['hub_command', 'DELETE FROM reg.application_thumbnail'],
-    ['hub_reader', 'SELECT 1 FROM reg.artifact_revision FOR SHARE'],
-    ['hub_reader', 'SELECT 1 FROM reg.application_thumbnail FOR SHARE'],
-    ['hub_reader', "INSERT INTO reg.application_thumbnail(artifact_revision_id, media_type, bytes, byte_length, sha256) VALUES (gen_random_uuid(), 'image/png', '\\x01', 1, repeat('a', 64))"],
-    ['hub_reader', 'UPDATE reg.artifact_revision SET digest = digest'],
-    ['hub_reader', 'DELETE FROM reg.artifact_revision'],
-    ['hub_runtime', 'SELECT 1 FROM reg.artifact_revision'],
-    ['hub_runtime', 'SELECT 1 FROM reg.application_thumbnail'],
-  ]
-  for (const [role, statement] of refusals) assert.equal(await as(role, statement), '42501', `${role}: ${statement}`)
-})
-
 test('two raw sessions race the revision insert: the second waits on the unique index, then reads the first row or inserts after its rollback', async (t) => {
   const { connection, seedBuilderProject } = await world(t, 'conexus_registry_index_race')
   const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
@@ -326,7 +287,7 @@ test('two raw sessions race the revision insert: the second waits on the unique 
   const session = async () => {
     const client = new pg.Client(connection)
     await client.connect()
-    await client.query('SET ROLE hub_command')
+    await client.query('SET ROLE hub_runtime')
     await client.query('BEGIN')
     return client
   }
@@ -359,32 +320,7 @@ test('a build sealed for one Project is refused under the proof of a run of anot
   assert.deepEqual([await rows(projectA), await rows(projectB)], [{ revisions: 0, thumbnails: 0 }, { revisions: 0, thumbnails: 0 }])
 })
 
-test('a call with no account, an outsider with no filter and a member of another workspace read none of the registry rows', async (t) => {
-  const { connection, database, seedBuilderProject, served } = await world(t, 'conexus_registry_no_account')
-  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
-  const { second } = await served(projectId)
-  const stranger = '10000000-0000-4000-8000-0000000000c1'
-  await query(connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'stranger', 'Stranger')", [stranger])
-  await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'member')", [stranger, ID.otherWorkspace])
-  const Count = z.object({ n: z.number() })
-  const unfiltered = (accountId) => database.read(accountId, (tx) => tx.one(Count, sql`SELECT (SELECT count(*) FROM reg.artifact_revision)::integer + (SELECT count(*) FROM reg.application_thumbnail)::integer AS n`, 'INTERNAL_UNEXPECTED'))
-  assert.deepEqual([await unfiltered(ID.outsider), await unfiltered(stranger), await unfiltered(ID.administrator)], [{ n: 0 }, { n: 0 }, { n: 0 }])
-  await seedRevisionThumbnail(connection, second, PNG_T2)
-  assert.deepEqual(await unfiltered(ID.member), { n: 3 })
-  assert.deepEqual(await unfiltered(stranger), { n: 0 })
-
-  const client = new pg.Client(connection)
-  await client.connect()
-  try {
-    await client.query('SET ROLE hub_reader')
-    const none = await client.query('SELECT (SELECT count(*) FROM reg.artifact_revision)::integer AS revisions, (SELECT count(*) FROM reg.application_thumbnail)::integer AS thumbnails')
-    assert.deepEqual(none.rows, [{ revisions: 0, thumbnails: 0 }])
-  } finally {
-    await client.end()
-  }
-})
-
-test('an application grantee reads the served revision through the registry on the command role, and a registry fault keeps its own code', async (t) => {
+test('an application grantee reads the served revision through its admission, and a registry fault keeps its own code', async (t) => {
   const { database, seedBuilderProject, registry, served } = await world(t, 'conexus_registry_command_read')
   const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   const { second } = await served(projectId)
@@ -407,7 +343,7 @@ test('a served read takes no table lock beyond ACCESS SHARE and clearing the poi
   const Locks = z.object({ mode: z.string() })
   const held = await database.transaction(ID.outsider, async (gate) => {
     const checked = await checkApplication(gate, projectId)
-    await readServedFileOf(checked.tx, projectId, 'index.html')
+    await readServedFileOf(checked, 'index.html')
     return checked.tx.rows(Locks, sql`SELECT DISTINCT mode FROM pg_locks WHERE pid = pg_backend_pid() AND locktype = 'relation' AND mode <> 'AccessShareLock' ORDER BY 1`)
   })
   assert.deepEqual(held, [])
@@ -434,8 +370,9 @@ test('a file request of a revision of 12 MiB transfers only the bytes of the req
       const row = (await client.query(statement.text, [...statement.values])).rows[0]
       return row ? schema.parse(row) : null
     } }
+    const proof = { scope: { projectId }, tx }
     const before = client.connection.stream.bytesRead
-    const answer = await readServedFileOf(tx, projectId, 'index.html')
+    const answer = await readServedFileOf(proof, 'index.html')
     const transferred = client.connection.stream.bytesRead - before
     assert.equal(answer.ok, true)
     assert.equal(Buffer.from(answer.file.bytes).toString(), '<html></html>')
