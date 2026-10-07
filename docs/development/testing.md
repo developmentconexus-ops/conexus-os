@@ -35,8 +35,11 @@ Every test **must** fit one size, and its group **must** follow from its folder 
 | Size | May touch | Group |
 | --- | --- | --- |
 | Small | Memory only: no network, database or disk | `tests/repository`, and `tests/implementation` without a suffix |
-| Medium | Services on this machine: PostgreSQL, a browser, a local Hub | `*.postgres.test.mjs`, `*.browser.test.mjs` |
+| Medium | Services on this machine: PostgreSQL, a browser, a local Hub, local network/process tests | `*.postgres.test.mjs`, `*.browser.test.mjs`, `*.network.test.mjs` |
 | Large | Real outside services: a model, E2B, Keycloak | `tests/live`, `tests/manual` |
+
+The existing verify graph runs `*.network.test.mjs` local network/process tests in its `browser`
+group, within Medium.
 
 - A test joins a group by its folder and suffix, never by a list.
 - A harness that runs in parallel **must** bind port 0 and read the port back.

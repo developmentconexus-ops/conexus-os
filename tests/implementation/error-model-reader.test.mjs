@@ -16,6 +16,11 @@ test('web reader uses literal table text, action and short SYSTEM reference, ign
   assert.equal(failureText(new HubFailure('HUB_UNREACHABLE', null)), 'A tela não conseguiu falar com o Conexus agora. Tente novamente mais tarde.')
 })
 
+test('web arbitrary trace marker reaches the displayed reference as baseline debt replaced in U6', async () => {
+  const error = await readFailure(response('INTERNAL_UNEXPECTED', 500, { traceId: 'PRIVATE_TRACE_MARKER' }))
+  assert.equal(failureText(error), 'O Conexus falhou de um jeito que não esperávamos. A falha foi registrada. Referência: PRIVATE_.')
+})
+
 test('web unknown and malformed responses retain unreadable code and literal text', async () => {
   for (const body of ['not json', '{}', JSON.stringify({ type: 'urn:conexus:problem:UNKNOWN', title: 'UNKNOWN', status: 500, code: 'UNKNOWN' })]) {
     const error = await readFailure(new Response(body, { status: 502 }))
