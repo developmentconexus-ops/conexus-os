@@ -65,7 +65,7 @@ coordinates them.
   `**Status**: Approved by the operator on <date>, commit <sha>`. It opens the build of every unit.
 - In a wave that changes structure, the first unit **must** be the behavior pin, green on `main`
   before any structure moves.
-- A wave **must** have two or three batch reviews of 3 or 4 units; the last **may** have fewer.
+- Waves **must** use 2–3 batches of 3–4 units; the last may be smaller. Under 4 units, one suffices.
 - A fresh builder **must** stack one commit per card on `wave/<name>-loteN`.
   Pass its proof and `npm run verify:quick`. The manager **must** read each diff against its card.
 - Inputs **must** exist before a unit starts. Independent units in a batch **may** run in parallel.
