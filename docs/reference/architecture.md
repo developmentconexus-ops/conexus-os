@@ -389,17 +389,17 @@ pull request that fixes one deletes its line.
 | An `archived` Project state exists that nothing produces | Project lifecycle, after S1 |
 | `ProjectPurged` is told apart by `projectRevision: ''`, and `archived` and `deleting` are booleans | Project lifecycle, after S1 |
 | `startHub`, `createHttpApp` and the Builder module stay past the function size limit by suppression | Hub base, after S1 |
-| `Scope` in `apps/hub/src/connectors/scope.ts` is a class with mutable state | Hub base, after S1 |
-| Named top-level functions are `const` arrows, some class fields use `#private` outside secret values, and some types are `interface` without augmenting a library | Hub base, after S1 |
-| `app-runner/http.ts` and the sandbox keepalive in `builder/sandbox.ts` read a failure from `error.message` | Hub base, after S1 |
+| `Scope` in `apps/hub/src/connectors/scope.ts` is a class with mutable state | Code base sweeps, #548 |
+| Named top-level functions are `const` arrows, some class fields use `#private` outside secret values, and some types are `interface` without augmenting a library | Code base sweeps |
+| `app-runner/http.ts` and the sandbox keepalive in `builder/sandbox.ts` read a failure from `error.message` | Error model waves 1 (#553) and 2 (#554) |
 | The sealed build is a nominal type the Builder can still subclass; the registry refuses an unsealed one at run time | Hub base, after S1 |
 | Two connections run as `hub_runtime` outside any transaction, with no role switch ([database](database.md#6-roles-and-transactions)): the instance lock session and the application presence session, each holding a session level advisory lock (`session` in `platform/db.ts`) | Hub base, after S1 |
 | The application and Preview hosts read the served files and the server tree inside `authenticate` as `hub_command`, whose policies on the served tables pass every row, so their only authority is the `Checked` proof and its Project filter, not a reader policy ([database](database.md#6-roles-and-transactions)). Accepted by operator decision 5B | Accepted risk |
-| `GET .../workspaces/{workspaceId}/projects` returns a top-level array, and lists that grow have no continuation token | Hub base, after S1 |
+| `GET .../workspaces/{workspaceId}/projects` returns a top-level array, and lists that grow have no continuation token | Code base sweeps, #547 |
 | Tests read production source text (`builder-harness.test.mjs`, `builder-template-pins.test.mjs`, `builder-check-bundle.test.mjs`, `connector-adapter-source.test.mjs`) | Hub base, after S1 |
 | Tests in the Small group open a socket or write to disk (`application-host.test.mjs`, `builder-conexus-git.test.mjs`, `gate-import-rule.test.mjs`) although that group is in-memory | Hub base, after S1 |
 | PostgreSQL tests skip without an `opt-in:` reason when no database is configured, and `keycloak-theme:check` is outside CI | Hub base, after S1 |
-| A sandbox that cannot open ends the Builder turn as `INTERNAL_UNEXPECTED`, with no failure row of its own | Before the screen check |
+| A sandbox that cannot open ends the Builder turn as `INTERNAL_UNEXPECTED`, with no failure row of its own | Error model wave 1, spec 0019, #553 |
 | The Hub swallows a failed run publish and the screen polls instead, and `liveRuns` and the session `subscriptions` share module state | S5 |
 | Beyond signing out of the current session, no route lets a person manage their other sessions or an administrator end another person's sessions, and a restore has no step that ends them | Hub base, after S1 |
 | The Hub has no rate limit, and the realm has no brute-force protection | Hub base, after S1 |
