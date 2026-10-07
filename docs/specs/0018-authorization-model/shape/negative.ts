@@ -48,3 +48,13 @@ const forgedRun: Admitted<RunScope> = systemProof
 admitProject(gate, { projectId, action: 'project.delete' })
 // @ts-expect-error Read admission cannot manage the owner set.
 admitWorkspace(gate, { workspaceId, action: 'members.manage' })
+
+import { readRunCredential } from './data.js'
+import type { TerminalEnding } from './run.js'
+declare const modelAccountId: import('@conexus/contract').ModelAccountId
+// @ts-expect-error System cleanup authority cannot read a held model credential.
+readRunCredential(systemProof, modelAccountId)
+// @ts-expect-error Terminal cleanup cannot declare success or a new source result.
+const cleanupSuccess: TerminalEnding = { state: 'SUCCEEDED', failureCode: 'BUILDER_RUN_NOT_ADMITTED' }
+// @ts-expect-error Action inference does not grant another Project action.
+const buildRead: Admitted<ProjectScope<'project.build'>, 'read'> = read

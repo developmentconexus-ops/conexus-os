@@ -1,8 +1,9 @@
-import type { AccountId, WorkspaceId, ProjectId, ArtifactRevisionId } from '@conexus/contract'
-import type { AccountScope, Admitted, CommandGate, ProjectCard, ProjectListRow, ProjectDetail, ProjectScope, ReadGate, WorkspaceScope } from './types.js'
+import type { AccountId, WorkspaceId, ProjectId, ArtifactRevisionId, ModelAccountId } from '@conexus/contract'
+import type { AccountScope, Admitted, CommandGate, ProjectCard, ProjectListRow, ProjectDetail, ProjectScope, ReadGate, RunScope, WorkspaceScope } from './types.js'
 export type Database = Readonly<{
   read<T>(accountId: AccountId, fn: (gate: ReadGate) => Promise<T>): Promise<T>
   transaction<T>(accountId: AccountId, fn: (gate: CommandGate) => Promise<T>): Promise<T>
+  system<T>(job: import('../../../../apps/hub/src/platform/db.js').JobName, fn: (gate: CommandGate) => Promise<T>): Promise<T>
 }>
 export declare function listProjects(proof: Admitted<WorkspaceScope<'workspace.read'>, 'read'>): Promise<readonly ProjectListRow[]>
 export declare function readProject(proof: Admitted<ProjectScope<'project.read'>, 'read'>): Promise<ProjectDetail>
@@ -16,3 +17,6 @@ export type DeletionPorts = Readonly<{
 }>
 
 export declare function readProjectCards(proof: Admitted<WorkspaceScope<'workspace.read'>, 'read'>): Promise<readonly ProjectCard[]>
+
+export declare function readModelStanding(proof: Admitted<AccountScope, 'read'>): Promise<Awaited<ReturnType<import('../../../../apps/hub/src/builder/model-account/accounts.js').ModelAccounts['standing']>>>
+export declare function readRunCredential(proof: Admitted<RunScope>, modelAccountId: ModelAccountId): Promise<Readonly<{ modelAccountId: ModelAccountId; sealed: string }> | null>
