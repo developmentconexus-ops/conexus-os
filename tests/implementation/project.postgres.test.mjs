@@ -11,7 +11,6 @@ const { purgeProject } = await import(hubModuleUrl('identity-access/application-
 
 const NEW = { name: 'Atlas', sourceBootstrap: { mode: 'NEW' } }
 const create = (store, accountId, key, body = NEW, workspaceId = ID.workspace) => store.createProject({ accountId, workspaceId, idempotencyKey: key, body })
-const names = (rows) => rows.map((row) => row.name)
 
 test('createProject creates the project and its repository rows, replays its answer, and refuses a changed request', async (t) => {
   const { connection, store } = await setupProjects(t, 'conexus_prj03')
