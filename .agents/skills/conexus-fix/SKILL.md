@@ -15,7 +15,7 @@ card (`conexus-build`) and a review finding follows the
 1. **Reproduce first**, on the surface where it was seen (the web app with the
    [`verify`](../verify/SKILL.md) skill, the Hub API, the Builder) with telemetry on. If it does not
    reproduce, stop and report what you tried. Never fix a guess.
-2. **Read the evidence**, cheapest first ([evidence](../conexus%2Dstudy/references/evidence.md)): the
+2. **Read the evidence**, cheapest first ([evidence](../conexus-study/references/evidence.md)): the
    log code, its trace, Mastra's spans, the rows. Quote what you find.
 3. **Find the root cause**: ask why until the answer is a line of code and the decision behind it.
    The place of the symptom is often not the cause. Name the guide section the cause breaks.
