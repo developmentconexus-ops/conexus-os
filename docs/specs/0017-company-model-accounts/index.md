@@ -1,7 +1,7 @@
 # 0017. Model account foundations and core ownership
 
 **Date**: 2026-10-07
-**Status**: Proposed rewrite. The previous approval covers accepted part 1 only; approval of this rewrite opens the new units.
+**Status**: Approved by the operator on 2026-10-07, commit f97857c6db72db0968b83fa4bb6a2ee0f59c9c02
 **Lane**: lane:qualification (Q-b row custody and installation configuration).
 **Wave branch**: wave/company-model-accounts
 **Study**: Approved company model accounts study of 2026-10-06, held privately by the planning session.
