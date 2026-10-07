@@ -17,7 +17,8 @@ export function session(database: Database, accountId: AccountId) {
 // Authentication callers retain their bound gate API.
 export async function served(gate: import('../../../../apps/hub/src/platform/db.js').AuthenticationGate, projectId: ProjectId) {
   const { admitAccount, checkProject, checkApplication } = await import('./admission.js')
-  return { account: await admitAccount(gate), preview: await checkProject(gate, projectId), application: await checkApplication(gate, projectId) }
+  const preview: import('./types.js').Checked<import('./types.js').ProjectScope<'project.read'>> = await checkProject(gate, projectId)
+  return { account: await admitAccount(gate), preview, application: await checkApplication(gate, projectId) }
 }
 
 export function modelStanding(database: Database, accountId: AccountId) {
@@ -44,4 +45,18 @@ export function closeRevokedRun(
   builderRunId: import('@conexus/contract').BuilderRunId,
 ) {
   return lifecycle.failBuilderRun({ builderRunId, failureCode: 'BUILDER_RUN_NOT_ADMITTED' })
+}
+
+// preview-state.ts:79-82 command callback moves in U3; its normal reads move in U4.
+export function previewCommand(database: Database, accountId: AccountId, projectId: ProjectId) {
+  return database.transaction(accountId, (gate) => admitProject(gate, { projectId, action: 'project.build' }))
+}
+
+// The existing createRunSteps boundary consumes Pick<BuilderRegistry, 'retain'>.
+export function settleAdmittedCandidate(
+  registry: Pick<import('./run.js').BuilderRegistry, 'retain'>,
+  proof: import('./types.js').Admitted<import('./types.js').SystemScope<'builder-executor'>>,
+  input: Parameters<import('./run.js').RetainCandidate>[1],
+) {
+  return registry.retain(proof, input)
 }

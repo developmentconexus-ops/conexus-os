@@ -22,3 +22,10 @@ export type RetainCandidate = (
   proof: Admitted<SystemScope<'builder-executor'>>,
   input: Readonly<{ builderRunId: BuilderRunId; projectId: ProjectId; owner: RunOwner; sealed: import('../../../../apps/hub/src/platform/sealed-application.js').SealedApplication }>,
 ) => Promise<Readonly<{ artifactRevisionId: import('@conexus/contract').ArtifactRevisionId; digest: import('@conexus/contract').ArtifactDigest }>>
+
+// The actual Builder port owner is application-build.ts:17-21. Keep its seal member,
+// replace retain with the target operation, and bind readLaunch to this nominal owner.
+export type BuilderRegistry = Omit<import('../../../../apps/hub/src/builder/application-build.js').BuilderRegistry, 'retain' | 'readLaunch'> & Readonly<{
+  retain: RetainCandidate
+  readLaunch(proof: Admitted<import('./types.js').ProjectScope<'project.build'>>): ReturnType<import('../../../../apps/hub/src/builder/application-build.js').BuilderRegistry['readLaunch']>
+}>

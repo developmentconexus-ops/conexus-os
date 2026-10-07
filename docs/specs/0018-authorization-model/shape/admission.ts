@@ -1,7 +1,7 @@
 import type { BuilderRunId, WorkspaceId, ProjectId } from '@conexus/contract'
 import type { AuthenticationGate, JobName } from '../../../../apps/hub/src/platform/db.js'
 import type { Failure, FailureCode } from '../../../../apps/hub/src/platform/failure.js'
-import type { ApplicationScope, BootstrapScope, Checked, ServedProjectScope, AccountScope, AdministratorScope, Admitted, CommandGate, ProjectAction, ProjectReadAction, ProjectScope, ReadGate, RunOwner, RunScope, SystemScope, WorkspaceAction, WorkspaceReadAction, WorkspaceScope } from './types.js'
+import type { ApplicationScope, BootstrapScope, Checked, AccountScope, AdministratorScope, Admitted, CommandGate, ProjectAction, ProjectReadAction, ProjectScope, ReadGate, RunOwner, RunScope, SystemScope, WorkspaceAction, WorkspaceReadAction, WorkspaceScope } from './types.js'
 
 export declare function admitAccount(gate: ReadGate): Promise<Admitted<AccountScope, 'read'>>
 export declare function admitAccount(gate: CommandGate | AuthenticationGate): Promise<Admitted<AccountScope>>
@@ -23,5 +23,5 @@ export declare function admitSystem<J extends JobName>(gate: CommandGate, job: J
 
 export declare function admitApplication(gate: CommandGate | AuthenticationGate, projectId: ProjectId): Promise<Admitted<ApplicationScope>>
 export declare function checkApplication(gate: CommandGate | AuthenticationGate, projectId: ProjectId): Promise<Checked<ApplicationScope>>
-export declare function checkProject(gate: CommandGate | AuthenticationGate, projectId: ProjectId): Promise<Checked<ServedProjectScope>>
+export declare function checkProject(gate: CommandGate | AuthenticationGate, projectId: ProjectId): Promise<Checked<ProjectScope<'project.read'>>>
 export declare function admitBootstrap(gate: AuthenticationGate, identity: import('../../../../apps/hub/src/identity-access/admission.js').ConfiguredIdentity): Promise<Admitted<BootstrapScope> | null>
