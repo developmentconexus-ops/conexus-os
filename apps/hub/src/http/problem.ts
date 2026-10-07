@@ -10,16 +10,20 @@ export function currentTraceReference(): TraceReference {
   return parsed.success ? parsed.data : null
 }
 
-export function failureResponse({ code, traceId }: Readonly<{ code: FailureCode; traceId: TraceReference }>): Response {
+export function failureBody({ code, traceId }: Readonly<{ code: FailureCode; traceId: TraceReference }>) {
   const row = failureRow(code)
-  const problem = {
+  return {
     type: `urn:conexus:problem:${code}`,
     title: code,
     status: row.status,
     code,
     ...(row.category === 'SYSTEM' && traceId ? { traceId } : {}),
   }
-  return Response.json(problem, { status: row.status, headers: { 'content-type': 'application/problem+json' } })
+}
+
+export function failureResponse(input: Readonly<{ code: FailureCode; traceId: TraceReference }>): Response {
+  const body = failureBody(input)
+  return Response.json(body, { status: body.status, headers: { 'content-type': 'application/problem+json' } })
 }
 
 export function sendFailureResponse(reply: FastifyReply, response: Response): FastifyReply {
