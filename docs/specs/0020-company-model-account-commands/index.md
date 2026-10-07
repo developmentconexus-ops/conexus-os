@@ -1,7 +1,7 @@
 # 0020. Personal and installation model account commands
 
 **Date**: 2026-10-07
-**Status**: Proposed. The planning session records the operator's approval before build.
+**Status**: Approved by the operator on 2026-10-07, commit 65ab18954933ddc3ce325705daae623b16b8c79f
 **Lane**: lane:qualification (Q-b installation-wide credential authority; Q-c real Builder proof).
 **Wave branch**: wave/company-model-account-commands
 **Study**: Approved company model accounts study of 2026-10-06, held privately by the planning session.
