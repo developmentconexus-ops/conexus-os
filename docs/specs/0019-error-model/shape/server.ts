@@ -1,6 +1,6 @@
 import { MastraError } from '@mastra/core/error'
 import type { FastifyReply, FastifyBaseLogger } from 'fastify'
-import type { Attributes } from '@opentelemetry/api'
+import { trace, SpanStatusCode, type Attributes } from '@opentelemetry/api'
 import type { FailureCode, FailureDetails, TraceReference } from './types.js'
 
 export declare class Failure extends MastraError {
@@ -17,3 +17,11 @@ export function sendFailureResponse(reply: FastifyReply, response: Response): Fa
 
 export declare function toFailure(error: unknown): Failure
 export declare function logFailure(log: Pick<FastifyBaseLogger, 'error' | 'warn' | 'info'>, failure: Failure, fields?: Attributes): void
+
+// Existing native span/exporter owns local cause diagnosis, not another failure log.
+export function recordRunnerException(failure: Failure): void {
+  const span = trace.getActiveSpan()
+  if (!span) return
+  span.recordException(failure.cause instanceof Error ? failure.cause : failure)
+  if (failure.category === 'SYSTEM') span.setStatus({ code: SpanStatusCode.ERROR })
+}
