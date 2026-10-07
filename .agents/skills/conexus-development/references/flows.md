@@ -66,17 +66,21 @@ A `lane:fast` change inside accepted meaning: no study, no spec.
    name, plus the codebase principles and delivery. The grammar: an exact path, `dir/**` for every
    path under `dir`, `*` inside one segment. A test maps to the area of the code it proves. A path
    no area matches on `origin/main` is judged by the head's map and named in the review.
-3. Redo the native census for each mechanism the diff adds: pin the versions at the head from
+3. A pull request from a wave unit is also judged against its unit card in the spec (`index.md`
+   under `docs/specs/`) and against the
+   [build checklist](../../conexus-build/references/checklist.md): every item `ok` or `n/a` with
+   its evidence, and nothing outside the card's files.
+4. Redo the native census for each mechanism the diff adds: pin the versions at the head from
    `node_modules/@mastra/<pkg>/package.json`, read the embedded docs (`dist/docs`) then the types,
    look up Keycloak and PostgreSQL at the versions in use, search the repository for an existing
    model of the concept, and give each mechanism KEEP, REPLACE or SIMPLIFY with its source.
-4. The Factory reviews every pull request, a wave's unit pull requests included. On a
+5. The Factory reviews every pull request, a wave's unit pull requests included. On a
    `lane:qualification` wave, the whole diff `main...wave/<name>` is also reviewed with pstack
    `interrogate`; without pstack, two fresh reviewers on different models read it independently
    against the spec and the guides. A bot finding is evidence, not a requirement: fix, dismiss with
    a reason, or ask. Findings follow the
    [review loop](../../../../docs/development/delivery.md#review-loop).
-5. The verdict names the head SHA, the guides loaded, the census table or "no new mechanism", and
+6. The verdict names the head SHA, the guides loaded, the census table or "no new mechanism", and
    each failed or unevaluated rule with its evidence. Any failed or unevaluated rule, or a
    correctness defect, is `request changes`; otherwise `approve`. A review does not fix the code it
    reviews. An independent reviewer has seen no draft of the work; a timeout or a missing report is
