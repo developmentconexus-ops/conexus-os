@@ -13,3 +13,9 @@ export function session(database: Database, accountId: AccountId) {
     return { workspaces: await listWorkspaces(proof), administrator: await readAdministratorFlag(proof) }
   })
 }
+
+// Authentication callers retain their bound gate API.
+export async function served(gate: import('../../../../apps/hub/src/platform/db.js').AuthenticationGate, projectId: ProjectId) {
+  const { admitAccount, checkProject, checkApplication } = await import('./admission.js')
+  return { account: await admitAccount(gate), preview: await checkProject(gate, projectId), application: await checkApplication(gate, projectId) }
+}

@@ -1,4 +1,4 @@
-import type { AccountId, ProjectId, WorkspaceId } from '@conexus/contract'
+import type { AccountId, ProjectId, ProjectRevision, WorkspaceId } from '@conexus/contract'
 import { admitProject, admitInstallationAdministrator } from './admission.js'
 import { beginDeletion, listProjects } from './data.js'
 import type { Admitted, CommandGate, ProjectScope, ReadGate, WorkspaceScope, ProjectDetail, Checked, ApplicationScope, RunScope, SystemScope } from './types.js'
@@ -6,9 +6,11 @@ import type { Malformed, RoleCells } from './catalog.js'
 declare const gate: ReadGate
 declare const accountId: AccountId
 declare const workspaceId: WorkspaceId
+declare const revision: ProjectRevision
 declare const projectId: ProjectId
 declare const read: Admitted<ProjectScope<'project.delete'>, 'read'>
 declare const view: Checked<ApplicationScope>
+declare const systemProof: Admitted<SystemScope>
 // @ts-expect-error A closed gate has no SQL method.
 gate.rows()
 // @ts-expect-error A structural object cannot mint a gate.
@@ -36,8 +38,8 @@ const malformed: Malformed<'workspaceId'> = { workspaceId: 'PROJECT_NOT_FOUND' }
 // @ts-expect-error Connection management names its Workspace.
 admitInstallationAdministrator(gate, { action: 'connection.manage' })
 // @ts-expect-error A deleting Project has no fake live revision.
-const deleting: ProjectDetail = { projectId, workspaceId, name: 'Example', state: 'deleting', projectRevision: '' }
+const deleting: ProjectDetail = { projectId, workspaceId, name: 'Example', state: 'deleting', projectRevision: revision }
 // @ts-expect-error Owner-set commands carry the locked owner rows.
 const missingOwners: WorkspaceScope<'members.manage'> = { kind: 'workspace', accountId, workspaceId, role: 'owner', action: 'members.manage' }
 // @ts-expect-error A system proof cannot become an executor-owned run proof.
-const forgedRun: Admitted<RunScope> = {} as Admitted<SystemScope>
+const forgedRun: Admitted<RunScope> = systemProof

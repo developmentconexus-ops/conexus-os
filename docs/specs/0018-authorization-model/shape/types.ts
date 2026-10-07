@@ -37,12 +37,13 @@ declare class CommandDoor { private readonly commandDoor; readonly mode: 'write'
 export type ReadGate = ReadDoor
 export type CommandGate = CommandDoor
 
-declare class ServedProof<S extends ApplicationScope | ProjectScope<'project.read'>> {
+export type ServedProjectScope = Readonly<{ kind: 'project'; accountId: AccountId; workspaceId: WorkspaceId; projectId: ProjectId; action: 'project.read' }>
+declare class ServedProof<S extends ApplicationScope | ServedProjectScope> {
   private readonly checked
   readonly scope: S
   readonly tx: ReadTx
 }
-export type Checked<S extends ApplicationScope | ProjectScope<'project.read'>> = ServedProof<S>
+export type Checked<S extends ApplicationScope | ServedProjectScope> = ServedProof<S>
 
 export type ProjectIdentity = Readonly<{ projectId: ProjectId; workspaceId: WorkspaceId; name: string }>
 export type ProjectState =
