@@ -141,6 +141,27 @@ test('the idle sweep lets an idle conversation go, and never one whose run is op
   assert.equal(await live(conversation(2)), undefined)
 })
 
+test('current characterization: Project drop resolves and continues after a native session deletion fails', async (t) => {
+  const { controller, conversations } = await runner(t)
+  const deleteSession = controller.deleteSession.bind(controller)
+  const asked = []
+  controller.deleteSession = async (input) => {
+    asked.push(input)
+    if (input.scope === `conversation:${conversation(1)}`) throw new Error('native deletion failed')
+    return deleteSession(input)
+  }
+  t.after(() => { controller.deleteSession = deleteSession })
+  takeHubLogs()
+
+  assert.equal(await conversations.drop(projectId, [conversation(1), conversation(2)]), undefined)
+  assert.deepEqual(asked, [
+    { resourceId, scope: `conversation:${conversation(1)}` },
+    { resourceId, scope: `conversation:${conversation(2)}` },
+  ])
+  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['builder.conversation_id'], fields['exception.type']]),
+    [['BUILDER_SESSION_DELETE_FAILED', conversation(1), 'Error']])
+})
+
 test("a conversation's sandbox instance resumes the recorded VM, outlives its idle window, and a killed VM gives the conversation a new instance and session", async (t) => {
   const { conversations, live, built, recorded } = await runner(t)
   recorded.set(conversation(1), 'sbx-1')

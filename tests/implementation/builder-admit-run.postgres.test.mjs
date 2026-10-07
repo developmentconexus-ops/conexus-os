@@ -55,6 +55,8 @@ test('an author who lost the Project or became inactive is refused on the accoun
   await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'member')", [ID.member, ID.workspace])
   await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.member])
   await assert.rejects(asAccount(database, ID.member, builderRunId), { id: 'ACCOUNT_INACTIVE' })
+  assert.deepEqual((await asExecutor(database, builderRunId)).scope,
+    { kind: 'run', builderRunId, accountId: ID.member, projectId, owner: { ownerId: OWNER }, via: 'executor' })
 })
 
 test('admitProject on a system gate and admitRun on another job gate are refused', async (t) => {
