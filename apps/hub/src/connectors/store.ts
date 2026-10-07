@@ -89,7 +89,7 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
     const digests = envelope.fingerprints(JSON.stringify(body.credential, Object.keys(body.credential).sort()))
     const [current] = digests
     return database.transaction(accountId, async (gate) => {
-      const proof = await admitInstallationAdministrator(gate, 'connection.manage')
+      const proof = await admitInstallationAdministrator(gate, { action: 'connection.manage', workspaceId })
       const inserted = await proof.tx.run(sql`
         INSERT INTO connector.connection (connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by)
         VALUES (${body.connectionId}, ${workspaceId}, ${body.connectorId}, ${body.label}, ${sealed}, ${current}, ${proof.scope.accountId})
@@ -107,7 +107,7 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
   },
 
   readCredentialForCheck: ({ accountId, workspaceId, connectionId }) => database.transaction(accountId, async (gate) => {
-    const proof = await admitInstallationAdministrator(gate, 'connection.manage')
+    const proof = await admitInstallationAdministrator(gate, { action: 'connection.manage', workspaceId })
     const found = await proof.tx.maybe(CredentialRow, sql`
       SELECT connector_id, credential_sealed FROM connector.connection
       WHERE connection_id = ${connectionId} AND workspace_id = ${workspaceId} AND disabled_at IS NULL`)
@@ -116,7 +116,7 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
   }),
 
   disableConnection: ({ accountId, workspaceId, connectionId }) => database.transaction(accountId, async (gate) => {
-    const proof = await admitInstallationAdministrator(gate, 'connection.manage')
+    const proof = await admitInstallationAdministrator(gate, { action: 'connection.manage', workspaceId })
     const disabled = await proof.tx.run(sql`
       UPDATE connector.connection SET disabled_at = clock_timestamp(), disabled_by = ${proof.scope.accountId}
       WHERE connection_id = ${connectionId} AND workspace_id = ${workspaceId} AND disabled_at IS NULL`)
@@ -155,7 +155,7 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
   }),
 
   bindConnection: ({ accountId, projectId, body }) => database.transaction(accountId, async (gate) => {
-    const proof = await admitProject(gate, projectId, 'connections.bind')
+    const proof = await admitProject(gate, { projectId, action: 'connections.bind' })
     const { projectId: scopedProject, workspaceId } = proof.scope
     await requireOpenProject(proof.tx, scopedProject)
     const available = await proof.tx.maybe(Present, sql`
@@ -180,7 +180,7 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
   }),
 
   unbindConnection: ({ accountId, projectId, bindingId }) => database.transaction(accountId, async (gate) => {
-    const proof = await admitProject(gate, projectId, 'connections.bind')
+    const proof = await admitProject(gate, { projectId, action: 'connections.bind' })
     await requireOpenProject(proof.tx, proof.scope.projectId)
     const unbound = await proof.tx.run(sql`
       UPDATE connector.project_binding SET unbound_at = clock_timestamp(), unbound_by = ${proof.scope.accountId}
@@ -212,7 +212,7 @@ export const createBrokerStore = (database: Database): BrokerStore => {
     database.transaction(scope.accountId, async (gate) => {
       const proof = scope.access === 'application'
         ? await checkApplication(gate, scope.projectId)
-        : await admitProject(gate, scope.projectId, 'project.read')
+        : await admitProject(gate, { projectId: scope.projectId, action: 'project.read' })
       return read(proof.tx, proof.scope.projectId)
     }).catch((error: unknown) => {
       if (error instanceof Failure && ADMISSION_REFUSALS.has(error.id)) return refused

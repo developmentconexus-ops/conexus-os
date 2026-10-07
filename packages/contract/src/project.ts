@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { BUILDER_RUN_RESULT_KINDS, BUILDER_RUN_STATES } from './builder-run-vocabulary.js'
 import { IdempotencyKey, ProjectId, ProjectRevision, WorkspaceId } from './ids.js'
-import { operation } from './operation.js'
+import { operation, SUBJECT_NOT_FOUND } from './operation.js'
 
 export const ProjectName = z.string().min(1).regex(/\S/).meta({ id: 'ProjectName' })
 export type ProjectName = z.output<typeof ProjectName>
@@ -71,14 +71,14 @@ export const listProjects = operation({
   id: 'listProjects', summary: 'List the Projects of a Workspace.', access: 'session', method: 'GET', path: '/api/control/workspaces/:workspaceId/projects',
   params: workspaceParam, query: null, headers: null, body: null,
   success: { 200: z.array(ProjectListItem) },
-  effects: [], failures: [], malformed: { workspaceId: 'WORKSPACE_NOT_FOUND' },
+  effects: [], failures: [], malformed: { workspaceId: SUBJECT_NOT_FOUND.workspaceId },
 })
 
 export const getProject = operation({
   id: 'getProject', summary: 'Read one Project the Account may open.', access: 'session', method: 'GET', path: '/api/control/projects/:projectId',
   params: projectParam, query: null, headers: null, body: null,
   success: { 200: ProjectDetail },
-  effects: [], failures: [], malformed: { projectId: 'PROJECT_NOT_FOUND' },
+  effects: [], failures: [], malformed: { projectId: SUBJECT_NOT_FOUND.projectId },
 })
 
 export const createProject = operation({
@@ -88,29 +88,29 @@ export const createProject = operation({
   body: z.object({ name: ProjectName, sourceBootstrap: ProjectSourceBootstrap }).strict(),
   success: { 201: ProjectCreated },
   effects: [],
-  failures: ['PROJECT_CREATE_DENIED', 'PROJECT_SOURCE_REFUSED', 'PROJECT_REPOSITORY_UNAVAILABLE', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
-  malformed: { workspaceId: 'WORKSPACE_NOT_FOUND' },
+  failures: ['PROJECT_SOURCE_REFUSED', 'PROJECT_REPOSITORY_UNAVAILABLE', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
+  malformed: { workspaceId: SUBJECT_NOT_FOUND.workspaceId },
 })
 
 export const deleteProject = operation({
-  id: 'deleteProject', summary: 'Delete a Project, its data and its repository; installation administrator only.', access: 'session', method: 'DELETE', path: '/api/control/projects/:projectId',
+  id: 'deleteProject', summary: 'Delete a Project, its data and its repository; Workspace owners only.', access: 'session', method: 'DELETE', path: '/api/control/projects/:projectId',
   params: projectParam, query: z.object({ confirmName: z.string().min(1) }), headers: null, body: null,
   success: { 204: null },
   effects: [],
   failures: ['PROJECT_DELETE_DENIED', 'PROJECT_NAME_MISMATCH', 'PROJECT_BUSY', 'PROJECT_DELETION_INCOMPLETE'],
-  malformed: { projectId: 'PROJECT_NOT_FOUND' },
+  malformed: { projectId: SUBJECT_NOT_FOUND.projectId },
 })
 
 export const listProjectSummaries = operation({
   id: 'listProjectSummaries', summary: 'List the Projects of a Workspace with their latest Builder activity and whether a Preview exists.', access: 'session', method: 'GET', path: '/api/control/workspaces/:workspaceId/project-summaries',
   params: workspaceParam, query: null, headers: null, body: null,
   success: { 200: z.object({ projects: z.array(ProjectCard) }) },
-  effects: [], failures: ['PROJECT_SUMMARIES_UNAVAILABLE'], malformed: { workspaceId: 'WORKSPACE_NOT_FOUND' },
+  effects: [], failures: ['PROJECT_SUMMARIES_UNAVAILABLE'], malformed: { workspaceId: SUBJECT_NOT_FOUND.workspaceId },
 })
 
 export const getProjectThumbnail = operation({
   id: 'getProjectThumbnail', summary: 'Read the captured thumbnail of a Project application, as an image.', access: 'session', method: 'GET', path: '/api/control/projects/:projectId/thumbnail',
   params: projectParam, query: null, headers: null, body: null,
   success: { 200: { mediaType: 'image/png', maxBytes: 512_000, cache: 'revalidate-private' } },
-  effects: [], failures: ['PROJECT_THUMBNAIL_NOT_FOUND', 'PROJECT_THUMBNAIL_UNAVAILABLE'], malformed: { projectId: 'PROJECT_NOT_FOUND' },
+  effects: [], failures: ['PROJECT_THUMBNAIL_NOT_FOUND', 'PROJECT_THUMBNAIL_UNAVAILABLE'], malformed: { projectId: SUBJECT_NOT_FOUND.projectId },
 })

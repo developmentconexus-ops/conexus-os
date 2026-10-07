@@ -84,7 +84,7 @@ test('a revoke waits for an admitted writer and the next admission is refused', 
   let admitted
   const entered = new Promise((resolve) => { admitted = resolve })
   const writer = database.transaction(MEMBER, async (gate) => {
-    await admitWorkspace(gate, workspaceId, 'workspace.read')
+    await admitWorkspace(gate, { workspaceId: workspaceId, action: 'workspace.read' })
     admitted()
     await held
   })
@@ -95,7 +95,7 @@ test('a revoke waits for an admitted writer and the next admission is refused', 
   assert.equal(revoked, false)
   release()
   await Promise.all([writer, revoke])
-  await assert.rejects(database.transaction(MEMBER, (gate) => admitWorkspace(gate, workspaceId, 'workspace.read')), { id: 'WORKSPACE_NOT_FOUND' })
+  await assert.rejects(database.transaction(MEMBER, (gate) => admitWorkspace(gate, { workspaceId: workspaceId, action: 'workspace.read' })), { id: 'WORKSPACE_NOT_FOUND' })
 })
 
 test('hub_command holds EXECUTE on the tenure lock, and hub_runtime and hub_reader hold none of it', async (t) => {
@@ -116,7 +116,7 @@ test('an admission reads its actor from the gate and refuses a gate of another k
   const created = await store.createWorkspace({ accountId: ACCOUNT, idempotencyKey: 'actor', body: { name: 'Operations' } })
   const refused = (error) => error.id === 'INTERNAL_UNEXPECTED' && error.details?.invariant === 'GATE_ACTOR_REFUSED'
   await assert.rejects(database.system('project-purge', (gate) => admitAccount(gate)), refused)
-  await assert.rejects(database.system('project-purge', (gate) => admitWorkspace(gate, created.reply.workspaceId, 'workspace.read')), refused)
+  await assert.rejects(database.system('project-purge', (gate) => admitWorkspace(gate, { workspaceId: created.reply.workspaceId, action: 'workspace.read' })), refused)
   await assert.rejects(database.transaction(ACCOUNT, (gate) => admitSystem(gate, 'project-purge')), refused)
   await assert.rejects(database.system('iam-reaper', (gate) => admitSystem(gate, 'project-purge')),
     (error) => error.id === 'INTERNAL_UNEXPECTED' && error.details?.invariant === 'GATE_JOB_MISMATCH')
@@ -148,7 +148,7 @@ test('a revoke that commits first makes the waiting admission refuse', async (t)
   await revoker.query('BEGIN')
   await revoker.query('DELETE FROM iam.workspace_membership WHERE workspace_id = $1 AND account_id = $2', [workspaceId, MEMBER])
   let settled = false
-  const admission = database.transaction(MEMBER, (gate) => admitWorkspace(gate, workspaceId, 'workspace.read')).finally(() => { settled = true })
+  const admission = database.transaction(MEMBER, (gate) => admitWorkspace(gate, { workspaceId: workspaceId, action: 'workspace.read' })).finally(() => { settled = true })
   admission.catch(() => undefined)
   await new Promise((resolve) => setTimeout(resolve, 100))
   assert.equal(settled, false)
@@ -166,7 +166,7 @@ test('a deactivation that commits while the owner set is locked is seen by the a
   onCleanup(() => holder.end())
   await holder.query('BEGIN')
   await holder.query("SELECT 1 FROM iam.workspace_membership WHERE workspace_id = $1 AND role = 'owner' FOR UPDATE", [workspaceId])
-  const admission = database.transaction(ACCOUNT, (gate) => admitWorkspace(gate, workspaceId, 'members.manage'))
+  const admission = database.transaction(ACCOUNT, (gate) => admitWorkspace(gate, { workspaceId: workspaceId, action: 'members.manage' }))
   await new Promise((resolve) => setTimeout(resolve, 100))
   await holder.query('UPDATE iam.account SET active = false WHERE account_id = $1', [MEMBER])
   await holder.query('COMMIT')

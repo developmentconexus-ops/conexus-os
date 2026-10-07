@@ -81,7 +81,7 @@ export const registerRosterRoutes = async (app: FastifyInstance, database: Datab
 
   // The pair (Workspace, email) is the invitation: a new invitation of the same email refreshes its role, inviter and expiry and keeps its id.
   route.operation(inviteWorkspaceMember, ({ params, headers, body }, session) => database.transaction(session.account.accountId, async (gate) => {
-    const proof = await admitWorkspace(gate, params.workspaceId, 'members.manage')
+    const proof = await admitWorkspace(gate, { workspaceId: params.workspaceId, action: 'members.manage' })
     const { reply } = await idempotent(receiptOf(proof), inviteWorkspaceMember, headers['idempotency-key'], { params, query: undefined, body }, InvitationId, async (invitationId) => {
       const row = await proof.tx.one(WorkspaceInvitationRow.extend(inserted), sql`
         INSERT INTO iam.workspace_invitation (invitation_id, workspace_id, email, role, invited_by, expires_at)
@@ -98,7 +98,7 @@ export const registerRosterRoutes = async (app: FastifyInstance, database: Datab
   // Oneself leaves with members.leave; removing anyone else needs members.manage. Both lock the owner set.
   route.operation(removeWorkspaceMember, ({ params }, session) => database.transaction(session.account.accountId, async (gate) => {
     const leaving = params.accountId === session.account.accountId
-    const proof = leaving ? await admitWorkspace(gate, params.workspaceId, 'members.leave') : await admitWorkspace(gate, params.workspaceId, 'members.manage')
+    const proof = leaving ? await admitWorkspace(gate, { workspaceId: params.workspaceId, action: 'members.leave' }) : await admitWorkspace(gate, { workspaceId: params.workspaceId, action: 'members.manage' })
     await lockMember(proof.tx, proof.scope.workspaceId, params.accountId)
     if (!lastOwnerStays(proof.scope.owners, { accountId: params.accountId, role: null })) throw new Failure('LAST_OWNER')
     await proof.tx.run(sql`DELETE FROM iam.workspace_membership WHERE workspace_id = ${proof.scope.workspaceId} AND account_id = ${params.accountId}`)
@@ -106,7 +106,7 @@ export const registerRosterRoutes = async (app: FastifyInstance, database: Datab
   }))
 
   route.operation(cancelWorkspaceInvitation, ({ params }, session) => database.transaction(session.account.accountId, async (gate) => {
-    const proof = await admitWorkspace(gate, params.workspaceId, 'members.manage')
+    const proof = await admitWorkspace(gate, { workspaceId: params.workspaceId, action: 'members.manage' })
     const cancelled = await proof.tx.run(sql`
       DELETE FROM iam.workspace_invitation WHERE invitation_id = ${params.invitationId} AND workspace_id = ${proof.scope.workspaceId}`)
     if (cancelled !== 1) throw new Failure('ROSTER_ENTRY_NOT_FOUND')
@@ -114,7 +114,7 @@ export const registerRosterRoutes = async (app: FastifyInstance, database: Datab
   }))
 
   route.operation(setWorkspaceMemberRole, ({ params, body }, session) => database.transaction(session.account.accountId, async (gate) => {
-    const proof = await admitWorkspace(gate, params.workspaceId, 'members.manage')
+    const proof = await admitWorkspace(gate, { workspaceId: params.workspaceId, action: 'members.manage' })
     await lockMember(proof.tx, proof.scope.workspaceId, params.accountId)
     if (!lastOwnerStays(proof.scope.owners, { accountId: params.accountId, role: body.role })) throw new Failure('LAST_OWNER')
     return memberEntry(await proof.tx.one(MemberRow, sql`

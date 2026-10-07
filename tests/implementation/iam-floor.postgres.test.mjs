@@ -52,7 +52,7 @@ test('checkProject admits a member of the Project\'s Workspace and refuses an ou
     return checkProject(gate, projectId)
   })
   const refused = { id: 'PROJECT_NOT_FOUND' }
-  assert.deepEqual((await check(ID.member)).scope, { kind: 'project', accountId: ID.member, workspaceId: ID.workspace, projectId, action: 'project.read' })
+  assert.deepEqual((await check(ID.member)).scope, { kind: 'project', accountId: ID.member, workspaceId: ID.workspace, projectId, role: 'member', action: 'project.read' })
   await assert.rejects(check(ID.outsider), refused)
   await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.member])
   await assert.rejects(check(ID.member), refused)
@@ -68,7 +68,7 @@ test('the read admission of a Workspace answers an inactive member as an outside
   await assert.rejects(read(ID.outsider), { id: 'WORKSPACE_NOT_FOUND' })
   await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.member])
   await assert.rejects(read(ID.member), { id: 'WORKSPACE_NOT_FOUND' })
-  await assert.rejects(database.transaction(ID.member, (gate) => admitWorkspace(gate, ID.workspace, 'project.create')), { id: 'ACCOUNT_INACTIVE' })
+  await assert.rejects(database.transaction(ID.member, (gate) => admitWorkspace(gate, { workspaceId: ID.workspace, action: 'project.create' })), { id: 'ACCOUNT_INACTIVE' })
 })
 
 test('admitBootstrap answers null while any account exists, and a bootstrap proof of the configured pair on an empty installation', async (t) => {
@@ -95,12 +95,12 @@ test('receiptOf derives the stored authority from the proof: a Workspace keeps i
   const key = randomUUID()
   const authorities = async () => (await query(connection, 'SELECT operation_id, authority, account_id FROM platform.operation_receipt ORDER BY operation_id')).rows
   await database.transaction(ID.administrator, async (gate) => {
-    const proof = await admitInstallationAdministrator(gate, 'administrators.manage')
+    const proof = await admitInstallationAdministrator(gate, { action: 'administrators.manage' })
     assert.deepEqual(receiptOf(proof).authority, { kind: 'installation', accountId: ID.administrator })
     await reserve(receiptOf(proof), addInstallationAdministrator, key, { params: undefined, query: undefined, body: { email: 'ana@x.com' } }, z.uuid())
   })
   await database.transaction(ID.owner, async (gate) => {
-    const proof = await admitWorkspace(gate, ID.workspace, 'project.create')
+    const proof = await admitWorkspace(gate, { workspaceId: ID.workspace, action: 'project.create' })
     assert.deepEqual(receiptOf(proof).authority, { kind: 'workspace', workspaceId: ID.workspace, accountId: ID.owner })
     await reserve(receiptOf(await admitAccount(gate)), createWorkspace, key, { params: undefined, query: undefined, body: { name: 'W' } }, z.uuid())
   })

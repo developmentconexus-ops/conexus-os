@@ -1282,6 +1282,30 @@
               }
             }
           },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "PROJECT_DELETING"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "500": {
             "description": "Problem",
             "content": {
@@ -1484,6 +1508,7 @@
                       "properties": {
                         "code": {
                           "enum": [
+                            "PROJECT_DELETING",
                             "IDEMPOTENCY_CONFLICT"
                           ]
                         }
@@ -1671,6 +1696,30 @@
               }
             }
           },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "PROJECT_DELETING"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "500": {
             "description": "Problem",
             "content": {
@@ -1815,6 +1864,30 @@
                             "ACCOUNT_NOT_FOUND",
                             "PROJECT_NOT_FOUND",
                             "APPLICATION_ACCESS_ENTRY_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "PROJECT_DELETING"
                           ]
                         }
                       }
@@ -2810,7 +2883,6 @@
                         "code": {
                           "enum": [
                             "REQUEST_AUTHENTICITY_DENIED",
-                            "PROJECT_CREATE_DENIED",
                             "ACCOUNT_INACTIVE"
                           ]
                         }
@@ -3094,7 +3166,7 @@
       },
       "delete": {
         "operationId": "deleteProject",
-        "summary": "Delete a Project, its data and its repository; installation administrator only.",
+        "summary": "Delete a Project, its data and its repository; Workspace owners only.",
         "parameters": [
           {
             "name": "projectId",
@@ -4498,6 +4570,30 @@
               }
             }
           },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "PROJECT_DELETING"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "500": {
             "description": "Problem",
             "content": {
@@ -4695,6 +4791,7 @@
                       "properties": {
                         "code": {
                           "enum": [
+                            "PROJECT_DELETING",
                             "CONNECTOR_BINDING_CONFLICT"
                           ]
                         }
@@ -4849,6 +4946,30 @@
                             "ACCOUNT_NOT_FOUND",
                             "PROJECT_NOT_FOUND",
                             "CONNECTOR_BINDING_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "PROJECT_DELETING"
                           ]
                         }
                       }
@@ -5383,6 +5504,30 @@
               }
             }
           },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "PROJECT_DELETING"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "500": {
             "description": "Problem",
             "content": {
@@ -5618,6 +5763,7 @@
                       "properties": {
                         "code": {
                           "enum": [
+                            "PROJECT_DELETING",
                             "BUILDER_BUSY",
                             "PROJECT_BUSY",
                             "IDEMPOTENCY_CONFLICT"
@@ -5842,6 +5988,30 @@
                           "enum": [
                             "PROJECT_NOT_FOUND",
                             "BUILDER_RUN_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "PROJECT_DELETING"
                           ]
                         }
                       }
@@ -6378,6 +6548,30 @@
                           "enum": [
                             "PREVIEW_SUBJECT_NOT_FOUND",
                             "PROJECT_NOT_FOUND"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Problem"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "PROJECT_DELETING"
                           ]
                         }
                       }
@@ -8232,10 +8426,10 @@
               "ACCOUNT_INACTIVE",
               "WORKSPACE_NOT_FOUND",
               "PROJECT_NOT_FOUND",
-              "PROJECT_CREATE_DENIED",
               "PROJECT_SOURCE_REFUSED",
               "PROJECT_REPOSITORY_UNAVAILABLE",
               "PROJECT_DELETE_DENIED",
+              "PROJECT_DELETING",
               "PROJECT_NAME_MISMATCH",
               "PROJECT_BUSY",
               "PROJECT_DELETION_INCOMPLETE",
@@ -9914,10 +10108,10 @@
           "ACCOUNT_INACTIVE",
           "WORKSPACE_NOT_FOUND",
           "PROJECT_NOT_FOUND",
-          "PROJECT_CREATE_DENIED",
           "PROJECT_SOURCE_REFUSED",
           "PROJECT_REPOSITORY_UNAVAILABLE",
           "PROJECT_DELETE_DENIED",
+          "PROJECT_DELETING",
           "PROJECT_NAME_MISMATCH",
           "PROJECT_BUSY",
           "PROJECT_DELETION_INCOMPLETE",

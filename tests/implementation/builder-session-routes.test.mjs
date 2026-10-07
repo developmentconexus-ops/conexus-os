@@ -310,8 +310,17 @@ test("deleting a Project's conversations removes its threads and their messages,
   const second = randomUUID()
   assert.equal((await openConversation(app, projectA, second)).statusCode, 200)
   await memory.saveMessages({ messages: [{ id: randomUUID(), role: 'assistant', createdAt: new Date(), threadId: second, resourceId: `project:${projectA}`, content: { format: 2, parts: [{ type: 'text', text: 'nota' }] } }] })
-  assert.deepEqual([...await conversations.deleteAll(projectA)].sort(), [conversationA, second].sort(), 'it answers the ids it deleted, which the Hub deletes the sessions of')
-  assert.deepEqual(await conversations.deleteAll(projectA), [])
+  const deletedSessions = []
+  await assert.rejects(conversations.deleteAll({
+    projectId: projectA,
+    beforeDelete: async (ids) => {
+      deletedSessions.push(...ids)
+      throw new Error('session teardown failed')
+    },
+  }), /session teardown failed/)
+  assert.deepEqual(await Promise.all([conversationA, second].map((id) => conversations.ownerOf(projectA, id))), ['PROJECT', 'PROJECT'])
+  await conversations.deleteAll({ projectId: projectA, beforeDelete: async (ids) => { deletedSessions.push(...ids) } })
+  assert.deepEqual(deletedSessions.sort(), [conversationA, second, conversationA, second].sort())
   assert.deepEqual(await listConversations(app), [])
   assert.deepEqual(await Promise.all([conversationA, second, elsewhere].map((id) => conversations.ownerOf(projectA, id))), ['NONE', 'NONE', 'OTHER'])
 })

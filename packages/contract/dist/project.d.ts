@@ -154,14 +154,14 @@ export declare const createProject: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_CREATE_DENIED", "PROJECT_SOURCE_REFUSED", "PROJECT_REPOSITORY_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly failures: readonly ["PROJECT_SOURCE_REFUSED", "PROJECT_REPOSITORY_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly workspaceId: "WORKSPACE_NOT_FOUND";
     };
 };
 export declare const deleteProject: {
     readonly id: "deleteProject";
-    readonly summary: "Delete a Project, its data and its repository; installation administrator only.";
+    readonly summary: "Delete a Project, its data and its repository; Workspace owners only.";
     readonly access: "session";
     readonly method: "DELETE";
     readonly path: "/api/control/projects/:projectId";

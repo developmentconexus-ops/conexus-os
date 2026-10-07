@@ -104,7 +104,7 @@ test('releasing twice, or after the session is already gone, is not an error', a
   assert.equal(await live(conversation(1)), undefined)
 })
 
-test("a Project's deletion deletes its conversations' sessions and kills their VMs, and no other Project's; closing deletes every session", async (t) => {
+test("a Project's deletion closes its conversation sessions, and closing the Hub deletes every session", async (t) => {
   const { conversations, open, live, built } = await runner(t)
   const other = '55555555-5555-4555-8555-555555555555'
   await conversations.open({ projectId, conversationId: conversation(1) })
@@ -114,7 +114,7 @@ test("a Project's deletion deletes its conversations' sessions and kills their V
   await conversations.drop(projectId, [conversation(1), conversation(2), conversation(4)])
   assert.deepEqual([await live(conversation(1)), await live(conversation(2))], [undefined, undefined])
   assert.notEqual(await live(conversation(3), `project:${other}`), undefined)
-  assert.deepEqual(built.map(({ conversationId, killed }) => [conversationId.at(-1), killed]), [['1', 1], ['2', 1], ['3', 0]])
+  assert.deepEqual(built.map(({ conversationId, killed }) => [conversationId.at(-1), killed]), [['1', 0], ['2', 0], ['3', 0]])
   await conversations.close()
   assert.equal(await live(conversation(3), `project:${other}`), undefined)
 })
@@ -139,6 +139,30 @@ test('the idle sweep lets an idle conversation go, and never one whose run is op
   clock.now += 1
   await conversations.sweep(new AbortController().signal)
   assert.equal(await live(conversation(2)), undefined)
+})
+
+test('Project drop stops when native session deletion fails and succeeds on retry', async (t) => {
+  const { controller, conversations } = await runner(t)
+  const deleteSession = controller.deleteSession.bind(controller)
+  const asked = []
+  controller.deleteSession = async (input) => {
+    asked.push(input)
+    if (input.scope === `conversation:${conversation(1)}`) throw new Error('native deletion failed')
+    return deleteSession(input)
+  }
+  t.after(() => { controller.deleteSession = deleteSession })
+  takeHubLogs()
+
+  await assert.rejects(conversations.drop(projectId, [conversation(1), conversation(2)]), { id: 'BUILDER_SESSION_DELETE_FAILED' })
+  assert.deepEqual(asked, [
+    { resourceId, scope: `conversation:${conversation(1)}` },
+  ])
+  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['builder.conversation_id'], fields['exception.type']]),
+    [])
+
+  controller.deleteSession = deleteSession
+  await conversations.drop(projectId, [conversation(1), conversation(2)])
+  assert.equal(await controller.getSessionByResource(resourceId, `conversation:${conversation(1)}`), undefined)
 })
 
 test("a conversation's sandbox instance resumes the recorded VM, outlives its idle window, and a killed VM gives the conversation a new instance and session", async (t) => {

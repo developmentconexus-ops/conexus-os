@@ -45,16 +45,17 @@ test('admitRun refuses a missing run, another owner, an ended run and another ac
   await assert.rejects(asAccount(database, ID.owner, ended), notAdmitted)
 })
 
-test('an author who lost the Project or became inactive is refused on the account path, and still admitted by the executor', async (t) => {
+test('revocation blocks the author and executor from new work, while run ending remains separate', async (t) => {
   const { connection, database, seedBuilderProject, seedRun } = await setupBuilder(t, 'conexus_admit_run_revoked')
   const projectId = await seedBuilderProject()
   const builderRunId = await seedRun(projectId, { accountId: ID.member })
   await query(connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1', [ID.member])
-  await assert.rejects(asAccount(database, ID.member, builderRunId), { id: 'PROJECT_BUILD_DENIED' })
-  assert.equal((await asExecutor(database, builderRunId)).scope.via, 'executor')
+  await assert.rejects(asAccount(database, ID.member, builderRunId), { id: 'PROJECT_NOT_FOUND' })
+  await assert.rejects(asExecutor(database, builderRunId), { id: 'BUILDER_RUN_NOT_ADMITTED' })
   await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'member')", [ID.member, ID.workspace])
   await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.member])
   await assert.rejects(asAccount(database, ID.member, builderRunId), { id: 'ACCOUNT_INACTIVE' })
+  await assert.rejects(asExecutor(database, builderRunId), { id: 'BUILDER_RUN_NOT_ADMITTED' })
 })
 
 test('admitProject on a system gate and admitRun on another job gate are refused', async (t) => {
@@ -62,7 +63,7 @@ test('admitProject on a system gate and admitRun on another job gate are refused
   const projectId = await seedBuilderProject()
   const builderRunId = await seedRun(projectId)
   const refused = { id: 'INTERNAL_UNEXPECTED', details: { invariant: 'GATE_ACTOR_REFUSED' } }
-  await assert.rejects(database.system('builder-executor', (gate) => admitProject(gate, projectId, 'project.build')), refused)
+  await assert.rejects(database.system('builder-executor', (gate) => admitProject(gate, { projectId: projectId, action: 'project.build' })), refused)
   await assert.rejects(database.system('project-purge', (gate) => admitRun(gate, builderRunId, { ownerId: OWNER })), refused)
 })
 

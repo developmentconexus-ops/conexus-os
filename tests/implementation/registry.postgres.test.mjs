@@ -39,10 +39,10 @@ test('a member reads the source revisions on the current pin, a grantee reads on
   assert.deepEqual(await direct(ID.outsider, sql`SELECT count(*)::integer AS n FROM reg.application_thumbnail`), { n: 0 })
   assert.deepEqual(await direct(ID.member, sql`SELECT count(*)::integer AS n FROM reg.artifact_revision`), { n: 3 })
 
-  const launch = await database.transaction(ID.member, async (gate) => registry.readLaunch(await admitProject(gate, projectId, 'project.build')))
+  const launch = await database.transaction(ID.member, async (gate) => registry.readLaunch(await admitProject(gate, { projectId: projectId, action: 'project.build' })))
   assert.deepEqual(launch, { sourceRevision: SOURCE_2, artifactRevisionId: second, digest: DIGEST_2, entryPath: 'index.html', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8' }] })
   await point(projectId, old, SOURCE_OLD, 'e'.repeat(64))
-  assert.equal(await database.transaction(ID.member, async (gate) => registry.readLaunch(await admitProject(gate, projectId, 'project.build'))), null, 'an old template pin is not launched')
+  assert.equal(await database.transaction(ID.member, async (gate) => registry.readLaunch(await admitProject(gate, { projectId: projectId, action: 'project.build' }))), null, 'an old template pin is not launched')
   assert.equal((await servedManifest(database, ID.outsider, projectId)).artifactRevisionId, old, 'an old revision still serves to its grantee')
 })
 
@@ -71,7 +71,7 @@ test('the served reads answer the manifest, a file, a missing path with its revi
   await assert.rejects(servedManifest(database, ID.outsider, projectId), invariant('SERVED_POINTER_BROKEN'))
   await assert.rejects(servedFile(database, ID.outsider, projectId, 'index.html'), invariant('SERVED_POINTER_BROKEN'))
   await assert.rejects(registry.readProjectThumbnail(ID.member, projectId), invariant('SERVED_POINTER_BROKEN'))
-  await assert.rejects(database.transaction(ID.member, async (gate) => registry.readLaunch(await admitProject(gate, projectId, 'project.build'))), invariant('SERVED_POINTER_BROKEN'))
+  await assert.rejects(database.transaction(ID.member, async (gate) => registry.readLaunch(await admitProject(gate, { projectId: projectId, action: 'project.build' }))), invariant('SERVED_POINTER_BROKEN'))
 })
 
 test('a purge that commits between the access check and the read answers NOT_SERVED, never a broken pointer', async (t) => {
@@ -154,13 +154,16 @@ test('retention writes one revision for one source, returns it again to every ru
   assert.deepEqual({ rows: await rows(projectId), state: (await runRow(third)).state }, { rows: { revisions: 1, thumbnails: 0 }, state: 'RUNNING' })
   await query(connection, "UPDATE builder.builder_run SET state = 'FAILED', result_kind = NULL, failure_code = 'INTERNAL_UNEXPECTED', finished_at = now() WHERE builder_run_id = $1", [third])
 
-  await assert.rejects(settle(projectId, first), { id: 'BUILDER_RUN_NOT_ADMITTED' })
+  await assert.rejects(settle(projectId, first), { id: 'BUILDER_RUN_TRANSITION_REFUSED' })
   assert.deepEqual(await rows(projectId), { revisions: 1, thumbnails: 0 })
 
   const open = async (builderRunId, work) => database.system('builder-executor', async (gate) => work(await admitRun(gate, builderRunId, { ownerId: OWNER })))
   const again = await runFor(projectId)
   const sealed = sealFor(projectId, again, [F])
-  const twice = await open(again, async (proof) => [await registry.retain(proof, sealed), await registry.retain(proof, sealed)])
+  const twice = await open(again, async (proof) => {
+    const input = { builderRunId: again, projectId, owner: { ownerId: OWNER }, sealed }
+    return [await registry.retain(proof, input), await registry.retain(proof, input)]
+  })
   assert.deepEqual(twice[0], twice[1])
   assert.equal(twice[0].digest, D_E)
   assert.equal((await query(connection, 'SELECT count(*)::integer AS n FROM reg.artifact_revision WHERE project_id = $1', [projectId])).rows[0].n, 1)
@@ -169,7 +172,8 @@ test('retention writes one revision for one source, returns it again to every ru
   await query(connection, "UPDATE builder.builder_run SET state = 'FAILED', result_kind = NULL, failure_code = 'INTERNAL_UNEXPECTED', finished_at = now() WHERE builder_run_id = $1", [again])
   const rollbackRun = await runFor(projectId, { candidate: other, result: other })
   await assert.rejects(open(rollbackRun, async (proof) => {
-    await registry.retain(proof, sealFor(projectId, rollbackRun, [F], { sourceRevision: other, thumbnail: { bytes: PNG_T2 } }))
+    const sealed = sealFor(projectId, rollbackRun, [F], { sourceRevision: other, thumbnail: { bytes: PNG_T2 } })
+    await registry.retain(proof, { builderRunId: rollbackRun, projectId, owner: { ownerId: OWNER }, sealed })
     throw new Error('ROLLBACK_AFTER_THUMBNAIL')
   }), /ROLLBACK_AFTER_THUMBNAIL/)
   assert.deepEqual(await rows(projectId), { revisions: 1, thumbnails: 0 })
@@ -180,7 +184,12 @@ async function retainTwice({ connection, database, registry, builderRunId, seale
   const inserted = deferred()
   const release = deferred()
   const session = (holding) => database.system('builder-executor', async (gate) => {
-    const retained = await registry.retain(await admitRun(gate, builderRunId, { ownerId: OWNER }), sealed)
+    const retained = await registry.retain(await admitRun(gate, builderRunId, { ownerId: OWNER }), {
+      builderRunId,
+      projectId: sealed.projectId,
+      owner: { ownerId: OWNER },
+      sealed,
+    })
     if (holding) {
       inserted.resolve()
       await release.promise
@@ -222,9 +231,9 @@ test('a settlement is refused for an ended run, a run another owner holds, a run
     return { projectId: owned, builderRunId: await runFor(owned, options) }
   }
   const stopped = await own('Stopped', { state: 'INTERRUPTED' })
-  await assert.rejects(settle(stopped.projectId, stopped.builderRunId), { id: 'BUILDER_RUN_NOT_ADMITTED' })
+  await assert.rejects(settle(stopped.projectId, stopped.builderRunId), { id: 'BUILDER_RUN_TRANSITION_REFUSED' })
   const foreign = await own('Foreign', { owner: OTHER_OWNER })
-  await assert.rejects(settle(foreign.projectId, foreign.builderRunId), { id: 'BUILDER_RUN_NOT_ADMITTED' })
+  await assert.rejects(settle(foreign.projectId, foreign.builderRunId), { id: 'BUILDER_RUN_TRANSITION_REFUSED' })
   const unsourced = await own('Unsourced', { result: null })
   await assert.rejects(settle(unsourced.projectId, unsourced.builderRunId), (error) => error.id === 'BUILDER_RUN_TRANSITION_REFUSED' && error.details?.transition === 'build settlement')
   const moved = await own('Moved', { result: 'd'.repeat(40) })
@@ -383,7 +392,7 @@ test('an application grantee reads the served revision through the registry on t
   assert.equal(manifest?.artifactRevisionId, second)
   const file = await servedFile(database, ID.outsider, projectId, 'index.html')
   assert.equal(file.ok && file.artifactRevisionId, second)
-  const launch = await database.transaction(ID.member, async (gate) => registry.readLaunch(await admitProject(gate, projectId, 'project.build')))
+  const launch = await database.transaction(ID.member, async (gate) => registry.readLaunch(await admitProject(gate, { projectId: projectId, action: 'project.build' })))
   assert.deepEqual({ source: launch?.sourceRevision, revision: launch?.artifactRevisionId, digest: launch?.digest }, { source: SOURCE_2, revision: second, digest: DIGEST_2 })
 
   const { Failure } = await import(hubModuleUrl('platform/failure.js'))

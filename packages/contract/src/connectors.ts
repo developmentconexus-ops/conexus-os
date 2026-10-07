@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { FailureCode } from './failures.generated.js'
 import { BindingId, ConnectionId, ProjectId, WorkspaceId } from './ids.js'
-import { operation } from './operation.js'
+import { operation, SUBJECT_NOT_FOUND } from './operation.js'
 
 const CONNECTOR_ID_PATTERN = /^[a-z][a-z0-9-]{0,39}$/
 const BINDING_NAME_PATTERN = /^[a-z][a-z0-9-]{0,39}$/
@@ -70,7 +70,7 @@ export const listWorkspaceConnections = operation({
   id: 'listWorkspaceConnections', summary: 'List the Connections of a Workspace without any credential field; installation administrator only.', access: 'session', method: 'GET', path: '/api/control/workspaces/:workspaceId/connections',
   params: workspaceParam, query: null, headers: null, body: null,
   success: { 200: z.object({ entries: z.array(ConnectorConnection) }) },
-  effects: [], failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED'], malformed: { workspaceId: 'WORKSPACE_NOT_FOUND' },
+  effects: [], failures: ['INSTALLATION_ADMINISTRATOR_REQUIRED'], malformed: { workspaceId: SUBJECT_NOT_FOUND.workspaceId },
 })
 
 export const createWorkspaceConnection = operation({
@@ -105,8 +105,8 @@ export const listProjectConnectionBindings = operation({
   id: 'listProjectConnectionBindings', summary: 'List the open bindings of a Project and the Connections it could still bind; Workspace Owner only.', access: 'session', method: 'GET', path: '/api/control/projects/:projectId/connection-bindings',
   params: projectParam, query: null, headers: null, body: null,
   success: { 200: z.object({ entries: z.array(ConnectionBindingEntry) }) },
-  effects: [], failures: ['CONNECTOR_BINDING_MANAGE_REQUIRED'],
-  malformed: { projectId: 'PROJECT_NOT_FOUND' },
+  effects: [], failures: ['CONNECTOR_BINDING_MANAGE_REQUIRED', 'PROJECT_DELETING'],
+  malformed: { projectId: SUBJECT_NOT_FOUND.projectId },
 })
 
 export const bindProjectConnection = operation({
@@ -115,14 +115,14 @@ export const bindProjectConnection = operation({
   body: z.object({ connectionId: ConnectionId, name: BindingName }).strict(),
   success: { 201: ConnectionBinding, 200: ConnectionBinding },
   effects: [],
-  failures: ['CONNECTOR_BINDING_MANAGE_REQUIRED', 'CONNECTOR_CONNECTION_NOT_AVAILABLE', 'CONNECTOR_BINDING_CONFLICT', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
-  malformed: { projectId: 'PROJECT_NOT_FOUND' },
+  failures: ['CONNECTOR_BINDING_MANAGE_REQUIRED', 'PROJECT_DELETING', 'CONNECTOR_CONNECTION_NOT_AVAILABLE', 'CONNECTOR_BINDING_CONFLICT', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
+  malformed: { projectId: SUBJECT_NOT_FOUND.projectId },
 })
 
 export const unbindProjectConnection = operation({
   id: 'unbindProjectConnection', summary: 'End the binding of a Connection to a Project; Workspace Owner only.', access: 'session', method: 'DELETE', path: '/api/control/projects/:projectId/connection-bindings/:bindingId',
   params: projectBindingParams, query: null, headers: null, body: null,
   success: { 204: null },
-  effects: [], failures: ['CONNECTOR_BINDING_MANAGE_REQUIRED', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
-  malformed: { projectId: 'PROJECT_NOT_FOUND', bindingId: 'CONNECTOR_BINDING_NOT_FOUND' },
+  effects: [], failures: ['CONNECTOR_BINDING_MANAGE_REQUIRED', 'PROJECT_DELETING', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'],
+  malformed: { projectId: SUBJECT_NOT_FOUND.projectId, bindingId: 'CONNECTOR_BINDING_NOT_FOUND' },
 })

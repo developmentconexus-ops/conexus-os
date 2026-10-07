@@ -65,8 +65,8 @@ test('a run start records the base the Hub read while holding the Project, repla
 test('a run start refuses an outsider, an inactive account and a Project without its Builder rows', async (t) => {
   const { connection, store, start, seedBuilderProject, seedProject } = await harness(t, 'conexus_builder_start_refused')
   const projectId = await seedBuilderProject('Atlas')
-  await assert.rejects(start(projectId, { accountId: ID.outsider }), { id: 'PROJECT_BUILD_DENIED' })
-  await assert.rejects(start(projectId, { accountId: ID.administrator }), { id: 'PROJECT_BUILD_DENIED' })
+  await assert.rejects(start(projectId, { accountId: ID.outsider }), { id: 'PROJECT_NOT_FOUND' })
+  await assert.rejects(start(projectId, { accountId: ID.administrator }), { id: 'PROJECT_NOT_FOUND' })
   const bare = await seedProject('Bare')
   await query(connection, 'DELETE FROM builder.project_repository WHERE project_id = $1', [bare])
   await assert.rejects(start(bare), (error) => error.id === 'INTERNAL_UNEXPECTED' && error.details.invariant === 'BUILDER_PROJECT_ROWS_MISSING')
@@ -120,7 +120,7 @@ test('cancelling a queued run closes it, cancelling a running run marks it, and 
 
   await assert.rejects(store.requestBuilderRunCancellation({ accountId: ID.member, projectId, builderRunId }), { id: 'BUILDER_RUN_NOT_FOUND' })
   await assert.rejects(store.requestBuilderRunCancellation({ accountId: ID.owner, projectId, builderRunId: randomUUID() }), { id: 'BUILDER_RUN_NOT_FOUND' })
-  await assert.rejects(store.requestBuilderRunCancellation({ accountId: ID.outsider, projectId, builderRunId }), { id: 'PROJECT_BUILD_DENIED' })
+  await assert.rejects(store.requestBuilderRunCancellation({ accountId: ID.outsider, projectId, builderRunId }), { id: 'PROJECT_NOT_FOUND' })
 })
 
 test('every exit from RUNNING leaves a null phase, a response ends as RESPONSE_ONLY and a build failure keeps the last Preview', async (t) => {
@@ -214,16 +214,20 @@ test('a run records one candidate, advances only to it, settles as a response on
   await assert.rejects(store.recordBuilderRunModelAccount({ builderRunId, accountId: ID.owner, modelAccountId: payer }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
 })
 
-test('removing the author before the candidate refuses the write and leaves the run as it was, while the executor still settles', async (t) => {
-  const { connection, store, running, row, seedBuilderProject } = await harness(t, 'conexus_builder_revoked')
+test('revoking the author refuses new work but the held owner can close the run once', async (t) => {
+  const { connection, database, store, running, row, seedBuilderProject } = await harness(t, 'conexus_builder_revoked')
   const projectId = await seedBuilderProject('Atlas')
   const builderRunId = await running(projectId, { accountId: ID.member })
   await query(connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1', [ID.member])
   const before = await row(builderRunId)
-  await assert.rejects(store.recordBuilderRunCandidate({ builderRunId, accountId: ID.member, sourceRevision: CANDIDATE }), { id: 'PROJECT_BUILD_DENIED' })
+  await assert.rejects(store.recordBuilderRunCandidate({ builderRunId, accountId: ID.member, sourceRevision: CANDIDATE }), { id: 'PROJECT_NOT_FOUND' })
   assert.deepEqual(await row(builderRunId), before)
-  await store.settleBuilderRun({ builderRunId })
-  assert.equal((await row(builderRunId)).state, 'SUCCEEDED')
+  await assert.rejects(store.settleBuilderRun({ builderRunId }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
+  const wrongOwner = createBuilderStore({ database, ownerId: randomUUID() })
+  await assert.rejects(wrongOwner.failBuilderRun({ builderRunId, failureCode: 'BUILDER_RUN_NOT_ADMITTED' }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
+  await store.failBuilderRun({ builderRunId, failureCode: 'BUILDER_RUN_NOT_ADMITTED' })
+  assert.equal((await row(builderRunId)).state, 'FAILED')
+  await assert.rejects(store.failBuilderRun({ builderRunId, failureCode: 'BUILDER_RUN_NOT_ADMITTED' }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
 })
 
 test('a queued run ends unclaimed only while still queued and unowned, and a claim by a removed author never reaches RUNNING', async (t) => {

@@ -393,15 +393,15 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
         const created = await projects.createProject({ accountId: member, workspaceId: ID.workspace, idempotencyKey: 'own', body: { name: 'Mine', sourceBootstrap: { mode: 'NEW' } } })
         assert.deepEqual({ replayed: created.replayed, name: created.reply.name, workspaceId: created.reply.workspaceId }, { replayed: false, name: 'Mine', workspaceId: ID.workspace })
       },
-      cross: () => assert.rejects(projects.createProject({ accountId: member, workspaceId: ID.otherWorkspace, idempotencyKey: 'intruder', body: BODY }), { id: 'PROJECT_CREATE_DENIED' }),
+      cross: () => assert.rejects(projects.createProject({ accountId: member, workspaceId: ID.otherWorkspace, idempotencyKey: 'intruder', body: BODY }), { id: 'WORKSPACE_NOT_FOUND' }),
       child: null,
     },
     'deleteProject': {
       own: async () => {
-        await projects.deleteProject({ accountId: ID.administrator, projectId: doomedA, confirmName: 'Doomed A' })
-        assert.deepEqual((await query(connection, 'SELECT project_id, name, requested_by FROM project.project_deletion WHERE project_id = $1', [doomedA])).rows, [{ project_id: doomedA, name: 'Doomed A', requested_by: ID.administrator }])
+        await projects.deleteProject({ accountId: ID.owner, projectId: doomedA, confirmName: 'Doomed A' })
+        assert.deepEqual((await query(connection, 'SELECT project_id, name, requested_by FROM project.project_deletion WHERE project_id = $1', [doomedA])).rows, [{ project_id: doomedA, name: 'Doomed A', requested_by: ID.owner }])
       },
-      cross: () => assert.rejects(projects.deleteProject({ accountId: member, projectId: projectB, confirmName: 'Borealis' }), { id: 'PROJECT_DELETE_DENIED' }),
+      cross: () => assert.rejects(projects.deleteProject({ accountId: member, projectId: projectB, confirmName: 'Borealis' }), { id: 'PROJECT_NOT_FOUND' }),
       child: null,
     },
     'listProjectSummaries': {
@@ -438,7 +438,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
         const run = await builder.createBuilderRun({ accountId: member, projectId: projectBuild, conversationId: '33333333-3333-4333-8333-333333333333', idempotencyKey: 'own', content: 'build', readBase: async () => FOREIGN_BASE })
         assert.deepEqual({ state: run.state, baseSourceRevision: run.baseSourceRevision, requestText: run.requestText }, { state: 'QUEUED', baseSourceRevision: FOREIGN_BASE, requestText: 'build' })
       },
-      cross: () => assert.rejects(builder.createBuilderRun({ accountId: member, projectId: projectB, conversationId: '33333333-3333-4333-8333-333333333333', idempotencyKey: 'intruder', content: 'build', readBase: async () => FOREIGN_BASE }), { id: 'PROJECT_BUILD_DENIED' }),
+      cross: () => assert.rejects(builder.createBuilderRun({ accountId: member, projectId: projectB, conversationId: '33333333-3333-4333-8333-333333333333', idempotencyKey: 'intruder', content: 'build', readBase: async () => FOREIGN_BASE }), { id: 'PROJECT_NOT_FOUND' }),
       child: null,
     },
     'cancelBuilderRun': {
@@ -447,7 +447,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
         const cancelled = await builder.requestBuilderRunCancellation({ accountId: member, projectId: projectBuild, builderRunId: ownRun })
         assert.equal(cancelled.state, 'INTERRUPTED')
       },
-      cross: () => assert.rejects(builder.requestBuilderRunCancellation({ accountId: member, projectId: projectB, builderRunId: runOfB }), { id: 'PROJECT_BUILD_DENIED' }),
+      cross: () => assert.rejects(builder.requestBuilderRunCancellation({ accountId: member, projectId: projectB, builderRunId: runOfB }), { id: 'PROJECT_NOT_FOUND' }),
       child: () => assert.rejects(builder.requestBuilderRunCancellation({ accountId: member, projectId: projectBuild, builderRunId: runOfB }), { id: 'BUILDER_RUN_NOT_FOUND' }),
     },
     'getBuilderRunTrace': {
@@ -457,7 +457,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
     },
     'launchBuilderPreview': {
       own: async () => assert.deepEqual(await builder.openLaunch({ accountId: member, projectId: projectA }, async (_proof, launch) => launch), { sourceRevision: STARTER, artifactRevisionId: revisionA, digest: 'd'.repeat(64), entryPath: 'index.html', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8' }] }),
-      cross: () => assert.rejects(builder.openLaunch({ accountId: member, projectId: projectB }, async () => assert.fail('a refused admission opens nothing')), { id: 'PROJECT_BUILD_DENIED' }),
+      cross: () => assert.rejects(builder.openLaunch({ accountId: member, projectId: projectB }, async () => assert.fail('a refused admission opens nothing')), { id: 'PROJECT_NOT_FOUND' }),
       child: null,
     },
     'getProjectThumbnail': {

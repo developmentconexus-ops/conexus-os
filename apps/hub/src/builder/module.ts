@@ -313,11 +313,15 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
     // Absent without the Builder, and then no Project can be created.
     prepareProjectRepository: (projectId: ProjectId) => git.ensureRepository(projectId),
     // Runs before the Project's purge, which drops the rows that name its VMs.
-    killProjectSandboxes: async (projectId: ProjectId) => { await sandboxes.killRecorded(await store.readProjectSandboxes(projectId)) },
+    killProjectSandboxes: async (projectId: ProjectId) => {
+      const required = await store.readProjectSandboxes(projectId)
+      const gone = await sandboxes.killRecorded(required)
+      if (required.some((id) => !gone.includes(id))) throw new Failure('BUILDER_SANDBOX_KILL_FAILED')
+    },
     // A deleted Project leaves neither its conversations nor its repository behind.
-    deleteProjectRepository: async (projectId: ProjectId) => {
-      const conversationIds = await conversations.deleteAll(projectId)
-      await liveConversations.drop(projectId, conversationIds)
+    deleteProjectRepository: async (projectId: ProjectId, lost: AbortSignal) => {
+      await conversations.deleteAll({ projectId, beforeDelete: (ids) => liveConversations.drop(projectId, ids) })
+      if (lost.aborted) throw new Failure('PROJECT_DELETION_INCOMPLETE', { cause: lost.reason })
       await git.deleteRepository(projectId)
     },
     close: async () => {
