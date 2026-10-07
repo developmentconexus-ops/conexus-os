@@ -155,8 +155,8 @@ const projectedRoute = (route: ServerRoute, projection: ToolPayloadProjection | 
 // keeps the original's message and stack. This is the one place that turns it into the problem+json
 // the Hub's handler sends, through an exception Mastra sends verbatim. A refusal Mastra means (an
 // HTTPException with its own response, or a 4xx) stays Mastra's to answer.
-const failureRoute = (route: ServerRoute): ServerRoute =>
-  withHandler(route, async (params) => {
+function failureRoute(route: ServerRoute): ServerRoute {
+  return withHandler(route, async (params) => {
     try {
       return await route.handler(params)
     } catch (error) {
@@ -167,13 +167,14 @@ const failureRoute = (route: ServerRoute): ServerRoute =>
       throw new HTTPException(undefined, { res: response })
     }
   })
+}
 
 /**
  * Mastra's own hook for a request that fails its schemas. The mount answers it as the same
  * problem+json row, so the browser reads one shape. (`server.onError` is not called for the Fastify
  * adapter's own routes, so `failureRoute` stays for handler throws.)
  */
-export const mountValidationFailure = (): Readonly<{ status: number; body: unknown }> => {
+export function mountValidationFailure() {
   const failure = new Failure('REQUEST_VALIDATION_FAILED')
   logFailure(logger, failure)
   const response = failureResponse({ code: failure.id, traceId: currentTraceReference() })

@@ -101,14 +101,11 @@ const createGate = (capacity: number, lineLimit: number): Gate => {
   }
 }
 
-const refusal = (code: FailureCode): Response => {
+function refusal(code: FailureCode): Response {
   const failure = new Failure(code)
   logFailure(logger, failure)
   return failureResponse({ code, traceId: currentTraceReference() })
 }
-
-const publicAnswer = (answer: RunnerAnswer): Response =>
-  answer.ok ? Response.json(answer.result) : refusal(answer.error.code)
 
 export const createApplicationInvoker = (dependencies: Readonly<{
   invoke: ApplicationRunnerInvoke
@@ -141,7 +138,7 @@ export const createApplicationInvoker = (dependencies: Readonly<{
         const answer = await dependencies.invoke({
           projectId, operation: input.operation, input: input.input, files: input.files, caller: input.caller, ...(port ? { connectorSocket: port.socketPath } : {}),
         })
-        return publicAnswer(answer)
+        return answer.ok ? Response.json(answer.result) : refusal(answer.error.code)
       } catch (error) {
         throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: error, details: { project: projectId, operation: input.operation } })
       } finally {
