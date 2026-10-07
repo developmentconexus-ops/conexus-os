@@ -1,12 +1,12 @@
 ---
 name: conexus-review
-description: Review a Conexus pull request, or a whole wave diff, against the guides that own its paths, its unit card when it is a wave unit, and the native census, and give one verdict. Use when your instructions name a review, or when a reviewer (the Factory included) is sent here.
+description: Review a Conexus pull request, or a whole wave diff, against the guides that own its paths, its unit cards when it is a wave batch, and the native census, and give one verdict. Use when your instructions name a review, or when a reviewer (the Factory included) is sent here.
 ---
 
 # Review
 
-A review judges the pushed head against what was asked (the issue, or the unit card) and the guides,
-never the author's summary. It does not fix the code it reviews. The verdict follows
+A review judges the pushed head against what was asked (the issue, or the batch's unit cards) and
+the guides, never the author's summary. It does not fix the code it reviews. The verdict follows
 [references/verdict.md](references/verdict.md).
 
 ## Steps
@@ -20,10 +20,11 @@ never the author's summary. It does not fix the code it reviews. The verdict fol
    name, plus the codebase principles and delivery. The grammar: an exact path, `dir/**` for every
    path under `dir`, `*` inside one segment. A test maps to the area of the code it proves. A path no
    area matches on `origin/main` is judged by the head's map and named in the review.
-3. A wave unit is also judged against its card in `docs/specs/<wave>/index.md`: every line of
-   Creates, Satisfies and Deletes is done, nothing is outside its Files, its Proof ran, and every
-   item of the [build checklist](../conexus-build/references/checklist.md) is `ok` or `n/a` with
-   evidence.
+3. For a wave batch, judge each unit against its card in `docs/specs/<wave>/index.md`: every line of
+   Creates, Satisfies and Deletes is done, nothing is outside its Files, and every item of the
+   [build checklist](../conexus-build/references/checklist.md) is `ok` or `n/a` with evidence.
+   Rerun each unit's Proof and review the batch's code in one independent review. Send findings
+   back to the builders before the batch's pull request goes to CI and the Dev Factory.
 4. Redo the native census for each mechanism the diff adds: pin the versions at the head from
    `node_modules/@mastra/<pkg>/package.json`, read the embedded docs (`dist/docs`) then the types,
    look up Keycloak and PostgreSQL at the versions in use, search the repository for an existing
