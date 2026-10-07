@@ -2,7 +2,7 @@
 
 **Date**: 2026-10-07
 
-**Status**: Draft awaiting the operator's approval
+**Status**: Approved by the operator on 2026-10-07, commit 75423cc3c3027702b6da31001b560e8d46077149
 
 **Lane**: lane:qualification (Q-b: process/wire format; Q-c: real consumer proof)
 
