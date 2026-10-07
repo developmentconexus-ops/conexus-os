@@ -1,150 +1,166 @@
-# 0017. Rationale: company model accounts
+# 0017. Rationale: model account foundations and core ownership
 
 ## Context
 
-The product contract promises that "an AI account a person or the installation connects" pays for a person's Builder runs (`docs/product/contract.md:45,106`), and two screens promise that a shared account covers whoever has not connected one (`models-screen.tsx:11`, `admins-screen.tsx:62`). No route creates such an account. Since #380 nothing writes the `sharing` column, and its history table has no writer (`0033:27,45`, `0044`). Part 5 of S1 kept both for "the part that adds the command" (`docs/specs/0015-checked-boundaries/0015-part-model.md:270`). This wave is that part.
+The operator wants the Mastra Factory's personal account and organization account behavior.
+Conexus serves one company per installation, so the second account belongs to the installation.
+The approved study found six causes to remove: person-owned shared rows, repeated provider flows
+and cards, competing account selection rules, a dead sign-in with no persistent fact, row facts
+kept only in process memory, and model accounts owned by the Builder rather than the core.
 
-The operator wants the Mastra Factory's behavior: a personal account and an organization account, where Conexus's organization is the installation (C-024). In the Factory, one table holds both. A nullable `user_id` marks the organization row, and two partial unique indexes keep one row per user and provider and one per organization and provider (`mastracode/factory/src/storage/domains/credentials/base.ts:96-118`). Only an organization administrator writes the organization row (`factory/src/routes/config.ts:766-777`, `oauth.ts:295-297`). Keys and subscriptions both work. The Factory has three defects to avoid:
-- the screen picks the user's credential first while runs pick the organization's first (`base.ts:292-319` against `start-coordinator.ts:173-185`);
-- a failed organization refresh is silent (`tenant-credentials.ts:138-156`);
-- "no credential" is red text with no link (`model.ts:234-238`).
-
-Before designing, the operator asked for a critical audit of today's model account code against the guides, the S1 standard and the Factory. The audit found the data access at the S1 bar: the split wall, the sealed secrets, the held read and the typed executor proof. It found the domain model, the module shape and the failure handling below it. It traced six root causes:
-1. The company account is one person's row with a flag (`owner_account_id NOT NULL`, `0033:23`).
-2. Each provider is its own folder repeating the sign-in, the credential and the card (`anthropic/login.ts:16-74`, `openai-codex/login.ts:19-81`, four card files).
-3. Five places compute which account pays (`accounts.ts:72-80`, `model-accounts.ts:128-129`, the four cards, the test fake).
-4. One failure word covers five causes, and the row keeps no sign-in state (`BUILDER_MODEL_NOT_SELECTED` at `model-routing.ts:70,76`, `oauth-holds.ts:29,33,43`, `google-ai-pro/route.ts:63`, `run/turn.ts:49`).
-5. Process memory holds facts of the row (`oauth-holds.ts:25`, `google-ai-pro/write-back.ts:14`).
-6. Model accounts live inside the Builder, against A's core list (`architecture.md:136,390`).
-
-Two more forces:
-- The Hub's envelope seals every secret with AES-256-GCM but binds no associated data (`platform/factory-secret-encryption.ts:66-77`). Any sealed value of the installation opens on any row. With one company row that every person's run opens, a value moved to the wrong row would silently bill the wrong account and, with a subscription, put the company's prompts in a person's provider history.
-- The local data is reset after S1, and the repository keeps no backward compatibility in development. A schema change with no data path is free now and expensive after the pilot.
+Part 1 is accepted at `885addee`. The scoped table, ownership CHECK, lawful provider/kind CHECK,
+partial unique indexes and connection/refusal metadata already exist. The two remaining waves consume
+that schema. This foundation does not deliver installation commands or screen behavior. The half-built part 2 is reference material, not a patch to apply. Its session exceeded
+its budget and the operator corrected both a routing API retained only for tests and new code
+written on weak string/credential types. The rewrite must prevent those errors structurally.
 
 ## Options considered
 
-### Option 1: Give the flag its writer
+### Keep the person's sharing flag
 
-An administrator command that sets `sharing = 'everyone'` on the administrator's own row, plus the history writer.
+This has the smallest change, but the company account belongs to the connecting person.
+It cannot satisfy the operator's decision that revoking or deactivating that administrator leaves
+the company account available. It also preserves repeated flows and account selection rules.
+Part 1 has already removed this option's schema.
 
-**Pros**:
-- The smallest diff.
-- Today's tables and tests stay.
+### Keep a separate installation table
 
-**Cons**:
-- The company account belongs to one person: when that administrator leaves, it goes with them. This contradicts decision 2.
-- An installation account owned by a person stays representable.
-- The five copies of the precedence rule, the three sign-in copies and the silent refresh stay. The company scope would be added three times.
+Separate tables express ownership simply, but selection must combine both, runs must record two
+origins, and secret custody and refresh are duplicated. The Factory reference uses one table with
+partial unique indexes. The approved choice goes further by explicitly checking scope and owner.
 
-### Option 2: A separate installation table
+### One scoped table and one core owner
 
-`model.installation_model_account (provider PK, kind, secret, connected_by, connected_at)` beside the personal table.
+This is the approved target. A registry derives the legal credential pairs and their values.
+One pure accountInUse function serves listing, offers, preflight and model calls. One sign-in owner
+handles the common lifecycle. Provider leaves retain native SDK calls where those APIs carry the
+needed facts. A refused credential is a persisted row fact, committed separately from a failed run.
 
-**Pros**:
-- Each table is simple, and no CHECK ties owner to scope.
+## Decision and why
 
-**Cons**:
-- Every reader joins two tables to answer "which account pays".
-- The run's record (`builder.builder_run_model_account`) points to two origins.
-- The sign-in, the refresh and the custody context are written twice.
-- The Factory, cal.com and better-auth all keep one credential table.
+The operator's decisions of 2026-10-06 remain in force:
 
-### Option 3: One owner module, a checked scope, the row as home of every sign-in fact (chosen)
+| Study decisions | Accepted choice |
+| --- | --- |
+| 1-3 | Company keys and subscriptions; installation ownership without a person owner; personal first on screen and in runs |
+| 4-7 | Scope control on the existing settings screen; all four sign-in kinds; refusal notice with a settings link; Empresa marker in the picker |
+| 8-11 | Originally one wave; split into sequential 0017/0020 on 2026-10-07; model-account core owner; Google remains with its file risk declared; row-bound AAD for every Hub secret |
+| 12-14 | One table and checked ownership; connection metadata and structured logs; preflight opens no secret |
+| 15-18 | Checked provider/kind and refusal fields; scoped operations; connecting name/date visible; removal in both scopes |
+| 19 | Refused personal account remains selected; disconnect explicitly to use the company account |
 
-One table with `scope` as a sum the database checks. One pure account-in-use rule read by every reader. One registry with each kind's flow and codec. One sign-in module, a refusal state and compare and swap on the row, one failure code per cause. The module moves to the core. The envelope binds each value to its row.
+The final approved screen groups Anthropic key and subscription in one provider card, leaving
+three cards and four sign-in kinds. Each model call selects again. An account is never pinned for
+an entire run; Builder owns recording each paying row. The connecting name is copied at connect,
+so IAM does not disclose another person's account/email to implement coverage text.
 
-**Pros**:
-- The six root causes go by structure.
-- The company scope enters once.
-- The screen and the run cannot disagree.
-- A moved secret fails loudly.
+The 2026-10-07 planning-session decisions settle the upstream contracts and naming:
 
-**Cons**:
-- A large wave, about 60 product files.
-- A schema with no data path.
-- Part 6's session code is edited right after it lands.
-- `connected_at` carries two meanings.
+- 0018 owns the nominal admission proof, admitted reads and retained run/system/bootstrap scopes.
+  This wave consumes them, including OpenRun's run admission, after 0018 merges.
+- 0019 owns Failure and the result union `{ ok: true, result } | { ok: false, error }`, with
+  `error.code` from the failure table and one failureResponse returning native Response.
+  No shared error engine is designed here. U2 and later wait for that wave too.
+- Remove every replaced legacy function/name with its callers, and update its owning guide.
+  The operator chose to remove Factory naming from source, key environment variables and the
+  persisted envelope discriminator. A new forward migration replaces the four live prefix CHECKs;
+  0071 is never edited. No alias or old decoder remains. The operator resets and renames local
+  configuration and re-enters the connector credential and model accounts afterward.
 
-## Rationale
+Both independent interrogate reviewers found the old combined U4 larger than the exhausted
+part 2. On 2026-10-07 the operator chose two sequential waves. 0017 has four units: pin, derived
+credentials/model ids, row custody/configuration/migration, and a behavior-preserving core move.
+0020 has six: extend only missing pins, scoped commands/list/selection, shared sign-in, refusal and
+OAuth races, Google generations, then cards and guides. Each wire-changing unit migrates every
+real web consumer immediately; all four old cards are counted before their final removal.
+The 0017 budget is 45 handwritten product subjects, with explicit per-unit path lists.
+No earlier export survives solely for tests. U4 deletes this spec's temporary shape.
 
-Option 3 is the only shape where decision 2 (the account belongs to the installation) is a fact of the table, not of the code, and where decision 3 (own first, the same on screen and in runs) has a single owner. The audit shows that options 1 and 2 keep the defect the operator chose the Factory to avoid: two readers computing the same rule differently.
+The planning session also confirmed canonical Result for hold and reread. A custody error carries
+typed row context; admission failure retains the admitted-run owner's error.code. Only a successful
+missing row or changed kind yields MODEL_ACCOUNT_CHANGED. The shared error/result names were confirmed with 0019's writer through pushed shape 3395649f: Result<T,E> has both parameters required; E admits table-coded domain context. Failure extends MastraError with id; account connection is a result projection. Internal row context is not another shared owner.
 
-Doing the realignment and the company scope in one wave follows "fix the root, never adapt". The scope has to enter every sign-in attempt, every card and every precedence read. Each of those is today written three to five times. Adding the scope first would write it three to five times; unifying first writes it once (laziness-protocol, subtract-before-you-add).
+The OpenRun port is necessary because refresh runs after the original model-resolution transaction
+ends. Builder supplies a fresh admission for each reread and OAuth swap. The model-account core
+never imports Builder or joins Builder's run-account records. A deactivated person or ended run
+receives no tokens from a later reread, including single-flight waiters.
 
-The AAD binding follows the cost asymmetry. Today it is 12 call sites with no data to reseal. After the pilot it needs a re-encryption job the Hub does not have (D9, A 11). It uses the AEAD the Hub already runs as intended: Tink binds a cell to its column and row id, and AWS KMS puts the table and primary key in the encryption context. It goes past both references the Factory and cal.com offer: the Factory binds nothing, and cal.com binds only the credential type (`calcom/packages/lib/crypto/keyring.ts:90,121`, `CredentialDataService.ts:26-32`). The binding is the row's natural key, not its surrogate id. The upsert keeps the id when a sign-in changes the kind, and a remove then reconnect mints a new id for the same slot.
+Compare-and-swap on the spent sealed value closes refresh against a new sign-in or another refresh.
+Generation checks prevent an old refusal or Google capture from writing a replacement row.
+OAuth call-time 401 forces one refresh; only a refused refresh marks the row. Router/configuration,
+network, timeout, 403, 429 and 5xx faults do not turn a healthy sign-in into a refused row.
 
-### Why one wave
-
-Guide L asks a plan over 70 product files, or a spec over 800 lines, to say why it does not split. This plan is about 60 files. One wave holds because the six root causes and the company scope touch the same files: the sign-in module, the card, the store and the rule. Two waves would rewrite those files twice and leave a middle state where the screen and the run use different rules.
-
-## Synthesis (architect arena, 2026-10-06)
-
-Two runners on different models answered the same brief, and a cross-judge scored them. Opus scored 27 and Sonnet 23 over fidelity, root causes, depth, types, concurrency and buildability. The base is the Opus candidate:
-- It leaves no root cause standing. Sonnet keeps a Google bearer to row map and a join from the module into the Builder's table.
-- It keeps `platform/` free of domain fields, because each owner builds a string binding.
-- Its build order is green at each step. Sonnet's first step seals with `scope` before the column exists.
-
-Both runners converged on the brand per owner, the derived credential, the one rule, the refusal column with compare and swap, the five codes and the generation keyed Google pool.
-
-Three grafts from Sonnet:
-1. The sign-in flow's `begin()` returns a closure that owns the vendor state, so the module holds no `unknown`.
-2. A row is marked refused only on a dead grant: 400 `invalid_grant` or 401 at refresh, and 401 at call time (not 403, which can mean a model the plan lacks).
-3. The migration stops when `model.model_account` has rows.
-
-Rejected from Sonnet at first, then taken after the spec review:
-- the run port (`openRun`). The arena first kept the registry's rule that the caller passes its proof. Both spec reviewers showed that a refresh runs after the call's transaction ended, so only a port keeps today's guarantee that a deactivated person or an ended run cannot reread a secret.
-
-Rejected from Sonnet:
-- the Builder table join;
-- the five minute Google capture (one minute here);
-- the migration deleting sessions and handoffs, which the reset covers.
+The installed SDK does not expose refresh failures as structured status and does not accept fetch.
+The approved local token request copies its payload and classifies the HTTP response at that edge.
+An installed-package drift check pins the copied constants. It is removed when a native structured
+refresh API can replace it. Google retains the pinned CLIProxyAPI protocol, one process per account
+sign-in generation and a one-minute capture job. Real token rotation remains a deciding live proof,
+which needs separate operator authorization.
 
 ## Evidence
 
-**Spike 1, run.**
-- A value sealed under one context opens under it.
-- It fails under another owner, provider, kind, or scope.
-- A value sealed without associated data opens under no context.
-- A stale value of the same row still opens, so the compare and swap stays.
-- A retired key still opens.
-- A throwaway PostgreSQL 17 refused every illegal row with its SQLSTATE: 23514 for scope, owner, pair, provider and prefix; 23505 for duplicates; 23503 for an unknown owner. It accepted every legal row.
+The private study holds the notebook, audit, Factory traces, census, architectural candidates and
+spikes. Those files and their machine locations never enter this public repository.
 
-**Spec review (interrogate, Opus and Sonnet, 2026-10-06).** 27 findings, three critical on both sides, all taken:
-- a refusal mark written inside the run's transaction rolled back with the failure, so `markRefused` gets its own committed system transaction;
-- the live name through `iam.account` exposed the whole account row, `email` included, so the name is copied to the row;
-- a Google ticket deleted per request turned an SDK retry into a 401 that would refuse the company row, so the ticket lives with the generation and the router never answers 401 for its own faults.
+- The study's AAD spike ran: same context opens, changed owner/scope/provider/kind fails, old
+  context-free values fail, stale same-row values still open and retired configured keys work.
+  That last case explains why AAD does not replace compare-and-swap.
+- The schema spike ran on disposable PostgreSQL: illegal scope, ownership and provider/kind rows
+  failed with 23514; duplicate slots failed with 23505; missing person ownership failed with 23503.
+- Installed SDK probes ran without external calls: generate/stream preserve APICallError status;
+  401/403 are not retried; 500/network faults are retried; native refresh loses structured cause.
+- The original Opus/Sonnet review found the rollback-lost refusal mark, IAM name/email disclosure
+  and retry-invalidated Google ticket. The approved design resolves all three.
+- The resumed census reads the accepted branch plus the main flow merge. It reports 23 account,
+  provider/card and contract files; 42 top-level arrows, 3 functions over 80 lines, 3 suppressions,
+  5 plain string id declarations, 3 local JSON parsers and 16 legacy Builder account files. The corrected custody scan finds 72 live legacy matches; follow-up additionally finds four old cards and six provider login-state/Caller aliases.
+  The script is `shape/census.mjs`; final targets are zero and its check moves to CI in U4. Foundation checks exclude web subjects delivered by 0020; follow-up baselines are recorded on merged 0017.
+- The pushed 0018 shape was read at `3d70bd7b` and contains the retained run/system/bootstrap
+  variants. 0019 was then checked at 3395649f, including Result/Code, AccountConnectionAnswer and native failureResponse. Both shapes use the required two-parameter Result signature and its structural error constraint. Exact shared exports must exist before build;
+  the type-only dependency preview in shape is never implemented or copied into product code.
+- The rewrite's shape compiles with the pinned toolchain, including negative cases for credential
+  pairs/values, model ids, nominal/read/write proofs, seal owners and canonical result variants. The follow-up also checks login state, per-job proof and same-kind swap.
+  This proves static contracts, not provider or runtime behavior. Each card names its runtime proof.
 
-Also taken:
-- each model call picks its account again (today's rule, `0038:3-6`), which corrects the mid run cases inferred in the design conversation;
-- an OAuth 401 forces one refresh before marking;
-- a missing key id is a configuration fault, not a custody loss;
-- the migration guard covers connections, and sessions are deleted;
-- the attempt key includes scope;
-- a remove needs `scope`.
+## Rewrite review and verification
 
-**Spike 2, run against the installed packages, no network.**
-- A 401 and a 403 reach a `wrapLanguageModel` middleware as `APICallError` with `statusCode` on all four model kinds, with no retry. A 500 and a dropped connection are retried twice.
-- Mastra's Anthropic refresh carries the status only in its message.
-- The Codex refresh throws one message for every cause.
-- Neither takes a `fetch`, and their constants are private, so the refresher is our own call.
+The initial Opus/Sonnet interrogate found the oversized core/command unit, non-native model type,
+broad system proofs, kind-changing swap, an impossible JSON census target, a later-unit custody
+type, incomplete web consumers, migration reset ambiguity, shape import staleness and weak negative
+cases. All were acted on: the operator split the waves; types/negative cases and cards now match
+native/merged owners; migration deletes session rows before new CHECK validation; shape checks
+and all real consumers move with each replacing unit. The reviewer request to brand RunOwner
+inside this wave was dismissed because it is exactly 0018's existing upstream owner.
+
+The configured independent follow-up reviewers found a self-counting/wrong-prefix census, a held
+row/credential kind mismatch, stale Google 401 marks, Google replacement wording and a superseded
+sign-in completion race. The corrections add AST-aware scanning and exact historical exceptions,
+full pair correlation and negative fixtures, spent-secret conditions on every mark, admitted
+same-kind adoption before dispatch without request replay, and same-attempt serialization through
+completion commit. Historical 0070/0071 tests retain their original meaning. Failure-table rows are generated in the first unit using their codes: SECRET_CUSTODY_LOST in 0017 U3 and model-account run codes/actions in 0020 U2. All findings have a
+recorded action or evidence-backed dismissal with the planning session.
+
+Both shapes compile with the pinned toolchain. Twenty-two clean-final/defect census scenarios
+pass, including license comments, dictionary/historical fixtures, actual old prefix in a regex,
+wrong live variable names, each structural defect and the follow-up duplicate subjects.
+Documentation validation passed 221 repository tests. The existing verify:quick checks passed.
+These are spec/type/checker proofs; no installation feature or real provider use is claimed built.
 
 ## References
 
-**Project sources**:
-- The study notebook, audit, Factory trace, arena candidates, judge and spikes. These are study files kept outside this repository.
-- Guides C, P, A, D, S, H, V, T, L.
-- Decisions C-024, C-026, C-027, C-032.
-- `0015-part-model.md` (part 5).
-- The part 6 target.
-- `docs/roadmap.md:89`.
+Each mechanism's kept/adapted facts and file:line are in index.md's References copied table.
 
-**Practices & standards**:
-- Associated data binding for authenticated encryption.
-- Compare and swap on a row instead of a lock held across a vendor call.
-- Make illegal states unrepresentable.
-- Parse at the boundary.
-
-**Links** (checked in the design conversation):
-- Tink, "I want to bind ciphertext to its context": https://developers.google.com/tink/bind-ciphertext
-- AWS KMS, least privilege and encryption context: https://docs.aws.amazon.com/kms/latest/developerguide/least-privilege.md
-- Google Cloud KMS, additional authenticated data: https://docs.cloud.google.com/kms/docs/additional-authenticated-data
+- Mastra fork at `ce7e9c30c1`, `mastracode/factory/src/storage/domains/credentials/base.ts:96-118,292-319`;
+  `routes/config.ts:766-777`; `routes/oauth.ts:295-297,356-362,416-422`;
+  `factory-ui/src/ui/domains/settings/components/ProviderAccessSection.tsx:63-114`.
+- Installed `@mastra/code-sdk` 1.8.3, `dist/auth/types.d.ts:4-9,74-81`;
+  `dist/auth/providers/anthropic.js:18-20,131-156`;
+  `dist/auth/providers/openai-codex.js:36-39,160-226,483-491,543`.
+- Mastra core, `packages/core/src/llm/model/provider-registry.ts:392-413`.
+- cal.com, `packages/lib/crypto/keyring.ts:90,121`;
+  `packages/features/credentials/services/CredentialDataService.ts:26-32`;
+  `packages/prisma/schema.prisma:329`; `packages/app-store/webex/lib/VideoApiAdapter.ts:285-293`.
+- Tink, context binding, `https://developers.google.com/tink/bind-ciphertext`;
+  AWS KMS encryption context, `https://docs.aws.amazon.com/kms/latest/developerguide/least-privilege.md`.
+- Conexus guides C, A, P, D, H, S, V, T and L; decisions C-024, C-026, C-027 and C-032;
+  registry/module.ts:8-39 and connectors/store.ts:86-105 at `017133fc`.
