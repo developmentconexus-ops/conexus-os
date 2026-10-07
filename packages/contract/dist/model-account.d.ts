@@ -67,13 +67,10 @@ export declare const ModelAccountEntry: z.ZodObject<{
             google_ai_pro: "google_ai_pro";
         }>;
     }, z.core.$strip>], "state">;
-    shared: z.ZodBoolean;
 }, z.core.$strip>;
 export type ModelAccountEntry = z.output<typeof ModelAccountEntry>;
 export declare const listAvailableModels: {
-    readonly query: z.ZodObject<{
-        scope: z.ZodOptional<z.ZodLiteral<"installation">>;
-    }, z.core.$strict>;
+    readonly query: null;
     readonly body: null;
     readonly success: {
         readonly 200: z.ZodObject<{
@@ -134,7 +131,6 @@ export declare const listModelAccounts: {
                         google_ai_pro: "google_ai_pro";
                     }>;
                 }, z.core.$strip>], "state">;
-                shared: z.ZodBoolean;
             }, z.core.$strip>>;
         }, z.core.$strip>;
     };
@@ -285,7 +281,6 @@ export declare const getGoogleModelConnection: {
                     google_ai_pro: "google_ai_pro";
                 }>;
             }, z.core.$strip>], "state">;
-            shared: z.ZodBoolean;
         }, z.core.$strip>;
     };
     readonly effects: readonly [];

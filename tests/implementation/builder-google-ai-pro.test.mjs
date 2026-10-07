@@ -326,10 +326,10 @@ const authentic = {
 const createLoginApp = async (t) => {
   const { binary, stateDir } = scratch(t)
   const pool = openPool(t, { binary, stateDir })
-  const { modelAccounts, rows, share } = fakeModelAccounts()
+  const { modelAccounts, rows } = fakeModelAccounts()
   let caller = ana
   const { app } = await testListener({
-    sessions: { [SESSION_TOKEN]: () => ({ account: { accountId: caller } }) },
+    sessions: { [SESSION_TOKEN]: () => ({ account: { accountId: caller, displayName: caller === ana ? 'Ana' : 'Bia' } }) },
     registerRoutes: async (instance) => {
       await registerModelAccountRoutes(instance, {
         modelAccounts,
@@ -340,7 +340,7 @@ const createLoginApp = async (t) => {
     },
   })
   t.after(() => app.close())
-  return { app, stateDir, rows, share: (accountId) => share(accountId, 'google-ai-pro'), as: (accountId) => { caller = accountId } }
+  return { app, stateDir, rows, as: (accountId) => { caller = accountId } }
 }
 
 const base = '/api/control/model-accounts/google-ai-pro/login'
@@ -374,14 +374,14 @@ test('signing in from Settings stores the record as the person\'s own model.mode
 
   const written = [...rows.values()]
   assert.equal(written.length, 1)
-  assert.equal(written[0].owner, ana)
+  assert.deepEqual([written[0].owner, written[0].connectedByName], [ana, 'Ana'])
   const stored = decodeKey(parseKey(written[0].secret))
   assert.equal(stored.fileName, 'antigravity-person@example.com.json')
   assert.deepEqual(JSON.parse(Buffer.from(stored.bytes).toString()), { type: 'antigravity', refresh_token: 'refresh-from-google' })
   assert.deepEqual(readdirSync(stateDir), [], 'the sign-in proxy and its copy of the record are gone')
 
   const connection = await app.inject({ method: 'GET', url: '/api/control/model-accounts/google-ai-pro/connection', ...authentic })
-  assert.deepEqual(connection.json(), { own: { state: 'connected', kind: 'google_ai_pro' }, shared: false })
+  assert.deepEqual(connection.json(), { own: { state: 'connected', kind: 'google_ai_pro' } })
 })
 
 test('a pasted address with the wrong host, path or state is refused, and a refused sign-in fails', async (t) => {
@@ -418,15 +418,15 @@ test('one sign-in at a time: another person is told to wait, and the same person
   assert.deepEqual([replaced.statusCode, replaced.json().code], [404, 'MODEL_LOGIN_NOT_FOUND'], 'a restarted sign-in forgets the one it replaced')
 })
 
-test('the Builder offers the Google AI Pro models only to a person who can use them, own or shared', async (t) => {
-  const { app, as, share } = await createLoginApp(t)
-  const offered = async (query = '') => (await app.inject({ method: 'GET', url: `/api/control/model-accounts/models${query}`, ...authentic })).json().models.map(({ id }) => id)
-  assert.deepEqual([await offered(), await offered('?scope=installation')], [[], []])
+test('the Builder offers the Google AI Pro models only to a person with their own account', async (t) => {
+  const { app, as } = await createLoginApp(t)
+  const offered = async () => (await app.inject({ method: 'GET', url: '/api/control/model-accounts/models', ...authentic })).json().models.map(({ id }) => id)
+  assert.deepEqual(await offered(), [])
   const { loginId, url } = (await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })).json()
   await app.inject({ method: 'POST', url: `${base}/complete`, ...authentic, payload: { loginId, callbackUrl: callback(url) } })
   assert.equal(await pollUntilSettled(app, loginId), 'succeeded')
   const all = ['gemini-3.1-pro-low', 'gemini-pro-agent', 'gemini-3.8-flash-high', 'gemini-3.7-flash-high', 'gemini-3.6-flash-high', 'gemini-3-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'].map((model) => `google-ai-pro/${model}`)
-  assert.deepEqual([await offered(), await offered('?scope=installation')], [all, []])
+  assert.deepEqual(await offered(), all)
   const named = (await app.inject({ method: 'GET', url: `/api/control/model-accounts/models`, ...authentic })).json().models
   assert.deepEqual(new Set(named.map(({ providerName }) => providerName)), new Set(['Google AI Pro']))
   assert.equal((await app.inject({ method: 'GET', url: `/api/control/model-accounts/models`, ...authentic })).json().defaultThinkingLevel, 'medium', "the Hub sends the level a conversation runs at until the person picks one, as Mastra Code's resolveDefaultThinkingLevel gives it")
@@ -435,8 +435,6 @@ test('the Builder offers the Google AI Pro models only to a person who can use t
   ], "each model offers the levels Mastra Code's Gemini mapping gives it, off included where it sends nothing, and none to a model without thinking")
   as(bia)
   assert.deepEqual(await offered(), [], 'another person without an account is offered nothing')
-  share(ana)
-  assert.deepEqual([await offered(), await offered('?scope=installation')], [all, all])
 })
 
 test('the sign-in routes need a Hub session, and their writes need a write from the Hub page', async (t) => {

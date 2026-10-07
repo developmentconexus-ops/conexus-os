@@ -83,12 +83,10 @@ export function ChatGptAccount() {
   </section>
   const account = accounts.data.accounts.find((item) => item.provider === PROVIDER)
   const mine = account !== undefined && ownKind(account.own) !== null
-  const shared = account?.shared === true
   return <section aria-labelledby={titleId}>
     <h2 id={titleId}>ChatGPT</h2>
     <p className="cxs-hint">Use a sua assinatura do ChatGPT no Builder. Você entra com a sua conta da OpenAI no seu navegador; a Conexus nunca vê a sua senha.</p>
     {mine && <div><Chip tone="positive">Conectado com a sua conta do ChatGPT.</Chip></div>}
-    {!mine && shared && <div><Chip tone="neutral">Você usa a conta compartilhada com todos.</Chip></div>}
     {login
       ? <DeviceCode login={login} onCancel={() => setLogin(null)} onDone={(state) => { setLogin(null); setMessage({ text: OUTCOME[state], failed: state !== 'succeeded' }); void refresh() }} />
       : <div className="cxs-row-actions cxs-actions-start">

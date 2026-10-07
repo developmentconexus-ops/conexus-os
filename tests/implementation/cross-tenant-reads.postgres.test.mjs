@@ -46,8 +46,8 @@ const seed = async (fixture) => {
   await query(connection, `INSERT INTO connector.project_binding(binding_id, workspace_id, project_id, environment, connection_id, name, bound_by) VALUES
     ($1, $3, $5, 'preview', $7, 'erp', $9), ($2, $4, $6, 'preview', $8, 'erp', $10)`, [bindings.a, bindings.b, ID.workspace, ID.otherWorkspace, projects.a, projects.b, connections.a, connections.b, ID.owner, OTHER.owner])
   const models = { a: '55555555-5555-4555-8555-0000000000a1', b: '55555555-5555-4555-8555-0000000000b1' }
-  await query(connection, `INSERT INTO model.model_account(model_account_id, owner_account_id, provider, kind, secret) VALUES
-    ($1, $3, 'anthropic', 'api_key', $5), ($2, $4, 'anthropic', 'api_key', $5)`, [models.a, models.b, ID.member, OTHER.member, sealed])
+  await query(connection, `INSERT INTO model.model_account(model_account_id, scope, owner_account_id, provider, kind, secret, connected_by, connected_by_name, connected_at) VALUES
+    ($1, 'personal', $3, 'anthropic', 'api_key', $5, $3, 'A', clock_timestamp()), ($2, 'personal', $4, 'anthropic', 'api_key', $5, $4, 'B', clock_timestamp())`, [models.a, models.b, ID.member, OTHER.member, sealed])
   await query(connection, "INSERT INTO model.installation_default(role, model_id, updated_by) VALUES ('build', 'anthropic/x', $1), ('memory', 'anthropic/x', $1)", [ID.administrator])
   const revisions = { a: await seedRevision(connection, projects.a, { sourceRevision: 'a'.repeat(40), digest: 'a'.repeat(64) }), b: await seedRevision(connection, projects.b, { sourceRevision: 'b'.repeat(40), digest: 'b'.repeat(64) }) }
   await seedRevisionThumbnail(connection, revisions.a)

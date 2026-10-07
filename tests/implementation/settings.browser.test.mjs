@@ -9,7 +9,7 @@ const withServer = async (t) => {
   // This Hub runs no CLIProxyAPI unless a test says otherwise.
   await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => route.fulfill(problem('MODEL_LOGIN_UNAVAILABLE', 503)))
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ accounts: [{ provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', own: { state: 'absent' }, shared: false }] }),
+    status: 200, contentType: 'application/json', body: JSON.stringify({ accounts: [{ provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', own: { state: 'absent' } }] }),
   }))
   return { page, origin }
 }
@@ -133,7 +133,7 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
     const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
     if (!enabled) return route.fulfill(problem('MODEL_LOGIN_UNAVAILABLE', 503))
     writes.push([request.method(), path, request.postDataJSON?.() ?? null])
-    if (path === '/connection') return json(200, { own: connected ? { state: 'connected', kind: 'google_ai_pro' } : { state: 'absent' }, shared: false })
+    if (path === '/connection') return json(200, { own: connected ? { state: 'connected', kind: 'google_ai_pro' } : { state: 'absent' } })
     // Held open briefly so the test can observe the "Preparando…" label before the tab navigates.
     if (path === '/login/start') { await new Promise((resolve) => setTimeout(resolve, 200)); return json(200, { loginId, url: signIn }) }
     if (path === '/login/complete') {
@@ -186,7 +186,7 @@ test('Minhas contas de modelo shows Google AI Pro expired when the status read a
   await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => {
     const path = new URL(route.request().url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
     const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
-    if (path === '/connection') return json(200, { own: { state: 'absent' }, shared: false })
+    if (path === '/connection') return json(200, { own: { state: 'absent' } })
     if (path === '/login/start') return json(200, { loginId, url: 'https://accounts.google.com/o/oauth2/v2/auth?state=gone' })
     if (path === `/login/${loginId}`) return route.fulfill(problem('MODEL_LOGIN_NOT_FOUND', 404))
     return route.fulfill(notFound)
@@ -206,7 +206,7 @@ test('Minhas contas de modelo falls back to the primary sign-in link when the po
   await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => {
     const path = new URL(route.request().url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
     const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
-    if (path === '/connection') return json(200, { own: { state: 'absent' }, shared: false })
+    if (path === '/connection') return json(200, { own: { state: 'absent' } })
     if (path === '/login/start') return json(200, { loginId, url: signIn })
     if (path === `/login/${loginId}`) return json(200, { state: 'waiting' })
     return route.fulfill(notFound)
@@ -233,7 +233,7 @@ test('Minhas contas de modelo signs a person in to ChatGPT with a device code, a
   const calls = []
   await routeSession(page, { accountId: '10000000-0000-4000-8000-000000000009', displayName: 'Pessoa' }, false)
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({
-    status: 200, contentType: 'application/json', body: JSON.stringify({ accounts: [{ provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', own: connected ? { state: 'connected', kind: 'oauth' } : { state: 'absent' }, shared: false }] }),
+    status: 200, contentType: 'application/json', body: JSON.stringify({ accounts: [{ provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', own: connected ? { state: 'connected', kind: 'oauth' } : { state: 'absent' } }] }),
   }))
   await page.route('**/api/control/model-accounts/openai-codex/oauth/**', async (route) => {
     const request = route.request()
@@ -279,8 +279,8 @@ test('Minhas contas de modelo saves an Anthropic key and signs in with a Claude 
   await routeSession(page, { accountId: '10000000-0000-4000-8000-000000000009', displayName: 'Pessoa' }, false)
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({ accounts: [
-      { provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', own: { state: 'absent' }, shared: false },
-      { provider: 'anthropic', providerName: 'Anthropic (Claude)', own: kind === null ? { state: 'absent' } : { state: 'connected', kind }, shared: false },
+      { provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', own: { state: 'absent' } },
+      { provider: 'anthropic', providerName: 'Anthropic (Claude)', own: kind === null ? { state: 'absent' } : { state: 'connected', kind } },
     ] }),
   }))
   await page.route('**/api/control/model-accounts/anthropic/**', async (route) => {

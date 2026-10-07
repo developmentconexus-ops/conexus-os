@@ -97,13 +97,11 @@ export function GoogleAiProAccount() {
     <h2 id={titleId}>Google AI Pro</h2>
     <SectionError error={connection.error} description="Não foi possível consultar a sua conta Google AI Pro." onRetry={() => void connection.refetch()} />
   </section>
-  const { own, shared } = connection.data
-  const mine = ownKind(own) !== null
+  const mine = ownKind(connection.data.own) !== null
   return <section aria-labelledby={titleId}>
     <h2 id={titleId}>Google AI Pro</h2>
     <p className="cxs-hint">Use a sua assinatura Google AI Pro no Builder. Você entra com a sua conta Google no seu navegador; a Conexus nunca vê a sua senha.</p>
     {mine && <div><Chip tone="positive">Conectado com a sua conta Google.</Chip></div>}
-    {!mine && shared && <div><Chip tone="neutral">Você usa a conta compartilhada com todos.</Chip></div>}
     {login
       ? <SignIn login={login} autoOpened={autoOpened} onDone={(state) => { setLogin(null); setMessage({ text: OUTCOME[state], failed: state !== 'succeeded' }); void refresh() }} />
       : <div className="cxs-row-actions cxs-actions-start">

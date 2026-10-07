@@ -6,7 +6,7 @@ import { getProviderConfig } from '@mastra/core/llm'
 import type { FastifyInstance } from 'fastify'
 import {
   listAvailableModels, listModelAccounts, setModelAccountApiKey, startClaudeModelLogin, completeClaudeModelLogin, startCodexModelLogin, pollCodexModelLogin, getGoogleModelConnection, startGoogleModelLogin, completeGoogleModelLogin, getGoogleModelLoginStatus,
-  ModelLoginId, type AccountId, type ModelAccountProvider, type OfferedModel,
+  ModelLoginId, type ModelAccountProvider, type OfferedModel, type SessionAccount,
 } from '@conexus/contract'
 import { Failure } from '../platform/failure.js'
 import { serializeClaudeTokens } from './anthropic/credential.js'
@@ -19,7 +19,7 @@ import { serializeCodexTokens } from './openai-codex/credential.js'
 import { createCodexLogin, type CodexDevice } from './openai-codex/login.js'
 import { routes } from '../http/access.js'
 
-type Caller = Readonly<{ accountId: AccountId }>
+type Caller = Pick<SessionAccount, 'accountId' | 'displayName'>
 type Offer = readonly OfferedModel[]
 
 const shapeOf = (option: unknown): string => JSON.stringify(option) ?? 'undefined'
@@ -89,11 +89,6 @@ const OFFER_ORDER = ['google-ai-pro', 'openai-codex', 'anthropic'] as const sati
 
 const LISTED_PROVIDERS = ['openai-codex', 'anthropic'] as const satisfies readonly ModelAccountProvider[]
 
-/**
- * Model accounts on the Builder's own tables (spec 0002): Google AI Pro, the ChatGPT subscription,
- * and Anthropic by key or by Claude subscription. Sharing and the defaults screen are the rest of
- * slice 5.
- */
 export const registerModelAccountRoutes = async (app: FastifyInstance, { modelAccounts, defaultThinkingLevel, openaiCodexDevice, claudeAuthorization, googleAiPro }: Readonly<{
   modelAccounts: Pick<ModelAccounts, 'standing' | 'write' | 'connect'>
   defaultThinkingLevel: ThinkingLevelSetting
@@ -106,16 +101,16 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { modelAc
 }>): Promise<readonly ['listAvailableModels', 'listModelAccounts', 'setModelAccountApiKey', 'startClaudeModelLogin', 'completeClaudeModelLogin', 'startCodexModelLogin', 'pollCodexModelLogin', 'getGoogleModelConnection', 'startGoogleModelLogin', 'completeGoogleModelLogin', 'getGoogleModelLoginStatus']> => {
   const route = routes(app)
   const claudeLogin = createClaudeLogin<Caller>({
-    connect: ({ accountId }, tokens) => modelAccounts.connect({ accountId, credential: { provider: 'anthropic', kind: 'oauth' }, secret: serializeClaudeTokens(tokens) }),
+    connect: (account, tokens) => modelAccounts.connect({ account, credential: { provider: 'anthropic', kind: 'oauth' }, secret: serializeClaudeTokens(tokens) }),
     ...(claudeAuthorization ? { authorization: claudeAuthorization } : {}),
   })
   const codexLogin = createCodexLogin<Caller>({
-    connect: ({ accountId }, tokens) => modelAccounts.connect({ accountId, credential: { provider: 'openai-codex', kind: 'oauth' }, secret: serializeCodexTokens(tokens) }),
+    connect: (account, tokens) => modelAccounts.connect({ account, credential: { provider: 'openai-codex', kind: 'oauth' }, secret: serializeCodexTokens(tokens) }),
     ...(openaiCodexDevice ? { device: openaiCodexDevice } : {}),
   })
   const googleLogin = googleAiPro && createGoogleAiProLogin<Caller>({
     pool: googleAiPro,
-    connect: ({ accountId }, key) => modelAccounts.connect({ accountId, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: key }),
+    connect: (account, key) => modelAccounts.connect({ account, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: key }),
   })
   const google = (): NonNullable<typeof googleLogin> => {
     if (!googleLogin) throw new Failure('MODEL_LOGIN_UNAVAILABLE')
@@ -123,11 +118,9 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { modelAc
   }
   const unavailable = (error: unknown): never => { throw new Failure('MODEL_LOGIN_UNAVAILABLE', { cause: error }) }
 
-  route.operation(listAvailableModels, async ({ query }, session) => {
+  route.operation(listAvailableModels, async (_input, session) => {
     const standing = await modelAccounts.standing(session.account.accountId)
-    const usable = (provider: ModelAccountProvider): boolean =>
-      standing[provider].shared || (query.scope !== 'installation' && standing[provider].own.state === 'connected')
-    const offering = OFFER_ORDER.filter((provider) => usable(provider) && (provider !== 'google-ai-pro' || googleLogin))
+    const offering = OFFER_ORDER.filter((provider) => standing[provider].own.state === 'connected' && (provider !== 'google-ai-pro' || googleLogin))
     return { models: (await Promise.all(offering.map((provider) => OFFERS[provider]()))).flat(), defaultThinkingLevel }
   })
 
@@ -140,7 +133,7 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { modelAc
   // A key the person pastes becomes their own `api_key` row, sealed. The key is never sent back.
   route.operation(setModelAccountApiKey, async ({ params, body }, session) => {
     if (!MODEL_PROVIDERS[params.provider].keyShape.test(body.key)) throw new Failure('MODEL_ACCOUNT_KEY_REFUSED')
-    await modelAccounts.write({ accountId: session.account.accountId, credential: { provider: params.provider, kind: 'api_key' }, secret: body.key })
+    await modelAccounts.write({ account: session.account, credential: { provider: params.provider, kind: 'api_key' }, secret: body.key })
     return undefined
   })
 
@@ -157,8 +150,7 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { modelAc
 
   route.operation(getGoogleModelConnection, async (_input, session) => {
     google()
-    const { own, shared } = (await modelAccounts.standing(session.account.accountId))['google-ai-pro']
-    return { own, shared }
+    return (await modelAccounts.standing(session.account.accountId))['google-ai-pro']
   })
   route.operation(startGoogleModelLogin, async (_input, session) => google().start(session.account))
   route.operation(completeGoogleModelLogin, async ({ body }, session) => ({ state: await google().complete(session.account, body.loginId, body.callbackUrl) }))

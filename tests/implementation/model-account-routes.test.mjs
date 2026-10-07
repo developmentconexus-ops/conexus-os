@@ -17,7 +17,7 @@ const problem = (reply) => reply.json().type.replace('urn:conexus:problem:', '')
 const createApp = async (t, dependencies = {}, modelAccounts = fakeModelAccounts().modelAccounts) => {
   let registered
   const { app } = await testListener({
-    sessions: { [SESSION_TOKEN]: () => ({ account: { accountId: ana } }) },
+    sessions: { [SESSION_TOKEN]: () => ({ account: { accountId: ana, displayName: 'Ana' } }) },
     registerRoutes: async (instance) => {
       registered = await registerModelAccountRoutes(instance, { modelAccounts, defaultThinkingLevel: 'medium', ...dependencies })
       return registered

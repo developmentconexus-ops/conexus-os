@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { AccountId, ModelAccountId, type ModelAccountKind, type ModelAccountProvider } from '@conexus/contract'
+import { ModelAccountId, type AccountId, type ModelAccountKind, type ModelAccountProvider, type SessionAccount } from '@conexus/contract'
 import { admitAccount, admitSystem, type Admitted, type RunScope, type SystemScope } from '../../identity-access/admission.js'
 import { sql, type Database } from '../../platform/db.js'
 import { Failure } from '../../platform/failure.js'
@@ -24,12 +24,14 @@ export type HeldAccount<L extends Lawful = Lawful> = Readonly<{
 }>
 
 type OwnAccount = Readonly<{ state: 'absent' }> | Readonly<{ state: 'connected'; kind: ModelAccountKind }>
-type ModelStanding = Readonly<Record<ModelAccountProvider, Readonly<{ own: OwnAccount; shared: boolean }>>>
+type ModelStanding = Readonly<Record<ModelAccountProvider, Readonly<{ own: OwnAccount }>>>
+
+type Connecting = Pick<SessionAccount, 'accountId' | 'displayName'>
 
 export type ModelAccounts = Readonly<{
   standing(accountId: AccountId): Promise<ModelStanding>
-  write(input: Readonly<{ accountId: AccountId; credential: Lawful; secret: string }>): Promise<void>
-  connect(input: Readonly<{ accountId: AccountId; credential: Lawful; secret: string }>): Promise<ConnectResult>
+  write(input: Readonly<{ account: Connecting; credential: Lawful; secret: string }>): Promise<void>
+  connect(input: Readonly<{ account: Connecting; credential: Lawful; secret: string }>): Promise<ConnectResult>
   readDefault(accountId: AccountId, role: ModelRole): Promise<string | null>
   usable(accountId: AccountId, provider: ModelAccountProvider): Promise<boolean>
   select(run: HeldRun, provider: ModelAccountProvider): Promise<HeldAccount | null>
@@ -37,7 +39,6 @@ export type ModelAccounts = Readonly<{
 
 const SealedRow = z.object({ model_account_id: ModelAccountId, secret: z.string() }).and(LawfulCredential)
   .transform(({ model_account_id, secret, ...credential }) => ({ modelAccountId: model_account_id, credential, sealed: secret }))
-const StandingRow = z.object({ owner_account_id: AccountId, sharing: z.enum(['just_me', 'everyone']) }).and(LawfulCredential)
 const DefaultRow = z.object({ model_id: z.string() })
 
 export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ database: Database; envelope: SecretEnvelope; ownerId: string }>): ModelAccounts {
@@ -71,35 +72,32 @@ export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ 
 
   const readUsable = (accountId: AccountId, provider: ModelAccountProvider) => database.transaction(accountId, async (gate) => {
     const { tx, scope } = await admitAccount(gate)
-    return await tx.maybe(SealedRow, sql`
+    return tx.maybe(SealedRow, sql`
       SELECT model_account_id, provider, kind, secret FROM model.model_account
-      WHERE provider = ${provider} AND owner_account_id = ${scope.accountId}`)
-      ?? await tx.maybe(SealedRow, sql`
-        SELECT model_account_id, provider, kind, secret FROM model.model_account
-        WHERE provider = ${provider} AND sharing = 'everyone'`)
+      WHERE scope = 'personal' AND provider = ${provider} AND owner_account_id = ${scope.accountId}`)
   })
 
-  const write: ModelAccounts['write'] = async ({ accountId, credential, secret }) => {
+  const write: ModelAccounts['write'] = async ({ account, credential, secret }) => {
     const sealed = await envelope.seal(secret)
-    await database.transaction(accountId, async (gate) => {
+    await database.transaction(account.accountId, async (gate) => {
       const { tx, scope } = await admitAccount(gate)
       await tx.run(sql`
-        INSERT INTO model.model_account (owner_account_id, provider, kind, secret)
-        VALUES (${scope.accountId}, ${credential.provider}, ${credential.kind}, ${sealed})
-        ON CONFLICT (owner_account_id, provider) DO UPDATE
-          SET kind = EXCLUDED.kind, secret = EXCLUDED.secret, updated_at = clock_timestamp()
+        INSERT INTO model.model_account (scope, owner_account_id, provider, kind, secret, connected_by, connected_by_name, connected_at)
+        VALUES ('personal', ${scope.accountId}, ${credential.provider}, ${credential.kind}, ${sealed}, ${scope.accountId}, ${account.displayName}, clock_timestamp())
+        ON CONFLICT (owner_account_id, provider) WHERE scope = 'personal' DO UPDATE
+          SET kind = EXCLUDED.kind, secret = EXCLUDED.secret, connected_by = EXCLUDED.connected_by, connected_by_name = EXCLUDED.connected_by_name,
+            connected_at = EXCLUDED.connected_at, updated_at = clock_timestamp(), refused_at = NULL
           WHERE model_account.owner_account_id = ${scope.accountId}`)
     })
   }
 
   return Object.freeze({
     standing: (accountId) => database.read(accountId, async (tx) => {
-      const rows = await tx.rows(StandingRow, sql`
-        SELECT provider, kind, owner_account_id, sharing FROM model.model_account
-        WHERE owner_account_id = ${accountId} OR sharing = 'everyone'`)
+      const rows = await tx.rows(LawfulCredential, sql`
+        SELECT provider, kind FROM model.model_account WHERE scope = 'personal' AND owner_account_id = ${accountId}`)
       const of = (provider: ModelAccountProvider): ModelStanding[ModelAccountProvider] => {
-        const own = rows.find((row) => row.provider === provider && row.owner_account_id === accountId)
-        return { own: own ? { state: 'connected', kind: own.kind } : { state: 'absent' }, shared: rows.some((row) => row.provider === provider && row.sharing === 'everyone') }
+        const own = rows.find((row) => row.provider === provider)
+        return { own: own ? { state: 'connected', kind: own.kind } : { state: 'absent' } }
       }
       return { anthropic: of('anthropic'), 'openai-codex': of('openai-codex'), 'google-ai-pro': of('google-ai-pro') }
     }),

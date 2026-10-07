@@ -3,8 +3,7 @@ export const fakeModelAccounts = () => {
   const key = (owner, provider) => `${owner}:${provider}`
   let nextId = 1
   const revoked = new Set()
-  const shared = (provider) => [...rows.values()].find((row) => row.provider === provider && row.sharing === 'everyone') ?? null
-  const rowOf = (accountId, provider) => rows.get(key(accountId, provider)) ?? shared(provider)
+  const rowOf = (accountId, provider) => rows.get(key(accountId, provider)) ?? null
   const byId = (id) => [...rows.values()].find((row) => row.id === id) ?? null
   const held = (row, run) => ({
     modelAccountId: row.id,
@@ -22,13 +21,13 @@ export const fakeModelAccounts = () => {
       return true
     },
   })
-  const write = async ({ accountId, credential: { provider, kind }, secret }) => {
+  const write = async ({ account: { accountId, displayName }, credential: { provider, kind }, secret }) => {
     const existing = rows.get(key(accountId, provider))
-    rows.set(key(accountId, provider), { id: existing?.id ?? `row-${nextId++}`, owner: accountId, provider, kind, secret, sharing: existing?.sharing ?? 'just_me' })
+    rows.set(key(accountId, provider), { id: existing?.id ?? `row-${nextId++}`, owner: accountId, connectedByName: displayName, provider, kind, secret })
   }
   const standingOf = (accountId, provider) => {
     const own = rows.get(key(accountId, provider))
-    return { own: own ? { state: 'connected', kind: own.kind } : { state: 'absent' }, shared: shared(provider) !== null }
+    return { own: own ? { state: 'connected', kind: own.kind } : { state: 'absent' } }
   }
   const modelAccounts = {
     standing: async (accountId) => ({
@@ -45,10 +44,10 @@ export const fakeModelAccounts = () => {
       return row ? held(row, { builderRunId: run.builderRunId, accountId: run.accountId }) : null
     },
   }
-  const seed = (accountId, provider, kind, secret) => write({ accountId, credential: { provider, kind }, secret })
+  const seed = (accountId, provider, kind, secret) => write({ account: { accountId, displayName: 'Pessoa de teste' }, credential: { provider, kind }, secret })
   const rewrite = (id, secret) => { byId(id).secret = secret }
   const revoke = (builderRunId) => { revoked.add(builderRunId) }
-  return { modelAccounts, rows, seed, rewrite, revoke, share: (owner, provider) => { rows.get(key(owner, provider)).sharing = 'everyone' } }
+  return { modelAccounts, rows, seed, rewrite, revoke }
 }
 
 export const oneAccount = ({ modelAccountId, provider, kind, secret }) => ({

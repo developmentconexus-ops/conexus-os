@@ -65,7 +65,6 @@ export function ClaudeAccount() {
     <p className="cxs-hint">Use a sua assinatura Claude Pro ou Max no Builder. Você entra com a sua conta Claude no seu navegador; a Conexus nunca vê a sua senha.</p>
     {kind === 'oauth' && <div><Chip tone="positive">Conectado com a sua assinatura Claude.</Chip></div>}
     {kind !== null && kind !== 'oauth' && <p className="cxs-hint">Entrar com a assinatura substitui a chave de API da Anthropic que você salvou.</p>}
-    {kind === null && account?.shared && <div><Chip tone="neutral">Você usa a conta compartilhada com todos.</Chip></div>}
     {login
       ? <PasteCode login={login} onCancel={() => setLogin(null)} onDone={(state) => {
         setLogin(null)

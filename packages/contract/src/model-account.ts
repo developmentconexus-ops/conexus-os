@@ -33,7 +33,6 @@ export const ModelAccountEntry = z.object({
   provider: ModelAccountProvider,
   providerName: z.string(),
   own: OwnModelAccount,
-  shared: z.boolean(),
 }).meta({ id: 'ModelAccountEntry' })
 export type ModelAccountEntry = z.output<typeof ModelAccountEntry>
 
@@ -44,7 +43,7 @@ const noParams = { params: null, headers: null } as const
 
 export const listAvailableModels = operation({
   id: 'listAvailableModels', summary: 'List the models the Builder picker offers the current Account.', access: 'session', method: 'GET', path: '/api/control/model-accounts/models',
-  ...noParams, query: z.object({ scope: z.literal('installation').optional() }).strict(), body: null,
+  ...noParams, query: null, body: null,
   success: { 200: z.object({ models: z.array(OfferedModel), defaultThinkingLevel: ThinkingLevel }) },
   effects: [], failures: [], malformed: null,
 })
@@ -96,7 +95,7 @@ export const pollCodexModelLogin = operation({
 export const getGoogleModelConnection = operation({
   id: 'getGoogleModelConnection', summary: 'Read the Google connection of the current Account.', access: 'session', method: 'GET', path: '/api/control/model-accounts/google-ai-pro/connection',
   ...noParams, query: null, body: null,
-  success: { 200: z.object({ own: OwnModelAccount, shared: z.boolean() }) },
+  success: { 200: z.object({ own: OwnModelAccount }) },
   effects: [], failures: ['MODEL_LOGIN_UNAVAILABLE'], malformed: null,
 })
 

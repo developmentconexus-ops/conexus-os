@@ -48,7 +48,6 @@ const TENANT_B = Object.freeze({
   'workspace.workspace': 'workspace_id = $1',
   'model.installation_default': 'updated_by IN (SELECT account_id FROM iam.workspace_membership WHERE workspace_id = $1)',
   'model.model_account': 'owner_account_id IN (SELECT account_id FROM iam.workspace_membership WHERE workspace_id = $1)',
-  'model.model_account_sharing_history': 'changed_by_account_id IN (SELECT account_id FROM iam.workspace_membership WHERE workspace_id = $1)',
   'platform.operation_receipt': 'resource_id IN ($1, $2)',
   'project.project': 'workspace_id = $1',
   'project.project_deletion': 'workspace_id = $1',
@@ -99,9 +98,8 @@ const seedTenantB = async ({ connection, seedProject }, projectId, sealed) => {
     ($1, $2, $3, 'preview', $4, 'erp', $5)`, [BINDING_B, ID.otherWorkspace, projectId, CONNECTION.b, OTHER.owner])
   await query(connection, `INSERT INTO platform.operation_receipt(operation_id, authority, account_id, key_digest, request_digest, resource_id, state)
     VALUES ('createProject', 'account:b', $1, $2, $3, $4, 'reserved')`, [OTHER.owner, Buffer.from('k'), Buffer.from('r'), projectId])
-  const privateOfB = (await query(connection, `INSERT INTO model.model_account(owner_account_id, provider, kind, secret) VALUES
-    ($1, 'anthropic', 'api_key', $2), ($1, 'google-ai-pro', 'google_ai_pro', $2) RETURNING model_account_id`, [OTHER.owner, await sealed('private-of-b')])).rows[0].model_account_id
-  await query(connection, "INSERT INTO model.model_account_sharing_history(model_account_id, previous_sharing, new_sharing, changed_by_account_id) VALUES ($1, 'just_me', 'everyone', $2)", [privateOfB, OTHER.owner])
+  await query(connection, `INSERT INTO model.model_account(scope, owner_account_id, provider, kind, secret, connected_by, connected_by_name, connected_at) VALUES
+    ('personal', $1, 'anthropic', 'api_key', $2, $1, 'Outro', clock_timestamp()), ('personal', $1, 'google-ai-pro', 'google_ai_pro', $2, $1, 'Outro', clock_timestamp())`, [OTHER.owner, await sealed('private-of-b')])
   await query(connection, "INSERT INTO model.installation_default(role, model_id, updated_by) VALUES ('build', 'anthropic/claude-sonnet-5', $1)", [OTHER.owner])
 }
 
@@ -179,7 +177,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   const FOREIGN_BASE = 'c'.repeat(40)
   const connectors = createConnectorStore({ database, envelope })
   const modelAccounts = createModelAccounts({ database, envelope, ownerId: randomUUID() })
-  await query(connection, "INSERT INTO model.model_account(owner_account_id, provider, kind, secret) VALUES ($1, 'openai-codex', 'oauth', $2)", [member, await envelope.seal('codex-of-member')])
+  await query(connection, "INSERT INTO model.model_account(scope, owner_account_id, provider, kind, secret, connected_by, connected_by_name, connected_at) VALUES ('personal', $1, 'openai-codex', 'oauth', $2, $1, 'Membro', clock_timestamp())", [member, await envelope.seal('codex-of-member')])
   const KEY = { provider: 'anthropic', kind: 'api_key' }
   const before = await digestOfB(connection, projectB)
   const revisionOfA = (await query(connection, 'SELECT project_revision FROM project.project WHERE project_id = $1', [projectA])).rows[0].project_revision
@@ -217,7 +215,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   const ADMINISTRATORS = '/api/control/installation/administrators'
   let bindingOfA
   let administratorAdded
-  const ABSENT = { own: { state: 'absent' }, shared: false }
+  const ABSENT = { own: { state: 'absent' } }
   const attempts = {
     'getSession': {
       own: async () => {
@@ -327,12 +325,12 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       child: () => refused('administrator', 'DELETE', `${ADMINISTRATORS}/${OTHER.owner}`, 404, 'INSTALLATION_ADMINISTRATOR_NOT_FOUND'),
     },
     'listAvailableModels': {
-      own: async () => assert.deepEqual((await modelAccounts.standing(member))['openai-codex'], { own: { state: 'connected', kind: 'oauth' }, shared: false }),
+      own: async () => assert.deepEqual((await modelAccounts.standing(member))['openai-codex'], { own: { state: 'connected', kind: 'oauth' } }),
       cross: async () => assert.deepEqual((await modelAccounts.standing(member)).anthropic, ABSENT),
       child: null,
     },
     'listModelAccounts': {
-      own: async () => assert.deepEqual(await modelAccounts.standing(member), { anthropic: ABSENT, 'openai-codex': { own: { state: 'connected', kind: 'oauth' }, shared: false }, 'google-ai-pro': ABSENT }),
+      own: async () => assert.deepEqual(await modelAccounts.standing(member), { anthropic: ABSENT, 'openai-codex': { own: { state: 'connected', kind: 'oauth' } }, 'google-ai-pro': ABSENT }),
       cross: async () => assert.deepEqual((await modelAccounts.standing(member)).anthropic, ABSENT),
       child: null,
     },
@@ -343,30 +341,30 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
     },
     'setModelAccountApiKey': {
       own: async () => {
-        await modelAccounts.write({ accountId: member, credential: KEY, secret: 'key-of-member' })
-        assert.deepEqual((await query(connection, "SELECT provider, kind, sharing FROM model.model_account WHERE owner_account_id = $1 AND provider = 'anthropic'", [member])).rows, [{ provider: 'anthropic', kind: 'api_key', sharing: 'just_me' }])
+        await modelAccounts.write({ account: { accountId: member, displayName: 'Membro' }, credential: KEY, secret: 'key-of-member' })
+        assert.deepEqual((await query(connection, "SELECT scope, provider, kind FROM model.model_account WHERE owner_account_id = $1 AND provider = 'anthropic'", [member])).rows, [{ scope: 'personal', provider: 'anthropic', kind: 'api_key' }])
       },
-      cross: () => assert.rejects(modelAccounts.write({ accountId: randomUUID(), credential: KEY, secret: 'intruder' }), { id: 'ACCOUNT_NOT_FOUND' }),
+      cross: () => assert.rejects(modelAccounts.write({ account: { accountId: randomUUID(), displayName: 'Membro' }, credential: KEY, secret: 'intruder' }), { id: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'completeClaudeModelLogin': {
-      own: async () => assert.deepEqual(await modelAccounts.connect({ accountId: member, credential: { provider: 'anthropic', kind: 'oauth' }, secret: 'tokens' }), { ok: true }),
-      cross: async () => assert.deepEqual(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'anthropic', kind: 'oauth' }, secret: 'tokens' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
+      own: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: member, displayName: 'Membro' }, credential: { provider: 'anthropic', kind: 'oauth' }, secret: 'tokens' }), { ok: true }),
+      cross: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: randomUUID(), displayName: 'Membro' }, credential: { provider: 'anthropic', kind: 'oauth' }, secret: 'tokens' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'completeGoogleModelLogin': {
-      own: async () => assert.deepEqual(await modelAccounts.connect({ accountId: member, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: true }),
-      cross: async () => assert.deepEqual(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
+      own: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: member, displayName: 'Membro' }, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: true }),
+      cross: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: randomUUID(), displayName: 'Membro' }, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'pollCodexModelLogin': {
-      own: async () => assert.deepEqual(await modelAccounts.connect({ accountId: member, credential: { provider: 'openai-codex', kind: 'oauth' }, secret: 'tokens' }), { ok: true }),
-      cross: async () => assert.deepEqual(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'openai-codex', kind: 'oauth' }, secret: 'tokens' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
+      own: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: member, displayName: 'Membro' }, credential: { provider: 'openai-codex', kind: 'oauth' }, secret: 'tokens' }), { ok: true }),
+      cross: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: randomUUID(), displayName: 'Membro' }, credential: { provider: 'openai-codex', kind: 'oauth' }, secret: 'tokens' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'getGoogleModelLoginStatus': {
-      own: async () => assert.deepEqual(await modelAccounts.connect({ accountId: member, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: true }),
-      cross: async () => assert.deepEqual(await modelAccounts.connect({ accountId: randomUUID(), credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
+      own: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: member, displayName: 'Membro' }, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: true }),
+      cross: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: randomUUID(), displayName: 'Membro' }, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'createWorkspace': {

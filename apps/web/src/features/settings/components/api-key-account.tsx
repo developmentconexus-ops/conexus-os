@@ -49,7 +49,6 @@ export function ApiKeyAccount({ provider }: Readonly<{ provider: keyof typeof AP
     </p>
     {kind === 'api_key' && <div><Chip tone="positive">Conectado com a sua chave.</Chip></div>}
     {kind !== null && kind !== 'api_key' && <p className="cxs-hint">Salvar uma chave substitui a outra forma de acesso que você conectou para a {name}.</p>}
-    {kind === null && account?.shared && <div><Chip tone="neutral">Você usa a conta compartilhada com todos.</Chip></div>}
     <form className="cxs-connect-step" onSubmit={(event: FormEvent) => { event.preventDefault(); setMessage(null); save.mutate() }}>
       <label htmlFor={keyId}>Chave de API</label>
       <Input id={keyId} type="password" value={key} onChange={(event) => setKey(event.target.value)} autoComplete="off" spellCheck={false} placeholder={placeholder} />

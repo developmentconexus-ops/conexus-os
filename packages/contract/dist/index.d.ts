@@ -4209,9 +4209,7 @@ export declare const OPERATIONS: {
         };
     };
     readonly listAvailableModels: {
-        readonly query: import("zod").ZodObject<{
-            scope: import("zod").ZodOptional<import("zod").ZodLiteral<"installation">>;
-        }, import("zod/v4/core").$strict>;
+        readonly query: null;
         readonly body: null;
         readonly success: {
             readonly 200: import("zod").ZodObject<{
@@ -4272,7 +4270,6 @@ export declare const OPERATIONS: {
                             google_ai_pro: "google_ai_pro";
                         }>;
                     }, import("zod/v4/core").$strip>], "state">;
-                    shared: import("zod").ZodBoolean;
                 }, import("zod/v4/core").$strip>>;
             }, import("zod/v4/core").$strip>;
         };
@@ -4423,7 +4420,6 @@ export declare const OPERATIONS: {
                         google_ai_pro: "google_ai_pro";
                     }>;
                 }, import("zod/v4/core").$strip>], "state">;
-                shared: import("zod").ZodBoolean;
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];

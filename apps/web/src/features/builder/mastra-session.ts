@@ -73,13 +73,15 @@ export const useConversationActions = (projectId: string) => {
 export type BuilderModel = OfferedModel
 
 /**
- * The models this person can reach with their own model account or the installation's shared one.
+ * The models this person can reach with a model account.
  * The controller's own list reads only the host's keys, the same for everyone, so the Hub answers.
  */
-export const useBuilderModels = (scope?: 'installation') => useQuery({
-  queryKey: ['builder-models', scope ?? 'mine'],
-  queryFn: () => call(listAvailableModels, { params: undefined, query: scope ? { scope } : {}, headers: undefined, body: undefined }),
-})
+export function useBuilderModels() {
+  return useQuery({
+    queryKey: ['builder-models'],
+    queryFn: () => call(listAvailableModels, { params: undefined, query: undefined, headers: undefined, body: undefined }),
+  })
+}
 
 /** Mastra Code's own thinking levels, lowest first; the Hub offers each model the ones it honors. */
 export type ReasoningLevel = ThinkingLevelSetting

@@ -123,9 +123,6 @@ export const createCliproxyPool = ({ binary, stateDir, idleMs = 10 * 60_000, rea
 }>): CliproxyPool => {
   const instances = new Map<InstanceId, Instance>()
   const logins = new Set<LoginInstance>()
-  // The most recent acquire() caller to name a write-back target for this instance. The pool
-  // itself never learns which account owns an instance; whoever resolves that (part 1c's model
-  // resolution) is the one who can supply it.
   const refreshTargets = new Map<InstanceId, PersistGoogleAiProRefresh>()
   let closed = false
 

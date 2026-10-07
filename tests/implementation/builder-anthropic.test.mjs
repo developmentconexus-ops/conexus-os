@@ -25,7 +25,8 @@ const authentic = {
 const fakeKey = `sk-ant-api03-${'x'.repeat(40)}`
 const tokens = (label, expires) => ({ access: `access-${label}`, refresh: `refresh-${label}`, expires })
 
-const write = (modelAccounts, accountId, kind, secret) => modelAccounts.write({ accountId, credential: { provider: 'anthropic', kind }, secret })
+const NAMES = { [ana]: 'Ana', [bia]: 'Bia' }
+const write = (modelAccounts, accountId, kind, secret) => modelAccounts.write({ account: { accountId, displayName: NAMES[accountId] }, credential: { provider: 'anthropic', kind }, secret })
 
 // Anthropic's authorization endpoints, scripted: the pasted code `good#verifier-N` is the one Anthropic accepts.
 const fakeAuthorization = () => {
@@ -48,11 +49,11 @@ const fakeAuthorization = () => {
 }
 
 const createApp = async (t) => {
-  const { modelAccounts, rows, share } = fakeModelAccounts()
+  const { modelAccounts, rows } = fakeModelAccounts()
   const { authorization, exchanged } = fakeAuthorization()
   let caller = ana
   const { app } = await testListener({
-    sessions: { [SESSION_TOKEN]: () => ({ account: { accountId: caller } }) },
+    sessions: { [SESSION_TOKEN]: () => ({ account: { accountId: caller, displayName: NAMES[caller] } }) },
     registerRoutes: async (instance) => {
       await registerModelAccountRoutes(instance, {
         modelAccounts,
@@ -63,7 +64,7 @@ const createApp = async (t) => {
     },
   })
   t.after(() => app.close())
-  return { app, modelAccounts, rows, share, exchanged, as: (accountId) => { caller = accountId } }
+  return { app, modelAccounts, rows, exchanged, as: (accountId) => { caller = accountId } }
 }
 
 const putKey = (app, key, { provider = 'anthropic', headers = authentic.headers } = {}) =>
@@ -73,19 +74,19 @@ const claudeBase = '/api/control/model-accounts/anthropic/oauth'
 const startClaude = async (app) => (await app.inject({ method: 'POST', url: `${claudeBase}/start`, ...authentic, payload: {} })).json()
 const completeClaude = async (app, loginId, code) =>
   (await app.inject({ method: 'POST', url: `${claudeBase}/complete`, ...authentic, payload: { loginId, code } })).json()
-const rowsOf = (rows) => [...rows.values()].map(({ owner, provider, kind, sharing }) => ({ owner, provider, kind, sharing }))
+const rowsOf = (rows) => [...rows.values()].map(({ owner, connectedByName, provider, kind }) => ({ owner, connectedByName, provider, kind }))
 
 test('a pasted Anthropic key becomes the person\'s own api_key row, and no answer ever carries it back', async (t) => {
   const { app, rows } = await createApp(t)
   const stored = await putKey(app, `  ${fakeKey}\n`)
   assert.deepEqual([stored.statusCode, stored.body], [204, ''])
-  assert.deepEqual(rowsOf(rows), [{ owner: ana, provider: 'anthropic', kind: 'api_key', sharing: 'just_me' }])
+  assert.deepEqual(rowsOf(rows), [{ owner: ana, connectedByName: 'Ana', provider: 'anthropic', kind: 'api_key' }])
   assert.equal([...rows.values()][0].secret, fakeKey, 'the row holds the key without the pasted whitespace')
 
   const listed = await accounts(app)
   assert.deepEqual(listed.json(), { accounts: [
-    { provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', own: { state: 'absent' }, shared: false },
-    { provider: 'anthropic', providerName: 'Anthropic (Claude)', own: { state: 'connected', kind: 'api_key' }, shared: false },
+    { provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', own: { state: 'absent' } },
+    { provider: 'anthropic', providerName: 'Anthropic (Claude)', own: { state: 'connected', kind: 'api_key' } },
   ] })
   assert.doesNotMatch(listed.body, /sk-ant-/)
 })
@@ -115,10 +116,10 @@ test('signing in with a Claude subscription takes the pasted code, stores the to
   assert.deepEqual(await completeClaude(app, started.loginId, 'good#verifier-1'), { state: 'succeeded' }, 'the same sign-in takes a corrected paste')
   assert.deepEqual(exchanged, [['typo#verifier-1', 'verifier-1'], ['good#verifier-1', 'verifier-1']], 'the verifier never left the Hub, and each paste was exchanged with it')
 
-  assert.deepEqual(rowsOf(rows), [{ owner: ana, provider: 'anthropic', kind: 'oauth', sharing: 'just_me' }])
+  assert.deepEqual(rowsOf(rows), [{ owner: ana, connectedByName: 'Ana', provider: 'anthropic', kind: 'oauth' }])
   assert.deepEqual(parseClaudeTokens([...rows.values()][0].secret), tokens('signed-in', 9_999_999_999_999))
   const listed = await accounts(app)
-  assert.deepEqual(listed.json().accounts[1], { provider: 'anthropic', providerName: 'Anthropic (Claude)', own: { state: 'connected', kind: 'oauth' }, shared: false })
+  assert.deepEqual(listed.json().accounts[1], { provider: 'anthropic', providerName: 'Anthropic (Claude)', own: { state: 'connected', kind: 'oauth' } })
   assert.deepEqual(await completeClaude(app, started.loginId, 'good#verifier-1'), { state: 'expired' }, 'a finished sign-in is gone')
   assert.doesNotMatch(listed.body, /access-|refresh-/)
 })
@@ -147,9 +148,9 @@ const CATALOG_MODELS = [
   'claude-opus-4-8', 'claude-opus-5', 'claude-opus-5-5', 'claude-sonnet-4-5', 'claude-sonnet-4-5-20250929', 'claude-sonnet-4-6', 'claude-sonnet-5',
 ]
 
-test("the picker offers every chat model of Mastra's catalog to a person with either kind of Anthropic account, own or shared, each with the levels Mastra Code sends it", async (t) => {
-  const { app, modelAccounts, share, as } = await createApp(t)
-  const offered = async (query = '') => (await app.inject({ method: 'GET', url: `/api/control/model-accounts/models${query}`, ...authentic })).json().models
+test("the picker offers every chat model of Mastra's catalog to a person with either kind of own Anthropic account, each with the levels Mastra Code sends it", async (t) => {
+  const { app, modelAccounts, as } = await createApp(t)
+  const offered = async () => (await app.inject({ method: 'GET', url: '/api/control/model-accounts/models', ...authentic })).json().models
   assert.deepEqual(await offered(), [])
   await putKey(app, fakeKey)
   const claude = await offered()
@@ -166,11 +167,8 @@ test("the picker offers every chat model of Mastra's catalog to a person with ei
   })
   await write(modelAccounts, ana, 'oauth', serializeClaudeTokens(tokens('signed-in', 1)))
   assert.deepEqual(await offered(), claude)
-  assert.deepEqual(await offered('?scope=installation'), [])
   as(bia)
-  assert.deepEqual(await offered(), [])
-  share(ana, 'anthropic')
-  assert.deepEqual([await offered(), await offered('?scope=installation')], [claude, claude])
+  assert.deepEqual(await offered(), [], "another person's account offers nothing")
 })
 
 const routingOver = ({ modelAccounts, holds = createClaudeHolds({}) }) => {
@@ -222,19 +220,14 @@ const recordKeyUpstream = (t) => {
 }
 
 test('an Anthropic key pays on the Messages endpoint with the caller\'s key, and the run records the row', async (t) => {
-  const { modelAccounts, rows, share } = fakeModelAccounts()
+  const { modelAccounts, rows } = fakeModelAccounts()
   await write(modelAccounts, ana, 'api_key', fakeKey)
   const seen = recordKeyUpstream(t)
   const { call, recorded } = routingOver({ modelAccounts })
   await assert.rejects((await call(RUN_1, ana, 'anthropic/claude-sonnet-5')).doStream({ prompt }))
   assert.deepEqual(recorded, [[RUN_1, rows.get(`${ana}:anthropic`).id]])
   await assert.rejects(call(RUN_2, bia, 'anthropic/claude-sonnet-5'), /BUILDER_MODEL_NOT_SELECTED/, 'a person without an Anthropic account is told to connect one')
-  share(ana, 'anthropic')
-  await assert.rejects((await call(RUN_2, bia, 'anthropic/claude-haiku-4-5')).doStream({ prompt }))
-  assert.deepEqual(seen, [
-    { url: 'https://api.anthropic.com/v1/messages', apiKey: fakeKey, model: 'claude-sonnet-5' },
-    { url: 'https://api.anthropic.com/v1/messages', apiKey: fakeKey, model: 'claude-haiku-4-5' },
-  ])
+  assert.deepEqual(seen, [{ url: 'https://api.anthropic.com/v1/messages', apiKey: fakeKey, model: 'claude-sonnet-5' }])
 })
 
 test('a Claude subscription pays with its bearer on the Messages endpoint, with the betas and identity message Mastra Code sends and no key header', async (t) => {

@@ -6442,17 +6442,7 @@
       "get": {
         "operationId": "listAvailableModels",
         "summary": "List the models the Builder picker offers the current Account.",
-        "parameters": [
-          {
-            "name": "scope",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "const": "installation"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": "Success 200",
@@ -7505,14 +7495,10 @@
                   "properties": {
                     "own": {
                       "$ref": "#/components/schemas/OwnModelAccount"
-                    },
-                    "shared": {
-                      "type": "boolean"
                     }
                   },
                   "required": [
-                    "own",
-                    "shared"
+                    "own"
                   ],
                   "additionalProperties": false
                 }
@@ -11027,16 +11013,12 @@
           },
           "own": {
             "$ref": "#/components/schemas/OwnModelAccount"
-          },
-          "shared": {
-            "type": "boolean"
           }
         },
         "required": [
           "provider",
           "providerName",
-          "own",
-          "shared"
+          "own"
         ],
         "additionalProperties": false
       },
