@@ -1,9 +1,13 @@
 # 0019. One failure contract across the application runner and clients
 
-**Date**: 2026-10-07  
-**Status**: Proposed  
-**Lane**: lane:qualification (Q-b: runner fd 3 and prepare HTTP failure formats change; Q-c: the final proof includes a real consumer and durable evidence)  
-**Wave branch**: wave/error-model  
+**Date**: 2026-10-07
+
+**Status**: Proposed
+
+**Lane**: lane:qualification (Q-b: runner fd 3 and prepare HTTP failure formats change; Q-c: the final proof includes a real consumer and durable evidence)
+
+**Wave branch**: wave/error-model
+
 **Study**: The planning session's approved error-pattern study of 2026-10-06, including its census, reference review and industry review; the failure-table study of 2026-10-03 and code-health study §7. These read-only inputs remain outside this public repository.
 
 ## Summary
