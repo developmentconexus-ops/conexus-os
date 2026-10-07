@@ -13,9 +13,9 @@ const recorded = () => {
 test('a failure that wraps a named failure logs the code and invariant of the one it wraps', () => {
   const { lines, log } = recorded()
   const broken = new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'SERVED_POINTER_BROKEN' } })
-  logFailure(log, new Failure('PROJECT_THUMBNAIL_UNAVAILABLE', { cause: broken, details: { projectId: 'p' } }))
+  logFailure(log, new Failure('DATABASE_UNAVAILABLE', { cause: broken, details: { projectId: 'p' } }))
   assert.equal(lines.length, 1)
-  assert.equal(lines[0].message, 'PROJECT_THUMBNAIL_UNAVAILABLE')
+  assert.equal(lines[0].message, 'DATABASE_UNAVAILABLE')
   assert.equal(lines[0].fields['failure.details.projectId'], 'p')
   assert.equal(lines[0].fields['failure.cause.code'], 'INTERNAL_UNEXPECTED')
   assert.equal(lines[0].fields['failure.cause.invariant'], 'SERVED_POINTER_BROKEN')
@@ -23,7 +23,7 @@ test('a failure that wraps a named failure logs the code and invariant of the on
 
 test('a failure whose cause is not a failure adds no cause fields', () => {
   const { lines, log } = recorded()
-  logFailure(log, new Failure('PROJECT_THUMBNAIL_UNAVAILABLE', { cause: new Error('DATABASE_DOWN') }))
+  logFailure(log, new Failure('DATABASE_UNAVAILABLE', { cause: new Error('DATABASE_DOWN') }))
   assert.deepEqual(Object.keys(lines[0].fields).filter((key) => key.startsWith('failure.cause.')), [])
 })
 
