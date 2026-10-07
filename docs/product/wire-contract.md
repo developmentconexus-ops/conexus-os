@@ -72,7 +72,8 @@ path that names an operation turns the API into a remote procedure call that no 
 - A request **must** be parsed once, at its route, against the contract schema. The handler trusts
   the parsed value.
 - A path id **must** have a params schema with the id's format. A malformed id **must** answer the
-  operation's `malformed` row (404 for a Project or Workspace id) before any store call.
+  operation's `malformed` row before any store call. Malformed and undisclosed Workspace/Project
+  subjects use the shared `SUBJECT_NOT_FOUND` mapping exported by the contract.
 - `GET` and `HEAD` **must not** change state.
 - A `POST` that creates something **must** take an `Idempotency-Key`.
 
@@ -93,6 +94,9 @@ returns the first result.
 - A schema **must not** be a generic carrier such as `AnyResource`, `GenericResult` or
   `ProviderPayload`.
 - An unknown or partial value **must** be a state in the schema, never a `null` or a zero.
+- A Project detail, list row or card **must** discriminate `live` from `deleting`. A deleting
+  reply carries only its Project identity and `state`; it must not invent live fields to fill the
+  shape.
 - Bytes **must** be reached through their owning operation. A storage key, object path or signed URL
   **must not** authorize by possession.
 
@@ -168,6 +172,8 @@ stale write visible instead of silent.
   one repository, and a change **must** update both in the same pull request.
 - A removed field or operation **must** leave the contract, the Hub and the client together. There
   is no deprecation period.
+- A changed Project state payload **must** update its contract, Hub projection and web consumers in
+  the same change.
 
 **Why.** One deploy carries both sides, so a version or a deprecation window only keeps dead code.
 

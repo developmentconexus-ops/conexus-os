@@ -395,7 +395,7 @@ test("a run's question waits on the conversation's one session, the browser's, t
   const openSession = createControllerRunSessions({ controller, conversations, readDefaultModel: async () => 'anthropic/default-model' })
   const bind = (runId) => (requestContext) => bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId: runId, conversationId })
   // The browser's session, made before the first run the way the route guard makes it.
-  const conversation = await conversations.open({ projectId, conversationId })
+  const conversation = await conversations.open({ accountId: RUN_CONTEXT.accountId, projectId, conversationId })
   assert.equal(conversation.model.hasSelection(), false, 'a new conversation has no model of its own')
   assert.equal(conversation.getWorkspace()?.id, 'run-ws-1', 'the session stands on the conversation\'s sandbox from the start')
   const run = await openSession({ projectId, conversationId, builderRunId, bindContext: bind(builderRunId) })
@@ -434,9 +434,9 @@ test("a run's question waits on the conversation's one session, the browser's, t
   assert.equal(conversation.model.get(), 'anthropic/chosen-model', 'the next run keeps the conversation\'s model')
   await next.release()
   // A killed VM ends the conversation's instance and its session; the next open stands on a new one.
-  await (await conversations.sandbox({ projectId, conversationId })).kill()
+  await (await conversations.sandbox({ accountId: RUN_CONTEXT.accountId, projectId, conversationId })).kill()
   assert.equal(await controller.getSessionByResource(`project:${projectId}`, `conversation:${conversationId}`), undefined)
-  const remade = await conversations.open({ projectId, conversationId })
+  const remade = await conversations.open({ accountId: RUN_CONTEXT.accountId, projectId, conversationId })
   assert.deepEqual({ same: remade === conversation, workspace: remade.getWorkspace()?.id }, { same: false, workspace: 'run-ws-2' })
 })
 

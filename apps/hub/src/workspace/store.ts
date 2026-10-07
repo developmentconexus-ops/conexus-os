@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { WorkspaceId, WorkspaceName, createWorkspace, type AccountId, type Input, type Reply } from '@conexus/contract'
-import { admitAccount, grantCreatorMembership, receiptOf } from '../identity-access/admission.js'
+import { admitAccount, grantCreatorMembership, readAdministratorFlag, receiptOf } from '../identity-access/admission.js'
 import type { Database } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { idempotent } from '../platform/receipt.js'
@@ -16,8 +16,17 @@ export type WorkspaceStore = Readonly<{
 }>
 
 export const createWorkspaceStore = (database: Database): WorkspaceStore => Object.freeze({
-  list: (accountId) => database.read(accountId, (tx) =>
-    tx.rows(WorkspaceRow, sql`SELECT workspace_id, name FROM workspace.workspace ORDER BY name, workspace_id`)),
+  list: (accountId) => database.read(accountId, async (gate) => {
+    const proof = await admitAccount(gate)
+    if (await readAdministratorFlag(proof)) {
+      return proof.tx.rows(WorkspaceRow, sql`SELECT workspace_id, name FROM workspace.workspace ORDER BY name, workspace_id`)
+    }
+    return proof.tx.rows(WorkspaceRow, sql`
+        SELECT stored.workspace_id, stored.name FROM workspace.workspace AS stored
+        JOIN iam.workspace_membership AS membership ON membership.workspace_id = stored.workspace_id
+        WHERE membership.account_id = ${proof.scope.accountId}
+        ORDER BY stored.name, stored.workspace_id`)
+  }),
   createWorkspace: ({ accountId, idempotencyKey, body }) => database.transaction(accountId, async (gate) => {
     const creator = await admitAccount(gate)
     return idempotent(receiptOf(creator), createWorkspace, idempotencyKey, { params: undefined, query: undefined, body }, WorkspaceId, async (workspaceId): Promise<Reply<typeof createWorkspace>> => {

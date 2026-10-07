@@ -1,7 +1,7 @@
 // A refusal is read here too (see failure.ts), and a 401 drops what the page learned while signed in.
 
 import { HubFailure, readFailure } from './failure.ts'
-import { clearAuthorityCache } from './query-client'
+import { clearAuthorityCache, clearProjectCache, refreshProjectCache } from './query-client'
 import type { AnyOperation, BinaryOperation, Input, JsonOperation, Result } from '@conexus/contract'
 
 const urlOf = (op: AnyOperation, input: Input<AnyOperation>): string => {
@@ -44,7 +44,15 @@ export async function call(op: JsonOperation, input: Input<AnyOperation>, option
   }
   if (response.headers.get('content-type')?.split(';', 1)[0] === 'application/problem+json') {
     if (response.status === 401) clearAuthorityCache()
-    throw await readFailure(response)
+    const failure = await readFailure(response)
+    if (typeof input.params === 'object' && input.params !== null && 'projectId' in input.params && typeof input.params.projectId === 'string') {
+      if (failure.code === 'PROJECT_NOT_FOUND') {
+        clearProjectCache(input.params.projectId)
+        if (op.id !== 'getProject') refreshProjectCache(input.params.projectId)
+      }
+      if (failure.code === 'PROJECT_DELETING') refreshProjectCache(input.params.projectId)
+    }
+    throw failure
   }
   const success = Object.entries(op.success)
   const entry = success.find(([status]) => Number(status) === response.status)

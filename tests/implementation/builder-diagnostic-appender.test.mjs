@@ -24,6 +24,7 @@ const { createBuilderController } = await bundle('apps/hub/src/builder/harness/c
 const { createBuilderMemory } = await bundle('apps/hub/src/builder/memory.ts')
 
 const projectId = '44444444-4444-4444-8444-444444444444'
+const accountId = '22222222-2222-4222-8222-222222222222'
 // A diagnostic belongs to the conversation the run was asked in, which is a thread of the Project's
 // Mastra session and not a name the Builder derives.
 const conversationId = '77777777-7777-4777-8777-777777777777'
@@ -50,7 +51,10 @@ const conversationThread = async (t) => {
   await controller.init()
   t.after(() => controller.destroy?.())
   const session = await controller.createSession({ resourceId, scope: `conversation:${conversationId}`, threadId: conversationId })
-  const appendDiagnostic = createDiagnosticAppender(async () => session)
+  const appendDiagnostic = createDiagnosticAppender(async (input) => {
+    assert.equal(input.accountId, accountId, 'a diagnostic opens its conversation through the run owner Account')
+    return session
+  })
   const rows = async () => {
     const { messages } = await memory.listMessages({ threadId: conversationId, resourceId })
     return messages.map((message) => [message.role, message.content.metadata?.signal?.type, message.content.parts.map((part) => part.text).join('')])
@@ -65,7 +69,7 @@ const conversationThread = async (t) => {
 
 test('a run that kept its files unadmitted leaves exactly one notice signal in its conversation, and a retried append does not add a second', async (t) => {
   const { appendDiagnostic, rows } = await conversationThread(t)
-  const note = { projectId, conversationId, builderRunId: runId, code: 'BUILDER_MODEL_INCOMPLETE', outcome: 'RUN_NOT_FINISHED', sourceRevision: 'd'.repeat(40) }
+  const note = { accountId, projectId, conversationId, builderRunId: runId, code: 'BUILDER_MODEL_INCOMPLETE', outcome: 'RUN_NOT_FINISHED', sourceRevision: 'd'.repeat(40) }
   await appendDiagnostic(note)
   await appendDiagnostic(note)
   assert.deepEqual(await rows(), [['signal', 'notification',
@@ -74,7 +78,7 @@ test('a run that kept its files unadmitted leaves exactly one notice signal in i
 
 test("a refused candidate's notice reaches the next turn's model as a notification, so it can fix it (AC-9)", async (t) => {
   const { appendDiagnostic, nextTurnPrompt } = await conversationThread(t)
-  await appendDiagnostic({ projectId, conversationId, builderRunId: runId, code: 'BUILDER_CHECK_FAILED', outcome: 'CANDIDATE_REFUSED', sourceRevision: 'd'.repeat(40), detail: 'typecheck failed: app/src/a.ts:1:1 TS2304 Cannot find name b.' })
+  await appendDiagnostic({ accountId, projectId, conversationId, builderRunId: runId, code: 'BUILDER_CHECK_FAILED', outcome: 'CANDIDATE_REFUSED', sourceRevision: 'd'.repeat(40), detail: 'typecheck failed: app/src/a.ts:1:1 TS2304 Cannot find name b.' })
   const prompt = JSON.parse(await nextTurnPrompt())
   const userTexts = prompt.filter((message) => message.role === 'user').map((message) => message.content.map((part) => part.text).join('')).filter((text) => !text.startsWith('<system-reminder>'))
   assert.deepEqual(userTexts, [
@@ -85,14 +89,14 @@ test("a refused candidate's notice reaches the next turn's model as a notificati
 
 test('boot problems in an admitted app are stored as a notice and say that the Preview is up', async (t) => {
   const { appendDiagnostic, rows } = await conversationThread(t)
-  await appendDiagnostic({ projectId, conversationId, builderRunId: runId, code: 'APPLICATION_BOOT_PROBLEMS', outcome: 'BOOT_PROBLEMS', sourceRevision: 'd'.repeat(40), detail: 'boot failed:\nBOOT_CONSOLE_ERROR Failed to load notes' })
+  await appendDiagnostic({ accountId, projectId, conversationId, builderRunId: runId, code: 'APPLICATION_BOOT_PROBLEMS', outcome: 'BOOT_PROBLEMS', sourceRevision: 'd'.repeat(40), detail: 'boot failed:\nBOOT_CONSOLE_ERROR Failed to load notes' })
   assert.deepEqual(await rows(), [['signal', 'notification',
     `A execução ${runId} foi aplicada e a Prévia está no ar, mas ao abrir o app o Conexus viu problemas. Detalhe: boot failed:\nBOOT_CONSOLE_ERROR Failed to load notes Resolva isso na próxima execução.`]])
 })
 
 test('a red check writes its own feedback as a notice signal, one per attempt, and a retried attempt does not add a second', async (t) => {
   const { appendDiagnostic, rows } = await conversationThread(t)
-  const note = (redFinishes, feedback) => ({ projectId, conversationId, builderRunId: runId, outcome: 'CHECK_RED', redFinishes, feedback })
+  const note = (redFinishes, feedback) => ({ accountId, projectId, conversationId, builderRunId: runId, outcome: 'CHECK_RED', redFinishes, feedback })
   await appendDiagnostic(note(1, 'Verificação do Conexus: o app não passou (1 de 3).\ntypecheck failed:\nTS2322'))
   await appendDiagnostic(note(1, 'Verificação do Conexus: o app não passou (1 de 3).\ntypecheck failed:\nTS2322'))
   await appendDiagnostic(note(2, 'Verificação do Conexus: o app não passou (2 de 3).\ntypecheck failed:\nTS2322'))

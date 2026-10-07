@@ -16,7 +16,7 @@ const SUSPENDED = { reason: 'suspended', userMessageId: 'user-message', toolCall
 const TOKENS = { outsider: opaque('outsider'), removed: opaque('removed'), grantee: opaque('grantee') }
 const CALLERS = { outsider: ID.outsider, removed: ID.member, grantee: ID.administrator }
 
-test('sendBuilderMessage answers 403 PROJECT_BUILD_DENIED to an outsider, a removed member and an application grantee while the run waits, and leaves the waiting inbox open and empty', async (t) => {
+test('sendBuilderMessage answers the same Project 404 to an outsider, a removed member and an application grantee while the run waits', async (t) => {
   const { connection, database, seedBuilderProject } = await setupBuilder(t, 'conexus_bld24_waiting')
   const store = createBuilderStore({ database, ownerId: HUB })
   const visible = await seedBuilderProject('Atlas')
@@ -53,9 +53,9 @@ test('sendBuilderMessage answers 403 PROJECT_BUILD_DENIED to an outsider, a remo
   await run.untilEnded()
 
   assert.deepEqual(outcomes, [
-    ['outsider', 403, 'urn:conexus:problem:PROJECT_BUILD_DENIED'],
-    ['removed', 403, 'urn:conexus:problem:PROJECT_BUILD_DENIED'],
-    ['grantee', 403, 'urn:conexus:problem:PROJECT_BUILD_DENIED'],
+    ['outsider', 404, 'urn:conexus:problem:PROJECT_NOT_FOUND'],
+    ['removed', 404, 'urn:conexus:problem:PROJECT_NOT_FOUND'],
+    ['grantee', 404, 'urn:conexus:problem:PROJECT_NOT_FOUND'],
     ['owner', false],
   ])
   assert.deepEqual(afterEach, [['c1'], ['c1'], ['c1']], 'the question still waits after each refusal')

@@ -91,7 +91,7 @@ const estate = async (t, prefix, { invoke } = {}) => {
   })
   const sessions = async (kind) => (await hub.sql('SELECT count(*)::int AS n FROM iam.host_session WHERE kind = $1', [kind]))[0].n
   const launch = (accountId, hubToken, artifactRevisionId = revision) =>
-    hub.database.transaction(accountId, async (gate) => hub.sessions.openPreview(await admitProject(gate, P, 'project.build'), digestOf(hubToken), artifactRevisionId))
+    hub.database.transaction(accountId, async (gate) => hub.sessions.openPreview(await admitProject(gate, { projectId: P, action: 'project.build' }), digestOf(hubToken), artifactRevisionId))
   const enter = (entryGrant, artifactRevisionId = revision) => previewApp.inject({
     method: 'POST', url: '/__conexus/preview-entry', payload: `entryGrant=${entryGrant}`,
     headers: { host: previewHost(artifactRevisionId), origin: HUB_ORIGIN, 'content-type': 'application/x-www-form-urlencoded' },
@@ -111,7 +111,7 @@ const estate = async (t, prefix, { invoke } = {}) => {
 const backendsBusy = async (hub) => (await hub.sql(
   "SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = $1 AND usename = 'hub_runtime' AND state <> 'idle'", [hub.connection.database]))[0].n
 
-test('one served request is one entry on one connection: BEGIN, one set_config, the lookup, the check, the read, COMMIT; no cookie sends nothing', async (t) => {
+test('one served request is one entry on one connection: BEGIN, the lookup, the check, the read, COMMIT; no cookie sends nothing', async (t) => {
   const { fetchFile, page, sessionOf } = await estate(t, 'conexus_iam_host_entry')
   const token = await sessionOf(CAIO)
   const log = statements(t)
@@ -119,7 +119,7 @@ test('one served request is one entry on one connection: BEGIN, one set_config, 
   assert.equal(served.statusCode, 200)
   assert.equal(served.body, '<html></html>')
   assert.equal(new Set(log.sent.map((entry) => entry.pid)).size, 1)
-  assert.deepEqual(log.sent.map((entry) => entry.text.trim().split(/\s+/).slice(0, 2).join(' ')), ['BEGIN', 'SELECT set_config($1,', 'SELECT person.account_id,', 'SELECT EXISTS', 'SELECT CASE', 'COMMIT'])
+  assert.deepEqual(log.sent.map((entry) => entry.text.trim().split(/\s+/).slice(0, 2).join(' ')), ['BEGIN', 'SELECT person.account_id,', 'SELECT EXISTS', 'SELECT CASE', 'COMMIT'])
   log.sent.length = 0
   const signIn = await page(null)
   assert.equal(signIn.statusCode, 303)
@@ -344,6 +344,7 @@ for (const order of ['racer first', 'purge first']) {
     for (const [label, match, race, setup] of racers) {
       const world = await estate(t, `conexus_iam_purge_${label.replaceAll(' ', '_').toLowerCase()}_${order === 'racer first' ? 'a' : 'b'}`)
       const { hub, launch, purge } = world
+      await hub.sql("INSERT INTO iam.installation_administrator (account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')", [OWNER])
       let prepared
       if (setup === 'preview') prepared = (await launch(MEMBER, await hub.openHubSession(MEMBER))).entryGrant
       if (setup === 'invitation') await hub.sql("INSERT INTO iam.application_invitation (invitation_id, project_id, email, invited_by, expires_at) VALUES (gen_random_uuid(), $1, 'nina@x.com', $2, now() + interval '1 day')", [P, OWNER])
@@ -354,7 +355,7 @@ for (const order of ['racer first', 'purge first']) {
         const racing = race(world, prepared).catch((error) => error)
         assert.equal(await Promise.race([held.arrived.then(() => 'held'), racing.then(() => 'finished')]), 'held', label)
         await hub.sql('INSERT INTO project.project_deletion (project_id, workspace_id, name, requested_by) VALUES ($1, $2, $3, $4)', [P, W, 'Estoque Parado', OWNER])
-        const purging = purge.purge(P).catch((error) => error)
+        const purging = purge.deleteProject({ accountId: OWNER, projectId: P, confirmName: 'Estoque Parado' }).catch((error) => error)
         await waitUntilBlocked(hub.connection)
         held.release()
         outcome = await racing
@@ -364,7 +365,7 @@ for (const order of ['racer first', 'purge first']) {
         // The tombstone commits before the purge, as deleteProject orders them, so a racer that starts
         // while the purge holds the Project is refused by the tombstone without waiting for it.
         const held = holdAt(log, /DELETE FROM iam\.application WHERE/)
-        const purging = purge.purge(P).catch((error) => error)
+        const purging = purge.deleteProject({ accountId: OWNER, projectId: P, confirmName: 'Estoque Parado' }).catch((error) => error)
         await held.arrived
         // The racer finishes while the purge still holds the Project: one that waited would hit the 5 s lock_timeout and answer 503.
         outcome = await race(world, prepared).catch((error) => error)
@@ -372,7 +373,7 @@ for (const order of ['racer first', 'purge first']) {
         assert.equal(await purging, undefined, label)
       }
       assert.equal(outcome, true, `${label}: a refusal or a committed row, never a 500 (${outcome})`)
-      await purge.purge(P).catch((error) => assert.fail(`${label}: the second pass ${error.id}`))
+      await assert.rejects(purge.deleteProject({ accountId: OWNER, projectId: P, confirmName: 'Estoque Parado' }), { id: 'PROJECT_NOT_FOUND' }, `${label}: a completed purge leaves no Project to admit`)
       assert.deepEqual(await leftOf(hub), NONE_LEFT, label)
     }
   })

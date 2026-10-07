@@ -36,8 +36,15 @@ function ProjectScope({ context, projectId, children }: Readonly<{ context: Sess
       {!hidden && isRetryable(project.error) && <button type="button" onClick={() => void project.refetch()}>Tentar novamente</button>}
     </Status></Shell>
   }
-  const workspace = project.data ? context.workspaces.find((candidate) => candidate.workspaceId === project.data.workspaceId) : undefined
-  return <Shell context={context} scope={project.data && workspace ? { workspace, project: project.data } : undefined}>
+  if (project.isSuccess && project.data.kind === 'not-found') {
+    return <Shell context={context}><Status title="Projeto indisponível"><p>Não encontramos esse Projeto.</p></Status></Shell>
+  }
+  if (project.isSuccess && project.data.kind === 'found' && project.data.project.state === 'deleting') {
+    return <Shell context={context}><Status title="Exclusão do Projeto em andamento" /></Shell>
+  }
+  const projectDetail = project.data?.kind === 'found' ? project.data.project : undefined
+  const workspace = projectDetail ? context.workspaces.find((candidate) => candidate.workspaceId === projectDetail.workspaceId) : undefined
+  return <Shell context={context} scope={projectDetail && workspace ? { workspace, project: projectDetail } : undefined}>
     {project.isPending ? <Status title="Abrindo o Projeto" working /> : children}
   </Shell>
 }

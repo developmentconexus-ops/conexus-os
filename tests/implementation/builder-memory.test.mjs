@@ -159,7 +159,7 @@ test('the conversation\'s own session shows the memory a run of it stored, throu
     registerRoutes: async (instance) => {
       await registerBuilderSessionRoutes(instance, {
         mastra, controllerId: 'conexus-builder', controller, conversations: testConversations(controller, () => undefined),
-        mayBuild: async () => true,
+        admitBuilder: async () => {},
         conversationOwner: ({ projectId: project, conversationId: conversation }) => conversations.ownerOf(project, conversation),
         projectBusy: async () => false,
       })

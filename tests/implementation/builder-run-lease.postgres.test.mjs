@@ -140,7 +140,7 @@ test('a message to a conversation with a live run is refused to anyone who canno
   for (const accountId of [ID.outsider, ID.member]) {
     refused.push(await service.sendBuilderMessage({ accountId, projectId, conversationId: '22222222-2222-4222-8222-222222222222', idempotencyKey: randomUUID(), content: 'oi' }).then(() => 'ACCEPTED', (error) => error.id))
   }
-  assert.deepEqual(refused, ['PROJECT_BUILD_DENIED', 'PROJECT_BUILD_DENIED'])
+  assert.deepEqual(refused, ['PROJECT_NOT_FOUND', 'PROJECT_NOT_FOUND'])
   assert.deepEqual(service.pendingCalls(projectId, '22222222-2222-4222-8222-222222222222'), [])
   assert.equal((await h.read(builderRun)).state, 'RUNNING')
   assert.equal(h.holds.length, 1, 'the run was not touched')

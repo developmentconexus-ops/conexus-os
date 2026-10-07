@@ -112,37 +112,46 @@ place a reviewer reads.
 
 - The Hub **must** log in as `hub_runtime`, which runs no DDL, holds nothing on `factory` and has no
   `BYPASSRLS`.
-- Each transaction **must** switch to `hub_reader` or `hub_command` right after `BEGIN`. Both are
-  `NOLOGIN NOINHERIT NOBYPASSRLS`, and the switch ends with the transaction.
-- A transaction's authority **must** be its role, the row policies and the admission proof, nothing
-  else.
+- Every Hub transaction **must** run as `hub_runtime`; it **must not** switch roles or set an acting
+  account or job in a session setting.
+- A person's read **must** enter through a closed `ReadGate` and obtain an action-specific `Admitted`
+  read proof before it queries rows. A command **must** obtain its `Admitted` proof before it reads or
+  writes business rows.
+- SQL privileges **must** preserve the registered verbs and column limits. They **must not** be
+  treated as row-level authorization: the proof and its scoped query filters own that decision.
 - A new role **must** be a row in the role register, created in an idempotent `DO` block, with its
   password supplied by `npm run db:roles:provision`.
 
-**Why.** A role per transaction kind gives PostgreSQL itself a second wall behind the Hub's checks.
+**Why.** One runtime role removes role-switch plumbing. Nominal gates keep queries behind admission;
+native grants still refuse unregistered verbs and columns.
 
-**Right.** A list of Projects runs as `hub_reader`, and the row policy returns only the caller's
-Workspaces.
+**Right.** A Project read obtains `project.read` from `ReadGate` and queries only the admitted
+Project id.
 
-**Wrong.** A store that runs as `hub_runtime` and filters by Workspace in TypeScript alone.
+**Wrong.** A person read that receives a raw query transaction or a query that omits its admitted
+Workspace or Project filter.
 
-## 7. Row security
+## 7. Native privileges and row access
 
-- A table the Hub reads by caller **must** have `ENABLE` and `FORCE ROW LEVEL SECURITY`.
-- It **must** have a `reader` policy `TO hub_reader` built on the `rls.*` helpers, one `command`
-  policy `TO hub_command`, and exactly the grants its table register row lists.
+- Hub-owned tables **must** have row-level security disabled and no row policies. The runtime role
+  **must** hold exactly the privileges in the catalog census: table and column verbs stay narrow.
+- Person-visible rows **must** be filtered by the admitted proof in the same query or by an owner
+  helper that accepts that proof. An outsider and an unknown subject **must** receive the same
+  not-found response.
 - A foreign key across owners **must** only protect structural identity or containment. Any other
   reference across owners is an id without a key.
 
-**Why.** `FORCE` applies the policy to the table owner too, so no role reads around it by accident.
+**Why.** The Hub owns business access decisions in one admission path. PostgreSQL continues to own
+structural integrity and the allowed table and column operations.
 
-**Right.** `alter table project.project force row level security`.
+**Right.** `admitProject(gate, { projectId, action: 'project.read' })` returns a proof whose query
+uses `scope.projectId`.
 
-**Wrong.** A policy `USING (true)` for `hub_reader`.
+**Wrong.** A store that treats `SELECT` on a relation as proof that the caller may see every row.
 
 ## 8. Where a rule lives
 
-- Integrity **must** stay in PostgreSQL: keys, `CHECK`, partial indexes and row policies.
+- Integrity **must** stay in PostgreSQL: keys, `CHECK` and partial indexes.
 - A business rule **must** be a pure TypeScript function over the rows the command locked, behind an
   admission proof. SQL **must not** hold a business rule, and TypeScript **must not** repeat a rule
   PostgreSQL enforces.

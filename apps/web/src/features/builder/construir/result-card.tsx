@@ -26,7 +26,7 @@ export function ResultCard({ projectId, run, versionNumber, onOpenPreview, onOpe
     enabled: Boolean(run.resultSourceRevision),
   })
   const fileCount = diff.data?.files.length ?? null
-  const projectName = project.data?.name ?? 'Projeto'
+  const projectName = project.data?.kind === 'found' ? project.data.project.name : 'Projeto'
 
   return <div className="cx-result-card">
     <p className="cx-result-card-title" data-tone={built ? undefined : 'danger'}>

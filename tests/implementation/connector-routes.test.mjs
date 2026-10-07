@@ -81,11 +81,11 @@ test('an installation administrator lists, creates and disables a Workspace Conn
   assert.deepEqual(store.calls.at(-1), { name: 'disableConnection', input: { accountId: adminAccountId, workspaceId, connectionId } })
 })
 
-test('a retry the store recognizes answers 200, a changed one 409, and a Workspace that does not exist 422', async (t) => {
+test('a retry answers 200, a changed one 409, and a missing Workspace 404', async (t) => {
   const outcomes = [
     async () => ({ connection: connectionEntry, created: false }),
     async () => { throw new Failure('CONNECTOR_CONNECTION_CONFLICT') },
-    async () => { throw new Failure('CONNECTOR_WORKSPACE_NOT_FOUND') },
+    async () => { throw new Failure('WORKSPACE_NOT_FOUND') },
   ]
   const app = await makeApp(makeStore({ createConnection: () => outcomes.shift()() }))
   t.after(() => app.close())
@@ -97,7 +97,7 @@ test('a retry the store recognizes answers 200, a changed one 409, and a Workspa
   const changed = await post()
   assert.deepEqual({ status: changed.statusCode, type: changed.json().type }, { status: 409, type: 'urn:conexus:problem:CONNECTOR_CONNECTION_CONFLICT' })
   const nowhere = await post()
-  assert.deepEqual({ status: nowhere.statusCode, type: nowhere.json().type }, { status: 422, type: 'urn:conexus:problem:CONNECTOR_WORKSPACE_NOT_FOUND' })
+  assert.deepEqual({ status: nowhere.statusCode, type: nowhere.json().type }, { status: 404, type: 'urn:conexus:problem:WORKSPACE_NOT_FOUND' })
   for (const response of [retried, changed, nowhere]) bodyHasNoCredential(response.json())
 })
 
@@ -108,7 +108,7 @@ test('a malformed id gets the declared 400, 404 or 422, and never reaches the st
   const bad = 'not-a-uuid'
   const cases = [
     { method: 'GET', url: `/api/control/workspaces/${bad}/connections`, cookies: session, expected: { status: 404, type: 'WORKSPACE_NOT_FOUND' } },
-    { method: 'POST', url: `/api/control/workspaces/${bad}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: 'x', credential }, expected: { status: 422, type: 'CONNECTOR_WORKSPACE_NOT_FOUND' } },
+    { method: 'POST', url: `/api/control/workspaces/${bad}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: 'x', credential }, expected: { status: 404, type: 'WORKSPACE_NOT_FOUND' } },
     { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId: bad, connectorId: 'sankhya', label: 'x', credential }, expected: { status: 400, type: 'REQUEST_VALIDATION_FAILED' } },
     { method: 'POST', url: `/api/control/workspaces/${workspaceId}/connections`, ...authentic, payload: { connectionId, connectorId: 'sankhya', label: '   ', credential }, expected: { status: 422, type: 'CONNECTOR_LABEL_REFUSED' } },
     { method: 'POST', url: `/api/control/workspaces/${bad}/connections/${connectionId}/authentication-check`, ...authenticDelete, expected: { status: 404, type: 'CONNECTOR_CONNECTION_NOT_FOUND' } },

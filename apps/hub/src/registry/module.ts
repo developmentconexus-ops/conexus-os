@@ -1,5 +1,6 @@
 import type { AccountId, ApplicationFilePath, ArtifactRevisionId, ProjectId, SourceRevision } from '@conexus/contract'
 import type { Admitted, ApplicationScope, Checked, ProjectScope } from '../identity-access/admission.js'
+import { admitProject } from '../identity-access/admission.js'
 import type { Database } from '../platform/db.js'
 import { purge, retain } from './retain.js'
 import { seal } from './seal.js'
@@ -26,11 +27,14 @@ export function createRegistryModule({ database }: Readonly<{ database: Database
     seal,
     retain,
     purge,
-    readLaunch: ({ tx, scope }) => readLaunchOf(tx, scope.projectId),
-    readPreviewManifest: ({ tx, scope }, artifactRevisionId) => readPreviewManifestOf(tx, scope.projectId, artifactRevisionId),
-    readPreviewRevisionFile: ({ tx, scope }, at) => readPreviewFileOf(tx, { projectId: scope.projectId, ...at }),
-    readServedManifest: ({ tx, scope }) => readManifest(tx, scope.projectId),
-    readServedFile: ({ tx, scope }, path) => readServedFileOf(tx, scope.projectId, path),
-    readProjectThumbnail: (accountId, projectId) => database.read(accountId, (tx) => readThumbnailOf(tx, projectId)),
+    readLaunch: (proof) => readLaunchOf(proof),
+    readPreviewManifest: (checked, artifactRevisionId) => readPreviewManifestOf(checked, artifactRevisionId),
+    readPreviewRevisionFile: (checked, at) => readPreviewFileOf(checked, at),
+    readServedManifest: (checked) => readManifest(checked),
+    readServedFile: (checked, path) => readServedFileOf(checked, path),
+    readProjectThumbnail: (accountId, projectId) => database.read(accountId, async (gate) => {
+      const proof = await admitProject(gate, { projectId, action: 'project.read' })
+      return readThumbnailOf(proof)
+    }),
   })
 }

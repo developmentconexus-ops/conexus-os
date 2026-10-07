@@ -92,11 +92,26 @@ const isGateReference = (checker, node, declaration) => {
 
 export const findings = (program, { root = repo, pgEdge = DATABASE_EDGE, responseEdge = RESPONSE_EDGE, authorityWriters = AUTHORITY_TABLE_WRITERS, splitTables = {}, gate = GATE_OPENER } = {}) => {
   const checker = program.getTypeChecker()
-  const result = { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [], authorityTableWrites: [], gateReferences: [] }
+  const result = { pgQueryRows: [], pgImportFiles: [], webResponseJson: [], sqlWrites: [], authorityTableWrites: [], gateReferences: [], rawPersonReads: [] }
   for (const file of program.getSourceFiles()) {
     if (file.isDeclarationFile || file.fileName.includes('/node_modules/')) continue
     const path = relative(root, file.fileName)
     const visit = (node) => {
+      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === 'read'
+        && ts.isIdentifier(node.expression.expression) && node.expression.expression.text === 'database') {
+        const callback = node.arguments[1]
+        if (callback && (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback))) {
+          const parameter = callback.parameters[0]?.name
+          if (parameter && ts.isIdentifier(parameter)) {
+            const scan = (child) => {
+              if (ts.isPropertyAccessExpression(child) && ['rows', 'one', 'maybe', 'accountId'].includes(child.name.text)
+                && ts.isIdentifier(child.expression) && child.expression.text === parameter.text) result.rawPersonReads.push(`${path}#${parameter.text}.${child.name.text}`)
+              ts.forEachChild(child, scan)
+            }
+            scan(callback.body)
+          }
+        }
+      }
       if (!pgEdge.includes(path) && referencesMember(checker, node, 'query', isPgQuery) && !resultIsDiscarded(node)) result.pgQueryRows.push(`${path}#${enclosingName(node)}`)
       if (!responseEdge.includes(path) && referencesMember(checker, node, 'json', isResponseJson)) result.webResponseJson.push(`${path}#${enclosingName(node)}`)
       if (ts.isImportDeclaration(node) && !pgEdge.includes(path) && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text === 'pg') result.pgImportFiles.push(path)
@@ -121,15 +136,17 @@ const programOf = (tsconfig) => {
   return ts.createProgram({ rootNames: parsed.fileNames, options: { ...parsed.options, noEmit: true } })
 }
 
-// The register's key and tenant columns of each split table, which the write lint reads.
-const splitTablesOf = () => {
-  const register = JSON.parse(readFileSync(join(repo, 'contracts/technical/hub-catalog-census.json'), 'utf8')).register.split
+// The register's key and tenant columns for the native runtime grants, which the write lint reads.
+const registeredTablesOf = () => {
+  const register = JSON.parse(readFileSync(join(repo, 'contracts/technical/hub-catalog-census.json'), 'utf8')).register.tables
   return Object.fromEntries(register.map((row) => [row.table, row.keyColumns ?? []]))
 }
 
 export const census = () => {
-  const hub = findings(programOf('apps/hub/tsconfig.json'), { splitTables: splitTablesOf() })
+  const hub = findings(programOf('apps/hub/tsconfig.json'), { splitTables: registeredTablesOf() })
   const web = findings(programOf('apps/web/tsconfig.json'))
+  const obsolete = /\b(?:hub_reader|hub_command|iam_rls|hub_builder_ingress)\b|rls\.|conexus\.(?:account_id|job)\b|\b(?:set_config|current_setting)\s*\(/i
+  const obsoleteRuntimeSymbols = hubSourceFiles().flatMap(({ path, source }) => obsolete.test(source) ? [path] : [])
   return {
     pgQueryRows: hub.pgQueryRows,
     pgImportFiles: hub.pgImportFiles,
@@ -137,11 +154,17 @@ export const census = () => {
     sqlWrites: hub.sqlWrites,
     authorityTableWrites: hub.authorityTableWrites,
     gateReferences: hub.gateReferences,
+    rawPersonReads: hub.rawPersonReads,
+    obsoleteRuntimeSymbols,
   }
 }
 
+const hubSourceFiles = () => programOf('apps/hub/tsconfig.json').getSourceFiles()
+  .filter((file) => !file.isDeclarationFile && !file.fileName.includes('/node_modules/') && file.fileName.startsWith(join(repo, 'apps/hub/src')))
+  .map((file) => ({ path: relative(repo, file.fileName), source: file.text }))
+
 // Items that must stay empty: a record can never hold one, so --write cannot raise them.
-export const HARD_ZERO = Object.freeze(['gateReferences', 'authorityTableWrites', 'sqlWrites'])
+export const HARD_ZERO = Object.freeze(['gateReferences', 'authorityTableWrites', 'sqlWrites', 'rawPersonReads', 'obsoleteRuntimeSymbols'])
 export const hardZeroBroken = (found) => HARD_ZERO.filter((item) => (found[item] ?? []).length > 0)
 
 const tally = (entries) => entries.reduce((counts, entry) => counts.set(entry, (counts.get(entry) ?? 0) + 1), new Map())

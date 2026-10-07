@@ -61,7 +61,7 @@ const startMount = async (t, memoryOptions = {}, model = askingModel()) => {
     registerRoutes: async (instance) => {
       await registerBuilderSessionRoutes(instance, {
         mastra, controllerId: 'conexus-builder', controller, conversations: testConversations(controller, () => undefined),
-        mayBuild: async () => true,
+        admitBuilder: async () => {},
         conversationOwner: ({ projectId: project, conversationId: id }) => conversations.ownerOf(project, id),
         projectBusy: async () => false,
       })
