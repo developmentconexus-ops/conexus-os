@@ -165,7 +165,9 @@ phone.
 - Work **must** fit its appetite: **P** up to 1 day, **M** up to 1 week, **G** up to 2 weeks.
   Anything larger splits. Work past its appetite stops and returns reshaped.
 - At most 1 qualification and 2 shaped workstreams **may** run at once, and the fast lane at most 5
-  open pull requests.
+  open pull requests. A qualification wave in build or proof does not stop the planning session from
+  writing the next qualification spec. That spec still needs its approval, and its build starts only
+  after the current wave merges.
 - A pull request **should** do one thing. A refactoring and a behavior change **should** ship as
   separate commits.
 - An exploration spike answers one question on its own branch, never merges, and counts as gate
