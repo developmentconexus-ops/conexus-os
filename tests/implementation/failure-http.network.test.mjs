@@ -41,8 +41,7 @@ test('every route shape answers a failure as problem+json and writes exactly one
   for (const [name, status, code, level] of expected) {
     const { status: got, type, body } = answer(name)
     assert.equal(got, status, name)
-    // Mastra sends a validation hook's body as plain JSON; the body is the same problem.
-    assert.equal(type.startsWith(name === 'mount invalid body' ? 'application/json' : 'application/problem+json'), true, `${name}: ${type}`)
+    assert.equal(type, 'application/problem+json', `${name}: ${type}`)
     assert.deepEqual({ type: body.type, title: body.title, status: body.status, code: body.code }, { type: `urn:conexus:problem:${code}`, title: code, status, code }, name)
     const lines = logged(name)
     assert.deepEqual(lines.map((line) => [line.msg, line.level]), [[code, level]], `${name}: one line`)
