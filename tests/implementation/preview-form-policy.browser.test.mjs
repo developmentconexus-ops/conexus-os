@@ -1,3 +1,4 @@
+import { recordBrowserContext, saveBrowserDiagnostics } from './browser-diagnostics.mjs'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import test from 'node:test'
@@ -37,8 +38,9 @@ document.getElementById('out').textContent = results.join(',')`
   await new Promise((done) => server.listen(0, '127.0.0.1', done))
   t.after(() => server.close())
   const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
+  t.after(async () => { await saveBrowserDiagnostics(browser); await browser.close() })
   const tab = await browser.newPage()
+  await recordBrowserContext(tab.context())
   await tab.goto(`http://127.0.0.1:${server.address().port}/`)
   await tab.waitForFunction(() => document.getElementById('out').textContent !== 'nada')
   assert.equal(await tab.textContent('#out'), '200,blocked')
@@ -58,8 +60,9 @@ test('an app form handled in JavaScript works in the Preview, and a form that po
   await new Promise((done) => server.listen(0, '127.0.0.1', done))
   t.after(() => server.close())
   const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
+  t.after(async () => { await saveBrowserDiagnostics(browser); await browser.close() })
   const tab = await browser.newPage()
+  await recordBrowserContext(tab.context())
   const url = `http://127.0.0.1:${server.address().port}/`
   await tab.goto(url)
 

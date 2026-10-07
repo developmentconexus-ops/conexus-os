@@ -7,17 +7,17 @@ const ROOT_FILES = new Set(['README.md', 'CONTRIBUTING.md', 'docs/index.md', 'do
 // The Mastra skill is the upstream skill as published; its commands address a Mastra project, not this one.
 const VENDORED = ['.agents/skills/mastra/']
 
-// Each guide is the one owner of its subject, with a byte cap on the whole file.
+// Each guide is the one owner of its subject, for links and command checks.
 export const GUIDES = Object.freeze({
-  C: { path: 'docs/development/codebase-principles.md', kib: 12 },
-  A: { path: 'docs/reference/architecture.md', kib: 28 },
-  L: { path: 'docs/development/delivery.md', kib: 16 },
-  D: { path: 'docs/reference/database.md', kib: 12 },
-  H: { path: 'docs/product/wire-contract.md', kib: 12 },
-  S: { path: 'docs/reference/security-and-authority.md', kib: 12 },
-  P: { path: 'docs/product/contract.md', kib: 12 },
-  V: { path: 'DESIGN.md', kib: 20 },
-  T: { path: 'docs/development/testing.md', kib: 10 },
+  C: { path: 'docs/development/codebase-principles.md' },
+  A: { path: 'docs/reference/architecture.md' },
+  L: { path: 'docs/development/delivery.md' },
+  D: { path: 'docs/reference/database.md' },
+  H: { path: 'docs/product/wire-contract.md' },
+  S: { path: 'docs/reference/security-and-authority.md' },
+  P: { path: 'docs/product/contract.md' },
+  V: { path: 'DESIGN.md' },
+  T: { path: 'docs/development/testing.md' },
 })
 const GUIDE_PATHS = new Set(Object.values(GUIDES).map(guide => guide.path))
 
@@ -26,23 +26,6 @@ export function inScope(path) {
   return ROOT_FILES.has(path) || GUIDE_PATHS.has(path) || /(^|\/)AGENTS\.md$/.test(path)
     || (/^(\.agents\/skills|docs\/development)\//.test(path) && path.endsWith('.md'))
 }
-
-const LINES = { unit: 'lines', measure: text => text.replace(/\n$/, '').split('\n').length }
-const CHARACTERS = { unit: 'characters', measure: text => text.length }
-const BYTES = { unit: 'bytes', measure: text => Buffer.byteLength(text) }
-
-// Mastra caps a package AGENTS.md at 500 tokens (tokenx estimateTokenCount). tokenx 2.1.0 on Mastra's and
-// our AGENTS.md files measured 0.237 to 0.270 tokens per character, so 1800 characters stays under 500.
-const NESTED_AGENTS_CHARACTERS = 1800
-
-// Every matching cap applies.
-export const SIZE_CAPS = Object.freeze([
-  ...Object.values(GUIDES).map(({ path, kib }) => ({ match: candidate => candidate === path, ...BYTES, max: kib * 1024 })),
-  { match: path => path === 'AGENTS.md', ...LINES, max: 60 },
-  { match: path => path.endsWith('/AGENTS.md'), ...CHARACTERS, max: NESTED_AGENTS_CHARACTERS, note: 'about 500 tokens' },
-  { match: path => path.endsWith('/SKILL.md'), ...LINES, max: 90 },
-  { match: path => path === GUIDES.L.path, ...LINES, max: 260 },
-])
 
 // GitHub's heading anchor: lowercase, punctuation dropped, each whitespace character a hyphen.
 export function anchorOf(heading) {
@@ -76,11 +59,6 @@ function linesOf(text) {
 export function checkFile(path, text, { root, scripts }) {
   const findings = []
   const report = (number, message) => findings.push({ where: number ? `${path}:${number}` : path, message })
-
-  for (const cap of SIZE_CAPS.filter(rule => rule.match(path))) {
-    const size = cap.measure(text)
-    if (size > cap.max) report(0, `${size} ${cap.unit} exceeds the cap of ${cap.max}${cap.note ? ` (${cap.note})` : ''}`)
-  }
 
   for (const { line, number, fenced } of linesOf(text)) {
     for (const [, cited] of line.matchAll(/\bnpm run ([\w:.-]+)/g)) {

@@ -1,11 +1,10 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { joinTemplate, normalizeSql, writeProblems } from './sql-write-lint.mjs'
 
 const repo = resolve(fileURLToPath(new URL('../', import.meta.url)))
-const recordPath = join(repo, 'contracts/technical/census-boundaries.json')
 
 // The only files that may import pg: the data module and the two application database runners.
 export const DATABASE_EDGE = Object.freeze([
@@ -140,54 +139,19 @@ export const census = () => {
   }
 }
 
-// Items that must stay empty: a record can never hold one, so --write cannot raise them.
-export const HARD_ZERO = Object.freeze(['gateReferences', 'authorityTableWrites', 'sqlWrites'])
-export const hardZeroBroken = (found) => HARD_ZERO.filter((item) => (found[item] ?? []).length > 0)
+// Failure decoding is an HTTP boundary too: readFailure parses Problem before exposing a code.
+export const BOUNDARY_EXCEPTIONS = Object.freeze({
+  webResponseJson: Object.freeze(['apps/web/src/app/failure.ts#readFailure']),
+})
 
-const tally = (entries) => entries.reduce((counts, entry) => counts.set(entry, (counts.get(entry) ?? 0) + 1), new Map())
-
-// Entries found that the record does not hold, and entries the record holds that were not found. Each
-// is a multiset: the same function twice is two entries, so a swap of one finding for another is both.
-export const compareToRecord = (found, recorded) => {
-  const have = tally(found)
-  const want = tally(recorded)
-  const added = [...have].flatMap(([entry, count]) => Array.from({ length: Math.max(0, count - (want.get(entry) ?? 0)) }, () => entry))
-  const removed = [...want].flatMap(([entry, count]) => Array.from({ length: Math.max(0, count - (have.get(entry) ?? 0)) }, () => entry))
-  return { added: added.sort(), removed: removed.sort() }
+export function violations(found, exceptions = BOUNDARY_EXCEPTIONS) {
+  return Object.entries(found).flatMap(([rule, entries]) => entries
+    .filter(entry => !(exceptions[rule] ?? []).includes(entry))
+    .map(entry => `${rule}: ${entry}`))
 }
 
-const isEntrypoint = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-if (isEntrypoint) {
-  const found = census()
-  const broken = hardZeroBroken(found)
-  if (broken.length > 0) {
-    for (const item of broken) for (const entry of found[item]) console.error(`census-boundaries: ${item} must be empty, found: ${entry}`)
-    console.error('census-boundaries: gateReferences, authorityTableWrites and sqlWrites are hard zero; the record cannot hold one and --write does not record them.')
-    process.exit(1)
-  }
-  if (process.argv.includes('--write')) {
-    writeFileSync(recordPath, `${JSON.stringify(Object.fromEntries(Object.entries(found).map(([item, list]) => [item, [...list].sort()])), null, 2)}\n`)
-    console.log(`census-boundaries: recorded ${Object.entries(found).map(([item, list]) => `${item} ${list.length}`).join(', ')}`)
-    process.exit(0)
-  }
-  const record = JSON.parse(readFileSync(recordPath, 'utf8'))
-  let failed = false
-  for (const [item, list] of Object.entries(found)) {
-    const recorded = record[item]
-    if (recorded === undefined) {
-      failed = true
-      console.log(`census-boundaries: ${item} ${list.length} (not recorded) NOT RECORDED`)
-      continue
-    }
-    const { added, removed } = compareToRecord(list, recorded)
-    const verdict = added.length > 0 ? 'UP' : removed.length > 0 ? 'down' : 'ok'
-    if (added.length > 0) failed = true
-    console.log(`census-boundaries: ${item} ${list.length} (record ${recorded.length}) ${verdict}`)
-    for (const entry of added) console.log(`    new: ${entry}`)
-    if (process.argv.includes('--list')) for (const entry of removed) console.log(`    gone: ${entry}`)
-  }
-  if (failed) {
-    console.error('census-boundaries: a finding is not in the record. Only the modules named in AUTHORITY_TABLE_WRITERS write an authority table, and only admission.ts and authentication.ts reach openGate. Read rows through a schema in platform/db.ts and call the Hub through app/http.ts, or record the lower set with --write when the change removes findings.')
-    process.exit(1)
-  }
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const refused = violations(census())
+  for (const entry of refused) console.error(`boundary prohibition: ${entry}`)
+  process.exitCode = refused.length ? 1 : 0
 }

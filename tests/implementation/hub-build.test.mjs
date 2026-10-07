@@ -6,7 +6,6 @@ import { isAbsolute, relative, resolve } from 'node:path'
 import test from 'node:test'
 import { pathToFileURL } from 'node:url'
 
-import { CANDIDATE_GRAPH, repositoryRoot as verifyRepositoryRoot } from '../../scripts/conexus-verify.mjs'
 import { DEFAULT_HUB_BUILD_CACHE_DIR, resolveHubBuild } from './hub-build.mjs'
 
 const hubBuildModuleUrl = new URL('./hub-build.mjs', import.meta.url).href
@@ -178,9 +177,7 @@ function isNestedInside(childDir, parentDir) {
 }
 
 test('the default shared-cache root never collides with the directory Verify wipes on every run', () => {
-  const hubTypecheckStep = CANDIDATE_GRAPH.find(step => step.scope === 'hub-typecheck')
-  assert.ok(hubTypecheckStep, 'hub-typecheck step must exist in the candidate graph')
-  const verifyHubBuildDir = resolve(verifyRepositoryRoot, hubTypecheckStep.publishes.CONEXUS_HUB_BUILD)
+  const verifyHubBuildDir = resolve(import.meta.dirname, '../../node_modules/.cache/conexus-hub-build')
 
   assert.notEqual(DEFAULT_HUB_BUILD_CACHE_DIR, verifyHubBuildDir)
   assert.equal(isNestedInside(DEFAULT_HUB_BUILD_CACHE_DIR, verifyHubBuildDir), false)

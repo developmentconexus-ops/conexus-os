@@ -1,5 +1,12 @@
 # 0015. The data checked at every Hub boundary, the contract in Zod, the rules in TypeScript
 
+CI tooling update: historical builder count/debt ratchets and boundary inventories described below
+are retired. `scripts/check-boundaries.mjs` owns direct AST prohibitions and named exceptions;
+`scripts/check-builder-safety.mjs` retains exclusive safety ownership checks. No implementation
+regenerates the deleted census registers. [Delivery](../../development/delivery.md#proof-and-verification)
+owns routine and qualification coverage.
+
+
 **Date**: 2026-10-04
 **Sources**: a document named by path is cited as it stood before the nine guides replaced it. Read it with `git show 58444763:<path>`.
 **Status**: Revision 5.3, approved (design 4 chosen by the operator on 2026-10-05; revision approved by HQ the same day under the operator's delegation; reviews B and C decided by HQ on 2026-10-05)
@@ -197,7 +204,7 @@ rows the command locked.
 | `apps/web/src/app/http.ts` | `call`, `query`, `href` | every web feature |
 | `apps/web/src/app/foreign.ts` | `parseForeign` | the Builder feature |
 | `scripts/emit-openapi.mjs` | `contracts/api/product/openapi.json` | `contract:check`, Redocly, bijection |
-| `scripts/census-boundaries.mjs` | the census rules that need the type checker | `verify:quick` |
+| `scripts/check-boundaries.mjs` | the census rules that need the type checker | `verify:quick` |
 
 "What does `createWorkspace` accept and return" is answered in one file; "who may call it" by `access` and the
 first line of the store function; "where does this row come from" by the schema in the call that read
@@ -256,7 +263,7 @@ not by line, so moving a file does not retire one.
 
 | Rule | Today | Mechanism | Where |
 | --- | --- | --- | --- |
-| 1. Rows read without a schema | 79 | `pg` allowed only in `db.ts` and the two app runner files; no transaction type has an untyped read; `openFactoryPool` is the one named exception, for Mastra storage. While parts migrate, `census-boundaries.mjs` (TypeScript checker) counts query results used without a schema in files still allowed `pg` | `verify:quick` |
+| 1. Rows read without a schema | 79 | `pg` allowed only in `db.ts` and the two app runner files; no transaction type has an untyped read; `openFactoryPool` is the one named exception, for Mastra storage. While parts migrate, `check-boundaries.mjs` (TypeScript checker) counts query results used without a schema in files still allowed `pg` | `verify:quick` |
 | 2. `response.json() as` in the web | 26 by the study (22 single line); the checker's count in part 0 is the ceiling | `fetch` only in `app/http.ts` (`noRestrictedGlobals`, exists); the checker counts `.json()` on a `Response` outside `app/http.ts` and assertions on its result | `verify:quick` |
 | 3. `noUnsafeTypeAssertion: debt` | 97 | the existing census item `unsafeAssertionDebt` counts suppressions; at zero the `debt` form is refused | `verify:quick` |
 | 4. Web called routes without an operation | 18 + 7 | boot refusal `ROUTE_OPERATION_UNDECLARED` with its shrinking list; the walk's "every operation has one ledger row" | route walk, boot |
@@ -272,7 +279,7 @@ call, a wrapper that returns rows, a double assertion, a helper that returns `js
 
 **"Enforced by" lines.** In `docs/development/codebase-principles.md`: principle 1 replaces the
 contract generators with `contract:check` and `OPERATIONS`; principle 2 adds the brands and the proof;
-principle 3 replaces `uncheckedQueryRows` with the `pg` rule and `census-boundaries.mjs`; principle 6
+principle 3 replaces `uncheckedQueryRows` with the `pg` rule and `check-boundaries.mjs`; principle 6
 adds the one data module and the one caller; principle 7 names `biome/plugins/no-error-code.grit` and
 `DATABASE_FAILURES`; principle 8 names `EXPIRY_RULES` after part 6. A new
 `scripts/check-enforced-by.mjs` fails when such a line names a script, test, Biome rule or census item
@@ -486,7 +493,7 @@ here. The real dependencies come from the caller graph script
    project `FOR UPDATE` before anything else (`deletion.ts:56-66` takes no lock today).
    `workspace/store.ts` and `project/store.ts`: the gate; no `created_by`.
    `scripts/hub-catalog-lint.mjs`: the rules of the admission child, sections 5 and 7, replacing
-   `RUNTIME_ROLE` and `POLICY_HELPER` (`hub-catalog-lint.mjs:1-3`). `scripts/census-boundaries.mjs`:
+   `RUNTIME_ROLE` and `POLICY_HELPER` (`hub-catalog-lint.mjs:1-3`). `scripts/check-boundaries.mjs`:
    the write lint (admission child, section 5). `contracts/technical/hub-catalog-census.json`: the
    table register with its pending rows and function rows, and census rule 9. `scripts/hub-catalog.mjs`:
    `assertRoleInvariants` as the data child, section 4, states. `contracts/technical/hub-database-roles.json`,

@@ -591,7 +591,7 @@ function rows (in part 0b: the four purges and `builder.register_project_reposit
 privilege wall, so their exact list is what the lint guards (Supabase tests the same with
 `has_table_privilege`, `refs/postgrest-supabase-basejump.md`, item 4).
 
-**The write lint.** It lives in `scripts/census-boundaries.mjs`, which already walks the TypeScript
+**The write lint.** It lives in `scripts/check-boundaries.mjs`, which already walks the TypeScript
 AST, because the rule needs normalized text and statement structure that a GritQL pattern cannot
 read. For each `sql` tagged template it joins the literal parts with one placeholder per
 interpolation, lowercases, turns comments into spaces and collapses whitespace, then refuses:
@@ -896,7 +896,7 @@ What changed from revision 5, and why. Two reviewers on different models interro
   holds a client while it opens another. Data child, section 1.
 - **The tombstone takes `workspace_id` from the project row** (decision 11; Sonnet N13). Section 2.
 - **The write lint reads normalized text and statement structure** (decision 12; Opus 11, Sonnet
-  F9). It moves from a GritQL pattern to `census-boundaries.mjs`. Section 5.
+  F9). It moves from a GritQL pattern to `check-boundaries.mjs`. Section 5.
 - **The cross tenant read test has a positive control, an administrator variant and covers every
   readable table** (decision 13; Opus 10, Sonnet F7). Section 10.
 - **Definer functions granted to the reader check `p_account_id`** (decision 14; Opus 9, Sonnet F2b).

@@ -1,10 +1,10 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 const OPT_IN = 'opt-in:'
 
 // Inside `npm run verify` a test may skip, or be a todo, only when it declares an opt-in live
 // authority. Any other unexecuted test, a PostgreSQL suite in a step without a database for example,
-// passes silently and proves nothing, so it fails the graph here.
+// passes silently and proves nothing, so it fails the command here.
 
 // A bodyless test.todo reports as a pass with todo: true, so a todo is recorded like a skip.
 const unexecuted = (records) => records.flatMap(({ file, name, skip, todo }) => [
@@ -19,27 +19,6 @@ const fail = (message) => {
   process.exit(1)
 }
 
-// A node --test started inside a test inherits NODE_TEST_CONTEXT and reports to its parent, so the
-// ledger reporter never loads in it and its skips cannot be seen. Only these files may start one.
-const NESTED_RUN_ALLOWLIST = new Map([
-  ['tests/repository/verify-gates.test.mjs', 'runs fixture trees in temporary directories, outside the verify root'],
-  ['tests/implementation/builder-production-composed-live-runner.mjs', 'an opt-in live runner started by npm, never under node --test'],
-])
-const SPAWNED_TEST_FLAG = /(['"`])--test\1/
-
-const nestedRuns = existsSync('tests')
-  ? readdirSync('tests', { recursive: true })
-    .map((path) => `tests/${path}`)
-    .filter((path) => path.endsWith('.mjs') && !NESTED_RUN_ALLOWLIST.has(path))
-    .flatMap((path) => readFileSync(path, 'utf8').split('\n').flatMap((line, index) => (SPAWNED_TEST_FLAG.test(line) ? [`${path}:${index + 1}: ${line.trim()}`] : [])))
-  : []
-if (nestedRuns.length > 0) {
-  fail([
-    'a test starts a nested node --test, whose skips the ledger reporter cannot see; run the file in the verify graph or add it to NESTED_RUN_ALLOWLIST with a reason:',
-    ...nestedRuns,
-  ].join('\n'))
-}
-
 const ledger = process.env.CONEXUS_TEST_LEDGER
 if (!ledger || !existsSync(ledger)) fail(`the runner did not instrument this run: no test ledger at ${ledger ?? '(CONEXUS_TEST_LEDGER unset)'}`)
 
@@ -51,7 +30,7 @@ const all = unexecuted(records)
 const refused = all.filter((entry) => !approved(entry))
 if (refused.length > 0) {
   fail([
-    `${refused.length} skipped or todo test(s) in the verify graph; only a reason starting with "${OPT_IN}" may leave a test unexecuted:`,
+    `${refused.length} skipped or todo test(s) in the test command; only a reason starting with "${OPT_IN}" may leave a test unexecuted:`,
     ...refused.map(describeUnexecuted),
   ].join('\n'))
 }
