@@ -1,7 +1,7 @@
 # 0017. Model account foundations and core ownership
 
 **Date**: 2026-10-07
-**Status**: Draft awaiting the operator's approval
+**Status**: Approved by the operator on 2026-10-07, commit a5068fba54c676c2104b642ff08fd54ad9df8890
 **Lane**: lane:qualification (Q-b custody; Q-c real Builder proof before foundation merge)
 **Wave branch**: wave/company-model-accounts
 **Spec rewrite branch**: wave/model-accounts-respec → wave/company-model-accounts-spec
