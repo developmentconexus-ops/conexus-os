@@ -320,7 +320,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
         const conversationId = conversationOf(sessionScope)
         if (!conversationId || opened.threadId !== conversationId) throw new Failure('CONVERSATION_SESSION_REFUSED')
         if (await mount.conversationOwner({ projectId, conversationId }) === 'OTHER') throw new Failure('CONVERSATION_CONFLICT')
-        await mount.conversations.open({ projectId, conversationId })
+        await mount.conversations.open({ accountId, projectId, conversationId })
         admitted.set(request, { accountId, scope: sessionScope })
         return undefined
       }
@@ -344,7 +344,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       // through the Hub's cancel.
       if (key === ABORT_KEY) throw new Failure('BUILDER_RUN_STOP_REFUSED')
       if (IDLE_ONLY_ROUTES.has(key) && await mount.projectBusy({ accountId, projectId })) throw new Failure('BUILDER_BUSY')
-      await bindConversationSession(mount.controller, mount.conversations, projectId, conversationId)
+      await bindConversationSession(mount.controller, mount.conversations, accountId, projectId, conversationId)
       admitted.set(request, { accountId, scope: sessionScope })
       if (key === STREAM_ROUTE_KEY) closeWhenBehind(reply.raw, mount.streamBacklog ?? { limitBytes: STREAM_BACKLOG_LIMIT_BYTES, checkMs: STREAM_BACKLOG_CHECK_MS })
       return undefined
@@ -370,8 +370,8 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
 // A conversation's session reads its thread's settings again on every request, so the model a run
 // changed on the thread is what the browser sees and changes, and its observational-memory progress
 // from Mastra's own record.
-const bindConversationSession = async (controller: AgentController, conversations: GuardedMount['conversations'], projectId: ProjectId, conversationId: ConversationId): Promise<ControllerSession> => {
-  const session = await conversations.open({ projectId, conversationId })
+const bindConversationSession = async (controller: AgentController, conversations: GuardedMount['conversations'], accountId: AccountId, projectId: ProjectId, conversationId: ConversationId): Promise<ControllerSession> => {
+  const session = await conversations.open({ accountId, projectId, conversationId })
   await session.thread.loadMetadata()
   await controller.loadOMProgress(session)
   return session

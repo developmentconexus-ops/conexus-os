@@ -142,7 +142,7 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
     routes,
     modelAccounts,
     // Read when a run starts, long after the controller below exists.
-    conversationModel: (projectId, conversationId) => conversationModel(projectId, conversationId),
+    conversationModel: (accountId, projectId, conversationId) => conversationModel(accountId, projectId, conversationId),
     readDefault: modelAccounts.readDefault,
     record: (builderRunId, accountId, modelAccountId) => store.recordBuilderRunModelAccount({
       builderRunId, accountId, modelAccountId,
@@ -190,13 +190,13 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
   const liveConversations = createLiveConversations({
     controller, sandboxes, readSandboxId: store.readConversationSandbox, runOpen: (conversationId) => service.runOpen(conversationId),
   })
-  const conversationSession = async (ref: Readonly<{ projectId: ProjectId; conversationId: ConversationId }>) => {
+  const conversationSession = async (ref: Readonly<{ accountId: AccountId; projectId: ProjectId; conversationId: ConversationId }>) => {
     await ready
     return liveConversations.open(ref)
   }
   // The conversation's model is the one in its Mastra session, never a copy of Mastra's thread keys.
-  const conversationModel = async (projectId: ProjectId, conversationId: ConversationId): Promise<string | null> => {
-    const session = await conversationSession({ projectId, conversationId })
+  const conversationModel = async (accountId: AccountId, projectId: ProjectId, conversationId: ConversationId): Promise<string | null> => {
+    const session = await conversationSession({ accountId, projectId, conversationId })
     await session.thread.loadMetadata()
     return session.model.hasSelection() ? session.model.get() : null
   }
