@@ -53,7 +53,7 @@ test('a writer that moves main between the read and the update is refused and ke
   assert.equal(await run.main(), moved)
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'fail' || kind === 'advance'), [['fail', 'BUILDER_SOURCE_BASE_MOVED']])
   assert.deepEqual(run.diagnostics, [{
-    projectId, conversationId, builderRunId: runId, code: 'BUILDER_SOURCE_BASE_MOVED', outcome: 'SOURCE_BASE_MOVED', sourceRevision: run.base, from: 'service',
+    accountId, projectId, conversationId, builderRunId: runId, code: 'BUILDER_SOURCE_BASE_MOVED', outcome: 'SOURCE_BASE_MOVED', sourceRevision: run.base, from: 'service',
   }])
 })
 
@@ -530,7 +530,7 @@ test('a run that reached the agent and admitted nothing leaves one note that its
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_MODEL_INCOMPLETE'])
   assert.deepEqual(run.diagnostics, [{
-    projectId, conversationId, builderRunId: runId, code: 'BUILDER_MODEL_INCOMPLETE', outcome: 'RUN_NOT_FINISHED', sourceRevision: run.base, from: 'service',
+    accountId, projectId, conversationId, builderRunId: runId, code: 'BUILDER_MODEL_INCOMPLETE', outcome: 'RUN_NOT_FINISHED', sourceRevision: run.base, from: 'service',
   }])
 })
 
@@ -1189,7 +1189,7 @@ test("the conversation's next turn runs on the same sandbox, resumed by the id t
   await run.again()
   assert.equal(await run.settled(), true)
   await run.service.close()
-  assert.deepEqual(run.sandboxRefs, [{ projectId, conversationId }, { projectId, conversationId }])
+  assert.deepEqual(run.sandboxRefs, [{ accountId, projectId, conversationId }, { accountId, projectId, conversationId }])
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'sandbox'), [['sandbox', 'sbx-1'], ['sandbox', 'sbx-1']])
   assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_CHECKOUT:')), [
     `BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-1`, `BUILDER_TURN_CHECKOUT:${runId}:RESUMED:sbx-1`,
