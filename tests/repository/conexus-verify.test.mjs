@@ -73,7 +73,7 @@ test('the browser group runs as every position of one even division, and no othe
 test('a shard narrows the shardable step to its slice of the files, and no other step', () => {
   const run = (group, shard) => runVerification({ processEnvironment: {}, scopes: ['candidate'], packageScripts, dryRun: true, group, shard })
   const commands = run('browser', '2/4').records.map(record => record.command)
-  assert.ok(commands.includes("node --test --test-concurrency=1 --test-shard=2/4 'tests/implementation/*.browser.test.mjs'"))
+  assert.ok(commands.includes("node --test --test-concurrency=1 --test-shard=2/4 'tests/implementation/*.browser.test.mjs' 'tests/implementation/*.network.test.mjs'"))
   assert.equal(commands.filter(command => command.includes('--test-shard')).length, 1)
   assert.throws(() => run('rest', '2/4'), /--shard needs a group with a shardable step; rest has none/)
   assert.equal(parseArguments(['--scope', 'candidate', '--group', 'browser', '--shard', '3/4']).shard, '3/4')
@@ -89,6 +89,7 @@ test('the workflow runs the five groups and each runs the tests its name places 
   assert.deepEqual(groupsRunning('tests/repository/a.test.mjs', globs), ['rest'])
   assert.deepEqual(groupsRunning('tests/live/a.test.mjs', globs), ['live'])
   assert.deepEqual(groupsRunning('tests/implementation/conexus-backup.test.mjs', globs), ['backup'])
+  assert.deepEqual(groupsRunning('tests/implementation/a.network.test.mjs', globs), ['browser'])
   assert.deepEqual(groupsRunning('tests/manual/a.test.mjs', globs), [])
 })
 
@@ -296,9 +297,9 @@ test('candidate graph is the static checks, then one node --test per group by gl
   assert.deepEqual(scopes, EXPECTED_CANDIDATE_SCOPES)
   const command = (scope) => CANDIDATE_GRAPH.find(entry => entry.scope === scope).command
   assert.equal(command('repository-tests'), "node --test 'tests/repository/!(*.browser|*.postgres).test.mjs'")
-  assert.equal(command('implementation-tests'), "node --test 'tests/implementation/!(*.browser|*.postgres|conexus-backup).test.mjs' 'tests/implementation/access/*.test.mjs'")
+  assert.equal(command('implementation-tests'), "node --test 'tests/implementation/!(*.browser|*.postgres|*.network|conexus-backup).test.mjs' 'tests/implementation/access/*.test.mjs'")
   assert.equal(command('postgres-tests'), "node --test --test-concurrency=1 'tests/implementation/*.postgres.test.mjs'")
-  assert.equal(command('browser-tests'), "node --test --test-concurrency=1 'tests/implementation/*.browser.test.mjs'")
+  assert.equal(command('browser-tests'), "node --test --test-concurrency=1 'tests/implementation/*.browser.test.mjs' 'tests/implementation/*.network.test.mjs'")
   assert.equal(command('biome'), 'npx --no-install biome ci . --error-on-warnings')
   const commands = CANDIDATE_GRAPH.map(entry => entry.command)
   assert.equal(commands.some(text => /\.test\.mjs(?!')/.test(text)), false, 'no step names a test file; the globs do')

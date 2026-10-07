@@ -50,10 +50,10 @@ const hubBuildStep = Object.freeze({
 
 const TEST_GROUP_GLOBS = Object.freeze({
   repository: Object.freeze(['tests/repository/!(*.browser|*.postgres).test.mjs']),
-  implementation: Object.freeze(['tests/implementation/!(*.browser|*.postgres|conexus-backup).test.mjs', 'tests/implementation/access/*.test.mjs']),
+  implementation: Object.freeze(['tests/implementation/!(*.browser|*.postgres|*.network|conexus-backup).test.mjs', 'tests/implementation/access/*.test.mjs']),
   backup: Object.freeze(['tests/implementation/conexus-backup.test.mjs']),
   postgres: Object.freeze(['tests/implementation/*.postgres.test.mjs']),
-  browser: Object.freeze(['tests/implementation/*.browser.test.mjs']),
+  browser: Object.freeze(['tests/implementation/*.browser.test.mjs', 'tests/implementation/*.network.test.mjs']),
   live: Object.freeze(['tests/live/*.test.mjs']),
 })
 
