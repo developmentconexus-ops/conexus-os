@@ -109,6 +109,8 @@ readable when the tables or the screens change.
 - A failure **must** answer `application/problem+json` with `type`, `title`, `status` and `code`,
   plus `traceId` for a Conexus fault. It **must not** carry a stack trace or a `detail` a client
   parses.
+- The sole public `failureResponse` **must** return a native `Response` from the failure table.
+  Adapters preserve its observable status and headers and expose no private diagnosis.
 - `code` **must** come from `contracts/technical/failures.json`, with the status its row names.
 - The application runner's handled prepare and invoke answers **must** use its validated private
   `Result` over the existing owner channel, with HTTP 200 JSON. Only a public HTTP boundary projects

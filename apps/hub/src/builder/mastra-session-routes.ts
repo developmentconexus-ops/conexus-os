@@ -8,8 +8,8 @@ import type { ServerResponse } from 'node:http'
 import { ConversationId, ProjectId, type AccountId, type ProjectId as ProjectIdType } from '@conexus/contract'
 import { foreignRoutes } from '../http/access.js'
 import { parseJsonBody } from '../http/app.js'
-import { failureProblem } from '../http/problem.js'
-import { Failure, failureRow, logFailure, toFailure } from '../platform/failure.js'
+import { currentTraceReference, failureResponse } from '../http/problem.js'
+import { Failure, logFailure, toFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
 import type { LiveConversations } from './conversation.js'
 import type { ControllerSession } from './run/ports.js'
@@ -163,8 +163,8 @@ const failureRoute = (route: ServerRoute): ServerRoute =>
       if (error instanceof HTTPException && (error.res || error.status < 500)) throw error
       const failure = toFailure(error)
       logFailure(logger, failure)
-      const { status } = failureRow(failure)
-      throw new HTTPException(status, { res: new Response(JSON.stringify(failureProblem(failure)), { status, headers: { 'content-type': 'application/problem+json' } }) })
+      const response = failureResponse({ code: failure.id, traceId: currentTraceReference() })
+      throw new HTTPException(undefined, { res: response })
     }
   })
 
@@ -176,7 +176,8 @@ const failureRoute = (route: ServerRoute): ServerRoute =>
 export const mountValidationFailure = (): Readonly<{ status: number; body: unknown }> => {
   const failure = new Failure('REQUEST_VALIDATION_FAILED')
   logFailure(logger, failure)
-  return { status: failureRow(failure).status, body: failureProblem(failure) }
+  const response = failureResponse({ code: failure.id, traceId: currentTraceReference() })
+  return { status: response.status, body: response }
 }
 
 /** Mastra's adapter logs every 5xx handler throw itself; `failureRoute` already logged it once, with the cause. */

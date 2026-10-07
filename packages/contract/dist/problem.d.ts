@@ -1,4 +1,6 @@
 import { z } from 'zod';
+export declare const TraceId: z.core.$ZodBranded<z.ZodString, "TraceId", "out">;
+export type TraceId = z.output<typeof TraceId>;
 export declare const Problem: z.ZodObject<{
     type: z.ZodString;
     title: z.ZodString;
@@ -263,6 +265,6 @@ export declare const Problem: z.ZodObject<{
         OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
         OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
     }>;
-    traceId: z.ZodOptional<z.ZodString>;
+    traceId: z.ZodOptional<z.core.$ZodBranded<z.ZodString, "TraceId", "out">>;
 }, z.core.$loose>;
 export type Problem = z.output<typeof Problem>;

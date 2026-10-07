@@ -3,7 +3,7 @@ import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { Failure, toFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
 import type { EventLog } from '../platform/logger.js'
-import { failureProblem } from '../http/problem.js'
+import { currentTraceReference, failureResponse, sendFailureResponse } from '../http/problem.js'
 import { invokeBody, prepareBody, releaseBody } from './requests.js'
 import type { InvokeInput, OnDivergence, ServerFile } from './supervisor.js'
 import type { InvokeAnswer, PrepareAnswer } from './server-manifest.js'
@@ -13,11 +13,6 @@ export type ApplicationRunnerSupervisor = Readonly<{
   invoke(input: InvokeInput): Promise<InvokeAnswer>
   release(input: Readonly<{ projectId: string }>): Promise<void>
 }>
-
-const sendProblem = (reply: FastifyReply, failure: Failure): FastifyReply => {
-  const problem = failureProblem(failure)
-  return reply.type('application/problem+json').code(problem.status).send(problem)
-}
 
 const recordRunnerException = (failure: Failure): void => {
   const span = trace.getActiveSpan()
@@ -29,13 +24,13 @@ const recordRunnerException = (failure: Failure): void => {
 const escapedFailure = (reply: FastifyReply, error: unknown): FastifyReply => {
   const failure = toFailure(error)
   recordRunnerException(failure)
-  return sendProblem(reply, failure)
+  return sendFailureResponse(reply, failureResponse({ code: failure.id, traceId: currentTraceReference() }))
 }
 
 const refusedRequest = (reply: FastifyReply): FastifyReply => {
   const failure = new Failure('RUNNER_REQUEST_REFUSED')
   recordRunnerException(failure)
-  return sendProblem(reply, failure)
+  return sendFailureResponse(reply, failureResponse({ code: failure.id, traceId: currentTraceReference() }))
 }
 
 export const createApplicationRunnerApp = (input: Readonly<{

@@ -1,7 +1,10 @@
-import type { Result } from '@conexus/contract'
+import type { Result, TraceId } from '@conexus/contract'
 
 export type ManifestRefusal = Readonly<{ code: 'MANIFEST_REFUSED'; where: string; diagnostic: string }>
 export type AccountConnectionError = Readonly<{ code: 'ACCOUNT_INACTIVE' | 'ACCOUNT_NOT_FOUND' }>
+
+// @ts-expect-error A plain string is not a validated trace id.
+export const unvalidatedTraceId: TraceId = '0123456789abcdef0123456789abcdef'
 
 // @ts-expect-error Unknown codes are not part of the failure table.
 export type UnknownCode = Result<string, { readonly code: 'UNREGISTERED_CODE' }>

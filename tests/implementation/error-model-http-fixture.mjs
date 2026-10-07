@@ -1,4 +1,4 @@
-export function failureHttpScript({ network = false } = {}) {
+export function failureHttpScript({ network = false, runner = false } = {}) {
   return `
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -9,6 +9,7 @@ import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
 import { MastraServer } from '@mastra/fastify'
 import { z } from 'zod'
+import { trace } from '@opentelemetry/api'
 const build = process.env.HUB_BUILD
 const { createHttpApp } = await import(build + '/http/app.js')
 const { foreignRoutes, routes } = await import(build + '/http/access.js')
@@ -34,6 +35,28 @@ const sessions = createLiveConversations({ controller, sandboxes: { open: () => 
 const PROJECT = '33333333-3333-4333-8333-333333333333'
 const THREADS = '/api/builder/agent-controller/conexus-builder/sessions/project:' + PROJECT + '/threads?sessionScope=conversation:77777777-7777-4777-8777-777777777777'
 const MODEL = '/api/builder/agent-controller/conexus-builder/sessions/project:' + PROJECT + '/model?sessionScope=conversation:77777777-7777-4777-8777-777777777777'
+${runner ? `const { createApplicationRunnerApp } = await import(build + '/app-runner/http.js')
+const { createApplicationRunnerClient } = await import(build + '/app-runner/module.js')
+const runnerSocket = join(root, 'runner.sock')
+const runnerLogs = []
+const runnerContexts = []
+const hubInvokeContexts = []
+const runner = createApplicationRunnerApp({
+  supervisor: {
+    prepare: async () => { throw new Error('PRIVATE_RUNNER_CAUSE') },
+    invoke: async () => { throw new Error('PRIVATE_RUNNER_CAUSE') },
+    release: async () => { throw new Error('PRIVATE_RUNNER_CAUSE') },
+  },
+  log: (event) => runnerLogs.push(event),
+})
+runner.addHook('onRequest', async (request) => { runnerContexts.push({ traceparent: request.headers.traceparent, traceId: trace.getActiveSpan()?.spanContext().traceId }) })
+await runner.listen({ path: runnerSocket })
+const runnerClient = createApplicationRunnerClient(runnerSocket)
+const runnerInput = {
+  projectId: '11111111-1111-4111-8111-111111111111', operation: 'find', input: {},
+  files: [{ path: 'conexus-server/manifest.json', content: 'e30=', sha256: 'a'.repeat(64) }],
+  caller: { accountId: '22222222-2222-4222-8222-222222222222', email: null, displayName: 'Synthetic' },
+}` : ''}
 let threadsThrow = () => { throw new Error('unset') }
 controller.queryThreads = async () => threadsThrow()
 
@@ -56,6 +79,7 @@ const app = await createHttpApp({ policy, registerRoutes: async (server) => {
   route.navigation({ url: '/root-async', handler: async () => { throw new Failure('INTERNAL_UNEXPECTED', { details: { project: 'p1' } }) } })
   route.navigation({ url: '/root-sync', handler: () => { throw new Failure('NOT_FOUND') } })
   route.navigation({ url: '/vendor', handler: async () => { throw new Error('PLANTED_VENDOR_TEXT') } })
+  ${runner ? "route.navigation({ url: '/runner-native-error', handler: () => { hubInvokeContexts.push(trace.getActiveSpan()?.spanContext().traceId); return runnerClient.invoke(runnerInput) } })" : ''}
   route.session({ method: 'POST', url: '/validated', schema: { body: { type: 'object', required: ['a'], properties: { a: { type: 'string' } } } }, handler: async () => 'ok' })
   await foreignRoutes(server, 'navigation', async (scope) => {
     scope.addHook('onRequest', async (request) => { if (request.url === '/scoped/hook') throw new Failure('NOT_FOUND') })
@@ -74,6 +98,7 @@ const cases = [
   ${network ? `['project refusal', { url: '/project' }],
   ['native query validation', { url: '/native-query?count=invalid' }],
   ['native path validation', { url: '/native-path/not-a-uuid' }],` : ''}
+  ${runner ? `['native runner escape', { url: '/runner-native-error' }],` : ''}
   ['root async Failure', { url: '/root-async' }],
   ['root sync Failure', { url: '/root-sync' }],
   ['plain Error', { url: '/vendor' }],
@@ -99,9 +124,10 @@ for (const [name, { before, ...request }] of cases) {
   report[name] = [answer.statusCode, answer.headers['content-type'], answer.body]`}
 }
 logger.info('CASE end')
-console.log(JSON.stringify({ report, onErrorCalls, onSend }))
+console.log(JSON.stringify({ report, onErrorCalls, onSend, runnerLogs: ${runner ? 'runnerLogs' : '[]'}, runnerContexts: ${runner ? 'runnerContexts' : '[]'}, hubInvokeContexts: ${runner ? 'hubInvokeContexts' : '[]'} }))
 await sessions.close()
 await app.close()
+${runner ? 'await runner.close()' : ''}
 await controller.destroy()
 await storage.close()
 rmSync(root, { recursive: true, force: true })

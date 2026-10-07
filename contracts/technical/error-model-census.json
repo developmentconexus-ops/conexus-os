@@ -4,8 +4,8 @@
     "manifestThrowHelpers": 2,
     "admissionMessageDecoders": 2,
     "workerCodeFilter": 1,
-    "failureProblemCalls": 6,
-    "failureBodyHelpers": 4,
+    "failureProblemCalls": 0,
+    "failureBodyHelpers": 0,
     "hubFailureClass": 1,
     "oldWebFailureImportFiles": 8,
     "embeddedConexusError": 1,
@@ -14,7 +14,10 @@
     "generatedFailureFallback": 1,
     "starterFailureWrappers": 2
   },
-  "activatedZeroTargets": [],
+  "activatedZeroTargets": [
+    "failureProblemCalls",
+    "failureBodyHelpers"
+  ],
   "inventory": {
     "admissionCallExpressions": 10,
     "sandboxStartRow": 0

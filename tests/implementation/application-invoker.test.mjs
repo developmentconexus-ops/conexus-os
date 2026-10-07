@@ -28,9 +28,12 @@ const CALLER = Object.freeze({ accountId: '44444444-4444-4444-8444-444444444444'
 
 const source = (projectId) => ({ via: 'PREVIEW', accountId: 'acct', projectId })
 
-const call = (invoker, projectId, path = 'conexus-server/handlers/a.mjs', callerLeft = new AbortController().signal) => invoker({
-  source: source(projectId), files: [{ path, sha256: 'sha', content: '' }], operation: 'op', input: {}, caller: CALLER, callerLeft,
-})
+const call = async (invoker, projectId, path = 'conexus-server/handlers/a.mjs', callerLeft = new AbortController().signal) => {
+  const response = await invoker({
+    source: source(projectId), files: [{ path, sha256: 'sha', content: '' }], operation: 'op', input: {}, caller: CALLER, callerLeft,
+  })
+  return { status: response.status, body: await response.json() }
+}
 
 const limits = (overrides) => ({
   globalConcurrency: 4, perProjectConcurrency: 4, admissionQueueTimeoutMs: 10_000, admissionQueueLimit: 16, ...overrides,
@@ -252,6 +255,15 @@ test('a handled runner refusal becomes a public Problem with no private diagnosi
     status: 500,
     body: { type: 'urn:conexus:problem:HANDLER_FAILED', title: 'HANDLER_FAILED', status: 500, code: 'HANDLER_FAILED' },
   })
+})
+
+test('the invoker owns one native Response with table status and no private diagnosis', async () => {
+  const invoker = createApplicationInvoker({ invoke: async () => ({ ok: false, error: { code: 'HANDLER_FAILED', sqlstate: '23505' } }) })
+  const response = await invoker({ source: source('p1'), files: [], operation: 'op', input: {}, caller: CALLER, callerLeft: new AbortController().signal })
+  assert.equal(response instanceof Response, true)
+  assert.equal(response.status, 500)
+  assert.equal(response.headers.get('content-type'), 'application/problem+json')
+  assert.deepEqual(await response.json(), problem('HANDLER_FAILED', 500))
 })
 
 // The connector port lives exactly as long as one invocation: opened for its source before the

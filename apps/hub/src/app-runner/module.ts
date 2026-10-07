@@ -1,4 +1,4 @@
-import { request } from 'node:http'
+import http from 'node:http'
 import { RESET_STATEMENT_TIMEOUT_MS } from './requests.js'
 import { invokeAnswerSchema, prepareAnswerSchema } from './wire.js'
 import type { InvokeInput, OnDivergence, ServerFile } from './supervisor.js'
@@ -31,7 +31,7 @@ const call = (socketPath: string, path: string, body: unknown, timeoutMs: number
     reject(cause instanceof Failure ? cause : new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause }))
   }
   const payload = Buffer.from(JSON.stringify(body))
-  const outgoing = request({
+  const outgoing = http.request({
     socketPath, path, method: 'POST', timeout: timeoutMs, ...(signal ? { signal } : {}),
     headers: { 'content-type': 'application/json', 'content-length': payload.byteLength },
   }, (response) => {

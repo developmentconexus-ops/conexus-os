@@ -1,7 +1,8 @@
 import type { AccountId, ProjectId, Result } from '@conexus/contract'
-import { failureProblem } from '../http/problem.js'
-import { Failure } from '../platform/failure.js'
+import { currentTraceReference, failureResponse } from '../http/problem.js'
+import { Failure, logFailure } from '../platform/failure.js'
 import type { FailureCode } from '../platform/failures.generated.js'
+import { logger } from '../platform/logger.js'
 import type { Caller } from '../platform/caller.js'
 import type { ServerFile } from './server-tree.js'
 
@@ -32,7 +33,7 @@ export type ApplicationInvoker = (input: Readonly<{
   input: unknown
   caller: Caller
   callerLeft: AbortSignal
-}>) => Promise<Readonly<{ status: number; body: unknown }>>
+}>) => Promise<Response>
 
 export type ApplicationAdmissionLimits = Readonly<{
   globalConcurrency: number
@@ -100,13 +101,14 @@ const createGate = (capacity: number, lineLimit: number): Gate => {
   }
 }
 
-const refusal = (code: FailureCode): Readonly<{ status: number; body: unknown }> => {
-  const problem = failureProblem(new Failure(code))
-  return Object.freeze({ status: problem.status, body: problem })
+const refusal = (code: FailureCode): Response => {
+  const failure = new Failure(code)
+  logFailure(logger, failure)
+  return failureResponse({ code, traceId: currentTraceReference() })
 }
 
-const publicAnswer = (answer: RunnerAnswer): Readonly<{ status: number; body: unknown }> =>
-  answer.ok ? Object.freeze({ status: 200, body: answer.result }) : refusal(answer.error.code)
+const publicAnswer = (answer: RunnerAnswer): Response =>
+  answer.ok ? Response.json(answer.result) : refusal(answer.error.code)
 
 export const createApplicationInvoker = (dependencies: Readonly<{
   invoke: ApplicationRunnerInvoke

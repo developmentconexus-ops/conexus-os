@@ -9,7 +9,7 @@ const { sql } = await import(hubModuleUrl('platform/db.js'))
 const { admitAccount, admitApplication, admitInstallationAdministrator, admitProject, admitWorkspace, checkApplication } = await import(hubModuleUrl('identity-access/admission.js'))
 const { logFailure, toFailure } = await import(hubModuleUrl('platform/failure.js'))
 const { logger } = await import(hubModuleUrl('platform/logger.js'))
-const { failureProblem } = await import(hubModuleUrl('http/problem.js'))
+const { failureResponse } = await import(hubModuleUrl('http/problem.js'))
 
 const refusal = async (attempt) => {
   try { await attempt() } catch (error) { return { id: error.id, refusal: error.details?.refusal } }
@@ -41,7 +41,10 @@ test('an admission refusal carries its reason in the log details only, never in 
   takeHubLogs()
   logFailure(logger, failure)
   assert.deepEqual(takeHubLogs().map(({ level, message, fields }) => ({ level, message, refusal: fields['failure.details.refusal'] })), [{ level: 'info', message: 'APPLICATION_NOT_FOUND', refusal: 'TOMBSTONE' }])
-  assert.deepEqual(failureProblem(failure), { type: 'urn:conexus:problem:APPLICATION_NOT_FOUND', title: 'APPLICATION_NOT_FOUND', status: 404, code: 'APPLICATION_NOT_FOUND' })
+  const response = failureResponse({ code: failure.id, traceId: null })
+  assert.equal(response.status, 404)
+  assert.equal(response.headers.get('content-type'), 'application/problem+json')
+  assert.deepEqual(await response.json(), { type: 'urn:conexus:problem:APPLICATION_NOT_FOUND', title: 'APPLICATION_NOT_FOUND', status: 404, code: 'APPLICATION_NOT_FOUND' })
 })
 
 test('a database error logs its SQLSTATE, constraint and table, and a refused column logs 42501 in its stack', async (t) => {
