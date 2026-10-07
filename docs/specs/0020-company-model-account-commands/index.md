@@ -1,7 +1,7 @@
 # 0020. Company model account commands and experience
 
 **Date**: 2026-10-07
-**Status**: Draft awaiting the operator's approval
+**Status**: Approved by the operator on 2026-10-07, commit 1f96d465a15faecdcf240c425a3e513f65e16054
 **Lane**: lane:qualification (Q-b authority/custody; Q-c real Builder and Google adapter)
 **Wave branch**: wave/company-model-account-commands
 **Spec rewrite branch**: wave/model-account-commands-respec → wave/company-model-account-commands
