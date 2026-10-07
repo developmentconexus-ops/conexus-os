@@ -2,7 +2,7 @@
 
 **Date**: 2026-10-07
 
-**Status**: Proposed
+**Status**: Approved by the operator on 2026-10-07, commit 7ccc90282158d1fc137bf117c3bc894b745c0832
 
 **Lane**: lane:qualification (Q-b: runner fd 3 and prepare HTTP failure formats change; Q-c: the final proof includes a real consumer and durable evidence)
 
