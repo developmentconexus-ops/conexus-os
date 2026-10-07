@@ -42,7 +42,7 @@ export const createControllerRunSessions = ({ controller, conversations, readDef
 }>): BuilderRunPorts['openSession'] => async ({ projectId, conversationId, bindContext }) => {
   const requestContext = new RequestContext()
   bindContext(requestContext)
-  const session = await conversations.open({ projectId, conversationId })
+  const session = await conversations.open({ accountId: requireRunContext(requestContext).accountId, projectId, conversationId })
   await session.thread.loadMetadata()
   if (!session.model.hasSelection()) {
     const modelId = await readDefaultModel(requireRunContext(requestContext).accountId)

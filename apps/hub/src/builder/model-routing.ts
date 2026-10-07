@@ -60,7 +60,7 @@ export const createModelRouting = ({ routes, modelAccounts, conversationModel, r
   routes: ModelRoutes
   modelAccounts: Pick<ModelAccounts, 'usable' | 'select'>
   /** The model in the conversation's Mastra session, or null when it has none yet. */
-  conversationModel(projectId: ProjectId, conversationId: ConversationId): Promise<string | null>
+  conversationModel(accountId: AccountId, projectId: ProjectId, conversationId: ConversationId): Promise<string | null>
   readDefault(accountId: AccountId, role: ModelRole): Promise<string | null>
   /** Records the account that paid for one call of the run; the run id and the paying account are what the run's request context carried. */
   record(builderRunId: BuilderRunId, accountId: AccountId, modelAccountId: ModelAccountId): Promise<void>
@@ -80,7 +80,7 @@ export const createModelRouting = ({ routes, modelAccounts, conversationModel, r
   return Object.freeze({
     /** Refuses a run before it starts when the model it starts on, or the memory's, has no usable account. */
     check: async ({ accountId, projectId, conversationId }: Readonly<{ accountId: AccountId; projectId: ProjectId; conversationId: ConversationId }>): Promise<void> => {
-      await check(accountId, await conversationModel(projectId, conversationId) ?? await readDefault(accountId, 'build'))
+      await check(accountId, await conversationModel(accountId, projectId, conversationId) ?? await readDefault(accountId, 'build'))
       await check(accountId, await readDefault(accountId, 'memory'))
     },
     /** The Builder's model for a call; the controller's `model` resolver. */

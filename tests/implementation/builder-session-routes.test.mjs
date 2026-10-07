@@ -63,7 +63,9 @@ const createBuilderApp = async (t, { accountId = accountA, providerDown = false,
       })
       await registerBuilderSessionRoutes(instance, {
         mastra, controllerId: 'conexus-builder', controller, conversations: sessions,
-        mayBuild: async ({ accountId: caller, projectId }) => admittedProjects[caller]?.includes(projectId) ?? false,
+        admitBuilder: async ({ accountId: caller, projectId }) => {
+          if (!admittedProjects[caller]?.includes(projectId)) throw new Failure('PROJECT_NOT_FOUND')
+        },
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async () => busy,
         answerQuestion: (input) => { answered.push(input); return answerOutcome(input) },
@@ -121,8 +123,8 @@ test("Project A's resource is refused to an Account admitted only to Project B, 
   for (const url of [`${sessionBase()}/threads`, `${sessionBase(randomUUID())}/threads`, `${PREFIX}/sessions/${conversationA}/threads`, `${sessionBase()}?${inConversation()}`]) {
     answers.push((await app.inject({ method: 'GET', url, ...authentic })).statusCode)
   }
-  assert.deepEqual(answers, [403, 403, 403, 403])
-  assert.equal((await openConversation(app, projectA, randomUUID())).statusCode, 403)
+  assert.deepEqual(answers, [404, 404, 404, 404])
+  assert.equal((await openConversation(app, projectA, randomUUID())).statusCode, 404)
 })
 
 test('the Builder mount answers the admitted Account with the Hub-set caller identity', async (t) => {
@@ -473,26 +475,47 @@ test('the session read serves the latest run with the calls its live run in this
   assert.deepEqual(await read(), [], 'after a restart the row still says WAITING, and nothing is answerable')
 })
 
-test('the trace route answers a Project the account cannot build in with PROJECT_BUILD_DENIED, and an older run id with BUILDER_RUN_NOT_FOUND', async (t) => {
+test('the trace route propagates Project subject refusal and hides an older run id', async (t) => {
   const latest = '88888888-8888-4888-8888-888888888888'
   const older = '99999999-9999-4999-8999-999999999999'
   let subject = null
   const { app } = await createBuilderRoutesApp(t, {
     session: { read: async () => { throw new Error('unused') }, readTrace: async () => { throw new Error('unused') } },
     store: {
-      readPreviewSubject: async () => subject,
       readBuilderRun: async () => {
-        if (!subject) throw new Error('the run is read only after the Project admits the account')
+        if (!subject) throw new Failure('PROJECT_NOT_FOUND')
         return { builderRunId: latest }
       },
     },
   })
   const trace = (id) => app.inject({ method: 'GET', url: `/api/control/projects/${projectA}/builder-session/runs/${id}/trace`, ...authentic })
   const hidden = await trace(latest)
-  assert.deepEqual([hidden.statusCode, hidden.json().code], [403, 'PROJECT_BUILD_DENIED'])
+  assert.deepEqual([hidden.statusCode, hidden.json().code], [404, 'PROJECT_NOT_FOUND'])
   subject = { lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null }
   const stale = await trace(older)
   assert.deepEqual([stale.statusCode, stale.json().code], [404, 'BUILDER_RUN_NOT_FOUND'])
+})
+
+test('sessionless messages refuse foreign, resource-less and missing threads before Mastra serves content', async (t) => {
+  const { app, controller, memory } = await createBuilderApp(t)
+  const foreign = randomUUID()
+  const resourceLess = randomUUID()
+  const now = new Date()
+  await memory.saveThread({ thread: { id: foreign, resourceId: `project:${projectB}`, title: 'foreign', createdAt: now, updatedAt: now } })
+  await memory.saveThread({ thread: { id: resourceLess, resourceId: '', title: 'resource-less', createdAt: now, updatedAt: now } })
+  await memory.saveMessages({ messages: [
+    { id: randomUUID(), role: 'assistant', createdAt: now, threadId: foreign, resourceId: `project:${projectB}`, content: { format: 2, parts: [{ type: 'text', text: 'foreign secret' }] } },
+  ] })
+  const read = (threadId) => app.inject({ method: 'GET', url: `${sessionBase()}/threads/${threadId}/messages`, ...authentic })
+  const missing = randomUUID()
+  const responses = await Promise.all([read(foreign), read(resourceLess), read(missing)])
+  assert.deepEqual(responses.map((response) => [response.statusCode, response.json().code]), [
+    [404, 'CONVERSATION_NOT_FOUND'], [404, 'CONVERSATION_NOT_FOUND'], [404, 'CONVERSATION_NOT_FOUND'],
+  ])
+  assert.equal(responses.some((response) => response.body.includes('secret')), false)
+  assert.equal(await controller.getSessionByResource(`project:${projectA}`, `conversation:${missing}`), undefined)
+  assert.equal(await controller.getSessionByResource(`project:${projectA}`, `conversation:${resourceLess}`), undefined)
+  assert.equal(await controller.getSessionByResource(`project:${projectA}`, `conversation:${foreign}`), undefined)
 })
 
 test('a failure the Builder routes cannot name is a 500, and a trace store failure keeps its cause behind a 503', async (t) => {

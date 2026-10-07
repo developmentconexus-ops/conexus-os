@@ -61,13 +61,13 @@ test('checkProject admits a member of the Project\'s Workspace and refuses an ou
   await assert.rejects(check(ID.member), refused)
 })
 
-test('the read admission of a Workspace answers an inactive member as an outsider, and a command still answers ACCOUNT_INACTIVE', async (t) => {
+test('an inactive Account is refused on Workspace reads and commands', async (t) => {
   const { connection, database } = await setupProjects(t, 'conexus_iam_read_admission')
   const read = (accountId) => database.read(accountId, async (gate) => (await admitWorkspace(gate, { workspaceId: ID.workspace, action: 'workspace.read' })).scope.role)
   assert.equal(await read(ID.member), 'member')
   await assert.rejects(read(ID.outsider), { id: 'WORKSPACE_NOT_FOUND' })
   await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.member])
-  await assert.rejects(read(ID.member), { id: 'WORKSPACE_NOT_FOUND' })
+  await assert.rejects(read(ID.member), { id: 'ACCOUNT_INACTIVE' })
   await assert.rejects(database.transaction(ID.member, (gate) => admitWorkspace(gate, { workspaceId: ID.workspace, action: 'project.create' })), { id: 'ACCOUNT_INACTIVE' })
 })
 

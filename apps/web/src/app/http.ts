@@ -1,6 +1,6 @@
 // Refusals cross the shared contract reader, and a 401 drops what the page learned while signed in.
 
-import { clearAuthorityCache } from './query-client'
+import { clearAuthorityCache, clearProjectCache, refreshProjectCache } from './query-client'
 import { readFailure, ReceivedFailure, type AnyOperation, type BinaryOperation, type Input, type JsonOperation, type Reply } from '@conexus/contract'
 
 const urlOf = (op: AnyOperation, input: Input<AnyOperation>): string => {
@@ -43,7 +43,15 @@ export async function call(op: JsonOperation, input: Input<AnyOperation>, option
   }
   if (!response.ok) {
     if (response.status === 401) clearAuthorityCache()
-    throw await readFailure(response)
+    const failure = await readFailure(response)
+    if (typeof input.params === 'object' && input.params !== null && 'projectId' in input.params && typeof input.params.projectId === 'string') {
+      if (failure.code === 'PROJECT_NOT_FOUND') {
+        clearProjectCache(input.params.projectId)
+        if (op.id !== 'getProject') refreshProjectCache(input.params.projectId)
+      }
+      if (failure.code === 'PROJECT_DELETING') refreshProjectCache(input.params.projectId)
+    }
+    throw failure
   }
   const success = Object.entries(op.success)
   const entry = success.find(([status]) => Number(status) === response.status)

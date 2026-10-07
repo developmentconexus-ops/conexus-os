@@ -23,16 +23,22 @@ function ProjectSettingsAccessRoute() {
   const projectId = routeParam(ProjectId, projectSettingsAccessRoute.useParams().projectId)
   const project = useQuery(projectQuery(projectId))
   return <AccessGate>{(context) => {
-    const workspace = project.data && context.workspaces.find((candidate) => candidate.workspaceId === project.data.workspaceId)
-    return <Shell context={context} scope={project.data && workspace ? { workspace, project: project.data } : undefined}>
+    const projectDetail = project.data?.kind === 'found' ? project.data.project : undefined
+    const workspace = projectDetail && context.workspaces.find((candidate) => candidate.workspaceId === projectDetail.workspaceId)
+    return <Shell context={context} scope={projectDetail && workspace ? { workspace, project: projectDetail } : undefined}>
       <div className="cx-page cx-page--narrow">
         {project.isPending && <div className="cx-page-head" aria-busy="true"><Skeleton className="cx-skeleton-line" /><span className="sr-only" role="status">Carregando o Projeto</span></div>}
         {project.isError && <ProjectUnavailable error={project.error} onRetry={() => void project.refetch()} />}
-        {project.isSuccess && <>
+        {project.isSuccess && project.data.kind === 'not-found' && <ProjectUnavailable error={null} onRetry={() => void project.refetch()} />}
+        {project.isSuccess && project.data.kind === 'found' && project.data.project.state === 'deleting' && <div className="cx-state" role="status">
+          <h2>Exclusão de {project.data.project.name} em andamento</h2>
+          <p>O acesso ao aplicativo fica indisponível enquanto o Projeto é excluído.</p>
+        </div>}
+        {project.isSuccess && project.data.kind === 'found' && project.data.project.state === 'live' && <>
           <div className="cx-page-head">
             <div>
               <h1>Acesso ao aplicativo</h1>
-              <p>Quem, além do Workspace, pode usar o aplicativo de {project.data.name}.</p>
+              <p>Quem, além do Workspace, pode usar o aplicativo de {project.data.project.name}.</p>
             </div>
           </div>
           <ApplicationAccess projectId={projectId} />

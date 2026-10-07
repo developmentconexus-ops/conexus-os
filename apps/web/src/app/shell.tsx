@@ -171,7 +171,7 @@ function ProjectSwitcher({ workspaceId, current, trigger }: Readonly<{ workspace
       <DropdownMenu.Label>Projetos</DropdownMenu.Label>
       {projects.isPending && <DropdownMenu.Item disabled>Carregando…</DropdownMenu.Item>}
       {projects.isError && <DropdownMenu.Item disabled>Não foi possível carregar</DropdownMenu.Item>}
-      {projects.data?.filter((project) => !project.archived).map((project) => (
+      {projects.data?.filter((project) => project.state === 'live' && !project.archived).map((project) => (
         <DropdownMenu.Item
           key={project.projectId}
           aria-current={project.projectId === current ? 'true' : undefined}

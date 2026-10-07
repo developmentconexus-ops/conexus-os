@@ -254,14 +254,6 @@
       "action": "NONE"
     },
     {
-      "code": "PROJECT_BUILD_DENIED",
-      "category": "USER",
-      "status": 403,
-      "audience": "person",
-      "message": "Você não tem permissão para construir neste Projeto.",
-      "action": "ASK_ADMIN"
-    },
-    {
       "code": "CONVERSATION_NOT_FOUND",
       "category": "USER",
       "status": 404,

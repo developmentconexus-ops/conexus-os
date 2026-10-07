@@ -48,16 +48,13 @@ Versions are pinned here. A builder needs the rules below, not a private referen
 
 ## Code shape
 
-[shape/](shape/) is the compiled target contract. Run `npx tsc --noEmit -p docs/specs/0018-authorization-model/shape`; it must exit 0 on this spec head before review. U7 deletes the folder when production becomes the owner.
+The temporary compiled `shape/` held the target contract during the build. U7 deleted it after production became its owner; the concepts below describe the resulting production contract.
 
-- `types.ts` holds branded ids, action/state unions, mode-specific nominal scopes/proofs and gates. RunOwner, RunScope, SystemScope, BootstrapScope and Checked preserve the downstream boundary.
-- `catalog.ts` holds total action/role cells and subject-code mapping.
-- `admission.ts` holds read/write/authentication overloads and current Failure-based refusal signatures.
-- `data.ts` holds proof-consuming reads and existing deletion ports.
-- `deletion.ts` holds the existing deletion module's operation, private atomic finalization and close-before-thread-delete contract.
-- `run.ts` describes private terminal endings and the existing fail/interrupt operations, not a second run engine or exported cleanup proof.
-- `usage.ts` includes thumbnail/list/session calls, model standing, a held credential and terminal closure.
-- `negative.ts` rejects forged gates/proofs, swapped ids, wrong modes/actions, invalid Project states and System-to-credential authority.
+- Branded ids, action/state unions, mode-specific nominal scopes/proofs and gates preserve the downstream boundary. RunOwner, RunScope, SystemScope, BootstrapScope and Checked retain their existing contracts.
+- The total action/role catalog owns subject-code mapping; admission owns read/write/authentication signatures and Failure-based refusals.
+- Proof-consuming reads use the existing data owners. Deletion stays in its existing module with private atomic finalization and close-before-thread-delete behavior.
+- Run endings use the existing fail/interrupt operations; they introduce neither a second run engine nor an exported cleanup proof.
+- Thumbnail/list/session calls, model standing, held credentials and terminal closure exercise the production boundary; invalid gates/proofs, swapped ids, wrong modes/actions, invalid Project states and System-to-credential authority remain rejected.
 
 Existing AuthenticationGate remains bound by authentication. Only admission/authentication open their corresponding gates, using the existing gate records and private constructors. Keep the gate-opener check. No compatibility overload from raw ReadTx survives U4. `checkProject` keeps `Checked<ProjectScope<'project.read'>>` and returns the real membership role from its current lookup; no separate served Project scope is introduced. `Checked` is a separate method-limited served view inside a write-capable authentication transaction; it is not database READ ONLY and no command accepts it.
 
@@ -69,7 +66,7 @@ For valid person data calls, admission resolves the active Account first, then t
 
 `connection.manage` is different: active Account, administrator tenure, then the named Workspace's existence, then its exact child. Thus a non-admin cannot distinguish an unknown Workspace, while an admin may manage an existing nonmember Workspace. U4 changes native visibility and the new read contract together. U3's command variant can already do that under the command policies.
 
-Replace `ROLE_ALLOWS`/`ACTION_REFUSALS` with the total catalog in shape. The `SUBJECT_NOT_FOUND` constant lives once in the contract's `operation.ts`, exported by its package; admission and malformed Workspace/Project parameter cells derive from it. Other child parameter codes stay as declared. Locked owner rows occur only on owner-set command scopes; Project scopes carry the actual role. Read actions are workspace.read and project.read/project.build/connections.bind/application.manage. Command-only owner-set/create/delete actions cannot be admitted by ReadGate.
+The total production catalog replaces `ROLE_ALLOWS`/`ACTION_REFUSALS`. The `SUBJECT_NOT_FOUND` constant lives once in the contract's `operation.ts`, exported by its package; admission and malformed Workspace/Project parameter cells derive from it. Other child parameter codes stay as declared. Locked owner rows occur only on owner-set command scopes; Project scopes carry the actual role. Read actions are workspace.read and project.read/project.build/connections.bind/application.manage. Command-only owner-set/create/delete actions cannot be admitted by ReadGate.
 
 Public helper SQL uses the proof's Account/Workspace/Project predicates. Child ids still require exact parent predicates. Personal model standing preserves today's own/everyone visibility; 0017/0020 own future installation model-account behavior. Credential readers remain internal and joined to the held run/account standing; no response returns sealed credentials. Session's administrator flag is data queried under Account read admission, not a field granting administrator scope.
 
@@ -273,7 +270,7 @@ apps/hub/migrations/<next>_retired_build_failure.sql
 
 ## Units
 
-Builders read their card, its cited Design sections, the census/inventory and shape. Identity/foreign-mount and migration units carry needs:aprovo under areas.json/delivery. Nothing builds before the operator approves the corrected spec. Every unit runs the pinned preflight, verify:quick and its relevant existing/scoped tests. A new failure/migration regenerates its artifacts from their owners. No unit uses real E2B/provider/company data or a shared cluster without separate authority.
+Builders read their card, its cited Design sections, the census/inventory and the current production owners described by the spec. Identity/foreign-mount and migration units carry needs:aprovo under areas.json/delivery. Nothing builds before the operator approves the corrected spec. Every unit runs the pinned preflight, verify:quick and its relevant existing/scoped tests. A new failure/migration regenerates its artifacts from their owners. No unit uses real E2B/provider/company data or a shared cluster without separate authority.
 
 ### U1. Pin current behavior with existing fixtures
 
@@ -290,7 +287,7 @@ Builders read their card, its cited Design sections, the census/inventory and sh
 
 ### U2. Make required deletion cleanup and finalization truthful
 
-- **Already there**: U1 pins; current administrator deletion admission, project_deletion row, database.session advisory-lock/loss primitive, native conversation/session owners and purge ports. Read Deletion and native cleanup; shape/deletion.ts and data.ts. Initial admission uses the existing administrator until U3 replaces it; no ReadGate or no-policy catalog prerequisite.
+- **Already there**: U1 pins; current administrator deletion admission, project_deletion row, database.session advisory-lock/loss primitive, native conversation/session owners and purge ports. Read Deletion and native cleanup design and the current production owners in Files. Initial admission uses the existing administrator until U3 replaces it; no ReadGate or no-policy catalog prerequisite.
 - **Creates**: Existing driver reordered to required cleanup/repository first, private atomic purge/completion last; per-Project advisory-lock composition in the same deletion module. conversations.deleteAll calls required beforeDelete before removing native threads. Deletion-facing drop propagates teardown failure; required VM ids are checked. Idle best effort is kept at its existing consumers.
 - **Satisfies**: AC-5 and AC-9. Owner authority/member-visible wire state wait for U3/U4/U5.
 - **Files**: apps/hub/src/project/{deletion,module}.ts; builder/{module,conversation,conversations}.ts; hub.ts wiring and platform/db.ts session name union; existing deletion/session/conversation tests. No schema/job/lease/session queue or new failure representation.
@@ -303,7 +300,7 @@ Builders read their card, its cited Design sections, the census/inventory and sh
 
 ### U3. Replace command authority and separate run closure from new work
 
-- **Already there**: U1/U2; existing command policies pass business rows; current Account/membership/Project and owner locks, Run/System/Bootstrap/Authentication/Checked signatures. Read Admission, scopes and refusal consumers; Held-run execution and terminal closure; shape/types/catalog/admission/run.
+- **Already there**: U1/U2; existing command policies pass business rows; current Account/membership/Project and owner locks, Run/System/Bootstrap/Authentication/Checked signatures. Read Admission, scopes and refusal consumers; Held-run execution and terminal closure; the Code shape design summary and current production owners in Files.
 - **Creates**: Total ACTIONS in the existing admission owner, contract-owned subject404 mapping, role-bearing Project/owner-set scopes, owner Project deletion admission with deleting allowance, current-person checks on executor admitRun. Existing run owner uses System admission and exact held-run locks for terminal fail/interrupt and previously admitted recovery; no new cleanup proof. Declare/generate PROJECT_DELETING and normalize retired PROJECT_CREATE_DENIED in the next authorization_catalog migration. Edit S §2 for command/terminal authority and H's subject404 rule alongside the change; read requirement lands with U4.
 - **Satisfies**: AC-1/2 command paths, AC-4 owner authority, AC-6, AC-9. Target nonmember administrator reads wait for U4's native permissions.
 - **Files**: identity-access/admission.ts and affected administrator/roster/application-access/module consumers; project/{deletion,store,module}.ts; workspace/store.ts; connectors/{store,module}.ts; builder/{run-lifecycle,application-build,preview-state,conversation-store,model-account/accounts}.ts; registry/retain.ts and its module export; contract operation/index and affected declarations; failure JSON/generated artifacts; next authorization_catalog migration; S/H documents; relevant tests.
@@ -316,7 +313,7 @@ Builders read their card, its cited Design sections, the census/inventory and sh
 
 ### U4. Close normal reads with their native privilege transition
 
-- **Already there**: U1-U3; finalized command catalog/proofs and truthful deletion; existing read/query/isolation owner, role/table registers, catalog/generators and immutable migration history. Read Admission, Database and guides; shape/admission/data/types. All target inputs exist before this unit.
+- **Already there**: U1-U3; finalized command catalog/proofs and truthful deletion; existing read/query/isolation owner, role/table registers, catalog/generators and immutable migration history. Read Admission, Database and guides; the Code shape design summary and current production owners in Files. All target inputs exist before this unit.
 - **Creates**: Closed ReadGate and read admission overloads; all nineteen person read callbacks/helpers moved to scoped proofs. One hub_authority migration grants exact runtime privileges, removes policies/old roles/settings and normalizes U4 retired codes. Reuse catalog lint/generators/registers in place, with unconditional runner assertions and only cheap census extensions. D §6-8 and S §2 change with this cut; A §11/decision register record the one lost-backstop risk and update the exact session-lock/Checked rows. Account active and administrator nonmember Workspace lookup are possible under target native grants in this same commit.
 - **Satisfies**: AC-1/2 read paths, AC-3, AC-7, AC-9. Existing Project wire forms still reflect real retained-row fields; the union/client replacement lands together in U5. No fabricated purged revision/audit fallback remains.
 - **Files**: platform/db.ts; identity-access/{admission,administrators,hub-session,roster,application-access}.ts; workspace/store.ts; project/{store,routes}.ts; connectors/store.ts; registry/{module,served}.ts; builder/{conversation-store,run-reads,preview-state,model-account/accounts,routes,module}.ts; applicable contract declarations/generated failures/OpenAPI; role/catalog registers and generated role module; next hub_authority migration; existing catalog/generation/provisioning/migration/census scripts and record, biome plugin/config; D/S/A/decision/register-generated function callers; relevant read/catalog/postgres tests.
@@ -329,7 +326,7 @@ Builders read their card, its cited Design sections, the census/inventory and sh
 
 ### U5. Replace Project state across the contract, Hub and web
 
-- **Already there**: U1-U4, retained deletion row, owner authority and native read visibility. Read Native routes and web, value sourcing; shape/types/data. Every type/native privilege required here already exists.
+- **Already there**: U1-U4, retained deletion row, owner authority and native read visibility. Read Native routes and web, value sourcing; the Code shape design summary and current production owners in Files. Every type/native privilege required here already exists.
 - **Creates**: Live/deleting detail/list/card union and row parser, all generated contract/client consumers moved, owner retry and member deleting view using existing page/client patterns. H §4/8 changes with the payload replacement. No progress field.
 - **Satisfies**: AC-4 and AC-8 web/state, AC-9.
 - **Files**: packages/contract/src/{project,workspace}.ts and emitted Product OpenAPI; project/store.ts and relevant routes; apps/web routes/{workspace-projects,project-settings,construir}.tsx, features/project/api.ts and features/project/components/project-grid.tsx, app/{shell,failure-state}.tsx, features/builder/construir/construir.tsx; H document and current UI/route fixtures. No new endpoint or migration.
@@ -342,7 +339,7 @@ Builders read their card, its cited Design sections, the census/inventory and sh
 
 ### U6. Use admission at the native Mastra boundary
 
-- **Already there**: U1-U5, read gate/current Project build rule, native controller/route adapter and context refusal. Read Native routes and web; shape/admission. The boundary needs no new session owner/queue.
+- **Already there**: U1-U5, read gate/current Project build rule, native controller/route adapter and context refusal. Read Native routes and web; the Code shape design summary and current production owners in Files. The boundary needs no new session owner/queue.
 - **Creates**: Rejecting admitBuilder callback through existing Project read admission, exact thread-resource check before native messages, removal of obsolete build-denied consumers. Reserve next retired_build_failure migration; normalize persisted PROJECT_BUILD_DENIED and regenerate codes/contracts. Preserve every current allowlisted native method/path and existing boot assertion.
 - **Satisfies**: AC-8 native routes and AC-9, final refusal cleanup for AC-1/6.
 - **Files**: builder/{mastra-session-routes,module,routes,run-lifecycle}.ts, contract/builder.ts and failure/generated technical/product artifacts, affected web Builder refusal branch, next retired_build_failure migration and current native route/recovery tests.

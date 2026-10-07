@@ -3,30 +3,25 @@ import { BUILDER_RUN_RESULT_KINDS, BUILDER_RUN_STATES } from './builder-run-voca
 import { IdempotencyKey, ProjectId, ProjectRevision, WorkspaceId } from './ids.js';
 import { operation, SUBJECT_NOT_FOUND } from './operation.js';
 export const ProjectName = z.string().min(1).regex(/\S/).meta({ id: 'ProjectName' });
-export const ProjectListItem = z.object({
+const ProjectIdentity = z.object({
     projectId: ProjectId,
     workspaceId: WorkspaceId,
     name: ProjectName,
-    archived: z.boolean(),
-}).meta({ id: 'ProjectListItem' });
-const ProjectLive = z.object({
-    projectId: ProjectId,
-    workspaceId: WorkspaceId,
-    name: ProjectName,
+});
+const ProjectLiveState = z.object({
+    state: z.literal('live'),
     projectRevision: ProjectRevision,
     archived: z.boolean(),
-    deleting: z.boolean(),
-}).meta({ id: 'ProjectLive' });
-// A project an installation administrator is deleting, after its row was purged and before the deletion finished.
-const ProjectPurged = z.object({
-    projectId: ProjectId,
-    workspaceId: WorkspaceId,
-    name: ProjectName,
-    projectRevision: z.literal(''),
-    archived: z.literal(false),
-    deleting: z.literal(true),
-}).meta({ id: 'ProjectPurged' });
-export const ProjectDetail = z.union([ProjectLive, ProjectPurged]).meta({ id: 'ProjectDetail' });
+});
+const ProjectDeletingState = z.object({ state: z.literal('deleting') });
+export const ProjectListRow = z.discriminatedUnion('state', [
+    ProjectIdentity.extend({ state: z.literal('live'), archived: z.boolean() }),
+    ProjectIdentity.extend(ProjectDeletingState.shape),
+]).meta({ id: 'ProjectListRow' });
+export const ProjectDetail = z.discriminatedUnion('state', [
+    ProjectIdentity.extend(ProjectLiveState.shape),
+    ProjectIdentity.extend(ProjectDeletingState.shape),
+]).meta({ id: 'ProjectDetail' });
 export const ProjectCreated = z.object({
     projectId: ProjectId,
     workspaceId: WorkspaceId,
@@ -38,24 +33,25 @@ export const ProjectSourceBootstrap = z.discriminatedUnion('mode', [
     z.object({ mode: z.literal('NEW') }).strict(),
     z.object({ mode: z.literal('EXISTING_GIT'), repositoryLocator: z.string().min(1).regex(/\S/) }).strict(),
 ]).meta({ id: 'ProjectSourceBootstrap' });
-export const ProjectCard = z.object({
-    projectId: ProjectId,
-    name: ProjectName,
-    archived: z.boolean(),
+const ProjectCardIdentity = ProjectIdentity.pick({ projectId: true, name: true });
+const ProjectActivity = z.object({
     lastActivityAt: z.string(),
     latestRun: z.object({
         state: z.enum(BUILDER_RUN_STATES),
         resultKind: z.enum(BUILDER_RUN_RESULT_KINDS).nullable(),
     }).nullable(),
     hasPreview: z.boolean(),
-    deleting: z.boolean(),
-}).meta({ id: 'ProjectCard' });
+});
+export const ProjectCard = z.discriminatedUnion('state', [
+    ProjectCardIdentity.extend({ state: z.literal('live'), archived: z.boolean(), ...ProjectActivity.shape }),
+    ProjectCardIdentity.extend(ProjectDeletingState.shape),
+]).meta({ id: 'ProjectCard' });
 const workspaceParam = z.object({ workspaceId: WorkspaceId });
 const projectParam = z.object({ projectId: ProjectId });
 export const listProjects = operation({
     id: 'listProjects', summary: 'List the Projects of a Workspace.', access: 'session', method: 'GET', path: '/api/control/workspaces/:workspaceId/projects',
     params: workspaceParam, query: null, headers: null, body: null,
-    success: { 200: z.array(ProjectListItem) },
+    success: { 200: z.array(ProjectListRow) },
     effects: [], failures: [], malformed: { workspaceId: SUBJECT_NOT_FOUND.workspaceId },
 });
 export const getProject = operation({

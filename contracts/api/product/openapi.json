@@ -2636,7 +2636,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/ProjectListItem"
+                    "$ref": "#/components/schemas/ProjectListRow"
                   }
                 }
               }
@@ -5444,8 +5444,7 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "REQUEST_AUTHENTICITY_DENIED",
-                            "PROJECT_BUILD_DENIED"
+                            "REQUEST_AUTHENTICITY_DENIED"
                           ]
                         }
                       }
@@ -5688,7 +5687,6 @@
                         "code": {
                           "enum": [
                             "REQUEST_AUTHENTICITY_DENIED",
-                            "PROJECT_BUILD_DENIED",
                             "ACCOUNT_INACTIVE"
                           ]
                         }
@@ -5936,7 +5934,6 @@
                         "code": {
                           "enum": [
                             "REQUEST_AUTHENTICITY_DENIED",
-                            "PROJECT_BUILD_DENIED",
                             "ACCOUNT_INACTIVE"
                           ]
                         }
@@ -6118,8 +6115,7 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "REQUEST_AUTHENTICITY_DENIED",
-                            "PROJECT_BUILD_DENIED"
+                            "REQUEST_AUTHENTICITY_DENIED"
                           ]
                         }
                       }
@@ -6496,8 +6492,7 @@
                       "properties": {
                         "code": {
                           "enum": [
-                            "REQUEST_AUTHENTICITY_DENIED",
-                            "PROJECT_BUILD_DENIED"
+                            "REQUEST_AUTHENTICITY_DENIED"
                           ]
                         }
                       }
@@ -8411,7 +8406,6 @@
               "PROJECT_THUMBNAIL_NOT_FOUND",
               "BUILDER_SESSION_UNAVAILABLE",
               "BUILDER_SANDBOX_OPEN_FAILED",
-              "PROJECT_BUILD_DENIED",
               "CONVERSATION_NOT_FOUND",
               "BUILDER_CAPACITY_FULL",
               "BUILDER_MESSAGE_REFUSED",
@@ -9083,29 +9077,63 @@
         ],
         "additionalProperties": false
       },
-      "ProjectListItem": {
-        "type": "object",
-        "properties": {
-          "projectId": {
-            "$ref": "#/components/schemas/ProjectId"
+      "ProjectListRow": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "projectId": {
+                "$ref": "#/components/schemas/ProjectId"
+              },
+              "workspaceId": {
+                "$ref": "#/components/schemas/WorkspaceId"
+              },
+              "name": {
+                "$ref": "#/components/schemas/ProjectName"
+              },
+              "state": {
+                "type": "string",
+                "const": "live"
+              },
+              "archived": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "projectId",
+              "workspaceId",
+              "name",
+              "state",
+              "archived"
+            ],
+            "additionalProperties": false
           },
-          "workspaceId": {
-            "$ref": "#/components/schemas/WorkspaceId"
-          },
-          "name": {
-            "$ref": "#/components/schemas/ProjectName"
-          },
-          "archived": {
-            "type": "boolean"
+          {
+            "type": "object",
+            "properties": {
+              "projectId": {
+                "$ref": "#/components/schemas/ProjectId"
+              },
+              "workspaceId": {
+                "$ref": "#/components/schemas/WorkspaceId"
+              },
+              "name": {
+                "$ref": "#/components/schemas/ProjectName"
+              },
+              "state": {
+                "type": "string",
+                "const": "deleting"
+              }
+            },
+            "required": [
+              "projectId",
+              "workspaceId",
+              "name",
+              "state"
+            ],
+            "additionalProperties": false
           }
-        },
-        "required": [
-          "projectId",
-          "workspaceId",
-          "name",
-          "archived"
-        ],
-        "additionalProperties": false
+        ]
       },
       "ProjectName": {
         "type": "string",
@@ -9113,86 +9141,71 @@
         "pattern": "\\S"
       },
       "ProjectDetail": {
-        "anyOf": [
+        "oneOf": [
           {
-            "$ref": "#/components/schemas/ProjectLive"
+            "type": "object",
+            "properties": {
+              "projectId": {
+                "$ref": "#/components/schemas/ProjectId"
+              },
+              "workspaceId": {
+                "$ref": "#/components/schemas/WorkspaceId"
+              },
+              "name": {
+                "$ref": "#/components/schemas/ProjectName"
+              },
+              "state": {
+                "type": "string",
+                "const": "live"
+              },
+              "projectRevision": {
+                "$ref": "#/components/schemas/ProjectRevision"
+              },
+              "archived": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "projectId",
+              "workspaceId",
+              "name",
+              "state",
+              "projectRevision",
+              "archived"
+            ],
+            "additionalProperties": false
           },
           {
-            "$ref": "#/components/schemas/ProjectPurged"
+            "type": "object",
+            "properties": {
+              "projectId": {
+                "$ref": "#/components/schemas/ProjectId"
+              },
+              "workspaceId": {
+                "$ref": "#/components/schemas/WorkspaceId"
+              },
+              "name": {
+                "$ref": "#/components/schemas/ProjectName"
+              },
+              "state": {
+                "type": "string",
+                "const": "deleting"
+              }
+            },
+            "required": [
+              "projectId",
+              "workspaceId",
+              "name",
+              "state"
+            ],
+            "additionalProperties": false
           }
         ]
-      },
-      "ProjectLive": {
-        "type": "object",
-        "properties": {
-          "projectId": {
-            "$ref": "#/components/schemas/ProjectId"
-          },
-          "workspaceId": {
-            "$ref": "#/components/schemas/WorkspaceId"
-          },
-          "name": {
-            "$ref": "#/components/schemas/ProjectName"
-          },
-          "projectRevision": {
-            "$ref": "#/components/schemas/ProjectRevision"
-          },
-          "archived": {
-            "type": "boolean"
-          },
-          "deleting": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "projectId",
-          "workspaceId",
-          "name",
-          "projectRevision",
-          "archived",
-          "deleting"
-        ],
-        "additionalProperties": false
       },
       "ProjectRevision": {
         "type": "string",
         "format": "uuid",
         "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-      },
-      "ProjectPurged": {
-        "type": "object",
-        "properties": {
-          "projectId": {
-            "$ref": "#/components/schemas/ProjectId"
-          },
-          "workspaceId": {
-            "$ref": "#/components/schemas/WorkspaceId"
-          },
-          "name": {
-            "$ref": "#/components/schemas/ProjectName"
-          },
-          "projectRevision": {
-            "type": "string",
-            "const": ""
-          },
-          "archived": {
-            "type": "boolean",
-            "const": false
-          },
-          "deleting": {
-            "type": "boolean",
-            "const": true
-          }
-        },
-        "required": [
-          "projectId",
-          "workspaceId",
-          "name",
-          "projectRevision",
-          "archived",
-          "deleting"
-        ],
-        "additionalProperties": false
       },
       "ProjectCreated": {
         "type": "object",
@@ -9260,79 +9273,105 @@
         ]
       },
       "ProjectCard": {
-        "type": "object",
-        "properties": {
-          "projectId": {
-            "$ref": "#/components/schemas/ProjectId"
-          },
-          "name": {
-            "$ref": "#/components/schemas/ProjectName"
-          },
-          "archived": {
-            "type": "boolean"
-          },
-          "lastActivityAt": {
-            "type": "string"
-          },
-          "latestRun": {
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "state": {
-                    "type": "string",
-                    "enum": [
-                      "QUEUED",
-                      "RUNNING",
-                      "SUCCEEDED",
-                      "FAILED",
-                      "INTERRUPTED"
-                    ]
-                  },
-                  "resultKind": {
-                    "anyOf": [
-                      {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "projectId": {
+                "$ref": "#/components/schemas/ProjectId"
+              },
+              "name": {
+                "$ref": "#/components/schemas/ProjectName"
+              },
+              "state": {
+                "type": "string",
+                "const": "live"
+              },
+              "archived": {
+                "type": "boolean"
+              },
+              "lastActivityAt": {
+                "type": "string"
+              },
+              "latestRun": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "state": {
                         "type": "string",
                         "enum": [
-                          "RESPONSE_ONLY",
-                          "SOURCE_CHANGED",
-                          "SOURCE_CHANGED_BUILD_FAILED"
+                          "QUEUED",
+                          "RUNNING",
+                          "SUCCEEDED",
+                          "FAILED",
+                          "INTERRUPTED"
                         ]
                       },
-                      {
-                        "type": "null"
+                      "resultKind": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "RESPONSE_ONLY",
+                              "SOURCE_CHANGED",
+                              "SOURCE_CHANGED_BUILD_FAILED"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       }
-                    ]
+                    },
+                    "required": [
+                      "state",
+                      "resultKind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
                   }
-                },
-                "required": [
-                  "state",
-                  "resultKind"
-                ],
-                "additionalProperties": false
+                ]
               },
-              {
-                "type": "null"
+              "hasPreview": {
+                "type": "boolean"
               }
-            ]
+            },
+            "required": [
+              "projectId",
+              "name",
+              "state",
+              "archived",
+              "lastActivityAt",
+              "latestRun",
+              "hasPreview"
+            ],
+            "additionalProperties": false
           },
-          "hasPreview": {
-            "type": "boolean"
-          },
-          "deleting": {
-            "type": "boolean"
+          {
+            "type": "object",
+            "properties": {
+              "projectId": {
+                "$ref": "#/components/schemas/ProjectId"
+              },
+              "name": {
+                "$ref": "#/components/schemas/ProjectName"
+              },
+              "state": {
+                "type": "string",
+                "const": "deleting"
+              }
+            },
+            "required": [
+              "projectId",
+              "name",
+              "state"
+            ],
+            "additionalProperties": false
           }
-        },
-        "required": [
-          "projectId",
-          "name",
-          "archived",
-          "lastActivityAt",
-          "latestRun",
-          "hasPreview",
-          "deleting"
-        ],
-        "additionalProperties": false
+        ]
       },
       "ConnectorConnection": {
         "type": "object",
@@ -10092,7 +10131,6 @@
           "PROJECT_THUMBNAIL_NOT_FOUND",
           "BUILDER_SESSION_UNAVAILABLE",
           "BUILDER_SANDBOX_OPEN_FAILED",
-          "PROJECT_BUILD_DENIED",
           "CONVERSATION_NOT_FOUND",
           "BUILDER_CAPACITY_FULL",
           "BUILDER_MESSAGE_REFUSED",

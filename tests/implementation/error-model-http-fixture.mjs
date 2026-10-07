@@ -88,7 +88,7 @@ const app = await createHttpApp({ policy, registerRoutes: async (server) => {
   })
   await registerBuilderSessionRoutes(server, {
     mastra, controllerId: 'conexus-builder', controller, conversations: sessions,
-    mayBuild: async () => true, conversationOwner: async () => 'PROJECT', projectBusy: async () => false, answerQuestion: () => 'ACCEPTED',
+    admitBuilder: async () => {}, conversationOwner: async () => 'PROJECT', projectBusy: async () => false, answerQuestion: () => 'ACCEPTED',
   })
   return []
 } })

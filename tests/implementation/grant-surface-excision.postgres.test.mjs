@@ -26,9 +26,9 @@ test('a member of the Workspace reads, creates and builds every Project in it', 
   assert.equal(await store.admitSourceRevision({ accountId: ID.member, projectId, sourceRevision: BASE, readMain: async () => BASE }), true)
   assert.deepEqual(await store.readPreviewSubject({ accountId: ID.member, projectId }), { lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null })
 
-  assert.deepEqual(await store.listBuilderRuns({ accountId: ID.outsider, projectId }), [])
+  await assert.rejects(store.listBuilderRuns({ accountId: ID.outsider, projectId }), { id: 'PROJECT_NOT_FOUND' })
   assert.equal(await store.admitSourceRevision({ accountId: ID.outsider, projectId, sourceRevision: BASE, readMain: async () => BASE }), false)
-  assert.equal(await store.readPreviewSubject({ accountId: ID.outsider, projectId }), null)
+  await assert.rejects(store.readPreviewSubject({ accountId: ID.outsider, projectId }), { id: 'PROJECT_NOT_FOUND' })
   await assert.rejects(send(store, ID.outsider, projectId, 'two'), { id: 'PROJECT_NOT_FOUND' })
   await assert.rejects(store.requestBuilderRunCancellation({ accountId: ID.outsider, projectId, builderRunId: created.builderRunId }), { id: 'PROJECT_NOT_FOUND' })
 })
@@ -62,9 +62,9 @@ test('an inactive account is refused everywhere, including Preview and source re
   assert.equal(await admits(), true)
   await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.member])
 
-  assert.equal(await admits(), false)
-  assert.equal(await store.readPreviewSubject({ accountId: ID.member, projectId }), null)
-  assert.equal(await store.readBuilderRun({ accountId: ID.member, projectId }), null)
+  await assert.rejects(admits(), { id: 'ACCOUNT_INACTIVE' })
+  await assert.rejects(store.readPreviewSubject({ accountId: ID.member, projectId }), { id: 'ACCOUNT_INACTIVE' })
+  await assert.rejects(store.readBuilderRun({ accountId: ID.member, projectId }), { id: 'ACCOUNT_INACTIVE' })
   await assert.rejects(send(store, ID.member, projectId, 'one'), { id: 'ACCOUNT_INACTIVE' })
 })
 

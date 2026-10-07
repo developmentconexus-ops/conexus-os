@@ -71,7 +71,7 @@ const builderMount = async (root, calls) => {
   const sessions = testConversations(controller, () => undefined, { now: () => 0 })
   const register = (server) => registerBuilderSessionRoutes(server, {
     mastra, controllerId: 'conexus-builder', controller, conversations: sessions,
-    mayBuild: async () => { calls.push('mount.mayBuild'); return true },
+    admitBuilder: async () => { calls.push('mount.admitBuilder') },
     conversationOwner: ({ conversationId }) => { calls.push('mount.conversationOwner'); return conversationId === CONVERSATION ? 'PROJECT' : 'NONE' },
     projectBusy: async () => { calls.push('mount.projectBusy'); return false },
     answerQuestion: () => { calls.push('mount.answerQuestion'); return 'UNKNOWN_CALL' },

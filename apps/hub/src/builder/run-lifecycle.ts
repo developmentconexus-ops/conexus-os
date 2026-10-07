@@ -149,7 +149,7 @@ type Transition = 'candidate' | 'sandbox bind' | 'model account record' | 'settl
 const transitionRefused = (transition: Transition): Failure => new Failure('BUILDER_RUN_TRANSITION_REFUSED', { details: { transition } })
 
 const SANDBOX_ID = /^.{1,200}$/s
-export const ADMISSION_REFUSALS: ReadonlySet<string> = new Set(['BUILDER_RUN_NOT_ADMITTED', 'PROJECT_BUILD_DENIED', 'PROJECT_NOT_FOUND', 'PROJECT_DELETING', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'])
+export const ADMISSION_REFUSALS: ReadonlySet<string> = new Set(['BUILDER_RUN_NOT_ADMITTED', 'PROJECT_NOT_FOUND', 'PROJECT_DELETING', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'])
 
 const lockWorking = async (tx: WriteTx, projectId: ProjectId, transition: Transition): Promise<void> => {
   if (!await tx.maybe(Present, sql`SELECT 1 AS present FROM builder.project_working_state WHERE project_id = ${projectId} FOR UPDATE`)) throw transitionRefused(transition)

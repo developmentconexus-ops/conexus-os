@@ -14,7 +14,10 @@ test('an active nonmember administrator reads an existing Workspace, while an un
   const { database } = await setupProjects(t, 'conexus_admin_nonmember_reader')
   const workspaces = createWorkspaceModule({ database })
 
-  assert.deepEqual(await workspaces.listAccessibleWorkspaces(ID.administrator), [{ workspaceId: ID.workspace, name: 'Operations' }])
+  assert.deepEqual(await workspaces.listAccessibleWorkspaces(ID.administrator), [
+    { workspaceId: ID.otherWorkspace, name: 'Elsewhere' },
+    { workspaceId: ID.workspace, name: 'Operations' },
+  ])
   await database.read(ID.administrator, (gate) => admitInstallationAdministrator(gate, { action: 'connection.manage', workspaceId: ID.workspace }))
   await assert.rejects(database.read(ID.administrator, (gate) => admitInstallationAdministrator(gate, { action: 'connection.manage', workspaceId: '20000000-0000-4000-8000-000000000099' })), { id: 'WORKSPACE_NOT_FOUND' })
   await assert.rejects(database.read(ID.owner, (gate) => admitInstallationAdministrator(gate, { action: 'connection.manage', workspaceId: ID.workspace })), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' })

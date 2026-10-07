@@ -6,7 +6,7 @@ import { logger } from '../platform/logger.js'
 import type { ConversationSandboxes } from './conversation-sandboxes.js'
 import { projectResourceId } from './conversations.js'
 import type { ControllerSession, RunSandbox } from './run/ports.js'
-import type { ConversationId, ProjectId } from '@conexus/contract'
+import type { AccountId, ConversationId, ProjectId } from '@conexus/contract'
 
 type SessionPorts = Pick<AgentController, 'createSession' | 'deleteSession' | 'getSessionByResource'>
 
@@ -27,6 +27,7 @@ const scopeOf = (requestContext: RequestContext): string | undefined => {
 }
 
 export type ConversationRef = Readonly<{ projectId: ProjectId; conversationId: ConversationId }>
+export type AdmittedConversationRef = ConversationRef & Readonly<{ accountId: AccountId }>
 
 type Live = Readonly<{ ref: ConversationRef; sandbox: RunSandbox }>
 
@@ -41,7 +42,7 @@ export const createLiveConversations = ({ controller, sandboxes, readSandboxId, 
   controller: SessionPorts
   sandboxes: Pick<ConversationSandboxes, 'open'>
   /** The provider id of the VM the conversation last had, so its instance resumes that VM. */
-  readSandboxId(ref: ConversationRef): Promise<string | null>
+  readSandboxId(ref: AdmittedConversationRef): Promise<string | null>
   /** Whether the conversation has a run in this Hub. */
   runOpen(conversationId: ConversationId): boolean
   idleMs?: number
@@ -68,14 +69,14 @@ export const createLiveConversations = ({ controller, sandboxes, readSandboxId, 
     return ended
   }
   const use = (scope: string): void => { used.set(scope, now()) }
-  const live = async (ref: ConversationRef): Promise<Live> => {
+  const live = async ({ accountId, ...ref }: AdmittedConversationRef): Promise<Live> => {
     const scope = conversationScope(ref.conversationId)
     for (let ending = retiring.get(scope); ending; ending = retiring.get(scope)) await ending
     const known = conversations.get(scope)
     if (known) return known
     const made = (async (): Promise<Live> => ({
       ref,
-      sandbox: sandboxes.open({ conversationId: ref.conversationId, providerSandboxId: await readSandboxId(ref), retire: (kill) => retire(ref, kill) }),
+      sandbox: sandboxes.open({ conversationId: ref.conversationId, providerSandboxId: await readSandboxId({ ...ref, accountId }), retire: (kill) => retire(ref, kill) }),
     }))()
     conversations.set(scope, made)
     if (!used.has(scope)) use(scope)
@@ -101,12 +102,12 @@ export const createLiveConversations = ({ controller, sandboxes, readSandboxId, 
       return scope === undefined ? undefined : (await conversations.get(scope)?.catch(() => undefined))?.sandbox.workspace
     },
     /** The conversation's sandbox instance, made on first use. */
-    sandbox: async (ref: ConversationRef): Promise<RunSandbox> => {
+    sandbox: async (ref: AdmittedConversationRef): Promise<RunSandbox> => {
       use(conversationScope(ref.conversationId))
       return (await live(ref)).sandbox
     },
     /** The conversation's session, opened on its thread and on its sandbox's workspace, and noted as in use. */
-    open: async (ref: ConversationRef): Promise<ControllerSession> => {
+    open: async (ref: AdmittedConversationRef): Promise<ControllerSession> => {
       use(conversationScope(ref.conversationId))
       const entry = await live(ref)
       const session = await controller.createSession({ resourceId: projectResourceId(ref.projectId), scope: conversationScope(ref.conversationId), threadId: ref.conversationId, requestContext: new RequestContext() })

@@ -73,7 +73,7 @@ const TENANT_B = Object.freeze({
   'iam.host_session': 'account_id IN (SELECT account_id FROM iam.workspace_membership WHERE workspace_id = $1)',
 })
 
-const registerTables = () => CENSUS.register.split.map((entry) => entry.table).sort()
+const registerTables = () => CENSUS.register.tables.map((entry) => entry.table).sort()
 
 const rowsOfB = async (connection, projectId) => {
   const tables = registerTables()
@@ -184,9 +184,9 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   const before = await digestOfB(connection, projectB)
   const revisionOfA = (await query(connection, 'SELECT project_revision FROM project.project WHERE project_id = $1', [projectA])).rows[0].project_revision
   const withoutActivity = (summaries) => summaries.map(({ lastActivityAt: _at, ...rest }) => rest)
-  const cardA = { projectId: projectA, workspaceId: ID.workspace, name: 'Atlas', archived: false }
-  const cardBuilds = { projectId: projectBuild, workspaceId: ID.workspace, name: 'Builds', archived: false }
-  const cardDoomed = { projectId: doomedA, workspaceId: ID.workspace, name: 'Doomed A', archived: false }
+  const cardA = { projectId: projectA, workspaceId: ID.workspace, name: 'Atlas', state: 'live', archived: false }
+  const cardBuilds = { projectId: projectBuild, workspaceId: ID.workspace, name: 'Builds', state: 'live', archived: false }
+  const cardDoomed = { projectId: doomedA, workspaceId: ID.workspace, name: 'Doomed A', state: 'live', archived: false }
 
   // own: admission passes on the tenant's own ids and the answer holds the tenant's literal rows.
   // cross: the same call with the ids of tenant B answers its refusal and nothing of B.
@@ -224,7 +224,8 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
         const answered = await call('member', 'GET', '/api/session')
         assert.deepEqual({ status: answered.status, administrator: answered.body.administrator, workspaces: answered.body.workspaces }, { status: 200, administrator: false, workspaces: [{ workspaceId: ID.workspace, name: 'Operations' }] })
       },
-      cross: async () => assert.deepEqual((await call('administrator', 'GET', '/api/session')).body.workspaces, []),
+      cross: async () => assert.deepEqual((await call('administrator', 'GET', '/api/session')).body.workspaces,
+        [{ workspaceId: ID.otherWorkspace, name: 'Elsewhere' }, { workspaceId: ID.workspace, name: 'Operations' }]),
       child: null,
     },
     'getWorkspaceRoster': {
@@ -380,12 +381,12 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
     },
     'listProjects': {
       own: async () => assert.deepEqual(await projects.listProjects({ accountId: member, workspaceId: ID.workspace }), [cardA, cardBuilds, cardDoomed]),
-      cross: async () => assert.deepEqual(await projects.listProjects({ accountId: member, workspaceId: ID.otherWorkspace }), []),
+      cross: () => assert.rejects(projects.listProjects({ accountId: member, workspaceId: ID.otherWorkspace }), { id: 'WORKSPACE_NOT_FOUND' }),
       child: null,
     },
     'getProject': {
-      own: async () => assert.deepEqual(await projects.getProject({ accountId: member, projectId: projectA }), { ...cardA, projectRevision: revisionOfA, deleting: false }),
-      cross: async () => assert.equal(await projects.getProject({ accountId: member, projectId: projectB }), null),
+      own: async () => assert.deepEqual(await projects.getProject({ accountId: member, projectId: projectA }), { ...cardA, state: 'live', projectRevision: revisionOfA }),
+      cross: () => assert.rejects(projects.getProject({ accountId: member, projectId: projectB }), { id: 'PROJECT_NOT_FOUND' }),
       child: null,
     },
     'createProject': {
@@ -408,9 +409,9 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       own: async () => {
         const summaries = withoutActivity(await projects.listProjectSummariesWithActivity({ accountId: member, workspaceId: ID.workspace }))
         assert.deepEqual(summaries.map((summary) => summary.name).sort(), ['Atlas', 'Builds', 'Mine'])
-        assert.deepEqual(summaries.find((summary) => summary.name === 'Atlas'), { projectId: projectA, name: 'Atlas', archived: false, latestRun: null, hasPreview: true, deleting: false })
+        assert.deepEqual(summaries.find((summary) => summary.name === 'Atlas'), { projectId: projectA, name: 'Atlas', state: 'live', archived: false, latestRun: null, hasPreview: true })
       },
-      cross: async () => assert.deepEqual(await projects.listProjectSummariesWithActivity({ accountId: member, workspaceId: ID.otherWorkspace }), []),
+      cross: () => assert.rejects(projects.listProjectSummariesWithActivity({ accountId: member, workspaceId: ID.otherWorkspace }), { id: 'WORKSPACE_NOT_FOUND' }),
       child: null,
     },
     'listProjectSourceTree': {
@@ -430,7 +431,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
     },
     'getBuilderSession': {
       own: async () => assert.deepEqual(await builder.readBuilderRun({ accountId: member, projectId: projectA }), null),
-      cross: async () => assert.deepEqual(await builder.readBuilderRun({ accountId: member, projectId: projectB }), null),
+      cross: () => assert.rejects(builder.readBuilderRun({ accountId: member, projectId: projectB }), { id: 'PROJECT_NOT_FOUND' }),
       child: null,
     },
     'sendBuilderMessage': {
@@ -452,7 +453,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
     },
     'getBuilderRunTrace': {
       own: async () => assert.deepEqual((await builder.listBuilderRuns({ accountId: member, projectId: projectBuild })).map((run) => run.state), ['INTERRUPTED']),
-      cross: async () => assert.equal(await builder.readBuilderRun({ accountId: member, projectId: projectB }), null),
+      cross: () => assert.rejects(builder.readBuilderRun({ accountId: member, projectId: projectB }), { id: 'PROJECT_NOT_FOUND' }),
       child: async () => assert.notEqual((await builder.readBuilderRun({ accountId: member, projectId: projectBuild })).builderRunId, runOfB),
     },
     'launchBuilderPreview': {
@@ -465,7 +466,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
         const thumbnail = await registry.readProjectThumbnail(member, projectA)
         assert.deepEqual({ revision: thumbnail.artifactRevisionId, bytes: Buffer.from(thumbnail.bytes).toString() }, { revision: revisionA, bytes: 'thumbnail-of-a' })
       },
-      cross: async () => assert.equal(await registry.readProjectThumbnail(member, projectB), null),
+      cross: () => assert.rejects(registry.readProjectThumbnail(member, projectB), { id: 'PROJECT_NOT_FOUND' }),
       child: null,
     },
     'listWorkspaceConnections': {
