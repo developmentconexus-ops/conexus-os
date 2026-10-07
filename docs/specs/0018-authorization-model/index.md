@@ -1,11 +1,17 @@
 # 0018. One authorization model for Hub reads and commands
 
-**Date**: 2026-10-07  
-**Status**: Proposed  
-**Lane**: lane:qualification (identity authority and database privilege migration)  
-**Wave branch**: wave/authorization-model  
-**Issue**: #543  
-**Deciding proof**: Every current contract operation and allowed foreign route passes literal positive/negative cases against the replayed no-policy catalog, all named admission/filter mutants fail, and the real Hub/browser proves outsider404, member deletion403 and owner deletion recovery in light and dark. The qualification review judges the same wave head; the operator gives ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK.  
+**Date**: 2026-10-07
+
+**Status**: Proposed
+
+**Lane**: lane:qualification (identity authority and database privilege migration)
+
+**Wave branch**: wave/authorization-model
+
+**Issue**: #543
+
+**Deciding proof**: Every current contract operation and allowed foreign route passes literal positive/negative cases against the replayed no-policy catalog, all named admission/filter mutants fail, and the real Hub/browser proves outsider404, member deletion403 and owner deletion recovery in light and dark. The qualification review judges the same wave head; the operator gives ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK.
+
 **Study**: The approved authorization study of 2026-10-07, held by the planning session. Its public findings and decisions are recorded in [rationale.md](rationale.md).
 
 ## Summary
