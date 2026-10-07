@@ -15,6 +15,7 @@ const refuse = (message: string): never => { throw new Refused(message) }
 type Migration = Readonly<{ name: string; sha256: string; sql: string }>
 
 const sha256Of = (bytes: Uint8Array | string): string => createHash('sha256').update(bytes).digest('hex')
+const admissionDiagnostic = (error: Readonly<{ code: string; where: string; diagnostic: string }>): string => `${error.code}: ${error.where}: ${error.diagnostic}`
 
 const readMigrations = (conexus: string): readonly Migration[] => {
   const directory = join(conexus, 'migrations')
@@ -91,13 +92,15 @@ const bundleHandlers = async (compiler: string, conexus: string, serverOut: stri
 const admitBuiltTree = (serverOut: string, operations: Record<string, unknown>, migrations: readonly Migration[]): void => {
   try {
     const normalized = { version: 1, operations, migrations }
-    admitManifest(normalized, 'server')
+    const admitted = admitManifest(normalized, 'server')
+    if (!admitted.ok) refuse(admissionDiagnostic(admitted.error))
     writeFileSync(join(serverOut, 'manifest.json'), JSON.stringify(normalized))
     const tree = readdirSync(serverOut, { recursive: true }).map(String).filter((path) => statSync(join(serverOut, path)).isFile()).map((path) => {
       const bytes = readFileSync(join(serverOut, path))
       return { path: `conexus-server/${path.split(sep).join('/')}`, content: bytes.toString('base64'), sha256: sha256Of(bytes) }
     })
-    admitServerTree(tree, sha256Of)
+    const admittedTree = admitServerTree(tree, sha256Of)
+    if (!admittedTree.ok) refuse(admissionDiagnostic(admittedTree.error))
   } catch (error) {
     refuse(error instanceof Error ? error.message : String(error))
   }
@@ -112,7 +115,9 @@ const build = async ({ root, out, compiler }: Place): Promise<void> => {
   }
   let source: SourceManifest
   try {
-    source = admitManifest(JSON.parse(readFileSync(manifestPath, 'utf8')), 'source')
+    const admitted = admitManifest(JSON.parse(readFileSync(manifestPath, 'utf8')), 'source')
+    if (!admitted.ok) return refuse(admissionDiagnostic(admitted.error))
+    source = admitted.result
   } catch (error) {
     return refuse(error instanceof SyntaxError ? `conexus/manifest.json is not valid JSON: ${error.message}` : String(error instanceof Error ? error.message : error))
   }

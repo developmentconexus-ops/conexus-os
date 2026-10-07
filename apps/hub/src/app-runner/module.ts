@@ -1,9 +1,10 @@
 import { request } from 'node:http'
 import { RESET_STATEMENT_TIMEOUT_MS } from './requests.js'
-import { type PrepareResult, prepareResult } from './server-manifest.js'
-import type { InvokeInput, OnDivergence, Reply, ServerFile } from './supervisor.js'
+import { invokeAnswerSchema, prepareAnswerSchema } from './wire.js'
+import type { InvokeInput, OnDivergence, ServerFile } from './supervisor.js'
 import { Failure } from '../platform/failure.js'
-import { problemBody } from '../http/problem.js'
+import { Problem } from '@conexus/contract'
+import type { InvokeAnswer, PrepareAnswer } from './server-manifest.js'
 
 /** The Hub's only way to the application runner: HTTP over its owner-only unix socket. */
 export type ApplicationRunnerClient = Readonly<{
@@ -12,8 +13,8 @@ export type ApplicationRunnerClient = Readonly<{
    * without an application until this settles: a reset starts only within RESET_WINDOW_MS and its
    * DROP is bounded, so it cannot still be running once the call times out.
    */
-  prepare(input: Readonly<{ projectId: string; files: readonly ServerFile[]; onDivergence: 'RESET' | 'REFUSE'; signal?: AbortSignal }>): Promise<PrepareResult>
-  invoke(input: InvokeInput): Promise<Reply>
+  prepare(input: Readonly<{ projectId: string; files: readonly ServerFile[]; onDivergence: 'RESET' | 'REFUSE'; signal?: AbortSignal }>): Promise<PrepareAnswer>
+  invoke(input: InvokeInput): Promise<InvokeAnswer>
   /** Drops a Project's Preview schema and roles for good. Called once, when the Project itself is deleted. */
   release(input: Readonly<{ projectId: string }>): Promise<void>
 }>
@@ -21,14 +22,14 @@ export type ApplicationRunnerClient = Readonly<{
 const PREPARE_TIMEOUT_MS = 120_000
 const RESET_WINDOW_MS = PREPARE_TIMEOUT_MS - RESET_STATEMENT_TIMEOUT_MS - 40_000
 
-// The runner's own admission names two refusals about the Project's compiled server tree:
-// SERVER_TREE_REFUSED (admitServerTree, server-manifest.ts) and MANIFEST_REFUSED (admitManifest,
-// server-manifest.ts). Both are facts about the Project's own build, so the Builder sees the exact
-// code. Anything else prepare threw, a database or allocation fault, a malformed request, the
-// runner's own generic PREPARE_FAILED, is not something the source caused, so it collapses to the
-// generic code below (a platform row, like APPLICATION_RUNNER_UNAVAILABLE, not a build failure).
-
-const call = (socketPath: string, path: string, body: unknown, timeoutMs: number, signal?: AbortSignal): Promise<Reply> => new Promise((resolve, reject) => {
+const call = (socketPath: string, path: string, body: unknown, timeoutMs: number, signal?: AbortSignal): Promise<Response> => new Promise((resolve, reject) => {
+  const rejectTransport = (cause: unknown): void => {
+    if (cause instanceof DOMException && cause.name === 'AbortError') {
+      reject(cause)
+      return
+    }
+    reject(cause instanceof Failure ? cause : new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause }))
+  }
   const payload = Buffer.from(JSON.stringify(body))
   const outgoing = request({
     socketPath, path, method: 'POST', timeout: timeoutMs, ...(signal ? { signal } : {}),
@@ -37,37 +38,52 @@ const call = (socketPath: string, path: string, body: unknown, timeoutMs: number
     const chunks: Buffer[] = []
     response.on('data', (chunk: Buffer) => chunks.push(chunk))
     response.on('end', () => {
-      try {
-        resolve({ status: response.statusCode ?? 502, body: JSON.parse(Buffer.concat(chunks).toString('utf8')) })
-      } catch (cause) {
-        reject(new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause }))
-      }
+      const contentType = response.headers['content-type']
+      resolve(new Response(Buffer.concat(chunks), {
+        status: response.statusCode ?? 502,
+        ...(typeof contentType === 'string' ? { headers: { 'content-type': contentType } } : {}),
+      }))
     })
-    response.on('error', (cause) => reject(new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause })))
+    response.on('error', rejectTransport)
+    response.on('aborted', () => rejectTransport(new Failure('APPLICATION_RUNNER_UNAVAILABLE')))
   })
   outgoing.on('timeout', () => outgoing.destroy(new Failure('APPLICATION_RUNNER_UNAVAILABLE')))
-  outgoing.on('error', (cause) => reject(new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause })))
+  outgoing.on('error', rejectTransport)
   outgoing.end(payload)
 })
+
+const responseJson = async (response: Response): Promise<unknown> => response.json().catch(() => null)
+const mediaType = (response: Response): string | null => response.headers.get('content-type')?.split(';', 1)[0]?.trim() ?? null
+
+const nativeFailure = async (response: Response): Promise<Failure> => {
+  if (mediaType(response) !== 'application/problem+json') return new Failure('APPLICATION_RUNNER_UNAVAILABLE')
+  const problem = Problem.safeParse(await responseJson(response))
+  if (!problem.success || problem.data.status !== response.status) return new Failure('APPLICATION_RUNNER_UNAVAILABLE')
+  return new Failure(problem.data.code)
+}
 
 export const createApplicationRunnerClient = (socketPath: string): ApplicationRunnerClient => Object.freeze({
   prepare: async ({ signal, ...input }) => {
     const onDivergence: OnDivergence = input.onDivergence === 'RESET' ? { resetBefore: Date.now() + RESET_WINDOW_MS } : 'REFUSE'
     const reply = await call(socketPath, '/v1/prepare', { ...input, onDivergence }, PREPARE_TIMEOUT_MS, signal)
-    if (reply.status === 200) {
-      const result = prepareResult.safeParse(reply.body)
+    if (reply.status !== 200) throw await nativeFailure(reply)
+    if (mediaType(reply) === 'application/json') {
+      const result = prepareAnswerSchema.safeParse(await responseJson(reply))
       if (!result.success) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: result.error })
       return result.data
     }
-    const problem = problemBody.safeParse(reply.body)
-    const runnerCode = problem.success ? problem.data.code : undefined
-    const detail = problem.success ? problem.data.detail : undefined
-    const code = runnerCode === 'SERVER_TREE_REFUSED' || runnerCode === 'MANIFEST_REFUSED' ? runnerCode : 'APPLICATION_SERVER_REFUSED'
-    throw new Failure(code, { cause: detail ?? runnerCode ?? code })
+    throw new Failure('APPLICATION_RUNNER_UNAVAILABLE')
   },
-  invoke: (input) => call(socketPath, '/v1/invoke', input, 15_000),
+  invoke: async (input): Promise<InvokeAnswer> => {
+    const response = await call(socketPath, '/v1/invoke', input, 15_000)
+    if (response.status !== 200) throw await nativeFailure(response)
+    if (mediaType(response) !== 'application/json') throw new Failure('APPLICATION_RUNNER_UNAVAILABLE')
+    const answer = invokeAnswerSchema.safeParse(await responseJson(response))
+    if (!answer.success) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: answer.error })
+    return answer.data
+  },
   release: async (input) => {
     const reply = await call(socketPath, '/v1/release', input, 30_000)
-    if (reply.status !== 200) throw new Failure('APPLICATION_RUNNER_RELEASE_REFUSED', { cause: reply.body })
+    if (reply.status !== 200) throw await nativeFailure(reply)
   },
 })

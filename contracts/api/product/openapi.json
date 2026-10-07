@@ -8408,9 +8408,7 @@
               "PROJECT_NAME_MISMATCH",
               "PROJECT_BUSY",
               "PROJECT_DELETION_INCOMPLETE",
-              "PROJECT_SUMMARIES_UNAVAILABLE",
               "PROJECT_THUMBNAIL_NOT_FOUND",
-              "PROJECT_THUMBNAIL_UNAVAILABLE",
               "BUILDER_SESSION_UNAVAILABLE",
               "BUILDER_SANDBOX_OPEN_FAILED",
               "PROJECT_BUILD_DENIED",
@@ -8450,7 +8448,6 @@
               "CONNECTOR_CONNECTION_NOT_AVAILABLE",
               "CONNECTOR_BINDING_CONFLICT",
               "CONNECTOR_BINDING_MANAGE_REQUIRED",
-              "CONNECTOR_WORKSPACE_NOT_FOUND",
               "CONNECTOR_LABEL_REFUSED",
               "CONNECTOR_CREDENTIAL_REFUSED",
               "CONNECTOR_CONNECTION_CONFLICT",
@@ -8645,7 +8642,8 @@
             ]
           },
           "traceId": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$"
           }
         },
         "required": [
@@ -10091,9 +10089,7 @@
           "PROJECT_NAME_MISMATCH",
           "PROJECT_BUSY",
           "PROJECT_DELETION_INCOMPLETE",
-          "PROJECT_SUMMARIES_UNAVAILABLE",
           "PROJECT_THUMBNAIL_NOT_FOUND",
-          "PROJECT_THUMBNAIL_UNAVAILABLE",
           "BUILDER_SESSION_UNAVAILABLE",
           "BUILDER_SANDBOX_OPEN_FAILED",
           "PROJECT_BUILD_DENIED",
@@ -10133,7 +10129,6 @@
           "CONNECTOR_CONNECTION_NOT_AVAILABLE",
           "CONNECTOR_BINDING_CONFLICT",
           "CONNECTOR_BINDING_MANAGE_REQUIRED",
-          "CONNECTOR_WORKSPACE_NOT_FOUND",
           "CONNECTOR_LABEL_REFUSED",
           "CONNECTOR_CREDENTIAL_REFUSED",
           "CONNECTOR_CONNECTION_CONFLICT",

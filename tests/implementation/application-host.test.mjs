@@ -484,7 +484,7 @@ const operation = async (t, options) => {
 test('a server file read the access check refuses as APPLICATION_NOT_FOUND answers 404 and the runner receives nothing', async (t) => {
   const { Failure } = await import(hubModuleUrl('platform/failure.js'))
   const answer = await operation(t, {
-    runner: recordingRunner(async () => ({ status: 200, body: {} })),
+    runner: recordingRunner(async () => ({ ok: true, result: {} })),
     registryOverrides: serverFile(async () => { throw new Failure('APPLICATION_NOT_FOUND') }),
   })
   assert.deepEqual([answer, serverReads, runnerCalls.length], [{ status: 404, code: 'APPLICATION_NOT_FOUND' }, ['conexus-server/manifest.json'], 0])
@@ -494,13 +494,13 @@ test('a served pointer that moved between the manifest and a server file read an
   const MOVED = '55555555-5555-4555-8555-555555555555'
   for (const read of [{ ...fileOfServer, artifactRevisionId: MOVED }, { ok: false, reason: 'NOT_FOUND', artifactRevisionId: MOVED }, { ok: false, reason: 'NOT_SERVED' }]) {
     const answer = await operation(t, {
-      runner: recordingRunner(async () => ({ status: 200, body: {} })),
+      runner: recordingRunner(async () => ({ ok: true, result: {} })),
       registryOverrides: serverFile(async () => read),
     })
     assert.deepEqual([answer, runnerCalls.length], [{ status: 503, code: 'APPLICATION_NOT_READY' }, 0], JSON.stringify(read))
   }
   const missing = await operation(t, {
-    runner: recordingRunner(async () => ({ status: 200, body: {} })),
+    runner: recordingRunner(async () => ({ ok: true, result: {} })),
     registryOverrides: serverFile(async () => ({ ok: false, reason: 'NOT_FOUND', artifactRevisionId: ARTIFACT })),
   })
   assert.deepEqual([missing, runnerCalls.length], [{ status: 500, code: 'INTERNAL_UNEXPECTED' }, 0])
@@ -514,12 +514,12 @@ test('a runner that fails answers 503 APPLICATION_RUNNER_UNAVAILABLE, and a regi
   })
   assert.deepEqual([failing.status, failing.code, runnerCalls.length], [503, 'APPLICATION_RUNNER_UNAVAILABLE', 1])
   const busy = await operation(t, {
-    runner: recordingRunner(async () => ({ status: 200, body: {} })),
+    runner: recordingRunner(async () => ({ ok: true, result: {} })),
     registryOverrides: serverFile(async () => { throw new Failure('DATABASE_BUSY') }),
   })
   assert.deepEqual([busy.status, busy.code, runnerCalls.length], [503, 'DATABASE_BUSY', 0])
   const found = await operation(t, {
-    runner: recordingRunner(async () => ({ status: 200, body: { ok: true } })),
+    runner: recordingRunner(async () => ({ ok: true, result: { ok: true } })),
     registryOverrides: serverFile(async () => fileOfServer),
   })
   assert.deepEqual([found.status, runnerCalls.length], [200, 1])

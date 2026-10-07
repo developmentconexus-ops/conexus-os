@@ -133,7 +133,7 @@ const callOperation = <C extends ScopedProof>(host: Host<C>) => async (request: 
     source: { via: 'APPLICATION', accountId: scope.accountId, projectId: scope.projectId },
     files, operation, input: request.body, caller, callerLeft: callerLeft(reply),
   })
-  return reply.code(result.status).type('application/problem+json').send(JSON.stringify(result.body))
+  return reply.code(result.status).type(result.status === 200 ? 'application/json' : 'application/problem+json').send(JSON.stringify(result.body))
 }
 
 const serveFile = <C extends ScopedProof>(host: Host<C>) => async (request: FastifyRequest, reply: FastifyReply, { document }: Readonly<{ document: boolean }>): Promise<unknown> => {

@@ -123,41 +123,33 @@ async function invokeWorker(t, source) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'))
 }
 
-test('real worker fd 3 pins success, load/export/serialization failure and old private detail exposure', async (t) => {
-  assert.deepEqual(await invokeWorker(t, 'export function handler() { return { count: 1 } }'), { ok: true, value: { count: 1 } })
-  assert.deepEqual(await invokeWorker(t, 'export function handler() {}'), { ok: true, value: null })
-  assert.deepEqual(await invokeWorker(t, 'export function handler() { throw new Error("PRIVATE_WORKER_MARKER") }'), { ok: false, code: 'HANDLER_FAILED', detail: 'PRIVATE_WORKER_MARKER' })
-  // U4 removes diagnostic text from fd 3; U5/U6 remove it from HTTP and browser carriers.
-  assert.deepEqual(await invokeWorker(t, 'throw new Error("PRIVATE_LOAD_MARKER")'), { ok: false, code: 'HANDLER_LOAD_FAILED', detail: 'PRIVATE_LOAD_MARKER' })
-  assert.deepEqual(await invokeWorker(t, 'export const handler = 1'), { ok: false, code: 'HANDLER_EXPORT_MISSING', detail: 'handler' })
-  assert.deepEqual(await invokeWorker(t, 'export function handler() { return 1n }'), { ok: false, code: 'HANDLER_OUTPUT_UNSERIALIZABLE', detail: 'Do not know how to serialize a BigInt' })
-  assert.deepEqual(await invokeWorker(t, 'export function handler() { return "x".repeat(1024) }'), { ok: false, code: 'RESPONSE_TOO_LARGE' })
+test('real worker fd 3 pins the strict Result contract without private diagnostics', async (t) => {
+  assert.deepEqual(await invokeWorker(t, 'export function handler() { return { count: 1 } }'), { ok: true, result: { count: 1 } })
+  assert.deepEqual(await invokeWorker(t, 'export function handler() {}'), { ok: true, result: null })
+  assert.deepEqual(await invokeWorker(t, 'export function handler() { throw new Error("PRIVATE_WORKER_MARKER") }'), { ok: false, error: { code: 'HANDLER_FAILED', sqlstate: null } })
+  assert.deepEqual(await invokeWorker(t, 'throw new Error("PRIVATE_LOAD_MARKER")'), { ok: false, error: { code: 'HANDLER_LOAD_FAILED', sqlstate: null } })
+  assert.deepEqual(await invokeWorker(t, 'export const handler = 1'), { ok: false, error: { code: 'HANDLER_EXPORT_MISSING' } })
+  assert.deepEqual(await invokeWorker(t, 'export function handler() { return 1n }'), { ok: false, error: { code: 'HANDLER_OUTPUT_UNSERIALIZABLE' } })
+  assert.deepEqual(await invokeWorker(t, 'export function handler() { return "x".repeat(1024) }'), { ok: false, error: { code: 'RESPONSE_TOO_LARGE' } })
 })
 
 const { createApplicationRunnerApp } = await import(hubModuleUrl('app-runner/http.js'))
 const { createApplicationRunnerClient } = await import(hubModuleUrl('app-runner/module.js'))
-const { failureProblem } = await import(hubModuleUrl('http/problem.js'))
-const { Failure } = await import(hubModuleUrl('platform/failure.js'))
-const { api } = await import('./error-model-client-fixture.mjs')
-
-test('worker failure fixture crosses real runner and Hub transports and reaches the generated client; success remains JSON', async (t) => {
+test('worker Results cross the real runner and Hub transports without private diagnostics', async (t) => {
   const worker = await invokeWorker(t, 'export function handler() { throw new Error("PRIVATE_CHAIN_MARKER") }')
-  assert.deepEqual(worker, { ok: false, code: 'HANDLER_FAILED', detail: 'PRIVATE_CHAIN_MARKER' })
+  assert.deepEqual(worker, { ok: false, error: { code: 'HANDLER_FAILED', sqlstate: null } })
   const directory = await mkdtemp(join(tmpdir(), 'cx-pin-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const socketPath = join(directory, 'runner.sock')
-  // The supervisor boundary is replaced by its old reply; the worker and both HTTP transports run.
-  let answer = { status: 500, body: { ...failureProblem(new Failure('HANDLER_FAILED')), detail: worker.detail } }
-  const runner = createApplicationRunnerApp({ supervisor: { invoke: async () => answer, prepare: async () => ({ state: 'READY', reset: false, applied: [] }), release: async () => {} }, log: () => {} })
+  const runner = createApplicationRunnerApp({ supervisor: { invoke: async () => worker, prepare: async () => ({ ok: true, result: { reset: false, applied: [] } }), release: async () => {} }, log: () => {} })
   t.after(() => runner.close())
   await runner.listen({ path: socketPath })
   const client = createApplicationRunnerClient(socketPath)
   const input = { projectId: '11111111-1111-4111-8111-111111111111', operation: 'find', input: {}, files: [{ path: 'conexus-server/manifest.json', content: 'e30=', sha256: 'a'.repeat(64) }], caller: { accountId: '22222222-2222-4222-8222-222222222222', email: null, displayName: 'Synthetic' } }
-  const reply = await client.invoke(input)
-  assert.deepEqual(reply, { status: 500, body: { type: 'urn:conexus:problem:HANDLER_FAILED', title: 'HANDLER_FAILED', status: 500, code: 'HANDLER_FAILED', detail: 'PRIVATE_CHAIN_MARKER' } })
-  // U4–U6 replace this observed end-to-end diagnostic exposure with code-only carriers.
-  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(reply.body), { status: reply.status }))
-  await assert.rejects(api.find({}), { code: 'HANDLER_FAILED', detail: 'PRIVATE_CHAIN_MARKER', message: 'HANDLER_FAILED: PRIVATE_CHAIN_MARKER' })
-  answer = { status: 200, body: { count: 1 } }
-  assert.deepEqual(await client.invoke(input), { status: 200, body: { count: 1 } })
+  assert.deepEqual(await client.invoke(input), worker)
+  const successRunner = createApplicationRunnerApp({ supervisor: { invoke: async () => ({ ok: true, result: { count: 1 } }), prepare: async () => ({ ok: true, result: { reset: false, applied: [] } }), release: async () => {} }, log: () => {} })
+  t.after(() => successRunner.close())
+  const successSocket = join(directory, 'runner-success.sock')
+  await successRunner.listen({ path: successSocket })
+  assert.deepEqual(await createApplicationRunnerClient(successSocket).invoke(input), { ok: true, result: { count: 1 } })
 })

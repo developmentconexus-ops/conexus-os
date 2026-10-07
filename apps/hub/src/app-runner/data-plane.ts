@@ -1,4 +1,5 @@
 import type { PlannedMigration } from './wire.js'
+import type { Result } from '@conexus/contract'
 /** A Postgres session the data plane issues statements on; pg's Client and PoolClient both fit. */
 export type Sql = Readonly<{
   query(text: string, values?: readonly unknown[]): Promise<{ rows: Record<string, unknown>[] }>
@@ -215,17 +216,23 @@ export const releasePreviewAllocation = async (provisioner: Sql, allocation: Pre
  * Applies pending migrations in one transaction on a session authenticated as the migration role, so a
  * failure leaves the schema as it was. Runs inside the sandboxed worker in production.
  */
-export const applyPendingMigrations = async (migrator: Sql, schema: string, plan: MigrationPlan['pending']): Promise<void> => {
+export type MigrationFailure = Readonly<{ code: 'APPLICATION_MIGRATION_FAILED'; migration: string | null; cause: unknown }>
+
+export const applyPendingMigrations = async (migrator: Sql, schema: string, plan: MigrationPlan['pending']): Promise<Result<void, MigrationFailure>> => {
   const ledger = `${identifier(schema)}.${LEDGER_TABLE}`
-  await migrator.query('BEGIN')
+  let failedMigration: string | null = null
   try {
-    for (const migration of plan) {
-      await migrator.query(migration.sql)
-      await migrator.query(`INSERT INTO ${ledger} (position, name, sha256) VALUES ($1, $2, $3)`, [migration.position, migration.name, migration.sha256])
+    await migrator.query('BEGIN')
+    for (const pending of plan) {
+      failedMigration = pending.name
+      await migrator.query(pending.sql)
+      await migrator.query(`INSERT INTO ${ledger} (position, name, sha256) VALUES ($1, $2, $3)`, [pending.position, pending.name, pending.sha256])
     }
+    failedMigration = null
     await migrator.query('COMMIT')
+    return Object.freeze({ ok: true, result: undefined })
   } catch (error) {
     await migrator.query('ROLLBACK').catch(() => undefined)
-    throw error
+    return Object.freeze({ ok: false, error: Object.freeze({ code: 'APPLICATION_MIGRATION_FAILED' as const, migration: failedMigration, cause: error }) })
   }
 }

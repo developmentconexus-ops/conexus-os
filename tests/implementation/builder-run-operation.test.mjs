@@ -77,9 +77,6 @@ const post = (socketPath, path, body) => new Promise((resolve) => {
   outgoing.end(payload)
 })
 
-// The body the real runner answers a refusal with: the row's problem, with the detail at the top level.
-const problemBody = (code, status, detail) => ({ type: `urn:conexus:problem:${code}`, title: code, status, code, ...(detail === undefined ? {} : { detail }) })
-
 // Stands in for the Prévia's runner: loads the built module, hands the handler the invocation's
 // connector socket, and refuses an output that breaks the declared schema, as the supervisor does.
 const fakeRunner = (t) => {
@@ -97,11 +94,11 @@ const fakeRunner = (t) => {
     let value
     try {
       value = await handler(input, Object.freeze({ caller, connectors }))
-    } catch (error) {
-      return { status: 500, body: problemBody('HANDLER_FAILED', 500, error.message) }
+    } catch {
+      return { ok: false, error: { code: 'HANDLER_FAILED', sqlstate: null } }
     }
     const violation = schemaViolation(declared.output, value, false)
-    return violation ? { status: 502, body: problemBody('HANDLER_OUTPUT_REFUSED', 502, violation) } : { status: 200, body: value }
+    return violation ? { ok: false, error: { code: 'HANDLER_OUTPUT_REFUSED', violation } } : { ok: true, result: value }
   }
   return { invoke, invocations }
 }
@@ -281,26 +278,24 @@ test('calls made together build and run one at a time, since every build writes 
   assert.deepEqual(reports.map((report) => [report.operation, report.ok]), [['orderLines', true], ['throwsWithValue', false]])
 })
 
-const refusalReport = async (reply) => {
+const refusalReport = async (answer) => {
   const runOperation = createOperationRunner({
     projectId: PROJECT, caller: CALLER,
     buildServer: async () => ({ ok: true, files: BUILT }),
     openConnectorPort: async () => null,
-    invoke: async () => reply,
+    invoke: async () => answer,
   })
   return runOperation({ operation: 'orderLines', input: {} })
 }
 
-test('a refusal body the real runner writes reaches the Builder as its own code, and a body with no code as RUNNER_REFUSED', async () => {
-  assert.deepEqual(await refusalReport({ status: 500, body: problemBody('HANDLER_FAILED', 500, '23505 duplicate') }), { ok: false, operation: 'orderLines', code: 'HANDLER_FAILED', detail: 'SQLSTATE 23505' })
-  assert.deepEqual(await refusalReport({ status: 502, body: problemBody('HANDLER_OUTPUT_REFUSED', 502, '/items/0/price: expected string') }), { ok: false, operation: 'orderLines', code: 'HANDLER_OUTPUT_REFUSED', detail: '/items/0/price: expected string' })
-  assert.deepEqual(await refusalReport({ status: 500, body: { type: 'x', title: 'x', status: 500 } }), { ok: false, operation: 'orderLines', code: 'RUNNER_REFUSED' })
-  assert.deepEqual(await refusalReport({ status: 500, body: { code: 5, detail: 'x' } }), { ok: false, operation: 'orderLines', code: 'RUNNER_REFUSED' })
+test('the Builder projects structured SQLSTATE and schema facts into its bounded report', async () => {
+  assert.deepEqual(await refusalReport({ ok: false, error: { code: 'HANDLER_FAILED', sqlstate: '23505' } }), { ok: false, operation: 'orderLines', code: 'HANDLER_FAILED', detail: 'SQLSTATE 23505' })
+  assert.deepEqual(await refusalReport({ ok: false, error: { code: 'HANDLER_OUTPUT_REFUSED', violation: { pointer: '/items/0/price', rule: 'expected string' } } }), { ok: false, operation: 'orderLines', code: 'HANDLER_OUTPUT_REFUSED', detail: '/items/0/price: expected string' })
+  assert.deepEqual(await refusalReport({ ok: false, error: { code: 'OPERATION_NOT_FOUND' } }), { ok: false, operation: 'orderLines', code: 'OPERATION_NOT_FOUND' })
 })
 
-test('a detail the worker wrote for a load failure never reaches the Builder, and the export name still does', async () => {
-  const loadFailed = await refusalReport({ status: 500, body: problemBody('HANDLER_LOAD_FAILED', 500, 'secret') })
+test('the Builder receives validated SQLSTATE and admitted export facts, never worker details', async () => {
+  const loadFailed = await refusalReport({ ok: false, error: { code: 'HANDLER_LOAD_FAILED', sqlstate: null } })
   assert.deepEqual(loadFailed, { ok: false, operation: 'orderLines', code: 'HANDLER_LOAD_FAILED' })
-  assert.equal(JSON.stringify(loadFailed).includes('secret'), false)
-  assert.deepEqual(await refusalReport({ status: 500, body: problemBody('HANDLER_EXPORT_MISSING', 500, 'find') }), { ok: false, operation: 'orderLines', code: 'HANDLER_EXPORT_MISSING', detail: 'find' })
+  assert.deepEqual(await refusalReport({ ok: false, error: { code: 'HANDLER_EXPORT_MISSING', export: 'find' } }), { ok: false, operation: 'orderLines', code: 'HANDLER_EXPORT_MISSING', detail: 'find' })
 })

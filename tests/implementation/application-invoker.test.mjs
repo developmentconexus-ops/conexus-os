@@ -12,13 +12,13 @@ const deferredRunner = () => {
   const waiting = []
   const invoke = (input) => new Promise((resolve) => {
     calls.push(input)
-    waiting.push(() => resolve({ status: 200, body: { ok: true } }))
+    waiting.push(() => resolve({ ok: true, result: { ok: true } }))
   })
   const release = (count) => { for (let i = 0; i < count; i += 1) waiting.shift()?.() }
   return { invoke, calls, release }
 }
 
-const spyInvoke = (result = { status: 200, body: { ok: true } }) => {
+const spyInvoke = (result = { ok: true, result: { ok: true } }) => {
   const calls = []
   const invoke = async (input) => { calls.push(input); return result }
   return { invoke, calls }
@@ -246,6 +246,14 @@ test('the runner call\'s failure answers APPLICATION_RUNNER_UNAVAILABLE with its
   await assert.rejects(() => call(unreachable, 'p1'), (error) => error.id === 'APPLICATION_RUNNER_UNAVAILABLE' && error.details.project === 'p1' && error.details.operation === 'op')
 })
 
+test('a handled runner refusal becomes a public Problem with no private diagnosis', async () => {
+  const invoker = createApplicationInvoker({ invoke: async () => ({ ok: false, error: { code: 'HANDLER_FAILED', sqlstate: '23505' } }) })
+  assert.deepEqual(await call(invoker, 'p1'), {
+    status: 500,
+    body: { type: 'urn:conexus:problem:HANDLER_FAILED', title: 'HANDLER_FAILED', status: 500, code: 'HANDLER_FAILED' },
+  })
+})
+
 // The connector port lives exactly as long as one invocation: opened for its source before the
 // runner is called, named to the runner beside the input, and closed after the answer or the failure.
 const portOpener = () => {
@@ -262,7 +270,7 @@ test('the connector port is opened for the source, named to the runner and close
   const calls = []
   const invoker = createApplicationInvoker({
     openConnectorPort: ports.openConnectorPort,
-    invoke: async (input) => { calls.push(input); ports.events.push(['invoke', input.connectorSocket]); return { status: 200, body: { ok: true } } },
+    invoke: async (input) => { calls.push(input); ports.events.push(['invoke', input.connectorSocket]); return { ok: true, result: { ok: true } } },
   })
   assert.deepEqual(await call(invoker, 'p1'), { status: 200, body: { ok: true } })
   assert.deepEqual(ports.events, [['open', source('p1')], ['invoke', '/run/hub-connectors/abc.s'], ['close']])

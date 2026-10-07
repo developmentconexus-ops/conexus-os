@@ -1,6 +1,5 @@
 import { trace } from '@opentelemetry/api'
 import type { FastifyReply } from 'fastify'
-import { z } from 'zod'
 import { type Failure, failureRow } from '../platform/failure.js'
 
 type ProblemDetails = Readonly<{ type: string; title: string; status: number; code: string; traceId?: string }>
@@ -11,9 +10,6 @@ export const failureProblem = (failure: Failure): ProblemDetails => {
   const traceId = category === 'SYSTEM' ? trace.getActiveSpan()?.spanContext().traceId : undefined
   return { type: `urn:conexus:problem:${failure.id}`, title: failure.id, status, code: failure.id, ...(traceId ? { traceId } : {}) }
 }
-
-/** What a reader may take from a problem body it did not write: a code and a detail, each only when it is a string. */
-export const problemBody = z.looseObject({ code: z.string().exactOptional(), detail: z.string().exactOptional() })
 
 export const sendFailure = (reply: FastifyReply, failure: Failure) => {
   const body = failureProblem(failure)

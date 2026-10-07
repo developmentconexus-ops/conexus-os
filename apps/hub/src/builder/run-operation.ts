@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { admitManifest } from '../app-runner/server-manifest.js'
 import type { ValueSchema } from '../app-runner/server-manifest.js'
+import type { InvokeAnswer, InvokeRefusal } from '../app-runner/server-manifest.js'
 import type { Caller } from '../platform/caller.js'
-import { problemBody } from '../http/problem.js'
 import { commandEvidence } from './application-starter.js'
 import type { ProjectId } from '@conexus/contract'
 
@@ -82,35 +82,29 @@ const operationShape = (schema: ValueSchema, value: unknown): OperationShape => 
   }
 }
 
-// What a runner refusal may show the model. The runner writes the schema, export and signal details
-// itself. The worker's own detail is text the handler can choose, because the handler can write the
-// worker's result line: a thrown message or an import error can carry a company value, so only a
-// database error's SQLSTATE survives it.
-const sqlstateOnly = (detail: string): string | undefined => {
-  const sqlstate = /^([0-9A-Z]{5}) /.exec(detail)?.[1]
-  return sqlstate ? `SQLSTATE ${sqlstate}` : undefined
-}
-const DETAIL_SHOWN: Readonly<Record<string, (detail: string) => string | undefined>> = Object.freeze({
-  INPUT_REFUSED: (detail) => detail,
-  HANDLER_OUTPUT_REFUSED: (detail) => detail,
-  HANDLER_EXPORT_MISSING: (detail) => detail,
-  HANDLER_CRASHED: (detail) => detail,
-  HANDLER_LOAD_FAILED: sqlstateOnly,
-  HANDLER_FAILED: sqlstateOnly,
-})
 const DETAIL_CHARS = 300
-const CODE = /^[A-Z][A-Z0-9_]{0,63}$/
 
 const refused = (operation: string, code: string, detail?: string): OperationRunReport =>
   detail ? { ok: false, operation, code, detail: detail.slice(0, DETAIL_CHARS) } : { ok: false, operation, code }
 
-const runnerRefusal = (operation: string, body: unknown): OperationRunReport => {
-  const problem = problemBody.safeParse(body)
-  const reported = problem.success ? problem.data.code : undefined
-  const code = reported !== undefined && CODE.test(reported) ? reported : 'RUNNER_REFUSED'
-  const detail = problem.success ? problem.data.detail : undefined
-  const shown = detail === undefined ? undefined : DETAIL_SHOWN[code]?.(detail)
-  return refused(operation, code, shown)
+const refusalDetail = (error: InvokeRefusal): string | undefined => {
+  switch (error.code) {
+    case 'INPUT_REFUSED':
+    case 'HANDLER_OUTPUT_REFUSED':
+      return `${error.violation.pointer}: ${error.violation.rule}`
+    case 'HANDLER_EXPORT_MISSING':
+      return error.export
+    case 'HANDLER_CRASHED': {
+      const facts = [error.exitCode === null ? undefined : `exit code ${error.exitCode}`, error.signal === null ? undefined : `signal ${error.signal}`].filter(Boolean)
+      return facts.length > 0 ? facts.join(', ') : undefined
+    }
+    case 'HANDLER_FAILED':
+    case 'HANDLER_LOAD_FAILED':
+    case 'DATABASE_UNAVAILABLE':
+      return error.sqlstate === null ? undefined : `SQLSTATE ${error.sqlstate}`
+    default:
+      return undefined
+  }
 }
 
 export type CandidateOperationPorts = Readonly<{
@@ -122,7 +116,7 @@ export type CandidateOperationPorts = Readonly<{
   openConnectorPort(): Promise<Readonly<{ socketPath: string; close(): Promise<void> }> | null>
   invoke(input: Readonly<{
     projectId: ProjectId; operation: string; input: unknown; files: readonly ServerFile[]; caller: Caller; connectorSocket?: string
-  }>): Promise<Readonly<{ status: number; body: unknown }>>
+  }>): Promise<InvokeAnswer>
 }>
 
 // The runner's own bounds on a server tree (app-runner/supervisor.ts), restated: the import law keeps
@@ -187,23 +181,21 @@ const runOnce = async (ports: CandidateOperationPorts, { operation, input }: Par
   if (!built.ok) return refused(operation, 'SERVER_BUILD_FAILED', built.detail)
   const manifestFile = built.files.find((file) => file.path === MANIFEST_PATH)
   if (!manifestFile) return refused(operation, 'SERVER_HALF_MISSING', 'the checkout has no conexus/manifest.json')
-  const manifest = admitManifest(JSON.parse(Buffer.from(manifestFile.content, 'base64').toString('utf8')), 'server')
+  const admission = admitManifest(JSON.parse(Buffer.from(manifestFile.content, 'base64').toString('utf8')), 'server')
+  if (!admission.ok) return refused(operation, admission.error.code, `${admission.error.where}: ${admission.error.diagnostic}`)
+  const manifest = admission.result
   const declared = Object.hasOwn(manifest.operations, operation) ? manifest.operations[operation] : undefined
   if (!declared) return refused(operation, 'OPERATION_NOT_FOUND', `declared: ${Object.keys(manifest.operations).join(', ')}`)
-  let reply: Readonly<{ status: number; body: unknown }>
+  let answer: InvokeAnswer
   const port = await ports.openConnectorPort()
   try {
-    reply = await ports.invoke({
+    answer = await ports.invoke({
       projectId: ports.projectId, operation, input, files: built.files, caller: ports.caller,
       ...(port ? { connectorSocket: port.socketPath } : {}),
     })
-  } catch (error) {
-    const code = error instanceof Error && CODE.test(error.message) ? error.message : null
-    if (!code) throw error
-    return refused(operation, code)
   } finally {
     await port?.close()
   }
-  if (reply.status !== 200) return runnerRefusal(operation, reply.body)
-  return { ok: true, operation, ...operationShape(declared.output, reply.body) }
+  if (!answer.ok) return refused(operation, answer.error.code, refusalDetail(answer.error))
+  return { ok: true, operation, ...operationShape(declared.output, answer.result) }
 }

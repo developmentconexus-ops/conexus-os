@@ -90,27 +90,26 @@ const withServerTree = async () => [
 
 test('an artifact with a server tree reaches its Preview only after its migrations apply', async (t) => {
   const prepared = []
-  const ready = await harness(t, { build: withServerTree, applicationServer: { prepare: async (input) => { prepared.push(input); return { state: 'READY', reset: false, applied: ['001_notes.sql'] } } } })
+  const ready = await harness(t, { build: withServerTree, applicationServer: { prepare: async (input) => { prepared.push(input); return { ok: true, result: { reset: false, applied: ['001_notes.sql'] } } } } })
   await ready.start()
   await ready.service.close()
   assert.deepEqual(prepared, [{ projectId, files: [{ path: 'conexus-server/manifest.json', sha256: 'e'.repeat(64), content: Buffer.from('{}').toString('base64') }] }])
   assert.deepEqual(ready.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', ready.result(), null]])
   assert.deepEqual(ready.diagnostics, [])
 
-  const failed = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ state: 'MIGRATION_FAILED', detail: '42P01 relation "missing_table" does not exist' }) } })
+  const failed = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: '001_notes.sql', sqlstate: '42P01' } }) } })
   await failed.start()
   await failed.service.close()
   assert.deepEqual(failed.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', failed.result(), 'APPLICATION_MIGRATION_FAILED']])
-  assert.deepEqual(failed.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_MIGRATION_FAILED', 'BUILD_FAILED', '42P01 relation "missing_table" does not exist']])
+  assert.deepEqual(failed.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_MIGRATION_FAILED', 'BUILD_FAILED', undefined]])
 
-  const divergedDetail = 'A migração já aplicada 001_notes.sql foi alterada, removida ou reordenada.'
-  const diverged = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ state: 'MIGRATION_HISTORY_DIVERGED', detail: divergedDetail }) } })
+  const diverged = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ ok: false, error: { code: 'APPLICATION_MIGRATION_HISTORY_DIVERGED', migration: '001_notes.sql' } }) } })
   await diverged.start()
   await diverged.service.close()
   assert.deepEqual(diverged.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', diverged.result(), 'APPLICATION_MIGRATION_HISTORY_DIVERGED']])
-  assert.deepEqual(diverged.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_MIGRATION_HISTORY_DIVERGED', 'BUILD_FAILED', divergedDetail]])
+  assert.deepEqual(diverged.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_MIGRATION_HISTORY_DIVERGED', 'BUILD_FAILED', undefined]])
 
-  const reset = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ state: 'READY', reset: true, applied: ['001_notes.sql'] }) } })
+  const reset = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ ok: true, result: { reset: true, applied: ['001_notes.sql'] } }) } })
   await reset.start()
   await reset.service.close()
   assert.deepEqual(reset.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', reset.result(), null]])

@@ -1,7 +1,7 @@
 import type { ApplicationFilePath, ArtifactDigest, ArtifactRevisionId, BuilderRunId, MediaType, ProjectId, SourceRevision } from '@conexus/contract'
 import type { Admitted, ProjectScope, RunOwner, SystemScope } from '../identity-access/admission.js'
 import type { CompiledApplication, CompiledApplicationThumbnail } from './application-artifact-runtime.js'
-import type { PrepareResult } from '../app-runner/server-manifest.js'
+import type { PrepareAnswer } from '../app-runner/server-manifest.js'
 import type { CandidateOperationPorts } from './run-operation.js'
 import { Failure } from '../platform/failure.js'
 import type { SealedApplication } from '../platform/sealed-application.js'
@@ -26,7 +26,7 @@ export type BuilderRegistry = Readonly<{
 // operation for `conexus_run_operation`.
 export type ApplicationServerPort = Readonly<{
   invoke: CandidateOperationPorts['invoke']
-  prepare(input: Readonly<{ projectId: ProjectId; files: readonly Readonly<{ path: string; sha256: string; content: string }>[] }>): Promise<PrepareResult>
+  prepare(input: Readonly<{ projectId: ProjectId; files: readonly Readonly<{ path: string; sha256: string; content: string }>[] }>): Promise<PrepareAnswer>
 }>
 
 const SERVER_ROOT = 'conexus-server/'
@@ -48,7 +48,6 @@ export const prepareApplicationServer = async (
     projectId: compiled.projectId,
     files: files.map((file) => ({ path: file.path, sha256: file.sha256, content: Buffer.from(file.bytes).toString('base64') })),
   })
-  if (prepared.state === 'MIGRATION_FAILED') throw new Failure('APPLICATION_MIGRATION_FAILED', { cause: prepared.detail })
-  if (prepared.state === 'MIGRATION_HISTORY_DIVERGED') throw new Failure('APPLICATION_MIGRATION_HISTORY_DIVERGED', { cause: prepared.detail })
-  return { reset: prepared.reset }
+  if (!prepared.ok) throw new Failure(prepared.error.code, { cause: prepared.error })
+  return { reset: prepared.result.reset }
 }

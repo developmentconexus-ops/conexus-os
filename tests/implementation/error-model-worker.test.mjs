@@ -1,22 +1,40 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
-const { workerResult } = await import(hubModuleUrl('app-runner/wire.js'))
-const { prepareResult } = await import(hubModuleUrl('app-runner/server-manifest.js'))
+const { workerAnswerSchema, prepareAnswerSchema, invokeAnswerSchema } = await import(hubModuleUrl('app-runner/wire.js'))
 const { planMigrations } = await import(hubModuleUrl('app-runner/data-plane.js'))
 
-test('worker success carries value, including a JSON null', () => {
-  assert.deepEqual(workerResult.parse({ ok: true, value: { count: 1 } }), { ok: true, value: { count: 1 } })
-  assert.deepEqual(workerResult.parse({ ok: true, value: null }), { ok: true, value: null })
+test('worker success carries result, including a JSON null', () => {
+  assert.deepEqual(workerAnswerSchema.parse({ ok: true, result: { count: 1 } }), { ok: true, result: { count: 1 } })
+  assert.deepEqual(workerAnswerSchema.parse({ ok: true, result: null }), { ok: true, result: null })
 })
 
-test('old worker failure accepts free code and detail but strips unrelated extensions', () => {
-  // U4 replaces this observed old format with strict table-backed code-only errors.
-  assert.deepEqual(workerResult.parse({ ok: false, code: 'SYNTHETIC_UNKNOWN', detail: 'PRIVATE_MARKER', cause: 'PRIVATE_CAUSE' }), { ok: false, code: 'SYNTHETIC_UNKNOWN', detail: 'PRIVATE_MARKER' })
+test('worker failure rejects free codes, arbitrary details and unrelated extensions', () => {
+  for (const answer of [
+    { ok: false, error: { code: 'SYNTHETIC_UNKNOWN' } },
+    { ok: false, error: { code: 'HANDLER_FAILED', sqlstate: null, detail: 'PRIVATE_MARKER' } },
+    { ok: false, error: { code: 'HANDLER_FAILED', sqlstate: null }, cause: 'PRIVATE_CAUSE' },
+  ]) assert.equal(workerAnswerSchema.safeParse(answer).success, false)
+  assert.deepEqual(workerAnswerSchema.parse({ ok: false, error: { code: 'HANDLER_FAILED', sqlstate: '23505' } }), { ok: false, error: { code: 'HANDLER_FAILED', sqlstate: '23505' } })
 })
 
-test('prepare preserves ready, failed and diverged carriers', () => {
-  for (const answer of [{ state: 'READY', reset: false, applied: ['001_a.sql'] }, { state: 'MIGRATION_FAILED', detail: 'PRIVATE_MARKER' }, { state: 'MIGRATION_HISTORY_DIVERGED', detail: 'history changed' }]) assert.deepEqual(prepareResult.parse(answer), answer)
+test('prepare uses strict Results and only carries migration identity and SQLSTATE', () => {
+  for (const answer of [
+    { ok: true, result: { reset: false, applied: ['001_a.sql'] } },
+    { ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: '002_b.sql', sqlstate: '23505' } },
+    { ok: false, error: { code: 'APPLICATION_MIGRATION_HISTORY_DIVERGED', migration: '001_a.sql' } },
+  ]) assert.deepEqual(prepareAnswerSchema.parse(answer), answer)
+  assert.equal(prepareAnswerSchema.safeParse({ ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: null, sqlstate: null, detail: 'private' } }).success, false)
+  assert.equal(prepareAnswerSchema.safeParse({ ok: true, result: { reset: false, applied: ['bad'] } }).success, false)
+})
+
+test('invoke schema accepts only code-specific private facts', () => {
+  assert.deepEqual(invokeAnswerSchema.parse({ ok: false, error: { code: 'HANDLER_OUTPUT_REFUSED', violation: { pointer: '/items/0/name', rule: 'expected string' } } }), { ok: false, error: { code: 'HANDLER_OUTPUT_REFUSED', violation: { pointer: '/items/0/name', rule: 'expected string' } } })
+  for (const answer of [
+    { ok: false, error: { code: 'OPERATION_NOT_FOUND', export: 'hidden' } },
+    { ok: false, error: { code: 'HANDLER_FAILED', sqlstate: '23505', detail: 'private' } },
+    { ok: false, error: { code: 'INPUT_REFUSED', violation: { pointer: '/', rule: 'bad', value: 'private' } } },
+  ]) assert.equal(invokeAnswerSchema.safeParse(answer).success, false)
 })
 
 test('migration planning adds only a suffix and detects edited, removed or reordered history', () => {
@@ -34,10 +52,13 @@ test('migration failure and divergence refuse Preview admission with exact codes
   const projectId = '11111111-1111-4111-8111-111111111111'
   const sourceRevision = 'a'.repeat(40)
   const compiledApplication = { projectId, sourceRevision, executionId: '22222222-2222-4222-8222-222222222222', templateRef: 'synthetic', recipeSha256: 'b'.repeat(64), files: [{ path: 'conexus-server/manifest.json', bytes: new Uint8Array(), sha256: 'c'.repeat(64) }] }
-  for (const [state, code] of [['MIGRATION_FAILED', 'APPLICATION_MIGRATION_FAILED'], ['MIGRATION_HISTORY_DIVERGED', 'APPLICATION_MIGRATION_HISTORY_DIVERGED']]) {
+  for (const [code, error] of [
+    ['APPLICATION_MIGRATION_FAILED', { code: 'APPLICATION_MIGRATION_FAILED', migration: '001_create_notes.sql', sqlstate: null }],
+    ['APPLICATION_MIGRATION_HISTORY_DIVERGED', { code: 'APPLICATION_MIGRATION_HISTORY_DIVERGED', migration: '001_create_notes.sql' }],
+  ]) {
     const calls = []
-    const server = { prepare: async (input) => { calls.push(['prepare', input]); return { state, detail: 'PRIVATE_MIGRATION_MARKER' } } }
-    await assert.rejects(prepareApplicationServer(server, compiledApplication), { id: code, cause: 'PRIVATE_MIGRATION_MARKER' })
+    const server = { prepare: async (input) => { calls.push(['prepare', input]); return { ok: false, error } } }
+    await assert.rejects(prepareApplicationServer(server, compiledApplication), (failure) => failure.id === code && failure.cause === error)
     calls.length = 0
     const env = {
       store: { advanceBuilderRunSource: async () => {}, settleBuilderRunBuild: async ({ failureCode, sealed }) => calls.push(['settle', failureCode, sealed ?? null]) },

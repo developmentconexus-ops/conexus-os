@@ -110,6 +110,10 @@ readable when the tables or the screens change.
   plus `traceId` for a Conexus fault. It **must not** carry a stack trace or a `detail` a client
   parses.
 - `code` **must** come from `contracts/technical/failures.json`, with the status its row names.
+- The application runner's handled prepare and invoke answers **must** use its validated private
+  `Result` over the existing owner channel, with HTTP 200 JSON. Only a public HTTP boundary projects
+  a table code and validated trace into a Problem; private repair facts **must not** establish
+  authority.
 - A subject the caller may not know about **must** answer 404, never a 403 that confirms it exists.
 - A success **must** answer 200 with a body, 201 for a create, or 204 with no body.
 

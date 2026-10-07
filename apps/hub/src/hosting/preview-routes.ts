@@ -131,7 +131,7 @@ const callOperation = <C extends ScopedProof>(dependencies: Deps<C>) => async (r
     source: { via: 'PREVIEW', accountId: scope.accountId, projectId: scope.projectId },
     files, operation, input: request.body, caller, callerLeft: callerLeft(reply),
   })
-  return reply.code(result.status).type('application/problem+json').send(JSON.stringify(result.body))
+  return reply.code(result.status).type(result.status === 200 ? 'application/json' : 'application/problem+json').send(JSON.stringify(result.body))
 }
 
 export const registerPreviewRoutes = async <C extends ScopedProof>(

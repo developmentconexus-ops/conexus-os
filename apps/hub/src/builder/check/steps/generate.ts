@@ -58,7 +58,9 @@ export const generate = async (ctx: CheckContext): Promise<Outcome> => {
   if (!entry.isFile() || !real.startsWith(realpathSync(ctx.root) + sep) || entry.size > MAX_MANIFEST_BYTES) return manifestRefused('must be a regular file inside the project, under 1 MiB')
   let client: Awaited<ReturnType<typeof generateClient>>
   try {
-    client = await generateClient(ctx.compiler, admitManifest(JSON.parse(readFileSync(manifestPath, 'utf8')), 'source'))
+    const admitted = admitManifest(JSON.parse(readFileSync(manifestPath, 'utf8')), 'source')
+    if (!admitted.ok) return manifestRefused(`${admitted.error.where}: ${admitted.error.diagnostic}`)
+    client = await generateClient(ctx.compiler, admitted.result)
   } catch (error) {
     return manifestRefused(error instanceof SyntaxError ? `is not valid JSON: ${error.message}` : messageOf(error))
   }
