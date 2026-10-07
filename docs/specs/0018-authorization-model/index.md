@@ -2,7 +2,7 @@
 
 **Date**: 2026-10-07
 
-**Status**: Draft awaiting the operator's approval
+**Status**: Approved by the operator on 2026-10-07, commit bbed6747a9182f2d4abe23fdc93e3b8b898ae11b
 
 **Lane**: lane:qualification (Q-b, identity authority and database privilege migration)
 
