@@ -1,4 +1,4 @@
-# WSL Ubuntu local environment
+# Local environment
 
 Local Conexus implementation and deciding verification run in WSL Ubuntu. The Windows process may locate the repository and launch WSL, but its Node, npm, path semantics and command results are not deciding evidence.
 
@@ -38,7 +38,7 @@ So:
 
 ## Keep worktrees intact
 
-The repository lives in WSL. `~/conexus-os.git` is a bare repository on ext4 and the Git common directory of every worktree, such as `~/conexus-os` and `~/wt-*`. No Windows path holds Conexus source or Git state. Create a worktree with `npm run worktree:new -- <name> <branch>` from inside an existing worktree; it reclaims every worktree whose work is already safely on GitHub (the same check as `worktree:reap --apply`) before creating `~/wt-<name>` on `<branch>`. The raw form, `git -C ~/conexus-os.git worktree add ~/wt-<name> -b <branch> origin/main`, still works but skips that reclaiming.
+The repository lives in WSL. A bare repository on ext4 is the Git common directory of every worktree, and the worktrees sit beside it. No Windows path holds Conexus source or Git state. Create a worktree with `npm run worktree:new -- <name> <branch>` from inside an existing worktree; it reclaims every worktree whose work is already safely on GitHub (the same check as `worktree:reap --apply`) before creating a worktree for `<name>` beside the bare repository, on `<branch>`. The raw form, `git -C <bare repository> worktree add <path> -b <branch> origin/main`, still works but skips that reclaiming.
 
 Remove worktrees only with `npm run worktree:reap`. It prints what it would remove and why it keeps the rest, and `npm run worktree:reap -- --apply` removes. It removes a worktree only when its pull request is closed or merged, its HEAD is that pull request's head commit, and it holds nothing but regenerable build output. Never run `git worktree prune` or `git worktree remove --force`.
 
@@ -52,15 +52,15 @@ Within that same WSL shell:
 npm run conexus:preflight
 ```
 
-In a fresh clone, run `npm ci` and `npx --no-install playwright install chromium`. A worktree with linked dependencies needs neither install. Then run the checks [delivery](../../../../docs/development/delivery.md#proof-and-verification) asks for, for example `npm run conexus:verify -- --scope <scope>` with a focused scope. A check with PostgreSQL leaves needs one complete `CONEXUS_TEST_DB_*` set or the disposable PostgreSQL service pinned in `.github/workflows/verify.yml`. A partial set fails before execution. A Windows result decides nothing.
+In a fresh clone, run `npm ci` and `npx --no-install playwright install chromium`. A worktree with linked dependencies needs neither install. Then run the checks [delivery](delivery.md#proof-and-verification) asks for, for example `npm run conexus:verify -- --scope <scope>` with a focused scope. A check with PostgreSQL leaves needs one complete `CONEXUS_TEST_DB_*` set or the disposable PostgreSQL service pinned in `.github/workflows/verify.yml`. A partial set fails before execution. A Windows result decides nothing.
 
 ## Piloto
 
 The pilot is the operator's laptop install of the real Hub and application runner. It holds the operator's working state. Touch it only when the issue or task names a pilot proof.
 
-- The pilot Hub and runner run from one checkout of `main` with the start scripts in `infra/pilot/`. [`infra/pilot/README.md`](../../../../infra/pilot/README.md) owns where they live and how to deploy `main`.
+- The pilot Hub and runner run from one checkout of `main` with the start scripts in `infra/pilot/`. [`infra/pilot/README.md`](../../infra/pilot/README.md) owns where they live and how to deploy `main`.
 - Run each launcher in the foreground in its own terminal tab. A Hub started with `&` from a `wsl.exe` call dies when that call ends. Never wrap the Hub in `timeout`.
 - The Hub serves `https://hub.conexus.localhost:3443`. A Hub left over from an earlier call can still hold the port, and the new one then fails with `EADDRINUSE`.
 - `scripts/run-hub-migrations.mjs` applies the Hub migrations. They are forward-only, so running it against the pilot from a branch with a later migration changes the pilot for good. That needs the operator's Aprovo.
 - The environment files and secrets live outside the repository. Never print them.
-- Never type the operator's password. Sign in as the [`verify`](../../verify/SKILL.md) skill does, with its test person, or with a saved session.
+- Never type the operator's password. Sign in as the [`verify`](../../.agents/skills/verify/SKILL.md) skill does, with its test person, or with a saved session.

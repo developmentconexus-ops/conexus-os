@@ -27,7 +27,7 @@ beside it.
    is named in the report. A real Builder turn needs explicit authority
    ([T §9](../../../docs/development/testing.md#9-builder-proof)): ask, do not run it.
 4. **Read what happened, not only what showed.** For every AC you drive, and for every failure,
-   read the record of that run, cheapest first ([evidence](../conexus-development/references/evidence.md)):
+   read the record of that run, cheapest first ([evidence](../conexus-study/references/evidence.md)):
    - the traces: the `verify` launch exports OpenTelemetry to the development backend
      (`infra/telemetry/compose.dev.yaml`, Grafana with Tempo, Loki and Prometheus) tagged
      `deployment.environment.name=verify`; find the request's trace and the time of each call;

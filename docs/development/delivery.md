@@ -94,8 +94,11 @@ decision notes beside it.
 ## The Conexus skills own the stages
 
 Each wave stage follows its Conexus skill: `conexus-study`, `conexus-spec`, `conexus-build` and
-`conexus-prove`. The jm skills are not used. A pstack skill is a tool a Conexus skill names, and
-each Conexus skill gives the rule to follow when the session does not have pstack.
+`conexus-prove`; a review follows `conexus-review` and a fix `conexus-fix`. The jm skills are not
+used. A pstack skill is a tool a Conexus skill names, and each Conexus skill gives the rule to follow
+when the session does not have pstack. The manager delegates each stage, and each unit, to a fresh
+session whose prompt names its skill, its worktree and its files, and forbids merge. A builder does
+not delegate code. Worktrees are removed only with `npm run worktree:reap`.
 
 ## Review loop
 

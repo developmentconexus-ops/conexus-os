@@ -1,6 +1,6 @@
 ---
 name: conexus-build
-description: Build one unit of an approved Conexus spec, from the unit card in your instructions. Use when your instructions name a spec unit to build, before writing any product code for it.
+description: Build one unit of an approved Conexus spec from its unit card, or a small lane:fast change from its issue. Use when your instructions name a spec unit or an issue to build, before writing any product code for it, and for any change to a screen.
 ---
 
 # Build one unit
@@ -49,8 +49,28 @@ A review finding comes back to you as a message. Find its cause before you fix i
 [review loop](../../../docs/development/delivery.md#review-loop) says, and push the fix to the same
 pull request.
 
+A screen change also follows [screens](references/screens.md).
+
+## A small change
+
+A `lane:fast` change inside accepted meaning has no study and no spec: its issue is the unit card.
+The issue names the result, the non-goals and "done when"; a missing decision goes back to the
+operator, never into code. Load the guides that
+[`areas.json`](../../../docs/development/review/areas.json) maps to the paths you touch, and before
+writing name the data shape and its one owner, read the whole lifecycle you touch, check the
+[decision register](../../../docs/decisions/index.md), and take the native census
+([native first](../../../docs/reference/architecture.md#native-first)). Then follow the steps above,
+proving each "done when" item on the real surface with [`verify`](../verify/SKILL.md). The pull
+request targets `main`, and its body says what the change deletes, measured by
+`git diff --numstat origin/main...HEAD` with product code apart from tests, SQL and generated files.
+
 ## Stop and report when
 
 - the card needs a type, contract, value or decision that the spec does not hold;
 - the unit cannot end green without changing the design;
-- the work grows past the card's files.
+- the work grows past the card's files;
+- a **must not** rule of [guide C](../../../docs/development/codebase-principles.md) would break, or a
+  [stop condition](../../../docs/development/delivery.md#stop-then-escalate) holds.
+
+Stop means no more code, a comment on the issue or a report with the evidence, and the question for
+the operator.

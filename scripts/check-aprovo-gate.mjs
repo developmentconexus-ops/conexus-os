@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url'
 export const LABEL = 'needs:aprovo'
 const AREAS = 'docs/development/review/areas.json'
 
-// The grammar the Review flow of the conexus-development skill uses: an exact path, `dir/**`, and `*` inside one path segment.
+// The grammar the conexus-review skill uses: an exact path, `dir/**`, and `*` inside one path segment.
 const globToRegExp = (glob) => new RegExp(`^${glob.split('**').map((part) => part.split('*').map((piece) => piece.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')).join('.*')}$`)
 
 const gatedAreaOf = (areas, file) => areas.find(({ gate, paths }) => gate === 'aprovo' && paths.some((glob) => globToRegExp(glob).test(file)))

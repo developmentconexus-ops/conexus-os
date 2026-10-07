@@ -43,8 +43,8 @@ beside it.
    the wave touches, written and green on `main` before any structure moves. If today's tests
    already pin a surface, the card says which tests and the pin unit covers only the rest.
 8. **The guides decide.** Read in full [guide C](../../../docs/development/codebase-principles.md)
-   and the guides of the subject (the table in
-   [`conexus-development`](../conexus-development/SKILL.md#read-the-guides)). Where the design
+   and the guides [`areas.json`](../../../docs/development/review/areas.json) maps to the paths the
+   wave touches. Where the design
    changes a guide rule, the spec states the new rule text in one sentence, and a unit edits the
    guide.
 9. **Everything checkable becomes a check.** The census is a script or a lint rule, not a list. The

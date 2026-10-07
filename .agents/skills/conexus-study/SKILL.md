@@ -48,7 +48,7 @@ Your instructions name your part. Each part writes only its section of the repor
 
 ## Evidence
 
-Cheapest first: [evidence](../conexus-development/references/evidence.md) (telemetry, Mastra's
+Cheapest first: [evidence](references/evidence.md) (telemetry, Mastra's
 spans, logs, the [`verify`](../verify/SKILL.md) skill, reference code). For Mastra, the installed
 version is the truth; then how Mastra's own products (Factory, Mastra Code) do it.
 
