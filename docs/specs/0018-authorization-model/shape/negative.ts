@@ -1,7 +1,7 @@
 import type { AccountId, ProjectId, WorkspaceId } from '@conexus/contract'
 import { admitProject, admitInstallationAdministrator } from './admission.js'
 import { beginDeletion, listProjects } from './data.js'
-import type { Admitted, CommandGate, ProjectScope, ReadGate, WorkspaceScope, ProjectDetail, Checked, ApplicationScope } from './types.js'
+import type { Admitted, CommandGate, ProjectScope, ReadGate, WorkspaceScope, ProjectDetail, Checked, ApplicationScope, RunScope, SystemScope } from './types.js'
 import type { Malformed, RoleCells } from './catalog.js'
 declare const gate: ReadGate
 declare const accountId: AccountId
@@ -39,3 +39,5 @@ admitInstallationAdministrator(gate, { action: 'connection.manage' })
 const deleting: ProjectDetail = { projectId, workspaceId, name: 'Example', state: 'deleting', projectRevision: '' }
 // @ts-expect-error Owner-set commands carry the locked owner rows.
 const missingOwners: WorkspaceScope<'members.manage'> = { kind: 'workspace', accountId, workspaceId, role: 'owner', action: 'members.manage' }
+// @ts-expect-error A system proof cannot become an executor-owned run proof.
+const forgedRun: Admitted<RunScope> = {} as Admitted<SystemScope>

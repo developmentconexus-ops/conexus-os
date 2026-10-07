@@ -1,5 +1,5 @@
-import type { AccountId, ProjectId, ProjectRevision, WorkspaceId, WorkspaceRole } from '@conexus/contract'
-import type { ReadTx, WriteTx } from '../../../../apps/hub/src/platform/db.js'
+import type { AccountId, BuilderRunId, ProjectId, ProjectRevision, WorkspaceId, WorkspaceRole } from '@conexus/contract'
+import type { JobName, ReadTx, WriteTx } from '../../../../apps/hub/src/platform/db.js'
 
 export type Mode = 'read' | 'write'
 export type WorkspaceAction = 'workspace.read' | 'members.manage' | 'members.leave' | 'project.create'
@@ -19,7 +19,11 @@ export type AdministratorScope =
   | Readonly<{ kind: 'installation-administrator'; accountId: AccountId; action: 'administrators.manage' }>
   | Readonly<{ kind: 'installation-administrator'; accountId: AccountId; action: 'connection.manage'; workspaceId: WorkspaceId }>
 export type ApplicationScope = Readonly<{ kind: 'application'; accountId: AccountId; projectId: ProjectId; via: 'grant' | 'membership' }>
-export type Scope = AccountScope | WorkspaceScope<WorkspaceAction> | ProjectScope<ProjectAction> | AdministratorScope | ApplicationScope
+export type RunOwner = Readonly<{ ownerId: string }>
+export type RunScope = Readonly<{ kind: 'run'; builderRunId: BuilderRunId; accountId: AccountId; projectId: ProjectId; owner: RunOwner; via: 'account' | 'executor' }>
+export type SystemScope<J extends JobName = JobName> = Readonly<{ kind: 'system'; job: J }>
+export type BootstrapScope = Readonly<{ kind: 'bootstrap'; issuer: string; subject: string }>
+export type Scope = RunScope | SystemScope | BootstrapScope | AccountScope | WorkspaceScope<WorkspaceAction> | ProjectScope<ProjectAction> | AdministratorScope | ApplicationScope
 
 declare class Proof<S extends Scope, M extends Mode> {
   private readonly proof
