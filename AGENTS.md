@@ -26,3 +26,6 @@ Chat and handoffs are orientation only. **Global coverage does not require globa
 
 [Delivery](docs/development/delivery.md) owns the lanes, the stop conditions, Git, the local checks
 and the merge gate. Never merge unless it names you as the one who merges.
+
+The repository is public: no company data, secret or machine path in it, per
+[security §7](docs/reference/security-and-authority.md#7-data-protection-and-egress).

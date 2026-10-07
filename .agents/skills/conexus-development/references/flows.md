@@ -1,43 +1,58 @@
 # Flows
 
 Copy the flow's steps into your notes and tick them. A step you skip stays with `skip: <reason>`.
-Each step says what to do, then the skill that does it when the session has it (`/pstack:*` from
-Poteto's pstack, `/jm-*` from the jm suite). Without the skill, do the step by hand. When the jm
-steps and the pstack playbooks disagree,
-[delivery](../../../../docs/development/delivery.md#when-the-methods-disagree) says which wins.
+Each step says what to do, then the skill that does it. A Claude session invokes a skill as
+`/<name>` (`/pstack:<name>` for Poteto's pstack), a Codex session as `$<name>`. Where a step names a
+pstack skill the session does not have, it gives the rule to follow by hand.
+[Delivery](../../../../docs/development/delivery.md#the-conexus-skills-own-the-stages) says which
+Conexus skill owns each wave stage.
 
 ## Investigate
 
-The poteto-mode Investigation playbook, with one Conexus step: read the evidence first, per
-[evidence.md](evidence.md). Telemetry before logs, logs before guesses.
+A question about how the code works, why it is built this way, or where the time goes; and the
+study of a wave before its spec. Follow [`conexus-study`](../../conexus-study/SKILL.md): attack the
+premise down to the root cause, take the census as a script, read the references in their code. Read
+the evidence first, per [evidence.md](evidence.md). Telemetry before logs, logs before guesses.
 
 ## Fix
 
-The poteto-mode Bug fix playbook. Reproduce on the surface where it was seen, with telemetry on.
-The [review loop](../../../../docs/development/delivery.md#review-loop) says when a fix goes back
-to its spec.
+The poteto-mode Bug fix playbook, when the session has it; without it, reproduce, find the root
+cause, fix it there and add the test that would have caught it. Reproduce on the surface where it
+was seen, with telemetry on. The
+[review loop](../../../../docs/development/delivery.md#review-loop) says when a fix goes back to its
+spec.
 
-## Build
+## Wave
 
-1. The issue or spec names the result, the non-goals and "done when". A missing decision goes back
-   to the operator; never invent product meaning in code.
+For a roadmap wave, a redesign, or new behavior across modules. The stages run in order, each a
+fresh session, as [delivery](../../../../docs/development/delivery.md#waves) says.
+
+1. Study: [`conexus-study`](../../conexus-study/SKILL.md). The operator agrees with what the wave
+   wants, what stays out and when it ends.
+2. Spec: [`conexus-spec`](../../conexus-spec/SKILL.md), on the wave branch `wave/<name>`, with its
+   draft pull request into `main`. The operator approves it.
+3. Build: [`conexus-build`](../../conexus-build/SKILL.md), one fresh builder per unit card, one pull
+   request into the wave branch per unit. A gap or a contradiction in the card stops the builder and
+   goes back as a report, with the evidence.
+4. Prove: [`conexus-prove`](../../conexus-prove/SKILL.md) on the head of the wave branch, read only.
+5. The operator merges the wave's pull request into `main`.
+
+## Small change
+
+A `lane:fast` change inside accepted meaning: no study, no spec.
+
+1. The issue names the result, the non-goals and "done when". A missing decision goes back to the
+   operator; never invent product meaning in code.
 2. Take the native census ([native first](../../../../docs/reference/architecture.md#native-first))
    before adding any mechanism.
-3. Build it with `/jm-develop`, failing tests first, under `/pstack:typescript-best-practices`.
-4. Prove each "done when" item on the real surface: `/jm-check verify`.
-5. Before review: `/pstack:deslop` and `/pstack:no-comments`.
-
-## Redesign
-
-For a roadmap wave or a shape that keeps breaking. The census, the redesign and the spec are done
-before code by the session that plans the work, and the operator approves the spec. Here you build it.
-
-1. Read the approved spec in `docs/specs/`: what it deletes, what stays and why. It is the
-   contract; do not redesign it.
-2. Build as in Build. Migrate every instance of the shape the spec replaces, not only the lines the
-   change touches, and delete the old shape in the same wave.
-3. A gap or a contradiction in the spec stops the work and goes back as a report, with the evidence.
-4. The pull request body says what the change deletes, measured by
+3. Build it with failing tests first, under [guide C](../../../../docs/development/codebase-principles.md)
+   (pstack `typescript-best-practices` when the session has it), and delete the shape it replaces
+   in the same change.
+4. Prove each "done when" item on the real surface with the [`verify`](../../verify/SKILL.md) skill.
+5. Before review, run pstack `deslop` and `no-comments`. Without pstack: reread the diff and remove
+   what a careful engineer would not write, then delete every comment that does not state a why the
+   code cannot show.
+6. The pull request body says what the change deletes, measured by
    `git diff --numstat origin/main...HEAD` with product code apart from tests, SQL and generated files.
 
 ## Review
@@ -55,8 +70,12 @@ before code by the session that plans the work, and the operator approves the sp
    `node_modules/@mastra/<pkg>/package.json`, read the embedded docs (`dist/docs`) then the types,
    look up Keycloak and PostgreSQL at the versions in use, search the repository for an existing
    model of the concept, and give each mechanism KEEP, REPLACE or SIMPLIFY with its source.
-4. Run `/pstack:interrogate`. A bot finding is evidence, not a requirement: fix, dismiss with a
-   reason, or ask. Findings follow the [review loop](../../../../docs/development/delivery.md#review-loop).
+4. The Factory reviews every pull request, a wave's unit pull requests included. On a
+   `lane:qualification` wave, the whole diff `main...wave/<name>` is also reviewed with pstack
+   `interrogate`; without pstack, two fresh reviewers on different models read it independently
+   against the spec and the guides. A bot finding is evidence, not a requirement: fix, dismiss with
+   a reason, or ask. Findings follow the
+   [review loop](../../../../docs/development/delivery.md#review-loop).
 5. The verdict names the head SHA, the guides loaded, the census table or "no new mechanism", and
    each failed or unevaluated rule with its evidence. Any failed or unevaluated rule, or a
    correctness defect, is `request changes`; otherwise `approve`. A review does not fix the code it

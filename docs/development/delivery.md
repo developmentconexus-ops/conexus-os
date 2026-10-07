@@ -10,8 +10,8 @@ and **may** is a free choice.
 
 Subject rules live in the other guides ([code](codebase-principles.md), [testing](testing.md),
 [architecture](../reference/architecture.md) and their neighbors). [The roadmap](../roadmap.md) owns
-status. Workstreams and ideas live in the private `conexus-hq` repository. Units of work live here
-as issues from the [templates](../../.github/ISSUE_TEMPLATE/).
+status. Workstreams, ideas and units of work live here as issues from the
+[templates](../../.github/ISSUE_TEMPLATE/).
 
 ## Pick the lane by risk
 
@@ -26,11 +26,12 @@ A change is in the qualification lane when any Q trigger is true:
 
 | Lane | Entry: all must hold | Path | Gates | Merge |
 | --- | --- | --- | --- | --- |
-| `lane:fast` | Inside accepted product meaning. No Q trigger. One pull request. Appetite P | An issue the Factory triages, plans and builds, or a builder builds when it blocks a product gate | CI green, Factory `approve`, diff read | The manager, for `effort:low` or `effort:medium` without `needs:aprovo` |
-| `lane:shaped` | A new user-visible capability or a change across modules. Inside accepted direction. No Q trigger | A wave: one spec, one pull request | Fast-lane gates, verification and review on the same head | The operator |
-| `lane:qualification` | Any Q trigger | A wave whose spec also names the deciding proof | Shaped gates, evidence, and the operator's verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | The operator |
+| `lane:fast` | Inside accepted product meaning. No Q trigger. One pull request. Appetite P | An issue the Factory triages, plans and builds, or a builder builds when it blocks a product gate | CI green, Factory `approve`, diff read | The operator |
+| `lane:shaped` | A new user-visible capability or a change across modules. Inside accepted direction. No Q trigger | A [wave](#waves): one spec, one pull request per unit into the wave branch, one wave pull request into `main` | Fast-lane gates on each unit, the wave's proof on the wave head | Units: the manager, into the wave branch. The wave: the operator |
+| `lane:qualification` | Any Q trigger | A wave whose spec also names the deciding proof | Shaped gates, `interrogate` review of the whole wave, evidence, and the operator's verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | Units: the manager, into the wave branch. The wave: the operator |
 
-- The manager is the planning session that runs the waves and the Factory queue for the operator.
+- The manager is the planning session that coordinates the waves and the Factory queue for the
+  operator. It never writes code and never merges into `main`.
 - A change found mid-work to carry a higher-lane trigger **must** stop and change its lane label.
 - The Factory **must not** merge.
 
@@ -42,49 +43,59 @@ A change is in the qualification lane when any Q trigger is true:
 
 ## Waves
 
-- A wave that will be built **must** have one spec in `docs/specs/NNNN-title/`, no child specs,
-  and one pull request. Parts run in sequence inside it, one green commit per part.
+A wave runs in four stages. Each stage is a fresh session that follows its skill, and the manager
+coordinates them.
+
+| Stage | Skill | Output | Gate |
+| --- | --- | --- | --- |
+| Study | [`conexus-study`](../../.agents/skills/conexus-study/SKILL.md) | A report: today's census, the references copied, the root cause | The operator agrees with what the wave wants, what stays out and when it ends |
+| Spec | [`conexus-spec`](../../.agents/skills/conexus-spec/SKILL.md) | `index.md`, `rationale.md` and a compiled `shape/`, on the wave branch | The operator's approval line |
+| Build | [`conexus-build`](../../.agents/skills/conexus-build/SKILL.md) | One commit and one pull request into the wave branch per unit | CI green, Factory `approve`, diff read |
+| Prove | [`conexus-prove`](../../.agents/skills/conexus-prove/SKILL.md) | A report on the wave head: a verdict per AC behind an evidence gate | Every AC met, no regression, every census line on target |
+
+- A wave that will be built **must** have one spec in `docs/specs/NNNN-title/`, no child specs.
 - Every decision **must** go into the spec or a guide when it is made. No decision file grows beside
-  them.
-- A spec over 800 lines or a plan over 70 product files **must** say in one sentence why it does not
-  split.
-- A spec follows the `jm-architect` template and also carries **Non-goals**, **Preserved
-  decisions**, **What breaks the premise**, **Owner reconciliation** and a **Stop rule**.
-- The planning session writes the scope, the Status and the approval line,
-  `**Approval**: approved by the operator on <date>, commit <sha>`. The builder ticks the Build plan.
-- A wave has three states, one meaning each. **Approved** is the approval line. **Proved** is
-  verification and review passing on the same head. **Done** is the real merge.
+  them. The manager brings each load-bearing choice to the operator, one at a time, with the
+  options, a recommendation and its reference.
+- A wave **must** hold at most 8 units or 70 product files. Past that it splits.
+- The spec writer creates the wave branch `wave/<name>` from `main`, commits the spec there and
+  opens the wave's pull request into `main` as a draft.
+- The manager writes the approval line,
+  `**Status**: Approved by the operator on <date>, commit <sha>`. It opens the build of every unit.
+- In a wave that changes structure, the first unit **must** be the behavior pin, green on `main`
+  before any structure moves.
+- Each unit is built by a fresh builder from its card, with one commit and one pull request into
+  `wave/<name>`. A unit **must not** start until everything its card lists as already there exists
+  at the head of the wave branch.
+- The manager merges a unit's pull request into the wave branch only after CI is green, the Factory
+  approves and the manager has read the diff against the card. A finding goes back to the same
+  builder.
+- When every unit is merged, a fresh read-only session proves the head of the wave branch. A
+  `lane:qualification` wave is also reviewed with pstack `interrogate` over `main...wave/<name>`. A
+  failed AC or a confirmed finding becomes a fix unit, and the proof runs again on the new head.
+- The wave's last unit deletes `shape/`. When the proof passes, the manager marks the wave's pull
+  request ready. Its merge into `main` is always the operator's.
+- A wave has three states, one meaning each. **Approved** is the approval line. **Proved** is the
+  proof, and on `lane:qualification` the review, passing on the same head. **Done** is the
+  operator's merge into `main`.
 - A wave that lays a base for others **must** prove its contract with at least one real consumer
   before merge. A later wave that breaks that contract opens a corrective wave.
 
-**Why.** One spec and one pull request keep the design and its proof in one place a reviewer can
-read.
+**Why.** One spec keeps the design in one place. A unit sized for one fresh session, merged only
+after its own gates, keeps every step reviewable, and the wave branch keeps `main` releasable until
+the whole wave is proved.
 
-**Right.** A spec that lists its parts and builds them as commits in one pull request.
+**Right.** A spec with five unit cards, each built by its own builder and merged into the wave
+branch, then one proof of the wave head before the operator merges.
 
-**Wrong.** A spec with eight child files and decision notes beside it, reopened after three pull
-requests.
+**Wrong.** A unit that uses a type a later unit creates, or a spec with eight child files and
+decision notes beside it.
 
-## When the methods disagree
+## The Conexus skills own the stages
 
-The planning session and the builder use the jm steps and the pstack playbooks. Where they
-disagree:
-
-| Conflict | Wins |
-| --- | --- |
-| `jm-develop` forbids delegating; the Feature playbook delegates | The planning session delegates to one builder. The builder does not delegate code |
-| Feature and Refactoring start by exploring the design | In the build, the approved spec is the design. It is not reopened |
-| `jm-develop` offers to build on an `Assumed` spec | Never. Go back to the spec |
-| `jm-architect` takes every choice to the engineer | The operator decides each load-bearing technical choice with the planning session, which brings the options and a recommendation grounded in the guides and the reference code. The operator also decides spec, merge and product. Implementation details inside an approved spec stay with the planning session and the builder |
-| `jm-architect` allows child specs | Only for a standard with no build |
-| `jm-develop` follows `ui-guide` and `logical-guide` | Guides C, T and V. The jm guides only as procedure where ours are silent |
-| jm writes the scope and the spec Status | Only the planning session writes scope, Status and approval |
-| `jm-check review`, `jm-test`, `jm-debug`, thermo-nuclear review | Out of the flow. Review is `/pstack:interrogate` |
-| jm moves the spec's `Status` through `Proposed`, `In Progress` and `Accepted` | Approved, Proved and Done above decide. `jm-sync` only mirrors them |
-| `jm-scope` sets a workflow tier, from Prototype to GA | The lane decides the rigor |
-| `jm-develop` does no Git without a `## Git` section in `AGENTS.md` | The builder makes one green commit per part. The planning session pushes and opens the pull request |
-| `jm-audit` and `jm-sync` write rules into `AGENTS.md` and add `CLAUDE.md` pointers | Rules live only in the guides. `AGENTS.md` routes, and no `CLAUDE.md` is written |
-| `/pstack:interrogate` has its own verdict format | The verdict of the Review flow in `conexus-development` |
+Each wave stage follows its Conexus skill: `conexus-study`, `conexus-spec`, `conexus-build` and
+`conexus-prove`. The jm skills are not used. A pstack skill is a tool a Conexus skill names, and
+each Conexus skill gives the rule to follow when the session does not have pstack.
 
 ## Review loop
 
@@ -188,7 +199,7 @@ phone.
   `npm run verify:docs`. Other Markdown changes and pushes to main run the full graph.
 - Required CI **must** protect objective properties of every change, never taste or document shape.
 - A pull request **must** leave draft as soon as the build ends, so CI and the Factory run while
-  verification goes on.
+  verification goes on. A wave's pull request into `main` stays a draft until the wave is proved.
 - Before merge, the builder **must** check the diff against the guides. The pull request carries the
   guide change, or one sentence saying why no guide rule changed.
 - Evidence stays only while it has a consumer.
@@ -208,8 +219,8 @@ A pull request is ready when these hold at its exact head SHA, plus its lane's g
 - The Factory reviews every pull request, and the merger **must** wait for its `approve`. On a pull
   request the Factory did not build, a finding that is not a leak or a security gap goes to the
   author once and does not block, and the operator **may** dismiss that review for that head.
-- A wave's verification and review **must** have passed on this head, each naming the head it
-  judged.
+- A wave's proof, and on `lane:qualification` its review, **must** have passed on this head, each
+  naming the head it judged.
 - The person who merges **must** have read the diff. A plan, an artifact or a Preview grant is not
   product acceptance. The operator does not test pull requests on the pilot.
 
@@ -222,7 +233,8 @@ A pull request is ready when these hold at its exact head SHA, plus its lane's g
 ## Git and pull requests
 
 - `main` is the trunk and **must** stay releasable. Its rulesets require a pull request and `verify`
-  with no bypass. Every pull request targets `main` and is squash merged.
+  with no bypass. Every pull request targets `main` and is squash merged, except a wave unit's, which
+  targets its wave branch `wave/<name>`.
 - A branch **should** live hours or days, not weeks.
 - A pull request **must** link its issue, do only what it asks, and open with one line that says
   what changes, followed by why and for whom. Commits use conventional commit titles.

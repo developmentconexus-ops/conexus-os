@@ -16,7 +16,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 const SKILL_DIR = resolve(import.meta.dirname, '..')
 const REPO = resolve(SKILL_DIR, '../../..')
 const STATE_ROOT = process.env.CONEXUS_VERIFY_STATE ?? join(homedir(), '.cache/conexus-verify')
-const EVIDENCE_ROOT = process.env.CONEXUS_VERIFY_EVIDENCE ?? join(homedir(), 'conexus-study/verify-evidence')
+const EVIDENCE_ROOT = process.env.CONEXUS_VERIFY_EVIDENCE ?? join(homedir(), '.cache/conexus-verify/evidence')
 const POSTGRES_IMAGE = 'postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f'
 const KEYCLOAK_IMAGE = 'quay.io/keycloak/keycloak@sha256:c2a17fe407e892196d0b7cf9cef54e60952d6c372a9205f661a9efa0911463b0'
 const DATABASE = 'conexus_verify'

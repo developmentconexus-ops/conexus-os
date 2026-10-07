@@ -6,9 +6,8 @@ description: This skill should be used for any development session in the Conexu
 # Conexus development
 
 This skill routes Conexus OS work: which flow, which guides, when to stop. It holds no rule. The
-nine guides hold the rules, one subject each, and [delivery](../../../docs/development/delivery.md)
-says which method wins when the jm steps and the pstack playbooks disagree. The roadmap and GitHub
-own status.
+nine guides hold the rules, one subject each, and [delivery](../../../docs/development/delivery.md#waves)
+names the Conexus skill that owns each stage of a wave. The roadmap and GitHub own status.
 
 ## Start from zero
 
@@ -23,14 +22,14 @@ own status.
 ## Pick the flow
 
 Open the flow's checklist in [`references/flows.md`](references/flows.md) and copy it into your
-notes. Each step names what to do and the skill that does it when the session has one.
+notes. Each step names what to do and the skill that does it.
 
 | The work | Flow |
 | --- | --- |
-| A question: how does X work, why is it built this way, where is the time going | Investigate |
+| A question: how does X work, why is it built this way, where is the time going; or the study of a wave | Investigate, with [`conexus-study`](../conexus-study/SKILL.md) |
 | Wrong behavior someone saw | Fix |
-| New behavior with a decided design | Build |
-| A roadmap wave or a redesign, from its approved spec | Redesign |
+| A roadmap wave, a redesign, or new behavior across modules | Wave: [`conexus-spec`](../conexus-spec/SKILL.md), [`conexus-build`](../conexus-build/SKILL.md), [`conexus-prove`](../conexus-prove/SKILL.md) |
+| A small change inside accepted meaning, with no spec | Small change |
 | A pull request to judge | Review |
 | Any web, Builder or Preview screen | Frontend, on top of the flow above |
 
@@ -76,8 +75,10 @@ more code, a comment on the issue with the evidence, and the question for the op
 
 ## Delegate
 
-The session that plans the work picks who writes code and reads every delegate's diff. A delegate
-prompt loads Poteto Mode and the [`mastra`](../mastra/SKILL.md) skill, points at files and at the
-guides the table names, names its worktree and its disjoint file set, forbids merge, reset, clean,
-stash, force-push and `git worktree prune`, and says to stop on a material fork. Remove worktrees
-only with `npm run worktree:reap`.
+The planning session delegates each wave stage to a fresh session, and each unit to one builder
+that builds from its unit card with [`conexus-build`](../conexus-build/SKILL.md). It reads every
+delegate's diff. A delegate prompt names the stage's Conexus skill, loads Poteto Mode if the session
+has it and the [`mastra`](../mastra/SKILL.md) skill, points at files and at the guides the table
+names, names its worktree and its disjoint file set, forbids merge, reset, clean, stash, force-push
+and `git worktree prune`, and says to stop on a material fork. A builder does not delegate code.
+Remove worktrees only with `npm run worktree:reap`.
