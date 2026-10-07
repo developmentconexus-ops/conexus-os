@@ -1,166 +1,154 @@
-# 0017. Rationale: model account foundations and core ownership
+# 0017. Rationale: model account foundations
 
 ## Context
 
-The operator wants the Mastra Factory's personal account and organization account behavior.
-Conexus serves one company per installation, so the second account belongs to the installation.
-The approved study found six causes to remove: person-owned shared rows, repeated provider flows
-and cards, competing account selection rules, a dead sign-in with no persistent fact, row facts
-kept only in process memory, and model accounts owned by the Builder rather than the core.
+The product needs a company's AI account to outlive the person who connected it, while personal
+accounts remain the first payer. The legacy implementation mixes credential ownership with Builder,
+permits weak provider/value combinations and leaves refresh persistence tied to caller concerns.
+Old specs matched a document template but contained an unsupported approval and contracts that
+could not build. Templates and neighboring code do not decide the target; product, architecture,
+code principles and fresh reference evidence do.
 
-Part 1 is accepted at `885addee`. The scoped table, ownership CHECK, lawful provider/kind CHECK,
-partial unique indexes and connection/refusal metadata already exist. The two remaining waves consume
-that schema. This foundation does not deliver installation commands or screen behavior. The half-built part 2 is reference material, not a patch to apply. Its session exceeded
-its budget and the operator corrected both a routing API retained only for tests and new code
-written on weak string/credential types. The rewrite must prevent those errors structurally.
+This rewrite studies 0017 and 0020 as one subject. No product code or pilot data was changed.
+The approved study is held privately by firstmate; public evidence below records versions and
+reproduction commands without machine paths or company data.
 
 ## Options considered
 
-### Keep the person's sharing flag
-
-This has the smallest change, but the company account belongs to the connecting person.
-It cannot satisfy the operator's decision that revoking or deactivating that administrator leaves
-the company account available. It also preserves repeated flows and account selection rules.
-Part 1 has already removed this option's schema.
-
-### Keep a separate installation table
-
-Separate tables express ownership simply, but selection must combine both, runs must record two
-origins, and secret custody and refresh are duplicated. The Factory reference uses one table with
-partial unique indexes. The approved choice goes further by explicitly checking scope and owner.
-
-### One scoped table and one core owner
-
-This is the approved target. A registry derives the legal credential pairs and their values.
-One pure accountInUse function serves listing, offers, preflight and model calls. One sign-in owner
-handles the common lifecycle. Provider leaves retain native SDK calls where those APIs carry the
-needed facts. A refused credential is a persisted row fact, committed separately from a failed run.
+| Option | Best case | Cost and deciding evidence |
+| --- | --- | --- |
+| Keep drafts | Lowest writing cost, already split | Fresh revoked-waiter probe and absent persistence/constructor contract make build unsafe; unsupported approval is not authority |
+| One combined wave | One approval and no inter-wave transfer | Original inventory has ten units and 62 combined declared subjects, before omitted paths; eight-unit limit plus cipher/IAM/providers/UI change threatens one-session cards. Missing persistence can instead be completed in 0017 |
+| Two sequential waves, one design | Independently usable foundation, then company experience | Complete outgoing persist/reread/lifecycle contract and separate qualification; least new product machinery. Approved 2026-10-07 |
+| Remove company accounts | Smallest code surface | Fails requested independent company ownership, P §2/4; Basejump's human-primary-owner model is a contrary reference, not a reason to keep personal ownership |
 
 ## Decision and why
 
-The operator's decisions of 2026-10-06 remain in force:
+The operator approved study objective/limits/end and two waves on 2026-10-07. He amended 0020
+to include installation Builder default selection on the same settings screen; personal/memory
+default writers remain outside. Firstmate chose separate spec rewrite branches into their existing
+spec branches. On 2026-10-07 the operator answered “0017: Apvo” to the analyzed guarded cutover:
+abort on nonempty connector/model credential tables after the already planned S1 local reset,
+end sessions/handoffs, same key bytes, manual reconnect, no decoder/re-encryption. These answers
+approve study choices, **not this spec or any pilot action**. The unsupported old approval is removed.
 
-| Study decisions | Accepted choice |
-| --- | --- |
-| 1-3 | Company keys and subscriptions; installation ownership without a person owner; personal first on screen and in runs |
-| 4-7 | Scope control on the existing settings screen; all four sign-in kinds; refusal notice with a settings link; Empresa marker in the picker |
-| 8-11 | Originally one wave; split into sequential 0017/0020 on 2026-10-07; model-account core owner; Google remains with its file risk declared; row-bound AAD for every Hub secret |
-| 12-14 | One table and checked ownership; connection metadata and structured logs; preflight opens no secret |
-| 15-18 | Checked provider/kind and refusal fields; scoped operations; connecting name/date visible; removal in both scopes |
-| 19 | Refused personal account remains selected; disconnect explicitly to use the company account |
+For cutover, preserving existing data was a real alternative: a trusted bounded read/reseal migration
+would need shutdown/concurrency/recovery/restore handling and more custody-sensitive code.
+Keeping legacy ciphertext or adding row binding only for new model rows would narrow the accepted
+all-Hub custody target and create two formats. Removing persisted credentials loses unattended
+Builder/company-system capability. The approved guarded cutover adds least machinery. We did not
+inspect the pilot database or infer its contents from disposable PostgreSQL.
 
-The final approved screen groups Anthropic key and subscription in one provider card, leaving
-three cards and four sign-in kinds. Each model call selects again. An account is never pinned for
-an entire run; Builder owns recording each paying row. The connecting name is copied at connect,
-so IAM does not disclose another person's account/email to implement coverage text.
+### Mechanism verdicts: three proofs each
 
-The 2026-10-07 planning-session decisions settle the upstream contracts and naming:
+Each verdict below states product/guide need, reference evidence and fresh code/runtime evidence.
+Today's implementation measures replacement cost; it is never the reason for the target.
 
-- 0018 owns the nominal admission proof, admitted reads and retained run/system/bootstrap scopes.
-  This wave consumes them, including OpenRun's run admission, after 0018 merges.
-- 0019 owns Failure and the result union `{ ok: true, result } | { ok: false, error }`, with
-  `error.code` from the failure table and one failureResponse returning native Response.
-  No shared error engine is designed here. U2 and later wait for that wave too.
-- Remove every replaced legacy function/name with its callers, and update its owning guide.
-  The operator chose to remove Factory naming from source, key environment variables and the
-  persisted envelope discriminator. A new forward migration replaces the four live prefix CHECKs;
-  0071 is never edited. No alias or old decoder remains. The operator resets and renames local
-  configuration and re-enters the connector credential and model accounts afterward.
+| Mechanism / verdict | Need and owning guide | Reference proof (pinned versions in index) | Fresh evidence / cost |
+| --- | --- | --- | --- |
+| Scoped single table — KEEP prerequisite | P company lifetime; D lawful owner and unique slot | Factory credentials base.ts:96-118 | Unmerged 0071 catalog replay PASS, legal pairs/owner constraints and partial indexes; do not duplicate schema |
+| Credential shape — REPLACE | C §3–6 parse once/illegal states | SDK 1.8.3 vendor types; native core parser:392-413 | 3 local parsers/5 plain ids; nullable email absent in SDK; compiled registry and negatives, no class hierarchy |
+| Model identity — REPLACE | H/C contract semantics | Native parseModelString | Old string splits/independent parsed fields can disagree; one brand and derived native fields; caller manifest includes controller |
+| Cipher algorithm/key/fingerprint — KEEP | S custody/backup consistency | cal.com keyring.ts:74-125 and existing licensed cipher | Current engine passed correct/retired-key probes; adding context does not change algorithm/key bytes |
+| Context-free/slot envelope — REPLACE | S immutable owner custody | cal.com setAAD:90/121, adapted beyond type binding | Synthetic transplant opens without row context and with recreated slot; immutable id rejects. Four live CHECKs replayed; forward cutover only |
+| Plaintext/legacy alias/decoder — DELETE | C no compatibility, S sealed at rest | Factory secret-encryption.ts:69-112 and cal.com CredentialDataService.ts:26-41 are rejected compatibility policies | 72 live tokens under final scanner, current low-level plaintext fallback; rename all consumers and four CHECKs |
+| Broad IAM decrypt catches / copied handoff bytes — REPLACE | S platform fault vs lost custody, D atomic redemption | Existing Conexus authentication transaction; AEAD context reference | session-core.ts:68-73 catches all; application-session.ts:44-49 copies sealed token; compiled reseal usage, real redemption proof required |
+| Builder-owned credentials/SQL — REPLACE | A §4–5 core owner, Builder run/payer owner | Frozen registry module.ts:8-39; Factory storage vs tenant adapter | 16 owner files plus builder-table join; full module constructor/routes/jobs/close compiles against actual upstream types |
+| Post-run rotated-token persistence — KEEP behavior / REPLACE guard | P uninterrupted paid calls; D conditional durable write | Factory base.ts:329-352 | Actual Google write-back.ts:13-27 calls HeldAccount.persist after run; PostgreSQL post-run baseline passes; outgoing store persist now explicit |
+| Pre-wait-only admission — REPLACE | S current right to receive token | Factory current storage plus Documenso/Better Auth current checks; exact waiter mechanism not found | Real createTokenHolds probe: one refresh, revoked waiter reads once and still receives value; fresh per-waiter reread needed, not a new lock service |
+| Instance lock — KEEP | Single installed Hub, no replica requirement | Existing lifecycle.ts:54-83 | Active code acquires lock before composition/recovery; CAS only protects stored bytes, not cross-Hub token spending |
+| Existing native Google owner/lifecycle — KEEP/move | C-027 accepted provider, A native-first | Existing pinned CLIProxyAPI adapter; no better upstream event API found in examined sources | Pool/router/boot/idle/close and capture consumers exist; 0020 changes generations/capture separately, no hard crash-time promise |
+| Generic model builders, extra services, duplicated previews — DELETE proposal | C §4–8 reader/owner simplicity | Native MastraModelConfig and concrete SDK leaves | No production need for generic route engine; removed ModelBuilders map. compile.mjs reads real upstream sources, no nominal lookalike |
+| One census — REPLACE checker | C §11 recurring objective checks | Existing TS compiler/Biome/import law | Old scanner accepts moved provider parsers/retired APIs; new AST scans every provider filename and actual symbols, reused downstream |
 
-Both independent interrogate reviewers found the old combined U4 larger than the exhausted
-part 2. On 2026-10-07 the operator chose two sequential waves. 0017 has four units: pin, derived
-credentials/model ids, row custody/configuration/migration, and a behavior-preserving core move.
-0020 has six: extend only missing pins, scoped commands/list/selection, shared sign-in, refusal and
-OAuth races, Google generations, then cards and guides. Each wire-changing unit migrates every
-real web consumer immediately; all four old cards are counted before their final removal.
-The 0017 budget is 45 handwritten product subjects, with explicit per-unit path lists.
-No earlier export survives solely for tests. U4 deletes this spec's temporary shape.
-
-The planning session also confirmed canonical Result for hold and reread. A custody error carries
-typed row context; admission failure retains the admitted-run owner's error.code. Only a successful
-missing row or changed kind yields MODEL_ACCOUNT_CHANGED. The shared error/result names were confirmed with 0019's writer through pushed shape 3395649f: Result<T,E> has both parameters required; E admits table-coded domain context. Failure extends MastraError with id; account connection is a result projection. Internal row context is not another shared owner.
-
-The OpenRun port is necessary because refresh runs after the original model-resolution transaction
-ends. Builder supplies a fresh admission for each reread and OAuth swap. The model-account core
-never imports Builder or joins Builder's run-account records. A deactivated person or ended run
-receives no tokens from a later reread, including single-flight waiters.
-
-Compare-and-swap on the spent sealed value closes refresh against a new sign-in or another refresh.
-Generation checks prevent an old refusal or Google capture from writing a replacement row.
-OAuth call-time 401 forces one refresh; only a refused refresh marks the row. Router/configuration,
-network, timeout, 403, 429 and 5xx faults do not turn a healthy sign-in into a refused row.
-
-The installed SDK does not expose refresh failures as structured status and does not accept fetch.
-The approved local token request copies its payload and classifies the HTTP response at that edge.
-An installed-package drift check pins the copied constants. It is removed when a native structured
-refresh API can replace it. Google retains the pinned CLIProxyAPI protocol, one process per account
-sign-in generation and a one-minute capture job. Real token rotation remains a deciding live proof,
-which needs separate operator authorization.
+Removal is considered for every retained capability: deleting subscription refresh/persistence or
+Google means product scope loss; deleting custody means losing the accepted row target; deleting
+custom census entirely loses objective recurring checks. Narrowing those requirements needs a new
+product/guide choice. No service, queue, workflow engine, encrypted-copy migration or broad lock
+protocol is introduced.
 
 ## Evidence
 
-The private study holds the notebook, audit, Factory traces, census, architectural candidates and
-spikes. Those files and their machine locations never enter this public repository.
+Measured main `5efbc090c43176ca4e666688769d2a4ee09e1745`; schema
+`885addee625db576de92de52d5e0e49aca086cc4`; spec base
+`9e66d5bc304438d94ed014affd8f072d8ccf3718`; commands branch
+`674f534896c720d2364175323c02bcb88c5bb019`. Forge reads confirmed schema unmerged and
+commands product tree identical to main. The old declared union of 62 subjects was not an actual
+diff budget. Rewritten 0017 manifest counts 63 paths including both ends of moves, six units.
 
-- The study's AAD spike ran: same context opens, changed owner/scope/provider/kind fails, old
-  context-free values fail, stale same-row values still open and retired configured keys work.
-  That last case explains why AAD does not replace compare-and-swap.
-- The schema spike ran on disposable PostgreSQL: illegal scope, ownership and provider/kind rows
-  failed with 23514; duplicate slots failed with 23505; missing person ownership failed with 23503.
-- Installed SDK probes ran without external calls: generate/stream preserve APICallError status;
-  401/403 are not retried; 500/network faults are retried; native refresh loses structured cause.
-- The original Opus/Sonnet review found the rollback-lost refusal mark, IAM name/email disclosure
-  and retry-invalidated Google ticket. The approved design resolves all three.
-- The resumed census reads the accepted branch plus the main flow merge. It reports 23 account,
-  provider/card and contract files; 42 top-level arrows, 3 functions over 80 lines, 3 suppressions,
-  5 plain string id declarations, 3 local JSON parsers and 16 legacy Builder account files. The corrected custody scan finds 72 live legacy matches; follow-up additionally finds four old cards and six provider login-state/Caller aliases.
-  The script is `shape/census.mjs`; final targets are zero and its check moves to CI in U4. Foundation checks exclude web subjects delivered by 0020; follow-up baselines are recorded on merged 0017.
-- The pushed 0018 shape was read at `3d70bd7b` and contains the retained run/system/bootstrap
-  variants. 0019 was then checked at 3395649f, including Result/Code, AccountConnectionAnswer and native failureResponse. Both shapes use the required two-parameter Result signature and its structural error constraint. Exact shared exports must exist before build;
-  the type-only dependency preview in shape is never implemented or copied into product code.
-- The rewrite's shape compiles with the pinned toolchain, including negative cases for credential
-  pairs/values, model ids, nominal/read/write proofs, seal owners and canonical result variants. The follow-up also checks login state, per-job proof and same-kind swap.
-  This proves static contracts, not provider or runtime behavior. Each card names its runtime proof.
+Reproduce committed structural census with `node shape/census.mjs --at=<commit>`; counts at base
+are 42 arrows, 3 >80, 3 suppressions, 5 plain id declarations, 3 local parsers, 16 Builder owner
+files, 28 retired identifier uses and 72 live custody matches under its documented scope. Original
+study's token scope reports 41 code tokens and 6 document lines; these are different measurements,
+not a claimed regression. AST fixture proof is required before the implementation installs CI.
 
-## Rewrite review and verification
+Fresh actual five provider/routes/thinking suites: **71 passed, 0 failed, one opt-in real adapter
+skip**. Fresh own disposable PostgreSQL 17.10-bookworm: **19 tests passed, 0 skipped**; migration
+and catalog snapshots both PASS for main below 0071 and head through 0071. Main has sharing/history;
+head has scope/connected/refusal and no history; both currently ENABLE/FORCE RLS. Exactly four
+prefix CHECKs were observed. Own container was stopped. A synthetic same-row/same-timestamp
+reconnect succeeds; timestamp is not sign-in generation. No real company values were used.
 
-The initial Opus/Sonnet interrogate found the oversized core/command unit, non-native model type,
-broad system proofs, kind-changing swap, an impossible JSON census target, a later-unit custody
-type, incomplete web consumers, migration reset ambiguity, shape import staleness and weak negative
-cases. All were acted on: the operator split the waves; types/negative cases and cards now match
-native/merged owners; migration deletes session rows before new CHECK validation; shape checks
-and all real consumers move with each replacing unit. The reviewer request to brand RunOwner
-inside this wave was dismissed because it is exactly 0018's existing upstream owner.
+SDK fake-fetch probes of installed anthropic/codex refresh with 400, 401, 500 and network errors
+produce unstructured errors without reliable status/code. Native refresh wrappers cannot safely
+classify their message; 0020 owns a narrow transport adaptation. Actual token-holds probe reproduces
+the revoked-waiter leak; actual RunRow parser accepts a historical BUILDER_MODEL_AUTH_FAILED row
+now and rejects it after enum removal, requiring 0020's forward normalization. These results are
+inputs corrected from audits, not assertions that an implementation is already fixed.
 
-The configured independent follow-up reviewers found a self-counting/wrong-prefix census, a held
-row/credential kind mismatch, stale Google 401 marks, Google replacement wording and a superseded
-sign-in completion race. The corrections add AST-aware scanning and exact historical exceptions,
-full pair correlation and negative fixtures, spent-secret conditions on every mark, admitted
-same-kind adoption before dispatch without request replay, and same-attempt serialization through
-completion commit. Historical 0070/0071 tests retain their original meaning. Failure-table rows are generated in the first unit using their codes: SECRET_CUSTODY_LOST in 0017 U3 and model-account run codes/actions in 0020 U2. All findings have a
-recorded action or evidence-backed dismissal with the planning session.
+Shape compile: Node24.20.0/TS6.0.2/Zod4.6.5/core1.71.0/code-sdk1.8.3. `node shape/compile.mjs`
+extracts actual pinned upstream interfaces and runs `tsc --noEmit -p` a temporary configuration.
+The planned generated custody failure row is simulated explicitly; delivered runtime and post-0018
+catalog remain unproved. Direct normal shape tsc becomes the build check after real import mappings.
 
-Both shapes compile with the pinned toolchain. Twenty-two clean-final/defect census scenarios
-pass, including license comments, dictionary/historical fixtures, actual old prefix in a regex,
-wrong live variable names, each structural defect and the follow-up duplicate subjects.
-Documentation validation passed 221 repository tests. The existing verify:quick checks passed.
-These are spec/type/checker proofs; no installation feature or real provider use is claimed built.
+### Audit disposition
+
+| Independent finding | Correction / evidence in rewritten spec |
+| --- | --- |
+| 0017 F1 unsupported approval/delivered claim | Draft status; Starting point names actual main and unmerged schema, no accepted implementation claim |
+| F2 missing options/verdicts | Complete wave/cutover options above; mechanism table has three proofs and retained/removed alternatives |
+| F3 persistence removed | store.ts exposes owner-system persist with CAS outcome; U4 creates it and proves post-run capture, not 0020 |
+| F4 impossible fixed waiter pin | U1 explicitly characterizes main; U5 creates fixed current-admission expectation |
+| F5 reusable slot AAD | secrets.ts takes immutable id/digest; Design §1 covers insert/upsert id before seal and delete/recreate |
+| F6 broad IAM catch/copy | Design §1 and U3 require narrow custody classification and transactional reseal; configured-key faults propagate |
+| F7 incomplete module/inconsistent model/reread error | module.ts complete constructor/lifecycle; ModelId single brand; store reread has HoldError with row/spent; usage crosses Hub/Builder |
+| F8 absent Codex email | U2 boundary normalization to null, negative shape and real SDK no-email fixture |
+| F9 fictional intermediate budget/write-back | 63 actual intermediate/final paths, persistence+write-back in U4/U5, diff/name-status comparison |
+| F10 scanner blind spots | Census AST all provider files plus retired identifier/core import/table/name checks; U6 representative defect fixtures |
+| F11 upstream/guide conflicts | Actual 0018/0019 pins, type extraction; schema-before-helper-removal order; D role conflict explicit wait; A/S/C027/C032/config guide edits owned by cards |
+| F12 stale SDK/unverified reference | Installed version verified; use actual SDK refresh locations below, local references pinned/read, no unsupported dist line or broad absence claim |
+| 0020 cross-boundary F2/F4/F9 | Complete foundation output, single-Hub constraint and real upstream ownership; downstream starts only after proved foundation |
+
+No finding is dismissed because old approval prose said so. Future runtime proofs belong to the
+implementing unit. Review findings on this rewrite will be recorded with file/line evidence and
+resolved before submission.
 
 ## References
 
-Each mechanism's kept/adapted facts and file:line are in index.md's References copied table.
+Guides read in full: docs/roadmap.md, docs/development/delivery.md (Waves), codebase-principles.md,
+reference/architecture.md, reference/database.md, reference/security-and-authority.md, the wire
+contract guide mapped by areas.json, product/contract.md, testing guide and DESIGN.md. areas.json
+maps platform/session/migrations/core/provider/web subjects; decisions/index.md owns C-027/C-032.
 
-- Mastra fork at `ce7e9c30c1`, `mastracode/factory/src/storage/domains/credentials/base.ts:96-118,292-319`;
-  `routes/config.ts:766-777`; `routes/oauth.ts:295-297,356-362,416-422`;
-  `factory-ui/src/ui/domains/settings/components/ProviderAccessSection.tsx:63-114`.
-- Installed `@mastra/code-sdk` 1.8.3, `dist/auth/types.d.ts:4-9,74-81`;
-  `dist/auth/providers/anthropic.js:18-20,131-156`;
-  `dist/auth/providers/openai-codex.js:36-39,160-226,483-491,543`.
-- Mastra core, `packages/core/src/llm/model/provider-registry.ts:392-413`.
-- cal.com, `packages/lib/crypto/keyring.ts:90,121`;
-  `packages/features/credentials/services/CredentialDataService.ts:26-32`;
-  `packages/prisma/schema.prisma:329`; `packages/app-store/webex/lib/VideoApiAdapter.ts:285-293`.
-- Tink, context binding, `https://developers.google.com/tink/bind-ciphertext`;
-  AWS KMS encryption context, `https://docs.aws.amazon.com/kms/latest/developerguide/least-privilege.md`.
-- Conexus guides C, A, P, D, H, S, V, T and L; decisions C-024, C-026, C-027 and C-032;
-  registry/module.ts:8-39 and connectors/store.ts:86-105 at `017133fc`.
+Reference source pins and used lines are in index's References copied. Installed SDK 1.8.3
+`dist/auth/providers/anthropic.js:85-102` and `openai-codex.js:139-161,495-505` were read/probed;
+the old Anthropic citation beyond its actual file length is removed. Native core fork parser is at
+`packages/core/src/llm/model/provider-registry.ts:392-413`. PostgREST path is
+`src/library/PostgREST/Query/PreQuery.hs:39-56`; Basejump account SQL and examined Supabase example
+are comparison evidence, not imported mechanisms. No machine path belongs in this public rationale.
+
+## Independent rewrite review (2026-10-07)
+
+Two read-only reviewers on gpt-6.1-sol and gpt-6-sol examined this rewrite independently. The first
+found omitted renamed-config test consumers, a publicly forgeable context, a promised codec check
+missing from census and absent pre-merge real consumer qualification. Corrected U3 consumer lists,
+opaque row-context factories and a raw-slot negative, explicit codec-owner AST check, and foundation
+conexus-prove with its separate real-turn authorization before merge. The second reviewer identified
+that native leaves needed held-row/refresh/persist access rather than a bare Credential, and ModelId
+needed its native parser in the actual schema; both shapes now encode those requirements. These are
+reviewed design corrections, not claims that product code exists.
+
+Validation after both reviewers' resolution: compile passed, a clean census fixture plus six concrete
+defects passed, runtime ModelId valid/invalid and nullable Codex email cases passed, and repository
+verify:quick passed (typecheck, Biome, Knip, repository/import/access/census/contract/web-style checks).
+These checks validate the spec artifact and current repository; no implementation or live proof is claimed.

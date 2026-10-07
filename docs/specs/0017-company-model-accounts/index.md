@@ -1,285 +1,331 @@
 # 0017. Model account foundations and core ownership
 
 **Date**: 2026-10-07
-**Status**: Approved by the operator on 2026-10-07, commit f97857c6db72db0968b83fa4bb6a2ee0f59c9c02
-**Lane**: lane:qualification (Q-b row custody and installation configuration).
+**Status**: Draft awaiting the operator's approval
+**Lane**: lane:qualification (Q-b custody; Q-c real Builder proof before foundation merge)
 **Wave branch**: wave/company-model-accounts
-**Study**: Approved company model accounts study of 2026-10-06, held privately by the planning session.
+**Spec rewrite branch**: wave/model-accounts-respec → wave/company-model-accounts-spec
+**Study**: Model accounts re-study of 2026-10-07, held privately by firstmate. Study objective, limits and end approved on 2026-10-07; this spec is not approved.
 
 ## Summary
 
-Model accounts move from Builder to a core owner, on derived credentials and parsed model ids.
-Every Hub secret becomes bound to its owning row, and the envelope loses its legacy naming.
-This foundation preserves the current personal settings and provider behavior. The approved
-installation commands and screen ship in dependent spec 0020, not in this wave.
+A single core module owns model accounts, credentials, provider adapters and refresh persistence.
+Builder asks it for a native Mastra model and records which row paid for each call. Secrets bind to
+immutable rows, and live configuration stops using Factory envelope names. Personal behavior stays
+usable; the company commands, selection rules and settings experience follow in 0020.
 
-## Already there
+## Starting point and dependency gates
 
-Commit `885addee` built and accepted part 1: `0071_company_model_accounts.sql`, checked scope,
-ownership and provider/kind, partial unique indexes, connected-by/name/date and refusal metadata.
-The personal SQL consumes those columns. Sharing/history/created_at, plan and the shared wire
-field are already gone. Never rebuild part 1 or edit applied 0071. Old part 2 is reference only;
-its weak types, test-only external routing seam and incomplete test migration are not carried on.
+The measured main is `5efbc090c43176ca4e666688769d2a4ee09e1745`. The spec base is
+`9e66d5bc304438d94ed014affd8f072d8ccf3718`. Schema commit
+`885addee625db576de92de52d5e0e49aca086cc4` on `wave/company-model-accounts` is **unmerged**.
+It creates 0071, scope/owner/lawful-pair CHECKs, connected metadata and refusal, removes sharing
+history and updates personal SQL. It is a prerequisite, not delivered main functionality or approved
+implementation evidence. Do not rebuild or edit its migration. Integrate it before 0018 removes
+`rls.acting_account()`, which 0071's policy requires. Replay this order against PostgreSQL.
 
-## Wave dependencies and settled decisions
+U1 runs on real main before structural movement, then on the schema head. U2 onward waits for
+merged implementations of 0018 and 0019, rebases the census through ordinary integration, and
+imports their delivered owners. The actual interfaces checked are 0018
+`0987494fb358b9c8491fae4476cbc16f05099393`, `shape/types.ts:1-45` (nominal Admitted,
+AccountScope, RunScope with RunOwner, SystemScope) and 0019
+`b07a99e7d1d7fbd4c24f681befb51a00b92635b0`, `shape/types.ts:1-8`
+(two-parameter Result and Code). Those specs are drafts; their runtime exports and post-0018
+catalog are not proved. 0018's removal of roles/RLS conflicts with current D §6–7: wait for its
+accepted guide change and real owner; this wave neither decides that conflict nor copies admission.
 
-U1 is the pin and needs no upstream implementation. U2–U4 start only after 0018 and 0019 merge
-and main is merged into this wave. 0018 owns nominal AccountScope, RunScope, SystemScope and
-BootstrapScope and the one admitted read gate. 0019 owns the canonical Failure/Result contract,
-`{ ok: true, result } | { ok: false, error }`, error.code from the failure table, no SQL business
-rule, one native Response failureResponse and the cause classifier. Import those owners; do not
-build another admission, error engine or sender. 0019 exports were confirmed against pushed shape 3395649f: Result<T, E extends { readonly code: FailureCode }> has two required parameters; Code<C> is its code projection; Failure extends MastraError with id and takes the table code; AccountConnectionAnswer is Result<void, Code<ACCOUNT_INACTIVE | ACCOUNT_NOT_FOUND>>. Domain errors can carry typed row context because E is structural. Import the merged owners rather than copying the preview.
-The pushed 0018 shape was checked at `3d70bd7b`; its RunOwner remains its existing upstream type.
-
-The operator approved two sequential waves on 2026-10-07 after independent reviewers found the
-combined core/command unit too large. 0020 starts after 0017, 0018 and 0019 merge. Its separate
-approval opens its build. Both waves preserve all approved product decisions:
-
-The operator's decisions of 2026-10-06 remain in force:
-
-| Study decisions | Accepted choice |
-| --- | --- |
-| 1-3 | Company keys and subscriptions; installation ownership without a person owner; personal first on screen and in runs |
-| 4-7 | Scope control on the existing settings screen; all four sign-in kinds; refusal notice with a settings link; Empresa marker in the picker |
-| 8-11 | Originally one wave; split into sequential 0017/0020 on 2026-10-07; model-account core owner; Google remains with its file risk declared; row-bound AAD for every Hub secret |
-| 12-14 | One table and checked ownership; connection metadata and structured logs; preflight opens no secret |
-| 15-18 | Checked provider/kind and refusal fields; scoped operations; connecting name/date visible; removal in both scopes |
-| 19 | Refused personal account remains selected; disconnect explicitly to use the company account |
-
-The final approved screen groups Anthropic key and subscription in one provider card, leaving
-three cards and four sign-in kinds. Each model call selects again. An account is never pinned for
-an entire run; Builder owns recording each paying row. The connecting name is copied at connect,
-so IAM does not disclose another person's account/email to implement coverage text.
-
-The 2026-10-07 planning-session decisions settle the upstream contracts and naming:
-
-- 0018 owns the nominal admission proof, admitted reads and retained run/system/bootstrap scopes.
-  This wave consumes them, including OpenRun's run admission, after 0018 merges.
-- 0019 owns Failure and the result union `{ ok: true, result } | { ok: false, error }`, with
-  `error.code` from the failure table and one failureResponse returning native Response.
-  No shared error engine is designed here. U2 and later wait for that wave too.
-- Remove every replaced legacy function/name with its callers, and update its owning guide.
-  The operator chose to remove Factory naming from source, key environment variables and the
-  persisted envelope discriminator. A new forward migration replaces the four live prefix CHECKs;
-  0071 is never edited. No alias or old decoder remains. The operator resets and renames local
-  configuration and re-enters the connector credential and model accounts afterward.
-
-
-On 2026-10-07 the planning session also confirmed canonical Result for hold and reread. Custody
-failure carries typed row and spent-sealed context; admission failure retains its upstream code. Only a successful
-missing row or changed kind maps to MODEL_ACCOUNT_CHANGED in 0020. 0017 does not add 0020's
-persistent refusal mechanism. Any upstream design conflict returns to the planning session.
+The operator approved two sequential waves and, specifically for 0017, a guarded empty-credential
+cutover on 2026-10-07. It follows the local reset already planned at S1 closure. The forward
+migration aborts if connector or model credential tables are nonempty, ends sessions/handoffs and
+replaces four live envelope CHECKs. Key bytes remain the same. The operator reconnects the
+company system and AI accounts manually. No old decoder or re-encryption migration. Reset,
+configuration changes and any pilot action remain outside this writing/build task's authority.
+Firstmate separately authorized 0020's spec-only branch `wave/model-account-commands-respec`
+from `wave/company-model-account-commands`, with its own review pull request into that branch.
 
 ## Requirements
 
-- **AC-1**: All four lawful credential pairs and values derive from one codec registry. parseCredential uses Zod codecs; parseModelId produces the contract brand before new code operates on an id. Codex email is explicit string or null; Google keeps its existing encoded record validation.
-- **AC-2**: Existing personal key/sign-in, provider requests, thinking/memory choice, refresh persistence, streams and paying-row recording remain behaviorally pinned. Every test migrates with its production caller; no old routing export survives only for tests.
-- **AC-3**: Model-account, connector, Hub/application session and handoff ciphertext opens only with its own row context. Moving it produces SECRET_CUSTODY_LOST. Redemption reseals from handoff context into session context. Missing key produces CONFIG_INVALID and no row refusal.
-- **AC-4**: Source, configuration and live persisted envelopes use secret-encryption.ts, SecretEncryption/SecretEncryptionKey, createSecretEncryption, CONEXUS_SECRET_KEY_FILE/CONEXUS_PREVIOUS_SECRET_KEY_FILES and conexus:secret:v1:. A new forward migration replaces all four live prefix CHECKs. No alias, old decoder or plaintext path remains.
-- **AC-5**: apps/hub/src/model-account owns credentials, SQL, provider adapters, routes, jobs and close. It imports no Builder module or table. Builder supplies the admitted run port and alone records paying rows. Mastra receives its native MastraModelConfig.
-- **AC-6**: hold and reread return the upstream Result. A deactivated account or ended run receives no tokens from a reread; admission failure preserves its upstream code rather than pretending the row changed.
-- **AC-7**: Owning architecture/security/backup/configuration/decision guides name the delivered core and custody rule; scripts keep legacy paths, weak parsers and custody names at zero. 0020 remains explicitly undelivered.
+- **AC-1**: One codec registry derives the four lawful provider/kind/value variants. Stored data parses once; Codex absent email becomes null. Model identity is one contract-branded string parsed by Mastra, with no independently writable provider/name fields.
+- **AC-2**: Existing personal routes, requests, streams, thinking, memory selection and paying-row recording remain behaviorally pinned. Every old test/caller moves with its owner; no retired route export remains for tests.
+- **AC-3**: Model-account, connector, session and handoff ciphertext binds to its immutable row identity. Handoff redemption reseals into the session context in the existing authentication transaction. Configuration faults propagate; verified known-key custody loss receives its explicit owner behavior.
+- **AC-4**: Live envelope API/configuration uses SecretEncryption, SecretEncryptionKey, createSecretEncryption, CONEXUS_SECRET_KEY_FILE, CONEXUS_PREVIOUS_SECRET_KEY_FILES and `conexus:secret:v1:`. All four database CHECKs and boot/backup consumers agree. There is no plaintext fallback, alias or old decoder.
+- **AC-5**: A complete frozen model-account constructor supplies native models, secret-free preflight/default/list/offers, current routes, jobs and close. It owns no Builder imports or tables. Builder alone supplies current run admission and records payer rows.
+- **AC-6**: Owner-internal persistence keeps rotated credentials after a run ends, but cannot overwrite reconnect/disconnect or newer bytes. Each refresh waiter obtains fresh admission and a current reread after shared work settles. Admission failure is unchanged; successful disappearance/kind change is distinct; custody failure carries row and spent bytes in hold **and** reread.
+- **AC-7**: Guides describe delivered ownership/custody and mark commands/default writer as pending 0020. One executable census rejects retired names/APIs, weak parsers and core→Builder coupling. The last unit replaces the temporary shape with actual code checks.
 
 ## References copied
 
-| Mechanism | Reference | Kept as is | Adapted, and why |
+All fork references below are at Mastra `ce7e9c30c1fb22ca37936121d88336ccee1f955c` unless another commit is stated.
+
+| Mechanism | Reference (`repo/file:line`, version) | Kept | Adapted and reason |
 | --- | --- | --- | --- |
-| Two scopes and unique slots | Mastra fork `mastracode/factory/src/storage/domains/credentials/base.ts:96-118`, revision `ce7e9c30c1` | One row per provider per scope | Installation replaces organization; explicit scope CHECK prevents illegal ownership |
-| Administrator writes | Same fork `mastracode/factory/src/routes/config.ts:766-777`, `oauth.ts:295-297,356-362,416-422` | Recheck at start and completion | Conexus admission locks current authority through commit |
-| Own first | Same fork `mastracode/factory/src/storage/domains/credentials/base.ts:292-319` | Personal precedence | One function also serves runs; the Factory's org-first run exception is rejected |
-| Provider card and coverage | Same fork `mastracode/factory-ui/src/ui/domains/settings/components/ProviderAccessSection.tsx:63-114` | Scope control and covered account | Three cards; current installation flag; name/date and refusal shown from the row |
-| Core module and writer | `apps/hub/src/registry/module.ts:8-39`, `connectors/store.ts:86-105` at main `017133fc` | Frozen operations, explicit proof | Model account owns SQL and takes Builder's run port |
-| Credential and model parsing | Installed `@mastra/code-sdk` 1.8.3 `dist/auth/types.d.ts:4-9,74-81`; Mastra core `packages/core/src/llm/model/provider-registry.ts:392-413` | Vendor fields and model-string parsing | Zod codecs and derived union parse once; branded contract model id |
-| Own refresh requests | Installed SDK `dist/auth/providers/anthropic.js:18-20,131-156`, `openai-codex.js:36-39,160-226,483-491,543` | Exact endpoint, client id, payload, token extraction | Classify structured status because the installed refresh API loses the cause |
-| Row custody | cal.com `packages/lib/crypto/keyring.ts:90,121`, `packages/features/credentials/services/CredentialDataService.ts:26-32`; Tink context binding and AWS KMS encryption context | AEAD associated data | Natural row key, not only credential type; every Hub owner |
-| Refusal fact | cal.com `packages/prisma/schema.prisma:329`, `packages/app-store/webex/lib/VideoApiAdapter.ts:285-293` | Persistent invalid credential | Generation and spent-secret conditions avoid marking a newer sign-in |
-| Generation pool and minute capture | Not found in Factory, Mastra Code or installed SDK; examined in the approved audit and refresh study | Existing CLIProxyAPI adapter protocol | Required by AC-14 and the approved crash-loss boundary; no new execution engine |
+| Scoped credential row | Mastra `mastracode/factory/src/storage/domains/credentials/base.ts:96-118` | One provider slot per owner/scope | Existing 0071 installation ownership, no person owner; no second table |
+| Current membership | Documenso `packages/lib/server-only/team/get-team.ts:38-73`, `cd0cc5febcbb76ec7e5ecb75c0b8c65ab8432198`; Better Auth `packages/better-auth/src/plugins/organization/routes/crud-org.ts:425-465`, `0e1a9c8413ff048a617cad81ab67175933ca8c7a` | Check current authority at use | Consume 0018 proofs; never cache a run's right to receive tokens |
+| Durable refresh | Mastra credentials `base.ts:329-352`; tenant adapter `mastracode/factory/src/routes/tenant-credentials.ts:119-155` | Read, refresh, persist under credential owner | Single-Hub serialization, compare spent ciphertext; no replica claim or adapter catch-to-undefined |
+| Credential/native model edge | Installed code-sdk 1.8.3 token types; Mastra `packages/core/src/llm/model/provider-registry.ts:392-413` | Vendor token fields and native parser | One closed codec registry, nullable SDK email normalized at edge, opaque ModelId |
+| AEAD context | cal.com `packages/lib/crypto/keyring.ts:74-125`, `54343aa685ae8f33159d2f485ec4a57bad5c574a` | AES-GCM setAAD | Immutable row id/digest, not reusable slot/type. Reject cal.com's credential plaintext compatibility (`CredentialDataService.ts:26-41`) |
+| Frozen module | Conexus `apps/hub/src/registry/module.ts:8-39`, main `5efbc090` | Constructor, operations, owned lifecycle | Complete model-account owner, no general service/engine |
+| Refresh release after shared work | Not found in examined Factory adapter/atomic store or installed holds | Existing process-local singleflight | Fresh per-waiter run admission; required by observed revoked-waiter defect |
+
+PostgREST `src/library/PostgREST/Query/PreQuery.hs:39-56` at `d42ae9d55d12989cdc2f0fda8d551b07af4e6ab5`
+and Supabase's examined auth.uid/RLS example inform the dependency check; they do not authorize
+this wave to silently replace current D's role model. Basejump's human primary owner
+(`accounts.sql:48-71`, `7a1f95ccef74eb2e638d5e4233b66b6cbbe175e6`) is deliberately rejected.
 
 ## Code shape
 
-Run `npx tsc --noEmit -p docs/specs/0017-company-model-accounts/shape` with the pinned toolchain.
-credential.ts derives the pairs/values and model brand; secrets.ts binds owner and row;
-store.ts is the personal admitted store/run port; module.ts is the native core boundary;
-usage.ts shows Builder and handoff callers; negative.ts proves illegal construction fails.
-dependencies.ts is a temporary declaration-only preview of the upstream signatures and must
-never become a second production owner. Import the merged owners during build. A unit moving
-an imported owner repoints shape in that commit. Every unit compiles shape; U4 deletes it and
-compiles/tests real owners. No product test imports shape.
+`shape/credential.ts`, `secrets.ts`, `store.ts`, `module.ts`, `usage.ts` and `negative.ts` are the
+compiled target. `node docs/specs/0017-company-model-accounts/shape/compile.mjs` runs the pinned
+TypeScript compiler with `--noEmit -p` against **actual extracted upstream source**, not a copied
+nominal proof. It extracts only 0018 types and 0019 types at the commits above into a temporary
+directory. Only the planned generated SECRET_CUSTODY_LOST code is simulated. Compilation passed
+with Node 24.20.0, TypeScript 6.0.2, Zod 4.6.5, core 1.71.0 and code-sdk 1.8.3.
+The normal `npx tsc --noEmit -p shape` requires the delivered upstream import mappings; after
+integration repoint `#admission-types`/`#failure-types` to those exact owners and run it directly.
+No runtime compatibility is claimed from compiling draft shapes. Product tests never import shape.
+
+A ModelId contains one parsed string. Derive prefix/model name at the native adapter boundary;
+no separate ParsedModelId bag can contradict it. A hold has one Credential, rather than duplicate
+provider/kind fields. Secret contexts require a ModelAccountId, ConnectionId or IAM Digest. A
+reusable scope/provider slot is insufficient. The constructor receives the real Database, envelope,
+thinking configuration and optional Google runtime configuration; HTTP registration, jobs and
+close all appear in Hub usage. Provider protocol leaves stay concrete native functions.
 
 ## Design
 
-### 1. Accepted schema and forward custody migration
+### 1. Custody and forward migration
 
-0071 is Already there. U3 adds the next forward migration, with needs:aprovo. Verify the exact
-catalog constraint names, drop by name without CASCADE, and replace the live prefix CHECKs on
-connector.connection, iam.handoff, iam.host_session and model.model_account. Refuse nonempty
-connector/model-account credential tables; DELETE session and handoff rows before validating
-new CHECKs. Regenerate catalog/migration mirrors using their scripts. Never edit applied history.
-The operator resets the local Hub, renames the local key variables and re-enters the connector
-credential and model accounts. Key bytes stay the same. Builders never perform those local pilot
-actions. A requirement to preserve live data stops this design; no dual decoder/re-encryption.
+AAD bytes are `JSON.stringify(['conexus-aad-v1', owner, binding])`. Binding is the immutable
+model_account_id, connection_id or hex-encoded session/handoff token digest. Platform owns the
+cipher/context format; domain stores make contexts. To upsert, obtain the existing row id under
+its write lock or mint the insert id **before sealing**; ON CONFLICT must not retain a different
+id than the one used in AAD. Delete/recreate gets a new id, so old bytes cannot transplant. Keep
+the current AES-256-GCM engine, key-id derivation, retired-key handling and fingerprint semantics.
 
-### 2. Custody
+Handoff DELETE RETURNING, destination digest creation, reseal and session INSERT occur inside the
+existing authentication gate. Never copy a handoff envelope into the session column. Known-key
+authentication/tag failure is SECRET_CUSTODY_LOST. Missing or unknown configured key is CONFIG_INVALID,
+including session read and sign-out: no broad catch that pretends every error is lost custody.
+Custody loss ends the affected session/handoff through its existing owner; configuration faults fail
+as platform faults. Connectors retain their owner's explicit failure. No company refusal mark in 0017.
 
-Copy the existing AES-256-GCM engine, key-id derivation, configured-key rotation and fingerprint
-semantics. Add required context and setAAD; remove plaintext fallback. AAD bytes are
-JSON.stringify(['conexus-aad-v1', owner, ...binding]). The compiled signatures in secrets.ts are
-the only signature owner. ModelAccountBinding uses U2 CredentialKind and scope/owner fields;
-it needs no later Slot type. Its binding is [scope, ownerAccountId or 'installation', provider, kind].
-Connector binds connectionId. IAM binds session/handoff token digest. Platform owns strings and
-the cipher, not domain row ids. Contexts live in current accounts.ts, connectors/store.ts and
-identity-access/session-core.ts; U4 moves the model context into the final store.
-Current IAM calls are hub-session.ts:53,64, application-session.ts:62 and session-core.ts:70,77.
-Compiler errors find every remaining call. Handoff DELETE RETURNING, mint, reseal and session
-INSERT stay in the existing authentication gate. Known-key tag failure is SECRET_CUSTODY_LOST;
-unknown/missing configured key is CONFIG_INVALID. Preserve reference license attribution.
+The next unused forward migration `<next>_secret_custody.sql` verifies these exact live CHECKs:
+`connector.connection.connection_credential_sealed_check`, `iam.handoff.handoff_token_sealed_check`,
+`iam.host_session.host_session_token_sealed_check`, `model.model_account.model_account_secret_sealed_check`.
+Abort if either durable credential table is nonempty, DELETE sessions/handoffs, replace only these
+four CHECKs without CASCADE and regenerate catalog mirrors. Do not edit 0071/applied history.
+Use the approved operator-owned cutover; a preservation requirement reopens it rather than adding
+compatibility. No key bytes, algorithm or fingerprint rotation policy changes.
 
-### 3. Strong types before the move
+### 2. Strong values and complete owner
 
-One registry derives CredentialKind and Credential from its codecs. parseCredential/encodeCredential
-are record-edge conversions; the return type preserves the input provider/kind pair. Implement
-the generic overload with checked exhaustive lawful branches and literal round-trip tests; no provider-local weak JSON parser remains. parseModelId uses Mastra's
-parser and the contract ModelId brand. ModelRole is a contract schema. Google validates encoded
-filename, size bound, JSON and Antigravity discriminator with its existing codec; do not invent a
-new vendor record. Invalid stored pairs/values become 0019's table-coded failure, never ZodError.
-U2 migrates all current consumers before U4 moves those subjects. No external weak shape survives
-for tests. The credentials, model ids and native model type drive every new implementation.
+Credential codecs cover Anthropic key/subscription, Codex subscription and Google encoded record.
+One JSON codec plus the Google encoded-record edge live in credential.ts; provider leaves contain
+no JSON parsing. Normalization occurs before Codex codec encoding. Invalid stored values become
+a table-coded existing failure, not uncaught ZodError. Strong ModelId/ModelRole live in contract.
+Native parser behavior and current thinking/catalog filters remain pinned; no new model catalog.
 
-### 4. Behavior-preserving core
+U4 moves the already strong personal owner and real consumers, not an unused folder. Its constructor
+returns the compiled module surface; it registers all **existing** personal operations, including Google
+status and existing default reads. It owns Google boot orphan sweep, router, pool, write-back, jobs
+and close. Personal routes remain because the current screen calls them; 0020 replaces these wire
+contracts and their callers together. The current endpoints are not aliases for future endpoints.
 
-module.ts composes explicit dependencies into frozen operations. Store SQL is personal-only in
-this wave; accepted installation rows remain schema capability, not delivered commands. Existing
-list/start/complete/poll/settings wire operations remain real product operations used by the UI.
-Keep their current observable behavior until 0020 replaces them with callers in one unit; do not
-add duplicate endpoints or retain exports solely for tests. Move strong provider leaves, refresh,
-Google composition/router/jobs and close under the core. Rename live implementation vocabulary
-as it moves; preserve native provider mechanics and pool lifecycle until 0020's replacing units.
-
-Builder supplies OpenRun, reopening its own admitted run for later refresh reads/writes. The core
-never joins Builder's tables. hold returns canonical Result; its custody error contains the typed
-row, so 0020 can commit a refusal separately. reread returns Result of present/gone; failure of
-run admission stays in the error arm. A successful missing row is gone. Provider model resolution
-returns model plus modelAccountId; Builder records that row, and unwraps canonical failure only
-at Mastra's native resolver boundary using 0019's owner. No new result/error class is written here.
-
-| Operation | Input source | Output/refusal |
+| Operation | Value source | Outcome / authority |
 | --- | --- | --- |
-| modelFor | Builder OpenRun, parsed model id, contract thinking level | Native Mastra model and paying row through Result |
-| personal key/sign-in routes | authenticated account/display name, current contract fields | Current wire shapes and codes; no installation writer |
-| list/defaults/offers | authenticated account through admitted read | Current secret-free wire values |
-| hold/reread | Builder's fresh admitted run | Held row/present/gone or upstream canonical error |
-| handoff redeem | returned handoff, minted token digests | Resealed session token; no plaintext in caller |
+| modelFor | Builder's current OpenRun, parsed model, ThinkingLevel | Result with native MastraModelConfig and paying row id; Builder records it in its own admitted transaction |
+| checkBeforeRun | Authenticated AccountId, model ids | Admitted secret-free metadata checks; never decrypt in this operation |
+| list/offers/default reads | Authenticated account, contract build/memory role | Current secret-free responses; read admission from 0018 |
+| personal connect/routes | Session account/display name, parsed wire input | Account write proof; no installation writer yet |
+| hold/reread | Fresh run proof / OpenRun | Held row, gone or typed error; no core joins to Builder tables |
+| persist | Owner system admission, held row/spent bytes, typed next credential | Stored new hold or superseded; no dependency on an ongoing run |
+| registerRoutes/jobs/close | Hub Fastify instance/config and platform lifecycle | Actual routes/job list, shutdown after jobs settle and before database close |
 
-### 5. Security and proof scenarios
+### 3. Refresh persistence and release
 
-Personal writes are admitted for the caller. Every read uses 0018's gate. No response/stream
-includes a credential; a foreign login id gives the current no-disclosure answer. Zero model/E2B
-calls are needed for U1–U4; real external proof needs separate operator authorization.
+Do not keep a run transaction open across provider network I/O. Take an admitted held snapshot,
+finish that transaction, then serialize refresh by row inside the single Hub. Before external refresh,
+reread current bytes; another completed refresh may already supply fresh tokens. Save rotated tokens
+through an owner-internal system transaction using id, lawful pair, scope/owner and spent ciphertext
+as conditions. A failed condition is superseded, never an unconditional overwrite. This is also the
+Google final-capture writer after run completion. No plaintext appears in tracing/response/disk outside
+the already accepted Google native credential-file lifetime.
 
-- Literal provider request/stream, thinking and memory fixtures plus two exact paying row ids pin personal behavior (**AC-2/5**).
-- All four registry pairs round-trip; illegal pair/value and bare model id fail (**AC-1**).
-- Move ciphertext across two rows per owner; correct/retired key opens, changed row fails; handoff HTTP redemption reseals (**AC-3**).
-- PostgreSQL seeded old-prefix session/handoff rows are deleted before CHECK replacement; nonempty credential tables abort; new prefix accepted and old rejected in all four columns (**AC-4**).
-- Deactivate caller/end run between rereads; no token escapes and the admission code is unchanged (**AC-6**).
-- Import law rejects a Builder import under core; every old routing test calls the new actual boundary (**AC-2/5/7**).
+Every waiter, including the singleflight winner, performs its own OpenRun/reread **after** the shared
+work settles and persistence completes. A revoked waiter receives the upstream admission error, not
+another waiter's returned tokens. Successful row disappearance/kind change is gone; custody carries
+row/spent context in both hold and reread. Provider-config resolution maps those outcomes through
+0019 at the native Mastra resolver boundary. No generic error engine. A future persistent refusal
+transaction in 0020 must start after any held caller transaction has ended, avoiding a conflicting lock.
+
+CAS protects persistence, not provider-token spending across two Hub processes. The instance lock
+in `platform/lifecycle.ts:54-83` remains a premise. This wave makes no multi-Hub support claim.
+
+### 4. Scenarios and owning guide changes
+
+Reuse current deciding suites rather than replacing them with source assertions. U1 pins requests,
+streams, paying ids, memory/thinking, login ownership and current refresh/capture; changed custody
+and revoked-waiter expectations belong to their implementing units, never a red pin on main.
+U3 tests each owner's right/wrong immutable context, delete/recreate, retired-key opening, missing-key
+classification, actual handoff redemption and migration guard/rollback/four CHECKs. U5 tests two
+waiters with one revoked after start, refresh after run end, reconnect/disconnect before persistence,
+and reread custody context using real PostgreSQL plus deterministic native provider fakes.
+
+S §6 sentence becomes: “A secret at rest is sealed with the installation's envelope and bound to the
+immutable identity of the row it belongs to.” A §4–5 names model-account as the core owner and
+Builder as run/payer owner; A §11 and C-027 move the existing Google adapter path/lifetime without
+claiming better crash capture yet. C-032 describes company rows as schema capability and company
+commands as pending 0020. Backup and 0008's consumed configuration interface use the new key
+names; do not redesign their other content.
 
 ## Deletes and census
 
-The executable census counts the replaced model-account/provider subjects and live custody names.
-Baseline on accepted part 1 plus main: 42 top-level arrows, 3 functions over 80 lines, 3 suppressions,
-5 plain id declarations, 3 local JSON parsers and 16 legacy Builder files and 72 live custody-name matches in the studied subjects.
-The narrowed foundation census inspects 37 current product files, of which 18 are structural; web-card consolidation belongs
-to 0020. One JSON codec in the final credential owner is allowed; provider leaves contain none.
-No live Factory envelope names remain in source/configuration/fixtures/scripts/security/backup docs;
-historical migrations/specs and license attribution are records. The census excludes its own detection dictionary and tests/fixtures/secret-custody-retired.json, the one retired-format/configuration negative fixture, plus the exact historical 0070/0071 migration tests iam-owner-migration.postgres.test.mjs and company-model-accounts-migration.postgres.test.mjs, whose literals are not live consumers. The actual old discriminator is mastra:factory-secret:v1:. Scan tests/implementation and tests/fixtures as well as live code. A clean-final fixture and a live-old-name defect fixture prove the checker. AST leaf tokens preserve regex literals and ignore source comments. Comments are ignored so license attribution is retained; owning guide prose is still checked. Structural targets cover subjects
-replaced here, not unchanged Builder/IAM declarations. U4 installs the executable check into CI, inlining the budget file list before deleting shape,
-and proves each counter with a fixture that makes it fail. Existing Knip and import law remain.
+Run `node shape/census.mjs --at=<commit>` for a reproducible committed baseline, or without --at
+for the working tree. The rewritten script counts JSON.parse in **every provider file**, regardless
+of filename, and retired identifiers even after files move. It checks core imports and Builder table
+literals. Live names include tests, fixture inputs, scripts and owning configuration/backup prose.
+Historical migrations/specs and license comments remain records; only the named retired-input fixture
+and two migration-history suites are excluded. No global text exemption for provider code.
 
-| Delete | Unit | Every caller moves to |
-| --- | --- | --- |
-| Weak credential/token shapes and provider JSON parsers | U2 | Derived codecs and parseCredential; strong model ids |
-| Factory envelope functions/types/configuration/prefix and plaintext/context-free access | U3 | Typed row context, SecretEncryption names and forward CHECKs |
-| Builder model-account/provider paths, createModelRouting/ModelRoutes/ModelRoute/takeFrom/routeOf/Taken/take | U4 | Core module/modelFor; Builder native resolver and paying recorder |
-| Store withRun/RunContext/ADMISSION_REFUSALS/ownerId dependency and Builder joins | U4 | OpenRun and 0018 proofs |
-| Builder-owned Google composition/router/jobs/close and old pool function naming | U4 | Core composition; behavior preserved |
-| Temporary shape | U4 | Actual owner code and negative type fixtures |
+| What | Today at spec base | Final target | Holding check |
+| --- | ---: | ---: | --- |
+| Top-level arrow functions / functions >80 lines / suppressions | 42 / 3 / 3 | 0 / 0 / 0 in owned subjects | TS AST and existing Biome |
+| Plain id declarations | 5 | 0 | TS AST, contract brands |
+| Provider-local JSON parsers | 3 | 0 outside credential edge | AST, all provider files |
+| Builder credential-owner files | 16 | 0 | Path census + import law |
+| Retired routing/store identifier uses | 28 | 0 | AST identifier census |
+| Core imports / Builder table references | 0 / 0 in currently nonexistent core | 0 / 0 in delivered core | Census + import law; zero baseline is not implementation proof |
+| Live custody-name occurrences | 72 under this exact scanner | 0 | Token-aware census; not the study's differently scoped 41 code tokens/6 document lines |
 
-Run shape/file-budget.mjs for the explicit handwritten product-path union (limit 70) and per-unit
-lists. A renamed subject counts once at its final path; tests/guides/generated mirrors and pure
-deletions are reported separately. Every caller edited is counted; no new subject without the
-planning session. U4 is a mechanical move after U2/U3, not a scoped-command implementation.
+U6 proves the census with a clean fixture and representative defect fixtures: moved provider JSON
+parser, retired API, core import/table, live old name and illicit codec location. Reuse the single
+census owner in 0020; do not build a checker framework. Extend the existing CI entrypoint/import law.
+Credential registry exhaustiveness remains TypeScript's check, not a second code parser.
+
+Delete weak token shapes/parsers (U2); context-free/plaintext cipher, broad IAM catches and live
+Factory envelope vocabulary (U3); all sixteen old Builder-owned credential/provider files and
+createModelRouting/ModelRoutes/ModelRoute/takeFrom/routeOf/Taken, old withRun/RunContext/
+ADMISSION_REFUSALS and Builder joins (U4); unconditional refresh persistence and stale-waiter
+release (U5); temporary shape (U6). Move every test with its production caller.
+
+`shape/file-budget.mjs` names **63 actual product paths**, including both intermediate old and final
+new paths. Tests/guides/generated outputs are recorded separately, not silently called product.
+Each card uses its manifest plus named tests/guides below; migrations resolve `<next>` from merged
+history before build. Record actual `git diff --name-status` per unit and compare with the manifest.
+A discovered caller not listed returns for spec correction; do not hide it as a “final identity”.
 
 ## Units
 
-Each fresh builder reads its card, the cited Design sections, References copied and shape.
-Run card tests, shape tsc and npm run verify:quick before each green commit. Use generation scripts
-for mirrors. No suppression, cast, weak Conexus id or production export kept solely for a test.
+Each builder reads its card, the Design sections it cites, References copied and shape. Each ends
+with its deciding tests, shape compile (direct delivered-owner mappings once upstream lands),
+`npm run verify:quick` and one green commit. The manifest in file-budget.mjs is the exact product
+allowlist; named tests/guide edits are additional non-product paths. No code outside the card.
 
-### U1. Pin existing personal behavior
+### U1. Pin real personal behavior before movement
 
-- **Already there**: 885addee; builder-anthropic/openai-codex/google-ai-pro/thinking-level/session-routes tests, model-account.postgres.test.mjs and IAM/connector custody suites.
-- **Creates**: Missing behavioral cases for provider headers/payloads, memory choice, streams/no-secret responses, exact paying rows, login ownership/expiry, refresh persistence, stopped/deactivated reread, handoff redemption. Use existing tests where they already pin the surface; list each deciding test.
-- **Satisfies**: AC-2 baseline, AC-3/5/6 regression baseline.
-- **Files**: Named tests and fixtures only. No product paths.
-- **Copies**: Existing provider and owner test boundaries.
-- **Guide sections**: C §4–5, T §1–4/6–7, L waves.
-- **Deletes**: Source-reading assertions replaced by behavior where this pin relies on them; no production export.
-- **Proof**: Current main personal cases green, then accepted wave head with 0071 PostgreSQL expectations. Because 885addee is not on main, its schema-specific cases run only on the accepted wave head. Two calls record two literal row ids; foreign callers/streams expose no token.
-- **Out of scope**: New scopes, custody semantics or provider network/E2B calls.
-- **Stop if**: Pin needs a product change or contradicts approved behavior.
+- **Already there**: Actual main `5efbc090`; existing builder-anthropic, builder-openai-codex, builder-google-ai-pro, builder-thinking-level, model-account-routes, builder-session-routes, model-account.postgres, iam-sessions.postgres and connector-broker.postgres suites in tests/implementation. Schema-specific company-model-accounts-migration.postgres suite runs only after schema integration.
+- **Creates**: Missing behavioral characterization in those same suites, plus model-accounts-fake.mjs and builder-google-ai-pro-fake-cliproxy.mjs when needed. Pin literal requests, native streamed answer, exact payer ids, memory/thinking and current login/refresh/close behavior. List reused cases and gaps in proof receipt.
+- **Satisfies**: AC-2; AC-3/5/6 regression baseline.
+- **Files**: Those named test/fixture paths only; U1 manifest has zero product paths. No shape/product edits.
+- **Copies**: Current native test boundary, not its structural seam.
+- **Guide sections**: C §4–5; T §1–4/6–7; L Waves.
+- **Deletes**: Source-text assertions only where replaced by deciding runtime behavior.
+- **Proof**: Green first on main, then schema head. Current revoked-waiter defect is recorded, not asserted fixed. Schema replay has 19 tests already passing in the study. Do not call real providers/E2B.
+- **Out of scope**: New ownership/types/custody/selection behavior.
+- **Stop if**: Pin requires a product change, upstream main changed observed behavior, or fixtures cannot exercise the actual caller.
 
-### U2. Put every credential caller on the derived types
+### U2. Derive strong credentials and model identity at the current owner
 
-- **Already there**: U1, 0071; merged 0018 proof/read owner and 0019 failure/result owner.
-- **Creates**: Design §3 and credential.ts. Contract ModelId and ModelRole; derived CredentialKind/Credential; parseCredential/encodeCredential/parseModelId as input edges.
+- **Already there**: U1/schema; delivered 0018/0019 contracts and approved dependency order. Read Design §2 and credential/negative shape.
+- **Creates**: One registry/codecs in current builder/model-account/providers.ts, contract ModelId/ModelRole and parse/encode edges. Final credential.ts content is placed in this existing owner until U4 moves it; no duplicate new owner yet.
 - **Satisfies**: AC-1/2.
-- **Files**: Contract ids/model-account/index; current builder/model-account providers/accounts, three provider credential/route/model leaves, oauth-holds/model-routing and its model-input callers/fixtures. Keep current subjects until U4. file-budget.mjs lists final identities and this unit's callers.
-- **Copies**: Credential/model parsing reference.
-- **Guide sections**: C §3–6, H §1/8, A native first.
-- **Deletes**: Weak stored values, credential JSON parsers, unparsed model-id internals; every live/test caller moves now.
-- **Proof**: Four lawful pairs round-trip; illegal pair/expiry/email/model forms fail; PostgreSQL pair CHECK matches registry. Static negative cases fail for the intended property. Local JSON parser count 3→0. Personal U1 requests unchanged.
-- **Out of scope**: Core move, new custody context, installation commands and refresh redesign.
-- **Stop if**: Shared exports differ, a caller needs a cast/weak string, or an old external shape is retained only for tests.
+- **Files**: U2 actual-path manifest: all current credential/provider files, named Builder model consumers including harness/controller.ts, and contract ids/model-account/index. Tests: U1 provider/thinking/routes/account suites and new model-account-types.test-d.ts under tests/implementation.
+- **Copies**: Credential/native model reference row; native SDK fields.
+- **Guide sections**: C §3–6; H §1/8; A native-first.
+- **Deletes**: Three local parsers, weak pair/token types and writable parsed-model fields, moving all native/test callers now. Existing Google record validation moves into the single credential edge.
+- **Proof**: Four lawful roundtrips; malformed values/illegal pair fail; SDK no-email fixture becomes null. Negative types cover brands, pair/value and required fields. Provider JSON parser count 3→0 outside the new edge after U4; while in current providers.ts the manifest records this exact temporary codec edge. U1 request behavior remains green.
+- **Out of scope**: Core move, custody migration, new commands or refresh policy.
+- **Stop if**: Delivered upstream types differ, caller needs a cast/weak string, or parser survives merely for a test.
 
-### U3. Bind every secret and remove envelope legacy naming
+### U3. Bind immutable rows and retire live envelope names
 
-- **Already there**: U2, accepted schema, merged 0018/0019; existing envelope/connector/IAM owners. Read Design §1–2 and secrets.ts.
-- **Creates**: Typed owner/context/sealed values, AAD, reseal, SECRET_CUSTODY_LOST in the existing failure table with generated outputs, new live names and forward four-CHECK migration with needs:aprovo. ModelAccountBinding needs only U2 types/current row fields.
+- **Already there**: U2/schema, actual upstream proof/failure owners, approved empty-credential cutover. Read Design §1/4 and secrets shape.
+- **Creates**: Row-required seal/open/reseal; SECRET_CUSTODY_LOST row in failures table, generated outputs; renamed cipher/config API and next forward four-CHECK migration. Mint/read locked row identity before sealing in current model/connector stores; reseal handoff in existing IAM gate.
 - **Satisfies**: AC-3/4/7 custody.
-- **Files**: platform secrets/secret-encryption/config; current model accounts store; IAM session-core/hub-session/application-session/authentication schemas; connectors store/broker; new migration/catalog mirrors; contracts/technical/failures.json and generated outputs; security §6, backup guide/infra backup README; verify control.mjs; error-code-map/configuration/boot/session/connector fixtures. No core move.
-- **Copies**: Custody reference; existing cipher/key-id/fingerprint engine.
-- **Guide sections**: C §3–8, D §2–3/5–8, S §4/6–7, T §4/6–7, L needs:aprovo.
-- **Deletes**: Plaintext/context-free operations, every Factory envelope API/helper/type/configuration name and old live prefix with consumers; no alias/old decoder.
-- **Proof**: Design §5 custody/migration cases; configured and retired keys open; missing key CONFIG_INVALID; boot under new variables succeeds and old-only fails, using the dedicated tests/fixtures/secret-custody-retired.json negative fixture for retired prefix/variable names. Update S exactly: "A secret at rest is sealed with the installation's envelope and bound to the row it belongs to." Update backup/configuration consumers in this commit.
-- **Out of scope**: Live reset, changing key bytes, preserving/re-encrypting old data, connector/provider calls.
-- **Stop if**: Live data must survive, CHECK set differs or card grows beyond one session. Operator alone resets/renames/re-enters local credentials.
+- **Files**: U3 product manifest. Tests: iam-sessions.postgres, connector-broker.postgres, model-account.postgres, company-model-accounts-migration.postgres plus new secret-custody.test.mjs, secret-custody-migration.postgres.test.mjs and tests/fixtures/secret-custody-retired.json. Rename-variable callers also include tests/implementation/builder-composition.postgres.test.mjs, builder-planning-free-boot.test.mjs, workspace-http.test.mjs, hub-role-register.test.mjs, application-host.test.mjs and connector-broker.test.mjs. Generated catalog/failures mirrors through existing generators. Guides: S §6, docs/reference/backup.md, infra/backup/README.md and 0008 consumed key-configuration interface only.
+- **Copies**: AEAD row and existing cipher/key/fingerprint implementation, preserving license provenance.
+- **Guide sections**: C §3–8; D §2–3/5–8; S §4/6–7; T §4/6–7; L needs:aprovo.
+- **Deletes**: All old live names, plaintext/context-free APIs and catch-all IAM decrypt handling, with boot/backup/fixture consumers moved together. No aliases/old decoder.
+- **Proof**: All Design §4 custody/migration cases, four exact CHECKs, empty guard/rollback, real HTTP handoff redemption, new-variable boot and old-only rejection. Wrong row and delete/recreate fail; retired key opens; unknown/missing key remains CONFIG_INVALID. Count live custody names 72→0.
+- **Out of scope**: Pilot reset, key changes, credential preservation migration and real connector calls.
+- **Stop if**: Guard/cutover differs, row identity cannot be known before seal, CHECK set differs, or more than a fresh session is required.
 
-### U4. Move the strong personal account owner into the core
+### U4. Move the complete personal owner and its real consumers
 
-- **Already there**: U1–U3; merged 0018/0019; current personal operations/UI and accepted schema. Read Design §4–5, module/store/usage shape and module/writer reference.
-- **Creates**: Core module/store/provider composition, Builder OpenRun, native model resolver/paying recorder, Result hold/reread. Move already-strong provider mechanics with their current actual wire consumers. Update architecture ownership and C-027 adapter path; describe installation commands as pending 0020.
-- **Satisfies**: AC-2/5/6/7.
-- **Files**: Final model-account module/store/providers/credential/defaults/models/offers/routes/refresh and provider leaves; Builder module/model-routing/run-lifecycle/run-turn/harness/runtime model callers; hub.ts; import law/review areas/census CI; affected tests; architecture and C-027. No settings wire change, administrator action, scoped writer, sign-in redesign, refusal persistence or Google lifecycle redesign.
-- **Copies**: Registry frozen module and explicit writer; existing personal provider protocols.
-- **Guide sections**: C §1/3–8/10–11, A §4–5/8/11, D §5–8, H §1/3–5, S §2/6, T §4/6–7.
-- **Deletes**: U4 delete rows with all actual callers/tests, including routing seam and Builder ownership; old pool implementation names. Current personal UI endpoints remain live consumers, not compatibility endpoints for tests.
-- **Proof**: All U1 pins unchanged through new boundary, exact paying ids, fresh run admission and unchanged refusal codes; native MastraModelConfig. Import law rejects every core→Builder import. No old Builder model-account path or test-only route export remains. Install foundation census/negative tests in CI, delete shape, compile actual owners. Record per-card edited paths and emitted guides.
-- **Out of scope**: Every behavior owned by 0020, including installation selection/list wire and scope commands.
-- **Stop if**: Mechanical movement needs new business behavior, upstream exports conflict, legacy test seam is requested, or this card cannot finish from strong existing code in one session.
+- **Already there**: U1–U3 strong values/custody and current personal operations. Read Design §2/3 and module/store/usage shape.
+- **Creates**: Concrete frozen core constructor and full lifecycle, moved provider/native mechanics, admitted hold/reread and owner-internal CAS persistence. Builder OpenRun and paying recorder consume it. The store's persistence exists in this unit, including final Google capture after run end; it is not left for 0020.
+- **Satisfies**: AC-2/5/6 persistence; AC-7 ownership.
+- **Files**: U4 old+new manifest, hub.ts/platform db job registration, Builder consumers. Move U1 suites/fixtures to actual core exports; add model-account-module.test.mjs. Guides: architecture §4–5/11, decisions owning C-027 and C-032, review/areas.json paths. No other spec redesign.
+- **Copies**: Frozen module and durable-refresh owner rows. Keep native protocols/lifetimes.
+- **Guide sections**: C §1/3–8/10; A §4–5/8/11; D §5–8; H §1/3–5; S §2/6; T §4/6–7.
+- **Deletes**: Sixteen Builder-owned files, old routing/store APIs and Builder joins; every current production/test consumer moves in this commit. Model-routing.ts may remain solely as Builder's native resolver/payer adapter, with new API only.
+- **Proof**: U1 pins through actual constructor; Hub routes/jobs/close exercised; native MastraModelConfig; PostgreSQL successful post-run persist and superseded reconnect/disconnect writes; hold **and** reread custody context. Core import/table count stays zero, Builder owner paths 16→0. No native route injected only for tests. The native leaf receives the held row plus owner refresh/persist callbacks, so it retains CAS/custody context without joining Builder tables.
+- **Out of scope**: New company wire/list/selection/commands/refusal/common-attempt/Google-generation behavior.
+- **Stop if**: Movement requires unplanned business behavior, exports differ, missing persistence consumer appears or unit cannot end independently green.
+
+### U5. Release refreshed tokens only through each current caller
+
+- **Already there**: U4 complete owner, CAS writer, native provider leaves and Builder OpenRun. Read Design §3 and store/usage shape.
+- **Creates**: Row-local serialization with fresh snapshot before refresh; post-settlement fresh admission/reread for **every** waiter. Preserve successfully rotated tokens even if caller ends; then refuse release to that caller.
+- **Satisfies**: AC-6 and AC-2 refresh regression.
+- **Files**: U5 manifest (store/refresh/Google write-back and Builder admission adapters). Tests: model-account.postgres, builder-anthropic, builder-openai-codex, builder-google-ai-pro and model-account-module suites.
+- **Copies**: Durable-refresh and release reference rows; owner uses existing singleflight, not a concurrency service.
+- **Guide sections**: C §4–8; A §4–5; D §5–8; S current authority; T §4/6–7.
+- **Deletes**: Stale pre-wait-only admission, unconditional release/write and any persistence adapter needing a live run.
+- **Proof**: Two fake-provider waiters share one refresh; revoke one between start/settle and it receives unchanged admission failure. End winning run: rotated tokens persist but release is refused. Reconnect/disconnect prevents overwrite; next usable caller reads winning stored bytes. System write occurs after the caller transaction ends. No claim about two simultaneous Hubs.
+- **Out of scope**: Persistent refusal, OAuth HTTP classifier, attempt redesign or periodic Google capture (0020).
+- **Stop if**: Single-Hub premise is false or result/custody context cannot be preserved without changing upstream.
+
+### U6. Install objective checks and close the foundation
+
+- **Already there**: U1–U5 actual owners and deciding behavior. Read Deletes and census.
+- **Creates**: One scripts/check-model-account-census.mjs copied/adapted from shape/census.mjs, connected to current verify/import law. Negative type cases live beside production-bound tests, not under temporary shape.
+- **Satisfies**: AC-7 and final AC-1–6 regression.
+- **Files**: U6 manifest; tests/implementation/model-account-census.test.mjs and model-account-types.test-d.ts; foundation guide/doc wording only. Delete every shape file.
+- **Copies**: Existing verification entrypoint and TS checker; no verifier engine.
+- **Guide sections**: C §10–11; A import law; T §4/6–7; L Waves.
+- **Deletes**: Temporary shape and preview mappings; no production owner/alias is retained for tests.
+- **Proof**: Census final zeros, clean/defect fixtures, actual-owner type negatives, recorded per-unit path budgets and npm run verify:quick. Re-run PostgreSQL replay/catalog and U1 regression after integration. 0020 remains undelivered and unapproved.
+- **Out of scope**: Commands/default writer or broad unrelated cleanup.
+- **Stop if**: A zero is achieved by exclusion rather than deletion, or actual diff exceeds 70 product paths.
 
 ## Non-goals
 
-0020 owns scoped commands, precedence/listing/preflight, shared sign-in, refusal/OAuth races,
-Google generation pooling and provider cards. Spec 0008 owns default-model writers. No new
-Workspace scope, quota/cost report, second Hub process, external pilot change or live E2B use.
+0020 owns installation commands, personal-first company fallback, secret-free standing/preflight,
+refusal, common attempts, classified refresh, Google generations/capture/tickets, three provider cards
+and the installation Builder default writer on that same screen (approved study amendment).
+Personal and memory default writers remain outside both waves. No second company/Hub, quotas,
+queue/service, live reset, merge or another spec's internals. No real E2B/model calls during this writing task or local unit work; the bounded wave qualification below obtains its own authorization.
+
+## Foundation wave qualification before merge
+
+After U6, run conexus-prove against the actual installed foundation, not only fake adapters. The
+foundation remains unmergeable until a separately operator-authorized real Builder turn exercises
+native model resolution, stream response and exact payer recording through this core, including the
+configured native Google lifecycle if Google is enabled. Use the repository verify skill isolation and
+retain a durable receipt under T §9–10. No E2B/provider/pilot effect is authorized by this draft; request
+that bounded proof through firstmate at prove stage. Custody/boot/catalog proofs use local fixtures;
+the real turn proves the consumer contract and sends no company secrets to the sandbox. 0020's real
+company-scope proof is additional, not a substitute for the foundation's pre-merge consumer proof.
 
 ## What breaks the premise
 
-Live credential data must survive the custody reset; upstream admitted-run/result contracts differ;
-provider protocols no longer match the pins; or a behavior-preserving move needs scope policy.
-Return to the planning session instead of building a shim or changing accepted decisions.
+Delivered admission/Result or schema integration order differs; credentials must survive cutover;
+immutable id cannot be retained atomically; native provider pins change; Google cannot persist after
+run end; or single-Hub instance exclusion is not enforced. Return with evidence and options.
 
 ## Stop rule
 
-Return on an undecided requirement, upstream conflict, impossible one-session green unit or more
-than 70 handwritten product subjects. Approval belongs to the operator. This spec builds nothing.
+Stop for an undecided product choice, falsified premise, upstream owner conflict, unit larger than one
+fresh session or more than eight units/70 actual product paths. Do not build a shim or silently narrow
+an AC. This draft opens no implementation or pilot operation.

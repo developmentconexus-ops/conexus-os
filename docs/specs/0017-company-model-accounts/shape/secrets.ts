@@ -1,8 +1,13 @@
 import { z } from 'zod'
-import type { AccountId, ConnectionId } from '@conexus/contract'
-import type { CredentialKind } from './credential.js'
+import type { ModelAccountId, ConnectionId } from '@conexus/contract'
+import type { Digest } from '../../../../apps/hub/src/platform/db.js'
 export type SealOwner = 'model-account' | 'connection' | 'hub-session' | 'handoff'
-export type SealContext<O extends SealOwner> = Readonly<{ owner: O; binding: readonly [string, ...string[]] }>
+declare class RowContext<O extends SealOwner> {
+  private readonly rowContext
+  readonly owner: O
+  readonly binding: string
+}
+export type SealContext<O extends SealOwner> = RowContext<O>
 export type Sealed<O extends SealOwner> = string & z.BRAND<`sealed:${O}`>
 export declare function SealedColumn<O extends SealOwner>(owner: O): z.ZodType<Sealed<O>>
 export type SecretEnvelope = Readonly<{
@@ -11,8 +16,7 @@ export type SecretEnvelope = Readonly<{
   reseal<A extends SealOwner, B extends SealOwner>(sealed: Sealed<A>, from: SealContext<NoInfer<A>>, to: SealContext<B>): Promise<Sealed<B>>
   fingerprints(value: string): readonly [string, ...string[]]
 }>
-export type ModelAccountBinding = CredentialKind & (Readonly<{ scope: 'personal'; ownerAccountId: AccountId }> | Readonly<{ scope: 'installation' }>)
-export declare function modelAccountContext(binding: ModelAccountBinding): SealContext<'model-account'>
-export declare function connectionContext(connectionId: ConnectionId): SealContext<'connection'>
-export declare function sessionContext(tokenDigest: Uint8Array): SealContext<'hub-session'>
-export declare function handoffContext(handoffDigest: Uint8Array): SealContext<'handoff'>
+export declare function modelAccountContext(id: ModelAccountId): SealContext<'model-account'>
+export declare function connectionContext(id: ConnectionId): SealContext<'connection'>
+export declare function sessionContext(digest: Digest): SealContext<'hub-session'>
+export declare function handoffContext(digest: Digest): SealContext<'handoff'>
