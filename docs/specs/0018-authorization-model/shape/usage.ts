@@ -19,3 +19,29 @@ export async function served(gate: import('../../../../apps/hub/src/platform/db.
   const { admitAccount, checkProject, checkApplication } = await import('./admission.js')
   return { account: await admitAccount(gate), preview: await checkProject(gate, projectId), application: await checkApplication(gate, projectId) }
 }
+
+export function modelStanding(database: Database, accountId: AccountId) {
+  return database.read(accountId, async (gate) => {
+    const { readModelStanding } = await import('./data.js')
+    return readModelStanding(await admitAccount(gate))
+  })
+}
+
+export function heldCredential(
+  database: Database,
+  input: Readonly<{ builderRunId: import('@conexus/contract').BuilderRunId; modelAccountId: import('@conexus/contract').ModelAccountId; owner: import('./types.js').RunOwner }>,
+) {
+  return database.system('builder-executor', async (gate) => {
+    const { admitRun } = await import('./admission.js')
+    const { readRunCredential } = await import('./data.js')
+    return readRunCredential(await admitRun(gate, input.builderRunId, input.owner), input.modelAccountId)
+  })
+}
+
+// Revocation can refuse heldCredential. The owner can still commit a terminal failure.
+export function closeRevokedRun(
+  lifecycle: import('./run.js').RunLifecycle,
+  builderRunId: import('@conexus/contract').BuilderRunId,
+) {
+  return lifecycle.failBuilderRun({ builderRunId, failureCode: 'BUILDER_RUN_NOT_ADMITTED' })
+}
