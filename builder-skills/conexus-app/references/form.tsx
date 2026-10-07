@@ -10,7 +10,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toast'
 import { api, type Input as ApiInput, schemas } from '@/conexus/api.gen'
-import { errorMessage } from '@/lib/errors'
+import { failureText } from '@/conexus/failures.gen'
 
 const PRIORITIES = [
   { value: 'low', label: 'Pode esperar' },
@@ -74,7 +74,7 @@ export function NewTicketScreen() {
               </Field>
             )}
           />
-          {save.isError ? <FieldError>{errorMessage(save.error)}</FieldError> : null}
+          {save.isError ? <FieldError>{failureText(save.error)}</FieldError> : null}
           <Button type="submit" disabled={save.isPending} className="w-fit">
             {save.isPending ? 'Abrindo chamado' : 'Abrir chamado'}
           </Button>

@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toast'
 import { statusLabel, TICKET_STATUSES, TicketStatusBadge } from '@/components/ticket-status'
 import { api, type Input as ApiInput, type Output, schemas } from '@/conexus/api.gen'
-import { errorMessage } from '@/lib/errors'
+import { failureText } from '@/conexus/failures.gen'
 import { formatDate, formatDateTime } from '@/lib/format'
 
 type Ticket = NonNullable<Output<'getTicket'>['ticket']>
@@ -37,7 +37,7 @@ export function TicketScreen() {
       ) : ticket.isError ? (
         <Alert variant="destructive">
           <AlertTitle>Não foi possível carregar o chamado</AlertTitle>
-          <AlertDescription>{errorMessage(ticket.error)}</AlertDescription>
+          <AlertDescription>{failureText(ticket.error)}</AlertDescription>
         </Alert>
       ) : ticket.data.ticket === undefined ? (
         <Empty>
@@ -151,7 +151,7 @@ function ChangeStatus({ ticket }: { ticket: Ticket }) {
               <Textarea id="note" rows={3} aria-invalid={Boolean(form.formState.errors.note)} {...form.register('note')} />
               <FieldError errors={[form.formState.errors.note]} />
             </Field>
-            {change.isError ? <FieldError>{errorMessage(change.error)}</FieldError> : null}
+            {change.isError ? <FieldError>{failureText(change.error)}</FieldError> : null}
             <Button type="submit" disabled={change.isPending}>
               {change.isPending ? 'Salvando situação' : 'Salvar situação'}
             </Button>

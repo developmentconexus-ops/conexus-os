@@ -111,7 +111,7 @@ test('a Failure that carries a database error reaches the Builder stream as its 
 })
 
 test('the web says a platform fault was the Conexus, not the model, and other internal errors keep their sentence', async () => {
-  const { failureCodeText } = await import('../../apps/web/src/app/failure.ts')
+  const { failureCodeText } = await import('@conexus/contract')
   assert.equal(
     failureCodeText('BUILDER_AGENT_PLATFORM_FAILED'),
     'Uma falha do Conexus, e não do modelo, interrompeu a execução. As alterações desta execução não foram aplicadas. A falha foi registrada.',

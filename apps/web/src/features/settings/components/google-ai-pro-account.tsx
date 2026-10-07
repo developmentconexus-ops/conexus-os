@@ -2,11 +2,12 @@ import { Button } from '@mastra/playground-ui/components/Button'
 import { Input } from '@mastra/playground-ui/components/Input'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
-import { call, failureText, isFailure } from '../../../app/http'
+import { call } from '../../../app/http'
 import { FAILURES, getGoogleModelConnection, startGoogleModelLogin, completeGoogleModelLogin, getGoogleModelLoginStatus, type ModelLoginId } from '@conexus/contract'
 import { noInput, ownKind } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
 
+import { failureText, isFailure } from '@conexus/contract'
 type LoginState = 'waiting' | 'succeeded' | 'failed' | 'expired'
 type Login = Readonly<{ loginId: ModelLoginId; url: string }>
 

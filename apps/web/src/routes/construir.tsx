@@ -9,8 +9,8 @@ import { listConversations, openConversation } from '../features/builder/mastra-
 import { projectQuery } from '../features/project/api'
 import type { Session } from '@conexus/contract'
 import { rootRoute } from './__root'
-import { failureText, isFailure, isRetryable } from '../app/http'
 
+import { failureText, isFailure, isRetryable } from '@conexus/contract'
 // The chat, editor and diff code is most of the application's weight, so it loads when Construir opens.
 const Construir = lazy(() => import('../features/builder/construir/construir').then((module) => ({ default: module.Construir })))
 

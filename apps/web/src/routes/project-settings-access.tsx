@@ -10,9 +10,9 @@ import { ApplicationAccess } from '../features/identity-access/components/applic
 import { projectQuery } from '../features/project/api'
 import '../features/project/project-settings.css'
 import { rootRoute } from './__root'
-import { failureText, isFailure } from '../app/http'
 import { FailureState } from '../app/failure-state'
 
+import { failureText, isFailure } from '@conexus/contract'
 export const projectSettingsAccessRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/projects/$projectId/settings/access',

@@ -1,7 +1,7 @@
 import { chownSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import { admitManifest } from '../../../app-runner/server-manifest.js'
-import { APP_FAILURES_SOURCE } from '../../../generated/app-failures.js'
+import { APP_FAILURE_CLIENT_SOURCE } from '@conexus/contract'
 import { generateClient } from '../compiler.js'
 import type { CheckContext } from '../context.js'
 import { failed, OK, type Outcome } from '../outcome.js'
@@ -40,13 +40,13 @@ const writeGenerated = (ctx: Pick<CheckContext, 'root' | 'drop'>, relativePath: 
 const writeRefused = (error: unknown): Outcome => failed('GENERATE_WRITE_REFUSED', [{ code: 'GENERATE_WRITE_REFUSED', message: messageOf(error) }])
 
 /**
- * Writes the failure table's app copy, which every app has. Then admits the manifest with the
+ * Writes the contract-owned failure reader into every app. Then admits the manifest with the
  * runner's own function and writes the typed client the screens and handlers import, and the Sankhya
  * reader handlers may import. A source with no manifest has no server half and nothing to generate.
  */
 export const generate = async (ctx: CheckContext): Promise<Outcome> => {
   try {
-    writeGenerated(ctx, 'app/src/conexus/failures.gen.ts', APP_FAILURES_SOURCE)
+    writeGenerated(ctx, 'app/src/conexus/failures.gen.ts', APP_FAILURE_CLIENT_SOURCE)
   } catch (error) {
     return writeRefused(error)
   }

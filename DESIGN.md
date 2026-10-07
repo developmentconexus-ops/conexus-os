@@ -360,7 +360,8 @@ patched one loses it.
   Construir, and the lenses Prévia, Código, Alterações and Sobre.
 - One action **must** have one text everywhere.
 - A failure's words **must** come from `contracts/technical/failures.json`, read by
-  `apps/web/src/app/failure.ts`, with the internal code in mono. A failure Conexus caused never asks
+  `@conexus/contract` in the browser and emitted from that reader for standalone apps. Never show the
+  internal code in mono. A failure Conexus caused never asks
   the person to try again. A failure the person can fix says what to change.
 - A tool **must** show as a sentence while it runs and when it ends (`tool-sentences.ts`), never as
   its technical name. Reasoning shows only as "Pensando…".

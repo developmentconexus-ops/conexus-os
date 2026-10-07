@@ -5,8 +5,9 @@ import { type FormEvent, useId, useState } from 'react'
 import { setModelAccountApiKey } from '@conexus/contract'
 import { accountsQueryKey, noInput, ownKind, readAccounts } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
-import { call, failureText } from '../../../app/http'
+import { call } from '../../../app/http'
 
+import { failureText } from '@conexus/contract'
 /** The providers a person connects by pasting a key, with where the key comes from. */
 const API_KEY_PROVIDERS = {
   anthropic: { console: 'https://platform.claude.com/settings/keys', placeholder: 'sk-ant-…' },

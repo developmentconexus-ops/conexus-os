@@ -22,6 +22,7 @@ import {
 } from '../mastra-session'
 import { localMessageId, type PromptEntry, type TaskSnapshot } from '../transcript.ts'
 import { LensCode } from './lens-code'
+import { failureText, isFailure, isRetryable } from '@conexus/contract'
 import { changeBasisOf, LensDiff } from './lens-diff'
 import { LensDetails } from './lens-details'
 import { LensPreview } from './lens-preview'
@@ -32,7 +33,6 @@ import { clockLabel, isActive, isWaiting, statusLine, viewRun, waitingOn } from 
 import { usePreview } from './use-preview'
 import { WorkingState } from './working-state'
 import { FailureNotice } from '../../../app/failure-state'
-import { failureText, isFailure, isRetryable } from '../../../app/http'
 
 export const lenses = ['preview', 'code', 'diff', 'details'] as const
 export type Lens = typeof lenses[number]

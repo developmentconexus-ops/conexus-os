@@ -1,8 +1,7 @@
-import { call, failureText, isFailure, query } from '../../app/http'
-import { HubFailure } from '../../app/failure'
+import { call, query } from '../../app/http'
 import { routeParam } from '../../app/route-params'
 import {
-  createWorkspaceConnection as createWorkspaceConnectionOperation, checkWorkspaceConnection as checkWorkspaceConnectionOperation, disableWorkspaceConnection as disableWorkspaceConnectionOperation, bindProjectConnection as bindProjectConnectionOperation, unbindProjectConnection as unbindProjectConnectionOperation,
+  createWorkspaceConnection as createWorkspaceConnectionOperation, checkWorkspaceConnection as checkWorkspaceConnectionOperation, disableWorkspaceConnection as disableWorkspaceConnectionOperation, bindProjectConnection as bindProjectConnectionOperation, unbindProjectConnection as unbindProjectConnectionOperation, failureCodeText, isFailure,
   BindingId, ConnectionId, listWorkspaceConnections, listProjectConnectionBindings, ProjectId, WorkspaceId,
   type ConnectionBinding, type ConnectionBindingEntry, type ConnectionCheckOutcome, type Input,
 } from '@conexus/contract'
@@ -42,5 +41,5 @@ export const isConnectorBindingsForbidden = (error: unknown): boolean => isFailu
 
 // A refused check is a row of the failure table under the outcome's own name.
 export function checkOutcomeMessage(outcome: ConnectionCheckOutcome): string {
-  return outcome === 'OK' ? 'A conexão autenticou com sucesso.' : failureText(new HubFailure(outcome, null))
+  return outcome === 'OK' ? 'A conexão autenticou com sucesso.' : failureCodeText(outcome)
 }

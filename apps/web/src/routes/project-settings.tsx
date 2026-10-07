@@ -13,9 +13,9 @@ import { listProjectSummaries, type ProjectDetail } from '@conexus/contract'
 import { deleteProject, projectQuery } from '../features/project/api'
 import '../features/project/project-settings.css'
 import { rootRoute } from './__root'
-import { failureText, isFailure } from '../app/http'
 import { FailureState } from '../app/failure-state'
 
+import { failureText, isFailure } from '@conexus/contract'
 export const projectSettingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/projects/$projectId/settings',

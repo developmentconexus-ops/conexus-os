@@ -8,11 +8,11 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { ConexusMark } from '../../../../../../packages/brand/src/index'
 import { BuilderComposer, type ComposerMode } from '../../builder/composer/composer'
 import { type ReasoningLevel, useBuilderModels } from '../../builder/mastra-session'
-import { failureText } from '../../../app/http'
 import { suggestProjectName } from '../project-name'
 import { useStartProject } from '../start-project'
 import type { StartedProject } from '../start-project'
 
+import { failureText } from '@conexus/contract'
 const EXAMPLE_IDEAS = [
   'Controle de pedidos de férias',
   'Checklist de abertura de loja com fotos',
