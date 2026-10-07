@@ -1,96 +1,180 @@
-# 0019. Rationale: one failure contract across the application runner and clients
+# 0019. Rationale: identity, private repair facts and public failures
 
 ## Context
 
-The approved study found a sound closed code table surrounded by competing carriers. A worker sent code and optional text; the runner turned those into a problem body plus detail; the Hub forwarded the body; a generated client rebuilt a different Error from the detail. A malformed manifest identified its refusal by an Error message prefix. The web and generated application also had different reader classes and fallbacks.
+The question is not whether every error should have the same superclass. Admission throws a code as prose, worker output combines code and arbitrary text, private runner responses mix repair facts with public representation, and each browser reconstructs meaning differently. The resulting defects are message-based decisions and internal text reaching the application. The guides require machine identity, safe diagnosis for repair, owned text and authority at boundaries. An early product needs that path corrected before a broad cleanup, with fewer mechanisms to maintain.
 
-The study's census counted 63 `ok:false` sites with 16 shapes, 27 other failed/refused discriminants, seven parallel error classes outside Failure, six wrappers around the HTTP body writer and five hand-written replies. Those are syntax measurements, not proof that every failed lifecycle state is a branchable refusal. The code-health study §7 had counted five senders; the error-pattern study identified the omitted Fastify sender and the additional forwarding paths.
+Why several formats? They were made for individual callers. Why a problem? Each crossing must reinterpret identity and disclosure. Why not simply remove all fields except code? The Builder uses schema/export/crash/migration facts to repair an app; P §2/A §6 require that capability. Why not unify every catch now? Syntactic failed states include real lifecycle and cleanup behavior, and no reference-backed generic semantic classifier was established. The root cause is combining identity, diagnosis and display into an ad hoc string or packet.
 
-The failure-table study of 2026-10-03 settled person-facing meaning: one text and action per code, in the table. This wave does not reopen that decision, move text into screens or infer category from a caught exception. Authorization's separate model chooses the code and where it is born; this wave owns the representation.
+Today's code is census and replacement evidence, not the reason for the target. C/A/H/S/P/V decide the target and may themselves be challenged by checked references. The study read AGENTS, roadmap, delivery Waves, areas.json and all A/C/D/H/L/P/S/T/V guides. The audit and earlier studies were corrected inputs, not proof or authenticated approval.
 
 ## Options considered
 
-### The Result shape
+The full inspected revisions/file:line are under References below; R keys correspond to index. “Removal” is included even where it violates a current requirement.
 
-A plain `{ok:true,result} | {ok:false,error}` union follows Mastra's workflow decision loop and needs no runtime library. The caller can narrow its own refusal codes and payloads, and a browser/server defect still escapes through Error. The alternative was an error-oriented envelope modeled on SDK `{data,error}` or a Result library. That could provide combinators, but would add a convention or dependency without changing these callers' decisions. The operator chose A on 2026-10-07: the plain readonly Mastra-shaped union with table-backed `E.code`.
-
-The old operation-response `Result<O> = Reply<O>` is not that type. It disappears when the new Result is exported, and its caller uses the existing meaningful Reply name. No compatibility alias remains.
-
-### Failure roles
-
-A universal plain Error could replace every error class, including native MastraError. It would simplify the inheritance tree but discard a working framework integration without evidence of a need. Keeping native Failure for escapes, Result for caller decisions and one ReceivedFailure for the browser gives each role one owner. The operator chose the latter, A, on 2026-10-07.
-
-This is not a numerical rule that every Error subclass is wrong. Better Auth separates programmer/setup failure from API error, while Documenso reconstructs a client representation. The defects in Conexus are two classes/readers for the same received body and thrown classes used as local branch signals. AdapterFailure, BrokerRefusal, check Refused, GitCommandError as a refusal signal, RowEnded and CandidateRefused must disappear in the complete replacing units of model wave 2. They are not retained as adapters to the new representation.
-
-### SQL transport
-
-The historical census found 278 RAISE sites with 73 message codes, 44 outside the table. Assigning each apparent raiser a custom SQLSTATE, or using PostgREST's structured MESSAGE carrier, would be unnecessary if the function body was superseded. The final catalog check found four live functions and no application-code raisers/triggers.
-
-The operator chose C on 2026-10-07: SQL retains structural constraints and no application business rule, and the Hub maps SQLSTATE plus constraint. CI rejects new application-code RAISE MESSAGE definitions. No migration or SQL format change is part of this wave. If a future structural failure needs an explicit custom SQLSTATE, its unique table-owned assignment and forward migration need their own bounded approval; historical migrations remain immutable.
-
-### The HTTP carrier
-
-A native Response works across the installed Fastify and Mastra adapters and avoids another Conexus `{status,headers,body}` carrier. A custom packet would also work but require each adapter to reassemble it. The operator chose native Response A, then required a status/header correction after the actual telemetry probe.
-
-The probe exercised the real Hub HTTP app, failure logging, OpenTelemetry instrumentation and redacting exporters through a real local HTTP socket. It substituted only the final export callbacks to capture their actual input. It did not launch a database, Keycloak, E2B or a provider.
-
-| Variant | Delivered HTTP | onSend | Fastify request span | onResponse | Failure code / count | Security headers |
-| --- | ---: | ---: | ---: | ---: | --- | --- |
-| Existing Reply/body | 404 | 404 | 404 | 404 | PROJECT_NOT_FOUND / 1 | Preserved |
-| Bare `reply.send(Response)` | 404 | 200 | 200 | 404 | PROJECT_NOT_FOUND / 1 | Preserved |
-| Mirror status/headers, then send Response | 404 | 404 | 404 | 404 | PROJECT_NOT_FOUND / 1 | Preserved |
-
-The outer HTTP span was 404 in all cases. It did not repair the Fastify request span: installed `@fastify/otel/index.js:470-485` ends that span in onSend and reads reply.statusCode. The existing failure log has no HTTP-status field and the exported request span has no failure-code attribute; the probe did not invent either assertion. The code was present in the problem body and in one stdout/exported failure record.
-
-The operator approved corrected A on 2026-10-07: one failureResponse produces the native Response, and the Fastify bridge mirrors its status and headers first. Mastra's HTTPException custom-response path already mirrors both before sending bytes. Its validation hook is synchronous and returns `{status,body}`; the proposed adaptation puts the Response itself in `body`, with its status in the framework envelope. A local actual-adapter probe exercised body, query and path validation failures (each delivered 400 and onSend 400) and the HTTPException handler path (delivered 404 and onSend 404), all with problem+json on the wire. That probe used no database, provider or E2B and did not capture SDK telemetry or failure logs. U1/U5 must still prove those observations with the real instrumentation and responsible log ownership on the built wave, and stop if the path does not work. It must not call an asynchronous JSON reader inside the synchronous hook or introduce another problem-body writer.
-
-### Model wave size
-
-The original two-wave decision was model, then sweep. The instruction to remove every legacy function/name made the complete model inventory exceed the 70-file cap: a conservative required lower bound was 74 product paths, or 72 even excluding the two JSON contract files, before ancillary consumers. Deleting a legacy role requires its producers and consumers to migrate together.
-
-The planning session approved option A on 2026-10-07: split the model into two sequential waves, each independently green, with the catch/INTERNAL_UNEXPECTED/table sweep still separate. The alternative was an explicit exception to the cap. The first model wave therefore owns the shared Result, runner admission/prepare/worker path, single HTTP sender, shared browser reader and sandbox-start row. The second owns complete broker/check/control/account/served-result replacements, field-based vendor classification and consolidation of log registries. No second spec is written here, and no unchecked claim of global legacy removal is made at this wave's end.
+| Root question | Complete options and cost | Recommendation and evidence |
+| --- | --- | --- |
+| How much scope now? | Leave unchanged: cheapest, leaks/prose remain. Parser-only: small, leaves browser duplication/public detail. This bounded path: coordinated migration within 54 reserved paths/eight units. All failures together: larger semantic census and unsettled deferred roles, delays product; no proved 74-path lower bound. | Bounded path, based on actual consumers, C/H/S/P and R1–R7. Scope approved at study gate. No new service/library/engine. |
+| How should handled refusal travel? | Keep throws/flat states: no moves, decoder remains. Plain ok/result/error: migrate callers only. success/data or SDK data/error: same moves with another spelling. Result library/factories: dependency/runtime/combinators to maintain. Remove results and throw all: fewer return types but loses caller decision required by C §6. | Plain readonly type-only Result in existing contract, R1. Mastra returns native Error internally; Conexus adapts only the envelope and closed code. |
+| Which exception roles? | Current native server/two clients: no moves, duplicate. Native Failure/one received class: migrate imports/constructors. Objects everywhere: loses native cause/throw/instanceof semantics. Plain Error alone: loses typed identity. Remove client wrapper: repeat unknown parsing at callers. | Native Failure and one ReceivedFailure, R3. Existing Error identity callers retained; no class per code or module. |
+| Can the private carrier choice disappear? | Existing channel already separates private runner from public app; no need for endpoint/header/store. Keep packet/detail and filter at Builder: cheap but leaks/prose remain. Typed Result on existing channel: all producers/consumers migrate, safe facts retained. Native Response plus diagnostic headers: encode/decode/strip protocol and leak risk, no inspected reference. Response plus side store/callback registry: lifecycle/correlation machinery, no current need. Remove diagnosis: simplest public wire but breaks repair promise. | Private typed Results, public native Response, R1/R3 and A technical context. Exact fact protocol is a Conexus adaptation, not found externally. Operator approved this choice. No header protocol/store/channel/library. |
+| Who writes public response? | Keep local packets: redundancy/status drift. One native Response: migrate public helpers/adapters. Another status/body abstraction: more reconstruction. Per-framework writers: table mapping duplication. Remove writer: hand-built mapping repeated. | R4 central mapping plus R5 actual native carriers. Explicit Fastify status/headers; do not force Response into private handled results. |
+| Where is browser source? | Keep two readers: drift. Contract source/direct web import/app-only emission: one export/migrate imports. Web-owned source emitted to app: ownership under UI conflicts A §5. Dual emission: unnecessary web artifact/drift. Remove reader: parser duplication at callers. | Existing contract owner and app-only generation, R2/R3/R7/R8. Exact external emitter not found; fixed standalone app cannot import platform package. No new package/parser. |
+| How strict are code/trace/network handling? | Current permissive app and arbitrary trace: cheapest, leaks. Canonical closed Problem and validated trace with table fallbacks: boundary changes/tests. Second permissive decoder: extra policy and unknown identity. Remove references: loses SYSTEM diagnosis promised by V. Propagate raw fetch error: no owned text; swallow abort: changes cancellation. | R7 parsing principle adapted to C §5/S §7/V. Unknown malformed → HUB_RESPONSE_UNREADABLE; known no-audience → INTERNAL_UNEXPECTED text; fetch → HUB_UNREACHABLE; preserve abort. No public raw fields. |
+| How much census/check infrastructure? | Universal AST classifier/normalized occurrences/reason registry/SQL replay: ongoing policy and maintenance, no exact reference. Bounded API zeros+strict fixtures+drift: small script/record/CI slot. Empty-catch freeze: syntactic only, needs separate ownership. No check/remove census: recurrence. | R8, existing builder census pattern and C §11. Old broad metrics informational only. Reuse SQL catalog replay; not a migration-history engine. |
+| What SQL policy? | Keep structural integrity/map: no schema change. Edit historic raises: violates immutability and false live premise. New custom SQLSTATE/MESSAGE protocol: consumerless machinery. Remove constraints/map: violates D. | Existing SQLSTATE+constraint map, D §5/§8, R6. P/SA also retain messages/custom status; BJ business SQL differs from Conexus D §8. No invented universal SQL ban or future raise rule. |
+| Where name sandbox fault? | Leave generic: wrong known outcome. Narrow start catch: row/mapper only. Broad preparation catch: misclassifies other failures. Retry/classifier: new policy. Remove start: removes Builder capability. | Narrow production adapter mapper, R3/R9 and roadmap. Preserve named Failure/cancellation, cause and terminal logger; no retry. |
 
 ## Decision and why
 
-A table-backed code is the identity; a role determines how it travels. Result carries decisions without a typed-throws fiction. Native Failure carries escaping server failures and their private cause. ReceivedFailure carries validated browser-visible identity and the trace reference. HTTP adapters use a single Response and do not guess the failure's status from the module that raised it.
+On 2026-10-07 the operator answered “Aprovado error” to the study's section 8: scope, exclusions, end condition, at most eight units and conservative 54-path reservation. Firstmate relayed it in instruction 001. Instruction 002 was withdrawn by 003 because it concerned spec 0018; no simplification from it applies here. Instruction 004 relayed “0019: Aprovo” for typed private invoke/prepare Results on the existing channel with bounded repair facts and code+validated trace projected publicly. Other recommendations above follow checked guides and references; no fresh product choice was manufactured for an observable implementation detail.
 
-Manifest/tree admission is the first real Result consumer. Its current code-as-message workaround becomes a total parser returning the first refusal, reused unchanged by the runner and check. The worker's narrow nine-code schema keeps an external process from inventing platform identities. Preparation's state/detail carrier moves with all its consumers. A generated app then exercises the same code through the whole application path, rather than proving the new contract with a dummy module only.
+The two independent spec reviewers (gpt-6.1-sol and gpt-6-sol) both reopened native runner escape/log ownership: runner/http.ts:59 logged before module.prepare reconstructed a Failure flowing into builder/run/run.ts:359 or service.ts:133. On 2026-10-07 instruction 005 relayed the operator’s “Aprovo” for option 2: final Hub exposure/Builder settlement owns one failure log, runner keeps original cause as a redacted native span event, existing unix instrumentation joins their trace, no recorded-failure role/header protocol/store and no path expansion. Locally unforwarded runner faults retain their local logger. The revised shape compiles producer and prepare/invoke/release consumption and named-Failure forwarding; unchanged terminal loggers need no skip state. Other findings corrected: action NONE, migration:null for transaction failures, missing-result rejection and table/body/response status agreement. Five corrected schema probes passed. Both independent reviewers rechecked the corrected flow and closed their findings with no new concrete blocker; their private reports preserve file:line evidence. Those review verdicts are distinct from the operator’s spec approval and the later built-head qualification proof.
 
-The sandbox-open defect fits the server role: opening the production environment failed before source changes, with no recovery decision for an inner caller. A SYSTEM row describes it, says it was recorded and offers no automatic retry. Its mapper belongs around production sandbox start, not a broad catch around checkout or preparation. The existing closed-endpoint verification harness can prove the real user surface without authorizing a real E2B sandbox.
+These decisions replace the former unsupported approval; they do not approve this revised spec. Its status is draft awaiting operator approval. Product builds remain gated. U1's characterization survives; its known guide departures are baseline facts with replacing units, rather than an impossible “stop on legacy defect” rule.
 
-The shared reader's source is compiled and generation-owned. The app cannot import Hub/web modules, so generation changes imports and audience data while keeping the same reader implementation. The existing generator is the packaging reference; an exact multi-target implementation generator was not found in the external clones. Drift checks and building both generated targets are the proof that this is one source rather than two maintained readers.
+The simplest target has one type-only Result, existing native Failure, one browser received role, one public Response writer, one canonical reader, app-only generation, one narrow start mapper and small named checks. It deliberately does not normalize lifecycle states, rewrite database history, generate a web reader, build a diagnosis service or classify every catch.
 
-All product replacement units wait for the authorization merge. The published 0018 shape retains native Failure, its catalog-selected code and a private reason. That fits this model. The full published index at the later revision keeps that refusal representation, explicitly assigns Result/failure modeling to 0019, and confirms overlaps in contract exports, generated failures and Mastra guards. U3 still rechecks the merged contract before product edits.
+### Native escape ownership, reopened by review
 
-The census distinguishes identities and occurrences from totals. A count-only ratchet would allow deleting a bad catch in one file and adding the same mechanism in another. CI therefore rejects new legacy-debt occurrence identities, requires removals to lower the committed record, and freezes lifecycle/SDK classifications. The raw count of all catches is informational: a new cause-preserving vendor mapper, rethrow or responsible logger is permitted by the same structural classification, while new swallowing/empty debt is forbidden. This allows the required sandbox-start mapper without creating a location-specific exception. The later model and sweep waves get an executable map of remaining debt and the exact replacement forms; they do not get license to rediscover the model or preserve compatibility.
+The root issue was erased responsibility, not a missing dedup service. Keeping the runner log plus adding a recorded-Failure role could preserve it but requires trusted origin metadata, wrapper/terminal changes and paths outside the reservation; R3 separates received roles but provides no once-only protocol. Allowing one log per process costs least immediately but reopens C §6 and the approved end condition. Removing runner logs without cause evidence loses diagnosis. Swallowing the fault hides failure and violates C/A. The approved alternative deletes propagated runner log calls, keeps original cause as native redacted exception event and lets existing final Hub owners log once. It fits the 54 paths, needs no new role/registry/channel and preserves source diagnosis without arbitrary cause transfer.
 
-## Evidence and limits
+Copied mechanism: installed OpenTelemetry API `build/src/trace/span.d.ts:130` recordException and sdk-trace-base2.10.0, existing native HTTP instrumentation and redacting exporters; M at the pinned revision `default.ts:469-510` preserves original Error and span diagnosis. Adaptation is final Hub log ownership instead of engine-local logging. Exact one-log topology not found externally; C/S/A and the operator decide this Conexus boundary. Native Fault Problems retain table identity rather than module’s old collapse; malformed transport retains named unavailability. Future default-logger suppression, exported cause redaction, trace correlation and terminal behavior still require U4/U5 runtime proof; compiling this flow is not that proof.
 
-- The study census was rerun on main `83188b3ace3866fdd1918cfe7ce55ba167b3b3db`; all headline metrics matched the earlier run. Its raw output and the required-path inventory remain in the planning session's private task evidence, outside this repository.
-- The code shape compiles in the pinned environment and includes thirteen negative type checks. It demonstrates the contract, operation narrowing, no private wire fields and the framework bridge; declarations do not prove the future implementation.
-- The three HTTP variants above have actual captured wire/hook/span/log evidence and literal assertions. This probe proves the carrier premise; it is not the final built-wave qualification proof.
-- `npm run verify:quick` passed before the initial shape was committed and pushed; the final `npm run verify:docs` passed all 221 repository tests with zero failures or skipped tests. The spec stage changes only its own folder. It does not edit product code, guides, recipes or another spec.
-- Authorization's remote shape was read at `0987494fb358b9c8491fae4476cbc16f05099393`. No conflict was found in its Failure/refusal contract. Its full index and all shape files were reread at that revision; U3 rechecks the merged spec before touching shared paths.
-- The final wave proof must observe the actual generated app, application runner, user-facing closed-sandbox failure and exported telemetry on the built head. Any real E2B/provider use still needs separate operator authorization.
+## Evidence
+
+Examined base: `b07a99e7d1d7fbd4c24f681befb51a00b92635b0`, local main `5efbc090c43176ca4e666688769d2a4ee09e1745`, U1 `6b59730bf4673e0a76dd68e9def265245aa7d435`. Product diffs main→base and main→U1 on apps/packages/contracts were empty, exit 0. These local revisions are not a claim to latest upstream. U1 https://github.com/developmentconexus-ops/conexus-os/pull/561 was observed open/unmerged; integration must be checked before building.
+
+Private planning evidence includes study.md, rerunnable census.mjs/bounded-census.mjs, JSON/file:line output, deterministic path-budget script, actual-source probes.mjs and six extracted U1 admission cases. Machine paths are intentionally omitted here; the planning session holds the report. U2 makes the bounded removal check public and required. Study broad census reruns 424 files, 63 ok:false/16 shapes, 27 other discriminants, 251 handlers/126 syntactic swallowing labels/18 empty. Bounded named counts are in index. Those labels do not prove 126 swallowed defects. Historical 278 raises/73 codes/44 absent table rows are migration history, not live callable failures. The committed catalog lists four functions, not a live proof.
+
+Study probes executed actual current modules/generated source: admission throws `MANIFEST_REFUSED: operations: must be an object`; worker schema accepts unknown code/private detail; generated app exposes PRIVATE_DETAIL and raw rejected TypeError; arbitrary trace marker displays `PRIVATE_`. Installed Fastify real socket probe: native bare Response wire404/onSend200, explicit mirror404/404. Six actual-source admission cases passed, zero failed/skipped. Node24.20.0/npm12.0.2 preflight passed. Shape compilation is type evidence only. The earlier audit's 21 focused passes were not rerun as a complete set in this study.
+
+Not verified here: future implementation, confined future worker, actual DB reset/migration/cancellation race/catalog replay, real browser, exported target telemetry/log/trace, whole U1/CI, E2B/provider turn. U4–U8 require these target proofs where applicable; no existing double is relabeled as end-to-end evidence. Existing `scripts/generate-hub-catalog-snapshot.mjs:47-73` already performs protected isolated replay/readFunctions. It remains owner; no duplicate parser or SQL policy is justified by unrun replay.
+
+### Mechanism verdicts: three proofs each
+
+Proof 1 establishes current existence/reachability and states the operational limit; it is not a claim that future behavior works. Proof 2 is the guide obligation; proof 3 is reference comparison and cost.
+
+| Mechanism and verdict | Proof 1, current code / operational limit | Proof 2, guide target | Proof 3, reference and cost |
+| --- | --- | --- | --- |
+| Failure/MastraError, toFailure: KEEP | platform/failure.ts:15-33; native class/cause extension inspected, not new target-runtime tested | C §2/§6, A §2 | B and M retain native exceptions. Replacement would remove working native metadata without a proved gain |
+| Table and generated text/status/action: KEEP | 260 rows; generator:89-110; existing consumers run in probe | C §4/§6; V Voice | B owns code/text together. Conexus status/audience are deliberate adaptation; no second table |
+| Result=Reply alias: DELETE | operation.ts:66; web http type import | C §4/§10, A §5 | M's Result has different meaning. Use existing Reply name; only one new type-only definition |
+| Shared handled Result: REPLACE local branch envelopes | manifest/work/preparation callers observed | C §6; no generic Product API introduced | M/I ok/result/error. Plain union costs caller edits, no library, factory or runtime combinators |
+| Manifest grammar/first-error walk/schemaViolation: KEEP; throwing helpers: REPLACE | six U1 grammar tests pass; pointer creation at supervisor:235/254 | C §5 explicit exception, C §6 | Z safeParse supplies principle, not grammar. Preserve grammar; fewer code-prefix decoders, no general schema rewrite |
+| ADMISSION_ROW and uppercase message classifiers in owned path: DELETE | runner http:21-25 and run-operation:200-203 | C §6 | C and Mastra SDK demonstrate contrary fallbacks, not reason to copy them. Typed refusal eliminates need |
+| WorkerJob/Caller/relay/socket/confinement: KEEP | wire:1-25; sandbox:53-66,115-133; pg-relay:204-218; future restricted runtime unproved | A §7, S §1/§8 | Native worker/runtime separation rather than new engine. Preserve mount/dependency footprint; no new host authority |
+| Worker result/free code/detail: REPLACE; detail formatter/filter: DELETE | wire:27-31, worker:81-84, supervisor:65-71; permissive parse reproduced | C §5/§6; S §7 | M union adapted to strict nine-code external identity; not wholesale table authority. Any safe SQLSTATE must be separately typed, not parsed prose |
+| WorkerOutcome timeout/crash/output limit: KEEP | sandbox:48-51; supervisor:248-249 | C §4, A recovery/runtime | M distinguishes lifecycle and local step results. No failed-state codemod |
+| Prepare state/detail format: REPLACE | module:57-66; application-build:47-53; no actual DB reset test here | C §6; D §2/§8 | M/Z branchable result, preserving applied/reset/divergence facts. Explicit handled HTTP 200 private convention |
+| Prepare serialization/reset/refusal/cancellation: KEEP | supervisor:195-220; module:21-22,55-56 | C §7, A recovery, D integrity | References do not prove timings. Existing actual behavior is pinned obligation, real race proof required; queue continuation is not automatically lost error |
+| Trusted diagnosis: KEEP, replace prose projection | supervisor:235-255 and migration divergence; run-operation:85-113 | P §2; A §6; S §7 | D and M retain internal diagnosis. Keep bounded facts on existing private channel; no diagnostic service or store |
+| Public detail/cause/provider/raw stdout: DELETE | generated error exposes planted marker; worker/migration free-text paths | S §7/§9, H §5 | Reference disclosure differs and is rejected by guide; no arbitrary text inside public role |
+| failureProblem/sendFailure/sendInternal/problemBody and body assemblers: REPLACE/DELETE | 6 calls and 4 definitions; hosting/Mastra packet construction inspected | H §5; C §10 | P central writer; I/F native Response at HTTP boundary. No second public body writer |
+| Native Fastify/Mastra extension points and SDK log suppression: KEEP | installed lines above; Fastify socket probe; target Mastra/telemetry not rerun | A §2/§8; S §5 | I/F documented carrier. Explicit mirroring, sync hook body, custom HTTPException, no patch/fork |
+| logFailure/exporters/native HTTP trace: KEEP; propagated runner failure logs/detail forwarding: DELETE | failure.ts:62-72; runner http:59; terminal run/run.ts:359; telemetry/start.ts:24-30,50-57 and redact.ts:23-27,44-73; target export unproved | C §6, S §9; A §2/§5; C-029 | M default.ts:469-510 preserves cause and span diagnosis. Adapt owner to final Hub log; runner native exception event is redacted, native unix trace joins them. No recorded role/dedup/header/store or terminal edit |
+| HubFailure/ConexusError: REPLACE with one received role | web:7-17; generation:122-131; probes | C §6/§10, A §5 | B/D distinguish server/received jobs. Current instanceof callers favor one shared class over migrating every branch to plain fields |
+| Generated failure decoder/HTTP_nnn/fallback/wrapper: DELETE | generator:65-84 and failure generator:137-139; four shipped example imports | H §5/§9; V Voice; C §10 | B code owner/D received reconstruction; app-only generation adapts existing packaging, not new architecture |
+| Problem parser/table formatter: KEEP, strengthen trace boundary | trace gap reproduced; 8 direct web imports incl. run-failure.tsx | C §5, S §7; V Voice | D parsing principle adapted strictly. Preserve shortReference for legitimate UUID run references |
+| Browser package source/app support generation: REPLACE duplication | web already imports contract; generated app fixed stack; path budget 54 | A §5/§8, C §10 | Exact external generator not found. Direct web import avoids second emitted implementation and extra drift checks |
+| Native start/settlement: KEEP; generic start mapping: REPLACE | start at conversation-sandboxes:53; U1 sandbox characterization read, not rerun | A §6; C §6; roadmap | Native Error/cause plus named local row. Single boundary catch, no retry, no lifecycle redesign |
+| SQL structural constraints/map/history/catalog owner: KEEP | db.ts:148-170; committed four-function snapshot, live state unverified | D §2/§3/§5/§8 | P/SA code mapping; BJ business SQL differs deliberately. No migration or duplicate replay/parser |
+| Temporary compiled shape: KEEP for review, DELETE last | revised shape compiles with negative type tests | spec rules 4/12 | Method artifact, not product mechanism. Negative type tests must survive in real contract tests |
+| Global semantic checker/occurrence identities/dual reader generation: DELETE proposal | no production implementation exists; old U2/U6 demand them | A §2, C §10/§11 | No exact reference found. Bounded zero-target checks and app-only emission satisfy observed need at lower cost |
+
+
+Untouched broker/check/control/Git/vendor/account/served-file mechanisms are deferred departures or unclassified native roles, not certified KEEP decisions. We do not invent their three proofs or use them as compatibility adapters. The roadmap owns continuation. New shape now compiles; negative type tests move into real production contract tests before U8 removes it.
+
+### Audit disposition
+
+| Finding | Resolution and evidence | Target proof |
+| --- | --- | --- |
+| F1 unsupported approval/analysis | Unsupported status/overnight proof/lower bound removed. New root-cause study/options/checked references above; only relayed study/private-carrier approvals recorded. Draft status. | Spec review and actual operator approval gate |
+| F2 contradictory U1 stop | Existing PR retained; stop only on missing pin/integration or new premise/authority conflict. Known defects assigned U4/U6. `.network` grouping factual T correction with U1. | Existing pin on unchanged main and integrated wave, explicit doubles |
+| F3 lost useful diagnosis | Private typed fact variants and real consumers preserved; code-only public projection. data-plane reserved to retain failed migration identity. No prose SQLSTATE parser. R3 retains internal diagnosis. | U4 repair facts plus U5/U6 marker exclusion, real DB/confinement |
+| F4 reader matrix/trace/fetch | Matrix explicitly covers unknown, missing audience, malformed status/trace, rejection and abort at both real fetch call sites; canonical schema/formatter and UUID caller preserved. | U6 actual generated artifact, web build/browser and fetch identity |
+| F5 fictional worker bundle | Real staging files/dependency closure named; contract imports type-only, runtime schema local wire/Zod. Unrestricted U1 worker is insufficient. | U4 actual restricted runtime success/refusal/hostile output |
+| F6 overbuilt census | Bounded named AST checks/record with activated zeros; broad metrics informational; strict fixtures and existing drift. No occurrence identities/semantic catch labels/new SQL replay. | U2 check fixtures, replacing-unit zeros, existing catalog check |
+| F7 late guide rules/private status/logging/SQL | Rules land U3/C, U4/private H and canonical Problem, U5/public H, U6/V, U1/factual T. Private handled200JSON vs escaping problem status explicit. Operator-approved final Hub log owner, native redacted runner cause span and unix trace are compiled/named for prepare/invoke/release; no terminal edit/skip flag. D policy unchanged, no hypothetical raise rule. | U4/U5 exact boundary logs/trace and runtime races |
+| F8 duplicate reader emission/missed formatter/budget | Web direct contract import; only app emission; run-failure.tsx included among eight imports; sorted explicit 54-path union below. No emitted web implementation. | U6 both builds/examples/drift; U8 final path/census audit |
+
+### Reserved product/check/configuration paths
+
+This is a sorted explicit union: **54** unique paths, including deletion paths, generated outputs, data-plane, formatter-only run-failure.tsx, scripts/record and optional package.json. Markdown, tests and temporary spec shape are outside this reservation. A card's “Files” names only members of this union unless it names those excluded categories. An unreserved product path is a stop, not implicit permission to spend the remaining 70-file ceiling.
+
+```text
+apps/hub/compiler-template/generate-client.mjs
+apps/hub/src/app-runner/data-plane.ts
+apps/hub/src/app-runner/http.ts
+apps/hub/src/app-runner/module.ts
+apps/hub/src/app-runner/sandbox.ts
+apps/hub/src/app-runner/server-manifest.ts
+apps/hub/src/app-runner/supervisor.ts
+apps/hub/src/app-runner/wire.ts
+apps/hub/src/app-runner/worker.ts
+apps/hub/src/builder/application-build.ts
+apps/hub/src/builder/check/steps/boot-server.ts
+apps/hub/src/builder/check/steps/generate.ts
+apps/hub/src/builder/check/steps/server-bundle.ts
+apps/hub/src/builder/conversation-sandboxes.ts
+apps/hub/src/builder/mastra-session-routes.ts
+apps/hub/src/builder/run-operation.ts
+apps/hub/src/generated/app-failures.ts
+apps/hub/src/hosting/application-host-routes.ts
+apps/hub/src/hosting/application-invoker.ts
+apps/hub/src/hosting/preview-routes.ts
+apps/hub/src/http/app.ts
+apps/hub/src/http/problem.ts
+apps/hub/src/platform/failure-text.generated.ts
+apps/hub/src/platform/failures.generated.ts
+apps/hub/src/telemetry/log-codes.generated.ts
+apps/hub/starter-template/files/app/src/lib/errors.ts
+apps/web/src/app/attempt-key.ts
+apps/web/src/app/failure.ts
+apps/web/src/app/foreign.ts
+apps/web/src/app/http.ts
+apps/web/src/app/route-params.ts
+apps/web/src/features/builder/construir/run-failure.tsx
+apps/web/src/features/builder/mastra-session.ts
+apps/web/src/features/connector/connector-api.ts
+apps/web/src/features/entry/entry-screens.tsx
+apps/web/src/features/identity-access/api.ts
+builder-skills/conexus-app/references/dashboard.tsx
+builder-skills/conexus-app/references/form.tsx
+builder-skills/conexus-app/references/list.tsx
+builder-skills/conexus-app/references/record.tsx
+contracts/api/product/openapi.json
+contracts/api/technical/openapi.yaml
+contracts/technical/error-model-census.json
+contracts/technical/failures.json
+package.json
+packages/contract/src/failure-client.ts
+packages/contract/src/failures.generated.ts
+packages/contract/src/index.ts
+packages/contract/src/operation.ts
+packages/contract/src/problem.ts
+packages/contract/src/result.ts
+scripts/census-error-model.mjs
+scripts/conexus-verify.mjs
+scripts/generate-failures.mjs
+```
 
 ## References
 
-Primary clone/source references are listed with their kept/adapted portions in index.md. In addition to those rows, the study reviewed Cal.com `packages/lib/server/getServerErrorFromUnknown.ts:17-30,127-179,207-210`, Supabase Auth `internal/api/errors.go:76-79,142-182`, PostgREST `docs/references/errors.rst:366-460`, and Better Auth `packages/core/src/db/adapter/factory.ts:600-606,825-832`. Their message fallbacks, overlapping status maps and legacy carriers are evidence of drift risks, not mechanisms copied into this model.
+Each revision was checked out and read locally, read-only. Machine paths are not part of the public contract. File ranges identify code actually inspected; no remembered web link decides this spec.
 
-Industry sources used for the rules: [Node error.code](https://nodejs.org/api/errors.html#errorcode), [TypeScript unknown catch variables](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-4.html#defaulting-to-the-unknown-type-in-catch-variables---useunknownincatchvariables), [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html), [OpenTelemetry recording errors](https://opentelemetry.io/docs/specs/semconv/general/recording-errors/), [Zod safeParse](https://zod.dev/basics#handling-errors), the Effect sources and TypeScript issue in index.md. No conclusion here depends on the study's unverified summary of structured-clone behavior.
-
-The owning Conexus guides read for this design were A, C, D, H, L, P, S, T and V, plus the verify skill and Construir recipe. The spec's unit cards state the exact guide changes; this stage leaves those guides unchanged.
-
-## Independent interrogation and disposition
-
-Two fresh reviewers independently applied the pstack interrogate rubric and code-quality lens against the study, guides, actual callers and compiled shape. The current session’s reviewer configuration selected gpt-6.1-sol and gpt-6-sol, each at medium effort. Neither reviewer implemented product changes.
-
-| Reviewer / finding | Evidence | Disposition |
+| Key | Repository/revision | Inspected source and limit |
 | --- | --- | --- |
-| gpt-6.1-sol / critical: deleted formatter still used by shipped Builder examples | Four `builder-skills/conexus-app/references/*.tsx` examples import `@/lib/errors`; the app/server skills teach those exports and ConexusError | Resolved in U6: migrate all four examples and both skills in the deleting unit, compile the examples against generated code, and check old instructions are absent. Conservatively count the six additional paths: 46 product paths total |
-| gpt-6.1-sol / warning: catch ratchet could reject the required sandbox mapper | U2 froze every increase while U7 adds a legitimate vendor-boundary catch around start | Resolved in the census contract: raw catch totals are informational; swallowing/empty and other legacy-debt occurrence sets only decrease. The same structural rule admits valid cause-preserving mappings, without path exemptions |
-| gpt-6-sol / no findings | Traced manifest/check/runner/hosting/Mastra/generated-client callers, authorization shape and HTTP probe; compiled the shape and checked thirteen negative assertions | Answered: independent review found no evidence-backed blocker; proposed product behavior still requires built-wave proof |
+| P | PostgREST `d42ae9d55d12989cdc2f0fda8d551b07af4e6ab5` | `src/library/PostgREST/Error.hs:84-101,541-600`: central writer/SQLSTATE, also message fallbacks/custom raises. Not a universal no-diagnosis/SQL-rule reference. |
+| SA | Supabase Auth `ce9a8eee0cc042be8c7a42981a7ddae631e41d91` | `internal/utilities/postgres.go:12-75`, `internal/api/errors.go:76-79,151-182`: machine SQL field and typed HTTP role, retains messages/details/custom status. |
+| BJ | Basejump `7a1f95ccef74eb2e638d5e4233b66b6cbbe175e6` | `supabase/migrations/20240414161947_basejump-accounts.sql:395-459,500-510`: business/authority SQL exceptions. Conexus deliberately follows D §8's TypeScript policy instead. |
+| B | Better Auth `0e1a9c8413ff048a617cad81ab67175933ca8c7a` | `packages/core/src/utils/error-codes.ts:30-68`, `packages/core/src/error/index.ts:3-43`: code/text owner and different setup/API roles; no shared reader generator/census. |
+| C | cal.com `54343aa685ae8f33159d2f485ec4a57bad5c574a` | `packages/lib/server/getServerErrorFromUnknown.ts:17-30,127-160,202-210`: Prisma machine mapping plus prose fallback, which is not copied. |
+| D | Documenso `cd0cc5febcbb76ec7e5ecb75c0b8c65ab8432198` | `packages/lib/errors/app-error.ts:184-322`: internal/received representation and diagnosis; permissive unknown parsing adapted, not copied. |
+| M | Mastra fork `ce7e9c30c1fb22ca37936121d88336ccee1f955c` | `packages/core/src/workflows/default.ts:458-517`, `mastracode/sdk/src/error-classification.ts:9-16`, `mastracode/factory/src/server-error.ts:14-30`: plain result around native Error; SDK prose fallback/native message disclosure are contrary examples. No exact worker fact protocol. |
+| I/F/Z | Installed core/server1.71.0, fastify-adapter1.5.15, code-sdk1.8.3; Fastify5.12.1/otel0.21.0; Zod4.6.5 | Exact R1/R5/R7 lines; actual source/types/docs and socket probe. OpenTelemetry API `build/src/trace/spancontext-utils.js:35-36` validates 32hex nonzero; browser enforces equivalent boundary. |
+| Factory | dev-factory `46afa616eafb54e57fa6ec71a9a3392f0dfb485a` (audit input) | Audit read sandbox composition/cleanup/setup; current study established no exact Result/reader/census mechanism there. Not deciding proof for a new feature. |
+| Supabase monorepo | `cb52c0f42565032ab3f1cfb9a48fe4c44aad381e` | Located/versioned; packages/common searched, no relevant generator/Result mechanism established. Never substitute for inspected Supabase Auth. |
+| Conexus | Base/main/U1 revisions under Evidence | `operation.ts:66`; runner `server-manifest.ts:26-28,189,249-296`, `wire.ts:27-31`, `worker.ts:81-89`, `supervisor.ts:195-255`, `sandbox.ts:115-133`, `module.ts:57-66`, `http.ts:21-25`; Builder `run-operation.ts:85-113,200-203`, `application-build.ts:35-53`, `conversation-sandboxes.ts:53`; `problem.ts:9`; web `failure.ts:26-63`; generators `generate-client.mjs:65-84`, `generate-failures.mjs:89-141`; `db.ts:148-170`, catalog snapshot:453-456. Current evidence/delete destinations, never architectural authority. |
 
-Both reviewers confirmed the submitted shape compiles; the first reviewer reread both corrections and reported no unresolved finding. The first review also exposed the omitted six shipped paths in the original 40-path inventory; the bounded inventory and standalone U6 card now include them. No finding remains unanswered.
-
-The final budget also reserves telemetry and both OpenAPI generated artifacts in U3, for 49 product paths plus four script/configuration paths: 53 total against the 70-file cap. These outputs are regenerated through their existing owners only when declarations change them; their generators and the deferred log-registry model are unchanged.
+The standing authority remains roadmap, decision register, product contract, mapped subject guides and delivery Waves, in their owning documents. This spec consumes authorization's interface only and does not certify its draft or edit its content.

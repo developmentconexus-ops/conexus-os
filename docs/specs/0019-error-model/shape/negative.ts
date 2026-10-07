@@ -1,4 +1,4 @@
-import type { Result, ManifestRefusal, WorkerAnswer, PrepareAnswer, AccountConnectionAnswer } from './types.js'
+import type { Result, ManifestRefusal, WorkerAnswer, PrepareAnswer, AccountConnectionAnswer, InvokeAnswer, TraceReference } from './types.js'
 import { Failure, failureResponse } from './server.js'
 import { ReceivedFailure } from './client.js'
 
@@ -18,7 +18,7 @@ if (!answer.ok) {
   answer.error = { code: 'MANIFEST_REFUSED', where: '', diagnostic: '' }
 }
 // @ts-expect-error Worker failures do not transport text.
-const leaks: WorkerAnswer = { ok: false, error: { code: 'HANDLER_FAILED', detail: 'synthetic private marker' } }
+const leaks: WorkerAnswer = { ok: false, error: { code: 'HANDLER_FAILED', sqlstate: null, detail: 'synthetic private marker' } }
 // @ts-expect-error The worker cannot emit another operation's refusal.
 const wrongWorker: WorkerAnswer = { ok: false, error: { code: 'MANIFEST_REFUSED' } }
 // @ts-expect-error A failed preparation carries no successful reset decision.
@@ -31,3 +31,9 @@ failureResponse({ code: 'MANIFEST_REFUSED', traceId: null, diagnostic: 'private 
 new ReceivedFailure({ code: 'NOT_FOUND', status: 404, traceId: null, detail: 'private marker' })
 // @ts-expect-error Logged server diagnostics are scalar.
 new Failure('INTERNAL_UNEXPECTED', { details: { values: ['private marker'] } })
+// @ts-expect-error A reference must have passed its boundary schema.
+const rawTrace: TraceReference = 'PRIVATE_DIAGNOSTIC_MARKER'
+// @ts-expect-error Worker SQLSTATE cannot carry unparsed prose.
+const rawSql: WorkerAnswer = { ok: false, error: { code: 'HANDLER_FAILED', sqlstate: 'secret message' } }
+// @ts-expect-error Invoke diagnostic facts belong to their code's variant.
+const wrongFact: InvokeAnswer = { ok: false, error: { code: 'OPERATION_NOT_FOUND', export: 'find' } }
