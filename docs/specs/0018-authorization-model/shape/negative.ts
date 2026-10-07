@@ -16,7 +16,7 @@ gate.rows()
 // @ts-expect-error A structural object cannot mint a gate.
 const forgedGate: CommandGate = { mode: 'write' }
 // @ts-expect-error A read proof cannot write.
-beginDeletion(read, 'Example')
+const writeProof: Admitted<ProjectScope<'project.read'>> = read
 // @ts-expect-error A Checked read is not an admitted deletion command.
 beginDeletion(view, 'Example')
 // @ts-expect-error Proofs are nominal.
