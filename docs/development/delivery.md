@@ -54,6 +54,7 @@ coordinates them.
 | Prove | [`conexus-prove`](../../.agents/skills/conexus-prove/SKILL.md) | A report on the wave head: a verdict per AC behind an evidence gate | Every AC met, no regression, every census line on target |
 
 - A wave that will be built **must** have one spec in `docs/specs/NNNN-title/`, no child specs.
+  S1 alone keeps its previously approved child specs under [C-039](../decisions/index.md).
 - Every decision **must** go into the spec or a guide when it is made. No decision file grows beside
   them. The manager brings each load-bearing choice to the operator, one at a time, with the
   options, a recommendation and its reference.
