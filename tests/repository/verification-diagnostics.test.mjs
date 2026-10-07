@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -44,7 +44,10 @@ test('a failed assertion is reported while the next test is still running', { ti
   const ledger = newTestLedger(root)
   writeFileSync(fixture, `
     import test from 'node:test'
-    test('first failure', () => { throw new Error('FIRST_ACTIONABLE_ASSERTION') })
+    test('first failure', async (t) => {
+      await t.test('reporter calibration', { skip: 'opt-in: temporary reporter fixture' }, () => {})
+      throw new Error('FIRST_ACTIONABLE_ASSERTION')
+    })
     test('unfinished test', async () => {
       const timer = setInterval(() => {}, 1000)
       try { await new Promise(() => {}) } finally { clearInterval(timer) }
@@ -77,4 +80,6 @@ test('a failed assertion is reported while the next test is still running', { ti
   assert.match(output, /not ok 1 - first failure/)
   assert.match(output, /error: '?FIRST_ACTIONABLE_ASSERTION'?/)
   assert.equal(child.exitCode, null, 'the diagnostic does not depend on the suite finishing')
+  const records = readFileSync(ledger.file, 'utf8').trim().split('\n').map(line => JSON.parse(line))
+  assert.deepEqual(records, [{ file: 'failure.test.mjs', name: 'reporter calibration', skip: 'opt-in: temporary reporter fixture' }])
 })

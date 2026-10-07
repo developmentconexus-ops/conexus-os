@@ -23,6 +23,7 @@ const fail = (message) => {
 // ledger reporter never loads in it and its skips cannot be seen. Only these files may start one.
 const NESTED_RUN_ALLOWLIST = new Map([
   ['tests/repository/verify-gates.test.mjs', 'runs fixture trees in temporary directories, outside the verify root'],
+  ['tests/repository/verification-diagnostics.test.mjs', 'runs a deliberate failure and pending test in a temporary fixture tree with its own ledger and clears NODE_TEST_CONTEXT'],
   ['tests/implementation/builder-production-composed-live-runner.mjs', 'an opt-in live runner started by npm, never under node --test'],
 ])
 const SPAWNED_TEST_FLAG = /(['"`])--test\1/
