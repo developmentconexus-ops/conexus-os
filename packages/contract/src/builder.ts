@@ -142,7 +142,7 @@ export const getBuilderSession = operation({
   id: 'getBuilderSession', summary: 'Read the Builder session of a Project: its thread and its latest run and Preview.', access: 'session', method: 'GET', path: '/api/control/projects/:projectId/builder-session',
   params: projectParam, query: null, headers: null, body: null,
   success: { 200: BuilderSession },
-  effects: [], failures: ['BUILDER_SESSION_UNAVAILABLE', 'PROJECT_BUILD_DENIED', 'PROJECT_DELETING', 'BUILDER_SOURCE_UNAVAILABLE'], malformed: { projectId: SUBJECT_NOT_FOUND.projectId },
+  effects: [], failures: ['BUILDER_SESSION_UNAVAILABLE', 'PROJECT_DELETING', 'BUILDER_SOURCE_UNAVAILABLE'], malformed: { projectId: SUBJECT_NOT_FOUND.projectId },
 })
 
 export const sendBuilderMessage = operation({
@@ -152,7 +152,7 @@ export const sendBuilderMessage = operation({
   body: z.object({ content: z.string().min(1).max(20_000).regex(/\S/), conversationId: ConversationId }).strict(),
   success: { 201: BuilderMessageAccepted, 200: BuilderMessageAccepted },
   effects: [],
-  failures: ['BUILDER_CAPACITY_FULL', 'PROJECT_BUILD_DENIED', 'PROJECT_DELETING', 'ACCOUNT_INACTIVE',
+  failures: ['BUILDER_CAPACITY_FULL', 'PROJECT_DELETING', 'ACCOUNT_INACTIVE',
     'BUILDER_RUN_CREATE_FAILED', 'BUILDER_BUSY', 'PROJECT_BUSY', 'BUILDER_SOURCE_UNAVAILABLE'],
   malformed: { projectId: SUBJECT_NOT_FOUND.projectId, content: 'BUILDER_MESSAGE_REFUSED', conversationId: 'CONVERSATION_NOT_FOUND' },
 })
@@ -161,7 +161,7 @@ export const cancelBuilderRun = operation({
   id: 'cancelBuilderRun', summary: 'Cancel a Builder run; repeating the request changes nothing.', access: 'session', method: 'POST', path: '/api/control/projects/:projectId/builder-session/runs/:builderRunId/cancel',
   params: runParams, query: null, headers: null, body: noBody,
   success: { 200: BuilderMessageAccepted },
-  effects: [], failures: ['PROJECT_BUILD_DENIED', 'PROJECT_DELETING', 'ACCOUNT_INACTIVE'],
+  effects: [], failures: ['PROJECT_DELETING', 'ACCOUNT_INACTIVE'],
   malformed: { projectId: SUBJECT_NOT_FOUND.projectId, builderRunId: 'BUILDER_RUN_NOT_FOUND' },
 })
 
@@ -169,7 +169,7 @@ export const getBuilderRunTrace = operation({
   id: 'getBuilderRunTrace', summary: 'Read the safe trace projection of one Builder run.', access: 'session', method: 'GET', path: '/api/control/projects/:projectId/builder-session/runs/:builderRunId/trace',
   params: runParams, query: null, headers: null, body: null,
   success: { 200: BuilderTraceSummary },
-  effects: [], failures: ['BUILDER_TRACE_UNAVAILABLE', 'PROJECT_BUILD_DENIED'],
+  effects: [], failures: ['BUILDER_TRACE_UNAVAILABLE'],
   malformed: { projectId: SUBJECT_NOT_FOUND.projectId, builderRunId: 'BUILDER_RUN_NOT_FOUND' },
 })
 
@@ -184,5 +184,5 @@ export const launchBuilderPreview = operation({
   id: 'launchBuilderPreview', summary: 'Launch the Preview of the last good build of a Project.', access: 'session', method: 'POST', path: '/api/control/projects/:projectId/builder-session/preview',
   params: projectParam, query: null, headers: null, body: noBody,
   success: { 201: PreviewLaunch },
-  effects: [], failures: ['PREVIEW_SUBJECT_NOT_FOUND', 'PROJECT_BUILD_DENIED', 'PROJECT_DELETING', 'PREVIEW_UNAVAILABLE'], malformed: { projectId: SUBJECT_NOT_FOUND.projectId },
+  effects: [], failures: ['PREVIEW_SUBJECT_NOT_FOUND', 'PROJECT_DELETING', 'PREVIEW_UNAVAILABLE'], malformed: { projectId: SUBJECT_NOT_FOUND.projectId },
 })

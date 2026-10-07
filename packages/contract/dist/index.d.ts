@@ -1117,7 +1117,6 @@ export declare const OPERATIONS: {
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -1389,7 +1388,6 @@ export declare const OPERATIONS: {
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -1724,7 +1722,6 @@ export declare const OPERATIONS: {
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -1995,7 +1992,6 @@ export declare const OPERATIONS: {
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -2228,7 +2224,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["BUILDER_SESSION_UNAVAILABLE", "PROJECT_BUILD_DENIED", "PROJECT_DELETING", "BUILDER_SOURCE_UNAVAILABLE"];
+        readonly failures: readonly ["BUILDER_SESSION_UNAVAILABLE", "PROJECT_DELETING", "BUILDER_SOURCE_UNAVAILABLE"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };
@@ -2343,7 +2339,6 @@ export declare const OPERATIONS: {
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -2614,7 +2609,6 @@ export declare const OPERATIONS: {
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -2937,7 +2931,6 @@ export declare const OPERATIONS: {
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -3208,7 +3201,6 @@ export declare const OPERATIONS: {
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -3441,7 +3433,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["BUILDER_CAPACITY_FULL", "PROJECT_BUILD_DENIED", "PROJECT_DELETING", "ACCOUNT_INACTIVE", "BUILDER_RUN_CREATE_FAILED", "BUILDER_BUSY", "PROJECT_BUSY", "BUILDER_SOURCE_UNAVAILABLE"];
+        readonly failures: readonly ["BUILDER_CAPACITY_FULL", "PROJECT_DELETING", "ACCOUNT_INACTIVE", "BUILDER_RUN_CREATE_FAILED", "BUILDER_BUSY", "PROJECT_BUSY", "BUILDER_SOURCE_UNAVAILABLE"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
             readonly content: "BUILDER_MESSAGE_REFUSED";
@@ -3554,7 +3546,6 @@ export declare const OPERATIONS: {
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -3825,7 +3816,6 @@ export declare const OPERATIONS: {
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -4058,7 +4048,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["PROJECT_BUILD_DENIED", "PROJECT_DELETING", "ACCOUNT_INACTIVE"];
+        readonly failures: readonly ["PROJECT_DELETING", "ACCOUNT_INACTIVE"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
             readonly builderRunId: "BUILDER_RUN_NOT_FOUND";
@@ -4115,7 +4105,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["BUILDER_TRACE_UNAVAILABLE", "PROJECT_BUILD_DENIED"];
+        readonly failures: readonly ["BUILDER_TRACE_UNAVAILABLE"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
             readonly builderRunId: "BUILDER_RUN_NOT_FOUND";
@@ -4181,7 +4171,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["PREVIEW_SUBJECT_NOT_FOUND", "PROJECT_BUILD_DENIED", "PROJECT_DELETING", "PREVIEW_UNAVAILABLE"];
+        readonly failures: readonly ["PREVIEW_SUBJECT_NOT_FOUND", "PROJECT_DELETING", "PREVIEW_UNAVAILABLE"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };

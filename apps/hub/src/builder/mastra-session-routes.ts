@@ -61,6 +61,7 @@ const BROWSER_ROUTES: ReadonlySet<string> = new Set([
 // checked against the resource.
 const STREAM_ROUTE_KEY = sessionRoute('GET', '/stream')
 const SESSIONLESS_ROUTES: ReadonlySet<string> = new Set([sessionRoute('GET', '/threads'), sessionRoute('GET', '/threads/:threadId/messages')])
+const THREAD_MESSAGES_ROUTE = sessionRoute('GET', '/threads/:threadId/messages')
 // A conversation's model changes only between runs (AC-12); a run in flight is refused.
 const IDLE_ONLY_ROUTES: ReadonlySet<string> = new Set([sessionRoute('POST', '/model')])
 
@@ -246,8 +247,8 @@ type GuardedMount = Readonly<{
   prefix: string
   controllerId: string
   routes: ReadonlySet<string>
-  /** Whether the Account may build this Project. */
-  mayBuild(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<boolean>
+  /** Admits the Account to this Project or propagates its current subject refusal. */
+  admitBuilder(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<void>
   /** Whose thread the conversation id is: this Project's, another resource's, or nobody's yet. */
   conversationOwner(input: Readonly<{ projectId: ProjectId; conversationId: ConversationId }>): Promise<'PROJECT' | 'OTHER' | 'NONE'>
   /** Whether the Project has a run queued or in flight. */
@@ -286,7 +287,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
         throw new Failure('SESSION_STATE_REFUSED')
       }
       // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-      const params = request.params as Readonly<{ controllerId?: string; resourceId?: string }>
+      const params = request.params as Readonly<{ controllerId?: string; resourceId?: string; threadId?: string }>
       if (params.controllerId !== mount.controllerId) throw new Failure('BUILDER_SESSION_NOT_FOUND')
       const accountId = session.account.accountId
       // Opening a session names its resource, scope and thread in the body; every other session
@@ -294,20 +295,22 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       const creating = key === CREATE_SESSION_ROUTE
       const opened = creating && typeof body === 'object' && body !== null ? body : {}
       const resourceId = creating ? (typeof opened.resourceId === 'string' ? opened.resourceId : undefined) : params.resourceId
-      if (resourceId === undefined && !creating) {
-        admitted.set(request, { accountId, scope: undefined })
-        return undefined
-      }
       // Every conversation of a Project lives under the Project's own resource.
       const projectId = ProjectId.safeParse(resourceId === undefined ? undefined : PROJECT_RESOURCE.exec(resourceId)?.[1]).data
-      if (!projectId || !await mount.mayBuild({ accountId, projectId })) {
-        throw new Failure('PROJECT_BUILD_DENIED')
-      }
+      if (!projectId) throw new Failure('PROJECT_NOT_FOUND')
+      await mount.admitBuilder({ accountId, projectId })
       const sessionScope = creating
         ? (typeof opened.sessionScope === 'string' ? opened.sessionScope : undefined)
         // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
         : (request.query as Readonly<{ sessionScope?: string }>).sessionScope
       if (SESSIONLESS_ROUTES.has(key)) {
+        if (key === THREAD_MESSAGES_ROUTE) {
+          // Mastra loads messages by thread id; the thread's stored resource must match the admitted Project.
+          const conversationId = ConversationId.safeParse(params.threadId)
+          if (!conversationId.success || await mount.conversationOwner({ projectId, conversationId: conversationId.data }) !== 'PROJECT') {
+            throw new Failure('CONVERSATION_NOT_FOUND')
+          }
+        }
         admitted.set(request, { accountId, scope: undefined })
         return undefined
       }
@@ -379,12 +382,12 @@ const bindConversationSession = async (controller: AgentController, conversation
  * browser needs to list and open a Project's conversations, follow a run, answer it, and set a
  * conversation's model, each behind the Hub session and the Project the resource names.
  */
-export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, conversations, mayBuild, conversationOwner, projectBusy, answerQuestion, toolPayloads, streamBacklog }: Readonly<{
+export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, conversations, admitBuilder, conversationOwner, projectBusy, answerQuestion, toolPayloads, streamBacklog }: Readonly<{
   mastra: Mastra
   controllerId: string
   controller: AgentController
   conversations: GuardedMount['conversations']
-  mayBuild: GuardedMount['mayBuild']
+  admitBuilder: GuardedMount['admitBuilder']
   conversationOwner: GuardedMount['conversationOwner']
   projectBusy: GuardedMount['projectBusy']
   answerQuestion: GuardedMount['answerQuestion']
@@ -393,7 +396,7 @@ export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastr
   /** The unsent bytes a stream may hold, and how often they are checked; tests set it small. */
   streamBacklog?: StreamBacklog
 }>): Promise<void> => registerGuardedMastraMount(app, {
-  mastra, controller, conversations, controllerId, mayBuild, conversationOwner, projectBusy, answerQuestion,
+  mastra, controller, conversations, controllerId, admitBuilder, conversationOwner, projectBusy, answerQuestion,
   ...(toolPayloads ? { toolPayloads } : {}),
   ...(streamBacklog ? { streamBacklog } : {}),
   prefix: BUILDER_PREFIX,

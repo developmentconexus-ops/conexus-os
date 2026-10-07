@@ -2167,7 +2167,7 @@ const stubSessionReads = async (page, accountId, projectId, answer) => {
     const status = answer()
     await route.fulfill(status === 200
       ? { status, contentType: 'application/json', body: JSON.stringify(sessionOf(projectId)) }
-      : problem(status, { 401: 'AUTHENTICATION_REQUIRED', 403: 'PROJECT_BUILD_DENIED' }[status] ?? 'INTERNAL_UNEXPECTED'))
+      : problem(status, { 401: 'AUTHENTICATION_REQUIRED' }[status] ?? 'INTERNAL_UNEXPECTED'))
     answered()
   })
   return { firstRead }
@@ -2205,21 +2205,6 @@ test('failed background polls keep the chat and show a note until a poll succeed
   await pollNow(page)
   await note.waitFor({ state: 'detached' })
   assert.equal(await messageBox(page).count(), 1)
-})
-
-test('a 403 poll after a good load shows the denied screen', async (t) => {
-  const accountId = '70000000-0000-4000-8000-000000000075'
-  const projectId = '70000000-0000-4000-8000-000000000076'
-  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
-  let status = 200
-  const { firstRead } = await stubSessionReads(page, accountId, projectId, () => status)
-
-  await openAfterFirstSessionRead(page, origin, projectId, firstRead)
-
-  status = 403
-  await pollNow(page)
-  await page.getByText('Você não pode construir neste Projeto').waitFor()
-  await messageBox(page).waitFor({ state: 'detached' })
 })
 
 test('a 401 poll after a good load signs the user out', async (t) => {

@@ -33,7 +33,6 @@ export const FAILURES = {
   'PROJECT_DELETION_INCOMPLETE': { category: 'SYSTEM', status: 503 },
   'PROJECT_THUMBNAIL_NOT_FOUND': { category: 'USER', status: 404 },
   'BUILDER_SESSION_UNAVAILABLE': { category: 'SYSTEM', status: 503 },
-  'PROJECT_BUILD_DENIED': { category: 'USER', status: 403 },
   'CONVERSATION_NOT_FOUND': { category: 'USER', status: 404 },
   'BUILDER_CAPACITY_FULL': { category: 'USER', status: 503 },
   'BUILDER_MESSAGE_REFUSED': { category: 'USER', status: 422 },

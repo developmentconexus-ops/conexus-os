@@ -31,7 +31,6 @@ export const FAILURE_TEXT = {
   'PROJECT_DELETION_INCOMPLETE': 'A exclusão do Projeto não terminou. O que já foi apagado não volta atrás. A falha foi registrada.',
   'PROJECT_THUMBNAIL_NOT_FOUND': 'Este Projeto ainda não tem miniatura.',
   'BUILDER_SESSION_UNAVAILABLE': 'O Conexus não conseguiu abrir a sessão do Builder. A falha foi registrada.',
-  'PROJECT_BUILD_DENIED': 'Você não tem permissão para construir neste Projeto. Peça a quem administra o Conexus.',
   'CONVERSATION_NOT_FOUND': 'Não encontramos essa conversa.',
   'BUILDER_CAPACITY_FULL': 'O Conexus está com muitas execuções abertas agora. Tente novamente mais tarde.',
   'BUILDER_MESSAGE_REFUSED': 'O Conexus não aceitou essa mensagem.',

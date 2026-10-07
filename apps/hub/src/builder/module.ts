@@ -266,7 +266,7 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }) => {
       const preview = await store.readPreviewSubject({ accountId, projectId })
-      if (!preview) throw new Failure('PROJECT_BUILD_DENIED')
+      if (!preview) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'BUILDER_PROJECT_ROWS_MISSING' } })
       return Object.freeze({
         preview: Object.freeze({
           workingSourceRevision: await git.readMain(projectId).catch(gitUnavailableAs('BUILDER_SOURCE_UNAVAILABLE')),
@@ -281,19 +281,14 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
       throw new Failure('BUILDER_TRACE_UNAVAILABLE', { cause, details: { projectId, builderRunId } })
     }),
   })
-  // The mount's one check: whether the account builds in the Project, by the same admission every Builder write takes.
-  const mayBuild = (input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<boolean> =>
-    store.admitBuilder(input).then(() => true, (error: unknown) => {
-      if (error instanceof Failure && (error.id === 'PROJECT_BUILD_DENIED' || error.id === 'PROJECT_NOT_FOUND')) return false
-      throw error
-    })
   return Object.freeze({
     jobs,
     registerBuilderRoutes: async (app: FastifyInstance) => {
       const builderOperations = await registerBuilderRoutes(app, { store, service, session, ...(launchPreview ? { launchPreview } : {}) })
       await ready
       await registerBuilderSessionRoutes(app, {
-        mastra, controller, conversations: liveConversations, controllerId: BUILDER_CONTROLLER_ID, mayBuild,
+        mastra, controller, conversations: liveConversations, controllerId: BUILDER_CONTROLLER_ID,
+        admitBuilder: ({ accountId, projectId }) => store.admitBuilder({ accountId, projectId }),
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async ({ accountId, projectId }) => {
           const latest = await store.readBuilderRun({ accountId, projectId })
