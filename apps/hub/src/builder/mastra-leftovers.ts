@@ -3,7 +3,7 @@ import type { AgentController } from '@mastra/core/agent-controller'
 /**
  * A documented exception to the Mastra boundary (docs/reference/mastra/boundary.md, item 18), and the
  * only file in the Hub that calls `__unregisterInternalWorkflow` or deletes Mastra workflow snapshots;
- * the census in scripts/census-builder-run.mjs fails on any other caller.
+ * scripts/check-builder-safety.mjs prohibits any other caller.
  *
  * Mastra 1.71 keeps two things of a suspended run that an abort ends and that never resumes
  * (https://github.com/mastra-ai/mastra/issues/25903): the `agentic-loop` registration in the Mastra

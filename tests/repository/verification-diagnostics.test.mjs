@@ -1,47 +1,15 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { executionEnvironment, newTestLedger, runVerification } from '../../scripts/conexus-verify.mjs'
-
-test('groups consume a supplied build, while a full candidate still compiles it', (t) => {
-  const root = mkdtempSync(join(tmpdir(), 'conexus-shared-build-'))
-  t.after(() => rmSync(root, { recursive: true, force: true }))
-  writeFileSync(join(root, 'server.js'), '')
-  const build = join(root, 'app-check')
-  mkdirSync(build)
-  writeFileSync(join(build, 'main.mjs'), '')
-  const processEnvironment = { CONEXUS_HUB_BUILD: root }
-  for (const group of ['browser', 'postgres', 'rest', 'live', 'backup']) {
-    const commands = []
-    const result = runVerification({
-      scopes: ['candidate'], group, processEnvironment,
-      runCommand: (entry, options) => {
-        commands.push(entry.scope)
-        assert.equal(options.processEnvironment.CONEXUS_HUB_BUILD, root)
-        return { status: 0 }
-      },
-    })
-    assert.equal(result.exitCode, 0)
-    assert.equal(commands.includes('hub-typecheck'), false)
-    assert.equal(commands.at(-1), 'only-opt-in-skips')
-  }
-  const full = runVerification({ scopes: ['candidate'], processEnvironment, dryRun: true })
-  assert.equal(full.records[0].scope, 'hub-typecheck')
-  const local = runVerification({ scopes: ['candidate'], group: 'browser', processEnvironment: {}, dryRun: true })
-  assert.equal(local.records[0].scope, 'hub-typecheck')
-  const preparation = runVerification({ scopes: ['candidate-build'], processEnvironment: {}, dryRun: true })
-  assert.deepEqual(preparation.records.map(record => record.scope), ['hub-typecheck'])
-  rmSync(join(build, 'main.mjs'))
-  assert.throws(() => runVerification({ scopes: ['candidate'], group: 'rest', processEnvironment }), /shared Hub build is missing app-check\/main.mjs/)
-})
+import { resolve } from 'node:path'
 
 test('a failed assertion is reported while the next test is still running', { timeout: 5000 }, async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'conexus-diagnostics-'))
   const fixture = join(root, 'failure.test.mjs')
-  const ledger = newTestLedger(root)
+  const ledger = { file: join(root, 'ledger.jsonl') }
   writeFileSync(fixture, `
     import test from 'node:test'
     test('first failure', async (t) => {
@@ -53,7 +21,8 @@ test('a failed assertion is reported while the next test is still running', { ti
       try { await new Promise(() => {}) } finally { clearInterval(timer) }
     })
   `)
-  const env = executionEnvironment({ environmentClass: 'static' }, process.env, ledger)
+  const reporter = resolve(import.meta.dirname, '../../scripts/test-ledger-reporter.mjs')
+  const env = { ...process.env, CONEXUS_TEST_LEDGER: ledger.file, CONEXUS_TEST_LEDGER_ROOT: root, NODE_OPTIONS: `--test-reporter=tap --test-reporter-destination=stdout --test-reporter=${reporter} --test-reporter-destination=stdout` }
   delete env.NODE_TEST_CONTEXT
   const child = spawn(process.execPath, ['--test', fixture], {
     env,

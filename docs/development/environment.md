@@ -52,7 +52,7 @@ Within that same WSL shell:
 npm run conexus:preflight
 ```
 
-In a fresh clone, run `npm ci` and `npx --no-install playwright install chromium`. A worktree with linked dependencies needs neither install. Then run the checks [delivery](delivery.md#proof-and-verification) asks for, for example `npm run conexus:verify -- --scope <scope>` with a focused scope. A check with PostgreSQL leaves needs one complete `CONEXUS_TEST_DB_*` set or the disposable PostgreSQL service pinned in `.github/workflows/verify.yml`. A partial set fails before execution. A Windows result decides nothing.
+In a fresh clone, run `npm ci` and `npx --no-install playwright install chromium`. A worktree with linked dependencies needs neither install. Then run the checks [delivery](delivery.md#proof-and-verification) asks for, for example `npm run test:unit` or `npm run test:postgres` for the affected suite. A check with PostgreSQL leaves needs one complete `CONEXUS_TEST_DB_*` set or the disposable PostgreSQL service pinned in `.github/workflows/verify.yml`. Missing required values fail in the database fixture before a test can pass. A Windows result decides nothing.
 
 ## Piloto
 

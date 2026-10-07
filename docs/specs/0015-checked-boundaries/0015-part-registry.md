@@ -1,5 +1,12 @@
 # 0015. Child: part 4, the registry owner
 
+CI tooling update: historical builder count/debt ratchets and boundary inventories described below
+are retired. `scripts/check-boundaries.mjs` owns direct AST prohibitions and named exceptions;
+`scripts/check-builder-safety.mjs` retains exclusive safety ownership checks. No implementation
+regenerates the deleted census registers. [Delivery](../../development/delivery.md#proof-and-verification)
+owns routine and qualification coverage.
+
+
 **Status**: Approved
 
 **Approval**: approved by the planning session under the operator's delegation for the night of 2026-10-06 (C-039), commit 9ea15ef6

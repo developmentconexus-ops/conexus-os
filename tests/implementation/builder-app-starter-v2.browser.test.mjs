@@ -1,3 +1,4 @@
+import { recordBrowserContext, saveBrowserDiagnostics } from './browser-diagnostics.mjs'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
@@ -131,6 +132,7 @@ const servePrevia = async (dist) => {
 
 const openPage = async (browser, origin, path) => {
   const page = await browser.newPage()
+  await recordBrowserContext(page.context())
   const problems = []
   await page.addInitScript(() => {
     window.__violations = []
@@ -162,7 +164,8 @@ test('the starter typechecks, builds, and shows its empty state with no CSP viol
       assert.deepEqual(problems, [])
       assert.deepEqual(await violations(), [])
     } finally {
-      await browser.close()
+      await saveBrowserDiagnostics(browser)
+    await browser.close()
       previa.close()
     }
   } finally {
@@ -196,7 +199,8 @@ test('a dialog, sheet, select, toast, chart and calendar built from the starter 
       assert.deepEqual(problems, [])
       assert.deepEqual(await violations(), [])
     } finally {
-      await browser.close()
+      await saveBrowserDiagnostics(browser)
+    await browser.close()
       previa.close()
     }
   } finally {
@@ -228,7 +232,8 @@ test('an app that builds a zod schema raises no CSP violation under the Previa p
       assert.deepEqual(problems, [])
       assert.deepEqual(await violations(), [])
     } finally {
-      await browser.close()
+      await saveBrowserDiagnostics(browser)
+    await browser.close()
       previa.close()
     }
   } finally {
@@ -252,7 +257,8 @@ export function Demo() {
       await page.getByText('Este app ainda está vazio').waitFor()
       assert.deepEqual(await violations(), ["style-src-elem: inline"])
     } finally {
-      await browser.close()
+      await saveBrowserDiagnostics(browser)
+    await browser.close()
       previa.close()
     }
   } finally {

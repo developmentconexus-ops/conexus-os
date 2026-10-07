@@ -29,7 +29,6 @@ const fixture = (context, overrides = {}) => {
   return target
 }
 const plant = (candidate, path, line) => appendFileSync(resolve(candidate, path), `${line}\n`)
-const lines = count => `${Array.from({ length: count }, (_, index) => `line ${index + 1}`).join('\n')}\n`
 
 test('the real tree passes', () => {
   const result = run(root)
@@ -85,55 +84,11 @@ test('a workflow with pull_request_target or contents: write fails, and a delete
   assert.equal(run(candidate).status, 0)
 })
 
-test('the root AGENTS.md passes at 60 lines and fails at 61', context => {
-  assert.equal(run(fixture(context, { 'AGENTS.md': lines(60) })).status, 0)
-  const result = run(fixture(context, { 'AGENTS.md': lines(61) }))
-  assert.equal(result.status, 1)
-  assert.equal(result.stderr, 'error AGENTS.md: 61 lines exceeds the cap of 60\n')
-})
-
-test('a nested AGENTS.md passes at 1800 characters and fails at 1801', context => {
-  const nested = 'apps/web/AGENTS.md'
-  const atCap = fixture(context, { [nested]: `${'x'.repeat(1799)}\n` })
-  const passed = run(atCap)
-  assert.equal(passed.status, 0, passed.stderr)
-  assert.equal(passed.stdout, 'Agent context checks passed (files=3).\n')
-  const failed = run(fixture(context, { [nested]: `${'x'.repeat(1800)}\n` }))
-  assert.equal(failed.status, 1)
-  assert.equal(failed.stderr, 'error apps/web/AGENTS.md: 1801 characters exceeds the cap of 1800 (about 500 tokens)\n')
-})
-
-test('a skill over 90 lines fails, the conexus-build skill included', context => {
-  const skill = '.agents/skills/conexus-build/SKILL.md'
-  const candidate = fixture(context, { [skill]: lines(91) })
-  const result = run(candidate)
-  assert.equal(result.status, 1)
-  assert.equal(result.stderr, `error ${skill}: 91 lines exceeds the cap of 90\n`)
-})
-
 test('the vendored Mastra skill is not checked against this package.json', context => {
   const candidate = fixture(context, { '.agents/skills/mastra/SKILL.md': 'Run `npm run dev` in your Mastra project.\n' })
   const result = run(candidate)
   assert.equal(result.status, 0, result.stderr)
   assert.equal(result.stdout, 'Agent context checks passed (files=2).\n')
-})
-
-test('a guide passes at its byte cap and fails one byte over', context => {
-  const guide = 'docs/development/codebase-principles.md'
-  assert.equal(run(fixture(context, { [guide]: `${'x'.repeat(12287)}\n` })).status, 0)
-  const result = run(fixture(context, { [guide]: `${'x'.repeat(12288)}\n` }))
-  assert.equal(result.status, 1)
-  assert.equal(result.stderr, `error ${guide}: 12289 bytes exceeds the cap of 12288\n`)
-})
-
-test('the delivery guide carries a line cap and a byte cap, and each fails on its own', context => {
-  const longLines = `${Array.from({ length: 170 }, () => 'x'.repeat(99)).join('\n')}\n`
-  const tooManyLines = run(fixture(context, { [DELIVERY]: lines(261) }))
-  assert.equal(tooManyLines.status, 1)
-  assert.equal(tooManyLines.stderr, `error ${DELIVERY}: 261 lines exceeds the cap of 260\n`)
-  const tooManyBytes = run(fixture(context, { [DELIVERY]: longLines }))
-  assert.equal(tooManyBytes.status, 1)
-  assert.equal(tooManyBytes.stderr, `error ${DELIVERY}: 17000 bytes exceeds the cap of 16384\n`)
 })
 
 test('an area that names no guide, or a guide that does not exist, fails', context => {

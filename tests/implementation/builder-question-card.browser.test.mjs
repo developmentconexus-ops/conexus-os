@@ -1,3 +1,4 @@
+import { recordBrowserContext, saveBrowserDiagnostics } from './browser-diagnostics.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
@@ -26,8 +27,9 @@ const openWaitingRun = async (t, { phase, messages, refusal = null, pendingCalls
   const sourceRevision = 'd'.repeat(40)
   const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
+  t.after(async () => { await saveBrowserDiagnostics(browser); await browser.close() })
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  await recordBrowserContext(page.context())
   const state = builderState([conversation(conversationId, 'Título')], { [conversationId]: messages })
   const run = runOf({ builderRunId: '70000000-0000-4000-8000-000000000323', projectId, conversationId, state: 'RUNNING', phase, baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'Mude o título', createdAt: new Date(Date.now() - 10 * 60_000).toISOString(), pendingCalls })
   const requests = { session: 0, stream: 0, answers: [], messages: [], cancels: 0, holdMessages: null, holdPublish: false }
@@ -141,9 +143,10 @@ test('a tab that still holds an earlier question shows only the call the waiting
   const run = runOf({ builderRunId: '70000000-0000-4000-8000-000000000334', projectId, conversationId, state: 'RUNNING', phase: 'WAITING', baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null, failureCode: null, requestText: 'Agora a fonte', createdAt: new Date().toISOString(), pendingCalls: ['call-new'] })
   const origin = await startWebServer(t)
   const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
+  t.after(async () => { await saveBrowserDiagnostics(browser); await browser.close() })
   const openTab = async (events) => {
     const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+    await recordBrowserContext(page.context())
     await page.route('**/api/session', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], administrator: false }) }))
     await routeBuilder(page, builderState([conversation(conversationId, 'Título')], { [conversationId]: [userMessage('user-1', 'Mude a cor'), userMessage('user-2', 'Agora a fonte')] }))
     await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Título', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }) }))

@@ -200,9 +200,20 @@ phone.
 
 - Before each commit, the builder **must** run `npm run verify:quick` and the tests the change
   touches or that consume a changed contract, at most two groups at once.
-- CI runs the whole graph in `scripts/conexus-verify.mjs`. `verify` is the one required check. A
-  pull request changing only Markdown under `docs/`, `.agents/` or the repository root runs
-  `npm run verify:docs`. Other Markdown changes and pushes to main run the full graph.
+- CI uses the direct commands in `package.json` and `.github/workflows/verify.yml`. `verify` is the
+  one required aggregate. Docs-only PRs run repository and documentation checks. Every code PR runs
+  static/generated checks, all PostgreSQL and browser tests, and four local scripted integration
+  smoke files. Main, daily and manual runs add complete integration and backup/restore qualification.
+- PRs touching web, Builder, identity/access, hosting, platform, contracts, migrations, dependencies,
+  harnesses or tests require complete integration. Isolated Project, Workspace, registry, connector
+  and telemetry source changes run the four smoke files; unknown Hub owners require qualification.
+  Infrastructure, migrations, dependencies and test/tooling changes require backup qualification.
+  Unknown paths and classification errors require all qualification. Template/style checks run when
+  their families change and on main/daily/manual runs.
+- A correctly classified isolated PR may merge before seven additional integration scenarios or
+  restore are exercised; main/daily qualification detects those regressions after merge. Browser and
+  database checks do not prove that omitted composition. Before installation, the exact selected SHA
+  **must** pass `npm run verify:qualification` or a complete Verify workflow dispatched at that SHA.
 - Required CI **must** protect objective properties of every change, never taste or document shape.
 - A pull request **must** leave draft as soon as the build ends, so CI and the Factory run while
   verification goes on. A wave's pull request into `main` stays a draft until the wave is proved.

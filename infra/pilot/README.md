@@ -25,6 +25,9 @@ The runbook is [`docs/reference/pilot-supervision.md`](../../docs/reference/pilo
 
 Every step that touches the pilot needs the operator's approval for the issue that names the pilot proof. The
 Hub and the runner both run from this checkout, so nothing in it changes while either one runs.
+Before installing, qualify the exact selected SHA in a disposable test environment with
+`npm run verify:qualification`, or dispatch the Verify workflow at that SHA and require its
+complete integration and backup results. A routine isolated PR pass does not qualify an installation.
 
 1. Fetch and list what the new head changes. The Hub restarts on every deploy. The runner also restarts when its
    code or the dependencies change, and `npm ci` runs only then:

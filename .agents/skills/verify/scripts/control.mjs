@@ -183,7 +183,7 @@ const baseEnvironment = () => Object.fromEntries(['PATH', 'HOME', 'LANG', 'USER'
 // directory by name and deletes only it.
 const startHub = async (state, environment, scripted) => {
   const { buildHubLocal, hubNodeArguments } = await import(join(REPO, 'scripts/build-hub-local.mjs'))
-  state.hubBuildDir = await buildHubLocal().catch((error) => {
+  state.hubBuildDir = await buildHubLocal({ sharedBuild: process.env.CONEXUS_HUB_BUILD }).catch((error) => {
     writeFileSync(evidence(state, 'hub.log'), `HUB_BUILD_FAILED\n${error.message}\n`)
     fatal('HUB_BUILD_FAILED: see hub.log')
   })
