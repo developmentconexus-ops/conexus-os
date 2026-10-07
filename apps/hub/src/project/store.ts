@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import {
-  ProjectCard, ProjectId, ProjectName, ProjectRevision, WorkspaceId, createProject,
-  type AccountId, type SourceRevision, type IdempotencyKey, type Input, type ProjectCreated, type ProjectDetail, type ProjectListItem,
+  ProjectCard, ProjectDetail, ProjectId, ProjectListRow, ProjectName, ProjectRevision, WorkspaceId, createProject,
+  type AccountId, type SourceRevision, type IdempotencyKey, type Input, type ProjectCreated,
 } from '@conexus/contract'
 import { admitProject, admitWorkspace, receiptOf, type Admitted, type WorkspaceScope } from '../identity-access/admission.js'
 import type { Database } from '../platform/db.js'
@@ -35,28 +35,40 @@ type CreateProjectResult = Readonly<{ replayed: boolean; reply: ProjectCreated }
 
 export type ProjectStore = Readonly<{
   createProject(input: CreateProjectInput): Promise<CreateProjectResult>
-  listProjects(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId }>): Promise<ProjectListItem[]>
+  listProjects(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId }>): Promise<ProjectListRow[]>
   getProject(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<ProjectDetail | null>
   listProjectSummariesWithActivity(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId }>): Promise<ProjectCard[]>
   deleteProject(input: Readonly<{ accountId: AccountId; projectId: ProjectId; confirmName: string }>): Promise<void>
 }>
 
-const SummaryRow = z.object({ project_id: ProjectId, workspace_id: WorkspaceId, name: ProjectName, archived: z.boolean() })
-const DetailRow = SummaryRow.extend({ project_revision: ProjectRevision, deleting: z.boolean() })
-const CardRow = z.object({
-  project_id: ProjectId, name: ProjectName, archived: z.boolean(), last_activity_at: z.string(),
-  run_state: z.string().nullable(), run_result_kind: z.string().nullable(), has_preview: z.boolean(), deleting: z.boolean(),
-})
+const ProjectRow = z.object({ project_id: ProjectId, workspace_id: WorkspaceId, name: ProjectName })
+const ListRow = z.discriminatedUnion('state', [
+  ProjectRow.extend({ state: z.literal('live'), archived: z.boolean() }),
+  ProjectRow.extend({ state: z.literal('deleting') }),
+])
+const DetailRow = z.discriminatedUnion('state', [
+  ProjectRow.extend({ state: z.literal('live'), project_revision: ProjectRevision, archived: z.boolean() }),
+  ProjectRow.extend({ state: z.literal('deleting') }),
+])
+const CardRow = z.discriminatedUnion('state', [
+  ProjectRow.pick({ project_id: true, name: true }).extend({
+    state: z.literal('live'), archived: z.boolean(), last_activity_at: z.string(),
+    run_state: z.string().nullable(), run_result_kind: z.string().nullable(), has_preview: z.boolean(),
+  }),
+  ProjectRow.pick({ project_id: true, name: true }).extend({ state: z.literal('deleting') }),
+])
 
-const toProjectCard = (row: z.output<typeof CardRow>): ProjectCard => ProjectCard.parse({
-  projectId: row.project_id,
-  name: row.name,
-  archived: row.archived,
-  lastActivityAt: row.last_activity_at,
-  latestRun: row.run_state === null ? null : { state: row.run_state, resultKind: row.run_result_kind },
-  hasPreview: row.has_preview,
-  deleting: row.deleting,
-})
+const toProjectCard = (row: z.output<typeof CardRow>): ProjectCard => row.state === 'deleting'
+  ? ProjectCard.parse({ projectId: row.project_id, name: row.name, state: row.state })
+  : ProjectCard.parse({
+    projectId: row.project_id,
+    name: row.name,
+    state: row.state,
+    archived: row.archived,
+    lastActivityAt: row.last_activity_at,
+    latestRun: row.run_state === null ? null : { state: row.run_state, resultKind: row.run_result_kind },
+    hasPreview: row.has_preview,
+  })
 
 export const createProjectStore = ({
   database,
@@ -105,34 +117,46 @@ export const createProjectStore = ({
     createProject: create,
     listProjects: ({ accountId, workspaceId }) => database.read(accountId, async (gate) => {
       const proof = await admitWorkspace(gate, { workspaceId, action: 'workspace.read' })
-      return (await proof.tx.rows(SummaryRow, sql`
-        SELECT project_id, workspace_id, name, archived FROM project.project
-        WHERE workspace_id = ${proof.scope.workspaceId} ORDER BY name, project_id`))
-        .map((row) => ({ projectId: row.project_id, workspaceId: row.workspace_id, name: row.name, archived: row.archived }))
+      return (await proof.tx.rows(ListRow, sql`
+        SELECT stored.project_id, stored.workspace_id, stored.name,
+          CASE WHEN deletion.project_id IS NULL THEN 'live' ELSE 'deleting' END AS state,
+          CASE WHEN deletion.project_id IS NULL THEN stored.archived END AS archived
+        FROM project.project AS stored
+        LEFT JOIN project.project_deletion AS deletion
+          ON deletion.project_id = stored.project_id AND deletion.completed_at IS NULL
+        WHERE stored.workspace_id = ${proof.scope.workspaceId} ORDER BY stored.name, stored.project_id`))
+        .map((row) => ProjectListRow.parse(row.state === 'deleting'
+          ? { projectId: row.project_id, workspaceId: row.workspace_id, name: row.name, state: row.state }
+          : { projectId: row.project_id, workspaceId: row.workspace_id, name: row.name, state: row.state, archived: row.archived }))
     }),
     getProject: ({ accountId, projectId }) => database.read(accountId, async (gate): Promise<ProjectDetail | null> => {
       const proof = await admitProject(gate, { projectId, action: 'project.read' })
       const live = await proof.tx.maybe(DetailRow, sql`
-        SELECT project_id, workspace_id, name, project_revision, archived,
-          EXISTS (SELECT 1 FROM project.project_deletion AS deletion
-            WHERE deletion.project_id = project.project_id AND deletion.completed_at IS NULL) AS deleting
-        FROM project.project WHERE project_id = ${proof.scope.projectId}`)
-      if (live) {
-        return { projectId: live.project_id, workspaceId: live.workspace_id, name: live.name, projectRevision: live.project_revision, archived: live.archived, deleting: live.deleting }
-      }
+        SELECT stored.project_id, stored.workspace_id, stored.name,
+          CASE WHEN deletion.project_id IS NULL THEN 'live' ELSE 'deleting' END AS state,
+          CASE WHEN deletion.project_id IS NULL THEN stored.project_revision END AS project_revision,
+          CASE WHEN deletion.project_id IS NULL THEN stored.archived END AS archived
+        FROM project.project AS stored
+        LEFT JOIN project.project_deletion AS deletion
+          ON deletion.project_id = stored.project_id AND deletion.completed_at IS NULL
+        WHERE stored.project_id = ${proof.scope.projectId}`)
+      if (live) return ProjectDetail.parse(live.state === 'deleting'
+        ? { projectId: live.project_id, workspaceId: live.workspace_id, name: live.name, state: live.state }
+        : { projectId: live.project_id, workspaceId: live.workspace_id, name: live.name, state: live.state, projectRevision: live.project_revision, archived: live.archived })
       return null
     }),
     listProjectSummariesWithActivity: ({ accountId, workspaceId }) => database.read(accountId, async (gate) => {
       const proof = await admitWorkspace(gate, { workspaceId, action: 'workspace.read' })
       return (await proof.tx.rows(CardRow, sql`
         SELECT * FROM (
-          SELECT stored.project_id, stored.name, stored.archived,
-            to_char(coalesce(latest.created_at, stored.created_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS last_activity_at,
+          SELECT stored.project_id, stored.name,
+            CASE WHEN deletion.project_id IS NULL THEN 'live' ELSE 'deleting' END AS state,
+            CASE WHEN deletion.project_id IS NULL THEN stored.archived END AS archived,
+            CASE WHEN deletion.project_id IS NULL THEN to_char(coalesce(latest.created_at, stored.created_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') END AS last_activity_at,
             coalesce(latest.created_at, stored.created_at) AS sort_at,
             CASE WHEN deletion.project_id IS NULL THEN latest.state END AS run_state,
             CASE WHEN deletion.project_id IS NULL THEN latest.result_kind END AS run_result_kind,
-            deletion.project_id IS NULL AND working.last_preview_source_revision IS NOT NULL AS has_preview,
-            deletion.project_id IS NOT NULL AS deleting
+            deletion.project_id IS NULL AND working.last_preview_source_revision IS NOT NULL AS has_preview
           FROM project.project AS stored
           LEFT JOIN LATERAL (
             SELECT run.state, run.result_kind, run.created_at FROM builder.builder_run AS run
@@ -141,7 +165,10 @@ export const createProjectStore = ({
           LEFT JOIN builder.project_working_state AS working ON working.project_id = stored.project_id
           LEFT JOIN project.project_deletion AS deletion ON deletion.project_id = stored.project_id AND deletion.completed_at IS NULL
           WHERE stored.workspace_id = ${proof.scope.workspaceId}
-        ) AS combined ORDER BY sort_at DESC, project_id`)).map(toProjectCard)
+        ) AS combined ORDER BY sort_at DESC, project_id`)).map((row) => {
+          if (row.state === 'deleting') return toProjectCard(row)
+          return toProjectCard(CardRow.parse(row))
+        })
     }),
     deleteProject: createProjectDeletion({ database, ports: deletion }).deleteProject,
   })

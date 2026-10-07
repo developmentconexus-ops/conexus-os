@@ -12,7 +12,7 @@ test('person reads admit the parent before returning Projects and hide outsider,
   const otherProject = await seedProject('Elsewhere Project', ID.otherWorkspace)
 
   assert.deepEqual(await store.listProjects({ accountId: ID.member, workspaceId: ID.workspace }), [
-    { projectId: project, workspaceId: ID.workspace, name: 'Atlas', archived: false },
+    { projectId: project, workspaceId: ID.workspace, name: 'Atlas', state: 'live', archived: false },
   ])
   await assert.rejects(store.listProjects({ accountId: ID.owner, workspaceId: ID.otherWorkspace }), { id: 'WORKSPACE_NOT_FOUND' })
   await assert.rejects(store.getProject({ accountId: ID.outsider, projectId: project }), { id: 'PROJECT_NOT_FOUND' })

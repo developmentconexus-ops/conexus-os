@@ -533,12 +533,18 @@ export declare const OPERATIONS: {
         readonly headers: null;
         readonly body: null;
         readonly success: {
-            readonly 200: import("zod").ZodArray<import("zod").ZodObject<{
+            readonly 200: import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
                 projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
                 workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
                 name: import("zod").ZodString;
+                state: import("zod").ZodLiteral<"live">;
                 archived: import("zod").ZodBoolean;
-            }, import("zod/v4/core").$strip>>;
+            }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+                projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
+                workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
+                name: import("zod").ZodString;
+                state: import("zod").ZodLiteral<"deleting">;
+            }, import("zod/v4/core").$strip>], "state">>;
         };
         readonly effects: readonly [];
         readonly failures: readonly [];
@@ -559,21 +565,19 @@ export declare const OPERATIONS: {
         readonly headers: null;
         readonly body: null;
         readonly success: {
-            readonly 200: import("zod").ZodUnion<readonly [import("zod").ZodObject<{
+            readonly 200: import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
                 projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
                 workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
                 name: import("zod").ZodString;
+                state: import("zod").ZodLiteral<"live">;
                 projectRevision: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectRevision", "out">;
                 archived: import("zod").ZodBoolean;
-                deleting: import("zod").ZodBoolean;
             }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
                 projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
                 workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
                 name: import("zod").ZodString;
-                projectRevision: import("zod").ZodLiteral<"">;
-                archived: import("zod").ZodLiteral<false>;
-                deleting: import("zod").ZodLiteral<true>;
-            }, import("zod/v4/core").$strip>]>;
+                state: import("zod").ZodLiteral<"deleting">;
+            }, import("zod/v4/core").$strip>], "state">;
         };
         readonly effects: readonly [];
         readonly failures: readonly [];
@@ -655,10 +659,9 @@ export declare const OPERATIONS: {
         readonly body: null;
         readonly success: {
             readonly 200: import("zod").ZodObject<{
-                projects: import("zod").ZodArray<import("zod").ZodObject<{
+                projects: import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
                     projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
                     name: import("zod").ZodString;
-                    archived: import("zod").ZodBoolean;
                     lastActivityAt: import("zod").ZodString;
                     latestRun: import("zod").ZodNullable<import("zod").ZodObject<{
                         state: import("zod").ZodEnum<{
@@ -675,8 +678,13 @@ export declare const OPERATIONS: {
                         }>>;
                     }, import("zod/v4/core").$strip>>;
                     hasPreview: import("zod").ZodBoolean;
-                    deleting: import("zod").ZodBoolean;
-                }, import("zod/v4/core").$strip>>;
+                    state: import("zod").ZodLiteral<"live">;
+                    archived: import("zod").ZodBoolean;
+                }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+                    projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
+                    name: import("zod").ZodString;
+                    state: import("zod").ZodLiteral<"deleting">;
+                }, import("zod/v4/core").$strip>], "state">>;
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];

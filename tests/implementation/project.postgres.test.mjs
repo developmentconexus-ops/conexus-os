@@ -109,51 +109,43 @@ test('a revoke waits for an admitted createProject and the next admission is ref
   await assert.rejects(create(store, ID.member, 'after-revoke'), { id: 'WORKSPACE_NOT_FOUND' })
 })
 
-const states = {
-  live: async () => undefined,
-  tombstoned: async ({ connection }, projectId) => query(connection, `INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Atlas', $3)`, [projectId, ID.workspace, ID.administrator]),
-  purged: async ({ connection }, projectId) => {
-    await query(connection, 'DELETE FROM builder.builder_run WHERE project_id = $1', [projectId])
-    await query(connection, 'DELETE FROM builder.project_working_state WHERE project_id = $1', [projectId])
-    await query(connection, 'DELETE FROM builder.project_repository WHERE project_id = $1', [projectId])
-    await query(connection, 'DELETE FROM project.project WHERE project_id = $1', [projectId])
-    await query(connection, 'UPDATE project.project_deletion SET purged_at = now() WHERE project_id = $1', [projectId])
-  },
-}
-
 const readsOf = async ({ store }, accountId, projectId) => ({
-  list: names(await store.listProjects({ accountId, workspaceId: ID.workspace })),
+  list: await store.listProjects({ accountId, workspaceId: ID.workspace }),
   detail: await store.getProject({ accountId, projectId }),
-  cards: (await store.listProjectSummariesWithActivity({ accountId, workspaceId: ID.workspace })).map((card) => `${card.name}:${card.deleting}`),
+  cards: await store.listProjectSummariesWithActivity({ accountId, workspaceId: ID.workspace }),
 })
 
-test('reads follow the project through its life: live, tombstoned, purged and completed, for each kind of account', async (t) => {
+test('members read live and deleting Project variants, and completion removes the Project', async (t) => {
   const fixture = await setupProjects(t, 'conexus_prj_reads')
   const projectId = await fixture.seedProject('Atlas')
-  const detail = (revision, deleting) => ({ projectId, workspaceId: ID.workspace, name: 'Atlas', projectRevision: revision, archived: false, deleting })
   const revision = (await query(fixture.connection, 'SELECT project_revision FROM project.project')).rows[0].project_revision
-  const expectations = {
-    live: { list: ['Atlas'], detail: detail(revision, false), cards: ['Atlas:false'] },
-    tombstoned: { list: ['Atlas'], detail: detail(revision, true), cards: ['Atlas:true'] },
-    purged: { list: [], error: 'PROJECT_NOT_FOUND', cards: [] },
+  const live = {
+    list: [{ projectId, workspaceId: ID.workspace, name: 'Atlas', state: 'live', archived: false }],
+    detail: { projectId, workspaceId: ID.workspace, name: 'Atlas', state: 'live', projectRevision: revision, archived: false },
   }
-  for (const [state, enter] of Object.entries(states)) {
-    await enter(fixture, projectId)
-    const expected = expectations[state]
-    for (const who of ['member', 'memberAdministrator']) {
-      if (expected.error) {
-        await assert.rejects(fixture.store.getProject({ accountId: ID[who], projectId }), { id: expected.error }, `${state} as ${who}`)
-        assert.deepEqual(names(await fixture.store.listProjects({ accountId: ID[who], workspaceId: ID.workspace })), expected.list, `${state} list as ${who}`)
-        assert.deepEqual((await fixture.store.listProjectSummariesWithActivity({ accountId: ID[who], workspaceId: ID.workspace })).map((card) => `${card.name}:${card.deleting}`), expected.cards, `${state} cards as ${who}`)
-      } else {
-        assert.deepEqual(await readsOf(fixture, ID[who], projectId), expected, `${state} as ${who}`)
-      }
-    }
-    for (const hidden of ['outsider', 'administrator']) {
-      await assert.rejects(fixture.store.listProjects({ accountId: ID[hidden], workspaceId: ID.workspace }), { id: 'WORKSPACE_NOT_FOUND' }, `${state} workspace as ${hidden}`)
-      await assert.rejects(fixture.store.getProject({ accountId: ID[hidden], projectId }), { id: 'PROJECT_NOT_FOUND' }, `${state} project as ${hidden}`)
-    }
+  const [ownerLive, memberLive] = await Promise.all([readsOf(fixture, ID.owner, projectId), readsOf(fixture, ID.member, projectId)])
+  for (const reads of [ownerLive, memberLive]) {
+    assert.deepEqual(reads.list, live.list)
+    assert.deepEqual(reads.detail, live.detail)
+    assert.equal(reads.cards.length, 1)
+    assert.equal(reads.cards[0].state, 'live')
+    assert.equal(reads.cards[0].projectId, projectId)
   }
+  await assert.rejects(fixture.store.listProjects({ accountId: ID.outsider, workspaceId: ID.workspace }), { id: 'WORKSPACE_NOT_FOUND' })
+  await assert.rejects(fixture.store.getProject({ accountId: ID.outsider, projectId }), { id: 'PROJECT_NOT_FOUND' })
+  await assert.rejects(fixture.store.getProject({ accountId: ID.administrator, projectId }), { id: 'PROJECT_NOT_FOUND' })
+
+  await query(fixture.connection, `INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Atlas', $3)`, [projectId, ID.workspace, ID.owner])
+  for (const accountId of [ID.owner, ID.member]) {
+    assert.deepEqual(await readsOf(fixture, accountId, projectId), {
+      list: [{ projectId, workspaceId: ID.workspace, name: 'Atlas', state: 'deleting' }],
+      detail: { projectId, workspaceId: ID.workspace, name: 'Atlas', state: 'deleting' },
+      cards: [{ projectId, name: 'Atlas', state: 'deleting' }],
+    })
+  }
+  await fixture.store.deleteProject({ accountId: ID.owner, projectId, confirmName: 'Atlas' })
+  assert.deepEqual(await fixture.store.listProjects({ accountId: ID.owner, workspaceId: ID.workspace }), [])
+  await assert.rejects(fixture.store.getProject({ accountId: ID.owner, projectId }), { id: 'PROJECT_NOT_FOUND' })
 })
 
 test('the runtime role holds native read grants while stores scope person reads with admission', async (t) => {

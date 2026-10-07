@@ -94,6 +94,9 @@ returns the first result.
 - A schema **must not** be a generic carrier such as `AnyResource`, `GenericResult` or
   `ProviderPayload`.
 - An unknown or partial value **must** be a state in the schema, never a `null` or a zero.
+- A Project detail, list row or card **must** discriminate `live` from `deleting`. A deleting
+  reply carries only its Project identity and `state`; it must not invent live fields to fill the
+  shape.
 - Bytes **must** be reached through their owning operation. A storage key, object path or signed URL
   **must not** authorize by possession.
 
@@ -169,6 +172,8 @@ stale write visible instead of silent.
   one repository, and a change **must** update both in the same pull request.
 - A removed field or operation **must** leave the contract, the Hub and the client together. There
   is no deprecation period.
+- A changed Project state payload **must** update its contract, Hub projection and web consumers in
+  the same change.
 
 **Why.** One deploy carries both sides, so a version or a deprecation window only keeps dead code.
 
