@@ -1,8 +1,8 @@
-import { call, href, isFailure, query } from '../../app/http'
+import { call, href, query } from '../../app/http'
 import { routeParam } from '../../app/route-params'
 import {
   createProject as createProjectOperation, deleteProject as deleteProjectOperation,
-  ProjectId, listProjects, getProject, listProjectSummaries, getProjectThumbnail, WorkspaceId, type IdempotencyKey,
+  isFailure, ProjectId, listProjects, getProject, listProjectSummaries, getProjectThumbnail, WorkspaceId, type IdempotencyKey,
 } from '@conexus/contract'
 
 const noInput = { query: undefined, headers: undefined, body: undefined } as const
