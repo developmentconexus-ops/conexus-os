@@ -45,8 +45,9 @@ const snapshotAfterBoth = async (t) => {
 test('a fresh install with two pending migrations applies both instead of refusing the second', async (t) => {
   const catalogSnapshot = await snapshotAfterBoth(t)
   const { connectionString } = await createEmptyDatabase(t, 'conexus_mig_two')
-  const result = await runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot })
+  const result = await runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot: null })
   assert.deepEqual(result, { verdict: 'PASS', appliedNow: ['0001', '0002'], versions: ['0001', '0002'] })
+  assert.deepEqual(await withClient(connectionString, readCatalog), catalogSnapshot.catalog)
 })
 
 test('0072 normalizes a stored retired Project creation refusal and its run summary still parses', async (t) => {
@@ -107,8 +108,9 @@ test('a database already at the first migration upgrades to the second', async (
   const catalogSnapshot = await snapshotAfterBoth(t)
   const { connectionString } = await createEmptyDatabase(t, 'conexus_mig_upgrade')
   await runMigrations({ connectionString, migrations: [migrationA], catalogSnapshot: null })
-  const result = await runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot })
+  const result = await runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot: null })
   assert.deepEqual(result, { verdict: 'PASS', appliedNow: ['0002'], versions: ['0001', '0002'] })
+  assert.deepEqual(await withClient(connectionString, readCatalog), catalogSnapshot.catalog)
 })
 
 test('a fresh database is built by the baseline and the forward migration, and reports both', async (t) => {
@@ -188,17 +190,17 @@ test('objects hub_factory creates inside the factory schema are not catalog drif
 
 test('a grant on the factory schema to another Hub role is catalog drift', async (t) => {
   const { connectionString } = await buildHubDatabase(t, 'conexus_mig')
-  await query(connectionString, 'GRANT USAGE ON SCHEMA factory TO hub_builder_ingress')
+  await query(connectionString, 'GRANT USAGE ON SCHEMA factory TO hub_runtime')
   await assert.rejects(
     runHubMigrations({ connectionString }),
-    /MIGRATION_CATALOG_DRIFT:2 differing lines; missing schema factory owner=hub_factory acl=hub_factory:CREATE:false,hub_factory:USAGE:false \| unexpected schema factory owner=hub_factory acl=hub_builder_ingress:USAGE:false,hub_factory:CREATE:false,hub_factory:USAGE:false/,
+    /MIGRATION_CATALOG_DRIFT:2 differing lines; missing schema factory owner=hub_factory acl=hub_factory:CREATE:false,hub_factory:USAGE:false \| unexpected schema factory owner=hub_factory acl=hub_factory:CREATE:false,hub_factory:USAGE:false,hub_runtime:USAGE:false/,
   )
 })
 
 test('the committed snapshot is the catalog the baseline and forward migration build', async (t) => {
   const { connectionString } = await buildHubDatabase(t, 'conexus_mig')
   const snapshot = readCommittedSnapshot()
-  assert.equal(snapshot.head, '0073')
+  assert.equal(snapshot.head, '0074')
   assert.equal(corpusVersions.at(-1), '0074')
   assert.equal(snapshot.format, 2)
   assert.deepEqual(await ledgerOf(connectionString), corpusLedger)
@@ -258,8 +260,9 @@ test('a catalog check that fails after the pending migrations leaves no version 
   await assert.rejects(runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot: mismatched }), /MIGRATION_CATALOG_DRIFT/)
   assert.deepEqual((await ledgerOf(connectionString)).map(({ version }) => version), ['0001'])
   assert.equal((await query(connectionString, "SELECT to_regclass('iam.gadget') IS NOT NULL AS present")).rows[0].present, false)
-  const result = await runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot })
+  const result = await runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot: null })
   assert.deepEqual(result, { verdict: 'PASS', appliedNow: ['0002'], versions: ['0001', '0002'] })
+  assert.deepEqual(await withClient(connectionString, readCatalog), catalogSnapshot.catalog)
 })
 
 test('a fresh install whose catalog check fails leaves the database empty', async (t) => {
