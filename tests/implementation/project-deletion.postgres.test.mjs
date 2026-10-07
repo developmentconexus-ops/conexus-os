@@ -90,7 +90,7 @@ test('only an installation administrator deletes, a non member administrator inc
   await assert.rejects(remove(store, ID.administrator, projectId, 'Other'), { id: 'PROJECT_NAME_MISMATCH' })
 })
 
-test('a deletion that fails after the purge resumes on retry, and a crash inside the purge purges nothing', async (t) => {
+test('required cleanup failure keeps the Project open, and a finalization rollback preserves it for retry', async (t) => {
   const failing = { repository: 0, registry: 0 }
   const fixture = await setupProjects(t, 'conexus_prj_resume')
   const { connection, database, seedProject } = fixture
@@ -105,28 +105,47 @@ test('a deletion that fails after the purge resumes on retry, and a crash inside
   const seeded = await seedEverything(connection, projectId)
 
   await assert.rejects(deletion.deleteProject({ accountId: ID.administrator, projectId, confirmName: 'Atlas' }), { id: 'PROJECT_DELETION_INCOMPLETE' })
-  assert.deepEqual((await counts(connection, projectId, seeded)).project, 1)
-  assert.deepEqual((await counts(connection, projectId, seeded)).application, 1)
+  assert.deepEqual(await counts(connection, projectId, seeded), { project: 1, working_state: 1, repository: 1, run: 1, application: 1, invitation: 1, grant_row: 1, revision: 1, thumbnail: 1, host_session: 1, handoff: 1, oidc_transaction: 1, binding: 1, receipts: 2 })
   assert.deepEqual((await tombstones(connection)).map((row) => [row.purged, row.completed]), [[false, false]])
 
   await assert.rejects(deletion.deleteProject({ accountId: ID.administrator, projectId, confirmName: 'Atlas' }), { id: 'PROJECT_DELETION_INCOMPLETE' })
-  assert.deepEqual((await tombstones(connection)).map((row) => [row.purged, row.completed]), [[true, false]])
+  assert.deepEqual(await counts(connection, projectId, seeded), { project: 1, working_state: 1, repository: 1, run: 1, application: 1, invitation: 1, grant_row: 1, revision: 1, thumbnail: 1, host_session: 1, handoff: 1, oidc_transaction: 1, binding: 1, receipts: 2 })
+  assert.deepEqual((await tombstones(connection)).map((row) => [row.purged, row.completed]), [[false, false]])
   await deletion.deleteProject({ accountId: ID.administrator, projectId, confirmName: 'Atlas' })
   assert.deepEqual((await tombstones(connection)).map((row) => [row.purged, row.completed]), [[true, true]])
 })
 
-test('the purge refuses a project that has no tombstone', async (t) => {
-  const { deletion, seedProject } = await setupProjects(t, 'conexus_prj_notstarted')
+test('an open deletion whose Project is missing refuses retry without inventing completion', async (t) => {
+  const { connection, deletion, seedProject } = await setupProjects(t, 'conexus_prj_stranded')
   const projectId = await seedProject('Atlas')
-  await assert.rejects(deletion.purge(projectId), (error) => error.id === 'INTERNAL_UNEXPECTED' && error.details.invariant === 'PROJECT_DELETION_NOT_STARTED')
+  await query(connection, `INSERT INTO project.project_deletion(project_id, workspace_id, name, requested_by) VALUES ($1, $2, 'Atlas', $3)`, [projectId, ID.workspace, ID.administrator])
+  await query(connection, 'DELETE FROM builder.project_working_state WHERE project_id = $1', [projectId])
+  await query(connection, 'DELETE FROM builder.project_repository WHERE project_id = $1', [projectId])
+  await query(connection, 'DELETE FROM project.project WHERE project_id = $1', [projectId])
+  await assert.rejects(deletion.deleteProject({ accountId: ID.administrator, projectId, confirmName: 'Atlas' }), (error) => error.id === 'INTERNAL_UNEXPECTED' && error.details.invariant === 'PROJECT_DELETION_STRANDED')
+  assert.deepEqual((await tombstones(connection)).map((row) => [row.purged, row.completed]), [[false, false]])
 })
 
 test('two concurrent deletions of one project leave one tombstone and no deadlock', async (t) => {
   const { connection, store, seedProject } = await setupProjects(t, 'conexus_prj_twice')
   const projectId = await seedProject('Atlas')
   const outcomes = await Promise.allSettled([ID.administrator, ID.memberAdministrator].map((accountId) => remove(store, accountId, projectId)))
-  assert.deepEqual(outcomes.map((outcome) => outcome.status), ['fulfilled', 'fulfilled'])
+  assert.equal(outcomes.filter((outcome) => outcome.status === 'fulfilled').length >= 1, true)
+  for (const outcome of outcomes) {
+    if (outcome.status === 'rejected') assert.equal(outcome.reason.id, 'PROJECT_BUSY')
+  }
   assert.equal((await tombstones(connection)).length, 1)
+})
+
+test('a Project deletion lock held by another driver refuses with PROJECT_BUSY', async (t) => {
+  const { connection, database, store, seedProject } = await setupProjects(t, 'conexus_prj_lock')
+  const projectId = await seedProject('Atlas')
+  const { rows } = await query(connection, `SELECT hashtextextended('conexus-hub:project-deletion:'::text || $1::text, 0)::text AS lock_key`, [projectId])
+  await database.session('conexus-hub:project-deletion', async (lock) => {
+    assert.equal(await lock.tryAdvisoryLock(BigInt(rows[0].lock_key)), true)
+    await assert.rejects(remove(store, ID.administrator, projectId), { id: 'PROJECT_BUSY' })
+  })
+  assert.deepEqual(await tombstones(connection), [])
 })
 
 const hold = async (connection, onCleanup) => {

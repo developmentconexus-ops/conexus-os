@@ -344,6 +344,7 @@ for (const order of ['racer first', 'purge first']) {
     for (const [label, match, race, setup] of racers) {
       const world = await estate(t, `conexus_iam_purge_${label.replaceAll(' ', '_').toLowerCase()}_${order === 'racer first' ? 'a' : 'b'}`)
       const { hub, launch, purge } = world
+      await hub.sql("INSERT INTO iam.installation_administrator (account_id, granted_via) VALUES ($1, 'OPERATOR_BOOTSTRAP')", [OWNER])
       let prepared
       if (setup === 'preview') prepared = (await launch(MEMBER, await hub.openHubSession(MEMBER))).entryGrant
       if (setup === 'invitation') await hub.sql("INSERT INTO iam.application_invitation (invitation_id, project_id, email, invited_by, expires_at) VALUES (gen_random_uuid(), $1, 'nina@x.com', $2, now() + interval '1 day')", [P, OWNER])
@@ -354,7 +355,7 @@ for (const order of ['racer first', 'purge first']) {
         const racing = race(world, prepared).catch((error) => error)
         assert.equal(await Promise.race([held.arrived.then(() => 'held'), racing.then(() => 'finished')]), 'held', label)
         await hub.sql('INSERT INTO project.project_deletion (project_id, workspace_id, name, requested_by) VALUES ($1, $2, $3, $4)', [P, W, 'Estoque Parado', OWNER])
-        const purging = purge.purge(P).catch((error) => error)
+        const purging = purge.deleteProject({ accountId: OWNER, projectId: P, confirmName: 'Estoque Parado' }).catch((error) => error)
         await waitUntilBlocked(hub.connection)
         held.release()
         outcome = await racing
@@ -364,7 +365,7 @@ for (const order of ['racer first', 'purge first']) {
         // The tombstone commits before the purge, as deleteProject orders them, so a racer that starts
         // while the purge holds the Project is refused by the tombstone without waiting for it.
         const held = holdAt(log, /DELETE FROM iam\.application WHERE/)
-        const purging = purge.purge(P).catch((error) => error)
+        const purging = purge.deleteProject({ accountId: OWNER, projectId: P, confirmName: 'Estoque Parado' }).catch((error) => error)
         await held.arrived
         // The racer finishes while the purge still holds the Project: one that waited would hit the 5 s lock_timeout and answer 503.
         outcome = await race(world, prepared).catch((error) => error)
@@ -372,7 +373,7 @@ for (const order of ['racer first', 'purge first']) {
         assert.equal(await purging, undefined, label)
       }
       assert.equal(outcome, true, `${label}: a refusal or a committed row, never a 500 (${outcome})`)
-      await purge.purge(P).catch((error) => assert.fail(`${label}: the second pass ${error.id}`))
+      await purge.deleteProject({ accountId: OWNER, projectId: P, confirmName: 'Estoque Parado' }).catch((error) => assert.fail(`${label}: the second pass ${error.id}`))
       assert.deepEqual(await leftOf(hub), NONE_LEFT, label)
     }
   })

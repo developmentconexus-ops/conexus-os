@@ -19,7 +19,7 @@ export type Sql = Readonly<{ [sqlBrand]: true; text: string; values: readonly un
 export type DatabaseConnection = Readonly<{ host: string; port: number; database: string; user: 'hub_runtime' | 'hub_factory'; passwordFile: string; max?: number; connectionTimeoutMillis?: number; options?: string }>
 export type JobName = 'iam-reaper' | 'project-purge' | 'builder-executor' | 'application-presence'
 /** The application_name of a dedicated session connection, so a test or an operator finds its backend. */
-type SessionName = 'conexus-hub:instance-lock' | 'conexus-hub:application-presence'
+type SessionName = 'conexus-hub:instance-lock' | 'conexus-hub:application-presence' | 'conexus-hub:project-deletion'
 export type FactoryPool = Pool & Readonly<{ [factoryBrand]: true }>
 export type PostgresConnection = PoolConfig
 
