@@ -39,15 +39,22 @@ beside it.
    pstack: reread the diff and remove what a careful engineer would not write (dead code, needless
    guards and casts, checks inside trusted code, style unlike the file), then delete every comment
    that does not state a why the code cannot show (C §9).
-6. One commit in plain English. The copy ends clean. Push and open the pull request into the wave
-   branch your instructions name, ready for review.
-7. Report: the pull request, the commit, the ACs it satisfies, each test and its result, the census
+6. One commit in plain English, stacked on the batch branch `wave/<name>-loteN` your instructions
+   name. The copy ends clean. Push the commit for the manager to read against the card. Do not open
+   a per-unit pull request or send the unit for independent review or a Factory pass.
+7. Report: the batch branch, the commit, the ACs it satisfies, each test and its result, the census
    number, what you could not prove. End with `## Checklist`: each checklist item, its evidence
    (`file:line` or a command and its result), and `ok` or `n/a`.
 
+At the end of the batch, one independent review reruns the units' proofs and reviews the code.
+Findings return to the builders. Then one pull request goes into `wave/<name>`, ready for CI and the
+Dev Factory, as [delivery](../../../docs/development/delivery.md#waves) says. The manager merges it
+after Factory approval, green CI and the diff read.
+
 A review finding comes back to you as a message. Find its cause before you fix it, as the
-[review loop](../../../docs/development/delivery.md#review-loop) says, and push the fix to the same
-pull request.
+[review loop](../../../docs/development/delivery.md#review-loop) says. For a wave, push the fix to the
+same batch branch, and to the same pull request if it is already open. For a small change, push the
+fix to the same pull request.
 
 A screen change also follows [screens](references/screens.md).
 
@@ -61,7 +68,8 @@ writing name the data shape and its one owner, read the whole lifecycle you touc
 [decision register](../../../docs/decisions/index.md), and take the native census
 ([native first](../../../docs/reference/architecture.md#native-first)). Then follow the steps above,
 proving each "done when" item on the real surface with [`verify`](../verify/SKILL.md). The pull
-request targets `main`, and its body says what the change deletes, measured by
+request targets `main`: after the commit, push and open it ready for review, then include it in the
+report. Its body says what the change deletes, measured by
 `git diff --numstat origin/main...HEAD` with product code apart from tests, SQL and generated files.
 
 ## Stop and report when
