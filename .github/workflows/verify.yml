@@ -56,6 +56,12 @@ jobs:
         id: node
         with:
           node-version-file: .nvmrc
+      - name: Install and verify pinned npm
+        id: toolchain
+        run: |
+          npm install --global "npm@$(node -p "require('./package.json').engines.npm")"
+          npm run conexus:preflight
+          echo "npm-version=$(npm --version)" >> "$GITHUB_OUTPUT"
       # A pull request that changes only documentation runs only the checks that read documentation.
       # The test is a diff inside this job, not a workflow-level paths filter, so the required `verify`
       # check always reports. A push to main has no base and runs everything.
@@ -69,7 +75,7 @@ jobs:
           BASE_REF: ${{ github.event_name == 'pull_request' && github.base_ref || '' }}
         run: node scripts/ci-change-scope.mjs ${BASE_REF:+--base "origin/$BASE_REF"}
       # node_modules is restored whole and keyed on everything that decides its content: the lockfile,
-      # package.json, the Node version and the runner OS and architecture. On a hit npm ci is skipped.
+      # package.json, the Node/npm versions and the runner OS and architecture. On a hit npm ci is skipped.
       # On a miss it runs, and the result is saved right away, before verification adds build output
       # under node_modules/.cache that must not enter the cache.
       - name: Restore node_modules
@@ -77,7 +83,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json', 'package.json') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-npm${{ steps.toolchain.outputs.npm-version }}-${{ hashFiles('package-lock.json', 'package.json') }}
       - name: Install dependencies
         if: steps.modules.outputs.cache-hit != 'true'
         timeout-minutes: 15
@@ -159,12 +165,18 @@ jobs:
         id: node
         with:
           node-version-file: .nvmrc
+      - name: Install and verify pinned npm
+        id: toolchain
+        run: |
+          npm install --global "npm@$(node -p "require('./package.json').engines.npm")"
+          npm run conexus:preflight
+          echo "npm-version=$(npm --version)" >> "$GITHUB_OUTPUT"
       - name: Restore node_modules
         id: modules
         uses: actions/cache/restore@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json', 'package.json') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-npm${{ steps.toolchain.outputs.npm-version }}-${{ hashFiles('package-lock.json', 'package.json') }}
       - name: Install dependencies
         if: steps.modules.outputs.cache-hit != 'true'
         timeout-minutes: 15
@@ -284,12 +296,18 @@ jobs:
         id: node
         with:
           node-version-file: .nvmrc
+      - name: Install and verify pinned npm
+        id: toolchain
+        run: |
+          npm install --global "npm@$(node -p "require('./package.json').engines.npm")"
+          npm run conexus:preflight
+          echo "npm-version=$(npm --version)" >> "$GITHUB_OUTPUT"
       - name: Restore node_modules
         id: modules
         uses: actions/cache/restore@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json', 'package.json') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-npm${{ steps.toolchain.outputs.npm-version }}-${{ hashFiles('package-lock.json', 'package.json') }}
       - name: Install dependencies
         if: steps.modules.outputs.cache-hit != 'true'
         timeout-minutes: 15
@@ -346,12 +364,18 @@ jobs:
         id: node
         with:
           node-version-file: .nvmrc
+      - name: Install and verify pinned npm
+        id: toolchain
+        run: |
+          npm install --global "npm@$(node -p "require('./package.json').engines.npm")"
+          npm run conexus:preflight
+          echo "npm-version=$(npm --version)" >> "$GITHUB_OUTPUT"
       - name: Restore node_modules
         id: modules
         uses: actions/cache/restore@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json', 'package.json') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-npm${{ steps.toolchain.outputs.npm-version }}-${{ hashFiles('package-lock.json', 'package.json') }}
       - name: Install dependencies
         if: steps.modules.outputs.cache-hit != 'true'
         timeout-minutes: 15
