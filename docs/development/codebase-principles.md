@@ -141,6 +141,7 @@ which value is the truth and grows with every caller.
 - Every failure **must** carry a code from the one failure table (`contracts/technical/failures.json`),
   with its category decided where it is raised.
 - A refusal its caller branches on **must** be a result union on `ok`. Every other failure throws.
+- A caller-handled refusal returns the shared readonly `Result` with operation-specific table codes; escaping server faults retain native `Failure`, and received browser failures use the shared reader.
 - An error from a library or a service **must** be mapped by a field it carries (a status, a code,
   an SQLSTATE), never by its message text.
 - A `catch` **must** rethrow, map at a vendor boundary, or log. It **must not** be empty.

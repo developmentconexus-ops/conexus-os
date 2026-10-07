@@ -35,6 +35,7 @@ export const FAILURES = {
   'PROJECT_THUMBNAIL_NOT_FOUND': { category: 'USER', status: 404 },
   'PROJECT_THUMBNAIL_UNAVAILABLE': { category: 'SYSTEM', status: 503 },
   'BUILDER_SESSION_UNAVAILABLE': { category: 'SYSTEM', status: 503 },
+  'BUILDER_SANDBOX_OPEN_FAILED': { category: 'SYSTEM', status: 503 },
   'PROJECT_BUILD_DENIED': { category: 'USER', status: 403 },
   'CONVERSATION_NOT_FOUND': { category: 'USER', status: 404 },
   'BUILDER_CAPACITY_FULL': { category: 'USER', status: 503 },

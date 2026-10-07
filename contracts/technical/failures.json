@@ -44,6 +44,7 @@
     { "code": "PROJECT_THUMBNAIL_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Este Projeto ainda não tem miniatura.", "action": "NONE" },
     { "code": "PROJECT_THUMBNAIL_UNAVAILABLE", "category": "SYSTEM", "status": 503, "audience": "person", "message": "O Conexus não conseguiu carregar a miniatura do Projeto. A falha foi registrada.", "action": "NONE" },
     { "code": "BUILDER_SESSION_UNAVAILABLE", "category": "SYSTEM", "status": 503, "audience": "person", "message": "O Conexus não conseguiu abrir a sessão do Builder. A falha foi registrada.", "action": "NONE" },
+    { "code": "BUILDER_SANDBOX_OPEN_FAILED", "category": "SYSTEM", "status": 503, "audience": "person", "message": "O ambiente de código não abriu. A falha foi registrada.", "action": "NONE" },
     { "code": "PROJECT_BUILD_DENIED", "category": "USER", "status": 403, "audience": "person", "message": "Você não tem permissão para construir neste Projeto.", "action": "ASK_ADMIN" },
     { "code": "CONVERSATION_NOT_FOUND", "category": "USER", "status": 404, "audience": "person", "message": "Não encontramos essa conversa.", "action": "NONE" },
     { "code": "BUILDER_CAPACITY_FULL", "category": "USER", "status": 503, "audience": "person", "message": "O Conexus está com muitas execuções abertas agora.", "action": "RETRY_LATER" },

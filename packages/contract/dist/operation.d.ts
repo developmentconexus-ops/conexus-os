@@ -82,7 +82,6 @@ export type Reply<O extends AnyOperation> = true extends IsUnion<Statuses<O>> ? 
         body: StatusBody<O, S>;
     };
 }[Statuses<O>] : StatusBody<O, Statuses<O>>;
-export type Result<O extends AnyOperation> = Reply<O>;
 export type EffectsOf<E extends readonly Effect[]> = {
     readonly [K in E[number]]: () => void;
 };

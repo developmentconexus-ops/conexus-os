@@ -2,7 +2,7 @@
 
 import { HubFailure, readFailure } from './failure.ts'
 import { clearAuthorityCache } from './query-client'
-import type { AnyOperation, BinaryOperation, Input, JsonOperation, Result } from '@conexus/contract'
+import type { AnyOperation, BinaryOperation, Input, JsonOperation, Reply } from '@conexus/contract'
 
 const urlOf = (op: AnyOperation, input: Input<AnyOperation>): string => {
   const params = input.params
@@ -20,7 +20,7 @@ const urlOf = (op: AnyOperation, input: Input<AnyOperation>): string => {
   return query.size === 0 ? path : `${path}?${query}`
 }
 
-export function call<O extends JsonOperation>(op: O, input: Input<NoInfer<O>>, options?: { signal?: AbortSignal }): Promise<Result<O>>
+export function call<O extends JsonOperation>(op: O, input: Input<NoInfer<O>>, options?: { signal?: AbortSignal }): Promise<Reply<O>>
 export async function call(op: JsonOperation, input: Input<AnyOperation>, options: { signal?: AbortSignal } = {}): Promise<unknown> {
   const headers: Record<string, string> = {}
   if (typeof input.headers === 'object' && input.headers !== null) {

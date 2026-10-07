@@ -33,6 +33,7 @@ export const FAILURE_TEXT = {
   'PROJECT_THUMBNAIL_NOT_FOUND': 'Este Projeto ainda não tem miniatura.',
   'PROJECT_THUMBNAIL_UNAVAILABLE': 'O Conexus não conseguiu carregar a miniatura do Projeto. A falha foi registrada.',
   'BUILDER_SESSION_UNAVAILABLE': 'O Conexus não conseguiu abrir a sessão do Builder. A falha foi registrada.',
+  'BUILDER_SANDBOX_OPEN_FAILED': 'O ambiente de código não abriu. A falha foi registrada.',
   'PROJECT_BUILD_DENIED': 'Você não tem permissão para construir neste Projeto. Peça a quem administra o Conexus.',
   'CONVERSATION_NOT_FOUND': 'Não encontramos essa conversa.',
   'BUILDER_CAPACITY_FULL': 'O Conexus está com muitas execuções abertas agora. Tente novamente mais tarde.',

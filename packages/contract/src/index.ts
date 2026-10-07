@@ -7,6 +7,7 @@ export * from './model-account.js'
 export * from './operation.js'
 export * from './problem.js'
 export * from './project.js'
+export type { Result } from './result.js'
 export * from './workspace.js'
 
 import { listWorkspaceConnections, createWorkspaceConnection, checkWorkspaceConnection, disableWorkspaceConnection, listProjectConnectionBindings, bindProjectConnection, unbindProjectConnection } from './connectors.js'
