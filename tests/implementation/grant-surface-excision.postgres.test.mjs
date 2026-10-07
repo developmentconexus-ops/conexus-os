@@ -31,8 +31,8 @@ test('a member of the Workspace reads, creates and builds every Project in it', 
   assert.deepEqual(await store.listBuilderRuns({ accountId: ID.outsider, projectId }), [])
   assert.equal(await store.admitSourceRevision({ accountId: ID.outsider, projectId, sourceRevision: BASE, readMain: async () => BASE }), false)
   assert.equal(await store.readPreviewSubject({ accountId: ID.outsider, projectId }), null)
-  await assert.rejects(send(store, ID.outsider, projectId, 'two'), { id: 'PROJECT_BUILD_DENIED' })
-  await assert.rejects(store.requestBuilderRunCancellation({ accountId: ID.outsider, projectId, builderRunId: created.builderRunId }), { id: 'PROJECT_BUILD_DENIED' })
+  await assert.rejects(send(store, ID.outsider, projectId, 'two'), { id: 'PROJECT_NOT_FOUND' })
+  await assert.rejects(store.requestBuilderRunCancellation({ accountId: ID.outsider, projectId, builderRunId: created.builderRunId }), { id: 'PROJECT_NOT_FOUND' })
 })
 
 test('removing the member stops the next claim and still records the work already done', async (t) => {
@@ -48,10 +48,10 @@ test('removing the member stops the next claim and still records the work alread
 
   await assert.rejects(store.claimBuilderRun({ builderRunId: queuedRun.builderRunId }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
 
-  // Settlement records what the run already performed, so it does not ask.
-  await store.settleBuilderRun({ builderRunId: runningRun.builderRunId })
+  await assert.rejects(store.settleBuilderRun({ builderRunId: runningRun.builderRunId }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
+  await store.failBuilderRun({ builderRunId: runningRun.builderRunId, failureCode: 'BUILDER_RUN_NOT_ADMITTED' })
   assert.deepEqual((await query(connection, 'SELECT state, result_kind FROM builder.builder_run WHERE builder_run_id = $1', [runningRun.builderRunId])).rows,
-    [{ state: 'SUCCEEDED', result_kind: 'RESPONSE_ONLY' }])
+    [{ state: 'FAILED', result_kind: null }])
 
   assert.deepEqual(await database.read(ID.member, (tx) => tx.rows(z.object({ project_id: z.string() }), sql`SELECT project_id FROM project.project`)), [])
 })

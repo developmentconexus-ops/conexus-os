@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { WorkspaceId, type AccountId, type ProjectId as ProjectIdType } from '@conexus/contract'
 import { OPEN_RUN_STATES } from '../generated/builder-run-vocabulary.js'
-import { admitInstallationAdministrator, admitSystem, type Admitted, type SystemScope } from '../identity-access/admission.js'
+import { admitProject, admitSystem, type Admitted, type SystemScope } from '../identity-access/admission.js'
 import type { Database, WriteTx } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
@@ -38,16 +38,9 @@ const settled = (tombstone: z.output<typeof Tombstone>, confirmName: string): Re
 }
 
 export function createProjectDeletion({ database, ports }: Readonly<{ database: Database; ports: ProjectDeletionPorts }>) {
-  // The administrator's own transaction: account, tenure, then the project row, so a command admitted
-  // on the project and this tombstone serialize on that row.
+  // The owner's command locks its account and membership before the Project row.
   const begin = ({ accountId, projectId, confirmName }: DeleteProjectInput) => database.transaction(accountId, async (gate) => {
-    const administrator = await admitInstallationAdministrator(gate, 'project.delete')
-    const tx = administrator.tx
-    const existing = await tombstoneOf(tx, projectId)
-    if (existing && !(await tx.maybe(Present, sql`SELECT 1 AS present FROM project.project WHERE project_id = ${projectId}`))) {
-      if (existing.completed_at === null) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_DELETION_STRANDED' } })
-      return settled(existing, confirmName)
-    }
+    const { tx, scope } = await admitProject(gate, { projectId, action: 'project.delete' })
     const target = await tx.maybe(Target, sql`SELECT workspace_id, name FROM project.project WHERE project_id = ${projectId} FOR UPDATE`)
     const concurrent = await tombstoneOf(tx, projectId)
     if (concurrent) return settled(concurrent, confirmName)
@@ -56,7 +49,7 @@ export function createProjectDeletion({ database, ports }: Readonly<{ database: 
     if (await busy(tx, projectId)) throw new Failure('PROJECT_BUSY')
     const written = await tx.run(sql`
       INSERT INTO project.project_deletion (project_id, workspace_id, name, requested_by)
-      SELECT project_id, workspace_id, name, ${administrator.scope.accountId}::uuid FROM project.project WHERE project_id = ${projectId}`)
+      SELECT project_id, workspace_id, name, ${scope.accountId}::uuid FROM project.project WHERE project_id = ${projectId}`)
     if (written !== 1) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_TOMBSTONE_NOT_WRITTEN' } })
     return { completed: false }
   })
@@ -81,7 +74,7 @@ export function createProjectDeletion({ database, ports }: Readonly<{ database: 
 
   const deleteProject = async (input: DeleteProjectInput): Promise<void> => {
     const lockKey = await database.transaction(input.accountId, async (gate) => {
-      const { tx } = await admitInstallationAdministrator(gate, 'project.delete')
+      const { tx } = await admitProject(gate, { projectId: input.projectId, action: 'project.delete' })
       return tx.one(LockKey, sql`SELECT hashtextextended(${'conexus-hub:project-deletion:'}::text || ${input.projectId}::text, 0)::text AS lock_key`, 'INTERNAL_UNEXPECTED')
     })
     await database.session('conexus-hub:project-deletion', async (lock, lost) => {

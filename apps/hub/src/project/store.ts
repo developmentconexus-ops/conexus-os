@@ -81,14 +81,14 @@ export const createProjectStore = ({
     // The reserved receipt is the intent: a retry with the same key reaches the same Project id, and
     // so the repository this call may already have created.
     const reserved = await database.transaction(accountId, async (gate) =>
-      reserve(receiptOf(await admitWorkspace(gate, workspaceId, 'project.create')), createProject, idempotencyKey, receiptInput, ProjectId))
+      reserve(receiptOf(await admitWorkspace(gate, { workspaceId, action: 'project.create' })), createProject, idempotencyKey, receiptInput, ProjectId))
     if (reserved.kind === 'replay') return { replayed: true, reply: reserved.reply }
     const projectId = reserved.resourceId
 
     const starterRevision = await repository.prepare(projectId).catch(gitUnavailableAs('PROJECT_REPOSITORY_UNAVAILABLE'))
 
     return database.transaction(accountId, async (gate) => {
-      const proof = await admitWorkspace(gate, workspaceId, 'project.create')
+      const proof = await admitWorkspace(gate, { workspaceId, action: 'project.create' })
       const receipt = await reserve(receiptOf(proof), createProject, idempotencyKey, receiptInput, ProjectId)
       if (receipt.kind === 'replay') return { replayed: true, reply: receipt.reply }
       if (receipt.resourceId !== projectId) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'PROJECT_RECEIPT_RESOURCE_CHANGED' } })

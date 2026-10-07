@@ -16,7 +16,7 @@ export declare function admitInstallationAdministrator<I extends AdministratorIn
 export declare function admitInstallationAdministrator<I extends AdministratorInput>(gate: CommandGate, input: I): Promise<Admitted<Extract<AdministratorScope, { action: I['action'] }>>>
 export declare function readAdministratorFlag(proof: Admitted<AccountScope, 'read'>): Promise<boolean>
 // The existing Failure remains the refusal mechanism. Spec 0019 owns its replacement.
-export declare function refuse(input: Readonly<{ code: FailureCode | 'PROJECT_DELETING'; reason: 'OUTSIDER' | 'FORBIDDEN' | 'TOMBSTONE' | 'INACTIVE' | 'NO_ACCOUNT' | 'RUN_NOT_HELD' }>): Failure
+export declare function refuse(input: Readonly<{ code: FailureCode; reason: 'OUTSIDER' | 'FORBIDDEN' | 'TOMBSTONE' | 'INACTIVE' | 'NO_ACCOUNT' | 'RUN_NOT_HELD' }>): Failure
 
 export declare function admitRun(gate: CommandGate, builderRunId: BuilderRunId, owner: RunOwner): Promise<Admitted<RunScope>>
 export declare function admitSystem<J extends JobName>(gate: CommandGate, job: J): Promise<Admitted<SystemScope<J>>>

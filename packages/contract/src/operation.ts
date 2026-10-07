@@ -1,6 +1,8 @@
 import type { z } from 'zod'
 import type { FailureCode } from './failures.generated.js'
 
+export const SUBJECT_NOT_FOUND = { workspaceId: 'WORKSPACE_NOT_FOUND', projectId: 'PROJECT_NOT_FOUND' } as const
+
 export type AccessKind = 'navigation' | 'sign-in' | 'session' | 'sign-out' | 'host-write' | 'hub-entry'
 export type Effect = 'clear-session-cookie'
 export type Binary = Readonly<{ mediaType: 'image/png'; maxBytes: number; cache?: 'revalidate-private' }>

@@ -38,8 +38,10 @@ it.
 ASVS V8.
 
 - Authority **must** be membership of the Workspace that owns the resource, with its role, `owner`
-  or `member`. `ROLE_ALLOWS` in `admission.ts` is the whole rule: a member does not manage the roster
-  or bind connections. The last active owner **must not** be demoted or removed.
+  or `member`. `ACTIONS` in `admission.ts` is the whole rule: membership discloses the subject, then
+  its named action decides whether the role may use it. An owner-internal transition may close work
+  that was already admitted, but **must not** grant new human work. The last active owner **must not**
+  be demoted or removed.
 - An installation administrator is a fact about an Account, not a Workspace role. Its actions are
   `AdministratorAction` in `admission.ts`. The last one **must not** be revoked.
 - An action **must** be necessary and never sufficient: each operation rechecks the exact subject

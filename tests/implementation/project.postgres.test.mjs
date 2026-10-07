@@ -57,12 +57,12 @@ test('createProject reaches the same project id after a crash between Git and co
 
 test('createProject refuses a retry after the account lost the workspace, an inactive account and a source it does not offer', async (t) => {
   const { connection, store } = await setupProjects(t, 'conexus_prj03_refused')
-  await assert.rejects(create(store, ID.outsider, 'outsider'), { id: 'PROJECT_CREATE_DENIED' })
+  await assert.rejects(create(store, ID.outsider, 'outsider'), { id: 'WORKSPACE_NOT_FOUND' })
   await assert.rejects(create(store, ID.owner, 'git', { name: 'Atlas', sourceBootstrap: { mode: 'EXISTING_GIT', repositoryLocator: 'https://git.test/x' } }), { id: 'PROJECT_SOURCE_REFUSED' })
   assert.deepEqual((await query(connection, 'SELECT count(*)::integer AS receipts FROM platform.operation_receipt')).rows, [{ receipts: 0 }])
   const created = await create(store, ID.member, 'lost')
   await query(connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1', [ID.member])
-  await assert.rejects(create(store, ID.member, 'lost'), { id: 'PROJECT_CREATE_DENIED' })
+  await assert.rejects(create(store, ID.member, 'lost'), { id: 'WORKSPACE_NOT_FOUND' })
   assert.equal(created.replayed, false)
   await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.owner])
   await assert.rejects(create(store, ID.owner, 'inactive'), { id: 'ACCOUNT_INACTIVE' })
@@ -81,7 +81,7 @@ test('a revoke that commits first refuses createProject', async (t) => {
   await new Promise((resolve) => setTimeout(resolve, 150))
   assert.equal(settled, false)
   await revoker.query('COMMIT')
-  await assert.rejects(waiting, { id: 'PROJECT_CREATE_DENIED' })
+  await assert.rejects(waiting, { id: 'WORKSPACE_NOT_FOUND' })
 })
 
 test('a revoke waits for an admitted createProject and the next admission is refused', async (t) => {
@@ -108,7 +108,7 @@ test('a revoke waits for an admitted createProject and the next admission is ref
   const [created] = await Promise.all([creating, revoking])
   assert.equal(created.replayed, false)
   assert.equal((await query(connection, 'SELECT count(*)::integer AS projects FROM project.project')).rows[0].projects, 1)
-  await assert.rejects(create(store, ID.member, 'after-revoke'), { id: 'PROJECT_CREATE_DENIED' })
+  await assert.rejects(create(store, ID.member, 'after-revoke'), { id: 'WORKSPACE_NOT_FOUND' })
 })
 
 const states = {
@@ -229,5 +229,5 @@ test('the policy helper is false for an administrator whose account is not activ
 test('an outsider is refused at admission before any project write is reachable', async (t) => {
   const { database } = await setupProjects(t, 'conexus_prj_write')
   const { admitWorkspace } = await import(hubModuleUrl('identity-access/admission.js'))
-  await assert.rejects(database.transaction(ID.outsider, (gate) => admitWorkspace(gate, ID.workspace, 'workspace.read')), { id: 'WORKSPACE_NOT_FOUND' })
+  await assert.rejects(database.transaction(ID.outsider, (gate) => admitWorkspace(gate, { workspaceId: ID.workspace, action: 'workspace.read' })), { id: 'WORKSPACE_NOT_FOUND' })
 })

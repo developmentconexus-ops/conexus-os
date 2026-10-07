@@ -65,10 +65,14 @@ gate.rows
 gate.tx
 // @ts-expect-error A workspace admission takes a command gate, not an authentication gate.
 admitWorkspace(authentication, workspace, 'workspace.read')
+// @ts-expect-error Command admissions use an object input, not the retired positional form.
+admitWorkspace(gate, workspace, 'workspace.read')
 // @ts-expect-error A transaction mode that writes cannot be asked of a read: run is not on a ReadTx.
 readTx.run(sql`SELECT 1`)
 // @ts-expect-error A command's own transaction is a write transaction, so it cannot take a read admission.
 admitProject(builder.tx, project, 'project.read')
+// @ts-expect-error Command admissions use an object input, not the retired positional form.
+admitProject(gate, project, 'project.read')
 // @ts-expect-error A read admission of a project takes only the read actions, so a build is a command.
 admitProject(readTx, project, 'project.build')
 // @ts-expect-error A command's own transaction cannot take the workspace read admission either.

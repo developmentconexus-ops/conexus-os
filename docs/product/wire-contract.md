@@ -72,7 +72,8 @@ path that names an operation turns the API into a remote procedure call that no 
 - A request **must** be parsed once, at its route, against the contract schema. The handler trusts
   the parsed value.
 - A path id **must** have a params schema with the id's format. A malformed id **must** answer the
-  operation's `malformed` row (404 for a Project or Workspace id) before any store call.
+  operation's `malformed` row before any store call. Malformed and undisclosed Workspace/Project
+  subjects use the shared `SUBJECT_NOT_FOUND` mapping exported by the contract.
 - `GET` and `HEAD` **must not** change state.
 - A `POST` that creates something **must** take an `Idempotency-Key`.
 

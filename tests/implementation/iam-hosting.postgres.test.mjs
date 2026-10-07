@@ -91,7 +91,7 @@ const estate = async (t, prefix, { invoke } = {}) => {
   })
   const sessions = async (kind) => (await hub.sql('SELECT count(*)::int AS n FROM iam.host_session WHERE kind = $1', [kind]))[0].n
   const launch = (accountId, hubToken, artifactRevisionId = revision) =>
-    hub.database.transaction(accountId, async (gate) => hub.sessions.openPreview(await admitProject(gate, P, 'project.build'), digestOf(hubToken), artifactRevisionId))
+    hub.database.transaction(accountId, async (gate) => hub.sessions.openPreview(await admitProject(gate, { projectId: P, action: 'project.build' }), digestOf(hubToken), artifactRevisionId))
   const enter = (entryGrant, artifactRevisionId = revision) => previewApp.inject({
     method: 'POST', url: '/__conexus/preview-entry', payload: `entryGrant=${entryGrant}`,
     headers: { host: previewHost(artifactRevisionId), origin: HUB_ORIGIN, 'content-type': 'application/x-www-form-urlencoded' },
@@ -373,7 +373,7 @@ for (const order of ['racer first', 'purge first']) {
         assert.equal(await purging, undefined, label)
       }
       assert.equal(outcome, true, `${label}: a refusal or a committed row, never a 500 (${outcome})`)
-      await purge.deleteProject({ accountId: OWNER, projectId: P, confirmName: 'Estoque Parado' }).catch((error) => assert.fail(`${label}: the second pass ${error.id}`))
+      await assert.rejects(purge.deleteProject({ accountId: OWNER, projectId: P, confirmName: 'Estoque Parado' }), { id: 'PROJECT_NOT_FOUND' }, `${label}: a completed purge leaves no Project to admit`)
       assert.deepEqual(await leftOf(hub), NONE_LEFT, label)
     }
   })

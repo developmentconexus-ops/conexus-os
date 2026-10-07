@@ -66,7 +66,7 @@ export const registerAdministratorRoutes = async (app: FastifyInstance, database
   // An account that already holds a tenure keeps it: the add answers 200 with that tenure and grants nothing.
   route.operation(addInstallationAdministrator, async ({ headers, body }, session) => {
     const { reply, replayed } = await database.transaction(session.account.accountId, async (gate) => {
-      const proof = await admitInstallationAdministrator(gate, 'administrators.manage')
+      const proof = await admitInstallationAdministrator(gate, { action: 'administrators.manage' })
       return idempotent(receiptOf(proof), addInstallationAdministrator, headers['idempotency-key'], { params: undefined, query: undefined, body }, AccountId, async () => {
         const matches = await proof.tx.rows(Match, sql`SELECT account_id FROM iam.account WHERE active AND email = ${body.email} ORDER BY account_id LIMIT 2`)
         const [match] = matches
@@ -87,7 +87,7 @@ export const registerAdministratorRoutes = async (app: FastifyInstance, database
 
   route.operation(removeInstallationAdministrator, async ({ params }, session) => {
     await database.transaction(session.account.accountId, async (gate) => {
-      const proof = await admitInstallationAdministrator(gate, 'administrators.manage')
+      const proof = await admitInstallationAdministrator(gate, { action: 'administrators.manage' })
       const tenures = (await proof.tx.rows(ActiveAccount, sql`
         SELECT tenure.account_id, person.active FROM iam.installation_administrator AS tenure
         JOIN iam.account AS person ON person.account_id = tenure.account_id

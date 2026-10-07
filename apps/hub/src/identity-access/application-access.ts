@@ -142,7 +142,7 @@ export const createApplicationAccess = ({ database, addressOf }: Readonly<{
 
     // Granting always invites: the person's next sign in claims it, as a no op when a grant already exists.
     route.operation(grantApplicationAccess, ({ params, headers, body }, session) => database.transaction(session.account.accountId, async (gate) => {
-      const proof = await admitProject(gate, params.projectId, 'application.manage')
+      const proof = await admitProject(gate, { projectId: params.projectId, action: 'application.manage' })
       await lockApplication(proof.tx, proof.scope.projectId)
       const { reply } = await idempotent(receiptOf(proof), grantApplicationAccess, headers['idempotency-key'], { params, query: undefined, body }, InvitationId, async (invitationId) => {
         await ensureApplication(proof)
@@ -158,7 +158,7 @@ export const createApplicationAccess = ({ database, addressOf }: Readonly<{
     }))
 
     route.operation(revokeApplicationGrant, ({ params }, session) => database.transaction(session.account.accountId, async (gate) => {
-      const proof = await admitProject(gate, params.projectId, 'application.manage')
+      const proof = await admitProject(gate, { projectId: params.projectId, action: 'application.manage' })
       const revoked = await proof.tx.run(sql`
         UPDATE iam.application_grant SET revoked_at = clock_timestamp(), revoked_by = ${proof.scope.accountId}
         WHERE grant_id = ${params.grantId} AND project_id = ${proof.scope.projectId} AND revoked_at IS NULL`)
@@ -167,7 +167,7 @@ export const createApplicationAccess = ({ database, addressOf }: Readonly<{
     }))
 
     route.operation(cancelApplicationInvitation, ({ params }, session) => database.transaction(session.account.accountId, async (gate) => {
-      const proof = await admitProject(gate, params.projectId, 'application.manage')
+      const proof = await admitProject(gate, { projectId: params.projectId, action: 'application.manage' })
       const cancelled = await proof.tx.run(sql`
         DELETE FROM iam.application_invitation WHERE invitation_id = ${params.invitationId} AND project_id = ${proof.scope.projectId}`)
       if (cancelled !== 1) throw new Failure('APPLICATION_ACCESS_ENTRY_NOT_FOUND')

@@ -77,7 +77,7 @@ export const createPreviewState = ({ database, registry }: Readonly<{ database: 
     }),
     readPreviewSubject: ({ accountId, projectId }) => database.read(accountId, (tx) => previewOf(tx, projectId)),
     openLaunch: ({ accountId, projectId }, open) => database.transaction(accountId, async (gate) => {
-      const proof = await admitProject(gate, projectId, 'project.build')
+      const proof = await admitProject(gate, { projectId, action: 'project.build' })
       const launch = await registry.readLaunch(proof)
       return launch ? open(proof, launch) : null
     }),
