@@ -2,7 +2,7 @@
 
 **Date**: 2026-10-07
 
-**Status**: Proposed
+**Status**: Approved by the operator on 2026-10-07, commit f0cdc5aa54fd32b567ae055639d2dce0513a91a5
 
 **Lane**: lane:qualification (identity authority and database privilege migration)
 
