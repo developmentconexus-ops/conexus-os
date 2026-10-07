@@ -1,0 +1,28 @@
+{
+  "baseline": {
+    "resultReplyAlias": 1,
+    "manifestThrowHelpers": 2,
+    "admissionMessageDecoders": 2,
+    "workerCodeFilter": 1,
+    "failureProblemCalls": 6,
+    "failureBodyHelpers": 4,
+    "hubFailureClass": 1,
+    "oldWebFailureImportFiles": 8,
+    "embeddedConexusError": 1,
+    "generatedFailureDecoder": 1,
+    "generatedHttpFallback": 1,
+    "generatedFailureFallback": 1,
+    "starterFailureWrappers": 2
+  },
+  "activatedZeroTargets": [],
+  "inventory": {
+    "admissionCallExpressions": 10,
+    "sandboxStartRow": 0
+  },
+  "limits": [
+    "Scans git-listed TypeScript under apps/hub/src, apps/web/src and packages/contract/src, plus four explicitly named generator/template markers.",
+    "Matches named declarations, calls, imports and the generated ConexusError marker.",
+    "Does not resolve renamed imports, analyze TypeScript semantics or inspect code embedded outside APP_FAILURES_SOURCE.",
+    "Generated embedded source behavior remains covered by its focused fixture and generator checks."
+  ]
+}
