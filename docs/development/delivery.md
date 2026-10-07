@@ -65,16 +65,17 @@ coordinates them.
   `**Status**: Approved by the operator on <date>, commit <sha>`. It opens the build of every unit.
 - In a wave that changes structure, the first unit **must** be the behavior pin, green on `main`
   before any structure moves.
-- A wave **must** have only two or three review checkpoints, each for 3 or 4 units. The last **may** have fewer.
-- A fresh builder **must** build each unit from its card as one commit stacked on `wave/<name>-loteN`, with
-  the card's proof and `npm run verify:quick` passing. The manager **must** read each unit's diff against its card.
-- A unit **must not** start before its card's inputs exist at its head. Independent units in a batch **may** run in parallel.
-- Each batch **must** end with one independent code review that reruns the proofs. Findings return to the builders.
-  Then one PR goes into `wave/<name>` for CI and the Dev Factory. Units **must not** get PRs, independent reviews or Factory passes.
+- A wave **must** have two or three batch reviews of 3 or 4 units; the last **may** have fewer.
+- A fresh builder **must** stack one commit per card on `wave/<name>-loteN`.
+  Pass its proof and `npm run verify:quick`. The manager **must** read each diff against its card.
+- Inputs **must** exist before a unit starts. Independent units in a batch **may** run in parallel.
+- Each batch **must** get one independent code review and proof rerun. Findings go to builders.
+  Then one PR goes into `wave/<name>` for CI and the Dev Factory.
+  Units **must not** get PRs, independent reviews or Factory passes.
 - The manager **must** merge each batch only after Factory `approve`, green CI and the diff read.
-- The next batch **may** start on the previous batch branch during independent or Factory review. It **must** rebase if findings change it.
-- A dependent wave **may** start on an upstream wave or batch branch once its needed unit
-  exists, without waiting for `main`. It **must** rebase if the upstream changes during its proof.
+- Batches **may** stack on the last batch in review or Factory. Rebase if findings change it.
+- A dependent wave **may** start on an upstream wave or batch branch once its needed unit exists.
+  It need not wait for `main`. It **must** rebase if the upstream changes during its proof.
 - When every batch is merged, a fresh read-only session proves the head of the wave branch. A
   `lane:qualification` wave is also reviewed with pstack `interrogate` over `main...wave/<name>`. A
   failed AC or a confirmed finding becomes a fix unit, and the proof runs again on the new head.
@@ -86,10 +87,9 @@ coordinates them.
 - A wave that lays a base for others **must** prove its contract with at least one real consumer
   before merge. A later wave that breaks that contract opens a corrective wave.
 
-**Why.** Commits stay reviewable. Batches avoid per-unit ceremony. Overlap starts work sooner.
-The wave branch keeps `main` releasable.
+**Why.** Batches avoid per-unit ceremony, allow overlap and keep `main` releasable.
 
-**Right.** Eight units in two batches of four commits, reviewed once and merged into the wave branch, then the wave proof.
+**Right.** Eight units, two batches of four commits, one review and wave-branch PR each, then proof.
 
 **Wrong.** A unit that uses a type a later unit creates, or a spec with eight child files and
 decision notes beside it.
@@ -239,8 +239,8 @@ A pull request is ready when these hold at its exact head SHA, plus its lane's g
 ## Git and pull requests
 
 - `main` is the trunk and **must** stay releasable. Its rulesets require a pull request and `verify`
-  with no bypass. Every pull request targets `main` and is squash merged, except a wave batch's, which
-  targets its wave branch `wave/<name>`.
+  with no bypass. Every pull request targets `main` and is squash merged, except a wave batch's,
+  which targets its wave branch `wave/<name>`.
 - A branch **should** live hours or days, not weeks.
 - A pull request **must** link its issue, do only what it asks, and open with one line that says
   what changes, followed by why and for whom. Commits use conventional commit titles.

@@ -19,7 +19,7 @@ Stage 1 and Stage 2 gates Q1 to Q4 are closed. The structural waves that make a 
 finished except S1 (checked boundaries, in progress). The authorization model, error model wave 1
 and company model accounts advance through the new flow in parallel. The remaining code base sweeps
 come before Q5. The Builder block, the screen check and the Q5 preparation that Q5 does not need come after its verdict.
-`main` is the trunk; unit pull requests target their wave branch, and wave pull requests target `main`.
+`main` is the trunk; batch pull requests target their wave branch, and wave pull requests target `main`.
 
 ## Finished
 
