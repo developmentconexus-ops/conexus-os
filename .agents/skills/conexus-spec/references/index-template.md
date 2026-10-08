@@ -2,6 +2,18 @@
 
 What the builder reads. Copy it into `docs/specs/NNNN-title/index.md`.
 
+## Unit cards
+
+A card resolves implementation decisions before build. Map every file action and proof to its unit
+and AC. Trace callers, reexports, executable scripts and CI discovery, including intersecting tests,
+fakes, manual tools, configuration and generated or pinned artifacts. A names-only file list is
+insufficient. Use shared baseline, contract, reference and consumer rows once; cards cite those rows.
+Separate moves from behavior changes and order prerequisites so each unit uses only existing owners
+or owners it creates. Register an owner with native verifiers in the first unit that consumes it.
+Use [delivery's CI impact rule](../../../../docs/development/delivery.md#proof-and-verification)
+for closure and reused evidence. The compiled shape proves contracts; concise sequences capture
+transaction, refusal, error and concurrency decisions that types cannot express.
+
 ```markdown
 # NNNN. <Title: the outcome, as a noun phrase>
 
@@ -25,15 +37,18 @@ What the builder reads. Copy it into `docs/specs/NNNN-title/index.md`.
 
 ## References copied
 
-| Mechanism | Reference (`repo/file:line`) | Kept as is | Adapted, and why |
+| Mechanism | Reference (revision, `repo/file:line`) | Kept as is | Adapted, and why |
 | --- | --- | --- | --- |
 | <e.g. the permission check> | `documenso/.../get-envelope-by-id.ts:128-140` | <rule in the where clause> | <our subject names its own 404> |
 | <mechanism with no reference> | not found (looked in <where>) | | <why we build it anyway> |
 
 ## Code shape
 
-The target, compiled. Files in `shape/` beside this spec; `npx tsc --noEmit -p shape` exits 0 at
-<commit>. The wave's last unit deletes `shape/`.
+The target, compiled. Record the inspected source head, dependency lock and installed library
+versions. Files in `shape/` beside this spec; `npx tsc --noEmit -p shape` exits 0 at <commit>.
+The wave's last unit deletes `shape/`. For uncertain contracts or architecture, record a minimal
+executable proof against actual repository owners and installed libraries, with negative call sites,
+command, head, result and unproved limits. Declaration stubs do not prove native implementability.
 
 - `shape/types.ts`: the data model as types (unions on one literal field, branded ids, no optional
   field that belongs to one state).
@@ -71,18 +86,30 @@ Delete list: <files, exports, functions, tables, failure codes, tests>
 
 ### U1. <Name>
 
-- **Already there**: <commits, types, contracts this unit uses, each with its file. Nothing from a
-  later unit>
-- **Creates**: <types, modules, tables, from shape/>
+- **Baseline**: <inspected source head and pinned dependency versions, or shared baseline row>
+- **Already there**: <prerequisite units and actual imported owners, public entries and types,
+  each with its file. Nothing from a later unit>
+- **Creates**: <final responsibilities and target signatures from shape/, citing shared contracts>
 - **Satisfies**: AC-n, ...
-- **Files**: <paths written; paths it must not touch>
+- **Files**: <the action map below; protected paths it must not touch>
 - **Copies**: <reference row(s) above>
-- **Guide sections**: <e.g. C §3, §4, §5; D §5, §6>
-- **Deletes**: <what leaves in this unit, with every caller moved>
-- **Proof**: <tests by name with literal values; the negative type test; the census number after
-  this unit; `npm run verify:quick`>
+- **Guide sections**: <owning rules and any justified guide change, assigned to an action row>
+- **Deletes**: <action rows that remove the old ownership, API and assumptions with all callers>
+- **Logic**: <short sequence or small pseudocode for decisive operation, transaction, refusal,
+  escaping failure and concurrency behavior. Cite actual owner contracts; do not copy whole bodies>
+- **Proof**: <the proof map below, including `npm run verify:quick` and full CI impact closure>
 - **Out of scope**: <what a nearby builder might be tempted to do>
 - **Stop if**: <the condition that sends it back>
+
+| Path and symbol | Current owner and callers | Action and target | Unit and AC | Proof |
+| --- | --- | --- | --- | --- |
+| <exact product path/export> | <actual imports/reexports and responsibility> | <create/change/move-to/delete; target signature or contract row> | U1, AC-n | P1 |
+| <test/fake/script/config/generated/CI path> | <consumer and native command/discovery edge> | <migrate/delete/register now, with guard retained> | U1, AC-n | P2 |
+
+| Proof | Unit and AC | Command and observable result | Head and status | Reused evidence and why valid |
+| --- | --- | --- | --- | --- |
+| P1 | U1, AC-n | <behavior with literal values and negative call sites against actual owners> | <source/dependency head; passed or unproved limit> | <receipt/head, or none> |
+| P2 | U1, AC-n | <affected CI groups, verifier registration, deletes/census and artifact/pin checks> | <source head and result> | <unaffected receipt/head and validity reason> |
 
 ### U2. ...
 
