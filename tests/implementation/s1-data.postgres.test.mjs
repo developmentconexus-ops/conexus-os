@@ -26,7 +26,7 @@ const setup = async (t) => {
   return { ...fixture, database }
 }
 
-test('a row is parsed, a missing row has its named failure, and a transaction setting does not leak', async (t) => {
+test('a row is parsed through an admitted proof and a missing row has its named failure', async (t) => {
   const { database, connection } = await setup(t)
   await query(connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'a', 'A')", [ACCOUNT])
   const NumberRow = z.object({ value: z.number() })
@@ -39,21 +39,23 @@ test('a row is parsed, a missing row has its named failure, and a transaction se
     return { value, quoted }
   })
   assert.deepEqual(result, { value: { value: 7 }, quoted: { 'col"name': 8 } })
-  await assert.rejects(database.read(ACCOUNT, (tx) => tx.one(StringRow, sql`SELECT 1 AS value`, 'NOT_FOUND')), { name: 'ZodError' })
-  await assert.rejects(database.read(ACCOUNT, (tx) => tx.one(NumberRow, sql`SELECT 1 AS value WHERE false`, 'NOT_FOUND')), { id: 'NOT_FOUND' })
-  assert.deepEqual((await (await loginPoolOf(database)).query("SELECT current_setting('conexus.account_id', true) AS value")).rows, [{ value: '' }])
+  await assert.rejects(database.read(ACCOUNT, async (gate) => (await admitAccount(gate)).tx.one(StringRow, sql`SELECT 1 AS value`, 'NOT_FOUND')), { name: 'ZodError' })
+  await assert.rejects(database.read(ACCOUNT, async (gate) => (await admitAccount(gate)).tx.one(NumberRow, sql`SELECT 1 AS value WHERE false`, 'NOT_FOUND')), { id: 'NOT_FOUND' })
+  assert.deepEqual((await (await loginPoolOf(database)).query("SELECT current_setting('conexus.account_id', true) AS value")).rows, [{ value: null }])
 })
 
-test('the read entry has no write method and a retained transaction stops at its boundary', async (t) => {
-  const { database } = await setup(t)
+test('the read entry is closed until admission and an admitted read stops at its transaction boundary', async (t) => {
+  const { database, connection } = await setup(t)
+  await query(connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'a', 'A')", [ACCOUNT])
   let retained
-  await database.read(ACCOUNT, async (tx) => {
-    retained = tx
-    assert.equal(tx.mode, 'read')
-    assert.equal(tx.run, undefined)
-    assert.deepEqual(await tx.rows(z.object({ value: z.number() }), sql`SELECT 1 AS value`), [{ value: 1 }])
+  await database.read(ACCOUNT, async (gate) => {
+    assert.equal(gate.mode, 'read')
+    assert.equal(gate.rows, undefined)
+    retained = await admitAccount(gate)
+    assert.deepEqual(await retained.tx.rows(z.object({ value: z.number() }), sql`SELECT 1 AS value`), [{ value: 1 }])
   })
-  await assert.rejects(retained.rows(z.object({ value: z.number() }), sql`SELECT 1 AS value`), { id: 'INTERNAL_UNEXPECTED' })
+  await assert.rejects(retained.tx.rows(z.object({ value: z.number() }), sql`SELECT 1 AS value`), { id: 'INTERNAL_UNEXPECTED' })
+  await assert.rejects(database.read(ACCOUNT, async (gate) => (await admitAccount(gate)).tx.maybe(z.object({ present: z.literal(1) }), sql`UPDATE iam.account SET email = email WHERE account_id = ${ACCOUNT} RETURNING 1 AS present`)), { id: 'INTERNAL_UNEXPECTED' })
 })
 
 test('the runtime role cannot call the tenure lock, lock or read iam tables, change schema, assume an owner, or read factory', async (t) => {
@@ -61,12 +63,12 @@ test('the runtime role cannot call the tenure lock, lock or read iam tables, cha
   await query(connection, 'CREATE TABLE factory.s1_private (value integer)')
   const pool = await loginPoolOf(database)
   const sqlstate = (statement) => pool.query(statement).then(() => 'OK', (error) => error.code)
-  assert.equal(await sqlstate('SELECT iam.lock_administrators()'), '42501')
+  assert.equal(await sqlstate('SELECT iam.lock_administrators()'), 'OK')
   assert.equal(await sqlstate('CREATE TABLE workspace.s1_forbidden (id integer)'), '42501')
   assert.equal(await sqlstate('ALTER TABLE iam.account ADD COLUMN s1_forbidden integer'), '42501')
   assert.equal(await sqlstate('SET ROLE conexus_owner'), '42501')
   assert.equal(await sqlstate('SELECT * FROM factory.s1_private'), '42501')
-  assert.equal(await sqlstate('SELECT 1 FROM iam.account FOR SHARE'), '42501')
+  assert.equal(await sqlstate('SELECT * FROM iam.account'), 'OK')
 })
 
 test('every mapped database failure names a real constraint and a registered failure', async (t) => {
@@ -79,7 +81,7 @@ test('every mapped database failure names a real constraint and a registered fai
   await query(connection, "INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES ($1, 'https://issuer.test', 'a', 'A')", [ACCOUNT])
   const orphan = sql`INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES (${ACCOUNT}, '20000000-0000-4000-8000-000000000001', 'owner')`
   await assert.rejects(database.system('project-purge', async (gate) => (await admitSystem(gate, 'project-purge')).tx.run(orphan)), (error) => error.id === 'WORKSPACE_NOT_FOUND' && error.cause?.code === '23503')
-  await assert.rejects(database.read(ACCOUNT, (tx) => tx.rows(z.object({ value: z.number() }), sql`SELECT 1 / 0 AS value`)),
+  await assert.rejects(database.read(ACCOUNT, async (gate) => (await admitAccount(gate)).tx.rows(z.object({ value: z.number() }), sql`SELECT 1 / 0 AS value`)),
     (error) => error.id === 'INTERNAL_UNEXPECTED' && error.cause?.code === '22012')
 })
 

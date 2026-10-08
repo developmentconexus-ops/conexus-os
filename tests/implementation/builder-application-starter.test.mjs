@@ -82,7 +82,6 @@ test('materializes the fixed empty React starter into an app-less checkout', asy
       'app/src/components/ui/toast.tsx',
       'app/src/components/ui/tooltip.tsx',
       'app/src/hooks/use-mobile.ts',
-      'app/src/lib/errors.ts',
       'app/src/lib/format.ts',
       'app/src/lib/utils.ts',
       'app/src/lib/zod.ts',
@@ -168,7 +167,7 @@ test('the global conexus-server skill matches the check it documents', async () 
   const example = JSON.parse(/```json\n([\s\S]*?)\n```/.exec(guide)[1])
   assert.deepEqual(Object.keys(example.operations), ['listTickets', 'changeTicketStatus'])
   const { admitManifest } = await import(hubModuleUrl('app-runner/server-manifest.js'))
-  assert.doesNotThrow(() => admitManifest(example, 'source'))
+  assert.deepEqual(admitManifest(example, 'source'), { ok: true, result: example })
   assert.match(guide, /app\/src\/conexus\/api\.gen\.ts/)
   assert.match(guide, /^---\nname: conexus-server\ndescription: [^\n]+\n---\n/m)
   assert.doesNotMatch(guide, /\bKysely\b|\bPrisma\b|\bDrizzle\b/)

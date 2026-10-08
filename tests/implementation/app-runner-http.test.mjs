@@ -7,7 +7,7 @@ const { createApplicationRunnerApp } = await import(hubModuleUrl('app-runner/htt
 
 const fakeSupervisor = (overrides = {}) => ({
   prepare: async () => { throw new Error('SUPERVISOR_PREPARE_NOT_STUBBED') },
-  invoke: async () => ({ status: 200, body: { ok: true } }),
+  invoke: async () => ({ ok: true, result: { ok: true } }),
   release: async () => {},
   ...overrides,
 })
@@ -26,60 +26,59 @@ const PREPARE_BODY = {
 }
 const INVOKE_BODY = { projectId: '11111111-1111-4111-8111-111111111111', operation: 'listOpenTitles', input: {}, files: PREPARE_BODY.files, caller: { accountId: '22222222-2222-4222-8222-222222222222', email: null, displayName: 'Ana' } }
 
-test('a prepare refusal is logged once, as its row', async () => {
-  const { instance, failures } = app({ prepare: async () => { throw new Error('SERVER_TREE_REFUSED') } })
+test('a handled prepare refusal uses private JSON without a failure log', async () => {
+  const { instance, failures } = app({ prepare: async () => ({ ok: false, error: { code: 'SERVER_TREE_REFUSED' } }) })
   const response = await instance.inject({ method: 'POST', url: '/v1/prepare', payload: PREPARE_BODY })
-  assert.equal(response.statusCode, 500)
-  assert.equal(response.headers['content-type'], 'application/problem+json; charset=utf-8')
-  assert.deepEqual(JSON.parse(response.body), { type: 'urn:conexus:problem:SERVER_TREE_REFUSED', title: 'SERVER_TREE_REFUSED', status: 500, code: 'SERVER_TREE_REFUSED', detail: 'SERVER_TREE_REFUSED' })
-  assert.deepEqual(failures().map(({ level, message }) => [level, message]), [['info', 'SERVER_TREE_REFUSED']])
+  assert.equal(response.statusCode, 200)
+  assert.equal(response.headers['content-type'], 'application/json; charset=utf-8')
+  assert.deepEqual(JSON.parse(response.body), { ok: false, error: { code: 'SERVER_TREE_REFUSED' } })
+  assert.deepEqual(failures(), [])
 })
 
-test('a malformed prepare request is refused and logged before the supervisor is ever called', async () => {
+test('a malformed prepare request is refused before the supervisor is ever called and does not create a runner failure log', async () => {
   const { instance, failures } = app()
   const response = await instance.inject({ method: 'POST', url: '/v1/prepare', payload: { projectId: 'not-a-uuid', files: [], onDivergence: 'REFUSE' } })
   assert.equal(response.statusCode, 400)
   assert.equal(JSON.parse(response.body).code, 'RUNNER_REQUEST_REFUSED')
-  assert.deepEqual(failures().map(({ level, message }) => [level, message]), [['error', 'RUNNER_REQUEST_REFUSED']])
+  assert.deepEqual(failures(), [])
 })
 
-test('a manifest refusal is logged with its full reason, not just the code', async () => {
-  const detail = 'MANIFEST_REFUSED: operations.x: unknown key "format"'
-  const { instance, failures } = app({ prepare: async () => { throw new Error(detail) } })
+test('an admission refusal carries only its code in the private answer', async () => {
+  const { instance, failures } = app({ prepare: async () => ({ ok: false, error: { code: 'MANIFEST_REFUSED' } }) })
   const response = await instance.inject({ method: 'POST', url: '/v1/prepare', payload: PREPARE_BODY })
-  assert.equal(response.statusCode, 500)
-  assert.deepEqual([JSON.parse(response.body).code, JSON.parse(response.body).detail], ['MANIFEST_REFUSED', detail])
-  assert.deepEqual(failures().map((line) => [line.message, line['failure.detail']]), [['MANIFEST_REFUSED', detail]])
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(JSON.parse(response.body), { ok: false, error: { code: 'MANIFEST_REFUSED' } })
+  assert.deepEqual(failures(), [])
 })
 
-test('a platform fault during prepare still gets one log line, which main.ts never wrote before', async () => {
+test('an escaping platform fault during prepare becomes a Problem without a duplicate runner failure log', async () => {
   const { instance, failures } = app({ prepare: async () => { throw new Error('connection terminated unexpectedly') } })
   const response = await instance.inject({ method: 'POST', url: '/v1/prepare', payload: PREPARE_BODY })
   assert.equal(response.statusCode, 500)
   assert.equal(JSON.parse(response.body).code, 'INTERNAL_UNEXPECTED')
-  assert.deepEqual(failures().map(({ level, message }) => [level, message]), [['error', 'INTERNAL_UNEXPECTED']])
+  assert.deepEqual(failures(), [])
 })
 
-test('an invoke failure logs its error code, never the thrown message, which can carry a vendor value', async () => {
-  const vendorDetail = 'Tipo RECDESP inesperado no título NUFIN 123456: 2'
-  const { instance, logged } = app({ invoke: async () => ({ status: 500, body: { code: 'HANDLER_FAILED', detail: vendorDetail } }) })
+test('a handled invoke refusal answers privately and logs only its code, never SQLSTATE', async () => {
+  const { instance, logged, failures } = app({ invoke: async () => ({ ok: false, error: { code: 'HANDLER_FAILED', sqlstate: '23505' } }) })
   const response = await instance.inject({ method: 'POST', url: '/v1/invoke', payload: INVOKE_BODY })
-  assert.equal(response.statusCode, 500)
-  assert.equal(JSON.parse(response.body).detail, vendorDetail)
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(JSON.parse(response.body), { ok: false, error: { code: 'HANDLER_FAILED', sqlstate: '23505' } })
   const [line] = logged()
   assert.equal(line.event, 'RUNNER_INVOKE')
   assert.equal(line.code, 'HANDLER_FAILED')
-  assert.equal(JSON.stringify(line).includes('NUFIN'), false)
-  assert.equal(JSON.stringify(line).includes(vendorDetail), false)
+  assert.equal(line.status, 200)
+  assert.equal(JSON.stringify(line).includes('23505'), false)
+  assert.deepEqual(failures(), [])
 })
 
-test('an output refusal is logged with the runner\'s own pointer and rule', async () => {
-  const detail = '/items/3/price: expected string'
-  const { instance, logged } = app({ invoke: async () => ({ status: 502, body: { code: 'HANDLER_OUTPUT_REFUSED', detail } }) })
+test('an output refusal carries and logs its structured pointer and rule', async () => {
+  const { instance, logged } = app({ invoke: async () => ({ ok: false, error: { code: 'HANDLER_OUTPUT_REFUSED', violation: { pointer: '/items/3/price', rule: 'expected string' } } }) })
   const response = await instance.inject({ method: 'POST', url: '/v1/invoke', payload: INVOKE_BODY })
-  assert.equal(response.statusCode, 502)
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(JSON.parse(response.body), { ok: false, error: { code: 'HANDLER_OUTPUT_REFUSED', violation: { pointer: '/items/3/price', rule: 'expected string' } } })
   const [line] = logged()
-  assert.deepEqual({ ...line, ms: 0 }, { event: 'RUNNER_INVOKE', projectId: INVOKE_BODY.projectId, operation: 'listOpenTitles', status: 502, code: 'HANDLER_OUTPUT_REFUSED', detail, ms: 0 })
+  assert.deepEqual({ ...line, ms: 0 }, { event: 'RUNNER_INVOKE', projectId: INVOKE_BODY.projectId, operation: 'listOpenTitles', status: 200, code: 'HANDLER_OUTPUT_REFUSED', pointer: '/items/3/price', rule: 'expected string', ms: 0 })
 })
 
 test('a successful invoke logs its status with no error code', async () => {
@@ -91,10 +90,10 @@ test('a successful invoke logs its status with no error code', async () => {
   assert.equal('code' in line, false)
 })
 
-test('a release refusal is answered as a row and logged once', async () => {
+test('a release refusal is answered as a row without a duplicate runner failure log', async () => {
   const { instance, failures } = app({ release: async () => { throw new Error('RELEASE_REFUSED_BY_PROVISIONER') } })
   const response = await instance.inject({ method: 'POST', url: '/v1/release', payload: { projectId: PREPARE_BODY.projectId } })
   assert.equal(response.statusCode, 500)
   assert.equal(JSON.parse(response.body).code, 'INTERNAL_UNEXPECTED')
-  assert.deepEqual(failures().map(({ message }) => message), ['INTERNAL_UNEXPECTED'])
+  assert.deepEqual(failures(), [])
 })

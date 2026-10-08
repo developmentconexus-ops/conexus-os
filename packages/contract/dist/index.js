@@ -1,6 +1,7 @@
 export * from './ids.js';
 export * from './builder.js';
 export * from './failures.generated.js';
+export * from './failure-client.js';
 export * from './identity-access.js';
 export * from './connectors.js';
 export * from './model-account.js';

@@ -19,7 +19,7 @@ export type Sql = Readonly<{ [sqlBrand]: true; text: string; values: readonly un
 export type DatabaseConnection = Readonly<{ host: string; port: number; database: string; user: 'hub_runtime' | 'hub_factory'; passwordFile: string; max?: number; connectionTimeoutMillis?: number; options?: string }>
 export type JobName = 'iam-reaper' | 'project-purge' | 'builder-executor' | 'application-presence'
 /** The application_name of a dedicated session connection, so a test or an operator finds its backend. */
-type SessionName = 'conexus-hub:instance-lock' | 'conexus-hub:application-presence'
+type SessionName = 'conexus-hub:instance-lock' | 'conexus-hub:application-presence' | 'conexus-hub:project-deletion'
 export type FactoryPool = Pool & Readonly<{ [factoryBrand]: true }>
 export type PostgresConnection = PoolConfig
 
@@ -58,7 +58,6 @@ export const sql = Object.assign(<V extends readonly unknown[]>(strings: Templat
 const ALLOWED_FIRST_KEYWORD = /^(?:select|insert|update|delete|with)\b/
 const READ_FIRST_KEYWORD = /^(?:select|with)\b/
 const WRITE_OR_LOCK_WORDS = /\b(?:insert|update|delete|merge)\b|\bfor (?:update|share|no key update|key share)\b/
-const REFUSED_WORDS = /\bconexus\b|session_authorization|u&|set_config|current_setting/
 
 const lowered = (code: string): string => code.toLowerCase().replace(/\s+/g, ' ').trim()
 
@@ -67,7 +66,7 @@ const refuseSqlText = (statement: Sql, mode: Mode): void => {
   const code = codeOfSql(statement.text)
   const text = code === null ? null : lowered(code)
   const statements = text === null ? [] : text.split(';').map((part) => part.trim()).filter((part) => part !== '')
-  if (text === null || statements.length === 0 || statements.some((part) => !ALLOWED_FIRST_KEYWORD.test(part)) || REFUSED_WORDS.test(text)
+  if (text === null || statements.length === 0 || statements.some((part) => !ALLOWED_FIRST_KEYWORD.test(part))
     || (mode === 'read' && (statements.some((part) => !READ_FIRST_KEYWORD.test(part)) || WRITE_OR_LOCK_WORDS.test(text)))) {
     throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'SQL_TEXT_REFUSED' } })
   }
@@ -90,29 +89,46 @@ export interface WriteTx extends TxQueries {
   run(query: Sql): Promise<number>
 }
 
-/** Nominal and without a query method: only db.ts makes one, so a command can do nothing before an admission opens it. */
+/** Nominal and without a query method, so a command can do nothing before admission opens it. */
 class Gate {
   // biome-ignore lint/correctness/noUnusedPrivateClassMembers: type identity is the use
   readonly #gate = true
+  readonly mode = 'write' as const
+}
+/** Nominal and without a query method, so a read can do nothing before admission opens it. */
+class ReadDoor {
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: type identity is the use
+  readonly #readGate = true
+  readonly mode = 'read' as const
 }
 /** Nominal like Gate, and a separate class, so no command admission accepts it; identity-access/authentication.ts holds its lookups. */
 class AuthGate {
   // biome-ignore lint/correctness/noUnusedPrivateClassMembers: type identity is the use
   readonly #authentication = true
+  readonly mode = 'write' as const
 }
 export type CommandGate = Gate
+export type ReadGate = ReadDoor
 export type AuthenticationGate = AuthGate
 type Actor =
   | Readonly<{ kind: 'account'; accountId: AccountId }>
   | Readonly<{ kind: 'job'; job: JobName }>
   | Readonly<{ kind: 'authentication'; accountId: AccountId | null }>
 const opened = new WeakMap<Gate | AuthGate, Readonly<{ tx: WriteTx; actor: Actor }>>()
+const openedReads = new WeakMap<ReadDoor, ReadTx>()
 
 /** Importable only by identity-access/admission.ts and authentication.ts: the transaction and the actor a gate was opened with. */
 export const openGate = (gate: CommandGate | AuthenticationGate): Readonly<{ tx: WriteTx; actor: Actor }> => {
   const record = opened.get(gate)
   if (!record) throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'GATE_UNKNOWN' } })
   return record
+}
+
+/** Importable only by identity-access/admission.ts: the read transaction a read gate was opened with. */
+export const openReadGate = (gate: ReadGate): ReadTx => {
+  const tx = openedReads.get(gate)
+  if (!tx) throw new Failure('INTERNAL_UNEXPECTED', { details: { reason: 'GATE_UNKNOWN' } })
+  return tx
 }
 
 /**
@@ -135,7 +151,7 @@ type SessionLock = Readonly<{
 }>
 export interface Database {
   transaction<T>(accountId: AccountId, fn: (gate: CommandGate) => Promise<T>): Promise<T>
-  read<T>(accountId: AccountId, fn: (tx: ReadTx) => Promise<T>): Promise<T>
+  read<T>(accountId: AccountId, fn: (gate: ReadGate) => Promise<T>): Promise<T>
   system<T>(job: JobName, fn: (gate: CommandGate) => Promise<T>): Promise<T>
   authenticate<T>(fn: (gate: AuthenticationGate) => Promise<T>): Promise<T>
   /** Runs fn on a dedicated connection; its locks end with it, and `lost` aborts when it ends before fn does. */
@@ -149,7 +165,6 @@ type DatabaseFailureRule = Readonly<{ sqlstate: string; constraint: string | nul
 /** @public Frozen by spec 0015 section 3; each part adds its constraints. */
 export const DATABASE_FAILURES: readonly DatabaseFailureRule[] = Object.freeze([
   { sqlstate: '23503', constraint: 'workspace_membership_workspace_id_fkey', failure: 'WORKSPACE_NOT_FOUND' },
-  { sqlstate: '23503', constraint: 'connection_workspace_id_fkey', failure: 'CONNECTOR_WORKSPACE_NOT_FOUND' },
   // A Preview launch whose Hub session was signed out after the request resolved it.
   { sqlstate: '23503', constraint: 'handoff_parent_pair_fkey', failure: 'AUTHENTICATION_REQUIRED' },
   // lock_timeout and statement_timeout on hub_runtime: one named 503 for a wait or a statement that ran out of time.
@@ -247,22 +262,20 @@ const gateFor = (tx: WriteTx, actor: Actor): CommandGate => {
   return gate
 }
 
+const readGateFor = (tx: ReadTx): ReadGate => {
+  const gate = new ReadDoor()
+  openedReads.set(gate, tx)
+  return gate
+}
+
 const authenticationGateFor = (tx: WriteTx): AuthenticationGate => {
   const gate = new AuthGate()
   opened.set(gate, { tx, actor: { kind: 'authentication', accountId: null } })
   return gate
 }
 
-// The role and the entry's settings are set in one statement right after BEGIN, all with is_local
-// true, so they end with the transaction and a client goes back to the pool as the login role, which
-// holds nothing on a split table. This is the only role switch in the Hub; a bare SET ROLE survives a ROLLBACK.
-type Entry = Readonly<{ begin: string; role: 'hub_reader' | 'hub_command'; settings: readonly (readonly [string, string])[] }>
+type Entry = Readonly<{ begin: string }>
 const READ_ENTRY = 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY'
-
-const entrySettings = (entry: Entry): Readonly<{ text: string; values: readonly string[] }> => {
-  const pairs: readonly (readonly [string, string])[] = [['role', entry.role], ...entry.settings]
-  return { text: `SELECT ${pairs.map((_pair, index) => `set_config($${index * 2 + 1}, $${index * 2 + 2}, true)`).join(', ')}`, values: pairs.flat() }
-}
 
 const entered = new AsyncLocalStorage<true>()
 // Connection options name settings the server applies to every session. Only these are allowed; a
@@ -306,8 +319,6 @@ export const openDatabase = (given: DatabaseConnection): Database => {
     try {
       await client.query(entry.begin)
       started = true
-      const settings = entrySettings(entry)
-      await client.query(settings.text, [...settings.values])
       const value = await entered.run(true, () => fn(tx))
       tx.end()
       await client.query('COMMIT')
@@ -324,13 +335,13 @@ export const openDatabase = (given: DatabaseConnection): Database => {
     }
   }
   const database: Database = {
-    transaction: (accountId, fn) => transact({ begin: 'BEGIN', role: 'hub_command', settings: [] }, (client) => writeView(client, accountId),
+    transaction: (accountId, fn) => transact({ begin: 'BEGIN' }, (client) => writeView(client, accountId),
       (tx) => fn(gateFor(tx, { kind: 'account', accountId }))),
-    read: (accountId, fn) => transact({ begin: READ_ENTRY, role: 'hub_reader', settings: [['conexus.account_id', accountId]] }, (client) => readView(client, accountId), fn),
-    system: (job, fn) => transact({ begin: 'BEGIN', role: 'hub_command', settings: [['conexus.job', job]] }, (client) => writeView(client, null),
+    read: (accountId, fn) => transact({ begin: READ_ENTRY }, (client) => readView(client, accountId), (tx) => fn(readGateFor(tx))),
+    system: (job, fn) => transact({ begin: 'BEGIN' }, (client) => writeView(client, null),
       (tx) => fn(gateFor(tx, { kind: 'job', job }))),
     // READ COMMITTED like transaction: a one use DELETE ... RETURNING raced by another session returns no row instead of 40001.
-    authenticate: (fn) => transact({ begin: 'BEGIN', role: 'hub_command', settings: [] }, (client) => writeView(client, null),
+    authenticate: (fn) => transact({ begin: 'BEGIN' }, (client) => writeView(client, null),
       (tx) => fn(authenticationGateFor(tx))),
     session: async (name, fn) => {
       const client = new pg.Client({

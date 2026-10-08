@@ -40,17 +40,16 @@ const invoke = (t, exportName, change = (job) => job) => {
 }
 
 test('a handler that never queries the database runs where the Project has no database yet', async (t) => {
-  assert.deepEqual(await invoke(t, 'readsConexao'), { ok: true, value: { code: 'CONNECTOR_UNCONFIGURED' } })
+  assert.deepEqual(await invoke(t, 'readsConexao'), { ok: true, result: { code: 'CONNECTOR_UNCONFIGURED' } })
 })
 
 test('a handler whose query cannot reach the database answers DATABASE_UNAVAILABLE, not HANDLER_FAILED', async (t) => {
   const result = await invoke(t, 'readsDatabase')
-  assert.deepEqual({ ok: result.ok, code: result.code }, { ok: false, code: 'DATABASE_UNAVAILABLE' })
-  assert.match(result.detail, /ENOENT/)
+  assert.deepEqual(result, { ok: false, error: { code: 'DATABASE_UNAVAILABLE', sqlstate: null } })
 })
 
 test('a job that does not match the wire shape is refused before any handler runs', async (t) => {
-  const refused = { ok: false, code: 'WORKER_JOB_REFUSED' }
+  const refused = { ok: false, error: { code: 'WORKER_JOB_REFUSED' } }
   const changes = {
     'a caller id that is not a UUID': (job) => ({ ...job, caller: { ...CALLER, accountId: 'not-a-uuid' } }),
     'no module': ({ module, ...job }) => job,

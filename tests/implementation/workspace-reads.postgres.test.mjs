@@ -45,7 +45,7 @@ test('IAM-01 lists only active memberships through the workspace policy', async 
   assert.equal(response.json().administrator, false)
 
   await query(fixture.connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ACCOUNT])
-  assert.deepEqual(await store.listAccessibleWorkspaces(ACCOUNT), [], 'a deactivated account lists nothing although its membership remains')
+  await assert.rejects(store.listAccessibleWorkspaces(ACCOUNT), { id: 'ACCOUNT_INACTIVE' })
   await query(fixture.connection, 'UPDATE iam.account SET active = true WHERE account_id = $1', [ACCOUNT])
   assert.deepEqual(await store.listAccessibleWorkspaces(ACCOUNT), [{ workspaceId: WORKSPACE, name: 'Operations' }])
 

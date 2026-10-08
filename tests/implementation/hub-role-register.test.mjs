@@ -21,16 +21,10 @@ const { readHubConfig } = await import(pathToFileURL(resolve(buildRoot, 'config.
 test.after(() => rm(buildRoot, { recursive: true, force: true }))
 
 test('the register holds every role the Hub connects as, with the capability an operator reads', () => {
-  assert.deepEqual(register.roles.filter((row) => !row.legacy).map((row) => [row.role, row.capability]), [
+  assert.deepEqual(register.roles.map((row) => [row.role, row.capability]), [
     ['hub_runtime', 'hub-data'],
     ['hub_factory', 'factory-storage'],
   ])
-  assert.deepEqual(register.policyRoles, [{
-    role: 'iam_rls',
-    owns: ['rls.acting_account', 'rls.acting_installation_administrator', 'rls.acting_workspaces'],
-    privileges: ['SELECT'],
-  }])
-  assert.deepEqual(register.transactionRoles.map((row) => row.role), ['hub_reader', 'hub_command'])
 })
 
 test('the Hub config reads the password file and the role of every registered role from its variable', () => {
@@ -54,7 +48,7 @@ test('the Hub config reads the password file and the role of every registered ro
   assert.equal(config.database.user, 'hub_runtime')
   assert.deepEqual(
     [config.database.passwordFile, config.factory.databasePasswordFile],
-    register.roles.filter((row) => !row.legacy).map((row) => `/secrets/${row.role}`),
+    register.roles.map((row) => `/secrets/${row.role}`),
   )
 })
 

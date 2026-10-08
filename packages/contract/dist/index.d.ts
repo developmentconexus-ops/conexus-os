@@ -1,12 +1,14 @@
 export * from './ids.js';
 export * from './builder.js';
 export * from './failures.generated.js';
+export * from './failure-client.js';
 export * from './identity-access.js';
 export * from './connectors.js';
 export * from './model-account.js';
 export * from './operation.js';
 export * from './problem.js';
 export * from './project.js';
+export type { Result } from './result.js';
 export * from './workspace.js';
 export declare const OPERATIONS: {
     readonly getSession: {
@@ -284,7 +286,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED"];
+        readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "PROJECT_DELETING"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };
@@ -330,7 +332,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "DATABASE_BUSY", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+        readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "PROJECT_DELETING", "DATABASE_BUSY", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
             readonly email: "EMAIL_INVALID";
@@ -353,7 +355,7 @@ export declare const OPERATIONS: {
             readonly 204: null;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+        readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "PROJECT_DELETING", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
             readonly grantId: "APPLICATION_ACCESS_ENTRY_NOT_FOUND";
@@ -376,7 +378,7 @@ export declare const OPERATIONS: {
             readonly 204: null;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+        readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "PROJECT_DELETING", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
             readonly invitationId: "APPLICATION_ACCESS_ENTRY_NOT_FOUND";
@@ -533,12 +535,18 @@ export declare const OPERATIONS: {
         readonly headers: null;
         readonly body: null;
         readonly success: {
-            readonly 200: import("zod").ZodArray<import("zod").ZodObject<{
+            readonly 200: import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
                 projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
                 workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
                 name: import("zod").ZodString;
+                state: import("zod").ZodLiteral<"live">;
                 archived: import("zod").ZodBoolean;
-            }, import("zod/v4/core").$strip>>;
+            }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+                projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
+                workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
+                name: import("zod").ZodString;
+                state: import("zod").ZodLiteral<"deleting">;
+            }, import("zod/v4/core").$strip>], "state">>;
         };
         readonly effects: readonly [];
         readonly failures: readonly [];
@@ -559,21 +567,19 @@ export declare const OPERATIONS: {
         readonly headers: null;
         readonly body: null;
         readonly success: {
-            readonly 200: import("zod").ZodUnion<readonly [import("zod").ZodObject<{
+            readonly 200: import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
                 projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
                 workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
                 name: import("zod").ZodString;
+                state: import("zod").ZodLiteral<"live">;
                 projectRevision: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectRevision", "out">;
                 archived: import("zod").ZodBoolean;
-                deleting: import("zod").ZodBoolean;
             }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
                 projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
                 workspaceId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "WorkspaceId", "out">;
                 name: import("zod").ZodString;
-                projectRevision: import("zod").ZodLiteral<"">;
-                archived: import("zod").ZodLiteral<false>;
-                deleting: import("zod").ZodLiteral<true>;
-            }, import("zod/v4/core").$strip>]>;
+                state: import("zod").ZodLiteral<"deleting">;
+            }, import("zod/v4/core").$strip>], "state">;
         };
         readonly effects: readonly [];
         readonly failures: readonly [];
@@ -613,14 +619,14 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["PROJECT_CREATE_DENIED", "PROJECT_SOURCE_REFUSED", "PROJECT_REPOSITORY_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+        readonly failures: readonly ["PROJECT_SOURCE_REFUSED", "PROJECT_REPOSITORY_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly workspaceId: "WORKSPACE_NOT_FOUND";
         };
     };
     readonly deleteProject: {
         readonly id: "deleteProject";
-        readonly summary: "Delete a Project, its data and its repository; installation administrator only.";
+        readonly summary: "Delete a Project, its data and its repository; Workspace owners only.";
         readonly access: "session";
         readonly method: "DELETE";
         readonly path: "/api/control/projects/:projectId";
@@ -655,10 +661,9 @@ export declare const OPERATIONS: {
         readonly body: null;
         readonly success: {
             readonly 200: import("zod").ZodObject<{
-                projects: import("zod").ZodArray<import("zod").ZodObject<{
+                projects: import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
                     projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
                     name: import("zod").ZodString;
-                    archived: import("zod").ZodBoolean;
                     lastActivityAt: import("zod").ZodString;
                     latestRun: import("zod").ZodNullable<import("zod").ZodObject<{
                         state: import("zod").ZodEnum<{
@@ -675,12 +680,17 @@ export declare const OPERATIONS: {
                         }>>;
                     }, import("zod/v4/core").$strip>>;
                     hasPreview: import("zod").ZodBoolean;
-                    deleting: import("zod").ZodBoolean;
-                }, import("zod/v4/core").$strip>>;
+                    state: import("zod").ZodLiteral<"live">;
+                    archived: import("zod").ZodBoolean;
+                }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+                    projectId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "ProjectId", "out">;
+                    name: import("zod").ZodString;
+                    state: import("zod").ZodLiteral<"deleting">;
+                }, import("zod/v4/core").$strip>], "state">>;
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["PROJECT_SUMMARIES_UNAVAILABLE"];
+        readonly failures: readonly [];
         readonly malformed: {
             readonly workspaceId: "WORKSPACE_NOT_FOUND";
         };
@@ -705,7 +715,7 @@ export declare const OPERATIONS: {
             };
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["PROJECT_THUMBNAIL_NOT_FOUND", "PROJECT_THUMBNAIL_UNAVAILABLE"];
+        readonly failures: readonly ["PROJECT_THUMBNAIL_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };
@@ -779,7 +789,7 @@ export declare const OPERATIONS: {
         readonly effects: readonly [];
         readonly failures: readonly ["INSTALLATION_ADMINISTRATOR_REQUIRED", "CONNECTOR_CONNECTION_CONFLICT"];
         readonly malformed: {
-            readonly workspaceId: "CONNECTOR_WORKSPACE_NOT_FOUND";
+            readonly workspaceId: "WORKSPACE_NOT_FOUND";
             readonly label: "CONNECTOR_LABEL_REFUSED";
             readonly credential: "CONNECTOR_CREDENTIAL_REFUSED";
         };
@@ -870,7 +880,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["CONNECTOR_BINDING_MANAGE_REQUIRED"];
+        readonly failures: readonly ["CONNECTOR_BINDING_MANAGE_REQUIRED", "PROJECT_DELETING"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };
@@ -911,7 +921,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["CONNECTOR_BINDING_MANAGE_REQUIRED", "CONNECTOR_CONNECTION_NOT_AVAILABLE", "CONNECTOR_BINDING_CONFLICT", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+        readonly failures: readonly ["CONNECTOR_BINDING_MANAGE_REQUIRED", "PROJECT_DELETING", "CONNECTOR_CONNECTION_NOT_AVAILABLE", "CONNECTOR_BINDING_CONFLICT", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };
@@ -933,7 +943,7 @@ export declare const OPERATIONS: {
             readonly 204: null;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["CONNECTOR_BINDING_MANAGE_REQUIRED", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+        readonly failures: readonly ["CONNECTOR_BINDING_MANAGE_REQUIRED", "PROJECT_DELETING", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
             readonly bindingId: "CONNECTOR_BINDING_NOT_FOUND";
@@ -1100,18 +1110,16 @@ export declare const OPERATIONS: {
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
                         WORKSPACE_NOT_FOUND: "WORKSPACE_NOT_FOUND";
                         PROJECT_NOT_FOUND: "PROJECT_NOT_FOUND";
-                        PROJECT_CREATE_DENIED: "PROJECT_CREATE_DENIED";
                         PROJECT_SOURCE_REFUSED: "PROJECT_SOURCE_REFUSED";
                         PROJECT_REPOSITORY_UNAVAILABLE: "PROJECT_REPOSITORY_UNAVAILABLE";
                         PROJECT_DELETE_DENIED: "PROJECT_DELETE_DENIED";
+                        PROJECT_DELETING: "PROJECT_DELETING";
                         PROJECT_NAME_MISMATCH: "PROJECT_NAME_MISMATCH";
                         PROJECT_BUSY: "PROJECT_BUSY";
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
-                        PROJECT_SUMMARIES_UNAVAILABLE: "PROJECT_SUMMARIES_UNAVAILABLE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
-                        PROJECT_THUMBNAIL_UNAVAILABLE: "PROJECT_THUMBNAIL_UNAVAILABLE";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
+                        BUILDER_SANDBOX_OPEN_FAILED: "BUILDER_SANDBOX_OPEN_FAILED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -1148,7 +1156,6 @@ export declare const OPERATIONS: {
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
                         CONNECTOR_BINDING_MANAGE_REQUIRED: "CONNECTOR_BINDING_MANAGE_REQUIRED";
-                        CONNECTOR_WORKSPACE_NOT_FOUND: "CONNECTOR_WORKSPACE_NOT_FOUND";
                         CONNECTOR_LABEL_REFUSED: "CONNECTOR_LABEL_REFUSED";
                         CONNECTOR_CREDENTIAL_REFUSED: "CONNECTOR_CREDENTIAL_REFUSED";
                         CONNECTOR_CONNECTION_CONFLICT: "CONNECTOR_CONNECTION_CONFLICT";
@@ -1375,18 +1382,16 @@ export declare const OPERATIONS: {
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
                         WORKSPACE_NOT_FOUND: "WORKSPACE_NOT_FOUND";
                         PROJECT_NOT_FOUND: "PROJECT_NOT_FOUND";
-                        PROJECT_CREATE_DENIED: "PROJECT_CREATE_DENIED";
                         PROJECT_SOURCE_REFUSED: "PROJECT_SOURCE_REFUSED";
                         PROJECT_REPOSITORY_UNAVAILABLE: "PROJECT_REPOSITORY_UNAVAILABLE";
                         PROJECT_DELETE_DENIED: "PROJECT_DELETE_DENIED";
+                        PROJECT_DELETING: "PROJECT_DELETING";
                         PROJECT_NAME_MISMATCH: "PROJECT_NAME_MISMATCH";
                         PROJECT_BUSY: "PROJECT_BUSY";
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
-                        PROJECT_SUMMARIES_UNAVAILABLE: "PROJECT_SUMMARIES_UNAVAILABLE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
-                        PROJECT_THUMBNAIL_UNAVAILABLE: "PROJECT_THUMBNAIL_UNAVAILABLE";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
+                        BUILDER_SANDBOX_OPEN_FAILED: "BUILDER_SANDBOX_OPEN_FAILED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -1423,7 +1428,6 @@ export declare const OPERATIONS: {
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
                         CONNECTOR_BINDING_MANAGE_REQUIRED: "CONNECTOR_BINDING_MANAGE_REQUIRED";
-                        CONNECTOR_WORKSPACE_NOT_FOUND: "CONNECTOR_WORKSPACE_NOT_FOUND";
                         CONNECTOR_LABEL_REFUSED: "CONNECTOR_LABEL_REFUSED";
                         CONNECTOR_CREDENTIAL_REFUSED: "CONNECTOR_CREDENTIAL_REFUSED";
                         CONNECTOR_CONNECTION_CONFLICT: "CONNECTOR_CONNECTION_CONFLICT";
@@ -1713,18 +1717,16 @@ export declare const OPERATIONS: {
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
                         WORKSPACE_NOT_FOUND: "WORKSPACE_NOT_FOUND";
                         PROJECT_NOT_FOUND: "PROJECT_NOT_FOUND";
-                        PROJECT_CREATE_DENIED: "PROJECT_CREATE_DENIED";
                         PROJECT_SOURCE_REFUSED: "PROJECT_SOURCE_REFUSED";
                         PROJECT_REPOSITORY_UNAVAILABLE: "PROJECT_REPOSITORY_UNAVAILABLE";
                         PROJECT_DELETE_DENIED: "PROJECT_DELETE_DENIED";
+                        PROJECT_DELETING: "PROJECT_DELETING";
                         PROJECT_NAME_MISMATCH: "PROJECT_NAME_MISMATCH";
                         PROJECT_BUSY: "PROJECT_BUSY";
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
-                        PROJECT_SUMMARIES_UNAVAILABLE: "PROJECT_SUMMARIES_UNAVAILABLE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
-                        PROJECT_THUMBNAIL_UNAVAILABLE: "PROJECT_THUMBNAIL_UNAVAILABLE";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
+                        BUILDER_SANDBOX_OPEN_FAILED: "BUILDER_SANDBOX_OPEN_FAILED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -1761,7 +1763,6 @@ export declare const OPERATIONS: {
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
                         CONNECTOR_BINDING_MANAGE_REQUIRED: "CONNECTOR_BINDING_MANAGE_REQUIRED";
-                        CONNECTOR_WORKSPACE_NOT_FOUND: "CONNECTOR_WORKSPACE_NOT_FOUND";
                         CONNECTOR_LABEL_REFUSED: "CONNECTOR_LABEL_REFUSED";
                         CONNECTOR_CREDENTIAL_REFUSED: "CONNECTOR_CREDENTIAL_REFUSED";
                         CONNECTOR_CONNECTION_CONFLICT: "CONNECTOR_CONNECTION_CONFLICT";
@@ -1987,18 +1988,16 @@ export declare const OPERATIONS: {
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
                         WORKSPACE_NOT_FOUND: "WORKSPACE_NOT_FOUND";
                         PROJECT_NOT_FOUND: "PROJECT_NOT_FOUND";
-                        PROJECT_CREATE_DENIED: "PROJECT_CREATE_DENIED";
                         PROJECT_SOURCE_REFUSED: "PROJECT_SOURCE_REFUSED";
                         PROJECT_REPOSITORY_UNAVAILABLE: "PROJECT_REPOSITORY_UNAVAILABLE";
                         PROJECT_DELETE_DENIED: "PROJECT_DELETE_DENIED";
+                        PROJECT_DELETING: "PROJECT_DELETING";
                         PROJECT_NAME_MISMATCH: "PROJECT_NAME_MISMATCH";
                         PROJECT_BUSY: "PROJECT_BUSY";
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
-                        PROJECT_SUMMARIES_UNAVAILABLE: "PROJECT_SUMMARIES_UNAVAILABLE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
-                        PROJECT_THUMBNAIL_UNAVAILABLE: "PROJECT_THUMBNAIL_UNAVAILABLE";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
+                        BUILDER_SANDBOX_OPEN_FAILED: "BUILDER_SANDBOX_OPEN_FAILED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -2035,7 +2034,6 @@ export declare const OPERATIONS: {
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
                         CONNECTOR_BINDING_MANAGE_REQUIRED: "CONNECTOR_BINDING_MANAGE_REQUIRED";
-                        CONNECTOR_WORKSPACE_NOT_FOUND: "CONNECTOR_WORKSPACE_NOT_FOUND";
                         CONNECTOR_LABEL_REFUSED: "CONNECTOR_LABEL_REFUSED";
                         CONNECTOR_CREDENTIAL_REFUSED: "CONNECTOR_CREDENTIAL_REFUSED";
                         CONNECTOR_CONNECTION_CONFLICT: "CONNECTOR_CONNECTION_CONFLICT";
@@ -2232,7 +2230,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["BUILDER_SESSION_UNAVAILABLE", "PROJECT_BUILD_DENIED", "BUILDER_SOURCE_UNAVAILABLE"];
+        readonly failures: readonly ["BUILDER_SESSION_UNAVAILABLE", "PROJECT_DELETING", "BUILDER_SOURCE_UNAVAILABLE"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };
@@ -2338,18 +2336,16 @@ export declare const OPERATIONS: {
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
                         WORKSPACE_NOT_FOUND: "WORKSPACE_NOT_FOUND";
                         PROJECT_NOT_FOUND: "PROJECT_NOT_FOUND";
-                        PROJECT_CREATE_DENIED: "PROJECT_CREATE_DENIED";
                         PROJECT_SOURCE_REFUSED: "PROJECT_SOURCE_REFUSED";
                         PROJECT_REPOSITORY_UNAVAILABLE: "PROJECT_REPOSITORY_UNAVAILABLE";
                         PROJECT_DELETE_DENIED: "PROJECT_DELETE_DENIED";
+                        PROJECT_DELETING: "PROJECT_DELETING";
                         PROJECT_NAME_MISMATCH: "PROJECT_NAME_MISMATCH";
                         PROJECT_BUSY: "PROJECT_BUSY";
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
-                        PROJECT_SUMMARIES_UNAVAILABLE: "PROJECT_SUMMARIES_UNAVAILABLE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
-                        PROJECT_THUMBNAIL_UNAVAILABLE: "PROJECT_THUMBNAIL_UNAVAILABLE";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
+                        BUILDER_SANDBOX_OPEN_FAILED: "BUILDER_SANDBOX_OPEN_FAILED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -2386,7 +2382,6 @@ export declare const OPERATIONS: {
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
                         CONNECTOR_BINDING_MANAGE_REQUIRED: "CONNECTOR_BINDING_MANAGE_REQUIRED";
-                        CONNECTOR_WORKSPACE_NOT_FOUND: "CONNECTOR_WORKSPACE_NOT_FOUND";
                         CONNECTOR_LABEL_REFUSED: "CONNECTOR_LABEL_REFUSED";
                         CONNECTOR_CREDENTIAL_REFUSED: "CONNECTOR_CREDENTIAL_REFUSED";
                         CONNECTOR_CONNECTION_CONFLICT: "CONNECTOR_CONNECTION_CONFLICT";
@@ -2612,18 +2607,16 @@ export declare const OPERATIONS: {
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
                         WORKSPACE_NOT_FOUND: "WORKSPACE_NOT_FOUND";
                         PROJECT_NOT_FOUND: "PROJECT_NOT_FOUND";
-                        PROJECT_CREATE_DENIED: "PROJECT_CREATE_DENIED";
                         PROJECT_SOURCE_REFUSED: "PROJECT_SOURCE_REFUSED";
                         PROJECT_REPOSITORY_UNAVAILABLE: "PROJECT_REPOSITORY_UNAVAILABLE";
                         PROJECT_DELETE_DENIED: "PROJECT_DELETE_DENIED";
+                        PROJECT_DELETING: "PROJECT_DELETING";
                         PROJECT_NAME_MISMATCH: "PROJECT_NAME_MISMATCH";
                         PROJECT_BUSY: "PROJECT_BUSY";
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
-                        PROJECT_SUMMARIES_UNAVAILABLE: "PROJECT_SUMMARIES_UNAVAILABLE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
-                        PROJECT_THUMBNAIL_UNAVAILABLE: "PROJECT_THUMBNAIL_UNAVAILABLE";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
+                        BUILDER_SANDBOX_OPEN_FAILED: "BUILDER_SANDBOX_OPEN_FAILED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -2660,7 +2653,6 @@ export declare const OPERATIONS: {
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
                         CONNECTOR_BINDING_MANAGE_REQUIRED: "CONNECTOR_BINDING_MANAGE_REQUIRED";
-                        CONNECTOR_WORKSPACE_NOT_FOUND: "CONNECTOR_WORKSPACE_NOT_FOUND";
                         CONNECTOR_LABEL_REFUSED: "CONNECTOR_LABEL_REFUSED";
                         CONNECTOR_CREDENTIAL_REFUSED: "CONNECTOR_CREDENTIAL_REFUSED";
                         CONNECTOR_CONNECTION_CONFLICT: "CONNECTOR_CONNECTION_CONFLICT";
@@ -2938,18 +2930,16 @@ export declare const OPERATIONS: {
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
                         WORKSPACE_NOT_FOUND: "WORKSPACE_NOT_FOUND";
                         PROJECT_NOT_FOUND: "PROJECT_NOT_FOUND";
-                        PROJECT_CREATE_DENIED: "PROJECT_CREATE_DENIED";
                         PROJECT_SOURCE_REFUSED: "PROJECT_SOURCE_REFUSED";
                         PROJECT_REPOSITORY_UNAVAILABLE: "PROJECT_REPOSITORY_UNAVAILABLE";
                         PROJECT_DELETE_DENIED: "PROJECT_DELETE_DENIED";
+                        PROJECT_DELETING: "PROJECT_DELETING";
                         PROJECT_NAME_MISMATCH: "PROJECT_NAME_MISMATCH";
                         PROJECT_BUSY: "PROJECT_BUSY";
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
-                        PROJECT_SUMMARIES_UNAVAILABLE: "PROJECT_SUMMARIES_UNAVAILABLE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
-                        PROJECT_THUMBNAIL_UNAVAILABLE: "PROJECT_THUMBNAIL_UNAVAILABLE";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
+                        BUILDER_SANDBOX_OPEN_FAILED: "BUILDER_SANDBOX_OPEN_FAILED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -2986,7 +2976,6 @@ export declare const OPERATIONS: {
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
                         CONNECTOR_BINDING_MANAGE_REQUIRED: "CONNECTOR_BINDING_MANAGE_REQUIRED";
-                        CONNECTOR_WORKSPACE_NOT_FOUND: "CONNECTOR_WORKSPACE_NOT_FOUND";
                         CONNECTOR_LABEL_REFUSED: "CONNECTOR_LABEL_REFUSED";
                         CONNECTOR_CREDENTIAL_REFUSED: "CONNECTOR_CREDENTIAL_REFUSED";
                         CONNECTOR_CONNECTION_CONFLICT: "CONNECTOR_CONNECTION_CONFLICT";
@@ -3212,18 +3201,16 @@ export declare const OPERATIONS: {
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
                         WORKSPACE_NOT_FOUND: "WORKSPACE_NOT_FOUND";
                         PROJECT_NOT_FOUND: "PROJECT_NOT_FOUND";
-                        PROJECT_CREATE_DENIED: "PROJECT_CREATE_DENIED";
                         PROJECT_SOURCE_REFUSED: "PROJECT_SOURCE_REFUSED";
                         PROJECT_REPOSITORY_UNAVAILABLE: "PROJECT_REPOSITORY_UNAVAILABLE";
                         PROJECT_DELETE_DENIED: "PROJECT_DELETE_DENIED";
+                        PROJECT_DELETING: "PROJECT_DELETING";
                         PROJECT_NAME_MISMATCH: "PROJECT_NAME_MISMATCH";
                         PROJECT_BUSY: "PROJECT_BUSY";
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
-                        PROJECT_SUMMARIES_UNAVAILABLE: "PROJECT_SUMMARIES_UNAVAILABLE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
-                        PROJECT_THUMBNAIL_UNAVAILABLE: "PROJECT_THUMBNAIL_UNAVAILABLE";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
+                        BUILDER_SANDBOX_OPEN_FAILED: "BUILDER_SANDBOX_OPEN_FAILED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -3260,7 +3247,6 @@ export declare const OPERATIONS: {
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
                         CONNECTOR_BINDING_MANAGE_REQUIRED: "CONNECTOR_BINDING_MANAGE_REQUIRED";
-                        CONNECTOR_WORKSPACE_NOT_FOUND: "CONNECTOR_WORKSPACE_NOT_FOUND";
                         CONNECTOR_LABEL_REFUSED: "CONNECTOR_LABEL_REFUSED";
                         CONNECTOR_CREDENTIAL_REFUSED: "CONNECTOR_CREDENTIAL_REFUSED";
                         CONNECTOR_CONNECTION_CONFLICT: "CONNECTOR_CONNECTION_CONFLICT";
@@ -3457,7 +3443,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["BUILDER_CAPACITY_FULL", "PROJECT_BUILD_DENIED", "ACCOUNT_INACTIVE", "BUILDER_RUN_CREATE_FAILED", "BUILDER_BUSY", "PROJECT_BUSY", "BUILDER_SOURCE_UNAVAILABLE"];
+        readonly failures: readonly ["BUILDER_CAPACITY_FULL", "PROJECT_DELETING", "ACCOUNT_INACTIVE", "BUILDER_RUN_CREATE_FAILED", "BUILDER_BUSY", "PROJECT_BUSY", "BUILDER_SOURCE_UNAVAILABLE"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
             readonly content: "BUILDER_MESSAGE_REFUSED";
@@ -3561,18 +3547,16 @@ export declare const OPERATIONS: {
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
                         WORKSPACE_NOT_FOUND: "WORKSPACE_NOT_FOUND";
                         PROJECT_NOT_FOUND: "PROJECT_NOT_FOUND";
-                        PROJECT_CREATE_DENIED: "PROJECT_CREATE_DENIED";
                         PROJECT_SOURCE_REFUSED: "PROJECT_SOURCE_REFUSED";
                         PROJECT_REPOSITORY_UNAVAILABLE: "PROJECT_REPOSITORY_UNAVAILABLE";
                         PROJECT_DELETE_DENIED: "PROJECT_DELETE_DENIED";
+                        PROJECT_DELETING: "PROJECT_DELETING";
                         PROJECT_NAME_MISMATCH: "PROJECT_NAME_MISMATCH";
                         PROJECT_BUSY: "PROJECT_BUSY";
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
-                        PROJECT_SUMMARIES_UNAVAILABLE: "PROJECT_SUMMARIES_UNAVAILABLE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
-                        PROJECT_THUMBNAIL_UNAVAILABLE: "PROJECT_THUMBNAIL_UNAVAILABLE";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
+                        BUILDER_SANDBOX_OPEN_FAILED: "BUILDER_SANDBOX_OPEN_FAILED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -3609,7 +3593,6 @@ export declare const OPERATIONS: {
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
                         CONNECTOR_BINDING_MANAGE_REQUIRED: "CONNECTOR_BINDING_MANAGE_REQUIRED";
-                        CONNECTOR_WORKSPACE_NOT_FOUND: "CONNECTOR_WORKSPACE_NOT_FOUND";
                         CONNECTOR_LABEL_REFUSED: "CONNECTOR_LABEL_REFUSED";
                         CONNECTOR_CREDENTIAL_REFUSED: "CONNECTOR_CREDENTIAL_REFUSED";
                         CONNECTOR_CONNECTION_CONFLICT: "CONNECTOR_CONNECTION_CONFLICT";
@@ -3835,18 +3818,16 @@ export declare const OPERATIONS: {
                         ACCOUNT_INACTIVE: "ACCOUNT_INACTIVE";
                         WORKSPACE_NOT_FOUND: "WORKSPACE_NOT_FOUND";
                         PROJECT_NOT_FOUND: "PROJECT_NOT_FOUND";
-                        PROJECT_CREATE_DENIED: "PROJECT_CREATE_DENIED";
                         PROJECT_SOURCE_REFUSED: "PROJECT_SOURCE_REFUSED";
                         PROJECT_REPOSITORY_UNAVAILABLE: "PROJECT_REPOSITORY_UNAVAILABLE";
                         PROJECT_DELETE_DENIED: "PROJECT_DELETE_DENIED";
+                        PROJECT_DELETING: "PROJECT_DELETING";
                         PROJECT_NAME_MISMATCH: "PROJECT_NAME_MISMATCH";
                         PROJECT_BUSY: "PROJECT_BUSY";
                         PROJECT_DELETION_INCOMPLETE: "PROJECT_DELETION_INCOMPLETE";
-                        PROJECT_SUMMARIES_UNAVAILABLE: "PROJECT_SUMMARIES_UNAVAILABLE";
                         PROJECT_THUMBNAIL_NOT_FOUND: "PROJECT_THUMBNAIL_NOT_FOUND";
-                        PROJECT_THUMBNAIL_UNAVAILABLE: "PROJECT_THUMBNAIL_UNAVAILABLE";
                         BUILDER_SESSION_UNAVAILABLE: "BUILDER_SESSION_UNAVAILABLE";
-                        PROJECT_BUILD_DENIED: "PROJECT_BUILD_DENIED";
+                        BUILDER_SANDBOX_OPEN_FAILED: "BUILDER_SANDBOX_OPEN_FAILED";
                         CONVERSATION_NOT_FOUND: "CONVERSATION_NOT_FOUND";
                         BUILDER_CAPACITY_FULL: "BUILDER_CAPACITY_FULL";
                         BUILDER_MESSAGE_REFUSED: "BUILDER_MESSAGE_REFUSED";
@@ -3883,7 +3864,6 @@ export declare const OPERATIONS: {
                         CONNECTOR_CONNECTION_NOT_AVAILABLE: "CONNECTOR_CONNECTION_NOT_AVAILABLE";
                         CONNECTOR_BINDING_CONFLICT: "CONNECTOR_BINDING_CONFLICT";
                         CONNECTOR_BINDING_MANAGE_REQUIRED: "CONNECTOR_BINDING_MANAGE_REQUIRED";
-                        CONNECTOR_WORKSPACE_NOT_FOUND: "CONNECTOR_WORKSPACE_NOT_FOUND";
                         CONNECTOR_LABEL_REFUSED: "CONNECTOR_LABEL_REFUSED";
                         CONNECTOR_CREDENTIAL_REFUSED: "CONNECTOR_CREDENTIAL_REFUSED";
                         CONNECTOR_CONNECTION_CONFLICT: "CONNECTOR_CONNECTION_CONFLICT";
@@ -4080,7 +4060,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["PROJECT_BUILD_DENIED", "ACCOUNT_INACTIVE"];
+        readonly failures: readonly ["PROJECT_DELETING", "ACCOUNT_INACTIVE"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
             readonly builderRunId: "BUILDER_RUN_NOT_FOUND";
@@ -4137,7 +4117,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["BUILDER_TRACE_UNAVAILABLE", "PROJECT_BUILD_DENIED"];
+        readonly failures: readonly ["BUILDER_TRACE_UNAVAILABLE"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
             readonly builderRunId: "BUILDER_RUN_NOT_FOUND";
@@ -4203,7 +4183,7 @@ export declare const OPERATIONS: {
             }, import("zod/v4/core").$strip>;
         };
         readonly effects: readonly [];
-        readonly failures: readonly ["PREVIEW_SUBJECT_NOT_FOUND", "PROJECT_BUILD_DENIED", "PREVIEW_UNAVAILABLE"];
+        readonly failures: readonly ["PREVIEW_SUBJECT_NOT_FOUND", "PROJECT_DELETING", "PREVIEW_UNAVAILABLE"];
         readonly malformed: {
             readonly projectId: "PROJECT_NOT_FOUND";
         };

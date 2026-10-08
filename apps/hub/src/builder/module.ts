@@ -142,7 +142,7 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
     routes,
     modelAccounts,
     // Read when a run starts, long after the controller below exists.
-    conversationModel: (projectId, conversationId) => conversationModel(projectId, conversationId),
+    conversationModel: (accountId, projectId, conversationId) => conversationModel(accountId, projectId, conversationId),
     readDefault: modelAccounts.readDefault,
     record: (builderRunId, accountId, modelAccountId) => store.recordBuilderRunModelAccount({
       builderRunId, accountId, modelAccountId,
@@ -190,13 +190,13 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
   const liveConversations = createLiveConversations({
     controller, sandboxes, readSandboxId: store.readConversationSandbox, runOpen: (conversationId) => service.runOpen(conversationId),
   })
-  const conversationSession = async (ref: Readonly<{ projectId: ProjectId; conversationId: ConversationId }>) => {
+  const conversationSession = async (ref: Readonly<{ accountId: AccountId; projectId: ProjectId; conversationId: ConversationId }>) => {
     await ready
     return liveConversations.open(ref)
   }
   // The conversation's model is the one in its Mastra session, never a copy of Mastra's thread keys.
-  const conversationModel = async (projectId: ProjectId, conversationId: ConversationId): Promise<string | null> => {
-    const session = await conversationSession({ projectId, conversationId })
+  const conversationModel = async (accountId: AccountId, projectId: ProjectId, conversationId: ConversationId): Promise<string | null> => {
+    const session = await conversationSession({ accountId, projectId, conversationId })
     await session.thread.loadMetadata()
     return session.model.hasSelection() ? session.model.get() : null
   }
@@ -266,7 +266,7 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }) => {
       const preview = await store.readPreviewSubject({ accountId, projectId })
-      if (!preview) throw new Failure('PROJECT_BUILD_DENIED')
+      if (!preview) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'BUILDER_PROJECT_ROWS_MISSING' } })
       return Object.freeze({
         preview: Object.freeze({
           workingSourceRevision: await git.readMain(projectId).catch(gitUnavailableAs('BUILDER_SOURCE_UNAVAILABLE')),
@@ -281,19 +281,14 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
       throw new Failure('BUILDER_TRACE_UNAVAILABLE', { cause, details: { projectId, builderRunId } })
     }),
   })
-  // The mount's one check: whether the account builds in the Project, by the same admission every Builder write takes.
-  const mayBuild = (input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<boolean> =>
-    store.admitBuilder(input).then(() => true, (error: unknown) => {
-      if (error instanceof Failure && (error.id === 'PROJECT_BUILD_DENIED' || error.id === 'PROJECT_NOT_FOUND')) return false
-      throw error
-    })
   return Object.freeze({
     jobs,
     registerBuilderRoutes: async (app: FastifyInstance) => {
       const builderOperations = await registerBuilderRoutes(app, { store, service, session, ...(launchPreview ? { launchPreview } : {}) })
       await ready
       await registerBuilderSessionRoutes(app, {
-        mastra, controller, conversations: liveConversations, controllerId: BUILDER_CONTROLLER_ID, mayBuild,
+        mastra, controller, conversations: liveConversations, controllerId: BUILDER_CONTROLLER_ID,
+        admitBuilder: ({ accountId, projectId }) => store.admitBuilder({ accountId, projectId }),
         conversationOwner: ({ projectId, conversationId }) => conversations.ownerOf(projectId, conversationId),
         projectBusy: async ({ accountId, projectId }) => {
           const latest = await store.readBuilderRun({ accountId, projectId })
@@ -313,11 +308,15 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
     // Absent without the Builder, and then no Project can be created.
     prepareProjectRepository: (projectId: ProjectId) => git.ensureRepository(projectId),
     // Runs before the Project's purge, which drops the rows that name its VMs.
-    killProjectSandboxes: async (projectId: ProjectId) => { await sandboxes.killRecorded(await store.readProjectSandboxes(projectId)) },
+    killProjectSandboxes: async (projectId: ProjectId) => {
+      const required = await store.readProjectSandboxes(projectId)
+      const gone = await sandboxes.killRecorded(required)
+      if (required.some((id) => !gone.includes(id))) throw new Failure('BUILDER_SANDBOX_KILL_FAILED')
+    },
     // A deleted Project leaves neither its conversations nor its repository behind.
-    deleteProjectRepository: async (projectId: ProjectId) => {
-      const conversationIds = await conversations.deleteAll(projectId)
-      await liveConversations.drop(projectId, conversationIds)
+    deleteProjectRepository: async (projectId: ProjectId, lost: AbortSignal) => {
+      await conversations.deleteAll({ projectId, beforeDelete: (ids) => liveConversations.drop(projectId, ids) })
+      if (lost.aborted) throw new Failure('PROJECT_DELETION_INCOMPLETE', { cause: lost.reason })
       await git.deleteRepository(projectId)
     },
     close: async () => {

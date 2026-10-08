@@ -12,7 +12,7 @@ import { clearCookie, readCookie, setCookie } from '../http/cookies.js'
 import { Failure } from '../platform/failure.js'
 import { FAILURE_TEXT } from '../platform/failure-text.generated.js'
 import type { HostOutcome, HostRequest, ScopedProof } from '../platform/host-outcome.js'
-import { sendFailure } from '../http/problem.js'
+import { currentTraceReference, failureResponse, sendFailureResponse } from '../http/problem.js'
 import { classifyAppPath } from '../platform/application-path.js'
 import { API_BODY_LIMIT, callerLeft, isJsonBody, OPERATION, page, sendPage } from './host-http.js'
 import { readServerTree, serverFilesOf, serverPathsOf } from './server-tree.js'
@@ -133,7 +133,7 @@ const callOperation = <C extends ScopedProof>(host: Host<C>) => async (request: 
     source: { via: 'APPLICATION', accountId: scope.accountId, projectId: scope.projectId },
     files, operation, input: request.body, caller, callerLeft: callerLeft(reply),
   })
-  return reply.code(result.status).type('application/problem+json').send(JSON.stringify(result.body))
+  return sendFailureResponse(reply, result)
 }
 
 const serveFile = <C extends ScopedProof>(host: Host<C>) => async (request: FastifyRequest, reply: FastifyReply, { document }: Readonly<{ document: boolean }>): Promise<unknown> => {
@@ -143,7 +143,9 @@ const serveFile = <C extends ScopedProof>(host: Host<C>) => async (request: Fast
   const slug = host.slugOf(request)
   if (!slug) return reply.code(404).send()
   const token = presentedToken(readCookie(request, 'applicationSession'))
-  const signIn = (): unknown => document ? startSignIn(host, request, reply, slug) : sendFailure(reply, new Failure('APPLICATION_SIGN_IN_REQUIRED'))
+  const signIn = (): unknown => document
+    ? startSignIn(host, request, reply, slug)
+    : sendFailureResponse(reply, failureResponse({ code: 'APPLICATION_SIGN_IN_REQUIRED', traceId: currentTraceReference() }))
   if (!token) return signIn()
   // Both reads of a client route, the file and then the fallback to the app index, run in the one entry.
   const outcome = await host.sessions.withApplicationRequest({ slug, token }, async ({ checked }) => {

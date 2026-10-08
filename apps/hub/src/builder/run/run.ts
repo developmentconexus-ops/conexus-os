@@ -200,7 +200,7 @@ const readRunContext = async (run: Run): Promise<(conflicted: readonly string[])
 const prepare = async (run: Run): Promise<Prepared> => {
   const { ports, store } = run.env
   const { projectId, conversationId, builderRunId, baseSourceRevision } = run.row
-  const conversation = { projectId, conversationId }
+  const conversation = { accountId: run.request.accountId, projectId, conversationId }
   const bindContextFor = await readRunContext(run)
   const sandbox = await ports.openSandbox(conversation)
   const vm = await run.vm.open(sandbox, async (sandboxId) => {
@@ -216,7 +216,9 @@ const prepare = async (run: Run): Promise<Prepared> => {
   const { gate, pulled } = createRunGate({
     git: ports.git, projectId, executionId: ExecutionId.parse(builderRunId), base: baseSourceRevision, turnStart: turnStart.start, excluded: APPLICATION_CHECK_EXCLUDED,
     log: ports.log, cancelled: () => cancelled(run), gatePhase: gatePhases.enter, vm, sandbox,
-    noteRed: (redFinishes, feedback) => run.env.appendDiagnostic({ outcome: 'CHECK_RED', projectId, conversationId, builderRunId, redFinishes, feedback }),
+    noteRed: (redFinishes, feedback) => run.env.appendDiagnostic({
+      accountId: run.request.accountId, outcome: 'CHECK_RED', projectId, conversationId, builderRunId, redFinishes, feedback,
+    }),
   })
   const tools: RunTools = {
     check: async () => agentReportOf((await sandbox.runCheck({ caller: 'tool', root: SANDBOX_CHECKOUT, out: AGENT_CHECK_OUT, collect: false })).report),
@@ -315,7 +317,7 @@ const conclude = async (run: Run, prepared: Prepared): Promise<RunOutcome> => {
   await settleAdmittedSource({
     store: env.store, registry: env.registry, applicationServer: env.applicationServer, appendDiagnostic: env.appendDiagnostic,
     finalizing: () => setPhase(run, 'FINALIZING').catch(() => undefined),
-  }, row, admitted, applicationBuild)
+  }, { ...row, accountId: run.request.accountId }, admitted, applicationBuild)
   return { kind: 'SETTLED' }
 }
 
@@ -364,6 +366,7 @@ const diagnose = async (run: Run, error: unknown, ended: Failure, outcome: RunOu
   // A refused candidate says why, so the next turn in this conversation can fix it.
   const refused = error instanceof CandidateRefused ? error : null
   await run.env.appendDiagnostic({
+    accountId: run.request.accountId,
     projectId: row.projectId, conversationId: row.conversationId, builderRunId: row.builderRunId, code,
     outcome: refused ? 'CANDIDATE_REFUSED' : code === 'BUILDER_SOURCE_BASE_MOVED' ? 'SOURCE_BASE_MOVED' : 'RUN_NOT_FINISHED',
     sourceRevision: row.baseSourceRevision, ...(refused ? { detail: refused.detail } : {}),

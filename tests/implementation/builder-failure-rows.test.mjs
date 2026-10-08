@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { failureCodeText } from '../../apps/web/src/app/failure.ts'
+import { failureCodeText } from '@conexus/contract'
 import { viewRun } from '../../apps/web/src/features/builder/construir/run-state.ts'
 import { hubModuleUrl } from './hub-build.mjs'
 import { takeHubLogs } from './hub-log-capture.mjs'

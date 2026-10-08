@@ -90,7 +90,7 @@ const sqlStateOf = async (connectionString, role, statement) => withClient(conne
 
 test('0070 commits over a seeded database and leaves none of the rows the new shape cannot carry', async (t) => {
   const { connectionString } = await migrated(t, 'conexus_iam_mig')
-  const result = await runMigrations({ connectionString, migrations: [...beforeIam, ...iamMigration] })
+  const result = await runMigrations({ connectionString, migrations: [...beforeIam, ...iamMigration], catalogSnapshot: null })
   assert.deepEqual({ verdict: result.verdict, appliedNow: result.appliedNow }, { verdict: 'PASS', appliedNow: ['0070'] })
 
   const sessions = await query(connectionString, 'SELECT token_digest, kind FROM iam.host_session ORDER BY token_digest')
@@ -109,7 +109,7 @@ test('0070 commits over a seeded database and leaves none of the rows the new sh
 
 test('0070 drops the columns, tables, types, functions and roles of the old shape', async (t) => {
   const { connectionString } = await migrated(t, 'conexus_iam_mig_shape')
-  await runMigrations({ connectionString, migrations: [...beforeIam, ...iamMigration] })
+  await runMigrations({ connectionString, migrations: [...beforeIam, ...iamMigration], catalogSnapshot: null })
 
   const columns = await query(connectionString, "SELECT table_name || '.' || column_name AS name FROM information_schema.columns WHERE table_schema = 'iam' AND column_name IN ('ended_at', 'ended_reason', 'preview_id', 'consumed_at')")
   assert.deepEqual(columns.rows, [])
@@ -128,7 +128,7 @@ test('0070 drops the columns, tables, types, functions and roles of the old shap
 
 test('0070 keeps a Preview from naming another account\'s Hub session, and a Hub session takes its children with it', async (t) => {
   const { connectionString } = await migrated(t, 'conexus_iam_mig_pair')
-  await runMigrations({ connectionString, migrations: [...beforeIam, ...iamMigration] })
+  await runMigrations({ connectionString, migrations: [...beforeIam, ...iamMigration], catalogSnapshot: null })
 
   const child = (digest, account) => `INSERT INTO iam.host_session(token_digest, kind, account_id, started_at, absolute_expires_at, project_id, artifact_revision_id, parent_digest)
     VALUES ('\\x${digest}', 'PREVIEW', '${account}', now(), now() + interval '10 minutes', '${PROJECT}', '${ARTIFACT}', '\\x01')`
@@ -142,7 +142,7 @@ test('0070 keeps a Preview from naming another account\'s Hub session, and a Hub
 
 test('after 0070 the login role reads only the ledger and the command role cannot rewrite a name', async (t) => {
   const { connectionString } = await migrated(t, 'conexus_iam_mig_grants')
-  await runMigrations({ connectionString, migrations: [...beforeIam, ...iamMigration] })
+  await runMigrations({ connectionString, migrations: [...beforeIam, ...iamMigration], catalogSnapshot: null })
 
   assert.equal(await sqlStateOf(connectionString, 'hub_runtime', 'SELECT 1 FROM iam.host_session'), '42501')
   assert.equal(await sqlStateOf(connectionString, 'hub_runtime', 'SELECT 1 FROM iam.account'), '42501')
@@ -169,7 +169,7 @@ test('after 0070 the login role reads only the ledger and the command role canno
 
 test('iam_rls has a SELECT policy on every table an rls helper reads', async (t) => {
   const { connectionString } = await migrated(t, 'conexus_iam_mig_rls')
-  await runMigrations({ connectionString, migrations: [...beforeIam, ...iamMigration] })
+  await runMigrations({ connectionString, migrations: [...beforeIam, ...iamMigration], catalogSnapshot: null })
 
   const helpers = await query(connectionString, "SELECT pg_get_functiondef(p.oid) AS body FROM pg_proc p WHERE p.pronamespace = 'rls'::regnamespace ORDER BY p.proname")
   const rowSecurityTables = await query(connectionString, "SELECT n.nspname || '.' || c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relrowsecurity AND n.nspname NOT IN ('pg_catalog', 'information_schema')")
@@ -185,12 +185,12 @@ test('0070 commits in each of two databases of one cluster, and the roles outliv
   const second = await migrated(t, 'conexus_iam_mig_second')
   const migrations = [...beforeIam, ...iamMigration]
 
-  await runMigrations({ connectionString: first.connectionString, migrations })
+  await runMigrations({ connectionString: first.connectionString, migrations, catalogSnapshot: null })
   const lingering = await query(first.connectionString, `SELECT count(*)::int AS count FROM pg_roles WHERE rolname IN (${OLD_ROLES})`)
   assert.deepEqual(lingering.rows, [{ count: 8 }])
   assert.equal(await dependenciesOnOldRoles(first.connectionString), 0)
 
-  const result = await runMigrations({ connectionString: second.connectionString, migrations })
+  const result = await runMigrations({ connectionString: second.connectionString, migrations, catalogSnapshot: null })
   assert.deepEqual({ verdict: result.verdict, appliedNow: result.appliedNow }, { verdict: 'PASS', appliedNow: ['0070'] })
   assert.equal(await dependenciesOnOldRoles(second.connectionString), 0)
 })
@@ -256,7 +256,7 @@ const CHECK_CASES = [
 
 test('each CHECK that 0070 adds accepts its valid row and refuses every row that breaks one of its clauses', async (t) => {
   const { connectionString } = await migrated(t, 'conexus_iam_mig_checks')
-  await runMigrations({ connectionString, migrations: [...beforeIam, ...iamMigration] })
+  await runMigrations({ connectionString, migrations: [...beforeIam, ...iamMigration], catalogSnapshot: null })
 
   const outcomes = []
   for (const [constraint, label, statement, expected] of CHECK_CASES) {

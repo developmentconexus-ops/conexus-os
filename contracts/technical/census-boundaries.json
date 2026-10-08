@@ -6,5 +6,7 @@
   ],
   "sqlWrites": [],
   "authorityTableWrites": [],
-  "gateReferences": []
+  "gateReferences": [],
+  "rawPersonReads": [],
+  "obsoleteRuntimeSymbols": []
 }

@@ -77,7 +77,7 @@ test('a storage read that never settles ends the turn as BUILDER_AGENT_STALLED, 
 })
 
 test('the web names a stalled turn as a Conexus fault, not the model', async () => {
-  const { failureCodeText } = await import('../../apps/web/src/app/failure.ts')
+  const { failureCodeText } = await import('@conexus/contract')
   assert.equal(
     failureCodeText('BUILDER_AGENT_STALLED'),
     'O agente parou de responder por uma falha do Conexus, e não do modelo, então a execução foi encerrada. As alterações desta execução não foram aplicadas. A falha foi registrada.',

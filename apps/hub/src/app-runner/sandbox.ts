@@ -3,8 +3,9 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } fr
 import { Readable } from 'node:stream'
 import { z } from 'zod'
 import { dirname, join } from 'node:path'
-import { workerResult } from './wire.js'
-import type { WorkerJob, WorkerResult } from './wire.js'
+import { workerAnswerSchema } from './wire.js'
+import type { WorkerJob } from './wire.js'
+import type { WorkerAnswer } from './server-manifest.js'
 import { Failure } from '../platform/failure.js'
 
 /**
@@ -46,7 +47,7 @@ const SANDBOX_CONNECTOR_SOCKET = `${SANDBOX_CONNECTOR_DIR}/.s.connector`
 const STREAM_LIMIT = 64 * 1024
 
 export type WorkerOutcome =
-  | Readonly<{ kind: 'RESULT'; result: WorkerResult; ms: number; logs: string }>
+  | Readonly<{ kind: 'RESULT'; result: WorkerAnswer; ms: number; logs: string }>
   | Readonly<{ kind: 'TIMEOUT' | 'RESULT_TOO_LARGE'; ms: number; logs: string }>
   | Readonly<{ kind: 'CRASHED'; exitCode: number | null; signal: string | null; ms: number; logs: string }>
 
@@ -112,7 +113,7 @@ export const dependencyClosure = (entry: string, from: string = import.meta.dirn
   return found
 }
 
-const STAGED_FILES = ['app-runner/worker.js', 'app-runner/wire.js', 'app-runner/data-plane.js', 'platform/caller.js']
+const STAGED_FILES = ['app-runner/worker.js', 'app-runner/wire.js', 'app-runner/data-plane.js', 'app-runner/server-manifest.js', 'platform/caller.js']
 const STAGED_PACKAGES = ['pg', 'zod']
 
 /**
@@ -187,7 +188,7 @@ export const runWorker = (input: Readonly<{
       if (verdict) return resolve({ kind: verdict, ms, logs })
       const line = result.toString('utf8').split('\n', 1)[0] ?? ''
       try {
-        const parsed = workerResult.safeParse(JSON.parse(line))
+        const parsed = workerAnswerSchema.safeParse(JSON.parse(line))
         if (parsed.success) return resolve({ kind: 'RESULT', result: parsed.data, ms, logs })
       } catch {
         // no result line: the worker died first

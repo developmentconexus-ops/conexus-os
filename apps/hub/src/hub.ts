@@ -85,9 +85,9 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
         if (!builder) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'CONEXUS_GIT_NOT_CONFIGURED' } })
         return builder.killProjectSandboxes(projectId)
       },
-      deleteRepository: async (projectId) => {
+      deleteRepository: async (projectId, lost) => {
         if (!builder) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'CONEXUS_GIT_NOT_CONFIGURED' } })
-        return builder.deleteProjectRepository(projectId)
+        return builder.deleteProjectRepository(projectId, lost)
       },
       purgeIdentityAccess: identityAccess.purgeProject,
       purgeConnectorBindings: connectors.purgeProjectBindings,

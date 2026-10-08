@@ -6,7 +6,7 @@ import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
-import { BindingName, listWorkspaceConnections, listProjectConnectionBindings, ConnectionId, type ConnectionCheckOutcome, type ConnectorConnection } from '@conexus/contract'
+import { BindingName, listWorkspaceConnections, listProjectConnectionBindings, ConnectionId, type ConnectionCheckOutcome, type ConnectorConnection, failureText } from '@conexus/contract'
 import {
   type BindableConnection,
   bindProjectConnection,
@@ -22,7 +22,6 @@ import {
   workspaceConnectionsQuery,
 } from '../connector-api'
 import '../connector.css'
-import { failureText } from '../../../app/http'
 import { FailureState } from '../../../app/failure-state'
 
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })

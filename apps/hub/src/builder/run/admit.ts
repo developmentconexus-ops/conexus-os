@@ -1,4 +1,4 @@
-import { SourceRevision as SourceRevisionSchema, type BuilderRunId, type ProjectId, type SourceRevision } from '@conexus/contract'
+import { SourceRevision as SourceRevisionSchema, type AccountId, type BuilderRunId, type ProjectId, type SourceRevision } from '@conexus/contract'
 import { RECIPE_SHA256, TEMPLATE_REF } from '../application-artifact-runtime.js'
 import { prepareApplicationServer } from '../application-build.js'
 import type { ApplicationServerPort, BuilderRegistry } from '../application-build.js'
@@ -50,7 +50,7 @@ export const admitCandidate = async ({ git, projectId, executionId, base, verdic
   return { admitted, applicationBuild }
 }
 
-type AdmittedRun = Readonly<{ projectId: ProjectId; conversationId: ConversationId; builderRunId: BuilderRunId }>
+type AdmittedRun = Readonly<{ accountId: AccountId; projectId: ProjectId; conversationId: ConversationId; builderRunId: BuilderRunId }>
 
 /**
  * The source is on `main`, so a stop arriving now is too late: the run records it and settles
@@ -66,7 +66,7 @@ export const settleAdmittedSource = async ({ store, registry, applicationServer,
 }>, run: AdmittedRun, admitted: SourceRevision, applicationBuild: ApplicationBuildOutcome): Promise<void> => {
   await store.advanceBuilderRunSource({ builderRunId: run.builderRunId, sourceRevision: admitted })
   const note = (code: string, outcome: SettledNote['outcome'], detail?: string): Promise<void> => appendDiagnostic({
-    projectId: run.projectId, conversationId: run.conversationId, builderRunId: run.builderRunId, code, outcome, sourceRevision: admitted,
+    accountId: run.accountId, projectId: run.projectId, conversationId: run.conversationId, builderRunId: run.builderRunId, code, outcome, sourceRevision: admitted,
     ...(detail ? { detail } : {}),
   }).catch(() => undefined)
   // Only a build the source broke asks the agent for a fix; a platform fault asking the same

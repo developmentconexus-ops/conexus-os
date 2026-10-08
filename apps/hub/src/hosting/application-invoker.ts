@@ -1,12 +1,14 @@
-import type { AccountId, ProjectId } from '@conexus/contract'
-import { failureProblem } from '../http/problem.js'
-import { Failure } from '../platform/failure.js'
+import type { AccountId, ProjectId, Result } from '@conexus/contract'
+import { currentTraceReference, failureResponse } from '../http/problem.js'
+import { Failure, logFailure } from '../platform/failure.js'
 import type { FailureCode } from '../platform/failures.generated.js'
+import { logger } from '../platform/logger.js'
 import type { Caller } from '../platform/caller.js'
 import type { ServerFile } from './server-tree.js'
 
 /** On whose authority a request reaches the runner: a developer's Preview or an application host. */
 type ArtifactSource = Readonly<{ via: 'PREVIEW' | 'APPLICATION'; accountId: AccountId; projectId: ProjectId }>
+type RunnerAnswer = Result<unknown, Readonly<{ code: FailureCode }>>
 
 export type ApplicationRunnerInvoke = (input: Readonly<{
   projectId: string
@@ -15,7 +17,7 @@ export type ApplicationRunnerInvoke = (input: Readonly<{
   files: readonly ServerFile[]
   caller: Caller
   connectorSocket?: string
-}>) => Promise<Readonly<{ status: number; body: unknown }>>
+}>) => Promise<RunnerAnswer>
 
 /**
  * Opens the Connector broker's port for one invocation, under a scope the Connector owner mints from
@@ -31,7 +33,7 @@ export type ApplicationInvoker = (input: Readonly<{
   input: unknown
   caller: Caller
   callerLeft: AbortSignal
-}>) => Promise<Readonly<{ status: number; body: unknown }>>
+}>) => Promise<Response>
 
 export type ApplicationAdmissionLimits = Readonly<{
   globalConcurrency: number
@@ -99,16 +101,17 @@ const createGate = (capacity: number, lineLimit: number): Gate => {
   }
 }
 
-const refusal = (code: FailureCode): Readonly<{ status: number; body: unknown }> => {
-  const problem = failureProblem(new Failure(code))
-  return Object.freeze({ status: problem.status, body: problem })
+function refusal(code: FailureCode): Response {
+  const failure = new Failure(code)
+  logFailure(logger, failure)
+  return failureResponse({ code, traceId: currentTraceReference() })
 }
 
-export const createApplicationInvoker = (dependencies: Readonly<{
+export function createApplicationInvoker(dependencies: Readonly<{
   invoke: ApplicationRunnerInvoke
   openConnectorPort?: ConnectorPortOpener
   limits?: ApplicationAdmissionLimits
-}>): ApplicationInvoker => {
+}>): ApplicationInvoker {
   const limits = dependencies.limits ?? DEFAULT_ADMISSION_LIMITS
   const runner = createGate(limits.globalConcurrency, limits.admissionQueueLimit)
   const projects = new Map<string, Gate>()
@@ -132,10 +135,12 @@ export const createApplicationInvoker = (dependencies: Readonly<{
     try {
       const port = dependencies.openConnectorPort ? await dependencies.openConnectorPort(input.source) : null
       try {
-        return await dependencies.invoke({
+        const answer = await dependencies.invoke({
           projectId, operation: input.operation, input: input.input, files: input.files, caller: input.caller, ...(port ? { connectorSocket: port.socketPath } : {}),
         })
+        return answer.ok ? Response.json(answer.result) : refusal(answer.error.code)
       } catch (error) {
+        if (error instanceof Failure) throw error
         throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: error, details: { project: projectId, operation: input.operation } })
       } finally {
         await port?.close()

@@ -76,6 +76,9 @@ const workspaceAdmissionDigest = '9f43118c3e057c30978f1fef5cfe6956d8f5d46c989f17
 const splitWallDigest = '9bc879ed9dade286810ca8775caea87b2d381ba18da9e229f83458a17bd7bc61'
 const modelAccountOwnerDigest = '34bba799cec2b22aa90f23362a63fc41576667d0715801cd4be660e9c9af7b82'
 const iamOwnerDigest = '24536c653767f2964cbeff9ace1fdcde18961aeb90cb2024b6f9191d8da32574'
+const authorizationCatalogDigest = '94adc737af2702624bde773ece7c6cf15744f19532a6c9e7b73abbf950aea33f'
+const hubAuthorityDigest = '8997b2491cd4def3c2bc704a2d406cb2087ccab99587014cdbb9e5e196f40c1f'
+const retiredProjectBuildFailureDigest = '33c898329173a976b8709492f01637e7441702cd22584ef1e066770c404925fb'
 const builderOwnerDigest = 'f95d01e1108cea8f37fb7e98b95e506e0ba96d783c63691b447e5c0ce98517e2'
 const registryOwnerDigest = '4bad3cc589d80b99a027bf174ce1cabef27aa70cccc10c78d7ed7624fa3f9870'
 const projectOwnerDigest = '9c0efb7e558d81e5634c74d63dd953ad18fd7b82f3b2c0bc4d8030b68269df4f'
@@ -152,6 +155,9 @@ const migrationDigests = new Map([
   ['0068_registry_owner.sql', registryOwnerDigest],
   ['0069_model_account_owner.sql', modelAccountOwnerDigest],
   ['0070_iam_owner.sql', iamOwnerDigest],
+  ['0072_authorization_catalog.sql', authorizationCatalogDigest],
+  ['0073_hub_authority.sql', hubAuthorityDigest],
+  ['0074_retired_project_build_failure.sql', retiredProjectBuildFailureDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n
@@ -237,9 +243,7 @@ export const runMigrations = async ({ connectionString, migrations, catalogSnaps
       const ledger = await ledgerState(client, migrations)
       if (catalogSnapshot) {
         await assertCatalog(client, catalogSnapshot)
-        if (catalogSnapshot.catalog.function.some((line) => line.startsWith('function rls.acting_account('))) {
-          await assertRoleInvariants(client)
-        }
+        await assertRoleInvariants(client)
       }
       await client.query('COMMIT')
       return { verdict: 'PASS', appliedNow, versions: [...ledger.applied.keys()] }

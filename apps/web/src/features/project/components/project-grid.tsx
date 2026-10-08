@@ -7,9 +7,10 @@ import { projectThumbnailUrl } from '../api'
 import { FailureState } from '../../../app/failure-state'
 
 export type ProjectActivity = 'BUILDING' | 'FAILED' | 'LIVE' | 'NEW'
+type LiveProjectCard = Extract<ProjectCardSummary, { state: 'live' }>
 
 // The chip reads the latest run the Hub reports, and falls back to whether a Preview exists.
-export function projectActivity(summary: ProjectCardSummary): ProjectActivity {
+export function projectActivity(summary: LiveProjectCard): ProjectActivity {
   const run = summary.latestRun
   if (run?.state === 'QUEUED' || run?.state === 'RUNNING') return 'BUILDING'
   if (run?.state === 'FAILED') return 'FAILED'
@@ -56,9 +57,6 @@ function PreviewThumbnail({ projectId, name, hasPreview }: Readonly<{ projectId:
   </div>
 }
 
-// A tombstoned Project cannot open the Construir page anymore: its data may already be purged, so
-// the card instead points at the settings screen's own recovery view, the only place left to finish
-// or watch the deletion the administrator started.
 function DeletingProjectCard({ summary }: Readonly<{ summary: ProjectCardSummary }>) {
   return <li className="cx-project-cell">
     <Link to="/projects/$projectId/settings" params={{ projectId: summary.projectId }} className="cx-project-card">
@@ -68,8 +66,7 @@ function DeletingProjectCard({ summary }: Readonly<{ summary: ProjectCardSummary
       <div className="cx-project-body">
         <h3>{summary.name}</h3>
         <div className="cx-project-meta">
-          <span className="cx-chip" data-tone="failed">Exclusão pendente</span>
-          <span className="cx-project-time">{lastChangeLabel(summary.lastActivityAt)}</span>
+          <span className="cx-chip" data-tone="failed">Exclusão em andamento</span>
         </div>
       </div>
     </Link>
@@ -77,7 +74,7 @@ function DeletingProjectCard({ summary }: Readonly<{ summary: ProjectCardSummary
 }
 
 function ProjectCard({ summary }: Readonly<{ summary: ProjectCardSummary }>) {
-  if (summary.deleting) return <DeletingProjectCard summary={summary} />
+  if (summary.state === 'deleting') return <DeletingProjectCard summary={summary} />
   const activity = projectActivity(summary)
   const chip = CHIPS[activity]
   return <li className="cx-project-cell">

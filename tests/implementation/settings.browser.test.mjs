@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { FAILURES } from '@conexus/contract'
 import { shareWebBrowser } from './web-dev-server.mjs'
 
 const web = shareWebBrowser()
@@ -7,7 +8,7 @@ const web = shareWebBrowser()
 const withServer = async (t) => {
   const { page, origin } = await web.openPage(t, { viewport: { width: 1200, height: 900 } })
   // This Hub runs no CLIProxyAPI unless a test says otherwise.
-  await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => route.fulfill(problem('MODEL_LOGIN_UNAVAILABLE', 503)))
+  await page.route('**/api/control/model-accounts/google-ai-pro/**', (route) => route.fulfill(problem('MODEL_LOGIN_UNAVAILABLE')))
   await page.route('**/api/control/model-accounts', (route) => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({ accounts: [{ provider: 'openai-codex', providerName: 'OpenAI (ChatGPT)', own: { state: 'absent' }, shared: false }] }),
   }))
@@ -20,7 +21,10 @@ const routeSession = (page, account, administrator) =>
   }))
 
 const notFound = { status: 404, contentType: 'application/problem+json', body: JSON.stringify({ type: 'urn:conexus:problem:NOT_FOUND', title: 'NOT_FOUND', status: 404, code: 'NOT_FOUND' }) }
-const problem = (code, status = 409) => ({ status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${code}`, title: code, status, code }) })
+function problem(code) {
+  const { status } = FAILURES[code]
+  return { status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${code}`, title: code, status, code }) }
+}
 
 test('/settings redirects to Minha conta, and a member sees no Instalação group and is refused an installation route', async (t) => {
   const { page, origin } = await withServer(t)
@@ -75,7 +79,7 @@ test('Administradores refuses to revoke the last administrator and to grant an u
       body: JSON.stringify({ administrators: [{ accountId: '10000000-0000-4000-8000-000000000006', displayName: 'Única Admin', email: 'unica@example.com', grantedVia: 'OPERATOR_BOOTSTRAP', grantedAt: '2026-09-01T00:00:00.000Z' }] }),
     })
   })
-  await page.route('**/api/control/installation/administrators/10000000-0000-4000-8000-000000000006', (route) => route.fulfill({ ...problem('LAST_INSTALLATION_ADMINISTRATOR'), status: 409 }))
+  await page.route('**/api/control/installation/administrators/10000000-0000-4000-8000-000000000006', (route) => route.fulfill(problem('LAST_INSTALLATION_ADMINISTRATOR')))
 
   await page.goto(`${origin}/settings/installation/admins`)
   await page.getByRole('heading', { name: 'Administradores' }).waitFor()
@@ -100,7 +104,7 @@ test('Administradores adds an administrator with one key per attempt and lists w
   await page.route('**/api/control/installation/administrators', (route) => {
     if (route.request().method() === 'POST') {
       posts.push({ body: route.request().postDataJSON(), key: route.request().headers()['idempotency-key'] })
-      if (posts.length === 1) return route.fulfill(problem('INTERNAL_UNEXPECTED', 500))
+      if (posts.length === 1) return route.fulfill(problem('INTERNAL_UNEXPECTED'))
       administrators = [first, added]
       return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(added) })
     }
@@ -131,13 +135,13 @@ test('Minhas contas de modelo signs a person in to Google AI Pro through a paste
     const request = route.request()
     const path = new URL(request.url()).pathname.replace('/api/control/model-accounts/google-ai-pro', '')
     const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
-    if (!enabled) return route.fulfill(problem('MODEL_LOGIN_UNAVAILABLE', 503))
+    if (!enabled) return route.fulfill(problem('MODEL_LOGIN_UNAVAILABLE'))
     writes.push([request.method(), path, request.postDataJSON?.() ?? null])
     if (path === '/connection') return json(200, { own: connected ? { state: 'connected', kind: 'google_ai_pro' } : { state: 'absent' }, shared: false })
     // Held open briefly so the test can observe the "Preparando…" label before the tab navigates.
     if (path === '/login/start') { await new Promise((resolve) => setTimeout(resolve, 200)); return json(200, { loginId, url: signIn }) }
     if (path === '/login/complete') {
-      if (!request.postDataJSON().callbackUrl.includes('state=issued-state')) return route.fulfill(problem('MODEL_LOGIN_CALLBACK_REFUSED', 400))
+      if (!request.postDataJSON().callbackUrl.includes('state=issued-state')) return route.fulfill(problem('MODEL_LOGIN_CALLBACK_REFUSED'))
       connected = true
       return json(200, { state: 'succeeded' })
     }
@@ -188,7 +192,7 @@ test('Minhas contas de modelo shows Google AI Pro expired when the status read a
     const json = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
     if (path === '/connection') return json(200, { own: { state: 'absent' }, shared: false })
     if (path === '/login/start') return json(200, { loginId, url: 'https://accounts.google.com/o/oauth2/v2/auth?state=gone' })
-    if (path === `/login/${loginId}`) return route.fulfill(problem('MODEL_LOGIN_NOT_FOUND', 404))
+    if (path === `/login/${loginId}`) return route.fulfill(problem('MODEL_LOGIN_NOT_FOUND'))
     return route.fulfill(notFound)
   })
   await page.context().route('https://accounts.google.com/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<html></html>' }))

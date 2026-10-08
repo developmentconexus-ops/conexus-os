@@ -8,6 +8,22 @@ import { ID, setupProjects } from './project-fixture.mjs'
 import { waitUntilBlocked } from './race.mjs'
 
 const { admitApplication, admitInstallationAdministrator, admitWorkspace } = await import(hubModuleUrl('identity-access/admission.js'))
+const { createWorkspaceModule } = await import(hubModuleUrl('workspace/module.js'))
+
+test('an active nonmember administrator reads an existing Workspace, while an unknown Workspace is hidden', async (t) => {
+  const { database } = await setupProjects(t, 'conexus_admin_nonmember_reader')
+  const workspaces = createWorkspaceModule({ database })
+
+  assert.deepEqual(await workspaces.listAccessibleWorkspaces(ID.administrator), [
+    { workspaceId: ID.otherWorkspace, name: 'Elsewhere' },
+    { workspaceId: ID.workspace, name: 'Operations' },
+  ])
+  await database.read(ID.administrator, (gate) => admitInstallationAdministrator(gate, { action: 'connection.manage', workspaceId: ID.workspace }))
+  await assert.rejects(database.read(ID.administrator, (gate) => admitInstallationAdministrator(gate, { action: 'connection.manage', workspaceId: '20000000-0000-4000-8000-000000000099' })), { id: 'WORKSPACE_NOT_FOUND' })
+  await assert.rejects(database.read(ID.owner, (gate) => admitInstallationAdministrator(gate, { action: 'connection.manage', workspaceId: ID.workspace })), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' })
+  await assert.rejects(database.read(ID.administrator, (gate) => admitWorkspace(gate, { workspaceId: ID.workspace, action: 'workspace.read' })), { id: 'WORKSPACE_NOT_FOUND' })
+  assert.deepEqual(await workspaces.listAccessibleWorkspaces(ID.owner), [{ workspaceId: ID.workspace, name: 'Operations' }])
+})
 
 const pending = (promise) => {
   const state = { settled: false }
@@ -66,7 +82,7 @@ test('one member leaving twice at once: the second admission waits for the first
   const { connection, database, onCleanup } = await setupProjects(t, 'conexus_double_leave')
   const holder = await hold(connection, onCleanup)
   await holder.query('SELECT 1 FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2 FOR UPDATE', [ID.member, ID.workspace])
-  const leaving = database.transaction(ID.member, (gate) => admitWorkspace(gate, ID.workspace, 'members.leave'))
+  const leaving = database.transaction(ID.member, (gate) => admitWorkspace(gate, { workspaceId: ID.workspace, action: 'members.leave' }))
   const state = pending(leaving)
   leaving.catch(() => undefined)
   await waitUntilBlocked(connection)
@@ -76,18 +92,18 @@ test('one member leaving twice at once: the second admission waits for the first
   await assert.rejects(leaving, { id: 'WORKSPACE_NOT_FOUND' })
 })
 
-test('an administrator revoked while its project deletion waits on the tenure row is refused', async (t) => {
-  const { connection, store, seedProject, onCleanup } = await setupProjects(t, 'conexus_admin_revoked_wait')
+test('an owner removed while deletion waits for its membership is refused', async (t) => {
+  const { connection, store, seedProject, onCleanup } = await setupProjects(t, 'conexus_owner_removed_wait')
   const projectId = await seedProject('Atlas')
   const holder = await hold(connection, onCleanup)
-  await holder.query('UPDATE iam.installation_administrator SET revoked_at = now(), revoked_by = $2 WHERE account_id = $1', [ID.administrator, ID.memberAdministrator])
-  const deletion = store.deleteProject({ accountId: ID.administrator, projectId, confirmName: 'Atlas' })
+  await holder.query('DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [ID.owner, ID.workspace])
+  const deletion = store.deleteProject({ accountId: ID.owner, projectId, confirmName: 'Atlas' })
   const state = pending(deletion)
   deletion.catch(() => undefined)
   await waitUntilBlocked(connection)
   assert.equal(state.settled, false)
   await holder.query('COMMIT')
-  await assert.rejects(deletion, { id: 'PROJECT_DELETE_DENIED' })
+  await assert.rejects(deletion, { id: 'PROJECT_NOT_FOUND' })
   assert.deepEqual((await query(connection, 'SELECT count(*)::integer AS tombstones FROM project.project_deletion')).rows, [{ tombstones: 0 }])
 })
 
@@ -98,12 +114,12 @@ test('two administrators managing administrators at once serialize on the tenure
   let admitted
   const entered = new Promise((resolve) => { admitted = resolve })
   const first = database.transaction(ID.administrator, async (gate) => {
-    await admitInstallationAdministrator(gate, 'administrators.manage')
+    await admitInstallationAdministrator(gate, { action: 'administrators.manage' })
     admitted()
     await held
   })
   await entered
-  const second = database.transaction(ID.memberAdministrator, (gate) => admitInstallationAdministrator(gate, 'administrators.manage'))
+  const second = database.transaction(ID.memberAdministrator, (gate) => admitInstallationAdministrator(gate, { action: 'administrators.manage' }))
   const state = pending(second)
   await waitUntilBlocked(connection)
   assert.equal(state.settled, false, 'the second waits on the first')

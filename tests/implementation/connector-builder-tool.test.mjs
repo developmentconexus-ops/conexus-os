@@ -24,6 +24,7 @@ const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/g
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
 const { registerBuilderSessionRoutes } = await import(hubModuleUrl('builder/mastra-session-routes.js'))
+const { Failure } = await import(hubModuleUrl('platform/failure.js'))
 const { driveStep } = await import(hubModuleUrl('builder/run/send.js'))
 // The Hub's one send: a message with no question open, so there is nothing to end first.
 const sendBuilderSessionMessage = (session, { content }, requestContext = new RequestContext()) => driveStep(session, { kind: 'SEND', content }, requestContext, async () => {})
@@ -228,7 +229,7 @@ test('a Builder turn reads through the tool; the model receives the vendor body,
     registerRoutes: async (instance) => {
       await registerBuilderSessionRoutes(instance, {
         mastra, controllerId: 'code', controller, conversations: testConversations(controller, () => undefined),
-        mayBuild: async ({ projectId }) => projectId === PROJECT,
+        admitBuilder: async ({ projectId }) => { if (projectId !== PROJECT) throw new Failure('PROJECT_NOT_FOUND') },
         conversationOwner: async () => 'PROJECT',
         projectBusy: async () => false,
         toolPayloads: projection,

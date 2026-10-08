@@ -7,6 +7,7 @@ import { readBuilderE2BApiKey } from '../../scripts/builder-e2b-template.mjs'
 import { hubModuleUrl } from '../implementation/hub-build.mjs'
 import { conversationId, harness, projectId } from '../implementation/builder-run-harness.mjs'
 import { builderOn, liveSession, pendingCall, scriptedModel } from '../implementation/builder-question-fixture.mjs'
+import { RUN_CONTEXT } from '../implementation/run-context.mjs'
 
 // Paid: one real E2B sandbox on the Builder's template for about ten minutes, killed before the test
 // ends. Run with `npm run builder:question:live`, which reads the Hub env file.
@@ -29,7 +30,7 @@ test('a run waiting on a question lets its VM go: an answer inside the idle wind
   const storage = new InMemoryStore()
   await storage.init()
   const builder = await builderOn(t, storage, scriptedModel().model, { sandboxes: e2bConversationSandboxes({ apiKey, templateId, idleMs: IDLE_MS }) })
-  const sandbox = () => builder.conversations.sandbox({ projectId, conversationId })
+  const sandbox = () => builder.conversations.sandbox({ accountId: RUN_CONTEXT.accountId, projectId, conversationId })
   const state = async (id) => (await Sandbox.getInfo(id, { apiKey })).state
   const waits = []
   // The person answers after `waitMs`; what E2B says of the VM is read just before the answer.

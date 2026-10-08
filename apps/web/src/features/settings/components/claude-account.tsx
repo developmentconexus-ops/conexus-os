@@ -5,8 +5,9 @@ import { type FormEvent, useId, useState } from 'react'
 import { FAILURES, startClaudeModelLogin, completeClaudeModelLogin, type ModelLoginId } from '@conexus/contract'
 import { accountsQueryKey, noInput, ownKind, readAccounts } from '../model-accounts-api'
 import { Chip, SectionError, StatusLine } from './states'
-import { call, failureText } from '../../../app/http'
+import { call } from '../../../app/http'
 
+import { failureText } from '@conexus/contract'
 type LoginState = 'succeeded' | 'failed' | 'expired'
 type Login = Readonly<{ loginId: ModelLoginId; url: string; expiresAt: string }>
 

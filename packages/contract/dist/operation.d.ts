@@ -1,5 +1,9 @@
 import type { z } from 'zod';
 import type { FailureCode } from './failures.generated.js';
+export declare const SUBJECT_NOT_FOUND: {
+    readonly workspaceId: "WORKSPACE_NOT_FOUND";
+    readonly projectId: "PROJECT_NOT_FOUND";
+};
 export type AccessKind = 'navigation' | 'sign-in' | 'session' | 'sign-out' | 'host-write' | 'hub-entry';
 export type Effect = 'clear-session-cookie';
 export type Binary = Readonly<{
@@ -78,7 +82,6 @@ export type Reply<O extends AnyOperation> = true extends IsUnion<Statuses<O>> ? 
         body: StatusBody<O, S>;
     };
 }[Statuses<O>] : StatusBody<O, Statuses<O>>;
-export type Result<O extends AnyOperation> = Reply<O>;
 export type EffectsOf<E extends readonly Effect[]> = {
     readonly [K in E[number]]: () => void;
 };

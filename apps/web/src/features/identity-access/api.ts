@@ -1,6 +1,5 @@
-import { EmailAddress, endSession as endSessionOperation, getSession } from '@conexus/contract'
-import { call, failureText, isFailure, query } from '../../app/http'
-import { HubFailure } from '../../app/failure'
+import { EmailAddress, endSession as endSessionOperation, getSession, failureCodeText, isFailure } from '@conexus/contract'
+import { call, query } from '../../app/http'
 import { clearAuthorityCache, confirmAuthority } from '../../app/query-client'
 
 const noInput = { params: undefined, query: undefined, headers: undefined, body: undefined } as const
@@ -34,5 +33,5 @@ export function isAuthenticationRequired(error: unknown) {
 /** An email typed into a form, parsed once where it enters; a refusal carries the table's sentence for it. */
 export function parseEmail(raw: string): Readonly<{ email: EmailAddress }> | Readonly<{ message: string }> {
   const parsed = EmailAddress.safeParse(raw)
-  return parsed.success ? { email: parsed.data } : { message: failureText(new HubFailure('EMAIL_INVALID', null)) }
+  return parsed.success ? { email: parsed.data } : { message: failureCodeText('EMAIL_INVALID') }
 }

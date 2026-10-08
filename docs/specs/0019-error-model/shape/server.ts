@@ -10,9 +10,9 @@ export declare class Failure extends MastraError {
 
 export declare function failureResponse(input: Readonly<{ code: FailureCode; traceId: TraceReference }>): Response
 
-// Native Response does not set Reply's status before onSend. The bridge does.
+// Mirror status/headers before onSend; Fastify's HEAD hook accepts the native body stream.
 export function sendFailureResponse(reply: FastifyReply, response: Response): FastifyReply {
-  return reply.code(response.status).headers(Object.fromEntries(response.headers)).send(response)
+  return reply.code(response.status).headers(Object.fromEntries(response.headers)).send(reply.request.method === 'HEAD' ? response.body : response)
 }
 
 export declare function toFailure(error: unknown): Failure

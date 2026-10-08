@@ -64,7 +64,7 @@ test('the purge of a deleted Project leaves no identity row of it', async (t) =>
     ['oidc_transaction', 'application_project_id'], ['host_session', 'project_id'], ['handoff', 'project_id'],
   ].map(async ([table, column]) => [table, (await query(connection, `SELECT count(*)::int AS n FROM iam.${table} WHERE ${column} = $1`, [projectId])).rows[0].n])))
   assert.deepEqual(await counts(), { application: 1, application_grant: 1, application_invitation: 1, oidc_transaction: 1, host_session: 1, handoff: 1 })
-  await deletion.deleteProject({ accountId: ID.administrator, projectId, confirmName: 'Estoque Parado' })
+  await deletion.deleteProject({ accountId: ID.owner, projectId, confirmName: 'Estoque Parado' })
   assert.deepEqual(await counts(), { application: 0, application_grant: 0, application_invitation: 0, oidc_transaction: 0, host_session: 0, handoff: 0 })
   assert.equal((await query(connection, "SELECT count(*)::int AS n FROM iam.host_session WHERE kind = 'HUB'")).rows[0].n, 1)
 })

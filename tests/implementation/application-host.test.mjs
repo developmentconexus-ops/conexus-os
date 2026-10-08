@@ -10,6 +10,8 @@ import { testListener } from './access/test-listener.mjs'
 
 const { createHostingModule } = await import(hubModuleUrl('hosting/module.js'))
 const { registerApplicationHostRoutes } = await import(hubModuleUrl('hosting/application-host-routes.js'))
+const { createApplicationInvoker } = await import(hubModuleUrl('hosting/application-invoker.js'))
+const { logger } = await import(hubModuleUrl('platform/logger.js'))
 const { applicationOrigin, applicationSlugOfHost, readHubConfig } = await import(hubModuleUrl('platform/config.js'))
 
 const missing = (name) => (error) => error.id === 'CONFIG_MISSING' && error.details?.name === name
@@ -76,7 +78,7 @@ const harness = async (t, { outcomeFor, application = APPLICATION, invokeApplica
     },
     ...registryOverrides,
   }
-  const recordInvocation = async ({ callerLeft: _callerLeft, ...input }) => { calls.push({ name: 'invoke', input }); return { status: 200, body: { ok: true } } }
+  const recordInvocation = async ({ callerLeft: _callerLeft, ...input }) => { calls.push({ name: 'invoke', input }); return Response.json({ ok: true }) }
   const hosting = createHostingModule({
     sessions: { redeem: async () => null, withPreviewRequest: async () => ({ kind: 'SIGN_IN_REQUIRED' }) },
     registry,
@@ -313,6 +315,34 @@ test('the application API admits only its own exact Origin', async (t) => {
   assert.deepEqual(calls, [])
 })
 
+test('the application host sends the native failure response on its socket and logs it once', async (t) => {
+  const logged = []
+  const originalError = logger.error
+  logger.error = (fields, code) => { logged.push(code); return originalError.call(logger, fields, code) }
+  t.after(() => { logger.error = originalError })
+  const invokeApplication = createApplicationInvoker({ invoke: async () => ({ ok: false, error: { code: 'APPLICATION_RUNNER_UNAVAILABLE' } }) })
+  const { app } = await harness(t, { invokeApplication })
+  await app.listen({ host: '127.0.0.1', port: 0 })
+  const response = await new Promise((resolve, reject) => {
+    const outgoing = request({
+      host: '127.0.0.1', port: app.server.address().port, method: 'POST', path: '/__conexus/api/listNotes',
+      headers: { host: HOST_A, origin: ORIGIN_A, 'content-type': 'application/json', cookie: `__Host-conexus_app=${TOKEN_A}` },
+    }, (incoming) => {
+      const chunks = []
+      incoming.on('data', (chunk) => chunks.push(chunk))
+      incoming.on('end', () => resolve({ status: incoming.statusCode, headers: incoming.headers, text: Buffer.concat(chunks).toString('utf8') }))
+    })
+    outgoing.on('error', reject)
+    outgoing.end('{}')
+  })
+  assert.equal(response.status, 503, response.text)
+  assert.equal(response.headers['content-type'], 'application/problem+json')
+  assert.equal(response.headers['x-content-type-options'], 'nosniff')
+  assert.match(response.headers['content-security-policy'], /frame-ancestors 'none'/)
+  assert.deepEqual(JSON.parse(response.text), { type: 'urn:conexus:problem:APPLICATION_RUNNER_UNAVAILABLE', title: 'APPLICATION_RUNNER_UNAVAILABLE', status: 503, code: 'APPLICATION_RUNNER_UNAVAILABLE' })
+  assert.deepEqual(logged, ['APPLICATION_RUNNER_UNAVAILABLE'])
+})
+
 test('the handler caller comes from the session; identifiers in the body, query or headers change nothing', async (t) => {
   const { app, calls } = await harness(t)
   const forged = { projectId: PROJECT_B, accountId: '99999999-9999-4999-8999-999999999999', caller: { accountId: '99999999-9999-4999-8999-999999999999', displayName: 'Chefe' }, text: 'nota' }
@@ -350,7 +380,7 @@ test('a caller that disconnects while its call waits aborts that call\'s signal'
   const { app } = await harness(t, {
     invokeApplication: ({ callerLeft }) => {
       invoked(callerLeft)
-      return once(callerLeft, 'abort').then(() => ({ status: 200, body: {} }))
+      return once(callerLeft, 'abort').then(() => Response.json({}))
     },
   })
   const client = await callOverSocket(app)
@@ -373,7 +403,7 @@ test('a caller that disconnects before its call reaches the invoker hands the in
     },
     invokeApplication: async ({ callerLeft }) => {
       invoked.resolve(callerLeft.aborted)
-      return { status: 200, body: {} }
+      return Response.json({})
     },
   })
   const connection = once(app.server, 'connection')
@@ -484,7 +514,7 @@ const operation = async (t, options) => {
 test('a server file read the access check refuses as APPLICATION_NOT_FOUND answers 404 and the runner receives nothing', async (t) => {
   const { Failure } = await import(hubModuleUrl('platform/failure.js'))
   const answer = await operation(t, {
-    runner: recordingRunner(async () => ({ status: 200, body: {} })),
+    runner: recordingRunner(async () => ({ ok: true, result: {} })),
     registryOverrides: serverFile(async () => { throw new Failure('APPLICATION_NOT_FOUND') }),
   })
   assert.deepEqual([answer, serverReads, runnerCalls.length], [{ status: 404, code: 'APPLICATION_NOT_FOUND' }, ['conexus-server/manifest.json'], 0])
@@ -494,13 +524,13 @@ test('a served pointer that moved between the manifest and a server file read an
   const MOVED = '55555555-5555-4555-8555-555555555555'
   for (const read of [{ ...fileOfServer, artifactRevisionId: MOVED }, { ok: false, reason: 'NOT_FOUND', artifactRevisionId: MOVED }, { ok: false, reason: 'NOT_SERVED' }]) {
     const answer = await operation(t, {
-      runner: recordingRunner(async () => ({ status: 200, body: {} })),
+      runner: recordingRunner(async () => ({ ok: true, result: {} })),
       registryOverrides: serverFile(async () => read),
     })
     assert.deepEqual([answer, runnerCalls.length], [{ status: 503, code: 'APPLICATION_NOT_READY' }, 0], JSON.stringify(read))
   }
   const missing = await operation(t, {
-    runner: recordingRunner(async () => ({ status: 200, body: {} })),
+    runner: recordingRunner(async () => ({ ok: true, result: {} })),
     registryOverrides: serverFile(async () => ({ ok: false, reason: 'NOT_FOUND', artifactRevisionId: ARTIFACT })),
   })
   assert.deepEqual([missing, runnerCalls.length], [{ status: 500, code: 'INTERNAL_UNEXPECTED' }, 0])
@@ -514,13 +544,39 @@ test('a runner that fails answers 503 APPLICATION_RUNNER_UNAVAILABLE, and a regi
   })
   assert.deepEqual([failing.status, failing.code, runnerCalls.length], [503, 'APPLICATION_RUNNER_UNAVAILABLE', 1])
   const busy = await operation(t, {
-    runner: recordingRunner(async () => ({ status: 200, body: {} })),
+    runner: recordingRunner(async () => ({ ok: true, result: {} })),
     registryOverrides: serverFile(async () => { throw new Failure('DATABASE_BUSY') }),
   })
   assert.deepEqual([busy.status, busy.code, runnerCalls.length], [503, 'DATABASE_BUSY', 0])
   const found = await operation(t, {
-    runner: recordingRunner(async () => ({ status: 200, body: { ok: true } })),
+    runner: recordingRunner(async () => ({ ok: true, result: { ok: true } })),
     registryOverrides: serverFile(async () => fileOfServer),
   })
   assert.deepEqual([found.status, runnerCalls.length], [200, 1])
+})
+
+function socketReply(app, method, path, headers = {}, body) {
+  return new Promise((resolve, reject) => {
+    const outgoing = request({ host: '127.0.0.1', port: app.server.address().port, method, path, headers: { host: HOST_A, ...headers } }, (incoming) => {
+      const chunks = []
+      incoming.on('data', (chunk) => chunks.push(chunk))
+      incoming.on('end', () => resolve({ status: incoming.statusCode, headers: incoming.headers, text: Buffer.concat(chunks).toString('utf8') }))
+    })
+    outgoing.on('error', reject)
+    outgoing.end(body)
+  })
+}
+
+test('real application-host GET starts sign-in while HEAD retains a bodyless 401 Problem and security headers', async (t) => {
+  const { app } = await harness(t)
+  await app.listen({ host: '127.0.0.1', port: 0 })
+  const get = await socketReply(app, 'GET', '/', NAVIGATION)
+  assert.equal(get.status, 303)
+  assert.ok(get.headers['set-cookie'])
+  const head = await socketReply(app, 'HEAD', '/', NAVIGATION)
+  assert.deepEqual([head.status, head.text, head.headers['set-cookie']], [401, '', undefined])
+  assert.equal(head.headers['content-type'], 'application/problem+json')
+  assert.equal(head.headers['x-content-type-options'], 'nosniff')
+  assert.equal(head.headers['referrer-policy'], 'no-referrer')
+  assert.match(head.headers['content-security-policy'], /frame-ancestors 'none'/)
 })

@@ -1,6 +1,7 @@
-export function failureHttpScript({ network = false } = {}) {
+export function failureHttpScript({ network = false, runner = false } = {}) {
   return `
 import { mkdtempSync, rmSync } from 'node:fs'
+import { request as httpRequest } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { ConsoleLogger } from '@mastra/core/logger'
@@ -9,6 +10,7 @@ import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
 import { MastraServer } from '@mastra/fastify'
 import { z } from 'zod'
+import { trace } from '@opentelemetry/api'
 const build = process.env.HUB_BUILD
 const { createHttpApp } = await import(build + '/http/app.js')
 const { foreignRoutes, routes } = await import(build + '/http/access.js')
@@ -34,6 +36,47 @@ const sessions = createLiveConversations({ controller, sandboxes: { open: () => 
 const PROJECT = '33333333-3333-4333-8333-333333333333'
 const THREADS = '/api/builder/agent-controller/conexus-builder/sessions/project:' + PROJECT + '/threads?sessionScope=conversation:77777777-7777-4777-8777-777777777777'
 const MODEL = '/api/builder/agent-controller/conexus-builder/sessions/project:' + PROJECT + '/model?sessionScope=conversation:77777777-7777-4777-8777-777777777777'
+${runner ? `const { createApplicationRunnerApp } = await import(build + '/app-runner/http.js')
+const { createApplicationRunnerClient } = await import(build + '/app-runner/module.js')
+const runnerSocket = join(root, 'runner.sock')
+const runnerLogs = []
+const runnerContexts = []
+const hubInvokeContexts = []
+const runner = createApplicationRunnerApp({
+  supervisor: {
+    prepare: async () => { throw new Error('PRIVATE_RUNNER_CAUSE') },
+    invoke: async () => { throw new Error('PRIVATE_RUNNER_CAUSE') },
+    release: async () => { throw new Error('PRIVATE_RUNNER_CAUSE') },
+  },
+  log: (event) => runnerLogs.push(event),
+})
+runner.addHook('onRequest', async (request) => { runnerContexts.push({ traceparent: request.headers.traceparent, traceId: trace.getActiveSpan()?.spanContext().traceId }) })
+await runner.listen({ path: runnerSocket })
+const runnerClient = createApplicationRunnerClient(runnerSocket)
+const { createApplicationInvoker } = await import(build + '/hosting/application-invoker.js')
+const invokeFromHost = createApplicationInvoker({ invoke: runnerClient.invoke })
+const runnerInput = {
+  projectId: '11111111-1111-4111-8111-111111111111', operation: 'find', input: {},
+  files: [{ path: 'conexus-server/manifest.json', content: 'e30=', sha256: 'a'.repeat(64) }],
+  caller: { accountId: '22222222-2222-4222-8222-222222222222', email: null, displayName: 'Synthetic' },
+}
+const { createHostingModule } = await import(build + '/hosting/module.js')
+const artifactRevisionId = '44444444-4444-4444-8444-444444444444'
+const hosting = createHostingModule({
+  sessions: {}, applicationRunner: runnerClient, exactHubOrigin: 'https://conexus.test', previewPort: 3444,
+  registry: {
+    readServedManifest: async () => ({ artifactRevisionId, files: [{ path: 'conexus-server/manifest.json', mediaType: 'application/json' }] }),
+    readServedFile: async (_checked, path) => ({ ok: true, artifactRevisionId, file: { path, mediaType: 'application/json', sha256: 'a'.repeat(64), bytes: Buffer.from('{}') } }),
+  },
+  applicationHost: {
+    application: { port: 3445, domain: 'conexus.localhost' },
+    sessions: { withApplicationRequest: async (_presented, serve) => ({ kind: 'SERVED', value: await serve({ caller: runnerInput.caller, checked: { scope: { projectId: runnerInput.projectId, accountId: runnerInput.caller.accountId } } }) }) },
+  },
+})
+const application = await createHttpApp({ policy: hosting.applicationHost.policy, registerRoutes: hosting.applicationHost.registerRoutes })
+await application.listen({ host: '127.0.0.1', port: 0 })
+const applicationOrigin = 'http://127.0.0.1:' + application.server.address().port
+` : ''}
 let threadsThrow = () => { throw new Error('unset') }
 controller.queryThreads = async () => threadsThrow()
 
@@ -46,7 +89,8 @@ const onSend = []
 const app = await createHttpApp({ policy, registerRoutes: async (server) => {
   server.addHook('onSend', async (request, reply, payload) => { onSend.push([request.url, reply.statusCode]); return payload })
   const route = routes(server)
-  ${network ? `route.navigation({ url: '/project', handler: () => { throw new Failure('PROJECT_NOT_FOUND') } })
+  ${network ? `route.navigation({ url: '/head-failure', handler: () => { throw new Failure('NOT_FOUND') } })
+  route.navigation({ url: '/project', handler: () => { throw new Failure('PROJECT_NOT_FOUND') } })
   await foreignRoutes(server, 'navigation', async (scope) => {
     const native = new MastraServer({ app: scope, mastra, prefix: '' })
     native.registerContextMiddleware()
@@ -56,6 +100,7 @@ const app = await createHttpApp({ policy, registerRoutes: async (server) => {
   route.navigation({ url: '/root-async', handler: async () => { throw new Failure('INTERNAL_UNEXPECTED', { details: { project: 'p1' } }) } })
   route.navigation({ url: '/root-sync', handler: () => { throw new Failure('NOT_FOUND') } })
   route.navigation({ url: '/vendor', handler: async () => { throw new Error('PLANTED_VENDOR_TEXT') } })
+  ${runner ? "route.navigation({ url: '/runner-native-error', handler: () => { hubInvokeContexts.push(trace.getActiveSpan()?.spanContext().traceId); return invokeFromHost({ ...runnerInput, source: { projectId: runnerInput.projectId }, callerLeft: new AbortController().signal }) } })" : ''}
   route.session({ method: 'POST', url: '/validated', schema: { body: { type: 'object', required: ['a'], properties: { a: { type: 'string' } } } }, handler: async () => 'ok' })
   await foreignRoutes(server, 'navigation', async (scope) => {
     scope.addHook('onRequest', async (request) => { if (request.url === '/scoped/hook') throw new Failure('NOT_FOUND') })
@@ -64,7 +109,7 @@ const app = await createHttpApp({ policy, registerRoutes: async (server) => {
   })
   await registerBuilderSessionRoutes(server, {
     mastra, controllerId: 'conexus-builder', controller, conversations: sessions,
-    mayBuild: async () => true, conversationOwner: async () => 'PROJECT', projectBusy: async () => false, answerQuestion: () => 'ACCEPTED',
+    admitBuilder: async () => {}, conversationOwner: async () => 'PROJECT', projectBusy: async () => false, answerQuestion: () => 'ACCEPTED',
   })
   return []
 } })
@@ -72,8 +117,10 @@ const write = { origin: HUB, 'content-type': 'application/json' }
 const signedIn = { '__Host-conexus_session': 's'.repeat(43) }
 const cases = [
   ${network ? `['project refusal', { url: '/project' }],
+  ['HEAD refusal', { method: 'HEAD', url: '/head-failure' }],
   ['native query validation', { url: '/native-query?count=invalid' }],
   ['native path validation', { url: '/native-path/not-a-uuid' }],` : ''}
+  ${runner ? `['native runner escape', { url: '/runner-native-error' }],` : ''}
   ['root async Failure', { url: '/root-async' }],
   ['root sync Failure', { url: '/root-sync' }],
   ['plain Error', { url: '/vendor' }],
@@ -98,10 +145,23 @@ for (const [name, { before, ...request }] of cases) {
   report[name] = [answer.status, answer.headers.get('content-type'), await answer.text(), Object.fromEntries(answer.headers)]` : `const answer = await app.inject(request)
   report[name] = [answer.statusCode, answer.headers['content-type'], answer.body]`}
 }
+${runner ? `logger.info('CASE native hosting escape')
+report['native hosting escape'] = await new Promise((resolve, reject) => {
+  const outgoing = httpRequest(applicationOrigin + '/__conexus/api/find', {
+    method: 'POST', headers: { host: 'test-app.conexus.localhost:3445', origin: 'https://test-app.conexus.localhost:3445', 'content-type': 'application/json', cookie: '__Host-conexus_app=' + 's'.repeat(43) },
+  }, (incoming) => {
+    const chunks = []
+    incoming.on('data', (chunk) => chunks.push(chunk))
+    incoming.on('end', () => resolve([incoming.statusCode, incoming.headers['content-type'], Buffer.concat(chunks).toString('utf8'), incoming.headers]))
+  })
+  outgoing.on('error', reject)
+  outgoing.end('{}')
+})` : ''}
 logger.info('CASE end')
-console.log(JSON.stringify({ report, onErrorCalls, onSend }))
+console.log(JSON.stringify({ report, onErrorCalls, onSend, runnerLogs: ${runner ? 'runnerLogs' : '[]'}, runnerContexts: ${runner ? 'runnerContexts' : '[]'}, hubInvokeContexts: ${runner ? 'hubInvokeContexts' : '[]'} }))
 await sessions.close()
 await app.close()
+${runner ? 'await application.close()\nawait hosting.close()\nawait runner.close()' : ''}
 await controller.destroy()
 await storage.close()
 rmSync(root, { recursive: true, force: true })

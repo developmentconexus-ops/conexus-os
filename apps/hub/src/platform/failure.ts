@@ -27,7 +27,9 @@ export class Failure extends MastraError {
   }
 }
 
-export const failureRow = (failure: Failure) => FAILURES[failure.id]
+export function failureRow(code: FailureCode) {
+  return FAILURES[code]
+}
 
 /** A `Failure` as it is; anything else is a fault nobody named, with the original as its cause. */
 export const toFailure = (error: unknown): Failure => error instanceof Failure ? error : new Failure('INTERNAL_UNEXPECTED', { cause: error })
@@ -64,7 +66,7 @@ export const logFailure = (log: Pick<FastifyBaseLogger, 'error' | 'warn' | 'info
   const cause = failure.cause ?? failure
   const named = cause instanceof Failure ? { ...Object.fromEntries(Object.entries(cause.details ?? {}).map(([key, value]) => [`failure.cause.${key}`, value])), 'failure.cause.code': cause.id } : {}
   const type = cause instanceof Error ? cause.name : typeof cause
-  const level = LEVEL_BY_CATEGORY[failureRow(failure).category]
+  const level = LEVEL_BY_CATEGORY[failureRow(failure.id).category]
   const stack = level === 'error' ? stackOf(cause) : undefined
   log[level]({ ...fields, ...details, ...named, 'failure.category': failure.category, 'error.type': type, 'exception.type': type, ...(stack ? { 'exception.stacktrace': stack } : {}) }, failure.id)
   const span = trace.getActiveSpan()

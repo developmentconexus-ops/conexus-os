@@ -124,15 +124,15 @@ export const createApplicationAccess = ({ database, addressOf }: Readonly<{
   const registerRoutes = async (app: FastifyInstance) => {
     const route = routes(app)
 
-    route.operation(getApplicationAccess, ({ params }, session): Promise<ApplicationAccess> => database.read(session.account.accountId, async (tx) => {
-      const proof = await admitProject(tx, params.projectId, 'application.manage')
-      const application = await tx.maybe(Slug, sql`SELECT slug FROM iam.application WHERE project_id = ${proof.scope.projectId}`)
-      const grants = await tx.rows(GrantRow, sql`
+    route.operation(getApplicationAccess, ({ params }, session): Promise<ApplicationAccess> => database.read(session.account.accountId, async (gate) => {
+      const proof = await admitProject(gate, { projectId: params.projectId, action: 'application.manage' })
+      const application = await proof.tx.maybe(Slug, sql`SELECT slug FROM iam.application WHERE project_id = ${proof.scope.projectId}`)
+      const grants = await proof.tx.rows(GrantRow, sql`
         SELECT access_grant.grant_id, grantee.account_id, grantee.display_name, grantee.email, access_grant.granted_at
         FROM iam.application_grant AS access_grant JOIN iam.account AS grantee ON grantee.account_id = access_grant.account_id
         WHERE access_grant.project_id = ${proof.scope.projectId} AND access_grant.revoked_at IS NULL
         ORDER BY access_grant.granted_at, access_grant.grant_id`)
-      const invitations = await tx.rows(InvitationRow, sql`
+      const invitations = await proof.tx.rows(InvitationRow, sql`
         SELECT invitation_id, email, created_at AS invited_at, expires_at, expires_at > now() AS open
         FROM iam.application_invitation WHERE project_id = ${proof.scope.projectId}
         ORDER BY created_at, invitation_id`)
@@ -142,7 +142,7 @@ export const createApplicationAccess = ({ database, addressOf }: Readonly<{
 
     // Granting always invites: the person's next sign in claims it, as a no op when a grant already exists.
     route.operation(grantApplicationAccess, ({ params, headers, body }, session) => database.transaction(session.account.accountId, async (gate) => {
-      const proof = await admitProject(gate, params.projectId, 'application.manage')
+      const proof = await admitProject(gate, { projectId: params.projectId, action: 'application.manage' })
       await lockApplication(proof.tx, proof.scope.projectId)
       const { reply } = await idempotent(receiptOf(proof), grantApplicationAccess, headers['idempotency-key'], { params, query: undefined, body }, InvitationId, async (invitationId) => {
         await ensureApplication(proof)
@@ -158,7 +158,7 @@ export const createApplicationAccess = ({ database, addressOf }: Readonly<{
     }))
 
     route.operation(revokeApplicationGrant, ({ params }, session) => database.transaction(session.account.accountId, async (gate) => {
-      const proof = await admitProject(gate, params.projectId, 'application.manage')
+      const proof = await admitProject(gate, { projectId: params.projectId, action: 'application.manage' })
       const revoked = await proof.tx.run(sql`
         UPDATE iam.application_grant SET revoked_at = clock_timestamp(), revoked_by = ${proof.scope.accountId}
         WHERE grant_id = ${params.grantId} AND project_id = ${proof.scope.projectId} AND revoked_at IS NULL`)
@@ -167,7 +167,7 @@ export const createApplicationAccess = ({ database, addressOf }: Readonly<{
     }))
 
     route.operation(cancelApplicationInvitation, ({ params }, session) => database.transaction(session.account.accountId, async (gate) => {
-      const proof = await admitProject(gate, params.projectId, 'application.manage')
+      const proof = await admitProject(gate, { projectId: params.projectId, action: 'application.manage' })
       const cancelled = await proof.tx.run(sql`
         DELETE FROM iam.application_invitation WHERE invitation_id = ${params.invitationId} AND project_id = ${proof.scope.projectId}`)
       if (cancelled !== 1) throw new Failure('APPLICATION_ACCESS_ENTRY_NOT_FOUND')
