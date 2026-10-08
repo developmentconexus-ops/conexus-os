@@ -554,3 +554,29 @@ test('a runner that fails answers 503 APPLICATION_RUNNER_UNAVAILABLE, and a regi
   })
   assert.deepEqual([found.status, runnerCalls.length], [200, 1])
 })
+
+function socketReply(app, method, path, headers = {}, body) {
+  return new Promise((resolve, reject) => {
+    const outgoing = request({ host: '127.0.0.1', port: app.server.address().port, method, path, headers: { host: HOST_A, ...headers } }, (incoming) => {
+      const chunks = []
+      incoming.on('data', (chunk) => chunks.push(chunk))
+      incoming.on('end', () => resolve({ status: incoming.statusCode, headers: incoming.headers, text: Buffer.concat(chunks).toString('utf8') }))
+    })
+    outgoing.on('error', reject)
+    outgoing.end(body)
+  })
+}
+
+test('real application-host GET starts sign-in while HEAD retains a bodyless 401 Problem and security headers', async (t) => {
+  const { app } = await harness(t)
+  await app.listen({ host: '127.0.0.1', port: 0 })
+  const get = await socketReply(app, 'GET', '/', NAVIGATION)
+  assert.equal(get.status, 303)
+  assert.ok(get.headers['set-cookie'])
+  const head = await socketReply(app, 'HEAD', '/', NAVIGATION)
+  assert.deepEqual([head.status, head.text, head.headers['set-cookie']], [401, '', undefined])
+  assert.equal(head.headers['content-type'], 'application/problem+json')
+  assert.equal(head.headers['x-content-type-options'], 'nosniff')
+  assert.equal(head.headers['referrer-policy'], 'no-referrer')
+  assert.match(head.headers['content-security-policy'], /frame-ancestors 'none'/)
+})

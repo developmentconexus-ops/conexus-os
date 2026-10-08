@@ -1,6 +1,7 @@
 // GENERATED from the code literals under apps/hub/src by scripts/generate-log-codes.mjs. Do not edit.
 
 export const LOG_CODES: ReadonlySet<string> = new Set([
+  "ABORT_ERR",
   "ABSOLUTE_EXPIRED",
   "ACCESS_GRANT_MISMATCH",
   "ACCESS_GRANT_MISSING",

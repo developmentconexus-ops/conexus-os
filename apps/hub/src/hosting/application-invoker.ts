@@ -107,11 +107,11 @@ function refusal(code: FailureCode): Response {
   return failureResponse({ code, traceId: currentTraceReference() })
 }
 
-export const createApplicationInvoker = (dependencies: Readonly<{
+export function createApplicationInvoker(dependencies: Readonly<{
   invoke: ApplicationRunnerInvoke
   openConnectorPort?: ConnectorPortOpener
   limits?: ApplicationAdmissionLimits
-}>): ApplicationInvoker => {
+}>): ApplicationInvoker {
   const limits = dependencies.limits ?? DEFAULT_ADMISSION_LIMITS
   const runner = createGate(limits.globalConcurrency, limits.admissionQueueLimit)
   const projects = new Map<string, Gate>()
@@ -140,6 +140,7 @@ export const createApplicationInvoker = (dependencies: Readonly<{
         })
         return answer.ok ? Response.json(answer.result) : refusal(answer.error.code)
       } catch (error) {
+        if (error instanceof Failure) throw error
         throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: error, details: { project: projectId, operation: input.operation } })
       } finally {
         await port?.close()

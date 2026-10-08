@@ -94,6 +94,7 @@ test('real Hub and mounted Mastra sockets preserve failure status, headers, sing
     const spans = exportedRequestSpans(collector.bodies('/v1/traces'))
     const expected = [
       ['project refusal', '/project', 404, 'PROJECT_NOT_FOUND'],
+      ['HEAD refusal', '/head-failure', 404, 'NOT_FOUND'],
       ['native query validation', '/native-query?count=invalid', 400, 'REQUEST_VALIDATION_FAILED'],
       ['native path validation', '/native-path/not-a-uuid', 400, 'REQUEST_VALIDATION_FAILED'],
       ['root async Failure', '/root-async', 500, 'INTERNAL_UNEXPECTED'],
@@ -112,9 +113,10 @@ test('real Hub and mounted Mastra sockets preserve failure status, headers, sing
     assert.deepEqual(spans.map((span) => [span['http.route'] ?? null, span['http.response.status_code']]), expected.map(([, url, status]) => [url === '/nowhere' ? null : url.startsWith('/native-query') ? '/native-query' : url.startsWith('/native-path') ? '/native-path/:id' : url.startsWith('/api/builder') ? `/api/builder/agent-controller/:controllerId/sessions/:resourceId/${url.includes('/model?') ? 'model' : 'threads'}` : url, status]))
     for (const [name, , status, code] of expected) {
       const [wireStatus, contentType, text, headers] = report[name]
-      const body = JSON.parse(text)
+      const body = name === 'HEAD refusal' ? null : JSON.parse(text)
+      if (body === null) assert.equal(text, '', name)
       assert.equal(wireStatus, status, name)
-      assert.deepEqual({ type: body.type, title: body.title, status: body.status, code: body.code }, { type: `urn:conexus:problem:${code}`, title: code, status, code }, name)
+      if (body !== null) assert.deepEqual({ type: body.type, title: body.title, status: body.status, code: body.code }, { type: `urn:conexus:problem:${code}`, title: code, status, code }, name)
       assert.equal(contentType, 'application/problem+json', name)
       assert.equal(headers['x-content-type-options'], 'nosniff', name)
       assert.equal(headers['referrer-policy'], 'strict-origin', name)
@@ -126,7 +128,7 @@ test('real Hub and mounted Mastra sockets preserve failure status, headers, sing
         assert.equal(spans.find((span) => span['http.route'] === route)?.traceId, body.traceId, name)
         assert.equal(restFailureLine(records, name, code)?.trace_id, body.traceId, name)
       }
-      else assert.equal(body.traceId, undefined, name)
+      else if (body !== null) assert.equal(body.traceId, undefined, name)
       const from = records.findIndex((record) => record.msg === `CASE ${name}`)
       const rest = records.slice(from + 1)
       const end = rest.findIndex((record) => record.msg?.startsWith('CASE '))
@@ -179,6 +181,20 @@ test('a native runner fault keeps redacted cause frames and joins the Hub log an
     assert.equal('exception.message' in (event?.attributes ?? {}), false)
     assert.doesNotMatch(collector.everything().toString('utf8'), /PRIVATE_RUNNER_CAUSE/)
     assert.doesNotMatch(text, /PRIVATE_RUNNER_CAUSE/)
+    const [hostStatus, hostContentType, hostText, hostHeaders] = report['native hosting escape']
+    const hostBody = JSON.parse(hostText)
+    assert.deepEqual([hostStatus, hostContentType, hostBody.code, hostBody.status], [500, 'application/problem+json', 'INTERNAL_UNEXPECTED', 500])
+    assert.equal(hostHeaders['x-content-type-options'], 'nosniff')
+    assert.match(hostHeaders['content-security-policy'], /frame-ancestors 'none'/)
+    assert.deepEqual(caseFailureLines(records, 'native hosting escape'), ['INTERNAL_UNEXPECTED'])
+    const hostLog = restFailureLine(records, 'native hosting escape', 'INTERNAL_UNEXPECTED')
+    const hostSpan = spans.find((span) => span['http.route'] === '/__conexus/api/:operation')
+    assert.equal(hostSpan?.traceId, hostBody.traceId)
+    assert.equal(hostSpan?.['http.response.status_code'], 500)
+    assert.equal(hostLog?.trace_id, hostBody.traceId)
+    assert.match(runnerContexts[1]?.traceparent ?? '', new RegExp(`^00-${hostBody.traceId}-[0-9a-f]{16}-01$`))
+    assert.doesNotMatch(hostText, /PRIVATE_RUNNER_CAUSE/)
+
   } finally { await collector.close() }
 })
 

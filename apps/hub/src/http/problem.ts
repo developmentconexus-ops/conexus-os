@@ -23,5 +23,5 @@ export function failureResponse(input: Readonly<{ code: FailureCode; traceId: Tr
 }
 
 export function sendFailureResponse(reply: FastifyReply, response: Response): FastifyReply {
-  return reply.code(response.status).headers(Object.fromEntries(response.headers)).send(response)
+  return reply.code(response.status).headers(Object.fromEntries(response.headers)).send(reply.request.method === 'HEAD' ? response.body : response)
 }
