@@ -58,7 +58,10 @@ export async function call(op: JsonOperation, input: Input<AnyOperation>, option
   if (!entry) throw new ReceivedFailure('HUB_RESPONSE_UNREADABLE', response.status)
   if (entry[1] === null) return undefined
   if (!response.headers.get('content-type')?.includes('application/json')) throw new ReceivedFailure('HUB_RESPONSE_UNREADABLE', response.status)
-  const raw: unknown = await response.json().catch(() => null)
+  const raw: unknown = await response.json().catch((error: unknown) => {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    return null
+  })
   const parsed = entry[1].safeParse(raw)
   if (!parsed.success) throw new ReceivedFailure('HUB_RESPONSE_UNREADABLE', response.status)
   return success.length === 1 ? parsed.data : { status: response.status, body: parsed.data }
