@@ -57,7 +57,11 @@ export function createCredentialRefresh(store: ModelAccountStore, persist: Persi
         work = renew(store, persist, openRun, held).finally(() => pending.delete(id))
         pending.set(id, work)
       }
-      return work
+      const settled = await work
+      const current = await store.reread(openRun, held)
+      if (!current.ok) return current
+      if (current.result.state === 'gone') return { ok: false, error: { code: 'BUILDER_MODEL_NOT_SELECTED' } }
+      return settled.ok ? { ok: true, result: current.result.held.credential } : settled
     },
   })
 }

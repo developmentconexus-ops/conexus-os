@@ -9,6 +9,7 @@ import { query } from './hub-database.mjs'
 import { hubJsonWrite, opaque, testListener } from './access/test-listener.mjs'
 import { bindRunContext } from './run-context.mjs'
 const { AnthropicKey, parseCredential } = await import(hubModuleUrl('model-account/credential.js'))
+const { createCredentialRefresh } = await import(hubModuleUrl('model-account/refresh.js'))
 const { modelAccountContext } = await import(hubModuleUrl('platform/secrets.js'))
 const { createBuilderModelRouting } = await import(hubModuleUrl('builder/model-routing.js'))
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
@@ -239,4 +240,170 @@ test('actual personal selection refuses absent and unsupported providers, retain
   assert.deepEqual(await f.models.modelFor(f.openRun(runId, ID.member), { modelId: 'openai/gpt-5.6-sol', thinkingLevel: null }), { ok: false, error: { code: 'BUILDER_RUN_NOT_ADMITTED' } })
   carried.set('controller', { session: {}, getState: () => ({ thinkingLevel: 'high' }) })
   await assert.rejects(routing.resolve({ requestContext: carried }), { id: 'BUILDER_MODEL_NOT_SELECTED' })
+})
+
+function deferred() {
+  let resolve
+  const promise = new Promise((done) => { resolve = done })
+  return { promise, resolve }
+}
+async function pausedClaude(t, f) {
+  const started = deferred()
+  const release = deferred()
+  const requests = []
+  const original = globalThis.fetch
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init)
+    if (request.url === 'https://console.anthropic.com/v1/oauth/token') {
+      assert.deepEqual((await query(f.connection, "SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname = current_database() AND usename = 'hub_runtime' AND state = 'idle in transaction'")).rows, [{ count: 0 }])
+      requests.push({ kind: 'refresh', body: await request.json() })
+      started.resolve()
+      await release.promise
+      return Response.json({ access_token: 'synthetic-rotated', refresh_token: 'synthetic-next', expires_in: 3600 })
+    }
+    assert.equal(request.url, 'https://api.anthropic.com/v1/messages')
+    requests.push({ kind: 'model', bearer: request.headers.get('authorization') })
+    assert.equal(request.headers.get('authorization'), `Bearer ${(await storedCredential(f, 'anthropic')).value.access}`)
+    return new Response('synthetic refusal', { status: 418 })
+  }
+  t.after(() => { release.resolve(); globalThis.fetch = original })
+  return { started, release, requests }
+}
+async function expiredClaude(f) {
+  return f.connect({ provider: 'anthropic', kind: 'oauth', value: { access: 'synthetic-spent', refresh: 'synthetic-spent-refresh', expires: 1000 } })
+}
+async function selectedClaude(f, openRun) {
+  const selected = await f.models.modelFor(openRun, { modelId: 'anthropic/claude-sonnet-5', thinkingLevel: null })
+  assert.equal(selected.ok, true)
+  return selected.result.model
+}
+function refusalOf(model) { return model.doStream({ prompt }).then(() => { throw new Error('fixture unexpectedly succeeded') }, (error) => error) }
+
+test('every native refresh waiter rereads its own current authority after the shared rotation commits', async (t) => {
+  const f = await setupModelAccounts(t, 'conexus_model_waiters')
+  await expiredClaude(f)
+  await query(f.connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $2, 'member')", [ID.owner, ID.otherWorkspace])
+  const winnerRun = await f.seedRun(await f.seedBuilderProject())
+  const peerRun = await f.seedRun(await f.seedBuilderProject('Synthetic peer', ID.otherWorkspace))
+  const prewait = deferred()
+  let reads = 0
+  const peerOpenRun = async (work) => {
+    const result = await f.openRun(peerRun)(work)
+    if (++reads === 2) prewait.resolve()
+    return result
+  }
+  const winner = await selectedClaude(f, f.openRun(winnerRun))
+  const peer = await selectedClaude(f, peerOpenRun)
+  const provider = await pausedClaude(t, f)
+  const winnerCall = refusalOf(winner)
+  await provider.started.promise
+  const peerCall = refusalOf(peer)
+  await prewait.promise
+  await query(f.connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [ID.owner, ID.otherWorkspace])
+  provider.release.resolve()
+  const [winnerError, peerError] = await Promise.all([winnerCall, peerCall])
+  assert.equal(peerError.id, 'PROJECT_NOT_FOUND')
+  assert.equal(winnerError.statusCode, 418)
+  assert.equal(provider.requests.filter(({ kind }) => kind === 'refresh').length, 1)
+  assert.deepEqual(provider.requests.filter(({ kind }) => kind === 'model'), [{ kind: 'model', bearer: 'Bearer synthetic-rotated' }])
+  assert.equal(reads, 3)
+})
+
+test('an ended winning run keeps the successfully rotated row but cannot receive its native bearer', async (t) => {
+  const f = await setupModelAccounts(t, 'conexus_model_ended_winner')
+  await expiredClaude(f)
+  const projectId = await f.seedBuilderProject()
+  const runId = await f.seedRun(projectId)
+  const model = await selectedClaude(f, f.openRun(runId))
+  const provider = await pausedClaude(t, f)
+  const call = refusalOf(model)
+  await provider.started.promise
+  await query(f.connection, "UPDATE builder.builder_run SET state = 'SUCCEEDED', result_kind = 'RESPONSE_ONLY', finished_at = clock_timestamp() WHERE builder_run_id = $1", [runId])
+  provider.release.resolve()
+  assert.equal((await call).id, 'BUILDER_RUN_NOT_ADMITTED')
+  assert.equal((await storedCredential(f, 'anthropic')).value.access, 'synthetic-rotated')
+  assert.equal(provider.requests.filter(({ kind }) => kind === 'model').length, 0)
+  const next = await selectedClaude(f, f.openRun(await f.seedRun(projectId)))
+  assert.equal((await refusalOf(next)).statusCode, 418)
+  assert.equal(provider.requests.filter(({ kind }) => kind === 'refresh').length, 1)
+})
+
+
+for (const change of ['oauth reconnect', 'key reconnect', 'disconnect']) {
+  test(`an in-flight native refresh cannot overwrite ${change}, and a current caller reads the winning row`, async (t) => {
+    const f = await setupModelAccounts(t, 'conexus_model_native_cas')
+    const connected = await expiredClaude(f)
+    const runId = await f.seedRun(await f.seedBuilderProject())
+    const model = await selectedClaude(f, f.openRun(runId))
+    const provider = await pausedClaude(t, f)
+    const call = refusalOf(model)
+    await provider.started.promise
+    const replacement = change === 'key reconnect' ? { provider: 'anthropic', kind: 'api_key', value: AnthropicKey.parse(key) }
+      : { provider: 'anthropic', kind: 'oauth', value: { access: 'synthetic-reconnected', refresh: 'synthetic-new-login', expires: 9_999_999_999_999 } }
+    if (change === 'disconnect') await query(f.connection, 'DELETE FROM model.model_account WHERE model_account_id = $1', [connected.result])
+    else assert.equal((await f.connect(replacement)).result, connected.result)
+    provider.release.resolve()
+    assert.equal((await call).id, 'BUILDER_MODEL_NOT_SELECTED')
+    assert.equal(provider.requests.filter(({ kind }) => kind === 'model').length, 0)
+    const next = await f.hold(runId, 'anthropic')
+    if (change === 'disconnect') assert.deepEqual(next, { ok: false, error: { code: 'BUILDER_MODEL_NOT_SELECTED' } })
+    else {
+      assert.deepEqual(next.result.credential, replacement)
+      assert.deepEqual(await storedCredential(f, 'anthropic'), replacement)
+      if (change === 'oauth reconnect') {
+        assert.equal((await refusalOf(await selectedClaude(f, f.openRun(runId)))).statusCode, 418)
+        assert.deepEqual(provider.requests.filter(({ kind }) => kind === 'model'), [{ kind: 'model', bearer: 'Bearer synthetic-reconnected' }])
+      }
+    }
+    assert.equal(provider.requests.filter(({ kind }) => kind === 'refresh').length, 1)
+  })
+}
+
+test('a pre-wait snapshot straddling another refresh rereads the committed bytes without spending the token twice', async (t) => {
+  const f = await setupModelAccounts(t, 'conexus_model_refresh_snapshot')
+  await expiredClaude(f)
+  const projects = await Promise.all([f.seedBuilderProject(), f.seedBuilderProject()])
+  const [winnerRun, peerRun] = await Promise.all(projects.map((projectId) => f.seedRun(projectId)))
+  const snapshot = deferred()
+  const resume = deferred()
+  let reads = 0
+  const peerOpenRun = async (work) => {
+    const result = await f.openRun(peerRun)(work)
+    if (++reads === 2) { snapshot.resolve(); await resume.promise }
+    return result
+  }
+  const winner = await selectedClaude(f, f.openRun(winnerRun))
+  const peer = await selectedClaude(f, peerOpenRun)
+  const provider = await pausedClaude(t, f)
+  t.after(() => resume.resolve())
+  const peerCall = refusalOf(peer)
+  await snapshot.promise
+  const winnerCall = refusalOf(winner)
+  await provider.started.promise
+  provider.release.resolve()
+  assert.equal((await winnerCall).statusCode, 418)
+  resume.resolve()
+  assert.equal((await peerCall).statusCode, 418)
+  assert.equal(provider.requests.filter(({ kind }) => kind === 'refresh').length, 1)
+  assert.equal(provider.requests.filter(({ kind }) => kind === 'model').length, 2)
+  assert.equal(reads, 4)
+})
+
+test('post-settlement custody refusal carries the actual current row and spent bytes', async (t) => {
+  const f = await setupModelAccounts(t, 'conexus_model_refresh_custody')
+  const connected = await expiredClaude(f)
+  await f.connect({ provider: 'anthropic', kind: 'oauth', value: { access: 'synthetic-member', refresh: 'synthetic-member', expires: 9_999_999_999_999 } }, ID.member)
+  const runId = await f.seedRun(await f.seedBuilderProject())
+  const held = (await f.hold(runId, 'anthropic')).result
+  const refresh = createCredentialRefresh(f.store, f.persist)
+  const provider = await pausedClaude(t, f)
+  const current = refresh.current(f.openRun(runId), held)
+  await provider.started.promise
+  const copied = (await query(f.connection, 'SELECT secret FROM model.model_account WHERE owner_account_id = $1', [ID.member])).rows[0].secret
+  await query(f.connection, 'UPDATE model.model_account SET secret = $1 WHERE model_account_id = $2', [copied, connected.result])
+  provider.release.resolve()
+  const rejected = await current
+  assert.equal(rejected.ok, false)
+  assert.deepEqual([rejected.error.code, rejected.error.row.modelAccountId, rejected.error.spent], ['SECRET_CUSTODY_LOST', connected.result, copied])
+  assert.equal(provider.requests.filter(({ kind }) => kind === 'model').length, 0)
 })
