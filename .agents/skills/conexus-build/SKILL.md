@@ -20,11 +20,13 @@ beside it.
 
 ## Steps
 
-1. Read the card, the spec's Summary and the AC lines it names. Do not read the rest of the spec or
-   its rationale.
+1. Read the card's action/proof map, baseline, the Summary and its AC lines. Compare the current head
+   and dependencies with the mapped baseline. Do not redo the design or read unrelated rationale.
 2. Go through "Before you write" in [the checklist](references/checklist.md). Anything the unit
    needs that is not at the head you started from and is not created by this unit stops the
    session: report it and end. Never write a temporary shape for a later unit to replace.
+   Update observable path/caller drift within accepted scope and record it; only product, design or
+   premise changes reopen approval. Do not create a new operator gate for ordinary path discoveries.
 3. Read the files in the spec's `shape/` that the card names, the reference rows it copies at their
    `file:line`, the guide sections it cites, and the `AGENTS.md` of each area you touch. The
    guides and `shape/` win over the code around you. Copy a neighbor only when it already follows
@@ -32,8 +34,8 @@ beside it.
    [guide C](../../../docs/development/codebase-principles.md) is the whole rule. No company data,
    secret or machine path goes into code, tests, fixtures or the commit
    ([S §7](../../../docs/reference/security-and-authority.md#7-data-protection-and-egress)).
-4. Subtract first: delete what the card deletes and move every caller, then build the new shape.
-   No shim, no flag, no old path kept beside the new one.
+4. Execute the mapped sequence: delete what the card deletes and move every caller, then build
+   the new shape. Register native verifier consumers in this unit. No shim or parallel old path.
 5. Close the full CI impact map under [delivery](../../../docs/development/delivery.md#proof-and-verification)
    and checklist item 20. Prove it: the tests the card names, one negative type test per type rule, the census number the
    card names, then `npm run verify:quick`. Then run pstack `deslop` and `no-comments`. Without
@@ -69,7 +71,7 @@ request targets `main`, and its body says what the change deletes, measured by
 
 - the card needs a type, contract, value or decision that the spec does not hold;
 - the unit cannot end green without changing the design;
-- the work grows past the card's files;
+- the work changes the approved scope rather than correcting observable file/caller drift;
 - a **must not** rule of [guide C](../../../docs/development/codebase-principles.md) would break, or a
   [stop condition](../../../docs/development/delivery.md#stop-then-escalate) holds.
 

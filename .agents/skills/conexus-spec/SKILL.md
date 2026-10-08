@@ -1,6 +1,6 @@
 ---
 name: conexus-spec
-description: Write the spec of a Conexus wave from its approved study: an index.md the builders read, with a compiled code shape and one card per unit, and a rationale.md with the why. Also the standard for a sweep with no wave. Use when your instructions name a spec to write, or a mechanical change across the code.
+description: "Write the spec of a Conexus wave from its approved study: an index.md the builders read, with a compiled code shape and one card per unit, and a rationale.md with the why. Also the standard for a sweep with no wave. Use when your instructions name a spec to write, or a mechanical change across the code."
 ---
 
 # Write a wave's spec
@@ -16,9 +16,8 @@ A spec turns an approved study into units a fresh builder can finish one at a ti
 A mechanical change across the code (arrow to `function`, branded ids, one `isRecord`) is a sweep,
 not a wave, and has no spec: its issue carries [the sweep standard](references/sweep.md).
 
-A Claude session invokes a skill as `/<name>` (`/pstack:<name>` for pstack), a Codex session as
-`$<name>`. Where this skill names a pstack skill the session does not have, follow the rule written
-beside it.
+Claude invokes `/<name>` or `/pstack:<name>`; Codex uses `$<name>`. If pstack is absent, follow
+its fallback beside the named skill.
 
 ## Rules for the writer
 
@@ -31,13 +30,16 @@ beside it.
    enters the spec only as the census and the delete list.
 3. **No compatibility.** No shim, no flag, no old and new side by side, no export kept for a test.
    The unit that brings the new shape deletes the old one and moves every caller.
-4. **The code shape is code.** The types, the module's operations and the signatures are written in
-   TypeScript and compiled before the spec goes to the operator. Each type rule (a branded id, a
-   closed union, a proof only one module builds) has a negative test that must not compile.
+4. **The code shape is code.** Before approval, compile signatures and a negative test per type rule.
+   For uncertain contracts or architecture, compile and run a minimal representative using actual
+   repository owners and pinned installed libraries, including negative call sites. Declaration stubs
+   and invented owner types do not prove native APIs. Record head, command, result and limits.
+   Keep contracts and decisive logic in `shape/`, not a second full implementation.
 5. **Each unit uses only what already exists or what it creates.** Check this unit by unit before
    the gate. A unit that needs a later unit's type is not a unit: merge the two or reorder.
-6. **One unit, one fresh session.** A unit is sized so a builder that reads only its card, the
-   sections it cites and the code shape can finish it with one green commit.
+6. **One unit, one map.** Use [the unit template](references/index-template.md#unit-cards) to settle
+   file actions, callers, owners, decisive logic and proof. Register native verifiers when their new
+   owner is first consumed, apart from later census installation. Size for one fresh builder and green commit.
 7. **The pin comes first.** In a wave that changes structure, the first unit is the pin:
    characterization tests or an equivalence harness that capture today's behavior of every surface
    the wave touches, written and green on `main` before any structure moves. If today's tests
@@ -73,8 +75,7 @@ beside it.
 
 ## How the stage runs
 
-1. Start from the approved study: its "What we copy and what we adapt" table becomes "References
-   copied", and its "Draft for the spec" is your first draft.
+1. Turn the approved study's reference table and draft into the spec's references and first draft.
 2. Bring the open load-bearing choices to the operator (rule 10) before writing the units.
 3. Write `shape/` and run `npx tsc --noEmit -p shape` until it exits 0. Then write `index.md` and
    `rationale.md`.
