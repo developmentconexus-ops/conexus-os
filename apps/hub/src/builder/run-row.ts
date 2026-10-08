@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { BuilderRunSummary as BuilderRunSummarySchema, BuilderRunId, ConversationId, FAILURE_CODES, ProjectId, SourceRevision, type BuilderRunSummary } from '@conexus/contract'
-import { BUILDER_RUN_PHASES, BUILDER_RUN_RESULT_KINDS, BUILDER_RUN_STATES } from '../generated/builder-run-vocabulary.js'
+import { BuilderRunSummary as BuilderRunSummarySchema, BuilderRunId, ConversationId, ProjectId, SourceRevision } from '@conexus/contract'
+import { BUILDER_RUN_RESULT_KINDS } from '../generated/builder-run-vocabulary.js'
 import { sql } from '../platform/db.js'
 
 export type { BuilderRunSummary, BuilderRunView } from '@conexus/contract'
@@ -17,19 +17,16 @@ export const RunRow = z.object({
   builder_run_id: BuilderRunId,
   project_id: ProjectId,
   conversation_id: ConversationId,
-  state: z.enum(BUILDER_RUN_STATES),
-  phase: z.enum(BUILDER_RUN_PHASES).nullable(),
+  state: z.unknown(),
+  phase: z.unknown(),
   base_source_revision: SourceRevision,
-  result_source_revision: SourceRevision.nullable(),
-  result_kind: z.enum(BUILDER_RUN_RESULT_KINDS).nullable(),
-  failure_code: z.enum(FAILURE_CODES).nullable(),
-  request_text: z.string().nullable(),
+  result_source_revision: z.unknown(),
+  result_kind: z.unknown(),
+  failure_code: z.unknown(),
+  request_text: z.unknown(),
   created_at: z.date(),
   cancellation_requested: z.boolean(),
-})
-
-/** The one presenter of a run row: the store and the routes answer a run through it. */
-export const runSummary = (row: z.output<typeof RunRow>): BuilderRunSummary => BuilderRunSummarySchema.parse({
+}).transform((row): unknown => ({
   builderRunId: row.builder_run_id,
   projectId: row.project_id,
   conversationId: row.conversation_id,
@@ -42,4 +39,4 @@ export const runSummary = (row: z.output<typeof RunRow>): BuilderRunSummary => B
   requestText: row.request_text,
   createdAt: row.created_at.toISOString(),
   cancellationRequested: row.cancellation_requested,
-})
+})).pipe(BuilderRunSummarySchema)

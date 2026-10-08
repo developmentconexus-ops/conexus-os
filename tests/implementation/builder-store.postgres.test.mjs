@@ -47,7 +47,7 @@ test('a run start records the base the Hub read while holding the Project, repla
   assert.deepEqual({ state: created.state, phase: created.phase, baseSourceRevision: created.baseSourceRevision, requestText: created.requestText, resultKind: created.resultKind, cancellationRequested: created.cancellationRequested },
     { state: 'QUEUED', phase: null, baseSourceRevision: HEAD, requestText: TEXT, resultKind: null, cancellationRequested: false })
   assert.equal((await query(connection, 'SELECT request_text FROM builder.builder_run WHERE builder_run_id = $1', [created.builderRunId])).rows[0].request_text, TEXT)
-  assert.equal((await start(projectId, { key: 'k' })).builderRunId, created.builderRunId)
+  assert.deepEqual(await start(projectId, { key: 'k' }), created)
   await assert.rejects(start(projectId, { key: 'k', content: 'Outro pedido' }), { id: 'IDEMPOTENCY_CONFLICT' })
   await assert.rejects(start(projectId, { key: 'k', conversationId: '44444444-4444-4444-8444-444444444444' }), { id: 'IDEMPOTENCY_CONFLICT' })
   await assert.rejects(start(projectId, { key: 'other' }), { id: 'PROJECT_BUSY' })
