@@ -151,6 +151,8 @@ CREATE TABLE ticket_history (
 
 A migration may create and alter tables, indexes, constraints and views in this Project's schema
 only: no functions, procedures, triggers, DO blocks, extensions, roles, grants or other schemas.
+The runner owns the migration batch's transaction. Omit transaction blocks, savepoints and two-phase
+transaction commands. Write literals with standard-conforming strings.
 
 ## The browser side
 

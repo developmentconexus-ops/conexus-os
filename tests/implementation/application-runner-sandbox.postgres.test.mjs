@@ -295,6 +295,108 @@ test('the runner migrates and serves each Project through its own sandboxed work
   })
 })
 
+test('migration admission and atomic execution compose through the confined worker and relay', async (t) => {
+  const { admin, database, supervisor, projects: [a, b], stateDir } = await setup(t)
+  const allocation = previewAllocation(a)
+  const other = previewAllocation(b)
+  const inspector = new pg.Client({ ...admin, database })
+  await inspector.connect()
+  try {
+    const files = serverTree([['001_follow_up_note.sql', NOTE_SQL]])
+    assert.deepEqual(await supervisor.prepare({ projectId: a, files, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: ['001_follow_up_note.sql'] } })
+    assert.equal((await supervisor.invoke({ projectId: a, files, operation: 'createNote', input: { purchaseOrderId: 'PO-1', note: 'preserved' }, caller: CALLER })).ok, true)
+    const state = async () => ({
+      oid: (await inspector.query('SELECT to_regclass($1)::oid AS oid', [`${allocation.schema}.follow_up_note`])).rows[0].oid,
+      notes: (await inspector.query(`SELECT note FROM "${allocation.schema}".follow_up_note ORDER BY id`)).rows,
+      ledger: (await inspector.query(`SELECT position, name, sha256 FROM "${allocation.schema}".conexus_migration ORDER BY position`)).rows,
+      escaped: (await inspector.query('SELECT to_regclass($1)::text AS name', [`${allocation.schema}.escaped`])).rows,
+    })
+    const before = await state()
+
+    await t.test('an invalid edited-history candidate preserves data and OID under both reset modes', async () => {
+      for (const sql of [`${NOTE_SQL}; COMMIT`, `${NOTE_SQL}; SELEC broken`, `${NOTE_SQL}\0; COMMIT`]) {
+        for (const onDivergence of ['REFUSE', RESET]) {
+          assert.deepEqual(await supervisor.prepare({ projectId: a, files: serverTree([['001_follow_up_note.sql', sql]]), onDivergence }), {
+            ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: '001_follow_up_note.sql', sqlstate: null },
+          })
+          assert.deepEqual(await state(), before)
+        }
+      }
+    })
+
+    await t.test('a forbidden later file refuses before creating a new allocation or executing the prefix', async () => {
+      const forbidden = serverTree([['001_table.sql', 'CREATE TABLE escaped(i int)'], ['002_control.sql', 'END WORK']])
+      assert.deepEqual(await supervisor.prepare({ projectId: b, files: forbidden, onDivergence: RESET }), {
+        ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: '002_control.sql', sqlstate: null },
+      })
+      assert.deepEqual((await inspector.query('SELECT to_regnamespace($1)::text AS schema, EXISTS(SELECT 1 FROM pg_roles WHERE rolname = $2 OR rolname = $3) AS roles', [other.schema, other.migrationRole, other.runtimeRole])).rows, [{ schema: null, roles: false }])
+    })
+
+    await t.test('the worker independently refuses transaction control when supervisor admission is bypassed', async () => {
+      const directory = join(stateDir, 'direct')
+      mkdirSync(directory)
+      const socketPath = join(directory, '.s.PGSQL.5432')
+      const relay = await openPgRelay({ socketPath, upstream: { host: admin.host, port: admin.port }, pin: { user: allocation.migrationRole, database }, tls: relayTls(), maxSessions: 2 })
+      try {
+        const plan = [['002_table.sql', 'CREATE TABLE escaped(i int)'], ['003_control.sql', 'COMMIT AND CHAIN']].map(([name, sql], i) => ({ name, sql, sha256: sha(sql), position: i + 2 }))
+        const outcome = await runWorker({
+          runtimeDir: join(stateDir, 'runtime'), databaseSocket: socketPath,
+          job: { kind: 'migrate', login: { host: '/run/conexus/pg', user: allocation.migrationRole, database }, schema: allocation.schema, plan },
+          timeoutMs: 30_000, resultLimit: 1024 * 1024,
+        })
+        assert.equal(outcome.kind, 'RESULT', JSON.stringify(outcome))
+        assert.deepEqual(outcome.result, { ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: '003_control.sql', sqlstate: null } })
+        assert.deepEqual(relay.refused(), [])
+        assert.deepEqual(await state(), before)
+      } finally {
+        await relay.close()
+      }
+    })
+
+    await t.test('lexer drift between files and inside one message cannot commit a prefix', async () => {
+      const literal = String.raw`SELECT '\'; SELECT '; COMMIT; --';`
+      for (const scripts of [
+        ["CREATE TABLE escaped(i int); SELECT set_config('standard_conforming_strings','off',false)", literal],
+        [`SET standard_conforming_strings = off; ${literal} CREATE TABLE escaped(i int)`],
+      ]) {
+        const additions = scripts.map((sql, i) => [`00${i + 2}_lexical.sql`, sql])
+        const broken = serverTree([['001_follow_up_note.sql', NOTE_SQL], ...additions, ['004_runtime.sql', 'SELECT 1/0']])
+        assert.deepEqual(await supervisor.prepare({ projectId: a, files: broken, onDivergence: 'REFUSE' }), {
+          ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: '004_runtime.sql', sqlstate: '22012' },
+        })
+        assert.deepEqual(await state(), before)
+      }
+    })
+
+    await t.test('ordinary DDL and literal control words succeed on corrected retry and preserve ledger identity', async () => {
+      const ordinary = `/* outer /* COMMIT */ END */ CREATE TABLE escaped(id bigint GENERATED ALWAYS AS IDENTITY, note text DEFAULT $$ROLLBACK;$$);
+        CREATE INDEX ON escaped(id); INSERT INTO escaped(note) VALUES ('COMMIT;'); CREATE VIEW escaped_view AS SELECT * FROM escaped;`
+      const corrected = serverTree([['001_follow_up_note.sql', NOTE_SQL], ['002_ordinary.sql', ordinary]])
+      assert.deepEqual(await supervisor.prepare({ projectId: a, files: corrected, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: ['002_ordinary.sql'] } })
+      assert.deepEqual(await supervisor.prepare({ projectId: a, files: corrected, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: [] } })
+      assert.deepEqual((await inspector.query(`SELECT note FROM "${allocation.schema}".escaped_view`)).rows, [{ note: 'COMMIT;' }])
+      assert.deepEqual((await state()).ledger, [...before.ledger, { position: 2, name: '002_ordinary.sql', sha256: sha(ordinary) }])
+    })
+
+    await t.test('a representative maximum-width candidate fits current artifact and worker limits', async () => {
+      const migrations = Array.from({ length: 64 }, (_, i) => {
+        const size = i === 0 ? 256 * 1024 : 62_000
+        const sql = `SELECT length('${'x'.repeat(size - "SELECT length('');".length)}');`
+        assert.equal(sql.length, size)
+        return [`${String(i + 1).padStart(3, '0')}_input.sql`, sql]
+      })
+      const candidate = serverTree(migrations)
+      const manifestBytes = Buffer.from(candidate[0].content, 'base64').byteLength
+      assert.equal(manifestBytes <= 4 * 1024 * 1024, true)
+      assert.deepEqual(await supervisor.prepare({ projectId: b, files: candidate, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: migrations.map(([name]) => name) } })
+      assert.deepEqual((await inspector.query(`SELECT count(*)::int AS n FROM "${other.schema}".conexus_migration`)).rows, [{ n: 64 }])
+      t.diagnostic(`64 migration files, maximum file 262144 characters, manifest ${manifestBytes} bytes, default worker limits unchanged`)
+    })
+  } finally {
+    await inspector.end()
+  }
+})
+
 test('the runner reads relay TLS only from a private directory holding exactly its three files', () => {
   const directory = mkdtempSync(join(tmpdir(), 'conexus-relay-tls-'))
   try {

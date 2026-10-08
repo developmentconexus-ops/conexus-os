@@ -22,6 +22,7 @@ test('prepare uses strict Results and only carries migration identity and SQLSTA
   for (const answer of [
     { ok: true, result: { reset: false, applied: ['001_a.sql'] } },
     { ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: '002_b.sql', sqlstate: '23505' } },
+    { ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: '002_control.sql', sqlstate: null } },
     { ok: false, error: { code: 'APPLICATION_MIGRATION_HISTORY_DIVERGED', migration: '001_a.sql' } },
   ]) assert.deepEqual(prepareAnswerSchema.parse(answer), answer)
   assert.equal(prepareAnswerSchema.safeParse({ ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: null, sqlstate: null, detail: 'private' } }).success, false)

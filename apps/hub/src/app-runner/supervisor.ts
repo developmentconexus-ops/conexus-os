@@ -3,8 +3,10 @@ import { lstat, mkdir, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 import pg from 'pg'
 import { convergePreviewAllocations, ensurePreviewAllocation, planMigrations, previewAllocation, PROJECT_ROLE_NAME, PROVISIONER_ROLE, readLedger, releasePreviewAllocation, resetPreviewSchema, restoreRuntimePrivileges } from './data-plane.js'
-import type { LedgerRow, MigrationSource, PreviewAllocation } from './data-plane.js'
+import type { LedgerRow, PreviewAllocation } from './data-plane.js'
 import { openPgRelay } from './pg-relay.js'
+import { validateMigrationBatch } from './migration-sql.js'
+import type { MigrationSource } from './migration-sql.js'
 import { RESET_STATEMENT_TIMEOUT_MS } from './requests.js'
 import type { RelayTls } from './pg-relay.js'
 import { runWorker, SANDBOX_DATABASE_HOST } from './sandbox.js'
@@ -168,6 +170,8 @@ export const createSupervisor = (config: SupervisorConfig) => {
   }
 
   const migrate = async (allocation: PreviewAllocation, manifest: ServerManifest, onDivergence: OnDivergence): Promise<PrepareAnswer> => {
+    const admitted = await validateMigrationBatch(manifest.migrations)
+    if (!admitted.ok) return prepareFailure({ code: admitted.error.code, migration: admitted.error.migration, sqlstate: null })
     const plan = await withProvisioner(async (client) => {
       const allocate = () => ensurePreviewAllocation(client, { allocation, database: config.database })
       await allocate()

@@ -1,5 +1,7 @@
 import type { PlannedMigration } from './wire.js'
 import type { Result } from '@conexus/contract'
+import { validateMigrationBatch } from './migration-sql.js'
+import type { MigrationFailure, MigrationSource } from './migration-sql.js'
 /** A Postgres session the data plane issues statements on; pg's Client and PoolClient both fit. */
 export type Sql = Readonly<{
   query(text: string, values?: readonly unknown[]): Promise<{ rows: Record<string, unknown>[] }>
@@ -16,7 +18,6 @@ export type PreviewAllocation = Readonly<{
   migrationRole: string
 }>
 
-export type MigrationSource = Readonly<{ name: string; sha256: string; sql: string }>
 export type LedgerRow = Readonly<{ position: number; name: string; sha256: string }>
 export type MigrationPlan = Readonly<{ reset: boolean; pending: readonly PlannedMigration[] }>
 
@@ -216,15 +217,18 @@ export const releasePreviewAllocation = async (provisioner: Sql, allocation: Pre
  * Applies pending migrations in one transaction on a session authenticated as the migration role, so a
  * failure leaves the schema as it was. Runs inside the sandboxed worker in production.
  */
-export type MigrationFailure = Readonly<{ code: 'APPLICATION_MIGRATION_FAILED'; migration: string | null; cause: unknown }>
-
 export const applyPendingMigrations = async (migrator: Sql, schema: string, plan: MigrationPlan['pending']): Promise<Result<void, MigrationFailure>> => {
+  const admitted = await validateMigrationBatch(plan)
+  if (!admitted.ok) return admitted
   const ledger = `${identifier(schema)}.${LEDGER_TABLE}`
   let failedMigration: string | null = null
   try {
     await migrator.query('BEGIN')
     for (const pending of plan) {
       failedMigration = pending.name
+      // A previous file can change scanner settings. This separate message pins the settings
+      // used to parse the complete unchanged file, including SET statements inside that file.
+      await migrator.query("SET LOCAL standard_conforming_strings = on; SET LOCAL backslash_quote = safe_encoding; SET LOCAL client_encoding = 'UTF8'")
       await migrator.query(pending.sql)
       await migrator.query(`INSERT INTO ${ledger} (position, name, sha256) VALUES ($1, $2, $3)`, [pending.position, pending.name, pending.sha256])
     }
