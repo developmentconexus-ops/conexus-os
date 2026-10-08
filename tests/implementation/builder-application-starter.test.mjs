@@ -82,7 +82,6 @@ test('materializes the fixed empty React starter into an app-less checkout', asy
       'app/src/components/ui/toast.tsx',
       'app/src/components/ui/tooltip.tsx',
       'app/src/hooks/use-mobile.ts',
-      'app/src/lib/errors.ts',
       'app/src/lib/format.ts',
       'app/src/lib/utils.ts',
       'app/src/lib/zod.ts',

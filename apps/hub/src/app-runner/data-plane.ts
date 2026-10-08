@@ -1,4 +1,5 @@
 import type { PlannedMigration } from './wire.js'
+import type { Result } from '@conexus/contract'
 /** A Postgres session the data plane issues statements on; pg's Client and PoolClient both fit. */
 export type Sql = Readonly<{
   query(text: string, values?: readonly unknown[]): Promise<{ rows: Record<string, unknown>[] }>
@@ -97,13 +98,11 @@ export const ensurePreviewAllocation = async (
   // Default privileges for the migration role's objects are set as that role. The provisioner holds
   // SET without INHERIT on it, so it never exercises that role's grants by accident.
   await provisioner.query(`GRANT ${migration} TO ${identifier(PROVISIONER_ROLE)} WITH INHERIT FALSE, SET TRUE`)
-  // biome-ignore lint/plugin: the provisioner switches roles on the Applications cluster, not the Hub database, which platform/db.ts guards
   await provisioner.query(`SET ROLE ${migration}`)
   try {
     await provisioner.query(`ALTER DEFAULT PRIVILEGES IN SCHEMA ${schema} GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${runtime}`)
     await provisioner.query(`ALTER DEFAULT PRIVILEGES IN SCHEMA ${schema} GRANT USAGE, SELECT ON SEQUENCES TO ${runtime}`)
   } finally {
-    // biome-ignore lint/plugin: the provisioner switches roles on the Applications cluster, not the Hub database, which platform/db.ts guards
     await provisioner.query('RESET ROLE')
   }
   await provisioner.query(`CREATE TABLE IF NOT EXISTS ${schema}.${LEDGER_TABLE} (
@@ -138,7 +137,6 @@ export const restoreRuntimePrivileges = async (provisioner: Sql, allocation: Pre
     WHERE n.nspname = $1 AND c.relowner = $2::regrole AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')`, [allocation.schema, allocation.migrationRole])
   const tables = rows.filter((row) => row.sequence !== true).map((row) => String(row.name)).join(', ')
   const sequences = rows.filter((row) => row.sequence === true).map((row) => String(row.name)).join(', ')
-  // biome-ignore lint/plugin: the provisioner switches roles on the Applications cluster, not the Hub database, which platform/db.ts guards
   await provisioner.query(`SET ROLE ${identifier(allocation.migrationRole)}`)
   try {
     if (tables) {
@@ -151,7 +149,6 @@ export const restoreRuntimePrivileges = async (provisioner: Sql, allocation: Pre
     }
     await provisioner.query(`REVOKE ALL ON ALL ROUTINES IN SCHEMA ${schema} FROM PUBLIC, ${runtime} CASCADE`)
   } finally {
-    // biome-ignore lint/plugin: the provisioner switches roles on the Applications cluster, not the Hub database, which platform/db.ts guards
     await provisioner.query('RESET ROLE')
   }
 }
@@ -219,17 +216,23 @@ export const releasePreviewAllocation = async (provisioner: Sql, allocation: Pre
  * Applies pending migrations in one transaction on a session authenticated as the migration role, so a
  * failure leaves the schema as it was. Runs inside the sandboxed worker in production.
  */
-export const applyPendingMigrations = async (migrator: Sql, schema: string, plan: MigrationPlan['pending']): Promise<void> => {
+export type MigrationFailure = Readonly<{ code: 'APPLICATION_MIGRATION_FAILED'; migration: string | null; cause: unknown }>
+
+export const applyPendingMigrations = async (migrator: Sql, schema: string, plan: MigrationPlan['pending']): Promise<Result<void, MigrationFailure>> => {
   const ledger = `${identifier(schema)}.${LEDGER_TABLE}`
-  await migrator.query('BEGIN')
+  let failedMigration: string | null = null
   try {
-    for (const migration of plan) {
-      await migrator.query(migration.sql)
-      await migrator.query(`INSERT INTO ${ledger} (position, name, sha256) VALUES ($1, $2, $3)`, [migration.position, migration.name, migration.sha256])
+    await migrator.query('BEGIN')
+    for (const pending of plan) {
+      failedMigration = pending.name
+      await migrator.query(pending.sql)
+      await migrator.query(`INSERT INTO ${ledger} (position, name, sha256) VALUES ($1, $2, $3)`, [pending.position, pending.name, pending.sha256])
     }
+    failedMigration = null
     await migrator.query('COMMIT')
+    return Object.freeze({ ok: true, result: undefined })
   } catch (error) {
     await migrator.query('ROLLBACK').catch(() => undefined)
-    throw error
+    return Object.freeze({ ok: false, error: Object.freeze({ code: 'APPLICATION_MIGRATION_FAILED' as const, migration: failedMigration, cause: error }) })
   }
 }

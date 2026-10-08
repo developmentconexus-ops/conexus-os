@@ -9,17 +9,17 @@ const committed = () => Object.fromEntries(Object.values(failureTargets).map((ta
 const row = (overrides) => ({ code: 'SAMPLE_FAILURE', category: 'USER', status: 400, audience: 'person', message: 'Algo aconteceu.', action: 'NONE', ...overrides })
 const withRow = (table, overrides) => ({ ...table, failures: [...table.failures, row(overrides)] })
 
-test('the failure table and both generated files agree', () => {
-  assert.deepEqual(failuresDrift(readFailures(), committed()), [])
+test('the failure table and generated outputs agree', async () => {
+  assert.deepEqual(await failuresDrift(readFailures(), committed()), [])
   assert.equal(committed()[failureTargets.hub].includes("'NOT_FOUND': { category: 'USER', status: 404 },"), true)
-  assert.equal(committed()[failureTargets.contract].includes("'NOT_FOUND': { message: 'Não encontramos o que você procurou.', action: 'NONE', status: 404 },"), true)
+  assert.equal(committed()[failureTargets.contract].includes("'NOT_FOUND': { category: 'USER', audience: 'person', message: 'Não encontramos o que você procurou.', action: 'NONE', status: 404 },"), true)
 })
 
-test('a row added to the table fails naming every generated file it reaches, until they are regenerated', () => {
+test('a row added to the table fails naming every generated file it reaches, until they are regenerated', async () => {
   const added = withRow(readFailures(), {})
   const stale = (target) => `FAILURES_STALE: ${target} is not generated from contracts/technical/failures.json; run node scripts/generate-failures.mjs`
-  assert.deepEqual(failuresDrift(added, committed()), [stale(failureTargets.hub), stale(failureTargets.contract), stale(failureTargets.text)])
-  assert.deepEqual(failuresDrift(added, renderFailureTargets(added)), [])
+  assert.deepEqual(await failuresDrift(added, committed()), [stale(failureTargets.hub), stale(failureTargets.contract), stale(failureTargets.text)])
+  assert.deepEqual(await failuresDrift(added, await renderFailureTargets(added)), [])
 })
 
 test('a SYSTEM row cannot ask the person to retry, and must say it was recorded', () => {

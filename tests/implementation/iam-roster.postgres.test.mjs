@@ -25,7 +25,7 @@ const team = async (t, prefix) => {
   return { hub, as }
 }
 
-test('the roster reads under hub_reader: a member sees members and invitations, an outsider and a deactivated member get 404', async (t) => {
+test('the roster reads through workspace admission: a member sees members and invitations, an outsider and a deactivated member get 404', async (t) => {
   const { hub, as } = await team(t, 'conexus_iam_roster_read')
   await hub.sql("INSERT INTO iam.workspace_invitation (invitation_id, workspace_id, email, role, invited_by, expires_at) VALUES (gen_random_uuid(), $1, 'nina@x.com', 'member', $2, now() + interval '1 day')", [W, OWNER])
   const read = await hub.call(as.member, 'GET', roster)
@@ -41,7 +41,7 @@ test('the roster reads under hub_reader: a member sees members and invitations, 
     registerRoutes: (server) => registerRosterRoutes(server, hub.database),
   })
   t.after(() => kept.close())
-  assert.equal(problemOf(await kept.inject({ method: 'GET', url: roster, headers: { cookie: sessionCookie('k'.repeat(43)) } })), '404 WORKSPACE_NOT_FOUND')
+  assert.equal(problemOf(await kept.inject({ method: 'GET', url: roster, headers: { cookie: sessionCookie('k'.repeat(43)) } })), '403 ACCOUNT_INACTIVE')
 })
 
 test('invitations: owner only, keyed, and the pair (Workspace, email) is one invitation, 201 when new and 200 when refreshed', async (t) => {

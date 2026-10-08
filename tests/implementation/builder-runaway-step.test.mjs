@@ -83,7 +83,7 @@ test('a tool call that never stops streaming ends the turn within the step budge
 })
 
 test('the web tells the person the model ran too long on one answer and nothing was applied', async () => {
-  const { failureCodeText } = await import('../../apps/web/src/app/failure.ts')
+  const { failureCodeText } = await import('@conexus/contract')
   assert.equal(
     failureCodeText('BUILDER_MODEL_STEP_TIMEOUT'),
     'O modelo passou tempo demais gerando uma única resposta, então o Conexus encerrou a execução. As alterações desta execução não foram aplicadas. Tente novamente mais tarde.',

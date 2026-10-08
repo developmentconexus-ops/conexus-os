@@ -1,5 +1,6 @@
 import { THINKING_LEVEL_VALUES, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import { MastraClient, MastraClientError } from '@mastra/client-js'
+import { readFailure, type FailureCode } from '@conexus/contract'
 import type { SubmitPlanResumeData } from '@mastra/core/tools'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useReducer } from 'react'
@@ -226,9 +227,9 @@ export const useBuilderConversation = (projectId: string, conversationId: string
 
 /** What became of an answer, as the Hub's answer route says it: only `ACCEPTED` reached the run. */
 export type AnswerOutcome = 'ACCEPTED' | 'ALREADY_ANSWERED' | 'ENDED' | 'UNAVAILABLE'
-const ANSWER_REFUSAL_BY_PROBLEM: Readonly<Partial<Record<string, AnswerOutcome>>> = {
-  'urn:conexus:problem:TOOL_ANSWER_ALREADY_GIVEN': 'ALREADY_ANSWERED',
-  'urn:conexus:problem:QUESTION_ENDED': 'ENDED',
+const ANSWER_REFUSAL_BY_CODE: Readonly<Partial<Record<FailureCode, AnswerOutcome>>> = {
+  TOOL_ANSWER_ALREADY_GIVEN: 'ALREADY_ANSWERED',
+  QUESTION_ENDED: 'ENDED',
 }
 
 // submit_plan resumes with the tool's own decision: approved lets the run build, rejected sends the
@@ -247,8 +248,12 @@ export const answerPendingCall = async (projectId: string, conversationId: strin
     else await session.respondToToolSuspension(pending.toolCallId, answer.answers as unknown as string[])
     return 'ACCEPTED'
   } catch (error) {
-    const body = error instanceof MastraClientError && typeof error.body === 'object' && error.body !== null ? error.body : {}
-    const type = 'type' in body && typeof body.type === 'string' ? body.type : ''
-    return ANSWER_REFUSAL_BY_PROBLEM[type] ?? 'UNAVAILABLE'
+    if (!(error instanceof MastraClientError)) return 'UNAVAILABLE'
+    const response = new Response(JSON.stringify(error.body), {
+      status: error.status,
+      headers: { 'content-type': 'application/problem+json' },
+    })
+    const failure = await readFailure(response)
+    return ANSWER_REFUSAL_BY_CODE[failure.code] ?? 'UNAVAILABLE'
   }
 }

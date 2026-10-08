@@ -1,3 +1,4 @@
+import { failureCodeText } from '@conexus/contract'
 import { Button } from '@mastra/playground-ui/components/Button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@mastra/playground-ui/components/Tooltip'
 import { Monitor, RotateCw, Smartphone } from 'lucide-react'
@@ -134,6 +135,6 @@ function PreviewWaiting({ wait }: Readonly<{ wait: PreviewWait }>) {
 
 function FailureNote({ run }: Readonly<{ run: BuilderRun }>) {
   return <div className="cx-note" data-tone="warning" role="alert">
-    <p>{run.resultKind === 'SOURCE_CHANGED_BUILD_FAILED' ? 'A compilação falhou. Veja a conversa.' : 'A última execução falhou. Veja a conversa.'}</p>
+    <p>{failureCodeText(run.failureCode)}</p>
   </div>
 }

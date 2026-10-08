@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const hubSourceRoot = resolve(repositoryRoot, 'apps/hub/src')
 const roleRegister = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), 'utf8'))
-export const registeredRoles = new Set([...roleRegister.roles, ...roleRegister.transactionRoles].map(({ role }) => role))
+export const registeredRoles = new Set(roleRegister.roles.map(({ role }) => role))
 
 // A pool is a local variable, so no parse of the Hub's TypeScript tells a reader which login role
 // reaches a given function. This table declares it. A call site missing from it fails, which is
@@ -12,8 +12,7 @@ export const registeredRoles = new Set([...roleRegister.roles, ...roleRegister.t
 // fails too, so the table cannot outlive the code it describes.
 export const ROLE_BY_CALL_SITE = Object.freeze({
   'identity-access/admission.ts': Object.freeze({
-    'iam.lock_administrators': 'hub_command',
-    'rls.acting_installation_administrator': 'hub_reader',
+    'iam.lock_administrators': 'hub_runtime',
   }),
 })
 
@@ -47,7 +46,7 @@ const argumentsAt = (text, open) => {
   return null
 }
 
-const CALL_PATTERN = /\b(SELECT|FROM|JOIN)\s+(iam|workspace|project|builder|reg|rls|claude_connection|model_connection)\.([a-z_][a-z0-9_]*)\s*\(/g
+const CALL_PATTERN = /\b(SELECT|FROM|JOIN)\s+(iam|workspace|project|builder|reg|claude_connection|model_connection)\.([a-z_][a-z0-9_]*)\s*\(/g
 
 export const hubCallSites = () => {
   const found = []

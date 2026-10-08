@@ -22,7 +22,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TICKET_STATUSES, TicketStatusBadge, type TicketStatus } from '@/components/ticket-status'
 import { api, type Output } from '@/conexus/api.gen'
-import { errorMessage } from '@/lib/errors'
+import { failureText } from '@/conexus/failures.gen'
 import { formatDate, formatNumber } from '@/lib/format'
 
 type Ticket = Output<'listTickets'>[number]
@@ -125,7 +125,7 @@ export function TicketsScreen() {
       ) : tickets.isError ? (
         <Alert variant="destructive">
           <AlertTitle>Não foi possível carregar os chamados</AlertTitle>
-          <AlertDescription>{errorMessage(tickets.error)}</AlertDescription>
+          <AlertDescription>{failureText(tickets.error)}</AlertDescription>
         </Alert>
       ) : tickets.data.length === 0 ? (
         <Empty>

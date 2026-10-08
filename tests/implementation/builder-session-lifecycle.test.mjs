@@ -17,6 +17,7 @@ const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
 const streamOf = (parts) => new ReadableStream({ start(controller) { for (const part of parts) controller.enqueue(part); controller.close() } })
 const CONVERSATION_SESSION_IDLE_MS = 10 * 60_000
 const projectId = '22222222-2222-4222-8222-222222222222'
+const accountId = RUN_CONTEXT.accountId
 const resourceId = `project:${projectId}`
 const conversation = (n) => `44444444-4444-4444-8444-44444444444${n}`
 const runId = (n) => `11111111-1111-4111-8111-11111111111${n}`
@@ -54,6 +55,7 @@ const runner = async (t, { runOpen = () => false } = {}) => {
   const clock = { now: 0 }
   const sandboxes = sandboxCache()
   const recorded = new Map()
+  const readAccounts = []
   let conversations
   const controller = createBuilderController({
     workspace: (context) => conversations.workspace(context),
@@ -62,7 +64,11 @@ const runner = async (t, { runOpen = () => false } = {}) => {
   await controller.init()
   t.after(() => controller.destroy?.())
   conversations = createLiveConversations({
-    controller, sandboxes, readSandboxId: async ({ conversationId }) => recorded.get(conversationId) ?? null, runOpen, now: () => clock.now,
+    controller, sandboxes, readSandboxId: async ({ accountId, conversationId }) => {
+      assert.ok(accountId, 'opening a conversation carries its current Account into the scoped sandbox read')
+      readAccounts.push(accountId)
+      return recorded.get(conversationId) ?? null
+    }, runOpen, now: () => clock.now,
   })
   t.after(() => conversations.close())
   const openSession = createControllerRunSessions({ controller, conversations, readDefaultModel: async () => 'anthropic/default-model' })
@@ -71,12 +77,13 @@ const runner = async (t, { runOpen = () => false } = {}) => {
     bindContext: (requestContext) => bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId, conversationId }),
   })
   const live = (conversationId, resource = resourceId) => controller.getSessionByResource(resource, `conversation:${conversationId}`)
-  return { controller, conversations, open, live, clock, built: sandboxes.built, recorded }
+  return { controller, conversations, open, live, clock, built: sandboxes.built, recorded, readAccounts }
 }
 
 test('a conversation keeps one session across its runs, the one the browser opened, and each conversation has its own', async (t) => {
-  const { conversations, open, live } = await runner(t)
-  const browser = await conversations.open({ projectId, conversationId: conversation(1) })
+  const { conversations, open, live, readAccounts } = await runner(t)
+  const browser = await conversations.open({ accountId, projectId, conversationId: conversation(1) })
+  assert.equal(readAccounts[0], accountId)
   for (let turn = 0; turn < 6; turn += 1) {
     const run = await open(conversation(1), runId(turn))
     assert.equal((await run.takeStep({ kind: 'SEND', content: `pedido ${turn}` }, new AbortController().signal)).reason, 'complete')
@@ -104,17 +111,17 @@ test('releasing twice, or after the session is already gone, is not an error', a
   assert.equal(await live(conversation(1)), undefined)
 })
 
-test("a Project's deletion deletes its conversations' sessions and kills their VMs, and no other Project's; closing deletes every session", async (t) => {
+test("a Project's deletion closes its conversation sessions, and closing the Hub deletes every session", async (t) => {
   const { conversations, open, live, built } = await runner(t)
   const other = '55555555-5555-4555-8555-555555555555'
-  await conversations.open({ projectId, conversationId: conversation(1) })
-  await conversations.open({ projectId, conversationId: conversation(2) })
-  await conversations.open({ projectId: other, conversationId: conversation(3) })
+  await conversations.open({ accountId, projectId, conversationId: conversation(1) })
+  await conversations.open({ accountId, projectId, conversationId: conversation(2) })
+  await conversations.open({ accountId, projectId: other, conversationId: conversation(3) })
   await open(conversation(1), runId(1))
   await conversations.drop(projectId, [conversation(1), conversation(2), conversation(4)])
   assert.deepEqual([await live(conversation(1)), await live(conversation(2))], [undefined, undefined])
   assert.notEqual(await live(conversation(3), `project:${other}`), undefined)
-  assert.deepEqual(built.map(({ conversationId, killed }) => [conversationId.at(-1), killed]), [['1', 1], ['2', 1], ['3', 0]])
+  assert.deepEqual(built.map(({ conversationId, killed }) => [conversationId.at(-1), killed]), [['1', 0], ['2', 0], ['3', 0]])
   await conversations.close()
   assert.equal(await live(conversation(3), `project:${other}`), undefined)
 })
@@ -122,8 +129,8 @@ test("a Project's deletion deletes its conversations' sessions and kills their V
 test('the idle sweep lets an idle conversation go, and never one whose run is open, whatever its age', async (t) => {
   const open = new Set([conversation(2)])
   const { conversations, live, clock } = await runner(t, { runOpen: (conversationId) => open.has(conversationId) })
-  await conversations.open({ projectId, conversationId: conversation(1) })
-  await conversations.open({ projectId, conversationId: conversation(2) })
+  await conversations.open({ accountId, projectId, conversationId: conversation(1) })
+  await conversations.open({ accountId, projectId, conversationId: conversation(2) })
   clock.now += CONVERSATION_SESSION_IDLE_MS - 1
   await conversations.sweep(new AbortController().signal)
   assert.notEqual(await live(conversation(1)), undefined, 'not idle long enough yet')
@@ -141,18 +148,42 @@ test('the idle sweep lets an idle conversation go, and never one whose run is op
   assert.equal(await live(conversation(2)), undefined)
 })
 
+test('Project drop stops when native session deletion fails and succeeds on retry', async (t) => {
+  const { controller, conversations } = await runner(t)
+  const deleteSession = controller.deleteSession.bind(controller)
+  const asked = []
+  controller.deleteSession = async (input) => {
+    asked.push(input)
+    if (input.scope === `conversation:${conversation(1)}`) throw new Error('native deletion failed')
+    return deleteSession(input)
+  }
+  t.after(() => { controller.deleteSession = deleteSession })
+  takeHubLogs()
+
+  await assert.rejects(conversations.drop(projectId, [conversation(1), conversation(2)]), { id: 'BUILDER_SESSION_DELETE_FAILED' })
+  assert.deepEqual(asked, [
+    { resourceId, scope: `conversation:${conversation(1)}` },
+  ])
+  assert.deepEqual(takeHubLogs().map(({ message, fields }) => [message, fields['builder.conversation_id'], fields['exception.type']]),
+    [])
+
+  controller.deleteSession = deleteSession
+  await conversations.drop(projectId, [conversation(1), conversation(2)])
+  assert.equal(await controller.getSessionByResource(resourceId, `conversation:${conversation(1)}`), undefined)
+})
+
 test("a conversation's sandbox instance resumes the recorded VM, outlives its idle window, and a killed VM gives the conversation a new instance and session", async (t) => {
   const { conversations, live, built, recorded } = await runner(t)
   recorded.set(conversation(1), 'sbx-1')
-  const session = await conversations.open({ projectId, conversationId: conversation(1) })
-  const sandbox = await conversations.sandbox({ projectId, conversationId: conversation(1) })
+  const session = await conversations.open({ accountId, projectId, conversationId: conversation(1) })
+  const sandbox = await conversations.sandbox({ accountId, projectId, conversationId: conversation(1) })
   assert.equal(session.getWorkspace(), sandbox.workspace, 'the session stands on the conversation\'s sandbox')
   await sandbox.idle()
-  assert.equal(await conversations.sandbox({ projectId, conversationId: conversation(1) }), sandbox, 'a VM left to pause resumes on the same instance')
+  assert.equal(await conversations.sandbox({ accountId, projectId, conversationId: conversation(1) }), sandbox, 'a VM left to pause resumes on the same instance')
   recorded.set(conversation(1), 'sbx-2')
   await sandbox.kill()
   assert.equal(await live(conversation(1)), undefined, 'the session on the killed VM goes with it')
-  const next = await conversations.sandbox({ projectId, conversationId: conversation(1) })
+  const next = await conversations.sandbox({ accountId, projectId, conversationId: conversation(1) })
   assert.notEqual(next, sandbox)
   assert.deepEqual(built.map(({ providerSandboxId, idled, killed }) => [providerSandboxId, idled, killed]), [['sbx-1', 1, 1], ['sbx-2', 0, 0]])
 })
@@ -162,7 +193,7 @@ test('the workspace resolver only looks up: it builds nothing for a scope with n
   const contextOf = (scope) => ({ requestContext: { get: (key) => (key === 'controller' ? { scope } : undefined) } })
   assert.equal(await conversations.workspace(contextOf(`conversation:${conversation(1)}`)), undefined)
   assert.equal(built.length, 0)
-  const sandbox = await conversations.sandbox({ projectId, conversationId: conversation(1) })
+  const sandbox = await conversations.sandbox({ accountId, projectId, conversationId: conversation(1) })
   const resolved = await Promise.all([1, 2, 3].map(() => conversations.workspace(contextOf(`conversation:${conversation(1)}`))))
   assert.deepEqual(resolved.map((workspace) => workspace === sandbox.workspace), [true, true, true])
   assert.equal(built.length, 1)
@@ -170,7 +201,7 @@ test('the workspace resolver only looks up: it builds nothing for a scope with n
 
 test('a conversation opened while the idle sweep looks at it is not retired under it', async (t) => {
   const { controller, conversations, live, clock } = await runner(t)
-  await conversations.open({ projectId, conversationId: conversation(1) })
+  await conversations.open({ accountId, projectId, conversationId: conversation(1) })
   clock.now += CONVERSATION_SESSION_IDLE_MS
   const lookup = controller.getSessionByResource.bind(controller)
   let answer = () => undefined
@@ -178,7 +209,7 @@ test('a conversation opened while the idle sweep looks at it is not retired unde
   controller.getSessionByResource = async (...input) => { await held; controller.getSessionByResource = lookup; return lookup(...input) }
   const sweeping = conversations.sweep(new AbortController().signal)
   await new Promise((settle) => { setImmediate(settle) })
-  const opening = conversations.open({ projectId, conversationId: conversation(1) })
+  const opening = conversations.open({ accountId, projectId, conversationId: conversation(1) })
   answer()
   await sweeping
   const session = await opening
@@ -187,13 +218,13 @@ test('a conversation opened while the idle sweep looks at it is not retired unde
 
 test('a conversation opened while its VM is being killed waits for the kill and stands on a new instance and session', async (t) => {
   const { conversations, live, built } = await runner(t)
-  const sandbox = await conversations.sandbox({ projectId, conversationId: conversation(1) })
+  const sandbox = await conversations.sandbox({ accountId, projectId, conversationId: conversation(1) })
   let finish = () => undefined
   const dying = new Promise((settle) => { finish = settle })
   built[0].hold = dying
   const killing = sandbox.kill()
   await new Promise((settle) => { setImmediate(settle) })
-  const opening = conversations.open({ projectId, conversationId: conversation(1) })
+  const opening = conversations.open({ accountId, projectId, conversationId: conversation(1) })
   finish()
   await killing
   const session = await opening

@@ -12,7 +12,7 @@ import type { UseMutationResult } from '@tanstack/react-query'
 import { Link2, MoreHorizontal } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useId, useState } from 'react'
-import type { AccountId, EmailAddress, InvitationId, WorkspaceId, WorkspaceInvitationEntry, WorkspaceMemberEntry, WorkspaceRole } from '@conexus/contract'
+import { failureText, type AccountId, type EmailAddress, type InvitationId, type WorkspaceId, type WorkspaceInvitationEntry, type WorkspaceMemberEntry, type WorkspaceRole } from '@conexus/contract'
 import { parseEmail, sessionQueryKey } from '../api'
 import {
   cancelWorkspaceInvitation,
@@ -24,7 +24,6 @@ import {
 import '../people.css'
 import { INVITATION_STATE } from '../invitation-state'
 import { useAttemptKey } from '../../../app/attempt-key'
-import { failureText } from '../../../app/http'
 import { FailureState } from '../../../app/failure-state'
 
 type Role = WorkspaceRole

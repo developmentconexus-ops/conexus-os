@@ -7,15 +7,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createRoute, Link, useNavigate } from '@tanstack/react-router'
 import { KeyRound } from 'lucide-react'
 import { useId, useState } from 'react'
-import { AccessGate, useSession } from '../app/access-gate'
+import { AccessGate } from '../app/access-gate'
 import { Shell } from '../app/shell'
 import { listProjectSummaries, type ProjectDetail } from '@conexus/contract'
 import { deleteProject, projectQuery } from '../features/project/api'
 import '../features/project/project-settings.css'
 import { rootRoute } from './__root'
-import { failureText, isFailure } from '../app/http'
 import { FailureState } from '../app/failure-state'
+import { workspaceRosterQuery } from '../features/identity-access/membership-api'
 
+import { failureText, isFailure } from '@conexus/contract'
 export const projectSettingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/projects/$projectId/settings',
@@ -26,29 +27,35 @@ function ProjectSettingsRoute() {
   const { projectId } = projectSettingsRoute.useParams()
   const project = useQuery(projectQuery(projectId))
   return <AccessGate>{(context) => {
-    const workspace = project.data && context.workspaces.find((candidate) => candidate.workspaceId === project.data.workspaceId)
-    return <Shell context={context} scope={project.data && workspace ? { workspace, project: project.data } : undefined}>
-      <div className="cx-page cx-page--narrow">
-        {project.isPending && <div className="cx-page-head" aria-busy="true"><Skeleton className="cx-skeleton-line" /><span className="sr-only" role="status">Carregando o Projeto</span></div>}
-        {project.isError && <ProjectUnavailable error={project.error} onRetry={() => void project.refetch()} />}
-        {project.isSuccess && <About project={project.data} />}
-      </div>
-    </Shell>
+    if (project.isSuccess && project.data.kind === 'found') return <ProjectSettingsLoaded context={context} project={project.data.project} />
+    return <Shell context={context}><div className="cx-page cx-page--narrow">
+      {project.isPending && <div className="cx-page-head" aria-busy="true"><Skeleton className="cx-skeleton-line" /><span className="sr-only" role="status">Carregando o Projeto</span></div>}
+      {project.isError && <ProjectUnavailable error={project.error} onRetry={() => void project.refetch()} />}
+      {project.isSuccess && <ProjectUnavailable error={null} onRetry={() => void project.refetch()} />}
+    </div></Shell>
   }}</AccessGate>
 }
 
-function ProjectUnavailable({ error, onRetry }: Readonly<{ error: unknown; onRetry: () => void }>) {
-  const hidden = isFailure(error, 'PROJECT_NOT_FOUND')
+function ProjectSettingsLoaded({ context, project }: Readonly<{ context: import('@conexus/contract').Session; project: ProjectDetail }>) {
+  const workspace = context.workspaces.find((candidate) => candidate.workspaceId === project.workspaceId)
+  const roster = useQuery(workspaceRosterQuery(project.workspaceId))
+  return <Shell context={context} scope={workspace ? { workspace, project } : undefined}>
+    <div className="cx-page cx-page--narrow"><About project={project} owner={roster.data?.viewerRole === 'owner'} /></div>
+  </Shell>
+}
+
+function ProjectUnavailable({ error, onRetry }: Readonly<{ error: unknown | null; onRetry: () => void }>) {
+  const hidden = error === null || isFailure(error, 'PROJECT_NOT_FOUND')
   if (!hidden) return <FailureState title="Não foi possível carregar o Projeto" error={error} onRetry={onRetry} />
   return <div className="cx-state" role="alert">
     <h2>Projeto indisponível</h2>
-    <p>{failureText(error)}</p>
+    <p>{error === null ? 'Não encontramos esse Projeto.' : failureText(error)}</p>
     <Button as={Link} to="/workspaces" variant="outline">Ver meus Workspaces</Button>
   </div>
 }
 
-function About({ project }: Readonly<{ project: ProjectDetail }>) {
-  if (project.deleting) return <DeletionRecovery project={project} />
+function About({ project, owner }: Readonly<{ project: ProjectDetail; owner: boolean }>) {
+  if (project.state === 'deleting') return <DeletionRecovery project={project} owner={owner} />
   return <>
     <div className="cx-page-head">
       <div>
@@ -80,29 +87,14 @@ function About({ project }: Readonly<{ project: ProjectDetail }>) {
         <dt>Revisão</dt><dd><code>{project.projectRevision}</code></dd>
       </dl>
     </details>
-    <DangerZone project={project} />
+    {owner && <DangerZone project={project} />}
   </>
 }
 
-// The Hub purges project.project before the GitHub repository is gone, so a crash or a GitHub
-// failure between those two steps leaves the tombstone the only disclosable trace: the project read keeps
-// answering with deleting true from it, for the installation administrator who started this, so this
-// screen still exists to retry from instead of the Project 404ing right when finishing it matters
-// most. The retry names the tombstone's own recorded name, never a name the administrator retypes,
-// since that recorded name is the only one this Project still has.
-//
-// projectRevision is empty whenever the project read has fallen back to the tombstone: after the Hub purge,
-// and also, between the tombstone and the purge, for an administrator who is not a member of the workspace,
-// who never sees the project row. So an empty revision is the signal this screen has for which side of
-// that purge the crash landed on only for a member; for a non member administrator it can still read as
-// purged a moment early. The GitHub delete itself runs after that purge and before the tombstone is marked
-// complete, so an empty revision does not tell us whether GitHub succeeded before the crash -- the copy
-// below must not claim either way, only that a retry is safe and needed.
-function DeletionRecovery({ project }: Readonly<{ project: ProjectDetail }>) {
+function DeletionRecovery({ project, owner }: Readonly<{ project: ProjectDetail; owner: boolean }>) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [message, setMessage] = useState('')
-  const purged = project.projectRevision === ''
   const retry = useMutation({
     mutationFn: () => deleteProject(project.projectId, project.name),
     onSuccess: async () => {
@@ -113,21 +105,16 @@ function DeletionRecovery({ project }: Readonly<{ project: ProjectDetail }>) {
   })
 
   return <div className="cx-state" role="alert">
-    <h2>Exclusão de {project.name} não terminou</h2>
-    <p>
-      {purged
-        ? 'O código e os dados deste Projeto já foram apagados. A exclusão do repositório no GitHub pode não ter sido concluída.'
-        : 'A exclusão deste Projeto está em andamento.'} Nada do que já foi apagado pode ser desfeito; termine a exclusão para concluir.
-    </p>
-    <Button type="button" variant="destructive" disabled={retry.isPending} onClick={() => retry.mutate()}>
-      {retry.isPending ? 'Excluindo…' : 'Terminar exclusão'}
-    </Button>
+    <h2>Exclusão de {project.name} em andamento</h2>
+    <p>Este Projeto está sendo excluído. {owner ? 'Você pode tentar concluir a exclusão novamente.' : 'Um responsável pelo Workspace poderá concluir a exclusão.'}</p>
+    {owner && <Button type="button" variant="destructive" disabled={retry.isPending} onClick={() => retry.mutate()}>
+      {retry.isPending ? 'Excluindo…' : 'Tentar concluir exclusão'}
+    </Button>}
     {message && <p className="cx-form-status" data-tone="error" role="alert">{message}</p>}
   </div>
 }
 
 function DangerZone({ project }: Readonly<{ project: ProjectDetail }>) {
-  const session = useSession()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const inputId = useId()
@@ -142,8 +129,6 @@ function DangerZone({ project }: Readonly<{ project: ProjectDetail }>) {
     },
     onError: (error) => setMessage(failureText(error)),
   })
-
-  if (session.data?.administrator !== true) return null
 
   return <section className="cx-danger" aria-labelledby="cx-danger-title">
     <h2 id="cx-danger-title">Zona de risco</h2>

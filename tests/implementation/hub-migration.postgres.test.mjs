@@ -4,6 +4,9 @@ import { test } from 'node:test'
 import { readCatalog, readCommittedSnapshot } from '../../scripts/hub-catalog.mjs'
 import { loadHubMigrationFiles, runHubMigrations, runMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { buildHubDatabase, createEmptyDatabase, query, withClient } from './hub-database.mjs'
+import { hubModuleUrl } from './hub-build.mjs'
+
+const { RunRow, runSummary } = await import(hubModuleUrl('builder/run-row.js'))
 
 const ledgerOf = async (connectionString) =>
   (await query(connectionString, 'SELECT version, checksum_sha256 FROM iam.schema_migration ORDER BY version')).rows
@@ -42,16 +45,99 @@ const snapshotAfterBoth = async (t) => {
 test('a fresh install with two pending migrations applies both instead of refusing the second', async (t) => {
   const catalogSnapshot = await snapshotAfterBoth(t)
   const { connectionString } = await createEmptyDatabase(t, 'conexus_mig_two')
-  const result = await runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot })
+  const result = await runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot: null })
   assert.deepEqual(result, { verdict: 'PASS', appliedNow: ['0001', '0002'], versions: ['0001', '0002'] })
+  assert.deepEqual(await withClient(connectionString, readCatalog), catalogSnapshot.catalog)
+})
+
+test('0072 normalizes a stored retired Project creation refusal and its run summary still parses', async (t) => {
+  const { connectionString } = await createEmptyDatabase(t, 'conexus_auth_catalog')
+  const throughIamOwner = corpus.filter(({ version }) => version <= '0070')
+  await runMigrations({ connectionString, migrations: throughIamOwner, catalogSnapshot: null })
+  await query(connectionString, `
+    INSERT INTO iam.account(account_id, issuer, external_subject, display_name, email)
+      VALUES ('a0000000-0000-4000-8000-000000000001', 'https://kc.test', 'sub-owner', 'Owner', 'owner@example.test');
+    INSERT INTO workspace.workspace(workspace_id, name)
+      VALUES ('b0000000-0000-4000-8000-000000000001', 'Workspace');
+    INSERT INTO iam.workspace_membership(account_id, workspace_id, role)
+      VALUES ('a0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'owner');
+    INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)
+      VALUES ('c0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'Project', 'NEW', repeat('a', 40), 'revision');
+    INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest,
+        base_source_revision, state, failure_code, finished_at)
+      VALUES ('d0000000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-000000000001',
+        'a0000000-0000-4000-8000-000000000001', 'e0000000-0000-4000-8000-000000000001', repeat('1', 64), repeat('2', 64), repeat('a', 40),
+        'FAILED', 'PROJECT_CREATE_DENIED', now());
+  `)
+
+  assert.deepEqual((await runMigrations({ connectionString, migrations: corpus, catalogSnapshot: null })).appliedNow, ['0072', '0073', '0074'])
+  const row = (await query(connectionString, `SELECT builder_run_id, project_id, conversation_id, state, phase,
+    base_source_revision, result_source_revision, result_kind, failure_code, request_text, created_at,
+    cancellation_requested_at IS NOT NULL AS cancellation_requested FROM builder.builder_run`)).rows[0]
+  assert.equal(runSummary(RunRow.parse(row)).failureCode, 'INTERNAL_UNEXPECTED')
+})
+
+test('0074 normalizes a stored retired Project build refusal and its run summary still parses', async (t) => {
+  const { connectionString } = await createEmptyDatabase(t, 'conexus_retired_build_failure')
+  const throughHubAuthority = corpus.filter(({ version }) => version <= '0073')
+  await runMigrations({ connectionString, migrations: throughHubAuthority, catalogSnapshot: null })
+  await query(connectionString, `
+    INSERT INTO iam.account(account_id, issuer, external_subject, display_name, email)
+      VALUES ('a0000000-0000-4000-8000-000000000001', 'https://kc.test', 'sub-owner', 'Owner', 'owner@example.test');
+    INSERT INTO workspace.workspace(workspace_id, name)
+      VALUES ('b0000000-0000-4000-8000-000000000001', 'Workspace');
+    INSERT INTO iam.workspace_membership(account_id, workspace_id, role)
+      VALUES ('a0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'owner');
+    INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)
+      VALUES ('c0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'Project', 'NEW', repeat('a', 40), 'revision');
+    INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest,
+        base_source_revision, state, failure_code, finished_at)
+      VALUES ('d0000000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-000000000001',
+        'a0000000-0000-4000-8000-000000000001', 'e0000000-0000-4000-8000-000000000001', repeat('1', 64), repeat('2', 64), repeat('a', 40),
+        'FAILED', 'PROJECT_BUILD_DENIED', now());
+  `)
+
+  assert.deepEqual((await runMigrations({ connectionString, migrations: corpus, catalogSnapshot: null })).appliedNow, ['0074'])
+  const row = (await query(connectionString, `SELECT builder_run_id, project_id, conversation_id, state, phase,
+    base_source_revision, result_source_revision, result_kind, failure_code, request_text, created_at,
+    cancellation_requested_at IS NOT NULL AS cancellation_requested FROM builder.builder_run`)).rows[0]
+  assert.equal(runSummary(RunRow.parse(row)).failureCode, 'INTERNAL_UNEXPECTED')
+})
+
+test('0072 normalizes a stored retired Project creation refusal and its run summary still parses', async (t) => {
+  const { connectionString } = await createEmptyDatabase(t, 'conexus_auth_catalog')
+  const throughIamOwner = corpus.filter(({ version }) => version <= '0070')
+  await runMigrations({ connectionString, migrations: throughIamOwner, catalogSnapshot: null })
+  await query(connectionString, `
+    INSERT INTO iam.account(account_id, issuer, external_subject, display_name, email)
+      VALUES ('a0000000-0000-4000-8000-000000000001', 'https://kc.test', 'sub-owner', 'Owner', 'owner@example.test');
+    INSERT INTO workspace.workspace(workspace_id, name)
+      VALUES ('b0000000-0000-4000-8000-000000000001', 'Workspace');
+    INSERT INTO iam.workspace_membership(account_id, workspace_id, role)
+      VALUES ('a0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'owner');
+    INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)
+      VALUES ('c0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'Project', 'NEW', repeat('a', 40), 'revision');
+    INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest,
+        base_source_revision, state, failure_code, finished_at)
+      VALUES ('d0000000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-000000000001',
+        'a0000000-0000-4000-8000-000000000001', 'e0000000-0000-4000-8000-000000000001', repeat('1', 64), repeat('2', 64), repeat('a', 40),
+        'FAILED', 'PROJECT_CREATE_DENIED', now());
+  `)
+
+  assert.deepEqual((await runMigrations({ connectionString, migrations: corpus, catalogSnapshot: null })).appliedNow, ['0072'])
+  const row = (await query(connectionString, `SELECT builder_run_id, project_id, conversation_id, state, phase,
+    base_source_revision, result_source_revision, result_kind, failure_code, request_text, created_at,
+    cancellation_requested_at IS NOT NULL AS cancellation_requested FROM builder.builder_run`)).rows[0]
+  assert.equal(runSummary(RunRow.parse(row)).failureCode, 'INTERNAL_UNEXPECTED')
 })
 
 test('a database already at the first migration upgrades to the second', async (t) => {
   const catalogSnapshot = await snapshotAfterBoth(t)
   const { connectionString } = await createEmptyDatabase(t, 'conexus_mig_upgrade')
   await runMigrations({ connectionString, migrations: [migrationA], catalogSnapshot: null })
-  const result = await runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot })
+  const result = await runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot: null })
   assert.deepEqual(result, { verdict: 'PASS', appliedNow: ['0002'], versions: ['0001', '0002'] })
+  assert.deepEqual(await withClient(connectionString, readCatalog), catalogSnapshot.catalog)
 })
 
 test('a fresh database is built by the baseline and the forward migration, and reports both', async (t) => {
@@ -131,17 +217,18 @@ test('objects hub_factory creates inside the factory schema are not catalog drif
 
 test('a grant on the factory schema to another Hub role is catalog drift', async (t) => {
   const { connectionString } = await buildHubDatabase(t, 'conexus_mig')
-  await query(connectionString, 'GRANT USAGE ON SCHEMA factory TO hub_builder_ingress')
+  await query(connectionString, 'GRANT USAGE ON SCHEMA factory TO hub_runtime')
   await assert.rejects(
     runHubMigrations({ connectionString }),
-    /MIGRATION_CATALOG_DRIFT:2 differing lines; missing schema factory owner=hub_factory acl=hub_factory:CREATE:false,hub_factory:USAGE:false \| unexpected schema factory owner=hub_factory acl=hub_builder_ingress:USAGE:false,hub_factory:CREATE:false,hub_factory:USAGE:false/,
+    /MIGRATION_CATALOG_DRIFT:2 differing lines; missing schema factory owner=hub_factory acl=hub_factory:CREATE:false,hub_factory:USAGE:false \| unexpected schema factory owner=hub_factory acl=hub_factory:CREATE:false,hub_factory:USAGE:false,hub_runtime:USAGE:false/,
   )
 })
 
 test('the committed snapshot is the catalog the baseline and forward migration build', async (t) => {
   const { connectionString } = await buildHubDatabase(t, 'conexus_mig')
   const snapshot = readCommittedSnapshot()
-  assert.equal(snapshot.head, corpusVersions.at(-1))
+  assert.equal(snapshot.head, '0074')
+  assert.equal(corpusVersions.at(-1), '0074')
   assert.equal(snapshot.format, 2)
   assert.deepEqual(await ledgerOf(connectionString), corpusLedger)
 })
@@ -200,8 +287,9 @@ test('a catalog check that fails after the pending migrations leaves no version 
   await assert.rejects(runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot: mismatched }), /MIGRATION_CATALOG_DRIFT/)
   assert.deepEqual((await ledgerOf(connectionString)).map(({ version }) => version), ['0001'])
   assert.equal((await query(connectionString, "SELECT to_regclass('iam.gadget') IS NOT NULL AS present")).rows[0].present, false)
-  const result = await runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot })
+  const result = await runMigrations({ connectionString, migrations: twoMigrations, catalogSnapshot: null })
   assert.deepEqual(result, { verdict: 'PASS', appliedNow: ['0002'], versions: ['0001', '0002'] })
+  assert.deepEqual(await withClient(connectionString, readCatalog), catalogSnapshot.catalog)
 })
 
 test('a fresh install whose catalog check fails leaves the database empty', async (t) => {

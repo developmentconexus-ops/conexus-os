@@ -8,6 +8,7 @@ import type { ApplicationInvoker } from './application-invoker.js'
 import { digest, presentedToken } from '../platform/opaque-token.js'
 import type { RawToken } from '../platform/db.js'
 import { routes } from '../http/access.js'
+import { sendFailureResponse } from '../http/problem.js'
 import type { HeaderFact } from '../http/access.js'
 import { readCookie, setCookie } from '../http/cookies.js'
 import { API_BODY_LIMIT, callerLeft, isJsonBody, OPERATION, page, sendPage } from './host-http.js'
@@ -131,7 +132,7 @@ const callOperation = <C extends ScopedProof>(dependencies: Deps<C>) => async (r
     source: { via: 'PREVIEW', accountId: scope.accountId, projectId: scope.projectId },
     files, operation, input: request.body, caller, callerLeft: callerLeft(reply),
   })
-  return reply.code(result.status).type('application/problem+json').send(JSON.stringify(result.body))
+  return sendFailureResponse(reply, result)
 }
 
 export const registerPreviewRoutes = async <C extends ScopedProof>(

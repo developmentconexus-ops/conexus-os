@@ -1,21 +1,27 @@
 import { trace } from '@opentelemetry/api'
 import type { FastifyReply } from 'fastify'
-import { z } from 'zod'
-import { type Failure, failureRow } from '../platform/failure.js'
+import { TraceId } from '@conexus/contract'
+import { failureRow, type FailureCode } from '../platform/failure.js'
 
-type ProblemDetails = Readonly<{ type: string; title: string; status: number; code: string; traceId?: string }>
+export type TraceReference = TraceId | null
 
-/** The problem+json body of a failure: its row's status, the code as type, title and `code`, and the trace id for a Conexus fault. */
-export const failureProblem = (failure: Failure): ProblemDetails => {
-  const { category, status } = failureRow(failure)
-  const traceId = category === 'SYSTEM' ? trace.getActiveSpan()?.spanContext().traceId : undefined
-  return { type: `urn:conexus:problem:${failure.id}`, title: failure.id, status, code: failure.id, ...(traceId ? { traceId } : {}) }
+export function currentTraceReference(): TraceReference {
+  const parsed = TraceId.safeParse(trace.getActiveSpan()?.spanContext().traceId)
+  return parsed.success ? parsed.data : null
 }
 
-/** What a reader may take from a problem body it did not write: a code and a detail, each only when it is a string. */
-export const problemBody = z.looseObject({ code: z.string().exactOptional(), detail: z.string().exactOptional() })
+export function failureResponse(input: Readonly<{ code: FailureCode; traceId: TraceReference }>): Response {
+  const row = failureRow(input.code)
+  const body = {
+    type: `urn:conexus:problem:${input.code}`,
+    title: input.code,
+    status: row.status,
+    code: input.code,
+    ...(row.category === 'SYSTEM' && input.traceId ? { traceId: input.traceId } : {}),
+  }
+  return Response.json(body, { status: row.status, headers: { 'content-type': 'application/problem+json' } })
+}
 
-export const sendFailure = (reply: FastifyReply, failure: Failure) => {
-  const body = failureProblem(failure)
-  return reply.type('application/problem+json').code(body.status).send(body)
+export function sendFailureResponse(reply: FastifyReply, response: Response): FastifyReply {
+  return reply.code(response.status).headers(Object.fromEntries(response.headers)).send(response)
 }

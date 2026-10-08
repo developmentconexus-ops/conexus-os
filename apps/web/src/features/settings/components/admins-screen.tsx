@@ -8,12 +8,12 @@ import { type FormEvent, useId, useState } from 'react'
 import type { AccountId, AdministratorEntry, EmailAddress } from '@conexus/contract'
 import { useSession } from '../../../app/access-gate'
 import { useAttemptKey } from '../../../app/attempt-key'
-import { failureText } from '../../../app/http'
 import { parseEmail, sessionQueryKey } from '../../identity-access/api'
 import { addAdministrator, administratorsQuery, removeAdministrator } from '../installation-api'
 import { PageHeader } from './page-header'
 import { SectionError, SectionLoading, StatusLine } from './states'
 
+import { failureText } from '@conexus/contract'
 const dateFormat = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })
 
 function GrantedBy({ administrator }: Readonly<{ administrator: AdministratorEntry }>) {

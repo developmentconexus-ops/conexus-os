@@ -12,13 +12,13 @@ const deferredRunner = () => {
   const waiting = []
   const invoke = (input) => new Promise((resolve) => {
     calls.push(input)
-    waiting.push(() => resolve({ status: 200, body: { ok: true } }))
+    waiting.push(() => resolve({ ok: true, result: { ok: true } }))
   })
   const release = (count) => { for (let i = 0; i < count; i += 1) waiting.shift()?.() }
   return { invoke, calls, release }
 }
 
-const spyInvoke = (result = { status: 200, body: { ok: true } }) => {
+const spyInvoke = (result = { ok: true, result: { ok: true } }) => {
   const calls = []
   const invoke = async (input) => { calls.push(input); return result }
   return { invoke, calls }
@@ -28,9 +28,12 @@ const CALLER = Object.freeze({ accountId: '44444444-4444-4444-8444-444444444444'
 
 const source = (projectId) => ({ via: 'PREVIEW', accountId: 'acct', projectId })
 
-const call = (invoker, projectId, path = 'conexus-server/handlers/a.mjs', callerLeft = new AbortController().signal) => invoker({
-  source: source(projectId), files: [{ path, sha256: 'sha', content: '' }], operation: 'op', input: {}, caller: CALLER, callerLeft,
-})
+const call = async (invoker, projectId, path = 'conexus-server/handlers/a.mjs', callerLeft = new AbortController().signal) => {
+  const response = await invoker({
+    source: source(projectId), files: [{ path, sha256: 'sha', content: '' }], operation: 'op', input: {}, caller: CALLER, callerLeft,
+  })
+  return { status: response.status, body: await response.json() }
+}
 
 const limits = (overrides) => ({
   globalConcurrency: 4, perProjectConcurrency: 4, admissionQueueTimeoutMs: 10_000, admissionQueueLimit: 16, ...overrides,
@@ -246,6 +249,23 @@ test('the runner call\'s failure answers APPLICATION_RUNNER_UNAVAILABLE with its
   await assert.rejects(() => call(unreachable, 'p1'), (error) => error.id === 'APPLICATION_RUNNER_UNAVAILABLE' && error.details.project === 'p1' && error.details.operation === 'op')
 })
 
+test('a handled runner refusal becomes a public Problem with no private diagnosis', async () => {
+  const invoker = createApplicationInvoker({ invoke: async () => ({ ok: false, error: { code: 'HANDLER_FAILED', sqlstate: '23505' } }) })
+  assert.deepEqual(await call(invoker, 'p1'), {
+    status: 500,
+    body: { type: 'urn:conexus:problem:HANDLER_FAILED', title: 'HANDLER_FAILED', status: 500, code: 'HANDLER_FAILED' },
+  })
+})
+
+test('the invoker owns one native Response with table status and no private diagnosis', async () => {
+  const invoker = createApplicationInvoker({ invoke: async () => ({ ok: false, error: { code: 'HANDLER_FAILED', sqlstate: '23505' } }) })
+  const response = await invoker({ source: source('p1'), files: [], operation: 'op', input: {}, caller: CALLER, callerLeft: new AbortController().signal })
+  assert.equal(response instanceof Response, true)
+  assert.equal(response.status, 500)
+  assert.equal(response.headers.get('content-type'), 'application/problem+json')
+  assert.deepEqual(await response.json(), problem('HANDLER_FAILED', 500))
+})
+
 // The connector port lives exactly as long as one invocation: opened for its source before the
 // runner is called, named to the runner beside the input, and closed after the answer or the failure.
 const portOpener = () => {
@@ -262,7 +282,7 @@ test('the connector port is opened for the source, named to the runner and close
   const calls = []
   const invoker = createApplicationInvoker({
     openConnectorPort: ports.openConnectorPort,
-    invoke: async (input) => { calls.push(input); ports.events.push(['invoke', input.connectorSocket]); return { status: 200, body: { ok: true } } },
+    invoke: async (input) => { calls.push(input); ports.events.push(['invoke', input.connectorSocket]); return { ok: true, result: { ok: true } } },
   })
   assert.deepEqual(await call(invoker, 'p1'), { status: 200, body: { ok: true } })
   assert.deepEqual(ports.events, [['open', source('p1')], ['invoke', '/run/hub-connectors/abc.s'], ['close']])

@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { failureText, HubFailure, isFailure, readFailure } from '../../apps/web/src/app/failure.ts'
-import { FAILURES } from '@conexus/contract'
+import { failureText, isFailure, readFailure, ReceivedFailure, FAILURES } from '@conexus/contract'
 
-const problem = (body, status = 409) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status })
+const problem = (body, status = 409) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'content-type': 'application/problem+json' } })
 
 test('a problem body names its row by code and the page speaks the row, never its own words', async () => {
   const failure = await readFailure(problem({ type: 'urn:conexus:problem:PROJECT_BUSY', title: 'PROJECT_BUSY', status: 409, code: 'PROJECT_BUSY' }))
-  assert.ok(failure instanceof HubFailure)
+  assert.ok(failure instanceof ReceivedFailure)
   assert.equal(failure.code, 'PROJECT_BUSY')
   assert.equal(failure.status, 409)
   assert.equal(failureText(failure), FAILURES.PROJECT_BUSY.message)
@@ -30,5 +29,5 @@ test('a body that is not a problem is the unreadable-response row', async () => 
 
 test('an unknown problem code and anything that is not a failure read as unreadable', async () => {
   assert.equal((await readFailure(problem({ type: 'urn:conexus:problem:NOT_IN_THE_TABLE', title: 'NOT_IN_THE_TABLE', status: 500, code: 'NOT_IN_THE_TABLE' }, 500))).code, 'HUB_RESPONSE_UNREADABLE')
-  assert.equal(failureText(new Error('boom')), failureText(new HubFailure('HUB_RESPONSE_UNREADABLE', null)))
+  assert.equal(failureText(new Error('boom')), failureText(new ReceivedFailure('HUB_RESPONSE_UNREADABLE', null)))
 })

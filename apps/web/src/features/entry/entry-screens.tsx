@@ -1,10 +1,8 @@
 import { Button } from '@mastra/playground-ui/components/Button'
-import { FAILURES, type HubNoAccessReason } from '@conexus/contract'
+import { FAILURES, failureCodeText, failureText, isRetryable, type HubNoAccessReason } from '@conexus/contract'
 import type { ReactNode } from 'react'
 import { ConexusMark, ConexusWordmark } from '../../../../../packages/brand/src/index'
 import './entry.css'
-import { HubFailure } from '../../app/failure'
-import { failureText, isRetryable } from '../../app/http'
 
 export const SIGN_IN_URL = '/protocol/oidc/login'
 
@@ -45,7 +43,7 @@ const NO_ACCESS_TITLE = {
 
 export function NoAccess({ reason }: Readonly<{ reason: HubNoAccessReason }>) {
   return <EntryFrame title={NO_ACCESS_TITLE[reason]}>
-    <p>{failureText(new HubFailure(reason, null))}</p>
+    <p>{failureCodeText(reason)}</p>
     {FAILURES[reason].action === 'SIGN_IN_AGAIN' && <Button as="a" href={SIGN_IN_URL} variant="primary" size="lg">Entrar de novo</Button>}
   </EntryFrame>
 }

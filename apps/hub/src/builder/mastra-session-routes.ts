@@ -8,8 +8,8 @@ import type { ServerResponse } from 'node:http'
 import { ConversationId, ProjectId, type AccountId, type ProjectId as ProjectIdType } from '@conexus/contract'
 import { foreignRoutes } from '../http/access.js'
 import { parseJsonBody } from '../http/app.js'
-import { failureProblem } from '../http/problem.js'
-import { Failure, failureRow, logFailure, toFailure } from '../platform/failure.js'
+import { currentTraceReference, failureResponse } from '../http/problem.js'
+import { Failure, logFailure, toFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
 import type { LiveConversations } from './conversation.js'
 import type { ControllerSession } from './run/ports.js'
@@ -61,6 +61,7 @@ const BROWSER_ROUTES: ReadonlySet<string> = new Set([
 // checked against the resource.
 const STREAM_ROUTE_KEY = sessionRoute('GET', '/stream')
 const SESSIONLESS_ROUTES: ReadonlySet<string> = new Set([sessionRoute('GET', '/threads'), sessionRoute('GET', '/threads/:threadId/messages')])
+const THREAD_MESSAGES_ROUTE = sessionRoute('GET', '/threads/:threadId/messages')
 // A conversation's model changes only between runs (AC-12); a run in flight is refused.
 const IDLE_ONLY_ROUTES: ReadonlySet<string> = new Set([sessionRoute('POST', '/model')])
 
@@ -155,28 +156,30 @@ const projectedRoute = (route: ServerRoute, projection: ToolPayloadProjection | 
 // keeps the original's message and stack. This is the one place that turns it into the problem+json
 // the Hub's handler sends, through an exception Mastra sends verbatim. A refusal Mastra means (an
 // HTTPException with its own response, or a 4xx) stays Mastra's to answer.
-const failureRoute = (route: ServerRoute): ServerRoute =>
-  withHandler(route, async (params) => {
+function failureRoute(route: ServerRoute): ServerRoute {
+  return withHandler(route, async (params) => {
     try {
       return await route.handler(params)
     } catch (error) {
       if (error instanceof HTTPException && (error.res || error.status < 500)) throw error
       const failure = toFailure(error)
       logFailure(logger, failure)
-      const { status } = failureRow(failure)
-      throw new HTTPException(status, { res: new Response(JSON.stringify(failureProblem(failure)), { status, headers: { 'content-type': 'application/problem+json' } }) })
+      const response = failureResponse({ code: failure.id, traceId: currentTraceReference() })
+      throw new HTTPException(undefined, { res: response })
     }
   })
+}
 
 /**
  * Mastra's own hook for a request that fails its schemas. The mount answers it as the same
  * problem+json row, so the browser reads one shape. (`server.onError` is not called for the Fastify
  * adapter's own routes, so `failureRoute` stays for handler throws.)
  */
-export const mountValidationFailure = (): Readonly<{ status: number; body: unknown }> => {
+export function mountValidationFailure() {
   const failure = new Failure('REQUEST_VALIDATION_FAILED')
   logFailure(logger, failure)
-  return { status: failureRow(failure).status, body: failureProblem(failure) }
+  const response = failureResponse({ code: failure.id, traceId: currentTraceReference() })
+  return { status: response.status, body: response }
 }
 
 /** Mastra's adapter logs every 5xx handler throw itself; `failureRoute` already logged it once, with the cause. */
@@ -246,8 +249,8 @@ type GuardedMount = Readonly<{
   prefix: string
   controllerId: string
   routes: ReadonlySet<string>
-  /** Whether the Account may build this Project. */
-  mayBuild(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<boolean>
+  /** Admits the Account to this Project or propagates its current subject refusal. */
+  admitBuilder(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType }>): Promise<void>
   /** Whose thread the conversation id is: this Project's, another resource's, or nobody's yet. */
   conversationOwner(input: Readonly<{ projectId: ProjectId; conversationId: ConversationId }>): Promise<'PROJECT' | 'OTHER' | 'NONE'>
   /** Whether the Project has a run queued or in flight. */
@@ -286,7 +289,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
         throw new Failure('SESSION_STATE_REFUSED')
       }
       // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
-      const params = request.params as Readonly<{ controllerId?: string; resourceId?: string }>
+      const params = request.params as Readonly<{ controllerId?: string; resourceId?: string; threadId?: string }>
       if (params.controllerId !== mount.controllerId) throw new Failure('BUILDER_SESSION_NOT_FOUND')
       const accountId = session.account.accountId
       // Opening a session names its resource, scope and thread in the body; every other session
@@ -294,20 +297,22 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       const creating = key === CREATE_SESSION_ROUTE
       const opened = creating && typeof body === 'object' && body !== null ? body : {}
       const resourceId = creating ? (typeof opened.resourceId === 'string' ? opened.resourceId : undefined) : params.resourceId
-      if (resourceId === undefined && !creating) {
-        admitted.set(request, { accountId, scope: undefined })
-        return undefined
-      }
       // Every conversation of a Project lives under the Project's own resource.
       const projectId = ProjectId.safeParse(resourceId === undefined ? undefined : PROJECT_RESOURCE.exec(resourceId)?.[1]).data
-      if (!projectId || !await mount.mayBuild({ accountId, projectId })) {
-        throw new Failure('PROJECT_BUILD_DENIED')
-      }
+      if (!projectId) throw new Failure('PROJECT_NOT_FOUND')
+      await mount.admitBuilder({ accountId, projectId })
       const sessionScope = creating
         ? (typeof opened.sessionScope === 'string' ? opened.sessionScope : undefined)
         // biome-ignore lint/nursery/noUnsafeTypeAssertion: debt: owning wave
         : (request.query as Readonly<{ sessionScope?: string }>).sessionScope
       if (SESSIONLESS_ROUTES.has(key)) {
+        if (key === THREAD_MESSAGES_ROUTE) {
+          // Mastra loads messages by thread id; the thread's stored resource must match the admitted Project.
+          const conversationId = ConversationId.safeParse(params.threadId)
+          if (!conversationId.success || await mount.conversationOwner({ projectId, conversationId: conversationId.data }) !== 'PROJECT') {
+            throw new Failure('CONVERSATION_NOT_FOUND')
+          }
+        }
         admitted.set(request, { accountId, scope: undefined })
         return undefined
       }
@@ -317,7 +322,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
         const conversationId = conversationOf(sessionScope)
         if (!conversationId || opened.threadId !== conversationId) throw new Failure('CONVERSATION_SESSION_REFUSED')
         if (await mount.conversationOwner({ projectId, conversationId }) === 'OTHER') throw new Failure('CONVERSATION_CONFLICT')
-        await mount.conversations.open({ projectId, conversationId })
+        await mount.conversations.open({ accountId, projectId, conversationId })
         admitted.set(request, { accountId, scope: sessionScope })
         return undefined
       }
@@ -341,7 +346,7 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
       // through the Hub's cancel.
       if (key === ABORT_KEY) throw new Failure('BUILDER_RUN_STOP_REFUSED')
       if (IDLE_ONLY_ROUTES.has(key) && await mount.projectBusy({ accountId, projectId })) throw new Failure('BUILDER_BUSY')
-      await bindConversationSession(mount.controller, mount.conversations, projectId, conversationId)
+      await bindConversationSession(mount.controller, mount.conversations, accountId, projectId, conversationId)
       admitted.set(request, { accountId, scope: sessionScope })
       if (key === STREAM_ROUTE_KEY) closeWhenBehind(reply.raw, mount.streamBacklog ?? { limitBytes: STREAM_BACKLOG_LIMIT_BYTES, checkMs: STREAM_BACKLOG_CHECK_MS })
       return undefined
@@ -367,8 +372,8 @@ const registerGuardedMastraMount = async (app: FastifyInstance, mount: GuardedMo
 // A conversation's session reads its thread's settings again on every request, so the model a run
 // changed on the thread is what the browser sees and changes, and its observational-memory progress
 // from Mastra's own record.
-const bindConversationSession = async (controller: AgentController, conversations: GuardedMount['conversations'], projectId: ProjectId, conversationId: ConversationId): Promise<ControllerSession> => {
-  const session = await conversations.open({ projectId, conversationId })
+const bindConversationSession = async (controller: AgentController, conversations: GuardedMount['conversations'], accountId: AccountId, projectId: ProjectId, conversationId: ConversationId): Promise<ControllerSession> => {
+  const session = await conversations.open({ accountId, projectId, conversationId })
   await session.thread.loadMetadata()
   await controller.loadOMProgress(session)
   return session
@@ -379,12 +384,12 @@ const bindConversationSession = async (controller: AgentController, conversation
  * browser needs to list and open a Project's conversations, follow a run, answer it, and set a
  * conversation's model, each behind the Hub session and the Project the resource names.
  */
-export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, conversations, mayBuild, conversationOwner, projectBusy, answerQuestion, toolPayloads, streamBacklog }: Readonly<{
+export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastra, controllerId, controller, conversations, admitBuilder, conversationOwner, projectBusy, answerQuestion, toolPayloads, streamBacklog }: Readonly<{
   mastra: Mastra
   controllerId: string
   controller: AgentController
   conversations: GuardedMount['conversations']
-  mayBuild: GuardedMount['mayBuild']
+  admitBuilder: GuardedMount['admitBuilder']
   conversationOwner: GuardedMount['conversationOwner']
   projectBusy: GuardedMount['projectBusy']
   answerQuestion: GuardedMount['answerQuestion']
@@ -393,7 +398,7 @@ export const registerBuilderSessionRoutes = async (app: FastifyInstance, { mastr
   /** The unsent bytes a stream may hold, and how often they are checked; tests set it small. */
   streamBacklog?: StreamBacklog
 }>): Promise<void> => registerGuardedMastraMount(app, {
-  mastra, controller, conversations, controllerId, mayBuild, conversationOwner, projectBusy, answerQuestion,
+  mastra, controller, conversations, controllerId, admitBuilder, conversationOwner, projectBusy, answerQuestion,
   ...(toolPayloads ? { toolPayloads } : {}),
   ...(streamBacklog ? { streamBacklog } : {}),
   prefix: BUILDER_PREFIX,

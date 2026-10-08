@@ -84,7 +84,7 @@ test('a deletion started while a run is RUNNING answers PROJECT_BUSY and the set
   const { deletion, seedBuilderProject, runFor, settle, runRow, rows } = await world(t, 'conexus_settlement_busy')
   const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   const builderRunId = await runFor(projectId)
-  await assert.rejects(deletion.deleteProject({ accountId: ID.administrator, projectId, confirmName: 'Atlas' }), { id: 'PROJECT_BUSY' })
+  await assert.rejects(deletion.deleteProject({ accountId: ID.owner, projectId, confirmName: 'Atlas' }), { id: 'PROJECT_BUSY' })
   await settle(projectId, builderRunId)
   assert.equal((await runRow(builderRunId)).state, 'SUCCEEDED')
   assert.deepEqual(await rows(projectId), { revisions: 1, thumbnails: 0 })
@@ -98,7 +98,7 @@ test('a deletion that meets a settlement in flight waits for it, then purges eve
   const holder = createBuilderStore({ database, ownerId: OWNER, registry: pausingRetain(registry, held) })
   const settling = holder.settleBuilderRunBuild({ builderRunId, kind: 'BUILT', sealed: sealFor(projectId, builderRunId, [F], { thumbnail: { bytes: PNG_T2 } }) })
   await held.reached.promise
-  const deleting = deletion.deleteProject({ accountId: ID.administrator, projectId, confirmName: 'Atlas' })
+  const deleting = deletion.deleteProject({ accountId: ID.owner, projectId, confirmName: 'Atlas' })
   await waitUntilBlocked(connection)
   held.release.resolve()
   const results = await Promise.allSettled([settling, deleting])
@@ -107,12 +107,12 @@ test('a deletion that meets a settlement in flight waits for it, then purges eve
   assert.equal(await runRow(builderRunId), undefined)
 })
 
-test('a settlement that arrives after the purge answers BUILDER_RUN_NOT_ADMITTED and leaves no registry row', async (t) => {
+test('a settlement that arrives after the purge is refused and leaves no registry row', async (t) => {
   const { deletion, seedBuilderProject, runFor, settle, rows } = await world(t, 'conexus_settlement_after_purge')
   const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
   const builderRunId = await runFor(projectId, { state: 'INTERRUPTED' })
-  await deletion.deleteProject({ accountId: ID.administrator, projectId, confirmName: 'Atlas' })
-  await assert.rejects(settle(projectId, builderRunId), { id: 'BUILDER_RUN_NOT_ADMITTED' })
+  await deletion.deleteProject({ accountId: ID.owner, projectId, confirmName: 'Atlas' })
+  await assert.rejects(settle(projectId, builderRunId), { id: 'BUILDER_RUN_TRANSITION_REFUSED' })
   assert.deepEqual(await rows(projectId), { revisions: 0, thumbnails: 0 })
 })
 

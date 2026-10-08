@@ -23,7 +23,7 @@ export const readSecretFile = (path) => {
 const required = (environment, name) => environment[name] ?? fail(`MISSING_CONFIG_${name}`)
 
 export const readRegister = (root = repositoryRoot) =>
-  JSON.parse(readFileSync(resolve(root, registerPath), 'utf8')).roles.filter((row) => !row.legacy)
+  JSON.parse(readFileSync(resolve(root, registerPath), 'utf8')).roles
 
 export const readDatabase = (environment) => ({
   host: required(environment, 'CONEXUS_DB_HOST'),

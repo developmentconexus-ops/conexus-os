@@ -1,28 +1,32 @@
 import { z } from 'zod';
 export declare const ProjectName: z.ZodString;
 export type ProjectName = z.output<typeof ProjectName>;
-export declare const ProjectListItem: z.ZodObject<{
+export declare const ProjectListRow: z.ZodDiscriminatedUnion<[z.ZodObject<{
     projectId: z.core.$ZodBranded<z.ZodUUID, "ProjectId", "out">;
     workspaceId: z.core.$ZodBranded<z.ZodUUID, "WorkspaceId", "out">;
     name: z.ZodString;
+    state: z.ZodLiteral<"live">;
     archived: z.ZodBoolean;
-}, z.core.$strip>;
-export type ProjectListItem = z.output<typeof ProjectListItem>;
-export declare const ProjectDetail: z.ZodUnion<readonly [z.ZodObject<{
-    projectId: z.core.$ZodBranded<z.ZodUUID, "ProjectId", "out">;
-    workspaceId: z.core.$ZodBranded<z.ZodUUID, "WorkspaceId", "out">;
-    name: z.ZodString;
-    projectRevision: z.core.$ZodBranded<z.ZodUUID, "ProjectRevision", "out">;
-    archived: z.ZodBoolean;
-    deleting: z.ZodBoolean;
 }, z.core.$strip>, z.ZodObject<{
     projectId: z.core.$ZodBranded<z.ZodUUID, "ProjectId", "out">;
     workspaceId: z.core.$ZodBranded<z.ZodUUID, "WorkspaceId", "out">;
     name: z.ZodString;
-    projectRevision: z.ZodLiteral<"">;
-    archived: z.ZodLiteral<false>;
-    deleting: z.ZodLiteral<true>;
-}, z.core.$strip>]>;
+    state: z.ZodLiteral<"deleting">;
+}, z.core.$strip>], "state">;
+export type ProjectListRow = z.output<typeof ProjectListRow>;
+export declare const ProjectDetail: z.ZodDiscriminatedUnion<[z.ZodObject<{
+    projectId: z.core.$ZodBranded<z.ZodUUID, "ProjectId", "out">;
+    workspaceId: z.core.$ZodBranded<z.ZodUUID, "WorkspaceId", "out">;
+    name: z.ZodString;
+    state: z.ZodLiteral<"live">;
+    projectRevision: z.core.$ZodBranded<z.ZodUUID, "ProjectRevision", "out">;
+    archived: z.ZodBoolean;
+}, z.core.$strip>, z.ZodObject<{
+    projectId: z.core.$ZodBranded<z.ZodUUID, "ProjectId", "out">;
+    workspaceId: z.core.$ZodBranded<z.ZodUUID, "WorkspaceId", "out">;
+    name: z.ZodString;
+    state: z.ZodLiteral<"deleting">;
+}, z.core.$strip>], "state">;
 export type ProjectDetail = z.output<typeof ProjectDetail>;
 export declare const ProjectCreated: z.ZodObject<{
     projectId: z.core.$ZodBranded<z.ZodUUID, "ProjectId", "out">;
@@ -38,10 +42,9 @@ export declare const ProjectSourceBootstrap: z.ZodDiscriminatedUnion<[z.ZodObjec
     mode: z.ZodLiteral<"EXISTING_GIT">;
     repositoryLocator: z.ZodString;
 }, z.core.$strict>], "mode">;
-export declare const ProjectCard: z.ZodObject<{
+export declare const ProjectCard: z.ZodDiscriminatedUnion<[z.ZodObject<{
     projectId: z.core.$ZodBranded<z.ZodUUID, "ProjectId", "out">;
     name: z.ZodString;
-    archived: z.ZodBoolean;
     lastActivityAt: z.ZodString;
     latestRun: z.ZodNullable<z.ZodObject<{
         state: z.ZodEnum<{
@@ -58,8 +61,13 @@ export declare const ProjectCard: z.ZodObject<{
         }>>;
     }, z.core.$strip>>;
     hasPreview: z.ZodBoolean;
-    deleting: z.ZodBoolean;
-}, z.core.$strip>;
+    state: z.ZodLiteral<"live">;
+    archived: z.ZodBoolean;
+}, z.core.$strip>, z.ZodObject<{
+    projectId: z.core.$ZodBranded<z.ZodUUID, "ProjectId", "out">;
+    name: z.ZodString;
+    state: z.ZodLiteral<"deleting">;
+}, z.core.$strip>], "state">;
 export type ProjectCard = z.output<typeof ProjectCard>;
 export declare const listProjects: {
     readonly id: "listProjects";
@@ -74,12 +82,18 @@ export declare const listProjects: {
     readonly headers: null;
     readonly body: null;
     readonly success: {
-        readonly 200: z.ZodArray<z.ZodObject<{
+        readonly 200: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
             projectId: z.core.$ZodBranded<z.ZodUUID, "ProjectId", "out">;
             workspaceId: z.core.$ZodBranded<z.ZodUUID, "WorkspaceId", "out">;
             name: z.ZodString;
+            state: z.ZodLiteral<"live">;
             archived: z.ZodBoolean;
-        }, z.core.$strip>>;
+        }, z.core.$strip>, z.ZodObject<{
+            projectId: z.core.$ZodBranded<z.ZodUUID, "ProjectId", "out">;
+            workspaceId: z.core.$ZodBranded<z.ZodUUID, "WorkspaceId", "out">;
+            name: z.ZodString;
+            state: z.ZodLiteral<"deleting">;
+        }, z.core.$strip>], "state">>;
     };
     readonly effects: readonly [];
     readonly failures: readonly [];
@@ -100,21 +114,19 @@ export declare const getProject: {
     readonly headers: null;
     readonly body: null;
     readonly success: {
-        readonly 200: z.ZodUnion<readonly [z.ZodObject<{
+        readonly 200: z.ZodDiscriminatedUnion<[z.ZodObject<{
             projectId: z.core.$ZodBranded<z.ZodUUID, "ProjectId", "out">;
             workspaceId: z.core.$ZodBranded<z.ZodUUID, "WorkspaceId", "out">;
             name: z.ZodString;
+            state: z.ZodLiteral<"live">;
             projectRevision: z.core.$ZodBranded<z.ZodUUID, "ProjectRevision", "out">;
             archived: z.ZodBoolean;
-            deleting: z.ZodBoolean;
         }, z.core.$strip>, z.ZodObject<{
             projectId: z.core.$ZodBranded<z.ZodUUID, "ProjectId", "out">;
             workspaceId: z.core.$ZodBranded<z.ZodUUID, "WorkspaceId", "out">;
             name: z.ZodString;
-            projectRevision: z.ZodLiteral<"">;
-            archived: z.ZodLiteral<false>;
-            deleting: z.ZodLiteral<true>;
-        }, z.core.$strip>]>;
+            state: z.ZodLiteral<"deleting">;
+        }, z.core.$strip>], "state">;
     };
     readonly effects: readonly [];
     readonly failures: readonly [];
@@ -154,14 +166,14 @@ export declare const createProject: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_CREATE_DENIED", "PROJECT_SOURCE_REFUSED", "PROJECT_REPOSITORY_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly failures: readonly ["PROJECT_SOURCE_REFUSED", "PROJECT_REPOSITORY_UNAVAILABLE", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly workspaceId: "WORKSPACE_NOT_FOUND";
     };
 };
 export declare const deleteProject: {
     readonly id: "deleteProject";
-    readonly summary: "Delete a Project, its data and its repository; installation administrator only.";
+    readonly summary: "Delete a Project, its data and its repository; Workspace owners only.";
     readonly access: "session";
     readonly method: "DELETE";
     readonly path: "/api/control/projects/:projectId";
@@ -196,10 +208,9 @@ export declare const listProjectSummaries: {
     readonly body: null;
     readonly success: {
         readonly 200: z.ZodObject<{
-            projects: z.ZodArray<z.ZodObject<{
+            projects: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
                 projectId: z.core.$ZodBranded<z.ZodUUID, "ProjectId", "out">;
                 name: z.ZodString;
-                archived: z.ZodBoolean;
                 lastActivityAt: z.ZodString;
                 latestRun: z.ZodNullable<z.ZodObject<{
                     state: z.ZodEnum<{
@@ -216,12 +227,17 @@ export declare const listProjectSummaries: {
                     }>>;
                 }, z.core.$strip>>;
                 hasPreview: z.ZodBoolean;
-                deleting: z.ZodBoolean;
-            }, z.core.$strip>>;
+                state: z.ZodLiteral<"live">;
+                archived: z.ZodBoolean;
+            }, z.core.$strip>, z.ZodObject<{
+                projectId: z.core.$ZodBranded<z.ZodUUID, "ProjectId", "out">;
+                name: z.ZodString;
+                state: z.ZodLiteral<"deleting">;
+            }, z.core.$strip>], "state">>;
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_SUMMARIES_UNAVAILABLE"];
+    readonly failures: readonly [];
     readonly malformed: {
         readonly workspaceId: "WORKSPACE_NOT_FOUND";
     };
@@ -246,7 +262,7 @@ export declare const getProjectThumbnail: {
         };
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["PROJECT_THUMBNAIL_NOT_FOUND", "PROJECT_THUMBNAIL_UNAVAILABLE"];
+    readonly failures: readonly ["PROJECT_THUMBNAIL_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };

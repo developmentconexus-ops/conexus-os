@@ -1,6 +1,6 @@
 import { Button } from '@mastra/playground-ui/components/Button'
-import { failureText, isRetryable } from './http'
 
+import { failureText, isRetryable } from '@conexus/contract'
 /** A screen that could not load: what failed in the table's words, and a button only when the row says waiting helps. */
 export function FailureState({ title, error, onRetry }: Readonly<{ title: string; error: unknown; onRetry: () => void }>) {
   return <div className="cx-state" role="alert">

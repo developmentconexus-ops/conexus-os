@@ -8,7 +8,7 @@ import { Failure, type FailureCode, logFailure, toFailure } from '../platform/fa
 import { logger } from '../platform/logger.js'
 import { foreignRoutes, installAccess, routes } from './access.js'
 import type { ListenerPolicy } from './access.js'
-import { sendFailure } from './problem.js'
+import { currentTraceReference, failureResponse, sendFailureResponse } from './problem.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -63,7 +63,7 @@ export const createHttpApp = async ({
   app.setErrorHandler((error, request, reply) => {
     const failure = namedFailure(error) ?? toFailure(error)
     logFailure(request.log, failure, { 'http.route': request.routeOptions.url ?? '' })
-    return sendFailure(reply, failure)
+    return sendFailureResponse(reply, failureResponse({ code: failure.id, traceId: currentTraceReference() }))
   })
   await app.register(cookie)
   await app.register(helmet, {

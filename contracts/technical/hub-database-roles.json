@@ -1,5 +1,5 @@
 {
-  "$comment": "Every Hub connection role is registered here. The Hub logs in as hub_runtime and switches each transaction to a transaction role; hub_factory is for Mastra storage. Capability roles remain only while their SQL owners are ported.",
+  "$comment": "Every Hub connection role is registered here. Person reads and commands use hub_runtime with scoped admission proofs; hub_factory is for Mastra storage.",
   "roles": [
     {
       "role": "hub_runtime",
@@ -16,13 +16,6 @@
       }
     },
     {
-      "role": "hub_builder_ingress",
-      "capability": "builder-request",
-      "passwordFileVariable": "CONEXUS_DB_BUILDER_INGRESS_PASSWORD_FILE",
-      "connectsFrom": [],
-      "legacy": true
-    },
-    {
       "role": "hub_factory",
       "capability": "factory-storage",
       "passwordFileVariable": "CONEXUS_DB_FACTORY_PASSWORD_FILE",
@@ -32,30 +25,7 @@
       ]
     }
   ],
-  "policyRoles": [
-    {
-      "role": "iam_rls",
-      "owns": [
-        "rls.acting_account",
-        "rls.acting_installation_administrator",
-        "rls.acting_workspaces"
-      ],
-      "privileges": [
-        "SELECT"
-      ]
-    }
-  ],
   "ownerRoles": [
     "conexus_owner"
-  ],
-  "transactionRoles": [
-    {
-      "role": "hub_reader",
-      "purpose": "a person's read: SELECT under the reader policies"
-    },
-    {
-      "role": "hub_command",
-      "purpose": "a command: the verbs the table register names, under its proof"
-    }
   ]
 }

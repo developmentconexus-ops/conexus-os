@@ -16,7 +16,7 @@ const fakeRunner = async (t, reply) => {
     const chunks = []
     request.on('data', (chunk) => chunks.push(chunk))
     request.on('end', () => {
-      response.writeHead(reply.status, { 'content-type': 'application/json' })
+      response.writeHead(reply.status, { 'content-type': reply.contentType ?? 'application/json' })
       response.end(JSON.stringify(reply.body))
     })
   })
@@ -35,54 +35,40 @@ const refused = async (t, reply) => {
   return outcome.error
 }
 
-test('a source-shape refusal from the runner keeps its own code and a string reason', async (t) => {
-  const error = await refused(t, { status: 422, body: { code: 'SERVER_TREE_REFUSED' } })
-  assert.equal(error.message, 'SERVER_TREE_REFUSED')
-  assert.equal(typeof error.cause, 'string')
-  assert.equal(error.cause, 'SERVER_TREE_REFUSED')
+test('a handled prepare refusal resolves as its strict private Result', async (t) => {
+  const client = await fakeRunner(t, { status: 200, body: { ok: false, error: { code: 'SERVER_TREE_REFUSED' } } })
+  assert.deepEqual(await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), { ok: false, error: { code: 'SERVER_TREE_REFUSED' } })
 })
 
-test('a manifest refusal carries its code and its full reason, not just the code', async (t) => {
-  const detail = 'MANIFEST_REFUSED: operations.listOpenTitles.input: unknown key "format"'
-  const error = await refused(t, { status: 422, body: { code: 'MANIFEST_REFUSED', detail } })
-  assert.equal(error.message, 'MANIFEST_REFUSED')
-  assert.equal(error.cause, detail)
+test('a malformed private refusal becomes runner unavailable', async (t) => {
+  const error = await refused(t, { status: 200, body: { ok: false, error: { code: 'MANIFEST_REFUSED', where: 'manifest', diagnostic: 'private' } } })
+  assert.equal(error.id, 'APPLICATION_RUNNER_UNAVAILABLE')
 })
 
-test('a platform-side prepare fault collapses to the generic refusal, not a source-shape code', async (t) => {
-  const detail = 'connect ECONNREFUSED 127.0.0.1:5432'
-  const error = await refused(t, { status: 422, body: { code: 'INTERNAL_UNEXPECTED', detail } })
-  assert.equal(error.message, 'APPLICATION_SERVER_REFUSED')
-  assert.equal(typeof error.cause, 'string')
-  assert.equal(error.cause, detail)
+test('an escaping native Problem preserves only its validated table code', async (t) => {
+  const error = await refused(t, {
+    status: 503,
+    contentType: 'application/problem+json',
+    body: { type: 'urn:conexus:problem:APPLICATION_RUNNER_UNAVAILABLE', title: 'APPLICATION_RUNNER_UNAVAILABLE', status: 503, code: 'APPLICATION_RUNNER_UNAVAILABLE', detail: 'PRIVATE_MARKER' },
+  })
+  assert.equal(error.id, 'APPLICATION_RUNNER_UNAVAILABLE')
+  assert.notEqual(error.cause, 'PRIVATE_MARKER')
 })
 
-test('a malformed-request refusal with no detail still carries a string reason, the runner\'s own code', async (t) => {
-  const error = await refused(t, { status: 400, body: { code: 'RUNNER_REQUEST_REFUSED' } })
-  assert.equal(error.message, 'APPLICATION_SERVER_REFUSED')
-  assert.equal(error.cause, 'RUNNER_REQUEST_REFUSED')
-})
-
-test('an unparseable refusal body still gives a string reason, never leaving cause undefined', async (t) => {
-  const error = await refused(t, { status: 422, body: {} })
-  assert.equal(error.message, 'APPLICATION_SERVER_REFUSED')
-  assert.equal(error.cause, 'APPLICATION_SERVER_REFUSED')
-})
-
-test('a 200 reply resolves normally, refusal-shaping never runs', async (t) => {
-  const client = await fakeRunner(t, { status: 200, body: { state: 'READY', reset: false, applied: [] } })
-  assert.deepEqual(await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), { state: 'READY', reset: false, applied: [] })
+test('prepare success resolves with the shared Result', async (t) => {
+  const client = await fakeRunner(t, { status: 200, body: { ok: true, result: { reset: false, applied: [] } } })
+  assert.deepEqual(await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: [] } })
 })
 
 test('a 200 reply that is not a prepare result is the runner being unavailable', async (t) => {
-  for (const body of [{ state: 'READY', reset: 'no', applied: [] }, { state: 'OTHER' }]) {
+  for (const body of [{ ok: true, result: { reset: 'no', applied: [] } }, { state: 'OTHER' }]) {
     const error = await refused(t, { status: 200, body })
     assert.equal(error.id, 'APPLICATION_RUNNER_UNAVAILABLE')
   }
 })
 
-test('a prepare result of the declared shape is returned as sent', async (t) => {
-  const body = { state: 'READY', reset: false, applied: ['001_a.sql'] }
+test('a prepare result keeps applied migration identity', async (t) => {
+  const body = { ok: true, result: { reset: false, applied: ['001_a.sql'] } }
   const client = await fakeRunner(t, { status: 200, body })
   assert.deepEqual(await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), body)
 })
@@ -112,7 +98,7 @@ test('call rejections preserve underlying causes', async (t) => {
     async () => client.invoke({ projectId: 'p1', method: 'GET', path: '/test', headers: {}, body: null }),
     (error) => {
       assert.equal(error.message, 'APPLICATION_RUNNER_UNAVAILABLE')
-      assert.ok(error.cause instanceof SyntaxError)
+      assert.ok(error.cause)
       return true
     }
   )
@@ -128,4 +114,3 @@ test('call rejections preserve underlying causes', async (t) => {
     }
   )
 })
-

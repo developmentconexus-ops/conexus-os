@@ -50,7 +50,7 @@ export type RunContextBinder = (requestContext: RequestContext) => void
 
 export type BuilderRunPorts = Readonly<{
   /** The conversation's sandbox instance, the same one for each of its runs while it lives; it starts no VM until `start()`. */
-  openSandbox(ref: Readonly<{ projectId: ProjectId; conversationId: ConversationId }>): Promise<RunSandbox>
+  openSandbox(ref: Readonly<{ accountId: AccountId; projectId: ProjectId; conversationId: ConversationId }>): Promise<RunSandbox>
   /** The conversation's session, on that sandbox's workspace, for the run's steps. */
   openSession(input: Readonly<{ projectId: ProjectId; conversationId: ConversationId; builderRunId: BuilderRunId; bindContext: RunContextBinder }>): Promise<RunSession>
   /**
@@ -83,6 +83,7 @@ export type AgentTurn = Readonly<{ reason: SendableAgentEndReason; userMessageId
 
 /** A note in the run's conversation thread, keyed by run and code so a retry writes it once. */
 export type SettledNote = Readonly<{
+  accountId: AccountId
   projectId: ProjectId
   conversationId: ConversationId
   builderRunId: BuilderRunId
@@ -96,6 +97,7 @@ export type SettledNote = Readonly<{
 
 /** The check's feedback on a red finish, keyed by run and attempt: the person reads it while the agent repairs. */
 type CheckRedNote = Readonly<{
+  accountId: AccountId
   projectId: ProjectId
   conversationId: ConversationId
   builderRunId: BuilderRunId

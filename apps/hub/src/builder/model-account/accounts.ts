@@ -92,9 +92,10 @@ export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ 
   }
 
   return Object.freeze({
-    standing: (accountId) => database.read(accountId, async (tx) => {
+    standing: (accountId) => database.read(accountId, async (gate) => {
+      const { tx, scope } = await admitAccount(gate)
       const rows = await tx.rows(LawfulCredential, sql`
-        SELECT provider, kind FROM model.model_account WHERE scope = 'personal' AND owner_account_id = ${accountId}`)
+        SELECT provider, kind FROM model.model_account WHERE scope = 'personal' AND owner_account_id = ${scope.accountId}`)
       const of = (provider: ModelAccountProvider): ModelStanding[ModelAccountProvider] => {
         const own = rows.find((row) => row.provider === provider)
         return { own: own ? { state: 'connected', kind: own.kind } : { state: 'absent' } }
@@ -109,8 +110,10 @@ export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ 
         throw error
       },
     ),
-    readDefault: (accountId, role) => database.read(accountId, async (tx) =>
-      (await tx.maybe(DefaultRow, sql`SELECT model_id FROM model.installation_default WHERE role = ${role}`))?.model_id ?? null),
+    readDefault: (accountId, role) => database.read(accountId, async (gate) => {
+      const { tx } = await admitAccount(gate)
+      return (await tx.maybe(DefaultRow, sql`SELECT model_id FROM model.installation_default WHERE role = ${role}`))?.model_id ?? null
+    }),
     usable: async (accountId, provider) => {
       const row = await readUsable(accountId, provider)
       if (!row) return false

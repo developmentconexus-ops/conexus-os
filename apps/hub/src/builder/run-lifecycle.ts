@@ -1,9 +1,9 @@
 import { z } from 'zod'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import { AccountId, BuilderRunId, ProjectId, SourceRevision, type ConversationId, type ModelAccountId } from '@conexus/contract'
-import { admitProject, admitRun, admitSystem, type Admitted, type ProjectScope, type RunScope, type SystemScope } from '../identity-access/admission.js'
-import { BUILDER_RUN_STATES, OPEN_RUN_STATES, type OpenRunState, type BuilderRunPhase, } from '../generated/builder-run-vocabulary.js'
-import { sql, type Database, } from '../platform/db.js'
+import { admitProject, admitRun, admitSystem, type Admitted, type ProjectScope, type RunOwner, type RunScope, type SystemScope } from '../identity-access/admission.js'
+import { BUILDER_RUN_STATES, isOpenRunState, OPEN_RUN_STATES, type OpenRunState, type BuilderRunPhase, } from '../generated/builder-run-vocabulary.js'
+import { sql, type Database, type WriteTx } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
 import type { BuilderRegistry } from './application-build.js'
 import type { SealedApplication } from '../platform/sealed-application.js'
@@ -57,10 +57,10 @@ export type RunStart = Readonly<{
 
 export const createRunStart = ({ database, mintIdentity }: Readonly<{ database: Database; mintIdentity: () => string }>): RunStart => ({
   admitBuilder: ({ accountId, projectId }) => database.transaction(accountId, async (gate) => {
-    await admitProject(gate, projectId, 'project.build')
+    await admitProject(gate, { projectId, action: 'project.build' })
   }),
   createBuilderRun: ({ accountId, projectId, conversationId, idempotencyKey, content, readBase }) => database.transaction(accountId, async (gate) => {
-    const project = await admitProject(gate, projectId, 'project.build')
+    const project = await admitProject(gate, { projectId, action: 'project.build' })
     const { tx, scope } = project
     const subject = await tx.maybe(Present, sql`
       SELECT 1 AS present FROM builder.project_working_state AS working
@@ -84,7 +84,7 @@ export const createRunStart = ({ database, mintIdentity }: Readonly<{ database: 
     return runSummary(created)
   }),
   requestBuilderRunCancellation: ({ accountId, projectId, builderRunId }) => database.transaction(accountId, async (gate) => {
-    const project = await admitProject(gate, projectId, 'project.build')
+    const project = await admitProject(gate, { projectId, action: 'project.build' })
     const { tx, scope } = project
     const run = await tx.maybe(z.object({ state: z.enum(BUILDER_RUN_STATES) }), sql`
       SELECT run.state FROM builder.builder_run AS run
@@ -106,7 +106,7 @@ export const createRunStart = ({ database, mintIdentity }: Readonly<{ database: 
   bindBuilderRunMessage: ({ builderRunId, projectId, accountId, messageId }) => database.transaction(accountId, async (gate) => {
     const id = messageId.trim()
     if (!MESSAGE_ID.test(id)) throw transitionRefused('message bind')
-    const { tx, scope } = await admitProject(gate, projectId, 'project.build')
+    const { tx, scope } = await admitProject(gate, { projectId, action: 'project.build' })
     await tx.maybe(Present, sql`SELECT 1 AS present FROM builder.builder_run AS run WHERE run.builder_run_id = ${builderRunId} AND run.project_id = ${scope.projectId} FOR UPDATE`)
     const bound = await tx.run(sql`
       UPDATE builder.builder_run SET trigger_message_id = ${id}
@@ -143,17 +143,30 @@ export type RunSteps = Readonly<{
 }>
 
 const QueuedRun = z.object({ account_id: AccountId, project_id: ProjectId })
-const Candidates = z.object({ state: z.enum(BUILDER_RUN_STATES), candidate_revision: SourceRevision.nullable(), result_source_revision: SourceRevision.nullable() })
+const Held = z.object({ project_id: ProjectId, owner_id: z.string().nullable(), state: z.enum(BUILDER_RUN_STATES), candidate_revision: SourceRevision.nullable(), result_source_revision: SourceRevision.nullable() })
 type Transition = 'candidate' | 'sandbox bind' | 'model account record' | 'settlement' | 'source settlement' | 'build settlement' | 'failure' | 'interruption' | 'cancellation' | 'message bind'
 /** A guarded transition that wrote nothing: the run was not in the state it needs, or the input was not what it takes. */
 const transitionRefused = (transition: Transition): Failure => new Failure('BUILDER_RUN_TRANSITION_REFUSED', { details: { transition } })
 
 const SANDBOX_ID = /^.{1,200}$/s
-export const ADMISSION_REFUSALS: ReadonlySet<string> = new Set(['BUILDER_RUN_NOT_ADMITTED', 'PROJECT_BUILD_DENIED', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'])
+export const ADMISSION_REFUSALS: ReadonlySet<string> = new Set(['BUILDER_RUN_NOT_ADMITTED', 'PROJECT_NOT_FOUND', 'PROJECT_DELETING', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'])
 
-// The run row is locked first, then the Project's working state: the order every settlement takes.
-const lockWorking = async ({ tx, scope }: Admitted<RunScope>, transition: Transition): Promise<void> => {
-  if (!await tx.maybe(Present, sql`SELECT 1 AS present FROM builder.project_working_state WHERE project_id = ${scope.projectId} FOR UPDATE`)) throw transitionRefused(transition)
+const lockWorking = async (tx: WriteTx, projectId: ProjectId, transition: Transition): Promise<void> => {
+  if (!await tx.maybe(Present, sql`SELECT 1 AS present FROM builder.project_working_state WHERE project_id = ${projectId} FOR UPDATE`)) throw transitionRefused(transition)
+}
+
+const heldRun = async (tx: WriteTx, builderRunId: BuilderRunId, ownerId: string): Promise<z.output<typeof Held> | null> => {
+  const initial = await tx.maybe(z.object({ project_id: ProjectId }), sql`SELECT project_id FROM builder.builder_run WHERE builder_run_id = ${builderRunId}`)
+  if (!initial || !await tx.maybe(Present, sql`SELECT 1 AS present FROM project.project WHERE project_id = ${initial.project_id} FOR SHARE`)) return null
+  const run = await tx.maybe(Held, sql`
+    SELECT project_id, owner_id::text AS owner_id, state, candidate_revision, result_source_revision
+    FROM builder.builder_run WHERE builder_run_id = ${builderRunId} FOR UPDATE`)
+  return run?.project_id === initial.project_id && run.owner_id === ownerId && isOpenRunState(run.state) ? run : null
+}
+
+const closeHeldRun = async (proof: Admitted<SystemScope<'builder-executor'>>, input: Readonly<{ builderRunId: BuilderRunId; owner: RunOwner; ending: RunEnding }>): Promise<void> => {
+  const run = await heldRun(proof.tx, input.builderRunId, input.owner.ownerId)
+  if (!run || await endRun(proof, { builderRunId: input.builderRunId, projectId: run.project_id, ending: input.ending, from: 'open' }) !== 1) throw new Failure('BUILDER_RUN_NOT_ADMITTED')
 }
 
 export const createRunSteps = ({ database, ownerId, registry }: Readonly<{ database: Database; ownerId: string; registry: Pick<BuilderRegistry, 'retain'> }>): RunSteps => {
@@ -168,7 +181,7 @@ export const createRunSteps = ({ database, ownerId, registry }: Readonly<{ datab
     })
     if (!queued) throw new Failure('BUILDER_RUN_NOT_ADMITTED')
     const run = await database.transaction(queued.account_id, async (gate) => {
-      const project = await admitProject(gate, queued.project_id, 'project.build')
+      const project = await admitProject(gate, { projectId: queued.project_id, action: 'project.build' })
       const held = await project.tx.maybe(Present, sql`
         SELECT 1 AS present FROM builder.builder_run AS run
         WHERE run.builder_run_id = ${builderRunId} AND run.project_id = ${project.scope.projectId} AND run.account_id = ${project.scope.accountId} AND run.state = 'QUEUED' FOR UPDATE`)
@@ -220,41 +233,35 @@ export const createRunSteps = ({ database, ownerId, registry }: Readonly<{ datab
     settleBuilderRun: ({ builderRunId }) => withRun(database, ownerId, builderRunId, executor, async (proof) => {
       if (await endRun(proof, { ...proof.scope, ending: { state: 'SUCCEEDED', resultKind: 'RESPONSE_ONLY', failureCode: null }, from: 'withoutCandidate' }) !== 1) throw transitionRefused('settlement')
     }),
-    advanceBuilderRunSource: async ({ builderRunId, sourceRevision }) => {
-      await withRun(database, ownerId, builderRunId, executor, async (proof) => {
-        const run = await proof.tx.maybe(Candidates, sql`
-          SELECT run.state, run.candidate_revision, run.result_source_revision FROM builder.builder_run AS run WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId}`)
-        if (run?.state !== 'RUNNING') throw transitionRefused('source settlement')
-        await lockWorking(proof, 'source settlement')
-        if (run.result_source_revision === sourceRevision) return
-        if (run.result_source_revision !== null || run.candidate_revision !== sourceRevision) throw transitionRefused('source settlement')
-        await written(proof, sql`UPDATE builder.builder_run AS run SET result_source_revision = ${sourceRevision} WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId}`, 'source settlement')
-      })
-    },
-    settleBuilderRunBuild: (settlement) => withRun(database, ownerId, settlement.builderRunId, executor, async (proof) => {
-      const run = await proof.tx.maybe(Candidates, sql`
-        SELECT run.state, run.candidate_revision, run.result_source_revision FROM builder.builder_run AS run WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId}`)
+    advanceBuilderRunSource: ({ builderRunId, sourceRevision }) => database.system('builder-executor', async (gate) => {
+      const proof = await admitSystem(gate, 'builder-executor')
+      const run = await heldRun(proof.tx, builderRunId, ownerId)
+      if (run?.state !== 'RUNNING') throw transitionRefused('source settlement')
+      await lockWorking(proof.tx, run.project_id, 'source settlement')
+      if (run.result_source_revision === sourceRevision) return
+      if (run.result_source_revision !== null || run.candidate_revision !== sourceRevision) throw transitionRefused('source settlement')
+      if (await proof.tx.run(sql`UPDATE builder.builder_run SET result_source_revision = ${sourceRevision} WHERE builder_run_id = ${builderRunId} AND project_id = ${run.project_id} AND state = 'RUNNING' AND candidate_revision = ${sourceRevision} AND result_source_revision IS NULL`) !== 1) throw transitionRefused('source settlement')
+    }),
+    settleBuilderRunBuild: (settlement) => database.system('builder-executor', async (gate) => {
+      const proof = await admitSystem(gate, 'builder-executor')
+      const run = await heldRun(proof.tx, settlement.builderRunId, ownerId)
       const sourceRevision = settlement.kind === 'BUILT' ? settlement.sealed.sourceRevision : settlement.sourceRevision
-      if (run?.state !== 'RUNNING' || run.result_source_revision !== sourceRevision) throw transitionRefused('build settlement')
-      await lockWorking(proof, 'build settlement')
+      if (run?.state !== 'RUNNING' || run.result_source_revision !== sourceRevision || run.candidate_revision !== sourceRevision) throw transitionRefused('build settlement')
+      await lockWorking(proof.tx, run.project_id, 'build settlement')
       if (settlement.kind === 'BUILT') {
-        const retained = await registry.retain(proof, settlement.sealed)
+        const retained = await registry.retain(proof, { builderRunId: settlement.builderRunId, projectId: run.project_id, owner: { ownerId }, sealed: settlement.sealed })
         await proof.tx.run(sql`
           UPDATE builder.project_working_state SET current_state = 'PREVIEW_READY', last_preview_source_revision = ${sourceRevision},
             last_preview_artifact_revision_id = ${retained.artifactRevisionId}, last_preview_artifact_digest = ${retained.digest}, updated_at = clock_timestamp()
-          WHERE project_id = ${proof.scope.projectId}`)
-        await endRun(proof, { ...proof.scope, ending: { state: 'SUCCEEDED', resultKind: 'SOURCE_CHANGED', failureCode: null }, from: 'running' })
+          WHERE project_id = ${run.project_id}`)
+        await endRun(proof, { builderRunId: settlement.builderRunId, projectId: run.project_id, ending: { state: 'SUCCEEDED', resultKind: 'SOURCE_CHANGED', failureCode: null }, from: 'running' })
         return
       }
       await proof.tx.run(sql`
-        UPDATE builder.project_working_state SET current_state = 'BUILD_FAILED', updated_at = clock_timestamp() WHERE project_id = ${proof.scope.projectId}`)
-      await endRun(proof, { ...proof.scope, ending: { state: 'FAILED', resultKind: 'SOURCE_CHANGED_BUILD_FAILED', failureCode: settlement.failureCode }, from: 'running' })
+        UPDATE builder.project_working_state SET current_state = 'BUILD_FAILED', updated_at = clock_timestamp() WHERE project_id = ${run.project_id}`)
+      await endRun(proof, { builderRunId: settlement.builderRunId, projectId: run.project_id, ending: { state: 'FAILED', resultKind: 'SOURCE_CHANGED_BUILD_FAILED', failureCode: settlement.failureCode }, from: 'running' })
     }),
-    failBuilderRun: ({ builderRunId, failureCode }) => withRun(database, ownerId, builderRunId, executor, async (proof) => {
-      if (await endRun(proof, { ...proof.scope, ending: { state: 'FAILED', resultKind: null, failureCode }, from: 'open' }) !== 1) throw transitionRefused('failure')
-    }),
-    interruptBuilderRun: ({ builderRunId, failureCode }) => withRun(database, ownerId, builderRunId, executor, async (proof) => {
-      if (await endRun(proof, { ...proof.scope, ending: { state: 'INTERRUPTED', resultKind: null, failureCode }, from: 'open' }) !== 1) throw transitionRefused('interruption')
-    }),
+    failBuilderRun: ({ builderRunId, failureCode }) => database.system('builder-executor', async (gate) => closeHeldRun(await admitSystem(gate, 'builder-executor'), { builderRunId, owner: { ownerId }, ending: { state: 'FAILED', resultKind: null, failureCode } })),
+    interruptBuilderRun: ({ builderRunId, failureCode }) => database.system('builder-executor', async (gate) => closeHeldRun(await admitSystem(gate, 'builder-executor'), { builderRunId, owner: { ownerId }, ending: { state: 'INTERRUPTED', resultKind: null, failureCode } })),
   }
 }

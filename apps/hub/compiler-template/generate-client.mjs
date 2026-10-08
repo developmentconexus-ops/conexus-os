@@ -62,26 +62,20 @@ const typeOf = (schema) => {
   }
 }
 
-const ERROR_AND_CALL = `const failure = (status: number, body: string): ConexusError => {
+const ERROR_AND_CALL = `const call = async <K extends OperationId>(id: K, input: Input<K>): Promise<Output<K>> => {
+  let response: Response
   try {
-    const parsed: unknown = JSON.parse(body)
-    if (typeof parsed === 'object' && parsed !== null) {
-      const { code, detail } = parsed as { code?: unknown; detail?: unknown }
-      if (typeof code === 'string') return new ConexusError(code, typeof detail === 'string' ? detail : '')
-    }
-  } catch {}
-  return new ConexusError(\`HTTP_\${status}\`, body.slice(0, 500))
-}
-
-const call = async <K extends OperationId>(id: K, input: Input<K>): Promise<Output<K>> => {
-  const response = await fetch(\`/__conexus/api/\${id}\`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(input),
-  })
-  const body = await response.text()
-  if (!response.ok) throw failure(response.status, body)
-  return JSON.parse(body) as Output<K>
+    response = await fetch(\`/__conexus/api/\${id}\`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    throw new ReceivedFailure('HUB_UNREACHABLE', null)
+  }
+  if (!response.ok) throw await readFailure(response)
+  return JSON.parse(await response.text()) as Output<K>
 }
 `
 
@@ -102,7 +96,7 @@ export const generateClient = (manifest) => {
     return `  ${id}: { input: ${typeOf(input)}; output: ${typeOf(output)} }`
   })
   const apiGen = `${HEADER}import { z } from 'zod'
-import { ConexusError } from './failures.gen'
+import { readFailure, ReceivedFailure } from './failures.gen'
 
 export const schemas = {
 ${schemas.join('\n')}

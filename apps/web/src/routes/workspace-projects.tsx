@@ -35,9 +35,9 @@ function ProjectsHome({ workspaceId, workspaceName }: Readonly<{ workspaceId: st
   const summaries = useQuery({
     ...projectSummariesQuery(workspaceId),
     // While any Project is building, its chip follows the run without a reload.
-    refetchInterval: (query) => query.state.data?.projects.some((summary) => projectActivity(summary) === 'BUILDING') ? 5_000 : false,
+    refetchInterval: (query) => query.state.data?.projects.some((summary) => summary.state === 'live' && projectActivity(summary) === 'BUILDING') ? 5_000 : false,
   })
-  const active = summaries.data?.projects.filter((summary) => !summary.archived) ?? []
+  const active = summaries.data?.projects.filter((summary) => summary.state === 'deleting' || !summary.archived) ?? []
   const empty = summaries.isSuccess && active.length === 0
   return <div className="cx-page cx-home" data-empty={empty || undefined}>
     <PromptBox workspaceId={workspaceId} workspaceName={workspaceName} returning={returning} />

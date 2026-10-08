@@ -1,9 +1,8 @@
-import { z } from 'zod'
 import { ArtifactDigest, ArtifactRevisionId, BuilderRunId, ConversationId, ProjectId, SourceRevision, type AccountId, type ProjectId as ProjectIdType } from '@conexus/contract'
 import { BUILDER_RUN_RESULT_KINDS } from '../generated/builder-run-vocabulary.js'
 import { admitProject } from '../identity-access/admission.js'
 import type { Admitted, ProjectScope } from '../identity-access/admission.js'
-import { sql, type Database, type TxQueries } from '../platform/db.js'
+import { sql, type Database } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import type { BuilderRegistry, ServedLaunch } from './application-build.js'
 import { CODE_CHANGING_RESULT_KINDS } from './run-row.js'
@@ -46,10 +45,11 @@ export type PreviewState = Readonly<{
   admitSourceRevision(input: Readonly<{ accountId: AccountId; projectId: ProjectIdType; sourceRevision: SourceRevision; readMain(): Promise<SourceRevision> }>): Promise<boolean>
 }>
 
-const previewOf = async (tx: TxQueries, projectId: ProjectIdType): Promise<BuilderPreview | null> => {
+const previewOf = async (proof: Admitted<ProjectScope<'project.read'>, 'read'>): Promise<BuilderPreview | null> => {
+  const { tx, scope } = proof
   const row = await tx.maybe(PreviewRow, sql`
     SELECT last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest
-    FROM builder.project_working_state WHERE project_id = ${projectId}`)
+    FROM builder.project_working_state WHERE project_id = ${scope.projectId}`)
   return row ? {
     lastPreviewSourceRevision: row.last_preview_source_revision,
     lastPreviewArtifactRevisionId: row.last_preview_artifact_revision_id,
@@ -58,14 +58,15 @@ const previewOf = async (tx: TxQueries, projectId: ProjectIdType): Promise<Build
 }
 
 export const createPreviewState = ({ database, registry }: Readonly<{ database: Database; registry: Pick<BuilderRegistry, 'readLaunch'> }>): PreviewState => {
-  const latestChange = (tx: TxQueries, projectId: ProjectIdType) => tx.maybe(CodeChangingRow, sql`
+  const latestChange = (proof: Admitted<ProjectScope<'project.read'>, 'read'>) => proof.tx.maybe(CodeChangingRow, sql`
     SELECT run.builder_run_id, run.project_id, run.conversation_id, run.base_source_revision, run.result_source_revision, run.result_kind
     FROM builder.builder_run AS run
-    WHERE run.project_id = ${projectId} AND run.result_kind = ANY(${CODE_CHANGING_RESULT_KINDS}::text[]) AND run.result_source_revision IS NOT NULL
+    WHERE run.project_id = ${proof.scope.projectId} AND run.result_kind = ANY(${CODE_CHANGING_RESULT_KINDS}::text[]) AND run.result_source_revision IS NOT NULL
     ORDER BY run.created_at DESC, run.builder_run_id DESC LIMIT 1`)
   return {
-    readLatestCodeChangingBuilderRun: ({ accountId, projectId }) => database.read(accountId, async (tx) => {
-      const row = await latestChange(tx, projectId)
+    readLatestCodeChangingBuilderRun: ({ accountId, projectId }) => database.read(accountId, async (gate) => {
+      const proof = await admitProject(gate, { projectId, action: 'project.read' })
+      const row = await latestChange(proof)
       return row ? {
         builderRunId: row.builder_run_id,
         projectId: row.project_id,
@@ -75,15 +76,18 @@ export const createPreviewState = ({ database, registry }: Readonly<{ database: 
         resultKind: row.result_kind,
       } : null
     }),
-    readPreviewSubject: ({ accountId, projectId }) => database.read(accountId, (tx) => previewOf(tx, projectId)),
+    readPreviewSubject: ({ accountId, projectId }) => database.read(accountId, async (gate) => {
+      const proof = await admitProject(gate, { projectId, action: 'project.read' })
+      return previewOf(proof)
+    }),
     openLaunch: ({ accountId, projectId }, open) => database.transaction(accountId, async (gate) => {
-      const proof = await admitProject(gate, projectId, 'project.build')
+      const proof = await admitProject(gate, { projectId, action: 'project.build' })
       const launch = await registry.readLaunch(proof)
       return launch ? open(proof, launch) : null
     }),
     admitSourceRevision: ({ accountId, projectId, sourceRevision, readMain }) =>
-      database.read(accountId, async (tx) => {
-        const { scope } = await admitProject(tx, projectId, 'project.read')
+      database.read(accountId, async (gate) => {
+        const { tx, scope } = await admitProject(gate, { projectId, action: 'project.read' })
         if (sourceRevision === await readMain()) return true
         const preview = await tx.maybe(z.object({ present: z.literal(1) }), sql`
           SELECT 1 AS present FROM builder.project_working_state WHERE project_id = ${scope.projectId} AND last_preview_source_revision = ${sourceRevision}`)
@@ -100,3 +104,4 @@ export const createPreviewState = ({ database, registry }: Readonly<{ database: 
       }),
   }
 }
+import { z } from 'zod'
