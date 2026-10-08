@@ -330,13 +330,11 @@ costs an extra model call. The heap test `tests/manual/builder-question-heap.tes
 through real runs.
 
 **Decision.** A documented exception to this page's rule, contained so it cannot spread:
-`mastra-leftovers.ts` is the only file that reaches these internals, and the census item
-`mastraInternalsOutsideLeftovers` in `scripts/census-builder-run.mjs`, recorded at 0, fails on any other
-caller.
+`mastra-leftovers.ts` is the only file that reaches these internals, and `scripts/check-builder-safety.mjs` prohibits calls outside that owner.
 
 **Removal trigger.** The test "Mastra still leaves the loop registration and the snapshot rows of a
 question an abort ends" in `tests/implementation/builder-run-question.test.mjs` fails once an upgrade
-fixes #25903. Then the module, its caller, the census item and that test go.
+fixes #25903. Then the module, its caller, the prohibition and that test go.
 
 ## Upstream proposals
 

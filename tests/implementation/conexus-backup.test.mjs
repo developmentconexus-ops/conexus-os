@@ -24,7 +24,7 @@ const backupArgs = (root = outRoot) => [
 const psql = (sql) =>
   execFileSync('docker', ['exec', SOURCE, 'psql', '-U', 'postgres', '-d', 'app', '-At', '-c', sql], { encoding: 'utf8' })
 
-const sourceReady = (() => {
+test.before(() => {
   execFileSync('docker', ['run', '--rm', '-d', '--name', SOURCE, '-e', 'POSTGRES_PASSWORD=scratch', POSTGRES_IMAGE])
   for (let i = 0; i < 60; i++) {
     if (sh('docker', ['exec', SOURCE, 'pg_isready', '-U', 'postgres', '-h', '127.0.0.1']).status === 0) break
@@ -47,7 +47,7 @@ const sourceReady = (() => {
   execFileSync('git', ['-C', work, 'add', '.'])
   execFileSync('git', ['-C', work, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'first'])
   execFileSync('git', ['clone', '-q', '--bare', work, join(gitRoot, 'one.git')])
-})()
+})
 
 test.after(() => {
   sh('timeout', ['60', 'docker', 'stop', SOURCE])
@@ -56,7 +56,6 @@ test.after(() => {
 })
 
 test('the backup describes itself: it passes after the source changed and fails on a wrong count', () => {
-  void sourceReady
   const backup = sh(script('conexus-backup.sh'), backupArgs())
   assert.equal(backup.status, 0, backup.stderr)
   const [folder] = readdirSync(outRoot)
@@ -100,7 +99,6 @@ test('the backup describes itself: it passes after the source changed and fails 
 })
 
 test('a restore check fails loudly when Projects exist and the Git root is empty', () => {
-  void sourceReady
   const emptyGit = join(scratch, 'empty-git')
   mkdirSync(emptyGit)
   psql('CREATE SCHEMA project; CREATE TABLE project.project (id int); INSERT INTO project.project VALUES (1)')
@@ -115,7 +113,6 @@ test('a restore check fails loudly when Projects exist and the Git root is empty
 })
 
 test('the scheduled run keeps seven verified folders through a failed backup and a corrupted dump', () => {
-  void sourceReady
   const root = join(scratch, 'backups-run')
   mkdirSync(root)
   for (let day = 1; day <= 7; day++) {

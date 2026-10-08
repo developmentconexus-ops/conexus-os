@@ -1,8 +1,15 @@
 # 0015. Child: part 4, the registry owner
 
+CI tooling update: historical builder count/debt ratchets and boundary inventories described below
+are retired. `scripts/check-boundaries.mjs` owns direct AST prohibitions and named exceptions;
+`scripts/check-builder-safety.mjs` retains exclusive safety ownership checks. No implementation
+regenerates the deleted census registers. [Delivery](../../development/delivery.md#proof-and-verification)
+owns routine and qualification coverage.
+
+
 **Status**: Approved
 
-**Approval**: approved by the planning session under the operator's delegation for the night of 2026-10-06 (HQ-D017), commit 9ea15ef6
+**Approval**: approved by the planning session under the operator's delegation for the night of 2026-10-06 (C-039), commit 9ea15ef6
 
 Part of [spec 0015](index.md), revision 5.3 (design 4, the split wall). This child uses the rules of the admission child ([0015-admission.md](0015-admission.md)), sections 1, 2 and 4 to 11, and the table register of the data child ([0015-data.md](0015-data.md)). It realigns the approved revision for umbrella 5.3 to the S1 standard as main (#512, #513) and part 1 build it, and applies the HQ decisions of `explain/hq-decisions.md`. Study notes named by path (`explain/`, `part1/review-build/`) are not in this repository. Every `file:line` is a line of `origin/main` at `8b5af79a`, refreshed on 2026-10-06 against the nine guides ([code](../../development/codebase-principles.md), [architecture](../../reference/architecture.md), [database](../../reference/database.md), [security](../../reference/security-and-authority.md), [API](../../product/wire-contract.md), [testing](../../development/testing.md), [delivery](../../development/delivery.md)). A document those guides replaced is read with `git show 58444763:<path>`.
 

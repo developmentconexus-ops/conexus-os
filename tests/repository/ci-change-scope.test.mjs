@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { docsOnlyChange, isDocsOnly, main } from '../../scripts/ci-change-scope.mjs'
+import { docsOnlyChange, isDocsOnly, main, qualificationFor } from '../../scripts/ci-change-scope.mjs'
 
 test('Markdown under docs/, under .agents/ and at the root is documentation', () => {
   assert.equal(isDocsOnly(['docs/roadmap.md', 'docs/product/wire-contract.md', '.agents/skills/mastra/SKILL.md', 'AGENTS.md', 'README.md']), true)
@@ -20,7 +20,7 @@ test('any file outside the allowlist makes the change a full one', () => {
     '.github/pull_request_template.md',
     '.github/workflows/verify.yml',
     'package.json',
-    'scripts/conexus-verify.mjs',
+    'scripts/check-boundaries.mjs',
     'tests/repository/ci-change-scope.test.mjs',
   ]) {
     assert.equal(isDocsOnly(['docs/roadmap.md', path]), false, path)
@@ -78,5 +78,17 @@ test('the result is written to GITHUB_OUTPUT, and a missing base means a full ru
   } finally {
     console.log = log
   }
-  assert.equal(readFileSync(output, 'utf8'), 'docs_only=false\n')
+  assert.equal(readFileSync(output, 'utf8'), 'docs_only=false\nfull_live=true\nbackup=true\ntemplate=true\nstyle=true\n')
+})
+
+ test('qualification is conservative for unknown paths, contracts, database and harness changes', () => {
+  const full = { docs_only: false, full_live: true, backup: true, template: true, style: true }
+  for (const path of ['unknown/new.ts', 'packages/contract/src/problem.ts', 'scripts/test-with-ledger.sh', 'tests/live/harness.mjs']) assert.deepEqual(qualificationFor([path]), full, path)
+  assert.equal(qualificationFor(['apps/hub/migrations/0001.sql']).backup, true)
+  assert.equal(qualificationFor(['infra/backup/a.sh']).backup, true)
+  assert.deepEqual(qualificationFor(['apps/web/src/app/app.css']), { docs_only: false, full_live: true, backup: false, template: false, style: true })
+  assert.deepEqual(qualificationFor(['docs/development/testing.md']), { docs_only: true, full_live: false, backup: false, template: false, style: false })
+  assert.deepEqual(qualificationFor(['apps/hub/src/telemetry/log.ts']), { docs_only: false, full_live: false, backup: false, template: false, style: false })
+  assert.deepEqual(qualificationFor(['apps/hub/src/new-owner/file.ts']), full)
+  assert.deepEqual(qualificationFor([]), full)
 })

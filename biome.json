@@ -415,23 +415,6 @@
     },
     {
       "includes": [
-        "scripts/conexus-verify.mjs"
-      ],
-      "linter": {
-        "rules": {
-          "style": {
-            "noExcessiveLinesPerFile": {
-              "level": "error",
-              "options": {
-                "maxLines": 684
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "includes": [
         "apps/web/src/**",
         "!apps/web/src/app/failure.ts",
         "!apps/web/src/features/builder/construir/run-failure.tsx"

@@ -1,18 +1,12 @@
+import { recordBrowserContext, saveBrowserContext } from './browser-diagnostics.mjs'
 import { resolve } from 'node:path'
 import { after, before } from 'node:test'
 import { chromium } from '@playwright/test'
 import { createServer } from 'vite'
-import { BROWSER_CLASSES } from '../../scripts/conexus-verify.mjs'
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 
-// The verify graph names the class of the step it runs. A test that reaches a real browser from a step
-// of another class fails here, where it launches, not minutes later in a group without Chromium.
-const launchReal = (options) => {
-  const stepClass = process.env.CONEXUS_VERIFY_STEP_CLASS
-  if (stepClass && !BROWSER_CLASSES.has(stepClass)) throw new Error(`BROWSER_IN_NON_BROWSER_STEP:${stepClass}`)
-  return chromium.launch(options)
-}
+const launchReal = (options) => chromium.launch(options)
 
 const real = { createServer, launch: launchReal }
 
@@ -66,7 +60,8 @@ export const shareWebBrowser = (serverOptions = {}) => {
   return {
     openPage: async (t, contextOptions = {}) => {
       const context = await web.browser.newContext(contextOptions)
-      t.after(() => context.close())
+      await recordBrowserContext(context)
+      t.after(async () => { await saveBrowserContext(context); await context.close() })
       return { page: await context.newPage(), origin: web.origin, context }
     },
   }

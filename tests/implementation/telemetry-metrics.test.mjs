@@ -14,19 +14,19 @@ const runChild = (script, { execArgv = [], nodeOptions } = {}) => {
   return JSON.parse(result.stdout)
 }
 
-// heapUsedRatio divides used heap by the cap V8 applies, read once at start. Dividing the ratio back out
-// recovers the cap the Hub chose, bounded by the used heap read just before and just after the call.
-const capBehindRatio = (options) => {
-  const { ratio, usedBefore, usedAfter, limit } = runChild(`
-import { getHeapStatistics } from 'node:v8'
+// Capture the native V8 sample consumed by heapUsedRatio. Separate before/after readings can straddle
+// allocation or GC and cannot bound the value used by the function.
+const capBehindRatio = (options) => runChild(`
+import v8 from 'node:v8'
+import { syncBuiltinESMExports } from 'node:module'
+const nativeStats = v8.getHeapStatistics
+let sample
+v8.getHeapStatistics = () => { sample = nativeStats(); return sample }
+syncBuiltinESMExports()
 const { heapUsedRatio } = await import(${JSON.stringify(hubModuleUrl('platform/heap.js'))})
-const usedBefore = getHeapStatistics().used_heap_size
 const ratio = heapUsedRatio()
-const usedAfter = getHeapStatistics().used_heap_size
-console.log(JSON.stringify({ ratio, usedBefore, usedAfter, limit: getHeapStatistics().heap_size_limit }))
+console.log(JSON.stringify({ ratio, used: sample.used_heap_size, limit: sample.heap_size_limit }))
 `, options)
-  return { lowest: (Math.min(usedBefore, usedAfter) * 0.95) / ratio, highest: (Math.max(usedBefore, usedAfter) * 1.05) / ratio, limit }
-}
 
 for (const [name, options, capMiB] of [
   ['the command line flag alone', { execArgv: ['--max-old-space-size=512'] }, 512],
@@ -36,14 +36,14 @@ for (const [name, options, capMiB] of [
   ['the last command line flag, either spelling', { execArgv: ['--max-old-space-size=100', '--max_old_space_size=200'] }, 200],
 ]) {
   test(`the heap ratio divides by the cap V8 applies: ${name}`, () => {
-    const { lowest, highest } = capBehindRatio(options)
-    assert.equal(lowest <= capMiB * MiB && capMiB * MiB <= highest, true, `the ratio divides by ${capMiB} MiB (implied between ${lowest / MiB} and ${highest / MiB} MiB)`)
+    const { ratio, used } = capBehindRatio(options)
+    assert.equal(ratio, used / (capMiB * MiB), `the ratio divides by ${capMiB} MiB`)
   })
 }
 
 test('with no cap set the heap ratio divides by heap_size_limit', () => {
-  const { lowest, highest, limit } = capBehindRatio({ nodeOptions: '--no-warnings' })
-  assert.equal(lowest <= limit && limit <= highest, true, `the ratio divides by ${limit / MiB} MiB (implied between ${lowest / MiB} and ${highest / MiB} MiB)`)
+  const { ratio, used, limit } = capBehindRatio({ nodeOptions: '--no-warnings' })
+  assert.equal(ratio, used / limit, `the ratio divides by ${limit / MiB} MiB`)
 })
 
 test('a process launched with a NODE_OPTIONS cap and a command line cap runs under the command line cap', () => {

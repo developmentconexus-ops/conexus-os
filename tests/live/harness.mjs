@@ -199,6 +199,7 @@ export const liveFlow = (declaration, body) => {
     assert.ok(suite, 'the live harness is not set up: run with --test-global-setup=tests/live/harness.mjs')
     const { model, state, browser, storageState, contextOptions, workspaceId } = suite
     const context = await browser.newContext({ ...contextOptions, storageState })
+    await context.tracing.start({ screenshots: true, snapshots: true, sources: false })
     const page = await context.newPage()
     const log = []
     const pageErrors = []
@@ -218,6 +219,7 @@ export const liveFlow = (declaration, body) => {
       await page.screenshot({ path: evidence(state, 'live', `${declaration.id}.failure.png`) }).catch(() => undefined)
       throw error
     } finally {
+      await context.tracing.stop({ path: evidence(state, 'live', `${declaration.id}.trace.zip`) })
       writeFileSync(evidence(state, 'live', `${declaration.id}.console.log`), `${log.join('\n')}\n`)
       await context.close()
     }

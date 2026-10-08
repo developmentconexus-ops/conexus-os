@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { resolve } from 'node:path'
 import test from 'node:test'
 import ts from 'typescript'
-import { compareToRecord, findings, hardZeroBroken } from '../../scripts/census-boundaries.mjs'
+import { findings, violations } from '../../scripts/check-boundaries.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const fixture = (name, options = {}) => {
@@ -91,7 +91,7 @@ test('a statement that writes an authority table outside its owning modules is f
 })
 
 test('the rules of the real register name the modules that may write the authority tables', async () => {
-  const { AUTHORITY_TABLE_WRITERS } = await import('../../scripts/census-boundaries.mjs')
+  const { AUTHORITY_TABLE_WRITERS } = await import('../../scripts/check-boundaries.mjs')
   assert.deepEqual(AUTHORITY_TABLE_WRITERS.map(({ table, verbs, modules }) => [table, verbs.join('/'), modules.join(' ')]), [
     ['iam.*', 'INSERT/UPDATE/DELETE', 'apps/hub/src/identity-access/'],
     ['project.project_deletion', 'INSERT/UPDATE/DELETE', 'apps/hub/src/project/deletion.ts'],
@@ -125,16 +125,8 @@ test('an update or a delete of a split table must compare one of its register ke
   assert.deepEqual(fixture('key-columns').sqlWrites, [`${prefix}byOtherTable: a delete with a where with no comparison of a column written in the template`])
 })
 
-test('the record holds sets: a finding swapped for another is both added and removed, and a repeated finding counts', () => {
-  assert.deepEqual(compareToRecord(['a.ts#x', 'b.ts#y'], ['a.ts#x', 'c.ts#z']), { added: ['b.ts#y'], removed: ['c.ts#z'] })
-  assert.deepEqual(compareToRecord(['a.ts#x', 'a.ts#x'], ['a.ts#x']), { added: ['a.ts#x'], removed: [] })
-  assert.deepEqual(compareToRecord(['a.ts#x'], ['a.ts#x', 'a.ts#x']), { added: [], removed: ['a.ts#x'] })
-  assert.deepEqual(compareToRecord(['a.ts#x'], ['a.ts#x']), { added: [], removed: [] })
-})
-
-test('the hard zero items fail whenever one finding is present, whatever the record holds', () => {
-  const clean = { pgQueryRows: ['a.ts#x'], pgImportFiles: [], webResponseJson: [], sqlWrites: [], authorityTableWrites: [], gateReferences: [] }
-  assert.deepEqual(hardZeroBroken(clean), [])
-  assert.deepEqual(hardZeroBroken({ ...clean, gateReferences: ['a.ts#x'] }), ['gateReferences'])
-  assert.deepEqual(hardZeroBroken({ ...clean, authorityTableWrites: ['a.ts#x: writes DELETE project.project'], sqlWrites: ['a.ts#y: a merge'] }), ['authorityTableWrites', 'sqlWrites'])
+test('every finding is prohibited unless it is an explicit boundary exception', () => {
+  assert.deepEqual(violations({ pgQueryRows: ['a.ts#x'], webResponseJson: ['apps/web/src/app/failure.ts#readFailure'], gateReferences: ['a.ts#y'] }), ['pgQueryRows: a.ts#x', 'gateReferences: a.ts#y'])
+  assert.deepEqual(violations({ webResponseJson: ['a.ts#x', 'b.ts#y'] }, { webResponseJson: ['a.ts#x'] }), ['webResponseJson: b.ts#y'])
+  assert.deepEqual(violations({ authorityTableWrites: ['DELETE iam.account'], sqlWrites: ['a merge'], pgImportFiles: ['a.ts'] }), ['authorityTableWrites: DELETE iam.account', 'sqlWrites: a merge', 'pgImportFiles: a.ts'])
 })

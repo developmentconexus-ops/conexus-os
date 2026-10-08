@@ -1,12 +1,12 @@
 ---
 name: conexus-review
-description: Review a Conexus pull request, or a whole wave diff, against the guides that own its paths, its unit card when it is a wave unit, and the native census, and give one verdict. Use when your instructions name a review, or when a reviewer (the Factory included) is sent here.
+description: Review a Conexus pull request, or a whole wave diff, against the guides that own its paths, its unit cards when it is a wave batch, and the native census, and give one verdict. Use when your instructions name a review, or when a reviewer (the Factory included) is sent here.
 ---
 
 # Review
 
-A review judges the pushed head against what was asked (the issue, or the unit card) and the guides,
-never the author's summary. It does not fix the code it reviews. The verdict follows
+A review judges the pushed head against what was asked (the issue, or the batch's unit cards) and
+the guides, never the author's summary. It does not fix the code it reviews. The verdict follows
 [references/verdict.md](references/verdict.md).
 
 ## Steps
@@ -21,7 +21,7 @@ never the author's summary. It does not fix the code it reviews. The verdict fol
    name, plus the codebase principles and delivery. The grammar: an exact path, `dir/**` for every
    path under `dir`, `*` inside one segment. A test maps to the area of the code it proves. A path no
    area matches on `origin/main` is judged by the head's map and named in the review.
-3. A wave unit is also judged against its card in `docs/specs/<wave>/index.md`: every line of
+3. Each unit in a wave batch is judged against its card in `docs/specs/<wave>/index.md`: every line of
    Creates, Satisfies and Deletes is done, nothing is outside its Files, its Proof ran, and every
    item of the [build checklist](../conexus-build/references/checklist.md) is `ok` or `n/a` with
    evidence.

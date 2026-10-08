@@ -1,3 +1,4 @@
+import { recordBrowserContext, saveBrowserDiagnostics } from './browser-diagnostics.mjs'
 import assert from 'node:assert/strict'
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -151,10 +152,11 @@ async function shoot(page, name, { settle } = {}) {
 test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto work in a real browser', { timeout: 240_000 }, async (t) => {
   origin = await startWebServer(t, { logLevel: 'error' })
   const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
+  t.after(async () => { await saveBrowserDiagnostics(browser); await browser.close() })
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin })
   const page = await context.newPage()
+  await recordBrowserContext(page.context())
   const hub = hubFixture()
   await mockHub(page, hub)
   const reset = async (changes = {}) => {
@@ -502,8 +504,9 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
 test('a double click on Criar Workspace sends one request', { timeout: 120_000 }, async (t) => {
   const origin = await startWebServer(t, { logLevel: 'error' })
   const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
+  t.after(async () => { await saveBrowserDiagnostics(browser); await browser.close() })
   const page = await (await browser.newContext()).newPage()
+  await recordBrowserContext(page.context())
   const accountId = '10000000-0000-4000-8000-000000000001'
   const workspaceId = '20000000-0000-4000-8000-000000000002'
   let creates = 0

@@ -1,8 +1,9 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
+import { existsSync } from 'node:fs'
 import { constants } from 'node:os'
 import { buildAppCheck } from './build-app-check.mjs'
 
@@ -32,7 +33,24 @@ export const hubNodeArguments = ({ buildRoot, diagnosticDir, entry = 'server.js'
 ]
 
 // The application runner serves no screen, so `web: false` skips the web build.
-export const buildHubLocal = async ({ web = true } = {}) => {
+export const buildHubLocal = async ({ web = true, sharedBuild } = {}) => {
+  if (sharedBuild) {
+    for (const file of ['server.js', 'app-check/main.mjs', ...(web ? ['../public/index.html'] : [])]) {
+      if (!existsSync(resolve(sharedBuild, file))) throw new Error(`HUB_BUILD_MISSING:${file}`)
+    }
+    const buildRoot = await mkdtemp(join(repositoryRoot, 'apps/hub/.conexus-build-local-'))
+    try {
+      await cp(sharedBuild, buildRoot, { recursive: true })
+      if (web) {
+        await rm(join(repositoryRoot, 'apps/hub/public'), { recursive: true, force: true })
+        await cp(resolve(sharedBuild, '../public'), join(repositoryRoot, 'apps/hub/public'), { recursive: true })
+      }
+      return buildRoot
+    } catch (error) {
+      await rm(buildRoot, { recursive: true, force: true })
+      throw error
+    }
+  }
   if (web) {
     run(process.execPath, [
       resolve(repositoryRoot, 'node_modules/vite/bin/vite.js'),
