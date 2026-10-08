@@ -52,3 +52,4 @@ export function mediaTypeOfPath(path) {
     const parsed = MediaType.safeParse(MEDIA_TYPE_BY_EXTENSION[path.slice(path.lastIndexOf('.')).toLowerCase()]);
     return parsed.success ? parsed.data : null;
 }
+export const ModelId = z.string().min(1).brand().meta({ id: 'ModelId' });

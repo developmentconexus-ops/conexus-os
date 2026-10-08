@@ -1,3 +1,5 @@
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { Failure } from './failure.js'
 import { parseApplicationSlug } from './application-slug.js'
 import type { ApplicationSlug } from './application-slug.js'
@@ -22,8 +24,6 @@ export type HubConfig = Readonly<{
     e2bTemplateId: string
     /** CONEXUS_GIT_ROOT: the Conexus Git on the Hub's own disk, one bare repository per Project. */
     gitRoot: string
-    /** CONEXUS_BUILDER_CONTEXT7_API_KEY_FILE: the installation's Context7 key, optional; the Builder reads Context7 anonymously when unset. */
-    context7ApiKeyFile: string | undefined
     /** CONEXUS_BUILDER_QUESTION_WAIT_MS: how long a Builder question waits for the person before its run ends. */
     questionWaitMs: number
     /** CONEXUS_BUILDER_MODEL_RETRY_DELAY_MS: one fixed wait between a failed model call and its retry. Unset, the delay grows from 0.5 s to 30 s, as Mastra Code's does. */
@@ -66,19 +66,19 @@ export const applicationSlugOfHost = (address: ApplicationAddress, host: string 
 // The CLIProxyAPI binary the Hub runs per person for Google AI Pro, pinned by its sha256.
 export type GoogleAiProRuntimeConfig = Readonly<{ binary: string; sha256: string }>
 
-// CONEXUS_FACTORY_SECRET_KEY_FILE holds 64 hex characters; CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES names
+// CONEXUS_SECRET_KEY_FILE holds 64 hex characters; CONEXUS_PREVIOUS_SECRET_KEY_FILES names
 // the keys it replaced, until every value sealed under them has been rewritten.
-export type InstallationSecretKey = Readonly<{ file: string; previousFiles: readonly string[] }>
+type InstallationSecretKey = Readonly<{ file: string; previousFiles: readonly string[] }>
 
 // The database role the Builder's Mastra storage connects as; slice 7 renames it with its schema.
 export type FactoryRuntimeConfig = Readonly<{
   databasePasswordFile: string
 }>
 
-/** CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES: absolute paths separated by commas, or nothing. */
+/** CONEXUS_PREVIOUS_SECRET_KEY_FILES: absolute paths separated by commas, or nothing. */
 const previousSecretKeyFiles = (environment: NodeJS.ProcessEnv): readonly string[] => {
-  const files = (environment.CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES ?? '').split(',').filter(Boolean)
-  if (files.some((file) => !file.startsWith('/'))) throw configInvalid('CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES')
+  const files = (environment.CONEXUS_PREVIOUS_SECRET_KEY_FILES ?? '').split(',').filter(Boolean)
+  if (files.some((file) => !file.startsWith('/'))) throw configInvalid('CONEXUS_PREVIOUS_SECRET_KEY_FILES')
   return files
 }
 
@@ -131,7 +131,6 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
     e2bApiKeyFile: required(environment, 'CONEXUS_BUILDER_E2B_API_KEY_FILE'),
     e2bTemplateId: required(environment, 'CONEXUS_BUILDER_E2B_TEMPLATE_ID'),
     gitRoot: gitRoot(environment),
-    context7ApiKeyFile: environment.CONEXUS_BUILDER_CONTEXT7_API_KEY_FILE || undefined,
     questionWaitMs: durationMs(environment, 'CONEXUS_BUILDER_QUESTION_WAIT_MS', DEFAULT_QUESTION_WAIT_MS),
     modelRetryDelayMs: environment.CONEXUS_BUILDER_MODEL_RETRY_DELAY_MS ? durationMs(environment, 'CONEXUS_BUILDER_MODEL_RETRY_DELAY_MS', 0) : undefined,
     sandboxIdleMs: durationMs(environment, 'CONEXUS_BUILDER_SANDBOX_IDLE_MS', DEFAULT_SANDBOX_IDLE_MS),
@@ -217,7 +216,7 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
     preview,
     application: applicationRuntime(environment, hubPort, preview),
     bootstrapSubject: required(environment, 'CONEXUS_BOOTSTRAP_SUBJECT'),
-    secretKey: { file: required(environment, 'CONEXUS_FACTORY_SECRET_KEY_FILE'), previousFiles: previousSecretKeyFiles(environment) },
+    secretKey: { file: required(environment, 'CONEXUS_SECRET_KEY_FILE'), previousFiles: previousSecretKeyFiles(environment) },
     database: {
       host: required(environment, 'CONEXUS_DB_HOST'),
       port: port(required(environment, 'CONEXUS_DB_PORT'), 'CONEXUS_DB_PORT'),
@@ -245,4 +244,8 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
   // there is no native record, so no gateway either.
   if (config.connectors.gatewayOrigin && !config.factory) throw configInvalid('CONNECTOR_GATEWAY_FACTORY_RUNTIME_REQUIRED')
   return config
+}
+
+export function readCliproxyEnvironment(environment: NodeJS.ProcessEnv = process.env): Readonly<{ stateDir: string; path: string }> {
+  return { stateDir: join(environment.XDG_STATE_HOME ?? join(homedir(), '.local', 'state'), 'conexus', 'cliproxy'), path: environment.PATH ?? '/usr/bin:/bin' }
 }

@@ -289,7 +289,7 @@ test('a build the registry refuses to seal never reaches the runner, and the run
   const { calls, outcome } = await settle({
     applicationBuild: { kind: 'BUILT', compiledApplication: withServerTree() },
     registry: { seal: () => { throw new Failure('APPLICATION_ARTIFACT_INPUT_REFUSED') } },
-    applicationServer: { prepare: async () => { prepared += 1; return { state: 'READY', reset: false } } },
+    applicationServer: { prepare: async () => { prepared += 1; return { ok: true, result: { reset: false, applied: [] } } } },
   })
   assert.equal(outcome, 'APPLICATION_ARTIFACT_INPUT_REFUSED')
   assert.equal(prepared, 0)

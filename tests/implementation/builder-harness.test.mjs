@@ -1,3 +1,4 @@
+import { providerModel } from './native-model-fixture.mjs'
 import assert from 'node:assert/strict'
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -9,6 +10,8 @@ import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace
 import { hubModuleUrl } from './hub-build.mjs'
 import { bindRunContext, readRunContext, RUN_CONTEXT } from './run-context.mjs'
 import { testConversations } from './builder-conversation-fixture.mjs'
+
+const { parseCredential, encodeCredential } = await import(hubModuleUrl('model-account/credential.js'))
 
 const {
   CONEXUS_CONNECTOR_BRIEF_KEY, CONEXUS_PROJECT_INSTRUCTIONS_KEY, CONEXUS_PROJECT_MEMORY_KEY, CONEXUS_PROJECT_NAME_KEY, CONEXUS_PROJECT_NEW_KEY, CONEXUS_TURN_CONFLICTS_KEY, CONEXUS_TURN_DATE_KEY,
@@ -37,8 +40,8 @@ const fill = (values) => {
     [CONEXUS_PROJECT_NAME_KEY, values.projectName], [CONEXUS_PROJECT_NEW_KEY, String(values.isNew)], [CONEXUS_TURN_DATE_KEY, values.date], [CONEXUS_CONNECTOR_BRIEF_KEY, values.connections],
     [CONEXUS_PROJECT_INSTRUCTIONS_KEY, values.instructions], [CONEXUS_PROJECT_MEMORY_KEY, values.memory],
   ]) requestContext.setRaw(key, value)
-  requestContext.set('controller', { session: { modelId: 'test/model' } })
-  return conexusInstructions(undefined, values.cutoff ? { 'test/model': values.cutoff } : {})({ requestContext })
+  requestContext.set('controller', { session: { modelId: 'anthropic/test-model' } })
+  return conexusInstructions(undefined, values.cutoff ? { 'anthropic/test-model': values.cutoff } : {})({ requestContext })
 }
 
 test('AC-1: builder.md holds every placeholder once, and filling them leaves none of the template behind', () => {
@@ -239,11 +242,9 @@ const scriptedModel = () => {
 }
 
 test("a Google AI Pro run's web_search is a search-only agent on the person's own model, and Google's search never sits beside the Builder's function tools", async (t) => {
-  const { createGoogleAiProRoute } = await import(hubModuleUrl('builder/google-ai-pro/route.js'))
-  const { encodeKey } = await import(hubModuleUrl('builder/google-ai-pro/credential.js'))
+  const { encodeKey } = await import(hubModuleUrl('model-account/credential.js'))
   const key = encodeKey({ fileName: 'antigravity-ana@example.com.json', bytes: new TextEncoder().encode('{"type":"antigravity"}') })
-  const route = createGoogleAiProRoute({ routerUrl: async () => 'http://127.0.0.1:9', track: () => {} })
-  const model = () => route.take({ modelAccountId: 'row-1', kind: 'google_ai_pro', secret: key }).model('gemini-3-flash', 'low')
+  const model = () => providerModel({ credential: { provider: 'google-ai-pro', kind: 'google_ai_pro', value: key }, modelId: 'google-ai-pro/gemini-3-flash', thinkingLevel: 'low', google: { url: 'http://127.0.0.1:9', track: () => {} } })
   const controller = createBuilderController({ model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server') })
   const session = await controller.createSession({ resourceId: 'project:probe-google-ai-pro', scope: 'probe-google-ai-pro' })
   const agent = controller.getCurrentAgent(session)
@@ -301,14 +302,12 @@ const toolsSentToModel = async (model, resourceId) => {
 }
 
 test("the Google search agent is built once however many runs ask for web_search, and each search resolves the model of the run that made it", async (t) => {
-  const { createGoogleAiProRoute } = await import(hubModuleUrl('builder/google-ai-pro/route.js'))
-  const { encodeKey } = await import(hubModuleUrl('builder/google-ai-pro/credential.js'))
+  const { encodeKey } = await import(hubModuleUrl('model-account/credential.js'))
   const key = encodeKey({ fileName: 'antigravity-ana@example.com.json', bytes: new TextEncoder().encode('{"type":"antigravity"}') })
-  const route = createGoogleAiProRoute({ routerUrl: async () => 'http://127.0.0.1:9', track: () => {} })
   const resolvedFor = []
   const model = ({ requestContext }) => {
     resolvedFor.push(requestContext.getRaw('conexusRunOwner'))
-    return route.take({ modelAccountId: 'row-1', kind: 'google_ai_pro', secret: key }).model('gemini-3-flash', 'low')
+    return providerModel({ credential: { provider: 'google-ai-pro', kind: 'google_ai_pro', value: key }, modelId: 'google-ai-pro/gemini-3-flash', thinkingLevel: 'low', google: { url: 'http://127.0.0.1:9', track: () => {} } })
   }
   const controller = createBuilderController({ model, storage: new InMemoryStore(), skillsPath: resolve(repositoryRoot, 'builder-skills', 'conexus-server') })
   const session = await controller.createSession({ resourceId: 'project:probe-search-once', scope: 'probe-search-once' })
@@ -341,13 +340,9 @@ test('a ChatGPT subscription model, which reports provider openai.responses and 
 })
 
 test('both kinds of Anthropic account ask Anthropic for its own web_search', async () => {
-  const { createAnthropicRoute } = await import(hubModuleUrl('builder/anthropic/route.js'))
-  const { createClaudeHolds, serializeClaudeTokens } = await import(hubModuleUrl('builder/anthropic/credential.js'))
-  const route = createAnthropicRoute(createClaudeHolds({}))
-  const held = ({ modelAccountId, kind, secret }) => ({ modelAccountId, credential: { provider: 'anthropic', kind }, secret, run: { builderRunId: '66666666-6666-4666-8666-666666666601', accountId: '22222222-2222-4222-8222-222222222222' }, read: async () => null, persist: async () => false })
-  const sentFor = (account, resourceId) => toolsSentToModel(() => route.take(held(account)).model('claude-sonnet-5'), resourceId)
+  const sentFor = ({ kind, secret }, resourceId) => toolsSentToModel(() => providerModel({ credential: parseCredential({ provider: 'anthropic', kind }, secret), modelId: 'anthropic/claude-sonnet-5' }), resourceId)
   const key = await sentFor({ modelAccountId: 'row-1', kind: 'api_key', secret: `sk-ant-api03-${'x'.repeat(40)}` }, 'project:probe-api_key')
-  const subscription = await sentFor({ modelAccountId: 'row-2', kind: 'oauth', secret: serializeClaudeTokens({ access: 'unused', refresh: 'unused', expires: 9_999_999_999_999 }) }, 'project:probe-oauth')
+  const subscription = await sentFor({ modelAccountId: 'row-2', kind: 'oauth', secret: encodeCredential({ ...{ provider: 'anthropic', kind: 'oauth' }, value: { access: 'unused', refresh: 'unused', expires: 9_999_999_999_999 } }) }, 'project:probe-oauth')
   const anthropicSearch = [{ type: 'provider', name: 'web_search', id: 'anthropic.web_search_20250305', args: {} }]
   assert.deepEqual([key.provider, key.search], ['anthropic.messages', anthropicSearch])
   assert.deepEqual([subscription.provider, subscription.search], ['anthropic.messages', anthropicSearch])
@@ -395,7 +390,7 @@ test("a run's question waits on the conversation's one session, the browser's, t
   const openSession = createControllerRunSessions({ controller, conversations, readDefaultModel: async () => 'anthropic/default-model' })
   const bind = (runId) => (requestContext) => bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId: runId, conversationId })
   // The browser's session, made before the first run the way the route guard makes it.
-  const conversation = await conversations.open({ projectId, conversationId })
+  const conversation = await conversations.open({ accountId: RUN_CONTEXT.accountId, projectId, conversationId })
   assert.equal(conversation.model.hasSelection(), false, 'a new conversation has no model of its own')
   assert.equal(conversation.getWorkspace()?.id, 'run-ws-1', 'the session stands on the conversation\'s sandbox from the start')
   const run = await openSession({ projectId, conversationId, builderRunId, bindContext: bind(builderRunId) })
@@ -434,9 +429,9 @@ test("a run's question waits on the conversation's one session, the browser's, t
   assert.equal(conversation.model.get(), 'anthropic/chosen-model', 'the next run keeps the conversation\'s model')
   await next.release()
   // A killed VM ends the conversation's instance and its session; the next open stands on a new one.
-  await (await conversations.sandbox({ projectId, conversationId })).kill()
+  await (await conversations.sandbox({ accountId: RUN_CONTEXT.accountId, projectId, conversationId })).kill()
   assert.equal(await controller.getSessionByResource(`project:${projectId}`, `conversation:${conversationId}`), undefined)
-  const remade = await conversations.open({ projectId, conversationId })
+  const remade = await conversations.open({ accountId: RUN_CONTEXT.accountId, projectId, conversationId })
   assert.deepEqual({ same: remade === conversation, workspace: remade.getWorkspace()?.id }, { same: false, workspace: 'run-ws-2' })
 })
 

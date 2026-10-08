@@ -17,8 +17,8 @@ scripts/conexus-backup.sh \
 `--user` defaults to `postgres`. The password file is read into `PGPASSWORD` inside the script and never
 printed. The script runs `pg_dump` in the named container and does not write to the database.
 
-`--key-file` is required and repeats: name `CONEXUS_FACTORY_SECRET_KEY_FILE` and every file in
-`CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES`. Without them a restored database cannot unseal its secrets.
+`--key-file` is required and repeats: name `CONEXUS_SECRET_KEY_FILE` and every file in
+`CONEXUS_PREVIOUS_SECRET_KEY_FILES`. Without them a restored database cannot unseal its secrets.
 Key file names must differ.
 
 It writes one folder named for the UTC time, `<out-root>/YYYYMMDDTHHMMSSZ`, built as `.partial` first and renamed when complete (`--partial` leaves the rename to the caller). The script sets

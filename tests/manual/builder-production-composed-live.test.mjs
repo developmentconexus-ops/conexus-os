@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
 import { SpanType } from '@mastra/core/observability'
+import { BROWSER_OPTIONS } from '../../.agents/skills/verify/scripts/control.mjs'
 
 const live = process.env.CONEXUS_COMPOSED_LIVE === 'true'
 const required = [
@@ -37,49 +38,81 @@ test('the composed production journey uses server.ts, Preview, and native persis
   assert.equal(parsedOrigin.protocol, 'https:')
   assert.equal(parsedOrigin.hostname, 'hub.conexus.localhost')
 
-  const browser = await chromium.launch({ headless: true, args: ['--host-resolver-rules=MAP *.conexus.localhost 127.0.0.1'] })
+  const { headless, args: _args, ...contextOptions } = BROWSER_OPTIONS
+  const browser = await chromium.launch({ headless, args: ['--host-resolver-rules=MAP *.conexus.localhost 127.0.0.1'] })
   t.after(() => browser.close())
-  const operator = await browser.newContext({ storageState: operatorState })
+  const operator = await browser.newContext({ ...contextOptions, storageState: operatorState })
   t.after(() => operator.close())
   const page = await operator.newPage()
   page.setDefaultTimeout(180_000)
   const projectName = `Builder counter ${randomUUID().slice(0, 8)}`
   const requestText = 'Crie um contador acessível. Mostre inicialmente 0 em um elemento output. Inclua um botão Incrementar que muda para 1 e um botão Resetar que volta para 0.'
 
-  await page.goto(`${origin}/workspaces/${workspaceId}/projects/new`)
-  await page.getByLabel('Nome do Project').fill(projectName)
-  await page.getByRole('button', { name: 'Criar Project' }).click()
-  await page.getByRole('heading', { name: 'Converse com o Conexus' }).waitFor()
+  const isPreviewResponse = (response) =>
+    /\/api\/control\/projects\/[^/]+\/builder-session\/preview$/.test(new URL(response.url()).pathname) &&
+    response.request().method() === 'POST' && response.status() === 201
+  const isBuilderResponse = (response) =>
+    /\/api\/control\/projects\/[^/]+\/builder-session\/messages$/.test(new URL(response.url()).pathname) &&
+    response.request().method() === 'POST' && response.status() === 201
+  let previewResponse
+  let builderResponse
+  let sessionStreamResponse
+  const rememberResponse = (response) => {
+    if (isPreviewResponse(response)) previewResponse = response
+    if (isBuilderResponse(response)) builderResponse = response
+    if (/\/api\/builder\/agent-controller\/conexus-builder\/sessions\/[^/]+\/stream$/.test(new URL(response.url()).pathname) && response.status() === 200) sessionStreamResponse = response
+  }
+  page.on('response', rememberResponse)
+  t.after(() => page.off('response', rememberResponse))
+  await page.goto(`${origin}/workspaces/${workspaceId}/projects`)
+  await page.getByLabel('Mensagem para o agente').fill(requestText)
+  await page.getByRole('button', { name: 'Enviar', exact: true }).click()
+  await page.getByLabel('Nome do Projeto').fill(projectName)
+  await page.getByRole('button', { name: 'Criar e começar' }).click()
+  await page.waitForURL(/\/projects\/[^/]+(?:\/c\/[^/]+)?$/)
   const projectId = new URL(page.url()).pathname.match(/^\/projects\/([^/]+)(?:\/c\/[^/]+)?$/)?.[1]
   assert.ok(projectId, 'NEW Project must lead directly to the real Build workspace')
-
-  const previewResponsePromise = page.waitForResponse((response) =>
-    response.url().includes(`/api/control/projects/${projectId}/builder-session/preview`) &&
-    response.request().method() === 'POST' && response.status() === 201)
-  const builderResponsePromise = page.waitForResponse((response) =>
-    response.url().includes(`/api/control/projects/${projectId}/builder-session/messages`) &&
-    response.request().method() === 'POST' && response.status() === 201)
-  await page.getByLabel('O que o Project precisa fazer?').fill(requestText)
-  await page.getByLabel('Enviar mensagem').click()
-  const accepted = await (await builderResponsePromise).json()
+  const accepted = await (builderResponse ?? await page.waitForResponse(isBuilderResponse)).json()
   const builderRunId = accepted?.builderRun?.builderRunId
   assert.match(builderRunId ?? '', /^[0-9a-f-]{36}$/i, 'the browser must observe an exact BuilderRun id')
+  const conversationId = accepted?.builderRun?.conversationId
+  assert.match(conversationId ?? '', /^[0-9a-f-]{36}$/i)
 
   let terminalSession
-  for (let attempt = 0; attempt < 180; attempt += 1) {
+  while (!t.signal.aborted) {
     terminalSession = await readSession(page, projectId)
     if (['SUCCEEDED', 'FAILED', 'INTERRUPTED'].includes(terminalSession?.latestBuilderRun?.state)) break
+    if (terminalSession?.latestBuilderRun?.phase === 'WAITING') {
+      const approvePlan = page.getByRole('region', { name: 'Plano para aprovar' }).getByRole('button', { name: 'Aprovar e construir', exact: true })
+      if (await approvePlan.isVisible() && await approvePlan.isEnabled()) {
+        await approvePlan.click()
+        t.diagnostic('approved the native counter plan through the current Build UI')
+      } else {
+        const question = page.getByLabel('Pergunta do agente')
+        if (await question.isVisible() && await question.getByRole('textbox').isEnabled()) {
+          const total = Number(await question.getAttribute('data-ask-total'))
+          assert.ok(Number.isInteger(total) && total >= 1 && total <= 4)
+          for (let index = 0; index < total; index += 1) {
+            await question.getByRole('textbox').fill('Use estado local em memória, início 0, botões Incrementar e Resetar, visual simples e acessível.')
+            if (total > 1) await question.getByRole('button', { name: 'Próxima', exact: true }).click()
+          }
+          await question.getByRole('button', { name: total > 1 ? 'Enviar respostas' : 'Enviar resposta', exact: true }).click()
+          t.diagnostic('answered the native questions within the counter request')
+        }
+      }
+    }
     await delay(1_000)
   }
   assert.equal(terminalSession?.latestBuilderRun?.builderRunId, builderRunId)
   assert.equal(terminalSession?.latestBuilderRun?.state, 'SUCCEEDED')
+  assert.equal(terminalSession?.latestBuilderRun?.resultKind, 'SOURCE_CHANGED')
 
-  await page.getByTitle('Preview do aplicativo').waitFor()
-  const previewLaunch = await (await previewResponsePromise).json()
+  await page.getByTitle('Prévia do aplicativo').waitFor()
+  const previewLaunch = await (previewResponse ?? await page.waitForResponse(isPreviewResponse)).json()
   const previewOrigin = new URL(previewLaunch.previewUrl).origin
   assert.match(previewOrigin, /^https:\/\/preview-[0-9a-f-]+\.conexus\.localhost:\d+$/i)
   assert.equal(new URL(previewLaunch.entryUrl).origin, previewOrigin)
-  const preview = page.frameLocator('iframe[title="Preview do aplicativo"]')
+  const preview = page.frameLocator('iframe[title="Prévia do aplicativo"]')
   let previewFrame
   for (let attempt = 0; attempt < 60; attempt += 1) {
     previewFrame = page.frames().find((frame) => frame !== page.mainFrame() && frame.url().startsWith(previewOrigin))
@@ -89,6 +122,12 @@ test('the composed production journey uses server.ts, Preview, and native persis
   assert.ok(previewFrame, 'the browser must open the dynamic Preview origin over HTTPS')
   await preview.locator('output').waitFor()
   assert.equal(await preview.locator('output').innerText(), '0')
+
+  assert.ok(sessionStreamResponse, 'the real conversation must open its native session stream')
+  const streamed = new URL(sessionStreamResponse.url())
+  assert.equal(decodeURIComponent(streamed.pathname), `/api/builder/agent-controller/conexus-builder/sessions/project:${projectId}/stream`)
+  assert.equal(streamed.searchParams.get('sessionScope'), `conversation:${conversationId}`)
+  t.diagnostic(JSON.stringify({ nativeStreamUrl: streamed.href, status: sessionStreamResponse.status(), contentType: sessionStreamResponse.headers()['content-type'] }))
   await preview.getByRole('button', { name: 'Incrementar', exact: true }).click()
   assert.equal(await preview.locator('output').innerText(), '1')
   await preview.getByRole('button', { name: 'Resetar', exact: true }).click()
@@ -96,29 +135,26 @@ test('the composed production journey uses server.ts, Preview, and native persis
 
   await page.reload()
   await page.getByText(requestText, { exact: true }).waitFor()
-  await page.getByTitle('Preview do aplicativo').waitFor()
-  await page.getByRole('button', { name: 'Reabrir Preview' }).click()
+  await page.getByTitle('Prévia do aplicativo').waitFor()
+  await page.getByRole('button', { name: 'Recarregar prévia' }).click()
   await preview.locator('output').waitFor()
   assert.equal(await preview.locator('output').innerText(), '0')
 
-  const denied = await browser.newContext({ storageState: deniedState })
+  const denied = await browser.newContext({ ...contextOptions, storageState: deniedState })
   t.after(() => denied.close())
   const deniedPage = await denied.newPage()
-  const deniedRead = deniedPage.waitForResponse((response) =>
-    response.url().includes(`/api/control/projects/${projectId}/builder-session`) && [401, 403, 404].includes(response.status()))
   await deniedPage.goto(`${origin}/projects/${projectId}`)
-  const deniedSessionResponse = await deniedRead
-  assert.ok([401, 403, 404].includes(deniedSessionResponse.status()))
-  const deniedPreviewStatus = await deniedPage.evaluate(async (id) => {
-    const response = await fetch(`/api/control/projects/${encodeURIComponent(id)}/builder-session/preview`, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: '{}' })
-    return response.status
-  }, projectId)
-  assert.ok([401, 403, 404].includes(deniedPreviewStatus))
-  const deniedStreamStatus = await deniedPage.evaluate(async ({ id, run }) => {
-    const response = await fetch(`/api/control/projects/${encodeURIComponent(id)}/builder-session/runs/${encodeURIComponent(run)}/stream`, { credentials: 'same-origin' })
-    return response.status
-  }, { id: projectId, run: builderRunId })
-  assert.ok([401, 403, 404].includes(deniedStreamStatus))
+  const sessionUrl = `${origin}/api/control/projects/${encodeURIComponent(projectId)}/builder-session`
+  const streamUrl = `${origin}/api/builder/agent-controller/conexus-builder/sessions/${encodeURIComponent(`project:${projectId}`)}/stream?sessionScope=${encodeURIComponent(`conversation:${conversationId}`)}`
+  const previewUrl = `${sessionUrl}/preview`
+  const deniedSession = await denied.request.get(sessionUrl, { maxRedirects: 0 })
+  const deniedPreview = await denied.request.post(previewUrl, { data: {}, maxRedirects: 0 })
+  const deniedStream = await denied.request.get(streamUrl, { maxRedirects: 0 })
+  for (const [response, url] of [[deniedSession, sessionUrl], [deniedPreview, previewUrl], [deniedStream, streamUrl]]) {
+    assert.equal(response.url(), url)
+    assert.ok([401, 403, 404].includes(response.status()))
+  }
+  t.diagnostic(JSON.stringify({ deniedPageOrigin: new URL(deniedPage.url()).origin, deniedHubResponses: [deniedSession, deniedPreview, deniedStream].map((response) => ({ url: response.url(), status: response.status() })) }))
 
   const trace = await readTrace(page, projectId, builderRunId)
   assert.equal(trace.available, true, 'the exact Builder run trace must be available')

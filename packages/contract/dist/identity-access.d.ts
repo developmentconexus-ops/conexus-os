@@ -457,7 +457,7 @@ export declare const getApplicationAccess: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED"];
+    readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "PROJECT_DELETING"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
     };
@@ -503,7 +503,7 @@ export declare const grantApplicationAccess: {
         }, z.core.$strip>;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "DATABASE_BUSY", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "PROJECT_DELETING", "DATABASE_BUSY", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
         readonly email: "EMAIL_INVALID";
@@ -526,7 +526,7 @@ export declare const revokeApplicationGrant: {
         readonly 204: null;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "PROJECT_DELETING", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
         readonly grantId: "APPLICATION_ACCESS_ENTRY_NOT_FOUND";
@@ -549,7 +549,7 @@ export declare const cancelApplicationInvitation: {
         readonly 204: null;
     };
     readonly effects: readonly [];
-    readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
+    readonly failures: readonly ["APPLICATION_ACCESS_MANAGE_REQUIRED", "PROJECT_DELETING", "ACCOUNT_INACTIVE", "ACCOUNT_NOT_FOUND"];
     readonly malformed: {
         readonly projectId: "PROJECT_NOT_FOUND";
         readonly invitationId: "APPLICATION_ACCESS_ENTRY_NOT_FOUND";

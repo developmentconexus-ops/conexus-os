@@ -6,7 +6,7 @@ not installed by the repository. The operator installs them once, after the pull
 ## Install
 
 1. Open `conexus-backup.service` and replace each `CHANGE-ME` value: the sealing key file (add one
-   `--key-file` line per key, including every file named in `CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES`) and
+   `--key-file` line per key, including every file named in `CONEXUS_PREVIOUS_SECRET_KEY_FILES`) and
    the Keycloak container name. Confirm the container, database and paths match the pilot.
 2. Copy both files, with `%h/conexus-os` pointing at a checkout of `main`:
 

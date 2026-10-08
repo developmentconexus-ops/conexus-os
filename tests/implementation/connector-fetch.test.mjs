@@ -9,7 +9,7 @@ const { createBroker, registryOf } = await import(hubModuleUrl('connectors/broke
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
 const { scopeForBuilderRun, scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
-const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
+const { createSecretEnvelope, connectionContext } = await import(hubModuleUrl('platform/secrets.js'))
 
 const PROJECT = '22222222-2222-4222-8222-222222222222'
 const OTHER_PROJECT = '66666666-6666-4666-8666-666666666666'
@@ -22,8 +22,8 @@ const WRITE = 'CRUDServiceProvider.saveRecord'
 const ROUTE = '/gateway/v1/mge/service.sbr'
 
 const envelope = createSecretEnvelope('ef'.repeat(32))
-const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
-const sealedRest = async (account) => envelope.seal(JSON.stringify({ clientId: REST_ACCOUNTS[account].clientId, clientSecret: REST_ACCOUNTS[account].clientSecret }))
+const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL), connectionContext(CONNECTION))
+const sealedRest = async (account, connectionId) => envelope.seal(JSON.stringify({ clientId: REST_ACCOUNTS[account].clientId, clientSecret: REST_ACCOUNTS[account].clientSecret }), connectionContext(connectionId))
 
 const bound = (name, connectionId, connectorId = 'sankhya') => Object.freeze({ bindingId: `binding-${name}`, name, connectionId, connectorId })
 
@@ -416,7 +416,7 @@ test('the generic seam: a synthetic REST integrator\'s two Connections, bound as
       [PROJECT]: [bound('crm-a', CONNECTION_A, REST_CONNECTOR_ID), bound('crm-b', CONNECTION_B, REST_CONNECTOR_ID)],
       [OTHER_PROJECT]: [bound('crm-a', CONNECTION_A, REST_CONNECTOR_ID)],
     },
-    credentials: { [CONNECTION_A]: await sealedRest('account-a'), [CONNECTION_B]: await sealedRest('account-b') },
+    credentials: { [CONNECTION_A]: await sealedRest('account-a', CONNECTION_A), [CONNECTION_B]: await sealedRest('account-b', CONNECTION_B) },
   })
   const { fake, broker, facts } = await setup(t, { store, extra: [{ definition: restDefinition, adapter: createRestAdapter({ origin: rest.origin }) }] })
   const records = (connection) => ({ connection, method: 'GET', path: '/v1/records' })

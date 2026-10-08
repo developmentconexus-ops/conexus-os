@@ -21,7 +21,7 @@ const repositoryRoot = resolve(import.meta.dirname, '../..')
 // sources use to reach shared packages (for example
 // `../../../../packages/canonical-json/src/index.mjs`); see hub-build.test.mjs's depth regression
 // test. Exported so `hub-build.test.mjs` can assert this never collides with the directory
-// `scripts/conexus-verify.mjs`'s `hub-typecheck` step wipes with `rm -rf`.
+// `npm run build:hub` uses.
 export const DEFAULT_HUB_BUILD_CACHE_DIR = resolve(repositoryRoot, 'node_modules/.cache-hub')
 
 // Every suite that imports the Hub reads one compiled copy, keyed by a hash of the Hub source and

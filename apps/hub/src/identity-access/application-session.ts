@@ -1,7 +1,9 @@
+import { handoffContext, sessionContext, type Sealed } from '../platform/secrets.js'
 import type { ApplicationSlug } from '../platform/application-slug.js'
 import { digest, sql } from '../platform/db.js'
 import type { Digest, RawToken } from '../platform/db.js'
-import { Failure } from '../platform/failure.js'
+import { logger } from '../platform/logger.js'
+import { Failure, logFailure } from '../platform/failure.js'
 import type { HostOutcome, HostRequest } from '../platform/host-outcome.js'
 import { APPLICATION_ABSOLUTE_SECONDS, APPLICATION_HANDOFF_SECONDS } from '../platform/lifetimes.js'
 import { mintToken } from '../platform/opaque-token.js'
@@ -42,10 +44,20 @@ export const createApplicationSessions = ({ database, envelope }: SessionDepende
       })
       if (!proof) return null
       const sessionToken = mintToken()
+      let sealedToken: Sealed<'hub-session'>
+      try {
+        sealedToken = await envelope.reseal(handoff.sealed_token, handoffContext(digest(input.handoff)), sessionContext(digest(sessionToken)))
+      } catch (error) {
+        if (error instanceof Failure && error.id === 'SECRET_CUSTODY_LOST') {
+          logFailure(logger, error)
+          return null
+        }
+        throw error
+      }
       const { max_age: maxAge } = await proof.tx.one(MaxAge, sql`
         INSERT INTO iam.host_session (token_digest, kind, account_id, started_at, absolute_expires_at, project_id, provider_refresh_token, provider_checked_at)
         VALUES (${digest(sessionToken)}, 'APPLICATION', ${proof.scope.accountId}, ${handoff.minted_at}::timestamptz,
-          ${handoff.minted_at}::timestamptz + make_interval(secs => ${APPLICATION_ABSOLUTE_SECONDS}), ${handoff.project_id}, ${handoff.sealed_token}, ${handoff.minted_at}::timestamptz)
+          ${handoff.minted_at}::timestamptz + make_interval(secs => ${APPLICATION_ABSOLUTE_SECONDS}), ${handoff.project_id}, ${sealedToken}, ${handoff.minted_at}::timestamptz)
         RETURNING greatest(1, floor(extract(epoch FROM absolute_expires_at - now())))::int AS max_age`, 'INTERNAL_UNEXPECTED')
       return { sessionToken, maxAgeSeconds: maxAge }
     })
@@ -59,7 +71,7 @@ export const createApplicationSessions = ({ database, envelope }: SessionDepende
     const handoff = mintToken()
     await proof.tx.run(sql`
       INSERT INTO iam.handoff (handoff_digest, kind, account_id, project_id, binding_digest, provider_refresh_token, minted_at, expires_at)
-      VALUES (${digest(handoff)}, 'APPLICATION', ${proof.scope.accountId}, ${proof.scope.projectId}, ${bindingDigest}, ${await envelope.seal(refreshToken)},
+      VALUES (${digest(handoff)}, 'APPLICATION', ${proof.scope.accountId}, ${proof.scope.projectId}, ${bindingDigest}, ${await envelope.seal(refreshToken, handoffContext(digest(handoff)))},
         now(), now() + make_interval(secs => ${APPLICATION_HANDOFF_SECONDS}))`)
     return handoff
   }

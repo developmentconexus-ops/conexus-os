@@ -1,8 +1,8 @@
 import { Button } from '@mastra/playground-ui/components/Button'
 import { Skeleton } from '@mastra/playground-ui/components/Skeleton'
 import type { ReactNode } from 'react'
-import { failureText, isRetryable } from '../../../app/http'
 
+import { failureText, isRetryable } from '@conexus/contract'
 export function SectionLoading({ rows = 3 }: Readonly<{ rows?: number }>) {
   // A pure loading placeholder: rows never reorder or get removed individually, so the position
   // is a stable identity here.

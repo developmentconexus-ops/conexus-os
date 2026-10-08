@@ -53,7 +53,7 @@ test('a writer that moves main between the read and the update is refused and ke
   assert.equal(await run.main(), moved)
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'fail' || kind === 'advance'), [['fail', 'BUILDER_SOURCE_BASE_MOVED']])
   assert.deepEqual(run.diagnostics, [{
-    projectId, conversationId, builderRunId: runId, code: 'BUILDER_SOURCE_BASE_MOVED', outcome: 'SOURCE_BASE_MOVED', sourceRevision: run.base, from: 'service',
+    accountId, projectId, conversationId, builderRunId: runId, code: 'BUILDER_SOURCE_BASE_MOVED', outcome: 'SOURCE_BASE_MOVED', sourceRevision: run.base, from: 'service',
   }])
 })
 
@@ -90,27 +90,26 @@ const withServerTree = async () => [
 
 test('an artifact with a server tree reaches its Preview only after its migrations apply', async (t) => {
   const prepared = []
-  const ready = await harness(t, { build: withServerTree, applicationServer: { prepare: async (input) => { prepared.push(input); return { state: 'READY', reset: false, applied: ['001_notes.sql'] } } } })
+  const ready = await harness(t, { build: withServerTree, applicationServer: { prepare: async (input) => { prepared.push(input); return { ok: true, result: { reset: false, applied: ['001_notes.sql'] } } } } })
   await ready.start()
   await ready.service.close()
   assert.deepEqual(prepared, [{ projectId, files: [{ path: 'conexus-server/manifest.json', sha256: 'e'.repeat(64), content: Buffer.from('{}').toString('base64') }] }])
   assert.deepEqual(ready.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', ready.result(), null]])
   assert.deepEqual(ready.diagnostics, [])
 
-  const failed = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ state: 'MIGRATION_FAILED', detail: '42P01 relation "missing_table" does not exist' }) } })
+  const failed = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: '001_notes.sql', sqlstate: '42P01' } }) } })
   await failed.start()
   await failed.service.close()
   assert.deepEqual(failed.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', failed.result(), 'APPLICATION_MIGRATION_FAILED']])
-  assert.deepEqual(failed.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_MIGRATION_FAILED', 'BUILD_FAILED', '42P01 relation "missing_table" does not exist']])
+  assert.deepEqual(failed.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_MIGRATION_FAILED', 'BUILD_FAILED', undefined]])
 
-  const divergedDetail = 'A migração já aplicada 001_notes.sql foi alterada, removida ou reordenada.'
-  const diverged = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ state: 'MIGRATION_HISTORY_DIVERGED', detail: divergedDetail }) } })
+  const diverged = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ ok: false, error: { code: 'APPLICATION_MIGRATION_HISTORY_DIVERGED', migration: '001_notes.sql' } }) } })
   await diverged.start()
   await diverged.service.close()
   assert.deepEqual(diverged.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', diverged.result(), 'APPLICATION_MIGRATION_HISTORY_DIVERGED']])
-  assert.deepEqual(diverged.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_MIGRATION_HISTORY_DIVERGED', 'BUILD_FAILED', divergedDetail]])
+  assert.deepEqual(diverged.diagnostics.map(({ code, outcome, detail }) => [code, outcome, detail]), [['APPLICATION_MIGRATION_HISTORY_DIVERGED', 'BUILD_FAILED', undefined]])
 
-  const reset = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ state: 'READY', reset: true, applied: ['001_notes.sql'] }) } })
+  const reset = await harness(t, { build: withServerTree, applicationServer: { prepare: async () => ({ ok: true, result: { reset: true, applied: ['001_notes.sql'] } }) } })
   await reset.start()
   await reset.service.close()
   assert.deepEqual(reset.calls.filter(([kind]) => kind === 'settleBuild'), [['settleBuild', reset.result(), null]])
@@ -530,7 +529,7 @@ test('a run that reached the agent and admitted nothing leaves one note that its
   await run.service.close()
   assert.deepEqual(run.calls.at(-1), ['fail', 'BUILDER_MODEL_INCOMPLETE'])
   assert.deepEqual(run.diagnostics, [{
-    projectId, conversationId, builderRunId: runId, code: 'BUILDER_MODEL_INCOMPLETE', outcome: 'RUN_NOT_FINISHED', sourceRevision: run.base, from: 'service',
+    accountId, projectId, conversationId, builderRunId: runId, code: 'BUILDER_MODEL_INCOMPLETE', outcome: 'RUN_NOT_FINISHED', sourceRevision: run.base, from: 'service',
   }])
 })
 
@@ -1189,7 +1188,7 @@ test("the conversation's next turn runs on the same sandbox, resumed by the id t
   await run.again()
   assert.equal(await run.settled(), true)
   await run.service.close()
-  assert.deepEqual(run.sandboxRefs, [{ projectId, conversationId }, { projectId, conversationId }])
+  assert.deepEqual(run.sandboxRefs, [{ accountId, projectId, conversationId }, { accountId, projectId, conversationId }])
   assert.deepEqual(run.calls.filter(([kind]) => kind === 'sandbox'), [['sandbox', 'sbx-1'], ['sandbox', 'sbx-1']])
   assert.deepEqual(run.logs.filter((line) => line.startsWith('BUILDER_TURN_CHECKOUT:')), [
     `BUILDER_TURN_CHECKOUT:${runId}:SEEDED:sbx-1`, `BUILDER_TURN_CHECKOUT:${runId}:RESUMED:sbx-1`,
@@ -1444,11 +1443,11 @@ test('a reply sent before the row says WAITING is refused, so a WAITING write th
   assert.deepEqual(run.calls.at(-1), ['interrupt', 'USER_CANCELLED'], 'a refused phase write is a stop that won')
 })
 
-test('an author who lost the Project before the candidate keeps PROJECT_BUILD_DENIED, records no candidate and leaves main at the base', async (t) => {
-  const run = await harness(t, { candidateRefusal: new Failure('PROJECT_BUILD_DENIED') })
+test('an author who lost the Project before the candidate records the subject refusal and leaves main at the base', async (t) => {
+  const run = await harness(t, { candidateRefusal: new Failure('PROJECT_NOT_FOUND') })
   await run.start()
   await run.service.close()
-  assert.deepEqual(run.calls.filter(([kind]) => kind === 'candidate' || kind === 'fail' || kind === 'interrupt'), [['fail', 'PROJECT_BUILD_DENIED']])
+  assert.deepEqual(run.calls.filter(([kind]) => kind === 'candidate' || kind === 'fail' || kind === 'interrupt'), [['fail', 'PROJECT_NOT_FOUND']])
   assert.equal(await run.main(), run.base)
 })
 

@@ -11,6 +11,11 @@ export declare const ModelAccountKind: z.ZodEnum<{
     google_ai_pro: "google_ai_pro";
 }>;
 export type ModelAccountKind = z.output<typeof ModelAccountKind>;
+export declare const ModelRole: z.ZodEnum<{
+    build: "build";
+    memory: "memory";
+}>;
+export type ModelRole = z.output<typeof ModelRole>;
 export declare const ApiKeyProvider: z.ZodEnum<{
     anthropic: "anthropic";
 }>;

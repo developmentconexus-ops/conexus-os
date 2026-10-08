@@ -13,10 +13,9 @@ import type { ReactElement, ReactNode } from 'react'
 import { ConexusMark, ConexusWordmark } from '../../../../packages/brand/src/index'
 import { endCurrentSession } from '../features/identity-access/api'
 import { projectsQuery } from '../features/project/api'
-import type { Session } from '@conexus/contract'
+import { failureText, type Session } from '@conexus/contract'
 import { ThemeToggle } from './theme-toggle'
 import './frame.css'
-import { failureText } from './http'
 
 export type ShellScope = Readonly<{
   workspace?: Readonly<{ workspaceId: string; name: string }> | undefined
@@ -172,7 +171,7 @@ function ProjectSwitcher({ workspaceId, current, trigger }: Readonly<{ workspace
       <DropdownMenu.Label>Projetos</DropdownMenu.Label>
       {projects.isPending && <DropdownMenu.Item disabled>Carregando…</DropdownMenu.Item>}
       {projects.isError && <DropdownMenu.Item disabled>Não foi possível carregar</DropdownMenu.Item>}
-      {projects.data?.filter((project) => !project.archived).map((project) => (
+      {projects.data?.filter((project) => project.state === 'live' && !project.archived).map((project) => (
         <DropdownMenu.Item
           key={project.projectId}
           aria-current={project.projectId === current ? 'true' : undefined}

@@ -55,10 +55,6 @@
       "plugins": ["./biome/plugins/no-error-code.grit"]
     },
     {
-      "includes": ["apps/hub/src/**", "!apps/hub/src/platform/db.ts"],
-      "plugins": ["./biome/plugins/no-session-setting-in-sql.grit"]
-    },
-    {
       "includes": [
         "apps/web/src/**",
         "packages/*/src/**"
@@ -411,23 +407,6 @@
               "level": "error",
               "options": {
                 "maxLines": 826
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "includes": [
-        "scripts/conexus-verify.mjs"
-      ],
-      "linter": {
-        "rules": {
-          "style": {
-            "noExcessiveLinesPerFile": {
-              "level": "error",
-              "options": {
-                "maxLines": 684
               }
             }
           }

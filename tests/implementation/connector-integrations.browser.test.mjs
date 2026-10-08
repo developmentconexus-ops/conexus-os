@@ -1,3 +1,4 @@
+import { recordBrowserContext, saveBrowserDiagnostics } from './browser-diagnostics.mjs'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -102,7 +103,7 @@ const setupFixture = async (t) => {
 
 const withPage = async (t, { origin, projectId, workspaceId, accountId, accounts }) => {
   const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
+  t.after(async () => { await saveBrowserDiagnostics(browser); await browser.close() })
   const context = await browser.newContext({ viewport: { width: 1280, height: 1000 } })
   // `__Host-` cookies refuse a plain `url` field over CDP; `domain` + `path` is the shape Chromium
   // accepts, and it still sends them on every request to this origin (127.0.0.1 is a trustworthy
@@ -111,6 +112,7 @@ const withPage = async (t, { origin, projectId, workspaceId, accountId, accounts
     { name: SESSION_COOKIE, value: opaque(accountId), domain: '127.0.0.1', path: '/', secure: true },
   ])
   const page = await context.newPage()
+  await recordBrowserContext(page.context())
   const responseBodies = []
   page.on('response', (response) => {
     if (!response.url().startsWith(origin)) return
@@ -122,7 +124,7 @@ const withPage = async (t, { origin, projectId, workspaceId, accountId, accounts
   }))
   await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({
     status: 200, contentType: 'application/json',
-    body: JSON.stringify({ projectId, workspaceId, name: 'Pedidos de compra', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false }),
+    body: JSON.stringify({ projectId, workspaceId, name: 'Pedidos de compra', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, state: 'live' }),
   }))
   return { page, responseBodies }
 }

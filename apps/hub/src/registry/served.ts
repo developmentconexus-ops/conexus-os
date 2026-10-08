@@ -3,6 +3,7 @@ import { ApplicationFilePath, ArtifactDigest, ArtifactRevisionId, MediaType, Sha
 import { CURRENT_TEMPLATE_PIN } from '../platform/application-template-pins.js'
 import { Failure } from '../platform/failure.js'
 import { sql, type Sql, type TxQueries } from '../platform/db.js'
+import type { Admitted, ApplicationScope, Checked, ProjectScope } from '../identity-access/admission.js'
 
 export type ApplicationFile = Readonly<{ path: ApplicationFilePath; mediaType: MediaType; sha256: Sha256; bytes: Uint8Array }>
 export type ServedManifest = Readonly<{ artifactRevisionId: ArtifactRevisionId; files: ReadonlyArray<Readonly<{ path: ApplicationFilePath; mediaType: MediaType }>> }>
@@ -66,7 +67,9 @@ function brokenPointer(): Failure {
   return new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'SERVED_POINTER_BROKEN' } })
 }
 
-export async function readManifest(tx: TxQueries, projectId: ProjectId): Promise<ServedManifest | null> {
+export async function readManifest(proof: Checked<ApplicationScope>): Promise<ServedManifest | null> {
+  const { tx, scope } = proof
+  const projectId = scope.projectId
   const row = await tx.maybe(pointerRow({ files: ManifestFiles }), pointerStatement(projectId, { columns: sql`${FILES_OF_REVISION} AS files`, joins: sql``, absent: sql`FALSE` }))
   if (row === null || row.state === 'NONE') return null
   if (row.state !== 'SERVED') throw brokenPointer()
@@ -86,7 +89,9 @@ async function readFile(tx: TxQueries, projectId: ProjectId, path: ApplicationFi
   return { kind: 'FILE', artifactRevisionId: row.revision_id, file: { path: row.path, mediaType: row.media_type, sha256: row.sha256, bytes: row.bytes } }
 }
 
-export async function readServedFileOf(tx: TxQueries, projectId: ProjectId, path: ApplicationFilePath): Promise<ServedFile> {
+export async function readServedFileOf(proof: Checked<ApplicationScope>, path: ApplicationFilePath): Promise<ServedFile> {
+  const { tx, scope } = proof
+  const projectId = scope.projectId
   const read = await readFile(tx, projectId, path)
   if (read.kind === 'NONE') return { ok: false, reason: 'NOT_SERVED' }
   return read.kind === 'MISSING' ? { ok: false, reason: 'NOT_FOUND', artifactRevisionId: read.artifactRevisionId } : { ok: true, artifactRevisionId: read.artifactRevisionId, file: read.file }
@@ -102,7 +107,9 @@ const LaunchColumns = {
   files: ManifestFiles,
 }
 
-export async function readLaunchOf(tx: TxQueries, projectId: ProjectId): Promise<ServedLaunch | null> {
+export async function readLaunchOf(proof: Admitted<ProjectScope<'project.build'>>): Promise<ServedLaunch | null> {
+  const { tx, scope } = proof
+  const projectId = scope.projectId
   const row = await tx.maybe(pointerRow(LaunchColumns), pointerStatement(projectId, {
     columns: sql`revision.source_revision AS source_revision, revision.digest AS digest, revision.payload->>'entryPath' AS entry_path,
       revision.payload->>'profile' AS profile, revision.payload->>'templateRef' AS template_ref, revision.payload->>'recipeSha256' AS recipe_sha256, ${FILES_OF_REVISION} AS files`,
@@ -115,7 +122,9 @@ export async function readLaunchOf(tx: TxQueries, projectId: ProjectId): Promise
   return { sourceRevision: row.source_revision, artifactRevisionId: row.revision_id, digest: row.digest, entryPath: row.entry_path, files: row.files }
 }
 
-export async function readThumbnailOf(tx: TxQueries, projectId: ProjectId): Promise<ServedThumbnail | null> {
+export async function readThumbnailOf(proof: Admitted<ProjectScope<'project.read'>, 'read'>): Promise<ServedThumbnail | null> {
+  const { tx, scope } = proof
+  const projectId = scope.projectId
   const row = await tx.maybe(pointerRow({ bytes: z.instanceof(Uint8Array) }), pointerStatement(projectId, {
     columns: sql`thumbnail.bytes AS bytes`,
     joins: sql`LEFT JOIN reg.application_thumbnail AS thumbnail ON thumbnail.artifact_revision_id = revision.artifact_revision_id`,
@@ -133,20 +142,22 @@ const CURRENT_PIN = sql`revision.payload->>'profile' = ${CURRENT_TEMPLATE_PIN.pr
       AND revision.payload->>'recipeSha256' = ${CURRENT_TEMPLATE_PIN.recipeSha256}`
 
 /** The manifest of one revision of the Project on the current template pin, by its id: what a Preview of it serves. */
-export async function readPreviewManifestOf(tx: TxQueries, projectId: ProjectId, artifactRevisionId: ArtifactRevisionId): Promise<PreviewManifest | null> {
+export async function readPreviewManifestOf(proof: Checked<ProjectScope<'project.read'>>, artifactRevisionId: ArtifactRevisionId): Promise<PreviewManifest | null> {
+  const { tx, scope } = proof
   const row = await tx.maybe(PreviewManifestRow, sql`
     SELECT revision.source_revision, revision.payload->>'entryPath' AS entry_path, ${FILES_OF_REVISION} AS files
     FROM reg.artifact_revision AS revision
-    WHERE revision.project_id = ${projectId} AND revision.artifact_revision_id = ${artifactRevisionId} AND ${CURRENT_PIN}`)
+    WHERE revision.project_id = ${scope.projectId} AND revision.artifact_revision_id = ${artifactRevisionId} AND ${CURRENT_PIN}`)
   return row === null ? null : { sourceRevision: row.source_revision, entryPath: row.entry_path, files: row.files }
 }
 
-export async function readPreviewFileOf(tx: TxQueries, input: Readonly<{ projectId: ProjectId; sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId; path: ApplicationFilePath }>): Promise<ApplicationFile | null> {
+export async function readPreviewFileOf(proof: Checked<ProjectScope<'project.read'>>, input: Readonly<{ sourceRevision: SourceRevision; artifactRevisionId: ArtifactRevisionId; path: ApplicationFilePath }>): Promise<ApplicationFile | null> {
+  const { tx, scope } = proof
   const row = await tx.maybe(PreviewFileRow, sql`
     SELECT file->>'path' AS path, file->>'mediaType' AS media_type, file->>'sha256' AS sha256, decode(file->>'base64', 'base64') AS bytes
     FROM reg.artifact_revision AS revision
     CROSS JOIN LATERAL jsonb_path_query_first(revision.payload, '$.files[*] ? (@.path == $path)', jsonb_build_object('path', ${input.path}::text)) AS file
-    WHERE revision.project_id = ${input.projectId} AND revision.artifact_revision_id = ${input.artifactRevisionId} AND revision.source_revision = ${input.sourceRevision}
+    WHERE revision.project_id = ${scope.projectId} AND revision.artifact_revision_id = ${input.artifactRevisionId} AND revision.source_revision = ${input.sourceRevision}
       AND ${CURRENT_PIN} AND file IS NOT NULL`)
   return row === null ? null : { path: row.path, mediaType: row.media_type, sha256: row.sha256, bytes: row.bytes }
 }

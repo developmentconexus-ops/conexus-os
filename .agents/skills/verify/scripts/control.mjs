@@ -159,7 +159,7 @@ const hubEnvironment = (state, secrets, fake, e2b) => {
     CONEXUS_BUILDER_E2B_API_KEY_FILE: join(secrets, 'e2b-api-key'),
     CONEXUS_BUILDER_E2B_TEMPLATE_ID: e2b ? e2b.templateId : 'verify-e2b-disabled', CONEXUS_BUILDER_QUESTION_WAIT_MS: String(5 * 60_000), CONEXUS_BUILDER_MODEL_RETRY_DELAY_MS: '100',
     ...(e2b ? {} : E2B_CLOSED),
-    CONEXUS_FACTORY_SECRET_KEY_FILE: join(secrets, 'secret-key'),
+    CONEXUS_SECRET_KEY_FILE: join(secrets, 'secret-key'),
     CONEXUS_OIDC_ISSUER: state.issuer,
     CONEXUS_OIDC_CLIENT_ID: 'conexus-hub',
     CONEXUS_OIDC_CLIENT_SECRET_FILE: join(secrets, 'oidc-client-secret'),
@@ -183,7 +183,7 @@ const baseEnvironment = () => Object.fromEntries(['PATH', 'HOME', 'LANG', 'USER'
 // directory by name and deletes only it.
 const startHub = async (state, environment, scripted) => {
   const { buildHubLocal, hubNodeArguments } = await import(join(REPO, 'scripts/build-hub-local.mjs'))
-  state.hubBuildDir = await buildHubLocal().catch((error) => {
+  state.hubBuildDir = await buildHubLocal({ sharedBuild: process.env.CONEXUS_HUB_BUILD }).catch((error) => {
     writeFileSync(evidence(state, 'hub.log'), `HUB_BUILD_FAILED\n${error.message}\n`)
     fatal('HUB_BUILD_FAILED: see hub.log')
   })

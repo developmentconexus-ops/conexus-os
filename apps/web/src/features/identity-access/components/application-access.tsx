@@ -10,7 +10,7 @@ import type { UseMutationResult } from '@tanstack/react-query'
 import { Link2 } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useId, useState } from 'react'
-import type { ApplicationAccess as ApplicationAccessBody, ApplicationGrantEntry, ApplicationInvitationEntry, EmailAddress, ProjectId } from '@conexus/contract'
+import { failureText, isFailure, type ApplicationAccess as ApplicationAccessBody, type ApplicationGrantEntry, type ApplicationInvitationEntry, type EmailAddress, type ProjectId } from '@conexus/contract'
 import { parseEmail } from '../api'
 import {
   applicationAccessQuery,
@@ -20,7 +20,6 @@ import {
 import '../people.css'
 import { INVITATION_STATE } from '../invitation-state'
 import { useAttemptKey } from '../../../app/attempt-key'
-import { failureText, isFailure } from '../../../app/http'
 import { FailureState } from '../../../app/failure-state'
 
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })

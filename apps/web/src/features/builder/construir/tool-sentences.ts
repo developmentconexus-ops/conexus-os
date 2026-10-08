@@ -67,8 +67,6 @@ const ownSentences: Readonly<Record<string, Sentence>> = {
   skill_search: sentence('Procurando uma skill', 'Procurou uma skill', 'buscar'),
   connector_fetch: sentence('Consultando um sistema da empresa', 'Consultou um sistema da empresa', 'outros'),
   web_fetch: sentence('Abrindo uma página da internet', 'Abriu uma página da internet', 'outros'),
-  context7_resolve_library_id: sentence('Procurando uma biblioteca na documentação', 'Procurou uma biblioteca na documentação', 'outros'),
-  context7_query_docs: sentence('Lendo a documentação de uma biblioteca', 'Leu a documentação de uma biblioteca', 'outros'),
   recall: sentence('Relendo conversas anteriores', 'Releu conversas anteriores', 'outros'),
 }
 

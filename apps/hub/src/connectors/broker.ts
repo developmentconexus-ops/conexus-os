@@ -2,7 +2,7 @@ import { SpanType } from '@mastra/core/observability'
 import type { AnySpan, ObservabilityInstance } from '@mastra/core/observability'
 import { Failure, logFailure } from '../platform/failure.js'
 import { logger } from '../platform/logger.js'
-import type { SecretEnvelope } from '../platform/secrets.js'
+import { connectionContext, type Sealed, type SecretEnvelope } from '../platform/secrets.js'
 import { AdapterFailure, brokerCodeOf, refused } from './errors.js'
 import type { BrokerErrorCode, BrokerResult } from './errors.js'
 import type { ConnectionId, ConnectorId } from '@conexus/contract'
@@ -47,7 +47,7 @@ export type Broker = Readonly<{
   /** The integrator and service `fetch` would send the request to, with no network and no call spent. Never throws. */
   describe(consumer: Consumer, request: unknown): Promise<FetchDescription>
   /** The allow-listed authentication alone, with no cache: whether the sealed credential, read by the caller under its own admission, authenticates now. Never throws. */
-  checkCredential(connectorId: string, sealed: string): Promise<BrokerResult<null>>
+  checkCredential(connectorId: string, sealed: Sealed<'connection'>, connectionId: ConnectionId): Promise<BrokerResult<null>>
   forget(connectionId: ConnectionId): void
 }>
 
@@ -99,10 +99,10 @@ export const registryOf = (connectors: readonly RegisteredConnector[]): Readonly
   new Map(connectors.map((connector) => [connector.definition.id, connector]))
 
 // Only this function opens the credential envelope.
-const issueToken = async ({ envelope }: Pick<Dependencies, 'envelope'>, connector: RegisteredConnector, adapter: AnyAdapter, sealed: string, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken> => {
+const issueToken = async ({ envelope }: Pick<Dependencies, 'envelope'>, connector: RegisteredConnector, adapter: AnyAdapter, sealed: Sealed<'connection'>, connectionId: ConnectionId, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken> => {
   let opened: string
   try {
-    opened = await envelope.open(sealed)
+    opened = await envelope.open(sealed, connectionContext(connectionId))
   } catch (error) {
     throw new BrokerRefusal(platformFault(error))
   }
@@ -118,14 +118,14 @@ const issueToken = async ({ envelope }: Pick<Dependencies, 'envelope'>, connecto
 }
 
 const authenticate = async ({ envelope, store }: Pick<Dependencies, 'envelope' | 'store'>, connector: RegisteredConnector, adapter: AnyAdapter, scope: ConsumerScope, connectionId: ConnectionId, signal: AbortSignal, trace: RequestTrace): Promise<IssuedToken> => {
-  let sealed: string | null
+  let sealed: Sealed<'connection'> | null
   try {
     sealed = await store.readConnectionCredential(scope, connectionId)
   } catch (error) {
     throw new BrokerRefusal(platformFault(error))
   }
   if (sealed === null) throw new BrokerRefusal('NOT_GRANTED')
-  return issueToken({ envelope }, connector, adapter, sealed, signal, trace)
+  return issueToken({ envelope }, connector, adapter, sealed, connectionId, signal, trace)
 }
 
 /** The admitted request on the Connection's token, under one deadline for authentication and request. */
@@ -259,7 +259,7 @@ export const createBroker = ({
       endSpan(span, result.ok ? 'OK' : result.code)
       return result
     },
-    async checkCredential(connectorId: string, sealed: string): Promise<BrokerResult<null>> {
+    async checkCredential(connectorId: string, sealed: Sealed<'connection'>, connectionId: ConnectionId): Promise<BrokerResult<null>> {
       const connector = connectors.get(connectorId)
       const adapter = connector?.adapter
       const span = observability.startSpan({ type: SpanType.GENERIC, name: 'connector.check', metadata: {
@@ -271,7 +271,7 @@ export const createBroker = ({
       } else {
         const signal = AbortSignal.timeout(deadlineMs)
         try {
-          await untilDeadline(signal, issueToken(dependencies, connector, adapter, sealed, signal, requestTrace(span, () => 1, signal)))
+          await untilDeadline(signal, issueToken(dependencies, connector, adapter, sealed, connectionId, signal, requestTrace(span, () => 1, signal)))
           result = Object.freeze({ ok: true, value: null })
         } catch (error) {
           result = refused(codeOf(error, signal))

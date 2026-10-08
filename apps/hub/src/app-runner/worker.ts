@@ -2,8 +2,9 @@ import { writeSync } from 'node:fs'
 import { request } from 'node:http'
 import pg from 'pg'
 import { applyPendingMigrations } from './data-plane.js'
-import { connectorAnswer, workerJob } from './wire.js'
-import type { ConnectorAnswer, WorkerJob, WorkerResult } from './wire.js'
+import { connectorAnswer, sqlStateSchema, workerJob } from './wire.js'
+import type { ConnectorAnswer, WorkerJob } from './wire.js'
+import type { WorkerAnswer, WorkerRefusal } from './server-manifest.js'
 
 /**
  * Runs inside one invocation's sandbox and nowhere else. The supervisor writes the job to stdin and
@@ -78,28 +79,42 @@ const connectorClient = (bound: boolean) => Object.freeze({
   },
 })
 
-const detail = (error: unknown): string => {
-  const message = error instanceof Error ? error.message : String(error)
-  const code = typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string' ? `${error.code} ` : ''
-  return `${code}${message}`.slice(0, 400)
-}
-
-const finish = (result: WorkerResult): never => {
+const finish = (result: WorkerAnswer): never => {
   writeSync(RESULT_FD, `${JSON.stringify(result)}\n`)
   process.exit(0)
+}
+
+function refuse(error: WorkerRefusal): never {
+  return finish(Object.freeze({ ok: false, error: Object.freeze(error) }))
+}
+
+function accept(result: unknown): never {
+  return finish(Object.freeze({ ok: true, result }))
+}
+
+function sqlstate(error: unknown) {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return null
+  const parsed = sqlStateSchema.safeParse(error.code)
+  return parsed.success ? parsed.data : null
 }
 
 const readJob = async (): Promise<WorkerJob> => {
   const chunks: Buffer[] = []
   let bytes = 0
   for await (const chunk of process.stdin) {
-    if (!Buffer.isBuffer(chunk)) return finish({ ok: false, code: 'WORKER_JOB_REFUSED' })
+    if (!Buffer.isBuffer(chunk)) return refuse({ code: 'WORKER_JOB_REFUSED' })
     bytes += chunk.byteLength
-    if (bytes > MAX_JOB_BYTES) finish({ ok: false, code: 'WORKER_JOB_REFUSED' })
+    if (bytes > MAX_JOB_BYTES) refuse({ code: 'WORKER_JOB_REFUSED' })
     chunks.push(chunk)
   }
-  const job = workerJob.safeParse(JSON.parse(Buffer.concat(chunks).toString('utf8')))
-  return job.success ? job.data : finish({ ok: false, code: 'WORKER_JOB_REFUSED' })
+  let value: unknown
+  try {
+    value = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  } catch {
+    return refuse({ code: 'WORKER_JOB_REFUSED' })
+  }
+  const job = workerJob.safeParse(value)
+  return job.success ? job.data : refuse({ code: 'WORKER_JOB_REFUSED' })
 }
 
 const connect = async (login: WorkerJob['login']): Promise<pg.Client> => {
@@ -115,23 +130,19 @@ const run = async (): Promise<never> => {
     try {
       client = await connect(job.login)
     } catch (error) {
-      return finish({ ok: false, code: 'DATABASE_UNAVAILABLE', detail: detail(error) })
+      return refuse({ code: 'DATABASE_UNAVAILABLE', sqlstate: sqlstate(error) })
     }
-    try {
-      await applyPendingMigrations(client, job.schema, job.plan)
-    } catch (error) {
-      return finish({ ok: false, code: 'APPLICATION_MIGRATION_FAILED', detail: detail(error) })
-    }
-    await client.end().catch(() => undefined)
-    return finish({ ok: true, value: job.plan.map((migration) => migration.name) })
+    const applied = await applyPendingMigrations(client, job.schema, job.plan).finally(() => client.end().catch(() => undefined))
+    if (!applied.ok) return refuse({ code: applied.error.code, migration: applied.error.migration, sqlstate: sqlstate(applied.error.cause) })
+    return accept(job.plan.map((migration) => migration.name))
   }
   let handler: unknown
   try {
     handler = Reflect.get(await import(job.module), job.export)
   } catch (error) {
-    return finish({ ok: false, code: 'HANDLER_LOAD_FAILED', detail: detail(error) })
+    return refuse({ code: 'HANDLER_LOAD_FAILED', sqlstate: sqlstate(error) })
   }
-  if (typeof handler !== 'function') return finish({ ok: false, code: 'HANDLER_EXPORT_MISSING', detail: job.export })
+  if (typeof handler !== 'function') return refuse({ code: 'HANDLER_EXPORT_MISSING' })
   // The handler receives a query function and nothing that holds the connection or its login. The
   // connection opens on the first query, so a handler that only reads a Conexão runs even where the
   // Project has no database yet, as before its first Prévia with a server half.
@@ -154,18 +165,18 @@ const run = async (): Promise<never> => {
     value = await Reflect.apply(handler, undefined, [job.input, Object.freeze({ db, caller, connectors })])
   } catch (error) {
     return finish(unavailable === undefined
-      ? { ok: false, code: 'HANDLER_FAILED', detail: detail(error) }
-      : { ok: false, code: 'DATABASE_UNAVAILABLE', detail: detail(unavailable) })
+      ? { ok: false, error: { code: 'HANDLER_FAILED', sqlstate: sqlstate(error) } }
+      : { ok: false, error: { code: 'DATABASE_UNAVAILABLE', sqlstate: sqlstate(unavailable) } })
   }
   let serialized: string
   try {
     serialized = JSON.stringify(value ?? null)
-  } catch (error) {
-    return finish({ ok: false, code: 'HANDLER_OUTPUT_UNSERIALIZABLE', detail: detail(error) })
+  } catch {
+    return refuse({ code: 'HANDLER_OUTPUT_UNSERIALIZABLE' })
   }
-  if (Buffer.byteLength(serialized) > job.responseLimit) return finish({ ok: false, code: 'RESPONSE_TOO_LARGE' })
+  if (Buffer.byteLength(serialized) > job.responseLimit) return refuse({ code: 'RESPONSE_TOO_LARGE' })
   await session?.then((client) => client.end()).catch(() => undefined)
-  return finish({ ok: true, value: JSON.parse(serialized) })
+  return accept(JSON.parse(serialized))
 }
 
-run().catch((error: unknown) => finish({ ok: false, code: 'WORKER_FAILED', detail: detail(error) }))
+run().catch(() => refuse({ code: 'WORKER_FAILED' }))

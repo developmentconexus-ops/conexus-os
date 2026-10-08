@@ -1,8 +1,9 @@
 # Conexus OS roadmap
 
 This file owns the status of the stage gates, the work in progress and the next action. History stays
-in Git: each finished item below is one line with its pull request. Workstreams (frentes) live in a
-private repository, and this file never names them.
+in Git: each finished item below is one line with its pull request. Workstreams (frentes) are issues
+in this repository. This file names waves, specs and issues; their execution contracts live in the
+specs and issues.
 
 ## What Conexus is
 
@@ -15,9 +16,10 @@ sandbox, and the app runs on the platform behind the company's sign-in. The
 ## Where we are
 
 Stage 1 and Stage 2 gates Q1 to Q4 are closed. The structural waves that make a sound base are
-finished except S1 (checked boundaries, in progress). One bounded code base wave comes before Q5. The
-Builder block, the screen check and the Q5 preparation that Q5 does not need come after its verdict.
-`main` is the trunk and every pull request targets it.
+finished except S1 (checked boundaries, in progress). The authorization model, error model wave 1
+and company model accounts advance through the new flow in parallel. The remaining code base sweeps
+come before Q5. The Builder block, the screen check and the Q5 preparation that Q5 does not need come after its verdict.
+`main` is the trunk; batch pull requests target their wave branch, and wave pull requests target `main`.
 
 ## Finished
 
@@ -54,17 +56,25 @@ naming the wrong reason when Keycloak reports an unverified email. S1 part 6 fix
 
 ## Work in progress
 
-**S1, spec 0015, checked boundaries.** The contract is in Zod, every row is parsed by one data module,
-and every command needs a typed proof made by an admission function. One database login role switches
-to a reader or a command role per transaction. Merged so far: parts 0 (#509), 3 (#510), 7 (#511), 0b
-(#512), 2 (#513), 1 (#514), 5 (#532), 4 (#533) and 6, identity and access (#546, with #539, #541 and
-#545 before it). Part 6 also fixes the no-access page. Open: #543 (outsiders get a 404), then the S1
-verification on a reset local database. When S1 ends, one migration baseline replaces the old chain.
+The planning session advances three waves in parallel through the [wave flow](development/delivery.md#waves),
+within its stage and work-in-progress gates:
 
-**Known defect.** When the Builder cannot open its sandbox, the turn ends as `INTERNAL_UNEXPECTED`
-and the person reads that Conexus failed in an unexpected way. A sandbox that cannot start is an
-expected platform failure and needs its own row in the failure table, with person-facing text. The
-verify skill's Construir recipe changes with it. It is a fast-lane issue.
+- **Hub authorization model, spec 0018**, [#543](https://github.com/developmentconexus-ops/conexus-os/issues/543),
+  `lane:qualification`. This closes S1. One check family, copied and adapted from Documenso, is
+  required by type on reads and writes. Row security leaves, and every refusal originates in one
+  place. S1's spec 0015 parts 0 (#509), 3 (#510), 7 (#511), 0b (#512), 2 (#513), 1 (#514),
+  5 (#532), 4 (#533) and 6 (#546, after #539, #541 and #545) are merged. Part 6 fixed the no-access
+  page. After the authorization wave comes the local reset, the test as a person and the S1 proof.
+  At S1 closure, one migration baseline replaces the old chain.
+- **Error model, wave 1, spec 0019**, [#553](https://github.com/developmentconexus-ops/conexus-os/issues/553),
+  `lane:qualification`. One failure model for every process, one result type for a refusal, one
+  sender and one reader. It absorbs [#549](https://github.com/developmentconexus-ops/conexus-os/issues/549),
+  the code base's one failure sender item, and the known sandbox-start defect that ends as
+  `INTERNAL_UNEXPECTED`. That expected platform failure needs its own failure-table row and
+  person-facing text, with the verification recipe updated alongside it.
+- **Company model accounts, spec 0017.** Its first part is already built. A company account held by
+  the installation sits beside each person's own; the person's account comes first in the screen
+  and in runs.
 
 **Known gap.** No screen sets the installation's default Builder model (`model.installation_default`).
 On a fresh installation every turn ends as `BUILDER_MODEL_NOT_SELECTED` until the value is written by
@@ -94,27 +104,34 @@ comes with spec 0006, after the verdict.
 
 This order changes no gate status. Work follows the
 [limits on work in progress](development/delivery.md#size-work-by-appetite-and-limit-work-in-progress).
-Features built now copy the code beside them, so a bounded code base wave runs before Q5.
+Parallel planning does not bypass a spec's approval or the build and proof gates.
 
-1. **Finish S1.** #543, then the local reset and the verification of S1.
-2. **The code base wave, before Q5.** It covers only what Q5 copies or touches:
-   - the arrow-to-function codemod, one module at a time, as the [code guide](development/codebase-principles.md)
-     already states;
-   - branded ids in the web and in the Hub ports;
-   - one failure sender, one `isRecord`, one Project page shell and one web API helper;
-   - pagination: one paged shape in the contract (keyset, with an opaque token and a server-set
-     page size), a Hub helper and a web helper with a "Carregar mais" button, applied first to
-     Projects, the Workspace roster and application access, so that Q5's lists are born paged;
-   - spec 0016, the Project lifecycle;
-   - CI checks that let the census numbers only fall.
+1. **Advance the three current waves.** Authorization (spec 0018, #543) finishes S1, followed by
+   the local reset, the test as a person and the proof. Error model wave 1 (spec 0019, #553) and
+   company model accounts (spec 0017, first part built) advance beside it through the new flow.
+2. **Error model, wave 2**, [#554](https://github.com/developmentconexus-ops/conexus-os/issues/554),
+   `lane:shaped`, after wave 1. Sweep the `catch` blocks and `INTERNAL_UNEXPECTED` cases and clean
+   the failure table by codemod, using the established model.
+3. **The rest of the code base wave, as sweeps.** Each follows the `conexus-spec`
+   [sweep standard](../.agents/skills/conexus-spec/SKILL.md):
+   - arrow declarations to `function` declarations;
+   - branded ids in the web and Hub ports;
+   - one `isRecord`, one Project page shell and one web API helper;
+   - pagination, [#547](https://github.com/developmentconexus-ops/conexus-os/issues/547), with one
+     keyset contract, an opaque token, a server-set page size and shared Hub and web helpers;
+   - `connectors/scope.ts` as a state machine,
+     [#548](https://github.com/developmentconexus-ops/conexus-os/issues/548);
+   - the CI check against exports kept only for tests.
 
-   Its done line is measured by the code census and stated in its spec. Mechanical items run as
-   small fast-lane issues, at most three in flight, each released only when no open wave touches
-   its files.
-3. **In parallel, spec 0017, company model accounts.** A company account, held by the
-   installation, beside each person's own, the person's first in the screen and in runs.
-4. **Q5, Release and Publish.** Its spec is written while the code base wave runs. It is built once
-   the done line of the wave holds.
+   The approved sweep specs name their census targets and the code base done line.
+
+   **Spec 0017 foundation status:** [spec 0017](specs/0017-company-model-accounts/index.md).
+   The core personal owner, row custody and current refresh release are implemented on the batch
+   branch; the next action is to close the independent review findings, integrate CI and publish the batch. Main landing still needs
+   its separately authorized real Builder qualification. Company commands, fallback and default
+   writers remain the later 0020 scope, with their own approval.
+4. **Q5, Release and Publish.** Its spec is written meanwhile. It is built when the code base
+   done line holds.
 5. **After the Q5 verdict:**
    - the Builder block: the move out of the Hub process together with Hub composition (the
      composition root as a list of modules, the configuration as one schema), the Builder screen
@@ -123,10 +140,7 @@ Features built now copy the code beside them, so a bounded code base wave runs b
    - Web style, with #363;
    - pagination of the remaining lists.
 
-Every wave is built the same way: a census of what exists and of what the installed `@mastra`
-packages offer; a redesign from first principles; its blast radius; a spec that names what it deletes;
-approval of the spec; one pull request, failing tests first; review, then a diagnosis-only check that
-the code got smaller.
+Every wave follows [delivery](development/delivery.md#waves).
 
 ## Technology baseline
 
@@ -143,7 +157,8 @@ that list, and the Builder cannot install a package.
 | Recharts through a CSP-safe `chart.tsx` | Charts. Revisit when a dashboard needs a chart it lacks |
 | react-hook-form with zod, date-fns, `react-day-picker`, lucide | Forms, pt-BR dates, icons |
 | `@mastra/code-sdk` 1.8.3 | Pinned library for model sign-in, the sandbox filesystem and error classification. Copying it into the Hub would mean a hand port of every provider change |
-| `@mastra/mcp` 2.1.0 | The Builder's Context7 documentation tools through one Hub-owned adapter that allows one host; the verdict is recorded in #431 |
+
+Builder MCP/Context7 documentation tools are deferred pending a separate design and reference study.
 
 Deferred until a real consumer needs them: Kysely, Prisma, Drizzle, Hono, oRPC; Nango, Pipedream,
 Composio; Airbyte, Debezium; pg-boss, Mastra Workflows, Inngest, Trigger.dev, Temporal; Novu, Knock;
@@ -176,8 +191,10 @@ work for every Connector, not one vendor.
 
 ## Exact next action
 
-**#543, then the local reset and the verification of S1. Then the code
-base wave, with spec 0017 beside it and the Q5 spec written meanwhile, then the Q5 task.**
+Advance authorization (spec 0018, #543), error model wave 1 (spec 0019, #553) and company model
+accounts (spec 0017) in parallel through the new flow. Close S1 with the local reset, the test as a
+person and the proof. Then run error model wave 2 (#554) and the remaining code base sweeps.
+Write the Q5 spec meanwhile; build Q5 when the code base done line holds.
 
 ## What the operator still owes
 

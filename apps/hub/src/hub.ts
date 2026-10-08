@@ -11,7 +11,8 @@ import { censusConnections, reportConnectionCensus } from './platform/connection
 import { openDatabase } from './platform/db.js'
 import { assertSchemaCurrent, exitOnLostInstanceLock, takeInstanceLock } from './platform/lifecycle.js'
 import { logLine } from './platform/logger.js'
-import { createSecretEnvelope, readSecretFile } from './platform/secrets.js'
+import { createSecretEnvelope } from './platform/secrets.js'
+import { readSecretFile } from './platform/secret-file.js'
 import { createRegistryModule } from './registry/module.js'
 import { createWorkspaceModule } from './workspace/module.js'
 import { Failure } from './platform/failure.js'
@@ -21,6 +22,7 @@ import { Failure } from './platform/failure.js'
 // biome-ignore lint/style/noProcessEnv: debt: owning wave
 process.env.MASTRA_TELEMETRY_DISABLED = '1'
 const { createConfiguredProjectModule } = await import('./project/module.js')
+const { createModelAccountModule, DEFAULT_THINKING_LEVEL } = await import('./model-account/module.js')
 const { builderProjectPorts, createConfiguredBuilderModule, purgeProjectBuilder } = await import('./builder/module.js')
 
 export type HubPorts = Pick<Parameters<typeof createConfiguredBuilderModule>[0], 'conversationSandboxes'>
@@ -56,6 +58,8 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     application: config.application ? { address: config.application } : undefined,
   } satisfies Parameters<typeof createIdentityAccessModule>[0]
   const identityAccess = await createIdentityAccessModule(identityAccessDependencies)
+  const models = await createModelAccountModule({ data: database, envelope: identityAccessDependencies.envelope,
+    defaultThinkingLevel: DEFAULT_THINKING_LEVEL, googleAiPro: config.googleAiPro ?? null })
   const connectors = createConnectorModule({
     database,
     envelope: identityAccessDependencies.envelope,
@@ -85,9 +89,9 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
         if (!builder) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'CONEXUS_GIT_NOT_CONFIGURED' } })
         return builder.killProjectSandboxes(projectId)
       },
-      deleteRepository: async (projectId) => {
+      deleteRepository: async (projectId, lost) => {
         if (!builder) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'CONEXUS_GIT_NOT_CONFIGURED' } })
-        return builder.deleteProjectRepository(projectId)
+        return builder.deleteProjectRepository(projectId, lost)
       },
       purgeIdentityAccess: identityAccess.purgeProject,
       purgeConnectorBindings: connectors.purgeProjectBindings,
@@ -139,8 +143,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     },
     builder: config.builder,
     factory: config.factory,
-    secretKey: config.secretKey,
-    ...(config.googleAiPro ? { googleAiPro: config.googleAiPro } : {}),
+    models,
     registry,
     // A Project with an application keeps its Preview data: a divergent migration history is refused, never
     // reset. The presence answer holds until the runner settles, so an application created meanwhile waits.
@@ -182,6 +185,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
       ...(workspace ? await workspace.registerWorkspaceRoutes(server) : []),
       ...(project ? await project.registerProjectRoutes(server) : []),
       ...(builder ? await builder.registerBuilderRoutes(server) : []),
+      ...await models.registerRoutes(server),
       ...(await connectors.registerConnectorRoutes(server)),
     ],
     staticRoot: resolve(import.meta.dirname, '../public'),
@@ -220,7 +224,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
 
   // Once the composition and the lock hold, and before the first listener: a start that fails past this
   // exits the process through `exitOnFailedStart`, which ends the jobs with it.
-  const jobs = startJobs([...identityAccess.jobs, ...(builder?.jobs ?? [])])
+  const jobs = startJobs([...identityAccess.jobs, ...models.jobs, ...(builder?.jobs ?? [])])
   await app.listen({ host: '127.0.0.1', port: config.port })
   if (previewApp && config.preview) await previewApp.listen({ host: '127.0.0.1', port: config.preview.port })
   if (applicationApp && config.application) await applicationApp.listen({ host: '127.0.0.1', port: config.application.port })
@@ -233,6 +237,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     await Promise.all([app.close(), previewApp?.close(), applicationApp?.close()])
     await hosting?.close()
     await Promise.all([builder?.close(), identityAccess.close()])
+    await models.close()
     await database.close()
     await releaseInstanceLock()
   }

@@ -38,7 +38,7 @@ test('0071 ends every session and handoff and leaves the catalog the snapshot de
   const connectionString = await atPartSix(t, 'conexus_cma_mig', signedIn)
   assert.deepEqual(await countsOf(connectionString), { sessions: 1, handoffs: 1, applied: 0 })
   const result = await runMigrations({ connectionString, migrations: corpus })
-  assert.deepEqual({ verdict: result.verdict, appliedNow: result.appliedNow }, { verdict: 'PASS', appliedNow: ['0071'] })
+  assert.deepEqual({ verdict: result.verdict, appliedNow: result.appliedNow }, { verdict: 'PASS', appliedNow: corpus.filter(({ version }) => version >= '0071').map(({ version }) => version) })
   assert.deepEqual(await countsOf(connectionString), { sessions: 0, handoffs: 0, applied: 1 })
 })
 

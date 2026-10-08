@@ -211,7 +211,7 @@ Each concept has one owner. The other side holds a link to the owner's record, n
 | A Builder run | Conexus, one state machine with a generated vocabulary | Mastra holds the agent's steps |
 | Current source | `main` in Conexus Git, moved only by the Hub's fast forward from the run's base | Runs and sandboxes hold a branch mirror |
 | Built app and Preview | The registry | Publication alone selects what app users receive. Not built |
-| Model accounts | Conexus, one per person and provider, sealed | Model calls run in the Hub. The sandbox holds no secret |
+| Model accounts | Core `model-account`, one personal credential per person and provider, sealed against its immutable row id | Builder supplies current run admission and records the payer. Model calls run in the Hub; the sandbox holds no secret |
 | Project app data | Conexus allocates it. The Project's repository owns its migrations | The runner holds a per-Project role |
 | Integrators, connections, bindings | Conexus, every call recorded | Handlers and the Builder reach a connection only through the Hub executor |
 | Periodic work and expiry | One job executor, `platform/jobs.ts` | No other timer |
@@ -381,25 +381,23 @@ pull request that fixes one deletes its line.
 | Departure or risk | Wave |
 | --- | --- |
 | `http/access.ts` and `builder/run-operation.ts` import the session and admission contracts of `identity-access` and `app-runner` directly, and the import checker exempts the session, admission and application-server contracts | Hub base, after S1 |
-| The sandbox keepalive in `builder/sandbox.ts` and the sign-in expiry in `builder/google-ai-pro/login.ts` run their own timers, outside `platform/jobs.ts` | Hub base, after S1 |
+| The sandbox keepalive in `builder/sandbox.ts` and the sign-in expiry in `model-account/google-ai-pro/login.ts` run their own timers, outside `platform/jobs.ts` | Hub base, after S1 |
 | The model routes keep verb segments (`/oauth/start`, `/login/complete`), the Google sign-in status is a `POST` named for a read, and the three `start` `POST`s take no `Idempotency-Key` | Hub base, after S1 |
 | `createWorkspaceConnection` and `bindProjectConnection` take no `Idempotency-Key` and deduplicate by domain identity (`connectionId`, the binding name) | Hub base, after S1 |
-| Model accounts and the Mastra instance live in `builder`, not in the core | Hub base, after S1 |
+| The Mastra instance lives in `builder`, not in the core | Hub base, after S1 |
 | Nothing bounds one Project's storage in the Applications cluster | Hub base, after S1 |
 | An `archived` Project state exists that nothing produces | Project lifecycle, after S1 |
-| `ProjectPurged` is told apart by `projectRevision: ''`, and `archived` and `deleting` are booleans | Project lifecycle, after S1 |
+| The Hub no longer synthesizes a purged Project with an empty revision; the wire still uses `archived` and `deleting` booleans, and the web's empty-revision branch stays until U5 replaces that shape | Authorization model, after U4 |
 | `startHub`, `createHttpApp` and the Builder module stay past the function size limit by suppression | Hub base, after S1 |
-| `Scope` in `apps/hub/src/connectors/scope.ts` is a class with mutable state | Hub base, after S1 |
-| Named top-level functions are `const` arrows, some class fields use `#private` outside secret values, and some types are `interface` without augmenting a library | Hub base, after S1 |
-| `app-runner/http.ts` and the sandbox keepalive in `builder/sandbox.ts` read a failure from `error.message` | Hub base, after S1 |
+| `Scope` in `apps/hub/src/connectors/scope.ts` is a class with mutable state | Code base sweeps, #548 |
+| Named top-level functions are `const` arrows, some class fields use `#private` outside secret values, and some types are `interface` without augmenting a library | Code base sweeps |
 | The sealed build is a nominal type the Builder can still subclass; the registry refuses an unsealed one at run time | Hub base, after S1 |
 | Two connections run as `hub_runtime` outside any transaction, with no role switch ([database](database.md#6-roles-and-transactions)): the instance lock session and the application presence session, each holding a session level advisory lock (`session` in `platform/db.ts`) | Hub base, after S1 |
-| The application and Preview hosts read the served files and the server tree inside `authenticate` as `hub_command`, whose policies on the served tables pass every row, so their only authority is the `Checked` proof and its Project filter, not a reader policy ([database](database.md#6-roles-and-transactions)). Accepted by operator decision 5B | Accepted risk |
-| `GET .../workspaces/{workspaceId}/projects` returns a top-level array, and lists that grow have no continuation token | Hub base, after S1 |
+| Hub reads and commands share `hub_runtime` and no table has row-level policies. A missed admission or query filter can expose another person's rows; closed gates, scoped proofs, native verb/column grants and representative tests are the backstops ([database](database.md#6-roles-and-transactions)). Accepted by operator decision C-042 | Accepted risk |
+| `GET .../workspaces/{workspaceId}/projects` returns a top-level array, and lists that grow have no continuation token | Code base sweeps, #547 |
 | Tests read production source text (`builder-harness.test.mjs`, `builder-template-pins.test.mjs`, `builder-check-bundle.test.mjs`, `connector-adapter-source.test.mjs`) | Hub base, after S1 |
 | Tests in the Small group open a socket or write to disk (`application-host.test.mjs`, `builder-conexus-git.test.mjs`, `gate-import-rule.test.mjs`) although that group is in-memory | Hub base, after S1 |
-| PostgreSQL tests skip without an `opt-in:` reason when no database is configured, and `keycloak-theme:check` is outside CI | Hub base, after S1 |
-| A sandbox that cannot open ends the Builder turn as `INTERNAL_UNEXPECTED`, with no failure row of its own | Before the screen check |
+| A sandbox that cannot open ends the Builder turn as `INTERNAL_UNEXPECTED`, with no failure row of its own | Error model wave 1, spec 0019, #553 |
 | The Hub swallows a failed run publish and the screen polls instead, and `liveRuns` and the session `subscriptions` share module state | S5 |
 | Beyond signing out of the current session, no route lets a person manage their other sessions or an administrator end another person's sessions, and a restore has no step that ends them | Hub base, after S1 |
 | The Hub has no rate limit, and the realm has no brute-force protection | Hub base, after S1 |

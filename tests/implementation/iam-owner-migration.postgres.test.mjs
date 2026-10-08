@@ -11,6 +11,7 @@ const ARTIFACT = 'e0000000-0000-4000-8000-000000000001'
 const PREVIEW_ONE = '60000000-0000-4000-8000-000000000001'
 const PREVIEW_TWO = '60000000-0000-4000-8000-000000000002'
 const SEALED = 'mastra:factory-secret:v1:t'
+const HISTORICAL_HANDOFF = 'mastra:factory-secret:v1:h'
 
 const corpus = loadHubMigrationFiles()
 const beforeIam = corpus.filter(({ version }) => version < '0070')
@@ -46,7 +47,7 @@ INSERT INTO iam.handoff(handoff_digest, kind, account_id, preview_id, parent_dig
   ('\\x30', 'PREVIEW', '${OWNER}', '${PREVIEW_ONE}', '\\x01', now(), now() + interval '1 minute'),
   ('\\x31', 'PREVIEW', '${MEMBER}', '${PREVIEW_TWO}', '\\x20', now() - interval '2 hours', now() - interval '119 minutes');
 INSERT INTO iam.handoff(handoff_digest, kind, account_id, project_id, binding_digest, provider_refresh_token, minted_at, expires_at) VALUES
-  ('\\x32', 'APPLICATION', '${OWNER}', '${PROJECT}', '\\x33', 'mastra:factory-secret:v1:h', now(), now() + interval '1 minute');
+  ('\\x32', 'APPLICATION', '${OWNER}', '${PROJECT}', '\\x33', '${HISTORICAL_HANDOFF}', now(), now() + interval '1 minute');
 
 INSERT INTO iam.oidc_transaction(state_digest, pkce_verifier, nonce, expires_at) VALUES ('\\x0a', 'v', 'n', now() + interval '10 minutes');
 INSERT INTO iam.oidc_transaction(state_digest, pkce_verifier, nonce, expires_at, consumed_at) VALUES ('\\x40', 'v2', 'n2', now() + interval '5 minutes', now() - interval '1 minute');

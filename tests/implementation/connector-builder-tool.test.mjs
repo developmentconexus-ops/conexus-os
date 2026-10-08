@@ -22,8 +22,9 @@ const { createConnectorFetchTools, openBuilderRun } = await import(hubModuleUrl(
 const { createToolPayloadProjection } = await import(hubModuleUrl('connectors/fetch-projection.js'))
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
-const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
+const { createSecretEnvelope, connectionContext } = await import(hubModuleUrl('platform/secrets.js'))
 const { registerBuilderSessionRoutes } = await import(hubModuleUrl('builder/mastra-session-routes.js'))
+const { Failure } = await import(hubModuleUrl('platform/failure.js'))
 const { driveStep } = await import(hubModuleUrl('builder/run/send.js'))
 // The Hub's one send: a message with no question open, so there is nothing to end first.
 const sendBuilderSessionMessage = (session, { content }, requestContext = new RequestContext()) => driveStep(session, { kind: 'SEND', content }, requestContext, async () => {})
@@ -38,7 +39,7 @@ const ROUTE = '/gateway/v1/mge/service.sbr'
 const SESSION_TOKEN = opaque('operator')
 
 const envelope = createSecretEnvelope('ef'.repeat(32))
-const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
+const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL), connectionContext(CONNECTION))
 const binding = Object.freeze({ bindingId: 'binding-erp', name: 'erp', connectionId: CONNECTION, connectorId: 'sankhya' })
 const store = Object.freeze({
   listBindings: async ({ projectId }) => (projectId === PROJECT ? [binding] : []),
@@ -228,7 +229,7 @@ test('a Builder turn reads through the tool; the model receives the vendor body,
     registerRoutes: async (instance) => {
       await registerBuilderSessionRoutes(instance, {
         mastra, controllerId: 'code', controller, conversations: testConversations(controller, () => undefined),
-        mayBuild: async ({ projectId }) => projectId === PROJECT,
+        admitBuilder: async ({ projectId }) => { if (projectId !== PROJECT) throw new Failure('PROJECT_NOT_FOUND') },
         conversationOwner: async () => 'PROJECT',
         projectBusy: async () => false,
         toolPayloads: projection,

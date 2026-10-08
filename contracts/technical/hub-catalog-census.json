@@ -4,32 +4,26 @@
       {
         "table": "iam.schema_migration",
         "reason": "Migration bookkeeping with no tenant data; the migration runner writes it and the Hub reads it once at boot (platform/lifecycle.ts) as hub_runtime.",
-        "privileges": {
-          "hub_runtime": [
-            "SELECT"
-          ],
-          "hub_reader": [],
-          "hub_command": []
-        }
+        "privileges": [
+          "SELECT"
+        ]
       }
     ]
   },
   "ceilings": {
     "ruleFunctions": 0,
-    "runtimePrivileges": 1
+    "runtimePrivileges": 85
   },
   "register": {
-    "split": [
+    "tables": [
       {
         "table": "builder.builder_run",
-        "reader": true,
-        "command": [
+        "privileges": [
           "DELETE",
           "INSERT",
           "SELECT",
           "UPDATE(cancellation_reason,cancellation_requested_at,candidate_revision,failure_code,finished_at,heartbeat_at,owner_id,phase,result_kind,result_source_revision,sandbox_id,started_at,state,trigger_message_id)"
         ],
-        "runtime": [],
         "compositeKeys": [
           "builder_run_account_id_fkey"
         ],
@@ -41,12 +35,10 @@
       },
       {
         "table": "builder.builder_run_model_account",
-        "reader": false,
-        "command": [
+        "privileges": [
           "INSERT",
           "SELECT"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "builder_run_id"
@@ -54,13 +46,11 @@
       },
       {
         "table": "builder.conversation_session",
-        "reader": true,
-        "command": [
+        "privileges": [
           "INSERT",
           "SELECT",
           "UPDATE(last_turn_ended_at,mirror_head,provider_sandbox_id,synced_main)"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "conversation_id",
@@ -69,13 +59,11 @@
       },
       {
         "table": "builder.project_repository",
-        "reader": false,
-        "command": [
+        "privileges": [
           "DELETE",
           "INSERT",
           "SELECT"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "project_id"
@@ -83,14 +71,12 @@
       },
       {
         "table": "builder.project_working_state",
-        "reader": true,
-        "command": [
+        "privileges": [
           "DELETE",
           "INSERT",
           "SELECT",
           "UPDATE(current_state,last_preview_artifact_digest,last_preview_artifact_revision_id,last_preview_source_revision,updated_at)"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "project_id"
@@ -98,24 +84,11 @@
       },
       {
         "table": "connector.connection",
-        "reader": true,
-        "readerAdmin": true,
-        "readerColumns": [
-          "connection_id",
-          "workspace_id",
-          "connector_id",
-          "label",
-          "created_by",
-          "created_at",
-          "disabled_by",
-          "disabled_at"
-        ],
-        "command": [
+        "privileges": [
           "INSERT",
           "SELECT",
           "UPDATE(disabled_at,disabled_by)"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "connection_id",
@@ -124,14 +97,12 @@
       },
       {
         "table": "connector.project_binding",
-        "reader": true,
-        "command": [
+        "privileges": [
           "DELETE",
           "INSERT",
           "SELECT",
           "UPDATE(unbound_at,unbound_by)"
         ],
-        "runtime": [],
         "compositeKeys": [
           "project_binding_connection_workspace_fkey",
           "project_binding_project_workspace_fkey"
@@ -145,18 +116,11 @@
       },
       {
         "table": "iam.account",
-        "reader": true,
-        "readerColumns": [
-          "account_id",
-          "display_name",
-          "email"
-        ],
-        "command": [
+        "privileges": [
           "INSERT",
           "SELECT",
           "UPDATE(email)"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "account_id"
@@ -164,13 +128,11 @@
       },
       {
         "table": "iam.application",
-        "reader": true,
-        "command": [
+        "privileges": [
           "DELETE",
           "INSERT",
           "SELECT"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "project_id"
@@ -178,14 +140,12 @@
       },
       {
         "table": "iam.application_grant",
-        "reader": true,
-        "command": [
+        "privileges": [
           "DELETE",
           "INSERT",
           "SELECT",
           "UPDATE(revoked_at,revoked_by)"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "account_id",
@@ -195,14 +155,12 @@
       },
       {
         "table": "iam.application_invitation",
-        "reader": true,
-        "command": [
+        "privileges": [
           "DELETE",
           "INSERT",
           "SELECT",
           "UPDATE(created_at,expires_at,invited_by)"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "email",
@@ -212,14 +170,12 @@
       },
       {
         "table": "iam.handoff",
-        "reader": false,
-        "command": [
+        "privileges": [
           "DELETE",
           "INSERT",
           "SELECT",
           "UPDATE(expires_at)"
         ],
-        "runtime": [],
         "compositeKeys": [
           "handoff_parent_pair_fkey"
         ],
@@ -231,14 +187,12 @@
       },
       {
         "table": "iam.host_session",
-        "reader": false,
-        "command": [
+        "privileges": [
           "DELETE",
           "INSERT",
           "SELECT",
           "UPDATE(idle_expires_at,provider_checked_at,provider_refresh_token)"
         ],
-        "runtime": [],
         "compositeKeys": [
           "host_session_parent_pair_fkey"
         ],
@@ -250,13 +204,11 @@
       },
       {
         "table": "iam.installation_administrator",
-        "reader": true,
-        "command": [
+        "privileges": [
           "INSERT",
           "SELECT",
           "UPDATE(revoked_at,revoked_by)"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "account_id",
@@ -265,14 +217,12 @@
       },
       {
         "table": "iam.oidc_transaction",
-        "reader": false,
-        "command": [
+        "privileges": [
           "DELETE",
           "INSERT",
           "SELECT",
           "UPDATE(expires_at)"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "application_project_id",
@@ -281,14 +231,12 @@
       },
       {
         "table": "iam.workspace_invitation",
-        "reader": true,
-        "command": [
+        "privileges": [
           "DELETE",
           "INSERT",
           "SELECT",
           "UPDATE(created_at,expires_at,invited_by,role)"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "email",
@@ -298,14 +246,12 @@
       },
       {
         "table": "iam.workspace_membership",
-        "reader": true,
-        "command": [
+        "privileges": [
           "DELETE",
           "INSERT",
           "SELECT",
           "UPDATE(role)"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "account_id",
@@ -314,9 +260,9 @@
       },
       {
         "table": "model.installation_default",
-        "reader": true,
-        "command": [],
-        "runtime": [],
+        "privileges": [
+          "SELECT"
+        ],
         "compositeKeys": [],
         "keyColumns": [
           "role"
@@ -324,26 +270,11 @@
       },
       {
         "table": "model.model_account",
-        "reader": true,
-        "readerColumns": [
-          "connected_at",
-          "connected_by",
-          "connected_by_name",
-          "kind",
-          "model_account_id",
-          "owner_account_id",
-          "provider",
-          "refused_at",
-          "scope",
-          "updated_at"
-        ],
-        "command": [
-          "DELETE",
-          "INSERT(connected_at,connected_by,connected_by_name,kind,owner_account_id,provider,scope,secret)",
+        "privileges": [
+          "INSERT(connected_at,connected_by,connected_by_name,kind,model_account_id,owner_account_id,provider,scope,secret)",
           "SELECT",
           "UPDATE(connected_at,connected_by,connected_by_name,kind,refused_at,secret,updated_at)"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "model_account_id",
@@ -352,14 +283,12 @@
       },
       {
         "table": "platform.operation_receipt",
-        "reader": false,
-        "command": [
+        "privileges": [
           "DELETE",
           "INSERT",
           "SELECT",
           "UPDATE(completed_at,response_body,response_status,state)"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "account_id",
@@ -369,14 +298,12 @@
       },
       {
         "table": "project.project",
-        "reader": true,
-        "command": [
+        "privileges": [
           "DELETE",
           "INSERT",
           "SELECT",
           "UPDATE(name)"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "project_id",
@@ -385,15 +312,12 @@
       },
       {
         "table": "project.project_deletion",
-        "reader": true,
-        "readerAdmin": true,
-        "command": [
+        "privileges": [
           "DELETE",
           "INSERT",
           "SELECT",
           "UPDATE(completed_at,purged_at)"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "project_id",
@@ -402,12 +326,10 @@
       },
       {
         "table": "reg.application_thumbnail",
-        "reader": true,
-        "command": [
+        "privileges": [
           "INSERT",
           "SELECT"
         ],
-        "runtime": [],
         "compositeKeys": [
           "application_thumbnail_revision_fkey"
         ],
@@ -417,13 +339,11 @@
       },
       {
         "table": "reg.artifact_revision",
-        "reader": true,
-        "command": [
+        "privileges": [
           "DELETE",
           "INSERT",
           "SELECT"
         ],
-        "runtime": [],
         "compositeKeys": [
           "artifact_revision_project_id_fkey"
         ],
@@ -434,12 +354,10 @@
       },
       {
         "table": "workspace.workspace",
-        "reader": true,
-        "command": [
+        "privileges": [
           "INSERT",
           "SELECT"
         ],
-        "runtime": [],
         "compositeKeys": [],
         "keyColumns": [
           "workspace_id"
@@ -447,12 +365,7 @@
       }
     ],
     "functions": {
-      "hub_reader": [
-        "rls.acting_account()",
-        "rls.acting_installation_administrator()",
-        "rls.acting_workspaces()"
-      ],
-      "hub_command": [
+      "hub_runtime": [
         "iam.lock_administrators()"
       ]
     }

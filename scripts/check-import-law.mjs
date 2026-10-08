@@ -21,6 +21,12 @@ const ADMITTED_HANDLER_LOADER = 'apps/hub/src/app-runner/worker.ts'
 const CHECK_COMPILER_LOADER = 'apps/hub/src/builder/check/compiler.ts'
 // What a Failure is has one definition too: every layer throws it, and the HTTP handler answers it.
 const FAILURE_CONTRACT = 'apps/hub/src/platform/failure.ts'
+const MODEL_ACCOUNT_MODULE = 'apps/hub/src/model-account/module.ts'
+const MODEL_ACCOUNT_CONSUMERS = new Set([
+  'apps/hub/src/builder/module.ts',
+  'apps/hub/src/builder/model-routing.ts',
+  'apps/hub/src/builder/harness/request-context.ts',
+])
 const HTTP_TARGETS = new Set([
   'apps/hub/src/platform/logger.ts',
   FAILURE_CONTRACT,
@@ -224,7 +230,8 @@ export function checkImportLaw(rootDirectory) {
 
       if (sourceLayer && targetLayer && sourceLayer !== targetLayer &&
           !TECHNICAL_HUB_LAYERS.has(sourceLayer) && !TECHNICAL_HUB_LAYERS.has(targetLayer) &&
-          target !== SESSION_CONTRACT && target !== ADMISSION_CONTRACT && target !== APPLICATION_SERVER_CONTRACT) {
+          target !== SESSION_CONTRACT && target !== ADMISSION_CONTRACT && target !== APPLICATION_SERVER_CONTRACT &&
+          !(target === MODEL_ACCOUNT_MODULE && MODEL_ACCOUNT_CONSUMERS.has(source))) {
         violations.push(violation('IMPORT_OWNER_TO_OWNER', source, specifier, 'semantic owners cannot deep-import one another'))
       }
 
@@ -244,6 +251,7 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/http/app.ts',
           'apps/hub/src/app-runner/module.ts',
           'apps/hub/src/builder/module.ts',
+          MODEL_ACCOUNT_MODULE,
           'apps/hub/src/connectors/module.ts',
           'apps/hub/src/identity-access/module.ts',
           'apps/hub/src/hosting/module.ts',
@@ -255,6 +263,7 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/platform/logger.ts',
           'apps/hub/src/platform/db.ts',
           'apps/hub/src/platform/secrets.ts',
+          'apps/hub/src/platform/secret-file.ts',
           'apps/hub/src/project/module.ts',
           'apps/hub/src/registry/module.ts',
           'apps/hub/src/workspace/module.ts',

@@ -76,7 +76,7 @@ Measured main `5efbc090c43176ca4e666688769d2a4ee09e1745`; schema
 commands product tree identical to main. The old declared union of 62 subjects was not an actual
 diff budget. Rewritten 0017 manifest counts 63 paths including both ends of moves, six units.
 
-Reproduce committed structural census with `node shape/census.mjs --at=<commit>`; counts at base
+The approved preview used `node shape/census.mjs --at=<commit>`; U6 replaces it with the permanent production checker in the index. Historical counts at base
 are 42 arrows, 3 >80, 3 suppressions, 5 plain id declarations, 3 local parsers, 16 Builder owner
 files, 28 retired identifier uses and 72 live custody matches under its documented scope. Original
 study's token scope reports 41 code tokens and 6 document lines; these are different measurements,
@@ -96,10 +96,11 @@ the revoked-waiter leak; actual RunRow parser accepts a historical BUILDER_MODEL
 now and rejects it after enum removal, requiring 0020's forward normalization. These results are
 inputs corrected from audits, not assertions that an implementation is already fixed.
 
-Shape compile: Node24.20.0/TS6.0.2/Zod4.6.5/core1.71.0/code-sdk1.8.3. `node shape/compile.mjs`
-extracts actual pinned upstream interfaces and runs `tsc --noEmit -p` a temporary configuration.
-The planned generated custody failure row is simulated explicitly; delivered runtime and post-0018
-catalog remain unproved. Direct normal shape tsc becomes the build check after real import mappings.
+At spec authoring, the preview compiler used Node24.20.0/TS6.0.2/Zod4.6.5/core1.71.0/code-sdk1.8.3,
+extracted pinned upstream interfaces and ran `tsc --noEmit -p` a temporary configuration. It simulated
+the planned generated custody failure row; it did not prove runtime or the post-authorization catalog.
+U6 deletes that preview and replaces it with actual production compilation, negative fixtures,
+current census and disposable migration/catalog proof, as recorded in the index.
 
 ### Audit disposition
 

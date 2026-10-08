@@ -38,8 +38,10 @@ it.
 ASVS V8.
 
 - Authority **must** be membership of the Workspace that owns the resource, with its role, `owner`
-  or `member`. `ROLE_ALLOWS` in `admission.ts` is the whole rule: a member does not manage the roster
-  or bind connections. The last active owner **must not** be demoted or removed.
+  or `member`. `ACTIONS` in `admission.ts` is the whole rule: membership discloses the subject, then
+  its named action decides whether the role may use it. An owner-internal transition may close work
+  that was already admitted, but **must not** grant new human work. The last active owner **must not**
+  be demoted or removed.
 - An installation administrator is a fact about an Account, not a Workspace role. Its actions are
   `AdministratorAction` in `admission.ts`. The last one **must not** be revoked.
 - An action **must** be necessary and never sufficient: each operation rechecks the exact subject
@@ -57,6 +59,8 @@ ASVS V8.
   principals.
 - A command **must** write only with the `Admitted` proof an admission function returns after
   locking the rows it read. A served read uses `Checked`, which no command accepts.
+- A person read **must** use a closed `ReadGate` and obtain an action-specific read proof before it
+  queries rows. A raw read transaction **must not** escape `platform/db.ts`.
 - The acting Account **must** come from the session, never from the request. A route that acts on a
   child by id **must** check the child belongs to the parent in its path.
 - An invitation **must** be claimed only by signing in with its verified email. Removing a roster
@@ -141,8 +145,13 @@ start with a route that declares no access.
 
 ASVS V11 and V13.
 
-- A secret at rest **must** be read through `platform/secrets.ts`, which refuses a file other users
-  can read, and sealed with the installation's envelope. The database refuses an unsealed value.
+- A secret at rest **must** be read through `platform/secret-file.ts`, which refuses a file other users
+  can read, and sealed through `platform/secrets.ts` with the installation's envelope, bound to its immutable row identity.
+  The database refuses an unsealed value.
+- A shared model refresh **must** persist with its held row identity and spent ciphertext through
+  owner system admission. Each waiter, including the winner, **must** obtain fresh run admission and
+  reread the current row after that work settles before receiving the refreshed credential. An ended
+  or revoked run does not undo successful rotation and cannot receive those tokens.
 - Keys **must** have a rotation procedure. A retired key only decrypts.
 - A secret **must not** appear in code, fixtures, logs, telemetry or a pull request.
 - No sandbox, generated app, browser or log **must** receive a durable privileged credential,
@@ -164,7 +173,7 @@ ASVS V14 and V15.
 - Telemetry **must** export only what the redaction table allows. A new field comes with a test that
   plants a string and proves it is removed.
 - Each privileged adapter **must** have a named owner, its own credential and a destination pinned
-  by configuration: Keycloak, E2B, Context7 and the integration executor.
+  by configuration: Keycloak, E2B and the integration executor.
 - There **must not** be a privileged `fetch(url, secret)`. `web_fetch` carries no credential and
   goes through the Hub's guard.
 - The repository is public. Code, tests, fixtures, docs, commits, pull requests and web searches

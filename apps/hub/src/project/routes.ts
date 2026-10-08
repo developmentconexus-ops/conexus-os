@@ -41,16 +41,10 @@ export const registerProjectRoutes = async (
 
   route.operation(listProjectSummaries, async (input, session) => ({
     projects: await store.listProjectSummariesWithActivity({ accountId: session.account.accountId, workspaceId: input.params.workspaceId })
-      .catch((error: unknown) => {
-        throw new Failure('PROJECT_SUMMARIES_UNAVAILABLE', { cause: error, details: { workspaceId: input.params.workspaceId } })
-      }),
   }))
 
   route.operation(getProjectThumbnail, async (input, session) => {
     const thumbnail = await thumbnailReader.readProjectThumbnail(session.account.accountId, input.params.projectId)
-      .catch((error: unknown) => {
-        throw new Failure('PROJECT_THUMBNAIL_UNAVAILABLE', { cause: error, details: { projectId: input.params.projectId } })
-      })
     if (!thumbnail) throw new Failure('PROJECT_THUMBNAIL_NOT_FOUND')
     return { bytes: thumbnail.bytes, etag: thumbnail.artifactRevisionId }
   })

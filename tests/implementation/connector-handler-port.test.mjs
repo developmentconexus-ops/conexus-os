@@ -14,7 +14,7 @@ const { createBroker, registryOf } = await import(hubModuleUrl('connectors/broke
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
 const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
-const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
+const { createSecretEnvelope, connectionContext } = await import(hubModuleUrl('platform/secrets.js'))
 
 const PROJECT = '22222222-2222-4222-8222-222222222222'
 const OTHER_PROJECT = '66666666-6666-4666-8666-666666666666'
@@ -115,7 +115,7 @@ test('P6: another Project, scope, environment or Connection in the body never ch
   const fake = await startFakeGateway()
   t.after(() => fake.close())
   const envelope = createSecretEnvelope('ef'.repeat(32))
-  const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
+  const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL), connectionContext(CONNECTION))
   const resolved = []
   const store = {
     listBindings: async (input) => {

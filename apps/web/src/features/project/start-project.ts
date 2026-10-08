@@ -4,8 +4,8 @@ import { sendBuilderMessage } from '../builder/api'
 import { applyThreadSettings, openConversation, type ReasoningLevel } from '../builder/mastra-session'
 import { IdempotencyKey, listProjects, listProjectSummaries, type ProjectCreated } from '@conexus/contract'
 import { createProject } from './api'
-import { failureText, isFailure } from '../../app/http'
 
+import { failureText, isFailure } from '@conexus/contract'
 export type StartProjectInput = Readonly<{ name: string; description: string; modelId: string | undefined; reasoning: ReasoningLevel | null | undefined }>
 export type StartedProject = Readonly<{ project: ProjectCreated; firstRequest: 'SENT' | 'NONE' | 'REFUSED' }>
 

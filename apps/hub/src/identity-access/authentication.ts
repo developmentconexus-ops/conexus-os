@@ -1,3 +1,4 @@
+import { SealedColumn, type Sealed } from '../platform/secrets.js'
 import { z } from 'zod'
 import { AccountId, ArtifactRevisionId, DisplayName, EmailAddress, ProjectId, WorkspaceId, WorkspaceRole } from '@conexus/contract'
 import type { ArtifactRevisionId as ArtifactRevisionIdType } from '@conexus/contract'
@@ -13,7 +14,7 @@ import type { SignInClaims } from './oidc.js'
 const Liveness = z.enum(['LIVE', 'IDLE_EXPIRED', 'ABSOLUTE_EXPIRED'])
 const Person = { account_id: AccountId, display_name: DisplayName, email: EmailAddress.nullable(), subject: z.string() }
 // A Hub or application session always holds its sealed token and its last check (the host_session CHECKs).
-const Standing = { liveness: Liveness, recheck_due: z.boolean(), sealed_token: z.string(), checked_at: z.string() }
+const Standing = { liveness: Liveness, recheck_due: z.boolean(), sealed_token: SealedColumn('hub-session'), checked_at: z.string() }
 
 const OidcState = z.object({
   pkce_verifier: z.string(), nonce: z.string(), application_project_id: ProjectId.nullable(), application_slug: ApplicationSlug.nullable(), sign_in_binding_digest: Digest.nullable(),
@@ -22,9 +23,9 @@ const HubSessionRow = z.object({ ...Person, ...Standing, active: z.boolean(), hu
 const ApplicationSessionRow = z.object({ ...Person, ...Standing, project_id: ProjectId })
 const PreviewSessionRow = z.object({
   ...Person, project_id: ProjectId, liveness: Liveness,
-  parent_digest: Digest, parent_liveness: Liveness, parent_active: z.boolean(), parent_entry: z.boolean(), parent_recheck_due: z.boolean(), parent_sealed_token: z.string(), parent_checked_at: z.string(),
+  parent_digest: Digest, parent_liveness: Liveness, parent_active: z.boolean(), parent_entry: z.boolean(), parent_recheck_due: z.boolean(), parent_sealed_token: SealedColumn('hub-session'), parent_checked_at: z.string(),
 })
-const ApplicationHandoffRow = z.object({ account_id: AccountId, project_id: ProjectId, minted_at: z.string(), sealed_token: z.string() })
+const ApplicationHandoffRow = z.object({ account_id: AccountId, project_id: ProjectId, minted_at: z.string(), sealed_token: SealedColumn('handoff') })
 const PreviewHandoffRow = z.object({ account_id: AccountId, project_id: ProjectId, artifact_revision_id: ArtifactRevisionId, parent_digest: Digest, session_expires_at: z.string() })
 
 export type OidcStateRow = z.output<typeof OidcState>
@@ -210,10 +211,10 @@ export const startOidc = async (gate: AuthenticationGate, start: OidcStart): Pro
       ${start.application?.projectId ?? null}, ${start.application?.bindingDigest ?? null})`)
 }
 
-const Ended = z.object({ sealed_token: z.string().nullable() })
+const Ended = z.object({ sealed_token: SealedColumn('hub-session').nullable() })
 
 /** A session ends by being deleted, its Previews and handoffs with it; the sealed refresh token it held is handed back once. */
-export const endCredential = async (gate: AuthenticationGate, credential: Readonly<{ digest: Digest; kind: 'HUB' | 'APPLICATION' | 'PREVIEW' }>): Promise<Readonly<{ sealedToken: string | null }> | null> => {
+export const endCredential = async (gate: AuthenticationGate, credential: Readonly<{ digest: Digest; kind: 'HUB' | 'APPLICATION' | 'PREVIEW' }>): Promise<Readonly<{ sealedToken: Sealed<'hub-session'> | null }> | null> => {
   const ended = await txOf(gate).maybe(Ended, sql`
     DELETE FROM iam.host_session WHERE token_digest = ${credential.digest} AND kind = ${credential.kind}
     RETURNING provider_refresh_token AS sealed_token`)
@@ -240,7 +241,7 @@ export const endExpiredHubSession = async (gate: AuthenticationGate, key: Digest
  * are each served on their own answer, and the first to record stores its token. A record that changes
  * no row reads the session once more, so "already recorded" is told apart from "ended".
  */
-export const recordProviderCheck = async (gate: AuthenticationGate, check: Readonly<{ digest: Digest; seen: string; sealedToken: string }>): Promise<'RECORDED' | 'ENDED'> => {
+export const recordProviderCheck = async (gate: AuthenticationGate, check: Readonly<{ digest: Digest; seen: string; sealedToken: Sealed<'hub-session'> }>): Promise<'RECORDED' | 'ENDED'> => {
   const tx = txOf(gate)
   const recorded = await tx.run(sql`
     UPDATE iam.host_session SET provider_checked_at = now(), provider_refresh_token = ${check.sealedToken}

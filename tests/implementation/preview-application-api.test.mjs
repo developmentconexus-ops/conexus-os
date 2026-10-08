@@ -8,6 +8,7 @@ import { testListener } from './access/test-listener.mjs'
 
 const { createHostingModule, previewHostOf } = await import(hubModuleUrl('hosting/module.js'))
 const { registerPreviewRoutes } = await import(hubModuleUrl('hosting/preview-routes.js'))
+const { failureResponse } = await import(hubModuleUrl('http/problem.js'))
 
 const PORT = 3444
 const HOST = 'preview-11111111-1111-4111-8111-111111111111.conexus.localhost'
@@ -62,7 +63,7 @@ const preview = async (t, invokeApplication) => {
 const problem = (code, status) => ({ type: `urn:conexus:problem:${code}`, title: code, status, code })
 
 test('the Preview API passes the binding identity, the developer as caller and the operation to the runner, and nothing the page chose', async (t) => {
-  const { call, calls } = await preview(t, async () => ({ status: 200, body: [{ id: 1 }] }))
+  const { call, calls } = await preview(t, async () => Response.json([{ id: 1 }]))
   const forgedCaller = { accountId: '99999999-9999-4999-8999-999999999999', displayName: 'Someone else' }
   const answered = await call('listNotes', {
     headers: { 'x-conexus-caller': JSON.stringify(forgedCaller) },
@@ -80,7 +81,7 @@ test('the Preview API passes the binding identity, the developer as caller and t
 })
 
 test('the Preview API refuses another origin, a missing cookie, a non-JSON body and a malformed operation before the runner', async (t) => {
-  const { call, calls } = await preview(t, async () => ({ status: 200, body: {} }))
+  const { call, calls } = await preview(t, async () => Response.json({}))
   const refused = async (operation, headers, status, code) => {
     const answer = await call(operation, { headers })
     assert.deepEqual([answer.statusCode, answer.json()], [status, problem(code, status)])
@@ -101,8 +102,30 @@ test('the Preview API says the runner is unavailable when it is not configured',
   assert.deepEqual([answer.statusCode, answer.json()], [503, problem('APPLICATION_RUNNER_UNAVAILABLE', 503)])
 })
 
+test('the Preview sends the native failure response on its socket with the same status and headers', async (t) => {
+  const { app } = await preview(t, async () => failureResponse({ code: 'APPLICATION_RUNNER_UNAVAILABLE', traceId: null }))
+  await app.listen({ host: '127.0.0.1', port: 0 })
+  const response = await new Promise((resolve, reject) => {
+    const outgoing = request({
+      host: '127.0.0.1', port: app.server.address().port, method: 'POST', path: '/__conexus/api/listNotes',
+      headers: { host: `${HOST}:${PORT}`, origin: ORIGIN, 'content-type': 'application/json', cookie: `__Host-conexus_preview=${VALID}` },
+    }, (incoming) => {
+      const chunks = []
+      incoming.on('data', (chunk) => chunks.push(chunk))
+      incoming.on('end', () => resolve({ status: incoming.statusCode, headers: incoming.headers, text: Buffer.concat(chunks).toString('utf8') }))
+    })
+    outgoing.on('error', reject)
+    outgoing.end('{}')
+  })
+  assert.equal(response.status, 503, response.text)
+  assert.equal(response.headers['content-type'], 'application/problem+json')
+  assert.equal(response.headers['x-content-type-options'], 'nosniff')
+  assert.match(response.headers['content-security-policy'], /default-src 'none'/)
+  assert.deepEqual(JSON.parse(response.text), problem('APPLICATION_RUNNER_UNAVAILABLE', 503))
+})
+
 test('the retained server tree is never served to the browser', async (t) => {
-  const { app } = await preview(t, async () => ({ status: 200, body: {} }))
+  const { app } = await preview(t, async () => Response.json({}))
   for (const path of ['/conexus-server/manifest.json', '/conexus-server/handlers/notes.mjs']) {
     const answer = await app.inject({ method: 'GET', url: path, headers: { host: `${HOST}:${PORT}`, cookie: `__Host-conexus_preview=${VALID}` } })
     assert.equal(answer.statusCode, 404, path)
@@ -115,7 +138,7 @@ test('a page that disconnects while its call waits aborts that call\'s signal', 
   const invoked = Promise.withResolvers()
   const { app } = await preview(t, ({ callerLeft }) => {
     invoked.resolve(callerLeft)
-    return once(callerLeft, 'abort').then(() => ({ status: 200, body: {} }))
+    return once(callerLeft, 'abort').then(() => Response.json({}))
   })
   await app.listen({ host: '127.0.0.1', port: 0 })
   const client = request({
@@ -132,7 +155,7 @@ test('a page that disconnects while its call waits aborts that call\'s signal', 
 })
 
 test('the Preview answers a deep link with the app index and the same CSP, and a missing file with 404', async (t) => {
-  const { app } = await preview(t, async () => ({ status: 200, body: {} }))
+  const { app } = await preview(t, async () => Response.json({}))
   const headers = { host: `${HOST}:${PORT}`, cookie: `__Host-conexus_preview=${VALID}` }
   const index = await app.inject({ method: 'GET', url: '/index.html', headers })
   for (const [method, url] of [['GET', '/notas'], ['GET', '/notas/'], ['GET', '/notas/42'], ['HEAD', '/notas']]) {
@@ -148,7 +171,7 @@ test('the Preview answers a deep link with the app index and the same CSP, and a
 })
 
 test('the Preview grants the Hub page the same CORS answer on GET and HEAD, and varies on nothing', async (t) => {
-  const { app } = await preview(t, async () => ({ status: 200, body: {} }))
+  const { app } = await preview(t, async () => Response.json({}))
   const headers = { host: `${HOST}:${PORT}`, cookie: `__Host-conexus_preview=${VALID}` }
   for (const method of ['GET', 'HEAD']) {
     const answer = await app.inject({ method, url: '/index.html', headers })

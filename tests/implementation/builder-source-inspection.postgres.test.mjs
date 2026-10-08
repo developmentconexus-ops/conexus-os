@@ -42,7 +42,7 @@ test('C-020 source inspection admits current subjects and any run with a result'
   assert.deepEqual(await store.readLatestCodeChangingBuilderRun({ accountId: account, projectId: project }), {
     builderRunId: runTwo, projectId: project, conversationId: project, baseSourceRevision: runOneResult, resultSourceRevision: working, resultKind: 'SOURCE_CHANGED_BUILD_FAILED',
   })
-  assert.equal(await store.readLatestCodeChangingBuilderRun({ accountId: unauthorized, projectId: project }), null)
+  await assert.rejects(store.readLatestCodeChangingBuilderRun({ accountId: unauthorized, projectId: project }), { id: 'PROJECT_NOT_FOUND' })
   assert.equal((await store.readLatestCodeChangingBuilderRun({ accountId: account, projectId: otherProject })).builderRunId, otherRun)
   await query(connection, 'DELETE FROM builder.builder_run WHERE project_id = $1', [otherProject])
   await insertRun(otherRun, otherProject, null, 'RESPONSE_ONLY', '2026-09-14T12:00:00Z', source('f'))

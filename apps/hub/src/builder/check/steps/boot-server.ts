@@ -31,7 +31,8 @@ const stubValue = (schema: ValueSchema | undefined): unknown => {
 
 const declaredOperations = (out: string): ServerManifest['operations'] => {
   try {
-    return admitManifest(JSON.parse(readFileSync(join(out, 'conexus-server', 'manifest.json'), 'utf8')), 'server').operations
+    const admitted = admitManifest(JSON.parse(readFileSync(join(out, 'conexus-server', 'manifest.json'), 'utf8')), 'server')
+    return admitted.ok ? admitted.result.operations : {}
   } catch {
     return {}
   }

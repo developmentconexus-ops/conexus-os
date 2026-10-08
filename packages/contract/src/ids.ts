@@ -76,3 +76,6 @@ export function mediaTypeOfPath(path: string): MediaType | null {
   const parsed = MediaType.safeParse(MEDIA_TYPE_BY_EXTENSION[path.slice(path.lastIndexOf('.')).toLowerCase()])
   return parsed.success ? parsed.data : null
 }
+
+export const ModelId = z.string().min(1).brand<'ModelId'>().meta({ id: 'ModelId' })
+export type ModelId = z.output<typeof ModelId>

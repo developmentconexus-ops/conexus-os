@@ -8,7 +8,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 const { openDatabase } = await import(hubModuleUrl('platform/db.js'))
 const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { applicationOrigin } = await import(hubModuleUrl('platform/config.js'))
-const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
+const { createSecretEnvelope, sessionContext } = await import(hubModuleUrl('platform/secrets.js'))
 const { configuredIdentity } = await import(hubModuleUrl('identity-access/admission.js'))
 const { parseSignInClaims } = await import(hubModuleUrl('identity-access/oidc.js'))
 const { createSessions } = await import(hubModuleUrl('identity-access/sessions.js'))
@@ -132,7 +132,7 @@ export const iamHub = async (t, prefix) => {
   const openHubSession = async (accountId) => {
     const token = randomUUID().replaceAll('-', '').padEnd(43, 'b').slice(0, 43)
     await sql(`INSERT INTO iam.host_session (token_digest, kind, account_id, started_at, absolute_expires_at, idle_expires_at, provider_refresh_token, provider_checked_at)
-      VALUES ($1, 'HUB', $2, now(), now() + interval '8 hours', now() + interval '30 minutes', $3, now())`, [digestOf(token), accountId, await envelope.seal(`refresh-${accountId}`)])
+      VALUES ($1, 'HUB', $2, now(), now() + interval '8 hours', now() + interval '30 minutes', $3, now())`, [digestOf(token), accountId, await envelope.seal(`refresh-${accountId}`, sessionContext(digestOf(token)))])
     return token
   }
   const seedWorkspace = async (workspaceId, name, members) => {

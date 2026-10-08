@@ -154,3 +154,29 @@ test('Biome refuses production code that imports tests or scripts, and web code 
   }
   assert.equal(biomeFindings('apps/hub/src/import-probe.ts', 'import "node:fs"\nexport const hub = 1\n').status, 0)
 })
+
+test('Hub and the three Builder consumers reach the public model-account entry', () => {
+  const root = fixture({
+    'apps/hub/src/hub.ts': 'import "./model-account/module.js"',
+    'apps/hub/src/builder/module.ts': 'import "../model-account/module.js"',
+    'apps/hub/src/builder/model-routing.ts': 'import "../model-account/module.js"',
+    'apps/hub/src/builder/harness/request-context.ts': 'import "../../model-account/module.js"',
+    'apps/hub/src/model-account/module.ts': '',
+  })
+  try { assert.deepEqual(checkImportLaw(root), []) } finally { rmSync(root, { recursive: true, force: true }) }
+})
+
+test('the new owner registration refuses deep imports, unregistered consumers and cycles', () => {
+  assertRule('IMPORT_OWNER_TO_OWNER', {
+    'apps/hub/src/builder/module.ts': 'import "../model-account/credential.js"',
+    'apps/hub/src/model-account/credential.ts': '',
+  })
+  assertRule('IMPORT_OWNER_TO_OWNER', {
+    'apps/hub/src/connectors/module.ts': 'import "../model-account/module.js"',
+    'apps/hub/src/model-account/module.ts': '',
+  })
+  assertRule('IMPORT_CYCLE', {
+    'apps/hub/src/builder/module.ts': 'import "../model-account/module.js"',
+    'apps/hub/src/model-account/module.ts': 'import "../builder/module.js"',
+  })
+})

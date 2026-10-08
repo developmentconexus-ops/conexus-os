@@ -5,6 +5,14 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Exact commit SHA to qualify (empty selects the workflow ref)
+        required: false
+        type: string
 
 # A newer push to the same pull request makes the older run moot.
 concurrency:
@@ -14,10 +22,125 @@ concurrency:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
+env:
+  TARGET_SHA: ${{ inputs.sha || github.sha }}
+  CONEXUS_HUB_BUILD: ${{ github.workspace }}/node_modules/.cache/conexus-hub-build
+  CONEXUS_TEST_DB_HOST: 127.0.0.1
+  CONEXUS_TEST_DB_PORT: '5432'
+  CONEXUS_TEST_DB_NAME: conexus_test
+  CONEXUS_TEST_DB_USER: postgres
+  CONEXUS_TEST_DB_PASSWORD: s6-ci-test-only
+
 jobs:
+  checks:
+    name: verify (checks)
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      docs_only: ${{ steps.scope.outputs.docs_only }}
+      full_live: ${{ steps.scope.outputs.full_live }}
+      backup: ${{ steps.scope.outputs.backup }}
+      template: ${{ steps.scope.outputs.template }}
+      style: ${{ steps.scope.outputs.style }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        id: node
+        with:
+          node-version-file: .nvmrc
+      - name: Install and verify pinned npm
+        id: toolchain
+        run: |
+          npm install --global "npm@$(node -p "require('./package.json').engines.npm")"
+          npm run conexus:preflight
+          echo "npm-version=$(npm --version)" >> "$GITHUB_OUTPUT"
+      # A pull request that changes only documentation runs only the checks that read documentation.
+      # The test is a diff inside this job, not a workflow-level paths filter, so the required `verify`
+      # check always reports. A push to main has no base and runs everything.
+      - name: Verify the selected commit
+        run: |
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+      - name: Classify the change
+        id: scope
+        env:
+          BASE_REF: ${{ github.event_name == 'pull_request' && github.base_ref || '' }}
+        run: node scripts/ci-change-scope.mjs ${BASE_REF:+--base "origin/$BASE_REF"}
+      # node_modules is restored whole and keyed on everything that decides its content: the lockfile,
+      # package.json, the Node/npm versions and the runner OS and architecture. On a hit npm ci is skipped.
+      # On a miss it runs, and the result is saved right away, before verification adds build output
+      # under node_modules/.cache that must not enter the cache.
+      - name: Restore node_modules
+        id: modules
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-npm${{ steps.toolchain.outputs.npm-version }}-${{ hashFiles('package-lock.json', 'package.json') }}
+      - name: Install dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
+        timeout-minutes: 15
+        run: node scripts/ci-install.mjs
+      - name: Save node_modules
+        if: steps.modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: node_modules
+          key: ${{ steps.modules.outputs.cache-primary-key }}
+      - name: Documentation checks
+        if: steps.scope.outputs.docs_only == 'true'
+        run: npm run verify:docs 2>&1 | tee "$RUNNER_TEMP/checks.log"
+      - name: Static and generated correctness
+        if: steps.scope.outputs.docs_only != 'true'
+        run: (npm run checks:static && npm run wire:verify) 2>&1 | tee "$RUNNER_TEMP/static.log"
+      - name: Template consistency
+        if: steps.scope.outputs.template != 'false'
+        run: npm run builder:template:check 2>&1 | tee "$RUNNER_TEMP/template.log"
+      - name: Web style consistency
+        if: steps.scope.outputs.style != 'false'
+        run: npm run web:style:check 2>&1 | tee "$RUNNER_TEMP/style.log"
+      - name: Build the Hub and web
+        if: steps.scope.outputs.docs_only != 'true'
+        run: |
+          (npm run build:hub && npm run build:web) 2>&1 | tee "$RUNNER_TEMP/build.log"
+          printf '%s\n' "$TARGET_SHA" > "$CONEXUS_HUB_BUILD/source-sha"
+      - name: Unit and repository behavior
+        timeout-minutes: 10
+        if: steps.scope.outputs.docs_only != 'true'
+        run: npm run test:unit 2>&1 | tee "$RUNNER_TEMP/checks-tests.log"
+      - name: Share the Hub build
+        if: steps.scope.outputs.docs_only != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hub-build
+          path: |
+            node_modules/.cache/conexus-hub-build
+            node_modules/.cache/public
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+      - name: Verification did not mutate tracked files
+        run: git diff --exit-code && git diff --check
+      - name: Keep checks diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checks-diagnostics
+          path: ${{ runner.temp }}/*.log
+          if-no-files-found: ignore
+
   group:
     name: verify (${{ matrix.group }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }})
+    needs: checks
     strategy:
+      fail-fast: false
       matrix:
         # The browser group is the longest, and its files stay one after another, so it is divided
         # across machines: each runs a quarter of the files by position (node --test-shard).
@@ -26,123 +149,117 @@ jobs:
           - { group: browser, shard: 2/4 }
           - { group: browser, shard: 3/4 }
           - { group: browser, shard: 4/4 }
+          - { group: network }
           - { group: postgres }
-          - { group: rest }
-          - { group: live }
-          - { group: backup }
+          - { group: smoke }
     # A draft is work in progress: its author runs the touched suites locally and pushes as often as
     # needed. CI runs once, when the pull request is marked ready for review, and on every push after.
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    if: needs.checks.outputs.docs_only != 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.sha || github.sha }}
           fetch-depth: 0
       - uses: actions/setup-node@v4
         id: node
         with:
           node-version-file: .nvmrc
-          cache: npm
-      # A pull request that changes only documentation runs only the checks that read documentation.
-      # The test is a diff inside this job, not a workflow-level paths filter, so the required `verify`
-      # check always reports. A push to main has no base and runs everything.
-      - name: Classify the change
-        id: scope
-        env:
-          BASE_REF: ${{ github.event_name == 'pull_request' && github.base_ref || '' }}
-        run: node scripts/ci-change-scope.mjs ${BASE_REF:+--base "origin/$BASE_REF"}
-      # node_modules is restored whole and keyed on everything that decides its content: the lockfile,
-      # package.json, the Node version and the runner OS and architecture. On a hit npm ci is skipped.
-      # On a miss it runs, and the result is saved right away, before verification adds build output
-      # under node_modules/.cache that must not enter the cache.
+      - name: Install and verify pinned npm
+        id: toolchain
+        run: |
+          npm install --global "npm@$(node -p "require('./package.json').engines.npm")"
+          npm run conexus:preflight
+          echo "npm-version=$(npm --version)" >> "$GITHUB_OUTPUT"
       - name: Restore node_modules
         id: modules
         uses: actions/cache/restore@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json', 'package.json') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-npm${{ steps.toolchain.outputs.npm-version }}-${{ hashFiles('package-lock.json', 'package.json') }}
       - name: Install dependencies
         if: steps.modules.outputs.cache-hit != 'true'
+        timeout-minutes: 15
         run: node scripts/ci-install.mjs
-      - name: Save node_modules
-        if: steps.modules.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+      - name: Read the Hub build from this run
+        if: needs.checks.outputs.docs_only != 'true'
+        uses: actions/download-artifact@v4
         with:
-          path: node_modules
-          key: ${{ steps.modules.outputs.cache-primary-key }}
+          name: hub-build
+          path: node_modules/.cache
       # The browser download is cached on the installed Playwright version. The OS libraries it needs
       # live outside the cache, so they are installed on every run.
       - name: Playwright version
         id: playwright
-        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'live')
+        if: needs.checks.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'smoke')
         run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Restore the Playwright browser
-        id: browser
-        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'live')
+        if: needs.checks.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'smoke')
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
-      - name: Install Playwright Chromium
-        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'live') && steps.browser.outputs.cache-hit != 'true'
-        run: npx --no-install playwright install --with-deps chromium
-      - name: Install Playwright OS dependencies
-        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'live') && steps.browser.outputs.cache-hit == 'true'
-        run: npx --no-install playwright install-deps chromium
+      - name: Install Playwright Chromium and OS dependencies
+        if: needs.checks.outputs.docs_only != 'true' && (matrix.group == 'browser' || matrix.group == 'smoke')
+        timeout-minutes: 15
+        run: npx --no-install playwright install --with-deps chromium 2>&1 | tee "$RUNNER_TEMP/playwright-install.log"
       # The application runner's worker is a rootless bubblewrap sandbox, and the runner refuses to
       # start without unprivileged user namespaces. ubuntu-24.04 restricts them through AppArmor.
       - name: Rootless sandbox for the application runner suite
-        if: steps.scope.outputs.docs_only != 'true' && matrix.group == 'postgres'
+        if: needs.checks.outputs.docs_only != 'true' && matrix.group == 'postgres'
         run: |
           command -v bwrap || { sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends bubblewrap; }
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       # The baseline check reads the schema back with pg_dump, which must be at least the server's
       # version. The container's own pg_dump always is, so no client is installed here.
       - name: Start the Hub PostgreSQL
-        if: steps.scope.outputs.docs_only != 'true' && (matrix.group == 'postgres' || matrix.group == 'browser')
+        if: needs.checks.outputs.docs_only != 'true' && (matrix.group == 'postgres' || matrix.group == 'browser')
         run: |
           docker run --rm --detach --name conexus-ci-hub -p 5432:5432 -e POSTGRES_DB=conexus_test -e POSTGRES_PASSWORD=s6-ci-test-only postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f
-          for attempt in $(seq 1 60); do docker exec conexus-ci-hub pg_isready -U postgres -d conexus_test -h 127.0.0.1 && break; sleep 1; done
-          docker exec conexus-ci-hub pg_isready -U postgres -d conexus_test -h 127.0.0.1
+          for attempt in $(seq 1 60); do docker exec conexus-ci-hub pg_isready -U postgres -d conexus_test -h 127.0.0.1 2>&1 | tee -a "$RUNNER_TEMP/hub-readiness.log" && break; sleep 1; done
+          docker exec conexus-ci-hub pg_isready -U postgres -d conexus_test -h 127.0.0.1 2>&1 | tee -a "$RUNNER_TEMP/hub-readiness.log"
       # Application data lives on its own PostgreSQL cluster, apart from the Hub's. The runner allows
       # passwordless sudo, so the test Applications cluster gets the same dedicated, mounted
       # filesystem an installation gets, at a fraction of the size, instead of an ordinary directory.
       - name: Start the Applications PostgreSQL test cluster
-        if: steps.scope.outputs.docs_only != 'true' && matrix.group == 'postgres'
+        if: needs.checks.outputs.docs_only != 'true' && matrix.group == 'postgres'
         run: |
           sudo bash scripts/mount-application-cluster-storage.sh install "$RUNNER_TEMP/conexus-apps.img" 1024 "$RUNNER_TEMP/conexus-apps"
           printf '%s' s6-ci-test-only > "$RUNNER_TEMP/conexus-apps-password"
           bash scripts/run-application-cluster.sh conexus-ci-apps 5434 "$RUNNER_TEMP/conexus-apps" "$RUNNER_TEMP/conexus-apps-password"
-          for attempt in $(seq 1 60); do docker exec conexus-ci-apps pg_isready -U postgres -h 127.0.0.1 && break; sleep 1; done
-          docker exec conexus-ci-apps pg_isready -U postgres -h 127.0.0.1
+          for attempt in $(seq 1 60); do docker exec conexus-ci-apps pg_isready -U postgres -h 127.0.0.1 2>&1 | tee -a "$RUNNER_TEMP/apps-readiness.log" && break; sleep 1; done
+          docker exec conexus-ci-apps pg_isready -U postgres -h 127.0.0.1 2>&1 | tee -a "$RUNNER_TEMP/apps-readiness.log"
       # Project roles log in only with the application runner's certificate. The test cluster gets the
       # TLS files and pg_hba rules an installation gets; the Project role suites prove them.
       - name: Confine application roles on the test Applications cluster
-        if: steps.scope.outputs.docs_only != 'true' && matrix.group == 'postgres'
+        if: needs.checks.outputs.docs_only != 'true' && matrix.group == 'postgres'
         run: node scripts/confine-application-cluster.mjs --container conexus-ci-apps --authority-dir "$RUNNER_TEMP/conexus-app-authority" --tls-dir "$RUNNER_TEMP/conexus-app-tls" --database '/^conexus_apps_[0-9a-f]{12}$'
-      - name: Verify the documentation checks only
-        if: steps.scope.outputs.docs_only == 'true' && matrix.group == 'rest'
-        run: npm run verify:docs
-      - name: Verify the ${{ matrix.group }} group
-        run: npm run conexus:verify -- --scope candidate --group ${{ matrix.group }}${{ matrix.shard && format(' --shard {0}', matrix.shard) || '' }}
-        if: steps.scope.outputs.docs_only != 'true'
+      - name: Validate same-run Hub artifact
+        run: node scripts/check-hub-build.mjs
+      - name: Test the ${{ matrix.group }} group
+        timeout-minutes: 10
+        run: npm run test:${{ matrix.group }} 2>&1 | tee "$RUNNER_TEMP/tests.log"
         env:
-          # The live group's evidence (screenshots, the page console, the Hub's log) is kept on failure, below.
           CONEXUS_VERIFY_EVIDENCE: ${{ runner.temp }}/conexus-verify-evidence
           CONEXUS_VERIFY_STATE: ${{ runner.temp }}/conexus-verify-state
+          CONEXUS_TEST_SHARD: ${{ matrix.shard }}
           CONEXUS_TEST_DB_CONTAINER: conexus-ci-hub
           CONEXUS_TEST_APP_TLS_DIR: ${{ runner.temp }}/conexus-app-tls
           CONEXUS_TEST_APP_DB_HOST: 127.0.0.1
           CONEXUS_TEST_APP_DB_PORT: '5434'
           CONEXUS_TEST_APP_DB_USER: postgres
           CONEXUS_TEST_APP_DB_PASSWORD: s6-ci-test-only
-      - name: Keep the live group's evidence
-        if: failure() && matrix.group == 'live'
-        uses: actions/upload-artifact@v4
-        with:
-          name: live-evidence
-          path: ${{ runner.temp }}/conexus-verify-evidence
-          if-no-files-found: ignore
+      - name: PostgreSQL diagnostics
+        if: failure() && needs.checks.outputs.docs_only != 'true' && (matrix.group == 'postgres' || matrix.group == 'browser')
+        run: |
+          docker logs conexus-ci-hub 2>&1 | tee "$RUNNER_TEMP/hub-postgres.log"
+          if [ '${{ matrix.group }}' = postgres ]; then docker logs conexus-ci-apps 2>&1 | tee "$RUNNER_TEMP/apps-postgres.log"; fi
+      - name: Stop the test clusters
+        if: always() && needs.checks.outputs.docs_only != 'true' && (matrix.group == 'postgres' || matrix.group == 'browser')
+        run: |
+          docker inspect conexus-ci-hub >/dev/null 2>&1 && docker stop conexus-ci-hub || true
+          if [ '${{ matrix.group }}' = postgres ]; then docker inspect conexus-ci-apps >/dev/null 2>&1 && docker stop conexus-ci-apps || true; fi
       - run: git diff --check
       # A guard that fails without naming what it found costs a whole CI cycle to diagnose.
       - name: The working tree is unchanged by verification
@@ -154,17 +271,154 @@ jobs:
             exit 1
           fi
 
-  # The one required check. It reports success only when every group did, so branch protection keeps
-  # a single name, `verify`, and a group that fails or is cancelled fails it.
+      - name: Keep group diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostics-${{ matrix.group }}-${{ strategy.job-index }}
+          path: |
+            ${{ runner.temp }}/*.log
+            ${{ runner.temp }}/conexus-verify-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+
+  integration:
+    name: verify (integration)
+    needs: checks
+    if: needs.checks.outputs.docs_only != 'true' && needs.checks.outputs.full_live != 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        id: node
+        with:
+          node-version-file: .nvmrc
+      - name: Install and verify pinned npm
+        id: toolchain
+        run: |
+          npm install --global "npm@$(node -p "require('./package.json').engines.npm")"
+          npm run conexus:preflight
+          echo "npm-version=$(npm --version)" >> "$GITHUB_OUTPUT"
+      - name: Restore node_modules
+        id: modules
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-npm${{ steps.toolchain.outputs.npm-version }}-${{ hashFiles('package-lock.json', 'package.json') }}
+      - name: Install dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
+        timeout-minutes: 15
+        run: node scripts/ci-install.mjs
+      - name: Read the Hub build from this run
+        uses: actions/download-artifact@v4
+        with:
+          name: hub-build
+          path: node_modules/.cache
+      # The browser download is cached on the installed Playwright version. The OS libraries it needs
+      # live outside the cache, so they are installed on every run.
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Restore the Playwright browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
+      - name: Install Playwright Chromium and OS dependencies
+        timeout-minutes: 15
+        run: npx --no-install playwright install --with-deps chromium 2>&1 | tee "$RUNNER_TEMP/playwright-install.log"
+      - name: Validate same-run Hub artifact
+        run: node scripts/check-hub-build.mjs
+      - name: Qualification behavior
+        timeout-minutes: 10
+        run: npm run test:live:extended 2>&1 | tee "$RUNNER_TEMP/tests.log"
+        env:
+          CONEXUS_VERIFY_EVIDENCE: ${{ runner.temp }}/conexus-verify-evidence
+          CONEXUS_VERIFY_STATE: ${{ runner.temp }}/conexus-verify-state
+      - name: Keep qualification diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-diagnostics
+          path: |
+            ${{ runner.temp }}/*.log
+            ${{ runner.temp }}/conexus-verify-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+
+  backup:
+    name: verify (backup)
+    needs: checks
+    if: needs.checks.outputs.docs_only != 'true' && needs.checks.outputs.backup != 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        id: node
+        with:
+          node-version-file: .nvmrc
+      - name: Install and verify pinned npm
+        id: toolchain
+        run: |
+          npm install --global "npm@$(node -p "require('./package.json').engines.npm")"
+          npm run conexus:preflight
+          echo "npm-version=$(npm --version)" >> "$GITHUB_OUTPUT"
+      - name: Restore node_modules
+        id: modules
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-npm${{ steps.toolchain.outputs.npm-version }}-${{ hashFiles('package-lock.json', 'package.json') }}
+      - name: Install dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
+        timeout-minutes: 15
+        run: node scripts/ci-install.mjs
+      - name: Read the Hub build from this run
+        uses: actions/download-artifact@v4
+        with:
+          name: hub-build
+          path: node_modules/.cache
+      - name: Validate same-run Hub artifact
+        run: node scripts/check-hub-build.mjs
+      - name: Qualification behavior
+        timeout-minutes: 10
+        run: npm run test:backup 2>&1 | tee "$RUNNER_TEMP/tests.log"
+        env:
+          CONEXUS_VERIFY_EVIDENCE: ${{ runner.temp }}/conexus-verify-evidence
+          CONEXUS_VERIFY_STATE: ${{ runner.temp }}/conexus-verify-state
+      - name: Keep qualification diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-diagnostics
+          path: |
+            ${{ runner.temp }}/*.log
+            ${{ runner.temp }}/conexus-verify-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+
   verify:
     name: verify
-    needs: group
+    needs: [checks, group, integration, backup]
     if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
-      - name: Every group passed
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Required results are present and successful
+        run: node scripts/check-ci-results.mjs
         env:
-          GROUPS_RESULT: ${{ needs.group.result }}
-        run: |
-          echo "groups: $GROUPS_RESULT"
-          test "$GROUPS_RESULT" = success
+          VERIFY_NEEDS: ${{ toJSON(needs) }}

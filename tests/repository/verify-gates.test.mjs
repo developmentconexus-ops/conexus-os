@@ -39,7 +39,7 @@ const runWithLedger = (candidate, file) => {
   return spawnSync(process.execPath, [checkSkips], { cwd: candidate, encoding: 'utf8', env: environment })
 }
 
-test('a skip without an opt-in reason fails the graph and is named', context => {
+test('a skip without an opt-in reason fails the command and is named', context => {
   const candidate = fixture(context, 'conexus-skip-refused-', {
     'tests/pg.test.mjs': [
       "import test from 'node:test'",
@@ -53,7 +53,7 @@ test('a skip without an opt-in reason fails the graph and is named', context => 
   assert.equal(result.status, 1)
   assert.equal(result.stdout, '')
   assert.equal(result.stderr, [
-    '2 skipped or todo test(s) in the verify graph; only a reason starting with "opt-in:" may leave a test unexecuted:',
+    '2 skipped or todo test(s) in the test command; only a reason starting with "opt-in:" may leave a test unexecuted:',
     'tests/pg.test.mjs › reads the database: real PostgreSQL configuration not supplied',
     'tests/pg.test.mjs › runs a browser: no reason given',
     '',
@@ -79,7 +79,7 @@ test('an opt-in live skip passes and is listed', context => {
   ].join('\n'))
 })
 
-test('a todo without an opt-in reason fails the graph, bodyless or not', context => {
+test('a todo without an opt-in reason fails the command, bodyless or not', context => {
   const candidate = fixture(context, 'conexus-todo-refused-', {
     'tests/todo.test.mjs': [
       "import test from 'node:test'",
@@ -93,7 +93,7 @@ test('a todo without an opt-in reason fails the graph, bodyless or not', context
   assert.equal(result.status, 1)
   assert.equal(result.stdout, '')
   assert.equal(result.stderr, [
-    '2 skipped or todo test(s) in the verify graph; only a reason starting with "opt-in:" may leave a test unexecuted:',
+    '2 skipped or todo test(s) in the test command; only a reason starting with "opt-in:" may leave a test unexecuted:',
     'tests/todo.test.mjs › handles the empty cart: no reason given (todo)',
     'tests/todo.test.mjs › handles a refund: not written yet (todo)',
     '',
@@ -131,31 +131,23 @@ test('a run the reporter never saw fails instead of passing empty', context => {
   assert.equal(empty.stderr, `the test ledger at ${ledger} recorded no test, so the ledger reporter did not run\n`)
 })
 
-const nestedRun = [
-  "import { spawnSync } from 'node:child_process'",
-  "import test from 'node:test'",
-  "test('runs the inner suite', () => spawnSync(process.execPath, ['--test', 'tests/inner.test.mjs']))",
-  '',
-].join('\n')
 
-test('a test that starts a nested node --test is refused with its line', context => {
-  const candidate = fixture(context, 'conexus-nested-refused-', { 'tests/outer.test.mjs': nestedRun })
-  const result = spawnSync(process.execPath, [checkSkips], { cwd: candidate, encoding: 'utf8', env: cleanEnvironment({}) })
-  assert.equal(result.status, 1)
-  assert.equal(result.stdout, '')
-  assert.equal(result.stderr, [
-    'a test starts a nested node --test, whose skips the ledger reporter cannot see; run the file in the verify graph or add it to NESTED_RUN_ALLOWLIST with a reason:',
-    "tests/outer.test.mjs:3: test('runs the inner suite', () => spawnSync(process.execPath, ['--test', 'tests/inner.test.mjs']))",
-    '',
-  ].join('\n'))
-})
-
-test('an allowlisted nested node --test passes', context => {
-  const candidate = fixture(context, 'conexus-nested-allowed-', {
-    'tests/repository/verify-gates.test.mjs': nestedRun,
-    'ledger.jsonl': '{"tests":1}\n',
-  })
-  const result = spawnSync(process.execPath, [checkSkips], { cwd: candidate, encoding: 'utf8', env: cleanEnvironment({ CONEXUS_TEST_LEDGER: resolve(candidate, 'ledger.jsonl') }) })
-  assert.equal(result.status, 0, result.stderr)
-  assert.equal(result.stdout, 'no unexecuted test outside opt-in live runs (tests=1, opt-in skips=0, opt-in todos=0)\n')
+ test('direct entrypoints refuse skipped and empty suites and preserve assertion failures', context => {
+  const shell = resolve(root, 'scripts/test-with-ledger.sh')
+  const cases = [
+    ["import test from 'node:test'; test('missing DB', {skip: true}, () => {})", /missing DB/],
+    ["import test from 'node:test'; test.todo('missing behavior')", /missing behavior/],
+    ['', /recorded no test/],
+    ["import test from 'node:test'; test('broken', () => { throw new Error('FIRST_ASSERTION') })", /FIRST_ASSERTION/],
+  ]
+  for (const [source, message] of cases) {
+    const candidate = fixture(context, 'conexus-entrypoint-', { 'fixture.test.mjs': source })
+    const result = spawnSync('bash', [shell, 'fixture.test.mjs'], { cwd: candidate, env: cleanEnvironment({}), encoding: 'utf8' })
+    assert.equal(result.status, 1, result.stdout + result.stderr)
+    assert.match(result.stdout + result.stderr, message)
+  }
+  const candidate = fixture(context, 'conexus-entrypoint-positive-', { 'fixture.test.mjs': "import test from 'node:test'; test('passes', () => {})" })
+  const result = spawnSync('bash', [shell, 'fixture.test.mjs'], { cwd: candidate, env: cleanEnvironment({}), encoding: 'utf8' })
+  assert.equal(result.status, 0, result.stdout + result.stderr)
+  assert.match(result.stdout, /tests=1, opt-in skips=0/)
 })

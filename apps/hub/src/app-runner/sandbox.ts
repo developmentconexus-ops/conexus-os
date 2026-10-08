@@ -3,8 +3,9 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } fr
 import { Readable } from 'node:stream'
 import { z } from 'zod'
 import { dirname, join } from 'node:path'
-import { workerResult } from './wire.js'
-import type { WorkerJob, WorkerResult } from './wire.js'
+import { workerAnswerSchema } from './wire.js'
+import type { WorkerJob } from './wire.js'
+import type { WorkerAnswer } from './server-manifest.js'
 import { Failure } from '../platform/failure.js'
 
 /**
@@ -46,7 +47,7 @@ const SANDBOX_CONNECTOR_SOCKET = `${SANDBOX_CONNECTOR_DIR}/.s.connector`
 const STREAM_LIMIT = 64 * 1024
 
 export type WorkerOutcome =
-  | Readonly<{ kind: 'RESULT'; result: WorkerResult; ms: number; logs: string }>
+  | Readonly<{ kind: 'RESULT'; result: WorkerAnswer; ms: number; logs: string }>
   | Readonly<{ kind: 'TIMEOUT' | 'RESULT_TOO_LARGE'; ms: number; logs: string }>
   | Readonly<{ kind: 'CRASHED'; exitCode: number | null; signal: string | null; ms: number; logs: string }>
 
@@ -112,8 +113,8 @@ export const dependencyClosure = (entry: string, from: string = import.meta.dirn
   return found
 }
 
-const STAGED_FILES = ['app-runner/worker.js', 'app-runner/wire.js', 'app-runner/data-plane.js', 'platform/caller.js']
-const STAGED_PACKAGES = ['pg', 'zod']
+const STAGED_FILES = ['app-runner/worker.js', 'app-runner/wire.js', 'app-runner/data-plane.js', 'app-runner/migration-sql.js', 'app-runner/server-manifest.js', 'platform/caller.js']
+const STAGED_PACKAGES = ['pg', 'zod', 'libpg-query']
 
 /**
  * Builds the read-only tree mounted at /runner: the worker, the runner modules it imports, and a
@@ -153,7 +154,11 @@ export const runWorker = (input: Readonly<{
     ...(input.appDir ? ['--ro-bind', input.appDir, '/app'] : []),
     '--dir', SANDBOX_DATABASE_HOST, '--bind', input.databaseSocket, SANDBOX_SOCKET,
     ...(input.connectorSocket && input.job.kind === 'invoke' ? ['--dir', SANDBOX_CONNECTOR_DIR, '--bind', input.connectorSocket, SANDBOX_CONNECTOR_SOCKET] : []),
-    '/runtime/node', ...permission, `--max-old-space-size=${config.heapMb}`, '/runner/app-runner/worker.js',
+    '/runtime/node',
+    // PostgreSQL grammar optimization exhausts the worker's native address-space bound on large
+    // batches. Keep Liftoff and disable both tier-up paths on pinned Node, without raising the bound.
+    ...(input.job.kind === 'migrate' ? ['--liftoff', '--no-wasm-tier-up', '--no-wasm-dynamic-tiering'] : []),
+    ...permission, `--max-old-space-size=${config.heapMb}`, '/runner/app-runner/worker.js',
   ]
   return new Promise((resolve) => {
     const child = spawn(config.prlimit, args, { env: {}, stdio: ['pipe', 'pipe', 'pipe', 'pipe'] })
@@ -187,7 +192,7 @@ export const runWorker = (input: Readonly<{
       if (verdict) return resolve({ kind: verdict, ms, logs })
       const line = result.toString('utf8').split('\n', 1)[0] ?? ''
       try {
-        const parsed = workerResult.safeParse(JSON.parse(line))
+        const parsed = workerAnswerSchema.safeParse(JSON.parse(line))
         if (parsed.success) return resolve({ kind: 'RESULT', result: parsed.data, ms, logs })
       } catch {
         // no result line: the worker died first

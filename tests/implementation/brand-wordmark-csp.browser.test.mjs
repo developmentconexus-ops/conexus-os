@@ -1,3 +1,4 @@
+import { recordBrowserContext, saveBrowserDiagnostics } from './browser-diagnostics.mjs'
 import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -28,10 +29,12 @@ const tokens = readFileSync(resolve(repositoryRoot, 'packages/brand/src/tokens.c
  test('wordmark named sizes render from brand CSS under a CSP that blocks inline styles', async (t) => {
   const browser = await chromium.launch({ headless: true })
   t.after(async () => {
+    await saveBrowserDiagnostics(browser)
     await browser.close()
     rmSync(buildRoot, { recursive: true, force: true })
   })
   const page = await browser.newPage()
+  await recordBrowserContext(page.context())
   const violations = []
   page.on('console', (message) => {
     if (message.text().includes('Content Security Policy')) violations.push(message.text())

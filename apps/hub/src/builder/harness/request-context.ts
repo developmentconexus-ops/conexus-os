@@ -1,4 +1,6 @@
-import { isThinkingLevelSetting, resolveDefaultThinkingLevel, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
+import type { ModelId } from '@conexus/contract'
+import { parseModelId, DEFAULT_THINKING_LEVEL } from '../../model-account/module.js'
+import { isThinkingLevelSetting, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import type { RequestContext } from '@mastra/core/request-context'
 import { fieldOf } from '../../platform/field-of.js'
 
@@ -19,12 +21,6 @@ export const CONEXUS_CONNECTOR_BRIEF_KEY = 'conexusConnectorBrief'
 export const CONEXUS_TURN_CONFLICTS_KEY = 'conexusTurnConflicts'
 
 /**
- * The level a conversation runs at until the person picks one, resolved the way Mastra Code does.
- * The Hub sends it to the composer with the models, so the screen never holds a second copy.
- */
-export const DEFAULT_THINKING_LEVEL: ThinkingLevelSetting = resolveDefaultThinkingLevel({ globalDefault: 'medium', modeDefaults: {} }, 'build').level
-
-/**
  * The thinking level the conversation's session runs at, read on every call as Mastra Code's
  * `resolveRequestThinkingLevel` does: the session state's `thinkingLevel`, which the composer sets
  * and `AgentController` restores from the thread when a run's session loads it.
@@ -37,9 +33,9 @@ export const readSessionThinkingLevel = (requestContext: RequestContext | undefi
 }
 
 /** The model the conversation's session runs on, from the `controller` context `AgentController` sets on every call. */
-export const readSessionModelId = (requestContext: RequestContext | undefined): string | undefined => {
+export const readSessionModelId = (requestContext: RequestContext | undefined): ModelId | undefined => {
   const modelId = fieldOf(fieldOf(requestContext?.get('controller'), 'session'), 'modelId')
-  return typeof modelId === 'string' && modelId ? modelId : undefined
+  return typeof modelId === 'string' ? parseModelId(modelId) ?? undefined : undefined
 }
 
 export const readRawString = (requestContext: RequestContext | undefined, key: string): string => {

@@ -27,8 +27,8 @@ A change is in the qualification lane when any Q trigger is true:
 | Lane | Entry: all must hold | Path | Gates | Merge |
 | --- | --- | --- | --- | --- |
 | `lane:fast` | Inside accepted product meaning. No Q trigger. One pull request. Appetite P | An issue the Factory triages, plans and builds, or a builder builds when it blocks a product gate | CI green, Factory `approve`, diff read | The operator |
-| `lane:shaped` | A new user-visible capability or a change across modules. Inside accepted direction. No Q trigger | A [wave](#waves): one spec, one pull request per unit into the wave branch, one wave pull request into `main` | Fast-lane gates on each unit, the wave's proof on the wave head | Units: the manager, into the wave branch. The wave: the operator |
-| `lane:qualification` | Any Q trigger | A wave whose spec also names the deciding proof | Shaped gates, `interrogate` review of the whole wave, evidence, and the operator's verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | Units: the manager, into the wave branch. The wave: the operator |
+| `lane:shaped` | A new user-visible capability or a change across modules. Inside accepted direction. No Q trigger | A [wave](#waves): one spec, batch pull requests into `wave/<name>`, one wave pull request into `main` | Fast-lane gates on each batch, the wave's proof on the wave head | Batches: the manager, into the wave branch. The wave: the operator |
+| `lane:qualification` | Any Q trigger | A wave whose spec also names the deciding proof | Shaped gates, `interrogate` review of the whole wave, evidence, and the operator's verdict: ACCEPT, ACCEPT_WITH_BOUNDARY or REWORK | Batches: the manager, into the wave branch. The wave: the operator |
 
 - The manager is the planning session that coordinates the waves and the Factory queue for the
   operator. It never writes code and never merges into `main`.
@@ -50,10 +50,11 @@ coordinates them.
 | --- | --- | --- | --- |
 | Study | [`conexus-study`](../../.agents/skills/conexus-study/SKILL.md) | A report: today's census, the references copied, the root cause | The operator agrees with what the wave wants, what stays out and when it ends |
 | Spec | [`conexus-spec`](../../.agents/skills/conexus-spec/SKILL.md) | `index.md`, `rationale.md` and a compiled `shape/`, on the wave branch | The operator's approval line |
-| Build | [`conexus-build`](../../.agents/skills/conexus-build/SKILL.md) | One commit and one pull request into the wave branch per unit | CI green, Factory `approve`, diff read |
+| Build | [`conexus-build`](../../.agents/skills/conexus-build/SKILL.md) | One commit per unit, one pull request per batch into `wave/<name>` | Independent batch review, CI green, Factory `approve`, diff read |
 | Prove | [`conexus-prove`](../../.agents/skills/conexus-prove/SKILL.md) | A report on the wave head: a verdict per AC behind an evidence gate | Every AC met, no regression, every census line on target |
 
 - A wave that will be built **must** have one spec in `docs/specs/NNNN-title/`, no child specs.
+  S1 alone keeps its previously approved child specs under [C-039](../decisions/index.md).
 - Every decision **must** go into the spec or a guide when it is made. No decision file grows beside
   them. The manager brings each load-bearing choice to the operator, one at a time, with the
   options, a recommendation and its reference.
@@ -64,13 +65,18 @@ coordinates them.
   `**Status**: Approved by the operator on <date>, commit <sha>`. It opens the build of every unit.
 - In a wave that changes structure, the first unit **must** be the behavior pin, green on `main`
   before any structure moves.
-- Each unit is built by a fresh builder from its card, with one commit and one pull request into
-  `wave/<name>`. A unit **must not** start until everything its card lists as already there exists
-  at the head of the wave branch.
-- The manager merges a unit's pull request into the wave branch only after CI is green, the Factory
-  approves and the manager has read the diff against the card. A finding goes back to the same
-  builder.
-- When every unit is merged, a fresh read-only session proves the head of the wave branch. A
+- Waves **must** use 2–3 batches of 3–4 units; the last may be smaller. Under 4 units, one suffices.
+- A fresh builder **must** stack one commit per card on `wave/<name>-loteN`.
+  Pass its proof and `npm run verify:quick`. The manager **must** read each diff against its card.
+- Inputs **must** exist before a unit starts. Independent units in a batch **may** run in parallel.
+- Each batch **must** get one independent code review and proof rerun. Findings go to builders.
+  Then one PR goes into `wave/<name>` for CI and the Dev Factory.
+  Units **must not** get PRs, independent reviews or Factory passes.
+- The manager **must** merge each batch only after Factory `approve`, green CI and the diff read.
+- Batches **may** stack on the last batch in review or Factory. Rebase if findings change it.
+- A dependent wave **may** start on an upstream wave or batch branch once its needed unit exists.
+  It need not wait for `main`. It **must** rebase if the upstream changes during its proof.
+- When every batch is merged, a fresh read-only session proves the head of the wave branch. A
   `lane:qualification` wave is also reviewed with pstack `interrogate` over `main...wave/<name>`. A
   failed AC or a confirmed finding becomes a fix unit, and the proof runs again on the new head.
 - The wave's last unit deletes `shape/`. When the proof passes, the manager marks the wave's pull
@@ -81,12 +87,9 @@ coordinates them.
 - A wave that lays a base for others **must** prove its contract with at least one real consumer
   before merge. A later wave that breaks that contract opens a corrective wave.
 
-**Why.** One spec keeps the design in one place. A unit sized for one fresh session, merged only
-after its own gates, keeps every step reviewable, and the wave branch keeps `main` releasable until
-the whole wave is proved.
+**Why.** Batches avoid per-unit ceremony, allow overlap and keep `main` releasable.
 
-**Right.** A spec with five unit cards, each built by its own builder and merged into the wave
-branch, then one proof of the wave head before the operator merges.
+**Right.** Eight units, two batches of four commits, one review and wave-branch PR each, then proof.
 
 **Wrong.** A unit that uses a type a later unit creates, or a spec with eight child files and
 decision notes beside it.
@@ -197,21 +200,37 @@ phone.
 
 - Before each commit, the builder **must** run `npm run verify:quick` and the tests the change
   touches or that consume a changed contract, at most two groups at once.
-- CI runs the whole graph in `scripts/conexus-verify.mjs`. `verify` is the one required check. A
-  pull request changing only Markdown under `docs/`, `.agents/` or the repository root runs
-  `npm run verify:docs`. Other Markdown changes and pushes to main run the full graph.
+- CI uses the direct commands in `package.json` and `.github/workflows/verify.yml`. `verify` is the
+  one required aggregate. Docs-only PRs run repository and documentation checks. Every code PR runs
+  static/generated checks, all local network, PostgreSQL and browser tests, and four local scripted integration
+  smoke files. Main, daily and manual runs add complete integration and backup/restore qualification.
+- PRs touching web, Builder, identity/access, hosting, platform, contracts, migrations, dependencies,
+  harnesses or tests require complete integration. Isolated Project, Workspace, registry, connector
+  and telemetry source changes run the four smoke files; unknown Hub owners require qualification.
+  Infrastructure, migrations, dependencies and test/tooling changes require backup qualification.
+  Unknown paths and classification errors require all qualification. Template/style checks run when
+  their families change and on main/daily/manual runs.
+- A correctly classified isolated PR may merge before seven additional integration scenarios or
+  restore are exercised; main/daily qualification detects those regressions after merge. Browser and
+  database checks do not prove that omitted composition. Before installation, the exact selected SHA
+  **must** pass `npm run verify:qualification` or a complete Verify workflow dispatched at that SHA.
 - Required CI **must** protect objective properties of every change, never taste or document shape.
 - A pull request **must** leave draft as soon as the build ends, so CI and the Factory run while
   verification goes on. A wave's pull request into `main` stays a draft until the wave is proved.
 - Before merge, the builder **must** check the diff against the guides. The pull request carries the
   guide change, or one sentence saying why no guide rule changed.
 - Evidence stays only while it has a consumer.
+- At unit closure, the builder **must** inspect all CI groups in `.github/workflows/verify.yml`
+  and direct commands and test discovery in `package.json`. Map changed contracts to tests,
+  fixtures, fakes, verification, bootstrap and backup scripts, configuration, generated artifacts,
+  image and template pins, and immutable compiler recipes. Migrate affected consumers and delete
+  obsolete runtime APIs, aliases, parser copies, test assumptions and redundant assertions in that unit.
+  Retain historical migrations, specs and intentional refusal fixtures. Prove affected groups and justify
+  reused unaffected evidence. Unaffected suites need no rerun. `verify:quick` covers only named static
+  checks. Never weaken product validation for stale fixtures.
 
-**Why.** Local checks find a failure in seconds. CI proves the same head the merger will merge.
-
-**Right.** A builder runs `verify:quick` and the PostgreSQL tests of the store it changed.
-
-**Wrong.** A pull request opened to let CI find what `verify:quick` would have found.
+For a batch authorized with one final review, its independent reviewer audits this map under
+[`conexus-review`](../../.agents/skills/conexus-review/SKILL.md). Recheck findings through the [review loop](#review-loop) before publication.
 
 ## Merge gate
 
@@ -236,8 +255,8 @@ A pull request is ready when these hold at its exact head SHA, plus its lane's g
 ## Git and pull requests
 
 - `main` is the trunk and **must** stay releasable. Its rulesets require a pull request and `verify`
-  with no bypass. Every pull request targets `main` and is squash merged, except a wave unit's, which
-  targets its wave branch `wave/<name>`.
+  with no bypass. Every pull request targets `main` and is squash merged, except a wave batch's,
+  which targets its wave branch `wave/<name>`.
 - A branch **should** live hours or days, not weeks.
 - A pull request **must** link its issue, do only what it asks, and open with one line that says
   what changes, followed by why and for whom. Commits use conventional commit titles.

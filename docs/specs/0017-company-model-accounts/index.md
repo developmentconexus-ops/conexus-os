@@ -3,9 +3,9 @@
 **Date**: 2026-10-07
 **Status**: Approved by the operator on 2026-10-07, commit a5068fba54c676c2104b642ff08fd54ad9df8890
 **Lane**: lane:qualification (Q-b custody; Q-c real Builder proof before foundation merge)
-**Wave branch**: wave/company-model-accounts
+**Wave branch**: wave/company-model-accounts-lote2 → wave/company-model-accounts-spec
 **Spec rewrite branch**: wave/model-accounts-respec → wave/company-model-accounts-spec
-**Study**: Model accounts re-study of 2026-10-07, held privately by firstmate. Study objective, limits and end approved on 2026-10-07; this spec is not approved.
+**Study**: Model accounts re-study of 2026-10-07, held privately by firstmate. Study objective, limits and end approved on 2026-10-07; the foundation spec is approved; 0020 remains a separate specification.
 
 ## Summary
 
@@ -16,23 +16,19 @@ usable; the company commands, selection rules and settings experience follow in 
 
 ## Starting point and dependency gates
 
-The measured main is `5efbc090c43176ca4e666688769d2a4ee09e1745`. The spec base is
-`9e66d5bc304438d94ed014affd8f072d8ccf3718`. Schema commit
-`885addee625db576de92de52d5e0e49aca086cc4` on `wave/company-model-accounts` is **unmerged**.
-It creates 0071, scope/owner/lawful-pair CHECKs, connected metadata and refusal, removes sharing
-history and updates personal SQL. It is a prerequisite, not delivered main functionality or approved
-implementation evidence. Do not rebuild or edit its migration. Integrate it before 0018 removes
-`rls.acting_account()`, which 0071's policy requires. Replay this order against PostgreSQL.
+The historical measured main is `5efbc090c43176ca4e666688769d2a4ee09e1745`. Build intake
+`c40f1f1c07cf2346dd0de45db0480409f16f01bd` contains schema
+`885addee625db576de92de52d5e0e49aca086cc4` and U1 content from
+`cf00b75fa90d491f8499677516706ee2f73bdb96`. Schema 0071 precedes authorization's removal of
+`rls.acting_account()`; it is unchanged, not rebuilt or claimed delivered main functionality.
 
-U1 runs on real main before structural movement, then on the schema head. U2 onward waits for
-merged implementations of 0018 and 0019, rebases the census through ordinary integration, and
-imports their delivered owners. The actual interfaces checked are 0018
-`0987494fb358b9c8491fae4476cbc16f05099393`, `shape/types.ts:1-45` (nominal Admitted,
-AccountScope, RunScope with RunOwner, SystemScope) and 0019
-`b07a99e7d1d7fbd4c24f681befb51a00b92635b0`, `shape/types.ts:1-8`
-(two-parameter Result and Code). Those specs are drafts; their runtime exports and post-0018
-catalog are not proved. 0018's removal of roles/RLS conflicts with current D §6–7: wait for its
-accepted guide change and real owner; this wave neither decides that conflict nor copies admission.
+The operator authorized this batch to consume immutable upstream implementations before their
+publication: initial error/authorization `538cc279a07ceed75e6284781aa75136efc7dc2b`, then final
+published error head `76b3cd89f18f3afa4377377b553ec1c4bf08107f` with all F1–F7 corrections through
+ordinary local merge `3749eefa661c756e45e6cf5878d4a6a1a7d9bad9`. The actual owners are
+`identity-access/admission.ts` (Admitted, AccountScope, RunScope, RunOwner, SystemScope), contract
+readonly Result and table Failure. No preview admission/error aliases remain. This authorized intake
+supersedes the former whole-wave wait; it does not claim upstream or this foundation landed on main.
 
 The operator approved two sequential waves and, specifically for 0017, a guarded empty-credential
 cutover on 2026-10-07. It follows the local reset already planned at S1 closure. The forward
@@ -74,15 +70,18 @@ this wave to silently replace current D's role model. Basejump's human primary o
 
 ## Code shape
 
-`shape/credential.ts`, `secrets.ts`, `store.ts`, `module.ts`, `usage.ts` and `negative.ts` are the
-compiled target. `node docs/specs/0017-company-model-accounts/shape/compile.mjs` runs the pinned
-TypeScript compiler with `--noEmit -p` against **actual extracted upstream source**, not a copied
-nominal proof. It extracts only 0018 types and 0019 types at the commits above into a temporary
-directory. Only the planned generated SECRET_CUSTODY_LOST code is simulated. Compilation passed
-with Node 24.20.0, TypeScript 6.0.2, Zod 4.6.5, core 1.71.0 and code-sdk 1.8.3.
-The normal `npx tsc --noEmit -p shape` requires the delivered upstream import mappings; after
-integration repoint `#admission-types`/`#failure-types` to those exact owners and run it directly.
-No runtime compatibility is claimed from compiling draft shapes. Product tests never import shape.
+U6 removes the temporary declarations, compiler import mappings and preview census. Production
+Hub compilation and executable negative fixtures now prove the target against actual owners,
+Node 24.20.0, TypeScript 6.0.2, Zod 4.6.5, core 1.71.0 and code-sdk 1.8.3:
+
+| Target | Actual owner and proof |
+| --- | --- |
+| Credential registry/model identity | `model-account/credential.ts`, contract ModelId/ModelRole; model-account-credential and model-account-types fixtures |
+| Row-bound envelope | `platform/secrets.ts`; secret-custody runtime/types/migration fixtures |
+| Admitted hold/reread/system CAS | `model-account/store.ts`; model-account PostgreSQL and actual-owner negative fixtures |
+| Constructor/native consumer/lifecycle | `model-account/module.ts`, Builder model-routing.ts, Hub; model-account-module and Google PostgreSQL fixtures |
+| Current release after shared work | `model-account/refresh.ts`; model-account-module PostgreSQL revoked/ended/CAS/snapshot cases |
+| Objective ownership/legacy checks | `scripts/check-model-account-census.mjs`; model-account-census defect fixtures and existing import-law fixtures |
 
 A ModelId contains one parsed string. Derive prefix/model name at the native adapter boundary;
 no separate ParsedModelId bag can contradict it. A hold has one Credential, rather than duplicate
@@ -180,12 +179,12 @@ names; do not redesign their other content.
 
 ## Deletes and census
 
-Run `node shape/census.mjs --at=<commit>` for a reproducible committed baseline, or without --at
-for the working tree. The rewritten script counts JSON.parse in **every provider file**, regardless
-of filename, and retired identifiers even after files move. It checks core imports and Builder table
-literals. Live names include tests, fixture inputs, scripts and owning configuration/backup prose.
-Historical migrations/specs and license comments remain records; only the named retired-input fixture
-and two migration-history suites are excluded. No global text exemption for provider code.
+Run `node scripts/check-model-account-census.mjs` from the repository root. It is a hard-zero
+candidate/rest and quick check, using the native TypeScript AST across every owned provider file,
+retired identifier, core import and Builder table literal. Live names include tests, fixture inputs,
+scripts and owning configuration/backup prose. Historical migrations and license comments remain
+records. Six exact rejected/pre-cutover AST inputs are reported separately; no historical suite or
+negative-test file is exempt. Adding a live old name inside any of those files fails the checker.
 
 | What | Today at spec base | Final target | Holding check |
 | --- | ---: | ---: | --- |
@@ -208,16 +207,17 @@ createModelRouting/ModelRoutes/ModelRoute/takeFrom/routeOf/Taken, old withRun/Ru
 ADMISSION_REFUSALS and Builder joins (U4); unconditional refresh persistence and stale-waiter
 release (U5); temporary shape (U6). Move every test with its production caller.
 
-`shape/file-budget.mjs` names **63 actual product paths**, including both intermediate old and final
-new paths. Tests/guides/generated outputs are recorded separately, not silently called product.
-Each card uses its manifest plus named tests/guides below; migrations resolve `<next>` from merged
-history before build. Record actual `git diff --name-status` per unit and compare with the manifest.
-A discovered caller not listed returns for spec correction; do not hide it as a “final identity”.
+The approved preview budget named63 paths, counting intermediate old and final new owners. Actual
+per-unit manifests count source, forward SQL, failure table and executable scripts separately from
+tests/guides/generated mirrors and immutable upstream integration. The cumulative product limit is70.
+Record each exact unit diff, caller discoveries and native prerequisites; actual intake corrections
+(secret-file dependency in U3 and existing import registration in U4) remain explicit. The final unit
+replaces the preview manifest with committed path/proof evidence; no missing owner is deferred.
 
 ## Units
 
-Each builder reads its card, the Design sections it cites, References copied and shape. Each ends
-with its deciding tests, shape compile (direct delivered-owner mappings once upstream lands),
+Each builder reads its card, the Design sections it cites, References copied and the actual production owner/proof fixtures above. Each ends
+with its deciding tests, production compilation and negative type proofs,
 `npm run verify:quick` and one green commit. The manifest in file-budget.mjs is the exact product
 allowlist; named tests/guide edits are additional non-product paths. No code outside the card.
 
@@ -236,7 +236,7 @@ allowlist; named tests/guide edits are additional non-product paths. No code out
 
 ### U2. Derive strong credentials and model identity at the current owner
 
-- **Already there**: U1/schema; delivered 0018/0019 contracts and approved dependency order. Read Design §2 and credential/negative shape.
+- **Already there**: U1/schema; delivered 0018/0019 contracts and approved dependency order. Read Design §2 and the credential owner and production negative fixture.
 - **Creates**: One registry/codecs in current builder/model-account/providers.ts, contract ModelId/ModelRole and parse/encode edges. Final credential.ts content is placed in this existing owner until U4 moves it; no duplicate new owner yet.
 - **Satisfies**: AC-1/2.
 - **Files**: U2 actual-path manifest: all current credential/provider files, named Builder model consumers including harness/controller.ts, and contract ids/model-account/index. Tests: U1 provider/thinking/routes/account suites and new model-account-types.test-d.ts under tests/implementation.
@@ -249,7 +249,7 @@ allowlist; named tests/guide edits are additional non-product paths. No code out
 
 ### U3. Bind immutable rows and retire live envelope names
 
-- **Already there**: U2/schema, actual upstream proof/failure owners, approved empty-credential cutover. Read Design §1/4 and secrets shape.
+- **Already there**: U2/schema, actual upstream proof/failure owners, approved empty-credential cutover. Read Design §1/4 and the actual secrets owner and custody type fixture.
 - **Creates**: Row-required seal/open/reseal; SECRET_CUSTODY_LOST row in failures table, generated outputs; renamed cipher/config API and next forward four-CHECK migration. Mint/read locked row identity before sealing in current model/connector stores; reseal handoff in existing IAM gate.
 - **Satisfies**: AC-3/4/7 custody.
 - **Files**: U3 product manifest. Tests: iam-sessions.postgres, connector-broker.postgres, model-account.postgres, company-model-accounts-migration.postgres plus new secret-custody.test.mjs, secret-custody-migration.postgres.test.mjs and tests/fixtures/secret-custody-retired.json. Rename-variable callers also include tests/implementation/builder-composition.postgres.test.mjs, builder-planning-free-boot.test.mjs, workspace-http.test.mjs, hub-role-register.test.mjs, application-host.test.mjs and connector-broker.test.mjs. Generated catalog/failures mirrors through existing generators. Guides: S §6, docs/reference/backup.md, infra/backup/README.md and 0008 consumed key-configuration interface only.
@@ -262,7 +262,7 @@ allowlist; named tests/guide edits are additional non-product paths. No code out
 
 ### U4. Move the complete personal owner and its real consumers
 
-- **Already there**: U1–U3 strong values/custody and current personal operations. Read Design §2/3 and module/store/usage shape.
+- **Already there**: U1–U3 strong values/custody and current personal operations. Read Design §2/3 and the actual module/store and consumer fixtures.
 - **Creates**: Concrete frozen core constructor and full lifecycle, moved provider/native mechanics, admitted hold/reread and owner-internal CAS persistence. Builder OpenRun and paying recorder consume it. The store's persistence exists in this unit, including final Google capture after run end; it is not left for 0020.
 - **Satisfies**: AC-2/5/6 persistence; AC-7 ownership.
 - **Files**: U4 old+new manifest, hub.ts/platform db job registration, Builder consumers. Move U1 suites/fixtures to actual core exports; add model-account-module.test.mjs. Guides: architecture §4–5/11, decisions owning C-027 and C-032, review/areas.json paths. No other spec redesign.
@@ -275,7 +275,7 @@ allowlist; named tests/guide edits are additional non-product paths. No code out
 
 ### U5. Release refreshed tokens only through each current caller
 
-- **Already there**: U4 complete owner, CAS writer, native provider leaves and Builder OpenRun. Read Design §3 and store/usage shape.
+- **Already there**: U4 complete owner, CAS writer, native provider leaves and Builder OpenRun. Read Design §3 and the actual store and native release fixtures.
 - **Creates**: Row-local serialization with fresh snapshot before refresh; post-settlement fresh admission/reread for **every** waiter. Preserve successfully rotated tokens even if caller ends; then refuse release to that caller.
 - **Satisfies**: AC-6 and AC-2 refresh regression.
 - **Files**: U5 manifest (store/refresh/Google write-back and Builder admission adapters). Tests: model-account.postgres, builder-anthropic, builder-openai-codex, builder-google-ai-pro and model-account-module suites.
@@ -289,7 +289,7 @@ allowlist; named tests/guide edits are additional non-product paths. No code out
 ### U6. Install objective checks and close the foundation
 
 - **Already there**: U1–U5 actual owners and deciding behavior. Read Deletes and census.
-- **Creates**: One scripts/check-model-account-census.mjs copied/adapted from shape/census.mjs, connected to current verify/import law. Negative type cases live beside production-bound tests, not under temporary shape.
+- **Creates**: One scripts/check-model-account-census.mjs adapted from the approved preview census, connected to current verify/import law. Negative type cases live beside production-bound tests, not under temporary shape.
 - **Satisfies**: AC-7 and final AC-1–6 regression.
 - **Files**: U6 manifest; tests/implementation/model-account-census.test.mjs and model-account-types.test-d.ts; foundation guide/doc wording only. Delete every shape file.
 - **Copies**: Existing verification entrypoint and TS checker; no verifier engine.

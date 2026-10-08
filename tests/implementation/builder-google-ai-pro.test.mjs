@@ -7,17 +7,18 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import { hubModuleUrl } from './hub-build.mjs'
-import { hubJsonWrite, hubWrite, opaque, testListener } from './access/test-listener.mjs'
-import { fakeModelAccounts } from './model-accounts-fake.mjs'
+
+const { GoogleAiProKey, encodeCredential } = await import(hubModuleUrl('model-account/credential.js'))
 
 const built = hubModuleUrl
-const { encodeKey, decodeKey, parseKey, instanceIdOf } = await import(built('builder/google-ai-pro/credential.js'))
-const { createCliproxyPool, verifyCliproxyBinary } = await import(built('builder/google-ai-pro/pool.js'))
-const { startModelRouter } = await import(built('builder/google-ai-pro/router.js'))
-const { createRefreshWriteBack } = await import(built('builder/google-ai-pro/write-back.js'))
-const { registerModelAccountRoutes } = await import(built('builder/model-accounts.js'))
+const { encodeKey, decodeKey, instanceIdOf } = await import(built('model-account/credential.js'))
+const { createCliproxyPool, verifyCliproxyBinary } = await import(built('model-account/google-ai-pro/pool.js'))
+const { startModelRouter } = await import(built('model-account/google-ai-pro/router.js'))
+const { createRefreshWriteBack } = await import(built('model-account/google-ai-pro/write-back.js'))
 
 const record = (account, extra = {}) => ({ fileName: `antigravity-${account}.json`, bytes: new TextEncoder().encode(JSON.stringify({ type: 'antigravity', refresh_token: `refresh-${account}`, ...extra })) })
+const ana = encodeKey(record('ana@example.com'))
+const bia = encodeKey(record('bia@example.com'))
 
 const scratch = (t) => {
   const root = mkdtempSync(join(tmpdir(), 'conexus-google-ai-pro-'))
@@ -61,7 +62,7 @@ const until = async (predicate, ms = 5_000) => {
 test('a credential carries the auth record whole, and only a well-formed Antigravity record parses', () => {
   const key = encodeKey(record('ana@example.com'))
   assert.equal(key.startsWith('cxagy1.'), true)
-  assert.equal(parseKey(key), key)
+  assert.equal(GoogleAiProKey.parse(key), key)
   const decoded = decodeKey(key)
   assert.equal(decoded.fileName, 'antigravity-ana@example.com.json')
   assert.deepEqual(JSON.parse(Buffer.from(decoded.bytes).toString()), { type: 'antigravity', refresh_token: 'refresh-ana@example.com' })
@@ -75,7 +76,7 @@ test('a credential carries the auth record whole, and only a well-formed Antigra
     `cxagy1.${encoded('antigravity-a.json')}.${encoded('{"type":"codex"}')}`,
     `cxagy1.${encoded('antigravity-a.json')}.${encoded('not json')}`,
     `cxagy1.${encoded('antigravity-a.json')}`,
-  ]) assert.equal(parseKey(refused), null, refused)
+  ]) assert.equal(GoogleAiProKey.safeParse(refused).success, false, refused)
   assert.throws(() => encodeKey({ fileName: '.oauth-antigravity-state.oauth', bytes: new Uint8Array([1]) }), { id: 'GOOGLE_AI_PRO_RECORD_REFUSED' })
 })
 
@@ -118,8 +119,6 @@ test('two people reach two proxies holding only their own record, and one person
     assert.equal(answer.status, 200)
     return answer.json()
   }
-  const ana = encodeKey(record('ana@example.com'))
-  const bia = encodeKey(record('bia@example.com'))
   const first = await models(ana)
   const second = await models(bia)
   const again = await models(ana)
@@ -263,7 +262,7 @@ test('explicit pool and router close stop the proxy, write refreshed bytes, remo
 test("a call through the router writes the refreshed record back to the caller's model account row by id, once (AC-22)", async (t) => {
   const { binary, stateDir } = scratch(t)
   const rewrites = []
-  const heldRow = { modelAccountId: 'row-ana', persist: async (secret) => { rewrites.push(['row-ana', secret]); return true } }
+  const heldRow = { held: { row: { modelAccountId: '30000000-0000-4000-8000-000000000001' } }, persist: async (credential) => { const secret = encodeCredential(credential); rewrites.push(['row-ana', secret]); return { state: 'stored' } } }
   const writeBack = createRefreshWriteBack()
   const pool = openPool(t, { binary, stateDir, idleMs: 0 })
   const router = await openRouter(t, pool, writeBack.persistFor)
@@ -285,7 +284,7 @@ test("a call through the router writes the refreshed record back to the caller's
 test('an unrefreshed record, or one whose row is not known, writes nothing back', async (t) => {
   const { binary, stateDir } = scratch(t)
   const rewrites = []
-  const heldRow = { modelAccountId: 'row-ana', persist: async (secret) => { rewrites.push(['row-ana', secret]); return true } }
+  const heldRow = { held: { row: { modelAccountId: '30000000-0000-4000-8000-000000000001' } }, persist: async (credential) => { const secret = encodeCredential(credential); rewrites.push(['row-ana', secret]); return { state: 'stored' } } }
   const writeBack = createRefreshWriteBack()
   const pool = openPool(t, { binary, stateDir, idleMs: 0 })
   const router = await openRouter(t, pool, writeBack.persistFor)
@@ -321,8 +320,8 @@ test('a proxy a crashed Hub left behind is killed at boot, and a stranger pid is
 test('a Hub killed without cleaning up takes its proxies with it', async (t) => {
   const { binary, stateDir } = scratch(t)
   const hub = spawn(process.execPath, ['--input-type=module', '-e', `
-    const { createCliproxyPool } = await import(${JSON.stringify(built('builder/google-ai-pro/pool.js'))})
-    const { encodeKey } = await import(${JSON.stringify(built('builder/google-ai-pro/credential.js'))})
+    const { createCliproxyPool } = await import(${JSON.stringify(built('model-account/google-ai-pro/pool.js'))})
+    const { encodeKey } = await import(${JSON.stringify(built('model-account/credential.js'))})
     const pool = createCliproxyPool({ binary: ${JSON.stringify(binary)}, stateDir: ${JSON.stringify(stateDir)} })
     const lease = await pool.acquire(encodeKey({ fileName: 'antigravity-ana@example.com.json', bytes: new TextEncoder().encode('{"type":"antigravity"}') }))
     const { pid } = await (await fetch(lease.url + '/v1/models', { headers: { authorization: 'Bearer ' + lease.proxyKey } })).json()
@@ -339,141 +338,6 @@ test('a Hub killed without cleaning up takes its proxies with it', async (t) => 
   assert.equal(await until(() => !alive(proxy)), true)
 })
 
-const SESSION_TOKEN = opaque('ana')
-const ana = '22222222-2222-4222-8222-222222222222'
-const bia = '55555555-5555-4555-8555-555555555555'
-const authentic = {
-  headers: hubJsonWrite,
-  cookies: { '__Host-conexus_session': SESSION_TOKEN },
-}
-
-// The sign-in routes run for real; only model.model_account is a recording stand-in
-const createLoginApp = async (t) => {
-  const { binary, stateDir } = scratch(t)
-  const pool = openPool(t, { binary, stateDir })
-  const { modelAccounts, rows } = fakeModelAccounts()
-  let caller = ana
-  const { app } = await testListener({
-    sessions: { [SESSION_TOKEN]: () => ({ account: { accountId: caller, displayName: caller === ana ? 'Ana' : 'Bia' } }) },
-    registerRoutes: async (instance) => {
-      await registerModelAccountRoutes(instance, {
-        modelAccounts,
-        defaultThinkingLevel: 'medium',
-        googleAiPro: pool,
-      })
-      return []
-    },
-  })
-  t.after(() => app.close())
-  return { app, stateDir, rows, as: (accountId) => { caller = accountId } }
-}
-
-const base = '/api/control/model-accounts/google-ai-pro/login'
-const callback = (url, overrides = {}) => {
-  const state = new URL(url).searchParams.get('state')
-  const params = new URLSearchParams({ state, code: 'good', ...overrides })
-  return `http://localhost:51121/oauth-callback?${params}`
-}
-const pollOnce = (app, loginId) => app.inject({ method: 'POST', url: `${base}/${loginId}`, headers: hubWrite, cookies: authentic.cookies })
-const pollUntilSettled = async (app, loginId) => {
-  for (let polls = 0; polls < 100; polls++) {
-    const { state } = (await pollOnce(app, loginId)).json()
-    if (state !== 'waiting') return state
-    await delay(25)
-  }
-  return 'waiting'
-}
-
-test('signing in from Settings stores the record as the person\'s own model.model_account row', async (t) => {
-  const { app, stateDir, rows } = await createLoginApp(t)
-  const started = await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })
-  assert.equal(started.statusCode, 200)
-  const { loginId, url } = started.json()
-  assert.equal(url.startsWith('https://accounts.google.com/o/oauth2/v2/auth?'), true)
-
-  // The address the forwarder on the Hub's machine redirects to, pasted when that hop fails.
-  const forwarded = callback(url).replace('localhost:51121/oauth-callback', '127.0.0.1:40123/antigravity/callback')
-  const completed = await app.inject({ method: 'POST', url: `${base}/complete`, ...authentic, payload: { loginId, callbackUrl: forwarded } })
-  assert.equal(completed.statusCode, 200)
-  assert.equal(await pollUntilSettled(app, loginId), 'succeeded')
-
-  const written = [...rows.values()]
-  assert.equal(written.length, 1)
-  assert.deepEqual([written[0].owner, written[0].connectedByName], [ana, 'Ana'])
-  const stored = decodeKey(parseKey(written[0].secret))
-  assert.equal(stored.fileName, 'antigravity-person@example.com.json')
-  assert.deepEqual(JSON.parse(Buffer.from(stored.bytes).toString()), { type: 'antigravity', refresh_token: 'refresh-from-google' })
-  assert.deepEqual(readdirSync(stateDir), [], 'the sign-in proxy and its copy of the record are gone')
-
-  const connection = await app.inject({ method: 'GET', url: '/api/control/model-accounts/google-ai-pro/connection', ...authentic })
-  assert.deepEqual(connection.json(), { own: { state: 'connected', kind: 'google_ai_pro' } })
-})
-
-test('a pasted address with the wrong host, path or state is refused, and a refused sign-in fails', async (t) => {
-  const { app } = await createLoginApp(t)
-  const { loginId, url } = (await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })).json()
-  for (const callbackUrl of [
-    callback(url).replace('localhost:51121', 'evil.example:51121'),
-    callback(url).replace('/oauth-callback', '/other'),
-    callback(url).replace('http:', 'https:'),
-    callback(url, { state: 'another-state-value' }),
-    'not a url',
-  ]) {
-    const refused = await app.inject({ method: 'POST', url: `${base}/complete`, ...authentic, payload: { loginId, callbackUrl } })
-    assert.equal(refused.statusCode, 400, callbackUrl)
-    assert.equal(refused.json().type.endsWith('MODEL_LOGIN_CALLBACK_REFUSED'), true)
-  }
-  await app.inject({ method: 'POST', url: `${base}/complete`, ...authentic, payload: { loginId, callbackUrl: callback(url, { code: 'bad' }) } })
-  assert.equal(await pollUntilSettled(app, loginId), 'failed')
-})
-
-test('one sign-in at a time: another person is told to wait, and the same person restarts theirs', async (t) => {
-  const { app, as } = await createLoginApp(t)
-  const first = (await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })).json()
-  as(bia)
-  const busy = await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })
-  assert.equal(busy.statusCode, 409)
-  assert.equal(busy.json().type.endsWith('MODEL_LOGIN_BUSY'), true)
-  const hidden = await pollOnce(app, first.loginId)
-  assert.deepEqual([hidden.statusCode, hidden.json().code], [404, 'MODEL_LOGIN_NOT_FOUND'], 'a sign-in is visible only to its person')
-  as(ana)
-  const second = (await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })).json()
-  assert.notEqual(second.loginId, first.loginId)
-  const replaced = await pollOnce(app, first.loginId)
-  assert.deepEqual([replaced.statusCode, replaced.json().code], [404, 'MODEL_LOGIN_NOT_FOUND'], 'a restarted sign-in forgets the one it replaced')
-})
-
-test('the Builder offers the Google AI Pro models only to a person with their own account', async (t) => {
-  const { app, as } = await createLoginApp(t)
-  const offered = async () => (await app.inject({ method: 'GET', url: '/api/control/model-accounts/models', ...authentic })).json().models.map(({ id }) => id)
-  assert.deepEqual(await offered(), [])
-  const { loginId, url } = (await app.inject({ method: 'POST', url: `${base}/start`, ...authentic, payload: {} })).json()
-  await app.inject({ method: 'POST', url: `${base}/complete`, ...authentic, payload: { loginId, callbackUrl: callback(url) } })
-  assert.equal(await pollUntilSettled(app, loginId), 'succeeded')
-  const all = ['gemini-3.1-pro-low', 'gemini-pro-agent', 'gemini-3.8-flash-high', 'gemini-3.7-flash-high', 'gemini-3.6-flash-high', 'gemini-3-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'].map((model) => `google-ai-pro/${model}`)
-  assert.deepEqual(await offered(), all)
-  const named = (await app.inject({ method: 'GET', url: `/api/control/model-accounts/models`, ...authentic })).json().models
-  assert.deepEqual(new Set(named.map(({ providerName }) => providerName)), new Set(['Google AI Pro']))
-  assert.equal((await app.inject({ method: 'GET', url: `/api/control/model-accounts/models`, ...authentic })).json().defaultThinkingLevel, 'medium', "the Hub sends the level a conversation runs at until the person picks one, as Mastra Code's resolveDefaultThinkingLevel gives it")
-  assert.deepEqual(named.slice(0, 3).map(({ modelName, thinkingLevels }) => [modelName, thinkingLevels]), [
-    ['gemini-3.1-pro-low', ['off', 'low', 'medium', 'high']], ['gemini-pro-agent', []], ['gemini-3.8-flash-high', ['off', 'low', 'medium', 'high']],
-  ], "each model offers the levels Mastra Code's Gemini mapping gives it, off included where it sends nothing, and none to a model without thinking")
-  as(bia)
-  assert.deepEqual(await offered(), [], 'another person without an account is offered nothing')
-})
-
-test('the sign-in routes need a Hub session, and their writes need a write from the Hub page', async (t) => {
-  const { app } = await createLoginApp(t)
-  const forged = await app.inject({ method: 'POST', url: `${base}/start`, headers: { ...hubJsonWrite, origin: 'https://evil.test' }, cookies: authentic.cookies, payload: {} })
-  assert.equal(forged.statusCode, 403)
-  const idle = '00000000-0000-4000-8000-000000000000'
-  const anonymous = await app.inject({ method: 'POST', url: `${base}/${idle}`, headers: hubWrite })
-  assert.equal(anonymous.statusCode, 401)
-  for (const method of ['GET', 'HEAD']) {
-    const old = await app.inject({ method, url: `${base}/${idle}`, cookies: authentic.cookies })
-    assert.equal(old.statusCode, 404, `${method} is no longer a poll`)
-  }
-})
 
 // Opt-in: runs the pinned CLIProxyAPI itself. It binds Google's callback port 51121 while it runs.
 test('the real CLIProxyAPI answers the shapes the pool and the sign-in rely on', { skip: process.env.CONEXUS_CLIPROXY_LIVE_BIN ? false : 'opt-in: CONEXUS_CLIPROXY_LIVE_BIN names the pinned CLIProxyAPI binary' }, async (t) => {

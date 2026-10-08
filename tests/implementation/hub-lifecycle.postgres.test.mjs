@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { request } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -175,6 +175,30 @@ setInterval(() => {}, 1000)
   assert.equal(status, 0)
   assert.match(output, /"msg":"HUB_SHUTDOWN_STARTED".*"signal":"SIGTERM"|"signal":"SIGTERM".*"msg":"HUB_SHUTDOWN_STARTED"/)
   assert.match(output, /CLOSED/)
+})
+
+test('SIGTERM captures Google custody and removes its live runtime before exit', async () => {
+  const stateDir = join(fixtureDirectory, 'google-state')
+  const captured = join(fixtureDirectory, 'google-captured')
+  const binary = resolve(repositoryRoot, 'tests/implementation/builder-google-ai-pro-fake-cliproxy.mjs')
+  const { status, output } = await runFixture('google-mcp-shutdown', `
+const { writeFileSync } = await import('node:fs')
+const { createCliproxyPool } = await import(${JSON.stringify(hubModuleUrl('model-account/google-ai-pro/pool.js'))})
+const { encodeKey } = await import(${JSON.stringify(hubModuleUrl('model-account/credential.js'))})
+const pool = createCliproxyPool({ binary: ${JSON.stringify(binary)}, stateDir: ${JSON.stringify(stateDir)} })
+const lease = await pool.acquire(encodeKey({ fileName: 'antigravity-shutdown.json', bytes: new TextEncoder().encode('{"type":"antigravity"}') }), async () => {
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  writeFileSync(${JSON.stringify(captured)}, 'persisted')
+})
+lease.release()
+lifecycle.exitOnSignals(() => pool.close())
+process.stdout.write('READY\\n')
+setInterval(() => {}, 1000)
+`, { signalAfterLine: { line: 'READY', signal: 'SIGTERM' } })
+  assert.equal(status, 0, output)
+  assert.equal(existsSync(captured), true, 'capture must settle before the process exits')
+  assert.equal(readFileSync(captured, 'utf8'), 'persisted')
+  assert.deepEqual(readdirSync(stateDir), [], 'no runtime auth copy may outlive graceful close')
 })
 
 test('a close that never ends is cut at the deadline with a non-zero exit', async () => {

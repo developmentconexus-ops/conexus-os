@@ -60,3 +60,5 @@ export type MediaType = z.output<typeof MediaType>;
 export declare const APPLICATION_MAX_FILES = 256;
 export declare const APPLICATION_MAX_TOTAL_BYTES: number;
 export declare function mediaTypeOfPath(path: string): MediaType | null;
+export declare const ModelId: z.core.$ZodBranded<z.ZodString, "ModelId", "out">;
+export type ModelId = z.output<typeof ModelId>;

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { FAILURE_TEXT } from '../platform/failure-text.generated.js'
 import { projectResourceId } from './conversations.js'
 import type { ControllerSession, RunNote, SettledNote } from './run/ports.js'
-import type { BuilderRunId, ConversationId, ProjectId, SourceRevision } from '@conexus/contract'
+import type { AccountId, BuilderRunId, ConversationId, ProjectId, SourceRevision } from '@conexus/contract'
 
 // Deterministic on run+code so a retried call collapses onto the same message instead of
 // appending a duplicate diagnostic.
@@ -54,7 +54,7 @@ const noteSignal = (note: RunNote) => ({
   attributes: { source: 'conexus', outcome: note.outcome, run: note.builderRunId },
 })
 
-export const createDiagnosticAppender = (openSession: (conversation: Readonly<{ projectId: ProjectId; conversationId: ConversationId }>) => Promise<NoteSession>) =>
+export const createDiagnosticAppender = (openSession: (conversation: Readonly<{ accountId: AccountId; projectId: ProjectId; conversationId: ConversationId }>) => Promise<NoteSession>) =>
   async (note: RunNote): Promise<void> => {
     const target = { resourceId: projectResourceId(note.projectId), threadId: note.conversationId }
     await (await openSession(note)).sendSignalToThread(noteSignal(note), target).accepted

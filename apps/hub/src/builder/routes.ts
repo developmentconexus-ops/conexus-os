@@ -61,7 +61,6 @@ export const registerBuilderRoutes = async (app: FastifyInstance, dependencies: 
   route.operation(getBuilderRunTrace, async ({ params }, session) => {
     const accountId = session.account.accountId
     const { projectId, builderRunId } = params
-    if (!await dependencies.store.readPreviewSubject({ accountId, projectId })) throw new Failure('PROJECT_BUILD_DENIED')
     const run = await dependencies.store.readBuilderRun({ accountId, projectId })
     if (run?.builderRunId !== builderRunId) throw new Failure('BUILDER_RUN_NOT_FOUND')
     return dependencies.session.readTrace({ accountId, projectId, builderRunId })

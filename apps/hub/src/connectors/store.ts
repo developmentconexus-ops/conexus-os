@@ -4,13 +4,13 @@ import {
   type AccountId, type createWorkspaceConnection, type FailureCode, type bindProjectConnection, type ConnectionBinding, type ConnectionBindingEntry, type ConnectorConnection, type Input, type WorkspaceId,
 } from '@conexus/contract'
 import {
-  admitInstallationAdministrator, admitProject, checkApplication, isInstallationAdministrator,
-  type Admitted, type SystemScope,
+  admitInstallationAdministrator, admitProject, checkApplication,
+  type Admitted, type ApplicationScope, type Checked, type ProjectScope, type SystemScope,
 } from '../identity-access/admission.js'
-import type { Database, TxQueries } from '../platform/db.js'
+import type { Database, Mode } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
-import type { SecretEnvelope } from '../platform/secrets.js'
+import { connectionContext, SealedColumn, type Sealed, type SecretEnvelope } from '../platform/secrets.js'
 import type { ConsumerScope } from './scope.js'
 
 const ConnectionRow = z.object({
@@ -26,8 +26,8 @@ const EntryRow = z.discriminatedUnion('kind', [
 ])
 const Present = z.object({ present: z.literal(1) })
 const BindingIdRow = z.object({ binding_id: BindingId })
-const CredentialRow = z.object({ connector_id: ConnectorIdText, credential_sealed: z.string() })
-const SealedRow = z.object({ credential_sealed: z.string() })
+const CredentialRow = z.object({ connector_id: ConnectorIdText, credential_sealed: SealedColumn('connection') })
+const SealedRow = z.object({ credential_sealed: SealedColumn('connection') })
 const BoundRow = z.object({ binding_id: BindingId, name: BindingName, connection_id: ConnectionId, connector_id: ConnectorIdText })
 
 /** Preview and the application host both read the one environment the column accepts. */
@@ -56,10 +56,11 @@ const toEntry = (row: z.output<typeof EntryRow>): ConnectionBindingEntry => row.
   : { kind: 'bindable', connectionId: row.connection_id, connectorId: row.connector_id, label: row.label }
 
 // An archived Project refuses every binding operation, as one in deletion does through its admission.
-const requireOpenProject = async (tx: TxQueries, projectId: ProjectId): Promise<void> => {
+const requireOpenProject = async <M extends Mode>(proof: Admitted<ProjectScope<'connections.bind'>, M>): Promise<void> => {
+  const { tx, scope } = proof
   const found = await tx.maybe(Present, sql`
     SELECT 1 AS present FROM project.project AS stored
-    WHERE stored.project_id = ${projectId} AND NOT stored.archived
+    WHERE stored.project_id = ${scope.projectId} AND NOT stored.archived
       AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = stored.project_id)`)
   if (!found) throw new Failure('PROJECT_NOT_FOUND')
 }
@@ -68,7 +69,7 @@ export type ConnectorStore = Readonly<{
   listConnections(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId }>): Promise<ConnectorConnection[]>
   createConnection(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId; body: Input<typeof createWorkspaceConnection>['body'] }>): Promise<Readonly<{ connection: ConnectorConnection; created: boolean }>>
   /** The sealed credential of an enabled Connection, read in the administrator's own transaction, which ends before any provider call. */
-  readCredentialForCheck(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId; connectionId: ConnectionId }>): Promise<Readonly<{ connectorId: string; sealed: string }>>
+  readCredentialForCheck(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId; connectionId: ConnectionId }>): Promise<Readonly<{ connectorId: string; sealed: Sealed<'connection'> }>>
   disableConnection(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId; connectionId: ConnectionId }>): Promise<void>
   listProjectBindings(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<ConnectionBindingEntry[]>
   bindConnection(input: Readonly<{ accountId: AccountId; projectId: ProjectId; body: Input<typeof bindProjectConnection>['body'] }>): Promise<Readonly<{ binding: ConnectionBinding; created: boolean }>>
@@ -76,20 +77,20 @@ export type ConnectorStore = Readonly<{
 }>
 
 export const createConnectorStore = ({ database, envelope }: Readonly<{ database: Database; envelope: SecretEnvelope }>): ConnectorStore => Object.freeze({
-  listConnections: ({ accountId, workspaceId }) => database.read(accountId, async (tx) => {
-    if (!(await isInstallationAdministrator(tx))) throw new Failure('INSTALLATION_ADMINISTRATOR_REQUIRED')
-    return (await tx.rows(ConnectionRow, sql`
+  listConnections: ({ accountId, workspaceId }) => database.read(accountId, async (gate) => {
+    const proof = await admitInstallationAdministrator(gate, { action: 'connection.manage', workspaceId })
+    return (await proof.tx.rows(ConnectionRow, sql`
       SELECT connection_id, connector_id, label, created_at, disabled_at FROM connector.connection
       WHERE workspace_id = ${workspaceId} ORDER BY created_at`)).map(toConnection)
   }),
 
   createConnection: async ({ accountId, workspaceId, body }) => {
-    const sealed = await envelope.seal(JSON.stringify(body.credential))
+    const sealed = await envelope.seal(JSON.stringify(body.credential), connectionContext(body.connectionId))
     // Sorted keys, so a retry that sends the same fields in another order has the same digest.
     const digests = envelope.fingerprints(JSON.stringify(body.credential, Object.keys(body.credential).sort()))
     const [current] = digests
     return database.transaction(accountId, async (gate) => {
-      const proof = await admitInstallationAdministrator(gate, 'connection.manage')
+      const proof = await admitInstallationAdministrator(gate, { action: 'connection.manage', workspaceId })
       const inserted = await proof.tx.run(sql`
         INSERT INTO connector.connection (connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by)
         VALUES (${body.connectionId}, ${workspaceId}, ${body.connectorId}, ${body.label}, ${sealed}, ${current}, ${proof.scope.accountId})
@@ -107,7 +108,7 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
   },
 
   readCredentialForCheck: ({ accountId, workspaceId, connectionId }) => database.transaction(accountId, async (gate) => {
-    const proof = await admitInstallationAdministrator(gate, 'connection.manage')
+    const proof = await admitInstallationAdministrator(gate, { action: 'connection.manage', workspaceId })
     const found = await proof.tx.maybe(CredentialRow, sql`
       SELECT connector_id, credential_sealed FROM connector.connection
       WHERE connection_id = ${connectionId} AND workspace_id = ${workspaceId} AND disabled_at IS NULL`)
@@ -116,7 +117,7 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
   }),
 
   disableConnection: ({ accountId, workspaceId, connectionId }) => database.transaction(accountId, async (gate) => {
-    const proof = await admitInstallationAdministrator(gate, 'connection.manage')
+    const proof = await admitInstallationAdministrator(gate, { action: 'connection.manage', workspaceId })
     const disabled = await proof.tx.run(sql`
       UPDATE connector.connection SET disabled_at = clock_timestamp(), disabled_by = ${proof.scope.accountId}
       WHERE connection_id = ${connectionId} AND workspace_id = ${workspaceId} AND disabled_at IS NULL`)
@@ -131,11 +132,11 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
     if (!known) throw new Failure('CONNECTOR_CONNECTION_NOT_FOUND')
   }),
 
-  listProjectBindings: ({ accountId, projectId }) => database.read(accountId, async (tx) => {
-    const proof = await admitProject(tx, projectId, 'connections.bind')
-    await requireOpenProject(tx, proof.scope.projectId)
+  listProjectBindings: ({ accountId, projectId }) => database.read(accountId, async (gate) => {
+    const proof = await admitProject(gate, { projectId, action: 'connections.bind' })
+    await requireOpenProject(proof)
     const { projectId: scopedProject, workspaceId } = proof.scope
-    return (await tx.rows(EntryRow, sql`
+    return (await proof.tx.rows(EntryRow, sql`
       SELECT entry.kind, entry.binding_id, entry.name, entry.connection_id, entry.connector_id, entry.label, entry.bound_at
       FROM (
         SELECT 'binding'::text AS kind, bound.binding_id, bound.name, stored.connection_id, stored.connector_id, stored.label, bound.bound_at
@@ -155,9 +156,9 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
   }),
 
   bindConnection: ({ accountId, projectId, body }) => database.transaction(accountId, async (gate) => {
-    const proof = await admitProject(gate, projectId, 'connections.bind')
+    const proof = await admitProject(gate, { projectId, action: 'connections.bind' })
     const { projectId: scopedProject, workspaceId } = proof.scope
-    await requireOpenProject(proof.tx, scopedProject)
+    await requireOpenProject(proof)
     const available = await proof.tx.maybe(Present, sql`
       SELECT 1 AS present FROM connector.connection
       WHERE connection_id = ${body.connectionId} AND workspace_id = ${workspaceId} AND disabled_at IS NULL FOR SHARE`)
@@ -180,8 +181,8 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
   }),
 
   unbindConnection: ({ accountId, projectId, bindingId }) => database.transaction(accountId, async (gate) => {
-    const proof = await admitProject(gate, projectId, 'connections.bind')
-    await requireOpenProject(proof.tx, proof.scope.projectId)
+    const proof = await admitProject(gate, { projectId, action: 'connections.bind' })
+    await requireOpenProject(proof)
     const unbound = await proof.tx.run(sql`
       UPDATE connector.project_binding SET unbound_at = clock_timestamp(), unbound_by = ${proof.scope.accountId}
       WHERE binding_id = ${bindingId} AND project_id = ${proof.scope.projectId} AND unbound_at IS NULL`)
@@ -194,7 +195,7 @@ export const purgeProjectBindings = async ({ tx }: Admitted<SystemScope<'project
 }
 
 // A refusal of the consumer's admission is an answer, not a fault: the consumer holds no binding.
-const ADMISSION_REFUSALS: ReadonlySet<FailureCode> = new Set(['PROJECT_NOT_FOUND', 'APPLICATION_NOT_FOUND', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'])
+const ADMISSION_REFUSALS: ReadonlySet<FailureCode> = new Set(['PROJECT_NOT_FOUND', 'PROJECT_DELETING', 'APPLICATION_NOT_FOUND', 'ACCOUNT_INACTIVE', 'ACCOUNT_NOT_FOUND'])
 
 /** What the broker reads per call. `connectorId` is the stored text: the registry decides whether it names a registered connector. */
 export type BoundConnection = Readonly<{ bindingId: BindingId; name: BindingName; connectionId: ConnectionId; connectorId: string }>
@@ -203,38 +204,43 @@ export type BrokerStore = Readonly<{
   /** The Project's open bindings on enabled Connections, for a Project that is not archived; none when the consumer's account is refused. */
   listBindings(scope: ConsumerScope): Promise<readonly BoundConnection[]>
   /** The sealed credential of an enabled Connection the Project has bound, or null. */
-  readConnectionCredential(scope: ConsumerScope, connectionId: ConnectionId): Promise<string | null>
+  readConnectionCredential(scope: ConsumerScope, connectionId: ConnectionId): Promise<Sealed<'connection'> | null>
 }>
 
 export const createBrokerStore = (database: Database): BrokerStore => {
   // A Builder run or a Preview reads as a member of the Project, an application host as the grantee of its application; neither writes.
-  const asConsumer = <T>(scope: ConsumerScope, refused: T, read: (tx: TxQueries, projectId: ProjectId) => Promise<T>): Promise<T> =>
+  type ConsumerReadProof = Checked<ApplicationScope> | Admitted<ProjectScope<'project.read'>>
+  const asConsumer = <T>(scope: ConsumerScope, refused: T, read: (proof: ConsumerReadProof, projectId: ProjectId) => Promise<T>): Promise<T> =>
     database.transaction(scope.accountId, async (gate) => {
       const proof = scope.access === 'application'
         ? await checkApplication(gate, scope.projectId)
-        : await admitProject(gate, scope.projectId, 'project.read')
-      return read(proof.tx, proof.scope.projectId)
+        : await admitProject(gate, { projectId: scope.projectId, action: 'project.read' })
+      return read(proof, proof.scope.projectId)
     }).catch((error: unknown) => {
       if (error instanceof Failure && ADMISSION_REFUSALS.has(error.id)) return refused
       throw error
     })
 
   return Object.freeze({
-    listBindings: (scope) => asConsumer<readonly BoundConnection[]>(scope, [], async (tx, projectId) =>
-      (await tx.rows(BoundRow, sql`
+    listBindings: (scope) => asConsumer<readonly BoundConnection[]>(scope, [], async (proof, projectId) =>
+      (await proof.tx.rows(BoundRow, sql`
         SELECT bound.binding_id, bound.name, bound.connection_id, stored.connector_id
         FROM connector.project_binding AS bound
         JOIN connector.connection AS stored ON stored.connection_id = bound.connection_id
         JOIN project.project AS bound_project ON bound_project.project_id = bound.project_id
         WHERE bound.project_id = ${projectId} AND bound.environment = ${ENVIRONMENT}
           AND bound.unbound_at IS NULL AND stored.disabled_at IS NULL AND NOT bound_project.archived
+          AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = bound_project.project_id)
         ORDER BY bound.name`)).map((row) => ({ bindingId: row.binding_id, name: row.name, connectionId: row.connection_id, connectorId: row.connector_id }))),
-    readConnectionCredential: (scope, connectionId) => asConsumer<string | null>(scope, null, async (tx, projectId) =>
-      (await tx.maybe(SealedRow, sql`
+    readConnectionCredential: (scope, connectionId) => asConsumer<Sealed<'connection'> | null>(scope, null, async (proof, projectId) =>
+      (await proof.tx.maybe(SealedRow, sql`
         SELECT stored.credential_sealed FROM connector.connection AS stored
         WHERE stored.connection_id = ${connectionId} AND stored.disabled_at IS NULL
           AND EXISTS (
             SELECT 1 FROM connector.project_binding AS bound
-            WHERE bound.project_id = ${projectId} AND bound.connection_id = stored.connection_id AND bound.unbound_at IS NULL)`))?.credential_sealed ?? null),
+            JOIN project.project AS bound_project ON bound_project.project_id = bound.project_id
+            WHERE bound.project_id = ${projectId} AND bound.connection_id = stored.connection_id AND bound.unbound_at IS NULL
+              AND NOT bound_project.archived
+              AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = bound_project.project_id))`))?.credential_sealed ?? null),
   })
 }

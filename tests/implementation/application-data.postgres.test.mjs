@@ -100,7 +100,7 @@ test('Project Preview data is confined to its own schema, roles and database', a
   await t.test('the migration role creates the Project table and the runtime role writes and reads it', async (st) => {
     for (const allocation of [a, b]) {
       const migrator = await loginAs(st, allocation.migrationRole, database)
-      await applyPendingMigrations(migrator, allocation.schema, planMigrations([], [NOTES]).pending)
+      assert.deepEqual(await applyPendingMigrations(migrator, allocation.schema, planMigrations([], [NOTES]).pending), { ok: true, result: undefined })
     }
     const runtimeA = await loginAs(st, a.runtimeRole, database)
     await runtimeA.query("INSERT INTO follow_up_note (purchase_order_id, note) VALUES ('PO-1', 'A only')")
@@ -346,13 +346,75 @@ test('Project Preview data is confined to its own schema, roles and database', a
 
   await t.test('a failed migration leaves the schema and ledger as they were', async (st) => {
     const migratorA = await loginAs(st, a.migrationRole, database)
-    const broken = [NOTES, migration('002_status.sql', 'ALTER TABLE follow_up_note ADD COLUMN status text; SELEC broken')]
+    const broken = [NOTES, migration('002_status.sql', 'ALTER TABLE follow_up_note ADD COLUMN status text; SELECT 1/0')]
     const plan = planMigrations(await readLedger(provisioner, a), broken)
     assert.deepEqual(plan.pending.map((entry) => [entry.position, entry.name]), [[2, '002_status.sql']])
-    await assert.rejects(applyPendingMigrations(migratorA, a.schema, plan.pending), (error) => error.code === '42601')
+    const result = await applyPendingMigrations(migratorA, a.schema, plan.pending)
+    assert.equal(result.ok, false)
+    if (result.ok) assert.fail('broken migration unexpectedly succeeded')
+    assert.deepEqual({ code: result.error.code, migration: result.error.migration }, {
+      code: 'APPLICATION_MIGRATION_FAILED', migration: '002_status.sql',
+    })
+    assert.equal(result.error.cause.code, '22012')
     const { rows } = await provisioner.query(`SELECT count(*)::int AS n FROM information_schema.columns WHERE table_schema = $1 AND column_name = 'status'`, [a.schema])
     assert.equal(rows[0].n, 0)
     assert.equal((await readLedger(provisioner, a)).length, 1)
+  })
+
+  await t.test('later runtime and ledger failures roll back the whole pending batch and allow a corrected retry', async (st) => {
+    const migratorA = await loginAs(st, a.migrationRole, database)
+    const before = await readLedger(provisioner, a)
+    const first = migration('002_atomic.sql', 'CREATE TABLE atomic_note (note text)')
+    for (const failing of [
+      migration('003_runtime.sql', 'SELECT 1/0'),
+      migration(NOTES.name, "INSERT INTO atomic_note VALUES ('ledger failure')"),
+    ]) {
+      const result = await applyPendingMigrations(migratorA, a.schema, [
+        { ...first, position: 2 }, { ...failing, position: 3 },
+      ])
+      assert.equal(result.ok, false)
+      assert.equal(result.error.migration, failing.name)
+      assert.equal(result.error.cause.code, failing.name === NOTES.name ? '23505' : '22012')
+      assert.deepEqual(await readLedger(provisioner, a), before)
+      assert.deepEqual((await provisioner.query('SELECT to_regclass($1)::text AS name', [`${a.schema}.atomic_note`])).rows, [{ name: null }])
+    }
+    const corrected = [NOTES, first, migration('003_runtime.sql', "INSERT INTO atomic_note VALUES ('retry')")]
+    assert.deepEqual(await applyPendingMigrations(migratorA, a.schema, planMigrations(before, corrected).pending), { ok: true, result: undefined })
+    const ledger = await readLedger(provisioner, a)
+    assert.deepEqual(planMigrations(ledger, corrected), { reset: false, pending: [] })
+    assert.equal(planMigrations(ledger, [{ ...NOTES, sha256: 'f'.repeat(64) }, ...corrected.slice(1)]).reset, true)
+    await migratorA.query('DROP TABLE atomic_note')
+    await provisioner.query(`DELETE FROM "${a.schema}".conexus_migration WHERE position > 1`)
+  })
+
+  await t.test('a failed BEGIN returns a migration failure Result without migration identity', async (st) => {
+    const closedMigrator = await loginAs(st, a.migrationRole, database)
+    await closedMigrator.end()
+    const result = await applyPendingMigrations(closedMigrator, a.schema, planMigrations([], [NOTES]).pending)
+    assert.equal(result.ok, false)
+    if (result.ok) assert.fail('closed migration session unexpectedly succeeded')
+    assert.deepEqual({ code: result.error.code, migration: result.error.migration }, {
+      code: 'APPLICATION_MIGRATION_FAILED', migration: null,
+    })
+    assert.equal(result.error.cause instanceof Error, true)
+    assert.equal((await readLedger(provisioner, a)).length, 1)
+  })
+
+  await t.test('a deferred constraint failure at COMMIT returns a migration failure Result and rolls back', async (st) => {
+    const migratorA = await loginAs(st, a.migrationRole, database)
+    const deferred = migration('002_deferred_fk.sql', `CREATE TABLE deferred_parent (id integer PRIMARY KEY);
+      CREATE TABLE deferred_child (parent_id integer REFERENCES deferred_parent(id) DEFERRABLE INITIALLY DEFERRED);
+      INSERT INTO deferred_child (parent_id) VALUES (999);`)
+    const result = await applyPendingMigrations(migratorA, a.schema, planMigrations(await readLedger(provisioner, a), [NOTES, deferred]).pending)
+    assert.equal(result.ok, false)
+    if (result.ok) assert.fail('deferred constraint unexpectedly succeeded')
+    assert.deepEqual({ code: result.error.code, migration: result.error.migration }, {
+      code: 'APPLICATION_MIGRATION_FAILED', migration: null,
+    })
+    assert.equal(result.error.cause.code, '23503')
+    const { rows } = await provisioner.query(`SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema = $1 AND table_name IN ('deferred_parent', 'deferred_child')`, [a.schema])
+    assert.equal(rows[0].n, 0)
+    assert.deepEqual(await readLedger(provisioner, a), [{ position: 1, name: NOTES.name, sha256: NOTES.sha256 }])
   })
 
   await t.test('an edited applied migration resets the Preview schema and replays every migration', async (st) => {
@@ -362,7 +424,7 @@ test('Project Preview data is confined to its own schema, roles and database', a
     await resetPreviewSchema(provisioner, a)
     await ensurePreviewAllocation(provisioner, { allocation: a, database })
     const migratorA = await loginAs(st, a.migrationRole, database)
-    await applyPendingMigrations(migratorA, a.schema, plan.pending)
+    assert.deepEqual(await applyPendingMigrations(migratorA, a.schema, plan.pending), { ok: true, result: undefined })
     const runtimeA = await loginAs(st, a.runtimeRole, database)
     assert.deepEqual((await runtimeA.query('SELECT count(*)::int AS n FROM follow_up_note')).rows, [{ n: 0 }])
     assert.deepEqual(await readLedger(provisioner, a), [{ position: 1, name: NOTES.name, sha256: edited[0].sha256 }])

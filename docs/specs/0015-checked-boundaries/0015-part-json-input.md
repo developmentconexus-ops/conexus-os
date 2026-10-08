@@ -1,5 +1,12 @@
 # 0015. Child: part 7, the other JSON input
 
+CI tooling update: historical builder count/debt ratchets and boundary inventories described below
+are retired. `scripts/check-boundaries.mjs` owns direct AST prohibitions and named exceptions;
+`scripts/check-builder-safety.mjs` retains exclusive safety ownership checks. No implementation
+regenerates the deleted census registers. [Delivery](../../development/delivery.md#proof-and-verification)
+owns routine and qualification coverage.
+
+
 **Status**: Approved (by HQ on 2026-10-05, under the operator's delegation; revision 3.1)
 
 Part of [spec 0015](index.md). Written from the code at the stacked part 3 head (head `68d324a7`, parts 0 and

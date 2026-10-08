@@ -8,8 +8,12 @@ every item.
 ## Before you write
 
 1. Every type, contract and value the card uses exists at the head you started from, or this unit
-   creates it. One fact has one owner (C §4).
-2. Your code will match the `shape/` files the card names: the same names, unions and signatures.
+   creates it. Check head/dependency drift against the action map's baseline; record path/caller
+   updates within accepted scope. One fact has one owner (C §4).
+2. The action map names actual imported owners, target signatures, decisive logic and AC/proof per
+   file. Uncertain native contracts have executable and negative proof, not only declaration stubs.
+   Your code matches the named `shape/` files (C §4–5).
+   If a shape conflicts with a guide, stop and report both file:lines under guide L.
 3. You read each reference the card copies, at its `file:line`.
 4. You read the guide sections the card cites and the `AGENTS.md` of each area you touch.
 
@@ -44,3 +48,9 @@ every item.
 18. The census number the card names is reached.
 19. `npm run verify:quick` is green, and the `deslop` and `no-comments` passes of the skill's step 5
     ran.
+
+20. Every CI group and invoked consumer was inspected under
+    [delivery proof and verification](../../../../docs/development/delivery.md#proof-and-verification);
+    the report maps file actions/contracts to ACs, closure, executed proofs and justified reused evidence.
+    Native verifier registration is available in the first unit that consumes the owner, even when
+    permanent census installation comes later.

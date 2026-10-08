@@ -31,7 +31,7 @@ const { createHandlerPorts } = await import(hubModuleUrl('connectors/handler-por
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
 const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
-const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
+const { createSecretEnvelope, connectionContext } = await import(hubModuleUrl('platform/secrets.js'))
 
 const sha = (text) => createHash('sha256').update(text).digest('hex')
 const file = (path, text) => ({ path: `conexus-server/${path}`, sha256: sha(text), content: Buffer.from(text).toString('base64') })
@@ -138,38 +138,37 @@ const setup = async (t, sandbox, { connectorSocketDir } = {}) => {
   return { admin, database, supervisor, projects, stateDir }
 }
 
-const problem = (code, status, detail) => ({ type: `urn:conexus:problem:${code}`, title: code, status, code, ...(detail === undefined ? {} : { detail }) })
-
 test('the runner migrates and serves each Project through its own sandboxed worker', async (t) => {
   const { admin, database, supervisor, projects: [a, b] } = await setup(t)
   const files = serverTree([['001_follow_up_note.sql', NOTE_SQL]])
   const invoke = (projectId, operation, input = {}) => supervisor.invoke({ projectId, operation, input, files, caller: CALLER })
 
-  assert.deepEqual(await supervisor.prepare({ projectId: a, files, onDivergence: RESET }), { state: 'READY', reset: false, applied: ['001_follow_up_note.sql'] })
-  assert.deepEqual(await supervisor.prepare({ projectId: a, files, onDivergence: RESET }), { state: 'READY', reset: false, applied: [] })
-  assert.deepEqual(await supervisor.prepare({ projectId: b, files, onDivergence: RESET }), { state: 'READY', reset: false, applied: ['001_follow_up_note.sql'] })
+  assert.deepEqual(await supervisor.prepare({ projectId: a, files, onDivergence: RESET }), { ok: true, result: { reset: false, applied: ['001_follow_up_note.sql'] } })
+  assert.deepEqual(await supervisor.prepare({ projectId: a, files, onDivergence: RESET }), { ok: true, result: { reset: false, applied: [] } })
+  assert.deepEqual(await supervisor.prepare({ projectId: b, files, onDivergence: RESET }), { ok: true, result: { reset: false, applied: ['001_follow_up_note.sql'] } })
 
-  const created = await invoke(a, 'createNote', { purchaseOrderId: 'PO-7', note: 'ligar para o fornecedor' })
-  assert.equal(created.status, 200)
-  assert.equal(created.body.note, 'ligar para o fornecedor')
+  const createdAnswer = await invoke(a, 'createNote', { purchaseOrderId: 'PO-7', note: 'ligar para o fornecedor' })
+  assert.equal(createdAnswer.ok, true)
+  const created = createdAnswer.result
+  assert.equal(created.note, 'ligar para o fornecedor')
   const listed = await invoke(a, 'listNotes', { purchaseOrderId: 'PO-7' })
-  assert.deepEqual(listed.body.map((note) => [note.id, note.purchaseOrderId, note.note]), [[created.body.id, 'PO-7', 'ligar para o fornecedor']])
-  assert.deepEqual((await invoke(b, 'listNotes', { purchaseOrderId: 'PO-7' })).body, [])
+  assert.deepEqual(listed.result.map((note) => [note.id, note.purchaseOrderId, note.note]), [[created.id, 'PO-7', 'ligar para o fornecedor']])
+  assert.deepEqual((await invoke(b, 'listNotes', { purchaseOrderId: 'PO-7' })).result, [])
 
-  assert.deepEqual(await invoke(a, 'listNotes', { purchaseOrderId: 'PO-7', projectId: b }), { status: 400, body: problem('INPUT_REFUSED', 400, '/projectId: not declared') })
+  assert.deepEqual(await invoke(a, 'listNotes', { purchaseOrderId: 'PO-7', projectId: b }), { ok: false, error: { code: 'INPUT_REFUSED', violation: { pointer: '/projectId', rule: 'not declared' } } })
   // The handler sees the platform's caller, frozen, even when the input declares and carries one.
-  assert.deepEqual(await invoke(a, 'whoAmI'), { status: 200, body: { caller: { accountId: '55555555-5555-4555-8555-555555555555', email: 'funcionaria@example.com', displayName: 'Funcionária' }, frozen: true } })
-  assert.deepEqual(await invoke(a, 'whoAmI', { caller: { accountId: 'forged', displayName: 'Chefe' } }), { status: 200, body: { caller: { accountId: '55555555-5555-4555-8555-555555555555', email: 'funcionaria@example.com', displayName: 'Funcionária' }, frozen: true } })
-  assert.deepEqual(await invoke(a, 'dropEverything'), { status: 404, body: problem('OPERATION_NOT_FOUND', 404) })
-  assert.deepEqual(await invoke(a, 'wrongShape'), { status: 502, body: problem('HANDLER_OUTPUT_REFUSED', 502, '/id: expected integer') })
-  assert.deepEqual(await invoke(a, 'huge'), { status: 502, body: problem('RESPONSE_TOO_LARGE', 502) })
-  assert.deepEqual(await invoke(a, 'environment'), { status: 200, body: { text: '{"PWD":"/"}' } })
+  assert.deepEqual((await invoke(a, 'whoAmI')).result, { caller: { accountId: '55555555-5555-4555-8555-555555555555', email: 'funcionaria@example.com', displayName: 'Funcionária' }, frozen: true })
+  assert.deepEqual((await invoke(a, 'whoAmI', { caller: { accountId: 'forged', displayName: 'Chefe' } })).result, { caller: { accountId: '55555555-5555-4555-8555-555555555555', email: 'funcionaria@example.com', displayName: 'Funcionária' }, frozen: true })
+  assert.deepEqual(await invoke(a, 'dropEverything'), { ok: false, error: { code: 'OPERATION_NOT_FOUND' } })
+  assert.deepEqual(await invoke(a, 'wrongShape'), { ok: false, error: { code: 'HANDLER_OUTPUT_REFUSED', violation: { pointer: '/id', rule: 'expected integer' } } })
+  assert.deepEqual(await invoke(a, 'huge'), { ok: false, error: { code: 'RESPONSE_TOO_LARGE' } })
+  assert.deepEqual((await invoke(a, 'environment')).result, { text: '{"PWD":"/"}' })
 
   // The handler first lifts its own statement_timeout and transaction_timeout, which any session may
   // do, so only the relay's cancel at the invocation's wall clock can end the statement.
   await t.test('a worker past its wall clock is killed and its database statement cancelled', async () => {
     const started = Date.now()
-    assert.deepEqual(await invoke(a, 'sleepInDatabase'), { status: 504, body: problem('HANDLER_TIMEOUT', 504) })
+    assert.deepEqual(await invoke(a, 'sleepInDatabase'), { ok: false, error: { code: 'HANDLER_TIMEOUT' } })
     assert.ok(Date.now() - started < 8000)
     const superuser = new pg.Client({ ...admin, database })
     await superuser.connect()
@@ -180,20 +179,20 @@ test('the runner migrates and serves each Project through its own sandboxed work
     }
     await superuser.end()
     assert.equal(active, 0)
-    assert.deepEqual(await invoke(a, 'spin'), { status: 504, body: problem('HANDLER_TIMEOUT', 504) })
+    assert.deepEqual(await invoke(a, 'spin'), { ok: false, error: { code: 'HANDLER_TIMEOUT' } })
   })
 
   await t.test('a crashed or exhausted worker ends alone and the next request is served', async () => {
-    assert.equal((await invoke(a, 'crash')).body.code, 'HANDLER_CRASHED')
-    assert.equal((await invoke(a, 'hogMemory')).body.code, 'HANDLER_CRASHED')
-    assert.equal((await invoke(a, 'hogBuffers')).body.code, 'HANDLER_FAILED')
-    assert.equal((await invoke(a, 'listNotes', { purchaseOrderId: 'PO-7' })).status, 200)
+    assert.equal((await invoke(a, 'crash')).error.code, 'HANDLER_CRASHED')
+    assert.equal((await invoke(a, 'hogMemory')).error.code, 'HANDLER_CRASHED')
+    assert.equal((await invoke(a, 'hogBuffers')).error.code, 'HANDLER_FAILED')
+    assert.equal((await invoke(a, 'listNotes', { purchaseOrderId: 'PO-7' })).ok, true)
   })
 
   await t.test('a handler cannot read host files, write, spawn or list the root', async () => {
     const answer = await invoke(a, 'beyondBoundary')
-    assert.equal(answer.status, 200)
-    const seen = JSON.parse(answer.body.text)
+    assert.equal(answer.ok, true)
+    const seen = JSON.parse(answer.result.text)
     assert.equal(seen.readEtcPasswd, 'ERR_ACCESS_DENIED')
     assert.equal(seen.readParentEnviron, 'ERR_ACCESS_DENIED')
     assert.equal(seen.writeTmp, 'ERR_ACCESS_DENIED')
@@ -206,9 +205,9 @@ test('the runner migrates and serves each Project through its own sandboxed work
   await t.test('a failing migration applies nothing and names the error', async () => {
     const broken = serverTree([['001_follow_up_note.sql', NOTE_SQL], ['002_broken.sql', 'ALTER TABLE follow_up_note ADD COLUMN done boolean; SELECT * FROM missing_table']])
     const result = await supervisor.prepare({ projectId: a, files: broken, onDivergence: RESET })
-    assert.equal(result.state, 'MIGRATION_FAILED')
-    assert.match(result.detail, /42P01 relation "missing_table" does not exist/)
-    assert.equal((await invoke(a, 'listNotes', { purchaseOrderId: 'PO-7' })).body.length, 1)
+    assert.equal(result.ok, false)
+    assert.deepEqual(result.error, { code: 'APPLICATION_MIGRATION_FAILED', migration: '002_broken.sql', sqlstate: '42P01' })
+    assert.equal((await invoke(a, 'listNotes', { purchaseOrderId: 'PO-7' })).result.length, 1)
   })
 
   await t.test('the relay authenticates upstream itself and admits only the pinned identity', async () => {
@@ -255,7 +254,7 @@ test('the runner migrates and serves each Project through its own sandboxed work
     const runtimeB = previewAllocation(b).runtimeRole
     const extra = 'TRUNCATE, TRIGGER, REFERENCES, MAINTAIN'
     const granting = serverTree([['001_follow_up_note.sql', NOTE_SQL], ['002_grant_more.sql', `GRANT ${extra} ON follow_up_note TO ${runtimeB}; GRANT ALL ON follow_up_note TO PUBLIC`]])
-    assert.deepEqual(await supervisor.prepare({ projectId: b, files: granting, onDivergence: RESET }), { state: 'READY', reset: false, applied: ['002_grant_more.sql'] })
+    assert.deepEqual(await supervisor.prepare({ projectId: b, files: granting, onDivergence: RESET }), { ok: true, result: { reset: false, applied: ['002_grant_more.sql'] } })
     const runtime = await loginThroughRelay(st, { host: admin.host, port: admin.port }, runtimeB, database)
     const attempt = (sql) => runtime.query(sql).then(() => 'ok', (error) => error.code)
     assert.deepEqual({
@@ -278,24 +277,124 @@ test('the runner migrates and serves each Project through its own sandboxed work
       assert.deepEqual(before.notes, ['ligar para o fornecedor'])
       const edited = serverTree([['001_follow_up_note.sql', `${NOTE_SQL}\n-- editada depois de aplicada`]])
       const refused = await supervisor.prepare({ projectId: a, files: edited, onDivergence: 'REFUSE' })
-      assert.equal(refused.state, 'MIGRATION_HISTORY_DIVERGED')
-      assert.match(refused.detail, /^A migração já aplicada 001_follow_up_note\.sql foi alterada, removida ou reordenada\./)
-      assert.ok(refused.detail.length <= 400)
+      assert.deepEqual(refused, { ok: false, error: { code: 'APPLICATION_MIGRATION_HISTORY_DIVERGED', migration: '001_follow_up_note.sql' } })
       assert.deepEqual(await state(), before)
 
       const removed = await supervisor.prepare({ projectId: a, files: serverTree([['002_other.sql', 'SELECT 1']]), onDivergence: 'REFUSE' })
-      assert.equal(removed.state, 'MIGRATION_HISTORY_DIVERGED')
+      assert.deepEqual(removed, { ok: false, error: { code: 'APPLICATION_MIGRATION_HISTORY_DIVERGED', migration: '001_follow_up_note.sql' } })
       assert.deepEqual(await state(), before)
 
       await assert.rejects(supervisor.prepare({ projectId: a, files: edited, onDivergence: { resetBefore: Date.now() - 1 } }), invariant('PREVIEW_RESET_EXPIRED'))
       assert.deepEqual(await state(), before)
 
-      assert.deepEqual(await supervisor.prepare({ projectId: a, files: edited, onDivergence: RESET }), { state: 'READY', reset: true, applied: ['001_follow_up_note.sql'] })
+      assert.deepEqual(await supervisor.prepare({ projectId: a, files: edited, onDivergence: RESET }), { ok: true, result: { reset: true, applied: ['001_follow_up_note.sql'] } })
       assert.deepEqual((await state()).notes, [])
     } finally {
       await superuser.end()
     }
   })
+})
+
+test('migration admission and atomic execution compose through the confined worker and relay', async (t) => {
+  const { admin, database, supervisor, projects: [a, b], stateDir } = await setup(t)
+  const allocation = previewAllocation(a)
+  const other = previewAllocation(b)
+  const inspector = new pg.Client({ ...admin, database })
+  await inspector.connect()
+  try {
+    const files = serverTree([['001_follow_up_note.sql', NOTE_SQL]])
+    assert.deepEqual(await supervisor.prepare({ projectId: a, files, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: ['001_follow_up_note.sql'] } })
+    assert.equal((await supervisor.invoke({ projectId: a, files, operation: 'createNote', input: { purchaseOrderId: 'PO-1', note: 'preserved' }, caller: CALLER })).ok, true)
+    const state = async () => ({
+      oid: (await inspector.query('SELECT to_regclass($1)::oid AS oid', [`${allocation.schema}.follow_up_note`])).rows[0].oid,
+      notes: (await inspector.query(`SELECT note FROM "${allocation.schema}".follow_up_note ORDER BY id`)).rows,
+      ledger: (await inspector.query(`SELECT position, name, sha256 FROM "${allocation.schema}".conexus_migration ORDER BY position`)).rows,
+      escaped: (await inspector.query('SELECT to_regclass($1)::text AS name', [`${allocation.schema}.escaped`])).rows,
+    })
+    const before = await state()
+
+    await t.test('an invalid edited-history candidate preserves data and OID under both reset modes', async () => {
+      for (const sql of [`${NOTE_SQL}; COMMIT`, `${NOTE_SQL}; SELEC broken`, `${NOTE_SQL}\0; COMMIT`]) {
+        for (const onDivergence of ['REFUSE', RESET]) {
+          assert.deepEqual(await supervisor.prepare({ projectId: a, files: serverTree([['001_follow_up_note.sql', sql]]), onDivergence }), {
+            ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: '001_follow_up_note.sql', sqlstate: null },
+          })
+          assert.deepEqual(await state(), before)
+        }
+      }
+    })
+
+    await t.test('a forbidden later file refuses before creating a new allocation or executing the prefix', async () => {
+      const forbidden = serverTree([['001_table.sql', 'CREATE TABLE escaped(i int)'], ['002_control.sql', 'END WORK']])
+      assert.deepEqual(await supervisor.prepare({ projectId: b, files: forbidden, onDivergence: RESET }), {
+        ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: '002_control.sql', sqlstate: null },
+      })
+      assert.deepEqual((await inspector.query('SELECT to_regnamespace($1)::text AS schema, EXISTS(SELECT 1 FROM pg_roles WHERE rolname = $2 OR rolname = $3) AS roles', [other.schema, other.migrationRole, other.runtimeRole])).rows, [{ schema: null, roles: false }])
+    })
+
+    await t.test('the worker independently refuses transaction control when supervisor admission is bypassed', async () => {
+      const directory = join(stateDir, 'direct')
+      mkdirSync(directory)
+      const socketPath = join(directory, '.s.PGSQL.5432')
+      const relay = await openPgRelay({ socketPath, upstream: { host: admin.host, port: admin.port }, pin: { user: allocation.migrationRole, database }, tls: relayTls(), maxSessions: 2 })
+      try {
+        const plan = [['002_table.sql', 'CREATE TABLE escaped(i int)'], ['003_control.sql', 'COMMIT AND CHAIN']].map(([name, sql], i) => ({ name, sql, sha256: sha(sql), position: i + 2 }))
+        const outcome = await runWorker({
+          runtimeDir: join(stateDir, 'runtime'), databaseSocket: socketPath,
+          job: { kind: 'migrate', login: { host: '/run/conexus/pg', user: allocation.migrationRole, database }, schema: allocation.schema, plan },
+          timeoutMs: 30_000, resultLimit: 1024 * 1024,
+        })
+        assert.equal(outcome.kind, 'RESULT', JSON.stringify(outcome))
+        assert.deepEqual(outcome.result, { ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: '003_control.sql', sqlstate: null } })
+        assert.deepEqual(relay.refused(), [])
+        assert.deepEqual(await state(), before)
+      } finally {
+        await relay.close()
+      }
+    })
+
+    await t.test('lexer drift between files and inside one message cannot commit a prefix', async () => {
+      const literal = String.raw`SELECT '\'; SELECT '; COMMIT; --';`
+      for (const scripts of [
+        ["CREATE TABLE escaped(i int); SELECT set_config('standard_conforming_strings','off',false)", literal],
+        [`SET standard_conforming_strings = off; ${literal} CREATE TABLE escaped(i int)`],
+      ]) {
+        const additions = scripts.map((sql, i) => [`00${i + 2}_lexical.sql`, sql])
+        const broken = serverTree([['001_follow_up_note.sql', NOTE_SQL], ...additions, ['004_runtime.sql', 'SELECT 1/0']])
+        assert.deepEqual(await supervisor.prepare({ projectId: a, files: broken, onDivergence: 'REFUSE' }), {
+          ok: false, error: { code: 'APPLICATION_MIGRATION_FAILED', migration: '004_runtime.sql', sqlstate: '22012' },
+        })
+        assert.deepEqual(await state(), before)
+      }
+    })
+
+    await t.test('ordinary DDL and literal control words succeed on corrected retry and preserve ledger identity', async () => {
+      const ordinary = `/* outer /* COMMIT */ END */ CREATE TABLE escaped(id bigint GENERATED ALWAYS AS IDENTITY, note text DEFAULT $$ROLLBACK;$$);
+        CREATE INDEX ON escaped(id); INSERT INTO escaped(note) VALUES ('COMMIT;'); CREATE VIEW escaped_view AS SELECT * FROM escaped;`
+      const corrected = serverTree([['001_follow_up_note.sql', NOTE_SQL], ['002_ordinary.sql', ordinary]])
+      assert.deepEqual(await supervisor.prepare({ projectId: a, files: corrected, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: ['002_ordinary.sql'] } })
+      assert.deepEqual(await supervisor.prepare({ projectId: a, files: corrected, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: [] } })
+      assert.deepEqual((await inspector.query(`SELECT note FROM "${allocation.schema}".escaped_view`)).rows, [{ note: 'COMMIT;' }])
+      assert.deepEqual((await state()).ledger, [...before.ledger, { position: 2, name: '002_ordinary.sql', sha256: sha(ordinary) }])
+    })
+
+    await t.test('a representative maximum-width candidate fits current artifact and worker limits', async () => {
+      const migrations = Array.from({ length: 64 }, (_, i) => {
+        const size = i === 0 ? 256 * 1024 : 62_000
+        const sql = `SELECT length('${'x'.repeat(size - "SELECT length('');".length)}');`
+        assert.equal(sql.length, size)
+        return [`${String(i + 1).padStart(3, '0')}_input.sql`, sql]
+      })
+      const candidate = serverTree(migrations)
+      const manifestBytes = Buffer.from(candidate[0].content, 'base64').byteLength
+      assert.equal(manifestBytes <= 4 * 1024 * 1024, true)
+      assert.deepEqual(await supervisor.prepare({ projectId: b, files: candidate, onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: migrations.map(([name]) => name) } })
+      assert.deepEqual((await inspector.query(`SELECT count(*)::int AS n FROM "${other.schema}".conexus_migration`)).rows, [{ n: 64 }])
+      t.diagnostic(`64 migration files, maximum file 262144 characters, manifest ${manifestBytes} bytes, default worker limits unchanged`)
+    })
+  } finally {
+    await inspector.end()
+  }
 })
 
 test('the runner reads relay TLS only from a private directory holding exactly its three files', () => {
@@ -326,10 +425,10 @@ test('the runner prepares and serves exactly what the Project check built, every
   const chunks = files.filter((entry) => entry.path.startsWith('conexus-server/chunks/')).map((entry) => Buffer.from(entry.content, 'base64').toString('utf8')).join('\n')
   for (const name of SUPPORTED_NODE_IMPORTS) assert.match(chunks, new RegExp(`from "${name}"|import "${name}"`), `the shared chunk imports ${name}`)
   const { supervisor, projects: [project] } = await setup(t)
-  assert.deepEqual(await supervisor.prepare({ projectId: project, files }), { state: 'READY', reset: false, applied: [] })
+  assert.deepEqual(await supervisor.prepare({ projectId: project, files }), { ok: true, result: { reset: false, applied: [] } })
   const invoke = (operation, input) => supervisor.invoke({ projectId: project, operation, input, files, caller: CALLER })
-  assert.deepEqual(await invoke('doubleValue', { value: 1.234 }), { status: 200, body: { value: 2.47 } })
-  assert.deepEqual(await invoke('tripleValue', { value: 2 }), { status: 200, body: { value: 6 } })
+  assert.deepEqual(await invoke('doubleValue', { value: 1.234 }), { ok: true, result: { value: 2.47 } })
+  assert.deepEqual(await invoke('tripleValue', { value: 2 }), { ok: true, result: { value: 6 } })
 })
 
 // The arena's reviewed cases, run with Node's permission layer off, so what they report is what the
@@ -337,11 +436,11 @@ test('the runner prepares and serves exactly what the Project check built, every
 test('with the Node permission layer off, the namespaces alone hide host files, processes and network', async (t) => {
   const { admin, supervisor, projects: [project], stateDir } = await setup(t, { ...SANDBOX, nodePermission: false })
   const files = probeServerTree()
-  assert.deepEqual(await supervisor.prepare({ projectId: project, files, onDivergence: RESET }), { state: 'READY', reset: false, applied: [] })
+  assert.deepEqual(await supervisor.prepare({ projectId: project, files, onDivergence: RESET }), { ok: true, result: { reset: false, applied: [] } })
   const run = async (name, input) => {
     const answer = await supervisor.invoke({ projectId: project, operation: probeOperations[name], input, files, caller: CALLER })
-    assert.equal(answer.status, 200, JSON.stringify(answer.body))
-    return JSON.parse(answer.body.text)
+    assert.equal(answer.ok, true, JSON.stringify(answer))
+    return JSON.parse(answer.result.text)
   }
 
   const listener = net.createServer((socket) => socket.destroy())
@@ -471,9 +570,10 @@ const connectorSetup = async (t, sandbox) => {
   const fake = await startFakeGateway()
   t.after(() => fake.close())
   const envelope = createSecretEnvelope('fe'.repeat(32))
-  const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
+  const connectionId = '33333333-3333-4333-8333-333333333333'
+  const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL), connectionContext(connectionId))
   const store = {
-    listBindings: async (input) => (input.projectId === project ? [{ bindingId: 'binding', name: 'erp', connectionId: '33333333-3333-4333-8333-333333333333', connectorId: 'sankhya' }] : []),
+    listBindings: async (input) => (input.projectId === project ? [{ bindingId: 'binding', name: 'erp', connectionId, connectorId: 'sankhya' }] : []),
     readConnectionCredential: async () => sealed,
   }
   const broker = createBroker({ connectors: registryOf([{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }]), store, envelope, observability: connectorRecord().observability })
@@ -485,7 +585,7 @@ const connectorSetup = async (t, sandbox) => {
     return port
   }
   const files = connectorTree()
-  assert.deepEqual(await runner.supervisor.prepare({ projectId: project, files, onDivergence: RESET }), { state: 'READY', reset: false, applied: [] })
+  assert.deepEqual(await runner.supervisor.prepare({ projectId: project, files, onDivergence: RESET }), { ok: true, result: { reset: false, applied: [] } })
   const invoke = (operation, input, connectorSocket) => runner.supervisor.invoke({ projectId: project, operation, input, files, caller: CALLER, ...(connectorSocket ? { connectorSocket } : {}) })
   const port = Number(new URL(fake.origin).port)
   return { ...runner, socketDir, fake, open, invoke, project, otherProject, port }
@@ -503,8 +603,8 @@ test('a handler reads through the bound connector socket, and holds nothing else
   const portB = await open(otherProject)
   const run = async (operation, input, socket = portA.socketPath) => {
     const answer = await invoke(operation, input, socket)
-    assert.equal(answer.status, 200, JSON.stringify(answer.body))
-    return JSON.parse(answer.body.text)
+    assert.equal(answer.ok, true, JSON.stringify(answer))
+    return JSON.parse(answer.result.text)
   }
 
   assert.deepEqual(await run('fetchOrder', {}), ORDER_FETCHED)
@@ -536,13 +636,13 @@ test('a handler reads through the bound connector socket, and holds nothing else
     writeFileSync(join(socketDir, 'plain.s'), 'x')
     symlinkSync(portA.socketPath, join(socketDir, 'link.s'))
     for (const path of [join(socketDir, 'plain.s'), join(socketDir, 'link.s'), join(tmpdir(), 'elsewhere.s'), `${socketDir}/../${portA.socketPath.split('/').at(-1)}`, 'relative.s']) {
-      assert.deepEqual(await invoke('fetchOrder', {}, path), { status: 500, body: problem('CONNECTOR_SOCKET_REFUSED', 500) }, path)
+      assert.deepEqual(await invoke('fetchOrder', {}, path), { ok: false, error: { code: 'CONNECTOR_SOCKET_REFUSED' } }, path)
     }
   })
 
   await t.test('a closed port refuses its next connection: the socket dies with the invocation', async () => {
     await portA.close()
-    assert.deepEqual(await invoke('fetchOrder', {}, portA.socketPath), { status: 500, body: problem('CONNECTOR_SOCKET_REFUSED', 500) })
+    assert.deepEqual(await invoke('fetchOrder', {}, portA.socketPath), { ok: false, error: { code: 'CONNECTOR_SOCKET_REFUSED' } })
   })
 })
 
@@ -553,8 +653,8 @@ test('a handler fetches through the socket: another Project gets NOT_GRANTED wit
   const FETCH = {}
   const run = async (operation, input, socket = portA.socketPath) => {
     const answer = await invoke(operation, input, socket)
-    assert.equal(answer.status, 200, JSON.stringify(answer.body))
-    return JSON.parse(answer.body.text)
+    assert.equal(answer.ok, true, JSON.stringify(answer))
+    return JSON.parse(answer.result.text)
   }
 
   assert.deepEqual(await run('fetchOrder', FETCH), ORDER_FETCHED)
@@ -570,8 +670,8 @@ test('a handler fetches through the socket: another Project gets NOT_GRANTED wit
   assert.equal(fake.requests.length, 2, 'refused shapes sent nothing')
 
   const leaked = await invoke('leakBody', {}, portA.socketPath)
-  assert.equal(leaked.status, 502)
-  assert.equal(leaked.body.code, 'HANDLER_OUTPUT_REFUSED')
+  assert.equal(leaked.ok, false)
+  assert.equal(leaked.error.code, 'HANDLER_OUTPUT_REFUSED')
 
   const seen = await run('probe', { paths: [portA.socketPath, portB.socketPath], port })
   noSecretIn(JSON.stringify(seen))
@@ -582,7 +682,7 @@ test('a handler fetches through the socket: another Project gets NOT_GRANTED wit
 
   await t.test('without a bound socket fetch answers CONNECTOR_UNCONFIGURED', async () => {
     const answer = await invoke('fetchOrder', {})
-    assert.deepEqual(JSON.parse(answer.body.text), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
+    assert.deepEqual(JSON.parse(answer.result.text), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
   })
 })
 
@@ -594,8 +694,8 @@ test('M3 and M4: the handler connects to the 0600 socket under its own uid and s
   const portA = await open(project)
   const portB = await open(otherProject)
   const answer = await invoke('probe', { paths: [portA.socketPath, portB.socketPath, `${socketDir}/.s.connector`], port }, portA.socketPath)
-  assert.equal(answer.status, 200, JSON.stringify(answer.body))
-  const seen = JSON.parse(answer.body.text)
+  assert.equal(answer.ok, true, JSON.stringify(answer))
+  const seen = JSON.parse(answer.result.text)
   noSecretIn(JSON.stringify(seen))
   const host = statSync(portA.socketPath)
   t.diagnostic(`M3: host socket owner uid ${host.uid} mode ${(host.mode & 0o777).toString(8)}; runner uid ${process.getuid()}; inside the sandbox socket uid ${seen.socket.uid}, handler uid ${seen.uid}`)
@@ -608,7 +708,7 @@ test('M3 and M4: the handler connects to the 0600 socket under its own uid and s
     fetch: false,
     env: { PWD: '/' },
   })
-  assert.equal((await invoke('fetchOrder', {}, portA.socketPath)).body.text, JSON.stringify(ORDER_FETCHED))
+  assert.equal((await invoke('fetchOrder', {}, portA.socketPath)).result.text, JSON.stringify(ORDER_FETCHED))
 })
 
 // The wire between the Hub, the supervisor and the sandboxed worker, with no database behind it.
@@ -630,8 +730,8 @@ test('Zod and the caller schema load under the worker permission flag, and a bad
   const run = (job) => runWorker({ config: SANDBOX, runtimeDir: stageWorkerRuntime(join(directory, 'runtime')), databaseSocket: join(directory, 'pg.sock'), job, timeoutMs: 15_000, resultLimit: 1024 * 1024 })
   const missing = await run(wireJob({ module: '/app/handlers/missing.mjs' }))
   assert.equal(missing.kind, 'RESULT')
-  assert.equal(missing.result.code, 'HANDLER_LOAD_FAILED')
-  assert.deepEqual((await run(wireJob({ responseLimit: 'big' }))).result, { ok: false, code: 'WORKER_JOB_REFUSED' })
+  assert.equal(missing.result.error.code, 'HANDLER_LOAD_FAILED')
+  assert.deepEqual((await run(wireJob({ responseLimit: 'big' }))).result, { ok: false, error: { code: 'WORKER_JOB_REFUSED' } })
 })
 
 test('a handler receives the connector answer the Hub sent, and the unconnected refusal for any other', async (t) => {
@@ -654,10 +754,10 @@ test('a handler receives the connector answer the Hub sent, and the unconnected 
     })
     return outcome.result
   }
-  const unconfigured = { ok: true, value: { ok: false, code: 'CONNECTOR_UNCONFIGURED' } }
+  const unconfigured = { ok: true, result: { ok: false, code: 'CONNECTOR_UNCONFIGURED' } }
   assert.deepEqual(await run('{"ok":false}'), unconfigured)
   assert.deepEqual(await run('{"ok":"yes"}'), unconfigured)
-  assert.deepEqual(await run('{"ok":true,"status":200,"bytes":2,"body":{}}'), { ok: true, value: { ok: true, status: 200, bytes: 2, body: {} } })
+  assert.deepEqual(await run('{"ok":true,"status":200,"bytes":2,"body":{}}'), { ok: true, result: { ok: true, status: 200, bytes: 2, body: {} } })
 })
 
 test('a handler that writes the first line of the result channel cannot choose the detail the runner replies with', async (t) => {
@@ -673,7 +773,7 @@ test('a handler that writes the first line of the result channel cannot choose t
   const manifest = { version: 1, operations: { leak: { module: 'handlers/leak.mjs', export: 'leak', input: empty, output: empty } }, migrations: [] }
   const files = [file('manifest.json', JSON.stringify(manifest)), file('handlers/leak.mjs', handler)]
   const reply = await supervisor.invoke({ projectId: randomUUID(), operation: 'leak', input: {}, files, caller: CALLER })
-  assert.deepEqual(reply, { status: 500, body: problem('HANDLER_EXPORT_MISSING', 500, 'leak') })
+  assert.deepEqual(reply, { ok: false, error: { code: 'HANDLER_CRASHED', exitCode: 0, signal: null } })
 })
 
 test('a handler that answers with an undeclared key named after a value gets no echo of it in the refusal', async (t) => {
@@ -689,5 +789,5 @@ test('a handler that answers with an undeclared key named after a value gets no 
   const manifest = { version: 1, operations: { smuggle: { module: 'handlers/smuggle.mjs', export: 'smuggle', input: empty, output: empty } }, migrations: [] }
   const files = [file('manifest.json', JSON.stringify(manifest)), file('handlers/smuggle.mjs', handler)]
   const reply = await supervisor.invoke({ projectId: randomUUID(), operation: 'smuggle', input: {}, files, caller: CALLER })
-  assert.deepEqual(reply, { status: 502, body: problem('HANDLER_OUTPUT_REFUSED', 502, '/(key): not declared') })
+  assert.deepEqual(reply, { ok: false, error: { code: 'HANDLER_OUTPUT_REFUSED', violation: { pointer: '/(key)', rule: 'not declared' } } })
 })

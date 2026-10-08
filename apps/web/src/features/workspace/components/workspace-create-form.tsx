@@ -7,8 +7,9 @@ import type { FormEvent } from 'react'
 import { useId, useRef, useState } from 'react'
 import { IdempotencyKey, createWorkspace, type WorkspaceCreated } from '@conexus/contract'
 import { sessionQueryKey } from '../../identity-access/api'
-import { call, failureText } from '../../../app/http'
+import { call } from '../../../app/http'
 
+import { failureText } from '@conexus/contract'
 type Attempt = { name: string; idempotencyKey: IdempotencyKey }
 
 export function WorkspaceCreateForm({

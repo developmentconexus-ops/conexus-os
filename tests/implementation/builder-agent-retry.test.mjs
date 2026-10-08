@@ -1,3 +1,4 @@
+import { providerModel } from './native-model-fixture.mjs'
 import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -6,15 +7,11 @@ import test from 'node:test'
 import { InMemoryStore } from '@mastra/core/storage'
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace'
 import { hubModuleUrl } from './hub-build.mjs'
-import { oneAccount } from './model-accounts-fake.mjs'
 import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 import { testConversations } from './builder-conversation-fixture.mjs'
 
 const { createBuilderController } = await import(hubModuleUrl('builder/harness/controller.js'))
 const { createControllerRunSessions } = await import(hubModuleUrl('builder/run/turn.js'))
-const { createModelRouting } = await import(hubModuleUrl('builder/model-routing.js'))
-const { createAnthropicRoute } = await import(hubModuleUrl('builder/anthropic/route.js'))
-const { createClaudeHolds } = await import(hubModuleUrl('builder/anthropic/credential.js'))
 
 const repositoryRoot = resolve(import.meta.dirname, '../..')
 const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
@@ -111,7 +108,7 @@ test('a Failure that carries a database error reaches the Builder stream as its 
 })
 
 test('the web says a platform fault was the Conexus, not the model, and other internal errors keep their sentence', async () => {
-  const { failureCodeText } = await import('../../apps/web/src/app/failure.ts')
+  const { failureCodeText } = await import('@conexus/contract')
   assert.equal(
     failureCodeText('BUILDER_AGENT_PLATFORM_FAILED'),
     'Uma falha do Conexus, e não do modelo, interrompeu a execução. As alterações desta execução não foram aplicadas. A falha foi registrada.',
@@ -157,13 +154,7 @@ test('a rate limit is retried by Mastra twice, then fails as rate limited', asyn
 // The real installed Anthropic provider, reached through the Hub's model routing, with a local stand-in for the upstream.
 const apiKey = `sk-ant-api03-${'k'.repeat(40)}`
 const accountId = '55555555-5555-4555-8555-555555555555'
-const routing = createModelRouting({
-  routes: { anthropic: createAnthropicRoute(createClaudeHolds({})) },
-  modelAccounts: oneAccount({ modelAccountId: 'row-anthropic', provider: 'anthropic', kind: 'api_key', secret: apiKey }),
-  conversationModel: async () => null,
-  readDefault: async () => null,
-  record: async () => {},
-})
+const model = () => providerModel({ credential: { provider: 'anthropic', kind: 'api_key', value: apiKey }, modelId: 'anthropic/claude-sonnet-5' })
 const bindAccount = (requestContext) => bindRunContext(requestContext, { ...RUN_CONTEXT, builderRunId, conversationId, accountId })
 
 const anthropicError = (status, type, message) => () => new Response(JSON.stringify({ type: 'error', error: { type, message } }), { status, headers: { 'content-type': 'application/json' } })
@@ -192,7 +183,7 @@ const upstreamReplying = (t, replies) => {
 
 const runOnUpstream = async (t, replies) => {
   const calls = upstreamReplying(t, replies)
-  const { run, controller } = await openRun(t, { model: (ctx) => routing.resolve(ctx), failsRead: () => false, bindExtra: bindAccount })
+  const { run, controller } = await openRun(t, { model: model, failsRead: () => false, bindExtra: bindAccount })
   const notices = []
   const everything = []
   const session = await controller.getSessionByResource(`project:${projectId}`, `conversation:${conversationId}`)

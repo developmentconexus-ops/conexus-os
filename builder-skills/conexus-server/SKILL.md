@@ -120,7 +120,7 @@ An expected failure is part of the output, and the screen shows it. Nothing foun
 list or a field left out. A Conexão read that fails is a `failure` field: declare
 `"failure": { "type": "string", "maxLength": 40 }` in the output, outside `required`, and when
 `connectors.fetch` answers `ok: false`, return the other fields empty with `failure: result.code`.
-The screen turns it into a sentence with `connectionMessage` from `lib/errors.ts`. A throw is a bug:
+The screen turns it into a sentence with `failureCodeText` from `@/conexus/failures.gen`. A throw is a bug:
 the person sees the failure table's sentence for it, and the failure is recorded.
 
 ## Migrations
@@ -151,6 +151,8 @@ CREATE TABLE ticket_history (
 
 A migration may create and alter tables, indexes, constraints and views in this Project's schema
 only: no functions, procedures, triggers, DO blocks, extensions, roles, grants or other schemas.
+The runner owns the migration batch's transaction. Omit transaction blocks, savepoints and two-phase
+transaction commands. Write literals with standard-conforming strings.
 
 ## The browser side
 

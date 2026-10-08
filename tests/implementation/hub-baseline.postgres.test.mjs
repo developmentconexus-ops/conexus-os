@@ -33,7 +33,7 @@ test('the baseline creates the eight login roles and six owners it was cut with,
   const createdForward = forward.flatMap((name) => createdRoles(readFileSync(resolve(migrationsRoot, name), 'utf8')))
   assert.deepEqual(createdForward, ['hub_factory', 'connector_owner', 'hub_model_account', 'model_owner', 'hub_runtime', 'conexus_owner', 'iam_rls', 'hub_reader', 'hub_command'])
   const registerFile = JSON.parse(readFileSync(resolve(repositoryRoot, 'contracts/technical/hub-database-roles.json'), 'utf8'))
-  for (const { role } of [...registerFile.roles, ...registerFile.transactionRoles]) assert.ok([...created, ...createdForward].includes(role), `a migration creates the register role ${role}`)
+  for (const role of [...registerFile.roles.map(({ role }) => role), ...registerFile.ownerRoles]) assert.ok([...created, ...createdForward].includes(role), `a migration creates the register role ${role}`)
 })
 
 test('a database built from the baseline and forward migrations is exactly the committed catalog', async (t) => {

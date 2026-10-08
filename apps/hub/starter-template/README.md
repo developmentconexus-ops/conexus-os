@@ -15,5 +15,5 @@ Each file keeps its MIT notice; the license text is `LICENSE-shadcn-ui.txt`. Pin
 9.x, 9.14.0, which the calendar type checks and renders against).
 
 Everything else under `files/` (`main.tsx`, `router.tsx`, `routes/home.tsx`, `styles.css`,
-`lib/utils.ts`, `lib/zod.ts`, `lib/format.ts`, `lib/errors.ts`, `index.html`) is written by hand. `styles.css` holds every color, radius and font;
+`lib/utils.ts`, `lib/zod.ts`, `lib/format.ts`, `index.html`) is written by hand. `styles.css` holds every color, radius and font;
 its values are the neutral subset of `packages/brand/src/tokens.css`.

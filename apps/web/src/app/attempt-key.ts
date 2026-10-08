@@ -1,6 +1,6 @@
 import { IdempotencyKey } from '@conexus/contract'
 import { useRef } from 'react'
-import { HubFailure } from './failure'
+import { ReceivedFailure } from '@conexus/contract'
 
 /**
  * One key per attempt. The fingerprint is the whole request, path params included, so the same request retried keeps its key and any other one gets its own.
@@ -17,7 +17,7 @@ export function useAttemptKey() {
       attempt.current = undefined
     },
     failed(error: unknown) {
-      if (error instanceof HubFailure && error.status !== null && error.status >= 400 && error.status < 500 && error.code !== 'OUTCOME_UNKNOWN') attempt.current = undefined
+      if (error instanceof ReceivedFailure && error.status !== null && error.status >= 400 && error.status < 500 && error.code !== 'OUTCOME_UNKNOWN') attempt.current = undefined
     },
   }
 }

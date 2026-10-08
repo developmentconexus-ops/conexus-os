@@ -10,7 +10,7 @@ a free choice.
 The guide states the target. Tests that depart from it are listed in
 [architecture section 11](../reference/architecture.md#11-risks-and-technical-debt) with the wave
 that removes them. Owners next door: [delivery](delivery.md) for CI and the merge gate,
-[`scripts/conexus-verify.mjs`](../../scripts/conexus-verify.mjs) for the exact test graph, the
+[`package.json`](../../package.json) for direct test commands, the
 [`verify`](../../.agents/skills/verify/SKILL.md) skill for driving screens, and
 [security](../reference/security-and-authority.md) for escape tests.
 
@@ -35,10 +35,14 @@ Every test **must** fit one size, and its group **must** follow from its folder 
 | Size | May touch | Group |
 | --- | --- | --- |
 | Small | Memory only: no network, database or disk | `tests/repository`, and `tests/implementation` without a suffix |
-| Medium | Services on this machine: PostgreSQL, a browser, a local Hub | `*.postgres.test.mjs`, `*.browser.test.mjs` |
-| Large | Real outside services: a model, E2B, Keycloak | `tests/live`, `tests/manual` |
+| Medium | Services on this machine: PostgreSQL, a browser, a local Hub, local network/process tests | `*.postgres.test.mjs`, `*.browser.test.mjs`, `*.network.test.mjs` |
+| Medium integration | Local Hub, disposable Keycloak/PostgreSQL, scripted model and local sandbox | `tests/live` |
+| Large | Authorized real outside provider/model/E2B services | `tests/manual` |
 
-- A test joins a group by its folder and suffix, never by a list.
+- A test joins a group by its folder and suffix. The four routine smoke files and seven additional
+  qualification files explicitly partition `tests/live`; all remain in `npm run test:live`.
+
+Local network/process tests run once through `test:network`, separate from the Small unit group.
 - A harness that runs in parallel **must** bind port 0 and read the port back.
 - A test **must** create and remove what it uses, and **must not** sleep to wait for a result.
 
@@ -51,7 +55,10 @@ slow one runs where its services exist.
 
 ## 3. A test that does not run
 
-- Only an `opt-in:` reason **may** skip a test or leave it todo.
+- Only an `opt-in:` reason **may** skip a test or leave it todo. Every direct suite entrypoint loads
+  `scripts/test-ledger-reporter.mjs` and checks its isolated ledger. Missing or zero-test ledgers fail.
+  Test subprocesses must explicitly load reporters and clear inherited `NODE_TEST_CONTEXT`; fixture
+  calibration keeps its ledger separate. No nested-run regex exemption can replace this proof.
 - A test **must not** pass silently when the service it needs is missing. It fails, or it is skipped
   with an `opt-in:` reason.
 
@@ -114,8 +121,9 @@ slow one runs where its services exist.
 
 - A screen **must** be proved in a real browser against a real Hub with the `verify` skill, in light
   and dark, against the accessibility rules of [`DESIGN.md`](../../DESIGN.md).
-- What `verify` cannot prove, a Builder turn with a real model, **must** be proved by `tests/live` or
-  on the local Conexus.
+- What `verify` cannot prove, a Builder turn with a real model, **must** be proved by an authorized
+  `tests/manual` provider run or on the local Conexus. `tests/live` uses a scripted model and local
+  sandbox and does not prove real provider behavior.
 
 **Why.** A person sees the screen, not the component. Only a real browser shows what they see.
 

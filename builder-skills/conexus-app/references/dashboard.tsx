@@ -8,7 +8,7 @@ import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } f
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { api, type Output } from '@/conexus/api.gen'
-import { errorMessage } from '@/lib/errors'
+import { failureText } from '@/conexus/failures.gen'
 import { formatDate, formatNumber } from '@/lib/format'
 
 function Dashboard() {
@@ -169,7 +169,7 @@ function LoadError({ title, error }: { title: string; error: Error }) {
   return (
     <Alert variant="destructive">
       <AlertTitle>{title}</AlertTitle>
-      <AlertDescription>{errorMessage(error)}</AlertDescription>
+      <AlertDescription>{failureText(error)}</AlertDescription>
     </Alert>
   )
 }

@@ -20,7 +20,6 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import { ASK_USER_TOOL, CHECK_TOOL, createAskUserTool, failing, createCheckTool, createRunOperationTool, createSubmitPlanTool, RUN_OPERATION_TOOL, SUBMIT_PLAN_TOOL } from './tools.js'
-import type { DocsTools } from './context7.js'
 import { SANDBOX_CHECKOUT } from '../sandbox.js'
 import { type AgentReport, CHECK_COMMAND_TIMEOUT_MS } from '../check/report.js'
 import type { RunOperation } from '../run-operation.js'
@@ -44,7 +43,9 @@ export const defaultBuilderSkillsRoot = (cwd: string = process.cwd()): string =>
 const NATIVE_WEB_SEARCH_PROVIDERS: ReadonlySet<string> = new Set(['openai', 'anthropic', 'google', 'xai'])
 
 /** The provider id embedded in a `provider/model` string, or the whole string when it carries none. */
-const providerOf = (modelString: string): string => parseModelString(modelString).provider ?? modelString
+function providerOf(modelString: string): string {
+  return parseModelString(modelString).provider ?? modelString
+}
 
 /** The provider id of whatever `MastraModelConfig` shape a run resolves to: a `provider/model` router string or config, or an already-built language model. */
 const resolveModelProviderId = (model: MastraModelConfig): string | undefined => {
@@ -193,8 +194,6 @@ export type BuilderControllerDeps = Readonly<{
   connectorFetch?: (ctx: { requestContext: RequestContext }) => ToolsInput | Promise<ToolsInput>
   /** The run's check and operation run, for `conexus_check` and `conexus_run_operation`; absent for a turn with no run behind it, which then has neither tool. */
   runTools?: (ctx: { requestContext: RequestContext }) => RunTools | undefined
-  /** The library documentation tools (Context7); absent when the caller offers none. */
-  docsTools?: DocsTools
   /** Absolute path to a folder of agent skills, one subfolder per skill. Defaults to the Hub's own `builder-skills/`. */
   skillsPath?: string
   /** Overrides how long one model call may run; only for tests. */
@@ -207,7 +206,7 @@ export type BuilderControllerDeps = Readonly<{
 /**
  * Builds the Builder's `AgentController`: `createCodingAgent` with the Conexus prompt and the tools
  * the Hub adds (`connector_fetch`, `conexus_check` and `conexus_run_operation` for a run, the guarded `web_fetch`,
- * the `context7_*` documentation tools when `docsTools` is given, and `web_search` when the run's model has a provider search in Mastra), and the one `build`
+ * and `web_search` when the run's model has a provider search in Mastra), and the one `build`
  * mode, which sets no `availableTools` allowlist so every tool Mastra registers, `recall` included,
  * reaches the model. `submit_plan` is Mastra's own tool, wrapped to take only `.conexus/plan.md` and
  * to suspend with the plan the Hub read, so the plan is approved on its card. `ask_user` is ours, taking 1 to 4
@@ -230,7 +229,6 @@ export const createBuilderController = (deps: BuilderControllerDeps): AgentContr
       ...(deps.connectorFetch ? await deps.connectorFetch(ctx) : {}),
       ...runToolsInput(deps.runTools?.(ctx)),
       ...(await webSearchFor(deps.model, searchOnly, ctx)),
-      ...(deps.docsTools ? await deps.docsTools.tools() : {}),
       web_fetch: guardedWebFetchTool,
     }),
     skills: [skillsRoot],

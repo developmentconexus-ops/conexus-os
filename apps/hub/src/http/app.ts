@@ -4,11 +4,12 @@ import Fastify from 'fastify'
 import { readFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import type { FastifyInstance } from 'fastify'
-import { Failure, type FailureCode, logFailure, toFailure } from '../platform/failure.js'
+import { logFailure } from '../platform/failure.js'
+import { failureFromFastify } from './fastify-failure.js'
 import { logger } from '../platform/logger.js'
 import { foreignRoutes, installAccess, routes } from './access.js'
 import type { ListenerPolicy } from './access.js'
-import { sendFailure } from './problem.js'
+import { currentTraceReference, failureResponse, sendFailureResponse } from './problem.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -26,21 +27,6 @@ export const parseJsonBody = (app: FastifyInstance): void => {
     if (text.trim() === '') return done(null, undefined)
     return parseJson(request, text, done)
   })
-}
-
-// Fastify's own refusals, which carry a `code` and no `Failure`.
-const FASTIFY_FAILURES: ReadonlyMap<string, FailureCode> = new Map([
-  ['FST_ERR_VALIDATION', 'REQUEST_VALIDATION_FAILED'],
-  ['FST_ERR_CTP_BODY_TOO_LARGE', 'REQUEST_BODY_TOO_LARGE'],
-  ['FST_ERR_CTP_INVALID_JSON_BODY', 'REQUEST_JSON_INVALID'],
-  ['FST_ERR_CTP_INVALID_MEDIA_TYPE', 'REQUEST_MEDIA_TYPE_UNSUPPORTED'],
-])
-
-const namedFailure = (error: unknown): Failure | null => {
-  if (error instanceof Failure) return error
-  if (typeof error !== 'object' || error === null || !('code' in error) || typeof error.code !== 'string') return null
-  const code = FASTIFY_FAILURES.get(error.code)
-  return code ? new Failure(code, { cause: error }) : null
 }
 
 export const createHttpApp = async ({
@@ -61,9 +47,9 @@ export const createHttpApp = async ({
   const previewCspSource = policy.listener === 'hub' ? policy.previewCspSource : undefined
   parseJsonBody(app)
   app.setErrorHandler((error, request, reply) => {
-    const failure = namedFailure(error) ?? toFailure(error)
+    const failure = failureFromFastify(error)
     logFailure(request.log, failure, { 'http.route': request.routeOptions.url ?? '' })
-    return sendFailure(reply, failure)
+    return sendFailureResponse(reply, failureResponse({ code: failure.id, traceId: currentTraceReference() }))
   })
   await app.register(cookie)
   await app.register(helmet, {

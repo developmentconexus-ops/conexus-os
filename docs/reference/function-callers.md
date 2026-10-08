@@ -13,6 +13,3 @@ None.
 | Function | Owner role | Called by functions | Called from TypeScript |
 | --- | --- | --- | --- |
 | `iam.lock_administrators` | conexus_owner | - | `apps/hub/src/identity-access/admission.ts` |
-| `rls.acting_account` | iam_rls | `rls.acting_installation_administrator`, `rls.acting_workspaces` | - |
-| `rls.acting_installation_administrator` | iam_rls | - | `apps/hub/src/identity-access/admission.ts` |
-| `rls.acting_workspaces` | iam_rls | - | - |

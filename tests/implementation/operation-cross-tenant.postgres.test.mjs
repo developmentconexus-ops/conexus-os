@@ -21,7 +21,11 @@ const { registerAdministratorRoutes } = await import(hubModuleUrl('identity-acce
 const { createSessions } = await import(hubModuleUrl('identity-access/sessions.js'))
 const { createWorkspaceModule } = await import(hubModuleUrl('workspace/module.js'))
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
-const { createModelAccounts } = await import(hubModuleUrl('builder/model-account/accounts.js'))
+const { AnthropicKey } = await import(hubModuleUrl('model-account/credential.js'))
+const { encodeKey } = await import(hubModuleUrl('model-account/credential.js'))
+const { createModelAccountModule } = await import(hubModuleUrl('model-account/module.js'))
+const { createModelAccountStore } = await import(hubModuleUrl('model-account/store.js'))
+const { admitAccount } = await import(hubModuleUrl('identity-access/admission.js'))
 const { createWorkspaceStore } = await import(hubModuleUrl('workspace/store.js'))
 const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
 
@@ -40,7 +44,7 @@ const CONNECTION = Object.freeze({
   a: '33333333-3333-4333-8333-0000000000a1', spare: '33333333-3333-4333-8333-0000000000a2', created: '33333333-3333-4333-8333-0000000000a3', b: '33333333-3333-4333-8333-0000000000b1',
 })
 const BINDING_B = '44444444-4444-4444-8444-0000000000b1'
-const SEALED = 'mastra:factory-secret:v1:seed'
+const SEALED = 'conexus:secret:v1:seed'
 
 // How each split table reaches tenant B: $1 is B's Workspace, $2 is B's Project. A split table in the
 // register without an entry here, or without a seeded row of B, fails the test below.
@@ -72,7 +76,7 @@ const TENANT_B = Object.freeze({
   'iam.host_session': 'account_id IN (SELECT account_id FROM iam.workspace_membership WHERE workspace_id = $1)',
 })
 
-const registerTables = () => CENSUS.register.split.map((entry) => entry.table).sort()
+const registerTables = () => CENSUS.register.tables.map((entry) => entry.table).sort()
 
 const rowsOfB = async (connection, projectId) => {
   const tables = registerTables()
@@ -86,7 +90,7 @@ const rowsOfB = async (connection, projectId) => {
   return found
 }
 
-const seedTenantB = async ({ connection, seedProject }, projectId, sealed) => {
+const seedTenantB = async ({ connection, seedProject }, projectId) => {
   await query(connection, `INSERT INTO iam.account(account_id, issuer, external_subject, display_name) VALUES
     ($1, 'https://issuer.test', 'other-owner', 'Other owner'), ($2, 'https://issuer.test', 'other-member', 'Other member')`, [OTHER.owner, OTHER.member])
   await query(connection, "INSERT INTO iam.workspace_membership(account_id, workspace_id, role) VALUES ($1, $3, 'owner'), ($2, $3, 'member')", [OTHER.owner, OTHER.member, ID.otherWorkspace])
@@ -99,7 +103,7 @@ const seedTenantB = async ({ connection, seedProject }, projectId, sealed) => {
   await query(connection, `INSERT INTO platform.operation_receipt(operation_id, authority, account_id, key_digest, request_digest, resource_id, state)
     VALUES ('createProject', 'account:b', $1, $2, $3, $4, 'reserved')`, [OTHER.owner, Buffer.from('k'), Buffer.from('r'), projectId])
   await query(connection, `INSERT INTO model.model_account(scope, owner_account_id, provider, kind, secret, connected_by, connected_by_name, connected_at) VALUES
-    ('personal', $1, 'anthropic', 'api_key', $2, $1, 'Outro', clock_timestamp()), ('personal', $1, 'google-ai-pro', 'google_ai_pro', $2, $1, 'Outro', clock_timestamp())`, [OTHER.owner, await sealed('private-of-b')])
+    ('personal', $1, 'anthropic', 'api_key', $2, $1, 'Outro', clock_timestamp()), ('personal', $1, 'google-ai-pro', 'google_ai_pro', $2, $1, 'Outro', clock_timestamp())`, [OTHER.owner, SEALED])
   await query(connection, "INSERT INTO model.installation_default(role, model_id, updated_by) VALUES ('build', 'anthropic/claude-sonnet-5', $1)", [OTHER.owner])
 }
 
@@ -158,7 +162,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   await query(connection, 'INSERT INTO builder.conversation_session(conversation_id, project_id) VALUES ($1, $2)', [randomUUID(), projectB])
   await query(connection, 'INSERT INTO builder.builder_run_model_account(builder_run_id, model_account_id) SELECT builder_run_id, $2 FROM builder.builder_run WHERE project_id = $1', [projectB, randomUUID()])
   const envelope = createSecretEnvelope('ab'.repeat(32))
-  await seedTenantB(fixture, projectB, (plain) => envelope.seal(plain))
+  await seedTenantB(fixture, projectB)
   const thumbnailA = Buffer.from('thumbnail-of-a')
   await query(connection, `INSERT INTO connector.connection(connection_id, workspace_id, connector_id, label, credential_sealed, credential_digest, created_by) VALUES
     ($1, $3, 'sankhya', 'ERP', $5, $6, $4), ($2, $3, 'sankhya', 'Spare', $5, $6, $4)`, [CONNECTION.a, CONNECTION.spare, ID.workspace, ID.administrator, SEALED, 'd'.repeat(64)])
@@ -176,15 +180,19 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   const member = ID.member
   const FOREIGN_BASE = 'c'.repeat(40)
   const connectors = createConnectorStore({ database, envelope })
-  const modelAccounts = createModelAccounts({ database, envelope, ownerId: randomUUID() })
-  await query(connection, "INSERT INTO model.model_account(scope, owner_account_id, provider, kind, secret, connected_by, connected_by_name, connected_at) VALUES ('personal', $1, 'openai-codex', 'oauth', $2, $1, 'Membro', clock_timestamp())", [member, await envelope.seal('codex-of-member')])
-  const KEY = { provider: 'anthropic', kind: 'api_key' }
+  const models = await createModelAccountModule({ data: database, envelope, defaultThinkingLevel: 'medium', googleAiPro: null })
+  fixture.onCleanup(() => models.close())
+  const modelStore = createModelAccountStore(envelope)
+  const connectCredential = (accountId, credential, displayName = 'Synthetic member') => database.transaction(accountId, async (gate) => modelStore.connect({ proof: await admitAccount(gate), credential, displayName }))
+  const credentialOf = (provider, kind) => ({ provider, kind, value: kind === 'api_key' ? AnthropicKey.parse('sk-ant-synthetic-keyxxxxxxxxxx') : kind === 'google_ai_pro' ? encodeKey({ fileName: 'antigravity-synthetic.json', bytes: new TextEncoder().encode(JSON.stringify({ type: 'antigravity', synthetic: true })) }) : { access: 'synthetic-access', refresh: 'synthetic-refresh', expires: 1000, ...(provider === 'openai-codex' ? { accountId: 'synthetic-account', email: null } : {}) } })
+  await connectCredential(member, credentialOf('openai-codex', 'oauth'))
+  const KEY = credentialOf('anthropic', 'api_key')
   const before = await digestOfB(connection, projectB)
   const revisionOfA = (await query(connection, 'SELECT project_revision FROM project.project WHERE project_id = $1', [projectA])).rows[0].project_revision
   const withoutActivity = (summaries) => summaries.map(({ lastActivityAt: _at, ...rest }) => rest)
-  const cardA = { projectId: projectA, workspaceId: ID.workspace, name: 'Atlas', archived: false }
-  const cardBuilds = { projectId: projectBuild, workspaceId: ID.workspace, name: 'Builds', archived: false }
-  const cardDoomed = { projectId: doomedA, workspaceId: ID.workspace, name: 'Doomed A', archived: false }
+  const cardA = { projectId: projectA, workspaceId: ID.workspace, name: 'Atlas', state: 'live', archived: false }
+  const cardBuilds = { projectId: projectBuild, workspaceId: ID.workspace, name: 'Builds', state: 'live', archived: false }
+  const cardDoomed = { projectId: doomedA, workspaceId: ID.workspace, name: 'Doomed A', state: 'live', archived: false }
 
   // own: admission passes on the tenant's own ids and the answer holds the tenant's literal rows.
   // cross: the same call with the ids of tenant B answers its refusal and nothing of B.
@@ -198,6 +206,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       await registerRosterRoutes(server, database)
       await createApplicationAccess({ database, addressOf: () => null }).registerRoutes(server)
       await registerAdministratorRoutes(server, database)
+      await models.registerRoutes(server)
       return []
     },
   })
@@ -215,14 +224,14 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   const ADMINISTRATORS = '/api/control/installation/administrators'
   let bindingOfA
   let administratorAdded
-  const ABSENT = { own: { state: 'absent' } }
   const attempts = {
     'getSession': {
       own: async () => {
         const answered = await call('member', 'GET', '/api/session')
         assert.deepEqual({ status: answered.status, administrator: answered.body.administrator, workspaces: answered.body.workspaces }, { status: 200, administrator: false, workspaces: [{ workspaceId: ID.workspace, name: 'Operations' }] })
       },
-      cross: async () => assert.deepEqual((await call('administrator', 'GET', '/api/session')).body.workspaces, []),
+      cross: async () => assert.deepEqual((await call('administrator', 'GET', '/api/session')).body.workspaces,
+        [{ workspaceId: ID.otherWorkspace, name: 'Elsewhere' }, { workspaceId: ID.workspace, name: 'Operations' }]),
       child: null,
     },
     'getWorkspaceRoster': {
@@ -325,46 +334,58 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       child: () => refused('administrator', 'DELETE', `${ADMINISTRATORS}/${OTHER.owner}`, 404, 'INSTALLATION_ADMINISTRATOR_NOT_FOUND'),
     },
     'listAvailableModels': {
-      own: async () => assert.deepEqual((await modelAccounts.standing(member))['openai-codex'], { own: { state: 'connected', kind: 'oauth' } }),
-      cross: async () => assert.deepEqual((await modelAccounts.standing(member)).anthropic, ABSENT),
+      own: async () => assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'openai-codex')?.own, { state: 'connected', kind: 'oauth' }),
+      cross: async () => assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'anthropic')?.own, { state: 'absent' }),
       child: null,
     },
     'listModelAccounts': {
-      own: async () => assert.deepEqual(await modelAccounts.standing(member), { anthropic: ABSENT, 'openai-codex': { own: { state: 'connected', kind: 'oauth' } }, 'google-ai-pro': ABSENT }),
-      cross: async () => assert.deepEqual((await modelAccounts.standing(member)).anthropic, ABSENT),
+      own: async () => assert.deepEqual((await models.list(member)).map(({ provider, own }) => ({ provider, own })), [{ provider: 'anthropic', own: { state: 'absent' } }, { provider: 'openai-codex', own: { state: 'connected', kind: 'oauth' } }, { provider: 'google-ai-pro', own: { state: 'absent' } }]),
+      cross: async () => assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'anthropic')?.own, { state: 'absent' }),
       child: null,
     },
     'getGoogleModelConnection': {
-      own: async () => assert.deepEqual((await modelAccounts.standing(member))['google-ai-pro'], ABSENT),
-      cross: async () => assert.deepEqual((await modelAccounts.standing(member))['google-ai-pro'].own, { state: 'absent' }),
+      own: async () => assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'google-ai-pro')?.own, { state: 'absent' }),
+      cross: async () => assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'google-ai-pro')?.own, { state: 'absent' }),
       child: null,
     },
     'setModelAccountApiKey': {
       own: async () => {
-        await modelAccounts.write({ account: { accountId: member, displayName: 'Membro' }, credential: KEY, secret: 'key-of-member' })
+        await connectCredential(member, KEY)
         assert.deepEqual((await query(connection, "SELECT scope, provider, kind FROM model.model_account WHERE owner_account_id = $1 AND provider = 'anthropic'", [member])).rows, [{ scope: 'personal', provider: 'anthropic', kind: 'api_key' }])
       },
-      cross: () => assert.rejects(modelAccounts.write({ account: { accountId: randomUUID(), displayName: 'Membro' }, credential: KEY, secret: 'intruder' }), { id: 'ACCOUNT_NOT_FOUND' }),
+      cross: () => assert.rejects(connectCredential(randomUUID(), KEY), { id: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'completeClaudeModelLogin': {
-      own: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: member, displayName: 'Membro' }, credential: { provider: 'anthropic', kind: 'oauth' }, secret: 'tokens' }), { ok: true }),
-      cross: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: randomUUID(), displayName: 'Membro' }, credential: { provider: 'anthropic', kind: 'oauth' }, secret: 'tokens' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
+      own: async () => {
+        await connectCredential(member, credentialOf('anthropic', 'oauth'))
+        assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'anthropic')?.own, { state: 'connected', kind: 'oauth' })
+      },
+      cross: async () => assert.rejects(connectCredential(randomUUID(), credentialOf('anthropic', 'oauth')), { id: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'completeGoogleModelLogin': {
-      own: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: member, displayName: 'Membro' }, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: true }),
-      cross: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: randomUUID(), displayName: 'Membro' }, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
+      own: async () => {
+        await connectCredential(member, credentialOf('google-ai-pro', 'google_ai_pro'))
+        assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'google-ai-pro')?.own, { state: 'connected', kind: 'google_ai_pro' })
+      },
+      cross: async () => assert.rejects(connectCredential(randomUUID(), credentialOf('google-ai-pro', 'google_ai_pro')), { id: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'pollCodexModelLogin': {
-      own: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: member, displayName: 'Membro' }, credential: { provider: 'openai-codex', kind: 'oauth' }, secret: 'tokens' }), { ok: true }),
-      cross: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: randomUUID(), displayName: 'Membro' }, credential: { provider: 'openai-codex', kind: 'oauth' }, secret: 'tokens' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
+      own: async () => {
+        await connectCredential(member, credentialOf('openai-codex', 'oauth'))
+        assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'openai-codex')?.own, { state: 'connected', kind: 'oauth' })
+      },
+      cross: async () => assert.rejects(connectCredential(randomUUID(), credentialOf('openai-codex', 'oauth')), { id: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'getGoogleModelLoginStatus': {
-      own: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: member, displayName: 'Membro' }, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: true }),
-      cross: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: randomUUID(), displayName: 'Membro' }, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: 'session' }), { ok: false, reason: 'ACCOUNT_NOT_FOUND' }),
+      own: async () => {
+        await connectCredential(member, credentialOf('google-ai-pro', 'google_ai_pro'))
+        assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'google-ai-pro')?.own, { state: 'connected', kind: 'google_ai_pro' })
+      },
+      cross: async () => assert.rejects(connectCredential(randomUUID(), credentialOf('google-ai-pro', 'google_ai_pro')), { id: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'createWorkspace': {
@@ -378,12 +399,12 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
     },
     'listProjects': {
       own: async () => assert.deepEqual(await projects.listProjects({ accountId: member, workspaceId: ID.workspace }), [cardA, cardBuilds, cardDoomed]),
-      cross: async () => assert.deepEqual(await projects.listProjects({ accountId: member, workspaceId: ID.otherWorkspace }), []),
+      cross: () => assert.rejects(projects.listProjects({ accountId: member, workspaceId: ID.otherWorkspace }), { id: 'WORKSPACE_NOT_FOUND' }),
       child: null,
     },
     'getProject': {
-      own: async () => assert.deepEqual(await projects.getProject({ accountId: member, projectId: projectA }), { ...cardA, projectRevision: revisionOfA, deleting: false }),
-      cross: async () => assert.equal(await projects.getProject({ accountId: member, projectId: projectB }), null),
+      own: async () => assert.deepEqual(await projects.getProject({ accountId: member, projectId: projectA }), { ...cardA, state: 'live', projectRevision: revisionOfA }),
+      cross: () => assert.rejects(projects.getProject({ accountId: member, projectId: projectB }), { id: 'PROJECT_NOT_FOUND' }),
       child: null,
     },
     'createProject': {
@@ -391,24 +412,24 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
         const created = await projects.createProject({ accountId: member, workspaceId: ID.workspace, idempotencyKey: 'own', body: { name: 'Mine', sourceBootstrap: { mode: 'NEW' } } })
         assert.deepEqual({ replayed: created.replayed, name: created.reply.name, workspaceId: created.reply.workspaceId }, { replayed: false, name: 'Mine', workspaceId: ID.workspace })
       },
-      cross: () => assert.rejects(projects.createProject({ accountId: member, workspaceId: ID.otherWorkspace, idempotencyKey: 'intruder', body: BODY }), { id: 'PROJECT_CREATE_DENIED' }),
+      cross: () => assert.rejects(projects.createProject({ accountId: member, workspaceId: ID.otherWorkspace, idempotencyKey: 'intruder', body: BODY }), { id: 'WORKSPACE_NOT_FOUND' }),
       child: null,
     },
     'deleteProject': {
       own: async () => {
-        await projects.deleteProject({ accountId: ID.administrator, projectId: doomedA, confirmName: 'Doomed A' })
-        assert.deepEqual((await query(connection, 'SELECT project_id, name, requested_by FROM project.project_deletion WHERE project_id = $1', [doomedA])).rows, [{ project_id: doomedA, name: 'Doomed A', requested_by: ID.administrator }])
+        await projects.deleteProject({ accountId: ID.owner, projectId: doomedA, confirmName: 'Doomed A' })
+        assert.deepEqual((await query(connection, 'SELECT project_id, name, requested_by FROM project.project_deletion WHERE project_id = $1', [doomedA])).rows, [{ project_id: doomedA, name: 'Doomed A', requested_by: ID.owner }])
       },
-      cross: () => assert.rejects(projects.deleteProject({ accountId: member, projectId: projectB, confirmName: 'Borealis' }), { id: 'PROJECT_DELETE_DENIED' }),
+      cross: () => assert.rejects(projects.deleteProject({ accountId: member, projectId: projectB, confirmName: 'Borealis' }), { id: 'PROJECT_NOT_FOUND' }),
       child: null,
     },
     'listProjectSummaries': {
       own: async () => {
         const summaries = withoutActivity(await projects.listProjectSummariesWithActivity({ accountId: member, workspaceId: ID.workspace }))
         assert.deepEqual(summaries.map((summary) => summary.name).sort(), ['Atlas', 'Builds', 'Mine'])
-        assert.deepEqual(summaries.find((summary) => summary.name === 'Atlas'), { projectId: projectA, name: 'Atlas', archived: false, latestRun: null, hasPreview: true, deleting: false })
+        assert.deepEqual(summaries.find((summary) => summary.name === 'Atlas'), { projectId: projectA, name: 'Atlas', state: 'live', archived: false, latestRun: null, hasPreview: true })
       },
-      cross: async () => assert.deepEqual(await projects.listProjectSummariesWithActivity({ accountId: member, workspaceId: ID.otherWorkspace }), []),
+      cross: () => assert.rejects(projects.listProjectSummariesWithActivity({ accountId: member, workspaceId: ID.otherWorkspace }), { id: 'WORKSPACE_NOT_FOUND' }),
       child: null,
     },
     'listProjectSourceTree': {
@@ -428,7 +449,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
     },
     'getBuilderSession': {
       own: async () => assert.deepEqual(await builder.readBuilderRun({ accountId: member, projectId: projectA }), null),
-      cross: async () => assert.deepEqual(await builder.readBuilderRun({ accountId: member, projectId: projectB }), null),
+      cross: () => assert.rejects(builder.readBuilderRun({ accountId: member, projectId: projectB }), { id: 'PROJECT_NOT_FOUND' }),
       child: null,
     },
     'sendBuilderMessage': {
@@ -436,7 +457,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
         const run = await builder.createBuilderRun({ accountId: member, projectId: projectBuild, conversationId: '33333333-3333-4333-8333-333333333333', idempotencyKey: 'own', content: 'build', readBase: async () => FOREIGN_BASE })
         assert.deepEqual({ state: run.state, baseSourceRevision: run.baseSourceRevision, requestText: run.requestText }, { state: 'QUEUED', baseSourceRevision: FOREIGN_BASE, requestText: 'build' })
       },
-      cross: () => assert.rejects(builder.createBuilderRun({ accountId: member, projectId: projectB, conversationId: '33333333-3333-4333-8333-333333333333', idempotencyKey: 'intruder', content: 'build', readBase: async () => FOREIGN_BASE }), { id: 'PROJECT_BUILD_DENIED' }),
+      cross: () => assert.rejects(builder.createBuilderRun({ accountId: member, projectId: projectB, conversationId: '33333333-3333-4333-8333-333333333333', idempotencyKey: 'intruder', content: 'build', readBase: async () => FOREIGN_BASE }), { id: 'PROJECT_NOT_FOUND' }),
       child: null,
     },
     'cancelBuilderRun': {
@@ -445,17 +466,17 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
         const cancelled = await builder.requestBuilderRunCancellation({ accountId: member, projectId: projectBuild, builderRunId: ownRun })
         assert.equal(cancelled.state, 'INTERRUPTED')
       },
-      cross: () => assert.rejects(builder.requestBuilderRunCancellation({ accountId: member, projectId: projectB, builderRunId: runOfB }), { id: 'PROJECT_BUILD_DENIED' }),
+      cross: () => assert.rejects(builder.requestBuilderRunCancellation({ accountId: member, projectId: projectB, builderRunId: runOfB }), { id: 'PROJECT_NOT_FOUND' }),
       child: () => assert.rejects(builder.requestBuilderRunCancellation({ accountId: member, projectId: projectBuild, builderRunId: runOfB }), { id: 'BUILDER_RUN_NOT_FOUND' }),
     },
     'getBuilderRunTrace': {
       own: async () => assert.deepEqual((await builder.listBuilderRuns({ accountId: member, projectId: projectBuild })).map((run) => run.state), ['INTERRUPTED']),
-      cross: async () => assert.equal(await builder.readBuilderRun({ accountId: member, projectId: projectB }), null),
+      cross: () => assert.rejects(builder.readBuilderRun({ accountId: member, projectId: projectB }), { id: 'PROJECT_NOT_FOUND' }),
       child: async () => assert.notEqual((await builder.readBuilderRun({ accountId: member, projectId: projectBuild })).builderRunId, runOfB),
     },
     'launchBuilderPreview': {
       own: async () => assert.deepEqual(await builder.openLaunch({ accountId: member, projectId: projectA }, async (_proof, launch) => launch), { sourceRevision: STARTER, artifactRevisionId: revisionA, digest: 'd'.repeat(64), entryPath: 'index.html', files: [{ path: 'index.html', mediaType: 'text/html; charset=utf-8' }] }),
-      cross: () => assert.rejects(builder.openLaunch({ accountId: member, projectId: projectB }, async () => assert.fail('a refused admission opens nothing')), { id: 'PROJECT_BUILD_DENIED' }),
+      cross: () => assert.rejects(builder.openLaunch({ accountId: member, projectId: projectB }, async () => assert.fail('a refused admission opens nothing')), { id: 'PROJECT_NOT_FOUND' }),
       child: null,
     },
     'getProjectThumbnail': {
@@ -463,7 +484,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
         const thumbnail = await registry.readProjectThumbnail(member, projectA)
         assert.deepEqual({ revision: thumbnail.artifactRevisionId, bytes: Buffer.from(thumbnail.bytes).toString() }, { revision: revisionA, bytes: 'thumbnail-of-a' })
       },
-      cross: async () => assert.equal(await registry.readProjectThumbnail(member, projectB), null),
+      cross: () => assert.rejects(registry.readProjectThumbnail(member, projectB), { id: 'PROJECT_NOT_FOUND' }),
       child: null,
     },
     'listWorkspaceConnections': {

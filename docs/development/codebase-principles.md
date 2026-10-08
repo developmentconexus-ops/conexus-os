@@ -141,6 +141,7 @@ which value is the truth and grows with every caller.
 - Every failure **must** carry a code from the one failure table (`contracts/technical/failures.json`),
   with its category decided where it is raised.
 - A refusal its caller branches on **must** be a result union on `ok`. Every other failure throws.
+- A caller-handled refusal returns the shared readonly `Result` with operation-specific table codes; escaping server faults retain native `Failure`, and received browser failures use the shared reader.
 - An error from a library or a service **must** be mapped by a field it carries (a status, a code,
   an SQLSTATE), never by its message text.
 - A `catch` **must** rethrow, map at a vendor boundary, or log. It **must not** be empty.
@@ -218,6 +219,9 @@ understand. Deleting is the cheapest way to keep the base clear.
 
 ## 11. Lessons become structure
 
-A rule a reviewer writes twice becomes a check that fails: a Biome rule, a type, a census that may
-only fall, or a test. A rule lives in one guide. A finding names the guide section, the file and
-line, and the wave that fixes it.
+A repeated objective defect becomes a check that fails: a Biome rule, a type or a behavior test
+with a negative case. Architecture, reference fit and maintainability judgment belong in review.
+Historical counts of writers, calls, vocabulary or document size do not prove correctness and must
+not become permanent budgets. A custom check needs a named defect, a negative proof and a removal
+or revalidation trigger. Existing exceptions name their owner and reason; they do not create debt
+counters. A rule lives in one guide. A finding names the guide section, file, line and owning wave.

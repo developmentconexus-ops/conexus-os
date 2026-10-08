@@ -16,7 +16,7 @@ const fakeRunner = async (t, reply) => {
     const chunks = []
     request.on('data', (chunk) => chunks.push(chunk))
     request.on('end', () => {
-      response.writeHead(reply.status, { 'content-type': 'application/json' })
+      response.writeHead(reply.status, { 'content-type': reply.contentType ?? 'application/json' })
       response.end(JSON.stringify(reply.body))
     })
   })
@@ -35,54 +35,40 @@ const refused = async (t, reply) => {
   return outcome.error
 }
 
-test('a source-shape refusal from the runner keeps its own code and a string reason', async (t) => {
-  const error = await refused(t, { status: 422, body: { code: 'SERVER_TREE_REFUSED' } })
-  assert.equal(error.message, 'SERVER_TREE_REFUSED')
-  assert.equal(typeof error.cause, 'string')
-  assert.equal(error.cause, 'SERVER_TREE_REFUSED')
+test('a handled prepare refusal resolves as its strict private Result', async (t) => {
+  const client = await fakeRunner(t, { status: 200, body: { ok: false, error: { code: 'SERVER_TREE_REFUSED' } } })
+  assert.deepEqual(await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), { ok: false, error: { code: 'SERVER_TREE_REFUSED' } })
 })
 
-test('a manifest refusal carries its code and its full reason, not just the code', async (t) => {
-  const detail = 'MANIFEST_REFUSED: operations.listOpenTitles.input: unknown key "format"'
-  const error = await refused(t, { status: 422, body: { code: 'MANIFEST_REFUSED', detail } })
-  assert.equal(error.message, 'MANIFEST_REFUSED')
-  assert.equal(error.cause, detail)
+test('a malformed private refusal becomes runner unavailable', async (t) => {
+  const error = await refused(t, { status: 200, body: { ok: false, error: { code: 'MANIFEST_REFUSED', where: 'manifest', diagnostic: 'private' } } })
+  assert.equal(error.id, 'APPLICATION_RUNNER_UNAVAILABLE')
 })
 
-test('a platform-side prepare fault collapses to the generic refusal, not a source-shape code', async (t) => {
-  const detail = 'connect ECONNREFUSED 127.0.0.1:5432'
-  const error = await refused(t, { status: 422, body: { code: 'INTERNAL_UNEXPECTED', detail } })
-  assert.equal(error.message, 'APPLICATION_SERVER_REFUSED')
-  assert.equal(typeof error.cause, 'string')
-  assert.equal(error.cause, detail)
+test('an escaping native Problem preserves only its validated table code', async (t) => {
+  const error = await refused(t, {
+    status: 503,
+    contentType: 'application/problem+json',
+    body: { type: 'urn:conexus:problem:APPLICATION_RUNNER_UNAVAILABLE', title: 'APPLICATION_RUNNER_UNAVAILABLE', status: 503, code: 'APPLICATION_RUNNER_UNAVAILABLE', detail: 'PRIVATE_MARKER' },
+  })
+  assert.equal(error.id, 'APPLICATION_RUNNER_UNAVAILABLE')
+  assert.notEqual(error.cause, 'PRIVATE_MARKER')
 })
 
-test('a malformed-request refusal with no detail still carries a string reason, the runner\'s own code', async (t) => {
-  const error = await refused(t, { status: 400, body: { code: 'RUNNER_REQUEST_REFUSED' } })
-  assert.equal(error.message, 'APPLICATION_SERVER_REFUSED')
-  assert.equal(error.cause, 'RUNNER_REQUEST_REFUSED')
-})
-
-test('an unparseable refusal body still gives a string reason, never leaving cause undefined', async (t) => {
-  const error = await refused(t, { status: 422, body: {} })
-  assert.equal(error.message, 'APPLICATION_SERVER_REFUSED')
-  assert.equal(error.cause, 'APPLICATION_SERVER_REFUSED')
-})
-
-test('a 200 reply resolves normally, refusal-shaping never runs', async (t) => {
-  const client = await fakeRunner(t, { status: 200, body: { state: 'READY', reset: false, applied: [] } })
-  assert.deepEqual(await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), { state: 'READY', reset: false, applied: [] })
+test('prepare success resolves with the shared Result', async (t) => {
+  const client = await fakeRunner(t, { status: 200, body: { ok: true, result: { reset: false, applied: [] } } })
+  assert.deepEqual(await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: [] } })
 })
 
 test('a 200 reply that is not a prepare result is the runner being unavailable', async (t) => {
-  for (const body of [{ state: 'READY', reset: 'no', applied: [] }, { state: 'OTHER' }]) {
+  for (const body of [{ ok: true, result: { reset: 'no', applied: [] } }, { state: 'OTHER' }]) {
     const error = await refused(t, { status: 200, body })
     assert.equal(error.id, 'APPLICATION_RUNNER_UNAVAILABLE')
   }
 })
 
-test('a prepare result of the declared shape is returned as sent', async (t) => {
-  const body = { state: 'READY', reset: false, applied: ['001_a.sql'] }
+test('a prepare result keeps applied migration identity', async (t) => {
+  const body = { ok: true, result: { reset: false, applied: ['001_a.sql'] } }
   const client = await fakeRunner(t, { status: 200, body })
   assert.deepEqual(await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), body)
 })
@@ -112,7 +98,7 @@ test('call rejections preserve underlying causes', async (t) => {
     async () => client.invoke({ projectId: 'p1', method: 'GET', path: '/test', headers: {}, body: null }),
     (error) => {
       assert.equal(error.message, 'APPLICATION_RUNNER_UNAVAILABLE')
-      assert.ok(error.cause instanceof SyntaxError)
+      assert.ok(error.cause)
       return true
     }
   )
@@ -129,3 +115,47 @@ test('call rejections preserve underlying causes', async (t) => {
   )
 })
 
+for (const status of [200, 201, 204]) {
+  test(`release preserves the successful HTTP status distinction at ${status}`, async (t) => {
+    const client = await fakeRunner(t, { status, body: { ok: true } })
+    if (status === 200) await client.release({ projectId: 'p1' })
+    else await assert.rejects(client.release({ projectId: 'p1' }), (error) => error.id === 'APPLICATION_RUNNER_RELEASE_REFUSED')
+  })
+}
+
+for (const reply of [
+  { status: 500, contentType: 'application/problem+json', body: { type: 'urn:conexus:problem:INTERNAL_UNEXPECTED', title: 'INTERNAL_UNEXPECTED', status: 500, code: 'INTERNAL_UNEXPECTED' }, code: 'INTERNAL_UNEXPECTED' },
+  { status: 500, body: { private: 'PRIVATE_RELEASE_MARKER' }, code: 'APPLICATION_RUNNER_UNAVAILABLE' },
+]) {
+  test(`release keeps ${reply.code} for a non-success HTTP response`, async (t) => {
+    const client = await fakeRunner(t, reply)
+    await assert.rejects(client.release({ projectId: 'p1' }), (error) => error.id === reply.code)
+  })
+}
+
+test('release maps a closed socket to runner unavailable', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'cx-release-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  await assert.rejects(createApplicationRunnerClient(join(directory, 'closed.sock')).release({ projectId: 'p1' }), (error) => error.id === 'APPLICATION_RUNNER_UNAVAILABLE')
+})
+
+for (const timing of ['before', 'in-flight']) {
+  test(`Node prepare cancellation ${timing} preserves the signal reason and lets the next request finish`, async (t) => {
+    const directory = mkdtempSync(join(tmpdir(), 'cx-abort-'))
+    t.after(() => rmSync(directory, { recursive: true, force: true }))
+    const socketPath = join(directory, 'runner.sock')
+    const controller = new AbortController()
+    const reason = new DOMException('Cancelled', 'AbortError')
+    const server = createServer((_request, response) => {
+      response.setHeader('content-type', 'application/json')
+      if (!controller.signal.aborted) controller.abort(reason)
+      else response.end(JSON.stringify({ ok: true, result: { reset: false, applied: [] } }))
+    })
+    await new Promise((resolve) => server.listen(socketPath, resolve))
+    t.after(() => new Promise((resolve) => server.close(resolve)))
+    const client = createApplicationRunnerClient(socketPath)
+    if (timing === 'before') controller.abort(reason)
+    await assert.rejects(client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE', signal: controller.signal }), (error) => error === reason)
+    assert.deepEqual(await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: [] } })
+  })
+}

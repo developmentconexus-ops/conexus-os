@@ -1,3 +1,4 @@
+import { recordBrowserContext, saveBrowserDiagnostics } from './browser-diagnostics.mjs'
 import assert from 'node:assert/strict'
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -30,10 +31,10 @@ function hubFixture() {
     workspaces: [{ workspaceId: ids.operations, name: 'Operações' }, { workspaceId: ids.sales, name: 'Comercial' }],
     summariesStatus: 200,
     summaries: [
-      { projectId: ids.vacation, name: 'Pedidos de férias', archived: false, lastActivityAt: minutesAgo(5), latestRun: { state: 'SUCCEEDED', resultKind: 'SOURCE_CHANGED' }, hasPreview: true, deleting: false },
-      { projectId: ids.visits, name: 'Visitas a clientes', archived: false, lastActivityAt: minutesAgo(42), latestRun: { state: 'RUNNING', resultKind: null }, hasPreview: true, deleting: false },
-      { projectId: ids.checklist, name: 'Checklist de abertura da loja', archived: false, lastActivityAt: minutesAgo(60 * 26), latestRun: { state: 'FAILED', resultKind: null }, hasPreview: false, deleting: false },
-      { projectId: ids.stock, name: 'Estoque do almoxarifado', archived: false, lastActivityAt: minutesAgo(60 * 24 * 9), latestRun: null, hasPreview: false, deleting: false },
+      { projectId: ids.vacation, name: 'Pedidos de férias', archived: false, lastActivityAt: minutesAgo(5), latestRun: { state: 'SUCCEEDED', resultKind: 'SOURCE_CHANGED' }, hasPreview: true, state: 'live' },
+      { projectId: ids.visits, name: 'Visitas a clientes', archived: false, lastActivityAt: minutesAgo(42), latestRun: { state: 'RUNNING', resultKind: null }, hasPreview: true, state: 'live' },
+      { projectId: ids.checklist, name: 'Checklist de abertura da loja', archived: false, lastActivityAt: minutesAgo(60 * 26), latestRun: { state: 'FAILED', resultKind: null }, hasPreview: false, state: 'live' },
+      { projectId: ids.stock, name: 'Estoque do almoxarifado', archived: false, lastActivityAt: minutesAgo(60 * 24 * 9), latestRun: null, hasPreview: false, state: 'live' },
     ],
     roster: {
       viewerRole: 'owner',
@@ -48,7 +49,7 @@ function hubFixture() {
 }
 
 const json = (route, status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body ?? {}) })
-const projectOf = (projectId) => ({ projectId, workspaceId: ids.operations, name: projectId === ids.created ? 'Controle de pedidos de férias' : 'Pedidos de férias', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, deleting: false })
+const projectOf = (projectId) => ({ projectId, workspaceId: ids.operations, name: projectId === ids.created ? 'Controle de pedidos de férias' : 'Pedidos de férias', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, state: 'live' })
 
 async function mockHub(page, hub) {
   await page.route('**/protocol/oidc/login', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>Keycloak</title><h1>Keycloak</h1>' }))
@@ -77,7 +78,9 @@ async function mockHub(page, hub) {
     if (summaries) return json(route, hub.summariesStatus, hub.summariesStatus === 200 ? { projects: hub.summaries } : { type: 'unavailable' })
     const projects = p.match(/^\/api\/control\/workspaces\/([^/]+)\/projects$/)
     if (projects && method === 'POST') return json(route, 201, projectOf(ids.created))
-    if (projects) return json(route, 200, hub.summaries.map(({ projectId, name, archived }) => ({ projectId, workspaceId: ids.operations, name, archived })))
+    if (projects) return json(route, 200, hub.summaries.map(({ projectId, name, state, archived }) => state === 'deleting'
+      ? { projectId, workspaceId: ids.operations, name, state }
+      : { projectId, workspaceId: ids.operations, name, state, archived }))
     if (p.endsWith('/roster')) {
       if (hub.rosterRefreshGate) await hub.rosterRefreshGate()
       return json(route, 200, hub.roster)
@@ -149,10 +152,11 @@ async function shoot(page, name, { settle } = {}) {
 test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto work in a real browser', { timeout: 240_000 }, async (t) => {
   origin = await startWebServer(t, { logLevel: 'error' })
   const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
+  t.after(async () => { await saveBrowserDiagnostics(browser); await browser.close() })
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin })
   const page = await context.newPage()
+  await recordBrowserContext(page.context())
   const hub = hubFixture()
   await mockHub(page, hub)
   const reset = async (changes = {}) => {
@@ -500,8 +504,9 @@ test('screens for entry, Workspaces, Projects home, Pessoas and Sobre o Projeto 
 test('a double click on Criar Workspace sends one request', { timeout: 120_000 }, async (t) => {
   const origin = await startWebServer(t, { logLevel: 'error' })
   const browser = await chromium.launch({ headless: true })
-  t.after(() => browser.close())
+  t.after(async () => { await saveBrowserDiagnostics(browser); await browser.close() })
   const page = await (await browser.newContext()).newPage()
+  await recordBrowserContext(page.context())
   const accountId = '10000000-0000-4000-8000-000000000001'
   const workspaceId = '20000000-0000-4000-8000-000000000002'
   let creates = 0
