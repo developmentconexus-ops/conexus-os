@@ -132,8 +132,7 @@ const run = async (): Promise<never> => {
     } catch (error) {
       return refuse({ code: 'DATABASE_UNAVAILABLE', sqlstate: sqlstate(error) })
     }
-    const applied = await applyPendingMigrations(client, job.schema, job.plan)
-    await client.end().catch(() => undefined)
+    const applied = await applyPendingMigrations(client, job.schema, job.plan).finally(() => client.end().catch(() => undefined))
     if (!applied.ok) return refuse({ code: applied.error.code, migration: applied.error.migration, sqlstate: sqlstate(applied.error.cause) })
     return accept(job.plan.map((migration) => migration.name))
   }

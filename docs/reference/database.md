@@ -35,6 +35,9 @@ Project's code can never reach Conexus data.
 
 ## 2. Migrations
 
+- The application runner **must** reject migration transaction-control statements before allocation
+  or reset and **must** execute an admitted pending batch and its ledger in one transaction under
+  matching parser settings.
 - Every change to a Conexus-owned Hub schema, Hub role or Hub reference data **must** be a migration:
   a new numbered file in `apps/hub/migrations`, applied only by `scripts/run-hub-migrations.mjs`.
   A Project's migrations belong to its repository ([the architecture guide](architecture.md)). Nobody changes a live

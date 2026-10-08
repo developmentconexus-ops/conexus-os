@@ -14,9 +14,9 @@ const temporary = (t) => {
   return directory
 }
 
-test('the staged runtime holds the worker, its wire, the data plane, the caller, zod and pg, and nothing of the failure table', (t) => {
+test('the staged runtime holds the worker, its wire, the data plane, the caller and native parser closure, and nothing of the failure table', (t) => {
   const runtime = stageWorkerRuntime(join(temporary(t), 'runtime'))
-  for (const path of ['app-runner/worker.js', 'app-runner/wire.js', 'app-runner/data-plane.js', 'platform/caller.js', 'node_modules/zod/package.json', 'node_modules/pg/package.json']) {
+  for (const path of ['app-runner/worker.js', 'app-runner/wire.js', 'app-runner/data-plane.js', 'app-runner/migration-sql.js', 'platform/caller.js', 'node_modules/zod/package.json', 'node_modules/pg/package.json', 'node_modules/libpg-query/package.json', 'node_modules/libpg-query/wasm/libpg-query.wasm', 'node_modules/@pgsql/types/package.json']) {
     assert.equal(existsSync(join(runtime, path)), true, path)
   }
   assert.equal(existsSync(join(runtime, 'platform/failure.js')), false)

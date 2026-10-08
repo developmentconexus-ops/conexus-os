@@ -346,7 +346,7 @@ test('Project Preview data is confined to its own schema, roles and database', a
 
   await t.test('a failed migration leaves the schema and ledger as they were', async (st) => {
     const migratorA = await loginAs(st, a.migrationRole, database)
-    const broken = [NOTES, migration('002_status.sql', 'ALTER TABLE follow_up_note ADD COLUMN status text; SELEC broken')]
+    const broken = [NOTES, migration('002_status.sql', 'ALTER TABLE follow_up_note ADD COLUMN status text; SELECT 1/0')]
     const plan = planMigrations(await readLedger(provisioner, a), broken)
     assert.deepEqual(plan.pending.map((entry) => [entry.position, entry.name]), [[2, '002_status.sql']])
     const result = await applyPendingMigrations(migratorA, a.schema, plan.pending)
@@ -355,10 +355,36 @@ test('Project Preview data is confined to its own schema, roles and database', a
     assert.deepEqual({ code: result.error.code, migration: result.error.migration }, {
       code: 'APPLICATION_MIGRATION_FAILED', migration: '002_status.sql',
     })
-    assert.equal(result.error.cause.code, '42601')
+    assert.equal(result.error.cause.code, '22012')
     const { rows } = await provisioner.query(`SELECT count(*)::int AS n FROM information_schema.columns WHERE table_schema = $1 AND column_name = 'status'`, [a.schema])
     assert.equal(rows[0].n, 0)
     assert.equal((await readLedger(provisioner, a)).length, 1)
+  })
+
+  await t.test('later runtime and ledger failures roll back the whole pending batch and allow a corrected retry', async (st) => {
+    const migratorA = await loginAs(st, a.migrationRole, database)
+    const before = await readLedger(provisioner, a)
+    const first = migration('002_atomic.sql', 'CREATE TABLE atomic_note (note text)')
+    for (const failing of [
+      migration('003_runtime.sql', 'SELECT 1/0'),
+      migration(NOTES.name, "INSERT INTO atomic_note VALUES ('ledger failure')"),
+    ]) {
+      const result = await applyPendingMigrations(migratorA, a.schema, [
+        { ...first, position: 2 }, { ...failing, position: 3 },
+      ])
+      assert.equal(result.ok, false)
+      assert.equal(result.error.migration, failing.name)
+      assert.equal(result.error.cause.code, failing.name === NOTES.name ? '23505' : '22012')
+      assert.deepEqual(await readLedger(provisioner, a), before)
+      assert.deepEqual((await provisioner.query('SELECT to_regclass($1)::text AS name', [`${a.schema}.atomic_note`])).rows, [{ name: null }])
+    }
+    const corrected = [NOTES, first, migration('003_runtime.sql', "INSERT INTO atomic_note VALUES ('retry')")]
+    assert.deepEqual(await applyPendingMigrations(migratorA, a.schema, planMigrations(before, corrected).pending), { ok: true, result: undefined })
+    const ledger = await readLedger(provisioner, a)
+    assert.deepEqual(planMigrations(ledger, corrected), { reset: false, pending: [] })
+    assert.equal(planMigrations(ledger, [{ ...NOTES, sha256: 'f'.repeat(64) }, ...corrected.slice(1)]).reset, true)
+    await migratorA.query('DROP TABLE atomic_note')
+    await provisioner.query(`DELETE FROM "${a.schema}".conexus_migration WHERE position > 1`)
   })
 
   await t.test('a failed BEGIN returns a migration failure Result without migration identity', async (st) => {
