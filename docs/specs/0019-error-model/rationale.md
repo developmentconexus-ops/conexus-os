@@ -96,11 +96,11 @@ Untouched broker/check/control/Git/vendor/account/served-file mechanisms are def
 | F5 fictional worker bundle | Real staging files/dependency closure named; contract imports type-only, runtime schema local wire/Zod. Unrestricted U1 worker is insufficient. | U4 actual restricted runtime success/refusal/hostile output |
 | F6 overbuilt census | Bounded named AST checks/record with activated zeros; broad metrics informational; strict fixtures and existing drift. No occurrence identities/semantic catch labels/new SQL replay. | U2 check fixtures, replacing-unit zeros, existing catalog check |
 | F7 late guide rules/private status/logging/SQL | Rules land U3/C, U4/private H and canonical Problem, U5/public H, U6/V, U1/factual T. Private handled200JSON vs escaping problem status explicit. Operator-approved final Hub log owner, native redacted runner cause span and unix trace are compiled/named for prepare/invoke/release; no terminal edit/skip flag. D policy unchanged, no hypothetical raise rule. | U4/U5 exact boundary logs/trace and runtime races |
-| F8 duplicate reader emission/missed formatter/budget | Web direct contract import; only app emission; run-failure.tsx included among eight imports; sorted explicit 54-path union below. No emitted web implementation. | U6 both builds/examples/drift; U8 final path/census audit |
+| F8 duplicate reader emission/missed formatter/budget | Web direct contract import; only app emission; run-failure.tsx included among eight imports; sorted explicit 55-path union below. No emitted web implementation. | U6 both builds/examples/drift; U8 final path/census audit |
 
 ### Reserved product/check/configuration paths
 
-This is a sorted explicit union: **54** unique paths, including deletion paths, generated outputs, data-plane, formatter-only run-failure.tsx, scripts/record and optional package.json. Markdown, tests and temporary spec shape are outside this reservation. A card's “Files” names only members of this union unless it names those excluded categories. An unreserved product path is a stop, not implicit permission to spend the remaining 70-file ceiling.
+This is a sorted explicit union: **55** unique paths, including deletion paths, generated outputs, data-plane, lens-preview.tsx and run-failure.tsx, scripts/record and optional package.json. Markdown, tests and temporary spec shape are outside this reservation. A card's “Files” names only members of this union unless it names those excluded categories. An unreserved product path is a stop, not implicit permission to spend the remaining 70-file ceiling.
 
 ```text
 apps/hub/compiler-template/generate-client.mjs
@@ -134,6 +134,7 @@ apps/web/src/app/failure.ts
 apps/web/src/app/foreign.ts
 apps/web/src/app/http.ts
 apps/web/src/app/route-params.ts
+apps/web/src/features/builder/construir/lens-preview.tsx
 apps/web/src/features/builder/construir/run-failure.tsx
 apps/web/src/features/builder/mastra-session.ts
 apps/web/src/features/connector/connector-api.ts

@@ -18,7 +18,7 @@ const PROVIDER_KILL_TIMEOUT_MS = 15_000
  * the provider id the Hub recorded, or creates one. A paused VM resumes on the same instance. A
  * killed one ends the instance, and the conversation makes a new one.
  */
-export const e2bConversationSandboxes = ({
+export function e2bConversationSandboxes({
   apiKey,
   templateId,
   idleMs,
@@ -42,35 +42,44 @@ export const e2bConversationSandboxes = ({
    * Answers the ids that are gone.
    */
   killRecorded(providerSandboxIds: readonly string[]): Promise<readonly string[]>
-}> => Object.freeze({
-  open: ({ conversationId, providerSandboxId, retire }) => {
-    const sandbox = create({ apiKey, templateId, conversationId, providerSandboxId, idleMs })
-    const workspace = createRunWorkspace(sandbox)
-    return Object.freeze({
-      get sandboxId() { return sandbox.sandboxId },
-      workspace,
-      mirrorFeed: createMirrorFeed(workspace),
-      start: async () => { await sandbox.start() },
-      executeCommand: (command: string, args: string[] = [], options: ExecuteCommandOptions = {}) => sandbox.runCommand(command, args, options),
-      writeFiles: (files: SandboxFileInput[]) => sandbox.writeFiles(files),
-      runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
-      writeRootFile: (path: string, bytes: Uint8Array) => sandbox.writeRootFile(path, bytes),
-      readAgentFile: (path: string) => sandbox.readAgentFile(path),
-      readAgentFileIfPresent: (path: string) => sandbox.readAgentFileIfPresent(path),
-      readAgentFileStream: (path: string) => sandbox.readAgentFileStream(path),
-      runCheck: ({ caller, root, out, collect, thumbnail }) => checkApplicationInSandbox(sandbox.e2b, { check, caller, root, out, collect, ...(thumbnail ? { thumbnail } : {}) }),
-      holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
-      idle: () => sandbox.idle(),
-      kill: () => retire(() => sandbox.kill()),
-    } satisfies RunSandbox)
-  },
-  killRecorded: async (providerSandboxIds) => {
-    const gone = await Promise.all(providerSandboxIds.map((providerSandboxId) => killProvider(providerSandboxId).then(() => true, (error: unknown) => {
-      logFailure(logger, new Failure('BUILDER_SANDBOX_KILL_FAILED', { cause: error }), { 'builder.provider_sandbox_id': providerSandboxId })
-      return false
-    })))
-    return providerSandboxIds.filter((_, index) => gone[index])
-  },
-})
+}> {
+  return Object.freeze({
+    open: ({ conversationId, providerSandboxId, retire }) => {
+      const sandbox = create({ apiKey, templateId, conversationId, providerSandboxId, idleMs })
+      const workspace = createRunWorkspace(sandbox)
+      return Object.freeze({
+        get sandboxId() { return sandbox.sandboxId },
+        workspace,
+        mirrorFeed: createMirrorFeed(workspace),
+        start: async () => {
+          try {
+            await sandbox.start()
+          } catch (error) {
+            if (error instanceof Failure || (error instanceof DOMException && error.name === 'AbortError')) throw error
+            throw new Failure('BUILDER_SANDBOX_OPEN_FAILED', { cause: error })
+          }
+        },
+        executeCommand: (command: string, args: string[] = [], options: ExecuteCommandOptions = {}) => sandbox.runCommand(command, args, options),
+        writeFiles: (files: SandboxFileInput[]) => sandbox.writeFiles(files),
+        runAsRoot: (script: string, env: Record<string, string>) => sandbox.runAsRoot(script, env),
+        writeRootFile: (path: string, bytes: Uint8Array) => sandbox.writeRootFile(path, bytes),
+        readAgentFile: (path: string) => sandbox.readAgentFile(path),
+        readAgentFileIfPresent: (path: string) => sandbox.readAgentFileIfPresent(path),
+        readAgentFileStream: (path: string) => sandbox.readAgentFileStream(path),
+        runCheck: ({ caller, root, out, collect, thumbnail }) => checkApplicationInSandbox(sandbox.e2b, { check, caller, root, out, collect, ...(thumbnail ? { thumbnail } : {}) }),
+        holdOpen: (onLapse: (error: unknown) => void) => sandbox.holdOpen(onLapse),
+        idle: () => sandbox.idle(),
+        kill: () => retire(() => sandbox.kill()),
+      } satisfies RunSandbox)
+    },
+    killRecorded: async (providerSandboxIds) => {
+      const gone = await Promise.all(providerSandboxIds.map((providerSandboxId) => killProvider(providerSandboxId).then(() => true, (error: unknown) => {
+        logFailure(logger, new Failure('BUILDER_SANDBOX_KILL_FAILED', { cause: error }), { 'builder.provider_sandbox_id': providerSandboxId })
+        return false
+      })))
+      return providerSandboxIds.filter((_, index) => gone[index])
+    },
+  })
+}
 
 export type ConversationSandboxes = ReturnType<typeof e2bConversationSandboxes>

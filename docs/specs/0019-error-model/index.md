@@ -146,7 +146,7 @@ Delete list by owner: U3 old Result alias; U4 prefixed admission throws/decoder,
 
 ## Units
 
-Every card includes `npm run verify:quick`, its targeted behavioral/type checks and rereading the mapped guides. Each ends in one green commit using only prior units or its own types. Tests and Markdown are outside the 54-path product/check/config reservation; all other paths are explicitly listed in rationale. The last independent prove/review stage is not a ninth build unit.
+Every card includes `npm run verify:quick`, its targeted behavioral/type checks and rereading the mapped guides. Each ends in one green commit using only prior units or its own types. Tests and Markdown are outside the 55-path product/check/config reservation; all other paths are explicitly listed in rationale. The last independent prove/review stage is not a ninth build unit.
 
 ### U1. Keep the existing behavior pin and correct its stop rule
 
@@ -230,10 +230,12 @@ H rule added here: “Runner prepare/invoke handled answers are validated privat
 
 ### U7. Name only the production start rejection
 
+The operator approved the bounded Preview extension on 2026-10-07: conversation and Preview display the same canonical table reason through the existing formatter. Sobre is unchanged. No new parser, writer, state, formatter or retry.
+
 - **Already there**: U3 row, U5 public/log path, U6 reader; existing production adapter/start/settlement; closed-endpoint isolated verify harness. Read sandbox scenario and Non-goals.
 - **Creates**: Narrow catch at conversation-sandboxes.start around the native start call: preserve existing named Failure and genuine cancellation, otherwise Failure(BUILDER_SANDBOX_OPEN_FAILED,{cause}). Existing terminal logger settles it; no extra log/retry. Update factual verification recipe only from observed behavior.
 - **Satisfies**: AC-6, AC-8.
-- **Files**: builder/conversation-sandboxes.ts; verify SKILL.md/features/construir.md, isolated live/unit tests. checkout/run/service are read dependencies, not authorized extra product edits.
+- **Files**: builder/conversation-sandboxes.ts; web builder/construir/lens-preview.tsx and run-failure.tsx comment correction; verify SKILL.md/features/construir.md, isolated live/unit tests. checkout/run/service are read dependencies, not authorized extra product edits.
 - **Copies**: R3/R9.
 - **Guide sections**: C §6, A §6, P §5, S §7, V failure surface, T Builder proof.
 - **Deletes**: Generic start classification and stale recipe code/text/log assertions.
@@ -269,4 +271,4 @@ No implementation in this spec-writing change. No migration of connector/broker/
 
 ## Stop rule
 
-No product unit starts before a genuine approval line on this revised spec. Stop and return to the planning session on a disproved premise, policy conflict, later-type/compatibility dependency, unit that cannot end green in one session, or any unreserved product/check/config path. The approved reservation is **54 unique paths**, listed in rationale; extensions require an analyzed scope decision. Standing maximum: eight units or 70 product files. Ready status of the respec review PR is not wave proof or build approval.
+No product unit starts before a genuine approval line on this revised spec. Stop and return to the planning session on a disproved premise, policy conflict, later-type/compatibility dependency, unit that cannot end green in one session, or any unreserved product/check/config path. The approved reservation is **55 unique paths**, listed in rationale; extensions require an analyzed scope decision. Standing maximum: eight units or 70 product files. Ready status of the respec review PR is not wave proof or build approval.

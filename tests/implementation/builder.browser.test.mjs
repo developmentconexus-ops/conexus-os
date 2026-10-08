@@ -675,43 +675,56 @@ test('Preview launch failure is terminal for its key until explicit retry and ke
   assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
 })
 
-test('a run that failed before the agent still shows the request and names why it failed', async (t) => {
-  const accountId = '70000000-0000-4000-8000-000000000041'
-  const projectId = '70000000-0000-4000-8000-000000000042'
-  const runId = '70000000-0000-4000-8000-000000000043'
-  const sourceRevision = '9'.repeat(40)
-  const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
-  const legacyRequests = trackLegacyRequests(page)
-  // Nothing reached Mastra: the run failed while the sandbox was being prepared, so the thread is
-  // empty and the row is the only record of what the operator asked for.
-  const conversationId = conversationIdOf('conversation-pre-agent-failure')
-  const failedRun = runOf({
-    builderRunId: runId, projectId, conversationId, state: 'FAILED', phase: null,
-    baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
-    failureCode: 'BUILDER_STARTER_ROOT_REFUSED',
-    requestText: 'Crie um contador até 100 interativo', createdAt: '2026-09-20T12:00:00.000Z',
+for (const hasPreview of [false, true]) {
+  test(`a failed sandbox start shows its reason in conversation and Preview ${hasPreview ? 'without replacing the existing app' : 'before an app exists'}`, async (t) => {
+    const accountId = '70000000-0000-4000-8000-000000000041'
+    const projectId = '70000000-0000-4000-8000-000000000042'
+    const runId = '70000000-0000-4000-8000-000000000043'
+    const sourceRevision = '9'.repeat(40)
+    const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
+    const legacyRequests = trackLegacyRequests(page)
+    // Nothing reached Mastra: the run failed while the sandbox was being prepared, so the thread is
+    // empty and the row is the only record of what the operator asked for.
+    const conversationId = conversationIdOf('conversation-pre-agent-failure')
+    const failedRun = runOf({
+      builderRunId: runId, projectId, conversationId, state: 'FAILED', phase: null,
+      baseSourceRevision: sourceRevision, resultSourceRevision: null, resultKind: null,
+      failureCode: 'BUILDER_SANDBOX_OPEN_FAILED',
+      requestText: 'Crie um contador até 100 interativo', createdAt: '2026-09-20T12:00:00.000Z',
+    })
+    await page.route('**/api/session', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], administrator: false }) }))
+    await routeBuilder(page, builderState([conversation(conversationId, 'Conversa')]))
+    await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Pre-agent failure', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, state: 'live' }) }))
+    await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      projectId, latestBuilderRun: failedRun, latestCodeChangingRun: null,
+      preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: hasPreview ? sourceRevision : null, lastPreviewArtifactRevisionId: hasPreview ? '70000000-0000-4000-8000-000000000044' : null, lastPreviewArtifactDigest: hasPreview ? 'b'.repeat(64) : null },
+      runHistory: [failedRun],
+    }) }))
+    await page.route(`**/api/control/projects/${projectId}/builder-session/preview`, (route) => route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({
+      entryUrl: `${origin}/u7-preview-entry`, previewUrl: `${origin}/u7-preview`, entryGrant: 'synthetic-grant',
+      artifactRevisionId: '70000000-0000-4000-8000-000000000044', artifactDigest: 'b'.repeat(64), expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    }) }))
+    await page.route(`${origin}/u7-preview-entry`, (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p>Existing preview</p>' }))
+    await page.goto(`${origin}/projects/${projectId}`)
+    await page.locator('.cx-messages').getByText('Crie um contador até 100 interativo', { exact: true }).waitFor()
+    await page.locator('.cx-messages .builder-turn-status').getByText('O ambiente de código não abriu. A falha foi registrada.', { exact: true }).waitFor()
+    assert.equal(await page.locator('.cx-messages .builder-turn-user').count(), 1,
+      'the run appears once although it is both the latest run and a history entry')
+    assert.equal(await page.locator('.cx-messages .builder-turn-status').count(), 1)
+    await page.locator('.cx-messages .builder-turn-reference').getByText('Referência: 70000000.', { exact: true }).waitFor()
+    // The failure code may now live only inside a closed <details>, so it must not be visible rather
+    // than simply absent.
+    assert.equal(await page.getByText('BUILDER_SANDBOX_OPEN_FAILED', { exact: true }).isVisible(), false,
+      'the internal code is never the sentence the operator reads')
+    await page.locator('.cx-stage').getByText('O ambiente de código não abriu. A falha foi registrada.', { exact: true }).waitFor()
+    assert.equal(await page.getByTitle('Prévia do aplicativo').count(), hasPreview ? 1 : 0)
+    if (hasPreview) {
+      assert.equal(await page.locator('form[method="post"]').getAttribute('action'), `${origin}/u7-preview-entry`)
+      await page.frameLocator('iframe[title="Prévia do aplicativo"]').getByText('Existing preview', { exact: true }).waitFor()
+    }
+    assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
   })
-  await page.route('**/api/session', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], administrator: false }) }))
-  await routeBuilder(page, builderState([conversation(conversationId, 'Conversa')]))
-  await page.route(`**/api/control/projects/${projectId}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ projectId, workspaceId: accountId, name: 'Pre-agent failure', projectRevision: '50000000-0000-4000-8000-000000000001', archived: false, state: 'live' }) }))
-  await page.route(`**/api/control/projects/${projectId}/builder-session`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-    projectId, latestBuilderRun: failedRun, latestCodeChangingRun: null,
-    preview: { workingSourceRevision: sourceRevision, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null },
-    runHistory: [failedRun],
-  }) }))
-  await page.goto(`${origin}/projects/${projectId}`)
-  await page.locator('.cx-messages').getByText('Crie um contador até 100 interativo', { exact: true }).waitFor()
-  await page.locator('.cx-messages .builder-turn-status').getByText('O Conexus não conseguiu preparar o ambiente de código. A falha foi registrada.', { exact: true }).waitFor()
-  assert.equal(await page.locator('.cx-messages .builder-turn-user').count(), 1,
-    'the run appears once although it is both the latest run and a history entry')
-  assert.equal(await page.locator('.cx-messages .builder-turn-status').count(), 1)
-  await page.locator('.cx-messages .builder-turn-reference').getByText('Referência: 70000000.', { exact: true }).waitFor()
-  // The failure code may now live only inside a closed <details>, so it must not be visible rather
-  // than simply absent.
-  assert.equal(await page.getByText('BUILDER_STARTER_ROOT_REFUSED', { exact: true }).isVisible(), false,
-    'the internal code is never the sentence the operator reads')
-  assert.deepEqual(legacyRequests, [], 'a Project never reaches a retired mount')
-})
+}
 
 test('each failed run ends its own turn with its failure said once, and the stored error part and the Hub notices say nothing of it', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000051'
