@@ -24,6 +24,9 @@ never the author's summary. It does not fix the code it reviews. The verdict fol
    Creates, Satisfies and Deletes is done, nothing is outside its Files, its Proof ran, and every
    item of the [build checklist](../conexus-build/references/checklist.md) is `ok` or `n/a` with
    evidence.
+   Audit the full CI impact map required by
+   [delivery](../../../docs/development/delivery.md#proof-and-verification), including affected
+   consumers outside the unit manifest and the justification for reused evidence.
 4. Redo the native census for each mechanism the diff adds: pin the versions at the head from
    `node_modules/@mastra/<pkg>/package.json`, read the embedded docs (`dist/docs`) then the types,
    look up Keycloak and PostgreSQL at the versions in use, search the repository for an existing

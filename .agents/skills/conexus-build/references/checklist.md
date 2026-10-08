@@ -44,3 +44,7 @@ every item.
 18. The census number the card names is reached.
 19. `npm run verify:quick` is green, and the `deslop` and `no-comments` passes of the skill's step 5
     ran.
+
+20. Every CI group and invoked consumer was inspected under
+    [delivery proof and verification](../../../../docs/development/delivery.md#proof-and-verification);
+    the report maps affected contracts to their closure, executed proofs and reused evidence.

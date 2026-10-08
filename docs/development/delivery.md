@@ -197,6 +197,13 @@ phone.
 
 - Before each commit, the builder **must** run `npm run verify:quick` and the tests the change
   touches or that consume a changed contract, at most two groups at once.
+- At each unit closure, inspect every CI group in `.github/workflows/verify.yml` and the invoked
+  graph and test discovery in `scripts/conexus-verify.mjs`. Map changed contracts to all affected
+  consumers, tests, fixtures, bootstrap/backup inputs, generated artifacts and immutable template
+  pins; fix or delete obsolete consumers together, retaining historical evidence and intentional
+  refusal fixtures. Record affected proofs and why other evidence remains valid. `verify:quick`
+  covers only its named static checks; this inspection does not require rerunning unaffected suites.
+  The batch reviewer audits that impact map. Never weaken a correct contract for a stale test.
 - CI runs the whole graph in `scripts/conexus-verify.mjs`. `verify` is the one required check. A
   pull request changing only Markdown under `docs/`, `.agents/` or the repository root runs
   `npm run verify:docs`. Other Markdown changes and pushes to main run the full graph.

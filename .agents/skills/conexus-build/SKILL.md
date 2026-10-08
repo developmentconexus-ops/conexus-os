@@ -34,7 +34,8 @@ beside it.
    ([S §7](../../../docs/reference/security-and-authority.md#7-data-protection-and-egress)).
 4. Subtract first: delete what the card deletes and move every caller, then build the new shape.
    No shim, no flag, no old path kept beside the new one.
-5. Prove it: the tests the card names, one negative type test per type rule, the census number the
+5. Close the full CI impact map under [delivery](../../../docs/development/delivery.md#proof-and-verification)
+   and checklist item 20. Prove it: the tests the card names, one negative type test per type rule, the census number the
    card names, then `npm run verify:quick`. Then run pstack `deslop` and `no-comments`. Without
    pstack: reread the diff and remove what a careful engineer would not write (dead code, needless
    guards and casts, checks inside trusted code, style unlike the file), then delete every comment
