@@ -17,7 +17,7 @@ export function createRefreshWriteBack() {
       return async (refreshed) => {
         if (refreshed === key) return
         const saved = await held.persist({ provider: 'google-ai-pro', kind: 'google_ai_pro', value: refreshed })
-        if (saved.ok && saved.result.state === 'stored') rowOfKey.delete(key)
+        if (saved.state === 'stored') rowOfKey.delete(key)
       }
     },
   })

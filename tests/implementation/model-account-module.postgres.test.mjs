@@ -94,7 +94,7 @@ test('Builder and memory consume the concrete owner, record the actual payer bef
     const request = new Request(input, init)
     assert.equal(request.url, 'https://api.anthropic.com/v1/messages')
     const paid = (await query(f.connection, 'SELECT model_account_id FROM builder.builder_run_model_account WHERE builder_run_id = $1', [runId])).rows
-    assert.deepEqual(paid, [{ model_account_id: connected.result }])
+    assert.deepEqual(paid, [{ model_account_id: connected }])
     seen.push({ key: request.headers.get('x-api-key'), body: await request.json() })
     return new Response('synthetic refusal', { status: 418 })
   }
@@ -192,7 +192,7 @@ for (const provider of ['anthropic', 'openai-codex']) {
     const f = await setupModelAccounts(t, 'conexus_model_preflight')
     const connected = await f.connect(provider === 'anthropic' ? { provider, kind: 'api_key', value: AnthropicKey.parse(key) }
       : { provider, kind: 'oauth', value: { access: 'synthetic', refresh: 'synthetic', expires: 9_999_999_999_999, accountId: 'synthetic', email: null } })
-    await query(f.connection, 'UPDATE model.model_account SET secret = $1 WHERE model_account_id = $2', ['conexus:secret:v1:synthetic-damaged-envelope', connected.result])
+    await query(f.connection, 'UPDATE model.model_account SET secret = $1 WHERE model_account_id = $2', ['conexus:secret:v1:synthetic-damaged-envelope', connected])
     const modelId = provider === 'anthropic' ? 'anthropic/claude-sonnet-5' : 'openai/gpt-5.6-sol'
     assert.deepEqual(await f.models.checkBeforeRun(ID.owner, [modelId]), { ok: true, result: undefined })
     assert.deepEqual(await f.models.checkBeforeRun(ID.outsider, [modelId]), { ok: false, error: { code: 'BUILDER_MODEL_NOT_SELECTED' } })
@@ -238,7 +238,7 @@ test('native Claude refresh is shared by real runs, commits before Messages and 
   await Promise.all(calls)
   assert.deepEqual(requests.map(({ grant_type, refresh_token }) => [grant_type, refresh_token]), [['refresh_token', 'synthetic-spent-refresh']])
   const row = (await query(f.connection, 'SELECT model_account_id FROM model.model_account')).rows[0]
-  assert.equal(row.model_account_id, connected.result)
+  assert.equal(row.model_account_id, connected)
   await assert.rejects(selected[0].result.model.doStream({ prompt }))
   assert.equal(requests.length, 1)
 })
@@ -262,9 +262,9 @@ test('actual personal selection refuses absent and unsupported providers, retain
   const carried = context(runId, projectId, 'openai/gpt-5.6-sol')
   await routing.resolve({ requestContext: carried })
   await routing.resolveMemory(carried)
-  assert.deepEqual((await query(f.connection, 'SELECT model_account_id FROM builder.builder_run_model_account ORDER BY model_account_id')).rows.map(({ model_account_id }) => model_account_id), [anthropic.result, codex.result].sort())
+  assert.deepEqual((await query(f.connection, 'SELECT model_account_id FROM builder.builder_run_model_account ORDER BY model_account_id')).rows.map(({ model_account_id }) => model_account_id), [anthropic, codex].sort())
   assert.deepEqual(await f.models.modelFor(f.openRun(runId), { modelId: 'unsupported/model', thinkingLevel: null }), { ok: false, error: { code: 'BUILDER_MODEL_NOT_SELECTED' } })
-  assert.deepEqual(await f.models.modelFor(f.openRun(runId, ID.member), { modelId: 'openai/gpt-5.6-sol', thinkingLevel: null }), { ok: false, error: { code: 'BUILDER_RUN_NOT_ADMITTED' } })
+  await assert.rejects(f.models.modelFor(f.openRun(runId, ID.member), { modelId: 'openai/gpt-5.6-sol', thinkingLevel: null }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
   carried.set('controller', { session: {}, getState: () => ({ thinkingLevel: 'high' }) })
   await assert.rejects(routing.resolve({ requestContext: carried }), { id: 'BUILDER_MODEL_NOT_SELECTED' })
 })
@@ -315,8 +315,9 @@ test('every native refresh waiter rereads its own current authority after the sh
   const prewait = deferred()
   let reads = 0
   const peerOpenRun = async (work) => {
+    const attempt = ++reads
     const result = await f.openRun(peerRun)(work)
-    if (++reads === 2) prewait.resolve()
+    if (attempt === 2) prewait.resolve()
     return result
   }
   const winner = await selectedClaude(f, f.openRun(winnerRun))
@@ -367,8 +368,8 @@ for (const change of ['oauth reconnect', 'key reconnect', 'disconnect']) {
     await provider.started.promise
     const replacement = change === 'key reconnect' ? { provider: 'anthropic', kind: 'api_key', value: AnthropicKey.parse(key) }
       : { provider: 'anthropic', kind: 'oauth', value: { access: 'synthetic-reconnected', refresh: 'synthetic-new-login', expires: 9_999_999_999_999 } }
-    if (change === 'disconnect') await query(f.connection, 'DELETE FROM model.model_account WHERE model_account_id = $1', [connected.result])
-    else assert.equal((await f.connect(replacement)).result, connected.result)
+    if (change === 'disconnect') await query(f.connection, 'DELETE FROM model.model_account WHERE model_account_id = $1', [connected])
+    else assert.equal((await f.connect(replacement)), connected)
     provider.release.resolve()
     assert.equal((await call).id, 'BUILDER_MODEL_NOT_SELECTED')
     assert.equal(provider.requests.filter(({ kind }) => kind === 'model').length, 0)
@@ -427,11 +428,11 @@ test('post-settlement custody refusal carries the actual current row and spent b
   const current = refresh.current(f.openRun(runId), held)
   await provider.started.promise
   const copied = (await query(f.connection, 'SELECT secret FROM model.model_account WHERE owner_account_id = $1', [ID.member])).rows[0].secret
-  await query(f.connection, 'UPDATE model.model_account SET secret = $1 WHERE model_account_id = $2', [copied, connected.result])
+  await query(f.connection, 'UPDATE model.model_account SET secret = $1 WHERE model_account_id = $2', [copied, connected])
   provider.release.resolve()
   const rejected = await current
   assert.equal(rejected.ok, false)
-  assert.deepEqual([rejected.error.code, rejected.error.row.modelAccountId, rejected.error.spent], ['SECRET_CUSTODY_LOST', connected.result, copied])
+  assert.deepEqual([rejected.error.code, rejected.error.row.modelAccountId, rejected.error.spent], ['SECRET_CUSTODY_LOST', connected, copied])
   assert.equal(provider.requests.filter(({ kind }) => kind === 'model').length, 0)
 })
 
@@ -496,4 +497,64 @@ test('the actual Hub composes personal routes without Builder, runs its jobs and
   await assert.rejects(fetch(`${address}/api/control/model-accounts`))
   const locks = (await query(f.connection, "SELECT count(*)::int AS count FROM pg_locks WHERE locktype = 'advisory' AND database = (SELECT oid FROM pg_database WHERE datname = current_database())")).rows
   assert.deepEqual(locks, [{ count: 0 }])
+})
+
+test('a current row sealed with an unknown key throws its configuration Failure through hold and native refresh', async (t) => {
+  const f = await setupModelAccounts(t, 'conexus_model_config_cause')
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('must not reach provider') })
+  await expiredClaude(f)
+  const runId = await f.seedRun(await f.seedBuilderProject())
+  const model = await selectedClaude(f, f.openRun(runId))
+  const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
+  const { encodeCredential } = await import(hubModuleUrl('model-account/credential.js'))
+  const row = (await query(f.connection, 'SELECT * FROM model.model_account')).rows[0]
+  const sealed = await createSecretEnvelope('89'.repeat(32)).seal(encodeCredential(await storedCredential(f, 'anthropic')), modelAccountContext(row.model_account_id))
+  await query(f.connection, 'UPDATE model.model_account SET secret = $1', [sealed])
+  await assert.rejects(f.hold(runId, 'anthropic'), { id: 'CONFIG_INVALID', details: { name: 'SECRET_KEY_UNKNOWN' } })
+  await assert.rejects(model.doStream({ prompt }), { id: 'CONFIG_INVALID', details: { name: 'SECRET_KEY_UNKNOWN' } })
+})
+
+test('real PostgreSQL timeout diagnosis survives Builder admission and native refresh into the terminal logger', async (t) => {
+  const f = await setupModelAccounts(t, 'conexus_model_pg_cause')
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('must not reach provider') })
+  await expiredClaude(f)
+  const projectId = await f.seedBuilderProject()
+  const runId = await f.seedRun(projectId)
+  await query(f.connection, `ALTER ROLE hub_runtime IN DATABASE "${f.connection.database}" SET statement_timeout = '100ms'`)
+  const database = f.openRuntimeDatabase({ max: 1 })
+  const { admitAccount } = await import(hubModuleUrl('identity-access/admission.js'))
+  const { sql } = await import(hubModuleUrl('platform/db.js'))
+  const { Failure, logFailure } = await import(hubModuleUrl('platform/failure.js'))
+  let timeout = true
+  let original
+  const data = { transaction: (accountId, work) => database.transaction(accountId, async (gate) => {
+    if (timeout) {
+      const { tx } = await admitAccount(gate)
+      try { await tx.run(sql`SELECT pg_sleep(1)`) } catch (error) { original = error; throw error }
+    }
+    return work(gate)
+  }) }
+  const routing = createBuilderModelRouting({ data, models: f.models, owner: { ownerId: OWNER }, conversationModel: async () => null,
+    record: async () => undefined })
+  const carried = context(runId, projectId, 'anthropic/claude-sonnet-5')
+  const assertDiagnosis = (actual) => {
+    assert.equal(actual instanceof Failure, true)
+    assert.equal(actual, original)
+    assert.equal(actual.id, 'DATABASE_BUSY')
+    assert.equal(actual.cause.code, '57014')
+    assert.equal(actual.details.sqlstate, '57014')
+    const lines = []
+    const log = (fields, code) => lines.push({ fields, code })
+    logFailure({ error: log, warn: log, info: log }, actual)
+    assert.equal(lines.length, 1)
+    assert.equal(lines[0].code, 'DATABASE_BUSY')
+    assert.match(lines[0].fields['exception.stacktrace'], /error \(57014\)/)
+    assert.equal(JSON.stringify(lines).includes(actual.cause.message), false)
+    return true
+  }
+  await assert.rejects(routing.resolve({ requestContext: carried }), assertDiagnosis)
+  timeout = false
+  const model = await routing.resolve({ requestContext: carried })
+  timeout = true
+  await assert.rejects(model.doStream({ prompt }), assertDiagnosis)
 })

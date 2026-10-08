@@ -77,3 +77,12 @@ declare const result: Result<void, Readonly<{ code: FailureCode }>>
 // @ts-expect-error The actual shared Result is readonly.
 result.ok = false
 void contradictory
+
+import type { HoldError } from '../../apps/hub/src/model-account/store.js'
+// @ts-expect-error Database faults escape unchanged and cannot become model refusals.
+const databaseRefusal: HoldError = { code: 'DATABASE_BUSY' }
+// @ts-expect-error Configuration faults escape unchanged and cannot become model refusals.
+const configRefusal: HoldError = { code: 'CONFIG_INVALID' }
+// @ts-expect-error Custody refusal must retain the immutable row and spent envelope.
+const contextFreeCustody: HoldError = { code: 'SECRET_CUSTODY_LOST' }
+void [databaseRefusal, configRefusal, contextFreeCustody]

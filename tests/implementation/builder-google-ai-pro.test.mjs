@@ -262,7 +262,7 @@ test('explicit pool and router close stop the proxy, write refreshed bytes, remo
 test("a call through the router writes the refreshed record back to the caller's model account row by id, once (AC-22)", async (t) => {
   const { binary, stateDir } = scratch(t)
   const rewrites = []
-  const heldRow = { held: { row: { modelAccountId: '30000000-0000-4000-8000-000000000001' } }, persist: async (credential) => { const secret = encodeCredential(credential); rewrites.push(['row-ana', secret]); return { ok: true, result: { state: 'stored' } } } }
+  const heldRow = { held: { row: { modelAccountId: '30000000-0000-4000-8000-000000000001' } }, persist: async (credential) => { const secret = encodeCredential(credential); rewrites.push(['row-ana', secret]); return { state: 'stored' } } }
   const writeBack = createRefreshWriteBack()
   const pool = openPool(t, { binary, stateDir, idleMs: 0 })
   const router = await openRouter(t, pool, writeBack.persistFor)
@@ -284,7 +284,7 @@ test("a call through the router writes the refreshed record back to the caller's
 test('an unrefreshed record, or one whose row is not known, writes nothing back', async (t) => {
   const { binary, stateDir } = scratch(t)
   const rewrites = []
-  const heldRow = { held: { row: { modelAccountId: '30000000-0000-4000-8000-000000000001' } }, persist: async (credential) => { const secret = encodeCredential(credential); rewrites.push(['row-ana', secret]); return { ok: true, result: { state: 'stored' } } } }
+  const heldRow = { held: { row: { modelAccountId: '30000000-0000-4000-8000-000000000001' } }, persist: async (credential) => { const secret = encodeCredential(credential); rewrites.push(['row-ana', secret]); return { state: 'stored' } } }
   const writeBack = createRefreshWriteBack()
   const pool = openPool(t, { binary, stateDir, idleMs: 0 })
   const router = await openRouter(t, pool, writeBack.persistFor)

@@ -152,7 +152,7 @@ test('the actual owner serves a native Google stream and captures rotated bytes 
   await f.models.jobs[0].run(new AbortController().signal)
   const selected = await f.models.modelFor(f.openRun(runId), { modelId: 'google-ai-pro/gemini-3-flash', thinkingLevel: 'high' })
   assert.equal(selected.ok, true)
-  assert.equal(selected.result.modelAccountId, connected.result)
+  assert.equal(selected.result.modelAccountId, connected)
   assert.equal(selected.result.model.specificationVersion, 'v3')
   const start = Date.now()
   const { stream } = await selected.result.model.doStream({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'oi' }] }] })
@@ -169,8 +169,8 @@ test('the actual owner serves a native Google stream and captures rotated bytes 
   writeFileSync(join(instanceDir, 'auth', record.fileName), decodeKey(next).bytes)
   await query(f.connection, "UPDATE builder.builder_run SET state = 'SUCCEEDED', result_kind = 'RESPONSE_ONLY', finished_at = clock_timestamp() WHERE builder_run_id = $1", [runId])
   await f.models.close()
-  const stored = (await query(f.connection, 'SELECT secret FROM model.model_account WHERE model_account_id = $1', [connected.result])).rows[0]
-  assert.equal(await f.envelope.open(stored.secret, modelAccountContext(connected.result)), next)
+  const stored = (await query(f.connection, 'SELECT secret FROM model.model_account WHERE model_account_id = $1', [connected])).rows[0]
+  assert.equal(await f.envelope.open(stored.secret, modelAccountContext(connected)), next)
   assert.equal(existsSync(instanceDir), false)
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' })
 })

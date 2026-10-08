@@ -9,14 +9,7 @@ import { readSessionModelId, readSessionThinkingLevel } from './harness/request-
 import { requireRunContext } from './run-context.js'
 
 function openRunFor({ data, owner, run }: Readonly<{ data: Database; owner: RunOwner; run: ReturnType<typeof requireRunContext> }>): OpenRun {
-  return async (work) => {
-    try {
-      return await data.transaction(run.accountId, async (gate) => work(await admitRun(gate, run.builderRunId, owner)))
-    } catch (error) {
-      if (error instanceof Failure) return { ok: false, error: { code: error.id } }
-      throw error
-    }
-  }
+  return (work) => data.transaction(run.accountId, async (gate) => work(await admitRun(gate, run.builderRunId, owner)))
 }
 
 export function createBuilderModelRouting({ models, data, owner, conversationModel, record }: Readonly<{

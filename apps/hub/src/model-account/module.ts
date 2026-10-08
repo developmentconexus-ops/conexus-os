@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ModelId, ModelAccountProvider, type AccountId, type ModelAccountId, type ModelAccountEntry, type OfferedModel, type ThinkingLevel, type ModelRole, type SessionAccount, type Result, type FailureCode } from '@conexus/contract'
+import { ModelId, ModelAccountProvider, type AccountId, type ModelAccountId, type ModelAccountEntry, type OfferedModel, type ThinkingLevel, type ModelRole, type SessionAccount, type Result } from '@conexus/contract'
 import type { MastraModelConfig } from '@mastra/core/llm'
 import type { FastifyInstance } from 'fastify'
 import { admitAccount, admitSystem } from '../identity-access/admission.js'
@@ -9,7 +9,7 @@ import type { Job } from '../platform/jobs.js'
 import type { SecretEnvelope } from '../platform/secrets.js'
 import { Failure } from '../platform/failure.js'
 import { MODEL_PROVIDERS, parseModelId, type Credential } from './credential.js'
-import { createModelAccountStore, type ModelAccountStore, type OpenRun, type HeldAccount, type Persisted, type AccountRow, type ConnectResult } from './store.js'
+import { createModelAccountStore, type ModelAccountStore, type OpenRun, type HeldAccount, type Persisted, type AccountRow, type ConnectResult, type HoldError } from './store.js'
 import { createCredentialRefresh } from './refresh.js'
 import { nativeModel, providerOf, type GoogleModelRuntime } from './providers.js'
 import { offersFor } from './models.js'
@@ -23,8 +23,8 @@ export { DEFAULT_THINKING_LEVEL } from './models.js'
 export type { OpenRun } from './store.js'
 
 export type ModelAccountModule = Readonly<{
-  modelFor(openRun: OpenRun, call: Readonly<{ modelId: ModelId; thinkingLevel: ThinkingLevel | null }>): Promise<Result<Readonly<{ model: MastraModelConfig; modelAccountId: ModelAccountId }>, Readonly<{ code: FailureCode }>>>
-  checkBeforeRun(accountId: AccountId, modelIds: readonly ModelId[]): Promise<Result<void, Readonly<{ code: FailureCode }>>>
+  modelFor(openRun: OpenRun, call: Readonly<{ modelId: ModelId; thinkingLevel: ThinkingLevel | null }>): Promise<Result<Readonly<{ model: MastraModelConfig; modelAccountId: ModelAccountId }>, HoldError>>
+  checkBeforeRun(accountId: AccountId, modelIds: readonly ModelId[]): Promise<Result<void, Readonly<{ code: 'BUILDER_MODEL_NOT_SELECTED' }>>>
   readDefault(accountId: AccountId, role: ModelRole): Promise<ModelId | null>
   list(accountId: AccountId): Promise<readonly ModelAccountEntry[]>
   offers(accountId: AccountId): Promise<readonly OfferedModel[]>
@@ -63,8 +63,7 @@ function entriesOf(rows: readonly AccountRow[]): readonly ModelAccountEntry[] {
 
 async function writeCredential(data: Database, store: ModelAccountStore, { account, credential }: Readonly<{ account: Pick<SessionAccount, 'accountId' | 'displayName'>; credential: Credential }>): Promise<void> {
   await data.transaction(account.accountId, async (gate) => {
-    const written = await store.connect({ proof: await admitAccount(gate), credential, displayName: account.displayName })
-    if (!written.ok) throw new Failure(written.error.code)
+    await store.connect({ proof: await admitAccount(gate), credential, displayName: account.displayName })
   })
 }
 
@@ -90,7 +89,7 @@ async function heldFor(store: ModelAccountStore, openRun: OpenRun, modelId: Mode
   return openRun(async (proof) => store.hold(proof, provider))
 }
 
-async function modelFor(store: ModelAccountStore, google: GoogleModelRuntime, refresh: ReturnType<typeof createCredentialRefresh>, persist: (held: HeldAccount, next: Credential) => Promise<Result<Persisted, Readonly<{ code: FailureCode }>>>, openRun: OpenRun, call: Readonly<{ modelId: ModelId; thinkingLevel: ThinkingLevel | null }>): ReturnType<ModelAccountModule['modelFor']> {
+async function modelFor(store: ModelAccountStore, google: GoogleModelRuntime, refresh: ReturnType<typeof createCredentialRefresh>, persist: (held: HeldAccount, next: Credential) => Promise<Persisted>, openRun: OpenRun, call: Readonly<{ modelId: ModelId; thinkingLevel: ThinkingLevel | null }>): ReturnType<ModelAccountModule['modelFor']> {
   const held = await heldFor(store, openRun, call.modelId)
   if (!held.ok) return held
   const access = { held: held.result, thinkingLevel: call.thinkingLevel,

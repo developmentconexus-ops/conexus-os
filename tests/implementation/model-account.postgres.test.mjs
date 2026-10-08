@@ -25,24 +25,24 @@ test('personal metadata and hold use only the admitted account, and a missing ro
   await f.connect(key('member'), ID.member)
   const held = await f.hold(f.runId, 'anthropic')
   assert.equal(held.ok, true)
-  assert.deepEqual([held.result.row.modelAccountId, held.result.credential], [own.result, key('own')])
+  assert.deepEqual([held.result.row.modelAccountId, held.result.credential], [own, key('own')])
   assert.deepEqual((await f.models.list(ID.outsider)).map((entry) => entry.own), Array(3).fill({ state: 'absent' }))
-  await query(f.connection, 'DELETE FROM model.model_account WHERE model_account_id = $1', [own.result])
+  await query(f.connection, 'DELETE FROM model.model_account WHERE model_account_id = $1', [own])
   assert.deepEqual(await f.hold(f.runId, 'anthropic'), { ok: false, error: { code: 'BUILDER_MODEL_NOT_SELECTED' } })
 })
 
 test('connect retains row identity, changes sign-in generation, clears refusal and seals under that identity', async (t) => {
   const f = await setupModelAccounts(t, 'conexus_model_connect')
   const first = await f.connect(key('first'))
-  const before = await row(f, first.result)
-  await query(f.connection, 'UPDATE model.model_account SET refused_at = connected_at WHERE model_account_id = $1', [first.result])
+  const before = await row(f, first)
+  await query(f.connection, 'UPDATE model.model_account SET refused_at = connected_at WHERE model_account_id = $1', [first])
   const second = await f.connect(oauth('second'), ID.owner, 'Synthetic renamed')
-  const after = await row(f, second.result)
-  assert.deepEqual([second.result, after.scope, after.owner_account_id, after.connected_by_name, after.refused_at], [first.result, 'personal', ID.owner, 'Synthetic renamed', null])
+  const after = await row(f, second)
+  assert.deepEqual([second, after.scope, after.owner_account_id, after.connected_by_name, after.refused_at], [first, 'personal', ID.owner, 'Synthetic renamed', null])
   assert.equal(after.connected_at > before.connected_at, true)
-  assert.deepEqual(await credential(f, second.result), oauth('second'))
+  assert.deepEqual(await credential(f, second), oauth('second'))
   const concurrent = await Promise.all([f.connect(key('third')), f.connect(oauth('fourth'))])
-  assert.deepEqual(concurrent.map((r) => r.result), [first.result, first.result])
+  assert.deepEqual(concurrent, [first, first])
   assert.equal((await query(f.connection, 'SELECT count(*)::int AS count FROM model.model_account')).rows[0].count, 1)
 })
 
@@ -54,7 +54,7 @@ test('reread needs current run authority, preserves its refusal code and needs n
   assert.equal(read.ok, true)
   assert.deepEqual(read.result.held.credential, oauth('held'))
   await query(f.connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [ID.owner, ID.workspace])
-  assert.deepEqual(await f.store.reread(f.openRun(f.runId), held), { ok: false, error: { code: 'PROJECT_NOT_FOUND' } })
+  await assert.rejects(f.store.reread(f.openRun(f.runId), held), { id: 'PROJECT_NOT_FOUND' })
 })
 
 test('system persistence commits rotated credentials after run completion', async (t) => {
@@ -63,9 +63,9 @@ test('system persistence commits rotated credentials after run completion', asyn
   const held = (await f.hold(f.runId, 'anthropic')).result
   await query(f.connection, "UPDATE builder.builder_run SET state = 'SUCCEEDED', result_kind = 'RESPONSE_ONLY', finished_at = clock_timestamp() WHERE builder_run_id = $1", [f.runId])
   const persisted = await f.persist(held, oauth('rotated'))
-  assert.deepEqual([persisted.ok, persisted.result.state], [true, 'stored'])
-  assert.deepEqual(await credential(f, connected.result), oauth('rotated'))
-  assert.deepEqual(await f.store.reread(f.openRun(f.runId), held), { ok: false, error: { code: 'BUILDER_RUN_NOT_ADMITTED' } })
+  assert.equal(persisted.state, 'stored')
+  assert.deepEqual(await credential(f, connected), oauth('rotated'))
+  await assert.rejects(f.store.reread(f.openRun(f.runId), held), { id: 'BUILDER_RUN_NOT_ADMITTED' })
 })
 
 for (const change of ['reconnect', 'disconnect', 'newer refresh']) {
@@ -74,10 +74,10 @@ for (const change of ['reconnect', 'disconnect', 'newer refresh']) {
     const connected = await f.connect(oauth('spent'))
     const held = (await f.hold(f.runId, 'anthropic')).result
     if (change === 'reconnect') await f.connect(oauth('reconnected'))
-    if (change === 'disconnect') await query(f.connection, 'DELETE FROM model.model_account WHERE model_account_id = $1', [connected.result])
-    if (change === 'newer refresh') assert.equal((await f.persist(held, oauth('winner'))).result.state, 'stored')
-    assert.deepEqual(await f.persist(held, oauth('stale')), { ok: true, result: { state: 'superseded' } })
-    if (change !== 'disconnect') assert.deepEqual(await credential(f, connected.result), oauth(change === 'reconnect' ? 'reconnected' : 'winner'))
+    if (change === 'disconnect') await query(f.connection, 'DELETE FROM model.model_account WHERE model_account_id = $1', [connected])
+    if (change === 'newer refresh') assert.equal((await f.persist(held, oauth('winner'))).state, 'stored')
+    assert.deepEqual(await f.persist(held, oauth('stale')), { state: 'superseded' })
+    if (change !== 'disconnect') assert.deepEqual(await credential(f, connected), oauth(change === 'reconnect' ? 'reconnected' : 'winner'))
   })
 }
 
@@ -86,24 +86,24 @@ test('hold and reread return immutable custody context for transplanted bytes', 
   const own = await f.connect(oauth('own'))
   const other = await f.connect(oauth('other'), ID.member)
   const held = (await f.hold(f.runId, 'anthropic')).result
-  const copied = (await row(f, other.result)).secret
-  await query(f.connection, 'UPDATE model.model_account SET secret = $1 WHERE model_account_id = $2', [copied, own.result])
+  const copied = (await row(f, other)).secret
+  await query(f.connection, 'UPDATE model.model_account SET secret = $1 WHERE model_account_id = $2', [copied, own])
   for (const rejected of [await f.hold(f.runId, 'anthropic'), await f.store.reread(f.openRun(f.runId), held)]) {
     assert.equal(rejected.ok, false)
-    assert.deepEqual([rejected.error.code, rejected.error.row.modelAccountId, rejected.error.spent], ['SECRET_CUSTODY_LOST', own.result, copied])
+    assert.deepEqual([rejected.error.code, rejected.error.row.modelAccountId, rejected.error.spent], ['SECRET_CUSTODY_LOST', own, copied])
   }
-  await query(f.connection, 'DELETE FROM model.model_account WHERE model_account_id = $1', [own.result])
+  await query(f.connection, 'DELETE FROM model.model_account WHERE model_account_id = $1', [own])
   const recreated = await f.connect(oauth('new'))
-  assert.notEqual(recreated.result, own.result)
-  const bytes = await f.envelope.seal(encodeCredential(oauth('old')), modelAccountContext(own.result))
-  await query(f.connection, 'UPDATE model.model_account SET secret = $1 WHERE model_account_id = $2', [bytes, recreated.result])
+  assert.notEqual(recreated, own)
+  const bytes = await f.envelope.seal(encodeCredential(oauth('old')), modelAccountContext(own))
+  await query(f.connection, 'UPDATE model.model_account SET secret = $1 WHERE model_account_id = $2', [bytes, recreated])
   assert.equal((await f.hold(f.runId, 'anthropic')).error.code, 'SECRET_CUSTODY_LOST')
 })
 
 test('the model table still rejects illegal provider-kind pairs and duplicate personal slots', async (t) => {
   const f = await setupModelAccounts(t, 'conexus_model_constraints')
   const existing = await f.connect(key('valid'))
-  const sealed = (await row(f, existing.result)).secret
+  const sealed = (await row(f, existing)).secret
   for (const [provider, kind] of [['openai-codex', 'api_key'], ['google-ai-pro', 'oauth'], ['anthropic', 'google_ai_pro']]) {
     await assert.rejects(query(f.connection, 'INSERT INTO model.model_account(model_account_id, scope, owner_account_id, provider, kind, secret, connected_by, connected_by_name, connected_at) VALUES ($1, $2, $3, $4, $5, $6, $3, $7, clock_timestamp())', [randomUUID(), 'personal', ID.owner, provider, kind, sealed, 'Synthetic']), { code: '23514' })
   }
@@ -119,7 +119,7 @@ test('the pooled client stays hub_runtime after committed, refused and thrown ac
     for (const table of ['model_account', 'installation_default']) assert.equal((await pool.query(`SELECT count(*)::integer FROM model.${table}`)).rowCount, 1)
   }
   const connect = (accountId) => single.transaction(accountId, async (gate) => f.store.connect({ proof: await admitAccount(gate), credential: key('pooled'), displayName: 'Synthetic' }))
-  assert.equal((await connect(ID.owner)).ok, true)
+  assert.match(await connect(ID.owner), /^[0-9a-f-]{36}$/)
   await runtimeCanRead()
   await assert.rejects(connect(randomUUID()), { id: 'ACCOUNT_NOT_FOUND' })
   await runtimeCanRead()

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { AccountId, ModelAccountId, type ModelAccountProvider, type Result, type FailureCode } from '@conexus/contract'
+import { AccountId, ModelAccountId, type ModelAccountProvider, type Result } from '@conexus/contract'
 import type { AccountScope, Admitted, RunScope, SystemScope } from '../identity-access/admission.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
@@ -13,16 +13,16 @@ type Slot = Readonly<{ scope: 'personal'; ownerAccountId: AccountId }> | Readonl
 type RowBase = Readonly<{ modelAccountId: ModelAccountId; slot: Slot; connectedAt: Date; refusedAt: Date | null }>
 export type AccountRow = RowBase & CredentialKind
 export type HeldAccount = Readonly<{ row: RowBase; credential: Credential; sealed: Sealed<'model-account'> }>
-type HoldError = Readonly<{ code: 'SECRET_CUSTODY_LOST'; row: AccountRow; spent: Sealed<'model-account'> }> | Readonly<{ code: Exclude<FailureCode, 'SECRET_CUSTODY_LOST'> }>
-export type OpenRun = <T>(work: (proof: Admitted<RunScope>) => Promise<Result<T, Readonly<{ code: FailureCode }>>>) => Promise<Result<T, Readonly<{ code: FailureCode }>>>
+export type HoldError = Readonly<{ code: 'SECRET_CUSTODY_LOST'; row: AccountRow; spent: Sealed<'model-account'> }> | Readonly<{ code: 'BUILDER_MODEL_NOT_SELECTED' }>
+export type OpenRun = <T, E extends HoldError>(work: (proof: Admitted<RunScope>) => Promise<Result<T, E>>) => Promise<Result<T, E>>
 type Reread = Readonly<{ state: 'present'; held: HeldAccount }> | Readonly<{ state: 'gone' }>
 export type Persisted = Readonly<{ state: 'stored'; held: HeldAccount }> | Readonly<{ state: 'superseded' }>
 export type ModelAccountStore = Readonly<{
   list(proof: Admitted<AccountScope, 'read'>): Promise<readonly AccountRow[]>
-  connect(input: Readonly<{ proof: Admitted<AccountScope>; credential: Credential; displayName: string }>): Promise<Result<ModelAccountId, Readonly<{ code: FailureCode }>>>
+  connect(input: Readonly<{ proof: Admitted<AccountScope>; credential: Credential; displayName: string }>): Promise<ModelAccountId>
   hold(proof: Admitted<RunScope>, provider: ModelAccountProvider): Promise<Result<HeldAccount, HoldError>>
   reread(openRun: OpenRun, held: HeldAccount): Promise<Result<Reread, HoldError>>
-  persist(proof: Admitted<SystemScope>, held: HeldAccount, next: Credential): Promise<Result<Persisted, Readonly<{ code: FailureCode }>>>
+  persist(proof: Admitted<SystemScope>, held: HeldAccount, next: Credential): Promise<Persisted>
 }>
 
 const SlotRow = z.discriminatedUnion('scope', [
@@ -46,27 +46,19 @@ async function openRow(envelope: SecretEnvelope, stored: StoredRow): Promise<Res
     const credential = parseCredential(pair, await envelope.open(sealed, modelAccountContext(modelAccountId)))
     return { ok: true, result: { row, credential, sealed } }
   } catch (error) {
-    if (!(error instanceof Failure)) throw error
-    return error.id === 'SECRET_CUSTODY_LOST'
-      ? { ok: false, error: { code: error.id, row: accountRow, spent: sealed } }
-      : { ok: false, error: { code: error.id } }
+    if (error instanceof Failure && error.id === 'SECRET_CUSTODY_LOST') return { ok: false, error: { code: error.id, row: accountRow, spent: sealed } }
+    throw error
   }
 }
 
 async function rereadRow(envelope: SecretEnvelope, openRun: OpenRun, held: HeldAccount): Promise<Result<Reread, HoldError>> {
-  const read = await openRun<Result<Reread, HoldError>>(async ({ tx, scope }) => {
+  return openRun<Reread, HoldError>(async ({ tx, scope }) => {
     const stored = await tx.maybe(StoredRow, sql`SELECT ${ROW_COLUMNS} FROM model.model_account WHERE model_account_id = ${held.row.modelAccountId}
       AND scope = 'personal' AND owner_account_id = ${scope.accountId} AND provider = ${held.credential.provider} AND kind = ${held.credential.kind}`)
-    if (!stored) return { ok: true, result: { ok: true, result: { state: 'gone' } } }
+    if (!stored) return { ok: true, result: { state: 'gone' } }
     const opened = await openRow(envelope, stored)
-    return { ok: true, result: opened.ok ? { ok: true, result: { state: 'present', held: opened.result } } : opened }
+    return opened.ok ? { ok: true, result: { state: 'present', held: opened.result } } : opened
   })
-  if (read.ok) return read.result
-  const { code } = read.error
-  const { value: _value, ...pair } = held.credential
-  return code === 'SECRET_CUSTODY_LOST'
-    ? { ok: false, error: { code, row: { ...held.row, ...pair }, spent: held.sealed } }
-    : { ok: false, error: { code } }
 }
 
 async function connectRow(envelope: SecretEnvelope, { proof: { tx, scope }, credential, displayName }: Parameters<ModelAccountStore['connect']>[0]): ReturnType<ModelAccountStore['connect']> {
@@ -83,7 +75,7 @@ async function connectRow(envelope: SecretEnvelope, { proof: { tx, scope }, cred
       SET kind = EXCLUDED.kind, secret = EXCLUDED.secret, connected_by = EXCLUDED.connected_by, connected_by_name = EXCLUDED.connected_by_name,
         connected_at = EXCLUDED.connected_at, updated_at = clock_timestamp(), refused_at = NULL
       WHERE model_account.owner_account_id = ${scope.accountId}`)
-  return { ok: true, result: id }
+  return id
 }
 
 async function persistRow(envelope: SecretEnvelope, { tx }: Admitted<SystemScope>, held: HeldAccount, next: Credential): ReturnType<ModelAccountStore['persist']> {
@@ -96,7 +88,7 @@ async function persistRow(envelope: SecretEnvelope, { tx }: Admitted<SystemScope
       AND owner_account_id IS NOT DISTINCT FROM ${row.slot.scope === 'personal' ? row.slot.ownerAccountId : null}
       AND provider = ${credential.provider} AND kind = ${credential.kind} AND secret = ${spent}
     RETURNING ${ROW_COLUMNS}`)
-  return { ok: true, result: stored ? { state: 'stored', held: { row, credential: next, sealed } } : { state: 'superseded' } }
+  return stored ? { state: 'stored', held: { row, credential: next, sealed } } : { state: 'superseded' }
 }
 
 export function createModelAccountStore(envelope: SecretEnvelope): ModelAccountStore {
