@@ -7,6 +7,7 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { waitUntilBlocked } from './race.mjs'
 import { F, fileOf, payloadOf, seedRevision } from './registry-fixture.mjs'
 
+const { sessionContext } = await import(hubModuleUrl('platform/secrets.js'))
 const { createHttpApp } = await import(hubModuleUrl('http/app.js'))
 const { createHostingModule } = await import(hubModuleUrl('hosting/module.js'))
 const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
@@ -80,7 +81,7 @@ const estate = async (t, prefix, { invoke } = {}) => {
   const sessionOf = async (accountId, { project = P } = {}) => {
     const token = randomUUID().replaceAll('-', '').padEnd(43, 's').slice(0, 43)
     await hub.sql(`INSERT INTO iam.host_session (token_digest, kind, account_id, started_at, absolute_expires_at, project_id, provider_refresh_token, provider_checked_at)
-      VALUES ($1, 'APPLICATION', $2, now(), now() + interval '8 hours', $3, $4, now())`, [digestOf(token), accountId, project, await hub.envelope.seal(`refresh-${accountId}`)])
+      VALUES ($1, 'APPLICATION', $2, now(), now() + interval '8 hours', $3, $4, now())`, [digestOf(token), accountId, project, await hub.envelope.seal(`refresh-${accountId}`, sessionContext(digestOf(token)))])
     return token
   }
   const page = (token, url = '/', host = APP_HOST) => applicationApp.inject({ method: 'GET', url, headers: { host, ...NAVIGATE, ...(token ? { cookie: `__Host-conexus_app=${token}` } : {}) } })

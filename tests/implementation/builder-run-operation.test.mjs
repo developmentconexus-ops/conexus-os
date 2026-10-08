@@ -19,7 +19,7 @@ const { createConnectorFetchTools, openBuilderRun } = await import(hubModuleUrl(
 const { createHandlerPorts } = await import(hubModuleUrl('connectors/handler-port.js'))
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
-const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
+const { createSecretEnvelope, connectionContext } = await import(hubModuleUrl('platform/secrets.js'))
 const { schemaViolation } = await import(hubModuleUrl('app-runner/server-manifest.js'))
 const { buildCandidateServer, createOperationRunner } = await import(hubModuleUrl('builder/run-operation.js'))
 const { createRunOperationTool } = await import(hubModuleUrl('builder/harness/tools.js'))
@@ -31,7 +31,7 @@ const CALLER = Object.freeze({ accountId: '44444444-4444-4444-8444-444444444444'
 const READER_URL = hubModuleUrl('builder/handler-kit/sankhya.js')
 
 const envelope = createSecretEnvelope('ef'.repeat(32))
-const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
+const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL), connectionContext(CONNECTION))
 const store = Object.freeze({
   listBindings: async ({ projectId }) => (projectId === PROJECT
     ? [{ bindingId: 'binding-erp', name: 'erp', connectionId: CONNECTION, connectorId: 'sankhya' }] : []),

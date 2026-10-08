@@ -31,7 +31,7 @@ const { createHandlerPorts } = await import(hubModuleUrl('connectors/handler-por
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
 const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
-const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
+const { createSecretEnvelope, connectionContext } = await import(hubModuleUrl('platform/secrets.js'))
 
 const sha = (text) => createHash('sha256').update(text).digest('hex')
 const file = (path, text) => ({ path: `conexus-server/${path}`, sha256: sha(text), content: Buffer.from(text).toString('base64') })
@@ -468,9 +468,10 @@ const connectorSetup = async (t, sandbox) => {
   const fake = await startFakeGateway()
   t.after(() => fake.close())
   const envelope = createSecretEnvelope('fe'.repeat(32))
-  const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
+  const connectionId = '33333333-3333-4333-8333-333333333333'
+  const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL), connectionContext(connectionId))
   const store = {
-    listBindings: async (input) => (input.projectId === project ? [{ bindingId: 'binding', name: 'erp', connectionId: '33333333-3333-4333-8333-333333333333', connectorId: 'sankhya' }] : []),
+    listBindings: async (input) => (input.projectId === project ? [{ bindingId: 'binding', name: 'erp', connectionId, connectorId: 'sankhya' }] : []),
     readConnectionCredential: async () => sealed,
   }
   const broker = createBroker({ connectors: registryOf([{ definition: sankhyaDefinition, adapter: createSankhyaGateway({ origin: fake.origin }) }]), store, envelope, observability: connectorRecord().observability })
