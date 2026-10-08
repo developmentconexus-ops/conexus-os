@@ -24,7 +24,10 @@ function isFailureCode(value: unknown): value is FailureCode {
 export async function readFailure(response: Response): Promise<ReceivedFailure> {
   const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
   if (contentType !== 'application/problem+json') return new ReceivedFailure('HUB_RESPONSE_UNREADABLE', response.status)
-  const body: unknown = await response.json().catch(() => null)
+  const body: unknown = await response.json().catch((error: unknown) => {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    return null
+  })
   const parsed = Problem.safeParse(body)
   if (response.status < 400 || response.status > 599 || !parsed.success || parsed.data.status !== response.status) {
     return new ReceivedFailure('HUB_RESPONSE_UNREADABLE', response.status)

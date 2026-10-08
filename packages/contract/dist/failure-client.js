@@ -21,7 +21,11 @@ export async function readFailure(response) {
     const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
     if (contentType !== 'application/problem+json')
         return new ReceivedFailure('HUB_RESPONSE_UNREADABLE', response.status);
-    const body = await response.json().catch(() => null);
+    const body = await response.json().catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError')
+            throw error;
+        return null;
+    });
     const parsed = Problem.safeParse(body);
     if (response.status < 400 || response.status > 599 || !parsed.success || parsed.data.status !== response.status) {
         return new ReceivedFailure('HUB_RESPONSE_UNREADABLE', response.status);
