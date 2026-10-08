@@ -11,6 +11,7 @@ import { setupModelAccounts } from './model-account-fixture.mjs'
 import { ID, PASSWORD } from './project-fixture.mjs'
 import { OWNER } from './builder-fixture.mjs'
 import { query } from './hub-database.mjs'
+import { refuseProtectedCluster } from './protected-cluster.mjs'
 import { hubJsonWrite, opaque, testListener } from './access/test-listener.mjs'
 import { bindRunContext } from './run-context.mjs'
 const { AnthropicKey, parseCredential } = await import(hubModuleUrl('model-account/credential.js'))
@@ -515,6 +516,7 @@ test('a current row sealed with an unknown key throws its configuration Failure 
 })
 
 test('real PostgreSQL timeout diagnosis survives Builder admission and native refresh into the terminal logger', async (t) => {
+  await refuseProtectedCluster()
   const f = await setupModelAccounts(t, 'conexus_model_pg_cause')
   t.mock.method(globalThis, 'fetch', async () => { throw new Error('must not reach provider') })
   await expiredClaude(f)

@@ -5,7 +5,6 @@ import { relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repo = fileURLToPath(new URL('../', import.meta.url))
-const recordPath = resolve(repo, 'contracts/technical/error-model-census.json')
 const scope = ['apps/hub/src/', 'apps/web/src/', 'packages/contract/src/']
 const targetNames = Object.freeze([
   'resultReplyAlias',
@@ -22,7 +21,6 @@ const targetNames = Object.freeze([
   'generatedFailureFallback',
   'starterFailureWrappers',
 ])
-const inventoryNames = Object.freeze(['admissionCallExpressions'])
 const namedMechanisms = Object.freeze([
   { name: 'generatedFailureDecoder', path: 'apps/hub/compiler-template/generate-client.mjs', marker: 'const failure = (status: number, body: string): ConexusError => {' },
   { name: 'generatedHttpFallback', path: 'apps/hub/compiler-template/generate-client.mjs', marker: String.raw`return new ConexusError(\`HTTP_\${status}\`, body.slice(0, 500))` },
@@ -40,7 +38,7 @@ function identifier(node, name) {
 
 export function censusSource(path, text) {
   const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, path.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
-  const found = Object.fromEntries([...targetNames, ...inventoryNames].map((name) => [name, []]))
+  const found = Object.fromEntries(targetNames.map((name) => [name, []]))
   const importedFailureModule = []
   let embeddedConexusError = false
 
@@ -49,14 +47,14 @@ export function censusSource(path, text) {
       found.resultReplyAlias.push(at(path, node.name))
     }
     if (ts.isFunctionDeclaration(node) && ['refuseManifest', 'refuseTree'].some((name) => identifier(node.name, name))) {
-      found.manifestThrowHelpers.push(at(path, node.name))
+      const throws = (child) => ts.isThrowStatement(child) || ts.forEachChild(child, throws)
+      if (node.body && throws(node.body)) found.manifestThrowHelpers.push(at(path, node.name))
     }
     if (ts.isVariableDeclaration(node) && ['ADMISSION_ROW', 'admissionFailure'].some((name) => identifier(node.name, name))) {
       found.admissionMessageDecoders.push(at(path, node.name))
     }
     if (ts.isVariableDeclaration(node) && identifier(node.name, 'workerCodeOf')) found.workerCodeFilter.push(at(path, node.name))
     if (ts.isCallExpression(node) && identifier(node.expression, 'failureProblem')) found.failureProblemCalls.push(at(path, node.expression))
-    if (ts.isCallExpression(node) && ['admitManifest', 'admitServerTree', 'admitTree'].some((name) => identifier(node.expression, name))) found.admissionCallExpressions.push(at(path, node.expression))
     if (ts.isClassDeclaration(node) && identifier(node.name, 'HubFailure')) found.hubFailureClass.push(at(path, node.name))
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) && /\/failure(?:\.ts)?$/.test(node.moduleSpecifier.text)) {
       const bindings = node.importClause?.namedBindings
@@ -80,7 +78,7 @@ export function censusSource(path, text) {
 }
 
 function censusFiles(files) {
-  const found = Object.fromEntries([...targetNames, ...inventoryNames].map((name) => [name, []]))
+  const found = Object.fromEntries(targetNames.map((name) => [name, []]))
   for (const { path, text } of files) {
     for (const [name, matches] of Object.entries(censusSource(path, text))) found[name].push(...matches)
   }
@@ -116,18 +114,8 @@ export function censusNamedMechanisms(rootDirectory = repo) {
   return found
 }
 
-export function compareToRecord(found, record) {
-  const failures = []
-  for (const name of targetNames) {
-    const matches = found[name] ?? []
-    const count = matches.length
-    const baseline = record.baseline[name]
-    if (!Number.isInteger(baseline) || baseline < 0) failures.push(`${name}: missing non-negative baseline`)
-    else if (count > baseline) failures.push(`${name}: ${count} exceeds baseline ${baseline} (${matches.join(', ')})`)
-    if (record.activatedZeroTargets.includes(name) && count !== 0) failures.push(`${name}: activated zero target returned at ${matches.join(', ')}`)
-  }
-  for (const name of record.activatedZeroTargets) if (!targetNames.includes(name)) failures.push(`${name}: activated target is not a named census check`)
-  return failures
+export function violations(found) {
+  return targetNames.flatMap((name) => (found[name] ?? []).map((match) => `${name}: legacy mechanism at ${match}`))
 }
 
 function listFiles() {
@@ -140,29 +128,19 @@ function listFiles() {
 
 function main(args) {
   if (args.length !== 1 || !['--list', '--check'].includes(args[0])) {
-    console.error('usage: node scripts/census-error-model.mjs --list|--check')
+    console.error('usage: node scripts/check-error-model.mjs --list|--check')
     return 2
   }
-  const record = JSON.parse(readFileSync(recordPath, 'utf8'))
   const files = listFiles().map((path) => ({ path, text: readFileSync(path, 'utf8') }))
   const found = Object.assign(censusFiles(files), censusNamedMechanisms())
-  const failures = compareToRecord(found, record)
-  for (const name of targetNames) {
-    console.log(`error-model-census: ${name} ${found[name].length} (baseline ${record.baseline[name]}) ${found[name].length > record.baseline[name] || record.activatedZeroTargets.includes(name) && found[name].length > 0 ? 'FAIL' : 'ok'}`)
-    if (args[0] === '--list') for (const match of found[name]) console.log(`    ${match}`)
+  const failures = violations(found)
+  if (args[0] === '--list') for (const name of targetNames) {
+    for (const match of found[name]) console.log(`${name}: ${match}`)
   }
-  for (const name of inventoryNames) {
-    console.log(`error-model-census: ${name} ${found[name].length} (inventory baseline ${record.inventory[name]})`)
-    if (args[0] === '--list') for (const match of found[name]) console.log(`    ${match}`)
-  }
-  const failureTable = resolve(repo, 'contracts/technical/failures.json')
-  const failureTableText = readFileSync(failureTable, 'utf8')
-  const sandboxRow = [...failureTableText.matchAll(/"code"\s*:\s*"BUILDER_SANDBOX_OPEN_FAILED"/g)]
-  console.log(`error-model-census: sandboxStartRow ${sandboxRow.length} (inventory baseline ${record.inventory.sandboxStartRow})${sandboxRow.length ? ` ${sandboxRow.map((match) => `${relative(repo, failureTable)}:${failureTableText.slice(0, match.index).split('\n').length}`).join(', ')}` : ''}`)
-  console.log(`error-model-census: scope ${scope.join(', ')}`)
-  console.log(`error-model-census: named template paths ${[...new Set(namedMechanisms.map(({ path }) => path))].join(', ')}`)
-  console.log('error-model-census: imported aliases and generated embedded source are not semantically resolved')
-  for (const failure of failures) console.error(`error-model-census: ${failure}`)
+  console.log(`error-model prohibition: scope ${scope.join(', ')}`)
+  console.log(`error-model prohibition: named template paths ${[...new Set(namedMechanisms.map(({ path }) => path))].join(', ')}`)
+  console.log('error-model prohibition: imported aliases and generated embedded source are not semantically resolved')
+  for (const failure of failures) console.error(`error-model prohibition: ${failure}`)
   return failures.length === 0 ? 0 : 1
 }
 
