@@ -1,5 +1,5 @@
+import { GoogleAiProKey } from '../model-account/providers.js'
 import { createServer, type IncomingMessage, request as forward, type ServerResponse } from 'node:http'
-import { type GoogleAiProKey, parseKey } from './credential.js'
 import type { CliproxyPool, Lease, PersistGoogleAiProRefresh } from './pool.js'
 import { Failure } from '../../platform/failure.js'
 
@@ -17,12 +17,12 @@ const GEMINI_API = '/v1beta/'
 // the key is the person's Google sign-in.
 const route = (pool: Pick<CliproxyPool, 'acquire'>, persistFor: PersistFor) => async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
   const credential = request.headers[API_KEY_HEADER]
-  const key = typeof credential === 'string' ? parseKey(credential) : null
-  if (!key) return refuse(response, 401, 'UNAUTHENTICATED', 'Conecte o Google AI Pro nas Configurações.')
+  const key = typeof credential === 'string' ? GoogleAiProKey.safeParse(credential) : null
+  if (!key?.success) return refuse(response, 401, 'UNAUTHENTICATED', 'Conecte o Google AI Pro nas Configurações.')
   if (!request.url?.startsWith(GEMINI_API)) return refuse(response, 404, 'NOT_FOUND', 'Not found')
   let lease: Lease
   try {
-    lease = await pool.acquire(key, persistFor(key))
+    lease = await pool.acquire(key.data, persistFor(key.data))
   } catch {
     return refuse(response, 503, 'UNAVAILABLE', 'O Google AI Pro não iniciou.')
   }

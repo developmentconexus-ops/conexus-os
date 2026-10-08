@@ -1,3 +1,5 @@
+import type { ModelId } from '@conexus/contract'
+import { parseModelId } from '../model-account/providers.js'
 import { isThinkingLevelSetting, resolveDefaultThinkingLevel, type ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import type { RequestContext } from '@mastra/core/request-context'
 import { fieldOf } from '../../platform/field-of.js'
@@ -37,9 +39,9 @@ export const readSessionThinkingLevel = (requestContext: RequestContext | undefi
 }
 
 /** The model the conversation's session runs on, from the `controller` context `AgentController` sets on every call. */
-export const readSessionModelId = (requestContext: RequestContext | undefined): string | undefined => {
+export const readSessionModelId = (requestContext: RequestContext | undefined): ModelId | undefined => {
   const modelId = fieldOf(fieldOf(requestContext?.get('controller'), 'session'), 'modelId')
-  return typeof modelId === 'string' && modelId ? modelId : undefined
+  return typeof modelId === 'string' ? parseModelId(modelId) ?? undefined : undefined
 }
 
 export const readRawString = (requestContext: RequestContext | undefined, key: string): string => {

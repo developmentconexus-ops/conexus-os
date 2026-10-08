@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { pollCodexDeviceLogin, startCodexDeviceLogin, type CodexDeviceLoginPending, type CodexDevicePollResult } from '@mastra/code-sdk/auth/providers/openai-codex'
-import { toCodexTokens, type CodexTokens } from './credential.js'
+import { toCodexTokens, type CodexTokens } from '../model-account/providers.js'
 import { Failure } from '../../platform/failure.js'
 import { ModelLoginId, type AccountId } from '@conexus/contract'
 import type { ConnectResult } from '../model-account/accounts.js'

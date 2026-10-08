@@ -1,26 +1,23 @@
 import { z } from 'zod'
-import { ModelAccountId, type AccountId, type ModelAccountKind, type ModelAccountProvider, type SessionAccount } from '@conexus/contract'
+import { ModelAccountId, type AccountId, type ModelAccountKind, type ModelAccountProvider, type SessionAccount, type ModelRole, ModelId, type Result } from '@conexus/contract'
 import { admitAccount, admitSystem, type Admitted, type RunScope, type SystemScope } from '../../identity-access/admission.js'
 import { sql, type Database } from '../../platform/db.js'
 import { Failure } from '../../platform/failure.js'
 import type { SecretEnvelope } from '../../platform/secrets.js'
 import { ADMISSION_REFUSALS, withRun } from '../run-lifecycle.js'
 import type { RunContext } from '../run-context.js'
-import { LawfulCredential, type Lawful } from './providers.js'
+import { CredentialKind, parseCredential, encodeCredential, parseModelId, type Credential } from './providers.js'
 
-export type ModelRole = 'build' | 'memory'
-
-export type ConnectResult = Readonly<{ ok: true }> | Readonly<{ ok: false; reason: 'ACCOUNT_INACTIVE' | 'ACCOUNT_NOT_FOUND' }>
+export type ConnectResult = Result<void, Readonly<{ code: 'ACCOUNT_INACTIVE' | 'ACCOUNT_NOT_FOUND' }>>
 
 type HeldRun = Pick<RunContext, 'builderRunId' | 'accountId'>
 
-export type HeldAccount<L extends Lawful = Lawful> = Readonly<{
+export type HeldAccount<C extends Credential = Credential> = Readonly<{
   modelAccountId: ModelAccountId
-  credential: L
-  secret: string
+  credential: C
   run: HeldRun
   read(): Promise<HeldAccount | null>
-  persist(secret: string): Promise<boolean>
+  persist(credential: C): Promise<boolean>
 }>
 
 type OwnAccount = Readonly<{ state: 'absent' }> | Readonly<{ state: 'connected'; kind: ModelAccountKind }>
@@ -30,16 +27,16 @@ type Connecting = Pick<SessionAccount, 'accountId' | 'displayName'>
 
 export type ModelAccounts = Readonly<{
   standing(accountId: AccountId): Promise<ModelStanding>
-  write(input: Readonly<{ account: Connecting; credential: Lawful; secret: string }>): Promise<void>
-  connect(input: Readonly<{ account: Connecting; credential: Lawful; secret: string }>): Promise<ConnectResult>
-  readDefault(accountId: AccountId, role: ModelRole): Promise<string | null>
+  write(input: Readonly<{ account: Connecting; credential: Credential }>): Promise<void>
+  connect(input: Readonly<{ account: Connecting; credential: Credential }>): Promise<ConnectResult>
+  readDefault(accountId: AccountId, role: ModelRole): Promise<ModelId | null>
   usable(accountId: AccountId, provider: ModelAccountProvider): Promise<boolean>
   select(run: HeldRun, provider: ModelAccountProvider): Promise<HeldAccount | null>
 }>
 
-const SealedRow = z.object({ model_account_id: ModelAccountId, secret: z.string() }).and(LawfulCredential)
+const SealedRow = z.object({ model_account_id: ModelAccountId, secret: z.string() }).and(CredentialKind)
   .transform(({ model_account_id, secret, ...credential }) => ({ modelAccountId: model_account_id, credential, sealed: secret }))
-const DefaultRow = z.object({ model_id: z.string() })
+const DefaultRow = z.object({ model_id: ModelId })
 
 export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ database: Database; envelope: SecretEnvelope; ownerId: string }>): ModelAccounts {
   const readById = async ({ tx, scope }: Admitted<RunScope>, { modelAccountId }: Readonly<{ modelAccountId: ModelAccountId }>) => tx.maybe(SealedRow, sql`
@@ -52,11 +49,10 @@ export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ 
       UPDATE model.model_account SET secret = ${sealed}, updated_at = clock_timestamp()
       WHERE model_account_id = ${modelAccountId} AND kind = ${kind}`) === 1
 
-  const hold = (row: Readonly<{ modelAccountId: ModelAccountId; credential: Lawful }>, secret: string, run: HeldRun): HeldAccount =>
+  const hold = (row: Readonly<{ modelAccountId: ModelAccountId; credential: CredentialKind }>, plain: string, run: HeldRun): HeldAccount =>
     Object.freeze({
       modelAccountId: row.modelAccountId,
-      credential: row.credential,
-      secret,
+      credential: parseCredential(row.credential, plain),
       run,
       read: async () => {
         const stored = await withRun(database, ownerId, run.builderRunId, { via: 'account', accountId: run.accountId }, (proof) => readById(proof, { modelAccountId: row.modelAccountId }))
@@ -65,7 +61,7 @@ export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ 
         return hold(row, await envelope.open(stored.sealed), run)
       },
       persist: async (next) => {
-        const sealed = await envelope.seal(next)
+        const sealed = await envelope.seal(encodeCredential(next))
         return database.system('builder-executor', async (gate) => rewrite(await admitSystem(gate, 'builder-executor'), { modelAccountId: row.modelAccountId, kind: row.credential.kind, sealed }))
       },
     })
@@ -77,8 +73,8 @@ export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ 
       WHERE scope = 'personal' AND provider = ${provider} AND owner_account_id = ${scope.accountId}`)
   })
 
-  const write: ModelAccounts['write'] = async ({ account, credential, secret }) => {
-    const sealed = await envelope.seal(secret)
+  const write: ModelAccounts['write'] = async ({ account, credential }) => {
+    const sealed = await envelope.seal(encodeCredential(credential))
     await database.transaction(account.accountId, async (gate) => {
       const { tx, scope } = await admitAccount(gate)
       await tx.run(sql`
@@ -94,7 +90,7 @@ export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ 
   return Object.freeze({
     standing: (accountId) => database.read(accountId, async (gate) => {
       const { tx, scope } = await admitAccount(gate)
-      const rows = await tx.rows(LawfulCredential, sql`
+      const rows = await tx.rows(CredentialKind, sql`
         SELECT provider, kind FROM model.model_account WHERE scope = 'personal' AND owner_account_id = ${scope.accountId}`)
       const of = (provider: ModelAccountProvider): ModelStanding[ModelAccountProvider] => {
         const own = rows.find((row) => row.provider === provider)
@@ -104,15 +100,16 @@ export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ 
     }),
     write,
     connect: (input) => write(input).then(
-      (): ConnectResult => ({ ok: true }),
+      (): ConnectResult => ({ ok: true, result: undefined }),
       (error: unknown): ConnectResult => {
-        if (error instanceof Failure && (error.id === 'ACCOUNT_INACTIVE' || error.id === 'ACCOUNT_NOT_FOUND')) return { ok: false, reason: error.id }
+        if (error instanceof Failure && (error.id === 'ACCOUNT_INACTIVE' || error.id === 'ACCOUNT_NOT_FOUND')) return { ok: false, error: { code: error.id } }
         throw error
       },
     ),
     readDefault: (accountId, role) => database.read(accountId, async (gate) => {
       const { tx } = await admitAccount(gate)
-      return (await tx.maybe(DefaultRow, sql`SELECT model_id FROM model.installation_default WHERE role = ${role}`))?.model_id ?? null
+      const stored = await tx.maybe(DefaultRow, sql`SELECT model_id FROM model.installation_default WHERE role = ${role}`)
+      return stored ? parseModelId(stored.model_id) : null
     }),
     usable: async (accountId, provider) => {
       const row = await readUsable(accountId, provider)

@@ -8,6 +8,9 @@ export type ModelAccountProvider = z.output<typeof ModelAccountProvider>
 export const ModelAccountKind = z.enum(['api_key', 'oauth', 'google_ai_pro']).meta({ id: 'ModelAccountKind' })
 export type ModelAccountKind = z.output<typeof ModelAccountKind>
 
+export const ModelRole = z.enum(['build', 'memory'])
+export type ModelRole = z.output<typeof ModelRole>
+
 export const ApiKeyProvider = z.enum(['anthropic']).meta({ id: 'ApiKeyProvider' })
 
 export const THINKING_LEVELS = ['off', 'low', 'medium', 'high', 'xhigh', 'max'] as const

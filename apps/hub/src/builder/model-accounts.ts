@@ -9,13 +9,11 @@ import {
   ModelLoginId, type ModelAccountProvider, type OfferedModel, type SessionAccount,
 } from '@conexus/contract'
 import { Failure } from '../platform/failure.js'
-import { serializeClaudeTokens } from './anthropic/credential.js'
 import { createClaudeLogin, type ClaudeAuthorization } from './anthropic/login.js'
 import { createGoogleAiProLogin } from './google-ai-pro/login.js'
 import type { CliproxyPool } from './google-ai-pro/pool.js'
 import type { ModelAccounts } from './model-account/accounts.js'
-import { MODEL_PROVIDERS, type RouterPrefix } from './model-account/providers.js'
-import { serializeCodexTokens } from './openai-codex/credential.js'
+import { MODEL_PROVIDERS, AnthropicKey, type RouterPrefix } from './model-account/providers.js'
 import { createCodexLogin, type CodexDevice } from './openai-codex/login.js'
 import { routes } from '../http/access.js'
 
@@ -101,16 +99,16 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { modelAc
 }>): Promise<readonly ['listAvailableModels', 'listModelAccounts', 'setModelAccountApiKey', 'startClaudeModelLogin', 'completeClaudeModelLogin', 'startCodexModelLogin', 'pollCodexModelLogin', 'getGoogleModelConnection', 'startGoogleModelLogin', 'completeGoogleModelLogin', 'getGoogleModelLoginStatus']> => {
   const route = routes(app)
   const claudeLogin = createClaudeLogin<Caller>({
-    connect: (account, tokens) => modelAccounts.connect({ account, credential: { provider: 'anthropic', kind: 'oauth' }, secret: serializeClaudeTokens(tokens) }),
+    connect: (account, tokens) => modelAccounts.connect({ account, credential: { provider: 'anthropic', kind: 'oauth', value: tokens } }),
     ...(claudeAuthorization ? { authorization: claudeAuthorization } : {}),
   })
   const codexLogin = createCodexLogin<Caller>({
-    connect: (account, tokens) => modelAccounts.connect({ account, credential: { provider: 'openai-codex', kind: 'oauth' }, secret: serializeCodexTokens(tokens) }),
+    connect: (account, tokens) => modelAccounts.connect({ account, credential: { provider: 'openai-codex', kind: 'oauth', value: tokens } }),
     ...(openaiCodexDevice ? { device: openaiCodexDevice } : {}),
   })
   const googleLogin = googleAiPro && createGoogleAiProLogin<Caller>({
     pool: googleAiPro,
-    connect: (account, key) => modelAccounts.connect({ account, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro' }, secret: key }),
+    connect: (account, key) => modelAccounts.connect({ account, credential: { provider: 'google-ai-pro', kind: 'google_ai_pro', value: key } }),
   })
   const google = (): NonNullable<typeof googleLogin> => {
     if (!googleLogin) throw new Failure('MODEL_LOGIN_UNAVAILABLE')
@@ -132,8 +130,9 @@ export const registerModelAccountRoutes = async (app: FastifyInstance, { modelAc
 
   // A key the person pastes becomes their own `api_key` row, sealed. The key is never sent back.
   route.operation(setModelAccountApiKey, async ({ params, body }, session) => {
-    if (!MODEL_PROVIDERS[params.provider].keyShape.test(body.key)) throw new Failure('MODEL_ACCOUNT_KEY_REFUSED')
-    await modelAccounts.write({ account: session.account, credential: { provider: params.provider, kind: 'api_key' }, secret: body.key })
+    const key = AnthropicKey.safeParse(body.key)
+    if (!key.success) throw new Failure('MODEL_ACCOUNT_KEY_REFUSED')
+    await modelAccounts.write({ account: session.account, credential: { provider: params.provider, kind: 'api_key', value: key.data } })
     return undefined
   })
 

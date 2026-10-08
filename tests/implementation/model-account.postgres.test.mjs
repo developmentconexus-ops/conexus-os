@@ -6,9 +6,12 @@ import { loginPoolOf, query } from './hub-database.mjs'
 import { OWNER, setupBuilder } from './builder-fixture.mjs'
 import { ID } from './project-fixture.mjs'
 
+const { parseCredential, encodeCredential, AnthropicKey } = await import(hubModuleUrl('builder/model-account/providers.js'))
+const { encodeKey } = await import(hubModuleUrl('builder/google-ai-pro/credential.js'))
+
 const { createModelAccounts } = await import(hubModuleUrl('builder/model-account/accounts.js'))
 const { createRunSteps } = await import(hubModuleUrl('builder/run-lifecycle.js'))
-const { createTokenHolds } = await import(hubModuleUrl('builder/oauth-holds.js'))
+const { createCodexHolds } = await import(hubModuleUrl('builder/openai-codex/credential.js'))
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
 const { admitAccount } = await import(hubModuleUrl('identity-access/admission.js'))
 
@@ -24,6 +27,14 @@ const ANTHROPIC_KEY = { provider: 'anthropic', kind: 'api_key' }
 const ANTHROPIC_OAUTH = { provider: 'anthropic', kind: 'oauth' }
 const CODEX = { provider: 'openai-codex', kind: 'oauth' }
 
+function fixtureCredential(pair, label) {
+  if (pair.provider === 'anthropic' && pair.kind === 'api_key') return { ...pair, value: AnthropicKey.parse(`sk-ant-${label.padEnd(20, 'x')}`) }
+  if (pair.provider === 'google-ai-pro') return { ...pair, value: encodeKey({ fileName: 'antigravity-synthetic.json', bytes: new TextEncoder().encode(JSON.stringify({ type: 'antigravity', label })) }) }
+  return { ...pair, value: { access: label, refresh: 'fixture-refresh', expires: 1000, ...pair.provider === 'openai-codex' ? { accountId: 'fixture-provider-account', email: null } : {} } }
+}
+function labelOf(credential) {
+  return typeof credential.value === 'string' ? credential.value.replace(/^sk-ant-/, '').replace(/x+$/, '') : credential.value.access
+}
 const NAME = 'Ana Teste'
 const as = (accountId) => ({ accountId, displayName: NAME })
 
@@ -33,9 +44,12 @@ const setup = async (t, prefix) => {
   const seedRow = async (owner, provider, kind, label) => (await query(fixture.connection,
     `INSERT INTO model.model_account(scope, owner_account_id, provider, kind, secret, connected_by, connected_by_name, connected_at)
      VALUES ('personal', $1, $2, $3, $4, $1, $5, clock_timestamp()) RETURNING model_account_id`,
-    [owner, provider, kind, await sealedOf(label), NAME])).rows[0].model_account_id
+    [owner, provider, kind, await sealedOf(encodeCredential(fixtureCredential({ provider, kind }, label))), NAME])).rows[0].model_account_id
   const rowsOf = async () => (await query(fixture.connection, 'SELECT scope, owner_account_id, provider, kind, connected_by, connected_by_name, connected_at, refused_at, model_account_id, secret FROM model.model_account ORDER BY owner_account_id, provider')).rows
-  const secretOf = async (modelAccountId) => envelope.open((await query(fixture.connection, 'SELECT secret FROM model.model_account WHERE model_account_id = $1', [modelAccountId])).rows[0].secret)
+  const secretOf = async (modelAccountId) => {
+    const stored = (await query(fixture.connection, 'SELECT provider, kind, secret FROM model.model_account WHERE model_account_id = $1', [modelAccountId])).rows[0]
+    return labelOf(parseCredential(stored, await envelope.open(stored.secret)))
+  }
   const recordFor = (builderRunId, modelAccountId) => query(fixture.connection, 'INSERT INTO builder.builder_run_model_account(builder_run_id, model_account_id) VALUES ($1, $2)', [builderRunId, modelAccountId])
   return { ...fixture, accounts, seedRow, rowsOf, secretOf, recordFor }
 }
@@ -46,7 +60,7 @@ test('select returns the caller\'s own row and nothing once it is removed, and u
   const run = (accountId) => ({ builderRunId: randomUUID(), accountId })
   const own = await seedRow(A, 'anthropic', 'api_key', 'own-of-a')
   const ofA = await accounts.select(run(A), 'anthropic')
-  assert.deepEqual([ofA.modelAccountId, ofA.secret, ofA.credential], [own, 'own-of-a', ANTHROPIC_KEY])
+  assert.deepEqual([ofA.modelAccountId, labelOf(ofA.credential), { provider: ofA.credential.provider, kind: ofA.credential.kind }], [own, 'own-of-a', ANTHROPIC_KEY])
   await query(connection, 'DELETE FROM model.model_account WHERE model_account_id = $1', [own])
   assert.equal(await accounts.select(run(A), 'anthropic'), null, 'another person\'s row never pays')
   assert.equal(await accounts.usable(A, 'anthropic'), false)
@@ -62,7 +76,7 @@ test('a third account\'s private row is never selected, never usable and never h
   assert.equal(await accounts.usable(A, 'anthropic'), false)
   await seedRow(A, 'anthropic', 'api_key', 'own-of-a')
   const held = await accounts.select({ builderRunId, accountId: A }, 'anthropic')
-  assert.equal(held.secret, 'own-of-a')
+  assert.equal(labelOf(held.credential), 'own-of-a')
   assert.equal((await accounts.select({ builderRunId, accountId: C }, 'anthropic')).modelAccountId, privateOfC)
   await recordFor(builderRunId, privateOfC)
   assert.equal(await held.read(), null, 'the run recorded only C\'s row, and the handle holds A\'s id')
@@ -70,18 +84,18 @@ test('a third account\'s private row is never selected, never usable and never h
 
 test('a first key write creates a personal row connected by the writer, and rewriting keeps the id, moves connected_at and clears a refusal', async (t) => {
   const { accounts, rowsOf, connection } = await setup(t, 'conexus_model_write')
-  await accounts.write({ account: as(A), credential: ANTHROPIC_KEY, secret: 'first-key' })
+  await accounts.write({ account: as(A), credential: fixtureCredential(ANTHROPIC_KEY, 'first-key') })
   const [first] = await rowsOf()
   assert.deepEqual({ scope: first.scope, owner: first.owner_account_id, provider: first.provider, kind: first.kind, by: first.connected_by, name: first.connected_by_name, refused: first.refused_at },
     { scope: 'personal', owner: A, provider: 'anthropic', kind: 'api_key', by: A, name: NAME, refused: null })
-  assert.equal(await envelope.open(first.secret), 'first-key')
+  assert.equal(await envelope.open(first.secret), 'sk-ant-first-keyxxxxxxxxxxx')
   await query(connection, 'UPDATE model.model_account SET refused_at = connected_at')
-  await accounts.write({ account: { accountId: A, displayName: 'Ana Renomeada' }, credential: ANTHROPIC_OAUTH, secret: 'second-oauth' })
+  await accounts.write({ account: { accountId: A, displayName: 'Ana Renomeada' }, credential: fixtureCredential(ANTHROPIC_OAUTH, 'second-oauth') })
   const rows = await rowsOf()
   assert.equal(rows.length, 1)
   assert.deepEqual({ id: rows[0].model_account_id, kind: rows[0].kind, name: rows[0].connected_by_name, refused: rows[0].refused_at },
     { id: first.model_account_id, kind: 'oauth', name: 'Ana Renomeada', refused: null })
-  assert.equal(await envelope.open(rows[0].secret), 'second-oauth')
+  assert.equal(parseCredential(ANTHROPIC_OAUTH, await envelope.open(rows[0].secret)).value.access, 'second-oauth')
   assert.equal(rows[0].connected_at > first.connected_at, true, 'a new sign-in is a new generation')
 })
 
@@ -89,27 +103,27 @@ test('two concurrent writes for one owner and provider leave one row and one id'
   const { accounts, rowsOf, seedRow } = await setup(t, 'conexus_model_concurrent')
   const id = await seedRow(A, 'anthropic', 'api_key', 'prior')
   await Promise.all([
-    accounts.write({ account: as(A), credential: ANTHROPIC_KEY, secret: 'one' }),
-    accounts.write({ account: as(A), credential: ANTHROPIC_OAUTH, secret: 'two' }),
+    accounts.write({ account: as(A), credential: fixtureCredential(ANTHROPIC_KEY, 'one') }),
+    accounts.write({ account: as(A), credential: fixtureCredential(ANTHROPIC_OAUTH, 'two') }),
   ])
   const rows = await rowsOf()
   assert.deepEqual(rows.map((row) => row.model_account_id), [id])
-  assert.equal(['one', 'two'].includes(await envelope.open(rows[0].secret)), true)
+  assert.equal(['one', 'two'].includes(labelOf(parseCredential(rows[0], await envelope.open(rows[0].secret)))), true)
 })
 
 test('an inactive or unknown account cannot write, and connect answers failed for both and throws for a fault', async (t) => {
   const { accounts, connection, rowsOf } = await setup(t, 'conexus_model_refused')
   await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [C])
-  await assert.rejects(accounts.write({ account: as(C), credential: ANTHROPIC_KEY, secret: 'k' }), { id: 'ACCOUNT_INACTIVE' })
-  await assert.rejects(accounts.write({ account: as(randomUUID()), credential: ANTHROPIC_KEY, secret: 'k' }), { id: 'ACCOUNT_NOT_FOUND' })
+  await assert.rejects(accounts.write({ account: as(C), credential: fixtureCredential(ANTHROPIC_KEY, 'k') }), { id: 'ACCOUNT_INACTIVE' })
+  await assert.rejects(accounts.write({ account: as(randomUUID()), credential: fixtureCredential(ANTHROPIC_KEY, 'k') }), { id: 'ACCOUNT_NOT_FOUND' })
   assert.deepEqual([
-    await accounts.connect({ account: as(C), credential: ANTHROPIC_KEY, secret: 'k' }),
-    await accounts.connect({ account: as(randomUUID()), credential: ANTHROPIC_KEY, secret: 'k' }),
-    await accounts.connect({ account: as(A), credential: ANTHROPIC_KEY, secret: 'k' }),
-  ], [{ ok: false, reason: 'ACCOUNT_INACTIVE' }, { ok: false, reason: 'ACCOUNT_NOT_FOUND' }, { ok: true }])
+    await accounts.connect({ account: as(C), credential: fixtureCredential(ANTHROPIC_KEY, 'k') }),
+    await accounts.connect({ account: as(randomUUID()), credential: fixtureCredential(ANTHROPIC_KEY, 'k') }),
+    await accounts.connect({ account: as(A), credential: fixtureCredential(ANTHROPIC_KEY, 'k') }),
+  ], [{ ok: false, error: { code: 'ACCOUNT_INACTIVE' } }, { ok: false, error: { code: 'ACCOUNT_NOT_FOUND' } }, { ok: true, result: undefined }])
   assert.equal((await rowsOf()).length, 1)
   await query(connection, "ALTER TABLE model.model_account ADD CONSTRAINT refuse_everything CHECK (provider = 'none') NOT VALID")
-  await assert.rejects(accounts.connect({ account: as(A), credential: CODEX, secret: 'k' }), { id: 'INTERNAL_UNEXPECTED' })
+  await assert.rejects(accounts.connect({ account: as(A), credential: fixtureCredential(CODEX, 'k') }), { id: 'INTERNAL_UNEXPECTED' })
 })
 
 test('standing reports each provider with the caller\'s own kind only, and readDefault reads the installation default', async (t) => {
@@ -138,9 +152,9 @@ test('the refresh persists with literal bytes on the row the run recorded; anoth
   assert.equal(held.modelAccountId, row)
   await recordFor(builderRunId, row)
   const reread = await held.read()
-  assert.deepEqual([reread.modelAccountId, reread.secret], [row, 'refresh-old'])
-  assert.equal(await held.persist('{"access":"refreshed","refresh":"r2"}'), true)
-  assert.equal(await secretOf(row), '{"access":"refreshed","refresh":"r2"}')
+  assert.deepEqual([reread.modelAccountId, labelOf(reread.credential)], [row, 'refresh-old'])
+  assert.equal(await held.persist(fixtureCredential(held.credential, 'refreshed')), true)
+  assert.equal(await secretOf(row), 'refreshed')
   assert.equal(await accounts.select({ builderRunId: randomUUID(), accountId: C }, 'openai-codex'), null)
 })
 
@@ -154,13 +168,13 @@ test('a run reads only a row its own run recorded, and a deleted row reads null'
   const heldByY = await accounts.select({ builderRunId: runY, accountId: A }, 'anthropic')
   await recordFor(runY, row)
   assert.equal(await heldByX.read(), null, 'run X recorded nothing, though the row exists and A could read it as a person')
-  assert.equal((await heldByY.read()).secret, 'mine')
+  assert.equal(labelOf((await heldByY.read()).credential), 'mine')
   await query(connection, 'DELETE FROM builder.builder_run_model_account')
   assert.equal(await heldByY.read(), null, 'a run that recorded no model account reads null')
   await recordFor(runY, row)
   await query(connection, 'DELETE FROM model.model_account WHERE model_account_id = $1', [row])
   assert.equal(await heldByY.read(), null)
-  assert.equal(await heldByY.persist('late'), false, 'the rewrite of a deleted row answers false')
+  assert.equal(await heldByY.persist(fixtureCredential(heldByY.credential, 'late')), false, 'the rewrite of a deleted row answers false')
 })
 
 test('a run whose account lost the Project or whose lease another owner took reads null, another account selects nothing, and the executor still persists', async (t) => {
@@ -170,14 +184,14 @@ test('a run whose account lost the Project or whose lease another owner took rea
   const builderRunId = await seedRun(projectId, { accountId: B })
   await recordFor(builderRunId, row)
   const held = await accounts.select({ builderRunId, accountId: B }, 'openai-codex')
-  assert.equal((await held.read()).secret, 'old')
+  assert.equal(labelOf((await held.read()).credential), 'old')
   assert.equal(await accounts.select({ builderRunId, accountId: A }, 'openai-codex'), null, 'an account that is not the run\'s')
   await query(connection, 'UPDATE builder.builder_run SET owner_id = $2 WHERE builder_run_id = $1', [builderRunId, randomUUID()])
   assert.equal(await held.read(), null, 'a run whose lease another instance took')
   await query(connection, 'UPDATE builder.builder_run SET owner_id = $2 WHERE builder_run_id = $1', [builderRunId, OWNER])
   await query(connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1', [B])
   assert.equal(await held.read(), null, 'an account that lost the Project')
-  assert.equal(await held.persist('refreshed-after-loss'), true)
+  assert.equal(await held.persist(fixtureCredential(held.credential, 'refreshed-after-loss')), true)
   assert.equal(await secretOf(row), 'refreshed-after-loss')
 })
 
@@ -190,10 +204,10 @@ test('the refresh persists after the run ends, and a deleted row makes the syste
   await query(connection, "UPDATE builder.builder_run SET state = 'INTERRUPTED', failure_code = 'HUB_RESTART', finished_at = now() WHERE builder_run_id = $1", [builderRunId])
   assert.equal((await runRow(builderRunId)).state, 'INTERRUPTED')
   assert.equal(await held.read(), null, 'the ended run is no longer admitted')
-  assert.equal(await held.persist('refreshed-after-end'), true)
+  assert.equal(await held.persist(fixtureCredential(held.credential, 'refreshed-after-end')), true)
   assert.equal(await secretOf(row), 'refreshed-after-end')
   await query(connection, 'DELETE FROM model.model_account WHERE model_account_id = $1', [row])
-  assert.equal(await held.persist('into-nothing'), false)
+  assert.equal(await held.persist(fixtureCredential(held.credential, 'into-nothing')), false)
 })
 
 test('a local model hold rereads current Project authority and closes the run after membership is revoked', async (t) => {
@@ -204,12 +218,10 @@ test('a local model hold rereads current Project authority and closes the run af
   await recordFor(builderRunId, row)
   const held = await accounts.select({ builderRunId, accountId: A }, 'openai-codex')
   let refreshes = 0
-  const tokens = createTokenHolds({
-    parse: JSON.parse,
-    serialize: JSON.stringify,
-    refresh: async (stored) => { refreshes++; return { ...stored, expires: 100 } },
+  const tokens = createCodexHolds({
+    refresh: async () => { refreshes++; return { ...held.credential.value, expires: 100 } },
     now: () => 10,
-  }).hold(held, { expires: 1, refresh: 'old' })
+  }).hold(held, { ...held.credential.value, expires: 1 })
 
   await query(connection, 'DELETE FROM iam.workspace_membership WHERE account_id = $1 AND workspace_id = $2', [A, ID.workspace])
   await assert.rejects(tokens(), { id: 'BUILDER_MODEL_NOT_SELECTED' })
@@ -225,8 +237,8 @@ test('a key pasted while a run refreshes an OAuth row wins: the refresh persists
   const { accounts, seedRow, rowsOf, secretOf } = await setup(t, 'conexus_model_kind_race')
   const row = await seedRow(A, 'anthropic', 'oauth', 'oauth-tokens')
   const held = await accounts.select({ builderRunId: randomUUID(), accountId: A }, 'anthropic')
-  await accounts.write({ account: as(A), credential: ANTHROPIC_KEY, secret: 'pasted-key' })
-  assert.equal(await held.persist('refreshed-tokens'), false)
+  await accounts.write({ account: as(A), credential: fixtureCredential(ANTHROPIC_KEY, 'pasted-key') })
+  assert.equal(await held.persist(fixtureCredential(held.credential, 'refreshed-tokens')), false)
   assert.equal(await secretOf(row), 'pasted-key')
   assert.deepEqual((await rowsOf()).map((entry) => entry.kind), ['api_key'])
 })
@@ -276,9 +288,9 @@ test('the pooled client remains hub_runtime while the account reader scopes the 
     }
   }
   await seedRow(B, 'anthropic', 'api_key', 'private-of-b')
-  await pooled.write({ account: as(A), credential: ANTHROPIC_KEY, secret: 'committed' })
+  await pooled.write({ account: as(A), credential: fixtureCredential(ANTHROPIC_KEY, 'committed') })
   await runtimeCanRead('after a commit')
-  await assert.rejects(pooled.write({ account: as(randomUUID()), credential: ANTHROPIC_KEY, secret: 'k' }), { id: 'ACCOUNT_NOT_FOUND' })
+  await assert.rejects(pooled.write({ account: as(randomUUID()), credential: fixtureCredential(ANTHROPIC_KEY, 'k') }), { id: 'ACCOUNT_NOT_FOUND' })
   await runtimeCanRead('after a rollback')
   await assert.rejects(single.transaction(A, async (gate) => { await admitAccount(gate); throw new Error('thrown') }), { message: 'thrown' })
   await runtimeCanRead('after a throw')
@@ -296,9 +308,9 @@ test('concurrent upserts beside the unported IAM paths never deadlock under a sh
   const outcomes = []
   for (let round = 0; round < 15; round++) {
     outcomes.push(...await Promise.allSettled([
-      accounts.write({ account: as(A), credential: ANTHROPIC_KEY, secret: `one-${round}` }),
-      accounts.write({ account: as(A), credential: ANTHROPIC_OAUTH, secret: `two-${round}` }),
-      accounts.connect({ account: as(A), credential: CODEX, secret: `codex-${round}` }),
+      accounts.write({ account: as(A), credential: fixtureCredential(ANTHROPIC_KEY, `one-${round}`) }),
+      accounts.write({ account: as(A), credential: fixtureCredential(ANTHROPIC_OAUTH, `two-${round}`) }),
+      accounts.connect({ account: as(A), credential: fixtureCredential(CODEX, `codex-${round}`) }),
       iam(),
       iam(),
     ]))

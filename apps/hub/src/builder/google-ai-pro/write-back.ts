@@ -1,5 +1,5 @@
 import type { HeldAccount } from '../model-account/accounts.js'
-import type { GoogleAiProKey } from './credential.js'
+import type { GoogleAiProKey } from '../model-account/providers.js'
 import type { PersistGoogleAiProRefresh } from './pool.js'
 
 /**
@@ -23,7 +23,7 @@ export function createRefreshWriteBack() {
       if (!held) return undefined
       return async (refreshed) => {
         if (refreshed === key) return
-        if (await held.persist(refreshed)) rowOfKey.delete(key)
+        if (await held.persist({ provider: 'google-ai-pro', kind: 'google_ai_pro', value: refreshed })) rowOfKey.delete(key)
       }
     },
   })

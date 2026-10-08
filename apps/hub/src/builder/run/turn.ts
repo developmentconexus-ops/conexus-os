@@ -1,3 +1,4 @@
+import type { ModelId } from '@conexus/contract'
 import type { AgentController } from '@mastra/core/agent-controller'
 import { RequestContext } from '@mastra/core/request-context'
 import type { LiveConversations } from '../conversation.js'
@@ -38,7 +39,7 @@ export const createControllerRunSessions = ({ controller, conversations, readDef
   /** How long Mastra may take to store a question, or to let go of a thread whose question ended. */
   questionReleaseMs?: number
   /** The installation's default Builder model, which a conversation with no model of its own starts on. */
-  readDefaultModel(accountId: AccountId): Promise<string | null>
+  readDefaultModel(accountId: AccountId): Promise<ModelId | null>
 }>): BuilderRunPorts['openSession'] => async ({ projectId, conversationId, bindContext }) => {
   const requestContext = new RequestContext()
   bindContext(requestContext)

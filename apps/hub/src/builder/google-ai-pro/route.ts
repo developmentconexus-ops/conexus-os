@@ -1,10 +1,10 @@
+import type { GoogleAiProKey } from '../model-account/providers.js'
 import { createGoogleThinkingMiddleware } from '@mastra/code-sdk/providers/google-thinking'
 import { ModelsDevGateway } from '@mastra/core/llm'
 import type { LanguageModelMiddleware } from 'ai'
 import type { HeldAccount } from '../model-account/accounts.js'
 import { MODEL_PROVIDERS } from '../model-account/providers.js'
 import { wrapGatewayModel, type ModelRoute } from '../model-routing.js'
-import { parseKey, type GoogleAiProKey } from './credential.js'
 import { Failure } from '../../platform/failure.js'
 
 /** The provider Mastra's models.dev gateway builds Gemini's own API client for. */
@@ -53,8 +53,7 @@ export const createGoogleAiProRoute = ({ routerUrl, track }: Readonly<{
 }>): ModelRoute<'google-ai-pro'> => Object.freeze({
   accountProvider: 'google-ai-pro',
   take: (held) => {
-    const key = parseKey(held.secret)
-    if (!key) throw new Failure('GOOGLE_AI_PRO_STORED_RECORD_REFUSED')
+    const key = held.credential.value
     track(key, held)
     return {
       modelProvider: MODEL_PROVIDERS['google-ai-pro'].routerPrefix,

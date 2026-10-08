@@ -44,7 +44,9 @@ export const defaultBuilderSkillsRoot = (cwd: string = process.cwd()): string =>
 const NATIVE_WEB_SEARCH_PROVIDERS: ReadonlySet<string> = new Set(['openai', 'anthropic', 'google', 'xai'])
 
 /** The provider id embedded in a `provider/model` string, or the whole string when it carries none. */
-const providerOf = (modelString: string): string => parseModelString(modelString).provider ?? modelString
+function providerOf(modelString: string): string {
+  return parseModelString(modelString).provider ?? modelString
+}
 
 /** The provider id of whatever `MastraModelConfig` shape a run resolves to: a `provider/model` router string or config, or an already-built language model. */
 const resolveModelProviderId = (model: MastraModelConfig): string | undefined => {

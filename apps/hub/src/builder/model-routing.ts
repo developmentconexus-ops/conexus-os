@@ -3,11 +3,11 @@ import { type GatewayLanguageModel, type MastraModelConfig, parseModelString } f
 import type { RequestContext } from '@mastra/core/request-context'
 import { wrapLanguageModel, type LanguageModelMiddleware } from 'ai'
 import { readSessionModelId, readSessionThinkingLevel } from './harness/request-context.js'
-import type { HeldAccount, ModelAccounts, ModelRole } from './model-account/accounts.js'
-import { isRouterPrefix, type MODEL_PROVIDERS, type Lawful } from './model-account/providers.js'
+import type { HeldAccount, ModelAccounts } from './model-account/accounts.js'
+import { isRouterPrefix, type MODEL_PROVIDERS, type Credential } from './model-account/providers.js'
 import { Failure } from '../platform/failure.js'
 import { requireRunContext } from './run-context.js'
-import type { AccountId, BuilderRunId, ConversationId, ModelAccountId, ModelAccountProvider, ProjectId } from '@conexus/contract'
+import type { AccountId, BuilderRunId, ConversationId, ModelAccountId, ModelAccountProvider, ProjectId, ModelRole, ModelId } from '@conexus/contract'
 
 type Taken = Readonly<{ modelProvider: string; model(modelName: string, thinkingLevel?: ThinkingLevelSetting): Promise<MastraModelConfig> }>
 
@@ -18,7 +18,7 @@ type Taken = Readonly<{ modelProvider: string; model(modelName: string, thinking
  */
 export type ModelRoute<P extends ModelAccountProvider = ModelAccountProvider> = Readonly<{
   accountProvider: P
-  take(held: HeldAccount<Extract<Lawful, { provider: P }>>): Taken
+  take(held: HeldAccount<Extract<Credential, { provider: P }>>): Taken
 }>
 
 export type ModelRoutes = { readonly [P in ModelAccountProvider as (typeof MODEL_PROVIDERS)[P]['routerPrefix']]: ModelRoute<P> }
@@ -42,7 +42,7 @@ function takeFrom(routes: ModelRoutes, held: HeldAccount): Taken {
   }
 }
 
-function routeOf(routes: ModelRoutes, modelId: string): ModelRoutes[keyof ModelRoutes] | undefined {
+function routeOf(routes: ModelRoutes, modelId: ModelId): ModelRoutes[keyof ModelRoutes] | undefined {
   const prefix = parseModelString(modelId).provider ?? ''
   return isRouterPrefix(prefix) ? routes[prefix] : undefined
 }
@@ -60,16 +60,16 @@ export const createModelRouting = ({ routes, modelAccounts, conversationModel, r
   routes: ModelRoutes
   modelAccounts: Pick<ModelAccounts, 'usable' | 'select'>
   /** The model in the conversation's Mastra session, or null when it has none yet. */
-  conversationModel(accountId: AccountId, projectId: ProjectId, conversationId: ConversationId): Promise<string | null>
-  readDefault(accountId: AccountId, role: ModelRole): Promise<string | null>
+  conversationModel(accountId: AccountId, projectId: ProjectId, conversationId: ConversationId): Promise<ModelId | null>
+  readDefault(accountId: AccountId, role: ModelRole): Promise<ModelId | null>
   /** Records the account that paid for one call of the run; the run id and the paying account are what the run's request context carried. */
   record(builderRunId: BuilderRunId, accountId: AccountId, modelAccountId: ModelAccountId): Promise<void>
 }>) => {
-  const check = async (accountId: AccountId, modelId: string | null): Promise<void> => {
+  const check = async (accountId: AccountId, modelId: ModelId | null): Promise<void> => {
     const route = modelId ? routeOf(routes, modelId) : undefined
     if (!route || !await modelAccounts.usable(accountId, route.accountProvider)) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
   }
-  const call = async (requestContext: RequestContext, modelId: string | null, thinkingLevel?: ThinkingLevelSetting): Promise<MastraModelConfig> => {
+  const call = async (requestContext: RequestContext, modelId: ModelId | null, thinkingLevel?: ThinkingLevelSetting): Promise<MastraModelConfig> => {
     const run = requireRunContext(requestContext)
     const route = modelId ? routeOf(routes, modelId) : undefined
     const held = route ? await modelAccounts.select(run, route.accountProvider) : null

@@ -1,8 +1,9 @@
+import type { Credential } from './model-account/providers.js'
 import type { HeldAccount } from './model-account/accounts.js'
 import { Failure } from '../platform/failure.js'
 
 /** A subscription's tokens as far as holding them needs: when the access token stops working. */
-type Expiring = Readonly<{ expires: number }>
+type Expiring = Extract<Credential, { kind: 'oauth' }>['value']
 
 export type TokenHolds<T extends Expiring> = Readonly<{
   /** The live tokens one model call uses, starting from the tokens that call read from the row. */
@@ -16,9 +17,9 @@ export type TokenHolds<T extends Expiring> = Readonly<{
  * token is written back to the row before any call uses it, so a run that ends, or a Hub that
  * stops, never takes the only copy with it (AC-22).
  */
-export function createTokenHolds<T extends Expiring>({ parse, serialize, refresh, now = Date.now }: Readonly<{
-  parse(secret: string): T
-  serialize(tokens: T): string
+export function createTokenHolds<T extends Expiring>({ tokens, credential, refresh, now = Date.now }: Readonly<{
+  tokens(credential: Credential): T
+  credential(tokens: T): Credential
   refresh(stored: T): Promise<T>
   now?: () => number
 }>): TokenHolds<T> {
@@ -27,21 +28,21 @@ export function createTokenHolds<T extends Expiring>({ parse, serialize, refresh
   async function renew(held: HeldAccount): Promise<T> {
     const row = await held.read()
     if (!row) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
-    const stored = parse(row.secret)
+    const stored = tokens(row.credential)
     if (now() < stored.expires) return stored
     const refreshed = await refresh(stored)
-    if (!await held.persist(serialize(refreshed))) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
+    if (!await held.persist(credential(refreshed))) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
     return refreshed
   }
 
   return Object.freeze({
-    hold: (held, tokens) => {
-      let current = tokens
+    hold: (held, initial) => {
+      let current = initial
       return async () => {
         if (now() < current.expires) return current
         const row = await held.read()
         if (!row) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
-        const stored = parse(row.secret)
+        const stored = tokens(row.credential)
         if (now() < stored.expires) {
           current = stored
           return current

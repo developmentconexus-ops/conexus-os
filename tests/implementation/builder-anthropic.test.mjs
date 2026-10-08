@@ -6,10 +6,12 @@ import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 import { hubJsonWrite, opaque, testListener } from './access/test-listener.mjs'
 import { fakeModelAccounts } from './model-accounts-fake.mjs'
 
+const { parseCredential, encodeCredential } = await import(hubModuleUrl('builder/model-account/providers.js'))
+
 const built = hubModuleUrl
 const { registerModelAccountRoutes } = await import(built('builder/model-accounts.js'))
 const { createModelRouting } = await import(built('builder/model-routing.js'))
-const { createClaudeHolds, parseClaudeTokens, serializeClaudeTokens } = await import(built('builder/anthropic/credential.js'))
+const { createClaudeHolds } = await import(built('builder/anthropic/credential.js'))
 const { createAnthropicRoute } = await import(built('builder/anthropic/route.js'))
 
 const SESSION_TOKEN = opaque('ana')
@@ -26,7 +28,7 @@ const fakeKey = `sk-ant-api03-${'x'.repeat(40)}`
 const tokens = (label, expires) => ({ access: `access-${label}`, refresh: `refresh-${label}`, expires })
 
 const NAMES = { [ana]: 'Ana', [bia]: 'Bia' }
-const write = (modelAccounts, accountId, kind, secret) => modelAccounts.write({ account: { accountId, displayName: NAMES[accountId] }, credential: { provider: 'anthropic', kind }, secret })
+const write = (modelAccounts, accountId, kind, secret) => modelAccounts.write({ account: { accountId, displayName: NAMES[accountId] }, credential: parseCredential({ provider: 'anthropic', kind }, secret) })
 
 // Anthropic's authorization endpoints, scripted: the pasted code `good#verifier-N` is the one Anthropic accepts.
 const fakeAuthorization = () => {
@@ -117,7 +119,7 @@ test('signing in with a Claude subscription takes the pasted code, stores the to
   assert.deepEqual(exchanged, [['typo#verifier-1', 'verifier-1'], ['good#verifier-1', 'verifier-1']], 'the verifier never left the Hub, and each paste was exchanged with it')
 
   assert.deepEqual(rowsOf(rows), [{ owner: ana, connectedByName: 'Ana', provider: 'anthropic', kind: 'oauth' }])
-  assert.deepEqual(parseClaudeTokens([...rows.values()][0].secret), tokens('signed-in', 9_999_999_999_999))
+  assert.deepEqual(parseCredential({ provider: 'anthropic', kind: 'oauth' }, [...rows.values()][0].secret).value, tokens('signed-in', 9_999_999_999_999))
   const listed = await accounts(app)
   assert.deepEqual(listed.json().accounts[1], { provider: 'anthropic', providerName: 'Anthropic (Claude)', own: { state: 'connected', kind: 'oauth' } })
   assert.deepEqual(await completeClaude(app, started.loginId, 'good#verifier-1'), { state: 'expired' }, 'a finished sign-in is gone')
@@ -165,7 +167,7 @@ test("the picker offers every chat model of Mastra's catalog to a person with ei
     'claude-opus-5-5': 'off low medium high xhigh max',
     'claude-sonnet-4-6': 'off low medium high max',
   })
-  await write(modelAccounts, ana, 'oauth', serializeClaudeTokens(tokens('signed-in', 1)))
+  await write(modelAccounts, ana, 'oauth', encodeCredential({ ...{ provider: 'anthropic', kind: 'oauth' }, value: tokens('signed-in', 1) }))
   assert.deepEqual(await offered(), claude)
   as(bia)
   assert.deepEqual(await offered(), [], "another person's account offers nothing")
@@ -232,7 +234,7 @@ test('an Anthropic key pays on the Messages endpoint with the caller\'s key, and
 
 test('a Claude subscription pays with its bearer on the Messages endpoint, with the betas and identity message Mastra Code sends and no key header', async (t) => {
   const { modelAccounts } = fakeModelAccounts()
-  await write(modelAccounts, ana, 'oauth', serializeClaudeTokens(tokens('live', 9_999_999_999_999)))
+  await write(modelAccounts, ana, 'oauth', encodeCredential({ ...{ provider: 'anthropic', kind: 'oauth' }, value: tokens('live', 9_999_999_999_999) }))
   const seen = recordUpstream(t)
   const { call } = routingOver({ modelAccounts })
   const model = await call(RUN_1, ana, 'anthropic/claude-opus-5-5')
@@ -249,7 +251,7 @@ test('a Claude subscription pays with its bearer on the Messages endpoint, with 
 
 test('an expired Claude token is refreshed once, written back to the row, and the request carries the new one (AC-22)', async (t) => {
   const { modelAccounts, rows } = fakeModelAccounts()
-  await write(modelAccounts, ana, 'oauth', serializeClaudeTokens(tokens('old', 1_000)))
+  await write(modelAccounts, ana, 'oauth', encodeCredential({ ...{ provider: 'anthropic', kind: 'oauth' }, value: tokens('old', 1_000) }))
   const refreshes = []
   const holds = createClaudeHolds({ now: () => 2_000, refresh: async (refreshToken) => { refreshes.push(refreshToken); return tokens('new', 10_000) } })
   const seen = recordUpstream(t)
@@ -258,6 +260,6 @@ test('an expired Claude token is refreshed once, written back to the row, and th
   await assert.rejects(model.doStream({ prompt }))
   await assert.rejects(model.doStream({ prompt }))
   assert.deepEqual(refreshes, ['refresh-old'])
-  assert.deepEqual(parseClaudeTokens(rows.get(`${ana}:anthropic`).secret), tokens('new', 10_000))
+  assert.deepEqual(parseCredential({ provider: 'anthropic', kind: 'oauth' }, rows.get(`${ana}:anthropic`).secret).value, tokens('new', 10_000))
   assert.deepEqual(seen.map(({ authorization }) => authorization), ['Bearer access-new', 'Bearer access-new'])
 })

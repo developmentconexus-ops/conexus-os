@@ -1,3 +1,4 @@
+import { parseModelId } from './model-account/providers.js'
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import type { ToolsInput } from '@mastra/core/agent'
@@ -11,7 +12,7 @@ import { gitUnavailableAs } from '../platform/git-failure.js'
 import type { Job } from '../platform/jobs.js'
 import { logLine } from '../platform/logger.js'
 import { createSecretEnvelope, readSecretFile } from '../platform/secrets.js'
-import type { AccountId, BuilderRunId, ConversationId, ProjectId, BuilderTraceSummary } from '@conexus/contract'
+import type { ModelId, AccountId, BuilderRunId, ConversationId, ProjectId, BuilderTraceSummary } from '@conexus/contract'
 import { registerBuilderRoutes } from './routes.js'
 import { mountLogFilter, mountValidationFailure, registerBuilderSessionRoutes } from './mastra-session-routes.js'
 import type { ToolPayloadProjection } from './mastra-session-routes.js'
@@ -195,10 +196,10 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
     return liveConversations.open(ref)
   }
   // The conversation's model is the one in its Mastra session, never a copy of Mastra's thread keys.
-  const conversationModel = async (accountId: AccountId, projectId: ProjectId, conversationId: ConversationId): Promise<string | null> => {
+  const conversationModel = async (accountId: AccountId, projectId: ProjectId, conversationId: ConversationId): Promise<ModelId | null> => {
     const session = await conversationSession({ accountId, projectId, conversationId })
     await session.thread.loadMetadata()
-    return session.model.hasSelection() ? session.model.get() : null
+    return session.model.hasSelection() ? parseModelId(session.model.get()) : null
   }
   const conversations = createConversations(async () => {
     const memory = await mastra.getStorage()?.getStore('memory')

@@ -61,7 +61,7 @@ const probeRouting = (script = [], onObserverPrompt = () => {}, titleDelayMs = 0
   })
   const routing = createModelRouting({
     routes: { anthropic: { accountProvider: 'anthropic', take: (account) => ({ modelProvider: 'probe', model: async (name) => model(name, account.modelAccountId) }) } },
-    modelAccounts: oneAccount({ modelAccountId: `acct-${ana}`, provider: 'anthropic', kind: 'api_key', secret: 'x' }),
+    modelAccounts: oneAccount({ modelAccountId: `acct-${ana}`, provider: 'anthropic', kind: 'api_key', secret: 'sk-ant-xxxxxxxxxxxxxxxxxxxx' }),
     conversationModel: async () => null,
     readDefault: async (_accountId, role) => role === 'memory' ? 'anthropic/observer' : 'anthropic/main',
     record: async (builderRunId, _accountId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },

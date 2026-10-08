@@ -2,12 +2,12 @@ import { createAnthropicThinkingMiddleware, opencodeClaudeMaxProvider, promptCac
 import type { ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import { ModelsDevGateway, type MastraModelConfig } from '@mastra/core/llm'
 import type { HeldAccount } from '../model-account/accounts.js'
-import { MODEL_PROVIDERS, type Lawful } from '../model-account/providers.js'
+import { MODEL_PROVIDERS, type Credential, type ClaudeTokens } from '../model-account/providers.js'
 import { wrapGatewayModel, type ModelRoute } from '../model-routing.js'
 import type { TokenHolds } from '../oauth-holds.js'
-import { heldClaudeCredentials, parseClaudeTokens, type ClaudeTokens } from './credential.js'
+import { heldClaudeCredentials } from './credential.js'
 
-type AnthropicAccount = HeldAccount<Extract<Lawful, { provider: 'anthropic' }>>
+type AnthropicAccount = HeldAccount<Extract<Credential, { provider: 'anthropic' }>>
 type ModelOf = (modelName: string, thinkingLevel?: ThinkingLevelSetting) => Promise<MastraModelConfig>
 
 const ANTHROPIC_PREFIX = MODEL_PROVIDERS.anthropic.routerPrefix
@@ -21,13 +21,14 @@ const ANTHROPIC_PREFIX = MODEL_PROVIDERS.anthropic.routerPrefix
  * bearer with the betas and the identity system message its endpoint requires.
  */
 function modelOf(holds: TokenHolds<ClaudeTokens>, held: AnthropicAccount): ModelOf {
-  switch (held.credential.kind) {
+  const credential = held.credential
+  switch (credential.kind) {
     case 'api_key': return async (modelName, thinkingLevel) => wrapGatewayModel(
-      await new ModelsDevGateway().resolveLanguageModel({ providerId: ANTHROPIC_PREFIX, modelId: modelName, apiKey: held.secret }),
+      await new ModelsDevGateway().resolveLanguageModel({ providerId: ANTHROPIC_PREFIX, modelId: modelName, apiKey: credential.value }),
       [promptCacheMiddleware, createAnthropicThinkingMiddleware(modelName, thinkingLevel)],
     )
     case 'oauth': {
-      const credentials = heldClaudeCredentials(holds.hold(held, parseClaudeTokens(held.secret)))
+      const credentials = heldClaudeCredentials(holds.hold(held, credential.value))
       return async (modelName, thinkingLevel) => opencodeClaudeMaxProvider(modelName, { authStorage: credentials, ...thinkingLevel ? { thinkingLevel } : {} })
     }
   }

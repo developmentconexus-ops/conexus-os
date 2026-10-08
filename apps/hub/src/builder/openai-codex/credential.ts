@@ -1,38 +1,23 @@
 import { refreshOpenAICodexToken } from '@mastra/code-sdk/auth/providers/openai-codex'
-import { z } from 'zod'
-import type { CredentialStore, OAuthCredentials } from '@mastra/code-sdk/auth/types'
+import { toCodexTokens, type CodexTokens } from '../model-account/providers.js'
+import type { CredentialStore, OAuthCredentials, OAuthCredential } from '@mastra/code-sdk/auth/types'
 import { createTokenHolds, type TokenHolds } from '../oauth-holds.js'
 import { Failure } from '../../platform/failure.js'
 
-/** A ChatGPT subscription's tokens as Mastra Code stores them (`OAuthCredentials` minus its `type`). */
-export type CodexTokens = Readonly<{ access: string; refresh: string; expires: number; accountId: string; email?: string }>
-
-/** Mastra's sign-in and refresh answer with an open `OAuthCredentials`; the row keeps the fields a call needs. */
-export const toCodexTokens = (credentials: OAuthCredentials): CodexTokens => {
-  const { access, refresh, expires, accountId, email } = credentials
-  if (typeof access !== 'string' || typeof refresh !== 'string' || typeof expires !== 'number' || typeof accountId !== 'string') throw new Failure('OPENAI_CODEX_STORED_RECORD_REFUSED')
-  return Object.freeze({ access, refresh, expires, accountId, ...(typeof email === 'string' ? { email } : {}) })
-}
-
-/** The row's secret: the tokens in Mastra Code's stored credential shape. */
-export const serializeCodexTokens = (tokens: CodexTokens): string => JSON.stringify({ type: 'oauth', ...tokens })
-
-const storedCodexRecord = z.looseObject({ type: z.literal('oauth'), access: z.string(), refresh: z.string(), expires: z.number(), accountId: z.string() })
-
-export const parseCodexTokens = (secret: string): CodexTokens => {
-  const parsed = storedCodexRecord.safeParse(JSON.parse(secret))
-  if (!parsed.success) throw new Failure('OPENAI_CODEX_STORED_RECORD_REFUSED')
-  return toCodexTokens(parsed.data)
-}
-
-/** A ChatGPT row held by runs; refreshed and written back as `createTokenHolds` says. */
-export const createCodexHolds = ({ refresh = refreshOpenAICodexToken, now = Date.now }: Readonly<{
+export function createCodexHolds({ refresh = refreshOpenAICodexToken, now = Date.now }: Readonly<{
   refresh?: (refreshToken: string, accountId: string, email?: string) => Promise<OAuthCredentials>
   now?: () => number
-}>): TokenHolds<CodexTokens> => createTokenHolds({
-  now, parse: parseCodexTokens, serialize: serializeCodexTokens,
-  refresh: async (stored) => toCodexTokens(await refresh(stored.refresh, stored.accountId, stored.email)),
-})
+}>): TokenHolds<CodexTokens> {
+  return createTokenHolds({
+    now,
+    tokens: (credential) => {
+      if (credential.provider !== 'openai-codex') throw new Failure('BUILDER_MODEL_NOT_SELECTED')
+      return credential.value
+    },
+    credential: (value) => ({ provider: 'openai-codex', kind: 'oauth', value }),
+    refresh: async (stored) => toCodexTokens(await refresh(stored.refresh, stored.accountId, stored.email ?? undefined)),
+  })
+}
 
 /**
  * The credential source Mastra Code's Codex provider reads on every request (`CredentialStore`,
@@ -43,8 +28,12 @@ export const createCodexHolds = ({ refresh = refreshOpenAICodexToken, now = Date
 export const heldCodexCredentials = (initial: CodexTokens, current: () => Promise<CodexTokens>): CredentialStore => Object.freeze({
   allowEnvironmentFallback: false,
   reload: () => undefined,
-  get: (provider: string) => provider === 'openai-codex' ? { type: 'oauth' as const, ...initial } : undefined,
+  get: (provider: string) => provider === 'openai-codex' ? nativeCodexRecord(initial) : undefined,
   getStoredApiKey: () => undefined,
   getApiKey: async () => (await current()).access,
-  getOAuthCredential: async () => ({ type: 'oauth' as const, ...await current() }),
+  getOAuthCredential: async () => nativeCodexRecord(await current()),
 })
+
+function nativeCodexRecord({ email, ...tokens }: CodexTokens): OAuthCredential {
+  return { type: 'oauth', ...tokens, ...email === null ? {} : { email } }
+}

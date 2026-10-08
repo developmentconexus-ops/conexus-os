@@ -10,8 +10,10 @@ import { hubModuleUrl } from './hub-build.mjs'
 import { hubJsonWrite, hubWrite, opaque, testListener } from './access/test-listener.mjs'
 import { fakeModelAccounts } from './model-accounts-fake.mjs'
 
+const { GoogleAiProKey, parseCredential, encodeCredential } = await import(hubModuleUrl('builder/model-account/providers.js'))
+
 const built = hubModuleUrl
-const { encodeKey, decodeKey, parseKey, instanceIdOf } = await import(built('builder/google-ai-pro/credential.js'))
+const { encodeKey, decodeKey, instanceIdOf } = await import(built('builder/google-ai-pro/credential.js'))
 const { createCliproxyPool, verifyCliproxyBinary } = await import(built('builder/google-ai-pro/pool.js'))
 const { startModelRouter } = await import(built('builder/google-ai-pro/router.js'))
 const { createRefreshWriteBack } = await import(built('builder/google-ai-pro/write-back.js'))
@@ -61,7 +63,7 @@ const until = async (predicate, ms = 5_000) => {
 test('a credential carries the auth record whole, and only a well-formed Antigravity record parses', () => {
   const key = encodeKey(record('ana@example.com'))
   assert.equal(key.startsWith('cxagy1.'), true)
-  assert.equal(parseKey(key), key)
+  assert.equal(GoogleAiProKey.parse(key), key)
   const decoded = decodeKey(key)
   assert.equal(decoded.fileName, 'antigravity-ana@example.com.json')
   assert.deepEqual(JSON.parse(Buffer.from(decoded.bytes).toString()), { type: 'antigravity', refresh_token: 'refresh-ana@example.com' })
@@ -75,7 +77,7 @@ test('a credential carries the auth record whole, and only a well-formed Antigra
     `cxagy1.${encoded('antigravity-a.json')}.${encoded('{"type":"codex"}')}`,
     `cxagy1.${encoded('antigravity-a.json')}.${encoded('not json')}`,
     `cxagy1.${encoded('antigravity-a.json')}`,
-  ]) assert.equal(parseKey(refused), null, refused)
+  ]) assert.equal(GoogleAiProKey.safeParse(refused).success, false, refused)
   assert.throws(() => encodeKey({ fileName: '.oauth-antigravity-state.oauth', bytes: new Uint8Array([1]) }), { id: 'GOOGLE_AI_PRO_RECORD_REFUSED' })
 })
 
@@ -263,7 +265,7 @@ test('explicit pool and router close stop the proxy, write refreshed bytes, remo
 test("a call through the router writes the refreshed record back to the caller's model account row by id, once (AC-22)", async (t) => {
   const { binary, stateDir } = scratch(t)
   const rewrites = []
-  const heldRow = { modelAccountId: 'row-ana', persist: async (secret) => { rewrites.push(['row-ana', secret]); return true } }
+  const heldRow = { modelAccountId: 'row-ana', persist: async (credential) => { const secret = encodeCredential(credential); rewrites.push(['row-ana', secret]); return true } }
   const writeBack = createRefreshWriteBack()
   const pool = openPool(t, { binary, stateDir, idleMs: 0 })
   const router = await openRouter(t, pool, writeBack.persistFor)
@@ -285,7 +287,7 @@ test("a call through the router writes the refreshed record back to the caller's
 test('an unrefreshed record, or one whose row is not known, writes nothing back', async (t) => {
   const { binary, stateDir } = scratch(t)
   const rewrites = []
-  const heldRow = { modelAccountId: 'row-ana', persist: async (secret) => { rewrites.push(['row-ana', secret]); return true } }
+  const heldRow = { modelAccountId: 'row-ana', persist: async (credential) => { const secret = encodeCredential(credential); rewrites.push(['row-ana', secret]); return true } }
   const writeBack = createRefreshWriteBack()
   const pool = openPool(t, { binary, stateDir, idleMs: 0 })
   const router = await openRouter(t, pool, writeBack.persistFor)
@@ -400,7 +402,7 @@ test('signing in from Settings stores the record as the person\'s own model.mode
   const written = [...rows.values()]
   assert.equal(written.length, 1)
   assert.deepEqual([written[0].owner, written[0].connectedByName], [ana, 'Ana'])
-  const stored = decodeKey(parseKey(written[0].secret))
+  const stored = decodeKey(parseCredential({ provider: 'google-ai-pro', kind: 'google_ai_pro' }, written[0].secret).value)
   assert.equal(stored.fileName, 'antigravity-person@example.com.json')
   assert.deepEqual(JSON.parse(Buffer.from(stored.bytes).toString()), { type: 'antigravity', refresh_token: 'refresh-from-google' })
   assert.deepEqual(readdirSync(stateDir), [], 'the sign-in proxy and its copy of the record are gone')

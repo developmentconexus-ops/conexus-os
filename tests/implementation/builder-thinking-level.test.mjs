@@ -4,9 +4,11 @@ import { RequestContext } from '@mastra/core/request-context'
 import { hubModuleUrl } from './hub-build.mjs'
 import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 
+const { parseCredential, encodeCredential } = await import(hubModuleUrl('builder/model-account/providers.js'))
+
 const { createModelRouting } = await import(hubModuleUrl('builder/model-routing.js'))
 const { createAnthropicRoute } = await import(hubModuleUrl('builder/anthropic/route.js'))
-const { createClaudeHolds, serializeClaudeTokens } = await import(hubModuleUrl('builder/anthropic/credential.js'))
+const { createClaudeHolds } = await import(hubModuleUrl('builder/anthropic/credential.js'))
 const { createOpenAICodexRoute } = await import(hubModuleUrl('builder/openai-codex/route.js'))
 const { createGoogleAiProRoute } = await import(hubModuleUrl('builder/google-ai-pro/route.js'))
 const { encodeKey } = await import(hubModuleUrl('builder/google-ai-pro/credential.js'))
@@ -20,10 +22,10 @@ const prompt = [{ role: 'system', content: 'Seja breve.' }, { role: 'user', cont
 // The rows each route is paid by, one per provider; a stand-in for model.model_account.
 const rows = {
   anthropic: { modelAccountId: 'row-anthropic', kind: 'api_key', secret: anthropicKey },
-  'openai-codex': { modelAccountId: 'row-codex', kind: 'oauth', secret: JSON.stringify({ type: 'oauth', access: 'access-ana', refresh: 'refresh-ana', expires: 9_999_999_999_999, accountId: 'acct-ana' }) },
+  'openai-codex': { modelAccountId: 'row-codex', kind: 'oauth', secret: JSON.stringify({ type: 'oauth', access: 'access-ana', refresh: 'refresh-ana', expires: 9_999_999_999_999, accountId: 'acct-ana', email: null }) },
   'google-ai-pro': { modelAccountId: 'row-google', kind: 'google_ai_pro', secret: googleKey },
 }
-const claudeSubscription = { modelAccountId: 'row-claude', kind: 'oauth', secret: serializeClaudeTokens({ access: 'access-ana', refresh: 'refresh-ana', expires: 9_999_999_999_999 }) }
+const claudeSubscription = { modelAccountId: 'row-claude', kind: 'oauth', secret: encodeCredential({ ...{ provider: 'anthropic', kind: 'oauth' }, value: { access: 'access-ana', refresh: 'refresh-ana', expires: 9_999_999_999_999 } }) }
 
 const routingOver = (anthropicRow = rows.anthropic) => createModelRouting({
   routes: {
@@ -35,7 +37,7 @@ const routingOver = (anthropicRow = rows.anthropic) => createModelRouting({
     usable: async (_owner, provider) => (provider === 'anthropic' ? anthropicRow : rows[provider]) !== undefined,
     select: async (run, provider) => {
       const row = provider === 'anthropic' ? anthropicRow : rows[provider]
-      return row ? { modelAccountId: row.modelAccountId, credential: { provider, kind: row.kind }, secret: row.secret, run, read: async () => null, persist: async () => false } : null
+      return row ? { modelAccountId: row.modelAccountId, credential: parseCredential({ provider, kind: row.kind }, row.secret), run, read: async () => null, persist: async () => false } : null
     },
   },
   conversationModel: async () => null,

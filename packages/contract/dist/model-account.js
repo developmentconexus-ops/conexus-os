@@ -3,6 +3,7 @@ import { ModelLoginId } from './ids.js';
 import { operation } from './operation.js';
 export const ModelAccountProvider = z.enum(['anthropic', 'openai-codex', 'google-ai-pro']).meta({ id: 'ModelAccountProvider' });
 export const ModelAccountKind = z.enum(['api_key', 'oauth', 'google_ai_pro']).meta({ id: 'ModelAccountKind' });
+export const ModelRole = z.enum(['build', 'memory']);
 export const ApiKeyProvider = z.enum(['anthropic']).meta({ id: 'ApiKeyProvider' });
 export const THINKING_LEVELS = ['off', 'low', 'medium', 'high', 'xhigh', 'max'];
 export const ThinkingLevel = z.enum(THINKING_LEVELS).meta({ id: 'ThinkingLevel' });

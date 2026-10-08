@@ -1,3 +1,4 @@
+import { isAuthFileName, type GoogleAiProKey } from '../model-account/providers.js'
 import { type ChildProcess, spawn } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
 import { createReadStream } from 'node:fs'
@@ -7,7 +8,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { z } from 'zod'
-import { decodeKey, encodeKey, type GoogleAiProKey, type InstanceId, instanceIdOf, isAuthFileName } from './credential.js'
+import { decodeKey, encodeKey, type InstanceId, instanceIdOf } from './credential.js'
 import { Failure } from '../../platform/failure.js'
 
 type Ready = {
