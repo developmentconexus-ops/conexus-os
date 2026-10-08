@@ -18,12 +18,8 @@ const TYPES = ['string', 'integer', 'number', 'boolean', 'object', 'array']
 const admits = (type, key) => {
   const schema = { type, [key]: null }
   const manifest = { operations: { probe: { handler: 'handlers/a.ts', export: 'probe', input: { type: 'object', properties: { field: schema }, additionalProperties: false }, output: { type: 'boolean' } } } }
-  try {
-    admitManifest(manifest, 'source')
-    return true
-  } catch (error) {
-    return !error.message.endsWith(`unknown key "${key}"`)
-  }
+  const admitted = admitManifest(manifest, 'source')
+  return admitted.ok || admitted.error.diagnostic !== `unknown key "${key}"`
 }
 
 const skillTable = () => {

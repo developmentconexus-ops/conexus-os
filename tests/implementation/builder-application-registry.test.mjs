@@ -8,8 +8,8 @@ const { seal, contentsOf } = await import(hubModuleUrl('registry/seal.js'))
 const projectId = '22222222-2222-4222-8222-222222222222'
 const executionId = '33333333-3333-4333-8333-333333333333'
 const sourceRevision = 'a'.repeat(40)
-const templateRef = '537fnzf4c16x9d7oz21k:3331a697-459d-44d8-bcdd-abade6ba1e81'
-const recipeSha256 = 'ce2a48f54c08ccdd7641fac8208560963cf43ecdc16bd459a3f333786d1ed4b5'
+const templateRef = '537fnzf4c16x9d7oz21k:419afad1-5af3-405c-9a52-3f6dc81dee5c'
+const recipeSha256 = 'aba3957596f114f821e290dd89416aba2fa1785fc34cb5162a899de759e84ffc'
 const run = { projectId, builderRunId: executionId, sourceRevision }
 const fileOf = (path, mediaType, text) => {
   const bytes = Buffer.from(text)
@@ -31,6 +31,8 @@ test('seal refuses a build that is not the run, the template pin, or a well form
   refusal(outcome(), { ...run, sourceRevision: 'b'.repeat(40) })
   refusal(outcome([index], { executionId: '44444444-4444-4444-8444-444444444444' }))
   refusal(outcome([index], { templateRef: '537fnzf4c16x9d7oz21k:5591435e-3021-436b-926b-366ddc7e7189', recipeSha256: '74a04791ab9691c48e3f4fbff7aa84e8e3ef1b600d38a585e243fff21e5adebf' }))
+  refusal(outcome([index], { templateRef: '537fnzf4c16x9d7oz21k:3331a697-459d-44d8-bcdd-abade6ba1e81' }))
+  refusal(outcome([index], { recipeSha256: 'ce2a48f54c08ccdd7641fac8208560963cf43ecdc16bd459a3f333786d1ed4b5' }))
   refusal(outcome([fileOf('app.js', 'text/javascript; charset=utf-8', 'x')]))
   refusal(outcome([index, index]))
   refusal(outcome([{ ...index, sha256: 'f'.repeat(64) }]))
@@ -49,7 +51,7 @@ test('seal keeps a PNG of 1 to 512000 bytes and drops anything else without fail
 test('seal gives the digest of the canonical payload of one file whatever the thumbnail', () => {
   const html = fileOf('index.html', 'text/html; charset=utf-8', '<html></html>')
   const digest = (thumbnail) => seal({ ...outcome([html]), thumbnail }, run).digest
-  const D_E = '6f54e6f0ca33c0e20da4dd7fdd7ed10b89cb6a282d38768aed2c64329c11e36b'
+  const D_E = 'adae19f83e89cb00bc91fcc22fb07faf5ad7ad23a987dc8a423e4a5fd8b9434d'
   assert.equal(digest(null), D_E)
   assert.equal(digest({ bytes: Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0]) }), D_E)
 })

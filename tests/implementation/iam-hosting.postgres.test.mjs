@@ -66,7 +66,7 @@ const estate = async (t, prefix, { invoke } = {}) => {
   const hosting = createHostingModule({
     sessions: { withPreviewRequest: hub.sessions.withPreviewRequest, redeem: hub.sessions.redeemPreview },
     registry,
-    applicationRunner: { invoke: async (input) => { invocations.push(input); return invoke ? invoke(input) : { status: 200, body: { ok: true } } } },
+    applicationRunner: { invoke: async (input) => { invocations.push(input); return invoke ? invoke(input) : { ok: true, result: { ok: true } } } },
     exactHubOrigin: HUB_ORIGIN,
     previewPort: PREVIEW_PORT,
     applicationHost: {
@@ -228,7 +228,7 @@ test('sign in is required for an expired session, another slug, an unknown diges
 test('the Keycloak recheck and an operation invoke hold no transaction and no pool connection', async (t) => {
   let busyDuringInvoke
   let hubRef
-  const { hub, api, sessionOf, invocations } = await estate(t, 'conexus_iam_host_outside', { invoke: async () => { busyDuringInvoke = await backendsBusy(hubRef); return { status: 200, body: { ok: true } } } })
+  const { hub, api, sessionOf, invocations } = await estate(t, 'conexus_iam_host_outside', { invoke: async () => { busyDuringInvoke = await backendsBusy(hubRef); return { ok: true, result: { ok: true } } } })
   hubRef = hub
   const token = await sessionOf(CAIO)
   let busyDuringRecheck

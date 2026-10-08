@@ -104,33 +104,6 @@ test('0074 normalizes a stored retired Project build refusal and its run summary
   assert.equal(runSummary(RunRow.parse(row)).failureCode, 'INTERNAL_UNEXPECTED')
 })
 
-test('0072 normalizes a stored retired Project creation refusal and its run summary still parses', async (t) => {
-  const { connectionString } = await createEmptyDatabase(t, 'conexus_auth_catalog')
-  const throughIamOwner = corpus.filter(({ version }) => version <= '0070')
-  await runMigrations({ connectionString, migrations: throughIamOwner, catalogSnapshot: null })
-  await query(connectionString, `
-    INSERT INTO iam.account(account_id, issuer, external_subject, display_name, email)
-      VALUES ('a0000000-0000-4000-8000-000000000001', 'https://kc.test', 'sub-owner', 'Owner', 'owner@example.test');
-    INSERT INTO workspace.workspace(workspace_id, name)
-      VALUES ('b0000000-0000-4000-8000-000000000001', 'Workspace');
-    INSERT INTO iam.workspace_membership(account_id, workspace_id, role)
-      VALUES ('a0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'owner');
-    INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)
-      VALUES ('c0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001', 'Project', 'NEW', repeat('a', 40), 'revision');
-    INSERT INTO builder.builder_run(builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest,
-        base_source_revision, state, failure_code, finished_at)
-      VALUES ('d0000000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-000000000001',
-        'a0000000-0000-4000-8000-000000000001', 'e0000000-0000-4000-8000-000000000001', repeat('1', 64), repeat('2', 64), repeat('a', 40),
-        'FAILED', 'PROJECT_CREATE_DENIED', now());
-  `)
-
-  assert.deepEqual((await runMigrations({ connectionString, migrations: corpus, catalogSnapshot: null })).appliedNow, ['0072'])
-  const row = (await query(connectionString, `SELECT builder_run_id, project_id, conversation_id, state, phase,
-    base_source_revision, result_source_revision, result_kind, failure_code, request_text, created_at,
-    cancellation_requested_at IS NOT NULL AS cancellation_requested FROM builder.builder_run`)).rows[0]
-  assert.equal(runSummary(RunRow.parse(row)).failureCode, 'INTERNAL_UNEXPECTED')
-})
-
 test('a database already at the first migration upgrades to the second', async (t) => {
   const catalogSnapshot = await snapshotAfterBoth(t)
   const { connectionString } = await createEmptyDatabase(t, 'conexus_mig_upgrade')

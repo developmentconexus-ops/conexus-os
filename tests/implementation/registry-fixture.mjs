@@ -18,7 +18,7 @@ export const seedRevisionThumbnail = async (connection, revisionId, bytes = Buff
   await query(connection, "INSERT INTO reg.application_thumbnail(artifact_revision_id, media_type, bytes, byte_length, sha256) VALUES ($1, 'image/png', $2, $3, $4)", [revisionId, bytes, bytes.byteLength, 'e'.repeat(64)])
 }
 
-export const CURRENT_PIN = { profile: 'REACT_VITE_V2', templateRef: '537fnzf4c16x9d7oz21k:3331a697-459d-44d8-bcdd-abade6ba1e81', recipeSha256: 'ce2a48f54c08ccdd7641fac8208560963cf43ecdc16bd459a3f333786d1ed4b5' }
+export const CURRENT_PIN = { profile: 'REACT_VITE_V2', templateRef: '537fnzf4c16x9d7oz21k:419afad1-5af3-405c-9a52-3f6dc81dee5c', recipeSha256: 'aba3957596f114f821e290dd89416aba2fa1785fc34cb5162a899de759e84ffc' }
 
 export const launchablePayload = () => {
   const bytes = Buffer.from('<html></html>')
@@ -35,7 +35,7 @@ export const SOURCE_OLD = 'f'.repeat(40)
 export const SOURCE_E = 'e'.repeat(40)
 export const DIGEST_1 = 'c'.repeat(64)
 export const DIGEST_2 = 'd'.repeat(64)
-export const D_E = '6f54e6f0ca33c0e20da4dd7fdd7ed10b89cb6a282d38768aed2c64329c11e36b'
+export const D_E = 'adae19f83e89cb00bc91fcc22fb07faf5ad7ad23a987dc8a423e4a5fd8b9434d'
 export const SHA_F = 'b633a587c652d02386c4f16f8c6f6aab7352d97f16367c3c40576214372dd628'
 export const PNG_T2 = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 export const SHA_T2 = '4c4b6a3be1314ab86138bef4314dde022e600960d8689a2c8f8631802d20dab6'
