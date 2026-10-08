@@ -65,6 +65,8 @@ test('the composed production journey uses server.ts, Preview, and native persis
   const accepted = await (await builderResponsePromise).json()
   const builderRunId = accepted?.builderRun?.builderRunId
   assert.match(builderRunId ?? '', /^[0-9a-f-]{36}$/i, 'the browser must observe an exact BuilderRun id')
+  const conversationId = accepted?.builderRun?.conversationId
+  assert.match(conversationId ?? '', /^[0-9a-f-]{36}$/i)
 
   let terminalSession
   for (let attempt = 0; attempt < 180; attempt += 1) {
@@ -107,21 +109,17 @@ test('the composed production journey uses server.ts, Preview, and native persis
   t.after(() => denied.close())
   const deniedPage = await denied.newPage()
   await deniedPage.goto(`${origin}/projects/${projectId}`)
-  const deniedSessionStatus = await deniedPage.evaluate(async (id) => {
-    const response = await fetch(`/api/control/projects/${encodeURIComponent(id)}/builder-session`, { credentials: 'same-origin' })
-    return response.status
-  }, projectId)
-  assert.ok([401, 403, 404].includes(deniedSessionStatus))
-  const deniedPreviewStatus = await deniedPage.evaluate(async (id) => {
-    const response = await fetch(`/api/control/projects/${encodeURIComponent(id)}/builder-session/preview`, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: '{}' })
-    return response.status
-  }, projectId)
-  assert.ok([401, 403, 404].includes(deniedPreviewStatus))
-  const deniedStreamStatus = await deniedPage.evaluate(async ({ id, run }) => {
-    const response = await fetch(`/api/control/projects/${encodeURIComponent(id)}/builder-session/runs/${encodeURIComponent(run)}/stream`, { credentials: 'same-origin' })
-    return response.status
-  }, { id: projectId, run: builderRunId })
-  assert.ok([401, 403, 404].includes(deniedStreamStatus))
+  const sessionUrl = `${origin}/api/control/projects/${encodeURIComponent(projectId)}/builder-session`
+  const streamUrl = `${origin}/api/builder/agent-controller/conexus-builder/sessions/${encodeURIComponent(`project:${projectId}`)}/stream?sessionScope=${encodeURIComponent(`conversation:${conversationId}`)}`
+  const previewUrl = `${sessionUrl}/preview`
+  const deniedSession = await denied.request.get(sessionUrl, { maxRedirects: 0 })
+  const deniedPreview = await denied.request.post(previewUrl, { data: {}, maxRedirects: 0 })
+  const deniedStream = await denied.request.get(streamUrl, { maxRedirects: 0 })
+  for (const [response, url] of [[deniedSession, sessionUrl], [deniedPreview, previewUrl], [deniedStream, streamUrl]]) {
+    assert.equal(response.url(), url)
+    assert.ok([401, 403, 404].includes(response.status()))
+  }
+  t.diagnostic(JSON.stringify({ deniedPageOrigin: new URL(deniedPage.url()).origin, deniedHubResponses: [deniedSession, deniedPreview, deniedStream].map((response) => ({ url: response.url(), status: response.status() })) }))
 
   const trace = await readTrace(page, projectId, builderRunId)
   assert.equal(trace.available, true, 'the exact Builder run trace must be available')
