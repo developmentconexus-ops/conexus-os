@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { createServer } from 'node:net'
 import { RequestContext } from '@mastra/core/request-context'
 import { hubModuleUrl } from './hub-build.mjs'
 import { setupModelAccounts } from './model-account-fixture.mjs'
-import { ID } from './project-fixture.mjs'
+import { ID, PASSWORD } from './project-fixture.mjs'
 import { OWNER } from './builder-fixture.mjs'
 import { query } from './hub-database.mjs'
 import { hubJsonWrite, opaque, testListener } from './access/test-listener.mjs'
@@ -27,6 +32,20 @@ async function listener(t, models) {
 async function storedCredential(f, provider) {
   const row = (await query(f.connection, 'SELECT * FROM model.model_account WHERE owner_account_id = $1 AND provider = $2', [ID.owner, provider])).rows[0]
   return parseCredential(row, await f.envelope.open(row.secret, modelAccountContext(row.model_account_id)))
+}
+function codexStream() {
+  const events = [
+    { type: 'response.created', response: { id: 'resp-1', model: 'gpt-5.6-sol', created_at: 1 } },
+    { type: 'response.output_item.added', output_index: 0, item: { type: 'reasoning', id: 'rs-1' } },
+    { type: 'response.reasoning_summary_part.added', item_id: 'rs-1', summary_index: 0 },
+    { type: 'response.reasoning_summary_text.delta', item_id: 'rs-1', summary_index: 0, delta: 'pensando' },
+    { type: 'response.output_item.done', output_index: 0, item: { type: 'reasoning', id: 'rs-1', summary: [{ type: 'summary_text', text: 'pensando' }] } },
+    { type: 'response.output_item.added', output_index: 1, item: { type: 'message', id: 'msg-1' } },
+    { type: 'response.output_text.delta', item_id: 'msg-1', output_index: 1, content_index: 0, delta: 'oi' },
+    { type: 'response.output_item.done', output_index: 1, item: { type: 'message', id: 'msg-1', content: [{ type: 'output_text', text: 'oi' }] } },
+    { type: 'response.completed', response: { id: 'resp-1', usage: { input_tokens: 1, output_tokens: 2 } } },
+  ]
+  return new Response(events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join(''), { status: 200, headers: { 'content-type': 'text/event-stream' } })
 }
 function context(runId, projectId, modelId, thinkingLevel = 'high') {
   const carried = new RequestContext()
@@ -132,7 +151,7 @@ test('the actual owner runs native Codex device HTTP, normalizes missing email a
       const refreshed = new URLSearchParams(body).get('grant_type') === 'refresh_token'
       return Response.json({ access_token: refreshed ? 'synthetic-rotated' : 'synthetic-initial', refresh_token: refreshed ? 'synthetic-next-refresh' : 'synthetic-spent-refresh', expires_in: 3600, id_token: jwt })
     }
-    if (request.url === 'https://chatgpt.com/backend-api/codex/responses') return new Response('synthetic refusal', { status: 418 })
+    if (request.url === 'https://chatgpt.com/backend-api/codex/responses') return codexStream()
     throw new Error(`unexpected provider fixture URL ${request.url}`)
   }
   t.after(() => { globalThis.fetch = original })
@@ -150,7 +169,15 @@ test('the actual owner runs native Codex device HTTP, normalizes missing email a
   const runId = await f.seedRun(projectId)
   const selected = await f.models.modelFor(f.openRun(runId), { modelId: 'openai/gpt-5.6-sol', thinkingLevel: 'high' })
   assert.equal(selected.ok, true)
-  for (let call = 0; call < 2; call++) await assert.rejects(selected.result.model.doStream({ prompt, maxOutputTokens: 24000 }))
+  for (let call = 0; call < 2; call++) {
+    const { stream } = await selected.result.model.doStream({ prompt, maxOutputTokens: 24000 })
+    const parts = []
+    for await (const part of stream) parts.push(part)
+    assert.deepEqual(parts.map(({ type }) => type), ['stream-start', 'response-metadata', 'reasoning-start', 'reasoning-delta', 'reasoning-end', 'text-start', 'text-delta', 'text-end', 'finish'])
+    assert.deepEqual(parts.filter(({ type }) => type === 'reasoning-delta').map(({ delta }) => delta), ['pensando'])
+    assert.deepEqual(parts.filter(({ type }) => type === 'text-delta').map(({ delta }) => delta), ['oi'])
+    assert.equal(parts.find(({ type }) => type === 'finish').finishReason.unified, 'stop')
+  }
   const refreshes = seen.filter(({ url, body }) => url === 'https://auth.openai.com/oauth/token' && new URLSearchParams(body).get('grant_type') === 'refresh_token')
   assert.equal(refreshes.length, 1)
   assert.equal(new URLSearchParams(refreshes[0].body).get('refresh_token'), 'synthetic-spent-refresh')
@@ -406,4 +433,67 @@ test('post-settlement custody refusal carries the actual current row and spent b
   assert.equal(rejected.ok, false)
   assert.deepEqual([rejected.error.code, rejected.error.row.modelAccountId, rejected.error.spent], ['SECRET_CUSTODY_LOST', connected.result, copied])
   assert.equal(provider.requests.filter(({ kind }) => kind === 'model').length, 0)
+})
+
+
+async function availablePort() {
+  const server = createServer()
+  await new Promise((done) => server.listen(0, '127.0.0.1', done))
+  const port = server.address().port
+  await new Promise((done) => server.close(done))
+  return port
+}
+
+test('the actual Hub composes personal routes without Builder, runs its jobs and closes before releasing the database lock', async (t) => {
+  const f = await setupModelAccounts(t, 'conexus_model_hub')
+  const root = mkdtempSync(join(tmpdir(), 'conexus-model-hub-'))
+  const repository = resolve(import.meta.dirname, '../..')
+  const build = join(root, 'apps/hub/build')
+  cpSync(dirname(fileURLToPath(hubModuleUrl('hub.js'))), build, { recursive: true })
+  symlinkSync(join(repository, 'packages'), join(root, 'packages'))
+  symlinkSync(join(repository, 'node_modules'), join(root, 'node_modules'))
+  symlinkSync(join(repository, 'apps/hub/migrations'), join(root, 'apps/hub/migrations'))
+  mkdirSync(join(root, 'apps/hub/public'))
+  writeFileSync(join(root, 'apps/hub/public/index.html'), '<!doctype html><title>Synthetic Hub</title>')
+  const port = await availablePort()
+  const settings = {
+    CONEXUS_ORIGIN: `https://hub.synthetic.test:${port}`, CONEXUS_PORT: String(port), CONEXUS_BOOTSTRAP_SUBJECT: 'synthetic',
+    CONEXUS_DB_HOST: f.connection.host, CONEXUS_DB_PORT: String(f.connection.port), CONEXUS_DB_NAME: f.connection.database, CONEXUS_DB_USER: 'hub_runtime',
+    CONEXUS_DB_PASSWORD_FILE: join(root, 'password'), CONEXUS_SECRET_KEY_FILE: join(root, 'key'),
+    CONEXUS_OIDC_ISSUER: 'https://issuer.synthetic.test/realms/conexus', CONEXUS_OIDC_CLIENT_ID: 'synthetic', CONEXUS_OIDC_CLIENT_SECRET_FILE: join(root, 'client-secret'),
+  }
+  for (const [file, value] of [['password', PASSWORD], ['key', '31'.repeat(32)], ['client-secret', 'synthetic']]) writeFileSync(join(root, file), value, { mode: 0o600 })
+  const previous = Object.fromEntries(Object.entries(process.env).filter(([name]) => name.startsWith('CONEXUS_') && !name.startsWith('CONEXUS_TEST_')))
+  for (const name of Object.keys(previous)) delete process.env[name]
+  Object.assign(process.env, settings)
+  const original = globalThis.fetch
+  let discoveries = 0
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init)
+    if (request.url === `${settings.CONEXUS_OIDC_ISSUER}/.well-known/openid-configuration`) {
+      discoveries++
+      return Response.json({ issuer: settings.CONEXUS_OIDC_ISSUER, authorization_endpoint: 'https://issuer.synthetic.test/authorize', token_endpoint: 'https://issuer.synthetic.test/token', jwks_uri: 'https://issuer.synthetic.test/jwks', response_types_supported: ['code'], subject_types_supported: ['public'], id_token_signing_alg_values_supported: ['RS256'] })
+    }
+    assert.equal(new URL(request.url).origin, `http://127.0.0.1:${port}`)
+    return original(request)
+  }
+  let hub
+  f.onCleanup(async () => { await hub?.close() })
+  t.after(() => {
+    globalThis.fetch = original
+    for (const name of Object.keys(settings)) delete process.env[name]
+    Object.assign(process.env, previous)
+    rmSync(root, { recursive: true, force: true })
+  })
+  const { startHub } = await import(pathToFileURL(join(build, 'hub.js')))
+  hub = await startHub()
+  assert.equal(discoveries, 1)
+  const address = `http://127.0.0.1:${port}`
+  const response = await fetch(`${address}/api/control/model-accounts`, { headers: { host: `hub.synthetic.test:${port}`, 'sec-fetch-site': 'same-origin' } })
+  assert.deepEqual([response.status, (await response.json()).type], [401, 'urn:conexus:problem:AUTHENTICATION_REQUIRED'])
+  await hub.close()
+  await hub.close()
+  await assert.rejects(fetch(`${address}/api/control/model-accounts`))
+  const locks = (await query(f.connection, "SELECT count(*)::int AS count FROM pg_locks WHERE locktype = 'advisory' AND database = (SELECT oid FROM pg_database WHERE datname = current_database())")).rows
+  assert.deepEqual(locks, [{ count: 0 }])
 })

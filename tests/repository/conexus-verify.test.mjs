@@ -153,6 +153,7 @@ const EXPECTED_CANDIDATE_SCOPES = Object.freeze([
   'census-builder-run',
   'census-error-model',
   'census-boundaries',
+  'model-account-census',
   'contract-dist-check',
   'generators',
   'contract-check',
@@ -585,4 +586,12 @@ test('--group narrows the candidate graph and refuses an unknown group', async (
   assert.throws(() => parseArguments(['--scope', 'candidate', '--group', 'slow']), /--group must be one of browser, postgres, rest, live, backup/)
   const result = runVerification({ processEnvironment: {}, scopes: ['candidate'], packageScripts, dryRun: true, group: 'postgres' })
   assert.deepEqual(result.records.map(record => record.scope), graphForGroup(CANDIDATE_GRAPH, 'postgres').map(entry => entry.scope))
+})
+
+test('the single permanent model-account census runs in candidate rest and the quick graph', () => {
+  const expected = { scope: 'model-account-census', command: 'node scripts/check-model-account-census.mjs', environmentClass: 'static', graph: 'candidate' }
+  assert.deepEqual(CANDIDATE_GRAPH.filter(({ scope }) => scope === expected.scope), [expected])
+  assert.deepEqual(QUICK_GRAPH.filter(({ scope }) => scope === expected.scope), [expected])
+  assert.deepEqual(groupsOf(expected), ['rest'])
+  for (const group of ['postgres', 'browser', 'live', 'backup']) assert.equal(graphForGroup(CANDIDATE_GRAPH, group).some(({ scope }) => scope === expected.scope), false)
 })

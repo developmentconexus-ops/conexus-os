@@ -148,6 +148,10 @@ ASVS V11 and V13.
 - A secret at rest **must** be read through `platform/secret-file.ts`, which refuses a file other users
   can read, and sealed through `platform/secrets.ts` with the installation's envelope, bound to its immutable row identity.
   The database refuses an unsealed value.
+- A shared model refresh **must** persist with its held row identity and spent ciphertext through
+  owner system admission. Each waiter, including the winner, **must** obtain fresh run admission and
+  reread the current row after that work settles before receiving the refreshed credential. An ended
+  or revoked run does not undo successful rotation and cannot receive those tokens.
 - Keys **must** have a rotation procedure. A retired key only decrypts.
 - A secret **must not** appear in code, fixtures, logs, telemetry or a pull request.
 - No sandbox, generated app, browser or log **must** receive a durable privileged credential,

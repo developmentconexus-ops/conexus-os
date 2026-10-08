@@ -1,6 +1,6 @@
 import type { Credential, CredentialKind } from '../../apps/hub/src/model-account/credential.js'
 import { AnthropicKey, parseCredential } from '../../apps/hub/src/model-account/credential.js'
-import type { ModelId, ModelRole } from '@conexus/contract'
+import type { ModelId, ModelRole, Result, FailureCode } from '@conexus/contract'
 
 // @ts-expect-error Codex has no key variant.
 const illegalPair: CredentialKind = { provider: 'openai-codex', kind: 'api_key' }
@@ -23,8 +23,10 @@ const illegalRole: ModelRole = 'plan'
 const codex = parseCredential({ provider: 'openai-codex', kind: 'oauth' }, 'example')
 // @ts-expect-error The returned credential is immutable.
 codex.kind = 'oauth'
-// @ts-expect-error The parsed token fields are immutable.
-codex.value.expires = 2
+if (codex.provider === 'openai-codex') {
+  // @ts-expect-error The narrowed parsed token fields are immutable.
+  codex.value.expires = 2
+}
 // @ts-expect-error A model identity has no separately writable provider field.
 bareModel.provider = 'openai'
 void [illegalPair, wrongValue, bareKey, missingExpiry, missingEmail, missingAccount, bareGoogle, bareModel, illegalRole]
@@ -66,3 +68,12 @@ models.modelFor(openRun, { modelId: 'anthropic/claude-sonnet-5', thinkingLevel: 
 // @ts-expect-error Model roles are the finite build/memory contract.
 models.readDefault(runProof.scope.accountId, 'chat')
 void [systemProof, forgedRun]
+
+// @ts-expect-error A read proof cannot write a personal credential.
+coreStore.connect({ proof: accountRead, credential: heldModel.credential, displayName: 'Synthetic' })
+// @ts-expect-error The actual shared Result permits only one arm.
+const contradictory: Result<void, Readonly<{ code: FailureCode }>> = { ok: true, result: undefined, error: { code: 'ACCOUNT_INACTIVE' } }
+declare const result: Result<void, Readonly<{ code: FailureCode }>>
+// @ts-expect-error The actual shared Result is readonly.
+result.ok = false
+void contradictory

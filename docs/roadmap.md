@@ -111,8 +111,11 @@ Features built now copy the code beside them, so a bounded code base wave runs b
    Its done line is measured by the code census and stated in its spec. Mechanical items run as
    small fast-lane issues, at most three in flight, each released only when no open wave touches
    its files.
-3. **In parallel, spec 0017, company model accounts.** A company account, held by the
-   installation, beside each person's own, the person's first in the screen and in runs.
+3. **In parallel, [spec 0017](specs/0017-company-model-accounts/index.md), model account foundations.**
+   The core personal owner, row custody and current refresh release are implemented on the batch
+   branch; the next action is one foundation review and batch publication. Main landing still needs
+   its separately authorized real Builder qualification. Company commands, fallback and default
+   writers remain the later 0020 scope, with their own approval.
 4. **Q5, Release and Publish.** Its spec is written while the code base wave runs. It is built once
    the done line of the wave holds.
 5. **After the Q5 verdict:**
