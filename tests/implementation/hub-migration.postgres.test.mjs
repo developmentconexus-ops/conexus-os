@@ -6,7 +6,7 @@ import { loadHubMigrationFiles, runHubMigrations, runMigrations } from '../../sc
 import { buildHubDatabase, createEmptyDatabase, query, withClient } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { RunRow, runSummary } = await import(hubModuleUrl('builder/run-row.js'))
+const { RunRow } = await import(hubModuleUrl('builder/run-row.js'))
 
 const ledgerOf = async (connectionString) =>
   (await query(connectionString, 'SELECT version, checksum_sha256 FROM iam.schema_migration ORDER BY version')).rows
@@ -70,11 +70,11 @@ test('0072 normalizes a stored retired Project creation refusal and its run summ
         'FAILED', 'PROJECT_CREATE_DENIED', now());
   `)
 
-  assert.deepEqual((await runMigrations({ connectionString, migrations: corpus, catalogSnapshot: null })).appliedNow, ['0072', '0073', '0074'])
+  assert.deepEqual((await runMigrations({ connectionString, migrations: corpus, catalogSnapshot: null })).appliedNow, corpusVersions.filter((version) => version > '0070'))
   const row = (await query(connectionString, `SELECT builder_run_id, project_id, conversation_id, state, phase,
     base_source_revision, result_source_revision, result_kind, failure_code, request_text, created_at,
     cancellation_requested_at IS NOT NULL AS cancellation_requested FROM builder.builder_run`)).rows[0]
-  assert.equal(runSummary(RunRow.parse(row)).failureCode, 'INTERNAL_UNEXPECTED')
+  assert.equal(RunRow.parse(row).failureCode, 'INTERNAL_UNEXPECTED')
 })
 
 test('0074 normalizes a stored retired Project build refusal and its run summary still parses', async (t) => {
@@ -97,11 +97,11 @@ test('0074 normalizes a stored retired Project build refusal and its run summary
         'FAILED', 'PROJECT_BUILD_DENIED', now());
   `)
 
-  assert.deepEqual((await runMigrations({ connectionString, migrations: corpus, catalogSnapshot: null })).appliedNow, ['0074'])
+  assert.deepEqual((await runMigrations({ connectionString, migrations: corpus, catalogSnapshot: null })).appliedNow, corpusVersions.filter((version) => version > '0073'))
   const row = (await query(connectionString, `SELECT builder_run_id, project_id, conversation_id, state, phase,
     base_source_revision, result_source_revision, result_kind, failure_code, request_text, created_at,
     cancellation_requested_at IS NOT NULL AS cancellation_requested FROM builder.builder_run`)).rows[0]
-  assert.equal(runSummary(RunRow.parse(row)).failureCode, 'INTERNAL_UNEXPECTED')
+  assert.equal(RunRow.parse(row).failureCode, 'INTERNAL_UNEXPECTED')
 })
 
 test('a database already at the first migration upgrades to the second', async (t) => {
@@ -200,8 +200,7 @@ test('a grant on the factory schema to another Hub role is catalog drift', async
 test('the committed snapshot is the catalog the baseline and forward migration build', async (t) => {
   const { connectionString } = await buildHubDatabase(t, 'conexus_mig')
   const snapshot = readCommittedSnapshot()
-  assert.equal(snapshot.head, '0074')
-  assert.equal(corpusVersions.at(-1), '0074')
+  assert.equal(snapshot.head, corpusVersions.at(-1))
   assert.equal(snapshot.format, 2)
   assert.deepEqual(await ledgerOf(connectionString), corpusLedger)
 })

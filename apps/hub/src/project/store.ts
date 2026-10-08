@@ -1,8 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { z } from 'zod'
 import {
-  ProjectCard, ProjectDetail, ProjectId, ProjectListRow, ProjectName, ProjectRevision, WorkspaceId, createProject,
-  type AccountId, type SourceRevision, type IdempotencyKey, type Input, type ProjectCreated,
+  ProjectId, ProjectRevision, createProject,
+  type AccountId, type SourceRevision, type IdempotencyKey, type Input, type ProjectCreated, type ProjectCard, type ProjectDetail, type ProjectListRow, type WorkspaceId,
 } from '@conexus/contract'
 import { admitProject, admitWorkspace, receiptOf, type Admitted, type WorkspaceScope } from '../identity-access/admission.js'
 import type { Database } from '../platform/db.js'
@@ -10,6 +9,7 @@ import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
 import { gitUnavailableAs } from '../platform/git-failure.js'
 import { complete, reserve } from '../platform/receipt.js'
+import { CardRow, DetailRow, ListRow } from './rows.js'
 import { createProjectDeletion } from './deletion.js'
 import type { ProjectDeletionPorts } from './deletion.js'
 
@@ -40,35 +40,6 @@ export type ProjectStore = Readonly<{
   listProjectSummariesWithActivity(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId }>): Promise<ProjectCard[]>
   deleteProject(input: Readonly<{ accountId: AccountId; projectId: ProjectId; confirmName: string }>): Promise<void>
 }>
-
-const ProjectRow = z.object({ project_id: ProjectId, workspace_id: WorkspaceId, name: ProjectName })
-const ListRow = z.discriminatedUnion('state', [
-  ProjectRow.extend({ state: z.literal('live'), archived: z.boolean() }),
-  ProjectRow.extend({ state: z.literal('deleting') }),
-])
-const DetailRow = z.discriminatedUnion('state', [
-  ProjectRow.extend({ state: z.literal('live'), project_revision: ProjectRevision, archived: z.boolean() }),
-  ProjectRow.extend({ state: z.literal('deleting') }),
-])
-const CardRow = z.discriminatedUnion('state', [
-  ProjectRow.pick({ project_id: true, name: true }).extend({
-    state: z.literal('live'), archived: z.boolean(), last_activity_at: z.string(),
-    run_state: z.string().nullable(), run_result_kind: z.string().nullable(), has_preview: z.boolean(),
-  }),
-  ProjectRow.pick({ project_id: true, name: true }).extend({ state: z.literal('deleting') }),
-])
-
-const toProjectCard = (row: z.output<typeof CardRow>): ProjectCard => row.state === 'deleting'
-  ? ProjectCard.parse({ projectId: row.project_id, name: row.name, state: row.state })
-  : ProjectCard.parse({
-    projectId: row.project_id,
-    name: row.name,
-    state: row.state,
-    archived: row.archived,
-    lastActivityAt: row.last_activity_at,
-    latestRun: row.run_state === null ? null : { state: row.run_state, resultKind: row.run_result_kind },
-    hasPreview: row.has_preview,
-  })
 
 export const createProjectStore = ({
   database,
@@ -117,17 +88,14 @@ export const createProjectStore = ({
     createProject: create,
     listProjects: ({ accountId, workspaceId }) => database.read(accountId, async (gate) => {
       const proof = await admitWorkspace(gate, { workspaceId, action: 'workspace.read' })
-      return (await proof.tx.rows(ListRow, sql`
+      return [...await proof.tx.rows(ListRow, sql`
         SELECT stored.project_id, stored.workspace_id, stored.name,
           CASE WHEN deletion.project_id IS NULL THEN 'live' ELSE 'deleting' END AS state,
           CASE WHEN deletion.project_id IS NULL THEN stored.archived END AS archived
         FROM project.project AS stored
         LEFT JOIN project.project_deletion AS deletion
           ON deletion.project_id = stored.project_id AND deletion.completed_at IS NULL
-        WHERE stored.workspace_id = ${proof.scope.workspaceId} ORDER BY stored.name, stored.project_id`))
-        .map((row) => ProjectListRow.parse(row.state === 'deleting'
-          ? { projectId: row.project_id, workspaceId: row.workspace_id, name: row.name, state: row.state }
-          : { projectId: row.project_id, workspaceId: row.workspace_id, name: row.name, state: row.state, archived: row.archived }))
+        WHERE stored.workspace_id = ${proof.scope.workspaceId} ORDER BY stored.name, stored.project_id`)]
     }),
     getProject: ({ accountId, projectId }) => database.read(accountId, async (gate): Promise<ProjectDetail | null> => {
       const proof = await admitProject(gate, { projectId, action: 'project.read' })
@@ -140,14 +108,11 @@ export const createProjectStore = ({
         LEFT JOIN project.project_deletion AS deletion
           ON deletion.project_id = stored.project_id AND deletion.completed_at IS NULL
         WHERE stored.project_id = ${proof.scope.projectId}`)
-      if (live) return ProjectDetail.parse(live.state === 'deleting'
-        ? { projectId: live.project_id, workspaceId: live.workspace_id, name: live.name, state: live.state }
-        : { projectId: live.project_id, workspaceId: live.workspace_id, name: live.name, state: live.state, projectRevision: live.project_revision, archived: live.archived })
-      return null
+      return live
     }),
     listProjectSummariesWithActivity: ({ accountId, workspaceId }) => database.read(accountId, async (gate) => {
       const proof = await admitWorkspace(gate, { workspaceId, action: 'workspace.read' })
-      return (await proof.tx.rows(CardRow, sql`
+      return [...await proof.tx.rows(CardRow, sql`
         SELECT * FROM (
           SELECT stored.project_id, stored.name,
             CASE WHEN deletion.project_id IS NULL THEN 'live' ELSE 'deleting' END AS state,
@@ -165,10 +130,7 @@ export const createProjectStore = ({
           LEFT JOIN builder.project_working_state AS working ON working.project_id = stored.project_id
           LEFT JOIN project.project_deletion AS deletion ON deletion.project_id = stored.project_id AND deletion.completed_at IS NULL
           WHERE stored.workspace_id = ${proof.scope.workspaceId}
-        ) AS combined ORDER BY sort_at DESC, project_id`)).map((row) => {
-          if (row.state === 'deleting') return toProjectCard(row)
-          return toProjectCard(CardRow.parse(row))
-        })
+        ) AS combined ORDER BY sort_at DESC, project_id`)]
     }),
     deleteProject: createProjectDeletion({ database, ports: deletion }).deleteProject,
   })

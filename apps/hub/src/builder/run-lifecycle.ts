@@ -7,7 +7,7 @@ import { sql, type Database, type WriteTx } from '../platform/db.js'
 import { Failure, type FailureCode } from '../platform/failure.js'
 import type { BuilderRegistry } from './application-build.js'
 import type { SealedApplication } from '../platform/sealed-application.js'
-import { RUN_COLUMNS, RunRow, runSummary, type BuilderRunSummary } from './run-row.js'
+import { RUN_COLUMNS, RunRow, type BuilderRunSummary } from './run-row.js'
 
 /** Who a run's write acts as: its author's account before the candidate, the executor for everything it settles. */
 export type RunActor = Readonly<{ via: 'account'; accountId: AccountId }> | Readonly<{ via: 'executor' }>
@@ -43,7 +43,7 @@ const endRun = ({ tx }: Admitted<ProjectScope> | Admitted<RunScope> | Admitted<S
     WHERE run.builder_run_id = ${builderRunId} AND run.project_id = ${projectId} AND ${ENDS_FROM[from]}`)
 
 const Present = z.object({ present: z.literal(1) })
-const Replay = RunRow.extend({ account_id: AccountId, request_digest: z.string() })
+const Replay = RunRow.and(z.object({ account_id: AccountId, request_digest: z.string() }))
 const MESSAGE_ID = /^.{1,200}$/s
 
 export type RunStart = Readonly<{
@@ -73,15 +73,16 @@ export const createRunStart = ({ database, mintIdentity }: Readonly<{ database: 
       SELECT ${RUN_COLUMNS}, run.account_id, run.request_digest FROM builder.builder_run AS run
       WHERE run.project_id = ${scope.projectId} AND run.idempotency_digest = ${idempotencyDigest}`)
     if (replay) {
-      if (replay.account_id !== scope.accountId || replay.request_digest !== requestDigest || replay.request_text !== content || replay.conversation_id !== conversationId) throw new Failure('IDEMPOTENCY_CONFLICT')
-      return runSummary(replay)
+      if (replay.account_id !== scope.accountId || replay.request_digest !== requestDigest || replay.requestText !== content || replay.conversationId !== conversationId) throw new Failure('IDEMPOTENCY_CONFLICT')
+      const { account_id, request_digest, ...summary } = replay
+      return summary
     }
     if (await tx.maybe(Present, sql`SELECT 1 AS present FROM builder.builder_run AS run WHERE run.project_id = ${scope.projectId} AND run.state = ANY(${OPEN_RUN_STATES}::text[]) LIMIT 1`)) throw new Failure('PROJECT_BUSY')
     const created = await tx.one(RunRow, sql`
       INSERT INTO builder.builder_run AS run (builder_run_id, project_id, account_id, conversation_id, idempotency_digest, request_digest, request_text, base_source_revision)
       VALUES (${BuilderRunId.parse(mintIdentity())}, ${scope.projectId}, ${scope.accountId}, ${conversationId}, ${idempotencyDigest}, ${requestDigest}, ${content}, ${base})
       RETURNING ${RUN_COLUMNS}`, 'BUILDER_RUN_CREATE_FAILED')
-    return runSummary(created)
+    return created
   }),
   requestBuilderRunCancellation: ({ accountId, projectId, builderRunId }) => database.transaction(accountId, async (gate) => {
     const project = await admitProject(gate, { projectId, action: 'project.build' })
@@ -101,7 +102,7 @@ export const createRunStart = ({ database, mintIdentity }: Readonly<{ database: 
     const after = await tx.maybe(RunRow, sql`
       SELECT ${RUN_COLUMNS} FROM builder.builder_run AS run WHERE run.builder_run_id = ${builderRunId} AND run.project_id = ${scope.projectId}`)
     if (!after) throw transitionRefused('cancellation')
-    return runSummary(after)
+    return after
   }),
   bindBuilderRunMessage: ({ builderRunId, projectId, accountId, messageId }) => database.transaction(accountId, async (gate) => {
     const id = messageId.trim()
@@ -192,7 +193,7 @@ export const createRunSteps = ({ database, ownerId, registry }: Readonly<{ datab
         RETURNING ${RUN_COLUMNS}`)
     }).catch((error: unknown) => { throw error instanceof Failure && ADMISSION_REFUSALS.has(error.id) ? new Failure('BUILDER_RUN_NOT_ADMITTED', { cause: error }) : error })
     if (!run) throw new Failure('BUILDER_RUN_NOT_ADMITTED')
-    return runSummary(run)
+    return run
   }
   return {
     claimBuilderRun: claim,
@@ -204,7 +205,7 @@ export const createRunSteps = ({ database, ownerId, registry }: Readonly<{ datab
         UPDATE builder.builder_run AS run SET phase = ${phase}
         WHERE run.builder_run_id = ${proof.scope.builderRunId} AND run.project_id = ${proof.scope.projectId} AND run.state = 'RUNNING' AND run.cancellation_requested_at IS NULL
         RETURNING ${RUN_COLUMNS}`)
-      return row ? runSummary(row) : null
+      return row
     }).catch((error: unknown) => {
       if (error instanceof Failure && error.id === 'BUILDER_RUN_NOT_ADMITTED') return null
       throw error
