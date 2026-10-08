@@ -305,3 +305,24 @@ test('with no connector port the runner is called without a socket', async () =>
   assert.equal((await call(invoker, 'p1')).status, 200)
   assert.equal(Object.hasOwn(runner.calls[0], 'connectorSocket'), false)
 })
+
+test('a native runner Failure releases both admission slots and the queued invocation continues', async () => {
+  const { Failure } = await import(hubModuleUrl('platform/failure.js'))
+  const failure = new Failure('INTERNAL_UNEXPECTED')
+  let rejectFirst
+  let calls = 0
+  const invoker = createApplicationInvoker({ limits: limits({ globalConcurrency: 1, perProjectConcurrency: 1 }), invoke: () => {
+    calls += 1
+    return calls === 1 ? new Promise((_resolve, reject) => { rejectFirst = reject }) : Promise.resolve({ ok: true, result: { ok: true } })
+  } })
+  const first = call(invoker, 'p1')
+  const rejected = assert.rejects(first, (error) => error === failure)
+  await tick()
+  const queued = call(invoker, 'p1')
+  await tick()
+  assert.equal(calls, 1)
+  rejectFirst(failure)
+  await rejected
+  assert.deepEqual(await queued, OK)
+  assert.equal(calls, 2)
+})

@@ -25,6 +25,10 @@ const RESET_WINDOW_MS = PREPARE_TIMEOUT_MS - RESET_STATEMENT_TIMEOUT_MS - 40_000
 function call(socketPath: string, path: string, body: unknown, timeoutMs: number, signal?: AbortSignal): Promise<Response> {
   return new Promise((resolve, reject) => {
     const rejectTransport = (cause: unknown): void => {
+      if (signal?.aborted && cause instanceof Error && 'code' in cause && cause.code === 'ABORT_ERR') {
+        reject(signal.reason)
+        return
+      }
       if (cause instanceof DOMException && cause.name === 'AbortError') {
         reject(cause)
         return
@@ -40,8 +44,9 @@ function call(socketPath: string, path: string, body: unknown, timeoutMs: number
       response.on('data', (chunk: Buffer) => chunks.push(chunk))
       response.on('end', () => {
         const contentType = response.headers['content-type']
-        resolve(new Response(Buffer.concat(chunks), {
-          status: response.statusCode ?? 502,
+        const status = response.statusCode ?? 502
+        resolve(new Response([204, 205, 304].includes(status) ? null : Buffer.concat(chunks), {
+          status,
           ...(typeof contentType === 'string' ? { headers: { 'content-type': contentType } } : {}),
         }))
       })
@@ -69,28 +74,31 @@ async function nativeFailure(response: Response): Promise<Failure> {
   return new Failure(problem.data.code)
 }
 
-export const createApplicationRunnerClient = (socketPath: string): ApplicationRunnerClient => Object.freeze({
-  prepare: async ({ signal, ...input }) => {
-    const onDivergence: OnDivergence = input.onDivergence === 'RESET' ? { resetBefore: Date.now() + RESET_WINDOW_MS } : 'REFUSE'
-    const reply = await call(socketPath, '/v1/prepare', { ...input, onDivergence }, PREPARE_TIMEOUT_MS, signal)
-    if (reply.status !== 200) throw await nativeFailure(reply)
-    if (mediaType(reply) === 'application/json') {
-      const result = prepareAnswerSchema.safeParse(await responseJson(reply))
-      if (!result.success) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: result.error })
-      return result.data
-    }
-    throw new Failure('APPLICATION_RUNNER_UNAVAILABLE')
-  },
-  invoke: async (input): Promise<InvokeAnswer> => {
-    const response = await call(socketPath, '/v1/invoke', input, 15_000)
-    if (response.status !== 200) throw await nativeFailure(response)
-    if (mediaType(response) !== 'application/json') throw new Failure('APPLICATION_RUNNER_UNAVAILABLE')
-    const answer = invokeAnswerSchema.safeParse(await responseJson(response))
-    if (!answer.success) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: answer.error })
-    return answer.data
-  },
-  release: async (input) => {
-    const reply = await call(socketPath, '/v1/release', input, 30_000)
-    if (reply.status !== 200) throw await nativeFailure(reply)
-  },
-})
+export function createApplicationRunnerClient(socketPath: string): ApplicationRunnerClient {
+  return Object.freeze({
+    prepare: async ({ signal, ...input }) => {
+      const onDivergence: OnDivergence = input.onDivergence === 'RESET' ? { resetBefore: Date.now() + RESET_WINDOW_MS } : 'REFUSE'
+      const reply = await call(socketPath, '/v1/prepare', { ...input, onDivergence }, PREPARE_TIMEOUT_MS, signal)
+      if (reply.status !== 200) throw await nativeFailure(reply)
+      if (mediaType(reply) === 'application/json') {
+        const result = prepareAnswerSchema.safeParse(await responseJson(reply))
+        if (!result.success) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: result.error })
+        return result.data
+      }
+      throw new Failure('APPLICATION_RUNNER_UNAVAILABLE')
+    },
+    invoke: async (input): Promise<InvokeAnswer> => {
+      const response = await call(socketPath, '/v1/invoke', input, 15_000)
+      if (response.status !== 200) throw await nativeFailure(response)
+      if (mediaType(response) !== 'application/json') throw new Failure('APPLICATION_RUNNER_UNAVAILABLE')
+      const answer = invokeAnswerSchema.safeParse(await responseJson(response))
+      if (!answer.success) throw new Failure('APPLICATION_RUNNER_UNAVAILABLE', { cause: answer.error })
+      return answer.data
+    },
+    release: async (input) => {
+      const reply = await call(socketPath, '/v1/release', input, 30_000)
+      if (!reply.ok) throw await nativeFailure(reply)
+      if (reply.status !== 200) throw new Failure('APPLICATION_RUNNER_RELEASE_REFUSED')
+    },
+  })
+}

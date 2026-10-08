@@ -6,7 +6,7 @@ import { liveFlow } from './harness.mjs'
 const REQUEST = 'Crie uma planilha de despesas da viagem'
 const IDLE_POLL_MS = 12_000
 
-liveFlow({ id: 'builder.run-failure', nome: 'Uma execução que falha mostra a falha uma vez, ao vivo e depois de recarregar' }, async ({ page, model, hub }) => {
+liveFlow({ id: 'builder.run-failure', nome: 'Uma execução que falha mostra o motivo uma vez na conversa e na Prévia, ao vivo e depois de recarregar' }, async ({ page, model, hub }) => {
   // The first call and its 10 retries: the controller gives up on the eleventh answer.
   model.script({ error: { status: 500, message: 'LIVE_MODEL_REFUSED' }, times: 11 })
   const sessionReads = []
@@ -25,26 +25,30 @@ liveFlow({ id: 'builder.run-failure', nome: 'Uma execução que falha mostra a f
   const reference = `Referência: ${run.builder_run_id.slice(0, 8)}.`
 
   const said = async () => (await page.locator('body').innerText()).split(row.message).length - 1
-  const expectOneFailure = async () => {
-    await expect.poll(said, { timeout: 30_000 }).toBe(1)
-    await expect(page.getByRole('alert').filter({ hasText: row.message })).toHaveCount(1)
-    await expect(page.getByRole('alert').filter({ hasText: row.message })).toContainText(reference)
+  const expectFailureInEachSurface = async () => {
+    await expect.poll(said, { timeout: 30_000 }).toBe(2)
+    const conversation = page.getByRole('log').getByRole('alert').filter({ hasText: row.message })
+    const preview = page.getByRole('tabpanel', { name: 'Prévia', exact: true }).getByRole('alert')
+    await expect(conversation).toHaveCount(1)
+    await expect(conversation).toContainText(reference)
+    await expect(preview).toHaveCount(1)
+    await expect(preview).toContainText(row.message)
     await expect(page.getByText('Tentando de novo')).toHaveCount(0)
     await expect(page.getByText('parou com um erro')).toHaveCount(0)
     await expect(page.getByText('Diagnóstico seguro')).toHaveCount(0)
-    await expect(page.getByText('A última execução falhou. Veja a conversa.', { exact: true })).toHaveCount(1)
+    await expect(page.getByText('A última execução falhou. Veja a conversa.', { exact: true })).toHaveCount(0)
     await expect(page.getByText('Falhou', { exact: true })).toHaveCount(1)
   }
 
-  await expectOneFailure()
+  await expectFailureInEachSurface()
   const readsAtSettle = sessionReads.length
   await page.waitForTimeout(IDLE_POLL_MS)
   assert.equal(sessionReads.length, readsAtSettle, 'a settled run is not polled')
-  assert.equal(await said(), 1, 'the failure is still said once')
+  assert.equal(await said(), 2, 'the failure remains in the conversation and Preview')
 
   await page.reload()
   await expect(page.getByRole('log').getByText(REQUEST, { exact: true })).toBeVisible({ timeout: 30_000 })
-  await expectOneFailure()
+  await expectFailureInEachSurface()
   await page.waitForTimeout(3_000)
-  assert.equal(await said(), 1, 'after reload the failure is said once')
+  assert.equal(await said(), 2, 'after reload the failure remains in the conversation and Preview')
 })

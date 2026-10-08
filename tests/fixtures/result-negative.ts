@@ -1,3 +1,4 @@
+import { ReceivedFailure } from '@conexus/contract'
 import type { Result, TraceId } from '@conexus/contract'
 import { failureResponse } from '../../apps/hub/src/http/problem.js'
 import type { InvokeAnswer, PrepareAnswer, SqlState, WorkerAnswer } from '../../apps/hub/src/app-runner/server-manifest.js'
@@ -53,3 +54,6 @@ failureResponse({ code: 'INTERNAL_UNEXPECTED', traceId: null, migration: '001_no
 export function accountConnection(): Result<void, AccountConnectionError> {
   return { ok: true, result: undefined }
 }
+
+// @ts-expect-error A received failure accepts only a validated trace id.
+new ReceivedFailure('INTERNAL_UNEXPECTED', 500, 'PRIVATE_DIAGNOSTIC_MARKER')

@@ -29,7 +29,7 @@ async function hostOver(t, { registry, database, projectId, runnerCalls }) {
   const hosting = createHostingModule({
     sessions: { redeem: async () => null, withPreviewRequest: async () => ({ kind: 'SIGN_IN_REQUIRED' }) },
     registry,
-    applicationRunner: { invoke: async (input) => { runnerCalls.push(input); return { status: 200, body: { ok: true } } } },
+    applicationRunner: { invoke: async (input) => { runnerCalls.push(input); return { ok: true, result: { ok: true } } } },
     exactHubOrigin: HUB,
     previewPort: 3444,
     applicationHost: { sessions, application: APPLICATION },

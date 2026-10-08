@@ -96,11 +96,13 @@ Untouched broker/check/control/Git/vendor/account/served-file mechanisms are def
 | F5 fictional worker bundle | Real staging files/dependency closure named; contract imports type-only, runtime schema local wire/Zod. Unrestricted U1 worker is insufficient. | U4 actual restricted runtime success/refusal/hostile output |
 | F6 overbuilt census | Bounded named AST checks/record with activated zeros; broad metrics informational; strict fixtures and existing drift. No occurrence identities/semantic catch labels/new SQL replay. | U2 check fixtures, replacing-unit zeros, existing catalog check |
 | F7 late guide rules/private status/logging/SQL | Rules land U3/C, U4/private H and canonical Problem, U5/public H, U6/V, U1/factual T. Private handled200JSON vs escaping problem status explicit. Operator-approved final Hub log owner, native redacted runner cause span and unix trace are compiled/named for prepare/invoke/release; no terminal edit/skip flag. D policy unchanged, no hypothetical raise rule. | U4/U5 exact boundary logs/trace and runtime races |
-| F8 duplicate reader emission/missed formatter/budget | Web direct contract import; only app emission; run-failure.tsx included among eight imports; sorted explicit 55-path union below. No emitted web implementation. | U6 both builds/examples/drift; U8 final path/census audit |
+| F8 duplicate reader emission/missed formatter/budget | Web direct contract import; only app emission; run-failure.tsx included among eight imports; reconciled explicit 76-path source/config closure below. No emitted web implementation. | U6 both builds/examples/drift; U8 final path/census audit |
 
 ### Reserved product/check/configuration paths
 
-This is a sorted explicit union: **55** unique paths, including deletion paths, generated outputs, data-plane, lens-preview.tsx and run-failure.tsx, scripts/record and optional package.json. Markdown, tests and temporary spec shape are outside this reservation. A card's “Files” names only members of this union unless it names those excluded categories. An unreserved product path is a stop, not implicit permission to spend the remaining 70-file ceiling.
+The initial approved reservation was 54 source/config paths, then 55 after the explicit Preview extension. Independent review of the first-parent batch found 21 necessary source/config consumers missing from that record. The corrected union below has **76** paths, including optional and deletion paths. Tests, Markdown, temporary shape and committed contract distribution are separately accounted for. The original 70-file planning ceiling was exceeded; the previous Files-green claim against 55 paths was incorrect.
+
+The existing U6 instruction required deleting the local reader and old aliases while migrating all consumers atomically. Most additional web paths only replace imports from app/http with direct shared-contract imports; project/api migrates the incorporated authorization caller, platform/failure removes the unused causeText writer helper, and knip tracks the new shared owner. The correction-round instruction authorizes reconciling this existing necessary closure, not retrospectively approving a new capability or claiming the old ceiling passed. Completed authorization is not reopened. Distribution under packages/contract/dist follows the existing package build and is generated from the same owner. Future product extensions remain a stop requiring a scoped decision.
 
 ```text
 apps/hub/compiler-template/generate-client.mjs
@@ -126,20 +128,40 @@ apps/hub/src/hosting/preview-routes.ts
 apps/hub/src/http/app.ts
 apps/hub/src/http/problem.ts
 apps/hub/src/platform/failure-text.generated.ts
+apps/hub/src/platform/failure.ts
 apps/hub/src/platform/failures.generated.ts
 apps/hub/src/telemetry/log-codes.generated.ts
 apps/hub/starter-template/files/app/src/lib/errors.ts
 apps/web/src/app/attempt-key.ts
+apps/web/src/app/failure-state.tsx
 apps/web/src/app/failure.ts
 apps/web/src/app/foreign.ts
 apps/web/src/app/http.ts
 apps/web/src/app/route-params.ts
+apps/web/src/app/shell.tsx
+apps/web/src/features/builder/construir/construir.tsx
 apps/web/src/features/builder/construir/lens-preview.tsx
 apps/web/src/features/builder/construir/run-failure.tsx
 apps/web/src/features/builder/mastra-session.ts
+apps/web/src/features/connector/components/integrations-screen.tsx
 apps/web/src/features/connector/connector-api.ts
 apps/web/src/features/entry/entry-screens.tsx
 apps/web/src/features/identity-access/api.ts
+apps/web/src/features/identity-access/components/application-access.tsx
+apps/web/src/features/identity-access/components/workspace-members.tsx
+apps/web/src/features/project/api.ts
+apps/web/src/features/project/components/prompt-box.tsx
+apps/web/src/features/project/start-project.ts
+apps/web/src/features/settings/components/admins-screen.tsx
+apps/web/src/features/settings/components/api-key-account.tsx
+apps/web/src/features/settings/components/claude-account.tsx
+apps/web/src/features/settings/components/google-ai-pro-account.tsx
+apps/web/src/features/settings/components/states.tsx
+apps/web/src/features/workspace/components/workspace-create-form.tsx
+apps/web/src/routes/construir.tsx
+apps/web/src/routes/project-integrations.tsx
+apps/web/src/routes/project-settings-access.tsx
+apps/web/src/routes/project-settings.tsx
 builder-skills/conexus-app/references/dashboard.tsx
 builder-skills/conexus-app/references/form.tsx
 builder-skills/conexus-app/references/list.tsx
@@ -148,6 +170,7 @@ contracts/api/product/openapi.json
 contracts/api/technical/openapi.yaml
 contracts/technical/error-model-census.json
 contracts/technical/failures.json
+knip.jsonc
 package.json
 packages/contract/src/failure-client.ts
 packages/contract/src/failures.generated.ts

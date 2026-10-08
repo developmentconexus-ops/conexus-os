@@ -52,8 +52,8 @@ const root = '/var/lib/conexus-build/run-1'
 const out = `${root}/dist`
 
 test('the template identity is the current V2 pin', () => {
-  assert.equal(TEMPLATE_REF, '537fnzf4c16x9d7oz21k:3331a697-459d-44d8-bcdd-abade6ba1e81')
-  assert.equal(RECIPE_SHA256, 'ce2a48f54c08ccdd7641fac8208560963cf43ecdc16bd459a3f333786d1ed4b5')
+  assert.equal(TEMPLATE_REF, '537fnzf4c16x9d7oz21k:419afad1-5af3-405c-9a52-3f6dc81dee5c')
+  assert.equal(RECIPE_SHA256, 'aba3957596f114f821e290dd89416aba2fa1785fc34cb5162a899de759e84ffc')
 })
 
 test('the gate runs the bundle by its hash as root with the agent identity named, then reads the build as root', async () => {

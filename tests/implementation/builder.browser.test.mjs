@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { FAILURES } from '@conexus/contract'
 import { shareWebBrowser } from './web-dev-server.mjs'
 import { answerPendingCard, createCards } from '../../scripts/builder-eval/run.mjs'
 import { humanizeModelName, parseReasoningSuffix } from '../../apps/web/src/features/builder/composer/model-display-name.ts'
@@ -132,7 +133,7 @@ test('Project Build uses the Project session, the BuilderRun API and the native 
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, async (route) => {
     if (capacityFull) {
       capacityFull = false
-      return route.fulfill(problem(503, 'BUILDER_CAPACITY_FULL'))
+      return route.fulfill(problem('BUILDER_CAPACITY_FULL'))
     }
     const body = route.request().postDataJSON()
     requests.push({ body, key: route.request().headers()['idempotency-key'] })
@@ -579,7 +580,7 @@ test('a send the Hub refused reads Não enviado and takes a fresh key on a resen
   // The Hub answers the first attempt with a 4xx refusal, so the message certainly did not take.
   await page.route(`**/api/control/projects/${projectId}/builder-session/messages`, (route) => {
     keys.push(route.request().headers()['idempotency-key'])
-    return keys.length === 1 ? route.fulfill(problem(409, 'PROJECT_BUSY')) : route.fulfill({
+    return keys.length === 1 ? route.fulfill(problem('PROJECT_BUSY')) : route.fulfill({
       status: 201, contentType: 'application/json',
       body: JSON.stringify({ builderRun: runOf({ builderRunId: '70000000-0000-4000-8000-000000000083', projectId, state: 'QUEUED', phase: null, baseSourceRevision: '5'.repeat(40), resultSourceRevision: null, resultKind: null, failureCode: null }) }),
     })
@@ -2169,7 +2170,10 @@ test('a failed read of the conversation\'s own model is said so too, and retried
 
 const sessionOf = (projectId) => ({ projectId, latestBuilderRun: null, latestCodeChangingRun: null, preview: { workingSourceRevision: null, lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null }, runHistory: [] })
 // A refusal as the Hub sends it: problem+json that names its row by code.
-const problem = (status, code) => ({ status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${code}`, title: code, status, code }) })
+function problem(code) {
+  const { status } = FAILURES[code]
+  return { status, contentType: 'application/problem+json', body: JSON.stringify({ type: `urn:conexus:problem:${code}`, title: code, status, code }) }
+}
 const stubSessionReads = async (page, accountId, projectId, answer) => {
   await page.route('**/api/session', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ account: { accountId, displayName: 'Builder Operator' }, workspaces: [], administrator: false }) }))
   await routeBuilder(page, builderState([conversation(conversationIdOf('conversation-poll'), 'Conversa')]))
@@ -2180,7 +2184,7 @@ const stubSessionReads = async (page, accountId, projectId, answer) => {
     const status = answer()
     await route.fulfill(status === 200
       ? { status, contentType: 'application/json', body: JSON.stringify(sessionOf(projectId)) }
-      : problem(status, { 401: 'AUTHENTICATION_REQUIRED' }[status] ?? 'INTERNAL_UNEXPECTED'))
+      : problem({ 401: 'AUTHENTICATION_REQUIRED' }[status] ?? 'INTERNAL_UNEXPECTED'))
     answered()
   })
   return { firstRead }
@@ -2208,7 +2212,7 @@ test('failed background polls keep the chat and show a note until a poll succeed
   const note = page.getByText('O Conexus falhou de um jeito que não esperávamos. A falha foi registrada.')
   assert.equal(await note.count(), 0)
 
-  status = 503
+  status = 500
   await pollNow(page)
   await note.waitFor()
   assert.equal(await page.getByText('Não foi possível abrir o Construir').count(), 0)
@@ -2239,7 +2243,7 @@ test('a first load that fails still shows the error page', async (t) => {
   const accountId = '70000000-0000-4000-8000-000000000073'
   const projectId = '70000000-0000-4000-8000-000000000074'
   const { page, origin } = await web.openPage(t, { viewport: { width: 1100, height: 850 } })
-  await stubSessionReads(page, accountId, projectId, () => 503)
+  await stubSessionReads(page, accountId, projectId, () => 500)
 
   await page.goto(`${origin}/projects/${projectId}`)
   await page.getByText('Não foi possível abrir o Construir').waitFor()

@@ -114,3 +114,48 @@ test('call rejections preserve underlying causes', async (t) => {
     }
   )
 })
+
+for (const status of [200, 201, 204]) {
+  test(`release preserves the successful HTTP status distinction at ${status}`, async (t) => {
+    const client = await fakeRunner(t, { status, body: { ok: true } })
+    if (status === 200) await client.release({ projectId: 'p1' })
+    else await assert.rejects(client.release({ projectId: 'p1' }), (error) => error.id === 'APPLICATION_RUNNER_RELEASE_REFUSED')
+  })
+}
+
+for (const reply of [
+  { status: 500, contentType: 'application/problem+json', body: { type: 'urn:conexus:problem:INTERNAL_UNEXPECTED', title: 'INTERNAL_UNEXPECTED', status: 500, code: 'INTERNAL_UNEXPECTED' }, code: 'INTERNAL_UNEXPECTED' },
+  { status: 500, body: { private: 'PRIVATE_RELEASE_MARKER' }, code: 'APPLICATION_RUNNER_UNAVAILABLE' },
+]) {
+  test(`release keeps ${reply.code} for a non-success HTTP response`, async (t) => {
+    const client = await fakeRunner(t, reply)
+    await assert.rejects(client.release({ projectId: 'p1' }), (error) => error.id === reply.code)
+  })
+}
+
+test('release maps a closed socket to runner unavailable', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'cx-release-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  await assert.rejects(createApplicationRunnerClient(join(directory, 'closed.sock')).release({ projectId: 'p1' }), (error) => error.id === 'APPLICATION_RUNNER_UNAVAILABLE')
+})
+
+for (const timing of ['before', 'in-flight']) {
+  test(`Node prepare cancellation ${timing} preserves the signal reason and lets the next request finish`, async (t) => {
+    const directory = mkdtempSync(join(tmpdir(), 'cx-abort-'))
+    t.after(() => rmSync(directory, { recursive: true, force: true }))
+    const socketPath = join(directory, 'runner.sock')
+    const controller = new AbortController()
+    const reason = new DOMException('Cancelled', 'AbortError')
+    const server = createServer((_request, response) => {
+      response.setHeader('content-type', 'application/json')
+      if (!controller.signal.aborted) controller.abort(reason)
+      else response.end(JSON.stringify({ ok: true, result: { reset: false, applied: [] } }))
+    })
+    await new Promise((resolve) => server.listen(socketPath, resolve))
+    t.after(() => new Promise((resolve) => server.close(resolve)))
+    const client = createApplicationRunnerClient(socketPath)
+    if (timing === 'before') controller.abort(reason)
+    await assert.rejects(client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE', signal: controller.signal }), (error) => error === reason)
+    assert.deepEqual(await client.prepare({ projectId: 'p1', files: [], onDivergence: 'REFUSE' }), { ok: true, result: { reset: false, applied: [] } })
+  })
+}
