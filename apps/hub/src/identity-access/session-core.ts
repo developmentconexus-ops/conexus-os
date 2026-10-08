@@ -1,10 +1,11 @@
+import { Failure } from '../platform/failure.js'
 import { z } from 'zod'
 import type { AccountId, EmailAddress } from '@conexus/contract'
 import type { Caller } from '../platform/caller.js'
 import type { AuthenticationGate, Database, Digest, RawToken } from '../platform/db.js'
 import type { HostOutcome } from '../platform/host-outcome.js'
 import { logLine } from '../platform/logger.js'
-import type { SecretEnvelope } from '../platform/secrets.js'
+import { sessionContext, type Sealed, type SecretEnvelope } from '../platform/secrets.js'
 import { endCredential, recordProviderCheck } from './authentication.js'
 import type { OidcAdapter, ProviderRefusal } from './oidc.js'
 
@@ -21,7 +22,7 @@ export const standingOf = (row: Readonly<{ liveness: 'LIVE' | 'IDLE_EXPIRED' | '
   row.liveness === 'LIVE' ? { kind: 'live', recheckDue: row.recheck_due } : { kind: 'ended', reason: row.liveness }
 
 export type Redeemed = Readonly<{ sessionToken: RawToken; maxAgeSeconds: number }>
-export type Due = Readonly<{ digest: Digest; seen: string; sealedToken: string; subject: string }>
+export type Due = Readonly<{ digest: Digest; seen: string; sealedToken: Sealed<'hub-session'>; subject: string }>
 /** What one entry of a session request returns: the entry commits first, then the caller acts on it. */
 export type Step<T> =
   | Readonly<{ kind: 'absent' }>
@@ -32,7 +33,7 @@ export type Step<T> =
 export const callerOf = (row: Readonly<{ account_id: AccountId; email: EmailAddress | null; display_name: string }>): Caller =>
   Object.freeze({ accountId: row.account_id, email: row.email, displayName: row.display_name })
 
-export const dueOf = (key: Digest, row: Readonly<{ sealed_token: string; checked_at: string; subject: string }>): Due =>
+export const dueOf = (key: Digest, row: Readonly<{ sealed_token: Sealed<'hub-session'>; checked_at: string; subject: string }>): Due =>
   ({ digest: key, seen: row.checked_at, sealedToken: row.sealed_token, subject: row.subject })
 
 export const MaxAge = z.object({ max_age: z.number().int() })
@@ -67,14 +68,15 @@ export const createSessionCore = ({ database, envelope, provider }: SessionDepen
   const recheck = async (kind: 'HUB' | 'APPLICATION', due: Due): Promise<'KEPT' | 'ENDED' | 'UNAVAILABLE'> => {
     let refreshToken: string
     try {
-      refreshToken = await envelope.open(due.sealedToken)
-    } catch {
+      refreshToken = await envelope.open(due.sealedToken, sessionContext(due.digest))
+    } catch (error) {
+      if (!(error instanceof Failure) || error.id !== 'SECRET_CUSTODY_LOST') throw error
       return endWith(due.digest, kind, 'CUSTODY_CHANGED')
     }
     const answer = await provider.refresh({ refreshToken, expectedSubject: due.subject })
     if (answer.kind === 'UNAVAILABLE') return 'UNAVAILABLE'
     if (answer.kind === 'REFUSED') return endWith(due.digest, kind, PROVIDER_ENDING[answer.reason])
-    const sealedToken = await envelope.seal(answer.refreshToken)
+    const sealedToken = await envelope.seal(answer.refreshToken, sessionContext(due.digest))
     const recorded = await database.authenticate((gate) => recordProviderCheck(gate, { digest: due.digest, seen: due.seen, sealedToken }))
     return recorded === 'RECORDED' ? 'KEPT' : 'ENDED'
   }

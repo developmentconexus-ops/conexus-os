@@ -271,7 +271,7 @@
       {
         "table": "model.model_account",
         "privileges": [
-          "INSERT(connected_at,connected_by,connected_by_name,kind,owner_account_id,provider,scope,secret)",
+          "INSERT(connected_at,connected_by,connected_by_name,kind,model_account_id,owner_account_id,provider,scope,secret)",
           "SELECT",
           "UPDATE(connected_at,connected_by,connected_by_name,kind,refused_at,secret,updated_at)"
         ],

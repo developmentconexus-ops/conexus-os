@@ -72,7 +72,7 @@ const CHECK_OUTCOME: Readonly<Record<BrokerErrorCode, ConnectionCheckOutcome | n
 export const createConnectionCheck = ({ store, broker }: Readonly<{ store: ConnectorStore; broker: Pick<Broker, 'checkCredential'> }>): CheckConnection =>
   async ({ accountId, workspaceId, connectionId }) => {
     const { connectorId, sealed } = await store.readCredentialForCheck({ accountId, workspaceId, connectionId })
-    const result = await broker.checkCredential(connectorId, sealed)
+    const result = await broker.checkCredential(connectorId, sealed, connectionId)
     if (result.ok) return 'OK'
     const outcome = CHECK_OUTCOME[result.code]
     if (outcome === null) throw new Failure('CONNECTOR_PLATFORM_FAILED', { details: { code: result.code } })

@@ -126,7 +126,7 @@ const configEnvironment = {
   CONEXUS_DB_NAME: 'conexus_s7',
   CONEXUS_DB_USER: 'hub_runtime',
   CONEXUS_DB_PASSWORD_FILE: '/secrets/db',
-  CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/factory-key',
+  CONEXUS_SECRET_KEY_FILE: '/secrets/factory-key',
   CONEXUS_OIDC_ISSUER: 'https://issuer.conexus.localhost',
   CONEXUS_OIDC_CLIENT_ID: 'conexus-hub',
   CONEXUS_OIDC_CLIENT_SECRET_FILE: '/secrets/oidc',
@@ -137,7 +137,7 @@ const configEnvironment = {
 const builderEnvironment = {
   CONEXUS_BUILDER_E2B_API_KEY_FILE: '/secrets/e2b',
   CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'conexusbuilder:0f9a1c2d-3e4b-4a5c-8d9e-0f1a2b3c4d5e',
-  CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/factory-key',
+  CONEXUS_SECRET_KEY_FILE: '/secrets/factory-key',
   CONEXUS_DB_FACTORY_PASSWORD_FILE: '/secrets/factory-db',
 }
 

@@ -261,6 +261,7 @@ export const FAILURES = {
   'OIDC_BEGIN_FAILED': { category: 'THIRD_PARTY', status: 500 },
   'OIDC_REFRESH_TOKEN_MISSING': { category: 'THIRD_PARTY', status: 500 },
   'OIDC_CALLBACK_FAILED': { category: 'THIRD_PARTY', status: 500 },
+  'SECRET_CUSTODY_LOST': { category: 'SYSTEM', status: 500 },
 } as const satisfies Readonly<Record<string, FailureRow>>
 
 export type FailureCode = keyof typeof FAILURES

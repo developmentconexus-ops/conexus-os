@@ -1,6 +1,6 @@
 import { HUB_ROLES } from './hub-roles.generated.js'
 import { probeConnection, errorCode } from './db.js'
-import { readSecretFile } from './secrets.js'
+import { readSecretFile } from './secret-file.js'
 import type { EventLog } from './logger.js'
 
 type ConnectionCensusState = 'ok' | 'invalid' | 'unreachable' | 'unreadable' | 'unconfigured'

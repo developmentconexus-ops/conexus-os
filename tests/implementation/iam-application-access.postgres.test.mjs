@@ -1,6 +1,12 @@
+import { hubModuleUrl } from './hub-build.mjs'
+import { testListener } from './access/test-listener.mjs'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { P, Q, W, digestOf, iamHub, person, problemOf } from './iam-fixture.mjs'
+import { P, Q, W, APPLICATIONS, HUB_ORIGIN, digestOf, iamHub, person, problemOf } from './iam-fixture.mjs'
+
+const { createHostingModule } = await import(hubModuleUrl('hosting/module.js'))
+const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
+const { createSecretEnvelope, handoffContext, sessionContext } = await import(hubModuleUrl('platform/secrets.js'))
 
 const OWNER = '10000000-0000-4000-8000-000000000001'
 const MEMBER = '10000000-0000-4000-8000-000000000002'
@@ -20,6 +26,18 @@ const estate = async (t, prefix) => {
   const as = { owner: await hub.openHubSession(OWNER), member: await hub.openHubSession(MEMBER), outsider: await hub.openHubSession(OUTSIDER) }
   const grant = (email, key, projectId = P) => hub.call(as.owner, 'POST', access(projectId), { email }, { 'idempotency-key': key })
   return { hub, as, grant }
+}
+
+async function applicationListener(t, hub) {
+  const hosting = createHostingModule({
+    sessions: { redeem: hub.sessions.redeemPreview, withPreviewRequest: hub.sessions.withPreviewRequest },
+    registry: createRegistryModule({ database: hub.database }), exactHubOrigin: HUB_ORIGIN, previewPort: 3444,
+    applicationHost: { sessions: { redeem: hub.sessions.redeemApplication, signOut: hub.sessions.signOutApplication, withApplicationRequest: hub.sessions.withApplicationRequest }, application: APPLICATIONS },
+  })
+  const { app } = await testListener({ policy: hosting.applicationHost.policy, registerRoutes: (server) => hosting.applicationHost.registerRoutes(server) })
+  t.after(() => app.close())
+  t.after(() => hosting.close())
+  return app
 }
 
 test('application access is owner only; the first grant fixes the address, and a second Project of the same name gets the next suffix', async (t) => {
@@ -56,7 +74,18 @@ test('an invited unknown person signs in at the application, redeems once from t
   assert.equal((await hub.sql('SELECT count(*)::int AS n FROM iam.application_grant WHERE account_id = $1 AND revoked_at IS NULL', [caio.account_id]))[0].n, 1)
 
   assert.equal(await hub.sessions.redeemApplication({ handoff, slug: 'estoque-parado', binding: 'C'.repeat(43) }), null)
-  const redeemed = await hub.sessions.redeemApplication({ handoff, slug: 'estoque-parado', binding: BINDING })
+  const [before] = await hub.sql('SELECT provider_refresh_token FROM iam.handoff WHERE handoff_digest=$1', [digestOf(handoff)])
+  const app = await applicationListener(t, hub)
+  const answer = await app.inject({ method: 'GET', url: `/__conexus/sign-in/complete?handoff=${handoff}`, headers: { host: 'estoque-parado.apps.conexus.test', cookie: `__Host-conexus_app_signin=${BINDING}` } })
+  assert.equal(answer.statusCode, 303)
+  assert.equal(answer.headers.location, '/')
+  const cookie = [answer.headers['set-cookie']].flat().find((value) => value.startsWith('__Host-conexus_app='))
+  const redeemed = { sessionToken: cookie.match(/^__Host-conexus_app=([^;]+)/)[1], maxAgeSeconds: Number(cookie.match(/Max-Age=(\d+)/)[1]) }
+  const [after] = await hub.sql('SELECT provider_refresh_token FROM iam.host_session WHERE token_digest=$1', [digestOf(redeemed.sessionToken)])
+  assert.notEqual(after.provider_refresh_token, before.provider_refresh_token)
+  const plain = await hub.envelope.open(before.provider_refresh_token, handoffContext(digestOf(handoff)))
+  assert.equal(await hub.envelope.open(after.provider_refresh_token, sessionContext(digestOf(redeemed.sessionToken))), plain)
+  await assert.rejects(hub.envelope.open(before.provider_refresh_token, sessionContext(digestOf(redeemed.sessionToken))), { id: 'SECRET_CUSTODY_LOST' })
   assert.match(redeemed.sessionToken, /^[A-Za-z0-9_-]{43}$/)
   assert.ok(redeemed.maxAgeSeconds > 28700 && redeemed.maxAgeSeconds <= 28800)
   assert.equal(await hub.sessions.redeemApplication({ handoff, slug: 'estoque-parado', binding: BINDING }), null)
@@ -133,4 +162,24 @@ test('presence: while the first prepare of an application holds the shared lock,
   assert.equal(await prepare, false)
   assert.equal((await grant('ana@x.com', 'after')).statusCode, 201)
   assert.equal(await hub.applicationAccess.withApplicationPresence(P, async ({ hasApplication }) => hasApplication), true)
+})
+
+
+test('HTTP handoff custody loss consumes the handoff; unknown key propagates CONFIG_INVALID and rolls the consume back', async (t) => {
+  for (const kind of ['custody', 'configuration']) {
+    const { hub, grant } = await estate(t, `conexus_iam_handoff_${kind}`)
+    await grant('caio@x.com', 'synthetic-invite')
+    const signedIn = await hub.signInWith(person('caio', { email: 'caio@x.com' }), { application: 'estoque-parado', binding: bindingParam })
+    const handoff = new URL(signedIn.headers.location).searchParams.get('handoff')
+    const sealed = kind === 'custody'
+      ? await hub.envelope.seal('synthetic-refresh', handoffContext(Buffer.alloc(32, 7)))
+      : await createSecretEnvelope('cd'.repeat(32)).seal('synthetic-refresh', handoffContext(digestOf(handoff)))
+    await hub.sql('UPDATE iam.handoff SET provider_refresh_token=$2 WHERE handoff_digest=$1', [digestOf(handoff), sealed])
+    const app = await applicationListener(t, hub)
+    const answer = await app.inject({ method: 'GET', url: `/__conexus/sign-in/complete?handoff=${handoff}`, headers: { host: 'estoque-parado.apps.conexus.test', cookie: `__Host-conexus_app_signin=${BINDING}` } })
+    assert.equal(answer.statusCode, kind === 'custody' ? 403 : 500)
+    if (kind === 'configuration') assert.equal(answer.json().code, 'CONFIG_INVALID')
+    const [rows] = await hub.sql('SELECT count(*)::int AS n FROM iam.handoff WHERE handoff_digest=$1', [digestOf(handoff)])
+    assert.equal(rows.n, kind === 'custody' ? 0 : 1)
+  }
 })

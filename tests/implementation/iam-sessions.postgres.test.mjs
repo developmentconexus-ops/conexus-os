@@ -1,8 +1,11 @@
+import { hubModuleUrl } from './hub-build.mjs'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import pg from 'pg'
 import { HUB_ORIGIN, W, captureLines, digestOf, hubWrite, iamHub, problemOf, sessionCookie } from './iam-fixture.mjs'
+
+const { createSecretEnvelope, sessionContext } = await import(hubModuleUrl('platform/secrets.js'))
 
 const ANA = '10000000-0000-4000-8000-000000000002'
 const P = '33333333-3333-4333-8333-333333333333'
@@ -109,7 +112,7 @@ test('a token the envelope cannot open ends the session with CUSTODY_CHANGED', a
   const { read, rows, age } = await signedIn(t, 'conexus_iam_hub_custody')
   const lines = captureLines(t)
   await age(recheckDue)
-  await age("UPDATE iam.host_session SET provider_refresh_token = 'mastra:factory-secret:v1:retired-key' WHERE token_digest = $1")
+  await age("UPDATE iam.host_session SET provider_refresh_token = 'conexus:secret:v1:malformed' WHERE token_digest = $1")
   assert.equal((await read()).statusCode, 401)
   assert.equal(await rows(), 0)
   assert.deepEqual(lines.of('SESSION_ENDED'), [{ kind: 'HUB', reason: 'CUSTODY_CHANGED' }])
@@ -156,7 +159,7 @@ test('the application request: served with a Checked proof on one entry; a refus
   await hub.sql('INSERT INTO iam.application_grant (project_id, account_id, granted_by) VALUES ($1, $2, $3)', [P, caio, owner])
   const token = 'a'.repeat(43)
   await hub.sql(`INSERT INTO iam.host_session (token_digest, kind, account_id, started_at, absolute_expires_at, project_id, provider_refresh_token, provider_checked_at)
-    VALUES ($1, 'APPLICATION', $2, now(), now() + interval '8 hours', $3, $4, now())`, [digestOf(token), caio, P, await hub.envelope.seal('refresh-caio')])
+    VALUES ($1, 'APPLICATION', $2, now(), now() + interval '8 hours', $3, $4, now())`, [digestOf(token), caio, P, await hub.envelope.seal('refresh-caio', sessionContext(digestOf(token)))])
   const request = (slug) => hub.sessions.withApplicationRequest({ slug, token }, async ({ caller, checked }) => ({ caller, scope: checked.scope }))
   assert.deepEqual(await request('estoque-parado'), {
     kind: 'SERVED',
@@ -166,4 +169,20 @@ test('the application request: served with a Checked proof on one entry; a refus
   await hub.sql('UPDATE iam.application_grant SET revoked_at = clock_timestamp(), revoked_by = $1', [owner])
   assert.deepEqual(await request('estoque-parado'), { kind: 'SIGN_IN_REQUIRED' })
   assert.equal((await hub.sql("SELECT count(*)::int AS n FROM iam.host_session WHERE kind = 'APPLICATION'"))[0].n, 0)
+})
+
+
+test('an unknown configured key propagates a platform fault on recheck and sign-out, rather than custody loss', async (t) => {
+  const { hub, token, read, rows, age } = await signedIn(t, 'conexus_iam_unknown_key')
+  const sealed = await createSecretEnvelope('cd'.repeat(32)).seal('synthetic-refresh', sessionContext(digestOf(token)))
+  await hub.sql('UPDATE iam.host_session SET provider_refresh_token=$2 WHERE token_digest=$1', [digestOf(token), sealed])
+  await age(recheckDue)
+  const lines = captureLines(t)
+  assert.equal(problemOf(await read()), '500 CONFIG_INVALID')
+  assert.equal(await rows(), 1, 'configuration fault does not end a live session as custody loss')
+  assert.deepEqual(lines.of('SESSION_ENDED'), [])
+  const signOut = await hub.call(token, 'DELETE', '/api/session')
+  assert.equal(problemOf(signOut), '500 CONFIG_INVALID')
+  assert.equal(await rows(), 0, 'sign-out still ends the local session before opening the provider token')
+  assert.equal(hub.oidc.logouts.length, 0)
 })

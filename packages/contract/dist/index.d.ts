@@ -1347,6 +1347,7 @@ export declare const OPERATIONS: {
                         OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                         OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                         OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                        SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                     }>;
                 }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
                     builderRunId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "BuilderRunId", "out">;
@@ -1619,6 +1620,7 @@ export declare const OPERATIONS: {
                         OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                         OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                         OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                        SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                     }>;
                 }, import("zod/v4/core").$strip>], "state">>;
                 latestCodeChangingRun: import("zod").ZodNullable<import("zod").ZodObject<{
@@ -1954,6 +1956,7 @@ export declare const OPERATIONS: {
                         OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                         OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                         OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                        SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                     }>;
                 }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
                     builderRunId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "BuilderRunId", "out">;
@@ -2225,6 +2228,7 @@ export declare const OPERATIONS: {
                         OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                         OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                         OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                        SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                     }>;
                 }, import("zod/v4/core").$strip>], "state">>;
             }, import("zod/v4/core").$strip>;
@@ -2573,6 +2577,7 @@ export declare const OPERATIONS: {
                         OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                         OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                         OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                        SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                     }>;
                 }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
                     builderRunId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "BuilderRunId", "out">;
@@ -2844,6 +2849,7 @@ export declare const OPERATIONS: {
                         OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                         OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                         OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                        SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                     }>;
                 }, import("zod/v4/core").$strip>], "state">;
             }, import("zod/v4/core").$strip>;
@@ -3167,6 +3173,7 @@ export declare const OPERATIONS: {
                         OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                         OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                         OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                        SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                     }>;
                 }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
                     builderRunId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "BuilderRunId", "out">;
@@ -3438,6 +3445,7 @@ export declare const OPERATIONS: {
                         OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                         OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                         OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                        SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                     }>;
                 }, import("zod/v4/core").$strip>], "state">;
             }, import("zod/v4/core").$strip>;
@@ -3784,6 +3792,7 @@ export declare const OPERATIONS: {
                         OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                         OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                         OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                        SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                     }>;
                 }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
                     builderRunId: import("zod/v4/core").$ZodBranded<import("zod").ZodUUID, "BuilderRunId", "out">;
@@ -4055,6 +4064,7 @@ export declare const OPERATIONS: {
                         OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                         OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                         OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                        SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                     }>;
                 }, import("zod/v4/core").$strip>], "state">;
             }, import("zod/v4/core").$strip>;

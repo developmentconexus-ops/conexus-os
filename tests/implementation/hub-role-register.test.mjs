@@ -32,7 +32,7 @@ test('the Hub config reads the password file and the role of every registered ro
     CONEXUS_ORIGIN: 'https://hub.conexus.localhost:3443',
     CONEXUS_PORT: '3443',
     CONEXUS_BOOTSTRAP_SUBJECT: 'bootstrap-subject',
-    CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/key',
+    CONEXUS_SECRET_KEY_FILE: '/secrets/key',
     CONEXUS_DB_HOST: 'db.internal',
     CONEXUS_DB_PORT: '5432',
     CONEXUS_DB_NAME: 'hub',

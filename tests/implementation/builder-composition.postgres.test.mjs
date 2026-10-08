@@ -26,7 +26,7 @@ const baseEnvironment = {
   CONEXUS_OIDC_ISSUER: 'https://issuer.test',
   CONEXUS_OIDC_CLIENT_ID: 'hub',
   CONEXUS_OIDC_CLIENT_SECRET_FILE: '/secrets/oidc',
-  CONEXUS_FACTORY_SECRET_KEY_FILE: '/secrets/installation-secret-key',
+  CONEXUS_SECRET_KEY_FILE: '/secrets/installation-secret-key',
   CONEXUS_BUILDER_E2B_API_KEY_FILE: '/secrets/e2b',
   CONEXUS_BUILDER_E2B_TEMPLATE_ID: 'conexus:11111111-1111-4111-8111-111111111111',
   CONEXUS_BUILDER_QUESTION_WAIT_MS: String(5 * 60_000),
@@ -197,8 +197,8 @@ const { CONEXUS_BUILDER_E2B_API_KEY_FILE: _e2bKey, CONEXUS_BUILDER_E2B_TEMPLATE_
 test('with no Builder and no storage role the Hub boots, with the installation credential key', () => {
   assert.equal(readHubConfig(environmentWithoutBuilder).factory, undefined)
   assert.deepEqual(readHubConfig(environmentWithoutBuilder).secretKey, { file: '/secrets/installation-secret-key', previousFiles: [] })
-  const { CONEXUS_FACTORY_SECRET_KEY_FILE: _key, ...keyless } = environmentWithoutBuilder
-  assert.throws(() => readHubConfig(keyless), missing('CONEXUS_FACTORY_SECRET_KEY_FILE'), 'every Hub seals its sessions\' refresh tokens')
+  const { CONEXUS_SECRET_KEY_FILE: _key, ...keyless } = environmentWithoutBuilder
+  assert.throws(() => readHubConfig(keyless), missing('CONEXUS_SECRET_KEY_FILE'), 'every Hub seals its sessions\' refresh tokens')
 })
 
 test("a Builder without its Mastra storage role is refused, and with it the role's password file is all the Hub reads", () => {
@@ -225,20 +225,21 @@ test('Google AI Pro needs both CLIProxyAPI variables, an absolute path and a sha
 })
 
 test('after a key rotation a secret sealed under a previous key still opens, and only through the keys the installation names', async () => {
-  const { createSecretEnvelope } = await import(built('platform/secrets.js'))
+  const { createSecretEnvelope, sessionContext } = await import(built('platform/secrets.js'))
   const previous = 'c3'.repeat(32)
   const current = 'd4'.repeat(32)
-  const sealedBefore = await createSecretEnvelope(previous).seal('refresh-before-rotation')
-  assert.equal(await createSecretEnvelope(current, [previous]).open(sealedBefore), 'refresh-before-rotation')
-  await assert.rejects(createSecretEnvelope(current).open(sealedBefore))
+  const context = sessionContext(Buffer.alloc(32, 1))
+  const sealedBefore = await createSecretEnvelope(previous).seal('refresh-before-rotation', context)
+  assert.equal(await createSecretEnvelope(current, [previous]).open(sealedBefore, context), 'refresh-before-rotation')
+  await assert.rejects(createSecretEnvelope(current).open(sealedBefore, context))
 })
 
 test('previous credential keys are named by absolute paths, separated by commas', () => {
   const complete = { ...baseEnvironment, ...storageEnvironment }
   assert.deepEqual(readHubConfig(complete).secretKey.previousFiles, [])
-  assert.deepEqual(readHubConfig({ ...complete, CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES: '/secrets/key-2025,/secrets/key-2026' }).secretKey.previousFiles,
+  assert.deepEqual(readHubConfig({ ...complete, CONEXUS_PREVIOUS_SECRET_KEY_FILES: '/secrets/key-2025,/secrets/key-2026' }).secretKey.previousFiles,
     ['/secrets/key-2025', '/secrets/key-2026'])
-  assert.throws(() => readHubConfig({ ...complete, CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES: 'key-2025' }), invalidConfig('CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES'))
+  assert.throws(() => readHubConfig({ ...complete, CONEXUS_PREVIOUS_SECRET_KEY_FILES: 'key-2025' }), invalidConfig('CONEXUS_PREVIOUS_SECRET_KEY_FILES'))
 })
 
 // A probe role owning a `factory` schema, as hub_factory owns it in production.
@@ -454,4 +455,10 @@ test('the Builder observability deterministically compacts processor_run span by
   assert.deepEqual(processed.output, { messageCount: 10 })
   assert.equal(compactedBytes, 38)
   assert.ok(compactedBytes / rawBytes < 0.001, 'compacted payload must be less than 0.1% of raw payload')
+})
+
+
+test('retired key variable alone cannot boot a Hub', () => {
+  const { CONEXUS_SECRET_KEY_FILE: _key, ...withoutCurrent } = environmentWithoutBuilder
+  assert.throws(() => readHubConfig({ ...withoutCurrent, CONEXUS_FACTORY_SECRET_KEY_FILE: '/synthetic/retired-key' }), missing('CONEXUS_SECRET_KEY_FILE'))
 })

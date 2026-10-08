@@ -8,7 +8,7 @@ import { Failure, logFailure, type FailureCode } from './failure.js'
 import { fieldOf } from './field-of.js'
 import { logger } from './logger.js'
 import { codeOfSql } from './sql-lexer.js'
-import { readSecretFile } from './secrets.js'
+import { readSecretFile } from './secret-file.js'
 import { CAPABILITY_BY_ROLE } from './hub-roles.generated.js'
 
 const sqlBrand: unique symbol = Symbol('sql')

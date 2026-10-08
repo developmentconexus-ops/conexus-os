@@ -23,7 +23,7 @@ const hubEnvironment = (root) => ({
   CONEXUS_OIDC_ISSUER: 'https://issuer.conexus.localhost',
   CONEXUS_OIDC_CLIENT_ID: 'conexus-hub',
   CONEXUS_OIDC_CLIENT_SECRET_FILE: resolve(root, 'oidc-client-secret'),
-  CONEXUS_FACTORY_SECRET_KEY_FILE: resolve(root, 'factory-secret-key'),
+  CONEXUS_SECRET_KEY_FILE: resolve(root, 'factory-secret-key'),
   CONEXUS_DB_FACTORY_PASSWORD_FILE: resolve(root, 'factory-password'),
 })
 
@@ -31,7 +31,7 @@ test('a Builder without its Mastra storage role is refused', async (t) => {
   const root = mkdtempSync(resolve(tmpdir(), 'conexus-f05-factory-'))
   t.after(() => rmSync(root, { recursive: true, force: true }))
   const { readHubConfig } = await import(hubModuleUrl('platform/config.js'))
-  const environment = Object.fromEntries(Object.entries(hubEnvironment(root)).filter(([name]) => !name.includes('_FACTORY_') || name === 'CONEXUS_FACTORY_SECRET_KEY_FILE'))
+  const environment = Object.fromEntries(Object.entries(hubEnvironment(root)).filter(([name]) => !name.includes('_FACTORY_') || name === 'CONEXUS_SECRET_KEY_FILE'))
   assert.throws(() => readHubConfig(environment), invalidConfig('BUILDER_FACTORY_RUNTIME_REQUIRED'))
 })
 

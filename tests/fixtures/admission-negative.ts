@@ -5,7 +5,7 @@ import type { Admitted, AccountScope, RunScope, ApplicationScope, Checked, Proje
 import { idempotent, type Receipted } from '../../apps/hub/src/platform/receipt.js'
 import { createWorkspace, type IdempotencyKey, WorkspaceId as WorkspaceIdSchema } from '@conexus/contract'
 import type { AuthenticationGate, CommandGate, ReadTx, RawToken, WriteTx } from '../../apps/hub/src/platform/db.js'
-import type { Lawful } from '../../apps/hub/src/builder/model-account/providers.js'
+import type { CredentialKind } from '../../apps/hub/src/builder/model-account/providers.js'
 import type { ModelRoute, ModelRoutes } from '../../apps/hub/src/builder/model-routing.js'
 import { digest, sql } from '../../apps/hub/src/platform/db.js'
 import { SealedApplication } from '../../apps/hub/src/platform/sealed-application.js'
@@ -156,8 +156,8 @@ const provisionedBare = provisionIdentity(authentication, claims)
 
 declare const anthropicRoute: ModelRoute<'anthropic'>
 declare const googleRoute: ModelRoute<'google-ai-pro'>
-// @ts-expect-error A Lawful credential of openai-codex cannot hold the api_key kind.
-const unlawful: Lawful = { provider: 'openai-codex', kind: 'api_key' }
+// @ts-expect-error A CredentialKind of openai-codex cannot hold the api_key kind.
+const unlawful: CredentialKind = { provider: 'openai-codex', kind: 'api_key' }
 // @ts-expect-error A ModelRoutes missing the router prefix openai does not compile.
 const missingPrefix: ModelRoutes = { anthropic: anthropicRoute, 'google-ai-pro': googleRoute }
 

@@ -8618,7 +8618,8 @@
               "HUB_FATAL",
               "OIDC_BEGIN_FAILED",
               "OIDC_REFRESH_TOKEN_MISSING",
-              "OIDC_CALLBACK_FAILED"
+              "OIDC_CALLBACK_FAILED",
+              "SECRET_CUSTODY_LOST"
             ]
           },
           "traceId": {
@@ -10343,7 +10344,8 @@
           "HUB_FATAL",
           "OIDC_BEGIN_FAILED",
           "OIDC_REFRESH_TOKEN_MISSING",
-          "OIDC_CALLBACK_FAILED"
+          "OIDC_CALLBACK_FAILED",
+          "SECRET_CUSTODY_LOST"
         ]
       },
       "LatestCodeChangingBuilderRun": {

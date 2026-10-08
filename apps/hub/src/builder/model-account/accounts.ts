@@ -1,9 +1,10 @@
+import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { ModelAccountId, type AccountId, type ModelAccountKind, type ModelAccountProvider, type SessionAccount, type ModelRole, ModelId, type Result } from '@conexus/contract'
 import { admitAccount, admitSystem, type Admitted, type RunScope, type SystemScope } from '../../identity-access/admission.js'
 import { sql, type Database } from '../../platform/db.js'
 import { Failure } from '../../platform/failure.js'
-import type { SecretEnvelope } from '../../platform/secrets.js'
+import { modelAccountContext, SealedColumn, type Sealed, type SecretEnvelope } from '../../platform/secrets.js'
 import { ADMISSION_REFUSALS, withRun } from '../run-lifecycle.js'
 import type { RunContext } from '../run-context.js'
 import { CredentialKind, parseCredential, encodeCredential, parseModelId, type Credential } from './providers.js'
@@ -34,7 +35,7 @@ export type ModelAccounts = Readonly<{
   select(run: HeldRun, provider: ModelAccountProvider): Promise<HeldAccount | null>
 }>
 
-const SealedRow = z.object({ model_account_id: ModelAccountId, secret: z.string() }).and(CredentialKind)
+const SealedRow = z.object({ model_account_id: ModelAccountId, secret: SealedColumn('model-account') }).and(CredentialKind)
   .transform(({ model_account_id, secret, ...credential }) => ({ modelAccountId: model_account_id, credential, sealed: secret }))
 const DefaultRow = z.object({ model_id: ModelId })
 
@@ -44,7 +45,7 @@ export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ 
     JOIN builder.builder_run_model_account AS recorded ON recorded.model_account_id = account.model_account_id
     WHERE account.model_account_id = ${modelAccountId} AND recorded.builder_run_id = ${scope.builderRunId}`)
 
-  const rewrite = async ({ tx }: Admitted<SystemScope<'builder-executor'>>, { modelAccountId, kind, sealed }: Readonly<{ modelAccountId: ModelAccountId; kind: ModelAccountKind; sealed: string }>): Promise<boolean> =>
+  const rewrite = async ({ tx }: Admitted<SystemScope<'builder-executor'>>, { modelAccountId, kind, sealed }: Readonly<{ modelAccountId: ModelAccountId; kind: ModelAccountKind; sealed: Sealed<'model-account'> }>): Promise<boolean> =>
     await tx.run(sql`
       UPDATE model.model_account SET secret = ${sealed}, updated_at = clock_timestamp()
       WHERE model_account_id = ${modelAccountId} AND kind = ${kind}`) === 1
@@ -58,10 +59,10 @@ export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ 
         const stored = await withRun(database, ownerId, run.builderRunId, { via: 'account', accountId: run.accountId }, (proof) => readById(proof, { modelAccountId: row.modelAccountId }))
           .catch((error: unknown) => { if (error instanceof Failure && ADMISSION_REFUSALS.has(error.id)) return null; throw error })
         if (!stored || stored.credential.provider !== row.credential.provider || stored.credential.kind !== row.credential.kind) return null
-        return hold(row, await envelope.open(stored.sealed), run)
+        return hold(row, await envelope.open(stored.sealed, modelAccountContext(row.modelAccountId)), run)
       },
       persist: async (next) => {
-        const sealed = await envelope.seal(encodeCredential(next))
+        const sealed = await envelope.seal(encodeCredential(next), modelAccountContext(row.modelAccountId))
         return database.system('builder-executor', async (gate) => rewrite(await admitSystem(gate, 'builder-executor'), { modelAccountId: row.modelAccountId, kind: row.credential.kind, sealed }))
       },
     })
@@ -74,12 +75,18 @@ export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ 
   })
 
   const write: ModelAccounts['write'] = async ({ account, credential }) => {
-    const sealed = await envelope.seal(encodeCredential(credential))
     await database.transaction(account.accountId, async (gate) => {
       const { tx, scope } = await admitAccount(gate)
+      // A missing row cannot be locked: serialize its immutable-id choice with a concurrent connect.
+      await tx.run(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`model-account:personal:${scope.accountId}:${credential.provider}`}, 0))`)
+      const existing = await tx.maybe(z.object({ model_account_id: ModelAccountId }), sql`
+        SELECT model_account_id FROM model.model_account
+        WHERE scope = 'personal' AND owner_account_id = ${scope.accountId} AND provider = ${credential.provider} FOR UPDATE`)
+      const modelAccountId = existing?.model_account_id ?? ModelAccountId.parse(randomUUID())
+      const sealed = await envelope.seal(encodeCredential(credential), modelAccountContext(modelAccountId))
       await tx.run(sql`
-        INSERT INTO model.model_account (scope, owner_account_id, provider, kind, secret, connected_by, connected_by_name, connected_at)
-        VALUES ('personal', ${scope.accountId}, ${credential.provider}, ${credential.kind}, ${sealed}, ${scope.accountId}, ${account.displayName}, clock_timestamp())
+        INSERT INTO model.model_account (model_account_id, scope, owner_account_id, provider, kind, secret, connected_by, connected_by_name, connected_at)
+        VALUES (${modelAccountId}, 'personal', ${scope.accountId}, ${credential.provider}, ${credential.kind}, ${sealed}, ${scope.accountId}, ${account.displayName}, clock_timestamp())
         ON CONFLICT (owner_account_id, provider) WHERE scope = 'personal' DO UPDATE
           SET kind = EXCLUDED.kind, secret = EXCLUDED.secret, connected_by = EXCLUDED.connected_by, connected_by_name = EXCLUDED.connected_by_name,
             connected_at = EXCLUDED.connected_at, updated_at = clock_timestamp(), refused_at = NULL
@@ -114,12 +121,12 @@ export function createModelAccounts({ database, envelope, ownerId }: Readonly<{ 
     usable: async (accountId, provider) => {
       const row = await readUsable(accountId, provider)
       if (!row) return false
-      await envelope.open(row.sealed)
+      await envelope.open(row.sealed, modelAccountContext(row.modelAccountId))
       return true
     },
     select: async (run, provider) => {
       const row = await readUsable(run.accountId, provider)
-      return row ? hold(row, await envelope.open(row.sealed), run) : null
+      return row ? hold(row, await envelope.open(row.sealed, modelAccountContext(row.modelAccountId)), run) : null
     },
   })
 }

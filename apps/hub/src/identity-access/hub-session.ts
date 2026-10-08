@@ -1,3 +1,4 @@
+import { sessionContext } from '../platform/secrets.js'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { endSession, getSession } from '@conexus/contract'
@@ -50,7 +51,10 @@ export const createHubSessions = ({ database, envelope, provider }: SessionDepen
     const deleted = await database.authenticate((gate) => endCredential(gate, { digest: key, kind: 'HUB' }))
     if (!deleted) throw new Failure('AUTHENTICATION_REQUIRED')
     sessionEnded('HUB', 'SIGNED_OUT')
-    const refreshToken = deleted.sealedToken ? await envelope.open(deleted.sealedToken).catch(() => null) : null
+    const refreshToken = deleted.sealedToken ? await envelope.open(deleted.sealedToken, sessionContext(key)).catch((error: unknown) => {
+      if (error instanceof Failure && error.id === 'SECRET_CUSTODY_LOST') return null
+      throw error
+    }) : null
     const logout = refreshToken ? await provider.endProviderSession({ refreshToken, signal: AbortSignal.timeout(PROVIDER_LOGOUT_TIMEOUT_MS) }) : 'UNCONFIRMED'
     if (logout !== 'ENDED') logLine('HUB_SIGN_OUT_PROVIDER_LOGOUT_UNCONFIRMED', {}, 'warn')
   }
@@ -61,7 +65,7 @@ export const createHubSessions = ({ database, envelope, provider }: SessionDepen
     await proof.tx.run(sql`
       INSERT INTO iam.host_session (token_digest, kind, account_id, started_at, absolute_expires_at, idle_expires_at, provider_refresh_token, provider_checked_at)
       VALUES (${digest(sessionToken)}, 'HUB', ${proof.scope.accountId}, now(), now() + make_interval(secs => ${HUB_ABSOLUTE_SECONDS}),
-        now() + make_interval(secs => ${HUB_IDLE_SECONDS}), ${await envelope.seal(refreshToken)}, now())`)
+        now() + make_interval(secs => ${HUB_IDLE_SECONDS}), ${await envelope.seal(refreshToken, sessionContext(digest(sessionToken)))}, now())`)
     return sessionToken
   }
 

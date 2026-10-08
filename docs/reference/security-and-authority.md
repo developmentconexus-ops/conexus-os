@@ -146,7 +146,8 @@ start with a route that declares no access.
 ASVS V11 and V13.
 
 - A secret at rest **must** be read through `platform/secrets.ts`, which refuses a file other users
-  can read, and sealed with the installation's envelope. The database refuses an unsealed value.
+  can read, and sealed with the installation's envelope, bound to the immutable identity of its row.
+  The database refuses an unsealed value.
 - Keys **must** have a rotation procedure. A retired key only decrypts.
 - A secret **must not** appear in code, fixtures, logs, telemetry or a pull request.
 - No sandbox, generated app, browser or log **must** receive a durable privileged credential,

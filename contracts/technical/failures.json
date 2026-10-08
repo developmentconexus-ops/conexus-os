@@ -1997,6 +1997,11 @@
       "code": "OIDC_CALLBACK_FAILED",
       "category": "THIRD_PARTY",
       "audience": "operator"
+    },
+    {
+      "code": "SECRET_CUSTODY_LOST",
+      "category": "SYSTEM",
+      "audience": "operator"
     }
   ]
 }

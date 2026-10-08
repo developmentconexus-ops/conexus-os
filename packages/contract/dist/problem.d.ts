@@ -263,6 +263,7 @@ export declare const Problem: z.ZodObject<{
         OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
         OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
         OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+        SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
     }>;
     traceId: z.ZodOptional<z.core.$ZodBranded<z.ZodString, "TraceId", "out">>;
 }, z.core.$loose>;

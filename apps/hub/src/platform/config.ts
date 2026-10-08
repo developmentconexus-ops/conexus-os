@@ -66,7 +66,7 @@ export const applicationSlugOfHost = (address: ApplicationAddress, host: string 
 // The CLIProxyAPI binary the Hub runs per person for Google AI Pro, pinned by its sha256.
 export type GoogleAiProRuntimeConfig = Readonly<{ binary: string; sha256: string }>
 
-// CONEXUS_FACTORY_SECRET_KEY_FILE holds 64 hex characters; CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES names
+// CONEXUS_SECRET_KEY_FILE holds 64 hex characters; CONEXUS_PREVIOUS_SECRET_KEY_FILES names
 // the keys it replaced, until every value sealed under them has been rewritten.
 export type InstallationSecretKey = Readonly<{ file: string; previousFiles: readonly string[] }>
 
@@ -75,10 +75,10 @@ export type FactoryRuntimeConfig = Readonly<{
   databasePasswordFile: string
 }>
 
-/** CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES: absolute paths separated by commas, or nothing. */
+/** CONEXUS_PREVIOUS_SECRET_KEY_FILES: absolute paths separated by commas, or nothing. */
 const previousSecretKeyFiles = (environment: NodeJS.ProcessEnv): readonly string[] => {
-  const files = (environment.CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES ?? '').split(',').filter(Boolean)
-  if (files.some((file) => !file.startsWith('/'))) throw configInvalid('CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES')
+  const files = (environment.CONEXUS_PREVIOUS_SECRET_KEY_FILES ?? '').split(',').filter(Boolean)
+  if (files.some((file) => !file.startsWith('/'))) throw configInvalid('CONEXUS_PREVIOUS_SECRET_KEY_FILES')
   return files
 }
 
@@ -217,7 +217,7 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
     preview,
     application: applicationRuntime(environment, hubPort, preview),
     bootstrapSubject: required(environment, 'CONEXUS_BOOTSTRAP_SUBJECT'),
-    secretKey: { file: required(environment, 'CONEXUS_FACTORY_SECRET_KEY_FILE'), previousFiles: previousSecretKeyFiles(environment) },
+    secretKey: { file: required(environment, 'CONEXUS_SECRET_KEY_FILE'), previousFiles: previousSecretKeyFiles(environment) },
     database: {
       host: required(environment, 'CONEXUS_DB_HOST'),
       port: port(required(environment, 'CONEXUS_DB_PORT'), 'CONEXUS_DB_PORT'),

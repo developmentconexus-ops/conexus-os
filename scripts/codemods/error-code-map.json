@@ -115,13 +115,13 @@
    },
    "name": "FACTORY_BUILDER_RUNTIME_REQUIRED"
   },
-  "FACTORY_SECRET_KEY_REFUSED": {
+  "SECRET_KEY_REFUSED": {
    "row": {
     "code": "CONFIG_INVALID",
     "category": "SYSTEM",
     "audience": "operator"
    },
-   "name": "FACTORY_SECRET_KEY_REFUSED"
+   "name": "SECRET_KEY_REFUSED"
   },
   "GOOGLE_AI_PRO_FACTORY_RUNTIME_REQUIRED": {
    "row": {
@@ -204,13 +204,13 @@
    },
    "name": "CONEXUS_CONNECTOR_SOCKET_DIR"
   },
-  "INVALID_CONFIG_CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES": {
+  "INVALID_CONFIG_CONEXUS_PREVIOUS_SECRET_KEY_FILES": {
    "row": {
     "code": "CONFIG_INVALID",
     "category": "SYSTEM",
     "audience": "operator"
    },
-   "name": "CONEXUS_FACTORY_PREVIOUS_SECRET_KEY_FILES"
+   "name": "CONEXUS_PREVIOUS_SECRET_KEY_FILES"
   },
   "INVALID_CONFIG_CONEXUS_GIT_ROOT": {
    "row": {

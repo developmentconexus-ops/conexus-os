@@ -16,7 +16,7 @@ const { createTokenCache } = await import(hubModuleUrl('connectors/token-cache.j
 const { createSankhyaGateway } = await import(hubModuleUrl('connectors/sankhya/gateway.js'))
 const { sankhyaDefinition } = await import(hubModuleUrl('connectors/sankhya/definition.js'))
 const { scopeFromArtifactSource } = await import(hubModuleUrl('connectors/scope.js'))
-const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
+const { createSecretEnvelope, connectionContext } = await import(hubModuleUrl('platform/secrets.js'))
 
 // The executor's shared machinery, driven through broker.fetch: custody of the credential, the token
 // cache, the one-request-per-token lane, the deadline and the record. connector-fetch.test.mjs owns the
@@ -27,7 +27,7 @@ const CONNECTION = '33333333-3333-4333-8333-333333333333'
 const LOAD = 'CRUDServiceProvider.loadRecords'
 const ROUTE = '/gateway/v1/mge/service.sbr'
 const envelope = createSecretEnvelope('cd'.repeat(32))
-const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL))
+const sealed = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL), connectionContext(CONNECTION))
 const consumer = Object.freeze({ kind: 'handler', invocationId: 'invocation-1', scope: scopeFromArtifactSource({ via: 'PREVIEW', accountId: '55555555-5555-4555-8555-555555555555', projectId: PROJECT }) })
 
 const binding = (name, connectionId = CONNECTION, connectorId = 'sankhya') => ({ bindingId: `binding-${name}`, name, connectionId, connectorId })
@@ -243,7 +243,7 @@ test('fetches that share one authentication each record it: the issuer its reque
 
 test('a credential shaped like a provider code, even a documented one, echoed in an error body reaches no span or line', async (t) => {
   const shaped = Object.freeze({ clientId: 'GTW2468', clientSecret: 'CORE_E13579', xToken: 'GTW3501' })
-  const { fake, broker, facts, exporter, lines } = await setup(t, { store: memoryStore({ credential: await envelope.seal(JSON.stringify(shaped)) }) })
+  const { fake, broker, facts, exporter, lines } = await setup(t, { store: memoryStore({ credential: await envelope.seal(JSON.stringify(shaped), connectionContext(CONNECTION)) }) })
   fake.mode.authenticate = 'echo-401'
   assert.deepEqual(await broker.fetch(consumer, read()), { ok: false, code: 'CREDENTIAL_REFUSED' })
   assert.deepEqual(await facts(), [
@@ -299,7 +299,7 @@ test('no credential, token, request or vendor text reaches a tracing event or a 
     const { fake, broker, settled, exporter, lines } = await setup(t, { deadlineMs: 300 })
     Object.assign(fake.mode, mode)
     await broker.fetch(consumer, read())
-    await broker.checkCredential('sankhya', sealed)
+    await broker.checkCredential('sankhya', sealed, CONNECTION)
     await settled()
     assert.ok(exporter.events.length > 0, `${JSON.stringify(mode)} recorded events`)
     const seen = recordText({ exporter, lines })
@@ -364,25 +364,25 @@ test('the Hub\'s Mastra keeps the Connector record in its own storage, and the B
 test('no pinned destination answers CONNECTOR_UNCONFIGURED with zero requests, for a fetch and for a credential check', async (t) => {
   const { fake, broker, store } = await setup(t, { adapter: false })
   assert.deepEqual(await broker.fetch(consumer, read()), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
-  assert.deepEqual(await broker.checkCredential('sankhya', sealed), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
+  assert.deepEqual(await broker.checkCredential('sankhya', sealed, CONNECTION), { ok: false, code: 'CONNECTOR_UNCONFIGURED' })
   assert.equal(fake.requests.length, 0)
   assert.deepEqual(store.calls.map(([name]) => name), ['listBindings'])
 })
 
 test('a store or envelope fault is CONNECTOR_PLATFORM_FAILED, and only a credential the Conexus read and refused is CREDENTIAL_REFUSED', async (t) => {
   const unreadable = await setup(t)
-  assert.deepEqual(await unreadable.broker.checkCredential('sankhya', 'not-a-sealed-credential'), { ok: false, code: 'CONNECTOR_PLATFORM_FAILED' })
+  assert.deepEqual(await unreadable.broker.checkCredential('sankhya', 'not-a-sealed-credential', CONNECTION), { ok: false, code: 'CONNECTOR_PLATFORM_FAILED' })
   const refused = await setup(t)
-  assert.deepEqual(await refused.broker.checkCredential('sankhya', await envelope.seal('{"unexpected":true}')), { ok: false, code: 'CREDENTIAL_REFUSED' })
+  assert.deepEqual(await refused.broker.checkCredential('sankhya', await envelope.seal('{"unexpected":true}', connectionContext(CONNECTION)), CONNECTION), { ok: false, code: 'CREDENTIAL_REFUSED' })
   const failing = await setup(t, { store: { ...memoryStore(), readConnectionCredential: async () => { throw new Error('connection refused') } } })
   assert.deepEqual(await failing.broker.fetch(consumer, read()), { ok: false, code: 'CONNECTOR_PLATFORM_FAILED' })
 })
 
 test('a credential check runs the allow-listed authentication alone and caches nothing', async (t) => {
   const { fake, broker, facts } = await setup(t)
-  assert.deepEqual(await broker.checkCredential('sankhya', sealed), { ok: true, value: null })
+  assert.deepEqual(await broker.checkCredential('sankhya', sealed, CONNECTION), { ok: true, value: null })
   fake.mode.authenticate = 401
-  assert.deepEqual(await broker.checkCredential('sankhya', sealed), { ok: false, code: 'CREDENTIAL_REFUSED' })
+  assert.deepEqual(await broker.checkCredential('sankhya', sealed, CONNECTION), { ok: false, code: 'CREDENTIAL_REFUSED' })
   assert.deepEqual(fake.requests.map((request) => request.path), ['/authenticate', '/authenticate'])
   const check = { name: 'connector.check', root: true, connector: 'sankhya' }
   const auth = { name: 'authenticate', root: false, connector: 'sankhya', step: 1, attempt: 1 }
@@ -397,7 +397,7 @@ test('a credential check runs the allow-listed authentication alone and caches n
 test('connector spans record the connector id only when registered', async (t) => {
   const { broker, facts, exporter, lines, settled } = await setup(t)
   const rawConnector = 'unregistered-connector'
-  await broker.checkCredential(rawConnector, CONNECTION)
+  await broker.checkCredential(rawConnector, sealed, CONNECTION)
   await settled()
 
   const recorded = await facts()
@@ -424,11 +424,19 @@ test('the Hub pins only a published gateway origin, and refuses any other at sta
   const base = {
     NODE_ENV: 'test', CONEXUS_ORIGIN: 'https://hub.test', CONEXUS_PORT: '3000', CONEXUS_BOOTSTRAP_SUBJECT: 'subject', CONEXUS_DB_HOST: '127.0.0.1', CONEXUS_DB_PORT: '5432',
     CONEXUS_DB_NAME: 'conexus', CONEXUS_DB_USER: 'hub_runtime', CONEXUS_DB_PASSWORD_FILE: '/run/hub-password', CONEXUS_OIDC_ISSUER: 'https://issuer.test',
-    CONEXUS_OIDC_CLIENT_ID: 'hub', CONEXUS_OIDC_CLIENT_SECRET_FILE: '/run/oidc-secret', CONEXUS_FACTORY_SECRET_KEY_FILE: '/run/secret-key',
+    CONEXUS_OIDC_CLIENT_ID: 'hub', CONEXUS_OIDC_CLIENT_SECRET_FILE: '/run/oidc-secret', CONEXUS_SECRET_KEY_FILE: '/run/secret-key',
   }
   assert.deepEqual(readHubConfig(base).connectors, { gatewayOrigin: undefined, socketDirectory: undefined })
   assert.throws(() => readHubConfig({ ...base, CONEXUS_SANKHYA_GATEWAY_ORIGIN: 'http://127.0.0.1:8080' }), invalidConfig('CONEXUS_SANKHYA_GATEWAY_ORIGIN'))
   assert.throws(() => readHubConfig({ ...base, CONEXUS_SANKHYA_GATEWAY_ORIGIN: SANKHYA_GATEWAY_ORIGINS[0] }), invalidConfig('CONNECTOR_GATEWAY_FACTORY_RUNTIME_REQUIRED'), 'no gateway without the Mastra storage that records its calls')
   assert.throws(() => readHubConfig({ ...base, CONEXUS_CONNECTOR_SOCKET_DIR: 'relative/dir' }), invalidConfig('CONEXUS_CONNECTOR_SOCKET_DIR'))
   assert.deepEqual(readHubConfig({ ...base, CONEXUS_CONNECTOR_SOCKET_DIR: '/run/conexus-connectors' }).connectors, { gatewayOrigin: undefined, socketDirectory: '/run/conexus-connectors' })
+})
+
+test('a credential transplanted from another Connection fails platform custody before provider authentication', async (t) => {
+  const other = '44444444-4444-4444-8444-444444444444'
+  const transplanted = await envelope.seal(JSON.stringify(FAKE_CREDENTIAL), connectionContext(other))
+  const { broker, fake } = await setup(t, { store: memoryStore({ credential: transplanted }) })
+  assert.deepEqual(await broker.checkCredential('sankhya', transplanted, CONNECTION), { ok: false, code: 'CONNECTOR_PLATFORM_FAILED' })
+  assert.equal(fake.requests.length, 0)
 })

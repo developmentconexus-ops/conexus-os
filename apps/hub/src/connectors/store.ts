@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import {
   BindingId, BindingName, ConnectionId, ConnectorIdText, type ProjectId,
   type AccountId, type createWorkspaceConnection, type FailureCode, type bindProjectConnection, type ConnectionBinding, type ConnectionBindingEntry, type ConnectorConnection, type Input, type WorkspaceId,
@@ -9,7 +10,7 @@ import {
 import type { Database, Mode } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
-import type { SecretEnvelope } from '../platform/secrets.js'
+import { connectionContext, SealedColumn, type Sealed, type SecretEnvelope } from '../platform/secrets.js'
 import type { ConsumerScope } from './scope.js'
 
 const ConnectionRow = z.object({
@@ -25,8 +26,8 @@ const EntryRow = z.discriminatedUnion('kind', [
 ])
 const Present = z.object({ present: z.literal(1) })
 const BindingIdRow = z.object({ binding_id: BindingId })
-const CredentialRow = z.object({ connector_id: ConnectorIdText, credential_sealed: z.string() })
-const SealedRow = z.object({ credential_sealed: z.string() })
+const CredentialRow = z.object({ connector_id: ConnectorIdText, credential_sealed: SealedColumn('connection') })
+const SealedRow = z.object({ credential_sealed: SealedColumn('connection') })
 const BoundRow = z.object({ binding_id: BindingId, name: BindingName, connection_id: ConnectionId, connector_id: ConnectorIdText })
 
 /** Preview and the application host both read the one environment the column accepts. */
@@ -68,7 +69,7 @@ export type ConnectorStore = Readonly<{
   listConnections(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId }>): Promise<ConnectorConnection[]>
   createConnection(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId; body: Input<typeof createWorkspaceConnection>['body'] }>): Promise<Readonly<{ connection: ConnectorConnection; created: boolean }>>
   /** The sealed credential of an enabled Connection, read in the administrator's own transaction, which ends before any provider call. */
-  readCredentialForCheck(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId; connectionId: ConnectionId }>): Promise<Readonly<{ connectorId: string; sealed: string }>>
+  readCredentialForCheck(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId; connectionId: ConnectionId }>): Promise<Readonly<{ connectorId: string; sealed: Sealed<'connection'> }>>
   disableConnection(input: Readonly<{ accountId: AccountId; workspaceId: WorkspaceId; connectionId: ConnectionId }>): Promise<void>
   listProjectBindings(input: Readonly<{ accountId: AccountId; projectId: ProjectId }>): Promise<ConnectionBindingEntry[]>
   bindConnection(input: Readonly<{ accountId: AccountId; projectId: ProjectId; body: Input<typeof bindProjectConnection>['body'] }>): Promise<Readonly<{ binding: ConnectionBinding; created: boolean }>>
@@ -84,7 +85,7 @@ export const createConnectorStore = ({ database, envelope }: Readonly<{ database
   }),
 
   createConnection: async ({ accountId, workspaceId, body }) => {
-    const sealed = await envelope.seal(JSON.stringify(body.credential))
+    const sealed = await envelope.seal(JSON.stringify(body.credential), connectionContext(body.connectionId))
     // Sorted keys, so a retry that sends the same fields in another order has the same digest.
     const digests = envelope.fingerprints(JSON.stringify(body.credential, Object.keys(body.credential).sort()))
     const [current] = digests
@@ -203,7 +204,7 @@ export type BrokerStore = Readonly<{
   /** The Project's open bindings on enabled Connections, for a Project that is not archived; none when the consumer's account is refused. */
   listBindings(scope: ConsumerScope): Promise<readonly BoundConnection[]>
   /** The sealed credential of an enabled Connection the Project has bound, or null. */
-  readConnectionCredential(scope: ConsumerScope, connectionId: ConnectionId): Promise<string | null>
+  readConnectionCredential(scope: ConsumerScope, connectionId: ConnectionId): Promise<Sealed<'connection'> | null>
 }>
 
 export const createBrokerStore = (database: Database): BrokerStore => {
@@ -231,7 +232,7 @@ export const createBrokerStore = (database: Database): BrokerStore => {
           AND bound.unbound_at IS NULL AND stored.disabled_at IS NULL AND NOT bound_project.archived
           AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = bound_project.project_id)
         ORDER BY bound.name`)).map((row) => ({ bindingId: row.binding_id, name: row.name, connectionId: row.connection_id, connectorId: row.connector_id }))),
-    readConnectionCredential: (scope, connectionId) => asConsumer<string | null>(scope, null, async (proof, projectId) =>
+    readConnectionCredential: (scope, connectionId) => asConsumer<Sealed<'connection'> | null>(scope, null, async (proof, projectId) =>
       (await proof.tx.maybe(SealedRow, sql`
         SELECT stored.credential_sealed FROM connector.connection AS stored
         WHERE stored.connection_id = ${connectionId} AND stored.disabled_at IS NULL
@@ -243,4 +244,3 @@ export const createBrokerStore = (database: Database): BrokerStore => {
               AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = bound_project.project_id))`))?.credential_sealed ?? null),
   })
 }
-import { z } from 'zod'

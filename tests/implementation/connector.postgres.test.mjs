@@ -18,7 +18,7 @@ const { scopeForBuilderRun, scopeFromArtifactSource } = await import(hubModuleUr
 const { admitSystem } = await import(hubModuleUrl('identity-access/admission.js'))
 
 const DIGEST = 'd'.repeat(64)
-const SEALED = 'mastra:factory-secret:v1:seed'
+const SEALED = 'conexus:secret:v1:seed'
 const SEEDED = '33333333-3333-4333-8333-333333333333'
 const SEEDED_AT = '2026-10-04T12:00:00.000Z'
 const CREDENTIAL = Object.freeze({ clientId: 'client-a', clientSecret: 'secret-a-4f1c', xToken: 'token-a-77d2' })
@@ -80,7 +80,7 @@ test('listWorkspaceConnections and createWorkspaceConnection: administrator only
   await assert.rejects(create({ ...body, connectionId: randomUUID() }, randomUUID()), { id: 'WORKSPACE_NOT_FOUND' })
 
   const stored = (await query(connection, 'SELECT credential_sealed, credential_digest FROM connector.connection WHERE connection_id = $1', [connectionId])).rows[0]
-  assert.match(stored.credential_sealed, /^mastra:factory-secret:v1:/)
+  assert.match(stored.credential_sealed, /^conexus:secret:v1:/)
   assert.equal(stored.credential_sealed.includes(CREDENTIAL.clientSecret), false)
   assert.match(stored.credential_digest, /^[0-9a-f]{64}$/)
   assert.deepEqual(await labelsOf(store, ID.administrator), ['ERP', 'ERP filial'])
@@ -94,7 +94,7 @@ test('checkWorkspaceConnection and disableWorkspaceConnection: the credential re
   const read = (accountId, workspaceId = ID.workspace, connectionId = erp) => store.readCredentialForCheck({ accountId, workspaceId, connectionId })
   const found = await read(ID.administrator)
   assert.equal(found.connectorId, 'sankhya')
-  assert.match(found.sealed, /^mastra:factory-secret:v1:/)
+  assert.match(found.sealed, /^conexus:secret:v1:/)
   await assert.rejects(read(ID.owner), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' })
   await assert.rejects(read(ID.administrator, ID.otherWorkspace), { id: 'CONNECTOR_CONNECTION_NOT_FOUND' })
   await assert.rejects(disable(erp, ID.workspace, ID.owner), { id: 'INSTALLATION_ADMINISTRATOR_REQUIRED' })

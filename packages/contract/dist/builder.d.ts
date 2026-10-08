@@ -318,6 +318,7 @@ export declare const BuilderRunSummary: z.ZodDiscriminatedUnion<[z.ZodObject<{
         OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
         OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
         OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+        SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
     }>;
 }, z.core.$strip>, z.ZodObject<{
     builderRunId: z.core.$ZodBranded<z.ZodUUID, "BuilderRunId", "out">;
@@ -589,6 +590,7 @@ export declare const BuilderRunSummary: z.ZodDiscriminatedUnion<[z.ZodObject<{
         OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
         OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
         OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+        SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
     }>;
 }, z.core.$strip>], "state">;
 export type BuilderRunSummary = z.output<typeof BuilderRunSummary>;
@@ -916,6 +918,7 @@ export declare const BuilderRunView: z.ZodDiscriminatedUnion<[z.ZodObject<{
         OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
         OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
         OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+        SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
     }>;
 }, z.core.$strip>, z.ZodObject<{
     builderRunId: z.core.$ZodBranded<z.ZodUUID, "BuilderRunId", "out">;
@@ -1188,6 +1191,7 @@ export declare const BuilderRunView: z.ZodDiscriminatedUnion<[z.ZodObject<{
         OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
         OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
         OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+        SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
     }>;
 }, z.core.$strip>], "state">;
 export type BuilderRunView = z.output<typeof BuilderRunView>;
@@ -1516,6 +1520,7 @@ export declare const BuilderSession: z.ZodObject<{
             OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
             OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
             OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+            SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
         }>;
     }, z.core.$strip>, z.ZodObject<{
         builderRunId: z.core.$ZodBranded<z.ZodUUID, "BuilderRunId", "out">;
@@ -1788,6 +1793,7 @@ export declare const BuilderSession: z.ZodObject<{
             OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
             OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
             OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+            SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
         }>;
     }, z.core.$strip>], "state">>;
     latestCodeChangingRun: z.ZodNullable<z.ZodObject<{
@@ -2123,6 +2129,7 @@ export declare const BuilderSession: z.ZodObject<{
             OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
             OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
             OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+            SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
         }>;
     }, z.core.$strip>, z.ZodObject<{
         builderRunId: z.core.$ZodBranded<z.ZodUUID, "BuilderRunId", "out">;
@@ -2394,6 +2401,7 @@ export declare const BuilderSession: z.ZodObject<{
             OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
             OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
             OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+            SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
         }>;
     }, z.core.$strip>], "state">>;
 }, z.core.$strip>;
@@ -2718,6 +2726,7 @@ export declare const BuilderMessageAccepted: z.ZodObject<{
             OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
             OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
             OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+            SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
         }>;
     }, z.core.$strip>, z.ZodObject<{
         builderRunId: z.core.$ZodBranded<z.ZodUUID, "BuilderRunId", "out">;
@@ -2989,6 +2998,7 @@ export declare const BuilderMessageAccepted: z.ZodObject<{
             OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
             OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
             OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+            SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
         }>;
     }, z.core.$strip>], "state">;
 }, z.core.$strip>;
@@ -3500,6 +3510,7 @@ export declare const getBuilderSession: {
                     OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                     OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                     OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                    SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                 }>;
             }, z.core.$strip>, z.ZodObject<{
                 builderRunId: z.core.$ZodBranded<z.ZodUUID, "BuilderRunId", "out">;
@@ -3772,6 +3783,7 @@ export declare const getBuilderSession: {
                     OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                     OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                     OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                    SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                 }>;
             }, z.core.$strip>], "state">>;
             latestCodeChangingRun: z.ZodNullable<z.ZodObject<{
@@ -4107,6 +4119,7 @@ export declare const getBuilderSession: {
                     OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                     OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                     OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                    SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                 }>;
             }, z.core.$strip>, z.ZodObject<{
                 builderRunId: z.core.$ZodBranded<z.ZodUUID, "BuilderRunId", "out">;
@@ -4378,6 +4391,7 @@ export declare const getBuilderSession: {
                     OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                     OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                     OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                    SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                 }>;
             }, z.core.$strip>], "state">>;
         }, z.core.$strip>;
@@ -4726,6 +4740,7 @@ export declare const sendBuilderMessage: {
                     OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                     OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                     OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                    SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                 }>;
             }, z.core.$strip>, z.ZodObject<{
                 builderRunId: z.core.$ZodBranded<z.ZodUUID, "BuilderRunId", "out">;
@@ -4997,6 +5012,7 @@ export declare const sendBuilderMessage: {
                     OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                     OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                     OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                    SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                 }>;
             }, z.core.$strip>], "state">;
         }, z.core.$strip>;
@@ -5320,6 +5336,7 @@ export declare const sendBuilderMessage: {
                     OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                     OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                     OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                    SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                 }>;
             }, z.core.$strip>, z.ZodObject<{
                 builderRunId: z.core.$ZodBranded<z.ZodUUID, "BuilderRunId", "out">;
@@ -5591,6 +5608,7 @@ export declare const sendBuilderMessage: {
                     OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                     OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                     OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                    SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                 }>;
             }, z.core.$strip>], "state">;
         }, z.core.$strip>;
@@ -5937,6 +5955,7 @@ export declare const cancelBuilderRun: {
                     OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                     OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                     OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                    SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                 }>;
             }, z.core.$strip>, z.ZodObject<{
                 builderRunId: z.core.$ZodBranded<z.ZodUUID, "BuilderRunId", "out">;
@@ -6208,6 +6227,7 @@ export declare const cancelBuilderRun: {
                     OIDC_BEGIN_FAILED: "OIDC_BEGIN_FAILED";
                     OIDC_REFRESH_TOKEN_MISSING: "OIDC_REFRESH_TOKEN_MISSING";
                     OIDC_CALLBACK_FAILED: "OIDC_CALLBACK_FAILED";
+                    SECRET_CUSTODY_LOST: "SECRET_CUSTODY_LOST";
                 }>;
             }, z.core.$strip>], "state">;
         }, z.core.$strip>;

@@ -12,12 +12,12 @@ const { encodeKey } = await import(hubModuleUrl('builder/google-ai-pro/credentia
 const { createModelAccounts } = await import(hubModuleUrl('builder/model-account/accounts.js'))
 const { createRunSteps } = await import(hubModuleUrl('builder/run-lifecycle.js'))
 const { createCodexHolds } = await import(hubModuleUrl('builder/openai-codex/credential.js'))
-const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
+const { createSecretEnvelope, modelAccountContext } = await import(hubModuleUrl('platform/secrets.js'))
 const { admitAccount } = await import(hubModuleUrl('identity-access/admission.js'))
 
 const KEY = 'ab'.repeat(32)
 const envelope = createSecretEnvelope(KEY)
-const sealedOf = (label) => envelope.seal(label)
+const sealedOf = (label, modelAccountId) => envelope.seal(label, modelAccountContext(modelAccountId))
 
 const A = ID.owner
 const B = ID.member
@@ -41,14 +41,18 @@ const as = (accountId) => ({ accountId, displayName: NAME })
 const setup = async (t, prefix) => {
   const fixture = await setupBuilder(t, prefix)
   const accounts = createModelAccounts({ database: fixture.database, envelope, ownerId: OWNER })
-  const seedRow = async (owner, provider, kind, label) => (await query(fixture.connection,
-    `INSERT INTO model.model_account(scope, owner_account_id, provider, kind, secret, connected_by, connected_by_name, connected_at)
-     VALUES ('personal', $1, $2, $3, $4, $1, $5, clock_timestamp()) RETURNING model_account_id`,
-    [owner, provider, kind, await sealedOf(encodeCredential(fixtureCredential({ provider, kind }, label))), NAME])).rows[0].model_account_id
+  const seedRow = async (owner, provider, kind, label) => {
+    const modelAccountId = randomUUID()
+    await query(fixture.connection,
+      `INSERT INTO model.model_account(model_account_id, scope, owner_account_id, provider, kind, secret, connected_by, connected_by_name, connected_at)
+       VALUES ($1, 'personal', $2, $3, $4, $5, $2, $6, clock_timestamp())`,
+      [modelAccountId, owner, provider, kind, await sealedOf(encodeCredential(fixtureCredential({ provider, kind }, label)), modelAccountId), NAME])
+    return modelAccountId
+  }
   const rowsOf = async () => (await query(fixture.connection, 'SELECT scope, owner_account_id, provider, kind, connected_by, connected_by_name, connected_at, refused_at, model_account_id, secret FROM model.model_account ORDER BY owner_account_id, provider')).rows
   const secretOf = async (modelAccountId) => {
     const stored = (await query(fixture.connection, 'SELECT provider, kind, secret FROM model.model_account WHERE model_account_id = $1', [modelAccountId])).rows[0]
-    return labelOf(parseCredential(stored, await envelope.open(stored.secret)))
+    return labelOf(parseCredential(stored, await envelope.open(stored.secret, modelAccountContext(modelAccountId))))
   }
   const recordFor = (builderRunId, modelAccountId) => query(fixture.connection, 'INSERT INTO builder.builder_run_model_account(builder_run_id, model_account_id) VALUES ($1, $2)', [builderRunId, modelAccountId])
   return { ...fixture, accounts, seedRow, rowsOf, secretOf, recordFor }
@@ -88,14 +92,14 @@ test('a first key write creates a personal row connected by the writer, and rewr
   const [first] = await rowsOf()
   assert.deepEqual({ scope: first.scope, owner: first.owner_account_id, provider: first.provider, kind: first.kind, by: first.connected_by, name: first.connected_by_name, refused: first.refused_at },
     { scope: 'personal', owner: A, provider: 'anthropic', kind: 'api_key', by: A, name: NAME, refused: null })
-  assert.equal(await envelope.open(first.secret), 'sk-ant-first-keyxxxxxxxxxxx')
+  assert.equal(await envelope.open(first.secret, modelAccountContext(first.model_account_id)), 'sk-ant-first-keyxxxxxxxxxxx')
   await query(connection, 'UPDATE model.model_account SET refused_at = connected_at')
   await accounts.write({ account: { accountId: A, displayName: 'Ana Renomeada' }, credential: fixtureCredential(ANTHROPIC_OAUTH, 'second-oauth') })
   const rows = await rowsOf()
   assert.equal(rows.length, 1)
   assert.deepEqual({ id: rows[0].model_account_id, kind: rows[0].kind, name: rows[0].connected_by_name, refused: rows[0].refused_at },
     { id: first.model_account_id, kind: 'oauth', name: 'Ana Renomeada', refused: null })
-  assert.equal(parseCredential(ANTHROPIC_OAUTH, await envelope.open(rows[0].secret)).value.access, 'second-oauth')
+  assert.equal(parseCredential(ANTHROPIC_OAUTH, await envelope.open(rows[0].secret, modelAccountContext(rows[0].model_account_id))).value.access, 'second-oauth')
   assert.equal(rows[0].connected_at > first.connected_at, true, 'a new sign-in is a new generation')
 })
 
@@ -108,7 +112,7 @@ test('two concurrent writes for one owner and provider leave one row and one id'
   ])
   const rows = await rowsOf()
   assert.deepEqual(rows.map((row) => row.model_account_id), [id])
-  assert.equal(['one', 'two'].includes(labelOf(parseCredential(rows[0], await envelope.open(rows[0].secret)))), true)
+  assert.equal(['one', 'two'].includes(labelOf(parseCredential(rows[0], await envelope.open(rows[0].secret, modelAccountContext(rows[0].model_account_id))))), true)
 })
 
 test('an inactive or unknown account cannot write, and connect answers failed for both and throws for a fault', async (t) => {
@@ -245,7 +249,7 @@ test('a key pasted while a run refreshes an OAuth row wins: the refresh persists
 
 test('the table refuses every unlawful row by its check or key', async (t) => {
   const { connection, seedRow } = await setup(t, 'conexus_model_checks')
-  const sealed = await sealedOf('x')
+  const sealed = await sealedOf('x', randomUUID())
   const insert = (scope, owner, provider, kind, extra = '') => query(connection,
     `INSERT INTO model.model_account(scope, owner_account_id, provider, kind, secret, connected_by, connected_by_name, connected_at${extra ? ', refused_at' : ''})
      VALUES ($1, $2, $3, $4, $5, $6, 'Ana', clock_timestamp()${extra})`, [scope, owner, provider, kind, sealed, A])
@@ -324,9 +328,30 @@ test('runtime keeps exactly the model credential INSERT and UPDATE column privil
   const columns = async (privilege) => (await query(connection,
     `SELECT column_name FROM information_schema.columns WHERE table_schema = 'model' AND table_name = 'model_account'
      AND has_column_privilege('hub_runtime', 'model.model_account', column_name, $1) ORDER BY column_name`, [privilege])).rows.map((row) => row.column_name)
-  assert.deepEqual(await columns('INSERT'), ['connected_at', 'connected_by', 'connected_by_name', 'kind', 'owner_account_id', 'provider', 'scope', 'secret'])
+  assert.deepEqual(await columns('INSERT'), ['connected_at', 'connected_by', 'connected_by_name', 'kind', 'model_account_id', 'owner_account_id', 'provider', 'scope', 'secret'])
   assert.deepEqual(await columns('UPDATE'), ['connected_at', 'connected_by', 'connected_by_name', 'kind', 'refused_at', 'secret', 'updated_at'])
   assert.deepEqual((await query(connection, `SELECT has_table_privilege('hub_runtime','model.model_account','INSERT') AS insert,
     has_table_privilege('hub_runtime','model.model_account','UPDATE') AS update,
     has_table_privilege('hub_runtime','model.model_account','DELETE') AS delete`)).rows, [{ insert: false, update: false, delete: false }])
+})
+
+test('model custody rejects ciphertext from another row and the previous row after delete/recreate', async (t) => {
+  const { accounts, connection, seedRow, seedBuilderProject, seedRun, recordFor } = await setup(t, 'conexus_model_custody')
+  const projectId = await seedBuilderProject()
+  const builderRunId = await seedRun(projectId, { accountId: A })
+  const run = { builderRunId, accountId: A }
+  const first = await seedRow(A, 'anthropic', 'api_key', 'first-row')
+  const second = await seedRow(B, 'anthropic', 'api_key', 'second-row')
+  await recordFor(builderRunId, first)
+  const held = await accounts.select(run, 'anthropic')
+  const before = (await query(connection, 'SELECT secret FROM model.model_account WHERE model_account_id=$1', [first])).rows[0].secret
+  const other = (await query(connection, 'SELECT secret FROM model.model_account WHERE model_account_id=$1', [second])).rows[0].secret
+  await query(connection, 'UPDATE model.model_account SET secret=$2 WHERE model_account_id=$1', [first, other])
+  await assert.rejects(accounts.select(run, 'anthropic'), { id: 'SECRET_CUSTODY_LOST' })
+  await assert.rejects(held.read(), { id: 'SECRET_CUSTODY_LOST' })
+  await query(connection, 'DELETE FROM model.model_account WHERE model_account_id=$1', [first])
+  const recreated = await seedRow(A, 'anthropic', 'api_key', 'recreated-row')
+  assert.notEqual(recreated, first)
+  await query(connection, 'UPDATE model.model_account SET secret=$2 WHERE model_account_id=$1', [recreated, before])
+  await assert.rejects(accounts.select(run, 'anthropic'), { id: 'SECRET_CUSTODY_LOST' })
 })

@@ -255,6 +255,7 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/platform/logger.ts',
           'apps/hub/src/platform/db.ts',
           'apps/hub/src/platform/secrets.ts',
+          'apps/hub/src/platform/secret-file.ts',
           'apps/hub/src/project/module.ts',
           'apps/hub/src/registry/module.ts',
           'apps/hub/src/workspace/module.ts',
