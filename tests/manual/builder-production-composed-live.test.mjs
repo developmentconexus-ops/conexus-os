@@ -48,12 +48,22 @@ test('the composed production journey uses server.ts, Preview, and native persis
   const projectName = `Builder counter ${randomUUID().slice(0, 8)}`
   const requestText = 'Crie um contador acessível. Mostre inicialmente 0 em um elemento output. Inclua um botão Incrementar que muda para 1 e um botão Resetar que volta para 0.'
 
-  const previewResponsePromise = page.waitForResponse((response) =>
+  const isPreviewResponse = (response) =>
     /\/api\/control\/projects\/[^/]+\/builder-session\/preview$/.test(new URL(response.url()).pathname) &&
-    response.request().method() === 'POST' && response.status() === 201)
-  const builderResponsePromise = page.waitForResponse((response) =>
+    response.request().method() === 'POST' && response.status() === 201
+  const isBuilderResponse = (response) =>
     /\/api\/control\/projects\/[^/]+\/builder-session\/messages$/.test(new URL(response.url()).pathname) &&
-    response.request().method() === 'POST' && response.status() === 201)
+    response.request().method() === 'POST' && response.status() === 201
+  let previewResponse
+  let builderResponse
+  let sessionStreamResponse
+  const rememberResponse = (response) => {
+    if (isPreviewResponse(response)) previewResponse = response
+    if (isBuilderResponse(response)) builderResponse = response
+    if (/\/api\/builder\/agent-controller\/conexus-builder\/sessions\/[^/]+\/stream$/.test(new URL(response.url()).pathname) && response.status() === 200) sessionStreamResponse = response
+  }
+  page.on('response', rememberResponse)
+  t.after(() => page.off('response', rememberResponse))
   await page.goto(`${origin}/workspaces/${workspaceId}/projects`)
   await page.getByLabel('Mensagem para o agente').fill(requestText)
   await page.getByRole('button', { name: 'Enviar', exact: true }).click()
@@ -62,7 +72,7 @@ test('the composed production journey uses server.ts, Preview, and native persis
   await page.waitForURL(/\/projects\/[^/]+(?:\/c\/[^/]+)?$/)
   const projectId = new URL(page.url()).pathname.match(/^\/projects\/([^/]+)(?:\/c\/[^/]+)?$/)?.[1]
   assert.ok(projectId, 'NEW Project must lead directly to the real Build workspace')
-  const accepted = await (await builderResponsePromise).json()
+  const accepted = await (builderResponse ?? await page.waitForResponse(isBuilderResponse)).json()
   const builderRunId = accepted?.builderRun?.builderRunId
   assert.match(builderRunId ?? '', /^[0-9a-f-]{36}$/i, 'the browser must observe an exact BuilderRun id')
   const conversationId = accepted?.builderRun?.conversationId
@@ -79,7 +89,7 @@ test('the composed production journey uses server.ts, Preview, and native persis
   assert.equal(terminalSession?.latestBuilderRun?.resultKind, 'SOURCE_CHANGED')
 
   await page.getByTitle('Prévia do aplicativo').waitFor()
-  const previewLaunch = await (await previewResponsePromise).json()
+  const previewLaunch = await (previewResponse ?? await page.waitForResponse(isPreviewResponse)).json()
   const previewOrigin = new URL(previewLaunch.previewUrl).origin
   assert.match(previewOrigin, /^https:\/\/preview-[0-9a-f-]+\.conexus\.localhost:\d+$/i)
   assert.equal(new URL(previewLaunch.entryUrl).origin, previewOrigin)
@@ -93,6 +103,12 @@ test('the composed production journey uses server.ts, Preview, and native persis
   assert.ok(previewFrame, 'the browser must open the dynamic Preview origin over HTTPS')
   await preview.locator('output').waitFor()
   assert.equal(await preview.locator('output').innerText(), '0')
+
+  assert.ok(sessionStreamResponse, 'the real conversation must open its native session stream')
+  const streamed = new URL(sessionStreamResponse.url())
+  assert.equal(decodeURIComponent(streamed.pathname), `/api/builder/agent-controller/conexus-builder/sessions/project:${projectId}/stream`)
+  assert.equal(streamed.searchParams.get('sessionScope'), `conversation:${conversationId}`)
+  t.diagnostic(JSON.stringify({ nativeStreamUrl: streamed.href, status: sessionStreamResponse.status(), contentType: sessionStreamResponse.headers()['content-type'] }))
   await preview.getByRole('button', { name: 'Incrementar', exact: true }).click()
   assert.equal(await preview.locator('output').innerText(), '1')
   await preview.getByRole('button', { name: 'Resetar', exact: true }).click()
