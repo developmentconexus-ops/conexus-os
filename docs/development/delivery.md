@@ -197,28 +197,24 @@ phone.
 
 - Before each commit, the builder **must** run `npm run verify:quick` and the tests the change
   touches or that consume a changed contract, at most two groups at once.
-- At each unit closure, inspect every CI group in `.github/workflows/verify.yml` and the invoked
-  graph and test discovery in `scripts/conexus-verify.mjs`. Map changed contracts to all affected
-  consumers, tests, fixtures, bootstrap/backup inputs, generated artifacts and immutable template
-  pins; fix or delete obsolete consumers together, retaining historical evidence and intentional
-  refusal fixtures. Record affected proofs and why other evidence remains valid. `verify:quick`
-  covers only its named static checks; this inspection does not require rerunning unaffected suites.
-  The batch reviewer audits that impact map. Never weaken a correct contract for a stale test.
-- CI runs the whole graph in `scripts/conexus-verify.mjs`. `verify` is the one required check. A
-  pull request changing only Markdown under `docs/`, `.agents/` or the repository root runs
-  `npm run verify:docs`. Other Markdown changes and pushes to main run the full graph.
+- At each unit closure, the builder **must** inspect every CI group in `.github/workflows/verify.yml`
+  and the commands and test discovery in `scripts/conexus-verify.mjs`. Map changed contracts to
+  tests, fixtures, fakes, executable verification, bootstrap and backup scripts, configurations,
+  generated artifacts, image and template pins, and immutable compiler recipes. Migrate affected
+  consumers and delete obsolete runtime APIs, aliases, parser copies, test assumptions and redundant
+  assertions in the same unit. Retain historical migrations and specs, and intentional refusal fixtures.
+  Prove affected groups and record why reused unaffected evidence remains valid. Full inspection does not require whole-suite reruns.
+  `verify:quick` covers only its named static checks. Never weaken product validation to fit a stale fixture.
+- CI runs the whole graph in `scripts/conexus-verify.mjs`. `verify` is the required check.
+  Only Markdown under `docs/`, `.agents/` or the root runs `npm run verify:docs` on a pull request. All other changes and main pushes run the full graph.
 - Required CI **must** protect objective properties of every change, never taste or document shape.
-- A pull request **must** leave draft as soon as the build ends, so CI and the Factory run while
-  verification goes on. A wave's pull request into `main` stays a draft until the wave is proved.
-- Before merge, the builder **must** check the diff against the guides. The pull request carries the
-  guide change, or one sentence saying why no guide rule changed.
+- A pull request **must** leave draft when the build ends, so CI and the Factory run during proof.
+  A wave's pull request into `main` stays a draft until the wave is proved.
+- Before merge, the builder **must** check the diff against the guides. The pull request carries the guide change or says why none changed.
 - Evidence stays only while it has a consumer.
 
-**Why.** Local checks find a failure in seconds. CI proves the same head the merger will merge.
-
-**Right.** A builder runs `verify:quick` and the PostgreSQL tests of the store it changed.
-
-**Wrong.** A pull request opened to let CI find what `verify:quick` would have found.
+For an operator-authorized batch with one final review, the existing independent reviewer audits this map under
+[`conexus-review`](../../.agents/skills/conexus-review/SKILL.md). Findings follow the [review loop](#review-loop). Publication proceeds after closure.
 
 ## Merge gate
 
