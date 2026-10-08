@@ -38,7 +38,7 @@ import { createBuilderObservability, createBuilderObservabilityLifecycle } from 
 import { createDiagnosticAppender } from './diagnostic-appender.js'
 import { createBuilderStorage, pruneSpans } from './storage.js'
 import { conversationScope, createLiveConversations } from './conversation.js'
-import { createBuilderController, createContext7Docs } from './harness/index.js'
+import { createBuilderController } from './harness/index.js'
 import { starterProjectFiles } from './project-context.js'
 import { createProjectSourceReads } from './source.js'
 import { createBuilderModelRouting } from './model-routing.js'
@@ -71,7 +71,7 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
     e2bApiKeyFile: string
-    e2bTemplateId: string; gitRoot: string; context7ApiKeyFile?: string | undefined; questionWaitMs: number; modelRetryDelayMs: number | undefined; sandboxIdleMs: number
+    e2bTemplateId: string; gitRoot: string; questionWaitMs: number; modelRetryDelayMs: number | undefined; sandboxIdleMs: number
   }>
   // Only its database password is still read: the Builder's Mastra storage lives in the `factory`
   // schema through the `hub_factory` role until slice 7 moves it to schema `mastra`.
@@ -105,8 +105,6 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
       builderRunId, accountId, modelAccountId,
     }),
   })
-  // Built, never connected, here: the tools are listed on a run's first step, so Context7 being down never delays boot.
-  const docsTools = createContext7Docs({ apiKey: builder.context7ApiKeyFile ? readSecretFile(builder.context7ApiKeyFile) : undefined })
   const retryDelayMs = builder.modelRetryDelayMs
   const controller = createBuilderController({
     id: BUILDER_CONTROLLER_ID,
@@ -116,7 +114,6 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
       return context ? service.runTools(context.conversationId, context.builderRunId) : undefined
     },
     model: modelRouting.resolve,
-    docsTools,
     memory: createBuilderMemory({ storage, memoryModel: modelRouting.resolveMemory }),
     ...(retryDelayMs === undefined ? {} : { modelRetryDelayMs: () => retryDelayMs }),
     ...(connectors ? { connectorFetch: connectors.tools } : {}),
@@ -279,7 +276,6 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
           await liveConversations.close()
           await controller.destroy()
         } finally {
-          await docsTools.close()
           await observabilityLifecycle.close()
           await storagePool.end()
         }

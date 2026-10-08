@@ -75,8 +75,6 @@ const REGISTERED_TOOL_SENTENCES = {
   connector_fetch: 'Consultou um sistema da empresa',
   web_search: 'Pesquisou na internet',
   web_fetch: 'Abriu uma página da internet',
-  context7_resolve_library_id: 'Procurou uma biblioteca na documentação',
-  context7_query_docs: 'Leu a documentação de uma biblioteca',
   conexus_check: 'Verificou o app',
   conexus_run_operation: 'Testou uma operação com dados reais',
 }
@@ -115,7 +113,6 @@ const toolsOfARun = async () => {
       workspace, model, storage: new InMemoryStore(), skillsPath: resolve(import.meta.dirname, '../../builder-skills'),
       connectorFetch: () => ({ connector_fetch: createTool({ id: 'connector_fetch', description: 'probe', execute: async () => ({}) }) }),
       runTools: () => ({ check: async () => ({}), runOperation: async () => ({}) }),
-      docsTools: { close: async () => {}, tools: async () => Object.fromEntries(['context7_resolve_library_id', 'context7_query_docs'].map((id) => [id, createTool({ id, description: 'probe', execute: async () => ({}) })])) },
     })
     await controller.init()
     const session = await controller.createSession({ resourceId: 'project:probe-sentences', scope: 'probe-sentences' })

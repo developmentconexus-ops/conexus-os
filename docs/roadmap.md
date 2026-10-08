@@ -157,7 +157,8 @@ that list, and the Builder cannot install a package.
 | Recharts through a CSP-safe `chart.tsx` | Charts. Revisit when a dashboard needs a chart it lacks |
 | react-hook-form with zod, date-fns, `react-day-picker`, lucide | Forms, pt-BR dates, icons |
 | `@mastra/code-sdk` 1.8.3 | Pinned library for model sign-in, the sandbox filesystem and error classification. Copying it into the Hub would mean a hand port of every provider change |
-| `@mastra/mcp` 2.1.0 | The Builder's Context7 documentation tools through one Hub-owned adapter that allows one host; the verdict is recorded in #431 |
+
+Builder MCP/Context7 documentation tools are deferred pending a separate design and reference study.
 
 Deferred until a real consumer needs them: Kysely, Prisma, Drizzle, Hono, oRPC; Nango, Pipedream,
 Composio; Airbyte, Debezium; pg-boss, Mastra Workflows, Inngest, Trigger.dev, Temporal; Novu, Knock;

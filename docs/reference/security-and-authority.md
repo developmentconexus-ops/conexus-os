@@ -173,7 +173,7 @@ ASVS V14 and V15.
 - Telemetry **must** export only what the redaction table allows. A new field comes with a test that
   plants a string and proves it is removed.
 - Each privileged adapter **must** have a named owner, its own credential and a destination pinned
-  by configuration: Keycloak, E2B, Context7 and the integration executor.
+  by configuration: Keycloak, E2B and the integration executor.
 - There **must not** be a privileged `fetch(url, secret)`. `web_fetch` carries no credential and
   goes through the Hub's guard.
 - The repository is public. Code, tests, fixtures, docs, commits, pull requests and web searches

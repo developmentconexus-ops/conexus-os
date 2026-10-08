@@ -79,9 +79,28 @@ test('the composed production journey uses server.ts, Preview, and native persis
   assert.match(conversationId ?? '', /^[0-9a-f-]{36}$/i)
 
   let terminalSession
-  for (let attempt = 0; attempt < 180; attempt += 1) {
+  while (!t.signal.aborted) {
     terminalSession = await readSession(page, projectId)
     if (['SUCCEEDED', 'FAILED', 'INTERRUPTED'].includes(terminalSession?.latestBuilderRun?.state)) break
+    if (terminalSession?.latestBuilderRun?.phase === 'WAITING') {
+      const approvePlan = page.getByRole('region', { name: 'Plano para aprovar' }).getByRole('button', { name: 'Aprovar e construir', exact: true })
+      if (await approvePlan.isVisible() && await approvePlan.isEnabled()) {
+        await approvePlan.click()
+        t.diagnostic('approved the native counter plan through the current Build UI')
+      } else {
+        const question = page.getByLabel('Pergunta do agente')
+        if (await question.isVisible() && await question.getByRole('textbox').isEnabled()) {
+          const total = Number(await question.getAttribute('data-ask-total'))
+          assert.ok(Number.isInteger(total) && total >= 1 && total <= 4)
+          for (let index = 0; index < total; index += 1) {
+            await question.getByRole('textbox').fill('Use estado local em memória, início 0, botões Incrementar e Resetar, visual simples e acessível.')
+            if (total > 1) await question.getByRole('button', { name: 'Próxima', exact: true }).click()
+          }
+          await question.getByRole('button', { name: total > 1 ? 'Enviar respostas' : 'Enviar resposta', exact: true }).click()
+          t.diagnostic('answered the native questions within the counter request')
+        }
+      }
+    }
     await delay(1_000)
   }
   assert.equal(terminalSession?.latestBuilderRun?.builderRunId, builderRunId)

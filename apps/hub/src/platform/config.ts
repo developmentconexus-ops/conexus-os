@@ -24,8 +24,6 @@ export type HubConfig = Readonly<{
     e2bTemplateId: string
     /** CONEXUS_GIT_ROOT: the Conexus Git on the Hub's own disk, one bare repository per Project. */
     gitRoot: string
-    /** CONEXUS_BUILDER_CONTEXT7_API_KEY_FILE: the installation's Context7 key, optional; the Builder reads Context7 anonymously when unset. */
-    context7ApiKeyFile: string | undefined
     /** CONEXUS_BUILDER_QUESTION_WAIT_MS: how long a Builder question waits for the person before its run ends. */
     questionWaitMs: number
     /** CONEXUS_BUILDER_MODEL_RETRY_DELAY_MS: one fixed wait between a failed model call and its retry. Unset, the delay grows from 0.5 s to 30 s, as Mastra Code's does. */
@@ -133,7 +131,6 @@ const builderRuntime = (environment: NodeJS.ProcessEnv): HubConfig['builder'] =>
     e2bApiKeyFile: required(environment, 'CONEXUS_BUILDER_E2B_API_KEY_FILE'),
     e2bTemplateId: required(environment, 'CONEXUS_BUILDER_E2B_TEMPLATE_ID'),
     gitRoot: gitRoot(environment),
-    context7ApiKeyFile: environment.CONEXUS_BUILDER_CONTEXT7_API_KEY_FILE || undefined,
     questionWaitMs: durationMs(environment, 'CONEXUS_BUILDER_QUESTION_WAIT_MS', DEFAULT_QUESTION_WAIT_MS),
     modelRetryDelayMs: environment.CONEXUS_BUILDER_MODEL_RETRY_DELAY_MS ? durationMs(environment, 'CONEXUS_BUILDER_MODEL_RETRY_DELAY_MS', 0) : undefined,
     sandboxIdleMs: durationMs(environment, 'CONEXUS_BUILDER_SANDBOX_IDLE_MS', DEFAULT_SANDBOX_IDLE_MS),

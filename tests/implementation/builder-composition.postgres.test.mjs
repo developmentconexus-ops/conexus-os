@@ -206,12 +206,6 @@ test("a Builder without its Mastra storage role is refused, and with it the role
   assert.deepEqual(readHubConfig({ ...baseEnvironment, ...storageEnvironment }).factory, { databasePasswordFile: '/secrets/factory-db' })
 })
 
-test('the Context7 key file is optional and read from CONEXUS_BUILDER_CONTEXT7_API_KEY_FILE', () => {
-  const complete = { ...baseEnvironment, ...storageEnvironment }
-  assert.equal(readHubConfig(complete).builder.context7ApiKeyFile, undefined)
-  assert.equal(readHubConfig({ ...complete, CONEXUS_BUILDER_CONTEXT7_API_KEY_FILE: '/run/secrets/context7' }).builder.context7ApiKeyFile, '/run/secrets/context7')
-})
-
 test('Google AI Pro needs both CLIProxyAPI variables, an absolute path and a sha256, and the storage role', () => {
   const sha256 = 'ab'.repeat(32)
   const complete = { ...baseEnvironment, ...storageEnvironment }
