@@ -357,22 +357,34 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       child: null,
     },
     'completeClaudeModelLogin': {
-      own: async () => assert.equal((await connectCredential(member, credentialOf('anthropic', 'oauth'))).ok, true),
+      own: async () => {
+        await connectCredential(member, credentialOf('anthropic', 'oauth'))
+        assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'anthropic')?.own, { state: 'connected', kind: 'oauth' })
+      },
       cross: async () => assert.rejects(connectCredential(randomUUID(), credentialOf('anthropic', 'oauth')), { id: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'completeGoogleModelLogin': {
-      own: async () => assert.equal((await connectCredential(member, credentialOf('google-ai-pro', 'google_ai_pro'))).ok, true),
+      own: async () => {
+        await connectCredential(member, credentialOf('google-ai-pro', 'google_ai_pro'))
+        assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'google-ai-pro')?.own, { state: 'connected', kind: 'google_ai_pro' })
+      },
       cross: async () => assert.rejects(connectCredential(randomUUID(), credentialOf('google-ai-pro', 'google_ai_pro')), { id: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'pollCodexModelLogin': {
-      own: async () => assert.equal((await connectCredential(member, credentialOf('openai-codex', 'oauth'))).ok, true),
+      own: async () => {
+        await connectCredential(member, credentialOf('openai-codex', 'oauth'))
+        assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'openai-codex')?.own, { state: 'connected', kind: 'oauth' })
+      },
       cross: async () => assert.rejects(connectCredential(randomUUID(), credentialOf('openai-codex', 'oauth')), { id: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'getGoogleModelLoginStatus': {
-      own: async () => assert.equal((await connectCredential(member, credentialOf('google-ai-pro', 'google_ai_pro'))).ok, true),
+      own: async () => {
+        await connectCredential(member, credentialOf('google-ai-pro', 'google_ai_pro'))
+        assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'google-ai-pro')?.own, { state: 'connected', kind: 'google_ai_pro' })
+      },
       cross: async () => assert.rejects(connectCredential(randomUUID(), credentialOf('google-ai-pro', 'google_ai_pro')), { id: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },

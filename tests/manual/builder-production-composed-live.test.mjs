@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import test from 'node:test'
 import { chromium } from '@playwright/test'
 import { SpanType } from '@mastra/core/observability'
+import { BROWSER_OPTIONS } from '../../.agents/skills/verify/scripts/control.mjs'
 
 const live = process.env.CONEXUS_COMPOSED_LIVE === 'true'
 const required = [
@@ -37,30 +38,30 @@ test('the composed production journey uses server.ts, Preview, and native persis
   assert.equal(parsedOrigin.protocol, 'https:')
   assert.equal(parsedOrigin.hostname, 'hub.conexus.localhost')
 
-  const browser = await chromium.launch({ headless: true, args: ['--host-resolver-rules=MAP *.conexus.localhost 127.0.0.1'] })
+  const { headless, args: _args, ...contextOptions } = BROWSER_OPTIONS
+  const browser = await chromium.launch({ headless, args: ['--host-resolver-rules=MAP *.conexus.localhost 127.0.0.1'] })
   t.after(() => browser.close())
-  const operator = await browser.newContext({ storageState: operatorState })
+  const operator = await browser.newContext({ ...contextOptions, storageState: operatorState })
   t.after(() => operator.close())
   const page = await operator.newPage()
   page.setDefaultTimeout(180_000)
   const projectName = `Builder counter ${randomUUID().slice(0, 8)}`
   const requestText = 'Crie um contador acessível. Mostre inicialmente 0 em um elemento output. Inclua um botão Incrementar que muda para 1 e um botão Resetar que volta para 0.'
 
-  await page.goto(`${origin}/workspaces/${workspaceId}/projects/new`)
-  await page.getByLabel('Nome do Project').fill(projectName)
-  await page.getByRole('button', { name: 'Criar Project' }).click()
-  await page.getByRole('heading', { name: 'Converse com o Conexus' }).waitFor()
-  const projectId = new URL(page.url()).pathname.match(/^\/projects\/([^/]+)(?:\/c\/[^/]+)?$/)?.[1]
-  assert.ok(projectId, 'NEW Project must lead directly to the real Build workspace')
-
   const previewResponsePromise = page.waitForResponse((response) =>
-    response.url().includes(`/api/control/projects/${projectId}/builder-session/preview`) &&
+    /\/api\/control\/projects\/[^/]+\/builder-session\/preview$/.test(new URL(response.url()).pathname) &&
     response.request().method() === 'POST' && response.status() === 201)
   const builderResponsePromise = page.waitForResponse((response) =>
-    response.url().includes(`/api/control/projects/${projectId}/builder-session/messages`) &&
+    /\/api\/control\/projects\/[^/]+\/builder-session\/messages$/.test(new URL(response.url()).pathname) &&
     response.request().method() === 'POST' && response.status() === 201)
-  await page.getByLabel('O que o Project precisa fazer?').fill(requestText)
-  await page.getByLabel('Enviar mensagem').click()
+  await page.goto(`${origin}/workspaces/${workspaceId}/projects`)
+  await page.getByLabel('Mensagem para o agente').fill(requestText)
+  await page.getByRole('button', { name: 'Enviar', exact: true }).click()
+  await page.getByLabel('Nome do Projeto').fill(projectName)
+  await page.getByRole('button', { name: 'Criar e começar' }).click()
+  await page.waitForURL(/\/projects\/[^/]+(?:\/c\/[^/]+)?$/)
+  const projectId = new URL(page.url()).pathname.match(/^\/projects\/([^/]+)(?:\/c\/[^/]+)?$/)?.[1]
+  assert.ok(projectId, 'NEW Project must lead directly to the real Build workspace')
   const accepted = await (await builderResponsePromise).json()
   const builderRunId = accepted?.builderRun?.builderRunId
   assert.match(builderRunId ?? '', /^[0-9a-f-]{36}$/i, 'the browser must observe an exact BuilderRun id')
@@ -73,13 +74,14 @@ test('the composed production journey uses server.ts, Preview, and native persis
   }
   assert.equal(terminalSession?.latestBuilderRun?.builderRunId, builderRunId)
   assert.equal(terminalSession?.latestBuilderRun?.state, 'SUCCEEDED')
+  assert.equal(terminalSession?.latestBuilderRun?.resultKind, 'SOURCE_CHANGED')
 
-  await page.getByTitle('Preview do aplicativo').waitFor()
+  await page.getByTitle('Prévia do aplicativo').waitFor()
   const previewLaunch = await (await previewResponsePromise).json()
   const previewOrigin = new URL(previewLaunch.previewUrl).origin
   assert.match(previewOrigin, /^https:\/\/preview-[0-9a-f-]+\.conexus\.localhost:\d+$/i)
   assert.equal(new URL(previewLaunch.entryUrl).origin, previewOrigin)
-  const preview = page.frameLocator('iframe[title="Preview do aplicativo"]')
+  const preview = page.frameLocator('iframe[title="Prévia do aplicativo"]')
   let previewFrame
   for (let attempt = 0; attempt < 60; attempt += 1) {
     previewFrame = page.frames().find((frame) => frame !== page.mainFrame() && frame.url().startsWith(previewOrigin))
@@ -96,19 +98,20 @@ test('the composed production journey uses server.ts, Preview, and native persis
 
   await page.reload()
   await page.getByText(requestText, { exact: true }).waitFor()
-  await page.getByTitle('Preview do aplicativo').waitFor()
-  await page.getByRole('button', { name: 'Reabrir Preview' }).click()
+  await page.getByTitle('Prévia do aplicativo').waitFor()
+  await page.getByRole('button', { name: 'Recarregar prévia' }).click()
   await preview.locator('output').waitFor()
   assert.equal(await preview.locator('output').innerText(), '0')
 
-  const denied = await browser.newContext({ storageState: deniedState })
+  const denied = await browser.newContext({ ...contextOptions, storageState: deniedState })
   t.after(() => denied.close())
   const deniedPage = await denied.newPage()
-  const deniedRead = deniedPage.waitForResponse((response) =>
-    response.url().includes(`/api/control/projects/${projectId}/builder-session`) && [401, 403, 404].includes(response.status()))
   await deniedPage.goto(`${origin}/projects/${projectId}`)
-  const deniedSessionResponse = await deniedRead
-  assert.ok([401, 403, 404].includes(deniedSessionResponse.status()))
+  const deniedSessionStatus = await deniedPage.evaluate(async (id) => {
+    const response = await fetch(`/api/control/projects/${encodeURIComponent(id)}/builder-session`, { credentials: 'same-origin' })
+    return response.status
+  }, projectId)
+  assert.ok([401, 403, 404].includes(deniedSessionStatus))
   const deniedPreviewStatus = await deniedPage.evaluate(async (id) => {
     const response = await fetch(`/api/control/projects/${encodeURIComponent(id)}/builder-session/preview`, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: '{}' })
     return response.status
