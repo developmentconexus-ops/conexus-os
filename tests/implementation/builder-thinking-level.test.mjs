@@ -4,14 +4,12 @@ import { RequestContext } from '@mastra/core/request-context'
 import { hubModuleUrl } from './hub-build.mjs'
 import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 
-const { parseCredential, encodeCredential } = await import(hubModuleUrl('builder/model-account/providers.js'))
+const { parseCredential, encodeCredential } = await import(hubModuleUrl('model-account/credential.js'))
 
-const { createModelRouting } = await import(hubModuleUrl('builder/model-routing.js'))
-const { createAnthropicRoute } = await import(hubModuleUrl('builder/anthropic/route.js'))
-const { createClaudeHolds } = await import(hubModuleUrl('builder/anthropic/credential.js'))
-const { createOpenAICodexRoute } = await import(hubModuleUrl('builder/openai-codex/route.js'))
-const { createGoogleAiProRoute } = await import(hubModuleUrl('builder/google-ai-pro/route.js'))
-const { encodeKey } = await import(hubModuleUrl('builder/google-ai-pro/credential.js'))
+import { providerModel } from './native-model-fixture.mjs'
+const { encodeKey } = await import(hubModuleUrl('model-account/credential.js'))
+const { readSessionModelId, readSessionThinkingLevel } = await import(hubModuleUrl('builder/harness/request-context.js'))
+const { providerOf } = await import(hubModuleUrl('model-account/providers.js'))
 
 const ana = '22222222-2222-4222-8222-222222222222'
 const anthropicKey = `sk-ant-api03-${'x'.repeat(40)}`
@@ -27,23 +25,12 @@ const rows = {
 }
 const claudeSubscription = { modelAccountId: 'row-claude', kind: 'oauth', secret: encodeCredential({ ...{ provider: 'anthropic', kind: 'oauth' }, value: { access: 'access-ana', refresh: 'refresh-ana', expires: 9_999_999_999_999 } }) }
 
-const routingOver = (anthropicRow = rows.anthropic) => createModelRouting({
-  routes: {
-    anthropic: createAnthropicRoute(createClaudeHolds({})),
-    openai: createOpenAICodexRoute({ hold: (_held, tokens) => async () => tokens }),
-    'google-ai-pro': createGoogleAiProRoute({ routerUrl: async () => ROUTER, track: () => {} }),
-  },
-  modelAccounts: {
-    usable: async (_owner, provider) => (provider === 'anthropic' ? anthropicRow : rows[provider]) !== undefined,
-    select: async (run, provider) => {
-      const row = provider === 'anthropic' ? anthropicRow : rows[provider]
-      return row ? { modelAccountId: row.modelAccountId, credential: parseCredential({ provider, kind: row.kind }, row.secret), run, read: async () => null, persist: async () => false } : null
-    },
-  },
-  conversationModel: async () => null,
-  readDefault: async (_accountId, role) => role === 'memory' ? 'anthropic/claude-haiku-4-5' : null,
-  record: async () => {},
-})
+function modelForTurn(anthropicRow, context) {
+  const modelId = readSessionModelId(context)
+  const provider = providerOf(modelId)
+  const row = provider === 'anthropic' ? anthropicRow : rows[provider]
+  return providerModel({ modelId, credential: parseCredential({ provider, kind: row.kind }, row.secret), thinkingLevel: readSessionThinkingLevel(context), google: { url: ROUTER, track: () => {} } })
+}
 
 // The request context AgentController gives a call: the session's model and its live state.
 const turn = (modelId, state = {}) => {
@@ -96,7 +83,7 @@ const CASES = [
 
 for (const [modelId, row, level, wire, expected] of CASES) {
   test(`${modelId} at ${level} asks the provider for ${JSON.stringify(expected)}`, async (t) => {
-    const model = await routingOver(row).resolve({ requestContext: turn(modelId, { thinkingLevel: level }) })
+    const model = await modelForTurn(row, turn(modelId, { thinkingLevel: level }))
     assert.deepEqual(thinkingSent[wire](await sentBy(t, model)), expected)
   })
 }
@@ -104,7 +91,7 @@ for (const [modelId, row, level, wire, expected] of CASES) {
 test('a conversation whose person picked no level runs every provider at medium', async (t) => {
   const asked = []
   for (const [modelId, row, wire] of [['anthropic/claude-sonnet-5', rows.anthropic, 'anthropic'], ['anthropic/claude-opus-5-5', claudeSubscription, 'anthropic'], ['openai/gpt-5.6-sol', rows.anthropic, 'openai'], ['google-ai-pro/gemini-3-flash', rows.anthropic, 'google']]) {
-    asked.push(thinkingSent[wire](await sentBy(t, await routingOver(row).resolve({ requestContext: turn(modelId) }))))
+    asked.push(thinkingSent[wire](await sentBy(t, await modelForTurn(row, turn(modelId)))))
   }
   assert.deepEqual(asked, [
     { thinking: { type: 'adaptive', display: 'summarized' }, effort: 'medium' },
@@ -115,13 +102,13 @@ test('a conversation whose person picked no level runs every provider at medium'
 })
 
 test("the memory's calls carry no thinking level: the Builder's level is the conversation's, not the memory's", async (t) => {
-  const model = await routingOver().resolveMemory(turn('anthropic/claude-sonnet-5', { thinkingLevel: 'xhigh' }))
+  const model = await providerModel({ modelId: 'anthropic/claude-haiku-4-5', credential: parseCredential({ provider: 'anthropic', kind: rows.anthropic.kind }, rows.anthropic.secret) })
   const sent = await sentBy(t, model)
   assert.deepEqual([sent.body.model, sent.body.thinking, sent.body.output_config], ['claude-haiku-4-5', undefined, undefined])
 })
 
 test('an Anthropic key request carries the prompt cache breakpoints and the thinking Mastra Code adds to its own key provider', async (t) => {
-  const sent = await sentBy(t, await routingOver().resolve({ requestContext: turn('anthropic/claude-sonnet-5', { thinkingLevel: 'high' }) }))
+  const sent = await sentBy(t, await modelForTurn(rows.anthropic, turn('anthropic/claude-sonnet-5', { thinkingLevel: 'high' })))
   assert.deepEqual({
     url: sent.url, key: sent.headers.get('x-api-key'),
     system: sent.body.system, lastMessage: sent.body.messages.at(-1).content.at(-1),
@@ -135,7 +122,7 @@ test('an Anthropic key request carries the prompt cache breakpoints and the thin
 })
 
 test("a Google AI Pro model is Mastra's own Google provider on Gemini's API, through the Hub's router with the person's credential as its key", async (t) => {
-  const model = await routingOver().resolve({ requestContext: turn('google-ai-pro/gemini-3.8-flash-high', { thinkingLevel: 'low' }) })
+  const model = await modelForTurn(rows.anthropic, turn('google-ai-pro/gemini-3.8-flash-high', { thinkingLevel: 'low' }))
   const sent = await sentBy(t, model)
   assert.deepEqual({
     provider: model.provider, url: sent.url, key: sent.headers.get('x-goog-api-key'), authorization: sent.headers.get('authorization'),
@@ -166,7 +153,7 @@ const streamedFrom = async (t, model, upstream) => {
 }
 
 test('an Anthropic thinking stream reaches the Builder as reasoning, then the answer, with its cache and reasoning token breakdown', async (t) => {
-  const model = await routingOver().resolve({ requestContext: turn('anthropic/claude-sonnet-5', { thinkingLevel: 'high' }) })
+  const model = await modelForTurn(rows.anthropic, turn('anthropic/claude-sonnet-5', { thinkingLevel: 'high' }))
   const { reasoning, answer, finish } = await streamedFrom(t, model, () => sse([
     { event: 'message_start', data: { type: 'message_start', message: { id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-sonnet-5', content: [], usage: { input_tokens: 12, cache_creation_input_tokens: 3, cache_read_input_tokens: 40, output_tokens: 1 } } } },
     { event: 'content_block_start', data: { type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '', signature: '' } } },
@@ -185,7 +172,7 @@ test('an Anthropic thinking stream reaches the Builder as reasoning, then the an
 })
 
 test('a Gemini thinking stream reaches the Builder as reasoning, then the answer, with its thought and cache token breakdown', async (t) => {
-  const model = await routingOver().resolve({ requestContext: turn('google-ai-pro/gemini-3-flash', { thinkingLevel: 'high' }) })
+  const model = await modelForTurn(rows.anthropic, turn('google-ai-pro/gemini-3-flash', { thinkingLevel: 'high' }))
   const { reasoning, answer, finish } = await streamedFrom(t, model, () => sse([
     { candidates: [{ content: { role: 'model', parts: [{ text: 'pensando', thought: true }] } }] },
     { candidates: [{ content: { role: 'model', parts: [{ text: 'Olá' }] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 50, cachedContentTokenCount: 30, candidatesTokenCount: 7, thoughtsTokenCount: 20, totalTokenCount: 77 } },

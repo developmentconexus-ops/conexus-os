@@ -8,7 +8,7 @@ const MAY_CALL_SYSTEM = [
   'apps/hub/src/identity-access/application-access.ts',
   'apps/hub/src/identity-access/expiry.ts',
   'apps/hub/src/builder/conversation-store.ts',
-  'apps/hub/src/builder/model-account/accounts.ts',
+  'apps/hub/src/model-account/module.ts',
   'apps/hub/src/builder/run-lease.ts',
   'apps/hub/src/builder/run-reads.ts',
   'apps/hub/src/builder/run-lifecycle.ts',

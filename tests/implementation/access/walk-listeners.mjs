@@ -19,7 +19,7 @@ const { registerWorkspaceRoutes } = await module('workspace/routes.js')
 const { registerProjectRoutes } = await module('project/routes.js')
 const { registerBuilderRoutes } = await module('builder/routes.js')
 const { registerBuilderSessionRoutes } = await module('builder/mastra-session-routes.js')
-const { registerModelAccountRoutes } = await module('builder/model-accounts.js')
+const { registerModelAccountRoutes } = await module('model-account/routes.js')
 const { registerConnectorRoutes } = await module('connectors/routes.js')
 const { createBuilderController } = await module('builder/harness/controller.js')
 const { createHostingModule } = await module('hosting/module.js')
@@ -124,10 +124,9 @@ export const walkListeners = async () => {
       await registerBuilderRoutes(server, { store: spy('builderStore', calls), service: spy('builderService', calls), session: spy('builderSession', calls), launchPreview: async () => { calls.push('launchPreview'); throw new Error('stub launchPreview') } })
       await mount.register(server)
       await registerModelAccountRoutes(server, {
-        modelAccounts: spy('modelAccounts', calls),
+        list: spy('modelAccounts.list', calls), offers: spy('modelAccounts.offers', calls),
+        write: spy('modelAccounts.write', calls), connect: spy('modelAccounts.connect', calls),
         defaultThinkingLevel: 'medium',
-        openaiCodexDevice: spy('openaiCodexDevice', calls),
-        claudeAuthorization: spy('claudeAuthorization', calls),
         googleAiPro: spy('googleAiPro', calls),
       })
       await registerConnectorRoutes(server, {

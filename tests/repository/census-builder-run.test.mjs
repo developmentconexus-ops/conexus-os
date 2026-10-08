@@ -132,7 +132,7 @@ test('a Builder port that declares an id or a revision as a plain string fails n
   assert.match(plain.out, /plainPortIds 1 \(record 0\) UP\s+apps\/hub\/src\/builder\/run\/ports\.ts:2/)
   assert.equal(fixture(t, { files: port('moveRef(next: string): void\n') }).run().status, 1)
   assert.equal(fixture(t, { files: port('export type Ref = Readonly<{ projectId: ProjectId; next: SourceRevision }>\n') }).run().status, 0)
-  const elsewhere = { ...FILES, 'apps/hub/src/builder/application-build.ts': 'accountId: string\n', 'apps/hub/src/builder/openai-codex/credential.ts': 'accountId: string\n' }
+  const elsewhere = { ...FILES, 'apps/hub/src/builder/application-build.ts': 'accountId: string\n', 'apps/hub/src/model-account/openai-codex/credential.ts': 'accountId: string\n' }
   assert.equal(fixture(t, { files: elsewhere }).run().status, 0)
 })
 

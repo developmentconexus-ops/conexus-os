@@ -2,11 +2,10 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { RequestContext } from '@mastra/core/request-context'
 import { hubModuleUrl } from './hub-build.mjs'
-import { noAccounts } from './model-accounts-fake.mjs'
 import { bindRunContext, readRunContext, RUN_CONTEXT } from './run-context.mjs'
 
 const { requireRunContext } = await import(hubModuleUrl('builder/run-context.js'))
-const { createModelRouting } = await import(hubModuleUrl('builder/model-routing.js'))
+const { createBuilderModelRouting } = await import(hubModuleUrl('builder/model-routing.js'))
 
 const invariant = (error) => error.id === 'INTERNAL_UNEXPECTED' ? error.details.invariant : error.id
 
@@ -30,8 +29,8 @@ test('a context with some keys, or a value that is no id, is a broken invariant 
 })
 
 test('a model call without its run, or with a malformed one, fails INTERNAL_UNEXPECTED and not BUILDER_MODEL_NOT_SELECTED', async () => {
-  const routing = createModelRouting({
-    routes: {}, modelAccounts: noAccounts, conversationModel: async () => null, readDefault: async () => 'anthropic/x', record: async () => {},
+  const routing = createBuilderModelRouting({
+    models: { modelFor: async () => { throw new Error('must validate the run first') } }, data: {}, owner: { ownerId: 'synthetic' }, conversationModel: async () => null, record: async () => {},
   })
   const malformed = new RequestContext()
   bindRunContext(malformed, RUN_CONTEXT)

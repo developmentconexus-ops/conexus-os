@@ -1,12 +1,12 @@
-import { isAuthFileName, type GoogleAiProKey } from '../model-account/providers.js'
+import { isAuthFileName, type GoogleAiProKey } from '../credential.js'
 import { randomUUID } from 'node:crypto'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Failure } from '../../platform/failure.js'
-import { encodeKey } from './credential.js'
+import { encodeKey } from '../credential.js'
 import type { CliproxyPool, LoginInstance } from './pool.js'
 import { ModelLoginId, type AccountId } from '@conexus/contract'
-import type { ConnectResult } from '../model-account/accounts.js'
+import type { ConnectResult } from '../store.js'
 
 type LoginState = 'waiting' | 'succeeded' | 'failed' | 'expired'
 
@@ -35,9 +35,9 @@ const CALLBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1'])
 const CALLBACK_PATHS = new Set(['/oauth-callback', '/antigravity/callback'])
 const STATE = /^[\w-]{8,128}$/
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null }
 
-const management = async (instance: LoginInstance, path: string, body?: unknown): Promise<Readonly<Record<string, unknown>>> => {
+async function management(instance: LoginInstance, path: string, body?: unknown): Promise<Readonly<Record<string, unknown>>> {
   const answer = await fetch(`${instance.url}/v0/management${path}`, {
     method: body === undefined ? 'GET' : 'POST',
     headers: { 'x-management-key': instance.managementKey, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
@@ -47,36 +47,28 @@ const management = async (instance: LoginInstance, path: string, body?: unknown)
   const parsed: unknown = await answer.json().catch(() => null)
   return isRecord(parsed) ? parsed : {}
 }
-
-/**
- * One sign-in at a time for the whole installation, because Google redirects to a fixed port. The
- * sign-in runs in a throwaway CLIProxyAPI whose auth dir starts empty; the record it writes becomes
- * the person's model account, and the instance is then discarded.
- */
-export const createGoogleAiProLogin = <C extends Caller>({ pool, connect, timeoutMs = 5 * 60_000 }: Readonly<{
+type LoginOptions<C extends Caller> = Readonly<{
   pool: Pick<CliproxyPool, 'startLogin'>
   connect(caller: C, key: GoogleAiProKey): Promise<ConnectResult>
   timeoutMs?: number
-}>): GoogleAiProLogin<C> => {
-  let current: Attempt<C> | undefined
-  let starting = false
+}>
+type LoginOwner<C extends Caller> = Required<LoginOptions<C>> & { current: Attempt<C> | undefined; starting: boolean }
 
-  const finish = async (attempt: Attempt<C>, outcome: LoginState): Promise<LoginState> => {
+async function finish<C extends Caller>(attempt: Attempt<C>, outcome: LoginState): Promise<LoginState> {
     if (attempt.outcome === 'waiting') attempt.outcome = outcome
     clearTimeout(attempt.timer)
     await attempt.instance.close().catch(() => undefined)
     return attempt.outcome
   }
 
-  const own = (caller: C, loginId: ModelLoginId): Attempt<C> | undefined =>
-    current?.loginId === loginId && current.caller.accountId === caller.accountId ? current : undefined
+function own<C extends Caller>(owner: LoginOwner<C>, caller: C, loginId: ModelLoginId): Attempt<C> | undefined { return owner.current?.loginId === loginId && owner.current.caller.accountId === caller.accountId ? owner.current : undefined }
 
-  const readRecord = async (attempt: Attempt<C>): Promise<GoogleAiProKey | null> => {
+async function readRecord<C extends Caller>(attempt: Attempt<C>): Promise<GoogleAiProKey | null> {
     const fileName = (await readdir(attempt.instance.authDir)).find(isAuthFileName)
     return fileName ? encodeKey({ fileName, bytes: new Uint8Array(await readFile(join(attempt.instance.authDir, fileName))) }) : null
   }
 
-  const settle = async (attempt: Attempt<C>): Promise<LoginState> => {
+async function settle<C extends Caller>(owner: LoginOwner<C>, attempt: Attempt<C>): Promise<LoginState> {
     let key = await readRecord(attempt)
     if (!key) {
       const answer = await management(attempt.instance, `/get-auth-status?state=${encodeURIComponent(attempt.state)}`)
@@ -85,30 +77,30 @@ export const createGoogleAiProLogin = <C extends Caller>({ pool, connect, timeou
       key = await readRecord(attempt)
       if (!key) return finish(attempt, 'failed')
     }
-    return finish(attempt, (await connect(attempt.caller, key)).ok ? 'succeeded' : 'failed')
+    return finish(attempt, (await owner.connect(attempt.caller, key)).ok ? 'succeeded' : 'failed')
   }
 
-  const outcomeOf = async (attempt: Attempt<C>): Promise<LoginState> => {
+async function outcomeOf<C extends Caller>(owner: LoginOwner<C>, attempt: Attempt<C>): Promise<LoginState> {
     if (attempt.outcome !== 'waiting') return attempt.outcome
-    attempt.settling ??= settle(attempt).finally(() => { attempt.settling = undefined })
+    attempt.settling ??= settle(owner, attempt).finally(() => { attempt.settling = undefined })
     return attempt.settling
   }
 
-  const status = async (caller: C, loginId: ModelLoginId): Promise<LoginState> => {
-    const attempt = own(caller, loginId)
+async function status<C extends Caller>(owner: LoginOwner<C>, caller: C, loginId: ModelLoginId): Promise<LoginState> {
+    const attempt = own(owner, caller, loginId)
     if (!attempt) throw new Failure('MODEL_LOGIN_NOT_FOUND')
-    return outcomeOf(attempt)
+    return outcomeOf(owner, attempt)
   }
 
-  const start = async (caller: C): Promise<Readonly<{ loginId: ModelLoginId; url: string }>> => {
-    if (starting) throw new Failure('MODEL_LOGIN_BUSY')
-    if (current?.outcome === 'waiting') {
-      if (current.caller.accountId !== caller.accountId) throw new Failure('MODEL_LOGIN_BUSY')
-      await finish(current, 'expired')
+async function start<C extends Caller>(owner: LoginOwner<C>, caller: C): Promise<Readonly<{ loginId: ModelLoginId; url: string }>> {
+    if (owner.starting) throw new Failure('MODEL_LOGIN_BUSY')
+    if (owner.current?.outcome === 'waiting') {
+      if (owner.current.caller.accountId !== caller.accountId) throw new Failure('MODEL_LOGIN_BUSY')
+      await finish(owner.current, 'expired')
     }
-    starting = true
+    owner.starting = true
     try {
-      const instance = await pool.startLogin().catch(() => { throw new Failure('MODEL_LOGIN_UNAVAILABLE') })
+      const instance = await owner.pool.startLogin().catch(() => { throw new Failure('MODEL_LOGIN_UNAVAILABLE') })
       const answer = await management(instance, '/antigravity-auth-url?is_webui=true').catch((): Readonly<Record<string, unknown>> => ({}))
       const { url, state } = answer
       if (answer.status !== 'ok' || typeof url !== 'string' || !url.startsWith('https://accounts.google.com/') ||
@@ -121,21 +113,21 @@ export const createGoogleAiProLogin = <C extends Caller>({ pool, connect, timeou
         caller,
         state,
         instance,
-        timer: setTimeout(() => { void finish(attempt, 'expired') }, timeoutMs),
-        expiresAt: Date.now() + timeoutMs,
+        timer: setTimeout(() => { void finish(attempt, 'expired') }, owner.timeoutMs),
+        expiresAt: Date.now() + owner.timeoutMs,
         outcome: 'waiting',
         settling: undefined,
       }
       attempt.timer.unref()
-      current = attempt
+      owner.current = attempt
       return Object.freeze({ loginId: attempt.loginId, url })
     } finally {
-      starting = false
+      owner.starting = false
     }
   }
 
-  const complete = async (caller: C, loginId: ModelLoginId, callbackUrl: string): Promise<LoginState> => {
-    const attempt = own(caller, loginId)
+async function complete<C extends Caller>(owner: LoginOwner<C>, caller: C, loginId: ModelLoginId, callbackUrl: string): Promise<LoginState> {
+    const attempt = own(owner, caller, loginId)
     if (!attempt) return 'expired'
     if (attempt.outcome !== 'waiting') return attempt.outcome
     let callback: URL
@@ -149,8 +141,10 @@ export const createGoogleAiProLogin = <C extends Caller>({ pool, connect, timeou
       !(callback.searchParams.get('code') || callback.searchParams.get('error'))) throw new Failure('MODEL_LOGIN_CALLBACK_REFUSED')
     const answer = await management(attempt.instance, '/oauth-callback', { provider: 'antigravity', redirect_url: callback.href })
     if (answer.status !== 'ok') return finish(attempt, 'failed')
-    return outcomeOf(attempt)
+    return outcomeOf(owner, attempt)
   }
 
-  return Object.freeze({ start, complete, status })
+export function createGoogleAiProLogin<C extends Caller>({ pool, connect, timeoutMs = 5 * 60_000 }: LoginOptions<C>): GoogleAiProLogin<C> {
+  const owner: LoginOwner<C> = { pool, connect, timeoutMs, current: undefined, starting: false }
+  return Object.freeze({ start: (caller) => start(owner, caller), complete: (caller, loginId, callbackUrl) => complete(owner, caller, loginId, callbackUrl), status: (caller, loginId) => status(owner, caller, loginId) })
 }

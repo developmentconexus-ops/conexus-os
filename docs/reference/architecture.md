@@ -211,7 +211,7 @@ Each concept has one owner. The other side holds a link to the owner's record, n
 | A Builder run | Conexus, one state machine with a generated vocabulary | Mastra holds the agent's steps |
 | Current source | `main` in Conexus Git, moved only by the Hub's fast forward from the run's base | Runs and sandboxes hold a branch mirror |
 | Built app and Preview | The registry | Publication alone selects what app users receive. Not built |
-| Model accounts | Conexus, one per person and provider, sealed | Model calls run in the Hub. The sandbox holds no secret |
+| Model accounts | Core `model-account`, one personal credential per person and provider, sealed against its immutable row id | Builder supplies current run admission and records the payer. Model calls run in the Hub; the sandbox holds no secret |
 | Project app data | Conexus allocates it. The Project's repository owns its migrations | The runner holds a per-Project role |
 | Integrators, connections, bindings | Conexus, every call recorded | Handlers and the Builder reach a connection only through the Hub executor |
 | Periodic work and expiry | One job executor, `platform/jobs.ts` | No other timer |
@@ -381,10 +381,10 @@ pull request that fixes one deletes its line.
 | Departure or risk | Wave |
 | --- | --- |
 | `http/access.ts` and `builder/run-operation.ts` import the session and admission contracts of `identity-access` and `app-runner` directly, and the import checker exempts the session, admission and application-server contracts | Hub base, after S1 |
-| The sandbox keepalive in `builder/sandbox.ts` and the sign-in expiry in `builder/google-ai-pro/login.ts` run their own timers, outside `platform/jobs.ts` | Hub base, after S1 |
+| The sandbox keepalive in `builder/sandbox.ts` and the sign-in expiry in `model-account/google-ai-pro/login.ts` run their own timers, outside `platform/jobs.ts` | Hub base, after S1 |
 | The model routes keep verb segments (`/oauth/start`, `/login/complete`), the Google sign-in status is a `POST` named for a read, and the three `start` `POST`s take no `Idempotency-Key` | Hub base, after S1 |
 | `createWorkspaceConnection` and `bindProjectConnection` take no `Idempotency-Key` and deduplicate by domain identity (`connectionId`, the binding name) | Hub base, after S1 |
-| Model accounts and the Mastra instance live in `builder`, not in the core | Hub base, after S1 |
+| The Mastra instance lives in `builder`, not in the core | Hub base, after S1 |
 | Nothing bounds one Project's storage in the Applications cluster | Hub base, after S1 |
 | An `archived` Project state exists that nothing produces | Project lifecycle, after S1 |
 | The Hub no longer synthesizes a purged Project with an empty revision; the wire still uses `archived` and `deleting` booleans, and the web's empty-revision branch stays until U5 replaces that shape | Authorization model, after U4 |

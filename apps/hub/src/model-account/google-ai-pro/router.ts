@@ -1,10 +1,10 @@
-import { GoogleAiProKey } from '../model-account/providers.js'
+import { GoogleAiProKey } from '../credential.js'
 import { createServer, type IncomingMessage, request as forward, type ServerResponse } from 'node:http'
 import type { CliproxyPool, Lease, PersistGoogleAiProRefresh } from './pool.js'
 import { Failure } from '../../platform/failure.js'
 
 // In the shape of Gemini's own errors, which Mastra's Google provider reads the message from.
-const refuse = (response: ServerResponse, status: number, code: string, message: string): void => {
+function refuse(response: ServerResponse, status: number, code: string, message: string): void {
   response.writeHead(status, { 'content-type': 'application/json' })
   response.end(JSON.stringify({ error: { code: status, message, status: code } }))
 }
@@ -15,7 +15,7 @@ const GEMINI_API = '/v1beta/'
 // A run's model calls reach this on Gemini's API with the person's credential as the API key. The
 // router swaps it for the person's proxy key and streams the call through. It never logs a header:
 // the key is the person's Google sign-in.
-const route = (pool: Pick<CliproxyPool, 'acquire'>, persistFor: PersistFor) => async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+function route(pool: Pick<CliproxyPool, 'acquire'>, persistFor: PersistFor) { return async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
   const credential = request.headers[API_KEY_HEADER]
   const key = typeof credential === 'string' ? GoogleAiProKey.safeParse(credential) : null
   if (!key?.success) return refuse(response, 401, 'UNAUTHENTICATED', 'Conecte o Google AI Pro nas Configurações.')
@@ -49,13 +49,12 @@ const route = (pool: Pick<CliproxyPool, 'acquire'>, persistFor: PersistFor) => a
   })
   response.once('close', () => { if (!response.writableFinished) outgoing.destroy() })
   request.pipe(outgoing)
-}
+} }
 
 /** The write-back for a key's refreshed record, when the key's row is known (write-back.ts). */
 type PersistFor = (key: GoogleAiProKey) => PersistGoogleAiProRefresh | undefined
 
-export const startModelRouter = (pool: Pick<CliproxyPool, 'acquire'>, persistFor: PersistFor): Promise<Readonly<{ url: string; close(): Promise<void> }>> =>
-  new Promise((resolve, reject) => {
+export function startModelRouter(pool: Pick<CliproxyPool, 'acquire'>, persistFor: PersistFor): Promise<Readonly<{ url: string; close(): Promise<void> }>> { return new Promise((resolve, reject) => {
     const handle = route(pool, persistFor)
     const server = createServer((request, response) => { void handle(request, response) })
     server.once('error', reject)
@@ -70,4 +69,4 @@ export const startModelRouter = (pool: Pick<CliproxyPool, 'acquire'>, persistFor
         }),
       }))
     })
-  })
+  }) }

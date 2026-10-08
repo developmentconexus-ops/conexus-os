@@ -16,9 +16,8 @@ const { createBuilderController } = await import(built('builder/harness/controll
 const { createBuilderMemory } = await import(built('builder/memory.js'))
 const { registerBuilderSessionRoutes } = await import(built('builder/mastra-session-routes.js'))
 const { createConversations } = await import(built('builder/conversations.js'))
-const { createModelRouting } = await import(built('builder/model-routing.js'))
+const { createBuilderModelRouting } = await import(built('builder/model-routing.js'))
 
-import { noAccounts, oneAccount } from './model-accounts-fake.mjs'
 import { bindRunContext, RUN_CONTEXT } from './run-context.mjs'
 
 const ana = '22222222-2222-4222-8222-222222222222'
@@ -59,11 +58,14 @@ const probeRouting = (script = [], onObserverPrompt = () => {}, titleDelayMs = 0
       return { stream: streamOf(step ? [{ type: 'tool-call', toolCallId: `t${offered.length}`, toolName: step.toolName, input: JSON.stringify(step.input) }] : textParts('Certo, vou planejar a agenda.')) }
     },
   })
-  const routing = createModelRouting({
-    routes: { anthropic: { accountProvider: 'anthropic', take: (account) => ({ modelProvider: 'probe', model: async (name) => model(name, account.modelAccountId) }) } },
-    modelAccounts: oneAccount({ modelAccountId: `acct-${ana}`, provider: 'anthropic', kind: 'api_key', secret: 'sk-ant-xxxxxxxxxxxxxxxxxxxx' }),
+  const routing = createBuilderModelRouting({
+    data: {}, owner: { ownerId: 'synthetic-memory-owner' },
+    models: {
+      modelFor: async (_openRun, { modelId }) => ({ ok: true, result: { model: model(modelId.slice('anthropic/'.length), '30000000-0000-4000-8000-000000000001'), modelAccountId: '30000000-0000-4000-8000-000000000001' } }),
+      readDefault: async (_accountId, role) => role === 'memory' ? 'anthropic/observer' : 'anthropic/main',
+      checkBeforeRun: async () => ({ ok: true, result: undefined }),
+    },
     conversationModel: async () => null,
-    readDefault: async (_accountId, role) => role === 'memory' ? 'anthropic/observer' : 'anthropic/main',
     record: async (builderRunId, _accountId, modelAccountId) => { recorded.push([builderRunId, modelAccountId]) },
   })
   return { routing, calls, titled, recorded, offered }
@@ -116,7 +118,7 @@ test('a run observes its conversation on the installation memory model, paid by 
 
   assert.deepEqual([windows[0].messages.threshold, windows[0].observations.threshold], [DEFAULT_OBS_THRESHOLD, DEFAULT_REF_THRESHOLD], "the windows are Mastra Code's own thresholds")
   assert.ok(windows[0].observations.tokens > 0, 'the request was observed before the first answer')
-  const payer = `acct-${ana}`
+  const payer = '30000000-0000-4000-8000-000000000001'
   assert.deepEqual(calls, [['observer', payer], ['main', payer]], 'the Observer ran inside the run, on the memory default and the run\'s account')
   assert.deepEqual([...new Set(recorded.map(([run, account]) => `${run}:${account}`))], [`${runId}:${payer}`], 'every call, the Observer\'s included, is recorded on the run')
   assert.ok(offered[0].includes('recall'), 'no allowlist hides the recall tool')
@@ -187,8 +189,8 @@ test('an Observer call outside a run has no one to pay for it and is refused as 
 
 test('a run refuses to start when the installation has no memory default, and no model of the conversation stands in for it', async () => {
   const { routing } = probeRouting()
-  const unset = createModelRouting({
-    routes: {}, modelAccounts: noAccounts, conversationModel: async () => 'anthropic/main', readDefault: async () => null, record: async () => {},
+  const unset = createBuilderModelRouting({
+    data: {}, owner: { ownerId: 'synthetic-memory-owner' }, models: { readDefault: async () => null }, conversationModel: async () => 'anthropic/main', record: async () => {},
   })
   await assert.rejects(unset.check({ accountId: ana, projectId: '33333333-3333-4333-8333-333333333333', conversationId: '44444444-4444-4444-8444-444444444444' }), { id: 'BUILDER_MODEL_NOT_SELECTED' })
   await assert.doesNotReject(routing.check({ accountId: ana, projectId: '33333333-3333-4333-8333-333333333333', conversationId: '44444444-4444-4444-8444-444444444444' }))
@@ -239,7 +241,7 @@ test('a conversation is titled by Memory generateTitle on the memory model in Po
   for (let attempt = 0; attempt < 50 && !(await memoryStore.getThreadById({ threadId }))?.title; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 100))
 
   assert.equal((await memoryStore.getThreadById({ threadId })).title, 'Agenda semanal da equipe')
-  assert.deepEqual(titled, [['observer', `acct-${ana}`]], 'one title call, on the memory default and the run\'s account')
+  assert.deepEqual(titled, [['observer', '30000000-0000-4000-8000-000000000001']], 'one title call, on the memory default and the run\'s account')
 })
 
 test('a turn ends only after its conversation is titled, so the list read at the turn\'s end carries the title even when the title model is slow', async (t) => {

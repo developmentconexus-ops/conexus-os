@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 
-const { parseCredential, encodeCredential, parseModelId, toCodexTokens } = await import(hubModuleUrl('builder/model-account/providers.js'))
+const { parseCredential, encodeCredential, parseModelId, toCodexTokens } = await import(hubModuleUrl('model-account/credential.js'))
 const google = 'cxagy1.YW50aWdyYXZpdHktc3ludGhldGljLmpzb24.eyJ0eXBlIjoiYW50aWdyYXZpdHkifQ'
 const cases = [
   [{ provider: 'anthropic', kind: 'api_key' }, 'sk-ant-xxxxxxxxxxxxxxxxxxxx', 'sk-ant-xxxxxxxxxxxxxxxxxxxx'],

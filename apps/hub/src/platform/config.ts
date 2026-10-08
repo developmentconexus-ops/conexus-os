@@ -1,3 +1,5 @@
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { Failure } from './failure.js'
 import { parseApplicationSlug } from './application-slug.js'
 import type { ApplicationSlug } from './application-slug.js'
@@ -68,7 +70,7 @@ export type GoogleAiProRuntimeConfig = Readonly<{ binary: string; sha256: string
 
 // CONEXUS_SECRET_KEY_FILE holds 64 hex characters; CONEXUS_PREVIOUS_SECRET_KEY_FILES names
 // the keys it replaced, until every value sealed under them has been rewritten.
-export type InstallationSecretKey = Readonly<{ file: string; previousFiles: readonly string[] }>
+type InstallationSecretKey = Readonly<{ file: string; previousFiles: readonly string[] }>
 
 // The database role the Builder's Mastra storage connects as; slice 7 renames it with its schema.
 export type FactoryRuntimeConfig = Readonly<{
@@ -245,4 +247,8 @@ export const readHubConfig = (environment: NodeJS.ProcessEnv = process.env): Hub
   // there is no native record, so no gateway either.
   if (config.connectors.gatewayOrigin && !config.factory) throw configInvalid('CONNECTOR_GATEWAY_FACTORY_RUNTIME_REQUIRED')
   return config
+}
+
+export function readCliproxyEnvironment(environment: NodeJS.ProcessEnv = process.env): Readonly<{ stateDir: string; path: string }> {
+  return { stateDir: join(environment.XDG_STATE_HOME ?? join(homedir(), '.local', 'state'), 'conexus', 'cliproxy'), path: environment.PATH ?? '/usr/bin:/bin' }
 }

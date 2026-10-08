@@ -5,8 +5,7 @@ import type { Admitted, AccountScope, RunScope, ApplicationScope, Checked, Proje
 import { idempotent, type Receipted } from '../../apps/hub/src/platform/receipt.js'
 import { createWorkspace, type IdempotencyKey, WorkspaceId as WorkspaceIdSchema } from '@conexus/contract'
 import type { AuthenticationGate, CommandGate, ReadTx, RawToken, WriteTx } from '../../apps/hub/src/platform/db.js'
-import type { CredentialKind } from '../../apps/hub/src/builder/model-account/providers.js'
-import type { ModelRoute, ModelRoutes } from '../../apps/hub/src/builder/model-routing.js'
+import type { CredentialKind } from '../../apps/hub/src/model-account/credential.js'
 import { digest, sql } from '../../apps/hub/src/platform/db.js'
 import { SealedApplication } from '../../apps/hub/src/platform/sealed-application.js'
 import type { RegistryModule } from '../../apps/hub/src/registry/module.js'
@@ -154,14 +153,10 @@ const positiveIdentityPurge: Promise<void> = purgeProject(purge, project)
 // @ts-expect-error An identity is provisioned only on a basis: the founding proof or a claim.
 const provisionedBare = provisionIdentity(authentication, claims)
 
-declare const anthropicRoute: ModelRoute<'anthropic'>
-declare const googleRoute: ModelRoute<'google-ai-pro'>
 // @ts-expect-error A CredentialKind of openai-codex cannot hold the api_key kind.
 const unlawful: CredentialKind = { provider: 'openai-codex', kind: 'api_key' }
-// @ts-expect-error A ModelRoutes missing the router prefix openai does not compile.
-const missingPrefix: ModelRoutes = { anthropic: anthropicRoute, 'google-ai-pro': googleRoute }
 
-void [purgedByAccount, positiveIdentityPurge, provisionedBare, positiveAuthenticatedCheck, positiveAuthenticatedAdmission, positivePreviewCheck, positiveReceipt, positiveKeyed, positiveBootstrap, unlawful, missingPrefix, literalGate, spreadGate, positiveAuthentication, positiveDigest, positiveOwner, positiveRead, positiveGrant, positivePurge, positiveSystem, positiveChecked, positiveCheckedRead, checkedAsAdmitted, admittedAsChecked, copiedChecked, writeMode, wrongJob, forged, copied, wrongScope, wrongAction, wrongProject, wrongMode]
+void [purgedByAccount, positiveIdentityPurge, provisionedBare, positiveAuthenticatedCheck, positiveAuthenticatedAdmission, positivePreviewCheck, positiveReceipt, positiveKeyed, positiveBootstrap, unlawful, literalGate, spreadGate, positiveAuthentication, positiveDigest, positiveOwner, positiveRead, positiveGrant, positivePurge, positiveSystem, positiveChecked, positiveCheckedRead, checkedAsAdmitted, admittedAsChecked, copiedChecked, writeMode, wrongJob, forged, copied, wrongScope, wrongAction, wrongProject, wrongMode]
 // @ts-expect-error A claim is made only by claimInvitations: a literal cannot make an account an owner.
 joinClaimed(accountProof, { workspaces: [{ workspace_id: workspace, role: 'owner', invited_by: account }], applications: [] })
 // @ts-expect-error A claim is made only by claimInvitations: a literal cannot grant an application.

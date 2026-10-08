@@ -3,10 +3,9 @@ import { OPENAI_PREFIX, remapOpenAIModelForCodexOAuth } from '@mastra/code-sdk/p
 import type { ThinkingLevelSetting } from '@mastra/code-sdk/thinking'
 import type { MastraModelConfig } from '@mastra/core/llm'
 import { wrapLanguageModel, type LanguageModelMiddleware } from 'ai'
-import { MODEL_PROVIDERS, type CodexTokens } from '../model-account/providers.js'
-import type { ModelRoute } from '../model-routing.js'
-import type { TokenHolds } from '../oauth-holds.js'
-import { heldCodexCredentials } from './credential.js'
+import type { CodexTokens } from '../credential.js'
+import type { CredentialStore, OAuthCredential } from '@mastra/code-sdk/auth/types'
+import { currentCredential, type NativeCredentialAccess } from '../refresh.js'
 import { Failure } from '../../platform/failure.js'
 
 /**
@@ -27,21 +26,19 @@ const builderCodexOptions: LanguageModelMiddleware = {
 
 type LanguageModelV3 = Parameters<typeof wrapLanguageModel>[0]['model']
 
-const isRecord = (value: unknown): value is object => typeof value === 'object' && value !== null
+function isRecord(value: unknown): value is object { return typeof value === 'object' && value !== null }
 
-const isLanguageModel = (model: object): model is LanguageModelV3 =>
-  'specificationVersion' in model && model.specificationVersion === 'v3'
+function isLanguageModel(model: object): model is LanguageModelV3 { return 'specificationVersion' in model && model.specificationVersion === 'v3'
   && 'provider' in model && typeof model.provider === 'string'
   && 'modelId' in model && typeof model.modelId === 'string'
   && 'supportedUrls' in model && isRecord(model.supportedUrls)
   && 'doGenerate' in model && typeof model.doGenerate === 'function'
-  && 'doStream' in model && typeof model.doStream === 'function'
+  && 'doStream' in model && typeof model.doStream === 'function' }
 
 /**
  * Mastra's Codex provider is typed as a model config but builds an AI SDK model; a config would be a bug there.
- * @public Tests call it through the built Hub.
  */
-export const languageModelOf = (model: MastraModelConfig): LanguageModelV3 => {
+function languageModelOf(model: MastraModelConfig): LanguageModelV3 {
   if (typeof model !== 'object' || !isLanguageModel(model)) throw new Failure('OPENAI_CODEX_MODEL_REFUSED')
   return model
 }
@@ -51,21 +48,35 @@ export const languageModelOf = (model: MastraModelConfig): LanguageModelV3 => {
  * held row, at the call's thinking level as its `reasoningEffort` (Mastra Code's own mapping, which
  * reads no level as medium), the Codex id remap Mastra Code applies.
  */
-const openaiCodexModel = (modelName: string, thinkingLevel: ThinkingLevelSetting | undefined, tokens: CodexTokens, current: () => Promise<CodexTokens>) =>
-  wrapLanguageModel({
+function openaiCodexModel(modelName: string, thinkingLevel: ThinkingLevelSetting | undefined, tokens: CodexTokens, current: () => Promise<CodexTokens>) { return wrapLanguageModel({
     model: languageModelOf(openaiCodexProvider(remapOpenAIModelForCodexOAuth(`${OPENAI_PREFIX}${modelName}`).substring(OPENAI_PREFIX.length), {
       authStorage: heldCodexCredentials(tokens, current),
       ...thinkingLevel ? { thinkingLevel } : {},
     })),
     middleware: [builderCodexOptions],
-  })
+  }) }
 
-/** The `openai/*` route: the caller's ChatGPT row pays. Called from the Hub; the token never leaves it. */
-export const createOpenAICodexRoute = (holds: TokenHolds<CodexTokens>): ModelRoute<'openai-codex'> => Object.freeze({
-  accountProvider: 'openai-codex',
-  take: (held) => {
-    const tokens = held.credential.value
-    const current = holds.hold(held, tokens)
-    return { modelProvider: MODEL_PROVIDERS['openai-codex'].routerPrefix, model: async (modelName, thinkingLevel) => openaiCodexModel(modelName, thinkingLevel, tokens, current) }
-  },
-})
+async function currentCodex(access: NativeCredentialAccess): Promise<CodexTokens> {
+  const credential = await currentCredential(access)
+  if (credential.provider !== 'openai-codex') throw new Failure('BUILDER_MODEL_NOT_SELECTED')
+  return credential.value
+}
+
+function nativeCodexRecord({ email, ...tokens }: CodexTokens): OAuthCredential {
+  return { type: 'oauth', ...tokens, ...email === null ? {} : { email } }
+}
+
+function heldCodexCredentials(initial: CodexTokens, current: () => Promise<CodexTokens>): CredentialStore {
+  return Object.freeze({
+    allowEnvironmentFallback: false,
+    reload: () => undefined,
+    get: (provider: string) => provider === 'openai-codex' ? nativeCodexRecord(initial) : undefined,
+    getStoredApiKey: () => undefined,
+    getApiKey: async () => (await current()).access,
+    getOAuthCredential: async () => nativeCodexRecord(await current()),
+  })
+}
+
+export function codexModel({ access, tokens, modelName }: Readonly<{ access: NativeCredentialAccess; tokens: CodexTokens; modelName: string }>): MastraModelConfig {
+  return openaiCodexModel(modelName, access.thinkingLevel ?? undefined, tokens, () => currentCodex(access))
+}

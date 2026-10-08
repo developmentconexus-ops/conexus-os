@@ -1,4 +1,4 @@
-import { parseModelId } from './model-account/providers.js'
+import { parseModelId, type ModelAccountModule } from '../model-account/module.js'
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import type { ToolsInput } from '@mastra/core/agent'
@@ -11,7 +11,6 @@ import { Failure } from '../platform/failure.js'
 import { gitUnavailableAs } from '../platform/git-failure.js'
 import type { Job } from '../platform/jobs.js'
 import { logLine } from '../platform/logger.js'
-import { createSecretEnvelope } from '../platform/secrets.js'
 import { readSecretFile } from '../platform/secret-file.js'
 import type { ModelId, AccountId, BuilderRunId, ConversationId, ProjectId, BuilderTraceSummary } from '@conexus/contract'
 import { registerBuilderRoutes } from './routes.js'
@@ -23,7 +22,7 @@ import type { ApplicationServerPort, BuilderRegistry } from './application-build
 import { createBuilderStore } from './store.js'
 export { builderProjectPorts, purgeProjectBuilder } from './project-ports.js'
 import { buildTraceSummary, UNAVAILABLE_TRACE_SUMMARY } from './trace-summary.js'
-import type { FactoryRuntimeConfig, GoogleAiProRuntimeConfig, InstallationSecretKey } from '../platform/config.js'
+import type { FactoryRuntimeConfig } from '../platform/config.js'
 import { assertBuilderSkillsAvailable } from './skills-guard.js'
 import type { BuilderRunPorts } from './run/ports.js'
 import { createControllerRunSessions } from './run/turn.js'
@@ -42,41 +41,15 @@ import { conversationScope, createLiveConversations } from './conversation.js'
 import { createBuilderController, createContext7Docs } from './harness/index.js'
 import { starterProjectFiles } from './project-context.js'
 import { createProjectSourceReads } from './source.js'
-import { createCliproxyPool, defaultCliproxyStateDir, verifyCliproxyBinary } from './google-ai-pro/pool.js'
-import { startModelRouter } from './google-ai-pro/router.js'
-import { createRefreshWriteBack } from './google-ai-pro/write-back.js'
-import { createGoogleAiProRoute } from './google-ai-pro/route.js'
-import { createClaudeHolds } from './anthropic/credential.js'
-import { createAnthropicRoute } from './anthropic/route.js'
-import { createModelAccounts } from './model-account/accounts.js'
-import { createModelRouting, type ModelRoutes } from './model-routing.js'
-import { DEFAULT_THINKING_LEVEL } from './harness/request-context.js'
+import { createBuilderModelRouting } from './model-routing.js'
 import { readRunContext } from './run-context.js'
 import { createBuilderMemory } from './memory.js'
-import { createCodexHolds } from './openai-codex/credential.js'
-import { createOpenAICodexRoute } from './openai-codex/route.js'
-import { registerModelAccountRoutes } from './model-accounts.js'
 import type { BuilderRunDependencies } from './service.js'
 import { isOpenRunState } from '../generated/builder-run-vocabulary.js'
 
 // The agent loop reads its steps back from this pool; a 5 s wait failed a run when the host was busy
 // (the same window that timed out the observability exporter). Waiting is cheaper than a failed turn.
 const AGENT_STORAGE_CONNECT_TIMEOUT_MS = 30_000
-
-// Kills what a crashed Hub left running before the router takes calls.
-const startGoogleAiPro = async ({ binary, sha256 }: GoogleAiProRuntimeConfig, persistFor: Parameters<typeof startModelRouter>[1]) => {
-  await verifyCliproxyBinary(binary, sha256)
-  const pool = createCliproxyPool({ binary, stateDir: defaultCliproxyStateDir() })
-  await pool.sweepOrphans()
-  const router = await startModelRouter(pool, persistFor)
-  return Object.freeze({
-    pool,
-    url: router.url,
-    close: async () => {
-      try { await router.close() } finally { await pool.close() }
-    },
-  })
-}
 
 /** The Connector owner's part in a Builder run; absent without a Connector module. */
 export type BuilderConnectorPort = Readonly<{
@@ -93,7 +66,7 @@ const DAY_MS = 24 * HOUR_MS
 const RUN_LEASE_EVERY_MS = 10_000
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: debt: owning wave
-export const createConfiguredBuilderModule = ({ data, database, builder, factory, secretKey, googleAiPro, registry, applicationServer, launchPreview, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
+export const createConfiguredBuilderModule = ({ data, database, builder, factory, models, registry, applicationServer, launchPreview, readProjectName, connectors, connectorObservability, conversationSandboxes }: Readonly<{
   data: Database
   database: Readonly<{ host: string; port: number; database: string }>
   builder: Readonly<{
@@ -103,8 +76,7 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
   // Only its database password is still read: the Builder's Mastra storage lives in the `factory`
   // schema through the `hub_factory` role until slice 7 moves it to schema `mastra`.
   factory: Pick<FactoryRuntimeConfig, 'databasePasswordFile'>
-  secretKey: InstallationSecretKey
-  googleAiPro?: GoogleAiProRuntimeConfig
+  models: ModelAccountModule
   registry: BuilderRegistry
   applicationServer?: ApplicationServerPort
   launchPreview?: BuilderLaunchPreviewPort
@@ -120,32 +92,15 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
   const log = logLine
   const ownerId = randomUUID()
   const store = createBuilderStore({ database: data, ownerId, registry })
-  const modelAccounts = createModelAccounts({
-    database: data,
-    envelope: createSecretEnvelope(readSecretFile(secretKey.file), secretKey.previousFiles.map(readSecretFile)),
-    ownerId,
-  })
   const git = createConexusGit({ root: builder.gitRoot, starter: [...fixedApplicationStarterFiles(), ...APPLICATION_SHAPE_FILES, ...starterProjectFiles()] })
   const storagePool = openFactoryPool({ ...database, user: 'hub_factory', passwordFile: factory.databasePasswordFile, options: '-c search_path=factory', max: 20, connectionTimeoutMillis: AGENT_STORAGE_CONNECT_TIMEOUT_MS })
   const storage = createBuilderStorage(storagePool)
   const observability = createBuilderObservability('conexus-builder', connectorObservability)
   const observabilityLifecycle = createBuilderObservabilityLifecycle(observability)
-  const googleWriteBack = createRefreshWriteBack()
-  const googleAiProReady = googleAiPro ? startGoogleAiPro(googleAiPro, googleWriteBack.persistFor) : Promise.resolve(undefined)
-  googleAiProReady.catch(() => undefined)
-
-  const routes: ModelRoutes = Object.freeze({
-    'google-ai-pro': createGoogleAiProRoute({ routerUrl: async () => (await googleAiProReady.catch(() => undefined))?.url, track: googleWriteBack.track }),
-    openai: createOpenAICodexRoute(createCodexHolds({})),
-    // Called from the Hub with the person's Anthropic key or Claude subscription; neither leaves the Hub.
-    anthropic: createAnthropicRoute(createClaudeHolds({})),
-  })
-  const modelRouting = createModelRouting({
-    routes,
-    modelAccounts,
+  const modelRouting = createBuilderModelRouting({
+    models, data, owner: { ownerId },
     // Read when a run starts, long after the controller below exists.
     conversationModel: (accountId, projectId, conversationId) => conversationModel(accountId, projectId, conversationId),
-    readDefault: modelAccounts.readDefault,
     record: (builderRunId, accountId, modelAccountId) => store.recordBuilderRunModelAccount({
       builderRunId, accountId, modelAccountId,
     }),
@@ -208,7 +163,7 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
     return memory
   })
 
-  const openSession = createControllerRunSessions({ controller, conversations: liveConversations, readDefaultModel: (accountId) => modelAccounts.readDefault(accountId, 'build') })
+  const openSession = createControllerRunSessions({ controller, conversations: liveConversations, readDefaultModel: (accountId) => models.readDefault(accountId, 'build') })
   const ports: BuilderRunPorts = Object.freeze({
     openSandbox: liveConversations.sandbox,
     openSession: async (input) => {
@@ -246,7 +201,6 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
     { name: 'span-prune', everyMs: DAY_MS, run: (signal) => pruneSpans(storage, log, signal) },
     { name: 'idle-conversations', everyMs: MINUTE_MS, run: liveConversations.sweep },
     ...(machines ? [{ name: 'idle-machines', everyMs: HOUR_MS, run: async (signal: AbortSignal) => { await sweepIdleMachines(machines, signal) } }] : []),
-    ...(googleAiPro ? [{ name: 'idle-cliproxy', everyMs: MINUTE_MS, run: async (signal: AbortSignal) => { await (await googleAiProReady)?.pool.sweepIdle(signal) } }] : []),
   ]
   const readTraceSummary = async (projectId: ProjectId, builderRunId: BuilderRunId): Promise<BuilderTraceSummary> => {
     const mastraStorage = mastra.getStorage()
@@ -299,13 +253,7 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
         answerQuestion: service.answerQuestion,
         ...(connectors ? { toolPayloads: connectors.toolPayloadProjection } : {}),
       })
-      const googleAiProPool = (await googleAiProReady)?.pool
-      const modelOperations = await registerModelAccountRoutes(app, {
-        modelAccounts,
-        defaultThinkingLevel: DEFAULT_THINKING_LEVEL,
-        ...(googleAiProPool ? { googleAiPro: googleAiProPool } : {}),
-      })
-      return [...builderOperations, ...modelOperations]
+      return builderOperations
     },
     // Absent without the Builder, and then no Project can be created.
     prepareProjectRepository: (projectId: ProjectId) => git.ensureRepository(projectId),
@@ -332,7 +280,6 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
           await controller.destroy()
         } finally {
           await docsTools.close()
-          await googleAiProReady.then((started) => started?.close(), () => undefined)
           await observabilityLifecycle.close()
           await storagePool.end()
         }

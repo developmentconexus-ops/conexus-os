@@ -1,3 +1,4 @@
+import { providerModel } from './native-model-fixture.mjs'
 import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
@@ -8,7 +9,6 @@ import { Mastra } from '@mastra/core/mastra'
 import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
 import { hubModuleUrl } from './hub-build.mjs'
-import { oneAccount } from './model-accounts-fake.mjs'
 import { bindRunContext } from './run-context.mjs'
 import { testConversations } from './builder-conversation-fixture.mjs'
 import { hubJsonWrite, hubSessionCookie, opaque, testListener } from './access/test-listener.mjs'
@@ -587,14 +587,7 @@ const echoed = (status, type) => () => new Response(JSON.stringify({ type: 'erro
 
 for (const [label, status, type] of [['401', 401, 'authentication_error'], ['503', 503, 'api_error']]) {
   test(`the stream the browser is served, over a real Anthropic ${label} that echoes the account key, carries the key in no frame`, async (t) => {
-    const { createModelRouting } = await import(built('builder/model-routing.js'))
-    const { createAnthropicRoute } = await import(built('builder/anthropic/route.js'))
-    const { createClaudeHolds } = await import(built('builder/anthropic/credential.js'))
-    const routing = createModelRouting({
-      routes: { anthropic: createAnthropicRoute(createClaudeHolds({})) },
-      modelAccounts: oneAccount({ modelAccountId: 'row-anthropic', provider: 'anthropic', kind: 'api_key', secret: apiKey }),
-      conversationModel: async () => null, readDefault: async () => null, record: async () => {},
-    })
+    const model = () => providerModel({ credential: { provider: 'anthropic', kind: 'api_key', value: apiKey }, modelId: 'anthropic/claude-sonnet-5' })
     const original = globalThis.fetch
     globalThis.fetch = async (input, init) => {
       const url = new Request(input, init).url
@@ -602,7 +595,7 @@ for (const [label, status, type] of [['401', 401, 'authentication_error'], ['503
       return original(input, init)
     }
     t.after(() => { globalThis.fetch = original })
-    const { app, controller } = await createBuilderApp(t, { model: (context) => routing.resolve(context) })
+    const { app, controller } = await createBuilderApp(t, { model: model })
     const address = await app.listen({ port: 0, host: '127.0.0.1' })
     const closing = new AbortController()
     const response = await original(`${address}${sessionBase()}/stream?${inConversation()}`, { headers: { cookie: hubSessionCookie(SESSION_TOKEN) }, signal: closing.signal })

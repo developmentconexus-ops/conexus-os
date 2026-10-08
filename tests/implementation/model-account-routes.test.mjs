@@ -2,9 +2,8 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 import { hubJsonWrite, opaque, testListener } from './access/test-listener.mjs'
-import { fakeModelAccounts } from './model-accounts-fake.mjs'
 
-const { registerModelAccountRoutes } = await import(hubModuleUrl('builder/model-accounts.js'))
+const { registerModelAccountRoutes } = await import(hubModuleUrl('model-account/routes.js'))
 const { Failure } = await import(hubModuleUrl('platform/failure.js'))
 
 const SESSION_TOKEN = opaque('ana')
@@ -14,12 +13,19 @@ const UNKNOWN_LOGIN = '77777777-7777-4777-8777-777777777777'
 const MDL = ['listAvailableModels', 'listModelAccounts', 'setModelAccountApiKey', 'startClaudeModelLogin', 'completeClaudeModelLogin', 'startCodexModelLogin', 'pollCodexModelLogin', 'getGoogleModelConnection', 'startGoogleModelLogin', 'completeGoogleModelLogin', 'getGoogleModelLoginStatus']
 const problem = (reply) => reply.json().type.replace('urn:conexus:problem:', '')
 
-const createApp = async (t, dependencies = {}, modelAccounts = fakeModelAccounts().modelAccounts) => {
+const emptyDependencies = () => ({ list: async () => [], offers: async () => [], write: async () => {}, connect: async () => ({ ok: true, result: undefined }) })
+const createApp = async (t, dependencies = {}, owner = emptyDependencies()) => {
   let registered
+  const original = globalThis.fetch
+  globalThis.fetch = async (input) => {
+    if (String(input) === 'https://console.anthropic.com/v1/oauth/token') return Response.json({ access_token: 'a', refresh_token: 'r', expires_in: 3600 })
+    throw new Error('synthetic provider unavailable')
+  }
+  t.after(() => { globalThis.fetch = original })
   const { app } = await testListener({
     sessions: { [SESSION_TOKEN]: () => ({ account: { accountId: ana, displayName: 'Ana' } }) },
     registerRoutes: async (instance) => {
-      registered = await registerModelAccountRoutes(instance, { modelAccounts, defaultThinkingLevel: 'medium', ...dependencies })
+      registered = await registerModelAccountRoutes(instance, { ...owner, defaultThinkingLevel: 'medium', ...dependencies })
       return registered
     },
   })
@@ -27,7 +33,6 @@ const createApp = async (t, dependencies = {}, modelAccounts = fakeModelAccounts
   return { app, registered }
 }
 const post = (app, url, payload = {}) => app.inject({ method: 'POST', url, ...authentic, payload })
-const claudeAuthorization = { start: async () => ({ url: 'https://claude.ai/oauth/authorize', verifier: 'v' }), complete: async () => ({ access: 'a', refresh: 'r', expires: 9_999_999_999_999 }) }
 const claude = '/api/control/model-accounts/anthropic/oauth'
 const google = '/api/control/model-accounts/google-ai-pro'
 
@@ -40,23 +45,23 @@ test('the model routes register exactly listAvailableModels to getGoogleModelLog
 })
 
 test('a sign-in whose credential write is refused answers 200 failed, and a database fault in the same write answers 500', async (t) => {
-  const refused = fakeModelAccounts().modelAccounts
-  refused.connect = async () => ({ ok: false, reason: 'ACCOUNT_INACTIVE' })
-  const { app } = await createApp(t, { claudeAuthorization }, refused)
-  const { loginId } = (await post(app, `${claude}/start`)).json()
-  const failed = await post(app, `${claude}/complete`, { loginId, code: 'code#v' })
+  const refused = emptyDependencies()
+  refused.connect = async () => ({ ok: false, error: { code: 'ACCOUNT_INACTIVE' } })
+  const { app } = await createApp(t, {}, refused)
+  const { loginId, url } = (await post(app, `${claude}/start`)).json()
+  const failed = await post(app, `${claude}/complete`, { loginId, code: `code#${new URL(url).searchParams.get('state')}` })
   assert.deepEqual([failed.statusCode, failed.json()], [200, { state: 'failed' }])
 
-  const faulty = fakeModelAccounts().modelAccounts
+  const faulty = emptyDependencies()
   faulty.connect = async () => { throw new Error('connection terminated') }
-  const second = await createApp(t, { claudeAuthorization }, faulty)
+  const second = await createApp(t, {}, faulty)
   const started = (await post(second.app, `${claude}/start`)).json()
-  const fault = await post(second.app, `${claude}/complete`, { loginId: started.loginId, code: 'code#v' })
+  const fault = await post(second.app, `${claude}/complete`, { loginId: started.loginId, code: `code#${new URL(started.url).searchParams.get('state')}` })
   assert.deepEqual([fault.statusCode, problem(fault)], [500, 'INTERNAL_UNEXPECTED'])
 })
 
 test('a key write by an inactive account answers ACCOUNT_INACTIVE', async (t) => {
-  const inactive = fakeModelAccounts().modelAccounts
+  const inactive = emptyDependencies()
   inactive.write = async () => { throw new Failure('ACCOUNT_INACTIVE') }
   const { app } = await createApp(t, {}, inactive)
   const reply = await app.inject({ method: 'PUT', url: '/api/control/model-accounts/anthropic/api-key', ...authentic, payload: { key: `sk-ant-api03-${'x'.repeat(40)}` } })
@@ -85,7 +90,7 @@ test('a Google start the pool cannot serve is MODEL_LOGIN_UNAVAILABLE, and a wel
 })
 
 test('a ChatGPT start whose device endpoint fails answers MODEL_LOGIN_UNAVAILABLE', async (t) => {
-  const { app } = await createApp(t, { openaiCodexDevice: { start: async () => { throw new Error('OpenAI down') }, poll: async () => ({ status: 'pending' }) } })
+  const { app } = await createApp(t, {})
   const reply = await post(app, '/api/control/model-accounts/openai-codex/oauth/start')
   assert.deepEqual([reply.statusCode, problem(reply)], [503, 'MODEL_LOGIN_UNAVAILABLE'])
 })

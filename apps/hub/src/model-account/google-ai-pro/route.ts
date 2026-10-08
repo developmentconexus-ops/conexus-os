@@ -1,10 +1,9 @@
-import type { GoogleAiProKey } from '../model-account/providers.js'
+import type { GoogleAiProKey } from '../credential.js'
 import { createGoogleThinkingMiddleware } from '@mastra/code-sdk/providers/google-thinking'
 import { ModelsDevGateway } from '@mastra/core/llm'
 import type { LanguageModelMiddleware } from 'ai'
-import type { HeldAccount } from '../model-account/accounts.js'
-import { MODEL_PROVIDERS } from '../model-account/providers.js'
-import { wrapGatewayModel, type ModelRoute } from '../model-routing.js'
+import type { NativeCredentialAccess } from '../refresh.js'
+import { wrapGatewayModel } from '../models.js'
 import { Failure } from '../../platform/failure.js'
 
 /** The provider Mastra's models.dev gateway builds Gemini's own API client for. */
@@ -46,25 +45,18 @@ class GoogleAiProGateway extends ModelsDevGateway {
  * for that proxy's. The call's thinking level goes as Mastra Code sets it for each Gemini family
  * (`createGoogleThinkingMiddleware`), with the thinking text asked for in the request. The router exists only when the Hub runs CLIProxyAPI.
  */
-export const createGoogleAiProRoute = ({ routerUrl, track }: Readonly<{
-  routerUrl(): Promise<string | undefined>
-  /** Ties the key to its row, so a refresh the proxy makes is written back (write-back.ts). */
-  track(key: GoogleAiProKey, held: HeldAccount): void
-}>): ModelRoute<'google-ai-pro'> => Object.freeze({
-  accountProvider: 'google-ai-pro',
-  take: (held) => {
-    const key = held.credential.value
-    track(key, held)
-    return {
-      modelProvider: MODEL_PROVIDERS['google-ai-pro'].routerPrefix,
-      model: async (modelName, thinkingLevel) => {
-        const url = await routerUrl()
-        if (!url) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
-        return wrapGatewayModel(
-          await new GoogleAiProGateway(`${url}/v1beta`).resolveLanguageModel({ providerId: GOOGLE_PROVIDER, modelId: modelName, apiKey: key }),
-          [createGoogleThinkingMiddleware(modelName, thinkingLevel), includeThoughts],
-        )
-      },
-    }
-  },
-})
+export async function googleAiProModel({ access, modelName, routerUrl, track }: Readonly<{
+  access: NativeCredentialAccess
+  modelName: string
+  routerUrl: string | null
+  track(key: GoogleAiProKey, access: NativeCredentialAccess): void
+}>) {
+  const credential = access.held.credential
+  if (credential.provider !== 'google-ai-pro' || !routerUrl) throw new Failure('BUILDER_MODEL_NOT_SELECTED')
+  const key = credential.value
+  track(key, access)
+  return wrapGatewayModel(
+    await new GoogleAiProGateway(`${routerUrl}/v1beta`).resolveLanguageModel({ providerId: GOOGLE_PROVIDER, modelId: modelName, apiKey: key }),
+    [createGoogleThinkingMiddleware(modelName, access.thinkingLevel ?? undefined), includeThoughts],
+  )
+}

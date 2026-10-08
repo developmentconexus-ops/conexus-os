@@ -1,8 +1,9 @@
+import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { parseModelString } from '@mastra/core/llm'
 import { ModelAccountProvider, ModelAccountKind, ModelId } from '@conexus/contract'
 import type { OAuthCredentials } from '@mastra/code-sdk/auth/types'
-import { Failure } from '../../platform/failure.js'
+import { Failure } from '../platform/failure.js'
 
 const OAuth = z.object({ access: z.string(), refresh: z.string(), expires: z.number() })
 export const AnthropicKey = z.string().regex(/^sk-ant-[A-Za-z0-9_-]{20,200}$/).brand<'AnthropicKey'>()
@@ -10,7 +11,7 @@ export const ClaudeTokens = OAuth.readonly()
 export type ClaudeTokens = z.output<typeof ClaudeTokens>
 export const CodexTokens = OAuth.extend({ accountId: z.string(), email: z.string().nullable() }).readonly()
 export type CodexTokens = z.output<typeof CodexTokens>
-export const GOOGLE_RECORD_PREFIX = 'cxagy1.'
+const GOOGLE_RECORD_PREFIX = 'cxagy1.'
 const GOOGLE_AUTH_FILE_NAME = /^antigravity-[\w.@+-]{1,200}\.json$/
 
 export function isAuthFileName(name: string): boolean {
@@ -79,7 +80,7 @@ function isCredentialKind(pair: z.output<typeof Pair>): pair is CredentialKind {
   return Object.hasOwn(MODEL_PROVIDERS[pair.provider].kinds, pair.kind)
 }
 
-export function isRouterPrefix(value: string): value is RouterPrefix {
+function isRouterPrefix(value: string): value is RouterPrefix {
   return Object.values(MODEL_PROVIDERS).some(entry => entry.routerPrefix === value)
 }
 
@@ -128,4 +129,24 @@ export function toCodexTokens(credentials: OAuthCredentials): CodexTokens {
   const tokens = CodexTokens.safeParse({ ...credentials, email: credentials.email ?? null })
   if (!tokens.success) throw new Failure('OPENAI_CODEX_STORED_RECORD_REFUSED')
   return tokens.data
+}
+
+export type AuthRecord = Readonly<{ fileName: string; bytes: Uint8Array }>
+
+export function decodeKey(key: GoogleAiProKey): AuthRecord {
+  const [name, body] = key.slice(GOOGLE_RECORD_PREFIX.length).split('.')
+  return Object.freeze({ fileName: Buffer.from(name ?? '', 'base64url').toString(), bytes: new Uint8Array(Buffer.from(body ?? '', 'base64url')) })
+}
+
+export const InstanceId = z.string().regex(/^[0-9a-f]{16}$/).brand<'InstanceId'>()
+export type InstanceId = z.output<typeof InstanceId>
+
+export function encodeKey({ fileName, bytes }: AuthRecord): GoogleAiProKey {
+  const key = GoogleAiProKey.safeParse(`${GOOGLE_RECORD_PREFIX}${Buffer.from(fileName).toString('base64url')}.${Buffer.from(bytes).toString('base64url')}`)
+  if (!key.success) throw new Failure('GOOGLE_AI_PRO_RECORD_REFUSED')
+  return key.data
+}
+
+export function instanceIdOf(key: GoogleAiProKey): InstanceId {
+  return InstanceId.parse(createHash('sha256').update(key).digest('hex').slice(0, 16))
 }

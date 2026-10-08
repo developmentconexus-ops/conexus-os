@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { completeAnthropicLogin, startAnthropicLogin } from '@mastra/code-sdk/auth/providers/anthropic'
-import type { ClaudeTokens } from '../model-account/providers.js'
+import type { ClaudeTokens } from '../credential.js'
 import { ModelLoginId, type AccountId } from '@conexus/contract'
-import type { ConnectResult } from '../model-account/accounts.js'
+import type { ConnectResult } from '../store.js'
 
 export type ClaudeLoginState = 'succeeded' | 'failed' | 'expired'
 
@@ -35,11 +35,11 @@ const realAuthorization: ClaudeAuthorization = Object.freeze({
  * started it; a person has at most one at a time. A refused code keeps the sign-in open, so a
  * mistyped paste can be tried again before the deadline.
  */
-export const createClaudeLogin = <C extends Caller>({ connect, authorization = realAuthorization, now = Date.now }: Readonly<{
+export function createClaudeLogin<C extends Caller>({ connect, authorization = realAuthorization, now = Date.now }: Readonly<{
   connect(caller: C, tokens: ClaudeTokens): Promise<ConnectResult>
   authorization?: ClaudeAuthorization
   now?: () => number
-}>) => {
+}>) {
   const attempts = new Map<ModelLoginId, Attempt<C>>()
 
   const sweep = (): void => {

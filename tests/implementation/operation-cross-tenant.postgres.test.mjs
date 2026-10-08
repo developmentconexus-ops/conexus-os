@@ -21,9 +21,11 @@ const { registerAdministratorRoutes } = await import(hubModuleUrl('identity-acce
 const { createSessions } = await import(hubModuleUrl('identity-access/sessions.js'))
 const { createWorkspaceModule } = await import(hubModuleUrl('workspace/module.js'))
 const { createSecretEnvelope } = await import(hubModuleUrl('platform/secrets.js'))
-const { AnthropicKey } = await import(hubModuleUrl('builder/model-account/providers.js'))
-const { encodeKey } = await import(hubModuleUrl('builder/google-ai-pro/credential.js'))
-const { createModelAccounts } = await import(hubModuleUrl('builder/model-account/accounts.js'))
+const { AnthropicKey } = await import(hubModuleUrl('model-account/credential.js'))
+const { encodeKey } = await import(hubModuleUrl('model-account/credential.js'))
+const { createModelAccountModule } = await import(hubModuleUrl('model-account/module.js'))
+const { createModelAccountStore } = await import(hubModuleUrl('model-account/store.js'))
+const { admitAccount } = await import(hubModuleUrl('identity-access/admission.js'))
 const { createWorkspaceStore } = await import(hubModuleUrl('workspace/store.js'))
 const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
 
@@ -178,9 +180,12 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   const member = ID.member
   const FOREIGN_BASE = 'c'.repeat(40)
   const connectors = createConnectorStore({ database, envelope })
-  const modelAccounts = createModelAccounts({ database, envelope, ownerId: randomUUID() })
+  const models = await createModelAccountModule({ data: database, envelope, defaultThinkingLevel: 'medium', googleAiPro: null })
+  fixture.onCleanup(() => models.close())
+  const modelStore = createModelAccountStore(envelope)
+  const connectCredential = (accountId, credential, displayName = 'Synthetic member') => database.transaction(accountId, async (gate) => modelStore.connect({ proof: await admitAccount(gate), credential, displayName }))
   const credentialOf = (provider, kind) => ({ provider, kind, value: kind === 'api_key' ? AnthropicKey.parse('sk-ant-synthetic-keyxxxxxxxxxx') : kind === 'google_ai_pro' ? encodeKey({ fileName: 'antigravity-synthetic.json', bytes: new TextEncoder().encode(JSON.stringify({ type: 'antigravity', synthetic: true })) }) : { access: 'synthetic-access', refresh: 'synthetic-refresh', expires: 1000, ...(provider === 'openai-codex' ? { accountId: 'synthetic-account', email: null } : {}) } })
-  await modelAccounts.write({ account: { accountId: member, displayName: 'Membro' }, credential: credentialOf('openai-codex', 'oauth') })
+  await connectCredential(member, credentialOf('openai-codex', 'oauth'))
   const KEY = credentialOf('anthropic', 'api_key')
   const before = await digestOfB(connection, projectB)
   const revisionOfA = (await query(connection, 'SELECT project_revision FROM project.project WHERE project_id = $1', [projectA])).rows[0].project_revision
@@ -201,6 +206,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       await registerRosterRoutes(server, database)
       await createApplicationAccess({ database, addressOf: () => null }).registerRoutes(server)
       await registerAdministratorRoutes(server, database)
+      await models.registerRoutes(server)
       return []
     },
   })
@@ -218,7 +224,6 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   const ADMINISTRATORS = '/api/control/installation/administrators'
   let bindingOfA
   let administratorAdded
-  const ABSENT = { own: { state: 'absent' } }
   const attempts = {
     'getSession': {
       own: async () => {
@@ -329,46 +334,46 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
       child: () => refused('administrator', 'DELETE', `${ADMINISTRATORS}/${OTHER.owner}`, 404, 'INSTALLATION_ADMINISTRATOR_NOT_FOUND'),
     },
     'listAvailableModels': {
-      own: async () => assert.deepEqual((await modelAccounts.standing(member))['openai-codex'], { own: { state: 'connected', kind: 'oauth' } }),
-      cross: async () => assert.deepEqual((await modelAccounts.standing(member)).anthropic, ABSENT),
+      own: async () => assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'openai-codex')?.own, { state: 'connected', kind: 'oauth' }),
+      cross: async () => assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'anthropic')?.own, { state: 'absent' }),
       child: null,
     },
     'listModelAccounts': {
-      own: async () => assert.deepEqual(await modelAccounts.standing(member), { anthropic: ABSENT, 'openai-codex': { own: { state: 'connected', kind: 'oauth' } }, 'google-ai-pro': ABSENT }),
-      cross: async () => assert.deepEqual((await modelAccounts.standing(member)).anthropic, ABSENT),
+      own: async () => assert.deepEqual((await models.list(member)).map(({ provider, own }) => ({ provider, own })), [{ provider: 'anthropic', own: { state: 'absent' } }, { provider: 'openai-codex', own: { state: 'connected', kind: 'oauth' } }, { provider: 'google-ai-pro', own: { state: 'absent' } }]),
+      cross: async () => assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'anthropic')?.own, { state: 'absent' }),
       child: null,
     },
     'getGoogleModelConnection': {
-      own: async () => assert.deepEqual((await modelAccounts.standing(member))['google-ai-pro'], ABSENT),
-      cross: async () => assert.deepEqual((await modelAccounts.standing(member))['google-ai-pro'].own, { state: 'absent' }),
+      own: async () => assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'google-ai-pro')?.own, { state: 'absent' }),
+      cross: async () => assert.deepEqual((await models.list(member)).find((entry) => entry.provider === 'google-ai-pro')?.own, { state: 'absent' }),
       child: null,
     },
     'setModelAccountApiKey': {
       own: async () => {
-        await modelAccounts.write({ account: { accountId: member, displayName: 'Membro' }, credential: KEY })
+        await connectCredential(member, KEY)
         assert.deepEqual((await query(connection, "SELECT scope, provider, kind FROM model.model_account WHERE owner_account_id = $1 AND provider = 'anthropic'", [member])).rows, [{ scope: 'personal', provider: 'anthropic', kind: 'api_key' }])
       },
-      cross: () => assert.rejects(modelAccounts.write({ account: { accountId: randomUUID(), displayName: 'Membro' }, credential: KEY }), { id: 'ACCOUNT_NOT_FOUND' }),
+      cross: () => assert.rejects(connectCredential(randomUUID(), KEY), { id: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'completeClaudeModelLogin': {
-      own: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: member, displayName: 'Membro' }, credential: credentialOf('anthropic', 'oauth') }), { ok: true, result: undefined }),
-      cross: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: randomUUID(), displayName: 'Membro' }, credential: credentialOf('anthropic', 'oauth') }), { ok: false, error: { code: 'ACCOUNT_NOT_FOUND' } }),
+      own: async () => assert.equal((await connectCredential(member, credentialOf('anthropic', 'oauth'))).ok, true),
+      cross: async () => assert.rejects(connectCredential(randomUUID(), credentialOf('anthropic', 'oauth')), { id: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'completeGoogleModelLogin': {
-      own: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: member, displayName: 'Membro' }, credential: credentialOf('google-ai-pro', 'google_ai_pro') }), { ok: true, result: undefined }),
-      cross: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: randomUUID(), displayName: 'Membro' }, credential: credentialOf('google-ai-pro', 'google_ai_pro') }), { ok: false, error: { code: 'ACCOUNT_NOT_FOUND' } }),
+      own: async () => assert.equal((await connectCredential(member, credentialOf('google-ai-pro', 'google_ai_pro'))).ok, true),
+      cross: async () => assert.rejects(connectCredential(randomUUID(), credentialOf('google-ai-pro', 'google_ai_pro')), { id: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'pollCodexModelLogin': {
-      own: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: member, displayName: 'Membro' }, credential: credentialOf('openai-codex', 'oauth') }), { ok: true, result: undefined }),
-      cross: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: randomUUID(), displayName: 'Membro' }, credential: credentialOf('openai-codex', 'oauth') }), { ok: false, error: { code: 'ACCOUNT_NOT_FOUND' } }),
+      own: async () => assert.equal((await connectCredential(member, credentialOf('openai-codex', 'oauth'))).ok, true),
+      cross: async () => assert.rejects(connectCredential(randomUUID(), credentialOf('openai-codex', 'oauth')), { id: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'getGoogleModelLoginStatus': {
-      own: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: member, displayName: 'Membro' }, credential: credentialOf('google-ai-pro', 'google_ai_pro') }), { ok: true, result: undefined }),
-      cross: async () => assert.deepEqual(await modelAccounts.connect({ account: { accountId: randomUUID(), displayName: 'Membro' }, credential: credentialOf('google-ai-pro', 'google_ai_pro') }), { ok: false, error: { code: 'ACCOUNT_NOT_FOUND' } }),
+      own: async () => assert.equal((await connectCredential(member, credentialOf('google-ai-pro', 'google_ai_pro'))).ok, true),
+      cross: async () => assert.rejects(connectCredential(randomUUID(), credentialOf('google-ai-pro', 'google_ai_pro')), { id: 'ACCOUNT_NOT_FOUND' }),
       child: null,
     },
     'createWorkspace': {

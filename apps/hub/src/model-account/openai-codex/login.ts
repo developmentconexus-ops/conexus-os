@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { pollCodexDeviceLogin, startCodexDeviceLogin, type CodexDeviceLoginPending, type CodexDevicePollResult } from '@mastra/code-sdk/auth/providers/openai-codex'
-import { toCodexTokens, type CodexTokens } from '../model-account/providers.js'
+import { toCodexTokens, type CodexTokens } from '../credential.js'
 import { Failure } from '../../platform/failure.js'
 import { ModelLoginId, type AccountId } from '@conexus/contract'
-import type { ConnectResult } from '../model-account/accounts.js'
+import type { ConnectResult } from '../store.js'
 
 export type LoginState = 'waiting' | 'succeeded' | 'failed' | 'expired'
 
@@ -30,11 +30,11 @@ const realDevice: CodexDevice = Object.freeze({ start: () => startCodexDeviceLog
  * the code, so nothing has to reach the Hub on a localhost callback. Each sign-in belongs to the
  * person who started it and ends at OpenAI's deadline; a person has at most one at a time.
  */
-export const createCodexLogin = <C extends Caller>({ connect, device = realDevice, now = Date.now }: Readonly<{
+export function createCodexLogin<C extends Caller>({ connect, device = realDevice, now = Date.now }: Readonly<{
   connect(caller: C, tokens: CodexTokens): Promise<ConnectResult>
   device?: CodexDevice
   now?: () => number
-}>) => {
+}>) {
   const attempts = new Map<ModelLoginId, Attempt<C>>()
 
   const sweep = (): void => {
