@@ -16,6 +16,9 @@ The studies behind it:
 - [App runtime](../app-runtime/study.md)
 - [Deployment](../deployment/study.md): where each part runs, with vendor prices and a cost model
 
+The [target design](target-design.md) (in Portuguese) puts every decision below into one picture, with
+the flows from end to end.
+
 ## 1. Decided
 
 | Decision | Answer | Where |
