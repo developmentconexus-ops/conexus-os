@@ -42,6 +42,7 @@ Each guide owns one subject, and a rule lives in one of them.
 | Hosting and tenancy: putting Conexus online for several companies (not execution authority) | [Hosting study](research/hosting/study.md) |
 | Database architecture: the unit of app data, the clusters and the stores for several companies (not execution authority) | [Database study](research/database/study.md) |
 | The Builder as its own service, and where Mastra's data belongs (not execution authority) | [Builder service study](research/builder-service/study.md) |
+| Architecture decisions taken, directed and still open for the cloud design (not execution authority) | [Open decisions](research/architecture/open-decisions.md) |
 
 Closed waves, their specs and their evidence are in Git history. Code, tests and runtime output may
 challenge a guide; they do not silently replace it.

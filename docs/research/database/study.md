@@ -433,7 +433,7 @@ Spikes: `bash docs/research/database/spike.sh [apps]`, on PostgreSQL 17.10.
        about 55 times the creation time. No reference does it.
      - S10: B gives each company PostgreSQL's wall for names, export, deletion and a later move, for
        7.3 MB per company.
-   - **Answer**: pending.
+   - **Answer** (2026-10-09): B.
 2. **Cluster topology on one VM.**
    - Options:
      - A: two clusters (control: Hub and Keycloak; Applications), each on its own volume.
@@ -447,7 +447,8 @@ Spikes: `bash docs/research/database/spike.sh [apps]`, on PostgreSQL 17.10.
      - B: its own PostgreSQL container.
      - C: H2 (development only).
    - Recommendation: **A**.
-   - **Answer**: pending.
+   - **Answer** (2026-10-09): A, while Keycloak stays (see the
+     [open decisions](../architecture/open-decisions.md), A2).
 4. **When the baseline is cut.** Recommendation: **before the first validating company**, because the
    guide forbids it afterwards.
    **Answer**: pending.

@@ -412,7 +412,7 @@ flowchart LR
      - C is not native: the controller's thread queries, thread state and workflows use one
        instance store.
      - B gives the Builder an owner that can leave with it, for one database.
-   - **Answer**: pending.
+   - **Answer** (2026-10-09): B.
 2. **What a span keeps.**
    - Options:
      - A: payloads, as today, 30 days.
@@ -420,20 +420,21 @@ flowchart LR
      - C: payloads in a separate observability database with a short retention.
    - Recommendation: **B**, with C only for a time-boxed diagnosis an administrator turns on (C-029's
      "content capture … for a limited time").
-   - **Answer**: pending.
+   - **Answer** (2026-10-09): B.
 3. **When the Builder leaves the Hub process.**
    - Options:
      - A: after the Q5 verdict (roadmap).
      - B: **in the hosting wave**, since that wave already builds the image with modes.
    - Recommendation: **B for the data placement (decisions 1 and 2), A or B for the process**. The
      process split costs one mode and one proxy, but it moves the place where model calls run.
-   - **Answer**: pending.
+   - **Answer** (2026-10-09): handed to the operator's architecture session, which owns the cloud
+     design and the sequence. Implementation is not in this study.
 4. **How the Builder reaches models.**
    - Options:
      - A: **through the Hub**, which admits the run, unseals and calls the provider.
      - B: the Builder unseals per run with a key the Hub hands it.
    - Recommendation: **A**, to keep C-032 ("model calls run in the Hub") and Dify's precedent.
-   - **Answer**: pending.
+   - **Answer** (2026-10-09): A.
 
 ## 10. Draft for the spec
 
