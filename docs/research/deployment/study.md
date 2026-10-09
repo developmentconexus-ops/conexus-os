@@ -111,7 +111,7 @@ account (C-032), and connectors reach each company's ERP.
 Spikes: `bash docs/research/deployment/spike.sh` (two PostgreSQL 17.10 containers, the pinned image).
 On each host Conexus gets one role, `platform_admin`, with `LOGIN CREATEDB CREATEROLE` and nothing
 else: no superuser, no `BYPASSRLS`. That is the least that Neon, Supabase, Cloud SQL and RDS hand
-over (section 4 cites each).
+over (section 4 cites each). P4 adds the case of an admin that does bypass row security.
 
 | Claim | How it was tested | Result |
 | --- | --- | --- |
@@ -123,6 +123,7 @@ over (section 4 cites each).
 | P2. The admin needs one setting to own what it creates | `create schema … authorization <new role>` without, then with, `createrole_self_grant = 'set, inherit'` on the admin role | Without: "must be able to SET ROLE". With it (a setting the admin may set on itself, PostgreSQL 16+): every app schema and table is made and owned by the app's owner role |
 | P3. A company moves between two hosts with no superuser on either | `pg_dump -Fc` of `company_a` as the admin on host A; on host B the admin recreates the roles **with new passwords** from Conexus's own register, then `pg_restore --exit-on-error` | Dump 40 KB in about 0.2 s; restore in about 0.15 s; both exit 0. The md5 of all 10,000 rows is identical. Table owners are kept. App 1 logs in with its new password and reads its rows; app 2 is still refused to it |
 | P3. A company is deleted whole | `drop database company_a with (force)` and its four roles, as the admin on host A | Databases left: `company_b, hub, postgres`; company A roles left: 0 |
+| P4. On Neon and Supabase the admin role bypasses row security; the roles it creates do not | an admin with `BYPASSRLS` (as `neon_superuser` and Supabase's `postgres` have, section 4) makes the control database and the runtime role | The admin with no company set sees both rows. The runtime it created has `rolbypassrls = f`: company A set, it sees only A; no company, 0 rows; becoming the admin, refused. So the Hub must never run as the admin role; migrations do |
 | E6, E7. The control database is never idle while the Hub runs | census | A query every 10 s and one connection held for the Hub's life |
 | Memory at rest | hosting S6 | Hub 251–286 MB RSS; PostgreSQL 52 MiB; Keycloak 529 MiB, now dropped (A2) |
 

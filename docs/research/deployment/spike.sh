@@ -3,6 +3,7 @@
 # Neon, Supabase, Cloud SQL or RDS: Conexus gets one admin role that may create databases and roles, nothing more.
 # P1: the control database with the simple tenant policy. P2: a company database with a schema and a login per
 # app, made at runtime. P3: one company moved from host A to host B, then deleted from host A.
+# P4: an admin role that bypasses row security, as Neon's neon_superuser and Supabase's postgres do.
 # Needs Docker. Run from the repository root: bash docs/research/deployment/spike.sh
 set -uo pipefail
 PG='postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f'
@@ -146,3 +147,28 @@ check 'host A after deletion: databases left' $A platform_admin postgres \
   -c "select string_agg(datname, ',' order by datname) from pg_database where datname not like 'template%'"
 check 'host A after deletion: company A roles left' $A platform_admin postgres \
   -c "select count(*) from pg_roles where rolname like 'company_a_%'"
+
+echo 'P4 the admin bypasses row security (Neon, Supabase); the roles it creates do not'
+run $B postgres postgres -v ON_ERROR_STOP=1 -c "create role bypass_admin login password 'spike-only' createdb createrole bypassrls" >/dev/null
+run $B bypass_admin postgres -v ON_ERROR_STOP=1 >/dev/null <<SQL
+create database hub4;
+revoke all on database hub4 from public;
+create role hub4_runtime login password 'spike-only';
+grant connect on database hub4 to hub4_runtime;
+\c hub4
+create schema core;
+grant usage on schema core to hub4_runtime;
+create table core.connection (id int generated always as identity primary key, workspace_id uuid not null, name text not null);
+alter table core.connection enable row level security;
+alter table core.connection force row level security;
+create policy tenant on core.connection
+  using (workspace_id = current_setting('app.workspace_id', true)::uuid)
+  with check (workspace_id = current_setting('app.workspace_id', true)::uuid);
+grant select, insert, update, delete on core.connection to hub4_runtime;
+insert into core.connection (workspace_id, name) values ('$WA', 'ERP da empresa A'), ('$WB', 'ERP da empresa B');
+SQL
+check 'the admin, no company set' $B bypass_admin hub4 -c 'select count(*) from core.connection'
+check 'the runtime it created: bypassrls attribute' $B bypass_admin hub4 -c "select rolbypassrls from pg_roles where rolname = 'hub4_runtime'"
+check 'the runtime, company A set, no filter' $B hub4_runtime hub4 -c "begin; set local app.workspace_id = '$WA'; select name from core.connection"
+check 'the runtime, no company set' $B hub4_runtime hub4 -c 'select count(*) from core.connection'
+check 'the runtime becomes the admin' $B hub4_runtime hub4 -c 'set role bypass_admin'
