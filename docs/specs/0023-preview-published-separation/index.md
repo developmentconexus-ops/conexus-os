@@ -1,7 +1,7 @@
 # 0023. Preview and Published data separation
 
 **Date**: 2026-10-09
-**Status**: Proposed. Firstmate technical acceptance is required before product implementation, under the task's delegated technical authority. This is not worker approval or permission to merge.
+**Status**: Firstmate technically accepted exact proposal `f4a4b364ebb4eed2500ad8d39499edc8f1ddead5` on 2026-10-09 for isolated U1–U4 construction. Implementation and qualification remain pending. Stage1 cannot land or be installed independently; no stage2 implementation, publication arrangement or merge authority is granted.
 **Lane**: lane:qualification, Q-a/Q-b data and authority boundaries
 **Execution branch**: `feat/conexus-q5-release-publish`
 **Integration base**: `wave/company-model-accounts-spec`
@@ -25,7 +25,7 @@ This stage introduces no Publish operation, Release, publication pointer, rollba
 
 ## Construction and landing contract
 
-Firstmate accepted this delivery boundary on 2026-10-09 as execution coordination within the authorized Q5 stages. The full spec remains Proposed. No product build is authorized until its exact revision receives technical acceptance.
+Firstmate accepted this delivery boundary on 2026-10-09 as execution coordination within the authorized Q5 stages. Firstmate accepted the full technical proposal at `f4a4b364ebb4eed2500ad8d39499edc8f1ddead5` for isolated U1–U4 construction. This records authorization, not delivered implementation or qualification.
 
 The four stage1 units form one independently reviewed construction batch. Keep it isolated and unlanded while stage2 interfaces and implementation are unsettled. A reviewable stage1 result, its CI and its Factory verdict do not make it an installable release. Firstmate directs the eventual branch/PR cadence; the worker does not merge or create an alternative publication arrangement. No independent stage1 landing may temporarily disable employee serving. No temporary Published artifact pointer, Preview fallback, copied Preview data or compatibility flag may preserve that availability.
 
@@ -88,7 +88,7 @@ A task-owned executable probe transpiles `shape/types.ts` with installed TypeScr
 | Registry | `retainAsPreview` | Same signature as current `retain`; validates run/source/owner and identity conflict, writes pointer in caller's existing settlement transaction. |
 | Registry | `readPreviewSubject`, `readPreviewPresence`, `hasPreviewSource`, `readLaunch` | Actual scoped IAM proof, with Project ids obtained from the caller's authorized Project query in the same read transaction. Presence returns only requested ids; the caller never creates extra Project cards from returned ids. |
 | App runner | Allocation `PREVIEW | PUBLISHED` with domain-branded schema/roles | Names derive once from parsed ProjectId and domain. One allocation implementation, separate variants. Internal consumers use parsed values. |
-| App runner | `preparePreview`, `invoke`, `disposePreview` | Prepare/dispose have no Published variant. Invoke requires target kind at the private owner socket; external requests/handlers cannot choose it. Hosting selects Preview, test operations select Preview. |
+| App runner | `preparePreview`, `invoke`, `disposePreview` | Prepare/dispose have no Published variant. Invoke requires target kind at the private owner socket; external requests/handlers cannot choose it. Builder Preview hosting selects Preview, test operations select Preview. Employee hosting has no Preview reader or invocation port in stage1. |
 | Connectors | Shared Project binding | One bound Connection/name per Project. No environment column and no duplicate Published binding. Scoped principal authority remains Project/Preview versus application access. |
 | Hosting | Employee unavailable state | Existing IAM application session/grant check, then existing not-ready outcome. No Registry Preview reader or runner invocation on this path. |
 
@@ -98,7 +98,7 @@ U2 adds `0077_registry_preview.sql`. Create `reg.project_preview` with Project s
 
 Registry pointer reads join artifact by Project/source/id/digest in one SQL statement. `retainAsPreview` validates retained identity and held source/owner, then upserts `reg.project_preview` in that same transaction. Builder keeps its working-state lock, updates its own current_state and ends the run before commit. Refused run, cancellation, owner mismatch, digest conflict or transaction failure leaves artifact/pointer/run unchanged. Purge deletes Registry pointer before artifacts under the existing Project-purge proof. Remove Registry0005 exception only once compiler, SQL census, corrupt-pointer, settlement/purge and snapshot proofs pass. Keep Registry0006 unchanged.
 
-U3 broadens native allocation role pattern and convergence to exactly `(preview|published)` namespaces. Build preparation only ensures Preview. There is no production `preparePublished`, automatic creation/copy/migration of Published, or Published deletion. Synthetic fixtures may ensure a Published allocation through the internal common data-plane primitive to prove isolation. `resetPreview` accepts only Preview at compile time and validates its domain at the private boundary. Invoke selects runtime role from its explicit parsed allocation. The existing migration chain, limits, relay pin, credential confinement and worker format remain. Keep existing reset authorization window and refuse divergence when an application record exists; new data separation does not authorize a wider reset.
+U3 broadens native allocation role pattern and convergence to exactly `(preview|published)` namespaces. Build preparation only ensures Preview. There is no production `preparePublished`, automatic creation/copy/migration of Published, or Published deletion. Synthetic fixtures may ensure a Published allocation through the internal common data-plane primitive to prove isolation. `resetPreview` accepts only Preview at compile time and validates its domain at the private boundary. Allocation coordinates derive only from a parsed ProjectId plus the owner-selected domain; independently supplied regex-valid schema/role names are not authority. Invoke selects runtime role from that derived allocation. The existing migration chain, limits, relay pin, credential confinement and worker format remain. Keep existing reset authorization window and refuse divergence when an application record exists; new data separation does not authorize a wider reset.
 
 U4 adds `0078_project_connection_binding.sql`. Drop the preview-only environment CHECK and column, replace both open unique indexes with `(project_id, connection_id)` and `(project_id, name)`, retaining their names and `unbound_at IS NULL` predicates so current SQLSTATE/constraint mappings remain valid. No duplicate collapse is needed because the old schema permitted only Preview. Migrate all active insert/select/fakes together. Broker's final SELECTs still compose `openProjectCondition(proof)` and current bindings/disabled state; credential reads never become possession-based authority. Retain expired/revoked/current-account tests.
 
@@ -139,7 +139,7 @@ One independent review of the four-unit batch is arranged by Firstmate after uni
 - Files: existing Registry settlement fixture/tests, run recovery/cancellation tests, broker snapshot races, activity/snapshot fixtures. Add only missing cases; no product edits.
 - Copies: current native authority/transaction reference rows; C §4/§7, D §5/§6, T §1/§6, L proof closure.
 - Deletes: no runtime API; remove no deliberate negative/history fixture.
-- Logic: seed a valid held candidate, establish original pointer, cause retention/settlement failure, assert all literal identities remain. Cancellation and wrong owner/source cannot move it; valid replay converges. Preserve deterministic race barriers rather than sleeps.
+- Logic: seed a valid held candidate, establish original pointer, cause retention/settlement failure, assert all literal identities remain. An ended/cancelled run and wrong owner/source cannot move it; a cancellation request after source admission still permits the held candidate to settle, as the existing race fixtures prove. Valid retention replay converges. Preserve deterministic race barriers rather than sleeps.
 - Proof: mapped PostgreSQL Registry/run/broker/activity tests, actual admission negative types; `npm run verify:quick`. Use task-owned disposable fixtures only. No migration to shared environments.
 - Stop if: current invariant fails on this exact source and needs an unrelated fix; report cause to Firstmate.
 

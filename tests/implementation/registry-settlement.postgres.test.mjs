@@ -8,7 +8,7 @@ import { OWNER } from './builder-fixture.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { query } from './hub-database.mjs'
 import { PASSWORD, ID } from './project-fixture.mjs'
-import { B, CURRENT_PIN, D_E, F, P, PNG_T2, SOURCE_E, deferred, world } from './registry-fixture.mjs'
+import { B, CURRENT_PIN, D_E, F, P, PNG_T1, PNG_T2, SOURCE_1, SOURCE_E, deferred, world } from './registry-fixture.mjs'
 import { waitUntilBackends, waitUntilBlocked } from './race.mjs'
 
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
@@ -172,6 +172,41 @@ test('a failure after the revision insert, or after the thumbnail insert, rolls 
     await query(connection, `DROP TRIGGER injected ON ${table}`)
     await query(connection, "UPDATE builder.builder_run SET state = 'FAILED', result_kind = NULL, failure_code = 'INTERNAL_UNEXPECTED', finished_at = now() WHERE builder_run_id = $1", [builderRunId])
   }
+})
+
+test('a failure ending the run rolls back the advanced Preview and new artifact, and retry keeps the original until commit', async (t) => {
+  const { connection, seedBuilderProject, runFor, settle, runRow, rows, pointer } = await world(t, 'conexus_settlement_previous_preview')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
+  const originalRun = await runFor(projectId, { candidate: SOURCE_1, result: SOURCE_1 })
+  await settle(projectId, originalRun, [F], { sourceRevision: SOURCE_1, thumbnail: { bytes: PNG_T1 } })
+  const original = await pointer(projectId)
+  assert.deepEqual({ source: original.source, digest: original.digest }, { source: SOURCE_1, digest: D_E })
+  const builderRunId = await runFor(projectId)
+  await query(connection, `CREATE FUNCTION public.refuse_settlement_end() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM builder.project_working_state WHERE project_id = NEW.project_id AND last_preview_source_revision = NEW.result_source_revision)
+        OR (SELECT count(*) FROM reg.artifact_revision WHERE project_id = NEW.project_id) <> 2
+        OR (SELECT count(*) FROM reg.application_thumbnail AS thumbnail JOIN reg.artifact_revision AS revision USING (artifact_revision_id) WHERE revision.project_id = NEW.project_id) <> 2
+      THEN RAISE EXCEPTION 'settlement has not advanced' USING ERRCODE = 'P0002'; END IF;
+      RAISE EXCEPTION 'injected terminal write failure' USING ERRCODE = 'P0001';
+    END $$`)
+  await query(connection, `CREATE TRIGGER injected_terminal AFTER UPDATE ON builder.builder_run
+    FOR EACH ROW WHEN (NEW.state = 'SUCCEEDED') EXECUTE FUNCTION public.refuse_settlement_end()`)
+  await assert.rejects(settle(projectId, builderRunId, [F], { thumbnail: { bytes: PNG_T2 } }), (error) => {
+    assert.equal(error.id, 'INTERNAL_UNEXPECTED')
+    assert.equal(error.cause?.code, 'P0001')
+    return true
+  })
+  assert.deepEqual(await pointer(projectId), original)
+  assert.deepEqual(await rows(projectId), { revisions: 1, thumbnails: 1 })
+  assert.equal((await runRow(builderRunId)).state, 'RUNNING')
+  assert.equal((await runRow(originalRun)).state, 'SUCCEEDED')
+
+  await query(connection, 'DROP TRIGGER injected_terminal ON builder.builder_run')
+  await settle(projectId, builderRunId, [F], { thumbnail: { bytes: PNG_T2 } })
+  assert.deepEqual({ source: (await pointer(projectId)).source, digest: (await pointer(projectId)).digest }, { source: SOURCE_E, digest: D_E })
+  assert.deepEqual(await rows(projectId), { revisions: 2, thumbnails: 2 })
+  assert.equal((await runRow(builderRunId)).state, 'SUCCEEDED')
 })
 
 test('a thumbnail of 512000 bytes is retained and one of 512001 bytes is dropped while the build still settles', async (t) => {
