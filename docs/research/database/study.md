@@ -264,6 +264,40 @@ flowchart LR
   observability drops expired partitions or chunks" (`dist/docs/references/reference-storage-retention.md`).
   The Hub already uses it (`apps/hub/src/builder/storage.ts:26`).
 
+### Market technologies
+
+From a web scan of 2026-10-09: vendor and third-party pages, npm versions, and the Mastra documentation installed in
+`node_modules`. Vendor pages could not be fetched from this environment, so prices and limits are
+**not verified**. Each verdict is judged against the conditions this study works under:
+- one small VM;
+- `pg` with no ORM;
+- the relay and the Project role pair;
+- typed admission in the Hub.
+
+| Technology | What it would replace | Verdict |
+| --- | --- | --- |
+| Neon (database per tenant through an API, branches, scale to zero) | Applications provisioning; branches for Previews | **Study** when Conexus runs on more than one VM or as a hosted offer. A database per company maps to a Neon project one to one. The certificate rule and the superuser-only grants (D4 of the hosting study) block it today |
+| Nile, Turso/libSQL, Cloudflare D1, Prisma Postgres, Supabase, Xata, PlanetScale, SQLite with Litestream | the Applications cluster, or the isolation | **Reject**: a second engine or dialect, a hosted-only service, a second auth and data API (Supabase), or a Workers runtime (D1) |
+| PGlite (PostgreSQL in WASM, 0.5.x) | throwaway databases to check a generated migration | **Study** at the Builder check: a migration could be tried in process before the runner |
+| Shared tables with a tenant column and RLS (AWS "pool" model) | the unit of app data | **Reject** for apps: generated apps have different tables, which fits AWS's "bridge" model (a schema or database per tenant) |
+| A database per company, a schema per app | — | **Adopt** (this study). Revoke `CONNECT` and `TEMP` from `PUBLIC` on each company database (a new database grants both by default). Watch `max_locks_per_transaction` once a company has thousands of tables |
+| One relay login per company database with `SET LOCAL ROLE <app role>` (the scan's suggestion, to keep pools flat) | the Project role login | **Reject**: the handler speaks SQL through the relay, so a session that may switch roles lets a handler switch to another app's role. Keep one login per Project role |
+| Citus schema-based sharding (12 and later) | one Applications node | **Study** when the Applications cluster outgrows one node. A schema per app maps to it one to one |
+| PgBouncer 1.25 | direct connections | **Study** when connections are the bottleneck. Transaction mode loses session state, which the Hub's instance lock needs |
+| pg-boss 12 (jobs on `SKIP LOCKED`, no extension) | jobs Mastra's background tasks do not cover | **Study** at the jobs milestone, only for what Mastra lacks |
+| pgmq, graphile-worker, pg_cron | jobs | **Reject**: an extension, `LISTEN/NOTIFY` on session connections, or SQL-only jobs |
+| pgvector 0.8 (image `pgvector/pgvector:pg17` or the PGDG package) with Mastra `PgVector` in the same database | a vector database | **Study** at company knowledge, then adopt. `PgVector` takes `disableInit` for a runtime role without DDL |
+| pg_duckdb, DuckDB | analytics over ERP extracts | **Study** at analytics; prefer DuckDB inside a sandboxed handler |
+| pg_partman, TimescaleDB | retention | **Reject** for now: Mastra's `prune()` covers its tables; Timescale's features are not open source |
+| Logical replication, Debezium, ElectricSQL, Zero, PowerSync | sync | **Reject**: the ERP is not PostgreSQL, and a stalled slot fills a small disk |
+| PostgREST, pg_graphql | an app data API | **Reject**: it would bypass the relay and the Hub's admission |
+| dbmate, Atlas, graphile-migrate | the Hub migration runner | **Reject**: the runner is 280 lines and pins each file and the catalog; the hard part is roles and the relay |
+| Mastra `PostgresStoreVNext` observability in a separate database (append-only, day partitions, prune drops partitions) | spans in `factory` | **Study** when trace volume grows; plain PostgreSQL "can handle low trace volumes" |
+| Mastra schedules and background tasks (`mastra.schedules` arrived in core 1.50.0 and is beta) | in-process timers for future automations | **Study** at the automations milestone, because the API is beta. Its store already supports it |
+
+The latest Mastra releases are core 1.75.0 and pg 1.30.0, from 2026-10-07. Conexus pins 1.71.0
+and 1.27.1.
+
 ### Comparison
 
 | Question | Baserow | Twenty | NocoDB | Windmill | ToolJet | Mitra | Conexus today |
@@ -367,6 +401,8 @@ Spikes: `bash docs/research/database/spike.sh [apps]`, on PostgreSQL 17.10.
      disk leaves the Hub serving.
   5. **Short locks:** `SET LOCAL lock_timeout` on Applications migrations, and one company at a
      time in every loop over companies.
+  6. **A closed company database:** `REVOKE CONNECT, TEMP ON DATABASE … FROM PUBLIC` when it is
+     created, so only that company's Project roles may connect.
 - **Stays out**:
   - Neon, Supabase or any managed engine (the hosting study's S2 and S3 refuse the Hub chain there;
     the certificate rule refuses the Applications cluster);
