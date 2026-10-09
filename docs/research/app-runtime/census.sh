@@ -2,7 +2,7 @@
 # App runtime census: what runs a generated app's server code and serves its files today, and the
 # contract that code sees. Rerun from the root of any checkout: bash docs/research/app-runtime/census.sh
 set -euo pipefail
-cd "$(git rev-parse --show-toplevel)"
+cd "${CONEXUS_OS:-$(git rev-parse --show-toplevel)}"  # CONEXUS_OS: a conexus-os checkout, when run from elsewhere
 line() { printf '\n## %s  [%s]\n' "$1" "$(printf '%s' "$2" | grep -c . || true)"; printf '%s\n' "$2" | sed '/^$/d'; }
 count() { cat "$@" 2>/dev/null | wc -l | tr -d ' '; }
 

@@ -3,7 +3,7 @@
 # Rerun from the root of any checkout: bash docs/research/database/census.sh
 # The catalog counts (tables, policies, roles) need a migrated database: see spike.sh, S0.
 set -euo pipefail
-cd "$(git rev-parse --show-toplevel)"
+cd "${CONEXUS_OS:-$(git rev-parse --show-toplevel)}"  # CONEXUS_OS: a conexus-os checkout, when run from elsewhere
 line() { printf '\n## %s  [%s]\n' "$1" "$(printf '%s' "$2" | grep -c . || true)"; printf '%s\n' "$2" | sed '/^$/d'; }
 lines() { cat "$@" 2>/dev/null | wc -l | tr -d ' '; }
 

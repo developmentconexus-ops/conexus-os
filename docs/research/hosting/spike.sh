@@ -3,7 +3,7 @@
 # Run from the repository root: bash docs/research/hosting/spike.sh
 # Every container it starts is named spike-hosting-* and removed at the end.
 set -uo pipefail
-cd "$(git rev-parse --show-toplevel)"
+cd "${CONEXUS_OS:-$(git rev-parse --show-toplevel)}"  # CONEXUS_OS: a conexus-os checkout, when run from elsewhere
 PG='postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f'
 work=$(mktemp -d); trap 'docker rm -f spike-hosting-pg >/dev/null 2>&1; rm -rf "$work"' EXIT
 

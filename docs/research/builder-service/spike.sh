@@ -2,7 +2,7 @@
 # Builder service spikes for the Builder service study (study.md, section 6). Needs Docker and `npm ci`.
 # Run from the repository root: bash docs/research/builder-service/spike.sh
 set -uo pipefail
-cd "$(git rev-parse --show-toplevel)"
+cd "${CONEXUS_OS:-$(git rev-parse --show-toplevel)}"  # CONEXUS_OS: a conexus-os checkout, when run from elsewhere
 PG='postgres:17.10-bookworm@sha256:9b18b78397054fce88a9552e9d5a3ad5bb7fd258c5b3cc1c5028e46373d6ea8f'
 probe=$(mktemp -p . mastra-probe-XXXX.mjs)
 trap 'docker rm -f spike-builder >/dev/null 2>&1; rm -f "$probe"' EXIT

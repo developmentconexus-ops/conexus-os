@@ -2,7 +2,7 @@
 # Builder census: what of the Builder runs in the Hub process, and what it keeps where.
 # Rerun from the root of any checkout: bash docs/research/builder-service/census.sh
 set -euo pipefail
-cd "$(git rev-parse --show-toplevel)"
+cd "${CONEXUS_OS:-$(git rev-parse --show-toplevel)}"  # CONEXUS_OS: a conexus-os checkout, when run from elsewhere
 b='apps/hub/src/builder'
 line() { printf '\n## %s  [%s]\n' "$1" "$(printf '%s' "$2" | grep -c . || true)"; printf '%s\n' "$2" | sed '/^$/d'; }
 

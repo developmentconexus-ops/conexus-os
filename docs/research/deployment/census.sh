@@ -2,7 +2,7 @@
 # Deployment census: what any host must give the Hub today (configuration, secret files, disks, listeners) and
 # what keeps it, and its database, always on. Rerun from the root of any checkout: bash docs/research/deployment/census.sh
 set -euo pipefail
-cd "$(git rev-parse --show-toplevel)"
+cd "${CONEXUS_OS:-$(git rev-parse --show-toplevel)}"  # CONEXUS_OS: a conexus-os checkout, when run from elsewhere
 line() { printf '\n## %s  [%s]\n' "$1" "$(printf '%s' "$2" | grep -c . || true)"; printf '%s\n' "$2" | sed '/^$/d'; }
 # Names read from the environment: through the config helpers or env.X; error codes and log codes are not counted.
 names() {
