@@ -42,9 +42,19 @@ Spikes on PostgreSQL 17.10 proved the following:
   access to each other's database.
 - **Docker:** the runner's sandbox is refused by Docker's default seccomp profile.
 
-The wave should make one installation a portable **cell**. A cell is one Compose project per
-company: Hub, runner, two PostgreSQL containers and one Keycloak realm. The wave packs several
-cells on one cheap VM behind one reverse proxy and keeps C-024. Neon waits for Q5.
+The wave should first make one installation deployable on one cheap VM. The work is the same
+whatever the tenancy:
+- addresses from configuration;
+- Keycloak in production mode;
+- one image and Compose;
+- off-host backup;
+- a rate limit.
+
+The [tenancy stress test](tenancy.md) then found that the Workspace is already a tenant boundary
+that PostgreSQL enforces on reads. So the cheapest way to host several validating companies is
+**one shared installation, a Workspace per company**, after three fixes. The **cell** per company
+described below becomes the later "dedicated installation" for a company that needs isolation.
+Neon waits for Q5.
 
 ## 2. Today (census)
 
@@ -496,6 +506,10 @@ image CI pins.
 
 ## 8. What the wave wants
 
+The [tenancy stress test](tenancy.md) narrows this list: for validation, one shared installation
+(wants 1, 2, 4, 5 and the runbook) plus its section 8. The cell layout in wants 3 and 5 (several
+cells, a realm per company) is the later dedicated installation.
+
 - **Wants**: an installation as a portable cell, and a host that runs several cells safely.
   1. **Addresses from configuration.**
      - The Hub origin, the Preview domain and the application domain come from configuration.
@@ -544,7 +558,9 @@ image CI pins.
      - B: one shared multi-tenant Hub (reopen C-024; a company key on every table, row policy and
        route).
      - C: a cell per company, with heavy services shared behind them (A now, C later).
-   - Recommendation: **A now, growing into C.**
+   - Recommendation, superseded: **A now, growing into C.** The
+     [tenancy stress test](tenancy.md) replaces it with a shared installation and a Workspace per
+     company for validation, keeping the cell for a company that needs its own installation.
    - Reference: every shared cloud read here relies on application filters, and Windmill keeps row
      security off the tenant. Conexus's first quality goal is isolation
      ([architecture §1.2](../../reference/architecture.md#12-quality-goals)), and S1 to S4 show the

@@ -43,6 +43,29 @@ echo 'S4 two installations in one cluster'
 fresh; P -c 'create database first'; P -c 'create database second'; migrate first postgres; migrate second postgres
 P -c "select '  hub_runtime may connect to ' || string_agg(datname, ' and ') from pg_database where datname in ('first', 'second') and has_database_privilege('hub_runtime', datname, 'CONNECT')"
 
+echo 'S7 and S8: two companies as two Workspaces in one installation, read as hub_reader'
+fresh; P -c 'create database tenancy'; migrate tenancy postgres
+P -d tenancy <<'SQL' | sed 's/^/  /'
+insert into iam.account(account_id, issuer, external_subject, display_name, email) values
+ ('aaaaaaaa-0000-4000-8000-000000000001', 'https://idp.example', 'a', 'Person A', 'a@a.example'),
+ ('bbbbbbbb-0000-4000-8000-000000000002', 'https://idp.example', 'b', 'Person B', 'b@b.example');
+insert into workspace.workspace(workspace_id, name) values
+ ('aaaaaaaa-1111-4000-8000-000000000001', 'Company A'), ('bbbbbbbb-1111-4000-8000-000000000002', 'Company B');
+insert into iam.workspace_membership(account_id, workspace_id, role) values
+ ('aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-1111-4000-8000-000000000001', 'owner'),
+ ('bbbbbbbb-0000-4000-8000-000000000002', 'bbbbbbbb-1111-4000-8000-000000000002', 'owner');
+insert into model.model_account(model_account_id, owner_account_id, provider, kind, secret, sharing) values
+ ('bbbbbbbb-2222-4000-8000-000000000002', 'bbbbbbbb-0000-4000-8000-000000000002', 'anthropic', 'api_key', 'mastra:factory-secret:v1:spike', 'everyone');
+begin;
+set local role hub_reader;
+select set_config('conexus.account_id', 'aaaaaaaa-0000-4000-8000-000000000001', true) is not null as acting;
+select 'S7 A sees Workspaces: ' || string_agg(name, ', ') from workspace.workspace;
+select 'S7 A sees memberships of B: ' || count(*) from iam.workspace_membership where workspace_id = 'bbbbbbbb-1111-4000-8000-000000000002';
+select 'S7 A sees accounts: ' || string_agg(display_name, ', ') from iam.account;
+select 'S8 A sees model accounts owned by B: ' || count(*) from model.model_account where owner_account_id = 'bbbbbbbb-0000-4000-8000-000000000002';
+commit;
+SQL
+
 echo 'S5 unprivileged user namespaces inside a Docker container (the runner needs them, sandbox.ts)'
 try() { if docker run --rm --user 999 "$@" --entrypoint unshare "$PG" -U -r -n -p -f --mount-proc true >/dev/null 2>&1; then echo "  allowed: ${*:-Docker defaults}"; else echo "  refused: ${*:-Docker defaults}"; fi; }
 try

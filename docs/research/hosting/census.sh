@@ -25,6 +25,11 @@ line 'D5 company or tenant key in Hub schema (tenant_id, company_id, installatio
   "$(grep -niE '\b(tenant|company|installation|organization)_id\b' apps/hub/migrations/*.sql || true)"
 line 'D6 workspace_id columns in Hub schema (the widest scope inside one installation)' \
   "$(grep -niE '^\s+workspace_id\s' apps/hub/migrations/*.sql || true)"
+line 'T1 reads that cross Workspaces: model accounts shared with everyone in the installation' \
+  "$(grep -rn --include='*.ts' "sharing = 'everyone'" "$src" | grep -v '\.generated\.' || true)"
+line 'T2 operations reserved to the installation administrator' \
+  "$(grep -rn --include='*.ts' "admitInstallationAdministrator(gate, '" "$src" || true)"
+line 'T3 installation-wide model default' "$(grep -n 'CREATE TABLE model.installation_default' apps/hub/migrations/*.sql || true)"
 line 'X1 generated code isolation needs unprivileged user namespaces (bubblewrap)' "$(grep -n -e "'--unshare-user'" -e 'unprivileged_userns_clone' "$src/app-runner/sandbox.ts" || true)"
 line 'K1 Keycloak runs in development mode on its file database (H2)' \
   "$(grep -Hn -e 'start-dev' infra/keycloak/provision.sh; grep -Hn 'keycloakdb.mv.db' infra/keycloak/export-realm.sh || true)"
