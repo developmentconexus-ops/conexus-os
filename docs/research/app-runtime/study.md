@@ -12,6 +12,10 @@ runtime may be rebuilt to be simpler and cloud-friendly, with nothing kept for c
 
 Research, not execution authority. Decisions go to the operator (section 9).
 
+> **Note (2026-10-09):** `file:line` citations here are on `wave/company-model-accounts-spec` at
+> `7a202a3`. On `main` the handler call is `apps/hub/src/app-runner/worker.ts:154`, and the runner
+> has 11 files and 1,730 lines.
+
 ## 1. Short answer
 
 **What a generated app needs from its runtime is small.**
@@ -303,7 +307,7 @@ Spikes: `bash docs/research/app-runtime/spike.sh` (Docker, Node, npm), on Postgr
 ## 8. What the wave wants
 
 - **Wants**:
-  1. **Workers for Platforms** with one dispatch Worker for every app host (`*.apps.<domain>` and,
+  1. **Workers for Platforms** with one dispatch Worker for every app host (`<app>--<company>.<domain>` per C-048, and,
      later, company domains through Cloudflare for SaaS).
      - **One user Worker per app version**, uploaded by the registry when a revision is admitted.
        Its static files are attached, and it is built from the handlers by the same bundle step.

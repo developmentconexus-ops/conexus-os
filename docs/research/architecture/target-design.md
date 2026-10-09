@@ -55,7 +55,7 @@ endereço próprio.
 [deployment §10](../deployment/study.md#10-draft-for-the-spec)):
 - cerca de **R$200–225 por mês** nos primeiros meses, com o crédito do E2B e o Neon grátis;
 - cerca de **R$250** depois, com o Neon grátis (exige o refactor que deixa o banco dormir);
-- cerca de **R$350** com o Neon Launch;
+- cerca de **R$350** com o Neon Launch e um projeto só, ou **cerca de R$490** com um projeto por empresa (C-043, §8);
 - cerca de R$150–180 disso é Cloudflare, E2B e domínio, que custam o mesmo em qualquer opção.
 
 **Três regras que valem para tudo:**
@@ -112,7 +112,7 @@ flowchart LR
     data["Serviço de dados"]
     git[("Conexus Git<br/>disco da VPS")]
   end
-  subgraph neon["Neon, São Paulo (um projeto)"]
+  subgraph neon["Neon, São Paulo (projeto de controle + um por empresa)"]
     hubdb[("hub")]
     builderdb[("builder")]
     codb[("um banco por empresa<br/>schema + login por app")]
@@ -159,13 +159,13 @@ flowchart LR
 
 | Dado | Onde | Quem lê e escreve | Isolamento entre empresas |
 | --- | --- | --- | --- |
-| Contas, sessões, convites (Better Auth) | banco `hub` | Hub | por Workspace (organização do Better Auth = Workspace) |
+| Contas e sessões (Better Auth) | banco `hub` | Hub | contas e sessões são da pessoa, não da empresa; Workspaces, membros e convites são da Conexus (C-015) |
 | Workspaces, membros, papéis, Projetos, acessos | banco `hub` | Hub (`hub_runtime`) | checagem do Hub + RLS por `workspace_id` |
 | Integrações com sistemas da empresa (credenciais **seladas**) | banco `hub` | Hub, só no executor de conectores (C-030) | checagem + RLS; a credencial nunca sai do Hub |
 | Contas de modelo da empresa (chaves seladas) | banco `hub` | Hub, nas chamadas de modelo | checagem + RLS |
 | Revisões seladas, ponteiro do Preview e do publicado | banco `hub` (registro) | Hub | checagem + RLS |
 | Registro de alocação dos apps (banco, schema, logins, senhas seladas) | banco `hub` | Hub (provisionador); o serviço de dados só lê | checagem + RLS |
-| Conversas, mensagens, memória, rastros (*spans*) do Builder | banco `builder` (Mastra, 43 tabelas) | Builder | `organizationId` = Workspace; *spans* só com metadados (✅ Builder 9.1, 9.2) |
+| Conversas, mensagens, memória, rastros (*spans*) do Builder | banco `builder` (Mastra, 43 tabelas) | Builder | conversas e memória pelo `resourceId` `workspace:<w>:project:<p>` (as tabelas de conversa do Mastra 1.71 não têm `organizationId`); *spans* com `organizationId` = Workspace e só metadados (✅ Builder 9.1, 9.2) |
 | Código-fonte dos apps | Conexus Git, disco da VPS, cópia noturna no R2 | Builder | um repositório por Projeto |
 | Código publicado dos apps | Cloudflare (um user Worker por versão) | Hub sobe; Cloudflare executa | um script por versão; o app não vê os outros |
 | **Dados dos apps** | **um banco por empresa** no Neon; dentro dele, schema `p_<projeto>_preview` e `p_<projeto>_published` | serviço de dados, com o **login do próprio app** | bancos separados; `CONNECT` revogado; login por app |
@@ -182,7 +182,7 @@ flowchart TB
       h1["tabelas do Hub<br/>FORCE RLS por workspace_id"]
     end
     subgraph bdb["banco builder"]
-      b1["43 tabelas do Mastra<br/>organizationId = Workspace"]
+      b1["43 tabelas do Mastra<br/>resourceId com o Workspace"]
     end
   end
   subgraph pa["Projeto Neon aurora · São Paulo"]
@@ -244,7 +244,7 @@ linha da coluna "não pode", com os dois tipos de admin.
 | Builder, da plataforma | E2B, uma máquina por conversa | modelos chamados pelo Hub, que guarda as chaves | a checagem roda na máquina do E2B, não na VPS | Builder 9.4 |
 | Internet, dos servidores | nenhuma porta aberta na VPS (túnel) | Cloudflare na frente (DDoS, HTTPS) | — | ⏳ |
 | Internet, do banco | senha forte (entropia ≥ 60 bits exigida pelo Neon) e TLS | só o serviço de dados tem as senhas dos apps | restrição por IP **só no plano Scale** do Neon | ver §11 |
-| Site da Conexus, dos apps (mesmo domínio, decisão 19) | cookies do Hub com prefixo `__Host-`: valem só para `hub.<domínio>` e nenhum app consegue lê-los nem sobrescrevê-los | toda requisição que altera algo no Hub confere a origem (`Origin`), pois uma página de app é do mesmo site e o navegador manda os cookies `SameSite` | nomes reservados que um app não pode usar (`hub`, `api`, `data`, `www`, `mail`) | ⏳ implementação |
+| Site da Conexus e apps de empresas diferentes, uns dos outros (mesmo domínio, decisão 19) | cookies `__Host-` no Hub **e nas sessões dos apps**: valem só para o próprio endereço | o Hub confere `Origin` e `Sec-Fetch-Site` em tudo que altera dados, e o Dispatch Worker faz o mesmo nas escritas dos apps, porque um app de uma empresa é do mesmo site que os apps das outras | endereços únicos alocados pelo registro, com separador `--` (`pedidos--aurora`), e nomes reservados (`hub`, `api`, `data`, `www`, `mail`, `preview`) | ⏳ implementação; um segundo domínio fecharia isso de vez (revisão S3) |
 
 **A regra de RLS precisa do `nullif`.** Numa conexão reaproveitada, como no pool do Hub, depois que
 alguma transação definiu a empresa, o valor volta como texto vazio, não nulo. Sem o `nullif`, a
@@ -265,7 +265,7 @@ sequenceDiagram
   participant DB as banco hub
   participant Mail as Resend
   Op->>Hub: criar Workspace "Padaria Aurora"
-  Hub->>DB: Workspace + organização do Better Auth
+  Hub->>DB: Workspace (da Conexus) + conta da dona no Better Auth
   Op->>Hub: endereço do projeto Neon da empresa, criado no painel do Neon (decisão 16)
   Op->>Hub: convidar ana@padaria-aurora.example como dona
   Hub->>DB: convite com validade
@@ -277,9 +277,9 @@ sequenceDiagram
 
 | Passo | O que muda em relação a hoje |
 | --- | --- |
-| Criar a empresa | 🔨 a criação de Workspace existe; 🟡 só o operador cria (A10) |
+| Criar a empresa | 🔨 a criação de Workspace existe; ✅ só o operador cria (C-049) |
 | Convite e login | 🆕 Better Auth substitui o Keycloak (✅ A2): convites, senhas e sessões no banco `hub`; SSO por empresa (OIDC e SAML) quando precisar |
-| E-mail | 🆕 Resend no plano grátis (3.000 por mês) (🟡 B6) |
+| E-mail | 🆕 Resend no plano grátis (3.000 por mês) (✅) |
 
 ### F2. A dona configura a empresa
 
@@ -318,7 +318,7 @@ sequenceDiagram
   participant Git as Conexus Git
   Carlos->>Hub: novo Projeto "Pedidos do Balcão": "quero registrar pedidos e ver o total do dia"
   Hub->>B: abrir a conversa (Workspace, Projeto, pessoa)
-  B->>BDB: mensagens com organizationId = Padaria Aurora
+  B->>BDB: mensagens com resourceId workspace:aurora:project:pedidos
   B->>E2B: abrir ou retomar a máquina da conversa
   loop até o app ficar pronto
     B->>Hub: chamada de modelo (o Hub admite e usa a chave da empresa)
@@ -337,7 +337,7 @@ sequenceDiagram
 | Passo | O que muda |
 | --- | --- |
 | Conversa, agente, máquina E2B | 🔨 existe (Mastra AgentController, E2B) |
-| Onde ficam as mensagens | 🆕 banco `builder`, por `organizationId` = Workspace (✅ Builder 9.1). Hoje ficam no schema `factory` do banco do Hub |
+| Onde ficam as mensagens | 🆕 banco `builder`, com o Workspace no `resourceId` (✅ C-045). Hoje ficam no schema `factory` do banco do Hub |
 | Chamadas de modelo | 🔨 já passam pelo Hub, que guarda as chaves (✅ Builder 9.4) |
 | Checagem | 🔨 roda na máquina do E2B (`apps/hub/src/builder/check-delivery.ts`), não na VPS |
 | Selar a revisão | 🔨 existe (`apps/hub/src/registry/seal.ts`) |
@@ -383,7 +383,7 @@ sequenceDiagram
   Ana->>Hub: publicar a revisão aprovada
   Hub->>N: schema p_pedidos_published + papéis (primeira vez), migrações novas
   Hub->>CF: user Worker da versão publicada
-  Hub->>CF: pedidos-aurora.conexus.example → versão publicada
+  Hub->>CF: pedidos--aurora.conexus.example → versão publicada
   Ana->>Hub: ligar as integrações ao Projeto, dar acesso à Duda
 ```
 
@@ -405,12 +405,12 @@ sequenceDiagram
   participant S as Serviço de dados
   participant N as banco co_aurora
   participant ERP as Sistema integrado (ex.: ERP)
-  Duda->>D: pedidos-aurora.conexus.example (sem sessão)
+  Duda->>D: pedidos--aurora.conexus.example (sem sessão)
   D-->>Duda: redireciona para entrar no Hub
   Duda->>Hub: entra, o Hub devolve um código de uso único
   Duda->>D: volta com o código, o app grava a própria sessão
   Duda->>D: "registrar pedido" (operação do manifesto)
-  D->>Hub: sessão válida? Duda acessa este app? (cache curto)
+  D->>Hub: sessão válida? Duda acessa este app?
   D->>U: input validado + stubs { db, caller, connectors }, limite de CPU
   U->>D: db.query("insert into pedido ...", valores)
   D->>S: HTTPS pelo túnel, bilhete assinado (app, empresa, pessoa, validade)
@@ -431,6 +431,8 @@ sequenceDiagram
 - **Só o serviço de dados tem as senhas dos apps.** Ele usa o login de um app só depois de conferir o
   bilhete daquele app.
 - **Um sistema integrado só é lido se a dona ligou aquela conexão àquele Projeto.**
+- **A sessão é conferida a cada chamada.** O guia S §4 pede resolver a sessão em toda requisição;
+  um cache no Dispatch Worker só com limite aprovado nesse guia.
 
 | Passo | O que muda |
 | --- | --- |
@@ -455,10 +457,10 @@ Hoje, um Projeto com app recusa editar uma migração que já foi aplicada, para
 | Rotina | Como | Status |
 | --- | --- | --- |
 | **Deploy** | 1. Um push na `main` faz o GitHub Actions gerar a imagem e publicá-la no GHCR. 2. A VPS baixa a imagem. 3. O container `migrate` aplica as migrações como admin. 4. Hub, Builder e serviço de dados reiniciam. | 🆕 (E8 = 0 hoje) |
-| **Backup do banco** | Do Neon: no grátis volta até 6 horas; no Launch, até 7 dias. Mais um `pg_dump` noturno por empresa e dos bancos `hub` e `builder` para o R2 | 🆕 |
-| **Backup do código** | Os repositórios do Conexus Git vão para o R2 toda noite | 🆕 |
+| **Backup do banco** | Do Neon: no grátis volta até 6 horas; no Launch, até 7 dias. Mais um `pg_dump` noturno por empresa e dos bancos `hub` e `builder`, cifrado com a chave pública do operador, para o R2. O `hub` é lido pelo admin do provedor, que ignora a RLS no Neon (P4); onde o admin não ignora, um papel de backup com política de leitura. O balde do R2 tem trava de objetos (o token da VPS não apaga backups) e regra de validade (limita o prazo de apagar dados, LGPD). A chave que sela as credenciais fica guardada fora da VPS, cifrada para o operador | 🆕 |
+| **Backup do código** | Os repositórios do Conexus Git vão para o R2 toda noite; recomendado: um pacote Git a cada revisão admitida, para não perder um dia de código (⏳ A6) | 🆕 |
 | **Restaurar uma empresa** | 1. Cria-se um branch do Neon no momento desejado. 2. O banco daquela empresa é copiado de volta (procedimento P3). 3. As sessões são invalidadas (segurança §10). | 🆕 ensaio antes da primeira empresa, depois a cada trimestre |
-| **Uma empresa sai** | 1. Apagar as linhas do Workspace no `hub`. 2. Apagar as do Mastra no `builder`, por `organizationId`. 3. Apagar o projeto Neon da empresa: dados e histórico (com um projeto só, `drop database` e papéis, provado em P3). 4. Apagar scripts e endereços na Cloudflare e os repositórios Git. | 🆕 |
+| **Uma empresa sai** | 1. Apagar as linhas do Workspace no `hub`. 2. Apagar as do Mastra no `builder`, pelo prefixo `workspace:<w>` do `resourceId` e pelo `organizationId` dos *spans*. 3. Apagar o projeto Neon da empresa: dados e histórico (com um projeto só, `drop database` e papéis, provado em P3). 4. Apagar scripts e endereços na Cloudflare e os repositórios Git. | 🆕 |
 | **Monitorar** | Erros no Sentry; logs e métricas no Grafana Cloud; teste de disponibilidade; alerta de uso do Neon perto das 100 horas do plano grátis | 🆕 |
 
 ---
@@ -475,8 +477,8 @@ Hoje, um Projeto com app recusa editar uma migração que já foi aplicada, para
 | Banco no Neon | `co_aurora` | `co_boavista` |
 | Schemas | `p_pedidos_preview`, `p_pedidos_published`, `p_estoque_preview` | `p_ordens_preview`, `p_ordens_published` |
 | Logins | um por schema, como `co_aurora_pedidos_published_rt` | `co_boavista_ordens_published_rt`, ... |
-| Endereços | `pedidos-aurora.conexus.example` | `ordens-boavista.conexus.example` |
-| Conversas do Builder | banco `builder`, `organizationId = aurora` | banco `builder`, `organizationId = boavista` |
+| Endereços | `pedidos--aurora.conexus.example` | `ordens--boavista.conexus.example` |
+| Conversas do Builder | banco `builder`, `resourceId` `workspace:aurora:...` | banco `builder`, `resourceId` `workspace:boavista:...` |
 | Código-fonte | Conexus Git: um repositório por Projeto | idem |
 
 **O que Ana não consegue ver da Oficina, e por quê:**
@@ -487,7 +489,7 @@ Hoje, um Projeto com app recusa editar uma migração que já foi aplicada, para
 | Ver a chave de modelo da Oficina | a mesma coisa, e a chave é selada |
 | Fazer o app "Pedidos" ler `co_boavista` | o app não tem rede nem senha; o login de Pedidos não tem `CONNECT` em `co_boavista` |
 | Fazer o app "Pedidos" ler o app "Estoque" da própria Padaria | o login de Pedidos não enxerga o schema de Estoque nem consegue virar o papel dele |
-| Ver as conversas do Builder da Oficina | `organizationId` diferente; o Builder só abre conversas do Workspace da sessão |
+| Ver as conversas do Builder da Oficina | `resourceId` de outro Workspace; o Builder só abre conversas do Workspace da sessão |
 
 ---
 
@@ -519,15 +521,15 @@ Modelo: `node docs/research/deployment/cost.mjs`. Os preços são de páginas do
 **Totais com 4 empresas:**
 - **Primeiros meses** (crédito do E2B e Neon grátis): cerca de **R$200–225**.
 - **Depois do crédito do E2B, com o Neon grátis** (exige o refactor): cerca de **R$250**.
-- **Com o Neon Launch:** cerca de **R$350**.
+- **Com o Neon Launch:** cerca de **R$350** com um projeto para todas as empresas; cerca de **R$490** com um projeto por empresa (C-043), porque cada empresa paga o computador dela enquanto os apps estão em uso.
 
 ### Com mais empresas
 
 | Empresas | VPS Hostinger + Neon | Detalhe |
 | --- | --- | --- |
-| 4 | **cerca de R$350** (Neon Launch) ou **cerca de R$250** (Neon grátis, depois do refactor) | a tabela acima |
-| 20 | cerca de R$590 | o Neon cresce com o uso; o E2B passa a pesar |
-| 100 | cerca de R$2.700 (cerca de R$27 por empresa) | metade é E2B: o custo a gerenciar será o tempo de máquina do Builder |
+| 4 | **cerca de R$250** (Neon grátis, depois do refactor); no Launch, **R$360** com um projeto só ou **R$490** com um por empresa | a tabela acima |
+| 20 | R$590 com um projeto só, R$1.230 com um por empresa | o Neon cresce com o uso; o E2B passa a pesar |
+| 100 | R$2.700 com um projeto só (cerca de R$27 por empresa), R$5.700 com um por empresa | com um projeto só, metade é E2B; com um por empresa, o Neon passa a ser o maior custo. Juntar empresas em projetos compartilhados é a saída (mover uma empresa é o procedimento P3) |
 
 **Atenção ao Neon grátis.** O Hub de hoje consulta o banco a cada 10 segundos, então o banco nunca
 dorme e as 100 horas do plano grátis acabam por volta do dia 17. Depois disso o banco fica parado
@@ -550,7 +552,7 @@ Os itens marcados "adiado" ficam para a sessão de implementação ou para decid
 | 2 | O que pertence à empresa | Tudo que ela configura | ✅ | Cada empresa precisa das próprias chaves, conexões e pessoas | tenancy 9.2 |
 | 3 | Nomes visíveis entre Projetos da mesma empresa | Aceito para a validação | ✅ | Com um banco por empresa, os nomes só aparecem dentro da própria empresa | tenancy 9.4, C-037 |
 | 4 | Unidade de dados dos apps | Um banco por empresa, um schema por app e ambiente | ✅ | Um schema por app quase não custa nada; um banco por app custa ~7 MB e segundos para criar | banco 9.1 |
-| 5 | Banco do Mastra | Banco `builder`, `organizationId` = Workspace | ✅ | Conversas são dados da empresa; o Mastra já separa por organização | Builder 9.1 |
+| 5 | Banco do Mastra | Banco `builder`; conversas pelo `resourceId` com o Workspace, *spans* pelo `organizationId` | ✅ | Conversas são dados da empresa; o Mastra já separa por organização | Builder 9.1 |
 | 6 | O que um *span* guarda | Só metadados | ✅ | Rastros com conteúdo vazariam dados das empresas | Builder 9.2 |
 | 7 | Como o Builder chama modelos | Pelo Hub | ✅ | As chaves de IA nunca vão para a máquina do Builder | Builder 9.4 |
 | 8 | Onde roda o código gerado | Cloudflare Workers for Platforms; reconfirmado depois da escolha da VPS: o código gerado nunca roda na máquina que guarda os segredos | ✅ | O código gerado é tratado como código da internet; a VPS guarda as chaves de todas as empresas | runtime 9.1, §12 |
@@ -561,10 +563,10 @@ Os itens marcados "adiado" ficam para a sessão de implementação ou para decid
 | 13 | Independência de provedor | Protocolo padrão primeiro; porta só onde não há padrão, com adaptador local | ✅ | Trocar de provedor vira configuração, não código | direção 3 |
 | 14 | Servidor | VPS Hostinger KVM 2 em São Paulo, um mês de teste e depois 12 meses | ✅ | A VPS não guarda nada insubstituível, então o preço decide; tem root e Docker em São Paulo | B1, deployment 9.2 |
 | 15 | Banco | Neon São Paulo, começando no grátis | ✅ | Restauração para qualquer momento, cópias para testes e nenhuma manutenção de banco | B2, deployment 9.1 |
-| 16 | Bancos das empresas | **Um projeto Neon de controle e um projeto por empresa** (exemplo em §4) | ✅ | Restaura e apaga cada empresa sozinha; cada uma tem a própria cota grátis | B3, §4 |
+| 16 | Bancos das empresas | **Um projeto Neon de controle e um projeto por empresa** (exemplo em §4) | ✅ | Restaura e apaga cada empresa sozinha; cada uma tem a própria cota grátis. No plano pago custa mais em escala (§8), e juntar empresas depois é o procedimento P3 | B3, §4 |
 | 17 | Armazenamento de arquivos e backups | R2, com backups cifrados pela chave pública do operador; Magalu Object Storage se precisar ficar no Brasil | ✅ | Sem custo de saída; cifrado, nem uma VPS invadida lê backups antigos | B4, §11 |
 | 18 | DNS, HTTPS, túnel | Cloudflare; domínio registrado na Hostinger, DNS na Cloudflare | ✅ | DNS, HTTPS e túnel grátis, sem porta aberta na VPS | B5 |
-| 19 | Formato dos endereços | **Um domínio só:** Hub em `hub.<domínio>`, apps em `<app>-<empresa>.<domínio>` (um nível, cabe no certificado grátis). Sem segundo domínio, o Hub precisa de cookies `__Host-` e checagem de origem (§5) | ✅ | Escolha do operador; o certificado grátis cobre um nível de subdomínio | hosting 9.6 |
+| 19 | Formato dos endereços | **Um domínio só:** Hub em `hub.<domínio>`, apps em `<app>--<empresa>.<domínio>` (um nível, cabe no certificado grátis). Sem segundo domínio, o Hub precisa de cookies `__Host-` e checagem de origem (§5) | ✅ | Escolha do operador; o certificado grátis cobre um nível de subdomínio | hosting 9.6 |
 | 20 | E-mail | Resend grátis | ✅ | O Better Auth aceita qualquer remetente; o grátis cobre a fase de validação | B6 |
 | 21 | Segredos | Arquivos na VPS (modo 600, convenção `*_FILE`), colocados pelo deploy; a Hostinger não tem cofre de segredos | ✅ | A Hostinger não tem cofre de segredos; o código já lê segredos de arquivos | B7 (ajustado à Hostinger) |
 | 22 | Build e deploy | GitHub Actions + GHCR | ✅ | Grátis para repositório público | B8 |
@@ -598,13 +600,13 @@ Os itens marcados "adiado" ficam para a sessão de implementação ou para decid
 **Entra ou muda:**
 1. **A imagem única** com modos `hub`, `builder`, `data`, `migrate`, o Compose e a configuração do
    `cloudflared`.
-2. **Better Auth** no Hub: organizações = Workspaces, convites, sessões, SSO depois.
+2. **Better Auth** no Hub só para contas, sessões, senha e SSO depois; Workspaces, membros e convites continuam da Conexus (C-015).
 3. **Escopo de Workspace** em tudo que a empresa configura (inclui a wave 0017).
 4. **A baseline nova** com três papéis, a regra de RLS com `nullif` e `FORCE`.
 5. **A trava por linha com validade** no lugar da trava de sessão (P5–P7), e as tarefas fora dos
    timers do processo.
 6. **As sessões do Builder recuperáveis** depois de reiniciar (o Mastra Factory faz assim).
-7. **O banco `builder`** separado e o expurgo por `organizationId`.
+7. **O banco `builder`** separado e o expurgo pelo Workspace no `resourceId`.
 8. **O E2B atrás da interface de sandbox do Mastra.**
 9. **O provisionador** com SQL simples, e o **serviço de dados** a partir do *data plane*.
 10. **O Dispatch Worker**, o envio dos user Workers, o outbound Worker e o login nos endereços dos
@@ -633,6 +635,22 @@ Separei o que foi demonstrado do que é risco.
   serviço de dados tem as senhas.
 
 **Riscos e limites:**
+- **Riscos que precisam ser aceitos formalmente** (guia S §10: uma linha no registro e em A §11). A
+  revisão independente listou seis; eles esperam a aceitação do operador:
+  - a mesma chave e o mesmo processo servem todas as empresas;
+  - o banco no Neon é público, sem lista de IPs;
+  - até um dia de Git pode se perder;
+  - deploys derrubam as conversas do Builder em andamento;
+  - a Conexus fica presa à Cloudflare;
+  - dados são processados fora do Brasil (LGPD art. 33).
+- **A chave que sela as credenciais é insubstituível.** Ela abre as credenciais de todas as empresas
+  e fica na VPS. Precisa de uma cópia guardada fora dela, cifrada para o operador.
+- **O serviço de dados não pode receber essa chave.** As senhas dos apps precisam de outra chave
+  (mapa de mudanças, G6).
+- **A Cloudflare reaproveita o isolate do app entre requisições** (documentação da Cloudflare, não
+  verificado aqui). Estado guardado em variáveis do módulo passa de uma pessoa para outra do mesmo
+  app. A checagem deve recusar estado mutável no módulo, ou o reuso fica registrado. Os testes de
+  rede devem cobrir `fetch`, `connect()` e WebSocket.
 - **Apps e Hub no mesmo domínio** (decisão 19). Uma página de app é do mesmo site que o Hub, então o
   navegador manda os cookies do Hub junto. O Hub precisa de cookies `__Host-`, checagem de origem em
   tudo que altera dados e nomes de app reservados (§5).
@@ -671,8 +689,9 @@ Separei o que foi demonstrado do que é risco.
 ## 12. Próximos passos
 
 1. **Revisão final deste desenho** com o operador.
-2. **As respostas pendentes (🟡):** em especial o formato dos endereços (19), já que define o segundo
-   domínio.
+2. **As respostas pendentes** da revisão independente (`review.md` na investigação 05): o domínio dos
+   apps, o custo de um projeto Neon por empresa em escala, os riscos a aceitar, as assinaturas pessoais
+   de IA e o nome do domínio.
 3. **A sessão de implementação:** os itens ⏳ (A7, serviço de dados, processos sem estado) e a ordem
    das mudanças da seção 10.
 4. **Levar os documentos para o repositório "probe factory"**, que precisa do nome exato

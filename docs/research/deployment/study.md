@@ -32,6 +32,15 @@ Research, not execution authority. Decisions go to the operator (section 9).
 
 The [target design](../architecture/target-design.md) puts them together.
 
+**Superseded in part (2026-10-09, after the operator's later answers and the independent review):**
+- "One Neon project for control and companies" (9.6, §8, §10) became a control project plus one
+  project per company (C-043). `cost.mjs` now models both (T2h and T2h-C).
+- The admin role "used only by `migrate` and the data service's allocation" (§8 item 6) became a
+  provisioner on the Hub side. The data service never holds the admin login (target design F4).
+- "Lightsail" in the recommendations became the Hostinger VPS (9.2).
+- Line numbers cite `main` at `729bdc5`. The instance lock's exit on loss is
+  `apps/hub/src/platform/lifecycle.ts:79-83`.
+
 ## 1. Short answer
 
 **At four companies the place costs little; what it decides is reliability and the operator's
@@ -346,7 +355,7 @@ over (section 4 cites each). P4 adds the case of an admin that does bypass row s
 | P3. A company moves between two hosts with no superuser on either | `pg_dump -Fc` of `company_a` as the admin on host A; on host B the admin recreates the roles **with new passwords** from Conexus's own register, then `pg_restore --exit-on-error` | Dump 40 KB in about 0.2 s; restore in about 0.15 s; both exit 0. The md5 of all 10,000 rows is identical. Table owners are kept. App 1 logs in with its new password and reads its rows; app 2 is still refused to it |
 | P3. A company is deleted whole | `drop database company_a with (force)` and its four roles, as the admin on host A | Databases left: `company_b, hub, postgres`; company A roles left: 0 |
 | P4. On Neon and Supabase the admin role bypasses row security; the roles it creates do not | an admin with `BYPASSRLS` (as `neon_superuser` and Supabase's `postgres` have, section 4) makes the control database and the runtime role | The admin with no company set sees both rows. The runtime it created has `rolbypassrls = f`: company A set, it sees only A; no company, 0 rows; becoming the admin, refused. So the Hub must never run as the admin role; migrations do |
-| P5. A database restart ends the Hub's instance lock | `bash docs/research/deployment/lock-spike.sh`: a client holds `pg_try_advisory_lock(1538775160)`, the Hub's key; `docker restart` of the database | The lock connection is "lost (Connection terminated unexpectedly)", and a second Hub then takes the lock. Today's Hub exits on that (`apps/hub/src/platform/lifecycle.ts:86-89`), and the Builder's live sessions go with it. Neon restarts computes for updates "typically … weekly" (section 4) |
+| P5. A database restart ends the Hub's instance lock | `bash docs/research/deployment/lock-spike.sh`: a client holds `pg_try_advisory_lock(1538775160)`, the Hub's key; `docker restart` of the database | The lock connection is "lost (Connection terminated unexpectedly)", and a second Hub then takes the lock. Today's Hub exits on that (`apps/hub/src/platform/lifecycle.ts:79-83`), and the Builder's live sessions go with it. Neon restarts computes for updates "typically … weekly" (section 4) |
 | P6. Behind a transaction pooler the lock protects nothing | PgBouncer 1.22.0, `pool_mode = transaction`, `default_pool_size = 1`, as Neon's pooled endpoint | Hub A takes the lock: true. Hub B takes the same lock while A holds it: **true**. After both disconnect, a direct client still gets false: the lock stays on the pooled server connection, so the next Hub would refuse to start |
 | P7. A lease row with an expiry survives both | a row `instance_lease(id, owner, expires_at)` taken with `INSERT … ON CONFLICT … WHERE owner = $1 OR expires_at < now()`, the pattern of the Builder's run lease | Direct and through the pooler: A acquires; B is refused while A's lease is fresh; after a database restart A reconnects and renews, and B is still refused |
 | E6, E7. The control database is never idle while the Hub runs | census | A query every 10 s and one connection held for the Hub's life |
@@ -377,7 +386,7 @@ Not verified:
 
 | Finding | Guide section | Where |
 | --- | --- | --- |
-| The instance lock is a session advisory lock: a provider's restart ends it (P5), and a transaction pooler voids it (P6) | [database §6](../../reference/database.md#6-roles-and-transactions): "A transaction's authority must be its role, the row policies and the admission proof". Here a connection's lifetime decides which Hub runs | `apps/hub/src/platform/lifecycle.ts:55-89` |
+| The instance lock is a session advisory lock: a provider's restart ends it (P5), and a transaction pooler voids it (P6) | [database §6](../../reference/database.md#6-roles-and-transactions): "A transaction's authority must be its role, the row policies and the admission proof". Here a connection's lifetime decides which Hub runs | `apps/hub/src/platform/lifecycle.ts:55-83` |
 | On Neon and Supabase the admin role has `BYPASSRLS` (P4), so migrations bypass every policy | [database §6](../../reference/database.md#6-roles-and-transactions): the Hub "must log in as `hub_runtime`, which … has no `BYPASSRLS`". It holds only if the Hub never logs in as the provider's admin | the deployment's role setup (to write) |
 | A logical dump of the control database needs a read-all policy for a backup role (P1) | [database §7](../../reference/database.md#7-row-security) lists "A policy `USING (true)` for `hub_reader`" as wrong | only if a logical export is wanted; the provider's own backups need none |
 | A restore of the control database brings back sessions and memberships | [security §10](../../reference/security-and-authority.md#10-recovery-and-accepted-risks): "Restored sessions must be invalid" | the restore runbook (to write) |

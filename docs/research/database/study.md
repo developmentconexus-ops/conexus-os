@@ -10,6 +10,8 @@
     Hub chain needs a superuser; the greenfield baseline needs none (deployment spikes P0 to P4).
   - Certificate login through the runner's relay is replaced by a login per app through the data
     service (app runtime 9.3, §11).
+- Its "Answer: pending" items are answered in the register (C-043, C-045) or listed as open in the
+  target design §9.
 - See the [target design](../architecture/target-design.md).
 
 **Base**: `main` at `729bdc5`, and `wave/company-model-accounts-spec` at `7a202a3`, the most advanced

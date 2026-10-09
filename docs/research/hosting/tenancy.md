@@ -234,6 +234,11 @@ Each enters only with a company that needs it. The usual answer is O3 for that c
 - a person in one Workspace cannot use, list or learn of another Workspace's model accounts, connections, people, Projects or apps, proved by a test that tries each;
 - a Workspace owner connects their own ERP without the installation administrator.
 
+> **Status (2026-10-09):** the answers to this section are recorded in the
+> [decision register](../../decisions/index.md) (C-024, C-037, C-044, C-049) and in the
+> [target design](../architecture/target-design.md) §9. Items still marked pending below are answered
+> there, except how a company's first owner enters (A11).
+
 ## 9. Decisions for the operator
 
 1. **Tenancy for validation.** Options O1, O2, O3. Recommendation: **O1**, for the reasons in
@@ -329,6 +334,9 @@ sequenceDiagram
 | 14–15 Bind the ERP, read it | owner, creator | built | — |
 | 16 Publish and give access | owner | access built (Q3); Publish is Q5 | Q5 |
 | 17–20 Employee uses the app | employee | built on the pilot hosts | the public app domain; app users' sign-ins (spec 0006) |
+
+> **Superseded (2026-10-09):** C-044 keeps one simple row-level security policy per company-scoped
+> table, against spec 0018's removal described here.
 
 ## 11. Correction: row security leaves with spec 0018
 

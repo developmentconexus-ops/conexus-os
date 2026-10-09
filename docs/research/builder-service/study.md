@@ -14,6 +14,12 @@ answers it.
 
 Research, not execution authority. Decisions go to the operator (section 9).
 
+> **Correction (2026-10-09, independent review):** at `@mastra/core` 1.71.0 the memory tables
+> (`mastra_threads`, `mastra_messages`, observational memory) carry `resourceId` only; `organizationId`
+> exists on spans, scorers, datasets and experiments (`TABLE_SCHEMAS`, checked on the installed
+> version). Read "scoped by `organizationId`" below as: conversations and memory scoped by the resource
+> id `workspace:<w>:project:<p>`, spans by `organizationId`. This is how C-045 records it.
+
 ## 1. Short answer
 
 **What the operator suspected, and what the code shows.** The operator suspected that Mastra keeping

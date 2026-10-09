@@ -75,6 +75,15 @@ const containers = (s) => {
   return Math.max(0, gibHours - c.includedGibHours) * 3600 * c.gibSecond + Math.max(0, vcpuSeconds - c.includedVcpuMinutes * 60) * c.vcpuSecond
     + Math.max(0, diskGbHours - c.includedDiskGbHours) * 3600 * c.diskGbSecond
 }
+// C-043 as decided: a control project always on (the Hub) plus one Neon project per company, each awake only while
+// its apps are used (business hours here, an upper estimate). Each awake compute is at least 0.25 CU.
+const neonPerCompany = (s) => {
+  const controlCu = s.companies > 20 ? 1 : s.companies > 4 ? 0.5 : 0.25
+  return controlCu * HOURS * price.neon.cuHour + s.companies * 0.25 * awakeHours.businessHours * price.neon.cuHour
+    + s.dbGb * (price.neon.storageGb + price.neon.historyGb)
+}
+topologies['T2h-C Hostinger VPS + Neon Launch, one project per company (C-043)'] = (s) => ({
+  compute: s.companies > 20 ? price.hostinger.kvm4 : price.hostinger.kvm2, database: neonPerCompany(s) })
 topologies['T4 refactored to idle: all on Cloudflare (Containers) + Neon'] = (s) => ({ compute: containers(s),
   database: neon(s, Math.min(HOURS, awakeHours.businessHours * (s.companies > 20 ? 3 : s.companies > 4 ? 1.5 : 1))) })
 

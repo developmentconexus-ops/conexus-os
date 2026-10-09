@@ -28,8 +28,8 @@ as C-042 to C-049, with C-015, C-024, C-030, C-037 and C-038 amended.
 | What a company configures | Everything (model accounts, model default, connections, settings) belongs to its Workspace | tenancy 9.2; C-024 amended |
 | Names visible across Projects | Re-accepted for a validation installation until the Applications layout changes | tenancy 9.4; C-037 amended |
 | Unit of app data | A database per company, a schema per app inside it | database 9.1 |
-| Keycloak's store | Its own database in the control cluster, while Keycloak stays (see A2) | database 9.3 |
-| Where Mastra's data lives | Its own database `builder`, scoped by Workspace through Mastra's `organizationId`, never a store per company | Builder service 9.1 |
+| Keycloak's store | Superseded: Keycloak leaves (A2, C-015) | database 9.3 |
+| Where Mastra's data lives | Its own database `builder`, scoped by Workspace: conversations and memory by the resource id `workspace:<w>:project:<p>`, spans by `organizationId` (Mastra 1.71's memory tables carry `resourceId` only); never a store per company | Builder service 9.1; C-045 |
 | What a span keeps | Metadata only; content only by a time-boxed administrator capture | Builder service 9.2 |
 | How the Builder reaches models | Through the Hub, which admits the run and holds every credential | Builder service 9.4 |
 | When the Builder leaves the Hub process | Handed to the architecture session | Builder service 9.3 |
@@ -91,7 +91,7 @@ as C-042 to C-049, with C-015, C-024, C-030, C-037 and C-038 amended.
    - A vendor's own API stays in tooling, never in the product path.
    - There is no general cloud layer of our own.
 
-## 3. Open: platform and code architecture
+## 3. Platform and code architecture (answers in §1 override the recommendations below)
 
 A1 and A2 are answered; with them most of the cloud services in section 4 are unblocked.
 
@@ -105,11 +105,11 @@ A1 and A2 are answered; with them most of the cloud services in section 4 are un
 | A6 | Where Conexus Git lives | (a) bare repositories on a persistent disk, today; (b) object storage; (c) a forge (GitHub, Gitea) | **(a) on the Builder's volume for the MVP**; study (b) if compute becomes stateless | managed containers (B1) |
 | A7 | Builder process split and sequence | | handed to the architecture session | |
 | A8 | Jobs, schedules and automations | Mastra schedules (beta) / pg-boss / a managed engine (Inngest, Trigger.dev) | **Mastra on PostgreSQL at the automations milestone**, pg-boss only for what it lacks | no Redis |
-| A9 | ERP data | read through the connector / a mirror per app (Mitra) | **Read through now** | (database 9.5, unanswered) |
-| A10 | Who creates a Workspace (company); who connects its ERP | today any account / the administrator only | **The administrator creates; the owner connects** | (tenancy 9.5, 9.6, unanswered) |
-| A11 | How a company comes in | operator invites / people screen / open sign-up | **Operator invites now**, the provider's invite flow after A2 | (tenancy 9.3, unanswered) |
+| A9 | ERP data | read through the connector / a mirror per app (Mitra) | **Read through now** | answered 2026-10-09, §1 |
+| A10 | Who creates a Workspace (company); who connects its systems | today any account / the administrator only | **The administrator creates; the owner connects** | answered 2026-10-09, §1 and C-049 |
+| A11 | How a company comes in | operator invites / people screen / open sign-up | **Operator invites now**, the provider's invite flow after A2 | open: invite, or the operator creates the user |
 
-## 4. Open: cloud services
+## 4. Cloud services (answers in §1 override the recommendations below)
 
 Each row names the choice and what blocks it. Prices are third-party listings or vendor pages
 read through search, not verified.
@@ -118,11 +118,11 @@ read through search, not verified.
 | --- | --- | --- | --- | --- |
 | B1 | Compute for the Hub, the Builder and the data service | **answered 2026-10-09: a Hostinger VPS in São Paulo, KVM 2 (or KVM 4), one month first, then 12 months** | the operator's choice; Hostinger's Cloud plans are shared hosting and cannot run Conexus ([deployment](../deployment/study.md) 9.2) | — |
 | B2 | Control PostgreSQL (Hub, Builder's Mastra store) | **answered 2026-10-09: Neon in São Paulo, starting on the Free plan, paying when needed** | the Free plan suspends a project after 100 CU-hours a month; today's Hub keeps the database awake and would use them by about day 17, so the lease-row refactor comes first, or Launch (no minimum fee) until it does ([deployment](../deployment/study.md) 9.1) | the lease-row refactor |
-| B3 | Applications PostgreSQL (a database per company) | the same project as B2 / its own | **The same Neon project as B2 now**; a company moves to its own project by dump and restore (deployment P3) | app runtime decision 3 |
+| B3 | Applications PostgreSQL (a database per company) | the same project as B2 / its own | **Answered 2026-10-09: one Neon project per company** (C-043); its cost at scale is in the target design §8 | — |
 | B4 | Object storage (backups, app files, assets) | Cloudflare R2 / Google Cloud Storage / S3 | **R2** (no egress fees) | — |
 | B5 | DNS, TLS, edge, hosts per company and app | Cloudflare (DNS, wildcard certificates, Tunnel, custom hostnames) | **Cloudflare** | address shape (hosting 9.6) |
-| B6 | Email (invitations, notices) | Resend / Postmark / Amazon SES | pick one with a Brazil-friendly sender reputation | A2 (the provider may send its own) |
-| B7 | Secrets | the cloud's secret manager / Infisical or Doppler / mounted files | **the cloud's secret manager**, mounted as files so the code's `*_FILE` convention stays | B1 |
+| B6 | Email (invitations, notices) | Resend / Postmark / Amazon SES | **Answered 2026-10-09: Resend** | — |
+| B7 | Secrets | the cloud's secret manager / Infisical or Doppler / mounted files | **Answered 2026-10-09: files on the VPS (`*_FILE`), placed by the deploy**; the source of truth is still to be named (review S5) | — |
 | B8 | Build and deploy | GitHub Actions, GitHub Container Registry, deploy by Compose pull or the platform's deploy | **GitHub Actions + GHCR** | B1 |
 | B9 | Observability and alerts | self-hosted Grafana stack / a managed free tier (Grafana Cloud, Better Stack) | **a managed free tier** for logs, metrics and uptime; spans hold metadata only (decided) | — |
 | B10 | The Builder's sandbox | E2B / Daytona / Modal | **Keep E2B** (Hobby, then Pro $150/month when concurrency needs it) | — |
@@ -130,13 +130,12 @@ read through search, not verified.
 
 ## 5. Still unanswered from the studies
 
-- **Database 9.2: two PostgreSQL clusters.** The deployment study recommends one Neon project for
-  both now (deployment 9.6).
+- **Database 9.2: two PostgreSQL clusters.** Answered by C-043: a control project and one project per company.
 - **Database 9.4: cut the baseline before the first company.** It is now part of the greenfield
   direction.
 - **Database 9.5:** A9.
 - **Database 9.6, automations and knowledge:** A8.
-- **Tenancy 9.3, 9.5, 9.6:** A11 and A10.
+- **Tenancy 9.3, 9.5, 9.6:** A11 is open; A10 is answered (C-049).
 - **Tenancy 9.7:** superseded by the defense-in-depth direction.
-- **Hosting 9.3, 9.4, 9.6:** B1, A1 and B5.
+- **Hosting 9.3, 9.4, 9.6:** answered by C-042, C-046 and C-048.
 - **Deployment 9.1 to 9.8:** where data and processes run, the stateless refactor, credits.
