@@ -362,7 +362,6 @@ Spikes: `bash docs/research/app-runtime/spike.sh` (Docker, Node, npm), on Postgr
        plus app files and hosts, for $25 a month.
      - B is cheaper but beta.
      - C leaves the outer layer and an addon in maintenance mode to us.
-   - **Answer**: pending.
 2. **The way out.** Recommendation: **keep the handler contract portable and the isolated-vm
    executor tested as a fallback**, not run in production.
    **Answer** (2026-10-09): yes.
