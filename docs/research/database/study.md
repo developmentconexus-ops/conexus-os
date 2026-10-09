@@ -460,7 +460,8 @@ Spikes: `bash docs/research/database/spike.sh [apps]`, on PostgreSQL 17.10.
      - It would then live in the company's database, with the cursor discipline Mitra's study
        recorded.
    - **Answer**: pending.
-6. **Automations, agents and company knowledge.** Recommendation: **Mastra's native storage in the
+6. **Automations, agents and company knowledge.** Which database holds Mastra's store is settled by
+   [the Builder service study](../builder-service/study.md), decision 1. Recommendation: **Mastra's native storage in the
    same PostgreSQL** (schedules, background tasks, knowledge, `PgVector`). Change the image to
    `pgvector/pgvector` when knowledge has its first consumer. No Redis, no queue service.
    **Answer**: pending.
