@@ -173,7 +173,7 @@ flowchart LR
 | Segredos da plataforma | arquivos na VPS (`*_FILE`, modo 600); segredos do Dispatch Worker na Cloudflare | cada processo, só o seu | — |
 | Logs e erros | Grafana Cloud, Sentry | — | sem conteúdo de empresa; só o que a tabela de redação permite |
 
-**Como os bancos ficam no Neon** (recomendação da decisão 16, exemplo com duas empresas):
+**Como os bancos ficam no Neon** (decisão 16, opção C, exemplo com duas empresas):
 
 ```mermaid
 flowchart TB
@@ -212,7 +212,8 @@ flowchart TB
 | Custo no plano Launch | os apps usam o computador que o Hub já mantém ligado: quase nada a mais | cada empresa paga as horas de uso dos seus apps: cerca de R$125 a mais por mês com 4 empresas usando o dia inteiro; R$0 enquanto couber no grátis |
 | Trabalho ao criar uma empresa | nenhum além do SQL que o provisionador já faz | o operador cria o projeto no painel do Neon (ou com um script) e cola o endereço no Hub; a API do Neon fica fora do produto (direção 3) |
 
-**Recomendação: C.**
+**Decidido: C** (confirmado pelo operador em 2026-10-09, sabendo que no plano pago custa mais em
+escala). Uma conta Neon só, do Conexus; dentro dela, um projeto de controle e um projeto por empresa.
 - Você quer começar no grátis, e em A o 0,5–1 GB seria dividido por tudo.
 - C restaura e apaga uma empresa sem tocar nas outras.
 - Criar a empresa já é um ato seu (decisão 30), então criar o projeto dela entra no mesmo passo.
@@ -636,10 +637,10 @@ Separei o que foi demonstrado do que é risco.
 
 **Riscos e limites:**
 - **Os seis riscos e como reduzir cada um sem gastar.** O operador não aceitou os riscos como
-  estavam (2026-10-09). Esta é a redução proposta; o que sobra (a última coluna) é o que ainda
-  precisaria ser aceito no registro (guia S §10).
+  estavam; pediu a redução abaixo e, com ela, **aceitou o que sobra** (a última coluna) em
+  2026-10-09. Cada um é uma linha do registro, C-050 a C-055 (guia S §10).
 
-  | Risco | O que fazer, sem custo | O que sobra |
+  | Risco | O que fazer, sem custo | O que sobra (aceito) |
   | --- | --- | --- |
   | Uma VPS e uma chave para todas as empresas | O código gerado já fica fora da VPS (C-046). Nenhuma porta aberta, e o SSH só pelo túnel com Cloudflare Access. Atualização automática de segurança; contêineres sem root e com disco só de leitura. **Uma chave por empresa**, selada pela chave mestra, que permite apagar uma empresa destruindo a chave dela. Uma chave separada para as senhas dos apps. A chave mestra com cópia fora da VPS | Quem tomar a VPS inteira, com o Hub rodando, alcança todas as empresas: é o preço de uma instalação compartilhada (C-024) |
   | Banco do Neon acessível pela internet | Senhas aleatórias de 128 bits. TLS com verificação do certificado (`verify-full`). Senhas só seladas na VPS, nunca no código nem no CI. A senha de admin de cada empresa é usada só pelo provisionador. Troca de senha se houver suspeita | Uma senha vazada funciona de qualquer lugar até ser trocada; a lista de IPs só existe no plano Scale |
@@ -668,7 +669,9 @@ Separei o que foi demonstrado do que é risco.
   Aceitável com 4 empresas.
 - **O Git do Builder no disco da VPS, com cópia noturna,** pode perder até um dia de código-fonte
   numa pane, até A6 mudar.
-- **Deploys derrubam as conversas do Builder em andamento,** até o item 6 da seção 10.
+- **Deploys derrubam a resposta do Builder em andamento,** até o item 6 da seção 10. O histórico da
+  conversa fica salvo no banco do Mastra; só a resposta que estava sendo gerada se perde, e a
+  pessoa pede de novo (C-053).
 - **Workers for Platforms prende à Cloudflare.** A saída é o executor isolated-vm testado.
 - **LGPD:** os dados das empresas ficam em São Paulo, mas E2B, provedores de modelo, Resend e
   Cloudflare processam dados fora do Brasil. Para isso o art. 33 pede uma base, como as cláusulas
@@ -693,12 +696,13 @@ Separei o que foi demonstrado do que é risco.
 
 ## 12. Próximos passos
 
-1. **Respostas do operador de 2026-10-09 já registradas:**
+1. **Respostas do operador de 2026-10-09, todas registradas:**
    - um domínio só, `conexus.fun` (C-048, C-OS-001);
-   - contas de modelo e assinaturas por empresa (C-032).
-2. **Ainda a confirmar:**
-   - o plano de redução dos seis riscos (§11) e o que sobra deles;
-   - manter um projeto Neon por empresa (decisão 16, que no MVP fica no grátis).
+   - contas de modelo e assinaturas por empresa (C-032);
+   - um projeto Neon por empresa, numa conta só do Conexus (decisão 16, C-043);
+   - os seis riscos com a redução de §11, e o que sobra deles aceito (C-050 a C-055).
+2. **Nada mais espera o operador neste estudo.** O que ficou para depois está no
+   [registro de perguntas](open-decisions.md).
 3. **A sessão de implementação:** os itens adiados (A7, serviço de dados, processos sem estado, A6) e
    a ordem do [mapa de mudanças](https://github.com/developmentconexus-ops/conexus-factory-integration-probe/blob/investigation/05-cloud-architecture/investigations/05-cloud-architecture/change-map.md).
 4. **Subir para o conexus-os** a partir do repositório do probe, quando o plano estiver completo.

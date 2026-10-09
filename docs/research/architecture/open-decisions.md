@@ -18,7 +18,8 @@ The studies behind it:
 
 The [target design](target-design.md) (in Portuguese) puts every decision below into one picture, with
 the flows from end to end. The approved ones are recorded in the [decision register](../../decisions/index.md)
-as C-042 to C-049, with C-015, C-024, C-030, C-037 and C-038 amended.
+as C-042 to C-049, with C-015, C-024, C-030, C-032, C-037, C-038 and C-OS-001 amended, and the six
+accepted risks as C-050 to C-055.
 
 ## 1. Decided
 
@@ -36,7 +37,7 @@ as C-042 to C-049, with C-015, C-024, C-030, C-037 and C-038 amended.
 | App runtime | Workers for Platforms, re-confirmed after the VPS choice | app runtime 9.1, §12 |
 | Files and backups (B4) | R2; backups encrypted with the operator's public key before upload; Magalu Object Storage if a company needs its data in Brazil | 2026-10-09; [target design](target-design.md) §11 |
 | DNS, TLS, tunnel (B5) | Cloudflare; the domain stays registered at Hostinger | 2026-10-09 |
-| Address shape (hosting 9.6) | **One domain:** `hub.<domain>` and `<app>-<company>.<domain>`. No second domain, so the Hub uses `__Host-` cookies, checks `Origin` on every state change and reserves names | 2026-10-09; target design §5 |
+| Address shape (hosting 9.6) | **One domain, `conexus.fun`:** `hub.conexus.fun` and `<app>--<company>.conexus.fun`. No second domain, so the Hub uses `__Host-` cookies, checks `Origin` on every state change and reserves names | 2026-10-09; target design §5; C-048 |
 | Mail (B6) | Resend, free plan | 2026-10-09 |
 | Secrets (B7) | files on the VPS (`*_FILE`, mode 600), placed by the deploy | 2026-10-09 |
 | Build and deploy (B8) | GitHub Actions + GHCR | 2026-10-09 |
@@ -44,7 +45,8 @@ as C-042 to C-049, with C-015, C-024, C-030, C-037 and C-038 amended.
 | The Builder's sandbox (B10) | E2B | 2026-10-09 |
 | Jobs, schedules, automations (A8) | Mastra on PostgreSQL at the automations milestone | 2026-10-09 |
 | Data of integrated systems (A9) | read through, no copy, for now | 2026-10-09 |
-| Neon projects (B3) | a control project (`hub`, `builder`) and one project per company, created by the operator with the company | 2026-10-09; target design §4 |
+| Neon projects (B3) | one Neon account owned by Conexus; inside it a control project (`hub`, `builder`) and one project per company, created by the operator with the company. Confirmed knowing it costs more on a paid plan at scale | 2026-10-09; target design §4; C-043 |
+| The six risks of the review (S6) | not accepted as they stood; reduced at no cost, and the residuals accepted | 2026-10-09; target design §11; C-050 to C-055 |
 | Who creates a company; who connects its systems (A10) | the operator creates the company; its owner connects the integrations. Integrations are every external system (ERP, CRM, spreadsheets, APIs, MCP), not only an ERP | 2026-10-09 |
 
 **Still open after 2026-10-09:**
