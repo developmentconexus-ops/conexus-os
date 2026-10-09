@@ -13,6 +13,8 @@ The studies behind it:
 - [Tenancy](../hosting/tenancy.md)
 - [Database](../database/study.md)
 - [Builder service](../builder-service/study.md)
+- [App runtime](../app-runtime/study.md)
+- [Deployment](../deployment/study.md): where each part runs, with vendor prices and a cost model
 
 ## 1. Decided
 
@@ -78,9 +80,9 @@ read through search, not verified.
 
 | # | Service | Options | Recommendation | Blocked by |
 | --- | --- | --- | --- | --- |
-| B1 | Compute for the Hub, the Builder and the data service | (a) one VM with Docker Compose (Google Cloud São Paulo, about $155/month for 4 vCPU and 16 GB, $2,000 Start credits); (b) managed containers (Cloud Run, Fly) | **Open now that A1 moved app code to the edge**: nothing left needs user namespaces. The Hub takes an instance lock, so it runs as one instance. The data service is stateless and can run several. The Builder holds live sessions in memory; Cloud Run's affinity is best effort and a request lasts at most 60 minutes ([docs](https://docs.cloud.google.com/run/docs/triggering/websockets)), so the Builder needs one sticky instance | A6, A7 |
-| B2 | Control PostgreSQL (Hub, Builder's Mastra store, sign-in if A2 keeps data in it) | (a) self-hosted on the VM; (b) Neon (São Paulo region, branches, a branch per developer and test); (c) Supabase Pro ($25/month; PITR $100/month per 7 days, [pricing](https://supabase.com/pricing)); (d) Cloud SQL (pays from the Google credits; no scale to zero) | **Decide after the greenfield baseline.** A baseline with three roles, simple RLS and no superuser runs on any of them. Neon's branches fit [database §3](../../reference/database.md#3-a-database-for-every-developer-and-every-test) best; Cloud SQL spends the credits | A2, the baseline |
-| B3 | Applications PostgreSQL (a database per company) | self-hosted / managed (Neon, Supabase, Cloud SQL) | **Either, if decision 3 of the app runtime study is B**: the data service next to it logs in as each app's own role from a pool, so the database stays private and any host works. Hyperdrive (25 configurations per account) cannot hold a login per app | app runtime decision 3, B2 |
+| B1 | Compute for the Hub, the Builder and the data service | (a) one VM with Docker Compose in São Paulo: AWS Lightsail 4 GB about $24, Google e2-medium about $39 plus disk and IPv4; (b) managed containers: Cloud Run, Fly, Cloudflare Containers | **(a) Lightsail now; Cloudflare Containers after the stateless refactor and a São Paulo placement test** ([deployment](../deployment/study.md) 9.2, 9.5). Cloud Run does not pay in São Paulo | the stateless refactor (deployment §8) |
+| B2 | Control PostgreSQL (Hub, Builder's Mastra store) | (a) self-hosted on the VM; (b) Neon; (c) Supabase Pro; (d) Cloud SQL | **(b) Neon Launch in `aws-sa-east-1`, one project for control and companies**, about $20 a month at four companies, the same as (a) once (a)'s bigger VM is counted ([deployment](../deployment/study.md) 9.1, 9.6). Supabase restores only daily without $100 a month; Fly Managed Postgres cannot create a database with SQL | the lease-row refactor (deployment P5–P7) |
+| B3 | Applications PostgreSQL (a database per company) | the same project as B2 / its own | **The same Neon project as B2 now**; a company moves to its own project by dump and restore (deployment P3) | app runtime decision 3 |
 | B4 | Object storage (backups, app files, assets) | Cloudflare R2 / Google Cloud Storage / S3 | **R2** (no egress fees) | — |
 | B5 | DNS, TLS, edge, hosts per company and app | Cloudflare (DNS, wildcard certificates, Tunnel, custom hostnames) | **Cloudflare** | address shape (hosting 9.6) |
 | B6 | Email (invitations, notices) | Resend / Postmark / Amazon SES | pick one with a Brazil-friendly sender reputation | A2 (the provider may send its own) |
@@ -92,8 +94,8 @@ read through search, not verified.
 
 ## 5. Still unanswered from the studies
 
-- **Database 9.2: two PostgreSQL clusters.** It is now part of B2 and B3; with managed databases it
-  becomes two providers or two projects.
+- **Database 9.2: two PostgreSQL clusters.** The deployment study recommends one Neon project for
+  both now (deployment 9.6).
 - **Database 9.4: cut the baseline before the first company.** It is now part of the greenfield
   direction.
 - **Database 9.5:** A9.
@@ -101,3 +103,4 @@ read through search, not verified.
 - **Tenancy 9.3, 9.5, 9.6:** A11 and A10.
 - **Tenancy 9.7:** superseded by the defense-in-depth direction.
 - **Hosting 9.3, 9.4, 9.6:** B1, A1 and B5.
+- **Deployment 9.1 to 9.8:** where data and processes run, the stateless refactor, credits.

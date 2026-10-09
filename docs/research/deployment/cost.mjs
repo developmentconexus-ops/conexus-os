@@ -11,6 +11,9 @@ const price = {
   neon: { cuHour: 0.106, storageGb: 0.35, historyGb: 0.2 },
   supabase: { pro: 25, smallExtra: 5, pitr7d: 100 },
   cloudRun: { vcpuSecond: 0.0000336, gibSecond: 0.0000035, idleVcpuSecond: 0.0000035, idleGibSecond: 0.0000035 },
+  // Cloudflare Containers, on the Workers Paid plan already counted in shared(): memory and disk billed as provisioned
+  // while awake, CPU only while active.
+  containers: { gibSecond: 0.0000025, vcpuSecond: 0.00002, diskGbSecond: 0.00000007, includedGibHours: 25, includedVcpuMinutes: 375, includedDiskGbHours: 200 },
   wfp: 25, workersPaid: 5, wfpPerMillionRequests: 0.3,
   r2PerGb: 0.015, e2bHour: 0.1332, e2bPro: 150, resendPro: 20, sentryTeam: 26,
   domain: 40 / 12 / BRL, // .com.br at registro.br, R$40 a year
@@ -51,6 +54,18 @@ const topologies = {
       database: neon(s, awakeHours.businessHours) }
   },
 }
+
+// T4 assumes the refactors of section 9 (a lease row, jobs started from outside, Builder sessions rebuilt from
+// storage, Git off the local disk). Awake hours grow with companies; CPU is busy 10% of the awake time.
+const containers = (s) => {
+  const c = price.containers, hours = Math.min(HOURS, awakeHours.businessHours * (s.companies > 20 ? 3 : s.companies > 4 ? 1.5 : 1))
+  const sets = s.companies > 20 ? 3 : 1 // Hub, Builder and data service: 1 vCPU / 4 GiB / 8 GB plus 0.25 vCPU / 1 GiB / 4 GB
+  const gibHours = sets * 5 * hours, vcpuSeconds = sets * 1.25 * hours * 3600 * 0.1, diskGbHours = sets * 12 * hours
+  return Math.max(0, gibHours - c.includedGibHours) * 3600 * c.gibSecond + Math.max(0, vcpuSeconds - c.includedVcpuMinutes * 60) * c.vcpuSecond
+    + Math.max(0, diskGbHours - c.includedDiskGbHours) * 3600 * c.diskGbSecond
+}
+topologies['T4 refactored to idle: all on Cloudflare (Containers) + Neon'] = (s) => ({ compute: containers(s),
+  database: neon(s, Math.min(HOURS, awakeHours.businessHours * (s.companies > 20 ? 3 : s.companies > 4 ? 1.5 : 1))) })
 
 const usd = (n) => `$${n.toFixed(0)}`
 for (const s of scenarios) {

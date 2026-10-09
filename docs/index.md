@@ -44,6 +44,7 @@ Each guide owns one subject, and a rule lives in one of them.
 | The Builder as its own service, and where Mastra's data belongs (not execution authority) | [Builder service study](research/builder-service/study.md) |
 | Architecture decisions taken, directed and still open for the cloud design (not execution authority) | [Open decisions](research/architecture/open-decisions.md) |
 | Where generated app code runs, and the app runtime that replaces bubblewrap (not execution authority) | [App runtime study](research/app-runtime/study.md) |
+| Where Conexus runs for its first companies: compute, database, services and their cost (not execution authority) | [Deployment study](research/deployment/study.md) |
 
 Closed waves, their specs and their evidence are in Git history. Code, tests and runtime output may
 challenge a guide; they do not silently replace it.

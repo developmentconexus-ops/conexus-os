@@ -25,7 +25,50 @@ The operator's question of 2026-10-09, in short:
 
 Research, not execution authority. Decisions go to the operator (section 9).
 
-<!-- SECTION 1 -->
+## 1. Short answer
+
+**At four companies the place costs little; what it decides is reliability and the operator's
+hours.**
+- Every option that fits costs $57–123 a month (section 10, `cost.mjs`). The exception is Supabase
+  with point-in-time restore, at $190. About $36 of each total is the same everywhere: Cloudflare
+  for the apps, E2B for the Builder, mail and the domain.
+- At 100 companies every option lands at $5–6 per company. Most of that is the Builder's E2B
+  sandboxes, not hosting.
+
+**The data layout already decided runs on any managed PostgreSQL** (spikes P0 to P4).
+- The pieces: a database per company, a schema and a login per app, and one simple tenant policy.
+- All of it works with one admin role that may create databases and roles, without superuser.
+  Neon, Supabase, Cloud SQL and RDS all hand over such a role.
+- One company moves between two such hosts by dump and restore, rows identical, and is deleted
+  whole (P3).
+- So the database host can be changed later, one company at a time.
+
+**One piece of today's code cannot run on any managed database: the Hub's instance lock** (P5, P6).
+- A maintenance restart drops it, and the Hub exits with the Builder's live sessions.
+- Behind a pooler, two Hubs hold it at once.
+- A lease row with an expiry survives both (P7). This refactor is needed whatever the host.
+
+**Recommendation for the first companies:**
+- **Neon Launch in São Paulo**, one project with every database, for about $20 a month.
+  - It has a 7-day point-in-time restore and a branch per developer and test.
+  - It costs about the same as self-hosting, because self-hosting needs a VM twice the size.
+- **One AWS Lightsail VM in São Paulo**, 4 GB for about $24, running the Hub, the Builder and the
+  data service from one image, behind Cloudflare Tunnel with no open port.
+- **Cloudflare** for the apps, DNS and TLS; **E2B** for the Builder.
+- The total is about **$80 a month (about R$400)**.
+
+**Rejected for company data:**
+- **A server at home** saves about $22 a month, with no SLA, residential power and links, and other
+  companies' data in a house.
+- **Hetzner** has no Brazil region: about 128 ms each way, and an international transfer under the
+  LGPD.
+
+**The next step is greenfield:**
+- **What:** make the processes stateless. Use a lease row, start jobs from a queue or a scheduler,
+  rebuild Builder sessions from storage, and keep Git off the local disk.
+- **What it opens:** everything can then run on Cloudflare Containers, which sleep when idle. That
+  is about $57 a month at four companies, with no VM to patch (T4).
+- **The condition:** a placement test in São Paulo first.
 
 ## 2. Today (census)
 
@@ -149,6 +192,31 @@ P3 procedure.
 | Railway, Render | **no** South America region† | | | |
 | A server at home | yes | an N100 mini PC with 16 GB, R$1,731–2,799†, 7–12 W | | Enel SP residential about R$0.79/kWh before taxes†; no SLA; Cloudflare Tunnel needs no public IP |
 
+### Processes that sleep when idle
+
+| | Sleeps | Wakes in | Long Builder turns | São Paulo | What it asks of Conexus |
+| --- | --- | --- | --- | --- | --- |
+| Cloudflare Containers (GA 2026-04-13†) | `sleepAfter`, "default: `"10m"`"; "Incoming requests reset the timer" | "under one second", elsewhere "1-3 second range" | no fixed maximum; in-flight requests keep it awake; host restarts send SIGTERM and wait "up to 15 minutes" | a "South America" placement constraint; an instance may start "farther away from the end-user"; São Paulo itself not verified | "All disk is ephemeral"; minimum "3 GiB memory per vCPU"; billed on provisioned memory and disk, CPU "on active usage only" |
+| Cloud Run | "scaled to zero instances" with no traffic | not stated | streaming supported; requests up to 60 minutes | yes, Tier 2 | affinity "best effort, not a guarantee" |
+| Fly Machines | `auto_stop_machines`, stop or suspend | stop "about 2s"; suspend "a few hundred milliseconds" | "The proxy won't stop a Machine with active connections" | yes | stopped machines pay rootfs at $0.15/GB |
+| Neon | "no active queries for 5 minutes"; "an idle connection doesn't count as active traffic" | "a few hundred milliseconds" | n/a | yes | the Hub's 10-second lease query keeps it awake (E6) |
+| Supabase Edge Functions | per call | not stated | **no**: wall clock "Paid plans: 400s", "Maximum CPU Time: 2s", 256 MB | yes | cannot hold a Builder turn |
+| Railway, Deno Deploy | yes | not stated / "a few hundred milliseconds" | 15 minutes / while bytes flow | **no** region | |
+
+Sources: Cloudflare [Containers pricing](https://developers.cloudflare.com/containers/platform/pricing/),
+[limits](https://developers.cloudflare.com/containers/platform/limits/),
+[placement](https://developers.cloudflare.com/containers/concepts/placement/),
+[FAQ](https://developers.cloudflare.com/containers/faq);
+Cloud Run [autoscaling](https://docs.cloud.google.com/run/docs/about-instance-autoscaling);
+Fly [autostop](https://docs.fly.io/reference/fly-proxy-autostop-autostart) and
+[long-running tasks](https://docs.fly.io/blueprints/long-running-tasks);
+Neon [compute lifecycle](https://neon.com/docs/introduction/compute-lifecycle) and
+[connection latency](https://neon.com/docs/connect/connection-latency);
+Supabase [function limits](https://supabase.com/docs/guides/functions/limits);
+Railway [regions](https://docs.railway.com/deployments/regions);
+Deno [migration guide](https://docs.deno.com/deploy/migration_guide/). These were read through
+indexed copies of the official documentation; recheck the prices before committing.
+
 ### Platform services
 
 | Service | What it costs at our size | Source |
@@ -217,6 +285,15 @@ P3 procedure.
   - compute that holds nothing irreplaceable can go where it is cheapest in São Paulo;
   - company data goes where a restore is tested and does not depend on the operator's hours;
   - the apps already went to Cloudflare, and the Builder's sandboxes to E2B.
+- **What today's code wrongly fixes.** The processes look like "one long-lived machine" only
+  because of code choices:
+  - the session lock (E7);
+  - timers in the Hub process (E6);
+  - Builder sessions held in memory;
+  - Git on a local disk (E3).
+
+  None of these is a requirement, and the first already fails on every managed database (P5, P6).
+  Removing them is what lets the place change later without a redesign (section 8).
 
 ## 6. Proved and not proved
 
@@ -236,20 +313,211 @@ over (section 4 cites each). P4 adds the case of an admin that does bypass row s
 | P3. A company moves between two hosts with no superuser on either | `pg_dump -Fc` of `company_a` as the admin on host A; on host B the admin recreates the roles **with new passwords** from Conexus's own register, then `pg_restore --exit-on-error` | Dump 40 KB in about 0.2 s; restore in about 0.15 s; both exit 0. The md5 of all 10,000 rows is identical. Table owners are kept. App 1 logs in with its new password and reads its rows; app 2 is still refused to it |
 | P3. A company is deleted whole | `drop database company_a with (force)` and its four roles, as the admin on host A | Databases left: `company_b, hub, postgres`; company A roles left: 0 |
 | P4. On Neon and Supabase the admin role bypasses row security; the roles it creates do not | an admin with `BYPASSRLS` (as `neon_superuser` and Supabase's `postgres` have, section 4) makes the control database and the runtime role | The admin with no company set sees both rows. The runtime it created has `rolbypassrls = f`: company A set, it sees only A; no company, 0 rows; becoming the admin, refused. So the Hub must never run as the admin role; migrations do |
+| P5. A database restart ends the Hub's instance lock | `bash docs/research/deployment/lock-spike.sh`: a client holds `pg_try_advisory_lock(1538775160)`, the Hub's key; `docker restart` of the database | The lock connection is "lost (Connection terminated unexpectedly)", and a second Hub then takes the lock. Today's Hub exits on that (`apps/hub/src/platform/lifecycle.ts:86-89`), and the Builder's live sessions go with it. Neon restarts computes for updates "typically … weekly" (section 4) |
+| P6. Behind a transaction pooler the lock protects nothing | PgBouncer 1.22.0, `pool_mode = transaction`, `default_pool_size = 1`, as Neon's pooled endpoint | Hub A takes the lock: true. Hub B takes the same lock while A holds it: **true**. After both disconnect, a direct client still gets false: the lock stays on the pooled server connection, so the next Hub would refuse to start |
+| P7. A lease row with an expiry survives both | a row `instance_lease(id, owner, expires_at)` taken with `INSERT … ON CONFLICT … WHERE owner = $1 OR expires_at < now()`, the pattern of the Builder's run lease | Direct and through the pooler: A acquires; B is refused while A's lease is fresh; after a database restart A reconnects and renews, and B is still refused |
 | E6, E7. The control database is never idle while the Hub runs | census | A query every 10 s and one connection held for the Hub's life |
 | Memory at rest | hosting S6 | Hub 251–286 MB RSS; PostgreSQL 52 MiB; Keycloak 529 MiB, now dropped (A2) |
 
-**What P0 to P3 settle.** The data layout of the database study, the simple tenant policy of the
+**What P0 to P4 settle.** The data layout of the database study, the simple tenant policy of the
 defense-in-depth direction, and the move of a company between hosts need no superuser. So the
 database host is a placement choice that can be changed later by moving one company at a time,
 not a design choice.
 
+**What P5 to P7 settle.** Today's instance lock cannot live on a managed database: a maintenance
+restart stops the Hub, and a pooler makes the lock meaningless. A lease row works through both.
+That refactor is needed on **every** managed option, so it belongs to the first deployment, not to
+a later one.
+
 Not verified:
 - each provider's exact role attributes (section 4 cites their documentation; nothing was run on
   their services);
-- the latency from a São Paulo VM to each managed database;
-- memory of the Hub under a real Builder turn on the target VM;
+- the latency from a São Paulo VM, or a Cloudflare container, to Neon's São Paulo region;
+- whether Cloudflare places a container in São Paulo: its docs offer a South America constraint
+  and say an instance may start "farther away from the end-user";
+- Lightsail's CPU under a Builder check (its bundles are burstable);
+- the memory of the Hub under a real Builder turn;
 - a point-in-time restore on any provider;
-- Cloudflare Tunnel and Workers for Platforms on a real account.
+- Cloudflare Tunnel, Containers and Workers for Platforms on a real account.
 
-<!-- REST -->
+## 7. Findings against the guides
+
+| Finding | Guide section | Where |
+| --- | --- | --- |
+| The instance lock is a session advisory lock: a provider's restart ends it (P5), and a transaction pooler voids it (P6) | [database §6](../../reference/database.md#6-roles-and-transactions): "A transaction's authority must be its role, the row policies and the admission proof". Here a connection's lifetime decides which Hub runs | `apps/hub/src/platform/lifecycle.ts:55-89` |
+| On Neon and Supabase the admin role has `BYPASSRLS` (P4), so migrations bypass every policy | [database §6](../../reference/database.md#6-roles-and-transactions): the Hub "must log in as `hub_runtime`, which … has no `BYPASSRLS`". It holds only if the Hub never logs in as the provider's admin | the deployment's role setup (to write) |
+| A logical dump of the control database needs a read-all policy for a backup role (P1) | [database §7](../../reference/database.md#7-row-security) lists "A policy `USING (true)` for `hub_reader`" as wrong | only if a logical export is wanted; the provider's own backups need none |
+| A restore of the control database brings back sessions and memberships | [security §10](../../reference/security-and-authority.md#10-recovery-and-accepted-risks): "Restored sessions must be invalid" | the restore runbook (to write) |
+| Branches give each developer and test its own database **and** its own roles (500 per branch on Neon) | [database §3](../../reference/database.md#3-a-database-for-every-developer-and-every-test): "A test must not change a role on a cluster that hosts a protected database" | met by a branch per test |
+| Company data at rest stays in São Paulo, but E2B, the model providers and Resend's account data are in the United States | [security §7](../../reference/security-and-authority.md#7-data-protection-and-egress): each privileged adapter has a pinned destination; the LGPD asks for an article 33 basis (Res. CD/ANPD 19/2024 standard clauses) | the providers' data processing terms (to sign) |
+
+## 8. What the wave wants
+
+**The question for the operator**: where Conexus runs for the first companies, and what the
+infrastructure code must change so the place can change later.
+
+**Enters:**
+1. **One image with modes** `hub`, `builder`, `data`, `migrate` (E8 is 0 today), built by GitHub
+   Actions into GHCR.
+2. **A lease row instead of the session lock** (P5 to P7), the run lease's pattern.
+3. **Jobs out of the Hub's timers** (E6): rows claimed with `FOR UPDATE SKIP LOCKED`, Windmill's
+   pattern, or started by a scheduler. Needed as soon as there are two processes or a process that
+   sleeps.
+4. **The Builder rebuilds its sessions from storage after a restart**, as Mastra Factory does
+   (`factory/src/factory.ts:1017-1024`, Builder service study). Today every deploy also drops
+   live sessions.
+5. **Addresses from configuration**, TLS at the edge, listeners on plain HTTP behind the tunnel
+   (hosting H1, H2).
+6. **The provider setup**:
+   - one Neon project in `aws-sa-east-1` (databases `hub`, `builder`, one per company);
+   - the admin role used only by `migrate` and the data service's allocation, with
+     `createrole_self_grant = 'set, inherit'` (P2);
+   - the Hub as a runtime role without `BYPASSRLS` (P4);
+   - the Hub on the direct endpoint until item 2 is done.
+7. **A restore drill**: restore a branch at a point in time, move one company back with P3's steps,
+   invalidate sessions (security §10). It runs before the first company's data and then every
+   quarter.
+8. **Deletion**:
+   - the application runner, the relay, the certificate scripts and the Applications cluster
+     scripts (app runtime study);
+   - Keycloak (A2);
+   - the systemd pilot units.
+
+**Stays out:**
+- Kubernetes;
+- multi-region;
+- a replicated database;
+- autoscaling;
+- a server at home for company data;
+- a database per company on a separate provider project, until a company needs its own restore
+  window.
+
+**Ends when:**
+- the four companies use Conexus from the VM and the Neon project;
+- the restore drill has passed once;
+- the cost of a month is measured against `cost.mjs`.
+
+## 9. Decisions for the operator
+
+1. **Where company data lives.**
+   - Options: A, Neon Launch in São Paulo; B, PostgreSQL on our VM with backups to object storage;
+     C, Supabase Pro; D, Cloud SQL, paid by Google credits.
+   - Recommendation: **A**.
+     - It costs about the same as B, because B needs a VM twice the size.
+     - It restores to any point of the last 7 days, gives a branch per developer and test, and
+       takes no operator hours for patches or backups.
+     - C restores only from a daily backup unless $100 a month is added.
+     - D costs about twice as much and does not sleep.
+     - The way out of A is P3: dump and restore one company at a time.
+2. **Where Conexus's processes run now.**
+   - Options: A, one AWS Lightsail VM in São Paulo; B, a Google VM paid by Start credits; C, Fly.io
+     in São Paulo; D, a server at home.
+   - Recommendation: **A**.
+     - It is the cheapest São Paulo option with IPv4 and transfer included.
+     - It is in the same AWS region as Neon's São Paulo.
+     - B is right only if Google accepts the application: its Start tier asks for a startup
+       "planning to seek venture funding soon".
+3. **A server at home.** Recommendation: **not for company data**; it is fine as a development
+   machine.
+4. **Stateless processes (section 8, items 2 to 4).** Recommendation: **yes, in the first
+   deployment.** Item 2 is needed on every managed database (P5, P6). Items 3 and 4 also stop every
+   deploy from dropping Builder sessions.
+5. **All on Cloudflare later (T4).**
+   - Recommendation: **yes, as a measured step, not now.**
+   - Spike Cloudflare Containers once item 4 and A6 (Git off the local disk) are done:
+     - placement in São Paulo;
+     - cold start;
+     - latency to Neon.
+   - It removes the VM and costs about $57 a month at four companies.
+6. **One PostgreSQL project for control and companies** (database 9.2). Recommendation: **yes,
+   now.** A busy or demanding company moves to its own project with P3's steps.
+7. **Credits.**
+   - Recommendation: **apply to AWS Activate Founders** ($1,000; pre-series B, a company website)
+     **and Cloudflare for Startups** ($10,000 tier for bootstrapped companies; credits last one year).
+   - Apply to Google's Start tier only if venture funding is really planned.
+   - The plan works without any credit.
+8. **App runtime decision 3** (the data service next to the database) is still open. Every
+   topology here assumes it.
+
+## 10. Draft for the spec
+
+### Target shape, first deployment
+
+```mermaid
+flowchart LR
+  people["People of each company"]
+  subgraph cf["Cloudflare"]
+    edge["DNS and TLS<br/>hub host · app hosts"]
+    dispatch["Dispatch Worker"]
+    apps["Generated apps<br/>Workers for Platforms"]
+    tunnel["Tunnel"]
+    r2[("R2<br/>Git backups · files")]
+  end
+  subgraph vm["AWS Lightsail, São Paulo · Docker Compose · no open port"]
+    cfd["cloudflared"]
+    hub["Hub<br/>Better Auth · web app"]
+    builder["Builder<br/>Mastra"]
+    data["Data service"]
+    git[("Conexus Git")]
+  end
+  subgraph neon["Neon, São Paulo · one project"]
+    hubdb[("hub")]
+    builderdb[("builder")]
+    companies[("one database per company<br/>schema + login per app")]
+  end
+  e2b["E2B"]
+  outside["Model providers · company ERPs · Resend"]
+  people --> edge
+  edge --> dispatch --> apps
+  edge --> tunnel
+  dispatch -- "Access service token" --> tunnel
+  tunnel --> cfd
+  cfd --> hub
+  cfd --> data
+  hub --> builder
+  hub --> hubdb
+  builder --> builderdb
+  builder --> git
+  data --> companies
+  builder --> e2b
+  hub --> outside
+  git -.-> r2
+```
+
+### Where each part runs, and its way out
+
+| Part | Service | Why | Month at 4 companies | Way out |
+| --- | --- | --- | --- | --- |
+| Hub, Builder, data service | one AWS Lightsail 4 GB VM in São Paulo, Docker Compose | cheapest São Paulo VM with IPv4 and transfer included | about $24 | the same image on any VM, or Cloudflare Containers (T4) |
+| Control and company databases | Neon Launch, `aws-sa-east-1`, one project | point-in-time restore, branches, no operator hours | about $20 | P3 to any PostgreSQL |
+| Generated apps, their files and hosts | Workers for Platforms | decided (app runtime 9.1) | $25 (+$5 Workers Paid, not verified) | the isolated-vm executor (app runtime 9.2) |
+| DNS, TLS, the path in | Cloudflare DNS, Tunnel, Access service token | no open port, no public database | $0 | any reverse proxy |
+| Git backups, files | R2 | free up to 10 GB, no egress fees | $0 | any S3-compatible store |
+| Builder sandboxes | E2B Hobby, Pro when sessions need more than an hour | already built in | about $5 of use after the $100 credit | Daytona, at the same price per hour |
+| Mail | Resend free (3,000 a month) | Better Auth takes any sender | $0 | Postmark, SES |
+| Errors, logs, uptime | Sentry, Grafana Cloud free tiers | spans hold metadata only (decided) | $0 | self-hosted |
+| Images and deploys | GitHub Actions, GHCR | free for a public repository | $0 | any registry |
+| Domain | Registro.br, DNS at Cloudflare | | about $1 | |
+
+### Cost model
+
+`node docs/research/deployment/cost.mjs` prints these tables. It uses the vendor prices of
+section 4 and states its sizes per scenario in the script. T3 and T4 assume the refactors of
+section 8.
+
+| Topology | 4 companies | 20 companies | 100 companies |
+| --- | --- | --- | --- |
+| T0 home server, PostgreSQL on it | $57 | $78 | not viable |
+| T1 one VM (Lightsail), PostgreSQL on it, backups to R2 | $79 | $140 | $535 |
+| **T2 one VM (Lightsail) + Neon Launch** | **$80** | **$145** | **$596** |
+| T2b Google VM + Cloud SQL (credits) | $123 | $186 | $625 |
+| T2c one VM (Lightsail) + Supabase Pro with point-in-time restore | $190 | $231 | $583 |
+| T3 refactored to idle: Cloud Run + Neon | $97 | $165 | $596 |
+| T4 refactored to idle: all on Cloudflare (Containers) + Neon | $57 | $102 | $637 |
+
+**What the model says:**
+- At four companies the spread between real options is about $25 a month. Reliability and the
+  operator's hours decide.
+- Cloud Run does not pay in São Paulo: Tier 2 prices, and a warm instance for the Builder.
+- At 100 companies E2B is about half of every total. The Builder's sandbox time is the cost to
+  manage then (pause, share, or run them ourselves), not the host.
