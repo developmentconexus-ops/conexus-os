@@ -538,43 +538,49 @@ mensalidade mínima).
 
 ## 9. Todas as decisões
 
-| # | Decisão | Resposta | Status | Fonte |
-| --- | --- | --- | --- | --- |
-| 1 | Como várias empresas usam a Conexus | Uma instalação; Workspace = empresa | ✅ | tenancy 9.1, C-024 |
-| 2 | O que pertence à empresa | Tudo que ela configura | ✅ | tenancy 9.2 |
-| 3 | Nomes visíveis entre Projetos da mesma empresa | Aceito para a validação | ✅ | tenancy 9.4, C-037 |
-| 4 | Unidade de dados dos apps | Um banco por empresa, um schema por app e ambiente | ✅ | banco 9.1 |
-| 5 | Banco do Mastra | Banco `builder`, `organizationId` = Workspace | ✅ | Builder 9.1 |
-| 6 | O que um *span* guarda | Só metadados | ✅ | Builder 9.2 |
-| 7 | Como o Builder chama modelos | Pelo Hub | ✅ | Builder 9.4 |
-| 8 | Onde roda o código gerado | Cloudflare Workers for Platforms; reconfirmado depois da escolha da VPS: o código gerado nunca roda na máquina que guarda os segredos | ✅ | runtime 9.1, §12 |
-| 9 | Saída de emergência | Contrato portátil; executor isolated-vm testado | ✅ | runtime 9.2 |
-| 10 | Login | Better Auth (SSO por empresa quando precisar) | ✅ | A2 |
-| 11 | Camada de dados | Do zero, sem legado, antes da primeira empresa | ✅ | direção 1 |
-| 12 | Isolamento | Checagem do Hub + RLS simples (com `nullif`) | ✅ | direção 2, A3 |
-| 13 | Independência de provedor | Protocolo padrão primeiro; porta só onde não há padrão, com adaptador local | ✅ | direção 3 |
-| 14 | Servidor | VPS Hostinger KVM 2 em São Paulo, um mês de teste e depois 12 meses | ✅ | B1, deployment 9.2 |
-| 15 | Banco | Neon São Paulo, começando no grátis | ✅ | B2, deployment 9.1 |
-| 16 | Bancos das empresas | **Um projeto Neon de controle e um projeto por empresa** (exemplo em §4) | 🟡 | B3, §4 |
-| 17 | Armazenamento de arquivos e backups | R2, com backups cifrados pela chave pública do operador; Magalu Object Storage se precisar ficar no Brasil | ✅ | B4, §11 |
-| 18 | DNS, HTTPS, túnel | Cloudflare; domínio registrado na Hostinger, DNS na Cloudflare | ✅ | B5 |
-| 19 | Formato dos endereços | **Um domínio só:** Hub em `hub.<domínio>`, apps em `<app>-<empresa>.<domínio>` (um nível, cabe no certificado grátis). Sem segundo domínio, o Hub precisa de cookies `__Host-` e checagem de origem (§5) | ✅ | hosting 9.6 |
-| 20 | E-mail | Resend grátis | ✅ | B6 |
-| 21 | Segredos | Arquivos na VPS (modo 600, convenção `*_FILE`), colocados pelo deploy; a Hostinger não tem cofre de segredos | ✅ | B7 (ajustado à Hostinger) |
-| 22 | Build e deploy | GitHub Actions + GHCR | ✅ | B8 |
-| 23 | Observabilidade | Sentry + Grafana Cloud grátis | ✅ | B9 |
-| 24 | Máquinas do Builder | E2B | ✅ | B10 |
-| 25 | Sistemas da empresa sem endereço público | A ver por sistema. O Sankhya libera OAuth no gateway público e dispensa túnel; o túnel fica como opção para sistemas que não tenham endereço público | ⏳ | B11 |
-| 26 | Onde fica o Conexus Git | A estudar: avaliar se o mecanismo de hoje (repositórios Git no disco) é o melhor para o desenho novo; até lá, disco da VPS com cópia no R2 | ⏳ | A6 |
-| 27 | Builder em processo próprio | — | ⏳ | A7 |
-| 28 | Tarefas, agendamentos, automações | Mastra sobre PostgreSQL, quando chegar a etapa de automações | ✅ | A8 |
-| 29 | Dados dos sistemas integrados | Lidos na hora, sem cópia, por enquanto | ✅ | A9 |
-| 30 | Quem cria empresa; quem conecta os sistemas | O operador cria a empresa; a dona conecta as integrações (ERP é só um exemplo: CRM, planilhas, APIs, MCP...) | ✅ | A10 |
-| 31 | Como uma empresa entra | Convite do operador, ou o operador cria o usuário: a decidir depois | ⏳ | A11 |
-| 32 | Serviço de dados ao lado do banco | — | ⏳ | runtime 9.3 |
-| 33 | Processos sem estado (trava por linha, tarefas, sessões do Builder recuperáveis) | — | ⏳ | deployment 9.4 |
-| 34 | Tudo na Cloudflare depois (Containers) | — | ⏳ | deployment 9.5 |
-| 35 | Créditos (AWS Activate, Cloudflare for Startups) | Depois; o plano funciona sem eles | ⏳ | deployment 9.7 |
+As decisões aprovadas estão no [registro de decisões](../../decisions/index.md):
+- **novas:** C-042 a C-049;
+- **emendadas:** C-015 (Better Auth), C-024 (várias empresas), C-030 (integrações), C-037 e C-038.
+
+Os itens marcados "adiado" ficam para a sessão de implementação ou para decidir depois.
+
+| # | Decisão | Resposta | Status | Por quê | Fonte |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Como várias empresas usam a Conexus | Uma instalação; Workspace = empresa | ✅ | É o jeito mais barato de várias empresas pequenas validarem com um operador só | tenancy 9.1, C-024 |
+| 2 | O que pertence à empresa | Tudo que ela configura | ✅ | Cada empresa precisa das próprias chaves, conexões e pessoas | tenancy 9.2 |
+| 3 | Nomes visíveis entre Projetos da mesma empresa | Aceito para a validação | ✅ | Com um banco por empresa, os nomes só aparecem dentro da própria empresa | tenancy 9.4, C-037 |
+| 4 | Unidade de dados dos apps | Um banco por empresa, um schema por app e ambiente | ✅ | Um schema por app quase não custa nada; um banco por app custa ~7 MB e segundos para criar | banco 9.1 |
+| 5 | Banco do Mastra | Banco `builder`, `organizationId` = Workspace | ✅ | Conversas são dados da empresa; o Mastra já separa por organização | Builder 9.1 |
+| 6 | O que um *span* guarda | Só metadados | ✅ | Rastros com conteúdo vazariam dados das empresas | Builder 9.2 |
+| 7 | Como o Builder chama modelos | Pelo Hub | ✅ | As chaves de IA nunca vão para a máquina do Builder | Builder 9.4 |
+| 8 | Onde roda o código gerado | Cloudflare Workers for Platforms; reconfirmado depois da escolha da VPS: o código gerado nunca roda na máquina que guarda os segredos | ✅ | O código gerado é tratado como código da internet; a VPS guarda as chaves de todas as empresas | runtime 9.1, §12 |
+| 9 | Saída de emergência | Contrato portátil; executor isolated-vm testado | ✅ | Se a Cloudflare deixar de servir, o mesmo contrato roda em outro lugar | runtime 9.2 |
+| 10 | Login | Better Auth (SSO por empresa quando precisar) | ✅ | Um serviço a menos; os dados de login ficam no nosso banco; tem SSO quando precisar | A2 |
+| 11 | Camada de dados | Do zero, sem legado, antes da primeira empresa | ✅ | Nenhuma empresa tem dados ainda: é a única hora em que dá para refazer sem migrar | direção 1 |
+| 12 | Isolamento | Checagem do Hub + RLS simples (com `nullif`) | ✅ | Se o código esquecer um filtro, o banco ainda não devolve dados de outra empresa | direção 2, A3 |
+| 13 | Independência de provedor | Protocolo padrão primeiro; porta só onde não há padrão, com adaptador local | ✅ | Trocar de provedor vira configuração, não código | direção 3 |
+| 14 | Servidor | VPS Hostinger KVM 2 em São Paulo, um mês de teste e depois 12 meses | ✅ | A VPS não guarda nada insubstituível, então o preço decide; tem root e Docker em São Paulo | B1, deployment 9.2 |
+| 15 | Banco | Neon São Paulo, começando no grátis | ✅ | Restauração para qualquer momento, cópias para testes e nenhuma manutenção de banco | B2, deployment 9.1 |
+| 16 | Bancos das empresas | **Um projeto Neon de controle e um projeto por empresa** (exemplo em §4) | ✅ | Restaura e apaga cada empresa sozinha; cada uma tem a própria cota grátis | B3, §4 |
+| 17 | Armazenamento de arquivos e backups | R2, com backups cifrados pela chave pública do operador; Magalu Object Storage se precisar ficar no Brasil | ✅ | Sem custo de saída; cifrado, nem uma VPS invadida lê backups antigos | B4, §11 |
+| 18 | DNS, HTTPS, túnel | Cloudflare; domínio registrado na Hostinger, DNS na Cloudflare | ✅ | DNS, HTTPS e túnel grátis, sem porta aberta na VPS | B5 |
+| 19 | Formato dos endereços | **Um domínio só:** Hub em `hub.<domínio>`, apps em `<app>-<empresa>.<domínio>` (um nível, cabe no certificado grátis). Sem segundo domínio, o Hub precisa de cookies `__Host-` e checagem de origem (§5) | ✅ | Escolha do operador; o certificado grátis cobre um nível de subdomínio | hosting 9.6 |
+| 20 | E-mail | Resend grátis | ✅ | O Better Auth aceita qualquer remetente; o grátis cobre a fase de validação | B6 |
+| 21 | Segredos | Arquivos na VPS (modo 600, convenção `*_FILE`), colocados pelo deploy; a Hostinger não tem cofre de segredos | ✅ | A Hostinger não tem cofre de segredos; o código já lê segredos de arquivos | B7 (ajustado à Hostinger) |
+| 22 | Build e deploy | GitHub Actions + GHCR | ✅ | Grátis para repositório público | B8 |
+| 23 | Observabilidade | Sentry + Grafana Cloud grátis | ✅ | Grátis na fase de validação; rastros só com metadados | B9 |
+| 24 | Máquinas do Builder | E2B | ✅ | Já está integrado; paga só o tempo de uso | B10 |
+| 25 | Sistemas da empresa sem endereço público | A ver por sistema. O Sankhya libera OAuth no gateway público e dispensa túnel; o túnel fica como opção para sistemas que não tenham endereço público | ⏳ | Depende de cada sistema; o Sankhya já usa OAuth num endereço público | B11 |
+| 26 | Onde fica o Conexus Git | A estudar: avaliar se o mecanismo de hoje (repositórios Git no disco) é o melhor para o desenho novo; até lá, disco da VPS com cópia no R2 | ⏳ | O mecanismo de hoje pode não ser o melhor para o desenho novo | A6 |
+| 27 | Builder em processo próprio | — | ⏳ | Depende do refactor de sessões do Builder | A7 |
+| 28 | Tarefas, agendamentos, automações | Mastra sobre PostgreSQL, quando chegar a etapa de automações | ✅ | Usa o PostgreSQL que já existe, sem Redis | A8 |
+| 29 | Dados dos sistemas integrados | Lidos na hora, sem cópia, por enquanto | ✅ | Copiar dados só quando um app precisar de histórico que o sistema não tenha | A9 |
+| 30 | Quem cria empresa; quem conecta os sistemas | O operador cria a empresa; a dona conecta as integrações (ERP é só um exemplo: CRM, planilhas, APIs, MCP...) | ✅ | Na validação, o operador controla quem entra; integrações vão muito além do ERP | A10 |
+| 31 | Como uma empresa entra | Convite do operador, ou o operador cria o usuário: a decidir depois | ⏳ | A decidir com o fluxo de entrada | A11 |
+| 32 | Serviço de dados ao lado do banco | — | ⏳ | Recomendado; a forma final sai na implementação | runtime 9.3 |
+| 33 | Processos sem estado (trava por linha, tarefas, sessões do Builder recuperáveis) | — | ⏳ | A trava atual não funciona em banco gerenciado (P5, P6); a trava por linha funciona (P7) | deployment 9.4 |
+| 34 | Tudo na Cloudflare depois (Containers) | — | ⏳ | Só depois de testar onde a Cloudflare coloca o contêiner | deployment 9.5 |
+| 35 | Créditos (AWS Activate, Cloudflare for Startups) | Depois; o plano funciona sem eles | ⏳ | O plano funciona sem eles | deployment 9.7 |
 
 ---
 

@@ -17,7 +17,8 @@ The studies behind it:
 - [Deployment](../deployment/study.md): where each part runs, with vendor prices and a cost model
 
 The [target design](target-design.md) (in Portuguese) puts every decision below into one picture, with
-the flows from end to end.
+the flows from end to end. The approved ones are recorded in the [decision register](../../decisions/index.md)
+as C-042 to C-049, with C-015, C-024, C-030, C-037 and C-038 amended.
 
 ## 1. Decided
 
@@ -43,11 +44,10 @@ the flows from end to end.
 | The Builder's sandbox (B10) | E2B | 2026-10-09 |
 | Jobs, schedules, automations (A8) | Mastra on PostgreSQL at the automations milestone | 2026-10-09 |
 | Data of integrated systems (A9) | read through, no copy, for now | 2026-10-09 |
+| Neon projects (B3) | a control project (`hub`, `builder`) and one project per company, created by the operator with the company | 2026-10-09; target design §4 |
 | Who creates a company; who connects its systems (A10) | the operator creates the company; its owner connects the integrations. Integrations are every external system (ERP, CRM, spreadsheets, APIs, MCP), not only an ERP | 2026-10-09 |
 
 **Still open after 2026-10-09:**
-- **B3: one Neon project or one per company.** The target design §4 recommends a control project plus
-  one project per company.
 - **B11: systems with no public address.** To be seen per system; Sankhya offers OAuth on its public
   gateway and needs no tunnel.
 - **A6: Conexus Git.** Study whether today's mechanism, bare repositories on disk, is the best fit.
