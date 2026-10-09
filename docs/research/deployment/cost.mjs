@@ -18,6 +18,11 @@ const price = {
   r2PerGb: 0.015, e2bHour: 0.1332, e2bPro: 150, resendPro: 20, sentryTeam: 26,
   domain: 40 / 12 / BRL, // .com.br at registro.br, R$40 a year
   homeServer: { hardwareBrl: 2300, months: 24, powerBrl: 8 },
+  // Brazilian VPS in reais, converted. Hostinger VPS (São Paulo): renewal prices, the steady state after the
+  // 24-month promotion (third-party listings; promo KVM 2 R$43.99). Magalu Cloud: pay as you go, no commitment,
+  // block storage beyond the included disk not counted (its price was not verified).
+  hostinger: { kvm2: 77.99 / BRL, kvm4: 149.99 / BRL, kvm8: 259.99 / BRL },
+  magalu: { 'bv2-8-10': 119.99 / BRL, 'bv4-8-10': 149.99 / BRL, 'bv4-8-100': 219.99 / BRL },
 }
 
 // What each scenario assumes. Hub hours: the Hub keeps the control database awake (census E6, E7) unless the
@@ -42,6 +47,12 @@ const topologies = {
     compute: (price.homeServer.hardwareBrl / price.homeServer.months + price.homeServer.powerBrl) / BRL, database: 0 }),
   'T1 one VM (Lightsail), PostgreSQL on it, backups to R2': (s) => ({ compute: price.lightsail[s.vmSelf] * (s.companies > 20 ? 2 : 1), database: 0 }),
   'T2 one VM (Lightsail) + Neon Launch': (s) => ({ compute: price.lightsail[s.vmApp], database: neon(s, awakeHours.always) }),
+  'T1h Hostinger VPS (São Paulo), PostgreSQL on it, backups to R2': (s) => ({
+    compute: s.companies > 20 ? price.hostinger.kvm8 : s.companies > 4 ? price.hostinger.kvm4 : price.hostinger.kvm2, database: 0 }),
+  'T2h Hostinger VPS (São Paulo) + Neon Launch': (s) => ({
+    compute: s.companies > 20 ? price.hostinger.kvm4 : price.hostinger.kvm2, database: neon(s, awakeHours.always) }),
+  'T2m Magalu Cloud VM + Neon Launch': (s) => ({
+    compute: s.companies > 20 ? price.magalu['bv4-8-100'] : s.companies > 4 ? price.magalu['bv4-8-10'] : price.magalu['bv2-8-10'], database: neon(s, awakeHours.always) }),
   'T2b GCP VM + Cloud SQL (credits)': (s) => ({
     compute: (s.vmApp === '4gb' ? price.gcp.e2medium : price.gcp.e2standard2 * (s.vmApp === '16gb' ? 2 : 1)) + 40 * price.gcp.diskPerGb + price.gcp.ipv4,
     database: price.cloudSql.g1small * (s.companies > 20 ? 2 : 1) + s.dbGb * price.cloudSql.storagePerGb }),

@@ -52,10 +52,16 @@ hours.**
 - **Neon Launch in São Paulo**, one project with every database, for about $20 a month.
   - It has a 7-day point-in-time restore and a branch per developer and test.
   - It costs about the same as self-hosting, because self-hosting needs a VM twice the size.
-- **One AWS Lightsail VM in São Paulo**, 4 GB for about $24, running the Hub, the Builder and the
-  data service from one image, behind Cloudflare Tunnel with no open port.
+- **The cheapest São Paulo VM with root and Docker**, running the Hub, the Builder and the data
+  service from one image, behind Cloudflare Tunnel with no open port.
+  - Hostinger's VPS KVM 2 (8 GB) is about R$78 a month after its promotion.
+  - AWS Lightsail (4 GB, about $24) is the choice with no commitment and possible AWS credits.
+  - The VM holds nothing that cannot be rebuilt, so the cheapest one that passes the probe's
+    latency check is enough.
 - **Cloudflare** for the apps, DNS and TLS; **E2B** for the Builder.
-- The total is about **$80 a month (about R$400)**.
+- The total is about **R$360 a month with Hostinger, or R$400 with Lightsail** (T2h, T2).
+- Self-hosting PostgreSQL on the same VPS would save about R$100 a month (T1h). Section 9.1 says
+  why it is not worth that yet.
 
 **Rejected for company data:**
 - **A server at home** saves about $22 a month, with no SLA, residential power and links, and other
@@ -174,6 +180,15 @@ rechecked before money is committed.
 | 5 Sleeps | after "5 min inactivity"; the Hub keeps it awake (E6, E7) | no; free projects "are paused after 1 week of inactivity" | no | no | no | no |
 | 6 Bill jumps | compute hours if the Hub never idles; no SLA below Scale ($0.222/CU-hour) | point in time ($100), compute and IPv4 add-ons are "not covered by the Spend Cap"; restored custom roles lose their passwords | HA doubles it; PostgreSQL 16+ defaults to Enterprise Plus† | Multi-AZ doubles it | Starter "$72.00" | operator hours; a restore nobody tested |
 
+Two more were read on the operator's request (2026-10-09, search extracts†):
+- **Magalu Cloud DBaaS:**
+  - from "R$ 94,22" a month (1 vCPU, 4 GB, one zone);
+  - daily snapshots kept "de 1 a 30 dias";
+  - `CREATE DATABASE` works, but `CREATE ROLE` and point-in-time restore are not verified;
+  - only "PostgreSQL 16" is documented, and **the Hub needs 17** (hosting §2: `transaction_timeout`).
+- **Aurora Serverless v2:** "a minimum capacity of 0 ACUs enables … automatic pause and resume",
+  with a resume of "approximately 15 seconds".
+
 Neon also recommends "one project per user" when each customer needs its own restore
 ([multitenancy](https://neon.com/docs/guides/multitenancy)). Conexus gets the same from one
 project: restore a branch at the wanted time, then move that one company's database back with the
@@ -193,6 +208,10 @@ P3 procedure.
 | Hetzner | **no** (EU, US, Singapore) | CX23 €5.49† (EU) | CX33 €8.49† (EU) | about 128 ms round trip São Paulo to Ashburn†; prices raised twice in 2026†; US prices not verified |
 | Cloud Run | yes (Tier 2) | always on, 1 vCPU and 1 GiB, about $63 | — | affinity "best effort, not a guarantee"; requests up to 60 minutes |
 | Railway, Render | **no** South America region† | | | |
+| Hostinger VPS (KVM 2 / KVM 4) | yes, "São Paulo tier-3 data center"† | KVM 1: 1 vCPU, 4 GB | KVM 2: 2 vCPU, 8 GB, 100 GB, about R$44 a month on a 24-month term, renewing at about R$78†; KVM 4: 4 vCPU, 16 GB, about R$60, renewing at about R$150† | root, an Ubuntu template "with both docker-ce and docker-compose pre-installed"†; "weekly backups and one snapshot"†; pick São Paulo at setup |
+| Hostinger Cloud hosting (Startup, Enterprise) | Brazil listed† | — | — | **not a VM**: managed shared hosting; SSH "restricted to your home directory"; PostgreSQL only "on VPS Hosting"; "only allow for outgoing connections via WebSocket"†. Conexus cannot run on it |
+| Magalu Cloud, full table | yes, `br-se1` (Sudeste) and `br-ne1` (Fortaleza) | BV2-4-40 "R$ 102,99"† | BV2-8-10 R$119,99; BV4-8-10 "R$ 149,99" (the operator's screenshot matches)†; 10 GB of disk, more as block storage at a price not verified | pay as you go, no commitment, in reais; shared CPU; egress "R$ 0,10 / GiB"; VM objective "99,95%"† |
+| Locaweb VPS 8 GB | yes† | — | 4 vCPU, 8 GB, 200 GB: "R$ 105,90/mês" on 24 months, "renovação: R$ 145,90"† | older Xeon E5 v4; Docker not verified |
 | A server at home | yes | an N100 mini PC with 16 GB, R$1,731–2,799†, 7–12 W | | Enel SP residential about R$0.79/kWh before taxes†; no SLA; Cloudflare Tunnel needs no public IP |
 
 ### Processes that sleep when idle
@@ -241,8 +260,12 @@ indexed copies of the official documentation; recheck the prices before committi
   `CREATEROLE`, without superuser. P0 to P3 run on exactly that.
 - Every provider with a São Paulo region charges a premium for it: Google about 59% over Iowa,
   Akamai about 40%, Fly 1.6 times.
-- **Lightsail is the exception:** about $24 for 4 GB in São Paulo, with transfer and an IPv4
-  address included.
+- **The exceptions are Lightsail and the Brazilian VPS hosts.** Lightsail is about $24 for 4 GB in
+  São Paulo, with transfer and an IPv4 address included. Hostinger's VPS gives 8 GB in São Paulo for
+  about R$78 a month after its promotion (R$44 during a 24-month term). Magalu bills in reais with
+  no commitment.
+- **"Cloud" in a hosting plan's name does not mean a VM.** Hostinger's Cloud plans are shared
+  hosting with no root, no Docker and no PostgreSQL.
 
 **Where they differ:**
 - **The point-in-time restore.** Neon includes it for a few cents per GB. Supabase charges $100 a
@@ -406,20 +429,39 @@ infrastructure code must change so the place can change later.
    - Options: A, Neon Launch in São Paulo; B, PostgreSQL on our VM with backups to object storage;
      C, Supabase Pro; D, Cloud SQL, paid by Google credits.
    - Recommendation: **A**.
-     - It costs about the same as B, because B needs a VM twice the size.
+     - On Lightsail it costs about the same as B, because B needs a VM twice the size. On a
+       Hostinger VPS, B is about R$100 a month cheaper (T1h against T2h).
+     - That R$100 buys three things:
+       - a separate failure domain: a lost VM loses no data;
+       - a tested point-in-time restore;
+       - no hours spent on backups, upgrades and restore drills.
+
+       Revisit when someone can own those hours, or at about 100 companies, where self-hosting
+       saves about $120 a month.
      - It restores to any point of the last 7 days, gives a branch per developer and test, and
        takes no operator hours for patches or backups.
      - C restores only from a daily backup unless $100 a month is added.
      - D costs about twice as much and does not sleep.
      - The way out of A is P3: dump and restore one company at a time.
 2. **Where Conexus's processes run now.**
-   - Options: A, one AWS Lightsail VM in São Paulo; B, a Google VM paid by Start credits; C, Fly.io
-     in São Paulo; D, a server at home.
-   - Recommendation: **A**.
-     - It is the cheapest São Paulo option with IPv4 and transfer included.
-     - It is in the same AWS region as Neon's São Paulo.
-     - B is right only if Google accepts the application: its Start tier asks for a startup
+   - Options:
+     - A: a Hostinger VPS KVM 2 in São Paulo;
+     - B: AWS Lightsail in São Paulo;
+     - C: a Magalu Cloud VM;
+     - D: a Google VM paid by Start credits;
+     - E: a server at home.
+   - Recommendation: **A or B, whichever passes the probe's latency check to the database.**
+     - The VM holds nothing irreplaceable (the data is in Neon, Git is copied to R2), and the image
+       moves anywhere, so price decides.
+     - A is the cheapest with 8 GB (about R$78 a month after a 24-month promotion at R$44).
+     - B costs about R$120 for 4 GB, has no commitment, may be paid by AWS credits, and sits in
+       the same AWS region as Neon.
+     - C bills in reais with no commitment, but its 10 GB disk needs block storage at a price not
+       yet verified.
+     - D is right only if Google accepts the application: its Start tier asks for a startup
        "planning to seek venture funding soon".
+     - **Hostinger's "Cloud" plans are not an option:** they are shared hosting with no root,
+       Docker or PostgreSQL.
 3. **A server at home.** Recommendation: **not for company data**; it is fine as a development
    machine.
 4. **Stateless processes (section 8, items 2 to 4).** Recommendation: **yes, in the first
@@ -456,7 +498,7 @@ flowchart LR
     tunnel["Tunnel"]
     r2[("R2<br/>Git backups · files")]
   end
-  subgraph vm["AWS Lightsail, São Paulo · Docker Compose · no open port"]
+  subgraph vm["One VPS in São Paulo (Hostinger or Lightsail) · Docker Compose · no open port"]
     cfd["cloudflared"]
     hub["Hub<br/>Better Auth · web app"]
     builder["Builder<br/>Mastra"]
@@ -491,7 +533,7 @@ flowchart LR
 
 | Part | Service | Why | Month at 4 companies | Way out |
 | --- | --- | --- | --- | --- |
-| Hub, Builder, data service | one AWS Lightsail 4 GB VM in São Paulo, Docker Compose | cheapest São Paulo VM with IPv4 and transfer included | about $24 | the same image on any VM, or Cloudflare Containers (T4) |
+| Hub, Builder, data service | one VPS in São Paulo with root and Docker Compose: Hostinger KVM 2, or Lightsail 4 GB | it holds nothing irreplaceable, so price decides | about R$78 (Hostinger after the promotion) or $24 (Lightsail) | the same image on any VM, or Cloudflare Containers (T4) |
 | Control and company databases | Neon Launch, `aws-sa-east-1`, one project | point-in-time restore, branches, no operator hours | about $20 | P3 to any PostgreSQL |
 | Generated apps, their files and hosts | Workers for Platforms | decided (app runtime 9.1) | $25 (+$5 Workers Paid, not verified) | the isolated-vm executor (app runtime 9.2) |
 | DNS, TLS, the path in | Cloudflare DNS, Tunnel, Access service token | no open port, no public database | $0 | any reverse proxy |
@@ -514,6 +556,9 @@ section 8.
 | T1 one VM (Lightsail), PostgreSQL on it, backups to R2 | $79 | $140 | $535 |
 | **T2 one VM (Lightsail) + Neon Launch** | **$80** | **$145** | **$596** |
 | T2b Google VM + Cloud SQL (credits) | $123 | $186 | $625 |
+| T1h Hostinger VPS (São Paulo), PostgreSQL on it, backups to R2 | $52 | $87 | $422 |
+| T2h Hostinger VPS (São Paulo) + Neon Launch | $72 | $117 | $544 |
+| T2m Magalu Cloud VM + Neon Launch | $80 | $132 | $558 |
 | T2c one VM (Lightsail) + Supabase Pro with point-in-time restore | $190 | $231 | $583 |
 | T3 refactored to idle: Cloud Run + Neon | $97 | $165 | $596 |
 | T4 refactored to idle: all on Cloudflare (Containers) + Neon | $57 | $102 | $637 |
@@ -521,6 +566,8 @@ section 8.
 **What the model says:**
 - At four companies the spread between real options is about $25 a month. Reliability and the
   operator's hours decide.
+- The cheapest real option is a Hostinger VPS with PostgreSQL on it (T1h, about R$260). The
+  recommended one adds Neon for about R$100 more (T2h, about R$360).
 - Cloud Run does not pay in São Paulo: Tier 2 prices, and a warm instance for the Builder.
 - At 100 companies E2B is about half of every total. The Builder's sandbox time is the cost to
   manage then (pause, share, or run them ourselves), not the host.
