@@ -38,7 +38,7 @@ endereço próprio.
 
 | Parte | O que faz | Onde roda | Status |
 | --- | --- | --- | --- |
-| **Hub** | Login, empresas, pessoas, permissões, conexões com ERP, contas de modelo, o site da Conexus | VPS Hostinger em São Paulo, container | 🔨 existe; muda para o novo desenho |
+| **Hub** | Login, empresas, pessoas, permissões, integrações com os sistemas da empresa, contas de modelo, o site da Conexus | VPS Hostinger em São Paulo, container | 🔨 existe; muda para o novo desenho |
 | **Builder** | O agente que cria e altera apps (Mastra) | Mesma VPS, container próprio ou dentro do Hub (⏳ A7) | 🔨 existe dentro do Hub |
 | **Serviço de dados** | Executa as consultas dos apps no banco da empresa, com o login de cada app | Mesma VPS, container | 🆕 (⏳ decisão 3 do runtime) |
 | **Apps gerados** | Telas e handlers de cada app | Cloudflare Workers for Platforms, longe da VPS que guarda os segredos | 🆕 (✅ A1, reconfirmado) |
@@ -98,7 +98,7 @@ flowchart LR
     emp["Funcionário"]
   end
   subgraph cf["Cloudflare"]
-    dns["DNS + HTTPS<br/>hub.conexus.example<br/>*.conexusapps.example"]
+    dns["DNS + HTTPS<br/>hub.conexus.example<br/>*.conexus.example"]
     dispatch["Dispatch Worker"]
     userw["User Workers<br/>um por versão de app"]
     outbound["Outbound Worker<br/>recusa toda rede"]
@@ -119,7 +119,7 @@ flowchart LR
   end
   e2b["E2B<br/>máquinas do Builder"]
   models["Provedores de modelo<br/>(conta da empresa)"]
-  erp["ERP da empresa"]
+  erp["Sistemas da empresa<br/>ERP · CRM · planilhas · APIs · MCP"]
   mail["Resend"]
   obs["Sentry · Grafana Cloud"]
   op & owner & creator --> dns
@@ -150,7 +150,7 @@ flowchart LR
 - Funcionários que usam um app entram pelo endereço do app. Lá, o Dispatch Worker chama o código do
   app na própria Cloudflare.
 - O app nunca fala com o banco nem com a internet. Ele pede ao Dispatch Worker, que leva o pedido ao
-  serviço de dados (para dados) ou ao Hub (para o ERP).
+  serviço de dados (para dados) ou ao Hub (para os sistemas integrados da empresa).
 - A VPS não guarda nada que não se recupere: os dados estão no Neon, e o Git tem cópia no R2.
 
 ---
@@ -161,7 +161,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | Contas, sessões, convites (Better Auth) | banco `hub` | Hub | por Workspace (organização do Better Auth = Workspace) |
 | Workspaces, membros, papéis, Projetos, acessos | banco `hub` | Hub (`hub_runtime`) | checagem do Hub + RLS por `workspace_id` |
-| Conexões com ERP (credenciais **seladas**) | banco `hub` | Hub, só no executor de conectores (C-030) | checagem + RLS; a credencial nunca sai do Hub |
+| Integrações com sistemas da empresa (credenciais **seladas**) | banco `hub` | Hub, só no executor de conectores (C-030) | checagem + RLS; a credencial nunca sai do Hub |
 | Contas de modelo da empresa (chaves seladas) | banco `hub` | Hub, nas chamadas de modelo | checagem + RLS |
 | Revisões seladas, ponteiro do Preview e do publicado | banco `hub` (registro) | Hub | checagem + RLS |
 | Registro de alocação dos apps (banco, schema, logins, senhas seladas) | banco `hub` | Hub (provisionador); o serviço de dados só lê | checagem + RLS |
@@ -169,32 +169,54 @@ flowchart LR
 | Código-fonte dos apps | Conexus Git, disco da VPS, cópia noturna no R2 | Builder | um repositório por Projeto |
 | Código publicado dos apps | Cloudflare (um user Worker por versão) | Hub sobe; Cloudflare executa | um script por versão; o app não vê os outros |
 | **Dados dos apps** | **um banco por empresa** no Neon; dentro dele, schema `p_<projeto>_preview` e `p_<projeto>_published` | serviço de dados, com o **login do próprio app** | bancos separados; `CONNECT` revogado; login por app |
-| Dados do ERP | **no ERP** (lidos na hora, não copiados) | Hub, pelo executor de conectores | conexão do Workspace, ligada ao Projeto pelo dono |
+| Dados dos sistemas integrados (ERP, CRM, planilhas, APIs) | **no próprio sistema** (lidos na hora, não copiados, por enquanto) | Hub, pelo executor de conectores | conexão do Workspace, ligada ao Projeto pelo dono |
 | Segredos da plataforma | arquivos na VPS (`*_FILE`, modo 600); segredos do Dispatch Worker na Cloudflare | cada processo, só o seu | — |
 | Logs e erros | Grafana Cloud, Sentry | — | sem conteúdo de empresa; só o que a tabela de redação permite |
 
-**Como o projeto Neon fica por dentro** (exemplo com duas empresas):
+**Como os bancos ficam no Neon** (recomendação da decisão 16, exemplo com duas empresas):
 
 ```mermaid
 flowchart TB
-  subgraph neon["Projeto Neon · São Paulo · branch main"]
+  subgraph ctl["Projeto Neon conexus-controle · São Paulo"]
     subgraph hubdb["banco hub"]
       h1["tabelas do Hub<br/>FORCE RLS por workspace_id"]
     end
     subgraph bdb["banco builder"]
       b1["43 tabelas do Mastra<br/>organizationId = Workspace"]
     end
+  end
+  subgraph pa["Projeto Neon aurora · São Paulo"]
     subgraph coA["banco co_aurora (Padaria Aurora)"]
       a1["schema p_pedidos_preview"]
       a2["schema p_pedidos_published"]
       a3["schema p_estoque_preview"]
     end
+  end
+  subgraph pb["Projeto Neon boavista · São Paulo"]
     subgraph coB["banco co_boavista (Oficina Boa Vista)"]
       b2["schema p_ordens_preview"]
       b3["schema p_ordens_published"]
     end
   end
 ```
+
+### Decisão 16: um projeto Neon para tudo, ou um por empresa?
+
+| Situação | A. Um projeto para tudo | **C. Um projeto de controle + um por empresa** |
+| --- | --- | --- |
+| Limite do plano grátis (100 horas de computação, 0,5–1 GB por projeto) | dividido entre todos: as conversas do Builder e os dados de todas as empresas disputam o mesmo 0,5–1 GB | cada empresa tem o seu; o banco de uma empresa só gasta horas quando os apps dela estão em uso |
+| A Padaria usa muito num dia | o mesmo computador atende todos, então a Oficina sente | só o computador da Padaria trabalha mais |
+| Voltar os dados da Padaria para ontem | fazer uma cópia do projeto inteiro no horário e trazer só o banco da Padaria de volta (procedimento P3) | restaurar o projeto da Padaria direto, sem tocar na Oficina |
+| Bruno pede para apagar tudo da Oficina (LGPD) | o banco some, mas continua no histórico do projeto por 6 horas a 7 dias | apaga-se o projeto da Oficina: dados e histórico somem juntos |
+| Senha de administrador do banco | uma só, para todas as empresas | uma por empresa: um vazamento atinge só aquela |
+| Custo no plano Launch | os apps usam o computador que o Hub já mantém ligado: quase nada a mais | cada empresa paga as horas de uso dos seus apps: cerca de R$125 a mais por mês com 4 empresas usando o dia inteiro; R$0 enquanto couber no grátis |
+| Trabalho ao criar uma empresa | nenhum além do SQL que o provisionador já faz | o operador cria o projeto no painel do Neon (ou com um script) e cola o endereço no Hub; a API do Neon fica fora do produto (direção 3) |
+
+**Recomendação: C.**
+- Você quer começar no grátis, e em A o 0,5–1 GB seria dividido por tudo.
+- C restaura e apaga uma empresa sem tocar nas outras.
+- Criar a empresa já é um ato seu (decisão 30), então criar o projeto dela entra no mesmo passo.
+- Num PostgreSQL próprio, C vira só "outro endereço por empresa": o código é o mesmo.
 
 **Os papéis (logins) do PostgreSQL:**
 
@@ -222,7 +244,7 @@ linha da coluna "não pode", com os dois tipos de admin.
 | Builder, da plataforma | E2B, uma máquina por conversa | modelos chamados pelo Hub, que guarda as chaves | a checagem roda na máquina do E2B, não na VPS | Builder 9.4 |
 | Internet, dos servidores | nenhuma porta aberta na VPS (túnel) | Cloudflare na frente (DDoS, HTTPS) | — | ⏳ |
 | Internet, do banco | senha forte (entropia ≥ 60 bits exigida pelo Neon) e TLS | só o serviço de dados tem as senhas dos apps | restrição por IP **só no plano Scale** do Neon | ver §11 |
-| Site da Conexus, dos apps | apps em **outro domínio** (`conexusapps.example`) | cookies do Hub não vão para os apps | — | 🟡 §9 |
+| Site da Conexus, dos apps (mesmo domínio, decisão 19) | cookies do Hub com prefixo `__Host-`: valem só para `hub.<domínio>` e nenhum app consegue lê-los nem sobrescrevê-los | toda requisição que altera algo no Hub confere a origem (`Origin`), pois uma página de app é do mesmo site e o navegador manda os cookies `SameSite` | nomes reservados que um app não pode usar (`hub`, `api`, `data`, `www`, `mail`) | ⏳ implementação |
 
 **A regra de RLS precisa do `nullif`.** Numa conexão reaproveitada, como no pool do Hub, depois que
 alguma transação definiu a empresa, o valor volta como texto vazio, não nulo. Sem o `nullif`, a
@@ -244,6 +266,7 @@ sequenceDiagram
   participant Mail as Resend
   Op->>Hub: criar Workspace "Padaria Aurora"
   Hub->>DB: Workspace + organização do Better Auth
+  Op->>Hub: endereço do projeto Neon da empresa, criado no painel do Neon (decisão 16)
   Op->>Hub: convidar ana@padaria-aurora.example como dona
   Hub->>DB: convite com validade
   Hub->>Mail: e-mail de convite (sendInvitationEmail)
@@ -266,10 +289,10 @@ sequenceDiagram
   actor Ana as Ana (dona)
   participant Hub as Hub
   participant DB as banco hub
-  participant ERP as ERP da Padaria
+  participant ERP as Sistemas da Padaria (ERP, planilhas, APIs)
   Ana->>Hub: conectar a conta de modelo da empresa (chave)
   Hub->>DB: chave selada, escopo Workspace
-  Ana->>Hub: conectar o ERP (endereço + credencial)
+  Ana->>Hub: conectar um sistema da empresa (ERP, CRM, planilha, API, servidor MCP)
   Hub->>ERP: teste de conexão pelo executor de conectores
   Hub->>DB: credencial selada, escopo Workspace
   Ana->>Hub: convidar Carlos (criador) e Duda (funcionária)
@@ -278,7 +301,7 @@ sequenceDiagram
 | Passo | O que muda |
 | --- | --- |
 | Conta de modelo da empresa | 🔨 existe para pessoas; a conta da empresa está em construção na wave 0017 com escopo de instalação; 🆕 passa a ter escopo de **Workspace** (✅ tenancy 9.2) |
-| Conectar o ERP | 🔨 existe só para o administrador; 🟡 a dona conecta (A10). ERP sem endereço público: um túnel da Cloudflare rodando na empresa (🟡 B11) |
+| Conectar sistemas da empresa | 🔨 o conector já é genérico (conexão, vínculo ao Projeto, escopo por chamada), e o primeiro é o Sankhya; o roadmap prevê mais integrações, sincronização, notificações e automações. ✅ a dona conecta (A10). Acesso a sistemas sem endereço público: ⏳ a ver por sistema (o Sankhya usa OAuth no gateway público e dispensa túnel) |
 | Convidar pessoas | 🆕 pelo Better Auth, dentro do Workspace |
 
 ### F3. Carlos cria um app conversando com o Builder
@@ -330,12 +353,12 @@ sequenceDiagram
   participant Hub as Hub (registro + provisionador)
   participant N as Neon
   participant CF as Cloudflare (Workers for Platforms)
-  Hub->>N: primeiro app da empresa? criar o banco co_aurora (admin)
+  Hub->>N: primeiro app da empresa? criar o banco co_aurora no projeto dela (admin)
   Hub->>N: criar schema p_pedidos_preview + papéis owner e login do app
   Hub->>N: aplicar as migrações do app como owner (dados de teste)
   Hub->>Hub: guardar a alocação, com a senha do login selada
   Hub->>CF: subir o user Worker desta revisão (handlers + telas)
-  Hub->>CF: apontar preview-<revisão>.conexusapps.example para ele
+  Hub->>CF: apontar preview-<revisão>.conexus.example para ele
   Carlos->>CF: abre o Preview e testa
 ```
 
@@ -360,8 +383,8 @@ sequenceDiagram
   Ana->>Hub: publicar a revisão aprovada
   Hub->>N: schema p_pedidos_published + papéis (primeira vez), migrações novas
   Hub->>CF: user Worker da versão publicada
-  Hub->>CF: pedidos-aurora.conexusapps.example → versão publicada
-  Ana->>Hub: ligar a conexão do ERP ao Projeto, dar acesso à Duda
+  Hub->>CF: pedidos-aurora.conexus.example → versão publicada
+  Ana->>Hub: ligar as integrações ao Projeto, dar acesso à Duda
 ```
 
 | Passo | O que muda |
@@ -381,8 +404,8 @@ sequenceDiagram
   participant U as User Worker (app Pedidos)
   participant S as Serviço de dados
   participant N as banco co_aurora
-  participant ERP as ERP da Padaria
-  Duda->>D: pedidos-aurora.conexusapps.example (sem sessão)
+  participant ERP as Sistema integrado (ex.: ERP)
+  Duda->>D: pedidos-aurora.conexus.example (sem sessão)
   D-->>Duda: redireciona para entrar no Hub
   Duda->>Hub: entra, o Hub devolve um código de uso único
   Duda->>D: volta com o código, o app grava a própria sessão
@@ -407,7 +430,7 @@ sequenceDiagram
   recusa qualquer outro endereço.
 - **Só o serviço de dados tem as senhas dos apps.** Ele usa o login de um app só depois de conferir o
   bilhete daquele app.
-- **O ERP só é lido se a dona ligou aquela conexão àquele Projeto.**
+- **Um sistema integrado só é lido se a dona ligou aquela conexão àquele Projeto.**
 
 | Passo | O que muda |
 | --- | --- |
@@ -435,7 +458,7 @@ Hoje, um Projeto com app recusa editar uma migração que já foi aplicada, para
 | **Backup do banco** | Do Neon: no grátis volta até 6 horas; no Launch, até 7 dias. Mais um `pg_dump` noturno por empresa e dos bancos `hub` e `builder` para o R2 | 🆕 |
 | **Backup do código** | Os repositórios do Conexus Git vão para o R2 toda noite | 🆕 |
 | **Restaurar uma empresa** | 1. Cria-se um branch do Neon no momento desejado. 2. O banco daquela empresa é copiado de volta (procedimento P3). 3. As sessões são invalidadas (segurança §10). | 🆕 ensaio antes da primeira empresa, depois a cada trimestre |
-| **Uma empresa sai** | 1. Apagar as linhas do Workspace no `hub`. 2. Apagar as do Mastra no `builder`, por `organizationId`. 3. `drop database` da empresa e dos seus papéis (provado em P3). 4. Apagar scripts e endereços na Cloudflare e os repositórios Git. | 🆕 |
+| **Uma empresa sai** | 1. Apagar as linhas do Workspace no `hub`. 2. Apagar as do Mastra no `builder`, por `organizationId`. 3. Apagar o projeto Neon da empresa: dados e histórico (com um projeto só, `drop database` e papéis, provado em P3). 4. Apagar scripts e endereços na Cloudflare e os repositórios Git. | 🆕 |
 | **Monitorar** | Erros no Sentry; logs e métricas no Grafana Cloud; teste de disponibilidade; alerta de uso do Neon perto das 100 horas do plano grátis | 🆕 |
 
 ---
@@ -447,12 +470,12 @@ Hoje, um Projeto com app recusa editar uma migração que já foi aplicada, para
 | Workspace | `aurora` (um uuid) | `boavista` (um uuid) |
 | Dono | Ana | Bruno |
 | Conta de modelo | chave da Padaria, selada no `hub` | chave da Oficina, selada no `hub` |
-| ERP | conexão "erp", selada no `hub` | não tem |
+| Integrações | ERP e planilha de preços, seladas no `hub` | agenda de clientes (API), selada no `hub` |
 | Apps | "Pedidos do Balcão" (publicado), "Estoque" (em Preview) | "Ordens de Serviço" (publicado) |
 | Banco no Neon | `co_aurora` | `co_boavista` |
 | Schemas | `p_pedidos_preview`, `p_pedidos_published`, `p_estoque_preview` | `p_ordens_preview`, `p_ordens_published` |
 | Logins | um por schema, como `co_aurora_pedidos_published_rt` | `co_boavista_ordens_published_rt`, ... |
-| Endereços | `pedidos-aurora.conexusapps.example` | `ordens-boavista.conexusapps.example` |
+| Endereços | `pedidos-aurora.conexus.example` | `ordens-boavista.conexus.example` |
 | Conversas do Builder | banco `builder`, `organizationId = aurora` | banco `builder`, `organizationId = boavista` |
 | Código-fonte | Conexus Git: um repositório por Projeto | idem |
 
@@ -491,7 +514,6 @@ Modelo: `node docs/research/deployment/cost.mjs`. Os preços são de páginas do
 | Logs e métricas | Grafana Cloud Free | **R$0** | 10 mil séries, 50 GB de logs, 14 dias | — |
 | Build e imagens | GitHub Actions + GHCR | **R$0** | grátis para repositório público | minutos pagos se o repositório for privado |
 | Domínio principal | já registrado na Hostinger | já pago | — | — |
-| Segundo domínio, para os apps (decisão 19) | `.com.br` no Registro.br | **cerca de R$3** (R$40 por ano) | — | — |
 | Modelos de IA | conta de cada empresa (C-032) | **R$0** para a Conexus | — | — |
 
 **Totais com 4 empresas:**
@@ -533,26 +555,26 @@ mensalidade mínima).
 | 13 | Independência de provedor | Protocolo padrão primeiro; porta só onde não há padrão, com adaptador local | ✅ | direção 3 |
 | 14 | Servidor | VPS Hostinger KVM 2 em São Paulo, um mês de teste e depois 12 meses | ✅ | B1, deployment 9.2 |
 | 15 | Banco | Neon São Paulo, começando no grátis | ✅ | B2, deployment 9.1 |
-| 16 | Bancos das empresas | No mesmo projeto Neon, por enquanto | 🟡 | B3, deployment 9.6 |
-| 17 | Armazenamento de arquivos e backups | R2, com backups cifrados pela chave pública do operador; Magalu Object Storage se precisar ficar no Brasil | 🟡 | B4, §11 |
-| 18 | DNS, HTTPS, túnel | Cloudflare; domínio registrado na Hostinger, DNS na Cloudflare | 🟡 | B5 |
-| 19 | **Formato dos endereços** | Hub em `hub.<domínio>`; apps num **segundo domínio** (`<app>-<empresa>.<domínio-dos-apps>`): isola os cookies e cabe no certificado grátis, que cobre só um nível de subdomínio | 🟡 novo | hosting 9.6 |
-| 20 | E-mail | Resend grátis | 🟡 | B6 |
-| 21 | Segredos | Arquivos na VPS (modo 600, convenção `*_FILE`), colocados pelo deploy; a Hostinger não tem cofre de segredos | 🟡 | B7 (ajustado à Hostinger) |
-| 22 | Build e deploy | GitHub Actions + GHCR | 🟡 | B8 |
-| 23 | Observabilidade | Sentry + Grafana Cloud grátis | 🟡 | B9 |
-| 24 | Máquinas do Builder | E2B | 🟡 | B10 |
-| 25 | ERP sem endereço público | Túnel da Cloudflare rodando na empresa | 🟡 | B11 |
-| 26 | Onde fica o Conexus Git | Disco da VPS, cópia no R2 | 🟡 | A6 |
+| 16 | Bancos das empresas | **Um projeto Neon de controle e um projeto por empresa** (exemplo em §4) | 🟡 | B3, §4 |
+| 17 | Armazenamento de arquivos e backups | R2, com backups cifrados pela chave pública do operador; Magalu Object Storage se precisar ficar no Brasil | ✅ | B4, §11 |
+| 18 | DNS, HTTPS, túnel | Cloudflare; domínio registrado na Hostinger, DNS na Cloudflare | ✅ | B5 |
+| 19 | Formato dos endereços | **Um domínio só:** Hub em `hub.<domínio>`, apps em `<app>-<empresa>.<domínio>` (um nível, cabe no certificado grátis). Sem segundo domínio, o Hub precisa de cookies `__Host-` e checagem de origem (§5) | ✅ | hosting 9.6 |
+| 20 | E-mail | Resend grátis | ✅ | B6 |
+| 21 | Segredos | Arquivos na VPS (modo 600, convenção `*_FILE`), colocados pelo deploy; a Hostinger não tem cofre de segredos | ✅ | B7 (ajustado à Hostinger) |
+| 22 | Build e deploy | GitHub Actions + GHCR | ✅ | B8 |
+| 23 | Observabilidade | Sentry + Grafana Cloud grátis | ✅ | B9 |
+| 24 | Máquinas do Builder | E2B | ✅ | B10 |
+| 25 | Sistemas da empresa sem endereço público | A ver por sistema. O Sankhya libera OAuth no gateway público e dispensa túnel; o túnel fica como opção para sistemas que não tenham endereço público | ⏳ | B11 |
+| 26 | Onde fica o Conexus Git | A estudar: avaliar se o mecanismo de hoje (repositórios Git no disco) é o melhor para o desenho novo; até lá, disco da VPS com cópia no R2 | ⏳ | A6 |
 | 27 | Builder em processo próprio | — | ⏳ | A7 |
-| 28 | Tarefas, agendamentos, automações | Mastra sobre PostgreSQL, quando chegar a etapa de automações | 🟡 | A8 |
-| 29 | Dados do ERP | Lidos na hora, sem cópia | 🟡 | A9 |
-| 30 | Quem cria empresa; quem conecta o ERP | O operador cria; a dona conecta | 🟡 | A10 |
-| 31 | Como uma empresa entra | Por convite do operador | 🟡 | A11 |
+| 28 | Tarefas, agendamentos, automações | Mastra sobre PostgreSQL, quando chegar a etapa de automações | ✅ | A8 |
+| 29 | Dados dos sistemas integrados | Lidos na hora, sem cópia, por enquanto | ✅ | A9 |
+| 30 | Quem cria empresa; quem conecta os sistemas | O operador cria a empresa; a dona conecta as integrações (ERP é só um exemplo: CRM, planilhas, APIs, MCP...) | ✅ | A10 |
+| 31 | Como uma empresa entra | Convite do operador, ou o operador cria o usuário: a decidir depois | ⏳ | A11 |
 | 32 | Serviço de dados ao lado do banco | — | ⏳ | runtime 9.3 |
 | 33 | Processos sem estado (trava por linha, tarefas, sessões do Builder recuperáveis) | — | ⏳ | deployment 9.4 |
 | 34 | Tudo na Cloudflare depois (Containers) | — | ⏳ | deployment 9.5 |
-| 35 | Créditos (AWS Activate, Cloudflare for Startups) | Pedir; o plano funciona sem eles | 🟡 | deployment 9.7 |
+| 35 | Créditos (AWS Activate, Cloudflare for Startups) | Depois; o plano funciona sem eles | ⏳ | deployment 9.7 |
 
 ---
 
@@ -605,6 +627,9 @@ Separei o que foi demonstrado do que é risco.
   serviço de dados tem as senhas.
 
 **Riscos e limites:**
+- **Apps e Hub no mesmo domínio** (decisão 19). Uma página de app é do mesmo site que o Hub, então o
+  navegador manda os cookies do Hub junto. O Hub precisa de cookies `__Host-`, checagem de origem em
+  tudo que altera dados e nomes de app reservados (§5).
 - **O banco no Neon fica acessível pela internet** nos planos Free e Launch. A proteção é senha forte
   e TLS; a restrição por IP só existe no plano Scale. Se a VPS for invadida, todas as senhas de apps
   estão nela. Hospedar o banco na própria VPS (T1h) deixaria o banco fechado, ao custo de cuidar dos

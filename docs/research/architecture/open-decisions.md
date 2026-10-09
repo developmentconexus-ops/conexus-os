@@ -32,6 +32,27 @@ the flows from end to end.
 | What a span keeps | Metadata only; content only by a time-boxed administrator capture | Builder service 9.2 |
 | How the Builder reaches models | Through the Hub, which admits the run and holds every credential | Builder service 9.4 |
 | When the Builder leaves the Hub process | Handed to the architecture session | Builder service 9.3 |
+| App runtime | Workers for Platforms, re-confirmed after the VPS choice | app runtime 9.1, §12 |
+| Files and backups (B4) | R2; backups encrypted with the operator's public key before upload; Magalu Object Storage if a company needs its data in Brazil | 2026-10-09; [target design](target-design.md) §11 |
+| DNS, TLS, tunnel (B5) | Cloudflare; the domain stays registered at Hostinger | 2026-10-09 |
+| Address shape (hosting 9.6) | **One domain:** `hub.<domain>` and `<app>-<company>.<domain>`. No second domain, so the Hub uses `__Host-` cookies, checks `Origin` on every state change and reserves names | 2026-10-09; target design §5 |
+| Mail (B6) | Resend, free plan | 2026-10-09 |
+| Secrets (B7) | files on the VPS (`*_FILE`, mode 600), placed by the deploy | 2026-10-09 |
+| Build and deploy (B8) | GitHub Actions + GHCR | 2026-10-09 |
+| Observability (B9) | Sentry and Grafana Cloud free tiers | 2026-10-09 |
+| The Builder's sandbox (B10) | E2B | 2026-10-09 |
+| Jobs, schedules, automations (A8) | Mastra on PostgreSQL at the automations milestone | 2026-10-09 |
+| Data of integrated systems (A9) | read through, no copy, for now | 2026-10-09 |
+| Who creates a company; who connects its systems (A10) | the operator creates the company; its owner connects the integrations. Integrations are every external system (ERP, CRM, spreadsheets, APIs, MCP), not only an ERP | 2026-10-09 |
+
+**Still open after 2026-10-09:**
+- **B3: one Neon project or one per company.** The target design §4 recommends a control project plus
+  one project per company.
+- **B11: systems with no public address.** To be seen per system; Sankhya offers OAuth on its public
+  gateway and needs no tunnel.
+- **A6: Conexus Git.** Study whether today's mechanism, bare repositories on disk, is the best fit.
+- **A11: invitation, or the operator creates the user.** Decided later.
+- **Credits.** Later.
 
 ## 2. Directions the operator gave on 2026-10-09
 
