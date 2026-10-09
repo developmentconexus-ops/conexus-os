@@ -230,7 +230,8 @@ on screen.
 `platform` and `http` import no application module, and the composition root imports only what
 `scripts/check-import-law.mjs` allows. An owner consumes another owner's declared public interface, while composition wires module
 instances; private files and undeclared dependencies are forbidden, including type-only imports.
-The import law declares the known owners, public entries and dependencies. HTTP consumes only the
+The import law declares the known owners, public entries and dependencies. Technical platform files
+form a closed inventory enforced by the same law. HTTP consumes only the
 IAM session types and technical token hashing, never IAM admission or database operations.
 
 ## 6. Runtime view

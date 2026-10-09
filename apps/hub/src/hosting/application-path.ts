@@ -11,7 +11,7 @@ export type AppPath =
 const NOT_FOUND: AppPath = { kind: 'not-found' }
 const APP_SHELL: AppPath = { kind: 'app-shell' }
 
-const decodedSegments = (pathname: string): string[] | null => {
+function decodedSegments(pathname: string): string[] | null {
   let decoded: string
   try {
     decoded = decodeURIComponent(pathname.slice(1))
@@ -28,7 +28,7 @@ const decodedSegments = (pathname: string): string[] | null => {
  * index.html for a client route, or 404. The Prévia, the app host and the boot server share it.
  * `isDeclared` says whether a decoded relative path is a file of the app.
  */
-export const classifyAppPath = (method: string, pathname: string, isDeclared: (path: string) => boolean): AppPath => {
+export function classifyAppPath(method: string, pathname: string, isDeclared: (path: string) => boolean): AppPath {
   if ((method !== 'GET' && method !== 'HEAD') || !pathname.startsWith('/')) return NOT_FOUND
   if (pathname === '/') return { kind: 'file', path: ENTRY_PATH }
   const segments = decodedSegments(pathname)

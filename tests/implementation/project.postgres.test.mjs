@@ -5,6 +5,7 @@ import { loginPoolOf, query } from './hub-database.mjs'
 import { hubModuleUrl } from './hub-build.mjs'
 import { ID, STARTER, setupProjects } from './project-fixture.mjs'
 
+const { gitUnavailableAs } = await import(hubModuleUrl('builder/public.js'))
 const { Failure } = await import(hubModuleUrl('platform/failure.js'))
 const { admitSystem, admitWorkspace } = await import(hubModuleUrl('identity-access/admission.js'))
 const { purgeProject } = await import(hubModuleUrl('identity-access/application-access.js'))
@@ -41,7 +42,7 @@ test('createProject reaches the same project id after a crash between Git and co
   let failNext = true
   const { connection, store } = await setupProjects(t, 'conexus_prj03_crash', { repository: { prepare: async (projectId) => {
     prepared.push(projectId)
-    if (failNext) { failNext = false; throw new Failure('CONEXUS_GIT_FAILED') }
+    if (failNext) { failNext = false; gitUnavailableAs('PROJECT_REPOSITORY_UNAVAILABLE')(new Failure('CONEXUS_GIT_FAILED')) }
     return STARTER
   } } })
   await assert.rejects(create(store, ID.owner, 'crash'), { id: 'PROJECT_REPOSITORY_UNAVAILABLE', details: { reason: 'CONEXUS_GIT_FAILED' } })

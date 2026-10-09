@@ -117,11 +117,14 @@ test('a missing repository is a named Git failure, an empty one has no main, and
 })
 
 test('a Git read answers its named cause as the unavailable row and lets any other fault through unnamed', async () => {
-  const { gitUnavailableAs } = await import(hubModuleUrl('platform/git-failure.js'))
+  const { gitUnavailableAs } = await import(hubModuleUrl('builder/git-failure.js'))
   const { Failure } = await import(hubModuleUrl('platform/failure.js'))
   const unavailable = gitUnavailableAs('BUILDER_SOURCE_UNAVAILABLE')
   const named = await Promise.reject(new Failure('CONEXUS_GIT_MAIN_MISSING')).catch(unavailable).catch((error) => error)
   assert.deepEqual([named.id, named.details], ['BUILDER_SOURCE_UNAVAILABLE', { reason: 'CONEXUS_GIT_MAIN_MISSING' }])
+  const projectUnavailable = gitUnavailableAs('PROJECT_REPOSITORY_UNAVAILABLE')
+  const projectFailure = await Promise.reject(new Failure('CONEXUS_GIT_FAILED')).catch(projectUnavailable).catch((error) => error)
+  assert.deepEqual([projectFailure.id, projectFailure.details], ['PROJECT_REPOSITORY_UNAVAILABLE', { reason: 'CONEXUS_GIT_FAILED' }])
   const fault = new TypeError('planted')
   assert.equal(await Promise.reject(fault).catch(unavailable).catch((error) => error), fault)
   const other = new Failure('PROJECT_NOT_FOUND')

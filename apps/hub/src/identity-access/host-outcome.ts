@@ -1,5 +1,5 @@
 import type { AccountId, ProjectId } from '@conexus/contract'
-import type { Caller } from './caller.js'
+import type { Caller } from '../platform/caller.js'
 
 /** A request on an application or Preview host: served, sent to sign in, or refused because Keycloak could not be asked. */
 export type HostOutcome<T> =

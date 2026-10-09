@@ -12,7 +12,8 @@ const { createHostingModule } = await import(hubModuleUrl('hosting/module.js'))
 const { registerApplicationHostRoutes } = await import(hubModuleUrl('hosting/application-host-routes.js'))
 const { createApplicationInvoker } = await import(hubModuleUrl('hosting/application-invoker.js'))
 const { logger } = await import(hubModuleUrl('platform/logger.js'))
-const { applicationOrigin, applicationSlugOfHost, readHubConfig } = await import(hubModuleUrl('platform/config.js'))
+const { applicationSlugOfHost } = await import(hubModuleUrl('identity-access/public.js'))
+const { applicationOrigin, readHubConfig } = await import(hubModuleUrl('platform/config.js'))
 
 const missing = (name) => (error) => error.id === 'CONFIG_MISSING' && error.details?.name === name
 
@@ -155,7 +156,7 @@ test('the application host is configured by port and domain together, and only w
 })
 
 test('the application host is a standalone top-level site: no Preview sandbox, never framed, no CORS, and Preview keeps its own policy', async (t) => {
-  const { previewContentSecurityPolicy } = await import(hubModuleUrl('platform/application-csp.js'))
+  const { previewContentSecurityPolicy } = await import(hubModuleUrl('hosting/application-csp.js'))
   const { app } = await harness(t)
   const index = await app.inject({ method: 'GET', url: '/', headers: { host: HOST_A, origin: HUB }, ...signedIn })
   assert.equal(index.headers['content-security-policy'],

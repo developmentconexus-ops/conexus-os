@@ -97,7 +97,7 @@ No migration or grant change is planned. Historical migrations, accepted specs, 
 
 ## Census and deferred dependencies
 
-Baseline import census: 35 owner-to-owner file edges, all exempted; zero file import cycles; native import law passes. Platform has 27 files, seven named domain files to remove, target 20 existing technical files with no unregistered additions. The platform slug file names `iam.application` in comments only; the inherited text census falsely counted it as SQL.
+Baseline import census: 35 owner-to-owner file edges, all exempted; zero file import cycles; native import law passes. Platform has 28 files, seven named domain files to remove, target 21 existing technical files with no unregistered additions. The platform slug file names `iam.application` in comments only; the inherited text census falsely counted it as SQL.
 
 Focused AST census: 240 schema-qualified relation occurrences in `sql` tagged templates, all in the current catalog register; 32 cross-owner occurrences: 15 in IAM authorization, two deferred Registry reads and 15 ordinary occurrences, including Project receipt cleanup. U4/U5 remove ordinary reads. U6 targets zero undeclared cross-owner occurrences, not zero authorization joins. The catalog maps `iam` to identity-access, `reg` to registry, `model` to model-account and `connector` to connectors, rather than equating folder names with schemas.
 

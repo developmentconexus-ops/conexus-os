@@ -5,8 +5,9 @@ const APPLICATION_SOURCES = "default-src 'none'; script-src 'self'; style-src 's
 
 // A Preview is framed by the Hub, and its sandbox keeps the frame from the Hub's own capabilities.
 // allow-forms lets a submit event reach the app's own handler.
-export const previewContentSecurityPolicy = (exactHubOrigin: string): string =>
-  `${APPLICATION_SOURCES}; frame-ancestors ${exactHubOrigin}; sandbox allow-scripts allow-same-origin allow-forms`
+export function previewContentSecurityPolicy(exactHubOrigin: string): string {
+  return `${APPLICATION_SOURCES}; frame-ancestors ${exactHubOrigin}; sandbox allow-scripts allow-same-origin allow-forms`
+}
 
 // An application host is a top-level site: never framed, and without the Preview's sandbox, so its
 // page opens popups and downloads like any other site.

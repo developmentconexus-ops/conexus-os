@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import { hubModuleUrl } from './hub-build.mjs'
 import { buildHubDatabase, withClient } from './hub-database.mjs'
 
-const { parseApplicationSlug } = await import(hubModuleUrl('platform/application-slug.js'))
+const { parseApplicationSlug } = await import(hubModuleUrl('identity-access/application-slug.js'))
 
 const SAMPLES = [
   'hub', 'www', 'api', 'auth', 'admin', 'keycloak', 'static', 'app', 'preview',

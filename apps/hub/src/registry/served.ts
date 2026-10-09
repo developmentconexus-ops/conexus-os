@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { ApplicationFilePath, ArtifactDigest, ArtifactRevisionId, MediaType, Sha256, SourceRevision, type ProjectId } from '@conexus/contract'
-import { CURRENT_TEMPLATE_PIN } from '../platform/application-template-pins.js'
+import { CURRENT_TEMPLATE_PIN } from './application-template-pins.js'
 import { Failure } from '../platform/failure.js'
 import { sql, type Sql, type TxQueries } from '../platform/db.js'
 import type { Admitted, ApplicationScope, Checked, ProjectScope } from '../identity-access/public.js'

@@ -225,3 +225,10 @@ test('HTTP consumes only public session types and technical token hashing', () =
     'apps/hub/src/platform/db.ts': '',
   })
 })
+
+
+test('platform admits only its declared technical files', () => {
+  assertRule('IMPORT_CENSUS', { 'apps/hub/src/platform/domain-policy.ts': '' })
+  const root = fixture({ 'apps/hub/src/platform/config.ts': '' })
+  try { assert.deepEqual(checkImportLaw(root), []) } finally { rmSync(root, { recursive: true, force: true }) }
+})

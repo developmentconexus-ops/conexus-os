@@ -9,15 +9,38 @@ const TECHNICAL_HUB_LAYERS = new Set(['generated', 'http', 'platform'])
 export const HUB_OWNERS = Object.freeze({
   'identity-access': { entries: ['public.ts'], dependencies: [] },
   'app-runner': { entries: ['public.ts'], dependencies: [] },
-  builder: { entries: [], dependencies: ['identity-access', 'app-runner', 'model-account', 'registry'] },
+  builder: { entries: ['public.ts'], dependencies: ['identity-access', 'app-runner', 'model-account', 'registry', 'hosting'] },
   connectors: { entries: [], dependencies: ['identity-access'] },
-  hosting: { entries: [], dependencies: [] },
+  hosting: { entries: ['public.ts'], dependencies: ['identity-access'] },
   'model-account': { entries: ['module.ts'], dependencies: ['identity-access'] },
   project: { entries: [], dependencies: ['identity-access'] },
   registry: { entries: ['public.ts'], dependencies: ['identity-access'] },
   telemetry: { entries: [], dependencies: [] },
   workspace: { entries: [], dependencies: ['identity-access'] },
 })
+export const PLATFORM_FILES = Object.freeze([
+  'caller.ts',
+  'config.ts',
+  'connection-census.ts',
+  'db.ts',
+  'failure-text.generated.ts',
+  'failure.ts',
+  'failures.generated.ts',
+  'field-of.ts',
+  'heap.ts',
+  'hub-roles.generated.ts',
+  'jobs.ts',
+  'lifecycle.ts',
+  'lifetimes.ts',
+  'log-events.generated.ts',
+  'logger.ts',
+  'opaque-token.ts',
+  'receipt.ts',
+  'secret-encryption.ts',
+  'secret-file.ts',
+  'secrets.ts',
+  'sql-lexer.ts',
+])
 const SESSION_TYPES = new Set(['CurrentSession', 'HubSession', 'HubSessionDigest'])
 // The application runner's worker loads the one admitted handler module whose path the supervisor
 // fixed for this invocation, inside its sandbox. It is the only computed import in production.
@@ -198,7 +221,9 @@ export function checkImportLaw(rootDirectory) {
     const layer = hubLayer(path)
     return layer && !TECHNICAL_HUB_LAYERS.has(layer) && !Object.hasOwn(HUB_OWNERS, layer)
   })
-  const violations = unknownOwners.map((source) => violation('IMPORT_CENSUS', source, '<unknown owner>', 'every Hub owner must declare its public entries and dependencies'))
+  const unknownPlatform = files.map(relativeRoot).filter((path) => path.startsWith('apps/hub/src/platform/') && !PLATFORM_FILES.includes(path.slice('apps/hub/src/platform/'.length)))
+  const violations = unknownPlatform.map((source) => violation('IMPORT_CENSUS', source, '<unregistered platform file>', 'platform contains only the declared technical inventory'))
+  violations.push(...unknownOwners.map((source) => violation('IMPORT_CENSUS', source, '<unknown owner>', 'every Hub owner must declare its public entries and dependencies')))
   violations.push(...census.missingAppSources.map((source) =>
     violation('IMPORT_CENSUS', source, '<missing src>', 'every application must expose a censused src production root'),
   ))
@@ -264,6 +289,7 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/http/app.ts',
           'apps/hub/src/app-runner/module.ts',
           'apps/hub/src/builder/module.ts',
+          'apps/hub/src/builder/public.ts',
           'apps/hub/src/model-account/module.ts',
           'apps/hub/src/connectors/module.ts',
           'apps/hub/src/identity-access/module.ts',
@@ -282,7 +308,7 @@ export function checkImportLaw(rootDirectory) {
           'apps/hub/src/workspace/module.ts',
         ])
         if (!allowed.has(target)) {
-          violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'composition root may import only named module and platform constructors'))
+          violations.push(violation('IMPORT_LAYER_MATRIX', source, specifier, 'composition root may import only named constructors, adapters and platform helpers'))
         }
       }
       if (source.startsWith('apps/hub/src/http/') && isRelative &&

@@ -1,9 +1,10 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { ArtifactRevisionId } from '@conexus/contract'
+import { applicationSlugOfHost } from '../identity-access/public.js'
 import type { HeaderFact } from '../http/access.js'
 import type { ListenerPolicy } from '../http/access.js'
-import { applicationHostContentSecurityPolicy, previewContentSecurityPolicy } from '../platform/application-csp.js'
-import { applicationOrigin, applicationSlugOfHost, authority } from '../platform/config.js'
+import { applicationHostContentSecurityPolicy, previewContentSecurityPolicy } from './application-csp.js'
+import { applicationOrigin, authority } from '../platform/config.js'
 import type { ApplicationAddress } from '../platform/config.js'
 import { registerApplicationHostRoutes } from './application-host-routes.js'
 import type { ApplicationHostReader, ApplicationHostSessions } from './application-host-routes.js'
@@ -12,7 +13,7 @@ import type { ApplicationRunnerInvoke, ConnectorPortOpener } from './application
 import { registerPreviewRoutes } from './preview-routes.js'
 import type { PreviewHost, PreviewReader, PreviewRouteDependencies, PreviewSessions } from './preview-routes.js'
 import { Failure } from '../platform/failure.js'
-import type { ScopedProof } from '../platform/host-outcome.js'
+import type { ScopedProof } from '../identity-access/public.js'
 
 type HostPolicy = Extract<ListenerPolicy, Readonly<{ listener: 'preview' | 'application' }>>
 

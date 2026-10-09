@@ -6,7 +6,7 @@ const { lastOwnerStays } = await import(hubModuleUrl('identity-access/roster.js'
 const { lastAdministratorStays } = await import(hubModuleUrl('identity-access/administrators.js'))
 const { locationOf } = await import(hubModuleUrl('identity-access/sign-in.js'))
 const { slugFor } = await import(hubModuleUrl('identity-access/application-access.js'))
-const { slugBase, parseApplicationSlug } = await import(hubModuleUrl('platform/application-slug.js'))
+const { slugBase, parseApplicationSlug } = await import(hubModuleUrl('identity-access/application-slug.js'))
 
 const A = '10000000-0000-4000-8000-000000000001'
 const B = '10000000-0000-4000-8000-000000000002'

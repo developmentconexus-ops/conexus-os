@@ -1,5 +1,6 @@
 import { resolve } from 'node:path'
 import { readFileSync } from 'node:fs'
+import { gitUnavailableAs } from './builder/public.js'
 import { createApplicationRunnerClient } from './app-runner/module.js'
 import { createConnectorModule } from './connectors/module.js'
 import { createHttpApp } from './http/app.js'
@@ -75,7 +76,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
     repository: {
       prepare: async (projectId) => {
         if (!builder) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'CONEXUS_GIT_NOT_CONFIGURED' } })
-        return builder.prepareProjectRepository(projectId)
+        return builder.prepareProjectRepository(projectId).catch(gitUnavailableAs('PROJECT_REPOSITORY_UNAVAILABLE'))
       },
     },
     // Every deletion port reaches a module composed below through the same request-time indirection

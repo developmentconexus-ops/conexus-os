@@ -7,7 +7,6 @@ import { admitProject, admitWorkspace, receiptOf, type Admitted, type WorkspaceS
 import type { Database } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
-import { gitUnavailableAs } from '../platform/git-failure.js'
 import { complete, reserve } from '../platform/receipt.js'
 import { CardRow, DetailRow, ListRow } from './rows.js'
 import { createProjectDeletion } from './deletion.js'
@@ -67,7 +66,7 @@ export const createProjectStore = ({
     if (reserved.kind === 'replay') return { replayed: true, reply: reserved.reply }
     const projectId = reserved.resourceId
 
-    const starterRevision = await repository.prepare(projectId).catch(gitUnavailableAs('PROJECT_REPOSITORY_UNAVAILABLE'))
+    const starterRevision = await repository.prepare(projectId)
 
     return database.transaction(accountId, async (gate) => {
       const proof = await admitWorkspace(gate, { workspaceId, action: 'project.create' })

@@ -1,7 +1,7 @@
 # Compiler template recipe
 
 The application compiler runs inside an E2B template. Its `TEMPLATE_REF` and `RECIPE_SHA256` live in
-`apps/hub/src/builder/application-template-pins.ts`, the one table the runtime, the registry and
+`apps/hub/src/registry/application-template-pins.ts`, the one table the runtime, the registry and
 migration `0037` share. `scripts/builder-e2b-template.mjs` builds the template from the files in
 this folder, which it writes into `/opt/conexus/compiler`. The template also carries Node 24.20.0 and
 npm 12.0.2 on Debian 12 bookworm, and runs commands as the unprivileged `conexus-agent` user (uid

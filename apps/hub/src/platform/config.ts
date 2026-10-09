@@ -1,8 +1,6 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { Failure } from './failure.js'
-import { parseApplicationSlug } from './application-slug.js'
-import type { ApplicationSlug } from './application-slug.js'
 
 export type HubConfig = Readonly<{
   origin: string
@@ -55,13 +53,6 @@ export const authority = ({ port, domain }: ApplicationAddress, slug: string): s
 
 /** The one origin of an application: its sign-in return, its address in the Hub and its API's only admitted Origin. */
 export const applicationOrigin = (address: ApplicationAddress, slug: string): string => `https://${authority(address, slug)}`
-
-/** The Host header is the only application selector, and it must be exactly one application's authority. */
-export const applicationSlugOfHost = (address: ApplicationAddress, host: string | undefined): ApplicationSlug | null => {
-  const suffix = authority(address, '')
-  if (typeof host !== 'string' || !host.endsWith(suffix)) return null
-  return parseApplicationSlug(host.slice(0, -suffix.length))
-}
 
 // The CLIProxyAPI binary the Hub runs per person for Google AI Pro, pinned by its sha256.
 export type GoogleAiProRuntimeConfig = Readonly<{ binary: string; sha256: string }>
