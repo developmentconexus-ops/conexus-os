@@ -16,8 +16,8 @@ const { settleTakenOverCandidate } = await import(hubModuleUrl('builder/run/admi
 
 const pausingRetain = (registry, { reached, release }) => ({
   ...registry,
-  retain: async (proof, sealed) => {
-    const retained = await registry.retain(proof, sealed)
+  retainAsPreview: async (proof, sealed) => {
+    const retained = await registry.retainAsPreview(proof, sealed)
     reached.resolve()
     await release.promise
     return retained
@@ -184,7 +184,7 @@ test('a failure ending the run rolls back the advanced Preview and new artifact,
   const builderRunId = await runFor(projectId)
   await query(connection, `CREATE FUNCTION public.refuse_settlement_end() RETURNS trigger LANGUAGE plpgsql AS $$
     BEGIN
-      IF NOT EXISTS (SELECT 1 FROM builder.project_working_state WHERE project_id = NEW.project_id AND last_preview_source_revision = NEW.result_source_revision)
+      IF NOT EXISTS (SELECT 1 FROM reg.project_preview WHERE project_id = NEW.project_id AND source_revision = NEW.result_source_revision)
         OR (SELECT count(*) FROM reg.artifact_revision WHERE project_id = NEW.project_id) <> 2
         OR (SELECT count(*) FROM reg.application_thumbnail AS thumbnail JOIN reg.artifact_revision AS revision USING (artifact_revision_id) WHERE revision.project_id = NEW.project_id) <> 2
       THEN RAISE EXCEPTION 'settlement has not advanced' USING ERRCODE = 'P0002'; END IF;

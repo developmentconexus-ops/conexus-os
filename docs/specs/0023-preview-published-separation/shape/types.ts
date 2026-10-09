@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { PreviewSubject as RegistryPreviewSubject } from '../../../../apps/hub/src/registry/public.js'
 import { ProjectId, ArtifactDigest, ArtifactRevisionId, SourceRevision } from '@conexus/contract'
 
 const identity = { projectId: ProjectId }
@@ -31,4 +32,4 @@ export const PreviewSubject = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('EMPTY') }).readonly(),
   z.strictObject({ kind: z.literal('READY'), sourceRevision: SourceRevision, artifactRevisionId: ArtifactRevisionId, digest: ArtifactDigest }).readonly(),
 ])
-export type PreviewSubject = z.infer<typeof PreviewSubject>
+export type PreviewSubject = RegistryPreviewSubject

@@ -78,6 +78,7 @@ test('a purge that commits between the access check and the read answers NOT_SER
     await purger.connect()
     try {
       await purger.query('BEGIN')
+      await purger.query('DELETE FROM reg.project_preview WHERE project_id = $1', [projectId])
       await purger.query('DELETE FROM reg.artifact_revision WHERE project_id = $1', [projectId])
       await purger.query('DELETE FROM builder.project_working_state WHERE project_id = $1', [projectId])
       await purger.query('COMMIT')
@@ -154,7 +155,7 @@ test('retention writes one revision for one source, returns it again to every ru
   const sealed = sealFor(projectId, again, [F])
   const twice = await open(again, async (proof) => {
     const input = { builderRunId: again, projectId, owner: { ownerId: OWNER }, sealed }
-    return [await registry.retain(proof, input), await registry.retain(proof, input)]
+    return [await registry.retainAsPreview(proof, input), await registry.retainAsPreview(proof, input)]
   })
   assert.deepEqual(twice[0], twice[1])
   assert.equal(twice[0].digest, D_E)
@@ -165,7 +166,7 @@ test('retention writes one revision for one source, returns it again to every ru
   const rollbackRun = await runFor(projectId, { candidate: other, result: other })
   await assert.rejects(open(rollbackRun, async (proof) => {
     const sealed = sealFor(projectId, rollbackRun, [F], { sourceRevision: other, thumbnail: { bytes: PNG_T2 } })
-    await registry.retain(proof, { builderRunId: rollbackRun, projectId, owner: { ownerId: OWNER }, sealed })
+    await registry.retainAsPreview(proof, { builderRunId: rollbackRun, projectId, owner: { ownerId: OWNER }, sealed })
     throw new Error('ROLLBACK_AFTER_THUMBNAIL')
   }), /ROLLBACK_AFTER_THUMBNAIL/)
   assert.deepEqual(await rows(projectId), { revisions: 1, thumbnails: 0 })
@@ -176,7 +177,7 @@ async function retainTwice({ connection, database, registry, builderRunId, seale
   const inserted = deferred()
   const release = deferred()
   const session = (holding) => database.system('builder-executor', async (gate) => {
-    const retained = await registry.retain(await admitRun(gate, builderRunId, { ownerId: OWNER }), {
+    const retained = await registry.retainAsPreview(await admitRun(gate, builderRunId, { ownerId: OWNER }), {
       builderRunId,
       projectId: sealed.projectId,
       owner: { ownerId: OWNER },
@@ -345,7 +346,7 @@ test('a served read takes no table lock beyond ACCESS SHARE and clearing the poi
     return checked.tx.rows(Locks, sql`SELECT DISTINCT mode FROM pg_locks WHERE pid = pg_backend_pid() AND locktype = 'relation' AND mode <> 'AccessShareLock' ORDER BY 1`)
   })
   assert.deepEqual(held, [])
-  await query(connection, 'UPDATE builder.project_working_state SET last_preview_source_revision = NULL, last_preview_artifact_revision_id = NULL, last_preview_artifact_digest = NULL WHERE project_id = $1', [projectId])
+  await query(connection, 'DELETE FROM reg.project_preview WHERE project_id = $1', [projectId])
   assert.deepEqual(await servedFile(database, ID.outsider, projectId, 'index.html'), { ok: false, reason: 'NOT_SERVED' })
   assert.equal(await servedManifest(database, ID.outsider, projectId), null)
 })
@@ -378,4 +379,17 @@ test('a file request of a revision of 12 MiB transfers only the bytes of the req
   } finally {
     await client.end()
   }
+})
+
+
+test('Registry Preview selection returns an empty or complete admitted subject and refuses a broken tuple', async (t) => {
+  const { database, seedBuilderProject, registry, served, point } = await world(t, 'conexus_registry_preview_subject')
+  const projectId = await seedBuilderProject('Atlas', ID.workspace, P)
+  const read = (accountId = ID.member) => database.read(accountId, async (gate) => registry.readPreviewSubject(await admitProject(gate, { projectId, action: 'project.read' })))
+  assert.deepEqual(await read(), { kind: 'EMPTY' })
+  const { second } = await served(projectId)
+  assert.deepEqual(await read(), { kind: 'READY', sourceRevision: SOURCE_2, artifactRevisionId: second, digest: DIGEST_2 })
+  await assert.rejects(read(ID.outsider), { id: 'PROJECT_NOT_FOUND' })
+  await point(projectId, second, SOURCE_1, DIGEST_2)
+  await assert.rejects(read(), invariant('SERVED_POINTER_BROKEN'))
 })

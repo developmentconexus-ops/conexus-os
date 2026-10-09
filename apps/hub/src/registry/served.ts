@@ -21,29 +21,29 @@ const FileColumns = { path: ApplicationFilePath, media_type: MediaType, sha256: 
 /**
  * The Project's served pointer joined to the revision it names, in one statement: one snapshot, so a
  * purge between the pointer and the revision can never read as a broken pointer. It answers NONE
- * (no pointer, or no working state left), BROKEN (a pointer no revision of the Project matches),
+ * (no pointer, or no Preview left), BROKEN (a pointer no revision of the Project matches),
  * MISSING (the revision lacks what the reader joined to it) or SERVED.
  */
-function pointerStatement(projectId: ProjectId, { columns, joins, absent }: Readonly<{ columns: Sql; joins: Sql; absent: Sql }>): Sql {
+export function pointerStatement(projectId: ProjectId, { columns, joins, absent }: Readonly<{ columns: Sql; joins: Sql; absent: Sql }>): Sql {
   return sql`
   SELECT CASE
-      WHEN working.last_preview_artifact_revision_id IS NULL THEN 'NONE'
+      WHEN preview.artifact_revision_id IS NULL THEN 'NONE'
       WHEN revision.artifact_revision_id IS NULL THEN 'BROKEN'
       WHEN ${absent} THEN 'MISSING'
       ELSE 'SERVED'
     END AS state,
     revision.artifact_revision_id AS revision_id, ${columns}
-  FROM builder.project_working_state AS working
+  FROM reg.project_preview AS preview
   LEFT JOIN reg.artifact_revision AS revision
-    ON revision.project_id = working.project_id
-    AND revision.artifact_revision_id = working.last_preview_artifact_revision_id
-    AND revision.source_revision = working.last_preview_source_revision
-    AND revision.digest = working.last_preview_artifact_digest
+    ON revision.project_id = preview.project_id
+    AND revision.artifact_revision_id = preview.artifact_revision_id
+    AND revision.source_revision = preview.source_revision
+    AND revision.digest = preview.digest
   ${joins}
-  WHERE working.project_id = ${projectId}`
+  WHERE preview.project_id = ${projectId}`
 }
 
-function pointerRow<S extends z.ZodRawShape>(served: S) {
+export function pointerRow<S extends z.ZodRawShape>(served: S) {
   return z.discriminatedUnion('state', [
     z.object({ state: z.literal('NONE') }),
     z.object({ state: z.literal('BROKEN') }),

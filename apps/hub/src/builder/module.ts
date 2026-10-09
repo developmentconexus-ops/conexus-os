@@ -7,6 +7,8 @@ import { ConsoleLogger } from '@mastra/core/logger'
 import type { ObservabilityInstance } from '@mastra/core/observability'
 import type { RequestContext } from '@mastra/core/request-context'
 import { openFactoryPool, type Database } from '../platform/db.js'
+import type { PreviewSubject } from '../registry/public.js'
+import { admitProject } from '../identity-access/public.js'
 import { Failure } from '../platform/failure.js'
 import { gitUnavailableAs } from './git-failure.js'
 import type { Job } from '../platform/jobs.js'
@@ -218,14 +220,13 @@ export const createConfiguredBuilderModule = ({ data, database, builder, factory
   }
   const session: BuilderSessionPort = Object.freeze({
     read: async ({ accountId, projectId }) => {
-      const preview = await store.readPreviewSubject({ accountId, projectId })
-      if (!preview) throw new Failure('INTERNAL_UNEXPECTED', { details: { invariant: 'BUILDER_PROJECT_ROWS_MISSING' } })
+      const preview: PreviewSubject = await data.read(accountId, async (gate) => registry.readPreviewSubject(await admitProject(gate, { projectId, action: 'project.read' })))
       return Object.freeze({
         preview: Object.freeze({
           workingSourceRevision: await git.readMain(projectId).catch(gitUnavailableAs('BUILDER_SOURCE_UNAVAILABLE')),
-          lastPreviewSourceRevision: preview.lastPreviewSourceRevision,
-          lastPreviewArtifactRevisionId: preview.lastPreviewArtifactRevisionId,
-          lastPreviewArtifactDigest: preview.lastPreviewArtifactDigest,
+          lastPreviewSourceRevision: preview.kind === 'READY' ? preview.sourceRevision : null,
+          lastPreviewArtifactRevisionId: preview.kind === 'READY' ? preview.artifactRevisionId : null,
+          lastPreviewArtifactDigest: preview.kind === 'READY' ? preview.digest : null,
         }),
         runHistory: await store.listBuilderRuns({ accountId, projectId }),
       })

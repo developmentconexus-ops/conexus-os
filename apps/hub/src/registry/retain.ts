@@ -17,7 +17,7 @@ function transitionRefused(): Failure {
 /**
  * Writes the already admitted candidate in its held run's settlement transaction.
  */
-export async function retain({ tx }: Admitted<SystemScope<'builder-executor'>>, input: Readonly<{ builderRunId: BuilderRunId; projectId: ProjectId; owner: RunOwner; sealed: SealedApplication }>): Promise<Readonly<{ artifactRevisionId: ArtifactRevisionId; digest: ArtifactDigest }>> {
+export async function retainAsPreview({ tx }: Admitted<SystemScope<'builder-executor'>>, input: Readonly<{ builderRunId: BuilderRunId; projectId: ProjectId; owner: RunOwner; sealed: SealedApplication }>): Promise<Readonly<{ artifactRevisionId: ArtifactRevisionId; digest: ArtifactDigest }>> {
   const { builderRunId, projectId, owner, sealed } = input
   const run = await tx.maybe(RunSource, sql`
     SELECT state, owner_id::text AS owner_id, candidate_revision, result_source_revision FROM builder.builder_run WHERE builder_run_id = ${builderRunId} AND project_id = ${projectId}`)
@@ -38,9 +38,16 @@ export async function retain({ tx }: Admitted<SystemScope<'builder-executor'>>, 
       FROM reg.artifact_revision AS revision WHERE revision.artifact_revision_id = ${stored.artifact_revision_id} AND revision.project_id = ${projectId}
       ON CONFLICT DO NOTHING`)
   }
+  await tx.run(sql`
+    INSERT INTO reg.project_preview (project_id, source_revision, artifact_revision_id, digest)
+    VALUES (${projectId}, ${sealed.sourceRevision}, ${stored.artifact_revision_id}, ${stored.digest})
+    ON CONFLICT (project_id) DO UPDATE SET source_revision = EXCLUDED.source_revision,
+      artifact_revision_id = EXCLUDED.artifact_revision_id, digest = EXCLUDED.digest
+    WHERE reg.project_preview.project_id = ${projectId}`)
   return { artifactRevisionId: stored.artifact_revision_id, digest: stored.digest }
 }
 
 export async function purge({ tx }: Admitted<SystemScope<'project-purge'>>, projectId: ProjectId): Promise<void> {
+  await tx.run(sql`DELETE FROM reg.project_preview WHERE project_id = ${projectId}`)
   await tx.run(sql`DELETE FROM reg.artifact_revision WHERE project_id = ${projectId}`)
 }

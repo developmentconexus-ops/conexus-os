@@ -86,7 +86,7 @@ void registry.purge(reaper, project)
 void registry.purge(builder, project)
 void registry.purge(purge, project)
 // @ts-expect-error An object with the sealed build's fields is not a sealed build (an accidental structural value).
-void registry.retain(runProof, { projectId: project, sourceRevision, digest: artifactDigest })
+void registry.retainAsPreview(runProof, { projectId: project, sourceRevision, digest: artifactDigest })
 // @ts-expect-error The sealed type exposes no constructor to consumers.
 void new SealedApplication(project, sourceRevision, artifactDigest)
 // @ts-expect-error A served read proof has a read transaction, so it cannot write.
@@ -198,3 +198,9 @@ builderProjectPorts.readProjectActivity(reader, [workspace])
 builderProjectPorts.hasOpenProjectRun(reader, project)
 // @ts-expect-error Membership reads take a read account admission.
 readMemberWorkspaceIds(accountProof)
+
+// @ts-expect-error Preview selection requires a read-mode Project read admission, not Builder write authority.
+void registry.readPreviewSubject(builder)
+// @ts-expect-error Workspace presence requires a read-mode workspace admission, not a caller-selected account.
+void registry.readPreviewPresence(writeReader, [project])
+void registry.readPreviewPresence(reader, [project])

@@ -11,6 +11,7 @@ import { setupBuilder } from './builder-fixture.mjs'
 import { ID } from './project-fixture.mjs'
 
 const { Failure } = await import(built('platform/failure.js'))
+const { createRegistryModule } = await import(built('registry/module.js'))
 const { createBuilderStore } = await import(built('builder/store.js'))
 const { createBuilderService } = await import(built('builder/service.js'))
 const { createConexusGit } = await import(built('builder/conexus-git.js'))
@@ -34,8 +35,8 @@ const recoveryHarness = async (t, name, crashes) => {
   const git = createConexusGit({ root: join(scratch, 'git'), starter: [{ path: 'app/index.html', content: 'starter\n' }] })
   const owner = ID.owner
   const workspaceId = ID.workspace
-  const sweeper = createBuilderStore({ database, ownerId: SWEEPER })
-  const store = createBuilderStore({ database, ownerId: CRASHED })
+  const sweeper = createBuilderStore({ database, registry: createRegistryModule({ database }), ownerId: SWEEPER })
+  const store = createBuilderStore({ database, registry: createRegistryModule({ database }), ownerId: CRASHED })
   const runs = []
   for (const crash of crashes) {
     const projectId = randomUUID()
@@ -150,7 +151,7 @@ test('a run that started in Planejar and built after the plan approval records, 
     VALUES ($1, $2, $3, $4, $5, $6, $7, 'RUNNING', 'AGENT')`,
   [builderRunId, projectId, owner, randomUUID(), '1'.repeat(64), '2'.repeat(64), base])
   await query(connectionString, 'UPDATE builder.builder_run SET owner_id = $2, started_at = now() WHERE builder_run_id = $1', [builderRunId, OWNER_OF_PLAN])
-  const store = createBuilderStore({ database, ownerId: OWNER_OF_PLAN })
+  const store = createBuilderStore({ database, registry: createRegistryModule({ database }), ownerId: OWNER_OF_PLAN })
 
   await store.recordBuilderRunCandidate({ builderRunId, accountId: owner, sourceRevision: candidate })
   await store.advanceBuilderRunSource({ builderRunId, sourceRevision: candidate })
@@ -189,7 +190,7 @@ test('a fresh heartbeat keeps a run from every lease pass, a waiting run is take
   const { runs, database, connectionString } = await recoveryHarness(t, 'conexus_run_lease', crashes)
   await query(connectionString, "UPDATE builder.builder_run SET heartbeat_at = clock_timestamp() - interval '1 minute', created_at = clock_timestamp() - interval '1 minute'")
   await query(connectionString, 'UPDATE builder.builder_run SET heartbeat_at = clock_timestamp() WHERE builder_run_id = $1', [runs[0].builderRunId])
-  const sweeps = ['0f000000-0000-4000-8000-000000000001', '0f000000-0000-4000-8000-000000000004'].map((ownerId) => createBuilderStore({ database, ownerId }))
+  const sweeps = ['0f000000-0000-4000-8000-000000000001', '0f000000-0000-4000-8000-000000000004'].map((ownerId) => createBuilderStore({ database, registry: createRegistryModule({ database }), ownerId }))
   const [one, other] = await Promise.all(sweeps.map((sweeper) => sweeper.renewRunLease({ liveRunIds: [], staleAfterMs: 30_000 })))
   const names = new Map(runs.map(({ builderRunId, name }) => [builderRunId, name]))
   assert.deepEqual([...one, ...other].map(({ builderRunId }) => names.get(builderRunId)).sort(), ['quiet-a', 'quiet-b', 'waiting'])

@@ -9,6 +9,7 @@ import { waitUntilBlocked } from './race.mjs'
 import { seedRevision, seedRevisionThumbnail } from './registry-fixture.mjs'
 
 const { admitAccount, admitProject, readAdministratorFlag } = await import(hubModuleUrl('identity-access/admission.js'))
+const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
 const { builderProjectPorts, purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
 const digest = (character) => character.repeat(64)
@@ -243,7 +244,7 @@ test('a tombstone waits for an admitted writer in either order, with no deadlock
 
 test('a deletion and a run start serialize in both orders without a deadlock', { timeout: 30_000 }, async (t) => {
   const { connection, database, store, seedProject, onCleanup } = await setupProjects(t, 'conexus_prj_runstart')
-  const builder = createBuilderStore({ database, ownerId: randomUUID() })
+  const builder = createBuilderStore({ database, registry: createRegistryModule({ database }), ownerId: randomUUID() })
   const start = (projectId, readBase = async () => HEAD) => builder.createBuilderRun({ accountId: ID.member, projectId, conversationId: '33333333-3333-4333-8333-333333333333', idempotencyKey: randomUUID(), content: 'pedido', readBase })
   const first = await seedProject('Atlas')
   let release

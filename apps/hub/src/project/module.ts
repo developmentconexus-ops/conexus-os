@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import type { AccountId, ProjectId } from '@conexus/contract'
+import type { RegistryModule } from '../registry/public.js'
 import type { Database } from '../platform/db.js'
 import { registerProjectRoutes } from './routes.js'
 import type { ProjectThumbnailReader } from './routes.js'
@@ -18,15 +19,17 @@ export const createConfiguredProjectModule = ({
   repository,
   deletion,
   builder,
+  registry,
   thumbnailReader,
 }: Readonly<{
   database: Database
   repository: ProjectRepositoryPort
   deletion: ProjectDeletionPorts
   builder: BuilderProjectPorts
+  registry: Pick<RegistryModule, 'readPreviewPresence'>
   thumbnailReader: ProjectThumbnailReader
 }>): ProjectModule => {
-  const store = createProjectStore({ database, repository, deletion, builder })
+  const store = createProjectStore({ database, repository, deletion, builder, registry })
   return Object.freeze({
     registerProjectRoutes: (app: FastifyInstance) => registerProjectRoutes(app, { store, thumbnailReader }),
     readProjectName: async (input) => (await store.getProject(input))?.name ?? null,

@@ -72,6 +72,7 @@ export const startHub = async ({ conversationSandboxes }: HubPorts = {}): Promis
   const project = createConfiguredProjectModule({
     database,
     builder: builderProjectPorts,
+    registry,
     // The builder module owns the Conexus Git and is composed below; creation reaches it at request time.
     repository: {
       prepare: async (projectId) => {

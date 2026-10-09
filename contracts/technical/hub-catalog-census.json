@@ -12,7 +12,7 @@
   },
   "ceilings": {
     "ruleFunctions": 0,
-    "runtimePrivileges": 85
+    "runtimePrivileges": 89
   },
   "register": {
     "tables": [
@@ -75,7 +75,7 @@
           "DELETE",
           "INSERT",
           "SELECT",
-          "UPDATE(current_state,last_preview_artifact_digest,last_preview_artifact_revision_id,last_preview_source_revision,updated_at)"
+          "UPDATE(current_state,updated_at)"
         ],
         "compositeKeys": [],
         "keyColumns": [
@@ -349,6 +349,21 @@
         ],
         "keyColumns": [
           "artifact_revision_id",
+          "project_id"
+        ]
+      },
+      {
+        "table": "reg.project_preview",
+        "privileges": [
+          "DELETE",
+          "INSERT",
+          "SELECT",
+          "UPDATE(artifact_revision_id,digest,source_revision)"
+        ],
+        "compositeKeys": [
+          "project_preview_project_id_fkey"
+        ],
+        "keyColumns": [
           "project_id"
         ]
       },

@@ -86,8 +86,7 @@ export const SQL_DEPENDENCIES = Object.freeze([
   'apps/hub/src/identity-access/authentication.ts#shareProject -> project.project',
   'apps/hub/src/identity-access/authentication.ts#shareProjectOfSlug -> project.project',
   'apps/hub/src/identity-access/application-access.ts#ensureApplication -> project.project',
-  'apps/hub/src/registry/retain.ts#retain -> builder.builder_run',
-  'apps/hub/src/registry/served.ts#pointerStatement -> builder.project_working_state',
+  'apps/hub/src/registry/retain.ts#retainAsPreview -> builder.builder_run',
 ])
 const SCHEMA_OWNERS = Object.freeze({ iam: 'identity-access', reg: 'registry', model: 'model-account', connector: 'connectors', project: 'project', builder: 'builder', workspace: 'workspace', platform: 'platform' })
 function hubOwner(path) {

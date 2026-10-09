@@ -172,7 +172,7 @@ const closeHeldRun = async (proof: Admitted<SystemScope<'builder-executor'>>, in
   if (!run || await endRun(proof, { builderRunId: input.builderRunId, projectId: run.project_id, ending: input.ending, from: 'open' }) !== 1) throw new Failure('BUILDER_RUN_NOT_ADMITTED')
 }
 
-export const createRunSteps = ({ database, ownerId, registry }: Readonly<{ database: Database; ownerId: string; registry: Pick<BuilderRegistry, 'retain'> }>): RunSteps => {
+export const createRunSteps = ({ database, ownerId, registry }: Readonly<{ database: Database; ownerId: string; registry: Pick<BuilderRegistry, 'retainAsPreview'> }>): RunSteps => {
   const executor: RunActor = { via: 'executor' }
   const written = async (proof: Admitted<RunScope>, statement: ReturnType<typeof sql>, transition: Transition): Promise<void> => {
     if (await proof.tx.run(statement) !== 1) throw transitionRefused(transition)
@@ -252,10 +252,9 @@ export const createRunSteps = ({ database, ownerId, registry }: Readonly<{ datab
       if (run?.state !== 'RUNNING' || run.result_source_revision !== sourceRevision || run.candidate_revision !== sourceRevision) throw transitionRefused('build settlement')
       await lockWorking(proof.tx, run.project_id, 'build settlement')
       if (settlement.kind === 'BUILT') {
-        const retained = await registry.retain(proof, { builderRunId: settlement.builderRunId, projectId: run.project_id, owner: { ownerId }, sealed: settlement.sealed })
+        await registry.retainAsPreview(proof, { builderRunId: settlement.builderRunId, projectId: run.project_id, owner: { ownerId }, sealed: settlement.sealed })
         await proof.tx.run(sql`
-          UPDATE builder.project_working_state SET current_state = 'PREVIEW_READY', last_preview_source_revision = ${sourceRevision},
-            last_preview_artifact_revision_id = ${retained.artifactRevisionId}, last_preview_artifact_digest = ${retained.digest}, updated_at = clock_timestamp()
+          UPDATE builder.project_working_state SET current_state = 'PREVIEW_READY', updated_at = clock_timestamp()
           WHERE project_id = ${run.project_id}`)
         await endRun(proof, { builderRunId: settlement.builderRunId, projectId: run.project_id, ending: { state: 'SUCCEEDED', resultKind: 'SOURCE_CHANGED', failureCode: null }, from: 'running' })
         return

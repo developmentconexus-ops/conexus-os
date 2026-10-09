@@ -1,6 +1,6 @@
 {
  "format": 2,
- "head": "0076",
+ "head": "0077",
  "catalog": {
   "schema": [
    "schema builder owner=conexus_owner acl=conexus_owner:CREATE:false,conexus_owner:USAGE:false,hub_runtime:USAGE:false",
@@ -40,6 +40,7 @@
    "relation project.project_deletion kind=r owner=conexus_owner rls=false forcerls=false disabled_triggers=0 acl=conexus_owner:DELETE:false,conexus_owner:INSERT:false,conexus_owner:MAINTAIN:false,conexus_owner:REFERENCES:false,conexus_owner:SELECT:false,conexus_owner:TRIGGER:false,conexus_owner:TRUNCATE:false,conexus_owner:UPDATE:false,hub_runtime:DELETE:false,hub_runtime:INSERT:false,hub_runtime:SELECT:false",
    "relation reg.application_thumbnail kind=r owner=conexus_owner rls=false forcerls=false disabled_triggers=0 acl=conexus_owner:DELETE:false,conexus_owner:INSERT:false,conexus_owner:MAINTAIN:false,conexus_owner:REFERENCES:false,conexus_owner:SELECT:false,conexus_owner:TRIGGER:false,conexus_owner:TRUNCATE:false,conexus_owner:UPDATE:false,hub_runtime:INSERT:false,hub_runtime:SELECT:false",
    "relation reg.artifact_revision kind=r owner=conexus_owner rls=false forcerls=false disabled_triggers=0 acl=conexus_owner:DELETE:false,conexus_owner:INSERT:false,conexus_owner:MAINTAIN:false,conexus_owner:REFERENCES:false,conexus_owner:SELECT:false,conexus_owner:TRIGGER:false,conexus_owner:TRUNCATE:false,conexus_owner:UPDATE:false,hub_runtime:DELETE:false,hub_runtime:INSERT:false,hub_runtime:SELECT:false",
+   "relation reg.project_preview kind=r owner=conexus_owner rls=false forcerls=false disabled_triggers=0 acl=conexus_owner:DELETE:false,conexus_owner:INSERT:false,conexus_owner:MAINTAIN:false,conexus_owner:REFERENCES:false,conexus_owner:SELECT:false,conexus_owner:TRIGGER:false,conexus_owner:TRUNCATE:false,conexus_owner:UPDATE:false,hub_runtime:DELETE:false,hub_runtime:INSERT:false,hub_runtime:SELECT:false",
    "relation workspace.workspace kind=r owner=conexus_owner rls=false forcerls=false disabled_triggers=0 acl=conexus_owner:DELETE:false,conexus_owner:INSERT:false,conexus_owner:MAINTAIN:false,conexus_owner:REFERENCES:false,conexus_owner:SELECT:false,conexus_owner:TRIGGER:false,conexus_owner:TRUNCATE:false,conexus_owner:UPDATE:false,hub_runtime:INSERT:false,hub_runtime:SELECT:false"
   ],
   "column": [
@@ -78,9 +79,6 @@
    "column builder.project_repository.created_at timestamp with time zone notnull=true default=clock_timestamp() acl=",
    "column builder.project_repository.project_id uuid notnull=true default= acl=",
    "column builder.project_working_state.current_state text notnull=true default='IDLE'::text acl=hub_runtime:UPDATE:false",
-   "column builder.project_working_state.last_preview_artifact_digest text notnull=false default= acl=hub_runtime:UPDATE:false",
-   "column builder.project_working_state.last_preview_artifact_revision_id uuid notnull=false default= acl=hub_runtime:UPDATE:false",
-   "column builder.project_working_state.last_preview_source_revision text notnull=false default= acl=hub_runtime:UPDATE:false",
    "column builder.project_working_state.project_id uuid notnull=true default= acl=",
    "column builder.project_working_state.updated_at timestamp with time zone notnull=true default=clock_timestamp() acl=hub_runtime:UPDATE:false",
    "column connector.connection.connection_id uuid notnull=true default= acl=",
@@ -230,6 +228,10 @@
    "column reg.artifact_revision.payload jsonb notnull=true default= acl=",
    "column reg.artifact_revision.project_id uuid notnull=true default= acl=",
    "column reg.artifact_revision.source_revision text notnull=true default= acl=",
+   "column reg.project_preview.artifact_revision_id uuid notnull=true default= acl=hub_runtime:UPDATE:false",
+   "column reg.project_preview.digest text notnull=true default= acl=hub_runtime:UPDATE:false",
+   "column reg.project_preview.project_id uuid notnull=true default= acl=",
+   "column reg.project_preview.source_revision text notnull=true default= acl=hub_runtime:UPDATE:false",
    "column workspace.workspace.created_at timestamp with time zone notnull=true default=clock_timestamp() acl=",
    "column workspace.workspace.name text notnull=true default= acl=",
    "column workspace.workspace.workspace_id uuid notnull=true default= acl="
@@ -257,10 +259,7 @@
    "constraint builder.project_repository.project_repository_pkey PRIMARY KEY (project_id)",
    "constraint builder.project_repository.project_repository_project_id_fkey FOREIGN KEY (project_id) REFERENCES project.project(project_id) ON DELETE RESTRICT",
    "constraint builder.project_working_state.project_working_state_current_state_check CHECK ((current_state = ANY (ARRAY['IDLE'::text, 'CODING'::text, 'PREPARING'::text, 'PREVIEW_READY'::text, 'BUILD_FAILED'::text, 'RESPONDED'::text])))",
-   "constraint builder.project_working_state.project_working_state_last_preview_artifact_digest_check CHECK (((last_preview_artifact_digest IS NULL) OR (last_preview_artifact_digest ~ '^[0-9a-f]{64}$'::text)))",
-   "constraint builder.project_working_state.project_working_state_last_preview_source_revision_check CHECK (((last_preview_source_revision IS NULL) OR (last_preview_source_revision ~ '^[0-9a-f]{40}$'::text)))",
    "constraint builder.project_working_state.project_working_state_pkey PRIMARY KEY (project_id)",
-   "constraint builder.project_working_state.project_working_state_preview_coordinates_check CHECK ((((last_preview_source_revision IS NULL) = (last_preview_artifact_revision_id IS NULL)) AND ((last_preview_source_revision IS NULL) = (last_preview_artifact_digest IS NULL))))",
    "constraint builder.project_working_state.project_working_state_project_id_fkey FOREIGN KEY (project_id) REFERENCES project.project(project_id) ON DELETE RESTRICT",
    "constraint connector.connection.connection_connection_id_workspace_id_key UNIQUE (connection_id, workspace_id)",
    "constraint connector.connection.connection_connector_id_check CHECK ((connector_id ~ '^[a-z][a-z0-9-]{0,39}$'::text))",
@@ -385,6 +384,10 @@
    "constraint reg.artifact_revision.artifact_revision_project_id_fkey FOREIGN KEY (project_id) REFERENCES project.project(project_id) ON DELETE RESTRICT",
    "constraint reg.artifact_revision.artifact_revision_project_id_source_revision_key UNIQUE (project_id, source_revision)",
    "constraint reg.artifact_revision.artifact_revision_source_revision_check CHECK ((source_revision ~ '\\S'::text))",
+   "constraint reg.project_preview.project_preview_digest_check CHECK ((digest ~ '^[0-9a-f]{64}$'::text))",
+   "constraint reg.project_preview.project_preview_pkey PRIMARY KEY (project_id)",
+   "constraint reg.project_preview.project_preview_project_id_fkey FOREIGN KEY (project_id) REFERENCES project.project(project_id)",
+   "constraint reg.project_preview.project_preview_source_revision_check CHECK ((source_revision ~ '^[0-9a-f]{40}$'::text))",
    "constraint workspace.workspace.workspace_name_check CHECK ((name ~ '\\S'::text))",
    "constraint workspace.workspace.workspace_pkey PRIMARY KEY (workspace_id)"
   ],
@@ -436,6 +439,7 @@
    "index reg.application_thumbnail_pkey CREATE UNIQUE INDEX application_thumbnail_pkey ON reg.application_thumbnail USING btree (artifact_revision_id)",
    "index reg.artifact_revision_pkey CREATE UNIQUE INDEX artifact_revision_pkey ON reg.artifact_revision USING btree (artifact_revision_id)",
    "index reg.artifact_revision_project_id_source_revision_key CREATE UNIQUE INDEX artifact_revision_project_id_source_revision_key ON reg.artifact_revision USING btree (project_id, source_revision)",
+   "index reg.project_preview_pkey CREATE UNIQUE INDEX project_preview_pkey ON reg.project_preview USING btree (project_id)",
    "index workspace.workspace_pkey CREATE UNIQUE INDEX workspace_pkey ON workspace.workspace USING btree (workspace_id)"
   ],
   "function": [

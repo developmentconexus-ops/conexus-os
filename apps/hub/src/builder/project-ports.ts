@@ -38,14 +38,12 @@ async function readProjectActivity({ tx }: Admitted<WorkspaceScope<'workspace.re
   return tx.rows(ActivityRow, sql`
     SELECT requested.project_id,
       CASE WHEN latest.state IS NOT NULL THEN json_build_object('state', latest.state, 'resultKind', latest.result_kind) END AS latest_run,
-      latest.created_at, (extract(epoch FROM latest.created_at) * 1000000)::bigint::text AS sort_at,
-      working.last_preview_source_revision IS NOT NULL AS has_preview
+      latest.created_at, (extract(epoch FROM latest.created_at) * 1000000)::bigint::text AS sort_at
     FROM unnest(${projectIds}::uuid[]) AS requested(project_id)
     LEFT JOIN LATERAL (
       SELECT run.state, run.result_kind, run.created_at FROM builder.builder_run AS run
       WHERE run.project_id = requested.project_id ORDER BY run.created_at DESC, run.builder_run_id DESC LIMIT 1
-    ) AS latest ON true
-    LEFT JOIN builder.project_working_state AS working ON working.project_id = requested.project_id`)
+    ) AS latest ON true`)
 }
 
 async function hasOpenProjectRun({ tx }: Admitted<ProjectScope<'project.delete'>> | Admitted<SystemScope<'project-purge'>>, projectId: ProjectId): Promise<boolean> {

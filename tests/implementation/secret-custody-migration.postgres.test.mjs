@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { loadHubMigrationFiles, runMigrations } from '../../scripts/run-hub-migrations.mjs'
 import { createEmptyDatabase, query } from './hub-database.mjs'
 
-const corpus = loadHubMigrationFiles()
+const corpus = loadHubMigrationFiles().filter(({ version }) => version <= '0076')
 const before = corpus.filter(({ version }) => version < '0076')
 const account = '10000000-0000-4000-8000-000000000001'
 const workspace = '20000000-0000-4000-8000-000000000001'
@@ -31,7 +31,7 @@ const checksSql = `SELECT conrelid::regclass::text AS table, conname AS name, pg
 test('0076 empty cutover ends sessions/handoffs and replaces exactly four row-envelope CHECKs', async (t) => {
   const connectionString = await setup(t)
   assert.deepEqual(await counts(connectionString), { sessions: 1, handoffs: 1, applied: 0 })
-  const result = await runMigrations({ connectionString, migrations: corpus })
+  const result = await runMigrations({ connectionString, migrations: corpus, catalogSnapshot: null })
   assert.deepEqual(result.appliedNow, ['0076'])
   assert.deepEqual(await counts(connectionString), { sessions: 0, handoffs: 0, applied: 1 })
   const checks = (await query(connectionString, checksSql)).rows
@@ -51,7 +51,7 @@ test('0076 refuses either durable credential table and rolls back sessions, ledg
     const connectionString = await setup(t)
     const checks = (await query(connectionString, checksSql)).rows
     await query(connectionString, row)
-    await assert.rejects(runMigrations({ connectionString, migrations: corpus }), /SECRET_CUSTODY_RESET_REQUIRED/)
+    await assert.rejects(runMigrations({ connectionString, migrations: corpus, catalogSnapshot: null }), /SECRET_CUSTODY_RESET_REQUIRED/)
     assert.deepEqual(await counts(connectionString), { sessions: 1, handoffs: 1, applied: 0 })
     assert.deepEqual((await query(connectionString, checksSql)).rows, checks)
   }
@@ -60,7 +60,7 @@ test('0076 refuses either durable credential table and rolls back sessions, ledg
 test('0076 refuses a missing custody CHECK before deleting any session or handoff', async (t) => {
   const connectionString = await setup(t)
   await query(connectionString, 'ALTER TABLE model.model_account DROP CONSTRAINT model_account_secret_sealed_check')
-  await assert.rejects(runMigrations({ connectionString, migrations: corpus }), /SECRET_CUSTODY_CHECK_SET_REFUSED/)
+  await assert.rejects(runMigrations({ connectionString, migrations: corpus, catalogSnapshot: null }), /SECRET_CUSTODY_CHECK_SET_REFUSED/)
   assert.deepEqual(await counts(connectionString), { sessions: 1, handoffs: 1, applied: 0 })
 })
 
@@ -68,6 +68,6 @@ test('0076 refuses a missing custody CHECK before deleting any session or handof
 test('0076 refuses a custody CHECK whose expression changed, before ending sessions', async (t) => {
   const connectionString = await setup(t)
   await query(connectionString, "ALTER TABLE model.model_account DROP CONSTRAINT model_account_secret_sealed_check, ADD CONSTRAINT model_account_secret_sealed_check CHECK (length(secret) > 0)")
-  await assert.rejects(runMigrations({ connectionString, migrations: corpus }), /SECRET_CUSTODY_CHECK_SET_REFUSED/)
+  await assert.rejects(runMigrations({ connectionString, migrations: corpus, catalogSnapshot: null }), /SECRET_CUSTODY_CHECK_SET_REFUSED/)
   assert.deepEqual(await counts(connectionString), { sessions: 1, handoffs: 1, applied: 0 })
 })

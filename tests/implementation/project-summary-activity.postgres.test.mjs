@@ -17,7 +17,7 @@ test('the project cards sort by latest activity, fall back to creation, and stay
   await insertProject(connection, ready, ID.workspace, 'Ready Project', '2026-01-03T00:00:00Z')
   await insertProject(connection, elsewhere, ID.otherWorkspace, 'Cross Workspace', '2026-01-04T00:00:00Z')
   await query(connection, 'INSERT INTO builder.project_working_state(project_id) VALUES ($1)', [running])
-  await query(connection, 'INSERT INTO builder.project_working_state(project_id, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest) VALUES ($1, $2, $3, $4)', [ready, HEAD, randomUUID(), 'b'.repeat(64)])
+  await query(connection, 'INSERT INTO reg.project_preview(project_id, source_revision, artifact_revision_id, digest) VALUES ($1, $2, $3, $4)', [ready, HEAD, randomUUID(), 'b'.repeat(64)])
   await insertRun(connection, running, 'RUNNING', null, '2026-02-01T00:00:00Z')
   await insertRun(connection, ready, 'SUCCEEDED', 'SOURCE_CHANGED', '2026-02-02T00:00:00Z')
   await insertRun(connection, ready, 'FAILED', 'SOURCE_CHANGED_BUILD_FAILED', '2026-02-03T00:00:00Z')
@@ -43,7 +43,7 @@ test('a deleting project card exposes only the identity and state', async (t) =>
   await assert.rejects(cardsOf(ID.outsider), { id: 'WORKSPACE_NOT_FOUND' })
 })
 
-test('Project and Builder activity share one snapshot across owner reads', async (t) => {
+test('Project, Registry Preview and Builder activity share one snapshot across owner reads', async (t) => {
   const { default: pg } = await import('pg')
   const { connection, store } = await setupProjects(t, 'conexus_prj_cards_snapshot')
   const projectId = randomUUID()
@@ -52,8 +52,9 @@ test('Project and Builder activity share one snapshot across owner reads', async
   let changed = false
   pg.Client.prototype.query = async function (...args) {
     const text = typeof args[0] === 'string' ? args[0] : args[0]?.text
-    if (!changed && /FROM unnest/.test(text ?? '')) {
+    if (!changed && /FROM reg\.project_preview WHERE project_id = ANY/.test(text ?? '')) {
       changed = true
+      await query(connection, 'INSERT INTO reg.project_preview(project_id, source_revision, artifact_revision_id, digest) VALUES ($1, $2, $3, $4)', [projectId, HEAD, randomUUID(), 'b'.repeat(64)])
       await insertRun(connection, projectId, 'RUNNING', null, '2026-02-01T00:00:00Z')
       await query(connection, 'UPDATE project.project SET archived = true WHERE project_id = $1', [projectId])
     }
@@ -69,6 +70,7 @@ test('Project and Builder activity share one snapshot across owner reads', async
   }
   const [fresh] = await store.listProjectSummariesWithActivity({ accountId: ID.member, workspaceId: ID.workspace })
   assert.equal(fresh.archived, true)
+  assert.equal(fresh.hasPreview, true)
   assert.deepEqual(fresh.latestRun, { state: 'RUNNING', resultKind: null })
 })
 

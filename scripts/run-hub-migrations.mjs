@@ -87,6 +87,7 @@ const registryOwnerDigest = '4bad3cc589d80b99a027bf174ce1cabef27aa70cccc10c78d7e
 const projectOwnerDigest = '9c0efb7e558d81e5634c74d63dd953ad18fd7b82f3b2c0bc4d8030b68269df4f'
 const connectorOwnerDigest = '28fb86186bd480deddcecb94e28afd611af6559eaaf326a637931154de4b051f'
 
+const registryPreviewDigest = '53d53c95a413101af47b982b93ae29261a6671d80ad9a897f8418ed7fa837121'
 const migrationDigests = new Map([
   [baselineName, baselineDigest],
   ['0002_prune_dead_iam_actions.sql', pruneDeadIamActionsDigest],
@@ -164,6 +165,7 @@ const migrationDigests = new Map([
   ['0074_retired_project_build_failure.sql', retiredProjectBuildFailureDigest],
   ['0075_model_account_runtime_columns.sql', modelAccountRuntimeColumnsDigest],
   ['0076_secret_custody.sql', secretCustodyDigest],
+  ['0077_registry_preview.sql', registryPreviewDigest],
 ])
 
 const advisoryLock = 4_349_395_539_450_322_946n

@@ -7,8 +7,8 @@ const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
 
 const database = openDatabase({ ...input.connection, user: 'hub_runtime', passwordFile: input.passwordFile, max: 2 })
 const registry = createRegistryModule({ database })
-const dying = { ...registry, retain: async (proof, sealed) => {
-  await registry.retain(proof, sealed)
+const dying = { ...registry, retainAsPreview: async (proof, sealed) => {
+  await registry.retainAsPreview(proof, sealed)
   process.kill(process.pid, 'SIGKILL')
 } }
 const store = createBuilderStore({ database, ownerId: input.ownerId, registry: dying })

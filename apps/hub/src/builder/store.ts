@@ -24,7 +24,7 @@ export const createBuilderStore = ({
 }: Readonly<{
   database: Database
   ownerId: string
-  registry: Pick<BuilderRegistry, 'retain' | 'readLaunch'>
+  registry: Pick<BuilderRegistry, 'retainAsPreview' | 'readLaunch' | 'readPreviewSubject'>
   mintIdentity?: () => string
 }>): BuilderStore => Object.freeze({
   ownerId,

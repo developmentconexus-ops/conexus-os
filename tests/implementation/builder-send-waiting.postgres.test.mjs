@@ -8,6 +8,7 @@ import { setupBuilder } from './builder-fixture.mjs'
 import { ID } from './project-fixture.mjs'
 import { completed, harness, projectId, conversationId } from './builder-run-harness.mjs'
 
+const { createRegistryModule } = await import(built('registry/module.js'))
 const { createBuilderStore } = await import(built('builder/store.js'))
 const { registerBuilderRoutes } = await import(built('builder/routes.js'))
 
@@ -18,7 +19,7 @@ const CALLERS = { outsider: ID.outsider, removed: ID.member, grantee: ID.adminis
 
 test('sendBuilderMessage answers the same Project 404 to an outsider, a removed member and an application grantee while the run waits', async (t) => {
   const { connection, database, seedBuilderProject } = await setupBuilder(t, 'conexus_bld24_waiting')
-  const store = createBuilderStore({ database, ownerId: HUB })
+  const store = createBuilderStore({ database, registry: createRegistryModule({ database }), ownerId: HUB })
   const visible = await seedBuilderProject('Atlas')
   await query(connection, "INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'atlas', $2)", [visible, ID.owner])
   await query(connection, 'INSERT INTO iam.application_grant(project_id, account_id, granted_by) VALUES ($1, $2, $3)', [visible, ID.administrator, ID.owner])

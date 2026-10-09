@@ -60,7 +60,7 @@ export const world = async (t, prefix) => {
     await query(connection, 'INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [projectId, `app-${projectId.slice(0, 8)}`, ID.owner])
     await query(connection, 'INSERT INTO iam.application_grant(project_id, account_id, granted_by) VALUES ($1, $2, $3)', [projectId, accountId, ID.owner])
   }
-  const point = (projectId, revisionId, sourceRevision, digest) => query(connection, 'UPDATE builder.project_working_state SET last_preview_source_revision = $2, last_preview_artifact_revision_id = $3, last_preview_artifact_digest = $4 WHERE project_id = $1', [projectId, sourceRevision, revisionId, digest])
+  const point = (projectId, revisionId, sourceRevision, digest) => query(connection, 'INSERT INTO reg.project_preview(project_id, source_revision, artifact_revision_id, digest) VALUES ($1, $2, $3, $4) ON CONFLICT (project_id) DO UPDATE SET source_revision = EXCLUDED.source_revision, artifact_revision_id = EXCLUDED.artifact_revision_id, digest = EXCLUDED.digest', [projectId, sourceRevision, revisionId, digest])
   const served = async (projectId) => {
     await grant(projectId)
     const first = await seedRevision(connection, projectId, { sourceRevision: SOURCE_1, digest: DIGEST_1, payload: payloadOf([F]) })
@@ -71,7 +71,7 @@ export const world = async (t, prefix) => {
   const rows = async (projectId) => (await query(connection, `SELECT
     (SELECT count(*)::integer FROM reg.artifact_revision WHERE project_id = $1) AS revisions,
     (SELECT count(*)::integer FROM reg.application_thumbnail WHERE artifact_revision_id IN (SELECT artifact_revision_id FROM reg.artifact_revision WHERE project_id = $1)) AS thumbnails`, [projectId])).rows[0]
-  const pointer = async (projectId) => (await query(connection, 'SELECT last_preview_source_revision AS source, last_preview_artifact_revision_id AS revision, last_preview_artifact_digest AS digest FROM builder.project_working_state WHERE project_id = $1', [projectId])).rows[0]
+  const pointer = async (projectId) => (await query(connection, 'SELECT source_revision AS source, artifact_revision_id AS revision, digest FROM reg.project_preview WHERE project_id = $1', [projectId])).rows[0] ?? { source: null, revision: null, digest: null }
   const sealFor = (projectId, builderRunId, files, { sourceRevision = SOURCE_E, thumbnail = null } = {}) => registry.seal(
     { compiledApplication: { projectId, executionId: builderRunId, sourceRevision, templateRef: CURRENT_PIN.templateRef, recipeSha256: CURRENT_PIN.recipeSha256, files }, thumbnail },
     { projectId, builderRunId, sourceRevision },

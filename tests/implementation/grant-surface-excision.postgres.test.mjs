@@ -8,6 +8,10 @@ import { buildHubDatabase, query } from './hub-database.mjs'
 import { setupBuilder } from './builder-fixture.mjs'
 import { ID } from './project-fixture.mjs'
 
+const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
+const { admitProject } = await import(hubModuleUrl('identity-access/public.js'))
+const readPreview = (database, { accountId, projectId }) => database.read(accountId, async (gate) => createRegistryModule({ database }).readPreviewSubject(await admitProject(gate, { projectId, action: 'project.read' })))
+
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
 
 const BASE = 'a'.repeat(40)
@@ -15,7 +19,7 @@ const send = (store, accountId, projectId, key) => store.createBuilderRun({ acco
 
 test('a member of the Workspace reads, creates and builds every Project in it', async (t) => {
   const { database, seedBuilderProject } = await setupBuilder(t, 'conexus_excision_member')
-  const store = createBuilderStore({ database, ownerId: randomUUID() })
+  const store = createBuilderStore({ database, registry: createRegistryModule({ database }), ownerId: randomUUID() })
   const projectId = await seedBuilderProject('Owned')
 
   // The member did not create this Project and holds no row naming it, yet reads it, because the
@@ -24,18 +28,18 @@ test('a member of the Workspace reads, creates and builds every Project in it', 
   assert.equal(created.state, 'QUEUED')
   assert.deepEqual((await store.listBuilderRuns({ accountId: ID.member, projectId })).map((run) => run.builderRunId), [created.builderRunId])
   assert.equal(await store.admitSourceRevision({ accountId: ID.member, projectId, sourceRevision: BASE, readMain: async () => BASE }), true)
-  assert.deepEqual(await store.readPreviewSubject({ accountId: ID.member, projectId }), { lastPreviewSourceRevision: null, lastPreviewArtifactRevisionId: null, lastPreviewArtifactDigest: null })
+  assert.deepEqual(await readPreview(database, { accountId: ID.member, projectId }), { kind: 'EMPTY' })
 
   await assert.rejects(store.listBuilderRuns({ accountId: ID.outsider, projectId }), { id: 'PROJECT_NOT_FOUND' })
   assert.equal(await store.admitSourceRevision({ accountId: ID.outsider, projectId, sourceRevision: BASE, readMain: async () => BASE }), false)
-  await assert.rejects(store.readPreviewSubject({ accountId: ID.outsider, projectId }), { id: 'PROJECT_NOT_FOUND' })
+  await assert.rejects(readPreview(database, { accountId: ID.outsider, projectId }), { id: 'PROJECT_NOT_FOUND' })
   await assert.rejects(send(store, ID.outsider, projectId, 'two'), { id: 'PROJECT_NOT_FOUND' })
   await assert.rejects(store.requestBuilderRunCancellation({ accountId: ID.outsider, projectId, builderRunId: created.builderRunId }), { id: 'PROJECT_NOT_FOUND' })
 })
 
 test('removing the member stops the next claim and still records the work already done', async (t) => {
   const { connection, database, seedBuilderProject } = await setupBuilder(t, 'conexus_excision_removal')
-  const store = createBuilderStore({ database, ownerId: randomUUID() })
+  const store = createBuilderStore({ database, registry: createRegistryModule({ database }), ownerId: randomUUID() })
   const running = await seedBuilderProject('Running')
   const queued = await seedBuilderProject('Queued')
   const runningRun = await send(store, ID.member, running, 'one')
@@ -55,7 +59,7 @@ test('removing the member stops the next claim and still records the work alread
 
 test('an inactive account is refused everywhere, including Preview and source read', async (t) => {
   const { connection, database, seedBuilderProject } = await setupBuilder(t, 'conexus_excision_dormant')
-  const store = createBuilderStore({ database, ownerId: randomUUID() })
+  const store = createBuilderStore({ database, registry: createRegistryModule({ database }), ownerId: randomUUID() })
   const projectId = await seedBuilderProject('Dormant')
   const admits = () => store.admitSourceRevision({ accountId: ID.member, projectId, sourceRevision: BASE, readMain: async () => BASE })
 
@@ -63,7 +67,7 @@ test('an inactive account is refused everywhere, including Preview and source re
   await query(connection, 'UPDATE iam.account SET active = false WHERE account_id = $1', [ID.member])
 
   await assert.rejects(admits(), { id: 'ACCOUNT_INACTIVE' })
-  await assert.rejects(store.readPreviewSubject({ accountId: ID.member, projectId }), { id: 'ACCOUNT_INACTIVE' })
+  await assert.rejects(readPreview(database, { accountId: ID.member, projectId }), { id: 'ACCOUNT_INACTIVE' })
   await assert.rejects(store.readBuilderRun({ accountId: ID.member, projectId }), { id: 'ACCOUNT_INACTIVE' })
   await assert.rejects(send(store, ID.member, projectId, 'one'), { id: 'ACCOUNT_INACTIVE' })
 })

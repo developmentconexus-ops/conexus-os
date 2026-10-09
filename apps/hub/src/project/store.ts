@@ -5,6 +5,7 @@ import {
 } from '@conexus/contract'
 import { admitProject, admitWorkspace, receiptOf } from '../identity-access/public.js'
 import type { builderProjectPorts } from '../builder/public.js'
+import type { RegistryModule } from '../registry/public.js'
 import type { Database } from '../platform/db.js'
 import { sql } from '../platform/db.js'
 import { Failure } from '../platform/failure.js'
@@ -44,12 +45,14 @@ export const createProjectStore = ({
   repository,
   deletion,
   builder,
+  registry,
   mintRevision = randomUUID,
 }: Readonly<{
   database: Database
   repository: ProjectRepositoryPort
   deletion: ProjectDeletionPorts
   builder: BuilderProjectPorts
+  registry: Pick<RegistryModule, 'readPreviewPresence'>
   mintRevision?: () => string
 }>): ProjectStore => {
   const create = async ({ accountId, workspaceId, idempotencyKey, body }: CreateProjectInput): Promise<CreateProjectResult> => {
@@ -118,13 +121,14 @@ export const createProjectStore = ({
         FROM project.project AS stored
         LEFT JOIN project.project_deletion AS deletion ON deletion.project_id = stored.project_id AND deletion.completed_at IS NULL
         WHERE stored.workspace_id = ${proof.scope.workspaceId}`)
+      const hasPreview = new Set(await registry.readPreviewPresence(proof, projects.map((row) => row.project_id)))
       const activity = new Map((await builder.readProjectActivity(proof, projects.map((row) => row.project_id))).map((entry) => [entry.projectId, entry]))
       return projects.map((row) => {
         const latest = activity.get(row.project_id)
         const card: ProjectCard = row.state === 'deleting'
           ? { projectId: row.project_id, name: row.name, state: row.state }
           : { projectId: row.project_id, name: row.name, state: row.state, archived: row.archived,
-            lastActivityAt: (latest?.createdAt ?? row.created_at).toISOString(), latestRun: latest?.latestRun ?? null, hasPreview: latest?.hasPreview ?? false }
+            lastActivityAt: (latest?.createdAt ?? row.created_at).toISOString(), latestRun: latest?.latestRun ?? null, hasPreview: hasPreview.has(row.project_id) }
         return { card, sortAt: latest?.sortAt ?? row.sort_at }
       }).sort((a, b) => a.sortAt > b.sortAt ? -1 : a.sortAt < b.sortAt ? 1 : a.card.projectId < b.card.projectId ? -1 : a.card.projectId > b.card.projectId ? 1 : 0)
         .map(({ card }) => card)

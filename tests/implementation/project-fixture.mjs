@@ -61,7 +61,7 @@ export const setupProjects = async (t, prefix, { repository } = {}) => {
     hasOpenProjectRun: builderProjectPorts.hasOpenProjectRun, purgeBuilder: purgeProjectBuilder,
   }
   const repositoryPort = repository ?? { prepare: async () => STARTER }
-  const store = createProjectStore({ database, repository: repositoryPort, deletion: ports, builder: builderProjectPorts })
+  const store = createProjectStore({ database, repository: repositoryPort, deletion: ports, builder: builderProjectPorts, registry: createRegistryModule({ database }) })
   const deletion = createProjectDeletion({ database, ports })
   const seedProject = async (name = 'Atlas', workspaceId = ID.workspace, projectId = randomUUID()) => {
     await query(connection, `INSERT INTO project.project(project_id, workspace_id, name, source_mode, source_revision, project_revision)

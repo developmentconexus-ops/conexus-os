@@ -55,7 +55,7 @@ test('legal run variants retain the exact public summary payload at the database
 })
 
 const project = { project_id: projectId, workspace_id: id, name: 'Notebook' }
-const card = { project_id: projectId, latest_run: null, created_at: null, sort_at: null, has_preview: true }
+const card = { project_id: projectId, latest_run: null, created_at: null, sort_at: null }
 
 test('Project database boundaries keep current live and deleting list, detail and activity payloads', () => {
   const identity = { projectId, workspaceId: id, name: 'Notebook' }
@@ -64,9 +64,9 @@ test('Project database boundaries keep current live and deleting list, detail an
   for (const schema of [ListRow, DetailRow]) {
     assert.deepEqual(schema.parse({ ...project, state: 'deleting', archived: null, project_revision: null }), { ...identity, state: 'deleting' })
   }
-  assert.deepEqual(ActivityRow.parse(card), { projectId, latestRun: null, createdAt: null, sortAt: null, hasPreview: true })
+  assert.deepEqual(ActivityRow.parse(card), { projectId, latestRun: null, createdAt: null, sortAt: null })
   for (const ending of endings) {
-    assert.deepEqual(ActivityRow.parse({ ...card, latest_run: { state: ending.state, resultKind: ending.resultKind }, created_at: new Date(createdAt), sort_at: '1767225600000001' }), { projectId, latestRun: { state: ending.state, resultKind: ending.resultKind }, createdAt: new Date(createdAt), sortAt: 1767225600000001n, hasPreview: true })
+    assert.deepEqual(ActivityRow.parse({ ...card, latest_run: { state: ending.state, resultKind: ending.resultKind }, created_at: new Date(createdAt), sort_at: '1767225600000001' }), { projectId, latestRun: { state: ending.state, resultKind: ending.resultKind }, createdAt: new Date(createdAt), sortAt: 1767225600000001n })
   }
   assert.deepEqual(SummaryRow.parse({ ...project, state: 'deleting', archived: null, created_at: new Date(createdAt), sort_at: '1767225600000001' }), { project_id: projectId, name: 'Notebook', state: 'deleting', created_at: new Date(createdAt), sort_at: 1767225600000001n })
 })

@@ -6,6 +6,7 @@ import { query } from './hub-database.mjs'
 import { setupBuilder } from './builder-fixture.mjs'
 import { ID } from './project-fixture.mjs'
 
+const { createRegistryModule } = await import(built('registry/module.js'))
 const { createBuilderStore } = await import(built('builder/store.js'))
 const { createBuilderService } = await import(built('builder/service.js'))
 
@@ -20,7 +21,7 @@ const signal = new AbortController().signal
 const leaseHarness = async (t, name) => {
   const { connection: connectionString, database, seedBuilderProject, onCleanup } = await setupBuilder(t, name)
   const account = ID.owner
-  const store = createBuilderStore({ database, ownerId: HUB })
+  const store = createBuilderStore({ database, registry: createRegistryModule({ database }), ownerId: HUB })
   const holds = []
   const checkModel = () => new Promise((_resolve, reject) => { holds.push(reject) })
   const release = () => { for (const reject of holds.splice(0)) reject(new Error('released')) }

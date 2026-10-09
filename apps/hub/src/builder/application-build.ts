@@ -6,7 +6,7 @@ import { Failure } from '../platform/failure.js'
 import type { RegistryModule } from '../registry/public.js'
 
 export type { ServedLaunch } from '../registry/public.js'
-export type BuilderRegistry = Pick<RegistryModule, 'seal' | 'retain' | 'readLaunch'>
+export type BuilderRegistry = Pick<RegistryModule, 'seal' | 'retainAsPreview' | 'readLaunch' | 'readPreviewSubject'>
 
 // The application runner, as the Builder needs it: converge a Project's Preview schema on a built
 // artifact's migrations before that artifact is offered as a Preview, and run one candidate

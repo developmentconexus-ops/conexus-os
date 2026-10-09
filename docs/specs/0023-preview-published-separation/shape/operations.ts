@@ -5,7 +5,7 @@ import type { ApplicationRunnerClient } from '../../../../apps/hub/src/app-runne
 import type { Allocation, PreviewAllocation, PreviewSubject } from './types.js'
 
 export type RegistryPreviewOperations = Readonly<{
-  retainAsPreview: RegistryModule['retain']
+  retainAsPreview: RegistryModule['retainAsPreview']
   readPreviewSubject(proof: Admitted<ProjectScope<'project.read'>, 'read'>): Promise<PreviewSubject>
   readPreviewPresence(proof: Admitted<WorkspaceScope<'workspace.read'>, 'read'>, projectIds: readonly ProjectId[]): Promise<readonly ProjectId[]>
 }>

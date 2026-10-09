@@ -61,6 +61,7 @@ const TENANT_B = Object.freeze({
   'builder.project_repository': 'project_id = $2',
   'builder.project_working_state': 'project_id = $2',
   'connector.connection': 'workspace_id = $1',
+  'reg.project_preview': 'project_id = $2',
   'reg.artifact_revision': 'project_id = $2',
   'reg.application_thumbnail': 'artifact_revision_id IN (SELECT artifact_revision_id FROM reg.artifact_revision WHERE project_id = $2)',
   'connector.project_binding': 'workspace_id = $1',
@@ -129,7 +130,7 @@ const seedIdentityOfB = async (connection, projectId) => {
 // A thumbnail needs a served revision, an application and a retained image: seeded here by SQL for one Project.
 const seedThumbnail = async (connection, projectId, bytes) => {
   const revisionId = await seedRevision(connection, projectId, { sourceRevision: STARTER, digest: 'd'.repeat(64), payload: launchablePayload() })
-  await query(connection, 'UPDATE builder.project_working_state SET last_preview_source_revision = $2, last_preview_artifact_revision_id = $3, last_preview_artifact_digest = $4 WHERE project_id = $1', [projectId, STARTER, revisionId, 'd'.repeat(64)])
+  await query(connection, 'INSERT INTO reg.project_preview(project_id, source_revision, artifact_revision_id, digest) VALUES ($1, $2, $3, $4) ON CONFLICT (project_id) DO UPDATE SET source_revision = EXCLUDED.source_revision, artifact_revision_id = EXCLUDED.artifact_revision_id, digest = EXCLUDED.digest', [projectId, STARTER, revisionId, 'd'.repeat(64)])
   await query(connection, "INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, $2, $3)", [projectId, `app-${projectId.slice(0, 8)}`, ID.owner])
   await seedRevisionThumbnail(connection, revisionId, bytes)
   return revisionId
@@ -173,7 +174,7 @@ test('each operation answers its own tenant its rows, and with the ids of anothe
   const entries = []
   const database = recording(fixture.database, entries)
   const registry = createRegistryModule({ database })
-  const projects = createProjectStore({ database, repository: { prepare: async () => STARTER }, deletion: { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => undefined, purgeIdentityAccess: purgeProject, purgeRegistry: registry.purge, purgeConnectorBindings: purgeProjectBindings, hasOpenProjectRun: builderProjectPorts.hasOpenProjectRun, purgeBuilder: purgeProjectBuilder }, builder: builderProjectPorts })
+  const projects = createProjectStore({ database, repository: { prepare: async () => STARTER }, deletion: { releaseApplicationData: async () => undefined, killSandboxes: async () => undefined, deleteRepository: async () => undefined, purgeIdentityAccess: purgeProject, purgeRegistry: registry.purge, purgeConnectorBindings: purgeProjectBindings, hasOpenProjectRun: builderProjectPorts.hasOpenProjectRun, purgeBuilder: purgeProjectBuilder }, builder: builderProjectPorts, registry })
   const workspaces = createWorkspaceStore(database)
   const builder = createBuilderStore({ database, ownerId: randomUUID(), registry })
   const runOfB = (await query(connection, 'SELECT builder_run_id FROM builder.builder_run WHERE project_id = $1', [projectB])).rows[0].builder_run_id

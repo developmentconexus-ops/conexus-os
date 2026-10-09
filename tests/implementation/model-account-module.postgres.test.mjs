@@ -18,6 +18,7 @@ const { AnthropicKey, parseCredential } = await import(hubModuleUrl('model-accou
 const { createCredentialRefresh } = await import(hubModuleUrl('model-account/refresh.js'))
 const { modelAccountContext } = await import(hubModuleUrl('platform/secrets.js'))
 const { createBuilderModelRouting } = await import(hubModuleUrl('builder/model-routing.js'))
+const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
 const MDL = ['listAvailableModels', 'listModelAccounts', 'setModelAccountApiKey', 'startClaudeModelLogin', 'completeClaudeModelLogin', 'startCodexModelLogin', 'pollCodexModelLogin', 'getGoogleModelConnection', 'startGoogleModelLogin', 'completeGoogleModelLogin', 'getGoogleModelLoginStatus']
 const key = `sk-ant-api03-${'x'.repeat(40)}`
@@ -85,7 +86,7 @@ test('Builder and memory consume the concrete owner, record the actual payer bef
   const projectId = await f.seedBuilderProject()
   const runId = await f.seedRun(projectId)
   await query(f.connection, "INSERT INTO model.installation_default(role, model_id, updated_by) VALUES ('build', 'anthropic/claude-sonnet-5', $1), ('memory', 'anthropic/claude-haiku-4-5', $1)", [ID.owner])
-  const builder = createBuilderStore({ database: f.database, ownerId: OWNER, registry: {} })
+  const builder = createBuilderStore({ database: f.database, ownerId: OWNER, registry: createRegistryModule({ database: f.database }) })
   const routing = createBuilderModelRouting({ models: f.models, data: f.database, owner: { ownerId: OWNER }, conversationModel: async () => null,
     record: (builderRunId, accountId, modelAccountId) => builder.recordBuilderRunModelAccount({ builderRunId, accountId, modelAccountId }) })
   await routing.check({ accountId: ID.owner, projectId, conversationId: projectId })
@@ -250,7 +251,7 @@ test('actual personal selection refuses absent and unsupported providers, retain
   const codex = await f.connect({ provider: 'openai-codex', kind: 'oauth', value: { access: 'synthetic', refresh: 'synthetic', expires: 9_999_999_999_999, accountId: 'synthetic', email: null } })
   const projectId = await f.seedBuilderProject()
   const runId = await f.seedRun(projectId)
-  const builder = createBuilderStore({ database: f.database, ownerId: OWNER, registry: {} })
+  const builder = createBuilderStore({ database: f.database, ownerId: OWNER, registry: createRegistryModule({ database: f.database }) })
   const routing = createBuilderModelRouting({ models: f.models, data: f.database, owner: { ownerId: OWNER }, conversationModel: async () => null,
     record: (builderRunId, accountId, modelAccountId) => builder.recordBuilderRunModelAccount({ builderRunId, accountId, modelAccountId }) })
   const check = () => routing.check({ accountId: ID.owner, projectId, conversationId: projectId })

@@ -59,7 +59,7 @@ const estate = async (t, prefix, { invoke } = {}) => {
   await hub.seedWorkspace(W, 'Operações', [[OWNER, 'owner'], [MEMBER, 'member']])
   await hub.seedProject(P, W, 'Estoque Parado')
   const revision = await seedRevision(hub.connection, P, { sourceRevision: SOURCE, digest: DIGEST, payload: payloadOf([F, SERVER]) })
-  await hub.sql('UPDATE builder.project_working_state SET last_preview_source_revision = $2, last_preview_artifact_revision_id = $3, last_preview_artifact_digest = $4 WHERE project_id = $1', [P, SOURCE, revision, DIGEST])
+  await hub.sql('INSERT INTO reg.project_preview(project_id, source_revision, artifact_revision_id, digest) VALUES ($1, $2, $3, $4) ON CONFLICT (project_id) DO UPDATE SET source_revision = EXCLUDED.source_revision, artifact_revision_id = EXCLUDED.artifact_revision_id, digest = EXCLUDED.digest', [P, SOURCE, revision, DIGEST])
   await hub.sql('INSERT INTO iam.application (project_id, slug, created_by) VALUES ($1, $2, $3)', [P, SLUG, OWNER])
   await hub.sql('INSERT INTO iam.application_grant (project_id, account_id, granted_by) VALUES ($1, $2, $3)', [P, CAIO, OWNER])
   const registry = createRegistryModule({ database: hub.database })
@@ -149,7 +149,7 @@ test('a revoke committed before the check, or between the lookup and the check, 
   const token = await sessionOf(CAIO)
   await hub.sql('CREATE EXTENSION IF NOT EXISTS pgrowlocks')
   let locks
-  log.before(/builder\.project_working_state AS working/, async () => {
+  log.before(/reg\.project_preview AS preview/, async () => {
     locks = await hub.sql("SELECT * FROM pgrowlocks('iam.application_grant')")
     const client = new pg.Client(hub.connection)
     await client.connect()

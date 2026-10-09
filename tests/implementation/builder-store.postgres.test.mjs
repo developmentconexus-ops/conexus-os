@@ -7,6 +7,9 @@ import { OWNER, setupBuilder } from './builder-fixture.mjs'
 import { HEAD, ID } from './project-fixture.mjs'
 import { waitUntilBlocked } from './race.mjs'
 
+const { createRegistryModule } = await import(hubModuleUrl('registry/module.js'))
+const { admitProject } = await import(hubModuleUrl('identity-access/public.js'))
+const readPreview = (database, { accountId, projectId }) => database.read(accountId, async (gate) => createRegistryModule({ database }).readPreviewSubject(await admitProject(gate, { projectId, action: 'project.read' })))
 const { createBuilderStore } = await import(hubModuleUrl('builder/store.js'))
 const { purgeProjectBuilder } = await import(hubModuleUrl('builder/project-ports.js'))
 const { admitSystem } = await import(hubModuleUrl('identity-access/admission.js'))
@@ -25,13 +28,13 @@ const fields = (actual, ...keys) => Object.fromEntries(keys.map((key) => [key, a
 
 const harness = async (t, name) => {
   const fixture = await setupBuilder(t, name)
-  const store = createBuilderStore({ database: fixture.database, ownerId: OWNER })
+  const store = createBuilderStore({ database: fixture.database, registry: createRegistryModule({ database: fixture.database }), ownerId: OWNER })
   const start = (projectId, { accountId = ID.owner, key = randomUUID(), content = TEXT, conversationId = '33333333-3333-4333-8333-333333333333', readBase = async () => HEAD } = {}) =>
     store.createBuilderRun({ accountId, projectId, conversationId, idempotencyKey: key, content, readBase })
   const row = async (builderRunId) => (await query(fixture.connection, `SELECT state, phase, owner_id, failure_code, result_kind, candidate_revision, result_source_revision, sandbox_id, trigger_message_id,
     cancellation_requested_at IS NOT NULL AS cancellation_requested, cancellation_reason, finished_at IS NOT NULL AS finished FROM builder.builder_run WHERE builder_run_id = $1`, [builderRunId])).rows[0]
-  const working = async (projectId) => (await query(fixture.connection, `SELECT current_state, last_preview_source_revision, last_preview_artifact_revision_id, last_preview_artifact_digest
-    FROM builder.project_working_state WHERE project_id = $1`, [projectId])).rows[0]
+  const working = async (projectId) => (await query(fixture.connection, `SELECT working.current_state, preview.source_revision, preview.artifact_revision_id, preview.digest
+    FROM builder.project_working_state AS working LEFT JOIN reg.project_preview AS preview USING (project_id) WHERE working.project_id = $1`, [projectId])).rows[0]
   const running = async (projectId, options) => {
     const created = await start(projectId, options)
     await store.claimBuilderRun({ builderRunId: created.builderRunId })
@@ -141,14 +144,15 @@ test('every exit from RUNNING leaves a null phase, a response ends as RESPONSE_O
 
   const projectId = await seedBuilderProject('Built')
   const preview = { revision: randomUUID(), digest: 'd'.repeat(64) }
-  await query(connection, "UPDATE builder.project_working_state SET current_state = 'PREVIEW_READY', last_preview_source_revision = $2, last_preview_artifact_revision_id = $3, last_preview_artifact_digest = $4 WHERE project_id = $1", [projectId, HEAD, preview.revision, preview.digest])
+  await query(connection, "UPDATE builder.project_working_state SET current_state = 'PREVIEW_READY' WHERE project_id = $1", [projectId])
+  await query(connection, 'INSERT INTO reg.project_preview(project_id, source_revision, artifact_revision_id, digest) VALUES ($1, $2, $3, $4)', [projectId, HEAD, preview.revision, preview.digest])
   const built = await running(projectId)
   await store.recordBuilderRunCandidate({ builderRunId: built, accountId: ID.owner, sourceRevision: CANDIDATE })
   assert.equal((await row(built)).phase, 'SOURCE_ADMISSION')
   await store.advanceBuilderRunSource({ builderRunId: built, sourceRevision: CANDIDATE })
   await store.settleBuilderRunBuild({ kind: 'FAILED', builderRunId: built, sourceRevision: CANDIDATE, failureCode: 'BUILDER_PREVIEW_NOT_BUILT' })
   assert.deepEqual(fields(await row(built), 'state', 'phase', 'result_kind', 'result_source_revision', 'failure_code', 'finished'), { state: 'FAILED', phase: null, result_kind: 'SOURCE_CHANGED_BUILD_FAILED', result_source_revision: CANDIDATE, failure_code: 'BUILDER_PREVIEW_NOT_BUILT', finished: true })
-  assert.deepEqual(await working(projectId), { current_state: 'BUILD_FAILED', last_preview_source_revision: HEAD, last_preview_artifact_revision_id: preview.revision, last_preview_artifact_digest: preview.digest })
+  assert.deepEqual(await working(projectId), { current_state: 'BUILD_FAILED', source_revision: HEAD, artifact_revision_id: preview.revision, digest: preview.digest })
 })
 
 test('every ending writes the same final columns once: state, null phase, result, failure and finish time, and a stop keeps the first cancellation mark', async (t) => {
@@ -220,7 +224,7 @@ test('revoking the author refuses new work but the held owner can close the run 
   await assert.rejects(store.recordBuilderRunCandidate({ builderRunId, accountId: ID.member, sourceRevision: CANDIDATE }), { id: 'PROJECT_NOT_FOUND' })
   assert.deepEqual(await row(builderRunId), before)
   await assert.rejects(store.settleBuilderRun({ builderRunId }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
-  const wrongOwner = createBuilderStore({ database, ownerId: randomUUID() })
+  const wrongOwner = createBuilderStore({ database, registry: createRegistryModule({ database }), ownerId: randomUUID() })
   await assert.rejects(wrongOwner.failBuilderRun({ builderRunId, failureCode: 'BUILDER_RUN_NOT_ADMITTED' }), { id: 'BUILDER_RUN_NOT_ADMITTED' })
   await store.failBuilderRun({ builderRunId, failureCode: 'BUILDER_RUN_NOT_ADMITTED' })
   assert.equal((await row(builderRunId)).state, 'FAILED')
@@ -271,7 +275,7 @@ test('a claim and a cancellation race to one terminal row without a deadlock', a
 })
 
 test('the lists and reads answer a member their Project only, newest first, and name the open conversations', async (t) => {
-  const { store, seedRun, seedBuilderProject, connection } = await harness(t, 'conexus_builder_reads')
+  const { store, database, seedRun, seedBuilderProject, connection } = await harness(t, 'conexus_builder_reads')
   const projectId = await seedBuilderProject('Atlas')
   const otherProject = await seedBuilderProject('Borealis')
   const old = await seedRun(projectId, { state: 'SUCCEEDED', createdAgoMs: 3000, owner: null })
@@ -290,9 +294,10 @@ test('the lists and reads answer a member their Project only, newest first, and 
   await query(connection, "INSERT INTO iam.application(project_id, slug, created_by) VALUES ($1, 'atlas', $2)", [projectId, ID.owner])
   await query(connection, 'INSERT INTO iam.application_grant(project_id, account_id, granted_by) VALUES ($1, $2, $3)', [projectId, ID.outsider, ID.owner])
   await assert.rejects(store.listBuilderRuns({ accountId: ID.outsider, projectId }), { id: 'PROJECT_NOT_FOUND' }, 'an application grant is not Builder access')
-  await query(connection, 'UPDATE builder.project_working_state SET last_preview_source_revision = $2, last_preview_artifact_revision_id = $3, last_preview_artifact_digest = $4 WHERE project_id = $1', [projectId, HEAD, '30000000-0000-4000-8000-000000000001', 'e'.repeat(64)])
-  assert.deepEqual(await store.readPreviewSubject({ accountId: ID.member, projectId }), { lastPreviewSourceRevision: HEAD, lastPreviewArtifactRevisionId: '30000000-0000-4000-8000-000000000001', lastPreviewArtifactDigest: 'e'.repeat(64) })
-  await assert.rejects(store.readPreviewSubject({ accountId: ID.outsider, projectId }), { id: 'PROJECT_NOT_FOUND' })
+  await query(connection, 'INSERT INTO reg.project_preview(project_id, source_revision, artifact_revision_id, digest) VALUES ($1, $2, $3, $4) ON CONFLICT (project_id) DO UPDATE SET source_revision = EXCLUDED.source_revision, artifact_revision_id = EXCLUDED.artifact_revision_id, digest = EXCLUDED.digest', [projectId, HEAD, '30000000-0000-4000-8000-000000000001', 'e'.repeat(64)])
+  await query(connection, 'INSERT INTO reg.artifact_revision(artifact_revision_id, project_id, source_revision, digest, payload) VALUES ($1, $2, $3, $4, $5)', ['30000000-0000-4000-8000-000000000001', projectId, HEAD, 'e'.repeat(64), '{}'])
+  assert.deepEqual(await readPreview(database, { accountId: ID.member, projectId }), { kind: 'READY', sourceRevision: HEAD, artifactRevisionId: '30000000-0000-4000-8000-000000000001', digest: 'e'.repeat(64) })
+  await assert.rejects(readPreview(database, { accountId: ID.outsider, projectId }), { id: 'PROJECT_NOT_FOUND' })
 })
 
 test('a conversation session and its sandbox belong to the run Project, and a purge removes them with the run', async (t) => {
@@ -336,7 +341,8 @@ test('a conversation session and its sandbox belong to the run Project, and a pu
 test('the working state refuses a state, a revision and a digest outside their shapes', async (t) => {
   const { connection, seedBuilderProject } = await harness(t, 'conexus_builder_working_checks')
   const projectId = await seedBuilderProject('Atlas')
-  for (const [column, value] of [['current_state', 'UNKNOWN'], ['last_preview_source_revision', 'bad'], ['last_preview_artifact_digest', 'bad']]) {
-    await assert.rejects(query(connection, `UPDATE builder.project_working_state SET ${column} = $1 WHERE project_id = $2`, [value, projectId]), { code: '23514' }, column)
+  await assert.rejects(query(connection, "UPDATE builder.project_working_state SET current_state = 'UNKNOWN' WHERE project_id = $1", [projectId]), { code: '23514' })
+  for (const [source, digest] of [['bad', 'e'.repeat(64)], ['a'.repeat(40), 'bad']]) {
+    await assert.rejects(query(connection, 'INSERT INTO reg.project_preview(project_id, source_revision, artifact_revision_id, digest) VALUES ($1, $2, $3, $4)', [projectId, source, randomUUID(), digest]), { code: '23514' })
   }
 })
