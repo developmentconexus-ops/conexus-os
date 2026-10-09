@@ -50,11 +50,13 @@ Command: `bash docs/research/deployment/census.sh`
 - two PostgreSQL containers (the Hub's and the Applications') and Keycloak run beside them;
 - backups go to the same disk.
 
-**What the decided target keeps and drops.** After the decisions of 2026-10-09, five parts remain:
+**What the decided target keeps and drops.** After the decisions of 2026-10-09, five parts remain.
+The "instances" column is what **today's code** imposes, not what the parts need; section 5 asks
+which of those limits the refactor should remove.
 
-| Part | State it holds | Instances | Decided by |
+| Part | State it holds | Instances today | Decided by |
 | --- | --- | --- | --- |
-| Hub (Fastify, Better Auth inside it, the web app's static files) | none on disk; everything in PostgreSQL | exactly one (E7) | O1, A2 |
+| Hub (Fastify, Better Auth inside it, the web app's static files) | none on disk; everything in PostgreSQL | exactly one, always on (E6, E7) | O1, A2 |
 | Builder (Mastra AgentController, today inside the Hub process) | live sessions in memory; Conexus Git on disk (E3) | one, sticky | Builder service 9.1, A6, A7 |
 | Data service (new: the data plane without the sandbox) | app logins and their pools, in memory | one or more, stateless | app runtime 9.3 (recommended) |
 | PostgreSQL | the control databases `hub` and `builder`; one database per company | one instance now (section 9) | database 9.1 |
