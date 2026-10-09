@@ -171,3 +171,19 @@ const copiedSealed: SealedApplication = { ...sealed }
 const literalSealed: SealedApplication = { projectId: sealed.projectId, sourceRevision: sealed.sourceRevision, digest: sealed.digest }
 
 void [ForgedSealed, copiedSealed, literalSealed]
+
+import { lockPresentProject, requireCreatedProject } from '../../apps/hub/src/project/public.js'
+// @ts-expect-error Read admission cannot lock a Project for an executor transition.
+lockPresentProject(reader, project)
+// @ts-expect-error Workspace ids cannot select Projects.
+lockPresentProject(await admitSystem(gate, 'builder-executor'), workspace)
+// @ts-expect-error A different Workspace action cannot register a newly created Project.
+requireCreatedProject(owner, project)
+
+import { openProjectCondition } from '../../apps/hub/src/project/public.js'
+// @ts-expect-error A Workspace proof cannot select a Project predicate.
+openProjectCondition(reader)
+// @ts-expect-error A caller cannot substitute another Project for the proof scope.
+openProjectCondition(positiveChecked, project)
+// @ts-expect-error A system executor proof is not Project/application access.
+openProjectCondition(await admitSystem(gate, 'builder-executor'))

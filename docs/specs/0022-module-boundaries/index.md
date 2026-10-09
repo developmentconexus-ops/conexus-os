@@ -77,7 +77,7 @@ Registry keeps private payload storage in its WeakMap. Its hidden class has a pr
 | --- | --- | --- |
 | Project `requireCreatedProject` | `Admitted<WorkspaceScope<'project.create'>>`, `ProjectId` | Check inserted Project belongs to proof Workspace in the same creation transaction; Builder inserts its markers by VALUES only after this check. Missing/foreign Project refuses without markers. |
 | Project `lockPresentProject` | `Admitted<SystemScope<'builder-executor'>>`, `ProjectId` | Preserve exact `SELECT ... FOR SHARE` presence check before Builder locks the run. Do not add human admission to closure; do not remove owner/source checks. |
-| Project `isOpenProject` | Existing read/write `Admitted<ProjectScope>` or `Checked<ApplicationScope>` | Read exact proof Project, refuse archived/deleting/missing as today. Connector queries then reference only connector tables in the same transaction. |
+| Project `isOpenProject` / `openProjectCondition` | Existing `connections.bind`/`project.read` admission, or application `Checked` for the composed condition | Human helper uses its lock or repeatable-read snapshot. Broker composes the Project-owned predicate in its final Connector SELECT, preserving statement-time archive/deletion refusal under unlocked Checked/READ COMMITTED. |
 | Builder `readProjectActivity` | `Admitted<WorkspaceScope<'workspace.read'>, 'read'>`, Project ids selected by Project owner in that proof's snapshot | Return latest run using current `created_at DESC, builder_run_id DESC` tie break and preview presence from Builder tables. Project merges by branded id, formats timestamps identically, suppresses deleted fields and preserves final activity ordering. No separate database read or per-row network call. |
 | Builder `hasOpenProjectRun` | Current `project.delete` admission or `project-purge` system proof, Project id | Query current generated `OPEN_RUN_STATES` in caller transaction after Project lock. Deletion remains refused with `PROJECT_BUSY`; purge lock/order remains unchanged. |
 | IAM `readMemberWorkspaceIds` | `Admitted<AccountScope, 'read'>` | Read current account's membership ids only. Workspace reads names from its own tables in the same repeatable-read snapshot; administrator bypass remains unchanged. |
@@ -117,7 +117,7 @@ These probes do not prove admission, database races or the final public-entry gr
 
 ## Units and batches
 
-Batch A is U1-U3. Batch B is U4-U6. Each unit is one clean proved commit. At each batch closure the planning session arranges one independent review, with `boundary-review` and an exact head/proof map. Corrections rerun changed behavior and intersecting consumers. The authorized ship branch opens one ready batch PR to the explicit foundation integration base after review closure; no per-unit PR or worker merge. Firstmate may adjust checkpoint publication at technical acceptance, without silently changing scope.
+Batch A is U1-U3, accepted by Firstmate after one independent review at `3f6a56b462fb8464eccf71394ebee6a68575ce11`. Batch B is U4-U6. Both batches remain on the same cumulative authorized branch, with one proved commit per unit and one independent closing B review. After B acceptance, publish one final ready PR to `wave/company-model-accounts-spec`. No intermediate publication, assumed landed base or worker merge is authorized. This cadence was coordinated by Firstmate on 2026-10-09.
 
 ### U1. Pin behavior and the real consumers
 
@@ -170,7 +170,7 @@ Requires U3. Satisfies AC-4, AC-6. Creates `project/transactions.ts` and a selec
 | --- | --- | --- | --- |
 | `builder/project-ports.ts#register` | Project store creation; Builder fixture/hub entry | Call Project `requireCreatedProject`; replace two cross-owner INSERT SELECTs with Builder-only VALUES inserts in same transaction | Project create replay/foreign/rollback tests; marker count |
 | `builder/run-lifecycle.ts#heldRun`, `builder/conversation-store.ts#recordConversationSession` | Run steps/recovery/session fake and real stores | Pass existing executor proof to Project `lockPresentProject`; remove direct Project SELECT; maintain Project-before-run locking | Admission races, run recovery and conversation store PostgreSQL |
-| `connectors/store.ts#requireOpenProject,#listBindings,#readConnectionCredential` | Connector store, definition/executor, binding tools and handler ports | Use Project `isOpenProject`; delete all six Project relation occurrences; preserve existing proof branch and Connector filtering | Connector/bind-admission/cross-tenant SQL suites; archived/deleting/foreign credential cases |
+| `connectors/store.ts#requireOpenProject,#listBindings,#readConnectionCredential` | Connector store, definition/executor, binding tools and handler ports | Use Project `isOpenProject` for protected human binding calls and `openProjectCondition` in final broker statements; delete all six foreign relation occurrences; preserve proof branches, filtering and statement snapshots | Connector/bind-admission/cross-tenant SQL suites; archived/deleting/foreign credential cases |
 | `scripts/check-import-law.mjs` Project interface and dependencies; `scripts/check-boundaries.mjs` existing authority writers | Native checker | Register consumer entries now; do not defer verifier changes to U6 | Static checks and negative gate/write fixtures |
 | Tests/fakes constructing any mapped owner | Actual constructor parameters are retained | Static same-transaction functions avoid optional port additions and broad fake API changes; migrate changed signatures directly | Runtime and compile consumers |
 
@@ -304,3 +304,5 @@ This inventory supplements the unit action tables. A file may move more than one
 | `tests/repository/gate-import-rule.test.mjs` | U2 | Audit actual symbol/declaration origin; preserve forbidden gate/admission/receipt cases. |
 | `tests/repository/hub-call-sites.mjs` | U2 | Audit actual symbol/declaration origin; preserve forbidden gate/admission/receipt cases. |
 | `tests/repository/import-law.test.mjs` | U2, U3 | Migrate valid entry fixtures; preserve deliberate violation fixtures and their named refusal checks. |
+
+U4 technical correction accepted by Firstmate on 2026-10-09: a paired real-store race passes at Batch A and fails when broker Project eligibility is read in a preceding Boolean query. Application checks hold no Project lock under READ COMMITTED. The owner predicate must remain in the final binding/credential statement; no isolation, authority or lock change is authorized. Permanent archive/deletion races cover both readers.

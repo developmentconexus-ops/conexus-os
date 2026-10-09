@@ -1,18 +1,21 @@
 import type { ProjectId } from '@conexus/contract'
 import type { Admitted, SystemScope, WorkspaceScope } from '../identity-access/public.js'
+import { requireCreatedProject } from '../project/public.js'
 import { sql } from '../platform/db.js'
 
 /** The Builder's write on the Project's creation transaction: the proof is its check. */
 export const builderProjectPorts = {
   /** Makes the working state and repository markers of a Project that was just inserted into the proof's workspace, each once. */
-  register: async ({ tx, scope }: Admitted<WorkspaceScope<'project.create'>>, projectId: ProjectId) => {
+  register: async (proof: Admitted<WorkspaceScope<'project.create'>>, projectId: ProjectId) => {
+    await requireCreatedProject(proof, projectId)
+    const { tx } = proof
     await tx.run(sql`
       INSERT INTO builder.project_working_state (project_id)
-      SELECT project.project_id FROM project.project AS project WHERE project.project_id = ${projectId} AND project.workspace_id = ${scope.workspaceId}
+      VALUES (${projectId})
       ON CONFLICT (project_id) DO NOTHING`)
     await tx.run(sql`
       INSERT INTO builder.project_repository (project_id)
-      SELECT project.project_id FROM project.project AS project WHERE project.project_id = ${projectId} AND project.workspace_id = ${scope.workspaceId}
+      VALUES (${projectId})
       ON CONFLICT (project_id) DO NOTHING`)
   },
 }

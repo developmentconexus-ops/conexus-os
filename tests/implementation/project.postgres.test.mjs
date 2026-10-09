@@ -204,3 +204,18 @@ test('an admitted Workspace with no Projects has no activity cards', async (t) =
   const { store } = await setupProjects(t, 'conexus_card_empty')
   assert.deepEqual(await store.listProjectSummariesWithActivity({ accountId: ID.owner, workspaceId: ID.workspace }), [])
 })
+
+
+test('Builder registration refuses a foreign Workspace Project before inserting markers', async (t) => {
+  const { builderProjectPorts } = await import(hubModuleUrl('builder/project-ports.js'))
+  const { database, connection, seedProject } = await setupProjects(t, 'conexus_prj_foreign_register')
+  const foreign = await seedProject('Foreign', ID.otherWorkspace)
+  await query(connection, 'DELETE FROM builder.project_repository WHERE project_id = $1', [foreign])
+  await query(connection, 'DELETE FROM builder.project_working_state WHERE project_id = $1', [foreign])
+  await assert.rejects(database.transaction(ID.owner, async (gate) => {
+    const proof = await admitWorkspace(gate, { workspaceId: ID.workspace, action: 'project.create' })
+    await builderProjectPorts.register(proof, foreign)
+  }), { id: 'PROJECT_NOT_FOUND' })
+  assert.deepEqual((await query(connection, 'SELECT project_id FROM builder.project_repository WHERE project_id = $1', [foreign])).rows, [])
+  assert.deepEqual((await query(connection, 'SELECT project_id FROM builder.project_working_state WHERE project_id = $1', [foreign])).rows, [])
+})

@@ -1,3 +1,4 @@
+import { isOpenProject, openProjectCondition } from '../project/public.js'
 import { z } from 'zod'
 import {
   BindingId, BindingName, ConnectionId, ConnectorIdText, type ProjectId,
@@ -57,12 +58,7 @@ const toEntry = (row: z.output<typeof EntryRow>): ConnectionBindingEntry => row.
 
 // An archived Project refuses every binding operation, as one in deletion does through its admission.
 const requireOpenProject = async <M extends Mode>(proof: Admitted<ProjectScope<'connections.bind'>, M>): Promise<void> => {
-  const { tx, scope } = proof
-  const found = await tx.maybe(Present, sql`
-    SELECT 1 AS present FROM project.project AS stored
-    WHERE stored.project_id = ${scope.projectId} AND NOT stored.archived
-      AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = stored.project_id)`)
-  if (!found) throw new Failure('PROJECT_NOT_FOUND')
+  if (!await isOpenProject(proof)) throw new Failure('PROJECT_NOT_FOUND')
 }
 
 export type ConnectorStore = Readonly<{
@@ -227,10 +223,8 @@ export const createBrokerStore = (database: Database): BrokerStore => {
         SELECT bound.binding_id, bound.name, bound.connection_id, stored.connector_id
         FROM connector.project_binding AS bound
         JOIN connector.connection AS stored ON stored.connection_id = bound.connection_id
-        JOIN project.project AS bound_project ON bound_project.project_id = bound.project_id
         WHERE bound.project_id = ${projectId} AND bound.environment = ${ENVIRONMENT}
-          AND bound.unbound_at IS NULL AND stored.disabled_at IS NULL AND NOT bound_project.archived
-          AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = bound_project.project_id)
+          AND bound.unbound_at IS NULL AND stored.disabled_at IS NULL AND ${openProjectCondition(proof)}
         ORDER BY bound.name`)).map((row) => ({ bindingId: row.binding_id, name: row.name, connectionId: row.connection_id, connectorId: row.connector_id }))),
     readConnectionCredential: (scope, connectionId) => asConsumer<Sealed<'connection'> | null>(scope, null, async (proof, projectId) =>
       (await proof.tx.maybe(SealedRow, sql`
@@ -238,9 +232,7 @@ export const createBrokerStore = (database: Database): BrokerStore => {
         WHERE stored.connection_id = ${connectionId} AND stored.disabled_at IS NULL
           AND EXISTS (
             SELECT 1 FROM connector.project_binding AS bound
-            JOIN project.project AS bound_project ON bound_project.project_id = bound.project_id
-            WHERE bound.project_id = ${projectId} AND bound.connection_id = stored.connection_id AND bound.unbound_at IS NULL
-              AND NOT bound_project.archived
-              AND NOT EXISTS (SELECT 1 FROM project.project_deletion AS deletion WHERE deletion.project_id = bound_project.project_id))`))?.credential_sealed ?? null),
+            WHERE bound.project_id = ${projectId} AND bound.connection_id = stored.connection_id AND bound.unbound_at IS NULL)
+          AND ${openProjectCondition(proof)}`))?.credential_sealed ?? null),
   })
 }

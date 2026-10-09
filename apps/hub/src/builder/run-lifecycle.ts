@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { lockPresentProject } from '../project/public.js'
 import { canonicalBytes, sha256 } from '../../../../packages/canonical-json/src/index.mjs'
 import { AccountId, BuilderRunId, ProjectId, SourceRevision, type ConversationId, type ModelAccountId } from '@conexus/contract'
 import { admitProject, admitRun, admitSystem, type Admitted, type ProjectScope, type RunOwner, type RunScope, type SystemScope } from '../identity-access/public.js'
@@ -156,9 +157,10 @@ const lockWorking = async (tx: WriteTx, projectId: ProjectId, transition: Transi
   if (!await tx.maybe(Present, sql`SELECT 1 AS present FROM builder.project_working_state WHERE project_id = ${projectId} FOR UPDATE`)) throw transitionRefused(transition)
 }
 
-const heldRun = async (tx: WriteTx, builderRunId: BuilderRunId, ownerId: string): Promise<z.output<typeof Held> | null> => {
+const heldRun = async (proof: Admitted<SystemScope<'builder-executor'>>, builderRunId: BuilderRunId, ownerId: string): Promise<z.output<typeof Held> | null> => {
+  const { tx } = proof
   const initial = await tx.maybe(z.object({ project_id: ProjectId }), sql`SELECT project_id FROM builder.builder_run WHERE builder_run_id = ${builderRunId}`)
-  if (!initial || !await tx.maybe(Present, sql`SELECT 1 AS present FROM project.project WHERE project_id = ${initial.project_id} FOR SHARE`)) return null
+  if (!initial || !await lockPresentProject(proof, initial.project_id)) return null
   const run = await tx.maybe(Held, sql`
     SELECT project_id, owner_id::text AS owner_id, state, candidate_revision, result_source_revision
     FROM builder.builder_run WHERE builder_run_id = ${builderRunId} FOR UPDATE`)
@@ -166,7 +168,7 @@ const heldRun = async (tx: WriteTx, builderRunId: BuilderRunId, ownerId: string)
 }
 
 const closeHeldRun = async (proof: Admitted<SystemScope<'builder-executor'>>, input: Readonly<{ builderRunId: BuilderRunId; owner: RunOwner; ending: RunEnding }>): Promise<void> => {
-  const run = await heldRun(proof.tx, input.builderRunId, input.owner.ownerId)
+  const run = await heldRun(proof, input.builderRunId, input.owner.ownerId)
   if (!run || await endRun(proof, { builderRunId: input.builderRunId, projectId: run.project_id, ending: input.ending, from: 'open' }) !== 1) throw new Failure('BUILDER_RUN_NOT_ADMITTED')
 }
 
@@ -236,7 +238,7 @@ export const createRunSteps = ({ database, ownerId, registry }: Readonly<{ datab
     }),
     advanceBuilderRunSource: ({ builderRunId, sourceRevision }) => database.system('builder-executor', async (gate) => {
       const proof = await admitSystem(gate, 'builder-executor')
-      const run = await heldRun(proof.tx, builderRunId, ownerId)
+      const run = await heldRun(proof, builderRunId, ownerId)
       if (run?.state !== 'RUNNING') throw transitionRefused('source settlement')
       await lockWorking(proof.tx, run.project_id, 'source settlement')
       if (run.result_source_revision === sourceRevision) return
@@ -245,7 +247,7 @@ export const createRunSteps = ({ database, ownerId, registry }: Readonly<{ datab
     }),
     settleBuilderRunBuild: (settlement) => database.system('builder-executor', async (gate) => {
       const proof = await admitSystem(gate, 'builder-executor')
-      const run = await heldRun(proof.tx, settlement.builderRunId, ownerId)
+      const run = await heldRun(proof, settlement.builderRunId, ownerId)
       const sourceRevision = settlement.kind === 'BUILT' ? settlement.sealed.sourceRevision : settlement.sourceRevision
       if (run?.state !== 'RUNNING' || run.result_source_revision !== sourceRevision || run.candidate_revision !== sourceRevision) throw transitionRefused('build settlement')
       await lockWorking(proof.tx, run.project_id, 'build settlement')
