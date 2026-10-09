@@ -7,7 +7,13 @@ not installed by the repository. The operator installs them once, after the pull
 
 1. Open `conexus-backup.service` and replace each `CHANGE-ME` value: the sealing key file (add one
    `--key-file` line per key, including every file named in `CONEXUS_PREVIOUS_SECRET_KEY_FILES`) and
-   the Keycloak container name. Confirm the container, database and paths match the pilot.
+   the Keycloak container name, the separate Applications container and its installation password file.
+   Confirm both database names and all paths against the installation. `--applications-database` matches
+   `CONEXUS_APP_DB_NAME`; `--applications-user` matches `CONEXUS_APP_DB_INSTALL_USER` and defaults to
+   `postgres`. The Applications password file is `CONEXUS_APP_DB_INSTALL_PASSWORD_FILE`.
+   Keep provisioning and schema or grant changes quiescent during the backup window. Table writes may
+   continue. The [backup runbook](../../docs/reference/backup.md) describes the separate snapshots and
+   credential, TLS and server recovery prerequisites.
 2. Copy both files, with `%h/conexus-os` pointing at a checkout of `main`:
 
    ```bash
